@@ -14,7 +14,7 @@ export function ProductCatalogName({
   imageS3Key?: string | null;
   imageUrl?: string | null;
   empty?: string;
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
   className?: string;
   iconClassName?: string;
 }) {

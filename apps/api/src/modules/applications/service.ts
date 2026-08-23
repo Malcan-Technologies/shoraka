@@ -76,8 +76,8 @@ import { assertApplicationProcessingFeePaid } from "../payment/processing-fee-se
 import {
   generateContractOfferLetterStream,
   generateInvoiceOfferLetterStream,
+  buildInvoiceOfferLetterDto,
   type ContractOfferDetails,
-  type InvoiceOfferDetails,
 } from "./offer-letter-pdf";
 import { applyContractCapacityChange } from "../../lib/refresh-contract-facility";
 import {
@@ -86,7 +86,6 @@ import {
   resolveRequestedFacility,
 } from "../../lib/contract-facility";
 import { assertFacilityBelowContractValue } from "../../lib/contract-capacity-errors";
-import { resolveOfferedPlatformFeeRatePercent } from "../../lib/invoice-offer";
 import {
   ApplicationStatus,
   ContractStatus,
@@ -103,6 +102,9 @@ import {
   hasActionableDirectorShareholder,
   preserveSplitOriginationMarker,
   withSplitOriginationMarker,
+  computeFacilityFeeTotalOwed,
+  parseFiniteNumber,
+  parseInvoiceFeeSchedule,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import {
@@ -132,6 +134,7 @@ import {
   assertApplicationSubmitOrigination,
   assertExistingFacilityDrawdown,
 } from "./split-origination-guards";
+import { assertFacilityLinkedInvoiceAcceptFees } from "../../lib/facility-fee-collect-reservation";
 
 function financialToNum(v: unknown): number {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
@@ -2680,6 +2683,10 @@ export class ApplicationService {
         const facilityFeeRatePercent = Number.isFinite(facilityFeeRatePercentRaw)
           ? facilityFeeRatePercentRaw
           : 0;
+        const facilityFeeTotalAmount = computeFacilityFeeTotalOwed(
+          offeredFacility,
+          facilityFeeRatePercent
+        );
 
         let updatedOffer: Record<string, unknown> = {
           ...offer,
@@ -2696,17 +2703,21 @@ export class ApplicationService {
         }
 
         const cd = (contract.contract_details as Record<string, unknown>) || {};
+        const existingPaid =
+          typeof cd.facility_fee_paid_amount === "number" &&
+          Number.isFinite(cd.facility_fee_paid_amount)
+            ? (cd.facility_fee_paid_amount as number)
+            : 0;
         const mergedDetails =
           action === "accept"
             ? {
                 ...cd,
                 approved_facility: offeredFacility,
                 facility_fee_rate_percent: facilityFeeRatePercent,
-                facility_fee_paid_amount:
-                  typeof cd.facility_fee_paid_amount === "number" &&
-                  Number.isFinite(cd.facility_fee_paid_amount)
-                    ? (cd.facility_fee_paid_amount as number)
-                    : 0,
+                facility_fee_total_amount: facilityFeeTotalAmount,
+                facility_fee_paid_amount: existingPaid,
+                facility_fee_waived: false,
+                facility_enabled: true,
               }
             : cd;
 
@@ -2966,11 +2977,13 @@ export class ApplicationService {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
 
-    const invoices = (application as { invoices?: { id: string }[] }).invoices ?? [];
+    const invoices =
+      (application as { invoices?: { id: string; contract_id?: string | null }[] }).invoices ?? [];
     const invoice = invoices.find((inv) => inv.id === invoiceId);
     if (!invoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
     }
+    const occupancyContractId = invoice.contract_id ?? application.contract_id;
     await this.assertPhasedOfferDirectAcceptBlocked({
       application,
       action,
@@ -2987,8 +3000,12 @@ export class ApplicationService {
     const isInvoiceOnlyPrimary = !application.contract_id;
     const respondInvoiceInTx = async (tx: Prisma.TransactionClient) => {
       const lockedInvoiceRows = await tx.$queryRaw<
-        { status: string; offer_details: Prisma.JsonValue | null }[]
-      >`SELECT status, offer_details FROM invoices WHERE id = ${invoiceId} AND application_id = ${applicationId} FOR UPDATE`;
+        {
+          status: string;
+          offer_details: Prisma.JsonValue | null;
+          contract_id: string | null;
+        }[]
+      >`SELECT status, offer_details, contract_id FROM invoices WHERE id = ${invoiceId} AND application_id = ${applicationId} FOR UPDATE`;
 
       const dbInvoice = lockedInvoiceRows[0];
       if (!dbInvoice) {
@@ -3002,6 +3019,23 @@ export class ApplicationService {
       const offer = dbInvoice.offer_details as Record<string, unknown> | null;
       if (!offer || typeof offer !== "object") {
         throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
+      }
+
+      if (action === "accept") {
+        const acceptContractId = dbInvoice.contract_id ?? occupancyContractId;
+        if (acceptContractId) {
+          const contract = await tx.contract.findUnique({
+            where: { id: acceptContractId },
+            select: { contract_details: true },
+          });
+          const schedule = parseInvoiceFeeSchedule(offer);
+          await assertFacilityLinkedInvoiceAcceptFees(tx, {
+            contractId: acceptContractId,
+            currentInvoiceId: invoiceId,
+            proposedCollectAmount: schedule?.facilityFeeCollectAmount ?? 0,
+            contractDetails: contract?.contract_details,
+          });
+        }
       }
 
       assertAcceptanceDeadlineOpen(getOfferAcceptanceFromOfferDetails(offer));
@@ -3182,9 +3216,9 @@ export class ApplicationService {
             invoiceId,
           }
         : undefined;
-    const responseMeta = application.contract_id
+    const responseMeta = occupancyContractId
       ? (
-          await applyContractCapacityChange(application.contract_id, prisma, respondInvoiceInTx, {
+          await applyContractCapacityChange(occupancyContractId, prisma, respondInvoiceInTx, {
             assertWrite: true,
             audit: invoiceAcceptAudit,
           })
@@ -3295,9 +3329,9 @@ export class ApplicationService {
 
     const acceptanceExpiresAt = getOfferAcceptanceFromOfferDetails(offer)?.acceptance_expires_at;
     const offerDetails: ContractOfferDetails = {
-      requested_facility: Number(offer.requested_facility) || undefined,
-      offered_facility: Number(offer.offered_facility) || undefined,
-      facility_fee_rate_percent: Number(offer.facility_fee_rate_percent) || undefined,
+      requested_facility: parseFiniteNumber(offer.requested_facility),
+      offered_facility: parseFiniteNumber(offer.offered_facility),
+      facility_fee_rate_percent: parseFiniteNumber(offer.facility_fee_rate_percent) ?? 0,
       expires_at: typeof acceptanceExpiresAt === "string" ? acceptanceExpiresAt : undefined,
     };
 
@@ -3344,33 +3378,19 @@ export class ApplicationService {
       throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
     }
 
-    let facilityFeeRatePercent: number | undefined;
-    let facilityFeeCapAmount: number | undefined;
-    if (dbInvoice.contract_id) {
+    const schedule = parseInvoiceFeeSchedule(offer);
+    let contractDetails: Record<string, unknown> | null = null;
+    if (!schedule && dbInvoice.contract_id) {
       const contract = await prisma.contract.findUnique({
         where: { id: dbInvoice.contract_id },
         select: { contract_details: true },
       });
-      const cd = (contract?.contract_details as Record<string, unknown> | null) ?? null;
-      const rate = Number(cd?.facility_fee_rate_percent);
-      const approvedFacility = Number(cd?.approved_facility);
-      if (Number.isFinite(rate) && rate > 0) {
-        facilityFeeRatePercent = rate;
-        if (Number.isFinite(approvedFacility) && approvedFacility > 0) {
-          facilityFeeCapAmount = approvedFacility * (rate / 100);
-        }
-      }
+      contractDetails = (contract?.contract_details as Record<string, unknown> | null) ?? null;
     }
 
     const acceptanceExpiresAt = getOfferAcceptanceFromOfferDetails(offer)?.acceptance_expires_at;
-    const offerDetails: InvoiceOfferDetails = {
-      requested_amount: Number(offer.requested_amount) || undefined,
-      offered_amount: Number(offer.offered_amount) || undefined,
-      offered_ratio_percent: Number(offer.offered_ratio_percent) || undefined,
-      offered_profit_rate_percent: Number(offer.offered_profit_rate_percent) || undefined,
-      platform_fee_rate_percent: resolveOfferedPlatformFeeRatePercent(offer),
-      facility_fee_rate_percent: facilityFeeRatePercent,
-      facility_fee_cap_amount: facilityFeeCapAmount,
+    const offerDetails = {
+      ...buildInvoiceOfferLetterDto(offer, contractDetails),
       expires_at: typeof acceptanceExpiresAt === "string" ? acceptanceExpiresAt : undefined,
     };
 

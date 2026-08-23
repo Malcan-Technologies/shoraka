@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FACILITY_FEE_RATE_MAX_PERCENT } from "@cashsouk/types";
 
 // Date range values (matches @cashsouk/config date-ranges.ts)
 export const dateRangeValues = ["24h", "7d", "30d", "all"] as const;
@@ -91,6 +92,19 @@ function hasMaxDecimalPlaces(value: number, maxDecimals: number): boolean {
   return Math.abs(scaled - rounded) < 1e-9;
 }
 
+const defaultFacilityFeeRatePercentSchema = z
+  .number()
+  .min(0, "Default facility fee rate cannot be negative")
+  .max(
+    FACILITY_FEE_RATE_MAX_PERCENT,
+    `Default facility fee rate cannot exceed ${FACILITY_FEE_RATE_MAX_PERCENT}%`
+  )
+  .refine((v) => hasMaxDecimalPlaces(v, 2), {
+    message: "Default facility fee rate can have up to 2 decimal places",
+  })
+  .optional()
+  .nullable();
+
 // Body for POST /v1/products (create). Version defaults to 1; not accepted from client.
 export const createProductBodySchema = z.object({
   workflow: z
@@ -112,13 +126,7 @@ export const createProductBodySchema = z.object({
     .refine((v) => hasMaxDecimalPlaces(v, 2), { message: "Service fee rate can have up to 2 decimal places" })
     .optional()
     .nullable(),
-  default_facility_fee_rate_percent: z
-    .number()
-    .min(0)
-    .max(100)
-    .refine((v) => hasMaxDecimalPlaces(v, 2), { message: "Default facility fee rate can have up to 2 decimal places" })
-    .optional()
-    .nullable(),
+  default_facility_fee_rate_percent: defaultFacilityFeeRatePercentSchema,
   product_code: requiredProductCodeSchema,
 });
 
@@ -147,13 +155,7 @@ export const updateProductBodySchema = z.object({
     .refine((v) => hasMaxDecimalPlaces(v, 2), { message: "Service fee rate can have up to 2 decimal places" })
     .optional()
     .nullable(),
-  default_facility_fee_rate_percent: z
-    .number()
-    .min(0)
-    .max(100)
-    .refine((v) => hasMaxDecimalPlaces(v, 2), { message: "Default facility fee rate can have up to 2 decimal places" })
-    .optional()
-    .nullable(),
+  default_facility_fee_rate_percent: defaultFacilityFeeRatePercentSchema,
   product_code: productCodeSchema,
 });
 

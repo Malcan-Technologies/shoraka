@@ -49,8 +49,12 @@ export function InvoiceAttentionCard({
       detail={invoiceAttentionDetail(row, resolveInvoiceAttentionFinancedPercent(row))}
       hint={action.hint}
       product={
-        productName?.trim() ? (
-          <ProductCatalogName name={productName} imageS3Key={productImageS3Key} />
+        (productName ?? row.productName)?.trim() ? (
+          <ProductCatalogName
+            name={productName ?? row.productName}
+            imageS3Key={productImageS3Key}
+            size="xs"
+          />
         ) : null
       }
       related={

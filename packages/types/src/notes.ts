@@ -1,4 +1,5 @@
 import type { SoukscoreRiskRating } from "./invoice-offer-risk-rating";
+import type { FacilityFeeCollectionWaiver, InvoiceFeeSchedule } from "./fee-schedule";
 
 /** Display label for a stored note reference (e.g. NOTE-20260512-ABC → Note 20260512-ABC). */
 export function formatNoteReferenceDisplay(reference: string | null | undefined): string {
@@ -356,6 +357,8 @@ export interface NoteDetail extends NoteListItem {
   paymasterSnapshot: Record<string, unknown> | null;
   contractSnapshot: Record<string, unknown> | null;
   invoiceSnapshot: Record<string, unknown> | null;
+  feeSchedule?: InvoiceFeeSchedule | null;
+  facilityFeeCollectionWaiver?: FacilityFeeCollectionWaiver | null;
   serviceFeeCustomerScope: string | null;
   gracePeriodDays: number;
   arrearsThresholdDays: number;
@@ -858,6 +861,14 @@ export interface WithdrawalInstruction {
   facilityFeeRemainingAfter?: number;
   /** Present only for some issuer disbursement withdrawals (contract financing). */
   netIssuerDisbursement?: number;
+  additionalFees?: Array<{
+    name: string;
+    kind: "amount" | "percent_of_funded";
+    value: number;
+    chargedAmount: number;
+  }>;
+  facilityFeeCollectionWaived?: boolean;
+  contractFacilityFeeWaived?: boolean;
   currency: string;
   beneficiarySnapshot: Record<string, unknown>;
   letterS3Key: string | null;

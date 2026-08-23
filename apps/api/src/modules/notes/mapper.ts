@@ -4,6 +4,9 @@ import {
   getProspectusDisplayStatus,
   hasSettlementTrusteeMovementFromPoolSummary,
   isSoukscoreRiskRating,
+  parseAdditionalFeeCharges,
+  parseFacilityFeeCollectionWaiver,
+  parseInvoiceFeeSchedule,
   resolveContractPurpose,
   resolveContractTitle,
   resolveProductImageS3KeyFromSnapshot,
@@ -121,6 +124,11 @@ export function mapWithdrawalInstruction(withdrawal: WithdrawalRecord) {
   const netIssuerDisbursement = metadata
     ? numberFromUnknownOrUndefined(metadata.netIssuerDisbursement)
     : undefined;
+  const additionalFees = parseAdditionalFeeCharges(metadata?.additionalFees);
+  const facilityFeeCollectionWaived =
+    metadata?.facilityFeeCollectionWaived === true ? true : undefined;
+  const contractFacilityFeeWaived =
+    metadata?.contractFacilityFeeWaived === true ? true : undefined;
 
   return {
     id: withdrawal.id,
@@ -142,6 +150,9 @@ export function mapWithdrawalInstruction(withdrawal: WithdrawalRecord) {
     facilityFeeCharged,
     facilityFeeRemainingAfter,
     netIssuerDisbursement,
+    additionalFees,
+    facilityFeeCollectionWaived,
+    contractFacilityFeeWaived,
     currency: withdrawal.currency,
     beneficiarySnapshot: normaliseBeneficiarySnapshot(withdrawal.beneficiary_snapshot),
     letterS3Key: withdrawal.letter_s3_key,
@@ -536,6 +547,8 @@ export async function mapNoteDetail(
     paymasterSnapshot: asRecord(note.paymaster_snapshot),
     contractSnapshot: asRecord(note.contract_snapshot),
     invoiceSnapshot: asRecord(note.invoice_snapshot),
+    feeSchedule: parseInvoiceFeeSchedule(asRecord(note.invoice_snapshot)?.offer_details),
+    facilityFeeCollectionWaiver: parseFacilityFeeCollectionWaiver(note.invoice_snapshot),
     serviceFeeCustomerScope: note.service_fee_customer_scope,
     gracePeriodDays: note.grace_period_days,
     arrearsThresholdDays: note.arrears_threshold_days,

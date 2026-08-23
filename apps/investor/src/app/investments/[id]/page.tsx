@@ -175,10 +175,8 @@ export default function InvestmentDetailPage() {
         description={
           note
             ? [
-                isInvestedView
-                  ? note.issuerName?.trim() || "Issuer"
-                  : note.purposeOfFinancing?.trim() ||
-                    formatNoteReferenceDisplay(note.noteReference),
+                note.purposeOfFinancing?.trim() ||
+                  formatNoteReferenceDisplay(note.noteReference),
                 note.issuerIndustry?.trim(),
               ]
                 .filter(Boolean)

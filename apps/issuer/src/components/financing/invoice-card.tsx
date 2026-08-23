@@ -70,7 +70,7 @@ function InvoiceFeeSummary({
         <LabelValue label="Net disbursed" tabular>
           —
         </LabelValue>
-        <LabelValue label="Platform fee" tabular>
+        <LabelValue label="Drawdown fee" tabular>
           —
         </LabelValue>
         <LabelValue label="Facility fee" tabular>
@@ -89,8 +89,11 @@ function InvoiceFeeSummary({
 
   const platformValue = display.platformFeeAmount != null ? money(display.platformFeeAmount) : "—";
 
-  const facilityValue =
-    display.facilityFeeAmount != null
+  const facilityValue = display.facilityFeeCollectionWaived
+    ? display.waiverReason
+      ? `Waived — ${display.waiverReason}`
+      : "Waived"
+    : display.facilityFeeAmount != null
       ? `${money(display.facilityFeeAmount)}${capReached ? " (cap reached)" : ""}`
       : "—";
 
@@ -99,12 +102,17 @@ function InvoiceFeeSummary({
       <LabelValue label="Net disbursed" tabular>
         {netDisbursed}
       </LabelValue>
-      <LabelValue label="Platform fee" tabular>
+      <LabelValue label="Drawdown fee" tabular>
         {platformValue}
       </LabelValue>
       <LabelValue label="Facility fee" tabular>
         {facilityValue}
       </LabelValue>
+      {display.additionalFeeCharges.map((line, index) => (
+        <LabelValue key={`${line.name}-${index}`} label={line.name} tabular>
+          {money(line.chargedAmount)}
+        </LabelValue>
+      ))}
     </div>
   );
 }
@@ -148,6 +156,7 @@ export function DashboardInvoiceCard({
     contractFacilityFeeRatePercent: contractFeeContext?.facilityFeeRatePercent,
     contractFacilityFeeCapAmount: contractFeeContext?.facilityFeeCapAmount,
     contractFacilityFeePaidAmount: contractFeeContext?.facilityFeePaidAmount,
+    invoiceSnapshot: invoiceModal,
     actual: row.note?.disbursementBreakdown,
   });
   const showFeeSummary = feeDisplay.phase !== "pending" || offerStatus === "Offer received";
@@ -297,9 +306,10 @@ export function DashboardInvoiceCard({
                 <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
                 <LabelValue label="Product">
                   <ProductCatalogName
-                    name={productName}
+                    name={productName ?? row.productName}
                     imageS3Key={productImageS3Key}
                     empty={EM_DASH}
+                    size="xs"
                   />
                 </LabelValue>
                 {row.note?.id ? (

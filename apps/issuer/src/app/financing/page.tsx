@@ -13,7 +13,11 @@ import {
   type FilterChip,
 } from "@cashsouk/ui";
 import type { Product } from "@cashsouk/types";
-import { buildProductDisplayMap, type ProductDisplay } from "@/lib/product-display";
+import {
+  buildProductDisplayMap,
+  resolveIssuerProductDisplay,
+  type ProductDisplay,
+} from "@/lib/product-display";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -113,11 +117,17 @@ function renderFinancingContractRow(
   row: IssuerDashboardContract,
   productDisplayMap: Map<string, ProductDisplay>
 ) {
+  const product = resolveIssuerProductDisplay(
+    productDisplayMap,
+    [row.productId],
+    [row.productName]
+  );
   return (
     <DashboardContractCard
       row={row}
       offerStatus={getOfferStatus(asContractForModal(row.contractForModal))}
-      productImageS3Key={productDisplayMap.get(row.productId ?? "")?.imageS3Key ?? null}
+      productName={product.name}
+      productImageS3Key={product.imageS3Key}
     />
   );
 }
@@ -138,14 +148,33 @@ function renderFinancingInvoiceRow(
   if (row.kind === "note") {
     return <DashboardNoteCard note={row.note} />;
   }
-  const product = productDisplayMap.get(row.invoice.productId ?? "");
+  const relatedContract = contracts.find((contract) => contract.id === row.invoice.contractId);
+  const product = resolveIssuerProductDisplay(
+    productDisplayMap,
+    [row.invoice.productId, relatedContract?.productId],
+    [row.invoice.productName, relatedContract?.productName]
+  );
   return (
     <DashboardInvoiceCard
       row={row.invoice}
       offerStatus={getOfferStatus(asInvoiceForModal(row.invoice.invoiceForModal))}
       facilityDisplayReference={facilityDisplayReferenceFor(row.invoice.contractId, contracts)}
-      productName={product?.name ?? null}
-      productImageS3Key={product?.imageS3Key ?? null}
+      productName={product.name}
+      productImageS3Key={product.imageS3Key}
+      contractFeeContext={
+        relatedContract
+          ? {
+              facilityFeeRatePercent: (
+                asContractForModal(relatedContract.contractForModal).contract_details as
+                  | Record<string, unknown>
+                  | null
+                  | undefined
+              )?.facility_fee_rate_percent,
+              facilityFeeCapAmount: relatedContract.facilityFeeCapAmount,
+              facilityFeePaidAmount: relatedContract.facilityFeePaidAmount,
+            }
+          : undefined
+      }
     />
   );
 }
@@ -158,12 +187,18 @@ function renderFinancingInvoiceAttentionRow(
   if (row.kind === "note") {
     return <NoteAttentionCard note={row.note} />;
   }
+  const relatedContract = contracts.find((contract) => contract.id === row.invoice.contractId);
+  const product = resolveIssuerProductDisplay(
+    productDisplayMap,
+    [row.invoice.productId, relatedContract?.productId],
+    [row.invoice.productName, relatedContract?.productName]
+  );
   return (
     <InvoiceAttentionCard
       row={row.invoice}
       facilityDisplayReference={facilityDisplayReferenceFor(row.invoice.contractId, contracts)}
-      productName={productDisplayMap.get(row.invoice.productId ?? "")?.name ?? null}
-      productImageS3Key={productDisplayMap.get(row.invoice.productId ?? "")?.imageS3Key ?? null}
+      productName={product.name}
+      productImageS3Key={product.imageS3Key}
     />
   );
 }
@@ -294,11 +329,17 @@ function IssuerFinancingPageContent() {
     const q = invoiceSearch.trim().toLowerCase();
     if (!q) return base;
     return base.filter((row) => {
-      const productId = row.kind === "invoice" ? row.invoice.productId : "";
-      const productName = productNameMap.get(productId ?? "") ?? "";
+      const productName =
+        row.kind === "invoice"
+          ? resolveIssuerProductDisplay(
+              productDisplayMap,
+              [row.invoice.productId],
+              [row.invoice.productName]
+            ).name
+          : row.note.productName ?? "";
       return financingInvoiceRowSearchHaystack(row, productName).includes(q);
     });
-  }, [invoiceRows, invoiceFilters, invoiceSearch, productNameMap]);
+  }, [invoiceRows, invoiceFilters, invoiceSearch, productDisplayMap]);
 
   React.useEffect(() => {
     setContractPage(1);
@@ -525,15 +566,23 @@ function IssuerFinancingPageContent() {
                   <FinancingAttentionList
                     attentionCount={attentionContracts.length}
                     carouselLabel="Facilities that need your attention"
-                    attentionItems={attentionContracts.map((c) => ({
-                      key: c.id,
-                      node: (
-                        <FacilityAttentionCard
-                          row={c}
-                          productImageS3Key={productDisplayMap.get(c.productId ?? "")?.imageS3Key ?? null}
-                        />
-                      ),
-                    }))}
+                    attentionItems={attentionContracts.map((c) => {
+                      const product = resolveIssuerProductDisplay(
+                        productDisplayMap,
+                        [c.productId],
+                        [c.productName]
+                      );
+                      return {
+                        key: c.id,
+                        node: (
+                          <FacilityAttentionCard
+                            row={c}
+                            productName={product.name}
+                            productImageS3Key={product.imageS3Key}
+                          />
+                        ),
+                      };
+                    })}
                   />
                   <ListToolbar
                     searchValue={contractSearch}

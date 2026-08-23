@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   AdminEntityHeader,
   AdminEntitySummaryCard,
+  AdminProductIdentity,
 } from "@/components/admin-detail";
 import { ApplicationStatusBadge } from "@/components/application-review";
 import { CopyableText } from "@/organizations/components/organization-profile-helpers";
@@ -24,6 +25,7 @@ export function ApplicationDetailHero({
   applicationId,
   displayReference,
   productName,
+  productImageS3Key,
   status,
   structureLabel,
   directorPending,
@@ -51,6 +53,7 @@ export function ApplicationDetailHero({
   applicationId: string;
   displayReference?: string | null;
   productName?: string;
+  productImageS3Key?: string | null;
   status: string;
   structureLabel: string;
   directorPending: boolean;
@@ -86,7 +89,7 @@ export function ApplicationDetailHero({
     displayReference: displayReference ?? null,
     id: applicationId,
   });
-  const subtitle = productName ? `${reference} · ${productName}` : reference;
+  const subtitle = reference;
 
   const amendmentTooltip = isAmendmentRequested
     ? "Amendment already requested; issuer must respond first"
@@ -113,6 +116,7 @@ export function ApplicationDetailHero({
       eyebrow="Application detail"
       title={title}
       subtitle={subtitle}
+      identityExtra={<AdminProductIdentity name={productName} imageS3Key={productImageS3Key} />}
       icon={DocumentTextIcon}
       chips={
         <>

@@ -31,6 +31,7 @@ import { usePatchContractCustomerLargePrivate } from "@/hooks/use-application-re
 import { format } from "date-fns";
 import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility, resolveApprovedFacility } from "@cashsouk/config";
 import {
+  FACILITY_FEE_RATE_MAX_PERCENT,
   getOfferPhaseDeadlineDisplay,
   previewAcceptanceDeadlineFromWorkflow,
   REQUESTED_FACILITY_BELOW_CONTRACT_COPY,
@@ -288,8 +289,8 @@ export function ContractSection({
         ? "Facility fee rate must be a valid number"
         : null;
     }
-    if (facilityFeeRatePercentParsed < 0 || facilityFeeRatePercentParsed > 100) {
-      return "Facility fee rate must be between 0% and 100%";
+    if (facilityFeeRatePercentParsed < 0 || facilityFeeRatePercentParsed > FACILITY_FEE_RATE_MAX_PERCENT) {
+      return `Facility fee rate must be between 0% and ${FACILITY_FEE_RATE_MAX_PERCENT}%`;
     }
     const scaled = facilityFeeRatePercentParsed * 100;
     const rounded = Math.round(scaled);
@@ -645,8 +646,9 @@ export function ContractSection({
                       aria-invalid={!!facilityFeeRatePercentError}
                     />
                     <div className="text-xs text-muted-foreground">
-                      Facility Fee rate for this facility offer. Allowed range: 0% to 100%, up to 2 decimal places.
-                      This is charged progressively only when invoice financing is disbursed.
+                      Facility Fee rate for this facility offer. Allowed range: 0% to {FACILITY_FEE_RATE_MAX_PERCENT}%,
+                      up to 2 decimal places. The full fee is owed when the issuer accepts the facility offer;
+                      collection timing is at Shoraka discretion.
                     </div>
                   </div>
                   {facilityFeeRatePercentError ? (

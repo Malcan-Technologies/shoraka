@@ -74,11 +74,12 @@ export class InvoiceService {
       contract: {
         findUnique: (query: {
           where: { id: string };
-          select: { id: true; status: true; issuer_organization_id: true };
+          select: { id: true; status: true; issuer_organization_id: true; contract_details: true };
         }) => Promise<{
           id: string;
           status: string | null;
           issuer_organization_id: string | null;
+          contract_details: unknown;
         } | null>;
       };
     };
@@ -104,7 +105,7 @@ export class InvoiceService {
     const drawdownContract = selectedFacilityId
       ? await args.tx.contract.findUnique({
           where: { id: selectedFacilityId },
-          select: { id: true, status: true, issuer_organization_id: true },
+          select: { id: true, status: true, issuer_organization_id: true, contract_details: true },
         })
       : null;
     assertExistingFacilityDrawdown(args.application, drawdownContract);

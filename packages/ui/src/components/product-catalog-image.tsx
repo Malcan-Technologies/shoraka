@@ -24,14 +24,14 @@ export function ProductCatalogImage({
   if (!src) return fallback ?? null;
 
   return (
-    <span
+    <img
+      src={src}
+      alt={alt || ""}
       className={cn(
-        "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-muted",
+        "shrink-0 object-contain",
         size === "lg" ? "size-14" : "size-11",
         className
       )}
-    >
-      <img src={src} alt={alt || ""} className="size-full object-contain" />
-    </span>
+    />
   );
 }

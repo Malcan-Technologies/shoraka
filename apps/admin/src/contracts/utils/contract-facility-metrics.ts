@@ -1,5 +1,5 @@
 import { formatCurrency } from "@cashsouk/config";
-import { hasCompletedCapacitySnapshot } from "@cashsouk/types";
+import { hasCompletedCapacitySnapshot, resolveFacilityFeeBalance } from "@cashsouk/types";
 
 /**
  * Facility amounts arrive from two places: `approvedFacility` is a typed number
@@ -75,6 +75,39 @@ export function resolveContractFacilityFeeCap(
   const rate = parseFacilityAmount(facilityFeeRatePercent);
   if (rate == null || rate <= 0 || approved <= 0) return null;
   return approved * (rate / 100);
+}
+
+export type ContractFacilityFeeLedger = {
+  owed: number;
+  charged: number;
+  waived: number;
+  remaining: number;
+  enabled: boolean;
+  disabledReason: string | null;
+  waivedAtContract: boolean;
+};
+
+export function resolveContractFacilityFeeLedger(input: {
+  approved: number;
+  contractDetails?: Record<string, unknown> | null;
+}): ContractFacilityFeeLedger {
+  const balance = resolveFacilityFeeBalance({
+    ...(input.contractDetails ?? {}),
+    approved_facility: input.approved,
+  });
+  return {
+    owed: balance.totalOwed,
+    charged: balance.paid,
+    waived: balance.waivedAmount,
+    remaining: balance.remaining,
+    enabled: balance.enabled,
+    disabledReason: balance.disabledReason,
+    waivedAtContract: balance.waived,
+  };
+}
+
+export function canWaiveContractFacilityFee(ledger: ContractFacilityFeeLedger): boolean {
+  return !ledger.waivedAtContract && ledger.remaining > 0;
 }
 
 /** Paid-to-date vs cap from the same contract_details fields the facility tab uses. */

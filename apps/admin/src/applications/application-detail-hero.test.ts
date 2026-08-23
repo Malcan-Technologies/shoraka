@@ -15,6 +15,8 @@ describe("application detail hero", () => {
     expect(heroSource).toContain('variant="hero"');
     expect(heroSource).toContain("getAdminStatusToken(status)");
     expect(heroSource).toContain("Requested facility");
+    expect(heroSource).toContain("AdminProductIdentity");
+    expect(heroSource).toContain("productImageS3Key");
     expect(heroSource).toContain('variant="outline"');
     expect(heroSource).toContain('variant="destructive"');
   });

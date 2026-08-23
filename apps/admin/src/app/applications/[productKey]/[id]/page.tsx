@@ -40,6 +40,7 @@ import {
 } from "@/components/application-review";
 import { useProducts } from "@/hooks/use-products";
 import { productName, resolveDisplayProductForNav } from "@/app/settings/products/product-utils";
+import { resolveProductImageS3KeyFromWorkflow } from "@cashsouk/types";
 import {
   getReviewTabLabel,
   getTabUnlockTooltip,
@@ -185,6 +186,9 @@ export default function DynamicApplicationDetailPage() {
     : undefined;
 
   const currentProductName = currentProduct ? productName(currentProduct) : undefined;
+  const currentProductImageS3Key = currentProduct
+    ? resolveProductImageS3KeyFromWorkflow(currentProduct.workflow)
+    : null;
   const productDefaultFacilityFeeRatePercent =
     (currentProduct as { default_facility_fee_rate_percent?: number | null })
       ?.default_facility_fee_rate_percent ?? null;
@@ -842,6 +846,7 @@ export default function DynamicApplicationDetailPage() {
                   applicationId={app.id}
                   displayReference={(app as { displayReference?: string | null }).displayReference}
                   productName={currentProductName}
+                  productImageS3Key={currentProductImageS3Key}
                   status={app.status}
                   structureLabel={applicationFinancingStructureLabel(
                     (app.financing_structure as { structure_type?: string } | null)?.structure_type
@@ -1043,6 +1048,9 @@ export default function DynamicApplicationDetailPage() {
                               offeredProfitRatePercent,
                               platformFeeRatePercent,
                               risk_rating,
+                              feeScheduleMode,
+                              facilityFeeCollectAmount,
+                              additionalFees,
                             }) => {
                               try {
                                 await sendInvoiceOffer.mutateAsync({
@@ -1053,6 +1061,9 @@ export default function DynamicApplicationDetailPage() {
                                   offeredProfitRatePercent,
                                   platformFeeRatePercent,
                                   risk_rating,
+                                  feeScheduleMode,
+                                  facilityFeeCollectAmount,
+                                  additionalFees,
                                 });
                                 if (isInvoiceOnly && hasAcceptanceTab) {
                                   toast.success("Invoice offer sent — continue on Acceptance");

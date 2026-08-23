@@ -14,7 +14,9 @@ export function NoteCard({ note }: { note: NoteListItem }) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <CardTitle className="text-lg">{note.title}</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">{note.issuerName ?? "Issuer"}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {note.purposeOfFinancing?.trim() || note.title}
+            </p>
           </div>
           <NoteStatusBadge note={note} className="shrink-0" viewer="investor" />
         </div>

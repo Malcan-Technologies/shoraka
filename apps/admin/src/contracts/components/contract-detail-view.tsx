@@ -3,7 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import { formatCurrency } from "@cashsouk/config";
-import { formatContractReference } from "@cashsouk/types";
+import { formatContractReference, resolveProductImageS3KeyFromWorkflow } from "@cashsouk/types";
+import { useProduct } from "@/app/settings/products/hooks/use-products";
+import { productName } from "@/app/settings/products/product-utils";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import {
   ArrowDownTrayIcon,
@@ -24,6 +26,7 @@ import {
   AdminDetailTabs,
   AdminEntityHeader,
   AdminEntitySummaryCard,
+  AdminProductIdentity,
   AdminMetricProgress,
   AdminNextActionBanner,
   useAdminDetailTabState,
@@ -47,13 +50,14 @@ import {
 import { ContractActivityPanel } from "./contract-activity-panel";
 import { ContractApplicationsTable } from "./contract-applications-table";
 import { ContractNotesTable } from "./contract-notes-table";
+import { ContractFacilityFeePanel } from "./contract-facility-fee-panel";
 import { ContractFacilitySummary } from "@/components/application-review/contract-facility-summary";
 import {
   formatContractFacilityNoteCount,
   getContractUtilizationAccentClass,
   getContractUtilizationProgressClass,
   parseFacilityAmount,
-  resolveContractFacilityFeeCollected,
+  resolveContractFacilityFeeLedger,
   resolveContractFacilityMetrics,
 } from "@/contracts/utils/contract-facility-metrics";
 import {
@@ -103,6 +107,16 @@ const CONTRACT_CURATED_KEYS = [
   "lifetime_remaining",
   "facility_fee_rate_percent",
   "facility_fee_paid_amount",
+  "facility_fee_total_amount",
+  "facility_fee_waived",
+  "facility_fee_waived_amount",
+  "facility_fee_waived_at",
+  "facility_fee_waived_by_user_id",
+  "facility_fee_waived_reason",
+  "facility_enabled",
+  "facility_disabled_reason",
+  "facility_disabled_at",
+  "facility_disabled_by_user_id",
   "document",
 ];
 
@@ -192,7 +206,14 @@ function ContractDetailSkeleton() {
 export function ContractDetailView({ contractId }: { contractId: string }) {
   const { can } = usePermissions();
   const canViewOrganizations = can("organizations.view");
+  const canManageFacility = can("contracts.manage");
   const { data, isLoading, error } = useContractDetail(contractId);
+  const catalogProductId =
+    data?.applications.find((application) => application.kind === "facility" && application.productId)
+      ?.productId ??
+    data?.applications.find((application) => application.productId)?.productId ??
+    null;
+  const { data: catalogProduct } = useProduct(catalogProductId);
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
 
@@ -264,6 +285,8 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
   }
 
   if (!data) return null;
+  const catalogName = catalogProduct ? productName(catalogProduct) : null;
+  const catalogProductLabel = catalogName && catalogName !== "—" ? catalogName : null;
 
   const facilityApplications = data.applications.filter((application) => application.kind === "facility");
   const invoiceApplications = data.applications.filter((application) => application.kind === "invoice");
@@ -277,10 +300,9 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
   });
   const facility = resolveContractFacilityMetrics(data);
   const facilityFeeRatePercent = parseFacilityAmount(contractDetails?.facility_fee_rate_percent);
-  const facilityFeeCollected = resolveContractFacilityFeeCollected({
+  const facilityFeeLedger = resolveContractFacilityFeeLedger({
     approved: facility.approved,
-    facilityFeeRatePercent: contractDetails?.facility_fee_rate_percent,
-    facilityFeePaidAmount: contractDetails?.facility_fee_paid_amount,
+    contractDetails,
   });
   const headerMetrics = getContractHeaderMetrics(contractDetails, {
     approvedFacility: facility.approved,
@@ -309,6 +331,12 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
         backLabel="Facilities"
         eyebrow="Facility detail"
         title={data.title?.trim() || "Untitled facility"}
+        identityExtra={
+          <AdminProductIdentity
+            name={catalogProductLabel}
+            imageS3Key={resolveProductImageS3KeyFromWorkflow(catalogProduct?.workflow)}
+          />
+        }
         subtitle={
           <>
             <span className="font-mono">{contractReference}</span>
@@ -521,8 +549,8 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
             lifetimeRemaining={facility.lifetimeRemaining}
           />
           <ContractFieldsCard
-            title="Facility fee"
-            description="Approved line, live utilization, reserved invoices, and facility fee."
+            title="Line of credit"
+            description="Approved line, live utilization, and reserved invoices."
             icon={BanknotesIcon}
           >
             <div>
@@ -553,21 +581,6 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
                 }
               />
               <ContractDetailRow
-                label="Facility fee rate"
-                value={
-                  facilityFeeRatePercent == null
-                    ? CONTRACT_EMPTY_LABEL
-                    : formatContractFieldValue(
-                        "facility_fee_rate_percent",
-                        facilityFeeRatePercent
-                      )
-                }
-              />
-              <ContractDetailRow
-                label="Facility fee collected"
-                value={facilityFeeCollected?.display ?? CONTRACT_EMPTY_LABEL}
-              />
-              <ContractDetailRow
                 label={REMAINING_ALLOCATION_LABEL}
                 value={
                   facility.lifetimeCap > 0
@@ -577,6 +590,12 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
               />
             </div>
           </ContractFieldsCard>
+          <ContractFacilityFeePanel
+            contractId={data.id}
+            facilityFeeRatePercent={facilityFeeRatePercent}
+            ledger={facilityFeeLedger}
+            canManage={canManageFacility}
+          />
 
           <Card className="rounded-2xl">
             <AdminDetailCardHeader

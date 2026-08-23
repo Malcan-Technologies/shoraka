@@ -13,7 +13,9 @@ import {
   getContractUtilizationProgressClass,
   parseFacilityAmount,
   resolveAdminReviewFacilityOccupancy,
+  canWaiveContractFacilityFee,
   resolveContractFacilityFeeCollected,
+  resolveContractFacilityFeeLedger,
   resolveContractFacilityMetrics,
   resolvePendingFacilityFromSnapshot,
   sumPendingInvoiceFacility,
@@ -323,5 +325,47 @@ describe("resolveContractFacilityFeeCollected", () => {
         facilityFeePaidAmount: null,
       })
     ).toBeNull();
+  });
+});
+
+describe("resolveContractFacilityFeeLedger", () => {
+  it("reports owed, charged, waived, remaining, and enabled status", () => {
+    const ledger = resolveContractFacilityFeeLedger({
+      approved: 100_000,
+      contractDetails: {
+        facility_fee_rate_percent: 1,
+        facility_fee_paid_amount: 300,
+        facility_fee_waived: false,
+        facility_enabled: true,
+      },
+    });
+    expect(ledger).toMatchObject({
+      owed: 1_000,
+      charged: 300,
+      waived: 0,
+      remaining: 700,
+      enabled: true,
+      waivedAtContract: false,
+    });
+    expect(canWaiveContractFacilityFee(ledger)).toBe(true);
+  });
+
+  it("zeros remaining after a full remaining waiver and reports disable reason", () => {
+    const ledger = resolveContractFacilityFeeLedger({
+      approved: 100_000,
+      contractDetails: {
+        facility_fee_rate_percent: 1,
+        facility_fee_paid_amount: 200,
+        facility_fee_waived: true,
+        facility_fee_waived_amount: 800,
+        facility_enabled: false,
+        facility_disabled_reason: "Paused for review",
+      },
+    });
+    expect(ledger.remaining).toBe(0);
+    expect(ledger.waived).toBe(800);
+    expect(ledger.enabled).toBe(false);
+    expect(ledger.disabledReason).toBe("Paused for review");
+    expect(canWaiveContractFacilityFee(ledger)).toBe(false);
   });
 });

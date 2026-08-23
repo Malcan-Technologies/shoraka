@@ -19,9 +19,11 @@ import {
 
 export function FacilityAttentionCard({
   row,
+  productName,
   productImageS3Key,
 }: {
   row: IssuerDashboardContract;
+  productName?: string | null;
   productImageS3Key?: string | null;
 }) {
   const action = getFacilityAttentionAction(row);
@@ -40,8 +42,12 @@ export function FacilityAttentionCard({
       detail={facilityAttentionDetail(row)}
       hint={action.hint}
       product={
-        row.productName?.trim() ? (
-          <ProductCatalogName name={row.productName} imageS3Key={productImageS3Key} />
+        (productName ?? row.productName)?.trim() ? (
+          <ProductCatalogName
+            name={productName ?? row.productName}
+            imageS3Key={productImageS3Key}
+            size="xs"
+          />
         ) : null
       }
       ctaHref={action.href}

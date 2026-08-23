@@ -21,7 +21,7 @@ import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "./review-registry";
 import { isSignedContractOfferLetterAvailable } from "./offer-signing-availability";
 import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
-import type { SoukscoreRiskRating } from "@cashsouk/types";
+import type { SendInvoiceOfferUiPayload } from "@/components/utilisation-fee-lines";
 
 export interface SectionCommentRecord {
   id: string;
@@ -75,6 +75,8 @@ export type ReviewApplicationView = {
     offer_details?: unknown;
     offer_signing?: unknown;
     application_id?: string;
+    contract_id?: string | null;
+    facilityFeeAvailableToReserve?: number | null;
   }[];
   application_review_items?: unknown;
   application_review_remarks?: unknown;
@@ -152,14 +154,7 @@ export interface SectionContentProps {
     offeredFacility: number;
     facilityFeeRatePercent: number | null;
   }) => Promise<void>;
-  onSendInvoiceOffer?: (payload: {
-    invoiceId: string;
-    offeredAmount: number;
-    offeredRatioPercent: number;
-    offeredProfitRatePercent: number;
-    platformFeeRatePercent: number;
-    risk_rating: SoukscoreRiskRating;
-  }) => Promise<void>;
+  onSendInvoiceOffer?: (payload: SendInvoiceOfferUiPayload) => Promise<void>;
   sendContractOfferPending?: boolean;
   sendInvoiceOfferPending?: boolean;
   onAddSectionComment?: (section: ReviewSectionId, comment: string) => Promise<void> | void;

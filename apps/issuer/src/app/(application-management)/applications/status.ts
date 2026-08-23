@@ -120,8 +120,11 @@ export interface NormalizedInvoice {
   document: string;
   documentS3Key: string | null;
   financingOffered: string;
-  /** Platform fee (% at disbursement) when an offer exists; "—" otherwise. */
+  /** Drawdown fee (% at disbursement) when an offer exists; "—" otherwise. Stored as platform_fee_*. */
   platformFee: string;
+  /** Invoice JSON used to parse frozen fee schedule overrides (waiver). */
+  details?: Record<string, unknown> | null;
+  invoiceSnapshot?: unknown;
   profitRate: string;
   status: string;
   offerStatus: "Offer received" | "Offer expired" | null;
@@ -188,6 +191,11 @@ export interface NormalizedApplication {
   facilityFeeRatePercent: number | null;
   facilityFeeCapAmount: number | null;
   facilityFeePaidAmount: number | null;
+  facilityFeeWaived?: boolean;
+  facilityFeeWaivedAmount?: number | null;
+  facilityFeeRemainingAmount?: number | null;
+  facilityEnabled?: boolean;
+  facilityDisabledReason?: string | null;
   updatedAt: string;
   invoices: NormalizedInvoice[];
   contractStatus: string | null;

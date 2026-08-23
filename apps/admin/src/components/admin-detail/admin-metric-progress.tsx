@@ -43,8 +43,8 @@ export function AdminMetricProgress({
   const clamped = Math.min(Math.max(percent, 0), 100);
   const hero = variant === "hero";
   const valueClass = hero
-    ? "mt-1 truncate text-section-title tabular-nums tracking-tight"
-    : "mt-1 truncate text-body font-semibold";
+    ? "mt-1 break-words text-section-title tabular-nums tracking-tight"
+    : "mt-1 break-words text-body font-semibold";
 
   return (
     <div
@@ -54,25 +54,39 @@ export function AdminMetricProgress({
         className
       )}
     >
-      <div className={cn("flex flex-wrap justify-between gap-3", hero ? "items-end" : "items-start")}>
+      <div className="grid grid-cols-2 items-start gap-x-3 gap-y-1">
         <div className="min-w-0">
           <div className={cn("text-meta", accentClassName ?? "text-muted-foreground")}>
             {leftLabel}
           </div>
           <div className={cn(valueClass, accentClassName)}>{leftValue}</div>
-          {leftHint ? (
-            <div className="mt-1 text-meta text-muted-foreground">{leftHint}</div>
-          ) : null}
         </div>
-        <div className="text-right">
+        <div className="min-w-0 text-right">
           <div className={cn("text-meta", accentClassName ?? "text-muted-foreground")}>
             {rightLabel}
           </div>
           <div className={cn(valueClass, accentClassName)}>{rightValue}</div>
-          {rightHint ? (
-            <div className="mt-1 text-meta text-muted-foreground">{rightHint}</div>
-          ) : null}
         </div>
+        {leftHint ? (
+          <div
+            className={cn(
+              "min-w-0 text-meta text-muted-foreground",
+              !rightHint && "col-span-2"
+            )}
+          >
+            {leftHint}
+          </div>
+        ) : null}
+        {rightHint ? (
+          <div
+            className={cn(
+              "min-w-0 text-right text-meta text-muted-foreground",
+              !leftHint && "col-start-2"
+            )}
+          >
+            {rightHint}
+          </div>
+        ) : null}
       </div>
       <Progress
         value={clamped}

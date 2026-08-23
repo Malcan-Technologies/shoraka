@@ -111,7 +111,6 @@ export function getInvestmentPositionFacts(note: NoteListItem, now: Date = new D
     tawidh,
     actualReturn,
     daysToMaturity: calendarDaysFromToday(note.maturityDate, now),
-    issuerName: note.issuerName?.trim() || "Issuer",
     noteLabel: formatNoteReferenceDisplay(note.noteReference) || note.title,
   };
 }

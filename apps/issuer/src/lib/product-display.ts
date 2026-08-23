@@ -44,3 +44,26 @@ export function buildProductNameMap(products: Product[]): Map<string, string> {
   }
   return names;
 }
+
+export function resolveProductDisplayName(product: Product | null | undefined): string | null {
+  if (!product) return null;
+  const name = buildProductDisplayMap([product]).get(product.id)?.name?.trim();
+  return name && !name.startsWith("Product ") ? name : null;
+}
+
+/** Catalog name first, then any stored dashboard name. */
+export function resolveIssuerProductDisplay(
+  displayMap: Map<string, ProductDisplay>,
+  productIds: Array<string | null | undefined>,
+  fallbacks: Array<string | null | undefined> = []
+): ProductDisplay {
+  for (const id of productIds) {
+    const display = id?.trim() ? displayMap.get(id.trim()) : undefined;
+    const name = display?.name?.trim();
+    if (name && !name.startsWith("Product ")) {
+      return { name, imageS3Key: display?.imageS3Key ?? null };
+    }
+  }
+  const fallback = fallbacks.map((value) => value?.trim()).find(Boolean) ?? "";
+  return { name: fallback, imageS3Key: null };
+}

@@ -17,6 +17,7 @@ describe("Zod fee/rate validation (service fee + facility fee)", () => {
     const createBase = {
       workflow: [{ config: { category: "CONTRACT_FINANCING" } }],
       marketplace_listing_duration_days: null,
+      product_code: "ARF",
     };
 
     it("service_fee_rate_percent accepts 0, 12.5, 14.99, 15", () => {
@@ -39,35 +40,35 @@ describe("Zod fee/rate validation (service fee + facility fee)", () => {
       expectFail(updateProductBodySchema, { service_fee_rate_percent: "abc" });
     });
 
-    it("default_facility_fee_rate_percent accepts 0, 0.25, 0.5, 1, 100", () => {
-      for (const rate of [0, 0.25, 0.5, 1, 100, 99.99]) {
+    it("default_facility_fee_rate_percent accepts 0, 0.2, 1", () => {
+      for (const rate of [0, 0.2, 1]) {
         expectPass(createProductBodySchema, { ...createBase, default_facility_fee_rate_percent: rate });
       }
-      for (const rate of [0, 0.25, 0.5, 1, 100, 99.99]) {
+      for (const rate of [0, 0.2, 1]) {
         expectPass(updateProductBodySchema, { default_facility_fee_rate_percent: rate });
       }
     });
 
-    it("default_facility_fee_rate_percent rejects -1, 100.01, 1.001", () => {
-      for (const rate of [-1, 100.01, 1.001]) {
+    it("default_facility_fee_rate_percent rejects values above 1%", () => {
+      for (const rate of [-1, 1.01, 1.001, 1.2, 100, 100.01]) {
         expectFail(createProductBodySchema, { ...createBase, default_facility_fee_rate_percent: rate });
       }
-      for (const rate of [-1, 100.01, 1.001]) {
+      for (const rate of [-1, 1.01, 1.001, 1.2, 100, 100.01]) {
         expectFail(updateProductBodySchema, { default_facility_fee_rate_percent: rate });
       }
     });
   });
 
   describe("Admin sendContractOfferSchema (facilityFeeRatePercent)", () => {
-    it("facilityFeeRatePercent accepts 0, 0.25, 0.5, 1, 100, null", () => {
-      for (const rate of [0, 0.25, 0.5, 1, 100, 99.99]) {
+    it("facilityFeeRatePercent accepts 0, 0.25, 0.5, 1, null", () => {
+      for (const rate of [0, 0.25, 0.5, 1]) {
         expectPass(sendContractOfferSchema, { offeredFacility: 100, facilityFeeRatePercent: rate });
       }
       expectPass(sendContractOfferSchema, { offeredFacility: 100, facilityFeeRatePercent: null });
     });
 
-    it("facilityFeeRatePercent rejects -1, 100.01, 1.001", () => {
-      for (const rate of [-1, 100.01, 1.001]) {
+    it("facilityFeeRatePercent rejects -1, 1.01, 1.001, 100", () => {
+      for (const rate of [-1, 1.01, 1.001, 100, 99.99]) {
         expectFail(sendContractOfferSchema, { offeredFacility: 100, facilityFeeRatePercent: rate });
       }
     });

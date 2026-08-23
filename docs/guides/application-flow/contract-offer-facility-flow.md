@@ -39,7 +39,7 @@ Newly created applications stamp `split_origination: true` on `financing_type`. 
 
 Today the committed advance is the invoice offer (`offered_amount`), which becomes the note `target_amount`. That is the **maximum** for that draw, not outstanding principal.
 
-Standard revolving practice (invoice facilities and RCFs): occupancy is **outstanding principal**. If investors fund RM 180k against a RM 200k target, the line is drawn RM 180k so the remaining RM 20k can be used again. CashSouk already charges the facility fee on `funded_amount` at funding close; utilization follows the same principal.
+Standard revolving practice (invoice facilities and RCFs): occupancy is **outstanding principal**. If investors fund RM 180k against a RM 200k target, the line is drawn RM 180k so the remaining RM 20k can be used again. On versioned utilisation offers, facility-fee **collection** is a frozen RM amount charged only on successful funding, not `funded_amount × rate`. Grandfathered (unversioned) closes cannot consume remaining that is still reserved by outstanding v1 collections. If remaining owed is unexpectedly below a frozen v1 amount, close funding fails instead of charging less. Occupancy still true-ups to funded principal.
 
 While funding is still open, the committed advance stays reserved so a second invoice cannot consume the same remaining capacity mid-raise. After close (`FUNDING` / `ACTIVE` / `ARREARS` / `DEFAULTED`, or `funding_status` `FUNDED`), occupancy true-ups to funded principal.
 
@@ -105,14 +105,14 @@ OFFER_SENT → SUBMITTED (admin retracts)
 | Location                | Fields                                                                       | Meaning                         |
 | ----------------------- | ---------------------------------------------------------------------------- | ------------------------------- |
 | `invoice.details`       | `applied_financing`, `financing_amount`, `value` + `financing_ratio_percent` | Requested financing for invoice |
-| `invoice.offer_details` | `offered_amount`, `offered_ratio_percent`, `offered_profit_rate_percent`     | CashSouk offer terms            |
+| `invoice.offer_details` | `offered_amount`, `offered_ratio_percent`, `offered_profit_rate_percent`, `platform_fee_rate_percent`, `fee_schedule_version`, `facility_fee_collect_amount`, `additional_fees` | CashSouk offer terms; v1 freezes drawdown %, facility collection RM, and extra lines. Absence of `fee_schedule_version` on a previously sent offer is grandfather progressive facility fee; send writes v1 only for new offers, existing v1, or an explicit convert. |
 
 Helpers: `resolveRequestedInvoiceAmount`, `resolveOfferedAmount`, `resolveOfferedProfitRate` in `packages/config/offer-resolvers.ts` and `apps/api/src/lib/invoice-offer.ts`.
 
 ### Invoice flow (mirrors contract)
 
-1. **Send offer (admin)** – Locks the facility row, writes `offer_details`, sets invoice status `OFFER_SENT`, and hard-blocks over-limit writes with `FACILITY_CAPACITY_EXCEEDED` / `CONTRACT_LIFETIME_EXCEEDED`. Resend after `OFFER_EXPIRED` re-reserves under the same lock.
-2. **Accept / Reject (issuer)** – Responds to offer. Rejection releases both ledgers.
+1. **Send offer (admin)** – Locks the facility row, writes `offer_details`, sets invoice status `OFFER_SENT`, and hard-blocks over-limit writes with `FACILITY_CAPACITY_EXCEEDED` / `CONTRACT_LIFETIME_EXCEEDED`. Facility-linked offers are rejected with `FACILITY_DISABLED` while the contract is disabled. v1 `facility_fee_collect_amount` cannot exceed remaining facility fee after uncharged, unwaived, still-collectible pending (`OFFER_SENT`) and live (accepted / not-yet-closed) collections; declined, expired, withdrawn, failed-funding, waived, and already-charged items are excluded, and a resend does not double-count the current invoice. Resend after `OFFER_EXPIRED` re-reserves under the same lock.
+2. **Accept / Reject (issuer)** – Responds to offer. Accept re-checks that the facility is enabled and that remaining facility fee still covers this invoice’s locked collection after sibling reservations. If remaining facility fee was waived, accept is allowed and close later collects RM 0. Rejection releases both ledgers. Disabled facilities also reject note create and publish.
 3. **Retract offer (admin – reset item to PENDING)** – Clears `offer_details`, sets status `SUBMITTED`. Same pattern as contract: admin uses "Retract Offer" (or "Set to Pending" in item dropdown).
 4. **Status transitions** – `SUBMITTED → OFFER_SENT → APPROVED | REJECTED`; `OFFER_SENT → SUBMITTED` (admin retracts).
 

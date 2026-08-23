@@ -216,6 +216,10 @@ export const defaultMarkSchema = z.object({
   reason: z.string().min(1).max(1000),
 });
 
+export const waiveNoteFacilityFeeCollectionSchema = z.object({
+  reason: z.string().trim().min(1).max(1000),
+});
+
 export const updatePlatformFinanceSettingsSchema = z.object({
   gracePeriodDays: z.number().int().min(0).max(60).optional(),
   arrearsThresholdDays: z.number().int().min(0).max(120).optional(),

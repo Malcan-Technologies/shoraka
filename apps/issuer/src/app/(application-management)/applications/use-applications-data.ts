@@ -35,6 +35,7 @@ import { useOrganizationApplications } from "@/hooks/use-applications";
 import { getOfferStatus, getOfferPhaseDeadlineDisplay } from "@/lib/offer-utils";
 import { getCardStatus, APPLICATION_STATUS_PRIORITY, type NormalizedApplication, type NormalizedInvoice } from "./status";
 import { numberOrNull } from "@/lib/facility-fee-display";
+import { resolveIssuerFacilityFeeBalance, resolveIssuerFacilityGate } from "@/lib/facility-enabled";
 
 export interface UseApplicationsDataOptions {
   debugShowSkeleton?: boolean;
@@ -242,6 +243,8 @@ function prepareInvoice(
     canReviewOffer,
     offerAcceptanceStatus: acceptanceStatus,
     offer_details: api.offer_details ?? null,
+    details,
+    invoiceSnapshot: api,
     signedOfferLetterAvailable,
     signedOfferLetterS3Key,
     withdrawReason: parseInvoiceWithdrawReason(api.withdraw_reason),
@@ -351,10 +354,23 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     contractDetails.facility_fee_rate_percent ??
       (contract?.offer_details as Record<string, unknown> | null | undefined)?.facility_fee_rate_percent
   );
-  const facilityFeePaidAmount = numberOrNull(contractDetails.facility_fee_paid_amount) ?? 0;
+  const feeBalance = resolveIssuerFacilityFeeBalance({
+    contractDetails: {
+      ...contractDetails,
+      ...(facilityFeeRatePercent != null
+        ? { facility_fee_rate_percent: facilityFeeRatePercent }
+        : {}),
+    },
+    approvedFacilityAmount,
+  });
+  const facilityGate = resolveIssuerFacilityGate({
+    contractDetails,
+    contractStatus,
+  });
+  const facilityFeePaidAmount = feeBalance.paid;
   const facilityFeeCapAmount =
-    facilityFeeRatePercent != null && approvedFacilityAmount != null && facilityFeeRatePercent > 0
-      ? approvedFacilityAmount * (facilityFeeRatePercent / 100)
+    approvedFacilityAmount != null && (feeBalance.totalOwed > 0 || (facilityFeeRatePercent ?? 0) > 0)
+      ? feeBalance.totalOwed
       : null;
 
   const created = api.created_at ? new Date(api.created_at) : new Date();
@@ -451,6 +467,11 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     facilityFeeRatePercent,
     facilityFeeCapAmount,
     facilityFeePaidAmount,
+    facilityFeeWaived: feeBalance.waived,
+    facilityFeeWaivedAmount: feeBalance.waivedAmount,
+    facilityFeeRemainingAmount: feeBalance.remaining,
+    facilityEnabled: facilityGate.enabled,
+    facilityDisabledReason: facilityGate.disabledReason,
     updatedAt: updated.toISOString(),
     invoices: invoices.map((inv, idx) => prepareInvoice(inv, contractStatus, structureType, idx, reviewRemarks)),
     contractStatus,

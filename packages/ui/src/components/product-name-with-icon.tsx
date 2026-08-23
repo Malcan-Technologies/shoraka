@@ -23,18 +23,18 @@ function ProductImageThumb({
 }: {
   src: string;
   alt: string;
-  size: "sm" | "md";
+  size: "xs" | "sm" | "md";
 }) {
   return (
-    <span
+    // Signed S3 URL; not a configured Next image host.
+    <img
+      src={src}
+      alt={alt}
       className={cn(
-        "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-input bg-muted shadow-sm",
-        size === "md" ? "size-10" : "size-8"
+        "shrink-0 object-contain",
+        size === "md" ? "size-10" : size === "sm" ? "size-8" : "size-6"
       )}
-    >
-      {/* Signed S3 URL; not a configured Next image host. */}
-      <img src={src} alt={alt} className="size-full object-contain" />
-    </span>
+    />
   );
 }
 
@@ -43,7 +43,7 @@ export function ProductNameWithIcon({
   category,
   imageUrl,
   empty = "\u2014",
-  size = "md",
+  size = "xs",
   className,
   iconClassName,
 }: {
@@ -51,7 +51,7 @@ export function ProductNameWithIcon({
   category?: string | null;
   imageUrl?: string | null;
   empty?: string;
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
   className?: string;
   iconClassName?: string;
 }) {
@@ -65,7 +65,8 @@ export function ProductNameWithIcon({
   return (
     <span
       className={cn(
-        "inline-flex min-w-0 items-center gap-2 text-ui leading-6 text-foreground",
+        "inline-flex min-w-0 items-center align-middle text-ui leading-6 text-foreground",
+        size === "xs" ? "gap-1.5" : "gap-2",
         className
       )}
     >
@@ -73,7 +74,11 @@ export function ProductNameWithIcon({
         <ProductImageThumb src={resolvedImageUrl} alt={label || "Product"} size={size} />
       ) : (
         <Icon
-          className={cn("h-4 w-4 shrink-0 text-muted-foreground", iconClassName)}
+          className={cn(
+            "shrink-0 text-muted-foreground",
+            size === "xs" ? "h-3.5 w-3.5" : "h-4 w-4",
+            iconClassName
+          )}
           aria-hidden
         />
       )}

@@ -39,6 +39,8 @@ export type AdminEntityHeaderProps = {
   subtitle?: React.ReactNode;
   /** Labeled prose under identity (e.g. purpose of contract / invoice). */
   contextRows?: AdminEntityHeaderContextRow[];
+  /** Extra identity under the subtitle (e.g. catalog product icon + name). */
+  identityExtra?: React.ReactNode;
   icon?: React.ComponentType<{ className?: string }>;
   /** Workflow status badge plus type/identity chips. */
   chips?: React.ReactNode;
@@ -97,13 +99,14 @@ function EntityIdentity({
   eyebrow,
   title,
   subtitle,
+  identityExtra,
   contextRows,
   icon: Icon,
   chips,
   compact,
 }: Pick<
   AdminEntityHeaderProps,
-  "eyebrow" | "title" | "subtitle" | "contextRows" | "icon" | "chips"
+  "eyebrow" | "title" | "subtitle" | "identityExtra" | "contextRows" | "icon" | "chips"
 > & {
   compact?: boolean;
 }) {
@@ -129,6 +132,7 @@ function EntityIdentity({
         {subtitle ? (
           <p className="break-words text-ui text-muted-foreground">{subtitle}</p>
         ) : null}
+        {identityExtra ? <div className="pt-0.5">{identityExtra}</div> : null}
         {contextRows && contextRows.length > 0 ? <EntityContextRows rows={contextRows} /> : null}
         {chips ? <div className="flex flex-wrap items-center gap-2 pt-1">{chips}</div> : null}
       </div>
@@ -140,6 +144,7 @@ function EntityTitleRow({
   eyebrow,
   title,
   subtitle,
+  identityExtra,
   contextRows,
   icon,
   chips,
@@ -147,7 +152,14 @@ function EntityTitleRow({
   compact,
 }: Pick<
   AdminEntityHeaderProps,
-  "eyebrow" | "title" | "subtitle" | "contextRows" | "icon" | "chips" | "actions"
+  | "eyebrow"
+  | "title"
+  | "subtitle"
+  | "identityExtra"
+  | "contextRows"
+  | "icon"
+  | "chips"
+  | "actions"
 > & { compact?: boolean }) {
   return (
     <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -155,6 +167,7 @@ function EntityTitleRow({
         eyebrow={eyebrow}
         title={title}
         subtitle={subtitle}
+        identityExtra={identityExtra}
         contextRows={contextRows}
         icon={icon}
         chips={chips}
@@ -229,6 +242,7 @@ export function AdminEntityHeader({
   eyebrow,
   title,
   subtitle,
+  identityExtra,
   contextRows,
   icon,
   chips,
@@ -248,6 +262,7 @@ export function AdminEntityHeader({
       eyebrow={eyebrow}
       title={title}
       subtitle={subtitle}
+      identityExtra={identityExtra}
       contextRows={contextRows}
       icon={icon}
       chips={chips}
@@ -307,6 +322,7 @@ export function AdminEntityHeader({
         eyebrow={eyebrow}
         title={title}
         subtitle={subtitle}
+        identityExtra={identityExtra}
         contextRows={contextRows}
         icon={icon}
         chips={chips}

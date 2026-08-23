@@ -566,6 +566,7 @@ describe("standalone vs contract-linked notes", () => {
     expect(pageSource).toContain('id: "campaign"');
     expect(pageSource).toContain('id: "activity"');
     expect(pageSource).toContain("NoteCampaignActions");
+    expect(pageSource).toContain("NoteFacilityFeeWaiverPanel");
     expect(pageSource).toContain("<NoteLifecycleCard note={note} />");
     expect(pageSource).toContain("NoteProspectusStatusCard");
     expect(pageSource).not.toContain("layout=\"rail\"");
@@ -591,6 +592,7 @@ describe("standalone vs contract-linked notes", () => {
     expect(headerSource).toContain('variant?: "plain" | "hero"');
     expect(headerSource).toContain("summaryCards?: React.ReactNode[]");
     expect(headerSource).toContain("contextRows?: AdminEntityHeaderContextRow[]");
+    expect(headerSource).toContain("identityExtra?: React.ReactNode");
     expect(headerSource).toContain("HERO_SUMMARY_CARD_LIMIT");
     expect(headerSource).toContain("heroSummaryClusterClass");
     expect(headerSource).toContain("summaryCards && summaryCards.length > 0");

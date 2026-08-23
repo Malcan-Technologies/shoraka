@@ -426,6 +426,12 @@ export interface Invoice {
   status: InvoiceStatus;
   details: InvoiceDetails;
   offer_details?: InvoiceOfferDetails | null;
+  /**
+   * Facility fee currently available to reserve on this invoice's offer.
+   * Gross remaining minus still-collectible sibling v1 reservations; this invoice is excluded so resend can replace its own reservation.
+   * Computed by the API; not persisted.
+   */
+  facilityFeeAvailableToReserve?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -480,6 +486,8 @@ export * from "./onboarding-readiness";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
 export * from "./notes";
+export * from "./fee-schedule";
+export * from "./facility-fee-reservation";
 export * from "./product-icon";
 export * from "./investor-balance-activity";
 export * from "./display-reference";

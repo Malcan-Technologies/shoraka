@@ -168,6 +168,77 @@ describe("AdminService capacity offer paths", () => {
     );
   });
 
+  it("send and retract refresh occupancy when contract_id is only on the invoice", async () => {
+    const application = {
+      id: "app-1",
+      status: ApplicationStatus.INVOICE_PENDING,
+      contract_id: null,
+      invoices: [
+        {
+          id: "inv-1",
+          contract_id: "contract-invoice-only",
+          details: { number: "INV-1", value: 80_000, financing_ratio_percent: 70 },
+        },
+      ],
+      application_review_items: [
+        { item_type: "invoice", item_id: "invoice_details:0:INV-1", status: "OFFER_SENT" },
+      ],
+    };
+    (service as unknown as { prepareForReviewAction: jest.Mock }).prepareForReviewAction = jest
+      .fn()
+      .mockResolvedValue({ repository, application });
+    (service as unknown as { ensureUnderReview: jest.Mock }).ensureUnderReview = jest.fn();
+    (service as unknown as { validateReviewItemExists: jest.Mock }).validateReviewItemExists =
+      jest.fn();
+    (service as unknown as { resolveInvoiceScopeKeyById: jest.Mock }).resolveInvoiceScopeKeyById =
+      jest.fn().mockReturnValue("invoice_details:0:INV-1");
+    (
+      service as unknown as { resolveInvoiceIdFromScopeKey: jest.Mock }
+    ).resolveInvoiceIdFromScopeKey = jest.fn().mockReturnValue("inv-1");
+    (
+      service as unknown as { ensureInvoiceOfferItemActionAllowed: jest.Mock }
+    ).ensureInvoiceOfferItemActionAllowed = jest.fn();
+    (
+      service as unknown as { assertNoActiveSigningPackage: jest.Mock }
+    ).assertNoActiveSigningPackage = jest.fn();
+    (
+      service as unknown as { loadApplicationProductWorkflow: jest.Mock }
+    ).loadApplicationProductWorkflow = jest.fn().mockResolvedValue([]);
+    (service as unknown as { getInvoiceReference: jest.Mock }).getInvoiceReference = jest
+      .fn()
+      .mockReturnValue({
+        invoiceId: "inv-1",
+        invoiceNumber: "INV-1",
+      });
+    (prisma.invoice.findUnique as jest.Mock).mockResolvedValue({
+      status: "SUBMITTED",
+      contract_id: "contract-invoice-only",
+    });
+
+    await service.sendInvoiceOffer("app-1", "inv-1", 40_000, 70, 12, 0, "A", "admin-1");
+    expect(mockApply).toHaveBeenCalledWith(
+      "contract-invoice-only",
+      prisma,
+      expect.any(Function),
+      expect.objectContaining({ assertWrite: true })
+    );
+
+    mockApply.mockClear();
+    application.status = ApplicationStatus.INVOICES_SENT;
+    await service.resetItemReviewToPending(
+      "app-1",
+      "invoice",
+      "invoice_details:0:INV-1",
+      "admin-1"
+    );
+    expect(mockApply).toHaveBeenCalledWith(
+      "contract-invoice-only",
+      prisma,
+      expect.any(Function),
+      expect.objectContaining({ assertWrite: false })
+    );
+  });
+
   it("retracting a facility offer recomputes occupancy through apply", async () => {
     const application = {
       id: "app-1",

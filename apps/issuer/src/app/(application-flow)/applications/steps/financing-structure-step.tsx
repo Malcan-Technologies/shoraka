@@ -52,6 +52,7 @@ import { useDevTools } from "@/app/(application-flow)/applications/components/de
 import { FinancingStructureSkeleton } from "@/app/(application-flow)/applications/components/financing-structure-skeleton";
 import { EXISTING_CONTRACT_PREFILL_STORAGE_KEY } from "@/lib/finance-invoice-application-href";
 import { formatMoney, StatusBadge } from "@cashsouk/ui";
+import { resolveIssuerFacilityGate } from "@/lib/facility-enabled";
 import {
   goalRadioTabIndex,
   resolveGoalRadioTabStopId,
@@ -238,7 +239,16 @@ export function FinancingStructureStep({
       }
     }
 
-    const isValid = selectedStructure !== "existing_contract" || selectedContractId !== "";
+    const selectedFacilityEnabled =
+      selectedStructure !== "existing_contract" ||
+      (selectedContractId !== "" &&
+        resolveIssuerFacilityGate({
+          contractDetails: approvedContracts.find((c: Contract) => c.id === selectedContractId)
+            ?.contract_details,
+        }).enabled);
+    const isValid =
+      selectedStructure !== "existing_contract" ||
+      (selectedContractId !== "" && selectedFacilityEnabled);
 
     const savedStructure = application?.financing_structure as
       | Record<string, unknown>
@@ -312,6 +322,12 @@ export function FinancingStructureStep({
   };
 
   const handleContractSelect = (contractId: string) => {
+    const contract = approvedContracts.find((c: Contract) => c.id === contractId);
+    const gate = resolveIssuerFacilityGate({
+      contractDetails: contract?.contract_details,
+      contractStatus: contract?.status,
+    });
+    if (!gate.enabled) return;
     setSelectedContractId(contractId);
     setFromPrefill(false);
 
@@ -469,15 +485,48 @@ export function FinancingStructureStep({
                         <SelectValue placeholder="Select an approved facility" />
                       </SelectTrigger>
                       <SelectContent>
-                        {approvedContracts.map((contract: Contract) => (
-                          <SelectItem key={contract.id} value={contract.id}>
-                            {contract.contract_details?.title ?? "Untitled facility"}
-                          </SelectItem>
-                        ))}
+                        {approvedContracts.map((contract: Contract) => {
+                          const gate = resolveIssuerFacilityGate({
+                            contractDetails: contract.contract_details,
+                            contractStatus: contract.status,
+                          });
+                          const title = contract.contract_details?.title ?? "Untitled facility";
+                          return (
+                            <SelectItem
+                              key={contract.id}
+                              value={contract.id}
+                              disabled={!gate.enabled}
+                              textValue={title}
+                            >
+                              <span className="flex min-w-0 flex-col">
+                                <span>{title}</span>
+                                {!gate.enabled ? (
+                                  <span className="text-meta leading-5 text-muted-foreground">
+                                    Disabled
+                                    {gate.disabledReason ? ` — ${gate.disabledReason}` : ""}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     {selectedFacility ? (
                       <div className="space-y-2 text-ui text-muted-foreground">
+                        {(() => {
+                          const selectedGate = resolveIssuerFacilityGate({
+                            contractDetails: selectedFacility.contract_details,
+                            contractStatus: selectedFacility.status,
+                          });
+                          if (selectedGate.enabled) return null;
+                          return (
+                            <p className="text-ui text-status-action-text" role="status">
+                              This facility is disabled and cannot be used for a new drawdown.
+                              {selectedGate.disabledReason ? ` ${selectedGate.disabledReason}` : ""}
+                            </p>
+                          );
+                        })()}
                         {remaining.leftToDraw != null ? (
                           <div className="space-y-0.5">
                             <p>

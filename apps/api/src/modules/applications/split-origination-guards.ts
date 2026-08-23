@@ -1,4 +1,5 @@
 import {
+  isFacilityEnabled,
   isFacilityOnlyNewContract,
   isLegacyCombinedNewContract,
   readFinancingStructureType,
@@ -16,7 +17,18 @@ export type OriginationGuardContract = {
   id: string;
   status?: string | null;
   issuer_organization_id?: string | null;
+  contract_details?: unknown;
 } | null;
+
+export function assertFacilityIsEnabled(contract: OriginationGuardContract): void {
+  if (!contract) return;
+  if (isFacilityEnabled(contract.contract_details)) return;
+  throw new AppError(
+    400,
+    "FACILITY_DISABLED",
+    "This facility is disabled and cannot be used for new invoice financing."
+  );
+}
 
 export function assertMayAttachInvoiceToApplication(
   application: OriginationGuardApplication
@@ -60,6 +72,7 @@ export function assertExistingFacilityDrawdown(
       "Only approved facilities can be used to finance an invoice."
     );
   }
+  assertFacilityIsEnabled(contract);
 }
 
 export function assertApplicationSubmitOrigination(input: {

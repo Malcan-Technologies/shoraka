@@ -40,6 +40,7 @@ export function NoteAttentionCard({ note }: { note: NoteListItem }) {
             name={note.productName}
             category={note.productCategory}
             imageS3Key={note.productImageS3Key}
+            size="xs"
           />
         ) : null
       }

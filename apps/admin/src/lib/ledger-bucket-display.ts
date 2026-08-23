@@ -33,8 +33,8 @@ export const LEDGER_BUCKET_META: Record<NoteLedgerAccountType, LedgerBucketMeta>
   },
   [NoteLedgerAccountType.OPERATING_ACCOUNT]: {
     shortLabel: "Operating",
-    hint: "Platform fees",
-    detail: "Platform fees, service fees, and operating account allocations.",
+    hint: "Operating fees",
+    detail: "Drawdown fees, facility fees, additional fees, service fees, and operating account allocations.",
     group: "income",
   },
   [NoteLedgerAccountType.TAWIDH_ACCOUNT]: {

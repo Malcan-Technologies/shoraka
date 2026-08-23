@@ -10,6 +10,12 @@ import {
   ADMIN_PERMISSIONS,
   SYSTEM_ADMIN_ROLE_KEYS,
   SOUKSCORE_RISK_RATING_GRADES,
+  FACILITY_FEE_RATE_MAX_PERCENT,
+  FEE_SCHEDULE_MAX_ADDITIONAL_LINES,
+  FEE_SCHEDULE_MAX_NAME_LENGTH,
+  INVOICE_OFFER_FEE_SCHEDULE_WRITE_MODES,
+  isNoteMoneyAmount,
+  validateAdditionalFeeLines,
 } from "@cashsouk/types";
 import { isValidPhoneNumber } from "libphonenumber-js";
 import { addressSchema, bankAccountDetailsSchema } from "../organization/schemas";
@@ -476,7 +482,7 @@ export const sendContractOfferSchema = z.object({
     .coerce
     .number()
     .min(0)
-    .max(100)
+    .max(FACILITY_FEE_RATE_MAX_PERCENT)
     .refine((v) => Number.isFinite(v) && Math.abs(v * 100 - Math.round(v * 100)) < 1e-9, {
       message: "Facility fee rate can have up to 2 decimal places",
     })
@@ -488,12 +494,62 @@ export const patchContractCustomerLargePrivateSchema = z.object({
   is_large_private_company: z.boolean(),
 });
 
-export const sendInvoiceOfferSchema = z.object({
-  offeredAmount: z.coerce.number().positive("Offered amount must be greater than 0"),
-  offeredRatioPercent: z.coerce.number().min(0).max(100).optional().nullable(),
-  offeredProfitRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
-  platformFeeRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
-  risk_rating: z.enum(SOUKSCORE_RISK_RATING_GRADES),
+const additionalFeeLineSchema = z.object({
+  name: z.string().trim().min(1).max(FEE_SCHEDULE_MAX_NAME_LENGTH),
+  kind: z.enum(["amount", "percent_of_funded"]),
+  value: z.coerce.number().nonnegative(),
+});
+
+export const sendInvoiceOfferSchema = z
+  .object({
+    offeredAmount: z.coerce.number().positive("Offered amount must be greater than 0"),
+    offeredRatioPercent: z.coerce.number().min(0).max(100).optional().nullable(),
+    offeredProfitRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
+    platformFeeRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
+    risk_rating: z.enum(SOUKSCORE_RISK_RATING_GRADES),
+    feeScheduleMode: z.enum(INVOICE_OFFER_FEE_SCHEDULE_WRITE_MODES).optional(),
+    facilityFeeCollectAmount: z.coerce.number().min(0).optional().default(0),
+    additionalFees: z.array(additionalFeeLineSchema).max(FEE_SCHEDULE_MAX_ADDITIONAL_LINES).optional().default([]),
+  })
+  .superRefine((data, ctx) => {
+    if (!isNoteMoneyAmount(data.facilityFeeCollectAmount)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["facilityFeeCollectAmount"],
+        message: "Facility fee collection can have up to 2 decimal places",
+      });
+    }
+    const additional = validateAdditionalFeeLines(data.additionalFees);
+    for (const issue of additional.issues) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: issue.path.split("."),
+        message: issue.message,
+      });
+    }
+  });
+
+export const waiveContractFacilityFeeSchema = z.object({
+  reason: z.string().trim().min(1).max(1000),
+});
+
+export const setContractFacilityEnabledSchema = z
+  .object({
+    enabled: z.boolean(),
+    reason: z.string().trim().max(1000).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.enabled && !(data.reason && data.reason.trim().length > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reason"],
+        message: "A reason is required to disable a facility",
+      });
+    }
+  });
+
+export const waiveNoteFacilityFeeCollectionSchema = z.object({
+  reason: z.string().trim().min(1).max(1000),
 });
 
 export const addPendingAmendmentSchema = z

@@ -44,7 +44,9 @@ function matchesInvestmentsSearch(note: NoteListItem, query: string): boolean {
     note.noteReference,
     note.title,
     note.productName ?? "",
-    note.issuerName ?? "",
+    note.purposeOfFinancing ?? "",
+    note.purposeOfContract ?? "",
+    note.contractTitle ?? "",
     note.issuerIndustry ?? "",
     note.productCategory ?? "",
   ]
@@ -282,7 +284,7 @@ export function InvestorInvestmentsList({
               setSearch(value);
               setPage(1);
             }}
-            searchPlaceholder="Search by note, issuer, or industry"
+            searchPlaceholder="Search by note, purpose, or industry"
             appliedFilters={appliedFilters}
             onClearFilters={handleClearFilters}
             onReload={() => {

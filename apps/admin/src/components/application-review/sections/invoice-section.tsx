@@ -26,7 +26,7 @@ import {
 } from "../comparison-document-pair";
 import { formatCurrency, resolveOfferedAmount, resolveRequestedInvoiceAmount } from "@cashsouk/config";
 import { parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics";
-import type { SoukscoreRiskRating } from "@cashsouk/types";
+import type { SendInvoiceOfferUiPayload } from "@/components/utilisation-fee-lines";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
 import { InvoiceOfferPanel } from "@/components/invoice-offer-panel";
@@ -47,6 +47,8 @@ export interface InvoiceSectionProps {
     status?: string;
     offer_details?: unknown;
     offer_signing?: unknown;
+    contract_id?: string | null;
+    facilityFeeAvailableToReserve?: number | null;
   }[];
   /** Invoices on the same facility but owned by other applications (read-only context). */
   otherFacilityInvoices?: {
@@ -87,14 +89,7 @@ export interface InvoiceSectionProps {
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
   onResetItemToPending?: (itemId: string) => void;
-  onSendInvoiceOffer?: (payload: {
-    invoiceId: string;
-    offeredAmount: number;
-    offeredRatioPercent: number;
-    offeredProfitRatePercent: number;
-    platformFeeRatePercent: number;
-    risk_rating: SoukscoreRiskRating;
-  }) => Promise<void>;
+  onSendInvoiceOffer?: (payload: SendInvoiceOfferUiPayload) => Promise<void>;
   isSendInvoiceOfferPending?: boolean;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;

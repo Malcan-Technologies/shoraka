@@ -26,9 +26,14 @@ import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import {
+  assertInvoiceFeeScheduleChargeable,
+  settleCloseFundingFacilityFees,
+} from "../../lib/facility-fee-collect-reservation";
+import {
   lockContractRow,
   refreshContractFacilityForNote,
 } from "../../lib/refresh-contract-facility";
+import { assertFacilityIsEnabled } from "../applications/split-origination-guards";
 import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import {
   generatePresignedUploadUrl,
@@ -41,7 +46,6 @@ import {
   parseFacilityJsonAmount,
   resolveApprovedFacilityForRefresh,
 } from "../../lib/contract-facility";
-import { computeProgressiveFacilityFee } from "../../lib/facility-fee";
 import {
   resolveOfferedAmount,
   resolveOfferedPlatformFeeRatePercent,
@@ -49,6 +53,8 @@ import {
   resolveRequestedInvoiceAmount,
 } from "../../lib/invoice-offer";
 import {
+  NOTE_FEE_OVERRIDE_KEY,
+  buildFacilityFeeCollectionWaiverPatch,
   buildInvestorPortfolioTotals,
   computeMarketplaceCommitBounds,
   computeNetExpectedReturnRatePercent,
@@ -65,6 +71,9 @@ import {
   NOTE_MONEY_TOLERANCE,
   resolveCompletedSigningEnvelopeWhere,
   roundNoteMoney,
+  parseFacilityFeeCollectionWaiver,
+  settleDisbursementFees,
+  isNoteOpenForFacilityFeeCollectionWaiver,
   toMarketplacePublicNote,
   workflowHasRequiredAcceptanceDocuments,
   workflowHasSigningPackage,
@@ -74,6 +83,7 @@ import {
   debitInvestorBalanceForCommit,
   debitInvestorBalanceForWithdrawal,
 } from "./investor-balance";
+import { rejectNegativeDisbursementNet } from "./disbursement-net-guard";
 import { buildFailFundingWalletCredits } from "./fail-funding-refunds";
 import { postLedgerEntry } from "./ledger";
 import {
@@ -188,6 +198,22 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+async function assertSourceFacilityEnabled(
+  tx: Prisma.TransactionClient,
+  contractId: string | null | undefined
+): Promise<void> {
+  if (!contractId) return;
+  await lockContractRow(tx, contractId);
+  const contract = await tx.contract.findUnique({
+    where: { id: contractId },
+    select: { contract_details: true },
+  });
+  assertFacilityIsEnabled({
+    id: contractId,
+    contract_details: contract?.contract_details,
+  });
+}
+
 function generateNoteEntityId(): string {
   const compactUuid = randomUUID().replace(/-/g, "");
   return `c${compactUuid.slice(0, 24)}`;
@@ -238,6 +264,38 @@ async function attachProductImageUrls<T extends { productImageS3Key?: string | n
     ...note,
     productImageUrl: note.productImageS3Key ? (urls.get(note.productImageS3Key) ?? null) : null,
   }));
+}
+
+async function withLiveProductImages<T extends { productImageS3Key?: string | null }>(
+  notes: T[],
+  snapshots: Array<{ product_snapshot?: unknown }>
+): Promise<Array<T & { productImageUrl: string | null }>> {
+  const missingProductIds = [
+    ...new Set(
+      notes.flatMap((note, index) => {
+        if (note.productImageS3Key?.trim()) return [];
+        const productId = asRecord(snapshots[index]?.product_snapshot)?.product_id;
+        return typeof productId === "string" && productId.trim() ? [productId] : [];
+      })
+    ),
+  ];
+  const products = missingProductIds.length
+    ? await prisma.product.findMany({
+        where: { id: { in: missingProductIds } },
+        select: { id: true, workflow: true },
+      })
+    : [];
+  const imageById = new Map(
+    products.map((product) => [product.id, resolveProductImageS3KeyFromWorkflow(product.workflow)])
+  );
+  const filled = notes.map((note, index) => {
+    if (note.productImageS3Key?.trim()) return note;
+    const productId = asRecord(snapshots[index]?.product_snapshot)?.product_id;
+    const liveKey =
+      typeof productId === "string" ? (imageById.get(productId) ?? null) : null;
+    return { ...note, productImageS3Key: liveKey };
+  });
+  return attachProductImageUrls(filled);
 }
 
 function resolveProductCategoryFromWorkflow(
@@ -2312,6 +2370,7 @@ export class NoteService {
 
     const note = await prisma
       .$transaction(async (tx) => {
+        await assertSourceFacilityEnabled(tx, sourceContract?.id ?? invoice.contract_id);
         const noteId = generateNoteEntityId();
         const noteCreatedAt = new Date();
         const canonicalReference = await allocateDisplayReference(
@@ -2454,7 +2513,7 @@ export class NoteService {
         throw new AppError(
           422,
           "PLATFORM_FEE_CAP_EXCEEDED",
-          `Platform fee rate cannot exceed ${platformFeeRateCapPercent}%`
+          `Drawdown fee rate cannot exceed ${platformFeeRateCapPercent}%`
         );
       }
     }
@@ -2647,6 +2706,7 @@ export class NoteService {
     >;
 
     const updated = await prisma.$transaction(async (tx) => {
+      await assertSourceFacilityEnabled(tx, note.source_contract_id);
       const stateUpdate = await tx.note.updateMany({
         where: {
           id,
@@ -3141,6 +3201,81 @@ export class NoteService {
     return mapMarketplaceNoteDetail(updated);
   }
 
+  async waiveFacilityFeeCollection(id: string, reason: string, actor: ActorContext) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (
+      !isNoteOpenForFacilityFeeCollectionWaiver({
+        status: note.status,
+        fundingStatus: note.funding_status,
+      })
+    ) {
+      throw new AppError(
+        409,
+        "NOTE_NOT_IN_CAMPAIGN",
+        "Facility fee collection can only be waived before funding closes"
+      );
+    }
+    if (!note.source_contract_id) {
+      throw new AppError(
+        400,
+        "FACILITY_FEE_REQUIRES_CONTRACT",
+        "This note is not linked to a facility"
+      );
+    }
+    const existingWaiver = parseFacilityFeeCollectionWaiver(note.invoice_snapshot);
+    if (existingWaiver?.facilityFeeCollectionWaived) {
+      throw new AppError(
+        400,
+        "FACILITY_FEE_COLLECTION_ALREADY_WAIVED",
+        "This note's facility fee collection is already waived"
+      );
+    }
+    const snapshot = asRecord(note.invoice_snapshot) ?? {};
+    const override = buildFacilityFeeCollectionWaiverPatch({
+      waivedByUserId: actor.userId,
+      waivedReason: reason.trim(),
+    });
+    const updated = await prisma.$transaction(async (tx) => {
+      const stateUpdate = await tx.note.updateMany({
+        where: {
+          id,
+          OR: [
+            { status: NoteStatus.DRAFT, funding_status: NoteFundingStatus.NOT_OPEN },
+            { status: NoteStatus.PUBLISHED, funding_status: NoteFundingStatus.OPEN },
+          ],
+        },
+        data: {
+          invoice_snapshot: {
+            ...snapshot,
+            [NOTE_FEE_OVERRIDE_KEY]: override,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      if (stateUpdate.count !== 1) {
+        throw new AppError(
+          409,
+          "NOTE_NOT_IN_CAMPAIGN",
+          "Facility fee collection can only be waived before funding closes"
+        );
+      }
+      const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
+      await this.logEvent(tx, id, "NOTE_FACILITY_FEE_COLLECTION_WAIVED", actor, {
+        reason: reason.trim(),
+      });
+      await this.logAdminAction(
+        tx,
+        id,
+        "WAIVE_FACILITY_FEE_COLLECTION",
+        actor,
+        mapNoteListItem(note),
+        mapNoteListItem(result)
+      );
+      return result;
+    });
+    return await mapNoteDetail(updated);
+  }
+
   async closeFunding(id: string, actor: ActorContext) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
@@ -3210,9 +3345,19 @@ export class NoteService {
       let facilityFeePaidBefore = 0;
       let facilityFeeRemainingAfter = 0;
       let facilityFeeRatePercent = 0;
+      let additionalFeeCharges: Array<{
+        name: string;
+        kind: "amount" | "percent_of_funded";
+        value: number;
+        chargedAmount: number;
+      }> = [];
+      let facilityFeeCollectionWaived = false;
+      let contractFacilityFeeWaived = false;
 
-      // Only compute progressive facility fee when a contract is linked to the note.
-      // For legacy/missing facility fee rate on the contract, fee rate is treated as 0.
+      const fundedAmount = toNumber(result.funded_amount);
+      let platformFee = fundedAmount * (toNumber(result.platform_fee_rate_percent) / 100);
+      let netDisbursement = Math.max(0, fundedAmount - platformFee);
+
       if (isContractFinancing) {
         const lockedContracts = await tx.$queryRaw<
           { contract_details: Prisma.JsonValue | null }[]
@@ -3231,35 +3376,57 @@ export class NoteService {
             : 0;
         facilityFeePaidBefore = parseFacilityJsonAmount(cd.facility_fee_paid_amount) ?? 0;
 
-        const fundedAmount = toNumber(result.funded_amount);
-        const progressive = computeProgressiveFacilityFee({
+        const invoiceSnapshot = asRecord(result.invoice_snapshot);
+        const offerDetails = asRecord(invoiceSnapshot?.offer_details);
+        const settled = await settleCloseFundingFacilityFees(tx, {
+          contractId: noteSourceContractId,
+          currentInvoiceId: result.source_invoice_id,
+          fundedAmount,
+          platformFeeRatePercent: toNumber(result.platform_fee_rate_percent),
+          offerDetails,
+          invoiceSnapshot,
           approvedFacilityAmount,
           facilityFeeRatePercent,
           facilityFeePaidBefore,
-          fundedAmountForDisbursement: fundedAmount,
+          contractDetails: cd,
         });
-        facilityFeeCap = progressive.facilityFeeCap;
-        facilityFeeCharged = progressive.facilityFeeCharged;
-        facilityFeeRemainingAfter = progressive.remainingFacilityFee;
+        platformFee = settled.drawdownFee;
+        facilityFeeCap = settled.facilityFeeCap;
+        facilityFeeCharged = settled.facilityFeeCharged;
+        facilityFeeRemainingAfter = settled.facilityFeeRemainingAfter;
+        additionalFeeCharges = settled.additionalFeeCharges;
+        facilityFeeCollectionWaived = settled.facilityFeeCollectionWaived;
+        contractFacilityFeeWaived = settled.contractFacilityFeeWaived;
+        netDisbursement = settled.netDisbursement;
+      } else {
+        const invoiceSnapshot = asRecord(result.invoice_snapshot);
+        const offerDetails = asRecord(invoiceSnapshot?.offer_details);
+        assertInvoiceFeeScheduleChargeable(offerDetails);
+        const settled = settleDisbursementFees({
+          fundedAmount,
+          platformFeeRatePercent: toNumber(result.platform_fee_rate_percent),
+          offerDetails,
+          invoiceSnapshot,
+          approvedFacilityAmount: 0,
+          facilityFeeRatePercent: 0,
+          facilityFeePaidBefore: 0,
+        });
+        platformFee = settled.drawdownFee;
+        additionalFeeCharges = settled.additionalFeeCharges;
+        netDisbursement = settled.netDisbursement;
       }
 
-      const fundedAmount = toNumber(result.funded_amount);
-      const platformFee = fundedAmount * (toNumber(result.platform_fee_rate_percent) / 100);
-      const netDisbursement = Math.max(0, fundedAmount - platformFee - facilityFeeCharged);
+      rejectNegativeDisbursementNet(netDisbursement);
+      netDisbursement = Math.max(0, netDisbursement);
 
-      // Ledger must use the same computed values as withdrawal metadata.
       await this.postDisbursementLedger(tx, result, actor, {
         fundedAmount,
         platformFee,
         facilityFeeCharged,
+        additionalFeeCharges,
         netDisbursement,
       });
 
-      // Create issuer withdrawal (contract financing only affects the computed amount above).
-      // For notes where facility-fee is not applicable, facilityFeeCharged stays 0.
-
-      // Facility fee progress is updated whenever we actually charged a facility fee at disbursement time,
-      // even if the issuer net disbursement becomes 0.
       if (isContractFinancing && facilityFeeCharged > 0) {
         await tx.contract.update({
           where: { id: noteSourceContractId },
@@ -3272,9 +3439,11 @@ export class NoteService {
         });
       }
 
-      // Always create a withdrawal instruction when there is something to pay (net disbursement)
-      // or when we charged a facility fee (so we can persist the full calculation snapshot).
-      if (netDisbursement > 0 || facilityFeeCharged > 0) {
+      const additionalFeesChargedTotal = additionalFeeCharges.reduce(
+        (sum, line) => sum + line.chargedAmount,
+        0
+      );
+      if (netDisbursement > 0 || facilityFeeCharged > 0 || additionalFeesChargedTotal > 0) {
         const existingDisbursement = await tx.withdrawalInstruction.findFirst({
           where: {
             note_id: id,
@@ -3301,6 +3470,9 @@ export class NoteService {
               facilityFeePaidBefore,
               facilityFeeCharged,
               facilityFeeRemainingAfter,
+              additionalFees: additionalFeeCharges,
+              facilityFeeCollectionWaived,
+              contractFacilityFeeWaived,
               netIssuerDisbursement: netDisbursement,
             } as Prisma.InputJsonValue,
           });
@@ -3309,6 +3481,9 @@ export class NoteService {
             fundedAmount,
             platformFee,
             facilityFeeCharged,
+            additionalFees: additionalFeeCharges,
+            facilityFeeCollectionWaived,
+            contractFacilityFeeWaived,
           });
         }
       }
@@ -3596,15 +3771,18 @@ export class NoteService {
       include: noteInclude,
       orderBy: { updated_at: "desc" },
     });
-    const enrichedNotes = notes.map((note) => {
-      const primaryInvestment =
-        note.investments.find((inv) => orgIdSet.has(inv.investor_organization_id)) ?? null;
-      return {
-        ...mapNoteListItem(note),
-        investorRepaymentSummary: buildInvestorRepaymentSummary(note, orgIdSet),
-        investorInvestmentId: primaryInvestment?.id ?? null,
-      };
-    });
+    const enrichedNotes = await withLiveProductImages(
+      notes.map((note) => {
+        const primaryInvestment =
+          note.investments.find((inv) => orgIdSet.has(inv.investor_organization_id)) ?? null;
+        return toMarketplacePublicNote({
+          ...mapNoteListItem(note),
+          investorRepaymentSummary: buildInvestorRepaymentSummary(note, orgIdSet),
+          investorInvestmentId: primaryInvestment?.id ?? null,
+        });
+      }),
+      notes
+    );
     return {
       notes: enrichedNotes,
       pagination: { page: 1, pageSize: notes.length || 1, totalCount: notes.length, totalPages: 1 },
@@ -6577,6 +6755,7 @@ export class NoteService {
       fundedAmount?: number;
       platformFee?: number;
       facilityFeeCharged?: number;
+      additionalFeeCharges?: Array<{ name: string; chargedAmount: number }>;
       netDisbursement?: number;
     }
   ) {
@@ -6587,44 +6766,70 @@ export class NoteService {
     const platformFee =
       params?.platformFee ?? fundedAmount * (toNumber(note.platform_fee_rate_percent) / 100);
     const facilityFeeCharged = params?.facilityFeeCharged ?? 0;
-    const netDisbursement = params?.netDisbursement ?? Math.max(0, fundedAmount - platformFee);
-    const entries = [
+    const additionalFeeCharges = params?.additionalFeeCharges ?? [];
+    const additionalTotal = additionalFeeCharges.reduce((sum, line) => sum + line.chargedAmount, 0);
+    const netDisbursement =
+      params?.netDisbursement ??
+      Math.max(0, fundedAmount - platformFee - facilityFeeCharged - additionalTotal);
+    const entries: Array<{
+      account_id: string;
+      direction: NoteLedgerDirection;
+      amount: ReturnType<typeof money>;
+      description: string;
+      idempotency_key: string;
+    }> = [
       {
         account_id: investorPoolId,
         direction: NoteLedgerDirection.DEBIT,
         amount: money(fundedAmount),
         description: "Funded note disbursement from investor pool",
+        idempotency_key: `note:${note.id}:disbursement:0`,
       },
       {
         account_id: operatingId,
         direction: NoteLedgerDirection.CREDIT,
         amount: money(platformFee),
-        description: "Platform fee deducted at disbursement",
+        description: "Drawdown fee deducted at disbursement",
+        idempotency_key: `note:${note.id}:disbursement:1`,
       },
-      ...(facilityFeeCharged > 0
-        ? [
-            {
-              account_id: operatingId,
-              direction: NoteLedgerDirection.CREDIT,
-              amount: money(facilityFeeCharged),
-              description: "Facility fee deducted at disbursement",
-            },
-          ]
-        : []),
-      {
-        account_id: issuerPayableId,
+    ];
+    additionalFeeCharges.forEach((line, index) => {
+      entries.push({
+        account_id: operatingId,
         direction: NoteLedgerDirection.CREDIT,
-        amount: money(netDisbursement),
-        description: "Net disbursement obligation to issuer (pending trustee payout)",
-      },
-    ].filter((entry) => toNumber(entry.amount) > 0);
+        amount: money(line.chargedAmount),
+        description: `${line.name} deducted at disbursement`,
+        idempotency_key: `note:${note.id}:disbursement:additional-fee:${String(index).padStart(2, "0")}`,
+      });
+    });
+    if (facilityFeeCharged > 0) {
+      entries.push({
+        account_id: operatingId,
+        direction: NoteLedgerDirection.CREDIT,
+        amount: money(facilityFeeCharged),
+        description: "Facility fee deducted at disbursement",
+        idempotency_key: `note:${note.id}:disbursement:facility-fee`,
+      });
+    }
+    entries.push({
+      account_id: issuerPayableId,
+      direction: NoteLedgerDirection.CREDIT,
+      amount: money(netDisbursement),
+      description: "Net disbursement obligation to issuer (pending trustee payout)",
+      idempotency_key: `note:${note.id}:disbursement:issuer-payable`,
+    });
 
-    for (const [index, entry] of entries.entries()) {
+    const positiveEntries = entries.filter((entry) => toNumber(entry.amount) > 0);
+
+    for (const entry of positiveEntries) {
       await tx.noteLedgerEntry.create({
         data: {
           note_id: note.id,
-          ...entry,
-          idempotency_key: `note:${note.id}:disbursement:${index}`,
+          account_id: entry.account_id,
+          direction: entry.direction,
+          amount: entry.amount,
+          description: entry.description,
+          idempotency_key: entry.idempotency_key,
           metadata: { actorUserId: actor.userId },
         },
       });

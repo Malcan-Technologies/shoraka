@@ -82,7 +82,7 @@ export function InvestmentListingCard({
                   name={data.productName}
                   imageUrl={data.productImageUrl}
                   empty="-"
-                  size="sm"
+                  size="xs"
                   className="text-xs leading-5 text-muted-foreground"
                   iconClassName="h-3.5 w-3.5"
                 />

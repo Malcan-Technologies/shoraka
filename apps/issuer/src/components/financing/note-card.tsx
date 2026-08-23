@@ -124,7 +124,7 @@ function SettlementSummaryBlock({ note }: { note: NoteListItem }) {
           </div>
         </div>
         <div>
-          <div className={labelMuted}>Platform fee</div>
+          <div className={labelMuted}>Service fee</div>
           <div className="font-semibold tabular-nums">
             {formatCurrency(note.settlementSummary.operatingAccountAmount)}
           </div>
@@ -263,6 +263,7 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
                     category={note.productCategory}
                     imageS3Key={note.productImageS3Key}
                     empty={EM_DASH}
+                    size="xs"
                   />
                 </LabelValue>
                 <FacilityTiedLink

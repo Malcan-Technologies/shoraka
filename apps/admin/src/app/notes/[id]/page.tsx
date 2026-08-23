@@ -19,7 +19,13 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { NoteStatusBadge, Skeleton, StatusBadge, getNoteDerivedStatusToken } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
-import { isNoteSettlementPosted, type NoteDetail } from "@cashsouk/types";
+import {
+  isNoteSettlementPosted,
+  resolveProductImageS3KeyFromWorkflow,
+  type NoteDetail,
+} from "@cashsouk/types";
+import { useProduct } from "@/app/settings/products/hooks/use-products";
+import { productName } from "@/app/settings/products/product-utils";
 import { useNoteDetail } from "@/notes/hooks/use-note-detail";
 import {
   useCloseNoteFunding,
@@ -32,6 +38,7 @@ import {
 } from "@/notes/hooks/use-notes";
 import { LedgerPanel } from "@/notes/components/ledger-panel";
 import { NoteCampaignActions } from "@/notes/components/note-campaign-actions";
+import { NoteFacilityFeeWaiverPanel } from "@/notes/components/note-facility-fee-waiver-panel";
 import { NoteLifecycleCard } from "@/notes/components/note-lifecycle-card";
 import {
   NoteProspectusStatusCard,
@@ -49,6 +56,7 @@ import {
   AdminDetailTabs,
   AdminEntityHeader,
   AdminEntitySummaryCard,
+  AdminProductIdentity,
   AdminMetricProgress,
   AdminNextActionBanner,
   AdminRelatedRecordsRail,
@@ -90,6 +98,12 @@ import {
   formatPaymentDueHint,
   maturityCountdownClass,
 } from "@/notes/utils/maturity-countdown";
+
+function snapshotProductId(snapshot: unknown): string | null {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
+  const productId = (snapshot as Record<string, unknown>).product_id;
+  return typeof productId === "string" && productId.trim() ? productId.trim() : null;
+}
 
 function getNotePaymentDueSummary(note: NoteDetail) {
   const paymentDueDate = getNotePaymentDueDate(note);
@@ -214,6 +228,8 @@ export default function NoteDetailPage() {
   const router = useRouter();
   const noteId = typeof params.id === "string" ? params.id : "";
   const { data: note, isLoading, error } = useNoteDetail(noteId);
+  const catalogProductId = snapshotProductId(note?.productSnapshot);
+  const { data: catalogProduct } = useProduct(catalogProductId);
 
   const publishNote = usePublishNote();
   const unpublishNote = useUnpublishNote();
@@ -395,6 +411,20 @@ export default function NoteDetailPage() {
                   eyebrow="Note detail"
                   title={note.title}
                   subtitle={`${note.noteReference} · ${note.issuerName ?? "Unknown issuer"}`}
+                  identityExtra={
+                    <AdminProductIdentity
+                      name={
+                        note.productName?.trim() ||
+                        (catalogProduct && productName(catalogProduct) !== "—"
+                          ? productName(catalogProduct)
+                          : null)
+                      }
+                      imageS3Key={
+                        note.productImageS3Key ??
+                        resolveProductImageS3KeyFromWorkflow(catalogProduct?.workflow)
+                      }
+                    />
+                  }
                   contextRows={getNoteHeaderPurposeRows(note)}
                   icon={DocumentTextIcon}
                   chips={
@@ -466,6 +496,8 @@ export default function NoteDetailPage() {
                     }
                   />
                 ) : null}
+
+                <NoteFacilityFeeWaiverPanel note={note} canManage={canManage} />
 
                 <AdminRelatedRecordsRail
                   main={

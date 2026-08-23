@@ -55,7 +55,11 @@ export function ApplicationSlimCard({
             <StatusBadge label={statusLabel} status={statusToken} />
             <span className="text-ui font-semibold text-foreground">{displayId}</span>
             {application.type !== "Generic" ? (
-              <ProductCatalogName name={application.type} imageS3Key={productImageS3Key} />
+              <ProductCatalogName
+                name={application.type}
+                imageS3Key={productImageS3Key}
+                size="xs"
+              />
             ) : null}
           </div>
           <p className="text-ui leading-6 text-foreground">

@@ -1,4 +1,5 @@
 export { AdminEntityHeader } from "./admin-entity-header";
+export { AdminProductIdentity } from "./admin-product-identity";
 export {
   HERO_SUMMARY_CARD_LIMIT,
   heroSummaryClusterClass,

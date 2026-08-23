@@ -1,0 +1,25 @@
+---
+description: Use the local cashsouk AWS CLI profile with long-lived IAM keys; do not run aws login.
+alwaysApply: true
+---
+
+# AWS CLI — cashsouk
+
+When accessing AWS for this project, use `--profile cashsouk` (or `AWS_PROFILE=cashsouk`).
+
+- Account: `652821469470` (CashSouk)
+- Region: `ap-southeast-5`
+- Identity: IAM user `cli-admin` with `AdministratorAccess`
+- Credentials: long-lived access keys in `~/.aws/credentials` under `[cashsouk]`
+
+Do **not** run `aws login` or restore `login_session` for this profile. Keys persist across sessions.
+
+Verify with:
+
+```bash
+aws sts get-caller-identity --profile cashsouk
+```
+
+Expected ARN: `arn:aws:iam::652821469470:user/cli-admin`
+
+Never print, commit, or copy the secret key. If auth fails, check that profile and the credentials file — do not fall back to root login unless asked.

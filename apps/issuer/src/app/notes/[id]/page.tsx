@@ -749,6 +749,59 @@ export default function IssuerNoteDetailPage() {
           />
         ) : null}
 
+        {note.feeSchedule || note.facilityFeeCollectionWaiver?.facilityFeeCollectionWaived ? (
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle className="text-xl sm:text-2xl">Fee schedule</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-ui leading-6 text-muted-foreground">
+                Frozen at offer acceptance. Drawdown fee uses actual funded; fixed extra fees stay
+                unchanged at partial funding.
+              </p>
+              {note.feeSchedule ? (
+                <dl className="space-y-2 text-ui">
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-muted-foreground">Drawdown fee</dt>
+                    <dd className="font-medium tabular-nums">
+                      {note.platformFeeRatePercent}% of actual funded
+                    </dd>
+                  </div>
+                  {note.sourceContractId ? (
+                    <div className="flex items-center justify-between gap-4">
+                      <dt className="text-muted-foreground">Facility fee collection</dt>
+                      <dd className="font-medium tabular-nums">
+                        {formatCurrency(note.feeSchedule.facilityFeeCollectAmount)}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {note.feeSchedule.additionalFees.map((line) => (
+                    <div
+                      key={`${line.name}-${line.kind}`}
+                      className="flex items-center justify-between gap-4"
+                    >
+                      <dt className="text-muted-foreground">{line.name}</dt>
+                      <dd className="font-medium tabular-nums">
+                        {line.kind === "percent_of_funded"
+                          ? `${line.value}% of actual funded`
+                          : formatCurrency(line.value)}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+              {note.facilityFeeCollectionWaiver?.facilityFeeCollectionWaived ? (
+                <p className="text-ui leading-6 text-muted-foreground" role="status">
+                  Facility fee collection for this note is waived
+                  {note.facilityFeeCollectionWaiver.waivedReason
+                    ? `: ${note.facilityFeeCollectionWaiver.waivedReason}`
+                    : "."}
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card>
           <CardHeader className="space-y-0 gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div className="flex min-w-0 flex-1 items-center gap-1.5">
@@ -856,19 +909,41 @@ export default function IssuerNoteDetailPage() {
                 </span>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <span className="text-sm text-muted-foreground">Platform fee</span>
+                <span className="text-sm text-muted-foreground">Drawdown fee</span>
                 <span className="text-sm font-semibold text-foreground tabular-nums">
                   {formatCurrency(issuerDisbursementWithdrawal.platformFeeAmount!)}
                 </span>
               </div>
               {issuerDisbursementWithdrawal.facilityFeeCharged != null ? (
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm text-muted-foreground">Facility fee</span>
+                  <span className="text-sm text-muted-foreground">
+                    {issuerDisbursementWithdrawal.facilityFeeCollectionWaived
+                      ? "Facility fee (waived)"
+                      : "Facility fee"}
+                  </span>
                   <span className="text-sm font-semibold text-foreground tabular-nums">
                     {formatCurrency(issuerDisbursementWithdrawal.facilityFeeCharged)}
                   </span>
                 </div>
               ) : null}
+              {issuerDisbursementWithdrawal.facilityFeeCollectionWaived &&
+              issuerDisbursementWithdrawal.facilityFeeCharged == null ? (
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-muted-foreground">Facility fee</span>
+                  <span className="text-sm font-semibold text-foreground">Waived</span>
+                </div>
+              ) : null}
+              {(issuerDisbursementWithdrawal.additionalFees ?? []).map((line, index) => (
+                <div
+                  key={`${line.name}-${index}`}
+                  className="flex items-center justify-between gap-4"
+                >
+                  <span className="text-sm text-muted-foreground">{line.name}</span>
+                  <span className="text-sm font-semibold text-foreground tabular-nums">
+                    {formatCurrency(line.chargedAmount)}
+                  </span>
+                </div>
+              ))}
               <div className="flex items-center justify-between gap-4 pt-1">
                 <span className="text-sm text-muted-foreground">Net to issuer</span>
                 <span className="text-sm font-semibold text-primary tabular-nums">
@@ -926,7 +1001,7 @@ export default function IssuerNoteDetailPage() {
                   description="Principal, net profit, and any investor Ta'widh compensation."
                 />
                 <BucketPayoutCard
-                  label="Platform fee"
+                  label="Service fee"
                   value={settlementSummary.operatingAccountAmount}
                   description="Service fee retained by the platform."
                 />

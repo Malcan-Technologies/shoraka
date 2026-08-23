@@ -85,7 +85,7 @@ export function LandingMarketplacePreview({
                             name={note.productName}
                             imageUrl={note.productImageUrl}
                             empty="-"
-                            size="sm"
+                            size="xs"
                             className="text-xs leading-5 text-muted-foreground sm:text-right"
                             iconClassName="h-3.5 w-3.5"
                           />

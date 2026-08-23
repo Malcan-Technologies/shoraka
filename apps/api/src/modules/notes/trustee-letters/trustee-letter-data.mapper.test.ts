@@ -121,3 +121,62 @@ describe("trustee-letter data mappers ourRef", () => {
     expect(repayment.ourRef).toBe("SET-ARF-202608-A52");
   });
 });
+
+describe("mapDisbursementLetterData fee rows", () => {
+  const beneficiary = {
+    account_holder: "Issuer Sdn Bhd",
+    account_number: "999",
+    bank_name: "Maybank",
+  };
+
+  it("labels the stored platform fee as Drawdown Fee to Platform", () => {
+    const letter = mapDisbursementLetterData({
+      withdrawalId: "wd_fee",
+      withdrawalAmount: 94_700,
+      beneficiarySnapshot: beneficiary,
+      metadata: {
+        platformFeeAmount: 3_000,
+        facilityFeeCharged: 800,
+        netIssuerDisbursement: 94_700,
+      },
+      config: buildConfig(),
+    });
+    expect(letter.paymentRows.map((row) => row.remarks)).toEqual([
+      "Disbursement to Borrower",
+      "Drawdown Fee to Platform",
+      "Facility Fee to Platform",
+    ]);
+    expect(letter.paymentRows[1]).toMatchObject({ amount: 3_000, accountNo: "333" });
+  });
+
+  it("appends validated additional fees in stored order and skips nonpositive or unsafe names", () => {
+    const letter = mapDisbursementLetterData({
+      withdrawalId: "wd_extra",
+      withdrawalAmount: 90_000,
+      beneficiarySnapshot: beneficiary,
+      metadata: {
+        platformFeeAmount: 2_000,
+        facilityFeeCharged: 0,
+        netIssuerDisbursement: 90_000,
+        additionalFees: [
+          { name: "Legal fee", kind: "amount", value: 500, chargedAmount: 500 },
+          { name: "   ", kind: "amount", value: 10, chargedAmount: 10 },
+          { name: "Arrangement", kind: "percent_of_funded", value: 1, chargedAmount: 800 },
+          { name: "Zeroed", kind: "amount", value: 0, chargedAmount: 0 },
+          { name: "Skip kind", kind: "nope", value: 1, chargedAmount: 25 },
+          { name: "Stamp duty", kind: "amount", value: 50, chargedAmount: 50 },
+        ],
+      },
+      config: buildConfig(),
+    });
+    expect(letter.paymentRows.map((row) => row.remarks)).toEqual([
+      "Disbursement to Borrower",
+      "Drawdown Fee to Platform",
+      "Legal fee to Platform",
+      "Arrangement to Platform",
+      "Stamp duty to Platform",
+    ]);
+    expect(letter.paymentRows.map((row) => row.amount)).toEqual([90_000, 2_000, 500, 800, 50]);
+    expect(letter.paymentRows.slice(2).every((row) => row.accountNo === "333")).toBe(true);
+  });
+});

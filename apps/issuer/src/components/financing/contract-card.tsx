@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { DocumentTextIcon, EllipsisVerticalIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
+import { DocumentTextIcon, EllipsisVerticalIcon } from "@heroicons/react/24/outline";
 import { ProductCatalogName, StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +29,8 @@ import {
 } from "@/lib/facility-capacity-display";
 import { asContractForModal } from "@/types/issuer-dashboard";
 import { cn } from "@/lib/utils";
+import { resolveIssuerFacilityFeeBalance, resolveIssuerFacilityGate } from "@/lib/facility-enabled";
+import { FacilityDisabledBanner, FacilityFeeBalanceSummary } from "./facility-fee-status";
 import { FinancingDonut } from "./financing-donut";
 import { FinancingKpiTile } from "./financing-kpi-strip";
 import {
@@ -53,10 +55,12 @@ function OfferStatusBadge({ offerStatus }: { offerStatus: OfferStatus }) {
 export function DashboardContractCard({
   row,
   offerStatus,
+  productName,
   productImageS3Key,
 }: {
   row: IssuerDashboardContract;
   offerStatus: OfferStatus;
+  productName?: string | null;
   productImageS3Key?: string | null;
 }) {
   const router = useRouter();
@@ -85,6 +89,23 @@ export function DashboardContractCard({
 
   const stats = row.invoiceStats;
   const offerDetails = asContractForModal(row.contractForModal)?.offer_details;
+  const contractDetails = asContractForModal(row.contractForModal)?.contract_details;
+  const facilityGate = resolveIssuerFacilityGate({
+    contractDetails,
+    facilityEnabled: row.facilityEnabled,
+    facilityDisabledReason: row.facilityDisabledReason,
+    contractStatus: row.contractStatus,
+  });
+  const feeBalance =
+    row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null
+      ? resolveIssuerFacilityFeeBalance({
+          contractDetails,
+          approvedFacilityAmount: row.approvedFacilityAmount,
+          facilityFeeCapAmount: row.facilityFeeCapAmount,
+          facilityFeePaidAmount: row.facilityFeePaidAmount,
+          facilityFeeWaived: row.facilityFeeWaived,
+        })
+      : null;
   const reviewOfferVisible = shouldShowIssuerReviewOfferCta({
     status: offerStatus === "Offer received" ? "OFFER_SENT" : offerStatus,
     offer_details: offerDetails,
@@ -236,9 +257,10 @@ export function DashboardContractCard({
                 <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
                 <LabelValue label="Product">
                   <ProductCatalogName
-                    name={row.productName}
+                    name={productName ?? row.productName}
                     imageS3Key={productImageS3Key}
                     empty={EM_DASH}
+                    size="xs"
                   />
                 </LabelValue>
                 <LabelValue label="Contract period">{contractPeriod}</LabelValue>
@@ -249,29 +271,10 @@ export function DashboardContractCard({
                 </p>
               </div>
               <div className="min-w-0 space-y-2">
-                {row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null ? (
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    Facility fee collected:{" "}
-                    <span className="font-medium tabular-nums text-foreground">
-                      {formatMoney(row.facilityFeePaidAmount)} /{" "}
-                      {formatMoney(row.facilityFeeCapAmount)} cap
-                    </span>
-                    <span className="ml-1 inline-flex items-center align-middle">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <InformationCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-[260px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
-                            Shows the total facility fee collected so far for this facility.
-                            Facility fee is deducted from each invoice financing disbursement until
-                            the cap is reached.
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </span>
-                  </p>
+                {facilityGate.enabled === false ? (
+                  <FacilityDisabledBanner reason={facilityGate.disabledReason} />
                 ) : null}
+                {feeBalance ? <FacilityFeeBalanceSummary balance={feeBalance} compact /> : null}
               </div>
             </div>
           </div>

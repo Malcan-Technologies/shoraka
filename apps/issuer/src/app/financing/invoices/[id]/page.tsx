@@ -23,6 +23,7 @@ import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
 import { useInvoice } from "@/hooks/use-invoices";
 import { useIssuerProduct } from "@/hooks/use-products";
 import { resolveProductImageS3KeyFromWorkflow } from "@cashsouk/types";
+import { resolveProductDisplayName } from "@/lib/product-display";
 import {
   issuerContentMaxWidthClassName,
   issuerMainContentClassName,
@@ -122,6 +123,7 @@ export default function InvoiceDetailPage() {
   const productId = row?.productId ?? relatedContract?.productId ?? "";
   const { data: productRecord } = useIssuerProduct(productId);
   const productImageS3Key = resolveProductImageS3KeyFromWorkflow(productRecord?.workflow);
+  const catalogProductName = resolveProductDisplayName(productRecord);
 
   const feeDisplay = buildInvoiceFeeDisplay({
     status: row?.note?.noteStatus ?? row?.invoiceStatus ?? modalInvoice?.status,
@@ -135,6 +137,10 @@ export default function InvoiceDetailPage() {
     )?.contract_details?.facility_fee_rate_percent,
     contractFacilityFeeCapAmount: relatedContract?.facilityFeeCapAmount,
     contractFacilityFeePaidAmount: relatedContract?.facilityFeePaidAmount,
+    contractDetails: (
+      relatedContract?.contractForModal as { contract_details?: unknown } | null
+    )?.contract_details,
+    invoiceSnapshot: modalInvoice,
     actual: row?.note?.disbursementBreakdown,
   });
 
@@ -390,9 +396,14 @@ export default function InvoiceDetailPage() {
                 label: "Product",
                 value: (
                   <ProductCatalogName
-                    name={relatedContract?.productName}
+                    name={
+                      catalogProductName ??
+                      row?.productName ??
+                      relatedContract?.productName
+                    }
                     imageS3Key={productImageS3Key}
                     empty={EM_DASH}
+                    size="xs"
                   />
                 ),
               },
@@ -497,7 +508,7 @@ export default function InvoiceDetailPage() {
                     tabular: true,
                   },
                   {
-                    label: "Platform fee",
+                    label: "Drawdown fee",
                     value:
                       feeDisplay.platformFeeAmount != null
                         ? money(feeDisplay.platformFeeAmount)
@@ -506,8 +517,11 @@ export default function InvoiceDetailPage() {
                   },
                   {
                     label: "Facility fee",
-                    value:
-                      feeDisplay.facilityFeeAmount != null
+                    value: feeDisplay.facilityFeeCollectionWaived
+                      ? feeDisplay.waiverReason
+                        ? `Waived — ${feeDisplay.waiverReason}`
+                        : "Waived"
+                      : feeDisplay.facilityFeeAmount != null
                         ? `${money(feeDisplay.facilityFeeAmount)}${
                             feeDisplay.facilityFeeFullyCollected &&
                             feeDisplay.facilityFeeAmount === 0
@@ -517,6 +531,11 @@ export default function InvoiceDetailPage() {
                         : EM_DASH,
                     tabular: true,
                   },
+                  ...feeDisplay.additionalFeeCharges.map((line) => ({
+                    label: line.name,
+                    value: money(line.chargedAmount),
+                    tabular: true as const,
+                  })),
                 ]}
               />
             )}

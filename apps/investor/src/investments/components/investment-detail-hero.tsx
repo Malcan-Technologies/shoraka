@@ -23,6 +23,7 @@ import {
   MATURITY_VALUE_CLASS,
   formatRiskScore,
 } from "./investment-card-metrics";
+import { InvestmentNoteIdentity } from "./investment-note-identity";
 
 function FactTile({ label, value }: { label: string; value: string }) {
   return (
@@ -82,23 +83,7 @@ export function InvestmentDetailHero({
               <NoteStatusBadge note={note} viewer="investor" />
               <span className="text-ui font-semibold text-foreground">{facts.noteLabel}</span>
             </div>
-            <p className="text-ui leading-6 text-foreground">
-              {isInvestedView
-                ? facts.issuerName
-                : note.purposeOfFinancing?.trim() || facts.noteLabel}
-              {note.issuerIndustry?.trim() ? ` · ${note.issuerIndustry.trim()}` : ""}
-            </p>
-            {!isInvestedView &&
-            (note.purposeOfContract?.trim() || note.contractTitle?.trim()) ? (
-              <p className="text-ui leading-6 text-foreground">
-                {note.purposeOfContract?.trim() &&
-                note.contractTitle?.trim() &&
-                note.purposeOfContract.trim().toLowerCase() !==
-                  note.contractTitle.trim().toLowerCase()
-                  ? `${note.contractTitle.trim()} · ${note.purposeOfContract.trim()}`
-                  : note.purposeOfContract?.trim() || note.contractTitle?.trim()}
-              </p>
-            ) : null}
+            <InvestmentNoteIdentity note={note} />
             {isInvestedView ? (
               <>
                 <p className="text-ui leading-6 text-foreground">{investmentCardHeadline(note)}</p>

@@ -48,6 +48,9 @@ const ACTIVITY_STATUS_BY_EVENT: Record<string, ActivityStatusToken> = {
   CONTRACT_OFFER_EXPIRED: "rejected",
   CONTRACT_SIGNING_DEADLINE_EXTENDED: "submitted",
   CONTRACT_WITHDRAWN: "neutral",
+  CONTRACT_FACILITY_FEE_WAIVED: "neutral",
+  CONTRACT_FACILITY_DISABLED: "neutral",
+  CONTRACT_FACILITY_ENABLED: "active",
 
   INVOICE_OFFER_SENT: "action",
   INVOICE_OFFER_ACCEPTANCE_SUBMITTED: "submitted",
@@ -66,6 +69,7 @@ const ACTIVITY_STATUS_BY_EVENT: Record<string, ActivityStatusToken> = {
   PAUSE_LISTING: "neutral",
   RESUME_LISTING: "submitted",
   CLOSE_FUNDING: "submitted",
+  NOTE_FACILITY_FEE_COLLECTION_WAIVED: "neutral",
   FAIL_FUNDING: "rejected",
   ACTIVATE: "active",
   WITHDRAWAL_COMPLETED: "active",

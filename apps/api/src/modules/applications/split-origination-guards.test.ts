@@ -82,7 +82,28 @@ describe("split origination API guards", () => {
     );
   });
 
-  it("allows existing-facility drawdowns on an approved facility owned by the issuer", () => {
+  it("rejects existing-facility drawdowns on a disabled facility", () => {
+    expectAppError(
+      () =>
+        assertExistingFacilityDrawdown(
+          {
+            financing_type: { split_origination: true },
+            financing_structure: { structure_type: "existing_contract" },
+            issuer_organization_id: "org_1",
+          },
+          {
+            ...approvedContract,
+            contract_details: {
+              facility_enabled: false,
+              facility_disabled_reason: "Paused by ops",
+            },
+          }
+        ),
+      "FACILITY_DISABLED"
+    );
+  });
+
+  it("allows existing-facility drawdowns when facility_enabled is omitted (legacy)", () => {
     expect(() =>
       assertExistingFacilityDrawdown(
         {
@@ -90,7 +111,7 @@ describe("split origination API guards", () => {
           financing_structure: { structure_type: "existing_contract" },
           issuer_organization_id: "org_1",
         },
-        approvedContract
+        { ...approvedContract, contract_details: { approved_facility: 100000 } }
       )
     ).not.toThrow();
   });

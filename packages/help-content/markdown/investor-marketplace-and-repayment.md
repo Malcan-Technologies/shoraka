@@ -8,7 +8,7 @@ tags:
   - notes
   - repayment
 order: 12
-updated: 2026-08-19
+updated: 2026-08-22
 ---
 
 ## What You're Investing In
@@ -60,7 +60,7 @@ You can review your active commitments and confirmed positions from the **Portfo
 You don't need to do anything at disbursement. When funding closes successfully, the platform:
 
 1. confirms all commitments on the note,
-2. takes the platform fee (capped by Platform Finance Settings) into the Operating Account,
+2. takes issuer disbursement fees (drawdown fee and any frozen utilisation lines) into the Operating Account — these are charged to the issuer, not to your principal,
 3. disburses the net funded amount to the issuer,
 4. moves the note to **Active**.
 

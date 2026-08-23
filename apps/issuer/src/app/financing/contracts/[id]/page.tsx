@@ -3,7 +3,6 @@
 import { Suspense, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useOrganization } from "@cashsouk/config";
 import {
   Card,
@@ -14,7 +13,6 @@ import {
   EmptyState,
   KeyValueGrid,
   LoadingState,
-  formatMoneyDisplay,
   ProductCatalogName,
 } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
@@ -22,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIssuerDashboardContract } from "@/hooks/use-issuer-dashboard";
 import { useIssuerProduct } from "@/hooks/use-products";
 import { resolveProductImageS3KeyFromWorkflow } from "@cashsouk/types";
+import { resolveProductDisplayName } from "@/lib/product-display";
 import { useApplicationLogsMany } from "@/hooks/use-application-logs";
 import { useIssuerNotes } from "@/notes/hooks/use-issuer-notes";
 import {
@@ -60,6 +59,11 @@ import { formatContractReference } from "@cashsouk/types";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 import { resolveFacilityDisplayMetrics } from "@/lib/facility-capacity-display";
 import { FacilityDualLimitSummaries } from "@/components/financing/facility-dual-limits";
+import { resolveIssuerFacilityFeeBalance, resolveIssuerFacilityGate } from "@/lib/facility-enabled";
+import {
+  FacilityDisabledBanner,
+  FacilityFeeBalanceSummary,
+} from "@/components/financing/facility-fee-status";
 
 type FacilityDetailTab = "invoices" | "transactions";
 
@@ -74,10 +78,6 @@ function contractBusinessNumber(contractForModal: unknown): string | null {
   return typeof details?.number === "string" && details.number.trim().length > 0
     ? details.number.trim()
     : null;
-}
-
-function formatMoney(value: unknown) {
-  return formatMoneyDisplay(value, EM_DASH);
 }
 
 function ContractDetailsPageContent() {
@@ -107,6 +107,7 @@ function ContractDetailsPageContent() {
   const row = data?.contract ?? null;
   const { data: productRecord } = useIssuerProduct(row?.productId ?? "");
   const productImageS3Key = resolveProductImageS3KeyFromWorkflow(productRecord?.workflow);
+  const catalogProductName = resolveProductDisplayName(productRecord);
   const invoices = data?.invoices ?? [];
   const applicationIds = useMemo(
     () => (row ? uniqueFacilityApplicationIds(row, invoices) : []),
@@ -157,11 +158,6 @@ function ContractDetailsPageContent() {
         ? Math.abs(availableNum)
         : null;
 
-  const facilityFeeCapNum =
-    row?.facilityFeeCapAmount != null ? Number(row.facilityFeeCapAmount) : null;
-  const facilityFeePaidNum =
-    row?.facilityFeePaidAmount != null ? Number(row.facilityFeePaidAmount) : null;
-
   const contractPeriod =
     row?.contractStartDate && row?.contractEndDate
       ? `${formatDate(row.contractStartDate)} to ${formatDate(row.contractEndDate)}`
@@ -171,7 +167,7 @@ function ContractDetailsPageContent() {
 
   const productLabel = row?.productName?.trim()
     ? displayCell(row.productName)
-    : "Facility financing";
+    : catalogProductName ?? "Facility financing";
 
   const shellClass = cn(
     issuerMainContentClassName,
@@ -237,6 +233,22 @@ function ContractDetailsPageContent() {
   const offerActionCta = getIssuerOfferActionCtaFromOfferDetails(modalContract.offer_details, {
     scope: "contract",
   });
+  const facilityGate = resolveIssuerFacilityGate({
+    contractDetails: modalContract.contract_details,
+    facilityEnabled: row.facilityEnabled,
+    facilityDisabledReason: row.facilityDisabledReason,
+    contractStatus: row.contractStatus,
+  });
+  const feeBalance =
+    row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null
+      ? resolveIssuerFacilityFeeBalance({
+          contractDetails: modalContract.contract_details,
+          approvedFacilityAmount: row.approvedFacilityAmount,
+          facilityFeeCapAmount: row.facilityFeeCapAmount,
+          facilityFeePaidAmount: row.facilityFeePaidAmount,
+          facilityFeeWaived: row.facilityFeeWaived,
+        })
+      : null;
 
   const contractNumber = contractBusinessNumber(row.contractForModal);
   const cashSoukReference = formatContractReference({
@@ -272,9 +284,20 @@ function ContractDetailsPageContent() {
         actions={
           <>
             {row.contractStatus === "APPROVED" ? (
-              <Button className="rounded-xl" asChild>
-                <Link href={financeInvoiceApplicationHref(contractId)}>Finance an invoice</Link>
-              </Button>
+              facilityGate.canStartDrawdown ? (
+                <Button className="rounded-xl" asChild>
+                  <Link href={financeInvoiceApplicationHref(contractId)}>Finance an invoice</Link>
+                </Button>
+              ) : (
+                <Button
+                  className="rounded-xl"
+                  disabled
+                  aria-disabled
+                  aria-describedby="facility-disabled-reason"
+                >
+                  Finance an invoice
+                </Button>
+              )
             ) : null}
             {showReviewOffer ? (
               <div className="rounded-xl bg-status-action-bg p-0.5">
@@ -300,6 +323,11 @@ function ContractDetailsPageContent() {
               Facility usage exceeds the approved limit. Please contact support.
             </p>
           ) : null}
+          {facilityGate.enabled === false ? (
+            <div id="facility-disabled-reason">
+              <FacilityDisabledBanner reason={facilityGate.disabledReason} />
+            </div>
+          ) : null}
           <FacilityDualLimitSummaries metrics={metrics} />
           <KeyValueGrid
             columns={2}
@@ -313,32 +341,15 @@ function ContractDetailsPageContent() {
                     name={productLabel}
                     imageS3Key={productImageS3Key}
                     empty={EM_DASH}
+                    size="xs"
                   />
                 ),
               },
               { label: "Customer", value: displayCell(row.customerName) },
               { label: "Contract period", value: contractPeriod },
-              {
-                label: "Facility fee collected",
-                value:
-                  row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null
-                    ? `${facilityFeePaidNum != null ? formatMoney(facilityFeePaidNum) : EM_DASH} / ${
-                        facilityFeeCapNum != null ? formatMoney(facilityFeeCapNum) : EM_DASH
-                      } cap`
-                    : EM_DASH,
-                tabular: true,
-              },
             ]}
           />
-          {row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null ? (
-            <p className="flex items-start gap-1.5 text-sm leading-6 text-muted-foreground">
-              <InformationCircleIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>
-                Facility fee is deducted from each invoice financing disbursement until the cap is
-                reached.
-              </span>
-            </p>
-          ) : null}
+          {feeBalance ? <FacilityFeeBalanceSummary balance={feeBalance} /> : null}
         </CardContent>
       </Card>
 
@@ -397,7 +408,7 @@ function ContractDetailsPageContent() {
                   title="No invoices yet"
                   message="Invoices financed under this facility will appear here."
                   action={
-                    row.contractStatus === "APPROVED" ? (
+                    facilityGate.canStartDrawdown ? (
                       <Button className="rounded-xl" asChild>
                         <Link href={financeInvoiceApplicationHref(contractId)}>
                           Finance an invoice
@@ -431,7 +442,7 @@ function ContractDetailsPageContent() {
                       row={inv}
                       offerStatus={getOfferStatus(asInvoiceForModal(inv.invoiceForModal))}
                       facilityDisplayReference={row.displayReference}
-                      productName={row.productName}
+                      productName={catalogProductName ?? row.productName}
                       productImageS3Key={productImageS3Key}
                       contractFeeContext={{
                         facilityFeeRatePercent: (
