@@ -14,8 +14,17 @@ jest.mock("../prisma", () => ({
   },
 }));
 
-jest.mock("../../modules/applications/logs/service", () => ({
-  logApplicationActivity: jest.fn(),
+jest.mock("../../modules/applications/audit/writer", () => ({
+  writeApplicationAuditLog: jest.fn(),
+  APPLICATION_AUDIT_TARGET_TYPE: {
+    CONTRACT: "CONTRACT",
+    INVOICE: "INVOICE",
+    APPLICATION: "APPLICATION",
+  },
+}));
+
+jest.mock("../../modules/signing/audit/writer", () => ({
+  writeSigningAuditLog: jest.fn(),
 }));
 
 jest.mock("../../modules/notification/service", () => ({
@@ -46,7 +55,7 @@ jest.mock("../refresh-contract-facility", () => ({
 }));
 
 import { prisma } from "../prisma";
-import { logApplicationActivity } from "../../modules/applications/logs/service";
+import { writeApplicationAuditLog } from "../../modules/applications/audit/writer";
 import { applyContractCapacityChange } from "../refresh-contract-facility";
 import { runAcceptanceSigningExpiryJob } from "./acceptance-signing-expiry";
 
@@ -154,12 +163,13 @@ describe("runAcceptanceSigningExpiryJob", () => {
     // Must not clear commercial terms
     expect(JSON.stringify(tx.contract.update.mock.calls)).not.toContain("offer_details");
 
-    expect(logApplicationActivity).toHaveBeenCalledWith(
+    expect(writeApplicationAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         applicationId: "app-1",
         eventType: "CONTRACT_OFFER_EXPIRED",
-        entityId: "contract-1",
-      })
+        targetId: "contract-1",
+      }),
+      tx
     );
   });
 
@@ -209,12 +219,13 @@ describe("runAcceptanceSigningExpiryJob", () => {
         update: expect.objectContaining({ status: "OFFER_EXPIRED" }),
       })
     );
-    expect(logApplicationActivity).toHaveBeenCalledWith(
+    expect(writeApplicationAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         applicationId: "app-inv-1",
         eventType: "INVOICE_OFFER_EXPIRED",
-        entityId: "invoice-1",
-      })
+        targetId: "invoice-1",
+      }),
+      tx
     );
   });
 
@@ -285,14 +296,22 @@ describe("runAcceptanceSigningExpiryJob", () => {
       offer_details: signingOffer,
       status: "OFFER_SENT",
     });
-    tx.signingEnvelope.findMany.mockResolvedValue([{ id: "env-1" }]);
+    tx.signingEnvelope.findMany.mockResolvedValue([
+      {
+        id: "env-1",
+        status: "SENT",
+        expires_at: new Date(pastIso),
+        application_id: "app-2",
+      },
+    ]);
+    tx.signingEnvelope.updateMany.mockResolvedValue({ count: 1 });
 
     const result = await runAcceptanceSigningExpiryJob();
 
     expect(result.contractsExpired).toEqual(["contract-2"]);
     expect(result.envelopesExpired).toEqual(["env-1"]);
     expect(tx.signingEnvelope.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: ["env-1"] } },
+      where: { id: "env-1", status: { in: ["DRAFT", "SENT", "IN_PROGRESS"] } },
       data: { status: "EXPIRED" },
     });
   });

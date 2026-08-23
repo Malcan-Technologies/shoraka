@@ -84,7 +84,7 @@ describe("OrganizationService createOrganization display reference", () => {
       type: OrganizationType.COMPANY,
       name: "Investor Org",
       registration_number: "123",
-      onboarding_status: OnboardingStatus.PENDING,
+      onboarding_status: OnboardingStatus.IN_PROGRESS,
     });
     mockTx.investorOrganization.findUniqueOrThrow.mockResolvedValue({
       id: "inv_org_1",
@@ -123,7 +123,7 @@ describe("OrganizationService createOrganization display reference", () => {
       type: OrganizationType.COMPANY,
       name: "Issuer Org",
       registration_number: "999",
-      onboarding_status: OnboardingStatus.PENDING,
+      onboarding_status: OnboardingStatus.IN_PROGRESS,
     });
     mockTx.issuerOrganization.findUniqueOrThrow.mockResolvedValue({
       id: "iss_org_1",

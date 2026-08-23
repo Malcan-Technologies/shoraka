@@ -31,7 +31,17 @@ import {
 import { RequirePermission } from "@/components/require-permission";
 import { AdminPageHeader } from "@/components/admin-page-header";
 import { ApplicationReviewRemarkDialog } from "@/components/application-review-remark-dialog";
+import { ContextualAuditHistoryPanel } from "@/components/audit/contextual-audit-history-panel";
+import { paymentAuditToDetail } from "@/components/audit/contextual-audit-mappers";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useReconExceptionAudit } from "@/hooks/use-recon-exception-audit";
 import { adminActionRowClass } from "@/lib/admin-status-token";
 import {
   GATEWAY_ACCOUNT_OPTIONS,
@@ -67,6 +77,41 @@ function formatDate(value: string) {
   return format(new Date(value), "dd MMM yyyy, h:mm a");
 }
 
+function ReconExceptionAuditSheet({
+  exception,
+  open,
+  onOpenChange,
+}: {
+  exception: GatewayReconExceptionDto | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { data, isLoading, error } = useReconExceptionAudit(exception?.id ?? null);
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
+        <SheetHeader>
+          <SheetTitle>Audit History</SheetTitle>
+          <SheetDescription>
+            Raw forensic audit records for this reconciliation exception.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="mt-6">
+          <ContextualAuditHistoryPanel
+            variant="plain"
+            detailMode="inline"
+            rows={(data ?? []).map(paymentAuditToDetail)}
+            isLoading={isLoading}
+            error={error instanceof Error ? error : null}
+            emptyMessage="No audit records found"
+          />
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 export default function ReconciliationPage() {
   const { can } = usePermissions();
   const canManage = can("gateway_reconciliation.manage");
@@ -77,7 +122,9 @@ export default function ReconciliationPage() {
   const [accountFilter, setAccountFilter] = useState<"ALL" | (typeof GATEWAY_ACCOUNT_OPTIONS)[number]["value"]>(
     "ALL"
   );
+  const [exceptionStatus, setExceptionStatus] = useState<"open" | "resolved">("open");
   const [resolveTarget, setResolveTarget] = useState<GatewayReconExceptionDto | null>(null);
+  const [auditTarget, setAuditTarget] = useState<GatewayReconExceptionDto | null>(null);
 
   const {
     data: runsData,
@@ -92,6 +139,16 @@ export default function ReconciliationPage() {
   });
 
   const {
+    data: openExceptionsData,
+    refetch: refetchOpenExceptions,
+  } = useGatewayReconExceptions({
+    page: 1,
+    pageSize: 50,
+    resolved: false,
+    gatewayAccount: accountFilter === "ALL" ? undefined : accountFilter,
+  });
+
+  const {
     data: exceptionsData,
     isLoading: exceptionsLoading,
     error: exceptionsError,
@@ -100,7 +157,7 @@ export default function ReconciliationPage() {
   } = useGatewayReconExceptions({
     page: 1,
     pageSize: 50,
-    resolved: false,
+    resolved: exceptionStatus === "resolved",
     gatewayAccount: accountFilter === "ALL" ? undefined : accountFilter,
   });
 
@@ -165,6 +222,7 @@ export default function ReconciliationPage() {
                 onClick={() => {
                   void refetchRuns();
                   void refetchExceptions();
+                  void refetchOpenExceptions();
                 }}
                 disabled={isRefreshing}
                 className="h-8 w-8 shrink-0 p-0"
@@ -250,6 +308,21 @@ export default function ReconciliationPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label htmlFor="recon-exception-status">Exception status</Label>
+                <Select
+                  value={exceptionStatus}
+                  onValueChange={(value) => setExceptionStatus(value as typeof exceptionStatus)}
+                >
+                  <SelectTrigger id="recon-exception-status" className="mt-1 w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardContent>
           </Card>
 
@@ -304,7 +377,7 @@ export default function ReconciliationPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-semibold">{exceptionsData?.total ?? "—"}</p>
+                <p className="text-2xl font-semibold">{openExceptionsData?.total ?? "—"}</p>
               </CardContent>
             </Card>
           </div>
@@ -369,7 +442,9 @@ export default function ReconciliationPage() {
 
           <Card className="rounded-2xl">
             <CardHeader>
-              <CardTitle>Open exceptions</CardTitle>
+              <CardTitle>
+                {exceptionStatus === "resolved" ? "Resolved exceptions" : "Open exceptions"}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {exceptionsLoading ? (
@@ -377,7 +452,11 @@ export default function ReconciliationPage() {
               ) : exceptionsError ? (
                 <p className="text-destructive text-sm">Failed to load exceptions.</p>
               ) : exceptions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No open exceptions.</p>
+                <p className="text-sm text-muted-foreground">
+                  {exceptionStatus === "resolved"
+                    ? "No resolved exceptions."
+                    : "No open exceptions."}
+                </p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -391,6 +470,7 @@ export default function ReconciliationPage() {
                       <TableHead>Actual</TableHead>
                       <TableHead>Detail</TableHead>
                       <TableHead>Created</TableHead>
+                      {exceptionStatus === "resolved" ? <TableHead>Resolved</TableHead> : null}
                       <TableHead />
                     </TableRow>
                   </TableHeader>
@@ -425,16 +505,32 @@ export default function ReconciliationPage() {
                         </TableCell>
                         <TableCell className="max-w-xs truncate">{formatExceptionDetail(item.detail)}</TableCell>
                         <TableCell>{formatDate(item.createdAt)}</TableCell>
+                        {exceptionStatus === "resolved" ? (
+                          <TableCell>
+                            {item.resolvedAt ? formatDate(item.resolvedAt) : "—"}
+                          </TableCell>
+                        ) : null}
                         <TableCell>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setResolveTarget(item)}
-                            disabled={!canManage}
-                            title={disabledReason}
-                          >
-                            Resolve
-                          </Button>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setAuditTarget(item)}
+                            >
+                              Audit
+                            </Button>
+                            {exceptionStatus === "open" ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setResolveTarget(item)}
+                                disabled={!canManage}
+                                title={disabledReason}
+                              >
+                                Resolve
+                              </Button>
+                            ) : null}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -458,6 +554,14 @@ export default function ReconciliationPage() {
             isPending={isPending}
           />
         ) : null}
+
+        <ReconExceptionAuditSheet
+          exception={auditTarget}
+          open={auditTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setAuditTarget(null);
+          }}
+        />
       </>
     </RequirePermission>
   );

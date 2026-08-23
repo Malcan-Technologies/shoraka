@@ -12,10 +12,17 @@ const mockUpdate = jest.fn();
 const mockCreate = jest.fn();
 const mockTransaction = jest.fn();
 const mockNoteFindUnique = jest.fn();
-const mockAdminActionCreate = jest.fn();
-const mockNoteEventCreate = jest.fn();
 const mockPublicationCreate = jest.fn();
 const mockBuildSnapshot = jest.fn();
+
+jest.mock("../audit/writer", () => {
+  const actual = jest.requireActual<typeof import("../audit/writer")>("../audit/writer");
+  return {
+    ...actual,
+    writeNoteAuditFromActor: jest.fn().mockResolvedValue(undefined),
+    writeNoteAuditLog: jest.fn().mockResolvedValue(undefined),
+  };
+});
 
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
@@ -30,8 +37,6 @@ jest.mock("../../../lib/prisma", () => ({
       create: (...args: unknown[]) => mockPublicationCreate(...args),
     },
     $transaction: (...args: unknown[]) => mockTransaction(...args),
-    noteAdminAction: { create: (...args: unknown[]) => mockAdminActionCreate(...args) },
-    noteEvent: { create: (...args: unknown[]) => mockNoteEventCreate(...args) },
   },
 }));
 
@@ -227,12 +232,8 @@ describe("prospectus workflow transitions", () => {
       cb({
         noteProspectusReview: { update: mockUpdate },
         noteProspectusPublication: { create: mockPublicationCreate },
-        noteAdminAction: { create: mockAdminActionCreate },
-        noteEvent: { create: mockNoteEventCreate },
       })
     );
-    mockAdminActionCreate.mockResolvedValue({});
-    mockNoteEventCreate.mockResolvedValue({});
     mockPublicationCreate.mockResolvedValue({ id: "pub-1" });
     mockBuildSnapshot.mockResolvedValue({
       publication_id: "pub-1",

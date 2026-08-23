@@ -1,13 +1,9 @@
-import { productLogRepository } from "./repository";
+import { productAuditLogReader } from "./audit/reader";
 import type { GetProductLogsQuery, ExportProductLogsQuery } from "./schemas";
 
-/**
- * Product module service: product logs only (list + export).
- * Product CRUD and image routes have been removed.
- */
 export class ProductService {
   async getProductLogs(query: GetProductLogsQuery) {
-    const { logs, total } = await productLogRepository.findAll(query);
+    const { logs, total } = await productAuditLogReader.findAll(query);
 
     return {
       logs,
@@ -21,7 +17,7 @@ export class ProductService {
   }
 
   async exportProductLogs(query: Omit<ExportProductLogsQuery, "format">) {
-    return productLogRepository.findForExport({
+    return productAuditLogReader.findForExport({
       search: query.search,
       eventType: query.eventType,
       eventTypes: query.eventTypes,

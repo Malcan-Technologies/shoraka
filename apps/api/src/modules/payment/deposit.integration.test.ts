@@ -141,6 +141,9 @@ describeIntegration("investor deposit service", () => {
 
   afterAll(async () => {
     if (createdPaymentIds.length > 0) {
+      await prisma.paymentAuditLog.deleteMany({
+        where: { gateway_payment_id: { in: createdPaymentIds } },
+      });
       await prisma.gatewayPayment.deleteMany({ where: { id: { in: createdPaymentIds } } });
     }
     if (createdOrgIds.length > 0) {
@@ -247,6 +250,10 @@ describeIntegration("investor deposit service", () => {
     );
     createdPaymentIds.push(first.id);
     expect(second.id).toBe(first.id);
+    const initiated = await prisma.paymentAuditLog.findMany({
+      where: { gateway_payment_id: first.id, event_type: "PAYMENT_INITIATED" },
+    });
+    expect(initiated).toHaveLength(1);
   });
 
   it("same intent reuses active PAID order", async () => {

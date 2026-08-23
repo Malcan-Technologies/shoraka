@@ -1,15 +1,16 @@
 # Marketplace feature and account balances
 
-This guide explains the current marketplace surfaces end to end and how investor account balances, portfolio history, and activity are derived from note lifecycle events.
+This guide explains the current marketplace surfaces end to end and how investor account balances, portfolio history, and wallet activity are derived from note lifecycle events and gateway deposits.
 
 ## Feature scope
 
 - Investor marketplace browsing and commit flow.
 - Public marketplace browsing on landing surfaces.
 - Investor portfolio totals and available balance.
-- Investor portfolio history chart and balance activity feed.
+- Investor portfolio history chart and **Portfolio → Transactions** wallet / cash-statement feed.
 - Admin note actions that impact investor balances.
-- Transaction and ledger records used for audit and reconciliation.
+- Admin investor organization Activity tab wallet panel (same cash-statement data).
+- Transaction and ledger records used as **wallet SOT** (not `PaymentAuditLog`, not `/v1/activities`).
 
 ## Main user flows
 
@@ -22,10 +23,11 @@ This guide explains the current marketplace surfaces end to end and how investor
 5. Portfolio widgets read:
    - `GET /v1/investor/portfolio` for balances and counts
    - `GET /v1/investor/portfolio/history` for the chart series
-   - `GET /v1/investor/balance/activity` for note and balance activity shown in the investment detail view
-6. Admin closes funding (`/v1/admin/notes/:id/funding/close`) or fails funding (`/v1/admin/notes/:id/funding/fail`).
-7. During servicing, repayment and settlement are handled in note operations.
-8. When settlement is posted (`/v1/admin/notes/:id/settlements/:settlementId/post`), investor balances are credited with principal + net profit allocation.
+   - `GET /v1/investor/balance/activity` for **Portfolio → Transactions** (wallet / cash statement, including in-flight deposit overlay)
+6. Withdraw from the Portfolio cash bar still sends `withdrawalIntentId` (stored on `WithdrawalInstruction.idempotency_key`).
+7. Admin closes funding (`/v1/admin/notes/:id/funding/close`) or fails funding (`/v1/admin/notes/:id/funding/fail`).
+8. During servicing, repayment and settlement are handled in note operations.
+9. When settlement is posted (`/v1/admin/notes/:id/settlements/:settlementId/post`), investor balances are credited with principal + net profit allocation.
 
 ### Public landing flow
 
@@ -46,6 +48,7 @@ Marketplace list and detail responses hide issuer name and note titles that incl
 - `GET /v1/investor/portfolio`
 - `GET /v1/investor/portfolio/history`
 - `GET /v1/investor/balance/activity`
+- `GET /v1/admin/organizations/investor/:id/balance-activity` (`organizations.view`; same cash-statement shape as the investor route)
 - `GET /v1/investor/investments`
 
 ### Admin note actions affecting balances
@@ -141,7 +144,9 @@ This is what powers the account overview figures in investor UI.
 
 `GET /v1/investor/portfolio/history` returns the historical portfolio time series used by the investor chart. The chart now plots `portfolioTotal` and carries the latest known value forward to today for the selected range.
 
-`GET /v1/investor/balance/activity` returns the investor-facing activity list used in the investment detail page.
+`GET /v1/investor/balance/activity` returns the investor-facing wallet / cash-statement list used by **Portfolio → Transactions**. Posted rows come from `investor_balance_transactions`. Uncredited in-flight deposits overlay from `GatewayPayment` (`affectsAvailableBalance: false`). Running balance uses `runningBalancesForActivityEntries` so overlay rows are not double-counted. Posted rows may include `noteReference`. This is **not** `PaymentAuditLog` and **not** `/v1/activities`.
+
+Admin reads the same shape at `GET /v1/admin/organizations/investor/:id/balance-activity`.
 
 ## Dev top-up (non-production only)
 
@@ -162,10 +167,13 @@ This helper exists for local and staging-style testing only. Remove or lock down
 - `apps/investor/src/app/investments/page.tsx`
 - `apps/investor/src/app/investments/[id]/page.tsx`
 - `apps/investor/src/investments/hooks/use-marketplace-notes.ts`
+- `apps/investor/src/portfolio/portfolio-page.tsx`
+- `apps/investor/src/portfolio/portfolio-transactions-panel.tsx`
 - `apps/investor/src/components/portfolio-overview-card.tsx`
 - `apps/api/src/modules/notes/controller.ts`
 - `apps/api/src/modules/notes/service.ts`
 - `apps/api/src/modules/notes/investor-balance.ts`
+- `apps/api/src/modules/notes/investor-balance-activity.ts`
 - `apps/api/prisma/schema.prisma`
 - `packages/config/src/api-client.ts`
 

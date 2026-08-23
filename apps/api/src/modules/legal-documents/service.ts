@@ -1,7 +1,6 @@
-import { Request } from "express";
 import { AppError } from "../../lib/http/error-handler";
-import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { logger } from "../../lib/logger";
+import { prisma } from "../../lib/prisma";
 import {
   deleteS3Object,
   generateLegalDocumentKey,
@@ -16,12 +15,21 @@ import {
   sanitizeS3KeyForLog,
 } from "../../lib/s3/legal-document-object";
 import { resolveActivePublishedByDocumentId } from "./active-published";
-import { legalDocumentAuditLogService } from "./audit-log-service";
+import type { LegalAdminAuditContext } from "./audit/context";
+import { LEGAL_ADMIN_ARCHIVE_REASON } from "./audit/events";
+import {
+  writeLegalDocumentCreatedAudit,
+  writeLegalDocumentUpdatedAudit,
+  writeLegalDocumentVersionArchivedAudit,
+  writeLegalDocumentVersionFileReplacedAudit,
+  writeLegalDocumentVersionPublishedAudit,
+  writeLegalDocumentVersionRestoredAudit,
+  writeLegalDocumentVersionUploadedAudit,
+} from "./audit/writer";
 import { legalDocumentRepository, type VersionWithDocument } from "./repository";
 import type {
   CreateLegalDocumentInput,
   CreateVersionInput,
-  LegalDocumentAuditAction,
   ListLegalDocumentsQuery,
   PublishVersionInput,
   RequestVersionUploadUrlInput,
@@ -123,7 +131,7 @@ export class LegalDocumentService {
     };
   }
 
-  async createDefinition(input: CreateLegalDocumentInput, adminUserId: string, req: Request) {
+  async createDefinition(input: CreateLegalDocumentInput, context: LegalAdminAuditContext) {
     const existing = await legalDocumentRepository.findByType(input.type);
     if (existing) {
       throw new AppError(
@@ -133,19 +141,10 @@ export class LegalDocumentService {
       );
     }
 
-    const document = await legalDocumentRepository.create(input);
-
-    await this.recordAuditEvent(req, adminUserId, "LEGAL_DOCUMENT_CREATED", {
-      legalDocumentId: document.id,
-      documentType: document.type as LegalDocumentType,
-      afterJson: {
-        title: document.title,
-        description: document.description,
-        audience: document.audience,
-        required_for_onboarding: document.required_for_onboarding,
-        public_visibility: document.public_visibility,
-        show_in_account: document.show_in_account,
-      },
+    const document = await prisma.$transaction(async (tx) => {
+      const created = await legalDocumentRepository.create(input, tx);
+      await writeLegalDocumentCreatedAudit(tx, created, context);
+      return created;
     });
 
     logger.info({ legalDocumentId: document.id, type: document.type }, "Legal document created");
@@ -155,8 +154,7 @@ export class LegalDocumentService {
   async updateDefinition(
     id: string,
     input: UpdateLegalDocumentInput,
-    adminUserId: string,
-    req: Request
+    context: LegalAdminAuditContext
   ) {
     const existing = await legalDocumentRepository.findById(id);
     if (!existing) {
@@ -177,7 +175,7 @@ export class LegalDocumentService {
       input.requiredForOnboarding !== undefined &&
       input.requiredForOnboarding !== existing.required_for_onboarding
     ) {
-      changes.required_for_onboarding = {
+      changes.requiredForOnboarding = {
         from: existing.required_for_onboarding,
         to: input.requiredForOnboarding,
       };
@@ -186,7 +184,7 @@ export class LegalDocumentService {
       input.publicVisibility !== undefined &&
       input.publicVisibility !== existing.public_visibility
     ) {
-      changes.public_visibility = {
+      changes.publicVisibility = {
         from: existing.public_visibility,
         to: input.publicVisibility,
       };
@@ -195,7 +193,7 @@ export class LegalDocumentService {
       input.showInAccount !== undefined &&
       input.showInAccount !== existing.show_in_account
     ) {
-      changes.show_in_account = {
+      changes.showInAccount = {
         from: existing.show_in_account,
         to: input.showInAccount,
       };
@@ -205,20 +203,24 @@ export class LegalDocumentService {
       return toDocumentResponse(existing);
     }
 
-    const updated = await legalDocumentRepository.update(id, input);
-
-    const beforeJson: Record<string, unknown> = {};
-    const afterJson: Record<string, unknown> = {};
+    const before: Record<string, unknown> = {};
+    const after: Record<string, unknown> = {};
     for (const [key, change] of Object.entries(changes)) {
-      beforeJson[key] = change.from;
-      afterJson[key] = change.to;
+      before[key] = change.from;
+      after[key] = change.to;
     }
 
-    await this.recordAuditEvent(req, adminUserId, "LEGAL_DOCUMENT_UPDATED", {
-      legalDocumentId: id,
-      documentType: existing.type as LegalDocumentType,
-      beforeJson,
-      afterJson,
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await legalDocumentRepository.update(id, input, tx);
+      await writeLegalDocumentUpdatedAudit(
+        tx,
+        existing,
+        Object.keys(changes),
+        before,
+        after,
+        context
+      );
+      return next;
     });
 
     logger.info({ legalDocumentId: id, changes: Object.keys(changes) }, "Legal document updated");
@@ -280,7 +282,7 @@ export class LegalDocumentService {
     legalDocumentId: string,
     input: CreateVersionInput,
     adminUserId: string,
-    req: Request
+    context: LegalAdminAuditContext
   ) {
     const document = await legalDocumentRepository.findById(legalDocumentId);
     if (!document) {
@@ -307,36 +309,27 @@ export class LegalDocumentService {
 
     let version: VersionWithDocument;
     try {
-      version = await legalDocumentRepository.createVersion(
-        legalDocumentId,
-        newVersion,
-        {
-          s3Key: input.s3Key,
-          fileName: input.fileName,
-          contentType: input.contentType,
-          fileSize: verified.fileSize,
-          fileHash: verified.fileHash,
-        },
-        adminUserId
-      );
+      version = await prisma.$transaction(async (tx) => {
+        const created = await legalDocumentRepository.createVersion(
+          legalDocumentId,
+          newVersion,
+          {
+            s3Key: input.s3Key,
+            fileName: input.fileName,
+            contentType: input.contentType,
+            fileSize: verified.fileSize,
+            fileHash: verified.fileHash,
+          },
+          adminUserId,
+          tx
+        );
+        await writeLegalDocumentVersionUploadedAudit(tx, created, context);
+        return created;
+      });
     } catch (error) {
       await this.tryDeleteUnreferencedUpload(input.s3Key, "create-db-failed");
       throw error;
     }
-
-    await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_UPLOADED", {
-      legalDocumentId,
-      legalDocumentVersionId: version.id,
-      documentType: document.type as LegalDocumentType,
-      versionNumber: version.version,
-      documentHash: version.file_hash,
-      afterJson: {
-        version: version.version,
-        file_name: version.file_name,
-        file_hash: version.file_hash,
-        status: version.status,
-      },
-    });
 
     logger.info(
       { legalDocumentId, versionId: version.id, version: version.version },
@@ -437,8 +430,7 @@ export class LegalDocumentService {
   async replaceDraftFile(
     versionId: string,
     input: ReplaceDraftFileInput,
-    adminUserId: string,
-    req: Request
+    context: LegalAdminAuditContext
   ) {
     const existing = await legalDocumentRepository.findVersionById(versionId);
     if (!existing) {
@@ -468,12 +460,20 @@ export class LegalDocumentService {
 
     const oldKey = existing.s3_key;
 
-    const updated = await legalDocumentRepository.replaceDraftFile(versionId, {
-      s3Key: input.s3Key,
-      fileName: input.fileName,
-      contentType: input.contentType,
-      fileSize: verified.fileSize,
-      fileHash: verified.fileHash,
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await legalDocumentRepository.replaceDraftFile(
+        versionId,
+        {
+          s3Key: input.s3Key,
+          fileName: input.fileName,
+          contentType: input.contentType,
+          fileSize: verified.fileSize,
+          fileHash: verified.fileHash,
+        },
+        tx
+      );
+      await writeLegalDocumentVersionFileReplacedAudit(tx, existing, next, context);
+      return next;
     });
 
     await this.safeDeleteReplacedDraftObject({
@@ -481,22 +481,6 @@ export class LegalDocumentService {
       newKey: input.s3Key,
       versionId,
       versionStatus: existing.status,
-    });
-
-    await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_FILE_REPLACED", {
-      legalDocumentId: existing.legal_document_id,
-      legalDocumentVersionId: versionId,
-      documentType: existing.legal_document.type as LegalDocumentType,
-      versionNumber: existing.version,
-      documentHash: updated.file_hash,
-      beforeJson: {
-        file_name: existing.file_name,
-        file_hash: existing.file_hash,
-      },
-      afterJson: {
-        file_name: updated.file_name,
-        file_hash: updated.file_hash,
-      },
     });
 
     logger.info(
@@ -515,7 +499,7 @@ export class LegalDocumentService {
     versionId: string,
     input: PublishVersionInput,
     adminUserId: string,
-    req: Request
+    context: LegalAdminAuditContext
   ) {
     const existing = await legalDocumentRepository.findVersionById(versionId);
     if (!existing) {
@@ -533,49 +517,41 @@ export class LegalDocumentService {
     }
 
     const reacceptanceRequired = input.reacceptanceRequired ?? false;
+    const documentType = existing.legal_document.type as LegalDocumentType;
 
-    const previouslyPublished = await legalDocumentRepository.findAllPublishedByDocumentId(
-      existing.legal_document_id,
-      versionId
-    );
+    const published = await prisma.$transaction(async (tx) => {
+      const previouslyPublished = await legalDocumentRepository.findAllPublishedByDocumentId(
+        existing.legal_document_id,
+        versionId,
+        tx
+      );
 
-    const published = await legalDocumentRepository.publishVersion(
-      versionId,
-      existing.legal_document_id,
-      adminUserId,
-      reacceptanceRequired
-    );
+      const next = await legalDocumentRepository.publishVersion(
+        versionId,
+        existing.legal_document_id,
+        adminUserId,
+        reacceptanceRequired,
+        tx
+      );
 
-    await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_PUBLISHED", {
-      legalDocumentId: existing.legal_document_id,
-      legalDocumentVersionId: versionId,
-      documentType: existing.legal_document.type as LegalDocumentType,
-      versionNumber: published.version,
-      documentHash: published.file_hash,
-      beforeJson: {
-        status: existing.status,
-        reacceptance_required: existing.reacceptance_required,
-      },
-      afterJson: {
-        status: "PUBLISHED",
-        reacceptance_required: reacceptanceRequired,
-        version: published.version,
-        file_hash: published.file_hash,
-      },
+      await writeLegalDocumentVersionPublishedAudit(tx, existing, next, context);
+
+      for (const archived of previouslyPublished) {
+        await writeLegalDocumentVersionArchivedAudit(
+          tx,
+          {
+            legalDocumentId: existing.legal_document_id,
+            documentType,
+            version: archived,
+            previousStatus: "PUBLISHED",
+            reasonCode: LEGAL_ADMIN_ARCHIVE_REASON.AUTO_ARCHIVED_ON_PUBLISH,
+          },
+          context
+        );
+      }
+
+      return next;
     });
-
-    for (const archived of previouslyPublished) {
-      await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_ARCHIVED", {
-        legalDocumentId: existing.legal_document_id,
-        legalDocumentVersionId: archived.id,
-        documentType: existing.legal_document.type as LegalDocumentType,
-        versionNumber: archived.version,
-        documentHash: archived.file_hash,
-        beforeJson: { status: "PUBLISHED" },
-        afterJson: { status: "ARCHIVED" },
-        reason: "auto_archived_on_publish",
-      });
-    }
 
     logger.info(
       {
@@ -589,7 +565,7 @@ export class LegalDocumentService {
     return toVersionResponse(published);
   }
 
-  async archiveVersion(versionId: string, adminUserId: string, req: Request) {
+  async archiveVersion(versionId: string, adminUserId: string, context: LegalAdminAuditContext) {
     const existing = await legalDocumentRepository.findVersionById(versionId);
     if (!existing) {
       throw new AppError(404, "NOT_FOUND", "Legal document version not found");
@@ -598,16 +574,19 @@ export class LegalDocumentService {
       return toVersionResponse(existing);
     }
 
-    const archived = await legalDocumentRepository.archiveVersion(versionId, adminUserId);
-
-    await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_ARCHIVED", {
-      legalDocumentId: existing.legal_document_id,
-      legalDocumentVersionId: versionId,
-      documentType: existing.legal_document.type as LegalDocumentType,
-      versionNumber: archived.version,
-      documentHash: archived.file_hash,
-      beforeJson: { status: existing.status },
-      afterJson: { status: "ARCHIVED" },
+    const archived = await prisma.$transaction(async (tx) => {
+      const next = await legalDocumentRepository.archiveVersion(versionId, adminUserId, tx);
+      await writeLegalDocumentVersionArchivedAudit(
+        tx,
+        {
+          legalDocumentId: existing.legal_document_id,
+          documentType: existing.legal_document.type as LegalDocumentType,
+          version: next,
+          previousStatus: existing.status,
+        },
+        context
+      );
+      return next;
     });
 
     return toVersionResponse(archived);
@@ -618,7 +597,7 @@ export class LegalDocumentService {
    * - never-published archive → Draft (blocked if another draft exists)
    * - previously published archive → Published (blocked if a newer published version exists)
    */
-  async restoreVersion(versionId: string, adminUserId: string, req: Request) {
+  async restoreVersion(versionId: string, adminUserId: string, context: LegalAdminAuditContext) {
     const existing = await legalDocumentRepository.findVersionById(versionId);
     if (!existing) {
       throw new AppError(404, "NOT_FOUND", "Legal document version not found");
@@ -641,39 +620,39 @@ export class LegalDocumentService {
         );
       }
 
-      const previouslyPublished = await legalDocumentRepository.findAllPublishedByDocumentId(
-        existing.legal_document_id,
-        versionId
-      );
+      const documentType = existing.legal_document.type as LegalDocumentType;
 
-      const published = await legalDocumentRepository.publishVersion(
-        versionId,
-        existing.legal_document_id,
-        adminUserId,
-        existing.reacceptance_required
-      );
+      const published = await prisma.$transaction(async (tx) => {
+        const previouslyPublished = await legalDocumentRepository.findAllPublishedByDocumentId(
+          existing.legal_document_id,
+          versionId,
+          tx
+        );
 
-      for (const archived of previouslyPublished) {
-        await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_ARCHIVED", {
-          legalDocumentId: existing.legal_document_id,
-          legalDocumentVersionId: archived.id,
-          documentType: existing.legal_document.type as LegalDocumentType,
-          versionNumber: archived.version,
-          documentHash: archived.file_hash,
-          beforeJson: { status: "PUBLISHED" },
-          afterJson: { status: "ARCHIVED" },
-          reason: "auto_archived_on_restore_publish",
-        });
-      }
+        const next = await legalDocumentRepository.publishVersion(
+          versionId,
+          existing.legal_document_id,
+          adminUserId,
+          existing.reacceptance_required,
+          tx
+        );
 
-      await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_RESTORED", {
-        legalDocumentId: existing.legal_document_id,
-        legalDocumentVersionId: versionId,
-        documentType: existing.legal_document.type as LegalDocumentType,
-        versionNumber: published.version,
-        documentHash: published.file_hash,
-        beforeJson: { status: "ARCHIVED" },
-        afterJson: { status: "PUBLISHED", restored_as: "PUBLISHED" },
+        for (const archived of previouslyPublished) {
+          await writeLegalDocumentVersionArchivedAudit(
+            tx,
+            {
+              legalDocumentId: existing.legal_document_id,
+              documentType,
+              version: archived,
+              previousStatus: "PUBLISHED",
+              reasonCode: LEGAL_ADMIN_ARCHIVE_REASON.AUTO_ARCHIVED_ON_RESTORE_PUBLISH,
+            },
+            context
+          );
+        }
+
+        await writeLegalDocumentVersionRestoredAudit(tx, next, "PUBLISHED", context);
+        return next;
       });
 
       return toVersionResponse(published);
@@ -690,16 +669,10 @@ export class LegalDocumentService {
       );
     }
 
-    const restored = await legalDocumentRepository.restoreVersionToDraft(versionId);
-
-    await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_RESTORED", {
-      legalDocumentId: existing.legal_document_id,
-      legalDocumentVersionId: versionId,
-      documentType: existing.legal_document.type as LegalDocumentType,
-      versionNumber: restored.version,
-      documentHash: restored.file_hash,
-      beforeJson: { status: "ARCHIVED" },
-      afterJson: { status: "DRAFT", restored_as: "DRAFT" },
+    const restored = await prisma.$transaction(async (tx) => {
+      const next = await legalDocumentRepository.restoreVersionToDraft(versionId, tx);
+      await writeLegalDocumentVersionRestoredAudit(tx, next, "DRAFT", context);
+      return next;
     });
 
     return toVersionResponse(restored);
@@ -795,50 +768,6 @@ export class LegalDocumentService {
         "LEGAL_DOCUMENT_UPLOAD_ORPHAN_CLEANUP_FAILED"
       );
     }
-  }
-
-  private async recordAuditEvent(
-    req: Request,
-    actorUserId: string,
-    action: LegalDocumentAuditAction,
-    params: {
-      legalDocumentId?: string | null;
-      legalDocumentVersionId?: string | null;
-      documentType?: LegalDocumentType | null;
-      versionNumber?: number | null;
-      documentHash?: string | null;
-      beforeJson?: Record<string, unknown> | null;
-      afterJson?: Record<string, unknown> | null;
-      reason?: string | null;
-    }
-  ) {
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    logger.info(
-      {
-        userId: actorUserId,
-        documentId: params.legalDocumentId,
-        eventType: action,
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        ...params,
-      },
-      `Legal document event: ${action}`
-    );
-
-    await legalDocumentAuditLogService.record({
-      req,
-      action,
-      actorUserId,
-      legalDocumentId: params.legalDocumentId,
-      legalDocumentVersionId: params.legalDocumentVersionId,
-      documentType: params.documentType,
-      versionNumber: params.versionNumber,
-      documentHash: params.documentHash,
-      beforeJson: params.beforeJson,
-      afterJson: params.afterJson,
-      reason: params.reason,
-    });
   }
 
   private generateCuid(): string {

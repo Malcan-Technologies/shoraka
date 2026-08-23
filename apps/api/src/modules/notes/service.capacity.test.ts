@@ -42,8 +42,14 @@ jest.mock("../../lib/refresh-contract-facility", () => ({
   refreshContractFacilityForNote: (...args: unknown[]) => mockRefreshForNote(...args),
 }));
 
-jest.mock("../notification/service", () => ({
-  NotificationService: jest.fn().mockImplementation(() => ({})),
+jest.mock("./audit/writer", () => ({
+  NOTE_AUDIT_TARGET_TYPE: { NOTE: "NOTE" },
+  noteAuditEventForWithdrawal: jest.fn(),
+  noteAuditContextFromActor: jest.fn((actor: { userId: string }) => ({
+    actorUserId: actor.userId,
+  })),
+  writeNoteAuditFromActor: jest.fn(),
+  writeNoteAuditLog: jest.fn(),
 }));
 
 import { NoteFundingStatus, NoteStatus } from "@prisma/client";

@@ -1,18 +1,28 @@
 import { buildNoteActivityCsv, formatNoteActivityEventLabel } from "./note-activity-csv";
-import type { NoteEvent } from "@cashsouk/types";
+import type { NoteAuditLogDto } from "@cashsouk/types";
 
-function event(overrides: Partial<NoteEvent> = {}): NoteEvent {
+function event(overrides: Partial<NoteAuditLogDto> = {}): NoteAuditLogDto {
   return {
     id: "evt-1",
     noteId: "note-1",
     eventType: "NOTE_PUBLISHED",
-    actorUserId: "user-1",
-    actorName: "Ada Admin",
-    actorRole: "ADMIN",
+    occurredAt: "2026-05-12T14:15:42.000Z",
+    createdAt: "2026-05-12T14:15:42.000Z",
+    actor: {
+      type: "ADMIN",
+      userId: "user-1",
+      displayName: "Ada Admin",
+      email: "ada@example.com",
+    },
+    organizationId: "org-1",
+    organizationKind: "ISSUER",
+    target: { type: "NOTE", id: "note-1" },
+    source: "admin",
     portal: "admin",
+    ipAddress: null,
+    userAgent: null,
     correlationId: "corr-1",
     metadata: { listingId: "lst-1" },
-    createdAt: "2026-08-18T09:00:00.000Z",
     ...overrides,
   };
 }
@@ -20,7 +30,8 @@ function event(overrides: Partial<NoteEvent> = {}): NoteEvent {
 describe("formatNoteActivityEventLabel", () => {
   it("maps known types and rewrites Shoraka to Tawarruq", () => {
     expect(formatNoteActivityEventLabel("NOTE_PUBLISHED")).toBe("Published to marketplace");
-    expect(formatNoteActivityEventLabel("PAUSE_LISTING")).toBe("Campaign paused");
+    expect(formatNoteActivityEventLabel("NOTE_CAMPAIGN_PAUSED")).toBe("Campaign paused");
+    expect(formatNoteActivityEventLabel("NOTE_CAMPAIGN_RESUMED")).toBe("Campaign resumed");
     expect(formatNoteActivityEventLabel("FAIL_FUNDING")).toBe("Funding failed");
     expect(formatNoteActivityEventLabel("PROSPECTUS_REVIEW_APPROVE")).toBe("Prospectus approved");
     expect(formatNoteActivityEventLabel("PROSPECTUS_APPROVAL_INVALIDATED_UNPUBLISH")).toBe(
@@ -29,6 +40,7 @@ describe("formatNoteActivityEventLabel", () => {
     expect(formatNoteActivityEventLabel("SHORAKA_ORDER_SUBMITTED")).toBe(
       "Tawarruq order submitted"
     );
+    expect(formatNoteActivityEventLabel("DEFAULT_NOTICE_GENERATED")).toBe("Default notice generated");
     expect(formatNoteActivityEventLabel("CUSTOM_EVENT_TYPE")).toBe("Custom Event Type");
   });
 });

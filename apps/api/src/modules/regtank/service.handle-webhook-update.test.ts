@@ -18,12 +18,6 @@ jest.mock("../organization/repository", () => ({
   OrganizationRepository: jest.fn().mockImplementation(() => ({})),
 }));
 
-jest.mock("../auth/repository", () => ({
-  AuthRepository: jest.fn().mockImplementation(() => ({
-    createOnboardingLog: jest.fn(),
-  })),
-}));
-
 import { RegTankService } from "./service";
 
 describe("RegTankService.handleWebhookUpdate", () => {

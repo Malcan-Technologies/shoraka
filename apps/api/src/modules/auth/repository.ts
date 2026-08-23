@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma";
-import { User, UserRole, AccessLog, UserSession, SecurityLog, OnboardingLog } from "@prisma/client";
+import { User, UserRole, UserSession } from "@prisma/client";
 import { generateUniqueUserId } from "../../lib/user-id-generator";
 import { Prisma } from "@prisma/client";
 
@@ -166,37 +166,6 @@ export class AuthRepository {
   }
 
   /**
-   * Create access log entry
-   */
-  async createAccessLog(data: {
-    userId: string;
-    eventType: string;
-    portal?: string;
-    ipAddress?: string;
-    userAgent?: string;
-    deviceInfo?: string;
-    deviceType?: string;
-    cognitoEvent?: object;
-    success?: boolean;
-    metadata?: object;
-  }): Promise<AccessLog> {
-    return prisma.accessLog.create({
-      data: {
-        user_id: data.userId,
-        event_type: data.eventType,
-        portal: data.portal,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        device_type: data.deviceType,
-        cognito_event: data.cognitoEvent as any,
-        success: data.success ?? true,
-        metadata: data.metadata as any,
-      },
-    });
-  }
-
-  /**
    * Create or update user session
    */
   async upsertUserSession(data: {
@@ -223,19 +192,6 @@ export class AuthRepository {
         active_role: data.activeRole,
         last_activity: new Date(),
         expires_at: data.expiresAt,
-      },
-    });
-  }
-
-  /**
-   * Update session active role
-   */
-  async updateSessionActiveRole(sessionId: string, activeRole: UserRole): Promise<UserSession> {
-    return prisma.userSession.update({
-      where: { id: sessionId },
-      data: {
-        active_role: activeRole,
-        last_activity: new Date(),
       },
     });
   }
@@ -275,80 +231,6 @@ export class AuthRepository {
         user_id: userId,
         revoked_at: null,
         expires_at: { gt: new Date() },
-      },
-    });
-  }
-
-  /**
-   * Find recent successful logins for user
-   * Returns up to 'limit' most recent logins.
-   */
-  async findRecentLogins(userId: string, limit: number = 3): Promise<AccessLog[]> {
-    return prisma.accessLog.findMany({
-      where: {
-        user_id: userId,
-        event_type: "LOGIN",
-        success: true,
-      },
-      orderBy: { created_at: "desc" },
-      take: limit,
-    });
-  }
-
-  /**
-   * Create security log entry
-   */
-  async createSecurityLog(data: {
-    userId: string;
-    eventType: string;
-    ipAddress?: string;
-    userAgent?: string;
-    deviceInfo?: string;
-    metadata?: object;
-  }): Promise<SecurityLog> {
-    return prisma.securityLog.create({
-      data: {
-        user_id: data.userId,
-        event_type: data.eventType,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
-    });
-  }
-
-  /**
-   * Create onboarding log entry
-   */
-  async createOnboardingLog(data: {
-    userId: string;
-    role: UserRole;
-    eventType: string;
-    portal?: string;
-    ipAddress?: string;
-    userAgent?: string;
-    deviceInfo?: string;
-    deviceType?: string;
-    organizationName?: string;
-    investorOrganizationId?: string;
-    issuerOrganizationId?: string;
-    metadata?: object;
-  }): Promise<OnboardingLog> {
-    return prisma.onboardingLog.create({
-      data: {
-        user_id: data.userId,
-        role: data.role,
-        event_type: data.eventType,
-        portal: data.portal,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        device_type: data.deviceType,
-        organization_name: data.organizationName,
-        investor_organization_id: data.investorOrganizationId,
-        issuer_organization_id: data.issuerOrganizationId,
-        metadata: data.metadata as Prisma.InputJsonValue,
       },
     });
   }

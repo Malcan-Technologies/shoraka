@@ -1,21 +1,31 @@
-import type { NoteEvent } from "@cashsouk/types";
+import type { NoteAuditLogDto } from "@cashsouk/types";
 import {
   extractNoteTimelineDetails,
   noteDocumentFileName,
 } from "./note-timeline-details";
 
-function event(overrides: Partial<NoteEvent> = {}): NoteEvent {
+function event(overrides: Partial<NoteAuditLogDto> = {}): NoteAuditLogDto {
   return {
     id: "evt-1",
     noteId: "note-1",
     eventType: "NOTE_PUBLISHED",
-    actorUserId: "user-1",
-    actorName: null,
-    actorRole: "ADMIN",
-    portal: "ADMIN",
-    correlationId: "corr-1",
-    metadata: null,
+    occurredAt: "2026-05-12T14:15:42.000Z",
     createdAt: "2026-05-12T14:15:42.000Z",
+    actor: {
+      type: "ADMIN",
+      userId: "user-1",
+      displayName: "Ada Admin",
+      email: "ada@example.com",
+    },
+    organizationId: "org-1",
+    organizationKind: "ISSUER",
+    target: { type: "NOTE", id: "note-1" },
+    source: "admin",
+    portal: "admin",
+    ipAddress: null,
+    userAgent: null,
+    correlationId: "corr-1",
+    metadata: {},
     ...overrides,
   };
 }
@@ -52,10 +62,34 @@ describe("extractNoteTimelineDetails", () => {
     ]);
   });
 
+  it("curates servicing-status change fields from NoteAuditLog metadata", () => {
+    const { compact, prose } = extractNoteTimelineDetails(
+      event({
+        eventType: "NOTE_SERVICING_STATUS_CHANGED",
+        metadata: {
+          previousServicingStatus: "CURRENT",
+          newServicingStatus: "LATE",
+          previousNoteStatus: "ACTIVE",
+          newNoteStatus: "ACTIVE",
+          reasonCode: "OVERDUE",
+        },
+      })
+    );
+
+    expect(compact).toEqual(
+      expect.arrayContaining([
+        { key: "previousServicingStatus", label: "Previous Servicing Status", value: "Current" },
+        { key: "newServicingStatus", label: "New Servicing Status", value: "Late" },
+        { key: "reasonCode", label: "Reason Code", value: "Overdue" },
+      ])
+    );
+    expect(prose).toEqual([]);
+  });
+
   it("hides s3 keys from generic events", () => {
     const { compact, prose } = extractNoteTimelineDetails(
       event({
-        eventType: "DEFAULT_LETTER_GENERATED",
+        eventType: "DEFAULT_NOTICE_GENERATED",
         metadata: { s3Key: "note-letters/abc/default-1.pdf" },
       })
     );

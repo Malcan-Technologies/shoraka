@@ -93,6 +93,7 @@ async function main() {
 
   // --- Create + publish new version for TERMS (DB-backed, no S3 put required for create metadata) ---
   const { legalDocumentService } = await import("../src/modules/legal-documents/service");
+  const { auditContextForActor } = await import("../src/modules/legal-documents/audit/context");
   const { legalDocumentAcceptanceService } = await import(
     "../src/modules/legal-documents/acceptance-service"
   );
@@ -104,6 +105,7 @@ async function main() {
   if (!adminUser) throw new Error("No admin user");
 
   const stamp = Date.now();
+  const adminCtx = auditContextForActor(mockReq(adminUser.user_id), adminUser.user_id);
   const draft = await legalDocumentService.createDraftVersion(
     terms.id,
     {
@@ -113,7 +115,7 @@ async function main() {
       fileSize: 2048,
     },
     adminUser.user_id,
-    mockReq(adminUser.user_id)
+    adminCtx
   );
   record(
     "Create draft version (service)",
@@ -125,7 +127,7 @@ async function main() {
     draft.id,
     { reacceptanceRequired: false },
     adminUser.user_id,
-    mockReq(adminUser.user_id)
+    adminCtx
   );
   record(
     "Publish draft version (service)",
@@ -148,7 +150,7 @@ async function main() {
       published.id,
       { reacceptanceRequired: false },
       adminUser.user_id,
-      mockReq(adminUser.user_id)
+      adminCtx
     );
     record("Reject publish of already-published", "FAIL", "publish succeeded unexpectedly");
   } catch (e: any) {
@@ -318,13 +320,13 @@ async function main() {
         fileSize: 4096,
       },
       adminUser.user_id,
-      mockReq(adminUser.user_id)
+      adminCtx
     );
     const published2 = await legalDocumentService.publishVersion(
       draft2.id,
       { reacceptanceRequired: true },
       adminUser.user_id,
-      mockReq(adminUser.user_id)
+      adminCtx
     );
     record(
       "Publish newer TERMS version",

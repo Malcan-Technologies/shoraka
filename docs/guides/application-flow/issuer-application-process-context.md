@@ -88,13 +88,15 @@ The active issuer financing flow uses these Prisma models:
 - `Application` stores the issuer submission and product-driven step payloads in JSON fields such as `financing_type`, `financing_structure`, `company_details`, `business_details`, `financial_statements`, `supporting_documents`, and `declarations`.
 - `Contract` stores `contract_details`, `customer_details`, `offer_details`, `status`, and SigningCloud metadata. `customer_details` is the current source for the paymaster/obligor counterparty.
 - `Invoice` stores `details`, `offer_details`, `status`, and SigningCloud metadata.
-- `ApplicationReview`, `ApplicationReviewItem`, `ApplicationReviewRemark`, and `ApplicationReviewEvent` store admin review state and reviewer actions.
+- `ApplicationReview` stores current section review status.
+- `ApplicationReviewItem` stores current invoice/document item review status.
+- `ApplicationReviewRemark` stores cycle-scoped reviewer remarks (amendment SOT).
 - `ApplicationRevision` stores submitted snapshots by review cycle.
-- `ApplicationLog` stores issuer/admin activity timeline events.
+- `ApplicationAuditLog` stores issuer/admin application/review/contract/invoice history. `SigningAuditLog` stores signing history. `GET /v1/applications/:id/logs` merges both. `ApplicationReviewEvent` has been removed.
 
 Post-origination note schema:
 
-- The note lifecycle now has first-class tables in `apps/api/prisma/schema.prisma`: `Note`, `NoteListing`, `NoteInvestment`, `NotePaymentSchedule`, `NotePayment`, `NoteSettlement`, `NoteLedgerAccount`, `NoteLedgerEntry`, `NoteEvent`, `NoteAdminAction`, `PlatformFinanceSetting`, and `WithdrawalInstruction`.
+- The note lifecycle now has first-class tables in `apps/api/prisma/schema.prisma`: `Note`, `NoteListing`, `NoteInvestment`, `NotePaymentSchedule`, `NotePayment`, `NoteSettlement`, `NoteLedgerAccount`, `NoteLedgerEntry`, `NoteAuditLog`, `PlatformFinanceSetting`, and `WithdrawalInstruction`. Legacy `NoteEvent` / `NoteAdminAction` are removed.
 - Notes are created one per approved invoice. `Note.source_invoice_id` points to the invoice, while `Note.source_application_id` and `Note.source_contract_id` retain origination and paymaster context.
 - `Note` snapshots the accepted context in `product_snapshot`, `issuer_snapshot`, `paymaster_snapshot`, `contract_snapshot`, and `invoice_snapshot` so servicing does not depend on mutable application JSON.
 - The five platform buckets are represented by `NoteLedgerAccount.code`: `INVESTOR_POOL`, `REPAYMENT_POOL`, `OPERATING_ACCOUNT`, `TAWIDH_ACCOUNT`, and `GHARAMAH_ACCOUNT`.
@@ -204,8 +206,9 @@ Invoice offers currently follow this pattern:
 
 Current money caveat:
 
-- Contract and invoice monetary values are mostly stored inside JSON payloads and manipulated as JavaScript numbers.
-- Future post-application note and servicing work should move monetary ledger values into typed numeric columns and use decimal-safe calculations.
+- Invoice and most contract monetary values still live in JSON payloads and are manipulated as JavaScript numbers.
+- Facility capacity is dual-ledger: invoices/notes remain the business source of truth; typed `Contract` columns plus `contract_details` JSON are persisted snapshots kept in sync (`capacity_snapshot_version`). Remaining credit is revolving available capacity; remaining allocation is remaining lifetime contract allocation. Repayment restores remaining credit and does not restore lifetime allocation.
+- Future post-application note and servicing work should move remaining monetary ledger values into typed numeric columns and use decimal-safe calculations.
 
 ## Admin Review and Amendment Context
 
@@ -214,8 +217,7 @@ Admin review uses section-level and item-level review records:
 - Sections use `ApplicationReview`.
 - Invoice and document items use `ApplicationReviewItem`.
 - Reviewer remarks use `ApplicationReviewRemark`.
-- Review events use `ApplicationReviewEvent`.
-- Activity timeline entries use `ApplicationLog`.
+- Activity timeline entries use the merged `ApplicationAuditLog` + `SigningAuditLog` reader.
 
 Review section policy:
 
@@ -238,7 +240,7 @@ Review action behavior:
 Amendment behavior:
 
 - Admin adds section or item amendments as draft `REQUEST_AMENDMENT` remarks with `submitted_at = null`.
-- The Request Amendment modal groups draft remarks by section; `submitPendingAmendments` sets `submitted_at`, creates an `AMENDMENTS_SUBMITTED` event, and moves the application to `AMENDMENT_REQUESTED`.
+- The Request Amendment modal groups draft remarks by section; `submitPendingAmendments` sets `submitted_at`, writes `APPLICATION_AMENDMENTS_REQUESTED` to `ApplicationAuditLog`, and moves the application to `AMENDMENT_REQUESTED`.
 - Issuer sees the application as `AMENDMENT_REQUESTED`.
 - The edit wizard unlocks only the affected areas.
 - Item amendments unlock the parent section and the specific item scope key.

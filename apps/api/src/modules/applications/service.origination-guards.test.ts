@@ -2,9 +2,11 @@ import { AppError } from "../../lib/http/error-handler";
 
 const mockFindById = jest.fn();
 const mockUpdate = jest.fn();
+const mockApplicationUpdate = jest.fn();
 const mockSigningEnvelopeFindMany = jest.fn();
 const mockTransaction = jest.fn();
 const mockVerifyApplicationAccess = jest.fn();
+const mockWriteApplicationAuditLog = jest.fn();
 
 jest.mock("./repository", () => ({
   ApplicationRepository: jest.fn().mockImplementation(() => ({
@@ -29,12 +31,19 @@ jest.mock("../notification/service", () => ({
   NotificationService: jest.fn().mockImplementation(() => ({})),
 }));
 
+jest.mock("./audit/writer", () => ({
+  APPLICATION_AUDIT_TARGET_TYPE: { APPLICATION: "APPLICATION" },
+  issuerApplicationAuditContext: (userId: string) => ({ actorUserId: userId }),
+  writeApplicationAuditLog: (...args: unknown[]) => mockWriteApplicationAuditLog(...args),
+  writeApplicationDocumentAuditLogs: jest.fn(),
+}));
+
 jest.mock("../../lib/prisma", () => ({
   prisma: {
     signingEnvelope: {
       findMany: (...args: unknown[]) => mockSigningEnvelopeFindMany(...args),
     },
-    $transaction: (...args: unknown[]) => mockTransaction(...args),
+    $transaction: (fn: (tx: unknown) => unknown) => mockTransaction(fn),
   },
 }));
 
@@ -60,19 +69,34 @@ describe("ApplicationService origination guards", () => {
       financing_structure: { structure_type: "new_contract" },
     });
     mockSigningEnvelopeFindMany.mockResolvedValue([]);
-    mockUpdate.mockResolvedValue({
+    mockApplicationUpdate.mockResolvedValue({
       id: "app-1",
       status: "COMPLETED",
       archived_at: new Date("2026-08-20T00:00:00.000Z"),
     });
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        application: { update: mockApplicationUpdate },
+      })
+    );
 
     const result = await service.archiveApplication("app-1", "user-1");
 
-    expect(mockUpdate).toHaveBeenCalledWith(
-      "app-1",
-      expect.objectContaining({
+    expect(mockApplicationUpdate).toHaveBeenCalledWith({
+      where: { id: "app-1" },
+      data: expect.objectContaining({
         archived_at: expect.any(Date),
-      })
+      }),
+    });
+    expect(mockWriteApplicationAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "APPLICATION_ARCHIVED",
+        metadata: expect.objectContaining({
+          previousStatus: "COMPLETED",
+          archivedAt: expect.any(String),
+        }),
+      }),
+      expect.anything()
     );
     expect(result.status).toBe("COMPLETED");
   });

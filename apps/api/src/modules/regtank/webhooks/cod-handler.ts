@@ -6,16 +6,20 @@ import { syncCorporateShareholderStatusInOrganization } from "../helpers/corpora
 import { logger } from "../../../lib/logger";
 import { RegTankRepository } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
-import { AuthRepository } from "../../auth/repository";
 import { AmlIdentityRepository } from "../aml-identity-repository";
 import { getRegTankAPIClient } from "../api-client";
-import { OnboardingStatus, OrganizationType, UserRole } from "@prisma/client";
+import { OnboardingStatus, OrganizationType } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
 import { advanceOnboardingStatusFromFlags } from "../../onboarding/utils/advance-onboarding-status";
+import {
+  claimOnboardingApproved,
+  claimOnboardingRejected,
+  lockOrganizationRow,
+} from "../../onboarding/utils/onboarding-transition-claims";
 import { normalizeRawStatus } from "@cashsouk/types";
 import { isRegtankAmendmentStarted } from "../helpers/is-regtank-amendment-in-progress";
 import {
@@ -29,6 +33,16 @@ import {
   isCodWebhookFamilyMatch,
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
+import { writeOnboardingAuditLog } from "../../onboarding/audit/writer";
+import { ONBOARDING_AUDIT_TARGET_TYPE } from "../../onboarding/audit/events";
+import { directorKycFinalOutcomes } from "../../onboarding/audit/diff";
+import { writeDirectorKycOutcomeAuditLogs } from "../../onboarding/audit/director-kyc-outcomes";
+import {
+  AUDIT_PORTAL,
+  auditPortalFromLegacy,
+  organizationKindFromPortalType,
+  webhookAuditContext,
+} from "../../../lib/audit/context";
 
 const COD_EXACT_LOOKUP_MAX_ATTEMPTS = 3;
 const COD_EXACT_LOOKUP_DELAY_MS = 75;
@@ -41,7 +55,6 @@ const COD_EXACT_LOOKUP_DELAY_MS = 75;
 export class CODWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
   private organizationRepository: OrganizationRepository;
-  private authRepository: AuthRepository;
   private amlIdentityRepository: AmlIdentityRepository;
   private apiClient: ReturnType<typeof getRegTankAPIClient>;
   private notificationService: NotificationService;
@@ -50,7 +63,6 @@ export class CODWebhookHandler extends BaseWebhookHandler {
     super();
     this.repository = new RegTankRepository();
     this.organizationRepository = new OrganizationRepository();
-    this.authRepository = new AuthRepository();
     this.amlIdentityRepository = new AmlIdentityRepository();
     this.apiClient = getRegTankAPIClient();
     this.notificationService = new NotificationService();
@@ -676,11 +688,12 @@ export class CODWebhookHandler extends BaseWebhookHandler {
         }
 
         if (portalType === "investor") {
-          const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
-          if (org) {
+          await prisma.$transaction(async (tx) => {
+            await lockOrganizationRow(tx, "investor", organizationId);
+            const org = await tx.investorOrganization.findUnique({ where: { id: organizationId } });
+            if (!org) return;
+
             const previousStatus = org.onboarding_status;
-            // Duplicate/out-of-order WAIT_FOR_APPROVAL webhooks must not regress an
-            // organization that has already progressed past review (see cod-amendment-transition.ts).
             const waitForApprovalUpdate = getCodWaitForApprovalUpdate({
               portalType,
               orgType: onboarding.organization_type,
@@ -690,10 +703,15 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               corporateOnboardingData?.basicInfo?.ssmRegistrationNumber ||
               org.registration_number ||
               null;
-            await prisma.investorOrganization.update({
+            const statusChanged = Boolean(
+              waitForApprovalUpdate && previousStatus !== waitForApprovalUpdate.nextStatus
+            );
+            const directorOutcomes = directorKycFinalOutcomes(org.director_kyc_status, directorKycStatus);
+
+            await tx.investorOrganization.update({
               where: { id: organizationId },
               data: {
-                ...(waitForApprovalUpdate
+                ...(statusChanged && waitForApprovalUpdate
                   ? {
                       onboarding_status: waitForApprovalUpdate.nextStatus,
                       onboarding_approved: waitForApprovalUpdate.reset.onboarding_approved,
@@ -712,35 +730,40 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               },
             });
 
-            // Create onboarding log
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.INVESTOR,
-                eventType: "ONBOARDING_STATUS_UPDATED",
-                portal: portalType,
-                organizationName: org.name || undefined,
-                investorOrganizationId: organizationId,
-                issuerOrganizationId: undefined,
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus,
-                  newStatus: waitForApprovalUpdate?.nextStatus ?? previousStatus,
-                  directorCount: directors.length,
-                  statusResetApplied: Boolean(waitForApprovalUpdate),
-                },
-              });
-            } catch (logError) {
-              logger.error(
+            if (statusChanged && waitForApprovalUpdate) {
+              await writeOnboardingAuditLog(
                 {
-                  error: logError instanceof Error ? logError.message : String(logError),
+                  eventType: "ONBOARDING_STATUS_CHANGED",
+                  context: webhookAuditContext({ portal: AUDIT_PORTAL.INVESTOR }),
+                  subjectUserId: onboarding.user_id,
+                  onboardingId: onboarding.id,
                   organizationId,
-                  requestId,
+                  organizationKind: "INVESTOR",
+                  organizationType: org.type,
+                  targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+                  targetId: organizationId,
+                  metadata: {
+                    previousStatus,
+                    newStatus: waitForApprovalUpdate.nextStatus,
+                    trigger: "COD_WAIT_FOR_APPROVAL",
+                  },
                 },
-                "Failed to create COD_WAIT_FOR_APPROVAL log (non-blocking)"
+                tx
               );
             }
+
+            await writeDirectorKycOutcomeAuditLogs(
+              {
+                outcomes: directorOutcomes,
+                context: webhookAuditContext({ portal: AUDIT_PORTAL.INVESTOR }),
+                subjectUserId: onboarding.user_id,
+                onboardingId: onboarding.id,
+                organizationId,
+                organizationKind: "INVESTOR",
+                organizationType: "COMPANY",
+              },
+              tx
+            );
 
             logger.info(
               {
@@ -749,20 +772,23 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 requestId,
                 directorCount: directors.length,
                 previousStatus,
-                resultingOnboardingStatus: waitForApprovalUpdate?.nextStatus ?? previousStatus,
-                statusResetApplied: Boolean(waitForApprovalUpdate),
+                resultingOnboardingStatus: statusChanged
+                  ? waitForApprovalUpdate?.nextStatus
+                  : previousStatus,
+                statusResetApplied: statusChanged,
               },
-              waitForApprovalUpdate
+              statusChanged
                 ? "Updated investor organization: stored director KYC status; applied WAIT_FOR_APPROVAL review reset"
                 : "Updated investor organization: stored director KYC status; WAIT_FOR_APPROVAL status reset skipped (organization already progressed past review)"
             );
-          }
+          });
         } else {
-          const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
-          if (org) {
+          await prisma.$transaction(async (tx) => {
+            await lockOrganizationRow(tx, "issuer", organizationId);
+            const org = await tx.issuerOrganization.findUnique({ where: { id: organizationId } });
+            if (!org) return;
+
             const previousStatus = org.onboarding_status;
-            // Duplicate/out-of-order WAIT_FOR_APPROVAL webhooks must not regress an
-            // organization that has already progressed past review (see cod-amendment-transition.ts).
             const waitForApprovalUpdate = getCodWaitForApprovalUpdate({
               portalType,
               orgType: onboarding.organization_type,
@@ -772,10 +798,15 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               corporateOnboardingData?.basicInfo?.ssmRegistrationNumber ||
               org.registration_number ||
               null;
-            await prisma.issuerOrganization.update({
+            const statusChanged = Boolean(
+              waitForApprovalUpdate && previousStatus !== waitForApprovalUpdate.nextStatus
+            );
+            const issuerDirectorOutcomes = directorKycFinalOutcomes(org.director_kyc_status, directorKycStatus);
+
+            await tx.issuerOrganization.update({
               where: { id: organizationId },
               data: {
-                ...(waitForApprovalUpdate
+                ...(statusChanged && waitForApprovalUpdate
                   ? {
                       onboarding_status: waitForApprovalUpdate.nextStatus,
                       onboarding_approved: waitForApprovalUpdate.reset.onboarding_approved,
@@ -794,35 +825,40 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               },
             });
 
-            // Create onboarding log
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.ISSUER,
-                eventType: "ONBOARDING_STATUS_UPDATED",
-                portal: portalType,
-                organizationName: org.name || undefined,
-                investorOrganizationId: undefined,
-                issuerOrganizationId: organizationId,
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus,
-                  newStatus: waitForApprovalUpdate?.nextStatus ?? previousStatus,
-                  directorCount: directors.length,
-                  statusResetApplied: Boolean(waitForApprovalUpdate),
-                },
-              });
-            } catch (logError) {
-              logger.error(
+            if (statusChanged && waitForApprovalUpdate) {
+              await writeOnboardingAuditLog(
                 {
-                  error: logError instanceof Error ? logError.message : String(logError),
+                  eventType: "ONBOARDING_STATUS_CHANGED",
+                  context: webhookAuditContext({ portal: AUDIT_PORTAL.ISSUER }),
+                  subjectUserId: onboarding.user_id,
+                  onboardingId: onboarding.id,
                   organizationId,
-                  requestId,
+                  organizationKind: "ISSUER",
+                  organizationType: org.type,
+                  targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+                  targetId: organizationId,
+                  metadata: {
+                    previousStatus,
+                    newStatus: waitForApprovalUpdate.nextStatus,
+                    trigger: "COD_WAIT_FOR_APPROVAL",
+                  },
                 },
-                "Failed to create COD_WAIT_FOR_APPROVAL log (non-blocking)"
+                tx
               );
             }
+
+            await writeDirectorKycOutcomeAuditLogs(
+              {
+                outcomes: issuerDirectorOutcomes,
+                context: webhookAuditContext({ portal: AUDIT_PORTAL.ISSUER }),
+                subjectUserId: onboarding.user_id,
+                onboardingId: onboarding.id,
+                organizationId,
+                organizationKind: "ISSUER",
+                organizationType: "COMPANY",
+              },
+              tx
+            );
 
             logger.info(
               {
@@ -831,14 +867,16 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 requestId,
                 directorCount: directors.length,
                 previousStatus,
-                resultingOnboardingStatus: waitForApprovalUpdate?.nextStatus ?? previousStatus,
-                statusResetApplied: Boolean(waitForApprovalUpdate),
+                resultingOnboardingStatus: statusChanged
+                  ? waitForApprovalUpdate?.nextStatus
+                  : previousStatus,
+                statusResetApplied: statusChanged,
               },
-              waitForApprovalUpdate
+              statusChanged
                 ? "Updated issuer organization: stored director KYC status; applied WAIT_FOR_APPROVAL review reset"
                 : "Updated issuer organization: stored director KYC status; WAIT_FOR_APPROVAL status reset skipped (organization already progressed past review)"
             );
-          }
+          });
         }
       } catch (error) {
         logger.error(
@@ -891,18 +929,43 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             ? { ssm_approved: update.reset.ssm_approved ?? false }
             : { ssm_checked: update.reset.ssm_checked ?? false }),
         } as Record<string, unknown>;
+        const organizationKind = organizationKindFromPortalType(portalType);
+        const auditPortal =
+          portalType === "investor" ? AUDIT_PORTAL.INVESTOR : AUDIT_PORTAL.ISSUER;
 
-        if (portalType === "investor") {
-          await prisma.investorOrganization.update({
-            where: { id: organizationId },
-            data: resetData as Prisma.InvestorOrganizationUpdateInput,
-          });
-        } else {
-          await prisma.issuerOrganization.update({
-            where: { id: organizationId },
-            data: resetData as Prisma.IssuerOrganizationUpdateInput,
-          });
-        }
+        await prisma.$transaction(async (tx) => {
+          if (portalType === "investor") {
+            await tx.investorOrganization.update({
+              where: { id: organizationId },
+              data: resetData as Prisma.InvestorOrganizationUpdateInput,
+            });
+          } else {
+            await tx.issuerOrganization.update({
+              where: { id: organizationId },
+              data: resetData as Prisma.IssuerOrganizationUpdateInput,
+            });
+          }
+
+          await writeOnboardingAuditLog(
+            {
+              eventType: "ONBOARDING_STATUS_CHANGED",
+              context: webhookAuditContext({ portal: auditPortal }),
+              subjectUserId: onboarding.user_id,
+              onboardingId: onboarding.id,
+              organizationId,
+              organizationKind,
+              organizationType: org.type === OrganizationType.COMPANY ? "COMPANY" : "PERSONAL",
+              targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+              targetId: organizationId,
+              metadata: {
+                previousStatus: org.onboarding_status,
+                newStatus: update.nextStatus,
+                trigger: "URL_GENERATED",
+              },
+            },
+            tx
+          );
+        });
 
         logger.info(
           {
@@ -1429,11 +1492,11 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             portalType === "investor"
               ? await prisma.investorOrganization.findUnique({
                   where: { id: organizationId },
-                  select: { onboarding_status: true, onboarding_approved: true, name: true },
+                  select: { onboarding_status: true, onboarding_approved: true, name: true, type: true },
                 })
               : await prisma.issuerOrganization.findUnique({
                   where: { id: organizationId },
-                  select: { onboarding_status: true, onboarding_approved: true, name: true },
+                  select: { onboarding_status: true, onboarding_approved: true, name: true, type: true },
                 });
 
           if (!invOrg) {
@@ -1444,59 +1507,55 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               onboardingApproved: invOrg.onboarding_approved,
             })
           ) {
-            if (portalType === "investor") {
-              await prisma.investorOrganization.update({
-                where: { id: organizationId },
-                data: { onboarding_approved: true },
+            const after = await prisma.$transaction(async (tx) => {
+              const claimed = await claimOnboardingApproved({
+                organizationId,
+                portalType: portalType as "investor" | "issuer",
+                db: tx,
               });
-            } else {
-              await prisma.issuerOrganization.update({
-                where: { id: organizationId },
-                data: { onboarding_approved: true },
+              await advanceOnboardingStatusFromFlags({
+                organizationId,
+                portalType: portalType as "investor" | "issuer",
+                reason: "REGTANK_COD_APPROVED",
+                db: tx,
               });
-            }
-            await advanceOnboardingStatusFromFlags({
-              organizationId,
-              portalType: portalType as "investor" | "issuer",
-              reason: "REGTANK_COD_APPROVED",
+              const next =
+                portalType === "investor"
+                  ? await tx.investorOrganization.findUnique({
+                      where: { id: organizationId },
+                      select: { onboarding_status: true },
+                    })
+                  : await tx.issuerOrganization.findUnique({
+                      where: { id: organizationId },
+                      select: { onboarding_status: true },
+                    });
+              if (claimed) {
+                await writeOnboardingAuditLog(
+                  {
+                    eventType: "ONBOARDING_APPROVED",
+                    context: webhookAuditContext({
+                      portal: auditPortalFromLegacy(portalType),
+                    }),
+                    subjectUserId: onboarding.user_id,
+                    onboardingId: onboarding.id,
+                    organizationId,
+                    organizationKind: organizationKindFromPortalType(portalType as "investor" | "issuer"),
+                    organizationType: invOrg.type,
+                    targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+                    targetId: organizationId,
+                    metadata: {
+                      previousApproved: false,
+                      newApproved: true,
+                      previousStatus: invOrg.onboarding_status,
+                      newStatus: next?.onboarding_status,
+                      trigger: "REGTANK_COD_APPROVED",
+                    },
+                  },
+                  tx
+                );
+              }
+              return next;
             });
-            const after =
-              portalType === "investor"
-                ? await prisma.investorOrganization.findUnique({
-                    where: { id: organizationId },
-                    select: { onboarding_status: true },
-                  })
-                : await prisma.issuerOrganization.findUnique({
-                    where: { id: organizationId },
-                    select: { onboarding_status: true },
-                  });
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
-                eventType: "ONBOARDING_STATUS_UPDATED",
-                portal: portalType,
-                organizationName: invOrg.name ?? undefined,
-                investorOrganizationId: portalType === "investor" ? organizationId : undefined,
-                issuerOrganizationId: portalType === "issuer" ? organizationId : undefined,
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus: OnboardingStatus.PENDING_APPROVAL,
-                  newStatus: after?.onboarding_status,
-                  trigger: "REGTANK_COD_APPROVED",
-                },
-              });
-            } catch (logErr) {
-              logger.error(
-                {
-                  error: logErr instanceof Error ? logErr.message : String(logErr),
-                  organizationId,
-                  requestId,
-                },
-                "[COD Webhook] Failed to create onboarding log after COD APPROVED (non-blocking)"
-              );
-            }
             logger.info(
               { requestId, organizationId, portalType, kybId: finalKybId, newStatus: after?.onboarding_status },
               "[COD Webhook] ✓ Set onboarding_approved and applied advance after COD APPROVED"
@@ -1532,102 +1591,54 @@ export class CODWebhookHandler extends BaseWebhookHandler {
         // Don't throw - allow webhook to complete even if organization update fails
       }
     } else if (statusUpper === "REJECTED" && organizationId) {
-      // Update organization status to REJECTED
       try {
-        if (portalType === "investor") {
-          const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
-          if (org) {
-            const previousStatus = org.onboarding_status;
-            await this.organizationRepository.updateInvestorOrganizationOnboarding(
-              organizationId,
-              OnboardingStatus.REJECTED
-            );
+        const isInvestor = portalType === "investor";
+        const org = isInvestor
+          ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
+          : await this.organizationRepository.findIssuerOrganizationById(organizationId);
 
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.INVESTOR,
-                eventType: "COD_REJECTED",
-                portal: portalType,
-                organizationName: org.name || undefined,
-                investorOrganizationId: organizationId,
-                issuerOrganizationId: undefined,
+        if (org) {
+          const previousStatus = org.onboarding_status;
+          const claimed = await prisma.$transaction(async (tx) => {
+            const won = await claimOnboardingRejected({
+              organizationId,
+              portalType: portalType as "investor" | "issuer",
+              db: tx,
+            });
+            if (!won) return false;
+            await writeOnboardingAuditLog(
+              {
+                eventType: "ONBOARDING_REJECTED",
+                context: webhookAuditContext({
+                  portal: isInvestor ? AUDIT_PORTAL.INVESTOR : AUDIT_PORTAL.ISSUER,
+                }),
+                subjectUserId: onboarding.user_id,
+                onboardingId: onboarding.id,
+                organizationId,
+                organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+                organizationType: org.type,
+                targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+                targetId: organizationId,
                 metadata: {
-                  organizationId,
-                  requestId,
                   previousStatus,
                   newStatus: OnboardingStatus.REJECTED,
+                  provider: "REGTANK",
+                  sourceFamily: "COD",
                 },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  requestId,
-                },
-                "Failed to create COD_REJECTED log (non-blocking)"
-              );
-            }
-
-            logger.info(
-              { organizationId, portalType, requestId },
-              "Updated investor organization status to REJECTED after COD rejection"
+              },
+              tx
             );
+            return true;
+          });
 
-            // Send platform notification
-            try {
-              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
-                onboardingType: onboarding.onboarding_type,
-                orgName: org.name || "your organization",
-              });
-            } catch (notifError) {
-              logger.error({ error: notifError, userId: onboarding.user_id }, "Failed to send rejection notification");
-            }
-          }
-        } else {
-          const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
-          if (org) {
-            const previousStatus = org.onboarding_status;
-            await this.organizationRepository.updateIssuerOrganizationOnboarding(
-              organizationId,
-              OnboardingStatus.REJECTED
-            );
+          logger.info(
+            { organizationId, portalType, requestId, claimed },
+            claimed
+              ? `Updated ${portalType} organization status to REJECTED after COD rejection`
+              : "Skipped COD REJECTED org mutation (already REJECTED or COMPLETED)"
+          );
 
-            // Create onboarding log
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.ISSUER,
-                eventType: "COD_REJECTED",
-                portal: portalType,
-                organizationName: org.name || undefined,
-                investorOrganizationId: undefined,
-                issuerOrganizationId: organizationId,
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus,
-                  newStatus: OnboardingStatus.REJECTED,
-                },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  requestId,
-                },
-                "Failed to create COD_REJECTED log (non-blocking)"
-              );
-            }
-
-            logger.info(
-              { organizationId, portalType, requestId },
-              "Updated issuer organization status to REJECTED after COD rejection"
-            );
-
-            // Send platform notification
+          if (claimed) {
             try {
               await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
                 onboardingType: onboarding.onboarding_type,

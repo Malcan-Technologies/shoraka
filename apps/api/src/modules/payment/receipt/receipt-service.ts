@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import {
   GatewayPaymentPurpose,
   GatewayPaymentReceipt,
@@ -7,6 +8,7 @@ import {
   Prisma,
   PrismaClient,
 } from "@prisma/client";
+import { allocateDisplayReference } from "../../../lib/display-reference";
 import { logger } from "../../../lib/logger";
 import { prisma as defaultPrisma } from "../../../lib/prisma";
 import { putS3ObjectBuffer } from "../../../lib/s3/client";
@@ -14,7 +16,7 @@ import { resolveInvestorExpectedName } from "../deposit-service";
 import { TRUSTEE_LETTER_MOCK_DEFAULTS } from "../../notes/trustee-letters/trustee-letter.mock-config";
 import { loadReceiptMerchantDetails } from "./receipt-merchant-config";
 import { buildPaymentReceiptHtml } from "./receipt-html-template";
-import { allocateReceiptNumber, getMalaysiaDateKey } from "./receipt-number";
+import { getMalaysiaDateKey } from "./receipt-number";
 import {
   getReceiptPurposeLabel,
   getReceiptRelatedEntityType,
@@ -85,9 +87,17 @@ function buildS3Key(receiptNumber: string, now: Date = new Date()): string {
 }
 
 function isUniqueViolation(error: unknown): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: unknown }).code === "P2002"
   );
+}
+
+function generateReceiptEntityId(): string {
+  const compactUuid = randomUUID().replace(/-/g, "");
+  return `c${compactUuid.slice(0, 24)}`;
 }
 
 function canGenerateReceiptPdf(receipt: {
@@ -257,20 +267,37 @@ async function createPendingReceiptRow(
   const relatedEntityType = getReceiptRelatedEntityType(payment.purpose);
   const paymentDate = payment.updated_at;
 
-  return db.$transaction(async (tx) => {
-    const existing = await tx.gatewayPaymentReceipt.findUnique({
-      where: { gateway_payment_id: payment.id },
-    });
-    if (existing) {
-      return existing;
-    }
+  const existing = await db.gatewayPaymentReceipt.findUnique({
+    where: { gateway_payment_id: payment.id },
+  });
+  if (existing) {
+    return existing;
+  }
 
-    // Allocate number inside the same transaction as create — gaps are OK; reuse is not.
-    const receiptNumber = await allocateReceiptNumber(tx, paymentDate);
+  try {
+    return await db.$transaction(async (tx) => {
+      const existingInTx = await tx.gatewayPaymentReceipt.findUnique({
+        where: { gateway_payment_id: payment.id },
+      });
+      if (existingInTx) {
+        return existingInTx;
+      }
 
-    try {
-      return await tx.gatewayPaymentReceipt.create({
+      const receiptId = generateReceiptEntityId();
+      const receiptNumber = await allocateDisplayReference(
+        {
+          moduleCode: "RCP",
+          referenceDate: paymentDate,
+          entityType: "gateway_payment_receipt",
+          entityId: receiptId,
+          tx,
+        },
+        async () => undefined
+      );
+
+      return tx.gatewayPaymentReceipt.create({
         data: {
+          id: receiptId,
           receipt_number: receiptNumber,
           gateway_payment_id: payment.id,
           payment_purpose: payment.purpose,
@@ -292,16 +319,16 @@ async function createPendingReceiptRow(
           status: GatewayPaymentReceiptStatus.PENDING,
         },
       });
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        const raced = await tx.gatewayPaymentReceipt.findUnique({
-          where: { gateway_payment_id: payment.id },
-        });
-        if (raced) return raced;
-      }
-      throw error;
+    });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      const raced = await db.gatewayPaymentReceipt.findUnique({
+        where: { gateway_payment_id: payment.id },
+      });
+      if (raced) return raced;
     }
-  });
+    throw error;
+  }
 }
 
 async function resolveMerchantForReceipt(db: PrismaClient) {

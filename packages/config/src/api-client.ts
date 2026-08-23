@@ -2,13 +2,13 @@ import type {
   ApiResponse,
   ApiError,
   SigningEnvelopeDto,
+  SigningAuditLogDto,
   ExternalSigningSessionDto,
   RecipientBinding,
   GetUsersParams,
   UsersResponse,
   UserDetailResponse,
   UserResponse,
-  UpdateUserRolesInput,
   UpdateUserKycInput,
   UpdateUserOnboardingInput,
   UpdateUserProfileInput,
@@ -25,6 +25,7 @@ import type {
   AcceptInvitationInput,
   GetSecurityLogsParams,
   SecurityLogsResponse,
+  ExportSecurityLogsParams,
   GetOnboardingLogsParams,
   OnboardingLogsResponse,
   OnboardingLogResponse,
@@ -43,6 +44,8 @@ import type {
   GetAdminApplicationsParams,
   AdminApplicationActionRequiredCountResponse,
   AdminApplicationsResponse,
+  ApplicationAuditLogDto,
+  NoteAuditLogDto,
   GetAdminContractsParams,
   AdminContractsResponse,
   AdminContractDetail,
@@ -70,6 +73,7 @@ import type {
   AdminNotificationLog,
   AdminNotificationLogPagination,
   AdminSendNotificationPayload,
+  AdminSendNotificationResult,
   AdminUpdateNotificationTypePayload,
   AdminSeedTypesResponse,
   WithdrawReason,
@@ -98,7 +102,7 @@ import type {
   PendingInvestorWithdrawalsCountResponse,
   PendingRepaymentsResponse,
   PendingServiceFeeTrusteeLettersResponse,
-  NoteEvent,
+  PaymentAuditLogDto,
   NoteLedgerBucketActivityResponse,
   NoteLedgerBucketBalancesResponse,
   NoteLedgerEntry,
@@ -274,6 +278,31 @@ export class ApiClient {
     }
 
     return token;
+  }
+
+  private async fetchAuditExport(path: string): Promise<{ blob: Blob; truncated: boolean }> {
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    if (authToken) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: "GET",
+      credentials: "include",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.statusText}`);
+    }
+
+    return {
+      blob: await response.blob(),
+      truncated: response.headers.get("X-Audit-Export-Truncated") === "true",
+    };
   }
 
   private async request<T>(
@@ -774,8 +803,8 @@ export class ApiClient {
     return this.post<NoteDetail>(`/v1/admin/notes/${id}/activate`, {});
   }
 
-  async getAdminNoteEvents(id: string): Promise<ApiResponse<NoteEvent[]> | ApiError> {
-    return this.get<NoteEvent[]>(`/v1/admin/notes/${id}/events`);
+  async getAdminNoteEvents(id: string): Promise<ApiResponse<NoteAuditLogDto[]> | ApiError> {
+    return this.get<NoteAuditLogDto[]>(`/v1/admin/notes/${id}/events`);
   }
 
   async getAdminNoteLedger(id: string): Promise<ApiResponse<NoteLedgerEntry[]> | ApiError> {
@@ -986,6 +1015,12 @@ export class ApiClient {
     );
   }
 
+  async getTrusteeSignatureAudit(): Promise<ApiResponse<NoteAuditLogDto[]> | ApiError> {
+    return this.get<NoteAuditLogDto[]>(
+      "/v1/admin/platform-finance-settings/trustee-signature/audit"
+    );
+  }
+
   async getAdminInvestorWithdrawals(params?: {
     status?: string;
     dateFrom?: string;
@@ -1009,6 +1044,10 @@ export class ApiClient {
 
   async getAdminWithdrawal(id: string): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
     return this.get<WithdrawalInstruction>(`/v1/admin/withdrawals/${id}`);
+  }
+
+  async getAdminWithdrawalEvents(id: string): Promise<ApiResponse<PaymentAuditLogDto[]> | ApiError> {
+    return this.get<PaymentAuditLogDto[]>(`/v1/admin/withdrawals/${id}/events`);
   }
 
   async listAdminGatewayPayments(params?: {
@@ -1211,9 +1250,16 @@ export class ApiClient {
     );
   }
 
+  async getAdminGatewayReconExceptionEvents(
+    id: string
+  ): Promise<ApiResponse<PaymentAuditLogDto[]> | ApiError> {
+    return this.get<PaymentAuditLogDto[]>(`/v1/admin/gateway-recon/exceptions/${id}/events`);
+  }
+
   async requestInvestorWithdrawal(data: {
     amount: number;
     investorOrganizationId: string;
+    withdrawalIntentId: string;
   }): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
     return this.post<WithdrawalInstruction>("/v1/investor/balance/withdraw", data);
   }
@@ -1785,13 +1831,6 @@ export class ApiClient {
     return this.get<{ user: UserDetailResponse }>(`/v1/admin/users/${id}`);
   }
 
-  async updateUserRoles(
-    id: string,
-    roles: UpdateUserRolesInput
-  ): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
-    return this.patch<{ user: UserResponse }>(`/v1/admin/users/${id}/roles`, roles);
-  }
-
   async updateUserKyc(
     id: string,
     kyc: UpdateUserKycInput
@@ -1873,7 +1912,7 @@ export class ApiClient {
     return this.get<{ log: AccessLogResponse }>(`/v1/admin/access-logs/${id}`);
   }
 
-  async exportAccessLogs(params: ExportAccessLogsParams): Promise<Blob> {
+  async exportAccessLogs(params: ExportAccessLogsParams): Promise<{ blob: Blob; truncated: boolean }> {
     const queryParams = new URLSearchParams();
     if (params.search) queryParams.append("search", params.search);
     if (params.eventType) queryParams.append("eventType", params.eventType);
@@ -1881,28 +1920,7 @@ export class ApiClient {
     if (params.dateRange) queryParams.append("dateRange", params.dateRange);
     if (params.userId) queryParams.append("userId", params.userId);
     queryParams.append("format", params.format || "json");
-
-    const url = `${this.baseUrl}/v1/admin/access-logs/export?${queryParams.toString()}`;
-    const authToken = await this.getAuthToken();
-
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "include",
-      headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.statusText}`);
-    }
-
-    return response.blob();
+    return this.fetchAuditExport(`/v1/admin/access-logs/export?${queryParams.toString()}`);
   }
 
   // Admin - Admin User Management
@@ -2006,6 +2024,20 @@ export class ApiClient {
     return this.get<SecurityLogsResponse>(`/v1/admin/security-logs?${queryParams.toString()}`);
   }
 
+  async exportSecurityLogs(
+    params: ExportSecurityLogsParams
+  ): Promise<{ blob: Blob; truncated: boolean }> {
+    const queryParams = new URLSearchParams();
+    if (params.search) queryParams.append("search", params.search);
+    if (params.eventType) queryParams.append("eventType", params.eventType);
+    if (params.eventTypes && params.eventTypes.length > 0)
+      queryParams.append("eventTypes", params.eventTypes.join(","));
+    if (params.dateRange) queryParams.append("dateRange", params.dateRange);
+    if (params.userId) queryParams.append("userId", params.userId);
+    queryParams.append("format", params.format || "json");
+    return this.fetchAuditExport(`/v1/admin/security-logs/export?${queryParams.toString()}`);
+  }
+
   // Admin - Onboarding Logs
   async getOnboardingLogs(
     params: GetOnboardingLogsParams
@@ -2031,7 +2063,9 @@ export class ApiClient {
     return this.get<{ log: OnboardingLogResponse }>(`/v1/admin/onboarding-logs/${id}`);
   }
 
-  async exportOnboardingLogs(params: ExportOnboardingLogsParams): Promise<Blob> {
+  async exportOnboardingLogs(
+    params: ExportOnboardingLogsParams
+  ): Promise<{ blob: Blob; truncated: boolean }> {
     const queryParams = new URLSearchParams();
     if (params.search) queryParams.append("search", params.search);
     if (params.eventType) queryParams.append("eventType", params.eventType);
@@ -2040,29 +2074,9 @@ export class ApiClient {
     if (params.role) queryParams.append("role", params.role);
     if (params.dateRange) queryParams.append("dateRange", params.dateRange);
     if (params.userId) queryParams.append("userId", params.userId);
+    if (params.organizationId) queryParams.append("organizationId", params.organizationId);
     queryParams.append("format", params.format || "json");
-
-    const url = `${this.baseUrl}/v1/admin/onboarding-logs/export?${queryParams.toString()}`;
-    const authToken = await this.getAuthToken();
-
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "include",
-      headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.statusText}`);
-    }
-
-    return response.blob();
+    return this.fetchAuditExport(`/v1/admin/onboarding-logs/export?${queryParams.toString()}`);
   }
 
   async getAccountLegalDocuments(
@@ -2100,7 +2114,9 @@ export class ApiClient {
     return this.get<ProductLogsResponse>(`/v1/admin/product-logs?${queryParams.toString()}`);
   }
 
-  async exportProductLogs(params: ExportProductLogsParams): Promise<Blob> {
+  async exportProductLogs(
+    params: ExportProductLogsParams
+  ): Promise<{ blob: Blob; truncated: boolean }> {
     const queryParams = new URLSearchParams();
     if (params.search) queryParams.append("search", params.search);
     if (params.eventType) queryParams.append("eventType", params.eventType);
@@ -2108,28 +2124,31 @@ export class ApiClient {
       queryParams.append("eventTypes", params.eventTypes.join(","));
     if (params.dateRange) queryParams.append("dateRange", params.dateRange);
     queryParams.append("format", params.format || "json");
+    return this.fetchAuditExport(`/v1/admin/product-logs/export?${queryParams.toString()}`);
+  }
 
-    const url = `${this.baseUrl}/v1/admin/product-logs/export?${queryParams.toString()}`;
-    const authToken = await this.getAuthToken();
-
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "include",
-      headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.statusText}`);
-    }
-
-    return response.blob();
+  async exportLegalDocumentAuditLogs(params: {
+    format: "csv" | "json";
+    search?: string;
+    action?: string;
+    documentType?: string;
+    legalDocumentId?: string;
+    actorUserId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }): Promise<{ blob: Blob; truncated: boolean }> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("format", params.format);
+    if (params.search) queryParams.append("search", params.search);
+    if (params.action) queryParams.append("action", params.action);
+    if (params.documentType) queryParams.append("documentType", params.documentType);
+    if (params.legalDocumentId) queryParams.append("legalDocumentId", params.legalDocumentId);
+    if (params.actorUserId) queryParams.append("actorUserId", params.actorUserId);
+    if (params.dateFrom) queryParams.append("dateFrom", params.dateFrom);
+    if (params.dateTo) queryParams.append("dateTo", params.dateTo);
+    return this.fetchAuditExport(
+      `/v1/admin/legal-document-audit-logs/export?${queryParams.toString()}`
+    );
   }
 
   // Activities
@@ -2286,6 +2305,41 @@ export class ApiClient {
     return this.get<ApplicationLogEntry[]>(`/v1/applications/${id}/logs`);
   }
 
+  /** Paginated Admin forensic Application + Signing audit history. */
+  async getApplicationAuditHistory(
+    id: string,
+    params?: { page?: number; pageSize?: number }
+  ): Promise<
+    | ApiResponse<{
+        logs: ApplicationAuditLogDto[];
+        pagination: { page: number; pageSize: number; totalCount: number; totalPages: number };
+      }>
+    | ApiError
+  > {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.pageSize) query.set("pageSize", String(params.pageSize));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return this.get(`/v1/admin/applications/${id}/audit-history${suffix}`);
+  }
+
+  async getNoteAuditHistory(
+    id: string,
+    params?: { page?: number; pageSize?: number }
+  ): Promise<
+    | ApiResponse<{
+        logs: NoteAuditLogDto[];
+        pagination: { page: number; pageSize: number; totalCount: number; totalPages: number };
+      }>
+    | ApiError
+  > {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.pageSize) query.set("pageSize", String(params.pageSize));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return this.get(`/v1/admin/notes/${id}/audit-history${suffix}`);
+  }
+
   async getApplicationProductVersionCompare(
     applicationId: string
   ): Promise<ApiResponse<ApplicationProductVersionCompare> | ApiError> {
@@ -2436,6 +2490,20 @@ export class ApiClient {
     envelopeId: string
   ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
     return this.get<SigningEnvelopeDto>(`/v1/signing/envelopes/${envelopeId}`);
+  }
+
+  /** Issuer: signing package history for an envelope. */
+  async getSigningEnvelopeLogs(
+    envelopeId: string
+  ): Promise<ApiResponse<SigningAuditLogDto[]> | ApiError> {
+    return this.get<SigningAuditLogDto[]>(`/v1/signing/envelopes/${envelopeId}/logs`);
+  }
+
+  /** Admin: signing package history for an envelope. */
+  async getAdminSigningEnvelopeLogs(
+    envelopeId: string
+  ): Promise<ApiResponse<SigningAuditLogDto[]> | ApiError> {
+    return this.get<SigningAuditLogDto[]>(`/v1/admin/signing/envelopes/${envelopeId}/logs`);
   }
 
   /** Issuer: list envelopes for an application they can access. */
@@ -2762,8 +2830,8 @@ export class ApiClient {
 
   async sendAdminNotification(
     data: AdminSendNotificationPayload
-  ): Promise<ApiResponse<{ sent: number }> | ApiError> {
-    return this.post<{ sent: number }>("/v1/notifications/admin/send", data);
+  ): Promise<ApiResponse<AdminSendNotificationResult> | ApiError> {
+    return this.post<AdminSendNotificationResult>("/v1/notifications/admin/send", data);
   }
 
   async getAdminNotificationGroups(): Promise<ApiResponse<AdminNotificationGroup[]> | ApiError> {

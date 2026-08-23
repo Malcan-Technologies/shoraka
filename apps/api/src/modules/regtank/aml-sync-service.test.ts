@@ -96,6 +96,9 @@ describe("AMLSyncService.syncOrganizationAMLStatus — personal organizations", 
     expect(mockApplyPersonalAmlMilestoneFromLiveKyc).toHaveBeenCalledWith(
       expect.objectContaining({ kycId: "KYC001", organizationId: "org-1", portalType: "investor" })
     );
+    expect(mockApplyPersonalAmlMilestoneFromLiveKyc.mock.calls[0]?.[0]).not.toHaveProperty(
+      "onboardingId"
+    );
     // Never routes personal orgs through the COD/corporate lookup.
     expect(mockRegTankOnboardingFindFirst).not.toHaveBeenCalled();
     expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_FINAL_APPROVAL);
@@ -144,6 +147,9 @@ describe("AMLSyncService.syncOrganizationAMLStatus — company organizations", (
 
     expect(mockApplyCorporateAmlMilestoneFromLiveKyb).toHaveBeenCalledWith(
       expect.objectContaining({ codRequestId: "COD001", organizationId: "org-2" })
+    );
+    expect(mockApplyCorporateAmlMilestoneFromLiveKyb.mock.calls[0]?.[0]).not.toHaveProperty(
+      "onboardingId"
     );
     expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_FINAL_APPROVAL);
     expect(result.advanced).toBe(true);

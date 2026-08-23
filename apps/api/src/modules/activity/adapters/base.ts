@@ -23,7 +23,7 @@ export interface UnifiedActivity {
   user_agent?: string | null;
   device_info?: string | null;
   created_at: Date; // Displayed as "Time" in UI
-  source_table: string; // For debugging (e.g., "security_logs")
+  source_table: string; // For debugging (e.g., "security_audit_logs")
   references?: ActivityReferences | null;
 }
 
@@ -73,9 +73,13 @@ export interface AuditLogAdapter<T> {
   /**
    * Transform a single audit log record into a unified activity
    */
-  transform(record: T): UnifiedActivity;
+  transform(record: T, filters?: ActivityFilters): UnifiedActivity;
 
-  buildPresentation(eventType: string, metadata?: Record<string, unknown>): {
+  buildPresentation(
+    eventType: string,
+    metadata?: Record<string, unknown>,
+    audience?: import("@cashsouk/types").ActivityAudience
+  ): {
     title: string;
     description: string;
   };

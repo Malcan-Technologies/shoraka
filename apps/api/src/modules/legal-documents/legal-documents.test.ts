@@ -42,7 +42,7 @@ jest.mock("../../lib/prisma", () => ({
       update: jest.fn(),
       deleteMany: jest.fn(),
     },
-    legalDocumentAuditLog: {
+    legalAdminAuditLog: {
       create: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
@@ -93,6 +93,7 @@ import { legalDocumentService } from "./service";
 import { createLegalDocumentSchema } from "./schemas";
 import { deleteS3Object, validatePdfUpload } from "../../lib/s3/client";
 import { assertStoredLegalPdf } from "../../lib/s3/legal-document-object";
+import { auditContextForActor } from "./audit/context";
 
 const mockReq = {
   headers: {
@@ -101,6 +102,10 @@ const mockReq = {
   },
   socket: { remoteAddress: "127.0.0.1" },
 } as never;
+
+function adminContext(actorUserId = "admin1") {
+  return auditContextForActor(mockReq, actorUserId);
+}
 
 function publishedVersion(overrides: Record<string, unknown> = {}) {
   return {
@@ -145,7 +150,8 @@ describe("legal document acceptance service", () => {
       first_name: "Owner",
       last_name: "User",
     });
-    (prisma.legalDocumentAuditLog.create as jest.Mock).mockResolvedValue({ id: "audit1" });
+    (prisma.legalAdminAuditLog.create as jest.Mock).mockResolvedValue({ id: "audit1" });
+    (prisma.$transaction as jest.Mock).mockImplementation(async (fn) => fn(prisma));
     jest.spyOn(legalDocumentRepository, "findAllPublishedByDocumentId").mockResolvedValue([]);
   });
 
@@ -812,7 +818,7 @@ describe("legal document acceptance service", () => {
       "ver1",
       { reacceptanceRequired: true },
       "admin1",
-      mockReq
+      adminContext()
     );
 
     expect(prisma.issuerOrganization.updateMany).not.toHaveBeenCalled();
@@ -841,7 +847,7 @@ describe("legal document acceptance service", () => {
         archived_by: null,
       }) as never
     );
-    const restored = await legalDocumentService.restoreVersion("ver1", "admin1", mockReq);
+    const restored = await legalDocumentService.restoreVersion("ver1", "admin1", adminContext());
     expect(restored.status).toBe("DRAFT");
   });
 
@@ -865,7 +871,7 @@ describe("legal document acceptance service", () => {
     );
 
     await expect(
-      legalDocumentService.restoreVersion("ver1", "admin1", mockReq)
+      legalDocumentService.restoreVersion("ver1", "admin1", adminContext())
     ).rejects.toMatchObject({ code: "NEWER_PUBLISHED_EXISTS" });
   });
 
@@ -903,8 +909,7 @@ describe("legal document acceptance service", () => {
         contentType: "application/pdf",
         fileSize: 1200,
       },
-      "admin1",
-      mockReq
+      adminContext()
     );
 
     expect(assertStoredLegalPdf).toHaveBeenCalledWith({
@@ -917,7 +922,8 @@ describe("legal document acceptance service", () => {
         s3Key: "legal-documents/new-key.pdf",
         fileHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         fileSize: 1200,
-      })
+      }),
+      expect.anything()
     );
     expect(deleteS3Object).toHaveBeenCalledWith("legal-documents/old-key.pdf");
     expect(replaced.version).toBe(2);
@@ -954,8 +960,7 @@ describe("legal document acceptance service", () => {
           contentType: "application/pdf",
           fileSize: 1200,
         },
-        "admin1",
-        mockReq
+        adminContext()
       )
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
 
@@ -999,7 +1004,7 @@ describe("legal document acceptance service", () => {
         fileSize: 500,
       },
       "admin1",
-      mockReq
+      adminContext()
     );
 
     expect(assertStoredLegalPdf).toHaveBeenCalled();
@@ -1010,7 +1015,8 @@ describe("legal document acceptance service", () => {
         fileHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         fileSize: 500,
       }),
-      "admin1"
+      "admin1",
+      expect.anything()
     );
     expect(created.fileHash).toMatch(/^[a-f0-9]{64}$/);
   });
@@ -1026,7 +1032,12 @@ describe("legal document acceptance service", () => {
       }) as never
     );
     await expect(
-      legalDocumentService.publishVersion("ver2", { reacceptanceRequired: false }, "admin1", mockReq)
+      legalDocumentService.publishVersion(
+        "ver2",
+        { reacceptanceRequired: false },
+        "admin1",
+        adminContext()
+      )
     ).rejects.toMatchObject({ code: "HASH_REQUIRED" });
   });
 
@@ -1059,8 +1070,7 @@ describe("legal document acceptance service", () => {
         contentType: "application/pdf",
         fileSize: 100,
       },
-      "admin1",
-      mockReq
+      adminContext()
     );
 
     expect(deleteS3Object).not.toHaveBeenCalled();
@@ -1083,8 +1093,7 @@ describe("legal document acceptance service", () => {
           contentType: "application/pdf",
           fileSize: 10,
         },
-        "admin1",
-        mockReq
+        adminContext()
       )
     ).rejects.toMatchObject({ code: "INVALID_STATUS" });
     expect(deleteS3Object).not.toHaveBeenCalled();
@@ -1120,8 +1129,7 @@ describe("legal document acceptance service", () => {
         contentType: "application/pdf",
         fileSize: 1200,
       },
-      "admin1",
-      mockReq
+      adminContext()
     );
     expect(replaced.fileName).toBe("fixed.pdf");
     expect(legalDocumentRepository.replaceDraftFile).toHaveBeenCalled();
@@ -1148,7 +1156,7 @@ describe("legal document acceptance service", () => {
     );
     jest.spyOn(legalDocumentRepository, "findPublishedByDocumentId").mockResolvedValue(null);
 
-    const archived = await legalDocumentService.archiveVersion("ver2", "admin1", mockReq);
+    const archived = await legalDocumentService.archiveVersion("ver2", "admin1", adminContext());
     expect(archived.status).toBe("ARCHIVED");
     const stillPublished = await legalDocumentRepository.findPublishedByDocumentId("ld1");
     expect(stillPublished).toBeNull();

@@ -739,17 +739,6 @@ async function upsertDraftNote(
       expected_total: money(FINANCING_AMOUNT + profit),
     },
   });
-
-  await prisma.noteEvent.create({
-    data: {
-      note_id: PROSPECTUS_DEMO_NOTE_ID,
-      event_type: "PROSPECTUS_DEMO_SEED",
-      actor_user_id: actorUserId,
-      actor_role: UserRole.ADMIN,
-      portal: "ADMIN",
-      metadata: { reference: PROSPECTUS_DEMO_NOTE_REFERENCE, reset: true },
-    },
-  });
 }
 
 export async function seedProspectusReviewNote() {

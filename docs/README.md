@@ -39,12 +39,23 @@ Plain-text guides for application status rules and log events:
 - **[Logging Scenarios](./guides/application/logging-scenarios.md)** - UI button to event type mapping
 - **[Logging Guide](./guides/application/logging-guide.md)** - Full scenarios, DB storage, kid-level explanation
 
+### 🧾 Audit & Activity
+
+Current AuditLog architecture (history/evidence, not source of truth):
+
+- **[Current audit architecture](./audit/current-audit-logging-inventory.md)** - Tables, writers, readers, aliases, RBAC
+- **[Manual verification catalogue](./audit/audit-manual-verification-catalogue.md)** - Per-event cards (A001–A178)
+- **[Activity Timeline](./guides/admin/activity-timeline.md)** - Admin Activity vs raw Audit History vs wallet cash statement; issuer/investor ActivityFeed
+- **[Activity log inventory](./guides/activity-log-inventory.md)** - Curated `/activity` events and domains
+- **[Activity authoring guide](./guides/activity-log-authoring-guide.md)** - When a log belongs on `/activity`
+
 ### 🛠️ Admin
 
-Admin portal and activity timeline:
+Admin portal:
 
-- **[Activity Timeline](./guides/admin/activity-timeline.md)** - Application log creation, remark at top-level, event labels/icons
+- **[Activity Timeline](./guides/admin/activity-timeline.md)** - Curated Activity, raw Audit History, investor org wallet panel, CSV, issuer/investor feeds
 - **[CTOS financial summary display](./guides/admin/ctos-financial-summary-display.md)** - CTOS-first cells and fallback formulas in application review
+
 
 ### 🏗️ Architecture
 

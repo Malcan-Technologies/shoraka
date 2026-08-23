@@ -34,8 +34,15 @@ import {
 } from "../notification/director-shareholder-notifications";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import { filterVisiblePeopleRows, normalizeRawStatus, type ApplicationPersonRow } from "@cashsouk/types";
-import { logApplicationActivity } from "../applications/logs/service";
-import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
+import {
+  APPLICATION_AUDIT_TARGET_TYPE,
+  writeApplicationAuditLog,
+} from "../applications/audit/writer";
+import {
+  AUDIT_PORTAL,
+  AUDIT_SOURCE,
+  systemAuditContext,
+} from "../../lib/audit/context";
 
 export type AdminOrgCtosPortal = "issuer" | "investor";
 
@@ -114,14 +121,21 @@ async function resetFinancialReviewAfterCtosUpdateIfNeeded(params: {
           reviewed_at: null,
         },
       });
-      await logApplicationActivity({
-        userId: "system",
-        applicationId: row.application_id,
-        eventType: ApplicationLogEventType.SECTION_REVIEWED_PENDING,
-        portal: ActivityPortal.ADMIN,
-        remark: "Reset due to CTOS update / AML pending",
-        metadata: { scope: "section", scope_key: "financial", old_status: "APPROVED", new_status: "PENDING" },
-      });
+      await writeApplicationAuditLog(
+        {
+          eventType: "APPLICATION_SECTION_REVIEW_UPDATED",
+          context: systemAuditContext({ source: AUDIT_SOURCE.INTERNAL, portal: AUDIT_PORTAL.ADMIN }),
+          applicationId: row.application_id,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.REVIEW_SECTION,
+          targetId: "financial",
+          metadata: {
+            section: "financial",
+            previousStatus: "APPROVED",
+            newStatus: "PENDING",
+          },
+        },
+        tx
+      );
     }
   });
 }
@@ -180,6 +194,7 @@ function orgFkCreate(portal: AdminOrgCtosPortal, organizationId: string) {
 }
 
 type OrgRowForSubject = {
+  owner_user_id: string;
   corporate_entities: Prisma.JsonValue;
   director_kyc_status: Prisma.JsonValue;
 };

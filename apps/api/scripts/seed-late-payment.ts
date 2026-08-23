@@ -357,7 +357,7 @@ function shouldCreatePreviewSettlement(previewLateFees: LateFeeMode): boolean {
 async function resetScenarioChildren(tx: Prisma.TransactionClient, noteId: string) {
   await tx.notePayment.deleteMany({ where: { note_id: noteId } });
   await tx.noteSettlement.deleteMany({ where: { note_id: noteId } });
-  await tx.noteEvent.deleteMany({ where: { note_id: noteId } });
+  await tx.noteAuditLog.deleteMany({ where: { note_id: noteId } });
   await tx.withdrawalInstruction.deleteMany({ where: { note_id: noteId } });
 }
 
@@ -679,67 +679,6 @@ async function main() {
           approvedAt: null,
           postedAt: null,
           includedPaymentIds: [],
-        });
-      }
-
-      if (scenario.arrearsLetter) {
-        await tx.noteEvent.create({
-          data: {
-            note_id: noteId,
-            event_type: "ARREARS_LETTER_GENERATED",
-            actor_user_id: adminUser.user_id,
-            actor_role: "ADMIN",
-            portal: "ADMIN",
-            metadata: {
-              s3Key: `note-letters/${noteId}/arrears-dev-seed.pdf`,
-              seed: scenario.reference,
-            },
-          },
-        });
-      }
-
-      if (scenario.defaultLetter) {
-        await tx.noteEvent.create({
-          data: {
-            note_id: noteId,
-            event_type: "DEFAULT_LETTER_GENERATED",
-            actor_user_id: adminUser.user_id,
-            actor_role: "ADMIN",
-            portal: "ADMIN",
-            metadata: {
-              s3Key: `note-letters/${noteId}/default-dev-seed.pdf`,
-              seed: scenario.reference,
-            },
-          },
-        });
-      }
-
-      if (scenario.key === "DEFAULTED") {
-        await tx.noteEvent.create({
-          data: {
-            note_id: noteId,
-            event_type: "NOTE_DEFAULT_MARKED",
-            actor_user_id: adminUser.user_id,
-            actor_role: "ADMIN",
-            portal: "ADMIN",
-            metadata: {
-              reason: scenario.defaultReason,
-              seed: scenario.reference,
-            },
-          },
-        });
-      }
-
-      if (scenario.settlementStatus === NoteSettlementStatus.POSTED) {
-        await tx.noteEvent.create({
-          data: {
-            note_id: noteId,
-            event_type: "SETTLEMENT_POSTED",
-            actor_user_id: adminUser.user_id,
-            actor_role: "ADMIN",
-            portal: "ADMIN",
-            metadata: { seed: scenario.reference },
-          },
         });
       }
 

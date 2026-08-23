@@ -8,7 +8,18 @@ const mockApplyChanges = jest.fn(
       invoice: {
         update: jest.fn().mockResolvedValue({ id: "inv-1", status: "AMENDMENT_REQUESTED" }),
         delete: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([{ id: "inv-1", status: "WITHDRAWN" }]),
       },
+      application: {
+        findUnique: jest.fn().mockResolvedValue({
+          status: "INVOICE_PENDING",
+          contract_id: "contract-1",
+          financing_structure: { structure_type: "existing_contract" },
+        }),
+        update: jest.fn(),
+      },
+      contract: { findUnique: jest.fn().mockResolvedValue({ status: "APPROVED" }) },
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
     }),
     snapshots: [],
   })
@@ -46,8 +57,13 @@ jest.mock("../contracts/repository", () => ({
 jest.mock("../products/repository", () => ({
   ProductRepository: jest.fn().mockImplementation(() => ({})),
 }));
-jest.mock("../applications/logs/service", () => ({
-  logApplicationActivity: jest.fn(),
+jest.mock("../applications/audit/writer", () => ({
+  APPLICATION_AUDIT_TARGET_TYPE: {
+    APPLICATION: "APPLICATION",
+    INVOICE: "INVOICE",
+  },
+  issuerApplicationAuditContext: (userId: string) => ({ actorUserId: userId }),
+  writeApplicationAuditLog: jest.fn(),
 }));
 jest.mock("../../lib/prisma", () => ({
   prisma: {

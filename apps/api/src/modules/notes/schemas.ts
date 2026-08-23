@@ -35,6 +35,11 @@ export const bucketActivityQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+export const noteAuditHistoryQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(15),
+});
+
 export const investorOrganizationScopeSchema = z.object({
   investorOrganizationId: z.string().min(1).optional(),
 });
@@ -252,7 +257,16 @@ export const requestIssuerPaymentEvidenceUploadUrlSchema = z.object({
 export const createInvestorWithdrawalSchema = z.object({
   amount: z.number().min(100),
   investorOrganizationId: z.string().min(1),
+  withdrawalIntentId: z.string().uuid(),
 });
+
+export function buildInvestorWithdrawalInstructionKey(withdrawalIntentId: string) {
+  return `investor-withdrawal:${withdrawalIntentId}`;
+}
+
+export function buildInvestorWithdrawalBalanceTxnKey(withdrawalIntentId: string) {
+  return `investor-balance:withdrawal:${withdrawalIntentId}`;
+}
 
 export const getInvestorWithdrawalsQuerySchema = z.object({
   status: z.string().optional(),

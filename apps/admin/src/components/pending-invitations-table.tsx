@@ -198,6 +198,7 @@ export function PendingInvitationsTable({
   onPageChange,
   onResend,
   onRevoke,
+  canManageRoles = false,
 }: PendingInvitationsTableProps) {
   const adminPortalUrl = process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:3003";
 
@@ -237,6 +238,7 @@ export function PendingInvitationsTable({
                     availableRoles={availableRoles}
                     onResend={onResend}
                     onRevoke={onRevoke}
+                    canManageRoles={canManageRoles}
                   />
                 ))
               )}

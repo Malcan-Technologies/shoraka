@@ -18,6 +18,13 @@ import {
   getSigningCloudEkycSession,
   submitSigningCloudEkycResult,
 } from "./signingcloud-ekyc";
+import type { AuditRequestContext } from "../../lib/audit/context";
+import { SIGNING_AUDIT_TARGET_TYPE, SIGNING_PROVIDER } from "../signing/audit/events";
+import {
+  issuerSigningAuditContext,
+  publicSignerAuditContext,
+  writeSigningAuditLog,
+} from "../signing/audit/writer";
 
 /** SigningCloud eKYC is MyKad-only in CashSouk. */
 const EKYC_DOC_TYPE = "mykad";
@@ -41,6 +48,46 @@ export function normalizeEkycIc(icNumber: string): string {
 
 function isPendingSessionFresh(updatedAt: Date): boolean {
   return Date.now() - updatedAt.getTime() < EKYC_SESSION_TTL_MS;
+}
+
+export type EkycAuditScope = {
+  context?: AuditRequestContext;
+  applicationId?: string | null;
+  signingEnvelopeId?: string | null;
+  recipientId?: string | null;
+  organizationId?: string | null;
+};
+
+async function writeEkycAudit(input: {
+  eventType: "SIGNING_EKYC_STARTED" | "SIGNING_EKYC_VERIFIED" | "SIGNING_EKYC_FAILED";
+  sessionId: string;
+  email: string;
+  context: AuditRequestContext;
+  previousStatus?: string;
+  newStatus: string;
+  reasonCode?: string;
+  applicationId?: string | null;
+  signingEnvelopeId?: string | null;
+  recipientId?: string | null;
+  organizationId?: string | null;
+}): Promise<void> {
+  await writeSigningAuditLog({
+    eventType: input.eventType,
+    context: input.context,
+    signingEnvelopeId: input.signingEnvelopeId,
+    applicationId: input.applicationId,
+    organizationId: input.organizationId,
+    targetType: SIGNING_AUDIT_TARGET_TYPE.EKYC_SESSION,
+    targetId: input.sessionId,
+    metadata: {
+      ...(input.recipientId ? { recipientId: input.recipientId } : {}),
+      email: input.email,
+      provider: SIGNING_PROVIDER,
+      ...(input.previousStatus ? { previousStatus: input.previousStatus } : {}),
+      newStatus: input.newStatus,
+      ...(input.reasonCode ? { reasonCode: input.reasonCode } : {}),
+    },
+  });
 }
 
 function sanitizeClientFailureReason(reason: string): string {
@@ -272,6 +319,10 @@ class EkycService {
       icNumber,
       confirmedNameInput,
       force: options?.force,
+      audit: {
+        context: issuerSigningAuditContext(userId),
+        organizationId: issuerOrganizationId,
+      },
     });
   }
 
@@ -282,6 +333,7 @@ class EkycService {
     confirmedNameInput: string;
     issuerOrganizationId?: string | null;
     force?: boolean;
+    audit?: EkycAuditScope;
   }): Promise<EkycSession> {
     const icNumber = normalizeEkycIc(input.icNumber);
     if (icNumber.length !== 12) {
@@ -295,6 +347,13 @@ class EkycService {
       icNumber,
       confirmedNameInput: input.confirmedNameInput,
       force: input.force,
+      audit: {
+        context: input.audit?.context ?? publicSignerAuditContext(),
+        applicationId: input.audit?.applicationId,
+        signingEnvelopeId: input.audit?.signingEnvelopeId,
+        recipientId: input.audit?.recipientId,
+        organizationId: input.audit?.organizationId ?? input.issuerOrganizationId,
+      },
     });
   }
 
@@ -305,6 +364,7 @@ class EkycService {
     icNumber: string;
     confirmedNameInput: string;
     force?: boolean;
+    audit?: EkycAuditScope;
   }): Promise<EkycSession> {
     const force = input.force === true;
     const confirmedName = parseConfirmedEkycName(input.confirmedNameInput);
@@ -375,7 +435,7 @@ class EkycService {
     const { url, token } = await getSigningCloudEkycSession(workEmail);
     const preserveUserId = existing?.user_id ?? input.userId;
 
-    await prisma.signingCloudEkyc.upsert({
+    const row = await prisma.signingCloudEkyc.upsert({
       where: { email: workEmail },
       create: {
         user_id: preserveUserId,
@@ -404,13 +464,34 @@ class EkycService {
       },
     });
 
+    await writeEkycAudit({
+      eventType: "SIGNING_EKYC_STARTED",
+      sessionId: row.id,
+      email: workEmail,
+      context: input.audit?.context ?? publicSignerAuditContext(),
+      previousStatus: existing?.status,
+      newStatus: "pending",
+      applicationId: input.audit?.applicationId,
+      signingEnvelopeId: input.audit?.signingEnvelopeId,
+      recipientId: input.audit?.recipientId,
+      organizationId: input.audit?.organizationId ?? input.issuerOrganizationId,
+    });
+
     return { url, token };
   }
 
   async failSession(token: string, reason: string, code?: string): Promise<EkycSessionStatus> {
     const record = await prisma.signingCloudEkyc.findUnique({
       where: { session_token: token },
-      select: { id: true, user_id: true, status: true, last_error: true, completed_at: true },
+      select: {
+        id: true,
+        user_id: true,
+        email: true,
+        issuer_organization_id: true,
+        status: true,
+        last_error: true,
+        completed_at: true,
+      },
     });
     if (!record) {
       throw new AppError(404, "NOT_FOUND", "Unknown eKYC session token");
@@ -432,6 +513,17 @@ class EkycService {
         status: SigningCloudEkycStatus.error,
         last_error: message,
       },
+    });
+
+    await writeEkycAudit({
+      eventType: "SIGNING_EKYC_FAILED",
+      sessionId: record.id,
+      email: record.email,
+      context: publicSignerAuditContext(),
+      previousStatus: record.status,
+      newStatus: "error",
+      reasonCode: "CAPTURE_ERROR",
+      organizationId: record.issuer_organization_id,
     });
 
     logger.warn(
@@ -532,6 +624,18 @@ class EkycService {
             completed_at: null,
           },
         });
+        await writeEkycAudit({
+          eventType: "SIGNING_EKYC_FAILED",
+          sessionId: record.id,
+          email: record.email,
+          context: record.user_id
+            ? issuerSigningAuditContext(record.user_id)
+            : publicSignerAuditContext(),
+          previousStatus: record.status,
+          newStatus: "failed",
+          reasonCode: "VERIFICATION_FAILED",
+          organizationId: record.issuer_organization_id,
+        });
 
         return {
           status: "failed" as const,
@@ -548,6 +652,17 @@ class EkycService {
           last_error: null,
           completed_at: completedAt,
         },
+      });
+      await writeEkycAudit({
+        eventType: "SIGNING_EKYC_VERIFIED",
+        sessionId: record.id,
+        email: record.email,
+        context: record.user_id
+          ? issuerSigningAuditContext(record.user_id)
+          : publicSignerAuditContext(),
+        previousStatus: record.status,
+        newStatus: "verified",
+        organizationId: record.issuer_organization_id,
       });
 
       return {
@@ -569,6 +684,18 @@ class EkycService {
           status: SigningCloudEkycStatus.error,
           last_error: message,
         },
+      });
+      await writeEkycAudit({
+        eventType: "SIGNING_EKYC_FAILED",
+        sessionId: record.id,
+        email: record.email,
+        context: record.user_id
+          ? issuerSigningAuditContext(record.user_id)
+          : publicSignerAuditContext(),
+        previousStatus: record.status,
+        newStatus: "error",
+        reasonCode: "CAPTURE_ERROR",
+        organizationId: record.issuer_organization_id,
       });
 
       if (error instanceof AppError) {

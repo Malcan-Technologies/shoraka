@@ -51,8 +51,14 @@ jest.mock("../../lib/prisma", () => ({
     $transaction: jest.fn(),
   },
 }));
-jest.mock("../applications/logs/service", () => ({
-  logApplicationActivity: jest.fn(),
+jest.mock("../applications/audit/writer", () => ({
+  APPLICATION_AUDIT_TARGET_TYPE: {
+    APPLICATION: "APPLICATION",
+    CONTRACT: "CONTRACT",
+    INVOICE: "INVOICE",
+  },
+  adminApplicationAuditContext: (userId: string) => ({ actorUserId: userId }),
+  writeApplicationAuditLog: jest.fn(),
 }));
 
 import { AdminService } from "./service";

@@ -57,8 +57,25 @@ import {
   type OfferLetterSignatory,
 } from "../applications/offer-letter-pdf";
 import { applicationService } from "../applications/service";
-import { logApplicationActivity } from "../applications/logs/service";
-import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_PORTAL,
+  AUDIT_SOURCE,
+  type AuditRequestContext,
+  systemAuditContext,
+  webhookAuditContext,
+} from "../../lib/audit/context";
+import {
+  SIGNING_AUDIT_TARGET_TYPE,
+  SIGNING_COMPLETION_METHOD,
+  SIGNING_PROVIDER,
+  type SigningCompletionMethod,
+} from "./audit/events";
+import {
+  issuerSigningAuditContext,
+  writeSigningAuditLog,
+} from "./audit/writer";
+import { signingAuditLogReader, type SigningAuditLogDto } from "./audit/reader";
 import {
   signingRepository,
   type SigningApplicationContext,
@@ -238,6 +255,7 @@ export interface CreateDraftEnvelopeInput {
   createdByUserId?: string | null;
   expiresAt?: Date | null;
   issuerUploadS3Keys?: Map<string, string>;
+  auditContext?: AuditRequestContext;
 }
 
 export interface CreateIssuerEnvelopeInput {
@@ -248,6 +266,32 @@ export interface CreateIssuerEnvelopeInput {
   contractId?: string | null;
   invoiceId?: string | null;
   expiresAt?: Date | null;
+  auditContext?: AuditRequestContext;
+}
+
+export type SigningSyncSource = {
+  completionMethod: SigningCompletionMethod;
+  context: AuditRequestContext;
+};
+
+function requiredDocumentsHaveSignedEvidence(
+  envelope: SigningEnvelopeWithGraph
+): { ok: boolean; hashes: Array<{ documentId: string; sha256: string }> } {
+  const requiredDocuments = envelope.documents.filter((document) => document.required);
+  const hashes: Array<{ documentId: string; sha256: string }> = [];
+  for (const document of requiredDocuments) {
+    const sha256 = document.signed_file_sha256?.trim() ?? "";
+    if (!document.signed_s3_key?.trim() || !sha256) {
+      return { ok: false, hashes: [] };
+    }
+    hashes.push({ documentId: document.id, sha256 });
+  }
+  return { ok: true, hashes };
+}
+
+function decliningRecipientIdOf(envelope: SigningEnvelopeWithGraph): string | undefined {
+  const declined = envelope.recipients.find((recipient) => recipient.status === "DECLINED");
+  return declined?.id;
 }
 
 export class SigningService {
@@ -593,35 +637,6 @@ export class SigningService {
     await this.assertAcceptanceDocumentsApprovedForSigning(application, workflow);
   }
 
-  private async logSigningPackageActivity(params: {
-    userId: string;
-    applicationId: string;
-    eventType: ApplicationLogEventType;
-    envelope: {
-      id: string;
-      contract_id?: string | null;
-      invoice_id?: string | null;
-      title?: string | null;
-    };
-    portal?: ActivityPortal;
-    extraMetadata?: Record<string, unknown>;
-  }): Promise<void> {
-    await logApplicationActivity({
-      userId: params.userId,
-      applicationId: params.applicationId,
-      entityId: params.envelope.id,
-      portal: params.portal ?? ActivityPortal.ISSUER,
-      eventType: params.eventType,
-      metadata: {
-        envelope_id: params.envelope.id,
-        ...(params.envelope.contract_id ? { contract_id: params.envelope.contract_id } : {}),
-        ...(params.envelope.invoice_id ? { invoice_id: params.envelope.invoice_id } : {}),
-        ...(params.envelope.title?.trim() ? { envelope_title: params.envelope.title.trim() } : {}),
-        ...params.extraMetadata,
-      },
-    });
-  }
-
   /** Only APPROVED_FOR_SIGNING may advance to SIGNING_IN_PROGRESS; any other phase is a no-op. */
   private async markOfferAcceptanceSigningInProgress(
     envelope: SigningEnvelopeWithGraph
@@ -779,6 +794,29 @@ export class SigningService {
       created_by_user_id: input.createdByUserId ?? null,
       expires_at: input.expiresAt ?? null,
       plan,
+      afterCreate: input.auditContext
+        ? async (tx, created) => {
+            await writeSigningAuditLog(
+              {
+                eventType: "SIGNING_PACKAGE_CREATED",
+                context: input.auditContext!,
+                signingEnvelopeId: created.id,
+                applicationId: created.application_id,
+                targetType: SIGNING_AUDIT_TARGET_TYPE.ENVELOPE,
+                targetId: created.id,
+                metadata: {
+                  applicationId: created.application_id,
+                  ...(created.contract_id ? { contractId: created.contract_id } : {}),
+                  ...(created.invoice_id ? { invoiceId: created.invoice_id } : {}),
+                  provider: SIGNING_PROVIDER,
+                  recipientCount: created.recipients.length,
+                  documentCount: created.documents.length,
+                },
+              },
+              tx
+            );
+          }
+        : undefined,
     });
     return await mapSigningEnvelopeToDtoWithEkyc(envelope);
   }
@@ -862,14 +900,7 @@ export class SigningService {
       createdByUserId: input.userId,
       expiresAt: resolvedExpiresAt,
       issuerUploadS3Keys,
-    }).then(async (envelope) => {
-      await this.logSigningPackageActivity({
-        userId: input.userId,
-        applicationId: input.applicationId,
-        eventType: ApplicationLogEventType.SIGNING_PACKAGE_CREATED,
-        envelope,
-      });
-      return envelope;
+      auditContext: input.auditContext ?? issuerSigningAuditContext(input.userId),
     });
   }
 
@@ -1116,6 +1147,11 @@ export class SigningService {
       confirmedNameInput: input.confirmedName?.trim() || recipient.name,
       issuerOrganizationId: application.issuer_organization_id,
       force: input.force,
+      audit: {
+        applicationId: envelope.application_id,
+        signingEnvelopeId: envelope.id,
+        recipientId: recipient.id,
+      },
     });
 
     return {
@@ -1170,7 +1206,7 @@ export class SigningService {
     return envelope;
   }
 
-  async sendEnvelope(id: string): Promise<SigningEnvelopeDto> {
+  async sendEnvelope(id: string, auditContext: AuditRequestContext): Promise<SigningEnvelopeDto> {
     const envelope = await this.requireEnvelope(id);
     if (envelope.status !== "DRAFT") {
       throw new AppError(409, "SIGNING_ENVELOPE_NOT_DRAFT", "Only draft envelopes can be sent.");
@@ -1284,16 +1320,32 @@ export class SigningService {
       );
     }
 
-    await this.repo.markEnvelopeSent(id);
-    await this.markOfferAcceptanceSigningInProgress(envelope);
-    if (envelope.created_by_user_id) {
-      await this.logSigningPackageActivity({
-        userId: envelope.created_by_user_id,
-        applicationId: envelope.application_id,
-        eventType: ApplicationLogEventType.SIGNING_PACKAGE_SENT,
-        envelope,
-      });
+    const sentAt = new Date();
+    const marked = await prisma.$transaction(async (tx) => {
+      const won = await this.repo.markDraftEnvelopeSent(id, tx);
+      if (!won) return false;
+      await writeSigningAuditLog(
+        {
+          eventType: "SIGNING_PACKAGE_SENT",
+          context: auditContext,
+          signingEnvelopeId: envelope.id,
+          applicationId: envelope.application_id,
+          targetType: SIGNING_AUDIT_TARGET_TYPE.ENVELOPE,
+          targetId: envelope.id,
+          metadata: {
+            provider: SIGNING_PROVIDER,
+            sentAt: sentAt.toISOString(),
+            recipientCount: envelope.recipients.length,
+          },
+        },
+        tx
+      );
+      return true;
+    });
+    if (!marked) {
+      throw new AppError(409, "SIGNING_ENVELOPE_NOT_DRAFT", "Only draft envelopes can be sent.");
     }
+    await this.markOfferAcceptanceSigningInProgress(envelope);
     return this.getEnvelope(id);
   }
 
@@ -1452,12 +1504,16 @@ export class SigningService {
     );
   }
 
-  async sendEnvelopeForIssuer(id: string, userId: string): Promise<SigningEnvelopeDto> {
+  async sendEnvelopeForIssuer(
+    id: string,
+    userId: string,
+    auditContext?: AuditRequestContext
+  ): Promise<SigningEnvelopeDto> {
     const envelope = await this.requireEnvelope(id);
     const application = await this.requireApplicationContext(envelope.application_id);
     await this.assertIssuerApplicationAccess(application, userId);
     await this.assertAcceptanceDocumentsReady(application);
-    return this.sendEnvelope(id);
+    return this.sendEnvelope(id, auditContext ?? issuerSigningAuditContext(userId));
   }
 
   private async assertRecipientCanSign(
@@ -1652,7 +1708,13 @@ export class SigningService {
     }
 
     if (!isClosedEnvelopeStatus(input.envelope.status)) {
-      await this.syncEnvelopeFromProvider(input.envelope.id);
+      await this.syncEnvelopeFromProvider(input.envelope.id, {
+        completionMethod: SIGNING_COMPLETION_METHOD.TRUST_RETURN,
+        context: systemAuditContext({
+          source: AUDIT_SOURCE.INTERNAL,
+          portal: AUDIT_PORTAL.PUBLIC,
+        }),
+      });
     }
 
     const afterSync = await this.requireEnvelope(input.envelope.id);
@@ -1672,7 +1734,13 @@ export class SigningService {
 
       if (sessionIsFresh) {
         await this.repo.markAssignmentSigned(assignment.id);
-        await this.rollupEnvelope(input.envelope.id);
+        await this.rollupEnvelope(input.envelope.id, {
+          completionMethod: SIGNING_COMPLETION_METHOD.TRUST_RETURN,
+          context: systemAuditContext({
+            source: AUDIT_SOURCE.INTERNAL,
+            portal: AUDIT_PORTAL.PUBLIC,
+          }),
+        });
         logger.info(
           {
             envelopeId: input.envelope.id,
@@ -1710,7 +1778,13 @@ export class SigningService {
   ): Promise<ExternalSigningSessionDto> {
     const { envelope, recipient } = await this.resolveExternalTokenSession(accessToken);
     if (!isClosedEnvelopeStatus(envelope.status)) {
-      await this.syncEnvelopeFromProvider(envelope.id);
+      await this.syncEnvelopeFromProvider(envelope.id, {
+        completionMethod: SIGNING_COMPLETION_METHOD.TRUST_RETURN,
+        context: systemAuditContext({
+          source: AUDIT_SOURCE.INTERNAL,
+          portal: AUDIT_PORTAL.PUBLIC,
+        }),
+      });
     }
     const refreshed = await this.requireEnvelope(envelope.id);
     const updatedRecipient = refreshed.recipients.find((item) => item.id === recipient.id)!;
@@ -1724,14 +1798,17 @@ export class SigningService {
   /** Issuer: refresh assignment statuses from SigningCloud document detail. */
   async syncEnvelopeFromProviderForIssuer(
     envelopeId: string,
-    userId: string
+    userId: string,
+    auditContext?: AuditRequestContext
   ): Promise<SigningEnvelopeDto> {
     const envelope = await this.requireEnvelope(envelopeId);
     const application = await this.requireApplicationContext(envelope.application_id);
     await this.assertIssuerApplicationAccess(application, userId);
-    // Still sync COMPLETED envelopes so a missed webhook can store the signed PDF.
     if (envelope.status !== "VOIDED" && envelope.status !== "DECLINED" && envelope.status !== "EXPIRED") {
-      await this.syncEnvelopeFromProvider(envelopeId);
+      await this.syncEnvelopeFromProvider(envelopeId, {
+        completionMethod: SIGNING_COMPLETION_METHOD.MANUAL_SYNC,
+        context: auditContext ?? issuerSigningAuditContext(userId),
+      });
     }
     return this.getEnvelope(envelopeId);
   }
@@ -1739,8 +1816,9 @@ export class SigningService {
   /**
    * Pull live per-signer status from the provider (SigningCloud Get Document Detail)
    * and update assignments by email. Fetches signed PDFs when a document is complete.
+   * Envelope COMPLETED is written only after required signed evidence is durable.
    */
-  async syncEnvelopeFromProvider(envelopeId: string): Promise<void> {
+  async syncEnvelopeFromProvider(envelopeId: string, source: SigningSyncSource): Promise<void> {
     let envelope = await this.requireEnvelope(envelopeId);
     let assignmentsChanged = false;
     let detailAttempts = 0;
@@ -1812,39 +1890,13 @@ export class SigningService {
     }
 
     if (assignmentsChanged) {
-      await this.rollupEnvelope(envelopeId);
+      await this.rollupEnvelope(envelopeId, source);
       envelope = await this.requireEnvelope(envelopeId);
     }
 
-    let pdfFailures = 0;
-    for (const document of envelope.documents) {
-      if (!document.provider_contract_ref || document.signed_s3_key) continue;
-      if (document.status !== "COMPLETED") continue;
-
-      try {
-        const { pdfBuffer, sha256 } = await this.provider.fetchSignedDocument({
-          providerRef: document.provider_contract_ref,
-        });
-        const s3Key = `applications/${envelope.application_id}/signing/${envelope.id}/${document.id}.pdf`;
-        await putS3ObjectBuffer({ key: s3Key, body: pdfBuffer, contentType: "application/pdf" });
-        await this.repo.recordSignedDocument(document.id, s3Key, sha256, "COMPLETED");
-        logger.info(
-          { envelopeId, documentId: document.id },
-          "Stored signed PDF after provider detail sync"
-        );
-      } catch (err) {
-        pdfFailures += 1;
-        logger.warn(
-          { err, envelopeId, documentId: document.id },
-          "Failed to fetch signed PDF during provider sync"
-        );
-      }
-    }
-
-    if (envelope.status === "COMPLETED") {
-      envelope = await this.requireEnvelope(envelopeId);
-      await this.finalizeCompletedEnvelopeOffer(envelope);
-    }
+    const pdfFailures = await this.persistSignedDocumentEvidence(envelope);
+    envelope = await this.requireEnvelope(envelopeId);
+    await this.tryCompleteEnvelopeWithEvidence(envelope, source);
 
     if (detailAttempts > 0 && detailFailures === detailAttempts) {
       throw new AppError(
@@ -1876,7 +1928,13 @@ export class SigningService {
       return { skipped: true };
     }
 
-    await this.syncEnvelopeFromProvider(envelope.id);
+    await this.syncEnvelopeFromProvider(envelope.id, {
+      completionMethod: SIGNING_COMPLETION_METHOD.WEBHOOK,
+      context: webhookAuditContext({
+        actorType: AUDIT_ACTOR_TYPE.INTEGRATION,
+        portal: null,
+      }),
+    });
     logger.info(
       { envelopeId: envelope.id, providerContractRef },
       "Signing envelope synced via provider callback"
@@ -1884,21 +1942,98 @@ export class SigningService {
     return { skipped: false };
   }
 
-  private async rollupEnvelope(envelopeId: string): Promise<void> {
+  private async persistSignedDocumentEvidence(
+    envelope: SigningEnvelopeWithGraph
+  ): Promise<number> {
+    let pdfFailures = 0;
+    for (const document of envelope.documents) {
+      if (!document.provider_contract_ref || document.signed_s3_key) continue;
+      const requiredAssignments = envelope.assignments.filter(
+        (assignment) => assignment.document_id === document.id && assignment.required
+      );
+      const documentReady =
+        document.status === "COMPLETED" ||
+        (requiredAssignments.length > 0 &&
+          requiredAssignments.every((assignment) => assignment.status === "SIGNED"));
+      if (!documentReady) continue;
+
+      try {
+        const { pdfBuffer, sha256 } = await this.provider.fetchSignedDocument({
+          providerRef: document.provider_contract_ref,
+        });
+        const s3Key = `applications/${envelope.application_id}/signing/${envelope.id}/${document.id}.pdf`;
+        await putS3ObjectBuffer({ key: s3Key, body: pdfBuffer, contentType: "application/pdf" });
+        await this.repo.recordSignedDocument(document.id, s3Key, sha256, "COMPLETED");
+        logger.info(
+          { envelopeId: envelope.id, documentId: document.id },
+          "Stored signed PDF after provider detail sync"
+        );
+      } catch (err) {
+        pdfFailures += 1;
+        logger.warn(
+          { err, envelopeId: envelope.id, documentId: document.id },
+          "Failed to fetch signed PDF during provider sync"
+        );
+      }
+    }
+    return pdfFailures;
+  }
+
+  private async rollupEnvelope(envelopeId: string, source: SigningSyncSource): Promise<void> {
     const envelope = await this.requireEnvelope(envelopeId);
-    const assignmentInputs: AssignmentStatusInput[] = envelope.assignments.map((a) => ({
-      status: a.status,
-      required: a.required,
-    }));
 
     for (const recipient of envelope.recipients) {
       const statuses = envelope.assignments
         .filter((a) => a.recipient_id === recipient.id)
         .map((a) => a.status);
       const next = rollupRecipientStatus(statuses);
-      if (next !== recipient.status) {
-        await this.repo.updateRecipientStatus(recipient.id, next, next === "SIGNED");
-      }
+      if (next === recipient.status) continue;
+
+      const emitRecipientCompleted = next === "SIGNED" && recipient.status !== "SIGNED";
+      const emitRecipientDeclined = next === "DECLINED" && recipient.status !== "DECLINED";
+
+      await prisma.$transaction(async (tx) => {
+        await this.repo.updateRecipientStatus(recipient.id, next, next === "SIGNED", tx);
+        if (emitRecipientCompleted) {
+          await writeSigningAuditLog(
+            {
+              eventType: "SIGNING_RECIPIENT_COMPLETED",
+              context: source.context,
+              signingEnvelopeId: envelope.id,
+              applicationId: envelope.application_id,
+              targetType: SIGNING_AUDIT_TARGET_TYPE.RECIPIENT,
+              targetId: recipient.id,
+              metadata: {
+                recipientId: recipient.id,
+                recipientRole: recipient.role_key,
+                signerOrder: recipient.routing_order,
+                previousStatus: recipient.status,
+                newStatus: next,
+              },
+            },
+            tx
+          );
+        } else if (emitRecipientDeclined) {
+          await writeSigningAuditLog(
+            {
+              eventType: "SIGNING_RECIPIENT_DECLINED",
+              context: source.context,
+              signingEnvelopeId: envelope.id,
+              applicationId: envelope.application_id,
+              targetType: SIGNING_AUDIT_TARGET_TYPE.RECIPIENT,
+              targetId: recipient.id,
+              metadata: {
+                recipientId: recipient.id,
+                recipientRole: recipient.role_key,
+                signerOrder: recipient.routing_order,
+                previousStatus: recipient.status,
+                newStatus: next,
+              },
+            },
+            tx
+          );
+        }
+      });
     }
 
     for (const document of envelope.documents) {
@@ -1911,45 +2046,137 @@ export class SigningService {
       }
     }
 
+    const refreshed = await this.requireEnvelope(envelopeId);
+    const assignmentInputs: AssignmentStatusInput[] = refreshed.assignments.map((a) => ({
+      status: a.status,
+      required: a.required,
+    }));
     const nextEnvelopeStatus = rollupEnvelopeStatus(assignmentInputs);
-    if (nextEnvelopeStatus !== envelope.status) {
+
+    if (nextEnvelopeStatus === "DECLINED" && refreshed.status !== "DECLINED") {
+      const declined = await prisma.$transaction(async (tx) => {
+        const updated = await this.repo.updateEnvelopeStatusIfCurrent(
+          envelopeId,
+          refreshed.status,
+          "DECLINED",
+          false,
+          tx
+        );
+        if (!updated) return false;
+        await writeSigningAuditLog(
+          {
+            eventType: "SIGNING_PACKAGE_DECLINED",
+            context: source.context,
+            signingEnvelopeId: refreshed.id,
+            applicationId: refreshed.application_id,
+            targetType: SIGNING_AUDIT_TARGET_TYPE.ENVELOPE,
+            targetId: refreshed.id,
+            metadata: {
+              previousStatus: refreshed.status,
+              newStatus: "DECLINED",
+              provider: SIGNING_PROVIDER,
+              ...(decliningRecipientIdOf(refreshed)
+                ? { decliningRecipientId: decliningRecipientIdOf(refreshed) }
+                : {}),
+            },
+          },
+          tx
+        );
+        return true;
+      });
+      if (declined) {
+        await this.rollbackOfferAcceptanceAfterEnvelopeClosed(refreshed);
+      }
+      return;
+    }
+
+    if (nextEnvelopeStatus === "COMPLETED") {
+      if (refreshed.status === "SENT") {
+        await this.repo.updateEnvelopeStatusIfCurrent(envelopeId, "SENT", "IN_PROGRESS", false);
+      }
+      return;
+    }
+
+    if (nextEnvelopeStatus !== refreshed.status) {
       const updated = await this.repo.updateEnvelopeStatusIfCurrent(
         envelopeId,
-        envelope.status,
+        refreshed.status,
         nextEnvelopeStatus,
-        nextEnvelopeStatus === "COMPLETED"
+        false
       );
       if (!updated) {
         logger.info(
-          { envelopeId, expectedStatus: envelope.status, nextEnvelopeStatus },
+          { envelopeId, expectedStatus: refreshed.status, nextEnvelopeStatus },
           "Skipped envelope rollup — status changed concurrently"
         );
-        return;
-      }
-
-      if (nextEnvelopeStatus === "COMPLETED") {
-        if (envelope.created_by_user_id) {
-          await this.logSigningPackageActivity({
-            userId: envelope.created_by_user_id,
-            applicationId: envelope.application_id,
-            eventType: ApplicationLogEventType.SIGNING_PACKAGE_COMPLETED,
-            envelope,
-          });
-        }
-        await this.finalizeCompletedEnvelopeOffer(envelope);
-      } else if (nextEnvelopeStatus === "DECLINED") {
-        if (envelope.created_by_user_id) {
-          await this.logSigningPackageActivity({
-            userId: envelope.created_by_user_id,
-            applicationId: envelope.application_id,
-            eventType: ApplicationLogEventType.SIGNING_PACKAGE_VOIDED,
-            envelope,
-            extraMetadata: { void_reason: "declined" },
-          });
-        }
-        await this.rollbackOfferAcceptanceAfterEnvelopeClosed(envelope);
       }
     }
+  }
+
+  private async tryCompleteEnvelopeWithEvidence(
+    envelope: SigningEnvelopeWithGraph,
+    source: SigningSyncSource
+  ): Promise<void> {
+    if (envelope.status === "VOIDED" || envelope.status === "DECLINED" || envelope.status === "EXPIRED") {
+      return;
+    }
+
+    const assignmentInputs: AssignmentStatusInput[] = envelope.assignments.map((a) => ({
+      status: a.status,
+      required: a.required,
+    }));
+    if (rollupEnvelopeStatus(assignmentInputs) !== "COMPLETED") {
+      if (envelope.status === "COMPLETED") {
+        await this.finalizeCompletedEnvelopeOffer(envelope);
+      }
+      return;
+    }
+
+    const evidence = requiredDocumentsHaveSignedEvidence(envelope);
+    if (!evidence.ok) {
+      logger.info(
+        { envelopeId: envelope.id },
+        "Required signed document evidence is not durable yet; leaving envelope incomplete"
+      );
+      return;
+    }
+
+    if (envelope.status === "COMPLETED") {
+      await this.finalizeCompletedEnvelopeOffer(envelope);
+      return;
+    }
+
+    const completedAt = new Date();
+    const completed = await prisma.$transaction(async (tx) => {
+      const won = await this.repo.completeEnvelopeIfActive(envelope.id, tx);
+      if (!won) return false;
+      await writeSigningAuditLog(
+        {
+          eventType: "SIGNING_PACKAGE_COMPLETED",
+          context: source.context,
+          signingEnvelopeId: envelope.id,
+          applicationId: envelope.application_id,
+          targetType: SIGNING_AUDIT_TARGET_TYPE.ENVELOPE,
+          targetId: envelope.id,
+          metadata: {
+            provider: SIGNING_PROVIDER,
+            completedAt: completedAt.toISOString(),
+            completionMethod: source.completionMethod,
+            signedDocumentHashes: evidence.hashes,
+          },
+        },
+        tx
+      );
+      return true;
+    });
+
+    if (!completed) {
+      logger.info({ envelopeId: envelope.id }, "Skipped envelope completion — status changed concurrently");
+      return;
+    }
+
+    const completedEnvelope = await this.requireEnvelope(envelope.id);
+    await this.finalizeCompletedEnvelopeOffer(completedEnvelope);
   }
 
   private async finalizeCompletedEnvelopeOffer(envelope: SigningEnvelopeWithGraph): Promise<void> {
@@ -1973,6 +2200,7 @@ export class SigningService {
       initiatedByUserId,
       signedOfferLetterS3Key: signedDocument.signed_s3_key,
       signedFileSha256: signedDocument.signed_file_sha256,
+      envelopeId: envelope.id,
     });
     logger.info(
       { envelopeId: envelope.id, skipped: result.skipped },
@@ -1992,29 +2220,40 @@ export class SigningService {
   async voidEnvelope(
     id: string,
     reason: string | null,
-    options?: { userId?: string; portal?: ActivityPortal }
+    auditContext: AuditRequestContext
   ): Promise<SigningEnvelopeDto> {
     const envelope = await this.requireEnvelope(id);
     if (envelope.status === "COMPLETED" || envelope.status === "VOIDED") {
       throw new AppError(409, "SIGNING_ENVELOPE_NOT_VOIDABLE", "This envelope can no longer be voided.");
     }
-    await this.repo.voidEnvelope(id, reason);
+    await prisma.$transaction(async (tx) => {
+      await this.repo.voidEnvelopeGraph(id, reason, tx);
+      await writeSigningAuditLog(
+        {
+          eventType: "SIGNING_PACKAGE_VOIDED",
+          context: auditContext,
+          signingEnvelopeId: envelope.id,
+          applicationId: envelope.application_id,
+          targetType: SIGNING_AUDIT_TARGET_TYPE.ENVELOPE,
+          targetId: envelope.id,
+          metadata: {
+            previousStatus: envelope.status,
+            newStatus: "VOIDED",
+            ...(reason?.trim() ? { reason: reason.trim() } : {}),
+          },
+        },
+        tx
+      );
+    });
     await this.rollbackOfferAcceptanceAfterEnvelopeClosed(envelope);
-    const actorUserId = options?.userId ?? envelope.created_by_user_id;
-    if (actorUserId) {
-      await this.logSigningPackageActivity({
-        userId: actorUserId,
-        applicationId: envelope.application_id,
-        eventType: ApplicationLogEventType.SIGNING_PACKAGE_VOIDED,
-        envelope,
-        portal: options?.portal ?? ActivityPortal.ADMIN,
-        extraMetadata: reason?.trim() ? { void_reason: reason.trim() } : undefined,
-      });
-    }
     return this.getEnvelope(id);
   }
 
-  async remindRecipient(envelopeId: string, recipientId: string): Promise<void> {
+  async remindRecipient(
+    envelopeId: string,
+    recipientId: string,
+    auditContext: AuditRequestContext
+  ): Promise<void> {
     const envelope = await this.requireEnvelope(envelopeId);
     if (isClosedEnvelopeStatus(envelope.status)) {
       throw new AppError(409, "SIGNING_ENVELOPE_CLOSED", "This signing package is closed.");
@@ -2051,14 +2290,53 @@ export class SigningService {
         "Could not deliver the signing reminder email."
       );
     }
-    await this.repo.touchRecipientReminder(recipientId);
+    await prisma.$transaction(async (tx) => {
+      await this.repo.touchRecipientReminder(recipientId, tx);
+      await writeSigningAuditLog(
+        {
+          eventType: "SIGNING_REMINDER_SENT",
+          context: auditContext,
+          signingEnvelopeId: envelope.id,
+          applicationId: envelope.application_id,
+          targetType: SIGNING_AUDIT_TARGET_TYPE.RECIPIENT,
+          targetId: recipient.id,
+          metadata: {
+            recipientId: recipient.id,
+            recipientEmail: recipient.email,
+            reminderType: "MANUAL",
+          },
+        },
+        tx
+      );
+    });
   }
 
-  async remindRecipientForIssuer(envelopeId: string, recipientId: string, userId: string): Promise<void> {
+  async remindRecipientForIssuer(
+    envelopeId: string,
+    recipientId: string,
+    userId: string,
+    auditContext?: AuditRequestContext
+  ): Promise<void> {
     const envelope = await this.requireEnvelope(envelopeId);
     const application = await this.requireApplicationContext(envelope.application_id);
     await this.assertIssuerApplicationAccess(application, userId);
-    await this.remindRecipient(envelopeId, recipientId);
+    await this.remindRecipient(
+      envelopeId,
+      recipientId,
+      auditContext ?? issuerSigningAuditContext(userId)
+    );
+  }
+
+  async listEnvelopeLogs(envelopeId: string): Promise<SigningAuditLogDto[]> {
+    await this.requireEnvelope(envelopeId);
+    return signingAuditLogReader.listByEnvelopeId(envelopeId);
+  }
+
+  async listEnvelopeLogsForIssuer(envelopeId: string, userId: string): Promise<SigningAuditLogDto[]> {
+    const envelope = await this.requireEnvelope(envelopeId);
+    const application = await this.requireApplicationContext(envelope.application_id);
+    await this.assertIssuerApplicationAccess(application, userId);
+    return signingAuditLogReader.listByEnvelopeId(envelopeId);
   }
 
   private async sendSigningEmail(input: {

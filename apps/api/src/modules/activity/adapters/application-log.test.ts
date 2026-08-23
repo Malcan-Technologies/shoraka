@@ -2,14 +2,14 @@ import { ApplicationLogAdapter } from "./application-log";
 
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
-    applicationLog: { findMany: jest.fn(), count: jest.fn() },
+    applicationAuditLog: { findMany: jest.fn(), count: jest.fn() },
     application: { findMany: jest.fn() },
   },
 }));
 
 const { prisma } = jest.requireMock("../../../lib/prisma") as {
   prisma: {
-    applicationLog: { findMany: jest.Mock; count: jest.Mock };
+    applicationAuditLog: { findMany: jest.Mock; count: jest.Mock };
     application: { findMany: jest.Mock };
   };
 };
@@ -23,16 +23,16 @@ describe("ApplicationLogAdapter", () => {
 
   it("builds user-facing presentation copy", () => {
     expect(adapter.buildPresentation("APPLICATION_CREATED")).toEqual({
-      title: "Application Started",
-      description: "You created a financing application and can continue it before submitting.",
+      title: "Application Created",
+      description: "You created a financing application.",
     });
     expect(adapter.buildPresentation("APPLICATION_SUBMITTED")).toEqual({
       title: "Application Submitted",
-      description: "Your financing application was submitted and is now under review.",
+      description: "Your application has been submitted for review.",
     });
     expect(adapter.buildPresentation("APPLICATION_REJECTED", { remark: "Invalid docs" })).toEqual({
       title: "Application Rejected",
-      description: "Your financing application was rejected and will not continue.",
+      description: "Your application was rejected.",
     });
     expect(
       adapter.buildPresentation("APPLICATION_RESUBMITTED", {
@@ -40,52 +40,50 @@ describe("ApplicationLogAdapter", () => {
       })
     ).toEqual({
       title: "Application Resubmitted",
-      description: "You resubmitted your application after updating the requested information.",
+      description: "You resubmitted your application after making the requested updates.",
     });
+    expect(adapter.buildPresentation("APPLICATION_WITHDRAWN").title).toBe("Application Withdrawn");
   });
 
-  it("builds presentation for offer acceptance and signing package events", () => {
-    expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTANCE_SUBMITTED")).toEqual({
+  it("builds presentation for offer acceptance events and does not advertise signing packages", () => {
+    expect(adapter.buildPresentation("CONTRACT_ACCEPTANCE_SUBMITTED")).toEqual({
       title: "Facility Acceptance Submitted",
-      description: "You submitted offer acceptance documents for CashSouk review.",
+      description: "You submitted your facility acceptance for review.",
     });
-    expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED")).toEqual({
+    expect(adapter.buildPresentation("CONTRACT_ACCEPTANCE_RESUBMITTED")).toEqual({
       title: "Facility Acceptance Resubmitted",
-      description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
+      description: "You resubmitted your facility acceptance after requested changes.",
     });
     expect(adapter.buildPresentation("SIGNING_PACKAGE_SENT")).toEqual({
-      title: "Signing Package Sent",
-      description: "The signing package was sent to all required signers.",
-    });
-    expect(adapter.buildPresentation("SIGNING_PACKAGE_COMPLETED")).toEqual({
-      title: "Signing Package Completed",
-      description: "All required signers completed the signing package.",
+      title: "Application Update",
+      description: "An application update was recorded for your account.",
     });
     expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTED")).toEqual({
-      title: "Facility Offer Signed",
-      description: "All signers completed the facility offer signing package.",
+      title: "Facility Offer Accepted",
+      description: "The facility offer was accepted.",
     });
   });
 
-  it("includes curated issuer-facing offer acceptance and signing events", () => {
+  it("includes application-domain events and excludes SIGNING_PACKAGE_*", () => {
     const eventTypes = adapter.getEventTypes();
     expect(eventTypes).toEqual(
       expect.arrayContaining([
-        "CONTRACT_OFFER_ACCEPTANCE_SUBMITTED",
-        "CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED",
-        "INVOICE_OFFER_ACCEPTANCE_SUBMITTED",
-        "INVOICE_OFFER_ACCEPTANCE_RESUBMITTED",
-        "SIGNING_PACKAGE_SENT",
+        "CONTRACT_ACCEPTANCE_SUBMITTED",
+        "CONTRACT_ACCEPTANCE_RESUBMITTED",
+        "INVOICE_ACCEPTANCE_SUBMITTED",
+        "INVOICE_ACCEPTANCE_RESUBMITTED",
         "CONTRACT_OFFER_ACCEPTED",
         "INVOICE_OFFER_ACCEPTED",
+        "APPLICATION_AMENDMENTS_REQUESTED",
       ])
     );
     expect(eventTypes).not.toEqual(
       expect.arrayContaining([
-        "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING",
         "SIGNING_PACKAGE_CREATED",
+        "SIGNING_PACKAGE_SENT",
         "SIGNING_PACKAGE_COMPLETED",
         "SIGNING_PACKAGE_VOIDED",
+        "APPLICATION_APPROVED",
       ])
     );
   });
@@ -94,43 +92,46 @@ describe("ApplicationLogAdapter", () => {
     const now = new Date();
     const record: any = {
       id: "log1",
-      user_id: "user123",
+      actor_user_id: "user123",
       event_type: "APPLICATION_CREATED",
       metadata: {},
       ip_address: "1.2.3.4",
       user_agent: "agent",
-      device_info: "device",
+      occurred_at: now,
       created_at: now,
+      target_type: "APPLICATION",
+      target_id: "app1",
     };
 
     const unified = adapter.transform(record);
-    expect(unified.source_table).toBe("application_logs");
+    expect(unified.source_table).toBe("application_audit_logs");
     expect(unified.category).toBe("organization");
     expect(unified.domain).toBe("application");
-    expect(unified.activity).toBe("Application Started");
-    expect(unified.title).toBe("Application Started");
-    expect(unified.description).toBe("You created a financing application and can continue it before submitting.");
+    expect(unified.activity).toBe("Application Created");
+    expect(unified.title).toBe("Application Created");
+    expect(unified.description).toBe("You created a financing application.");
   });
 
   it("derives structured references for application and invoice events", () => {
     const now = new Date();
     const record: any = {
       id: "log2",
-      user_id: "user123",
+      actor_user_id: "user123",
       application_id: "app_123",
-      entity_id: "invoice_456",
+      target_id: "invoice_456",
       event_type: "INVOICE_OFFER_SENT",
       metadata: {
         invoice_id: "invoice_456",
         invoice_number: "INV-001",
       },
+      occurred_at: now,
       created_at: now,
     };
 
     const unified = adapter.transform(record);
 
     expect(unified.description).toBe(
-      "An invoice offer for invoice INV-001 is ready for your review and response."
+      "An invoice offer for invoice INV-001 is ready for your review."
     );
     expect(unified.references).toEqual({
       applicationId: "app_123",
@@ -157,7 +158,7 @@ describe("ApplicationLogAdapter", () => {
     const unified = adapter.transform(record);
 
     expect(unified.description).toBe(
-      "An invoice offer for invoice INV-001 is ready for your review and response."
+      "An invoice offer for invoice INV-001 is ready for your review."
     );
     expect(unified.references).toEqual({
       applicationId: "app_123",
@@ -179,7 +180,9 @@ describe("ApplicationLogAdapter", () => {
 
     const unified = adapter.transform(record);
 
-    expect(unified.description).toBe("Application #APP_123 was submitted and is now under review.");
+    expect(unified.description).toBe("Your application has been submitted for review.");
+    expect(unified.description.toLowerCase()).not.toContain("now under review");
+    expect(unified.description).not.toContain("#APP_123");
     expect(unified.references).toEqual({
       applicationId: "app_123",
       applicationReference: "#APP_123",
@@ -188,7 +191,7 @@ describe("ApplicationLogAdapter", () => {
 
   it("backfills contract references from the application when the log metadata is missing", async () => {
     const now = new Date();
-    prisma.applicationLog.findMany.mockResolvedValue([
+    prisma.applicationAuditLog.findMany.mockResolvedValue([
       {
         id: "log5",
         user_id: "user123",
@@ -217,7 +220,7 @@ describe("ApplicationLogAdapter", () => {
     const unified = adapter.transform(record as any);
 
     expect(unified.description).toBe(
-      "A facility offer for facility CT-2026-001 is ready for your review and response."
+      "A facility offer for CT-2026-001 is ready for your review."
     );
     expect(unified.references).toEqual({
       applicationId: "issuerapp_123",
@@ -228,27 +231,19 @@ describe("ApplicationLogAdapter", () => {
   });
 
   it("returns no application activity for investor-scoped requests", async () => {
-    prisma.applicationLog.findMany.mockResolvedValue([]);
-
     const records = await adapter.query("user123", {
       organizationId: "investor-org-1",
       portalType: "investor",
     });
 
     expect(prisma.application.findMany).not.toHaveBeenCalled();
-    expect(prisma.applicationLog.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          application_id: { in: ["__none__"] },
-        }),
-      })
-    );
+    expect(prisma.applicationAuditLog.findMany).not.toHaveBeenCalled();
     expect(records).toEqual([]);
   });
 
   it("keeps issuer-scoped requests limited to the active issuer organization", async () => {
     prisma.application.findMany.mockResolvedValue([{ id: "app_1" }, { id: "app_2" }]);
-    prisma.applicationLog.findMany.mockResolvedValue([]);
+    prisma.applicationAuditLog.findMany.mockResolvedValue([]);
 
     await adapter.query("user123", {
       organizationId: "issuer-org-1",
@@ -259,7 +254,7 @@ describe("ApplicationLogAdapter", () => {
       where: { issuer_organization_id: "issuer-org-1" },
       select: { id: true },
     });
-    expect(prisma.applicationLog.findMany).toHaveBeenCalledWith(
+    expect(prisma.applicationAuditLog.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           application_id: { in: ["app_1", "app_2"] },
@@ -269,28 +264,27 @@ describe("ApplicationLogAdapter", () => {
   });
 
   it("returns zero application counts for investor-scoped requests", async () => {
-    prisma.applicationLog.count.mockResolvedValue(0);
-
     const count = await adapter.count("user123", {
       organizationId: "investor-org-1",
       portalType: "investor",
     });
 
     expect(prisma.application.findMany).not.toHaveBeenCalled();
-    expect(prisma.applicationLog.count).toHaveBeenCalledWith({
-      where: expect.objectContaining({
-        application_id: { in: ["__none__"] },
-      }),
-    });
+    expect(prisma.applicationAuditLog.findMany).not.toHaveBeenCalled();
     expect(count).toBe(0);
   });
 
   it("searches application and invoice references", async () => {
-    prisma.applicationLog.findMany.mockResolvedValue([]);
+    prisma.application.findMany.mockResolvedValue([{ id: "app_1" }]);
+    prisma.applicationAuditLog.findMany.mockResolvedValue([]);
 
-    await adapter.query("user123", { search: "INV-001" });
+    await adapter.query("user123", {
+      organizationId: "issuer-org-1",
+      portalType: "issuer",
+      search: "INV-001",
+    });
 
-    expect(prisma.applicationLog.findMany).toHaveBeenCalledWith(
+    expect(prisma.applicationAuditLog.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           OR: expect.arrayContaining([
@@ -313,11 +307,51 @@ describe("ApplicationLogAdapter", () => {
     );
   });
 
-  it("only exposes high-signal application events", () => {
-    expect(adapter.getEventTypes()).toContain("APPLICATION_APPROVED");
-    expect(adapter.getEventTypes()).toContain("AMENDMENTS_SUBMITTED");
+  it("only exposes curated Application activity events", () => {
+    expect(adapter.getEventTypes()).toContain("APPLICATION_CREATED");
+    expect(adapter.getEventTypes()).toContain("APPLICATION_AMENDMENTS_REQUESTED");
+    expect(adapter.getEventTypes()).toContain("APPLICATION_REOPENED_FOR_REVIEW");
+    expect(adapter.getEventTypes()).toContain("CONTRACT_OFFER_REJECTED");
+    expect(adapter.getEventTypes()).toContain("APPLICATION_SECTION_REVIEW_UPDATED");
+    expect(adapter.getEventTypes()).not.toContain("APPLICATION_REVIEW_STARTED");
+    expect(adapter.getEventTypes()).not.toContain("APPLICATION_DOCUMENT_UPLOADED");
+    expect(adapter.getEventTypes()).not.toContain("APPLICATION_ITEM_REVIEW_UPDATED");
+    expect(adapter.getEventTypes()).not.toContain("APPLICATION_APPROVED");
+    expect(adapter.getEventTypes()).not.toContain("AMENDMENTS_SUBMITTED");
     expect(adapter.getEventTypes()).not.toContain("SECTION_REVIEWED_APPROVED");
     expect(adapter.getEventTypes()).not.toContain("ITEM_REVIEWED_REJECTED");
+    expect(adapter.getEventTypes()).not.toContain("SIGNING_PACKAGE_CREATED");
+    expect(adapter.getEventTypes()).not.toContain("SIGNING_PACKAGE_COMPLETED");
+  });
+
+  it("hides issuer review-start and file noise while keeping amendment-required section review", async () => {
+    prisma.application.findMany.mockResolvedValue([{ id: "app_1" }]);
+    prisma.applicationAuditLog.findMany.mockResolvedValue([
+      { id: "keep_1", event_type: "APPLICATION_SUBMITTED", application_id: "app_1", metadata: {} },
+      { id: "hide_1", event_type: "APPLICATION_REVIEW_STARTED", application_id: "app_1", metadata: {} },
+      {
+        id: "keep_2",
+        event_type: "APPLICATION_SECTION_REVIEW_UPDATED",
+        application_id: "app_1",
+        metadata: { newStatus: "AMENDMENT_REQUESTED" },
+      },
+      {
+        id: "hide_2",
+        event_type: "APPLICATION_SECTION_REVIEW_UPDATED",
+        application_id: "app_1",
+        metadata: { newStatus: "APPROVED" },
+      },
+      { id: "hide_3", event_type: "APPLICATION_DOCUMENT_UPLOADED", application_id: "app_1", metadata: {} },
+    ]);
+
+    const records = await adapter.query("user123", {
+      organizationId: "issuer-org-1",
+      portalType: "issuer",
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(records.map((record) => record.id)).toEqual(["keep_1", "keep_2"]);
   });
 });
 

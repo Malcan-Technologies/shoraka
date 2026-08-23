@@ -13,31 +13,71 @@ export const issuerApplicationLogsKeys = {
 };
 
 function normalizeLogItem(d: Record<string, unknown>): ApplicationLogEntry {
+  const actor =
+    d.actor && typeof d.actor === "object" && !Array.isArray(d.actor)
+      ? (d.actor as Record<string, unknown>)
+      : null;
+  const metadata =
+    d.metadata != null && typeof d.metadata === "object" && !Array.isArray(d.metadata)
+      ? (d.metadata as Record<string, unknown>)
+      : null;
+  const remarks =
+    typeof metadata?.remarks === "string"
+      ? metadata.remarks
+      : typeof d.remark === "string"
+        ? d.remark
+        : null;
+  const target = d.target && typeof d.target === "object" && !Array.isArray(d.target)
+    ? (d.target as Record<string, unknown>)
+    : null;
   return {
     id: typeof d.id === "string" ? d.id : String(d.id ?? ""),
-    event_type: typeof d.event_type === "string" ? d.event_type : String(d.event_type ?? ""),
+    event_type:
+      typeof d.eventType === "string"
+        ? d.eventType
+        : typeof d.event_type === "string"
+          ? d.event_type
+          : String(d.event_type ?? ""),
     activity: d.activity,
     actor_id:
-      typeof d.actor_id === "string"
-        ? d.actor_id
-        : typeof d.user_id === "string"
-          ? d.user_id
+      typeof actor?.userId === "string"
+        ? actor.userId
+        : typeof d.actor_id === "string"
+          ? d.actor_id
+          : typeof d.user_id === "string"
+            ? d.user_id
+            : null,
+    user_id: typeof d.user_id === "string" ? d.user_id : typeof actor?.userId === "string" ? actor.userId : null,
+    metadata,
+    ip_address:
+      typeof d.ipAddress === "string"
+        ? d.ipAddress
+        : typeof d.ip_address === "string"
+          ? d.ip_address
           : null,
-    user_id: typeof d.user_id === "string" ? d.user_id : null,
-    metadata:
-      d.metadata != null && typeof d.metadata === "object" && !Array.isArray(d.metadata)
-        ? (d.metadata as Record<string, unknown>)
-        : null,
-    ip_address: typeof d.ip_address === "string" ? d.ip_address : null,
-    created_at: typeof d.created_at === "string" ? d.created_at : String(d.created_at ?? ""),
-    remark: typeof d.remark === "string" ? d.remark : null,
+    created_at:
+      typeof d.occurredAt === "string"
+        ? d.occurredAt
+        : typeof d.createdAt === "string"
+          ? d.createdAt
+          : typeof d.created_at === "string"
+            ? d.created_at
+            : String(d.created_at ?? ""),
+    remark: remarks,
     entityId:
-      typeof d.entityId === "string"
-        ? d.entityId
+      typeof target?.id === "string"
+        ? target.id
+        : typeof d.entityId === "string"
+          ? d.entityId
+          : typeof d.entity_id === "string"
+            ? d.entity_id
+            : null,
+    entity_id:
+      typeof target?.id === "string"
+        ? target.id
         : typeof d.entity_id === "string"
           ? d.entity_id
           : null,
-    entity_id: typeof d.entity_id === "string" ? d.entity_id : null,
     review_cycle: typeof d.review_cycle === "number" ? d.review_cycle : null,
   };
 }

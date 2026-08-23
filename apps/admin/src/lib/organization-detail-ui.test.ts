@@ -1,0 +1,83 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { toTitleCase } from "@cashsouk/types";
+
+const root = join(__dirname, "..");
+
+function read(relativePath: string): string {
+  return readFileSync(join(root, relativePath), "utf8");
+}
+
+describe("admin organization detail presentation", () => {
+  const page = read("app/organizations/[portal]/[id]/page.tsx");
+  const table = read("components/admin/director-shareholder-table.tsx");
+
+  it("shows parent COD in the header metadata, with corporate onboarding beside the name", () => {
+    expect(page).toContain("Corporate onboarding");
+    expect(page).toContain("org.codRequestId");
+    expect(page).toContain("RegTank:");
+    expect(page).toContain("org.regtankPortalUrl");
+    expect(page).not.toContain("COD: {org.codRequestId}");
+    expect(page).not.toContain("rounded-lg border bg-muted/30");
+  });
+
+  it("humanises organization member roles with toTitleCase", () => {
+    expect(page).toContain("toTitleCase(member.role)");
+    expect(page).toContain("shrink-0 whitespace-nowrap");
+    expect(page).not.toContain("member.role.toLowerCase()");
+    expect(toTitleCase("ORGANIZATION_ADMIN")).toBe("Organization Admin");
+    expect(toTitleCase("Organization_admin")).toBe("Organization Admin");
+  });
+
+  it("does not render Current stage on the onboarding card", () => {
+    expect(page).not.toContain("Current stage");
+    expect(page).not.toContain("organizationCurrentStageLabel");
+  });
+
+  it("humanises RegTank session enums without inventing labels", () => {
+    expect(page).toContain("toTitleCase(org.regtankSessionStatus)");
+    expect(toTitleCase("WAIT_FOR_APPROVAL")).toBe("Wait For Approval");
+    expect(toTitleCase("URL_GENERATED")).toBe("Url Generated");
+    expect(toTitleCase("LIVENESS_PASSED")).toBe("Liveness Passed");
+    expect(toTitleCase("IN_PROGRESS")).toBe("In Progress");
+  });
+
+  it("uses balanced column mins instead of a giant table min-width", () => {
+    expect(table).toContain("overflow-hidden rounded-xl border");
+    expect(table).toContain("adminActionRowClass");
+    expect(table).not.toContain("min-w-[72rem]");
+    expect(table).not.toContain('className="w-[1%] whitespace-nowrap"');
+    expect(table).toContain("min-w-[11.5rem] w-[13rem]");
+    expect(table).toContain("w-[11rem]");
+    expect(table).toContain("w-[15rem]");
+    expect(table).toContain("whitespace-nowrap");
+  });
+
+  it("uses the shared StatusBadge for people status", () => {
+    expect(table).toContain("StatusBadge");
+    expect(table).toContain("getDirectorFinalStatusToken");
+    expect(table).not.toContain("getFinalStatusBadgeClassName");
+    expect(table).toContain('label={finalStatus.label}');
+    expect(table).toContain('className="text-xs whitespace-nowrap"');
+  });
+
+  it("shows a compact RegTank record count and View popover", () => {
+    expect(table).toContain("getRegtankColumnDisplayRows");
+    expect(table).toContain("PopoverTrigger");
+    expect(table).toContain("RegTank records");
+    expect(table).toContain("1 record");
+    expect(table).toContain("records");
+    expect(table).toContain("aria-label={`View ${recordLabel} in RegTank`}");
+    expect(table).toContain("href={row.url}");
+    expect(table).toContain("ArrowTopRightOnSquareIcon");
+    expect(table).not.toContain("bg-muted/30 px-2.5 py-1.5");
+    expect(table).not.toContain("getRegtankOnboardingViewLinks");
+    expect(table).not.toContain("getRegtankScreeningLink");
+  });
+
+  it("keeps CTOS View report disabled until a report exists", () => {
+    expect(table).toContain("disabled={!latestReport}");
+    expect(table).toContain("h-7 px-2.5 text-xs shrink-0");
+    expect(table).toContain("Last fetched: —");
+  });
+});

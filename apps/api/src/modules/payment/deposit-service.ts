@@ -1,7 +1,6 @@
 import {
   GatewayOrganizationType,
   GatewayPayment,
-  GatewayPaymentEventType,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
   InvestorBalanceTransactionSource,
@@ -18,8 +17,15 @@ import { creditInvestorBalance } from "../notes/investor-balance";
 import { postLedgerEntry } from "../notes/ledger";
 import { CreateInvestorDepositInput } from "./deposit-schemas";
 import { createGatewayOrder, mapGatewayPaymentResponse } from "./gateway-order-service";
-import { recordGatewayPaymentEvent } from "./gateway-events";
 import { assertTransition } from "./state";
+import {
+  PAYMENT_AUDIT_TARGET_TYPE,
+  adminPaymentAuditContext,
+  webhookPaymentAuditContext,
+  writeGatewayPaymentAudit,
+} from "./audit/writer";
+import { PAYMENT_AUDIT_IDEMPOTENCY } from "./audit/events";
+import type { AuditRequestContext } from "../../lib/audit/context";
 
 export type ActorContext = {
   userId: string;
@@ -310,6 +316,12 @@ export async function creditCompletedDeposit(
   const amount = decimalToNumber(gatewayPayment.amount);
   const orgId = gatewayPayment.investor_organization_id;
 
+  const balanceRow = await tx.investorBalance.findUnique({
+    where: { investor_organization_id: orgId },
+    select: { available_amount: true },
+  });
+  const previousBalance = balanceRow ? decimalToNumber(balanceRow.available_amount) : 0;
+
   await tx.investorOrganization.update({
     where: { id: orgId },
     data: { deposit_received: true },
@@ -352,6 +364,30 @@ export async function creditCompletedDeposit(
       ...(opts?.actorUserId ? { name_checked_by_user_id: opts.actorUserId } : {}),
     },
   });
+
+  const creditContext: AuditRequestContext = opts?.actorUserId
+    ? adminPaymentAuditContext(opts.actorUserId)
+    : webhookPaymentAuditContext();
+
+  await writeGatewayPaymentAudit(
+    gatewayPayment,
+    {
+      eventType: "INVESTOR_DEPOSIT_RECEIVED",
+      context: creditContext,
+      idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.depositReceived(gatewayPayment.id),
+      targetType: PAYMENT_AUDIT_TARGET_TYPE.BALANCE_TRANSACTION,
+      targetId: balanceTransaction.id,
+      metadata: {
+        balanceTransactionId: balanceTransaction.id,
+        amount,
+        currency: gatewayPayment.currency,
+        previousBalance,
+        newBalance: previousBalance + amount,
+        gatewayPaymentId: gatewayPayment.id,
+      },
+    },
+    tx
+  );
 }
 
 export async function pendNameCheckReview(
@@ -371,23 +407,20 @@ export async function pendNameCheckReview(
     },
   });
 
-  const reason =
-    nameCheckResult === NameCheckResult.REVIEW
-      ? "Bank payer name could not be auto-matched. Waiting for admin review."
-      : "Bank did not return a payer name. Waiting for admin review.";
-
-  await recordGatewayPaymentEvent(tx, {
-    gatewayPaymentId: gatewayPayment.id,
-    type: GatewayPaymentEventType.NAME_CHECK,
-    fromStatus: gatewayPayment.status,
-    toStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
-    reason,
-    metadata:
-      opts?.score !== undefined
-        ? ({
-            score: opts.score,
-            matchedVariant: opts.matchedVariant ?? null,
-          } as Prisma.InputJsonValue)
-        : undefined,
-  });
+  await writeGatewayPaymentAudit(
+    gatewayPayment,
+    {
+      eventType: "PAYMENT_NAME_CHECK_PENDING",
+      context: webhookPaymentAuditContext(),
+      idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.nameCheckPending(gatewayPayment.id),
+      metadata: {
+        result: nameCheckResult,
+        ...(opts?.score !== undefined ? { score: opts.score } : {}),
+        previousStatus: gatewayPayment.status,
+        newStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
+        gatewayPaymentId: gatewayPayment.id,
+      },
+    },
+    tx
+  );
 }

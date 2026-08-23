@@ -41,6 +41,7 @@ jest.mock("./recon-service", () => ({
   getReconRunDetail: jest.fn(async () => ({ id: "run_test", status: "COMPLETED" })),
   listReconExceptions: jest.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 50 })),
   getUnresolvedReconExceptionsCount: jest.fn(async () => ({ count: 0 })),
+  listReconExceptionEvents: jest.fn(async () => []),
   triggerReconRun: jest.fn(async () => ({ id: "run_test", status: "COMPLETED" })),
   resolveReconException: jest.fn(async () => ({
     id: "exc_test",
@@ -143,6 +144,10 @@ describe("gateway reconciliation admin RBAC", () => {
 
     const exceptionsResponse = await request(app).get("/admin/gateway-recon/exceptions");
     expect(exceptionsResponse.status).toBe(200);
+
+    const eventsResponse = await request(app).get("/admin/gateway-recon/exceptions/exc_test/events");
+    expect(eventsResponse.status).toBe(200);
+    expect(eventsResponse.body.success).toBe(true);
   });
 
   it("denies reconciliation routes without gateway_reconciliation.view", async () => {
@@ -150,6 +155,9 @@ describe("gateway reconciliation admin RBAC", () => {
 
     const runsResponse = await request(app).get("/admin/gateway-recon/runs");
     expect(runsResponse.status).toBe(403);
+
+    const eventsResponse = await request(app).get("/admin/gateway-recon/exceptions/exc_test/events");
+    expect(eventsResponse.status).toBe(403);
   });
 
   it("does not grant reconciliation access from gateway_payments.view alone", async () => {

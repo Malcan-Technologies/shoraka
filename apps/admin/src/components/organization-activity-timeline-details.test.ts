@@ -44,7 +44,7 @@ describe("extractOrganizationTimelineBylineChips", () => {
 describe("extractOrganizationTimelineCompactDetails", () => {
   it("keeps status and risk fields and drops page-context type chips", () => {
     expect(
-      extractOrganizationTimelineCompactDetails("ONBOARDING_STATUS_UPDATED", {
+      extractOrganizationTimelineCompactDetails("ONBOARDING_STATUS_CHANGED", {
         previousStatus: "SUBMITTED",
         newStatus: "APPROVED",
         riskLevel: "LOW",

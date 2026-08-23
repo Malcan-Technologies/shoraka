@@ -5,14 +5,22 @@
 import { NoteStatus, ProspectusReviewStatus } from "@prisma/client";
 import { buildCompleteProspectusReviewDraft } from "./prospectus-review.demo-fixtures";
 import { ProspectusReviewService } from "./prospectus-review.service";
+import { writeNoteAuditFromActor } from "../audit/writer";
+
+jest.mock("../audit/writer", () => {
+  const actual = jest.requireActual<typeof import("../audit/writer")>("../audit/writer");
+  return {
+    ...actual,
+    writeNoteAuditFromActor: jest.fn().mockResolvedValue(undefined),
+    writeNoteAuditLog: jest.fn().mockResolvedValue(undefined),
+  };
+});
 
 const mockFindUnique = jest.fn();
 const mockUpdate = jest.fn();
 const mockCreate = jest.fn();
 const mockTransaction = jest.fn();
 const mockNoteFindUnique = jest.fn();
-const mockAdminActionCreate = jest.fn();
-const mockNoteEventCreate = jest.fn();
 const mockPublicationCreate = jest.fn();
 
 const mockBuildPageOneHtml = jest.fn(
@@ -62,8 +70,6 @@ jest.mock("../../../lib/prisma", () => ({
       create: (...args: unknown[]) => mockPublicationCreate(...args),
     },
     $transaction: (...args: unknown[]) => mockTransaction(...args),
-    noteAdminAction: { create: (...args: unknown[]) => mockAdminActionCreate(...args) },
-    noteEvent: { create: (...args: unknown[]) => mockNoteEventCreate(...args) },
   },
 }));
 
@@ -198,8 +204,7 @@ describe("prospectus live preview (unsaved)", () => {
     expect(mockUpdate).not.toHaveBeenCalled();
     expect(mockCreate).not.toHaveBeenCalled();
     expect(mockPublicationCreate).not.toHaveBeenCalled();
-    expect(mockAdminActionCreate).not.toHaveBeenCalled();
-    expect(mockNoteEventCreate).not.toHaveBeenCalled();
+    expect(writeNoteAuditFromActor).not.toHaveBeenCalled();
     expect(mockTransaction).not.toHaveBeenCalled();
   });
 

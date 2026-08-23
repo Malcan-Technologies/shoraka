@@ -13,6 +13,7 @@ import {
 import {
   getReconRunDetail,
   getUnresolvedReconExceptionsCount,
+  listReconExceptionEvents,
   listReconExceptions,
   listReconRuns,
   resolveReconException,
@@ -84,6 +85,19 @@ gatewayReconAdminRouter.get(
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       send(res, await getUnresolvedReconExceptionsCount());
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+gatewayReconAdminRouter.get(
+  "/exceptions/:id/events",
+  requirePermission("gateway_reconciliation.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = reconExceptionIdParamSchema.parse(req.params);
+      send(res, await listReconExceptionEvents(id));
     } catch (error) {
       next(error);
     }

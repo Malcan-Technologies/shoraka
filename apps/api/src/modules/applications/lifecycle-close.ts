@@ -12,10 +12,15 @@ import {
   InvoiceStatus,
 } from "@cashsouk/types";
 import type { Prisma } from "@prisma/client";
+import type { AuditRequestContext } from "../../lib/audit/context";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
 import { applyContractCapacityChange } from "../../lib/refresh-contract-facility";
 import { patchOfferAcceptanceUnchecked } from "./offer-acceptance";
+import {
+  APPLICATION_AUDIT_TARGET_TYPE,
+  writeApplicationAuditLog,
+} from "./audit/writer";
 
 export const VOIDABLE_ENVELOPE_STATUSES = ["DRAFT", "SENT", "IN_PROGRESS"] as const;
 const VOIDABLE_ENVELOPE_STATUS_SET = new Set<string>(VOIDABLE_ENVELOPE_STATUSES);
@@ -56,7 +61,13 @@ export function rejectOfferDetailsJson(
  * Reject non-final contract/invoices and offer phases inside a transaction.
  * Open signing envelopes must already be voided; otherwise this throws and leaves status unchanged.
  */
-export async function closeApplicationAsRejected(applicationId: string): Promise<void> {
+export async function closeApplicationAsRejected(
+  applicationId: string,
+  audit?: {
+    context: AuditRequestContext;
+    previousStatus?: string;
+  }
+): Promise<void> {
   const rejectInTx = async (tx: Prisma.TransactionClient) => {
     const application = await tx.application.findUnique({
       where: { id: applicationId },
@@ -103,6 +114,23 @@ export async function closeApplicationAsRejected(applicationId: string): Promise
     });
     if (updated.count === 0) {
       throw new Error(`Application cannot be rejected in its current state: ${applicationId}`);
+    }
+
+    if (audit) {
+      await writeApplicationAuditLog(
+        {
+          eventType: "APPLICATION_REJECTED",
+          context: audit.context,
+          applicationId,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+          targetId: applicationId,
+          metadata: {
+            previousStatus: audit.previousStatus ?? application.status,
+            newStatus: ApplicationStatus.REJECTED,
+          },
+        },
+        tx
+      );
     }
 
     const contract = application.contract;

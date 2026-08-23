@@ -118,6 +118,9 @@ describeIntegration("gateway order attempt recovery", () => {
 
   afterAll(async () => {
     if (createdPaymentIds.length) {
+      await prisma.paymentAuditLog.deleteMany({
+        where: { gateway_payment_id: { in: createdPaymentIds } },
+      });
       await prisma.gatewayPayment.deleteMany({ where: { id: { in: createdPaymentIds } } });
     }
     if (createdAttemptScopeKeys.length) {
@@ -203,6 +206,10 @@ describeIntegration("gateway order attempt recovery", () => {
     expect(result.curlecOrderId).toBe(remoteOrderId);
     expect(result.gatewayAccount).toBe(CurlecGatewayAccount.OPERATING);
     expect(mockCreateOrder).not.toHaveBeenCalled();
+    const initiated = await prisma.paymentAuditLog.findMany({
+      where: { gateway_payment_id: result.id, event_type: "PAYMENT_INITIATED" },
+    });
+    expect(initiated).toHaveLength(1);
 
     const attempt = await prisma.gatewayOrderAttempt.findUniqueOrThrow({
       where: {

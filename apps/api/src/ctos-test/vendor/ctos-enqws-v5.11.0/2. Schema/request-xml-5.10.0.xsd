@@ -1,0 +1,98 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:po="http://ws.cmctos.com.my/ctosnet/request" targetNamespace="http://ws.cmctos.com.my/ctosnet/request" elementFormDefault="qualified">
+	<xs:element name="batch">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="company_code" type="xs:string" minOccurs="1" maxOccurs="1"/>
+				<xs:element name="account_no" type="xs:string" minOccurs="1" maxOccurs="1"/>
+				<xs:element name="user_id" type="xs:string" minOccurs="1" maxOccurs="1"/>
+				<xs:element name="record_total" type="xs:string" minOccurs="1" maxOccurs="1"/>
+				<xs:element name="records" type="po:record" minOccurs="1" maxOccurs="unbounded"/>
+				<xs:element name="order_id" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			</xs:sequence>
+			<xs:attribute name="output" type="xs:string" use="required"/>
+			<xs:attribute name="no" type="xs:string" use="required"/>
+		</xs:complexType>
+	</xs:element>
+	<xs:complexType name="record">
+		<xs:sequence>
+			<xs:element name="type" type="po:type" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="ic_lc" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nic_br" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="name" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="mphone_nos" type="po:mphone_nos" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ref_no" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="dist_code" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="purpose" type="po:purpose" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="state" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="country" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_consent" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ctos" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="include_trex" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="include_ccris" type="po:include_ccris" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_dcheq" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ccris_supp" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_fico" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_sfi" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_cci" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ssm" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ssm_retention" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ubo" type="po:include_ubo" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_angkasa" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ie" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ci" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_etr_plus" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_analytical_product" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="confirm_entity" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="mphone_nos">
+		<xs:sequence>
+			<xs:element name="mphone_no" type="po:mphone_no_detail" minOccurs="1" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="mphone_no_detail">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="include_ccris">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="sum" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="include_ubo">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="degree" type="xs:string"/>
+				<xs:attribute name="percentage" type="xs:string"/>
+				<xs:attribute name="liveSSM" type="xs:string"/>
+				<xs:attribute name="retentionSSM" type="xs:string"/>
+				<xs:attribute name="effectivePercentage" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="purpose">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string" use="required"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="code">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string" use="required"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="type">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+</xs:schema>

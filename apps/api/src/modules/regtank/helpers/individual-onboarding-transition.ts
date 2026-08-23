@@ -12,15 +12,12 @@ import { OnboardingStatus } from "@prisma/client";
  */
 
 /**
- * Stages that have not yet reached "awaiting admin/RegTank review".
- * `LIVENESS_PASSED` / `WAIT_FOR_APPROVAL` may only land the organization on
- * `PENDING_APPROVAL` while it is still in one of these pre-review stages (this
- * includes an idempotent re-delivery once already at `PENDING_APPROVAL`).
+ * Stages that may still transition into "awaiting admin/RegTank review".
+ * Already at `PENDING_APPROVAL` is a no-op (no status mutation, no audit).
  */
-const PRE_REVIEW_ONBOARDING_STATUSES: ReadonlySet<OnboardingStatus> = new Set([
+const PRE_PENDING_APPROVAL_STATUSES: ReadonlySet<OnboardingStatus> = new Set([
   OnboardingStatus.PENDING,
   OnboardingStatus.IN_PROGRESS,
-  OnboardingStatus.PENDING_APPROVAL,
 ]);
 
 export type IndividualWaitForApprovalUpdate = {
@@ -33,13 +30,13 @@ export type IndividualWaitForApprovalUpdate = {
  *
  * Duplicate or out-of-order individual webhooks must never regress an organization
  * that has already progressed past review (`PENDING_AML`, `PENDING_FINAL_APPROVAL`,
- * `COMPLETED`) or is terminal (`REJECTED`). Returns `null` when the update must be
- * skipped.
+ * `COMPLETED`) or is terminal (`REJECTED`). Already at `PENDING_APPROVAL` is a no-op.
+ * Returns `null` when the update must be skipped.
  */
 export function getIndividualWaitForApprovalUpdate(params: {
   currentOnboardingStatus: OnboardingStatus;
 }): IndividualWaitForApprovalUpdate | null {
-  if (!PRE_REVIEW_ONBOARDING_STATUSES.has(params.currentOnboardingStatus)) {
+  if (!PRE_PENDING_APPROVAL_STATUSES.has(params.currentOnboardingStatus)) {
     return null;
   }
   return { nextStatus: "PENDING_APPROVAL" };
@@ -49,12 +46,6 @@ export type IndividualApprovedOutcome =
   | "heal-to-pending-approval"
   | "set-approved-and-advance"
   | "advance-only";
-
-/** Stages before the organization has ever reached `PENDING_APPROVAL`. */
-const PRE_PENDING_APPROVAL_STATUSES: ReadonlySet<OnboardingStatus> = new Set([
-  OnboardingStatus.PENDING,
-  OnboardingStatus.IN_PROGRESS,
-]);
 
 /**
  * Decide how a RegTank `APPROVED` individual onboarding webhook should affect the

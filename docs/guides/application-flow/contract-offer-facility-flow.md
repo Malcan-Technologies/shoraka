@@ -7,7 +7,7 @@ Single source of truth for facility values across contract_details, offer_detail
 | Location           | Fields                                                                                                                                                       | Meaning                                                                                                |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
 | `contract_details` | `financing`, `value`, `facility_applied`, `contract_value`                                                                                                   | Issuer’s requested facility (various UI field names)                                                   |
-| `contract_details` | `approved_facility`, `utilized_facility`, `available_facility`, `pending_facility`, `repaid_facility`, `lifetime_cap`, `lifetime_used`, `lifetime_remaining`, `capacity_snapshot_version` | Dual-ledger snapshots after persist/refresh/recompute (`capacity_snapshot_version: 1`). Typed columns stay in sync; zeros are authoritative only when this marker is present. |
+| `contract_details` | `approved_facility`, `utilized_facility`, `available_facility`, `pending_facility`, `repaid_facility`, `lifetime_cap`, `lifetime_used`, `lifetime_remaining`, `capacity_snapshot_version` | Persisted dual-ledger snapshots after persist/refresh/recompute (`capacity_snapshot_version: 1`). Typed `Contract` columns stay in sync. Invoices/notes remain the business source of truth. Zeros are authoritative only when this marker is present. |
 | `offer_details`    | `requested_facility`, `offered_facility`, `sent_at`, `responded_at`, `offer_acceptance`                                                                      | Offer lifecycle                                                                                        |
 
 `approved_facility` is the credit ceiling. Repayment never increases it.
@@ -41,7 +41,7 @@ Today the committed advance is the invoice offer (`offered_amount`), which becom
 
 Standard revolving practice (invoice facilities and RCFs): occupancy is **outstanding principal**. If investors fund RM 180k against a RM 200k target, the line is drawn RM 180k so the remaining RM 20k can be used again. CashSouk already charges the facility fee on `funded_amount` at funding close; utilization follows the same principal.
 
-While funding is still open, the committed advance stays reserved so a second invoice cannot consume the same remaining capacity mid-raise. After close (`FUNDING` / `ACTIVE` / `ARREARS` / `DEFAULTED`, or `funding_status` `FUNDED`), occupancy true-ups to funded principal.
+While funding is still open, the committed advance stays reserved so a second invoice cannot consume the same remaining credit mid-raise. After close (`FUNDING` / `ACTIVE` / `ARREARS` / `DEFAULTED`, or `funding_status` `FUNDED`), occupancy true-ups to funded principal.
 
 Marketplace listings use the product `marketplace_listing_duration_days` (default **14 days**). If the listing expires below the minimum funding threshold, or funding is failed (including a zero-funded close), both ledgers release. Settlement / repayment frees revolving credit and keeps invoice face on lifetime.
 
@@ -63,7 +63,7 @@ Pending **does** occupy remaining credit. Admins cannot send an over-limit offer
 
 2. **Accept offer (issuer)**
    - Reads `offered_facility` from `offer_details`.
-   - Writes `contract_details.approved_facility = offered_facility`, `available_facility = approved - utilized`, sets `status = APPROVED`.
+   - Writes `contract_details.approved_facility = offered_facility`, sets `status = APPROVED`, then occupancy refresh recomputes remaining credit as approved − utilized − pending.
 
 3. **Reject offer (issuer)**
    - Updates `offer_details.responded_at`, sets `status = REJECTED`.
@@ -118,4 +118,6 @@ Helpers: `resolveRequestedInvoiceAmount`, `resolveOfferedAmount`, `resolveOffere
 
 Draft invoice create/save stays unreserved. Reserved amendment invoices are hard-revalidated atomically on amount changes.
 
-Occupancy changes write `CONTRACT_FACILITY_OCCUPANCY_UPDATED` on `application_logs` (and `FACILITY_OCCUPANCY_UPDATED` on the note) when utilized / available / repaid change.
+Invoices and notes remain the business source of truth. Typed `Contract` columns plus `contract_details` JSON (`utilized_facility`, `available_facility`, `pending_facility`, `repaid_facility`, `lifetime_used`, `lifetime_remaining`, plus revolving `approved_facility` / lifetime `lifetime_cap`, marked with `capacity_snapshot_version`) are persisted snapshots kept in sync.
+
+`CONTRACT_FACILITY_OCCUPANCY_UPDATED` (A178) writes to `ApplicationAuditLog` only, target `CONTRACT`, when an audited reason is present (`INVOICE_ACCEPTED`, `FUNDING_CLOSED`, `FUNDING_FAILED`, `NOTE_REPAID`) **and** any of the six tracked metadata fields changes materially: `utilized_facility`, `available_facility`, `repaid_facility`, `pending_facility`, `lifetime_used`, `lifetime_remaining`. Both `before` and `after` contain those six fields. `approved_facility` and `lifetime_cap` are not in A178 metadata. True no-op writes no audit row. Silent capacity refreshes without audit context still persist snapshots and write no A178 row (invoice create/update/delete/withdraw, offer send/retract, amendment, expiry, recompute). There is no `NoteAuditLog` occupancy event and no live `FACILITY_OCCUPANCY_UPDATED` note event.

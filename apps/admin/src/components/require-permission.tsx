@@ -5,6 +5,7 @@ import type { AdminPermission } from "@cashsouk/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@cashsouk/ui";
 import { usePermissions } from "@/hooks/use-permissions";
+import { resolvePermissionGate } from "@/lib/admin-auth-gate";
 
 interface RequirePermissionProps {
   permission: AdminPermission;
@@ -29,19 +30,28 @@ export function AccessDeniedCard() {
   );
 }
 
-export function RequirePermission({ permission, children }: RequirePermissionProps) {
-  const { can, isLoading } = usePermissions();
+function PermissionCheckingState() {
+  return (
+    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <Skeleton className="h-10 w-64" />
+      <Skeleton className="h-48 w-full rounded-xl" />
+    </div>
+  );
+}
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-48 w-full rounded-xl" />
-      </div>
-    );
+export function RequirePermission({ permission, children }: RequirePermissionProps) {
+  const { can, isLoading, isAdminPortalUser } = usePermissions();
+  const view = resolvePermissionGate({
+    isPending: isLoading,
+    isAdminPortalUser,
+    hasPermission: can(permission),
+  });
+
+  if (view === "loading") {
+    return <PermissionCheckingState />;
   }
 
-  if (!can(permission)) {
+  if (view === "access-denied") {
     return <AccessDeniedCard />;
   }
 

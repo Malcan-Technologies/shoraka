@@ -195,9 +195,9 @@ export const GATEWAY_PAYMENT_COPY = {
   },
 
   activity: {
-    title: "Activity Timeline",
-    description: "Status changes and actions for this payment",
-    empty: "No activity logs found",
+    title: "Audit History",
+    description: "Raw forensic audit records for this payment. Not a curated Activity feed.",
+    empty: "No audit records found",
   },
 
   toasts: {
@@ -211,52 +211,56 @@ export const GATEWAY_PAYMENT_COPY = {
 } as const;
 
 export const EVENT_COPY: Record<string, { title: string; description: string }> = {
-  NAME_CHECK: {
-    title: "Name check needed",
-    description:
-      "Payment received, but the bank name could not be matched to the investor profile. Waiting for review.",
+  PAYMENT_INITIATED: {
+    title: "Payment started",
+    description: "A Curlec checkout was created and the local payment record was saved.",
   },
-  NAME_CHECK_APPROVED: {
-    title: "Name check approved",
-    description: "The names were confirmed to match. The deposit was completed.",
+  PAYMENT_CAPTURED: {
+    title: "Payment captured",
+    description: "Curlec captured the payment. Downstream completion is tracked separately.",
   },
-  NAME_CHECK_REJECTED: {
-    title: "Name check rejected",
-    description: "The names did not match. A refund was started.",
+  PAYMENT_FAILED: {
+    title: "Payment failed",
+    description: "The payment failed before capture.",
   },
-  CAPTURE_MISMATCH: {
+  PAYMENT_EXPIRED: {
+    title: "Payment expired",
+    description: "The payment link timed out before payment was finished.",
+  },
+  PAYMENT_CAPTURE_MISMATCH_DETECTED: {
     title: "Payment mismatch found",
     description:
       "The payment details did not match what Cashsouk expected. See the status card for amount or currency details.",
   },
-  EXPIRED: {
-    title: "Payment expired",
-    description: "The payment link timed out before payment was finished.",
-  },
-  OVERRIDE_PROPOSED: {
-    title: "Status change proposed",
-    description: "A manual status change was requested and needs another reviewer’s approval.",
-  },
-  OVERRIDE_APPROVED: {
-    title: "Status change approved",
-    description: "The manual status change was approved.",
-  },
-  OVERRIDE_REJECTED: {
-    title: "Status change rejected",
-    description: "The manual status change was rejected. No change was applied.",
-  },
-  REFUND_INITIATED: {
+  PAYMENT_REFUND_INITIATED: {
     title: "Refund requested",
     description: "A full refund was requested. Waiting for Curlec to confirm the result.",
   },
-  REFUND_WALLET_REVERSAL_FAILED: {
+  PAYMENT_REFUNDED: {
+    title: "Refund completed",
+    description: "The refund was confirmed. Money was returned to the payer.",
+  },
+  PAYMENT_REFUND_WALLET_REVERSAL_FAILED: {
     title: "Wallet balance could not be updated",
     description:
       "The refund was completed, but the wallet balance could not be fully updated. Part of the amount may still need attention.",
   },
-  REFUNDED: {
-    title: "Refund completed",
-    description: "The refund was confirmed. Money was returned to the payer.",
+  PAYMENT_NAME_CHECK_PENDING: {
+    title: "Name check needed",
+    description:
+      "Payment received, but the bank name could not be matched to the investor profile. Waiting for review.",
+  },
+  PAYMENT_NAME_CHECK_APPROVED: {
+    title: "Name check approved",
+    description: "The names were confirmed to match. The deposit was completed.",
+  },
+  PAYMENT_NAME_CHECK_REJECTED: {
+    title: "Name check rejected",
+    description: "The names did not match. A refund was started only after Curlec accepted it.",
+  },
+  INVESTOR_DEPOSIT_RECEIVED: {
+    title: "Deposit received",
+    description: "The investor wallet was credited for this captured payment.",
   },
 };
 
@@ -273,10 +277,11 @@ export const REASON_COPY: Record<string, string> = {
 };
 
 export function formatGatewayEventTitle(type: string, reason?: string | null) {
-  if (type === "CAPTURE_MISMATCH" && reason === "Currency mismatch") {
+  const mismatch = type === "PAYMENT_CAPTURE_MISMATCH_DETECTED";
+  if (mismatch && (reason === "Currency mismatch" || reason === "CURRENCY_MISMATCH")) {
     return "Currency mismatch found";
   }
-  if (type === "CAPTURE_MISMATCH" && reason?.toLowerCase().includes("amount")) {
+  if (mismatch && (reason?.toLowerCase().includes("amount") || reason === "AMOUNT_MISMATCH")) {
     return "Amount mismatch found";
   }
   if (EVENT_COPY[type]) return EVENT_COPY[type].title;

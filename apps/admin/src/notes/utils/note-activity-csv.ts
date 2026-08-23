@@ -1,4 +1,4 @@
-import type { NoteEvent } from "@cashsouk/types";
+import type { NoteAuditLogDto } from "@cashsouk/types";
 import {
   buildAdminActivityCsv,
   mergeActivityCsvMetadata,
@@ -10,8 +10,8 @@ const EVENT_LABELS: Record<string, string> = {
   NOTE_DRAFT_UPDATED: "Draft updated",
   NOTE_PUBLISHED: "Published to marketplace",
   NOTE_UNPUBLISHED: "Unpublished from marketplace",
-  PAUSE_LISTING: "Campaign paused",
-  RESUME_LISTING: "Campaign resumed",
+  NOTE_CAMPAIGN_PAUSED: "Campaign paused",
+  NOTE_CAMPAIGN_RESUMED: "Campaign resumed",
   UNPUBLISH: "Unpublished from marketplace",
   PROSPECTUS_REVIEW_APPROVE: "Prospectus approved",
   PROSPECTUS_REVIEW_CREATE: "Prospectus review created",
@@ -31,12 +31,14 @@ const EVENT_LABELS: Record<string, string> = {
   LATE_CHARGE_APPROVED: "Late charge approved",
   OVERDUE_LATE_CHARGE_CHECKED: "Overdue late charge checked",
   ARREARS_LETTER_GENERATED: "Arrears letter generated",
-  DEFAULT_LETTER_GENERATED: "Default letter generated",
+  DEFAULT_NOTICE_GENERATED: "Default notice generated",
   SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Settlement trustee letter generated",
   SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Settlement trustee letter submitted",
   SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement trustee instruction completed",
   NOTE_DEFAULT_MARKED: "Default marked",
+  NOTE_MARKED_DEFAULT: "Default marked",
   SHORAKA_ORDER_SUBMITTED: "Tawarruq order submitted",
+  SHORAKA_CERTIFICATE_RECEIVED: "Tawarruq Certificate fetched",
   SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate fetched",
 };
 
@@ -51,22 +53,22 @@ export function formatNoteActivityEventLabel(eventType: string) {
   return label;
 }
 
-export function noteEventToActivityCsvRow(event: NoteEvent): AdminActivityCsvRow {
+export function noteAuditLogToActivityCsvRow(event: NoteAuditLogDto): AdminActivityCsvRow {
   return {
-    createdAt: event.createdAt,
+    createdAt: event.occurredAt,
     event: formatNoteActivityEventLabel(event.eventType),
     eventType: event.eventType,
-    actor: event.actorName?.trim() || "",
-    actorUserId: event.actorUserId ?? "",
+    actor: event.actor.displayName?.trim() || "",
+    actorUserId: event.actor.userId ?? "",
     portal: event.portal ?? "",
     remark: "",
     metadata: mergeActivityCsvMetadata(event.metadata, {
-      actorRole: event.actorRole,
+      actorType: event.actor.type,
       correlationId: event.correlationId,
     }),
   };
 }
 
-export function buildNoteActivityCsv(events: NoteEvent[]) {
-  return buildAdminActivityCsv(events.map(noteEventToActivityCsvRow));
+export function buildNoteActivityCsv(events: NoteAuditLogDto[]) {
+  return buildAdminActivityCsv(events.map(noteAuditLogToActivityCsvRow));
 }

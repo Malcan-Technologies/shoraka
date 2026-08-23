@@ -1,15 +1,12 @@
 import { prisma } from "../../lib/prisma";
-import { formatUserDisplayName, loadUserDisplayNameMap } from "../../lib/user-display-name";
+import { formatUserDisplayName } from "../../lib/user-display-name";
 import {
   Prisma,
   User,
-  AccessLog,
   UserRole,
   Admin,
   AdminRoleConfig,
   AdminInvitation,
-  SecurityLog,
-  OnboardingLog,
   OrganizationType,
   OnboardingStatus,
   ApplicationStatus,
@@ -24,10 +21,7 @@ import {
 } from "@cashsouk/types";
 import type {
   GetUsersQuery,
-  GetAccessLogsQuery,
   GetAdminUsersQuery,
-  GetSecurityLogsQuery,
-  GetOnboardingLogsQuery,
   GetAdminApplicationsQuery,
   GetAdminContractsQuery,
 } from "./schemas";
@@ -157,24 +151,13 @@ export class AdminRepository {
     return prisma.user.findUnique({
       where: { user_id: userId },
       include: {
-        _count: {
-          select: {
-            access_logs: true,
-            investments: true,
-            loans: true,
+          _count: {
+            select: {
+              investments: true,
+              loans: true,
+            },
           },
-        },
       },
-    });
-  }
-
-  /**
-   * Update user roles
-   */
-  async updateUserRoles(userId: string, roles: UserRole[]): Promise<User> {
-    return prisma.user.update({
-      where: { user_id: userId },
-      data: { roles: { set: roles } },
     });
   }
 
@@ -184,25 +167,22 @@ export class AdminRepository {
   async updateUserOnboarding(
     userId: string,
     data: { investorOnboarded?: boolean; issuerOnboarded?: boolean },
-    roles?: UserRole[]
+    roles?: UserRole[],
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ): Promise<User> {
     const updateData: Prisma.UserUpdateInput = {};
 
     if (data.investorOnboarded !== undefined) {
       if (data.investorOnboarded) {
-        // Set to ['temp'] if not already set (temporary placeholder)
         updateData.investor_account = { set: ["temp"] };
       } else {
-        // Clear array
         updateData.investor_account = { set: [] };
       }
     }
     if (data.issuerOnboarded !== undefined) {
       if (data.issuerOnboarded) {
-        // Set to ['temp'] if not already set (temporary placeholder)
         updateData.issuer_account = { set: ["temp"] };
       } else {
-        // Clear array
         updateData.issuer_account = { set: [] };
       }
     }
@@ -211,7 +191,7 @@ export class AdminRepository {
       updateData.roles = roles;
     }
 
-    return prisma.user.update({
+    return db.user.update({
       where: { user_id: userId },
       data: updateData,
     });
@@ -239,203 +219,6 @@ export class AdminRepository {
     return prisma.user.update({
       where: { user_id: userId },
       data: updateData,
-    });
-  }
-
-  /**
-   * Get access logs with pagination and filters
-   */
-  async getAccessLogs(params: GetAccessLogsQuery): Promise<{
-    logs: (AccessLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[];
-    total: number;
-  }> {
-    const { page, pageSize, search, eventType, eventTypes, status, dateRange, userId } = params;
-    const skip = (page - 1) * pageSize;
-
-    // Build where clause
-    const where: Prisma.AccessLogWhereInput = {};
-
-    if (userId) {
-      where.user_id = userId;
-    }
-
-    // Support both single eventType and multiple eventTypes
-    if (eventTypes && eventTypes.length > 0) {
-      where.event_type = { in: eventTypes };
-    } else if (eventType) {
-      where.event_type = eventType;
-    }
-
-    if (status) {
-      where.success = status === "success";
-    }
-
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateRange) {
-        case "24h":
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case "7d":
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30d":
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.created_at = { gte: cutoffDate };
-    }
-
-    // If search is provided, filter by user name, email, or user_id
-    if (search) {
-      where.user = {
-        OR: [
-          { first_name: { contains: search, mode: "insensitive" } },
-          { last_name: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
-        ],
-      };
-    }
-
-    const [logs, total] = await Promise.all([
-      prisma.accessLog.findMany({
-        where,
-        skip,
-        take: pageSize,
-        orderBy: { created_at: "desc" },
-        include: {
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-              email: true,
-              roles: true,
-            },
-          },
-        },
-      }),
-      prisma.accessLog.count({ where }),
-    ]);
-
-    return { logs, total };
-  }
-
-  /**
-   * Get access log by ID
-   */
-  async getAccessLogById(logId: string): Promise<(AccessLog & { user: User }) | null> {
-    return prisma.accessLog.findUnique({
-      where: { id: logId },
-      include: { user: true },
-    });
-  }
-
-  /**
-   * Get all access logs for export (no pagination)
-   */
-  async getAllAccessLogsForExport(params: Omit<GetAccessLogsQuery, "page" | "pageSize">): Promise<
-    (AccessLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[]
-  > {
-    const { search, eventType, status, dateRange, userId } = params;
-
-    const where: Prisma.AccessLogWhereInput = {};
-
-    if (userId) {
-      where.user_id = userId;
-    }
-
-    if (eventType) {
-      where.event_type = eventType;
-    }
-
-    if (status) {
-      where.success = status === "success";
-    }
-
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateRange) {
-        case "24h":
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case "7d":
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30d":
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.created_at = { gte: cutoffDate };
-    }
-
-    if (search) {
-      where.user = {
-        OR: [
-          { first_name: { contains: search, mode: "insensitive" } },
-          { last_name: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
-        ],
-      };
-    }
-
-    return prisma.accessLog.findMany({
-      where,
-      orderBy: { created_at: "desc" },
-      include: {
-        user: {
-          select: {
-            first_name: true,
-            last_name: true,
-            email: true,
-            roles: true,
-          },
-        },
-      },
-    });
-  }
-
-  /**
-   * Create access log entry (for admin actions)
-   */
-  async createAccessLog(data: {
-    userId: string;
-    eventType: string;
-    portal?: string;
-    ipAddress?: string;
-    userAgent?: string;
-    deviceInfo?: string;
-    deviceType?: string;
-    success?: boolean;
-    metadata?: object;
-  }): Promise<AccessLog> {
-    return prisma.accessLog.create({
-      data: {
-        user_id: data.userId,
-        event_type: data.eventType,
-        portal: data.portal,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        device_type: data.deviceType,
-        success: data.success ?? true,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
     });
   }
 
@@ -1014,464 +797,6 @@ export class AdminRepository {
   }
 
   /**
-   * Create security log entry
-   */
-  async createSecurityLog(data: {
-    userId: string;
-    eventType: string;
-    ipAddress?: string;
-    userAgent?: string;
-    deviceInfo?: string;
-    metadata?: object;
-  }): Promise<SecurityLog> {
-    return prisma.securityLog.create({
-      data: {
-        user_id: data.userId,
-        event_type: data.eventType,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
-    });
-  }
-
-  /**
-   * Get security logs with pagination and filters
-   */
-  async getSecurityLogs(params: GetSecurityLogsQuery): Promise<{
-    logs: (SecurityLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[];
-    total: number;
-  }> {
-    const { page, pageSize, search, eventType, eventTypes, dateRange, userId } = params;
-    const skip = (page - 1) * pageSize;
-
-    const where: Prisma.SecurityLogWhereInput = {};
-
-    if (userId) {
-      where.user_id = userId;
-    }
-
-    if (eventTypes && eventTypes.length > 0) {
-      where.event_type = { in: eventTypes };
-    } else if (eventType) {
-      where.event_type = eventType;
-    }
-
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateRange) {
-        case "24h":
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case "7d":
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30d":
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.created_at = { gte: cutoffDate };
-    }
-
-    if (search) {
-      where.user = {
-        OR: [
-          { first_name: { contains: search, mode: "insensitive" } },
-          { last_name: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
-        ],
-      };
-    }
-
-    const [logs, total] = await Promise.all([
-      prisma.securityLog.findMany({
-        where,
-        skip,
-        take: pageSize,
-        orderBy: { created_at: "desc" },
-        include: {
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-              email: true,
-              roles: true,
-            },
-          },
-        },
-      }),
-      prisma.securityLog.count({ where }),
-    ]);
-
-    return { logs, total };
-  }
-
-  /**
-   * Create onboarding log
-   */
-  async createOnboardingLog(data: {
-    userId: string;
-    investorOrganizationId?: string;
-    issuerOrganizationId?: string;
-    organizationName?: string;
-    role: UserRole;
-    eventType: string;
-    portal?: string;
-    ipAddress?: string;
-    userAgent?: string;
-    deviceInfo?: string;
-    deviceType?: string;
-    metadata?: object;
-  }): Promise<OnboardingLog> {
-    return prisma.onboardingLog.create({
-      data: {
-        user_id: data.userId,
-        investor_organization_id: data.investorOrganizationId,
-        issuer_organization_id: data.issuerOrganizationId,
-        organization_name: data.organizationName,
-        role: data.role,
-        event_type: data.eventType,
-        portal: data.portal,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        device_type: data.deviceType,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
-    });
-  }
-
-  /**
-   * Get onboarding logs with pagination and filters
-   */
-  async getOnboardingLogs(params: GetOnboardingLogsQuery): Promise<{
-    logs: (OnboardingLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[];
-    total: number;
-  }> {
-    const { page, pageSize, search, eventType, eventTypes, role, dateRange, userId, organizationId } = params;
-    const skip = (page - 1) * pageSize;
-
-    const where: Prisma.OnboardingLogWhereInput = {};
-
-    if (userId) {
-      where.user_id = userId;
-    }
-
-    if (organizationId) {
-      where.OR = [
-        ...(where.OR || []),
-        { investor_organization_id: organizationId },
-        { issuer_organization_id: organizationId },
-      ];
-    }
-
-    if (role) {
-      where.role = role;
-    }
-
-    if (eventTypes && eventTypes.length > 0) {
-      where.event_type = { in: eventTypes };
-    } else if (eventType) {
-      where.event_type = eventType;
-    }
-
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateRange) {
-        case "24h":
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case "7d":
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30d":
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.created_at = { gte: cutoffDate };
-    }
-
-    if (search) {
-      where.user = {
-        OR: [
-          { first_name: { contains: search, mode: "insensitive" } },
-          { last_name: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
-        ],
-      };
-    }
-
-    const [logs, total] = await Promise.all([
-      prisma.onboardingLog.findMany({
-        where,
-        skip,
-        take: pageSize,
-        orderBy: { created_at: "desc" },
-        include: {
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-              email: true,
-              roles: true,
-            },
-          },
-          investor_organization: {
-            select: { type: true },
-          },
-          issuer_organization: {
-            select: { type: true },
-          },
-        },
-      }),
-      prisma.onboardingLog.count({ where }),
-    ]);
-
-    // Collect unique admin user IDs from metadata fields (approvedBy, updatedBy, cancelledBy, resetBy)
-    const adminUserIds = new Set<string>();
-    const actorFields = ["approvedBy", "updatedBy", "cancelledBy", "resetBy"] as const;
-    for (const log of logs) {
-      const meta = log.metadata as Record<string, unknown> | null;
-      if (!meta) continue;
-      for (const field of actorFields) {
-        const val = meta[field];
-        if (typeof val === "string" && val.length > 0 && val !== "admin" && val !== "system") {
-          adminUserIds.add(val);
-        }
-      }
-    }
-
-    // Batch-resolve admin user names
-    const adminNameMap = await loadUserDisplayNameMap(prisma, [...adminUserIds]);
-
-    // Map logs with organization info and resolved admin names
-    const logsWithOrgInfo = logs.map((log) => {
-      const organizationName = log.organization_name;
-      const organizationType =
-        log.investor_organization?.type || log.issuer_organization?.type || null;
-
-      // Enrich metadata with resolved admin names
-      const meta = log.metadata as Record<string, unknown> | null;
-      if (meta) {
-        for (const field of actorFields) {
-          const val = meta[field];
-          if (typeof val === "string" && adminNameMap.has(val)) {
-            meta[`${field}Name`] = adminNameMap.get(val);
-          }
-        }
-      }
-
-      return {
-        ...log,
-        organizationName,
-        organizationType,
-      };
-    });
-
-    return { logs: logsWithOrgInfo, total };
-  }
-
-  /**
-   * Get onboarding log by ID
-   */
-  async getOnboardingLogById(logId: string): Promise<(OnboardingLog & { user: User }) | null> {
-    return prisma.onboardingLog.findUnique({
-      where: { id: logId },
-      include: {
-        user: true,
-      },
-    });
-  }
-
-  /**
-   * Get all onboarding logs for export (no pagination)
-   */
-  async getAllOnboardingLogsForExport(
-    params: Omit<GetOnboardingLogsQuery, "page" | "pageSize">
-  ): Promise<
-    (OnboardingLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-      organizationName?: string | null;
-      organizationType?: OrganizationType | null;
-    })[]
-  > {
-    const { search, eventType, eventTypes, role, dateRange, userId } = params;
-
-    const where: Prisma.OnboardingLogWhereInput = {};
-
-    if (userId) {
-      where.user_id = userId;
-    }
-
-    if (role) {
-      where.role = role;
-    }
-
-    if (eventTypes && eventTypes.length > 0) {
-      where.event_type = { in: eventTypes };
-    } else if (eventType) {
-      where.event_type = eventType;
-    }
-
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateRange) {
-        case "24h":
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case "7d":
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30d":
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.created_at = { gte: cutoffDate };
-    }
-
-    if (search) {
-      where.user = {
-        OR: [
-          { first_name: { contains: search, mode: "insensitive" } },
-          { last_name: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
-        ],
-      };
-    }
-
-    const logs = await prisma.onboardingLog.findMany({
-      where,
-      orderBy: { created_at: "desc" },
-      include: {
-        user: {
-          select: {
-            first_name: true,
-            last_name: true,
-            email: true,
-            roles: true,
-          },
-        },
-        investor_organization: {
-          select: { type: true },
-        },
-        issuer_organization: {
-          select: { type: true },
-        },
-      },
-    });
-
-    // Map logs with organization info from the OnboardingLog record itself
-    const logsWithOrgInfo = logs.map((log) => {
-      const organizationName = log.organization_name;
-      const organizationType =
-        log.investor_organization?.type || log.issuer_organization?.type || null;
-
-      return {
-        ...log,
-        organizationName,
-        organizationType,
-      };
-    });
-
-    return logsWithOrgInfo;
-  }
-
-  /**
-   * Get all security logs for export (no pagination)
-   */
-  async getAllSecurityLogsForExport(
-    params: Omit<GetSecurityLogsQuery, "page" | "pageSize">
-  ): Promise<
-    (SecurityLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[]
-  > {
-    const { search, eventType, eventTypes, dateRange, userId } = params;
-
-    const where: Prisma.SecurityLogWhereInput = {};
-
-    if (userId) {
-      where.user_id = userId;
-    }
-
-    if (eventTypes && eventTypes.length > 0) {
-      where.event_type = { in: eventTypes };
-    } else if (eventType) {
-      where.event_type = eventType;
-    }
-
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateRange) {
-        case "24h":
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case "7d":
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30d":
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.created_at = { gte: cutoffDate };
-    }
-
-    if (search) {
-      where.user = {
-        OR: [
-          { first_name: { contains: search, mode: "insensitive" } },
-          { last_name: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
-        ],
-      };
-    }
-
-    return prisma.securityLog.findMany({
-      where,
-      orderBy: { created_at: "desc" },
-      include: {
-        user: {
-          select: {
-            first_name: true,
-            last_name: true,
-            email: true,
-            roles: true,
-          },
-        },
-      },
-    });
-  }
-
-  /**
    * Get all organizations (investor + issuer) with pagination and filters
    */
   async getOrganizations(params: {
@@ -1858,6 +1183,12 @@ export class AdminRepository {
       request_id: string;
       status: string;
     }[];
+    tnc_accepted?: boolean;
+    onboarding_approved?: boolean;
+    aml_approved?: boolean;
+    ssm_approved?: boolean;
+    ssm_checked?: boolean;
+    onboarding_fee_paid_at?: Date | null;
   } | null> {
     const include = {
       owner: {
@@ -2564,9 +1895,9 @@ export class AdminRepository {
     });
 
     const linkedApplicationIds = contract.applications.map((application) => application.id);
-    const activityWhere: Prisma.ApplicationLogWhereInput = {
+    const activityWhere: Prisma.ApplicationAuditLogWhereInput = {
       OR: [
-        { entity_id: id },
+        { target_type: "CONTRACT", target_id: id },
         ...(originatingApplicationId ? [{ application_id: originatingApplicationId }] : []),
         ...(linkedApplicationIds.length > 0
           ? [
@@ -2601,16 +1932,19 @@ export class AdminRepository {
           funded_amount: true,
         },
       }),
-      prisma.applicationLog.findMany({
+      prisma.applicationAuditLog.findMany({
         where: activityWhere,
-        orderBy: { created_at: "desc" },
+        orderBy: { occurred_at: "desc" },
       }),
     ]);
     const activityActorIds = [
       ...new Set(
         activityLogs
-          .map((log) => log.user_id)
-          .filter((actorId): actorId is string => Boolean(actorId) && !userIds.includes(actorId))
+          .map((log) => log.actor_user_id)
+          .filter(
+            (actorId): actorId is string =>
+              typeof actorId === "string" && actorId.length > 0 && !userIds.includes(actorId)
+          )
       ),
     ];
     const extraActors = activityActorIds.length
@@ -2690,15 +2024,20 @@ export class AdminRepository {
       })),
       activity: activityLogs.map((log) => {
         const metadata = (log.metadata as Record<string, unknown> | null) ?? {};
-        const actorName = log.user_id ? userNameById.get(log.user_id) ?? null : null;
+        const actorName =
+          (typeof metadata.actorName === "string" && metadata.actorName.trim().length > 0
+            ? metadata.actorName
+            : null) ??
+          (log.actor_user_id ? userNameById.get(log.actor_user_id) ?? null : null);
+        const remark = typeof metadata.remark === "string" ? metadata.remark : null;
         return {
           id: log.id,
           eventType: log.event_type,
-          createdAt: log.created_at,
-          actorUserId: log.user_id || null,
+          createdAt: log.occurred_at,
+          actorUserId: log.actor_user_id || null,
           actorName,
           portal: log.portal,
-          remark: log.remark,
+          remark,
           metadata: actorName ? { ...metadata, actorName } : metadata,
           applicationId: log.application_id,
         };
@@ -2761,8 +2100,12 @@ export class AdminRepository {
    * Ensure a review section row exists for an application (creates if missing).
    * Called on-demand when a section action is performed.
    */
-  async ensureApplicationReviewSection(applicationId: string, section: ReviewSection) {
-    await prisma.applicationReview.upsert({
+  async ensureApplicationReviewSection(
+    applicationId: string,
+    section: ReviewSection,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ) {
+    await db.applicationReview.upsert({
       where: {
         application_id_section: { application_id: applicationId, section },
       },
@@ -2774,8 +2117,12 @@ export class AdminRepository {
   /**
    * Reset section review status to PENDING (clears reviewer and reviewed_at)
    */
-  async resetSectionReviewToPending(applicationId: string, section: ReviewSection) {
-    return prisma.applicationReview.upsert({
+  async resetSectionReviewToPending(
+    applicationId: string,
+    section: ReviewSection,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ) {
+    return db.applicationReview.upsert({
       where: {
         application_id_section: { application_id: applicationId, section },
       },
@@ -2800,9 +2147,10 @@ export class AdminRepository {
   async resetItemReviewToPending(
     applicationId: string,
     itemType: string,
-    itemId: string
+    itemId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReviewItem.upsert({
+    return db.applicationReviewItem.upsert({
       where: {
         application_id_item_type_item_id: {
           application_id: applicationId,
@@ -2833,9 +2181,10 @@ export class AdminRepository {
     applicationId: string,
     section: ReviewSection,
     status: ReviewStepStatus,
-    reviewerUserId: string
+    reviewerUserId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReview.upsert({
+    return db.applicationReview.upsert({
       where: {
         application_id_section: { application_id: applicationId, section },
       },
@@ -2862,9 +2211,10 @@ export class AdminRepository {
     itemType: string,
     itemId: string,
     status: ReviewStepStatus,
-    reviewerUserId: string
+    reviewerUserId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReviewItem.upsert({
+    return db.applicationReviewItem.upsert({
       where: {
         application_id_item_type_item_id: {
           application_id: applicationId,
@@ -2888,8 +2238,19 @@ export class AdminRepository {
     });
   }
 
+  private async currentReviewCycle(
+    applicationId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ): Promise<number> {
+    const application = await db.application.findUnique({
+      where: { id: applicationId },
+      select: { review_cycle: true },
+    });
+    return application?.review_cycle ?? 1;
+  }
+
   /**
-   * Create review remark
+   * Create review remark on the application's current review cycle.
    */
   async createReviewRemark(
     applicationId: string,
@@ -2897,11 +2258,14 @@ export class AdminRepository {
     scopeKey: string,
     actionType: string,
     remark: string,
-    authorUserId: string
+    authorUserId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReviewRemark.create({
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.create({
       data: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         action_type: actionType,
@@ -2912,7 +2276,7 @@ export class AdminRepository {
   }
 
   /**
-   * Upsert review remark (one current remark per scope)
+   * Upsert review remark (one current-cycle remark per scope).
    */
   async upsertReviewRemark(
     applicationId: string,
@@ -2920,18 +2284,22 @@ export class AdminRepository {
     scopeKey: string,
     actionType: string,
     remark: string,
-    authorUserId: string
+    authorUserId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReviewRemark.upsert({
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.upsert({
       where: {
-        application_id_scope_scope_key: {
+        application_id_review_cycle_scope_scope_key: {
           application_id: applicationId,
+          review_cycle: reviewCycle,
           scope,
           scope_key: scopeKey,
         },
       },
       create: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         action_type: actionType,
@@ -2948,25 +2316,29 @@ export class AdminRepository {
   }
 
   /**
-   * Upsert draft amendment (ApplicationReviewRemark with submitted_at=null)
+   * Upsert draft amendment (ApplicationReviewRemark with submitted_at=null) for the current cycle.
    */
   async upsertDraftAmendment(
     applicationId: string,
     scope: string,
     scopeKey: string,
     remark: string,
-    authorUserId: string
+    authorUserId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReviewRemark.upsert({
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.upsert({
       where: {
-        application_id_scope_scope_key: {
+        application_id_review_cycle_scope_scope_key: {
           application_id: applicationId,
+          review_cycle: reviewCycle,
           scope,
           scope_key: scopeKey,
         },
       },
       create: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         action_type: "REQUEST_AMENDMENT",
@@ -2985,12 +2357,14 @@ export class AdminRepository {
   }
 
   /**
-   * List pending amendments (draft remarks with submitted_at=null)
+   * List pending amendments (current-cycle draft remarks with submitted_at=null)
    */
-  async listPendingAmendments(applicationId: string) {
-    return prisma.applicationReviewRemark.findMany({
+  async listPendingAmendments(applicationId: string, db: Prisma.TransactionClient = prisma) {
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.findMany({
       where: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         action_type: "REQUEST_AMENDMENT",
         submitted_at: null,
       },
@@ -2999,19 +2373,34 @@ export class AdminRepository {
     });
   }
 
+  async listSubmittedAmendmentRemarksForCycle(applicationId: string, reviewCycle: number) {
+    return prisma.applicationReviewRemark.findMany({
+      where: {
+        application_id: applicationId,
+        review_cycle: reviewCycle,
+        action_type: "REQUEST_AMENDMENT",
+        submitted_at: { not: null },
+      },
+      orderBy: { created_at: "asc" },
+    });
+  }
+
   /**
-   * Update draft amendment remark
+   * Update draft amendment remark for the current cycle.
    */
   async updateDraftAmendment(
     applicationId: string,
     scope: string,
     scopeKey: string,
     remark: string,
-    authorUserId: string
+    authorUserId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReviewRemark.updateMany({
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.updateMany({
       where: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         submitted_at: null,
@@ -3023,10 +2412,17 @@ export class AdminRepository {
   /**
    * Mark a committed REQUEST_AMENDMENT remark (immediate acceptance change, not draft buffer).
    */
-  async markReviewRemarkSubmitted(applicationId: string, scope: string, scopeKey: string) {
-    return prisma.applicationReviewRemark.updateMany({
+  async markReviewRemarkSubmitted(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ) {
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.updateMany({
       where: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         action_type: "REQUEST_AMENDMENT",
@@ -3036,12 +2432,19 @@ export class AdminRepository {
   }
 
   /**
-   * Remove draft amendment (delete remark, caller must revert item/section status)
+   * Remove current-cycle draft amendment. Submitted remarks, including prior cycles, are kept.
    */
-  async removeDraftAmendment(applicationId: string, scope: string, scopeKey: string) {
-    return prisma.applicationReviewRemark.deleteMany({
+  async removeDraftAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ) {
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.deleteMany({
       where: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         action_type: "REQUEST_AMENDMENT",
@@ -3051,26 +2454,38 @@ export class AdminRepository {
   }
 
   /**
-   * Remove review remark for a specific scope key regardless of action type/submission state.
-   * Useful when resetting an item/section back to pending and clearing its current remark entry.
+   * Remove current-cycle draft remarks only. Historical submitted remarks must survive.
    */
-  async removeReviewRemark(applicationId: string, scope: string, scopeKey: string) {
-    return prisma.applicationReviewRemark.deleteMany({
+  async removeReviewRemark(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ) {
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.deleteMany({
       where: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
+        submitted_at: null,
       },
     });
   }
 
   /**
-   * Mark draft amendments as submitted (set submitted_at)
+   * Mark current-cycle draft amendments as submitted (set submitted_at)
    */
-  async markDraftAmendmentsAsSubmitted(applicationId: string) {
-    return prisma.applicationReviewRemark.updateMany({
+  async markDraftAmendmentsAsSubmitted(
+    applicationId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ) {
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.updateMany({
       where: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         action_type: "REQUEST_AMENDMENT",
         submitted_at: null,
       },

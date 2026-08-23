@@ -1,0 +1,59 @@
+export const ONBOARDING_AUDIT_EVENTS = [
+  "ONBOARDING_STARTED",
+  "ONBOARDING_RESUMED",
+  "ONBOARDING_RESTARTED",
+  "ONBOARDING_RESET",
+  "USER_ONBOARDING_STATUS_UPDATED",
+  "ONBOARDING_STATUS_CHANGED",
+  "ONBOARDING_APPROVED",
+  "ONBOARDING_REJECTED",
+  "ONBOARDING_FINAL_APPROVAL_COMPLETED",
+  "ONBOARDING_COMPLETED",
+  "AML_APPROVED",
+  "SSM_APPROVED",
+  "INVESTOR_SOPHISTICATED_STATUS_UPDATED",
+  "CTOS_REPORT_RECEIVED",
+  "CORPORATE_ENTITIES_UPDATED",
+  "DIRECTOR_ONBOARDING_INVITATION_SENT",
+  "DIRECTOR_KYC_STATUS_UPDATED",
+  "ORGANIZATION_PROFILE_UPDATED_BY_ADMIN",
+] as const;
+
+/** Historical event types with no current writer. IDs A040 / A052 / A053 stay reserved. */
+export const RETIRED_ONBOARDING_AUDIT_EVENTS = [
+  "ONBOARDING_RESUMED",
+  "CTOS_REPORT_RECEIVED",
+  "CORPORATE_ENTITIES_UPDATED",
+] as const;
+
+export type OnboardingAuditEventType = (typeof ONBOARDING_AUDIT_EVENTS)[number];
+
+export const ONBOARDING_AUDIT_TARGET_TYPE = {
+  ORGANIZATION: "ORGANIZATION",
+  USER: "USER",
+  CTOS_REPORT: "CTOS_REPORT",
+  DIRECTOR: "DIRECTOR",
+  REGTANK_ONBOARDING: "REGTANK_ONBOARDING",
+} as const;
+
+export type OnboardingAuditTargetType =
+  (typeof ONBOARDING_AUDIT_TARGET_TYPE)[keyof typeof ONBOARDING_AUDIT_TARGET_TYPE];
+
+export function isOnboardingAuditEventType(value: string): value is OnboardingAuditEventType {
+  return (ONBOARDING_AUDIT_EVENTS as readonly string[]).includes(value);
+}
+
+export const ONBOARDING_RESTART_TRIGGER = {
+  EXPIRED_SESSION: "EXPIRED_SESSION",
+  STALE_SESSION: "STALE_SESSION",
+  ADMIN_RESTART: "ADMIN_RESTART",
+} as const;
+
+export type OnboardingRestartTrigger =
+  (typeof ONBOARDING_RESTART_TRIGGER)[keyof typeof ONBOARDING_RESTART_TRIGGER];
+
+export function restartTriggerFromReason(reason: string): OnboardingRestartTrigger {
+  return reason.toUpperCase().includes("EXPIRED")
+    ? ONBOARDING_RESTART_TRIGGER.EXPIRED_SESSION
+    : ONBOARDING_RESTART_TRIGGER.STALE_SESSION;
+}

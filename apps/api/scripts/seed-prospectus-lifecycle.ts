@@ -367,7 +367,7 @@ async function wipeNoteProspectusState(noteId: string) {
     await tx.noteProspectusReview.deleteMany({ where: { note_id: noteId } });
     await tx.noteListing.deleteMany({ where: { note_id: noteId } });
     await tx.notePaymentSchedule.deleteMany({ where: { note_id: noteId } });
-    await tx.noteEvent.deleteMany({ where: { note_id: noteId } });
+    await tx.noteAuditLog.deleteMany({ where: { note_id: noteId } });
   });
 }
 

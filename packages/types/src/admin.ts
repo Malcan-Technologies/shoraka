@@ -75,10 +75,6 @@ export interface UsersResponse {
   pagination: PaginationResponse;
 }
 
-export interface UpdateUserRolesInput {
-  roles: UserRole[];
-}
-
 export interface UpdateUserKycInput {
   kycVerified: boolean;
 }
@@ -94,47 +90,43 @@ export interface UpdateUserProfileInput {
   phone?: string | null;
 }
 
-export type EventType =
-  | "LOGIN"
-  | "LOGOUT"
-  | "SIGNUP"
-  | "ROLE_ADDED"
-  | "ROLE_SWITCHED"
-  | "ONBOARDING"
-  | "USER_COMPLETED"
-  | "KYC_STATUS_UPDATED"
-  | "ONBOARDING_STATUS_UPDATED"
-  | "PROFILE_UPDATED"
-  | "PASSWORD_CHANGED"
-  | "EMAIL_CHANGED";
+export const ACCESS_AUDIT_EVENTS = [
+  "USER_SIGNED_UP",
+  "USER_LOGGED_IN",
+  "USER_LOGGED_OUT",
+] as const;
 
-export interface AccessLogUser {
-  first_name: string;
-  last_name: string;
-  email: string;
-  roles: UserRole[];
+export type AccessAuditEventType = (typeof ACCESS_AUDIT_EVENTS)[number];
+export type EventType = AccessAuditEventType;
+
+export interface AccessAuditActor {
+  type: string;
+  userId: string | null;
+  displayName: string | null;
+  email: string | null;
 }
 
 export interface AccessLogResponse {
   id: string;
-  user_id: string;
-  user: AccessLogUser;
-  event_type: EventType;
+  eventType: AccessAuditEventType;
+  occurredAt: string;
+  createdAt: string;
+  userId: string | null;
+  actor: AccessAuditActor;
+  target: { type: string; id: string };
+  source: string;
   portal: string | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
-  device_type: string | null;
-  cognito_event: Record<string, unknown> | null;
-  success: boolean;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceInfo: string | null;
+  correlationId: string | null;
+  metadata: Record<string, unknown>;
 }
 
 export interface GetAccessLogsParams extends PaginationParams {
   search?: string;
-  eventType?: EventType;
-  eventTypes?: EventType[];
+  eventType?: AccessAuditEventType;
+  eventTypes?: AccessAuditEventType[];
   status?: "success" | "failed";
   dateRange?: "24h" | "7d" | "30d" | "all";
   userId?: string;
@@ -283,30 +275,70 @@ export interface AcceptInvitationInput {
 }
 
 // Security Logs Types
-export type SecurityEventType =
-  | "PASSWORD_CHANGED"
-  | "EMAIL_CHANGED"
-  | "ROLE_ADDED"
-  | "ROLE_SWITCHED"
-  | "PROFILE_UPDATED";
+export const SECURITY_AUDIT_EVENTS = [
+  "USER_ROLE_ADDED",
+  "ACTIVE_ROLE_CHANGED",
+  "USER_PROFILE_UPDATED",
+  "USER_PROFILE_UPDATED_BY_ADMIN",
+  "PASSWORD_CHANGED",
+  "PASSWORD_CHANGE_FAILED",
+  "USER_EMAIL_VERIFIED",
+  "EMAIL_VERIFICATION_FAILED",
+  "ADMIN_ACCESS_DENIED",
+  "ADMIN_ROLE_CREATED",
+  "ADMIN_ROLE_PERMISSIONS_UPDATED",
+  "ADMIN_ROLE_DELETED",
+  "USER_ROLES_UPDATED",
+  "ADMIN_USER_ROLE_CHANGED",
+  "ADMIN_USER_DEACTIVATED",
+  "ADMIN_USER_REACTIVATED",
+  "ADMIN_INVITATION_CREATED",
+  "ADMIN_INVITATION_LINK_GENERATED",
+  "ADMIN_INVITATION_RESENT",
+  "ADMIN_INVITATION_REVOKED",
+  "ADMIN_INVITATION_ACCEPTED",
+  "USER_PUBLIC_ID_CHANGED",
+  "ORGANIZATION_MEMBER_INVITED",
+  "ORGANIZATION_MEMBER_JOINED",
+  "ORGANIZATION_MEMBER_REMOVED",
+  "ORGANIZATION_MEMBER_LEFT",
+  "ORGANIZATION_MEMBER_ROLE_UPDATED",
+  "ORGANIZATION_OWNERSHIP_TRANSFERRED",
+  "ORGANIZATION_INVITATION_REVOKED",
+  "ORGANIZATION_INVITATION_RESENT",
+  "NOTIFICATION_TYPE_UPDATED",
+  "NOTIFICATION_GROUP_CREATED",
+  "NOTIFICATION_GROUP_UPDATED",
+  "NOTIFICATION_GROUP_DELETED",
+  "USER_NOTIFICATION_PREFERENCE_UPDATED",
+] as const;
 
-export interface SecurityLogUser {
-  first_name: string;
-  last_name: string;
-  email: string;
-  roles: UserRole[];
+export type SecurityEventType = (typeof SECURITY_AUDIT_EVENTS)[number];
+
+export interface SecurityAuditActor {
+  type: string;
+  userId: string | null;
+  displayName: string | null;
+  email: string | null;
 }
 
 export interface SecurityLogResponse {
   id: string;
-  user_id: string;
-  user: SecurityLogUser;
-  event_type: SecurityEventType;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
+  eventType: SecurityEventType;
+  occurredAt: string;
+  createdAt: string;
+  subjectUserId: string | null;
+  actor: SecurityAuditActor;
+  target: { type: string; id: string };
+  organizationId: string | null;
+  organizationKind: string | null;
+  source: string;
+  portal: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceInfo: string | null;
+  correlationId: string | null;
+  metadata: Record<string, unknown>;
 }
 
 export interface GetSecurityLogsParams extends PaginationParams {
@@ -322,47 +354,62 @@ export interface SecurityLogsResponse {
   pagination: PaginationResponse;
 }
 
-// Onboarding Logs Types
-export type OnboardingEventType =
-  | "ONBOARDING_STARTED"
-  | "ONBOARDING_RESUMED"
-  | "ONBOARDING_CANCELLED"
-  | "ONBOARDING_STATUS_UPDATED"
-  | "ONBOARDING_REJECTED"
-  | "SOPHISTICATED_STATUS_UPDATED"
-  | "FINAL_APPROVAL_COMPLETED"
-  | "FORM_FILLED"
-  | "ONBOARDING_APPROVED"
-  | "AML_APPROVED"
-  | "TNC_APPROVED"
-  | "SSM_APPROVED"
-  | "TNC_ACCEPTED"
-  | "KYC_APPROVED"
-  | "KYB_APPROVED"
-  | "PROFILE_UPDATED";
+export interface ExportSecurityLogsParams extends Omit<GetSecurityLogsParams, "page" | "pageSize"> {
+  format?: "csv" | "json";
+  eventTypes?: SecurityEventType[];
+}
 
-export interface OnboardingLogUser {
-  first_name: string;
-  last_name: string;
-  email: string;
-  roles: UserRole[];
+// Onboarding Logs Types
+export const ONBOARDING_AUDIT_EVENTS = [
+  "ONBOARDING_STARTED",
+  "ONBOARDING_RESUMED",
+  "ONBOARDING_RESTARTED",
+  "ONBOARDING_RESET",
+  "USER_ONBOARDING_STATUS_UPDATED",
+  "ONBOARDING_STATUS_CHANGED",
+  "ONBOARDING_APPROVED",
+  "ONBOARDING_REJECTED",
+  "ONBOARDING_FINAL_APPROVAL_COMPLETED",
+  "ONBOARDING_COMPLETED",
+  "AML_APPROVED",
+  "SSM_APPROVED",
+  "INVESTOR_SOPHISTICATED_STATUS_UPDATED",
+  "CTOS_REPORT_RECEIVED",
+  "CORPORATE_ENTITIES_UPDATED",
+  "DIRECTOR_ONBOARDING_INVITATION_SENT",
+  "DIRECTOR_KYC_STATUS_UPDATED",
+  "ORGANIZATION_PROFILE_UPDATED_BY_ADMIN",
+] as const;
+
+export type OnboardingEventType = (typeof ONBOARDING_AUDIT_EVENTS)[number];
+
+export interface OnboardingAuditActor {
+  type: string;
+  userId: string | null;
+  displayName: string | null;
+  email: string | null;
 }
 
 export interface OnboardingLogResponse {
   id: string;
-  user_id: string;
-  user: OnboardingLogUser;
-  role: UserRole;
-  event_type: OnboardingEventType;
+  eventType: OnboardingEventType;
+  occurredAt: string;
+  createdAt: string;
+  subjectUserId: string | null;
+  userId: string | null;
+  actor: OnboardingAuditActor;
+  organizationId: string | null;
+  organizationKind: string | null;
+  organizationType: string | null;
+  onboardingId: string | null;
+  target: { type: string; id: string };
+  source: string;
   portal: string | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
-  device_type: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-  organizationName?: string | null;
-  organizationType?: "PERSONAL" | "COMPANY" | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceInfo: string | null;
+  correlationId: string | null;
+  metadata: Record<string, unknown>;
 }
 
 export interface GetOnboardingLogsParams extends PaginationParams {
@@ -384,6 +431,79 @@ export interface ExportOnboardingLogsParams
   extends Omit<GetOnboardingLogsParams, "page" | "pageSize"> {
   format?: "csv" | "json";
   eventTypes?: OnboardingEventType[];
+}
+
+export const APPLICATION_AUDIT_EVENTS = [
+  "APPLICATION_CREATED",
+  "APPLICATION_SUBMITTED",
+  "APPLICATION_REVIEW_STARTED",
+  "APPLICATION_RESUBMITTED",
+  "APPLICATION_AMENDMENT_ACKNOWLEDGED",
+  "APPLICATION_AMENDMENTS_REQUESTED",
+  "APPLICATION_REOPENED_FOR_REVIEW",
+  "APPLICATION_WITHDRAWN",
+  "APPLICATION_REJECTED",
+  "APPLICATION_ARCHIVED",
+  "APPLICATION_DRAFT_DELETED",
+  "APPLICATION_COMPLETED",
+  "APPLICATION_SECTION_REVIEW_UPDATED",
+  "APPLICATION_ITEM_REVIEW_UPDATED",
+  "APPLICATION_DOCUMENT_UPLOADED",
+  "APPLICATION_DOCUMENT_REMOVED",
+  "APPLICATION_DOCUMENT_REPLACED",
+  "CONTRACT_OFFER_SENT",
+  "CONTRACT_OFFER_RETRACTED",
+  "CONTRACT_SIGNING_DEADLINE_EXTENDED",
+  "CONTRACT_OFFER_EXPIRED",
+  "CONTRACT_ACCEPTANCE_SUBMITTED",
+  "CONTRACT_ACCEPTANCE_RESUBMITTED",
+  "CONTRACT_ACCEPTANCE_CHANGES_REQUESTED",
+  "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING",
+  "CONTRACT_OFFER_ACCEPTED",
+  "CONTRACT_OFFER_REJECTED",
+  "CONTRACT_WITHDRAWN",
+  "CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED",
+  "INVOICE_OFFER_SENT",
+  "INVOICE_OFFER_RETRACTED",
+  "INVOICE_SIGNING_DEADLINE_EXTENDED",
+  "INVOICE_OFFER_EXPIRED",
+  "INVOICE_ACCEPTANCE_SUBMITTED",
+  "INVOICE_ACCEPTANCE_RESUBMITTED",
+  "INVOICE_ACCEPTANCE_CHANGES_REQUESTED",
+  "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING",
+  "INVOICE_OFFER_ACCEPTED",
+  "INVOICE_OFFER_REJECTED",
+  "INVOICE_WITHDRAWN",
+  "CONTRACT_FACILITY_OCCUPANCY_UPDATED",
+] as const;
+
+export type ApplicationAuditEventType = (typeof APPLICATION_AUDIT_EVENTS)[number];
+
+export interface ApplicationAuditActor {
+  type: string;
+  userId: string | null;
+  displayName: string | null;
+  email: string | null;
+}
+
+export interface ApplicationAuditLogDto {
+  id: string;
+  eventType: string;
+  occurredAt: string;
+  createdAt: string;
+  actor: ApplicationAuditActor;
+  organizationId: string | null;
+  organizationKind: string | null;
+  target: { type: string; id: string };
+  source: string;
+  portal: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  correlationId: string | null;
+  metadata: Record<string, unknown>;
+  activity?: string;
+  applicationId: string | null;
+  signingEnvelopeId: string | null;
 }
 
 // Pending Invitations Types
@@ -623,6 +743,12 @@ export interface OrganizationDetailResponse {
   regtankPortalUrl: string | null;
   regtankRequestId: string | null;
   codRequestId: string | null;
+  tncAccepted: boolean;
+  onboardingFeePaid: boolean;
+  ssmApproved: boolean;
+  onboardingApproved: boolean;
+  amlApproved: boolean;
+  regtankSessionStatus: string | null;
 
   // Corporate onboarding data (for COMPANY type)
   corporateOnboardingData?: {
@@ -925,29 +1051,41 @@ export interface DownloadUrlResponse {
   fileSize: number;
 }
 
-// Product Logs
+// Product Logs (admin audit reader — sourced from ProductAuditLog)
 export type ProductEventType =
   | "PRODUCT_CREATED"
   | "PRODUCT_UPDATED"
+  | "PRODUCT_INACTIVATED"
+  | "PRODUCT_REACTIVATED"
   | "PRODUCT_DELETED";
 
-export interface ProductLogUser {
-  first_name: string;
-  last_name: string;
-  email: string;
+export interface ProductAuditActor {
+  type: string;
+  userId: string | null;
+  displayName?: string | null;
+  email?: string | null;
+}
+
+export interface ProductAuditTarget {
+  type: "PRODUCT";
+  id: string;
 }
 
 export interface ProductLogResponse {
   id: string;
-  user_id: string;
-  user: ProductLogUser;
-  product_id: string | null;
-  event_type: ProductEventType;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
+  eventType: ProductEventType;
+  occurredAt: string;
+  createdAt: string;
+  actor: ProductAuditActor;
+  target: ProductAuditTarget;
+  productId: string;
+  source: string;
+  portal: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceInfo: string | null;
+  correlationId: string | null;
+  metadata: Record<string, unknown>;
 }
 
 export interface GetProductLogsParams extends PaginationParams {
@@ -995,26 +1133,46 @@ export interface AdminNotificationGroup {
   updated_at: string;
 }
 
+export type NotificationBroadcastEventType = "NOTIFICATION_BROADCAST_PROCESSED";
+export type NotificationBroadcastChannelMode =
+  | "EXPLICIT_OVERRIDE"
+  | "TYPE_AND_USER_PREFERENCES";
+
 export interface AdminNotificationLog {
   id: string;
-  admin_user_id: string;
-  target_type: string;
-  target_group_id: string | null;
-  notification_type_id: string;
+  eventType: NotificationBroadcastEventType;
+  occurredAt: string;
+  createdAt: string;
+  actor: {
+    type: string;
+    userId: string | null;
+    displayName: string | null;
+    email: string | null;
+  };
+  target: { type: string; id: string };
+  audienceType: string;
+  notificationTypeId: string;
+  notificationTypeName: string;
+  portalTargets: AdminNotificationPortalTarget[];
   title: string;
   message: string;
-  recipient_count: number;
-  metadata: Record<string, unknown> | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
-  created_at: string;
-  admin: {
-    first_name: string;
-    last_name: string;
-    email: string;
-  };
-  notification_type: AdminNotificationType | null;
+  targetedCount: number;
+  createdCount: number;
+  skippedCount: number;
+  failedCount: number;
+  channelMode: NotificationBroadcastChannelMode;
+  sendToPlatform: boolean | null;
+  sendToEmail: boolean | null;
+  linkPath: string | null;
+  expiresAt: string | null;
+  groupId: string | null;
+  source: string;
+  portal: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceInfo: string | null;
+  correlationId: string | null;
+  metadata: Record<string, unknown>;
 }
 
 export interface AdminNotificationLogPagination {
@@ -1040,6 +1198,13 @@ export interface AdminSendNotificationPayload {
   sendToPlatform?: boolean;
   sendToEmail?: boolean;
   expiresAt?: string;
+}
+
+export interface AdminSendNotificationResult {
+  targetedCount: number;
+  createdCount: number;
+  skippedCount: number;
+  failedCount: number;
 }
 
 export interface AdminUpdateNotificationTypePayload {
@@ -1154,7 +1319,7 @@ export interface AdminContractNoteSummary {
   invoiceFaceAmount: number | null;
 }
 
-/** Contract audit row sourced from `application_logs` (no dedicated contract_logs table). */
+/** Contract audit row sourced from `application_audit_logs` (no dedicated contract_logs table). */
 export interface AdminContractActivityEvent {
   id: string;
   eventType: string;
@@ -1251,19 +1416,6 @@ export interface AddPendingAmendmentParams {
   remark: string;
   itemType?: "invoice" | "document";
   itemId?: string;
-}
-
-export interface ApplicationReviewEvent {
-  id: string;
-  application_id: string;
-  event_type: string;
-  scope: string | null;
-  scope_key: string | null;
-  old_status: string | null;
-  new_status: string;
-  reviewer_user_id: string | null;
-  remark: string | null;
-  created_at: string;
 }
 
 export interface ReviewItemActionPayload {

@@ -2,7 +2,7 @@ import { OrganizationLogAdapter } from "./adapters/organization-log";
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
-    onboardingLog: { findMany: jest.fn(), count: jest.fn() },
+    onboardingAuditLog: { findMany: jest.fn(), count: jest.fn() },
   },
 }));
 
@@ -15,11 +15,16 @@ describe("Activity Adapters", () => {
     it("should build curated onboarding presentation copy", () => {
       expect(adapter.buildPresentation("ONBOARDING_STARTED")).toEqual({
         title: "Onboarding Started",
-        description: "Your organization onboarding has started and you can continue it at any time.",
+        description: "Your organization onboarding has started.",
       });
-      expect(adapter.buildPresentation("ONBOARDING_REJECTED", { reason: "Missing documents" })).toEqual({
+      expect(adapter.buildPresentation("ONBOARDING_REJECTED", { reasonCode: "Missing documents" })).toEqual({
         title: "Onboarding Rejected",
-        description: "Your organization onboarding was rejected: Missing documents",
+        description: "Your organization onboarding was rejected.",
+      });
+      expect(adapter.buildPresentation("ONBOARDING_APPROVED")).toEqual({
+        title: "Onboarding Submission Approved",
+        description:
+          "Your onboarding submission was approved. Additional checks may still be required before onboarding is completed.",
       });
     });
 
@@ -27,30 +32,43 @@ describe("Activity Adapters", () => {
       const now = new Date();
       const record = {
         id: "log2",
-        user_id: userId,
+        subject_user_id: userId,
         event_type: "ONBOARDING_COMPLETED",
-        metadata: {},
+        metadata: { completionMethod: "LEGACY_COMPLETE_ONBOARDING", previousStatus: "PENDING", newStatus: "COMPLETED" },
         ip_address: "127.0.0.1",
         user_agent: "Mozilla",
-        device_info: "Desktop",
-        created_at: now,
+        occurred_at: now,
       };
 
-      const unified = adapter.transform(record as any);
+      const unified = adapter.transform(record as never);
       expect(unified.category).toBe("organization");
       expect(unified.domain).toBe("onboarding");
       expect(unified.title).toBe("Onboarding Completed");
-      expect(unified.description).toBe("This onboarding update was recorded for your organization.");
+      expect(unified.user_id).toBe(userId);
+      expect(unified.source_table).toBe("onboarding_audit_logs");
+      expect(unified.created_at).toBe(now);
     });
 
-    it("should only expose major onboarding milestones", () => {
-      expect(adapter.getEventTypes()).toEqual([
-        "ONBOARDING_STARTED",
-        "ONBOARDING_CANCELLED",
-        "ONBOARDING_REJECTED",
-        "FINAL_APPROVAL_COMPLETED",
-        "ONBOARDING_APPROVED",
-      ]);
+    it("should only expose curated onboarding milestones", () => {
+      expect(adapter.getEventTypes()).toEqual(
+        expect.arrayContaining([
+          "ONBOARDING_STARTED",
+          "ONBOARDING_RESTARTED",
+          "ONBOARDING_STATUS_CHANGED",
+          "ONBOARDING_APPROVED",
+          "ONBOARDING_REJECTED",
+          "ONBOARDING_COMPLETED",
+          "INVESTOR_SOPHISTICATED_STATUS_UPDATED",
+          "DIRECTOR_ONBOARDING_INVITATION_SENT",
+          "DIRECTOR_KYC_STATUS_UPDATED",
+        ])
+      );
+      expect(adapter.getEventTypes()).not.toContain("ONBOARDING_RESUMED");
+      expect(adapter.getEventTypes()).not.toContain("CTOS_REPORT_RECEIVED");
+      expect(adapter.getEventTypes()).not.toContain("ONBOARDING_FINAL_APPROVAL_COMPLETED");
+      expect(adapter.getEventTypes()).not.toContain("ONBOARDING_CANCELLED");
+      expect(adapter.getEventTypes()).not.toContain("FORM_FILLED");
+      expect(adapter.getEventTypes()).not.toContain("WEBHOOK_RECEIVED");
     });
   });
 });

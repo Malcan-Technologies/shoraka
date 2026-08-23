@@ -5,7 +5,7 @@ import { RegTankRepository } from "../repository";
 import { AmlIdentityRepository } from "../aml-identity-repository";
 import { Prisma } from "@prisma/client";
 import { OrganizationRepository } from "../../organization/repository";
-import { UserRole, OrganizationType } from "@prisma/client";
+import { OrganizationType } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
@@ -440,36 +440,6 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
               },
             });
 
-            try {
-              await prisma.onboardingLog.create({
-                data: {
-                  user_id: onboarding.user_id,
-                  role: UserRole.INVESTOR,
-                  event_type: "ONBOARDING_STATUS_UPDATED",
-                  portal: portalType as PortalType,
-                  organization_name: org.name || undefined,
-                  investor_organization_id: onboarding.investor_organization_id || undefined,
-                  issuer_organization_id: undefined,
-                  metadata: {
-                    organizationId: onboarding.investor_organization_id,
-                    kycRequestId: requestId,
-                    onboardingRequestId: onboarding.request_id,
-                    note: "KYC_APPROVED webhook stored kyc_response; onboarding_status and aml_approved unchanged",
-                    trigger: "KYC_APPROVED",
-                  },
-                },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId: onboarding.investor_organization_id,
-                  kycRequestId: requestId,
-                },
-                "Failed to create onboarding log (non-blocking)"
-              );
-            }
-
             logger.info(
               {
                 kycRequestId: requestId,
@@ -490,6 +460,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 userId: onboarding.user_id,
                 organizationName: org.name,
                 trigger: "REGTANK_KYC_PERSONAL_AML_CLEARED",
+                onboardingId: onboarding.id,
                 extraMetadata: {
                   kycRequestId: requestId,
                   onboardingRequestId: onboarding.request_id,
@@ -508,36 +479,6 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 kyc_response: payload as Prisma.InputJsonValue,
               },
             });
-
-            try {
-              await prisma.onboardingLog.create({
-                data: {
-                  user_id: onboarding.user_id,
-                  role: UserRole.ISSUER,
-                  event_type: "ONBOARDING_STATUS_UPDATED",
-                  portal: portalType as PortalType,
-                  organization_name: org.name || undefined,
-                  investor_organization_id: undefined,
-                  issuer_organization_id: onboarding.issuer_organization_id || undefined,
-                  metadata: {
-                    organizationId: onboarding.issuer_organization_id,
-                    kycRequestId: requestId,
-                    onboardingRequestId: onboarding.request_id,
-                    note: "KYC_APPROVED webhook stored kyc_response; onboarding_status and aml_approved unchanged",
-                    trigger: "KYC_APPROVED",
-                  },
-                },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId: onboarding.issuer_organization_id,
-                  kycRequestId: requestId,
-                },
-                "Failed to create onboarding log (non-blocking)"
-              );
-            }
 
             logger.info(
               {
@@ -559,6 +500,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 userId: onboarding.user_id,
                 organizationName: org.name,
                 trigger: "REGTANK_KYC_PERSONAL_AML_CLEARED",
+                onboardingId: onboarding.id,
                 extraMetadata: {
                   kycRequestId: requestId,
                   onboardingRequestId: onboarding.request_id,

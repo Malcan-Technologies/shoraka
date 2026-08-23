@@ -1,6 +1,7 @@
 /**
  * Prisma access for the signing envelope graph (envelope + documents + recipients + assignments).
  */
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import type { EnvelopePlan } from "@cashsouk/types";
 import type { SigningEnvelopeWithGraph } from "./mapper";
@@ -54,6 +55,10 @@ export interface CreateEnvelopeInput {
   created_by_user_id?: string | null;
   expires_at?: Date | null;
   plan: EnvelopePlan;
+  afterCreate?: (
+    tx: Prisma.TransactionClient,
+    envelope: SigningEnvelopeWithGraph
+  ) => Promise<void>;
 }
 
 export class SigningRepository {
@@ -199,10 +204,14 @@ export class SigningRepository {
         });
       }
 
-      return tx.signingEnvelope.findUniqueOrThrow({
+      const created = await tx.signingEnvelope.findUniqueOrThrow({
         where: { id: envelope.id },
         include: GRAPH_INCLUDE,
       });
+      if (input.afterCreate) {
+        await input.afterCreate(tx, created);
+      }
+      return created;
     });
   }
 
@@ -331,17 +340,27 @@ export class SigningRepository {
     });
   }
 
+  async markDraftEnvelopeSent(
+    envelopeId: string,
+    tx: Prisma.TransactionClient | typeof prisma = prisma
+  ): Promise<boolean> {
+    const result = await tx.signingEnvelope.updateMany({
+      where: { id: envelopeId, status: "DRAFT" },
+      data: { status: "SENT", sent_at: new Date() },
+    });
+    if (result.count === 0) return false;
+    await tx.signingRecipient.updateMany({
+      where: { envelope_id: envelopeId, status: "PENDING" },
+      data: { status: "SENT", sent_at: new Date() },
+    });
+    return true;
+  }
+
   async markEnvelopeSent(envelopeId: string): Promise<void> {
-    await prisma.$transaction([
-      prisma.signingEnvelope.update({
-        where: { id: envelopeId },
-        data: { status: "SENT", sent_at: new Date() },
-      }),
-      prisma.signingRecipient.updateMany({
-        where: { envelope_id: envelopeId, status: "PENDING" },
-        data: { status: "SENT", sent_at: new Date() },
-      }),
-    ]);
+    const marked = await this.markDraftEnvelopeSent(envelopeId);
+    if (!marked) {
+      throw new AppError(409, "SIGNING_ENVELOPE_NOT_DRAFT", "Only draft envelopes can be sent.");
+    }
   }
 
   async markAssignmentSigned(assignmentId: string): Promise<void> {
@@ -373,9 +392,10 @@ export class SigningRepository {
   async updateRecipientStatus(
     recipientId: string,
     status: SigningEnvelopeWithGraph["recipients"][number]["status"],
-    completed: boolean
+    completed: boolean,
+    tx: Prisma.TransactionClient | typeof prisma = prisma
   ): Promise<void> {
-    await prisma.signingRecipient.update({
+    await tx.signingRecipient.update({
       where: { id: recipientId },
       data: { status, ...(completed ? { completed_at: new Date() } : {}) },
     });
@@ -399,45 +419,68 @@ export class SigningRepository {
     });
   }
 
+  async voidEnvelopeGraph(
+    envelopeId: string,
+    reason: string | null,
+    tx: Prisma.TransactionClient | typeof prisma = prisma
+  ): Promise<void> {
+    await tx.signingEnvelope.update({
+      where: { id: envelopeId },
+      data: { status: "VOIDED", voided_at: new Date(), void_reason: reason },
+    });
+    await tx.signingDocument.updateMany({
+      where: { envelope_id: envelopeId, status: { notIn: ["COMPLETED"] } },
+      data: { status: "VOIDED" },
+    });
+    await tx.signingRecipient.updateMany({
+      where: {
+        envelope_id: envelopeId,
+        status: { notIn: ["SIGNED", "DECLINED"] },
+      },
+      data: { status: "DECLINED", declined_at: new Date() },
+    });
+    await tx.signingAssignment.updateMany({
+      where: {
+        envelope_id: envelopeId,
+        status: { notIn: ["SIGNED", "DECLINED"] },
+      },
+      data: { status: "DECLINED" },
+    });
+  }
+
   async voidEnvelope(envelopeId: string, reason: string | null): Promise<void> {
-    await prisma.$transaction([
-      prisma.signingEnvelope.update({
-        where: { id: envelopeId },
-        data: { status: "VOIDED", voided_at: new Date(), void_reason: reason },
-      }),
-      prisma.signingDocument.updateMany({
-        where: { envelope_id: envelopeId, status: { notIn: ["COMPLETED"] } },
-        data: { status: "VOIDED" },
-      }),
-      prisma.signingRecipient.updateMany({
-        where: {
-          envelope_id: envelopeId,
-          status: { notIn: ["SIGNED", "DECLINED"] },
-        },
-        data: { status: "DECLINED", declined_at: new Date() },
-      }),
-      prisma.signingAssignment.updateMany({
-        where: {
-          envelope_id: envelopeId,
-          status: { notIn: ["SIGNED", "DECLINED"] },
-        },
-        data: { status: "DECLINED" },
-      }),
-    ]);
+    await prisma.$transaction(async (tx) => {
+      await this.voidEnvelopeGraph(envelopeId, reason, tx);
+    });
   }
 
   async updateEnvelopeStatusIfCurrent(
     envelopeId: string,
     expectedStatus: SigningEnvelopeWithGraph["status"],
     nextStatus: SigningEnvelopeWithGraph["status"],
-    completed: boolean
+    completed: boolean,
+    tx: Prisma.TransactionClient | typeof prisma = prisma
   ): Promise<boolean> {
-    const result = await prisma.signingEnvelope.updateMany({
+    const result = await tx.signingEnvelope.updateMany({
       where: { id: envelopeId, status: expectedStatus },
       data: {
         status: nextStatus,
         ...(completed ? { completed_at: new Date() } : {}),
       },
+    });
+    return result.count > 0;
+  }
+
+  async completeEnvelopeIfActive(
+    envelopeId: string,
+    tx: Prisma.TransactionClient | typeof prisma = prisma
+  ): Promise<boolean> {
+    const result = await tx.signingEnvelope.updateMany({
+      where: {
+        id: envelopeId,
+        status: { in: [...ACTIVE_ENVELOPE_STATUSES] },
+      },
+      data: { status: "COMPLETED", completed_at: new Date() },
     });
     return result.count > 0;
   }
@@ -492,8 +535,11 @@ export class SigningRepository {
     });
   }
 
-  async touchRecipientReminder(recipientId: string): Promise<void> {
-    await prisma.signingRecipient.update({
+  async touchRecipientReminder(
+    recipientId: string,
+    tx: Prisma.TransactionClient | typeof prisma = prisma
+  ): Promise<void> {
+    await tx.signingRecipient.update({
       where: { id: recipientId },
       data: { last_reminder_at: new Date() },
     });

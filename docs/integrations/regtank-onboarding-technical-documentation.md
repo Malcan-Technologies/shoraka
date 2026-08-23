@@ -424,8 +424,16 @@ Initiates personal (individual) onboarding for an organization.
    - **Note:** Since Personal Account onboarding is only available in Investor portal, there's no risk of duplicate `request_id` across portals, so we use `createOnboarding()` instead of upsert logic
 
 8. **Logging:**
-   - Creates `OnboardingLog` entry with event_type "ONBOARDING_STARTED"
-   - Includes request metadata (IP, user agent, device info)
+   - Creates an `OnboardingAuditLog` entry with event_type "ONBOARDING_STARTED"
+   - Resume of an existing session does **not** write `ONBOARDING_RESUMED` (retired; historical rows remain readable)
+   - Includes request metadata (IP, user agent)
+
+**Onboarding audit (current source):** 18 reserved/catalogued IDs (original A039–A055 plus later-appended A175); 15 current active event types. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused. A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN` is an admin organization-profile event on `OnboardingAuditLog`, not a RegTank session event.
+
+- `AML_APPROVED` `onboarding_id` is optional linkage to `reg_tank_onboarding.id` (CashSouk cuid, not COD/KYB/KYC ids) when the writer already knows the session: KYB main-company webhook, personal KYC webhook, admin corporate AML refresh, admin personal onboarding refresh, admin Approve AML. Self-service AML sync may leave it NULL. Provider ids stay in metadata. This does not change AML approval logic.
+- Director Confirm & Send (Company org COMPLETED → Issuer/Investor Profile → Directors and Shareholders → Confirm & Send → Confirm) creates a new RegTank individual onboarding and writes `DIRECTOR_ONBOARDING_INVITATION_SENT` (A054). There is no separate resend endpoint.
+- `DIRECTOR_KYC_STATUS_UPDATED` (A055) is outcome-only: one row when an existing director newly reaches `APPROVED` or `REJECTED`. Intermediate provider statuses update `director_kyc_status` only.
+- A successful CTOS Fetch still performs the SOAP enquiry and inserts a new `ctos_reports` row; it does **not** write onboarding audit.
 
 **Returns:**
 - `verifyLink` - URL to redirect user to RegTank
@@ -456,7 +464,7 @@ Processes webhook updates from RegTank.
    - Updates organization: `onboarding_status = COMPLETED`
    - Updates `onboarded_at` timestamp
    - Updates user's account array (replaces "temp" with organizationId)
-   - Creates `OnboardingLog` entry with event_type "ONBOARDING_COMPLETED"
+   - Creates an `OnboardingAuditLog` entry with event_type "ONBOARDING_COMPLETED" on the legacy complete-onboarding path
    - Error handling: Logs warnings if organization not found, continues with user updates
 
 **Important Notes:**
@@ -749,7 +757,7 @@ When an admin restarts an onboarding, the system:
 3. Marks the old database record as CANCELLED
 4. Creates a new database record with the new requestId
 5. Resets the organization's onboarding_status to PENDING
-6. Logs the action in onboarding_logs
+6. Logs the action in `onboarding_audit_logs` (`ONBOARDING_RESTARTED`)
 
 **Response Fields:**
 The `OnboardingApplicationResponse` includes `regtankPortalUrl` which provides a direct link to the onboarding record in RegTank admin portal (e.g., `https://shoraka-trial.regtank.com/app/liveness/LD00001?archived=false`).
@@ -931,7 +939,7 @@ Configuration is loaded once at startup and cached. Missing required variables c
 8. RegTank sends webhook (async)
    └─> POST /v1/webhooks/regtank
        ├─> Verifies signature
-       ├─> Creates onboarding_log entry for audit
+       ├─> Creates OnboardingAuditLog entries for business stages/outcomes (for example ONBOARDING_STATUS_CHANGED on review landing; AML_APPROVED with onboarding_id = reg_tank_onboarding.id when the session is already loaded). Intermediate director KYC statuses, corporate_entities JSON refreshes, and CTOS report fetches are stored on SOT, not as onboarding audit noise. DIRECTOR_KYC_STATUS_UPDATED is written only for final APPROVED/REJECTED on an existing director.
        ├─> Updates regtank_onboarding status
        ├─> Sets organization status to PENDING_APPROVAL when liveness completes
        └─> If APPROVED:

@@ -6,6 +6,7 @@ import {
   exportLegalDocumentAuditLogsQuerySchema,
   listLegalDocumentAuditLogsQuerySchema,
 } from "./schemas";
+import { applyAuditExportHeaders } from "../../lib/audit/export-headers";
 
 const router = Router();
 
@@ -47,45 +48,42 @@ router.get(
     try {
       const validated = exportLegalDocumentAuditLogsQuerySchema.parse(req.query);
       const rows = await legalDocumentAuditAdminService.export(validated);
+      applyAuditExportHeaders(res, rows.length);
 
       if (validated.format === "csv") {
         const headers = [
           "Audit ID",
-          "Action",
+          "Event Type",
           "Legal Document ID",
           "Legal Document Version ID",
-          "Document Type",
-          "Version Number",
-          "Document Hash",
+          "Target Type",
+          "Target ID",
           "Actor User ID",
           "Actor Name",
           "Actor Email",
-          "Before JSON",
-          "After JSON",
-          "Reason",
           "IP Address",
           "User Agent",
           "Correlation ID",
+          "Occurred At",
           "Created At",
+          "Metadata",
         ];
         const csvRows = rows.map((row) => [
           row.id,
-          row.action,
-          row.legalDocumentId ?? "",
+          row.eventType,
+          row.legalDocumentId,
           row.legalDocumentVersionId ?? "",
-          row.documentType ?? "",
-          row.versionNumber ?? "",
-          row.documentHash ?? "",
-          row.actorUserId ?? "",
-          row.actorName ?? "",
-          row.actorEmail ?? "",
-          row.beforeJson ? JSON.stringify(row.beforeJson) : "",
-          row.afterJson ? JSON.stringify(row.afterJson) : "",
-          row.reason ?? "",
+          row.target.type,
+          row.target.id,
+          row.actor.userId ?? "",
+          row.actor.displayName ?? "",
+          row.actor.email ?? "",
           row.ipAddress ?? "",
           row.userAgent ?? "",
           row.correlationId ?? "",
+          row.occurredAt,
           row.createdAt,
+          JSON.stringify(row.metadata),
         ]);
 
         const csvContent = [
@@ -109,11 +107,7 @@ router.get(
         "Content-Disposition",
         `attachment; filename="legal-document-audit-logs-${new Date().toISOString().split("T")[0]}.json"`
       );
-      res.json({
-        success: true,
-        data: { logs: rows },
-        correlationId: res.locals.correlationId,
-      });
+      res.json(rows);
     } catch (error) {
       next(
         error instanceof AppError

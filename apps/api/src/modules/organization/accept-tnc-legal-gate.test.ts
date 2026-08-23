@@ -18,12 +18,6 @@ jest.mock("../onboarding/utils/advance-onboarding-status", () => ({
   advanceOnboardingStatusFromFlags: jest.fn(async () => ({ changed: false })),
 }));
 
-jest.mock("../auth/repository", () => ({
-  AuthRepository: jest.fn().mockImplementation(() => ({
-    createOnboardingLog: jest.fn(),
-  })),
-}));
-
 jest.mock("../legal-documents/acceptance-service", () => ({
   legalDocumentAcceptanceService: {
     hasCompletedRequiredAcceptances: (...args: unknown[]) =>

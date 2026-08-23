@@ -74,6 +74,11 @@ import {
   validateDraftContent,
   type SaveProspectusReviewDraftInput,
 } from "./prospectus-review.schemas";
+import {
+  NOTE_AUDIT_TARGET_TYPE,
+  writeNoteAuditFromActor,
+} from "../audit/writer";
+import { NOTE_PROSPECTUS_INVALIDATION_REASON } from "../audit/events";
 
 type ActorContext = {
   userId: string;
@@ -178,45 +183,6 @@ function mapReview(row: NoteProspectusReview) {
   };
 }
 
-function asJson(value: unknown): Prisma.InputJsonValue {
-  return value as Prisma.InputJsonValue;
-}
-
-async function logProspectusAction(
-  tx: Prisma.TransactionClient,
-  noteId: string,
-  actionType: string,
-  actor: ActorContext,
-  beforeState?: Prisma.InputJsonValue,
-  afterState?: Prisma.InputJsonValue
-) {
-  await tx.noteAdminAction.create({
-    data: {
-      note_id: noteId,
-      action_type: actionType,
-      actor_user_id: actor.userId,
-      before_state: beforeState,
-      after_state: afterState,
-      ip_address: actor.ipAddress,
-      user_agent: actor.userAgent,
-      correlation_id: actor.correlationId,
-    },
-  });
-  await tx.noteEvent.create({
-    data: {
-      note_id: noteId,
-      event_type: actionType,
-      actor_user_id: actor.userId,
-      actor_role: actor.role,
-      portal: actor.portal,
-      ip_address: actor.ipAddress,
-      user_agent: actor.userAgent,
-      correlation_id: actor.correlationId,
-      metadata: { beforeState, afterState },
-    },
-  });
-}
-
 function isNoteListed(note: { status: NoteStatus }) {
   return note.status === NoteStatus.PUBLISHED;
 }
@@ -269,7 +235,6 @@ async function reopenProspectusDraftAfterUnpublish(
     : review.approved_content
       ? asStoredContent(review.approved_content)
       : null;
-  const before = mapReview(review);
   const row = await tx.noteProspectusReview.update({
     where: { note_id: noteId },
     data: {
@@ -294,17 +259,21 @@ async function reopenProspectusDraftAfterUnpublish(
     where: { id: noteId, status: { not: NoteStatus.PUBLISHED } },
     data: { published_at: null },
   });
-  await logProspectusAction(
-    tx,
-    noteId,
-    "PROSPECTUS_APPROVAL_INVALIDATED_UNPUBLISH",
+  await writeNoteAuditFromActor(
     actor,
-    asJson({
-      ...before,
-      previousPublicationId: review.approved_publication_id,
-      previousContentVersion: review.content_version,
-    }),
-    asJson(mapReview(row))
+    {
+      eventType: "NOTE_PROSPECTUS_INVALIDATED",
+      noteId,
+      targetType: NOTE_AUDIT_TARGET_TYPE.REVIEW,
+      targetId: row.id,
+      metadata: {
+        reviewId: row.id,
+        previousStatus: review.status,
+        newStatus: row.status,
+        reasonCode: NOTE_PROSPECTUS_INVALIDATION_REASON.UNPUBLISH,
+      },
+    },
+    tx
   );
   return row;
 }
@@ -431,25 +400,32 @@ export class ProspectusReviewService {
     let review = await prisma.noteProspectusReview.findUnique({ where: { note_id: noteId } });
     if (!review) {
       const empty = emptyProspectusReviewContent(recommendationInput, aboutInvoiceInput);
-      review = await prisma.noteProspectusReview.create({
-        data: {
-          note_id: noteId,
-          status: ProspectusReviewStatus.DRAFT,
-          option_catalogue_version: catalogueVersion(),
-          draft_content: empty as unknown as Prisma.InputJsonValue,
-          created_by_user_id: actor.userId,
-          updated_by_user_id: actor.userId,
-        },
-      });
-      await prisma.$transaction(async (tx) => {
-        await logProspectusAction(
-          tx,
-          noteId,
-          "PROSPECTUS_REVIEW_CREATE",
+      review = await prisma.$transaction(async (tx) => {
+        const created = await tx.noteProspectusReview.create({
+          data: {
+            note_id: noteId,
+            status: ProspectusReviewStatus.DRAFT,
+            option_catalogue_version: catalogueVersion(),
+            draft_content: empty as unknown as Prisma.InputJsonValue,
+            created_by_user_id: actor.userId,
+            updated_by_user_id: actor.userId,
+          },
+        });
+        await writeNoteAuditFromActor(
           actor,
-          undefined,
-          asJson(mapReview(review!))
+          {
+            eventType: "NOTE_PROSPECTUS_REVIEW_CREATED",
+            noteId,
+            targetType: NOTE_AUDIT_TARGET_TYPE.REVIEW,
+            targetId: created.id,
+            metadata: {
+              reviewId: created.id,
+              newStatus: created.status,
+            },
+          },
+          tx
         );
+        return created;
       });
     }
 
@@ -502,20 +478,27 @@ export class ProspectusReviewService {
         });
         if (currentFp !== review.render_fingerprint) {
           review = await prisma.$transaction(async (tx) => {
-            const before = mapReview(review!);
             const row = await clearApprovalEligibility(
               tx,
               noteId,
               actor.userId,
               asStoredContent(review!.draft_content)
             );
-            await logProspectusAction(
-              tx,
-              noteId,
-              "PROSPECTUS_APPROVAL_INVALIDATED_SOURCE",
+            await writeNoteAuditFromActor(
               actor,
-              asJson(before),
-              asJson(mapReview(row))
+              {
+                eventType: "NOTE_PROSPECTUS_INVALIDATED",
+                noteId,
+                targetType: NOTE_AUDIT_TARGET_TYPE.REVIEW,
+                targetId: row.id,
+                metadata: {
+                  reviewId: row.id,
+                  previousStatus: ProspectusReviewStatus.APPROVED,
+                  newStatus: row.status,
+                  reasonCode: NOTE_PROSPECTUS_INVALIDATION_REASON.SOURCE_CHANGED,
+                },
+              },
+              tx
             );
             return row;
           });
@@ -660,8 +643,6 @@ export class ProspectusReviewService {
     const contentChanged =
       hashDraftContent(draftToStore) !== hashDraftContent(previousDraft);
 
-    const before = mapReview(current);
-
     // APPROVED + identical content → keep APPROVED (no version bump needed for noop).
     if (current.status === ProspectusReviewStatus.APPROVED && !contentChanged) {
       return mapReview(current);
@@ -670,13 +651,21 @@ export class ProspectusReviewService {
     const updated = await prisma.$transaction(async (tx) => {
       if (current!.status === ProspectusReviewStatus.APPROVED && contentChanged) {
         const row = await clearApprovalEligibility(tx, noteId, actor.userId, draftToStore);
-        await logProspectusAction(
-          tx,
-          noteId,
-          "PROSPECTUS_APPROVAL_INVALIDATED_EDIT",
+        await writeNoteAuditFromActor(
           actor,
-          asJson(before),
-          asJson(mapReview(row))
+          {
+            eventType: "NOTE_PROSPECTUS_INVALIDATED",
+            noteId,
+            targetType: NOTE_AUDIT_TARGET_TYPE.REVIEW,
+            targetId: row.id,
+            metadata: {
+              reviewId: row.id,
+              previousStatus: ProspectusReviewStatus.APPROVED,
+              newStatus: row.status,
+              reasonCode: NOTE_PROSPECTUS_INVALIDATION_REASON.EDIT_AFTER_APPROVAL,
+            },
+          },
+          tx
         );
         return row;
       }
@@ -694,14 +683,6 @@ export class ProspectusReviewService {
           option_catalogue_version: catalogueVersion(),
         },
       });
-      await logProspectusAction(
-        tx,
-        noteId,
-        "PROSPECTUS_REVIEW_DRAFT_UPDATE",
-        actor,
-        asJson(before),
-        asJson(mapReview(row))
-      );
       return row;
     });
 
@@ -815,7 +796,6 @@ export class ProspectusReviewService {
       html: approvedSnapshot.html,
     });
 
-    const before = mapReview(current);
     const updated = await prisma.$transaction(async (tx) => {
       await tx.noteProspectusPublication.create({
         data: {
@@ -856,21 +836,23 @@ export class ProspectusReviewService {
           content_version: nextVersion,
         },
       });
-      await logProspectusAction(
-        tx,
-        noteId,
-        "PROSPECTUS_REVIEW_APPROVE",
+      await writeNoteAuditFromActor(
         actor,
-        asJson({
-          ...before,
-          previousPublicationId: before.approvedPublicationId,
-          previousContentVersion: before.contentVersion,
-        }),
-        asJson({
-          ...mapReview(row),
-          publicationId,
-          contentVersion: nextVersion,
-        })
+        {
+          eventType: "NOTE_PROSPECTUS_APPROVED",
+          noteId,
+          targetType: NOTE_AUDIT_TARGET_TYPE.REVIEW,
+          targetId: row.id,
+          metadata: {
+            reviewId: row.id,
+            publicationId,
+            contentVersion: nextVersion,
+            pdfSha256: pdfArtifact.sha256,
+            previousStatus: current!.status,
+            newStatus: row.status,
+          },
+        },
+        tx
       );
       return row;
     });

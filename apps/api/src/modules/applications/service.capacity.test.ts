@@ -13,7 +13,7 @@ const runApply = async (_id: string, _db: unknown, mutate: (tx: unknown) => Prom
       update: jest.fn(),
     },
     application: {
-      update: jest.fn(),
+      update: jest.fn().mockResolvedValue({ id: "app-1", review_cycle: 1 }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       findUnique: jest.fn(),
     },
@@ -85,8 +85,15 @@ jest.mock("./issuer-organization-financial-statements", () => ({
 jest.mock("./director-shareholder-onboarding-guard", () => ({
   assertIssuerOrgDirectorShareholderOnboardingReady: jest.fn(),
 }));
-jest.mock("./logs/service", () => ({
-  logApplicationActivity: jest.fn(),
+jest.mock("./audit/writer", () => ({
+  APPLICATION_AUDIT_TARGET_TYPE: {
+    APPLICATION: "APPLICATION",
+    CONTRACT: "CONTRACT",
+    INVOICE: "INVOICE",
+  },
+  issuerApplicationAuditContext: (userId: string) => ({ actorUserId: userId }),
+  writeApplicationAuditLog: jest.fn(),
+  writeApplicationDocumentAuditLogs: jest.fn(),
 }));
 jest.mock("./amendments/service", () => ({
   getAmendmentAllowedSections: jest.fn(),
@@ -193,7 +200,12 @@ describe("ApplicationService capacity reservations", () => {
 
     await service.resubmitApplication("app-1", "user-1");
 
-    expect(amendmentResubmitApplication).toHaveBeenCalledWith("app-1", "user-1", expect.anything());
+    expect(amendmentResubmitApplication).toHaveBeenCalledWith(
+      "app-1",
+      "user-1",
+      expect.anything(),
+      expect.anything()
+    );
   });
 
   it("accept and reject facility offers refresh occupancy under the contract lock", async () => {

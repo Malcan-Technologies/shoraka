@@ -15,6 +15,12 @@ import { buildApplicationRevisionSnapshot } from "../revision-snapshot";
 import { summarizeResubmitSnapshotDiff } from "../../application-revision-diff";
 import { Prisma } from "@prisma/client";
 import { upsertLatestOrganizationFinancialStatementsFromApplication } from "../issuer-organization-financial-statements";
+import {
+  APPLICATION_AUDIT_TARGET_TYPE,
+  issuerApplicationAuditContext,
+  writeApplicationAuditLog,
+} from "../audit/writer";
+import type { AuditRequestContext } from "../../../lib/audit/context";
 
 export interface AmendmentAllowedSections {
   allowedSections: Set<string>;
@@ -25,15 +31,25 @@ export interface AmendmentAllowedSections {
  * Load allowed sections from amendment remarks.
  * Only sections/items with REQUEST_AMENDMENT remarks can be updated.
  */
+async function currentReviewCycle(applicationId: string): Promise<number> {
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { review_cycle: true },
+  });
+  return application?.review_cycle ?? 1;
+}
+
 export async function getAmendmentAllowedSections(
   applicationId: string
 ): Promise<AmendmentAllowedSections> {
+  const reviewCycle = await currentReviewCycle(applicationId);
   const remarks = await prisma.applicationReviewRemark.findMany({
     where: {
       application_id: applicationId,
+      review_cycle: reviewCycle,
       action_type: "REQUEST_AMENDMENT",
       submitted_at: { not: null },
-    } as any,
+    },
   });
 
   const allowedSections = new Set<string>();
@@ -61,12 +77,14 @@ export async function getAmendmentAllowedSections(
  * Load amendment remarks for an application.
  */
 export async function loadAmendmentRemarks(applicationId: string) {
+  const reviewCycle = await currentReviewCycle(applicationId);
   return prisma.applicationReviewRemark.findMany({
     where: {
       application_id: applicationId,
+      review_cycle: reviewCycle,
       action_type: "REQUEST_AMENDMENT",
       submitted_at: { not: null },
-    } as any,
+    },
     orderBy: { created_at: "asc" },
   });
 }
@@ -78,22 +96,50 @@ export async function loadAmendmentRemarks(applicationId: string) {
 export async function acknowledgeWorkflow(
   applicationId: string,
   workflowId: string,
-  repository: ApplicationRepository
+  repository: ApplicationRepository,
+  auditContext: AuditRequestContext
 ) {
-  const existing: string[] = [] as string[];
   const application = await repository.findById(applicationId);
-  if (application) {
-    const raw = (application as any).amendment_acknowledged_workflow_ids;
-    if (Array.isArray(raw)) existing.push(...raw);
+  if (!application) {
+    throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
   }
 
-  const deduped = new Set(existing);
-  deduped.add(workflowId);
+  const existing: string[] = [];
+  const raw = (application as { amendment_acknowledged_workflow_ids?: unknown }).amendment_acknowledged_workflow_ids;
+  if (Array.isArray(raw)) {
+    existing.push(...raw.filter((id): id is string => typeof id === "string"));
+  }
 
-  return repository.update(applicationId, {
-    amendment_acknowledged_workflow_ids: Array.from(deduped),
-    updated_at: new Date(),
-  } as any);
+  if (existing.includes(workflowId)) {
+    return application;
+  }
+
+  const reviewCycle = (application as { review_cycle?: number }).review_cycle ?? 1;
+  const nextIds = [...existing, workflowId];
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.application.update({
+      where: { id: applicationId },
+      data: {
+        amendment_acknowledged_workflow_ids: nextIds,
+        updated_at: new Date(),
+      },
+    });
+
+    await writeApplicationAuditLog(
+      {
+        eventType: "APPLICATION_AMENDMENT_ACKNOWLEDGED",
+        context: auditContext,
+        applicationId,
+        targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+        targetId: applicationId,
+        metadata: { workflowId, reviewCycle },
+      },
+      tx
+    );
+
+    return updated;
+  });
 }
 
 /**
@@ -105,7 +151,8 @@ export async function acknowledgeWorkflow(
 export async function resubmitApplication(
   applicationId: string,
   userId: string,
-  repository: ApplicationRepository
+  repository: ApplicationRepository,
+  auditContext: AuditRequestContext = issuerApplicationAuditContext(userId)
 ) {
   const application = await repository.findById(applicationId);
   if (!application) {
@@ -115,12 +162,16 @@ export async function resubmitApplication(
     throw new AppError(400, "INVALID_STATE", "Resubmit allowed only in AMENDMENT_REQUESTED state");
   }
 
+  const previousCycle = (application as { review_cycle?: number }).review_cycle ?? 1;
+  const newCycle = previousCycle + 1;
+
   const remarks = await prisma.applicationReviewRemark.findMany({
     where: {
       application_id: applicationId,
+      review_cycle: previousCycle,
       action_type: "REQUEST_AMENDMENT",
       submitted_at: { not: null },
-    } as any,
+    },
   });
 
   const requiredSectionKeys = new Set<string>();
@@ -173,9 +224,6 @@ export async function resubmitApplication(
     },
   });
 
-  const previousCycle = (application as any).review_cycle ?? 1;
-  const newCycle = previousCycle + 1;
-
   const prevRevision = await prisma.applicationRevision.findFirst({
     where: { application_id: applicationId, review_cycle: previousCycle },
   });
@@ -214,8 +262,9 @@ export async function resubmitApplication(
     await tx.applicationReviewRemark.deleteMany({
       where: {
         application_id: applicationId,
-        action_type: "REQUEST_AMENDMENT",
-      } as any,
+        review_cycle: previousCycle,
+        submitted_at: null,
+      },
     });
 
     await tx.applicationReviewItem.deleteMany({
@@ -254,6 +303,28 @@ export async function resubmitApplication(
         updated_at: new Date(),
       } as any),
     });
+
+    await writeApplicationAuditLog(
+      {
+        eventType: "APPLICATION_RESUBMITTED",
+        context: auditContext,
+        applicationId,
+        targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+        targetId: applicationId,
+        metadata: {
+          revisionId: createdRevisionId,
+          revisionNumber: newCycle,
+          ...(resubmitChangeSummary
+            ? {
+                changedSections: resubmitChangeSummary.changedSectionKeys,
+                activitySummary: resubmitChangeSummary.activitySummary,
+              }
+            : {}),
+          reviewCycle: newCycle,
+        },
+      },
+      tx
+    );
   };
 
   if (resubmitContractId) {
@@ -266,44 +337,9 @@ export async function resubmitApplication(
 
   logger.info({ applicationId }, "Application resubmitted: cleared amendment flags, created revision");
 
-  // Update org-level latest reusable financial statements for future app auto-prefill.
-  // Only happens on RESUBMITTED (not draft save).
   await upsertLatestOrganizationFinancialStatementsFromApplication({
     applicationId,
     sourceApplicationRevisionId: createdRevisionId,
-  });
-
-  const logMetadata: Record<string, unknown> = {
-    portal: "ISSUER",
-    amendment_remarks: remarks.map((r) => ({
-      scope: r.scope,
-      scope_key: r.scope_key,
-      remark: r.remark,
-      author_user_id: r.author_user_id,
-      submitted_at: r.submitted_at?.toISOString() ?? null,
-    })),
-  };
-  if (resubmitChangeSummary) {
-    logMetadata.resubmit_changes = {
-      section_keys: resubmitChangeSummary.changedSectionKeys,
-      section_labels: resubmitChangeSummary.changedSectionLabels,
-      contract_updated: resubmitChangeSummary.contractChanged,
-      invoices_updated: resubmitChangeSummary.invoicesChanged,
-      activity_summary: resubmitChangeSummary.activitySummary,
-      field_changes: resubmitChangeSummary.field_changes,
-    };
-  }
-
-  await prisma.applicationLog.create({
-    data: {
-      user_id: userId,
-      application_id: applicationId,
-      event_type: "APPLICATION_RESUBMITTED",
-      review_cycle: newCycle,
-      portal: "ISSUER",
-      metadata: logMetadata,
-      created_at: new Date(),
-    } as any,
   });
 
   const updatedApplication = await repository.findById(applicationId);

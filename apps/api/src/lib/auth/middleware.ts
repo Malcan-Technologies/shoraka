@@ -5,6 +5,14 @@ import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission, type AdminRoleKey } 
 import { prisma } from "../prisma";
 import { verifyCognitoAccessToken } from "./cognito-jwt-verifier";
 import { resolveAdminAccess } from "./rbac";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_PORTAL,
+  AUDIT_SOURCE,
+  auditContextFromRequest,
+} from "../audit/context";
+import { writeSecurityAuditLogBestEffort } from "../../modules/security/audit/writer";
+import { SECURITY_AUDIT_TARGET_TYPE } from "../../modules/security/audit/events";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -69,7 +77,6 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     // Set user and cognito sub on request
     req.user = user;
     req.cognitoSub = cognitoPayload.sub;
-    // Default activeRole to first role (can be changed via role switching endpoint)
     req.activeRole = user.roles[0] || UserRole.INVESTOR;
 
     if (user.roles.includes(UserRole.ADMIN)) {
@@ -183,6 +190,35 @@ function hasRequiredPermissions(req: Request, permissions: AdminPermission[]): b
   return permissions.every((permission) => assignedPermissions.has(permission));
 }
 
+function writeAdminAccessDenied(req: Request, reasonCode: string, permissions: AdminPermission[]) {
+  if (!req.user?.roles.includes(UserRole.ADMIN)) {
+    return;
+  }
+
+  const actorUserId = req.user.user_id;
+  void writeSecurityAuditLogBestEffort({
+    eventType: "ADMIN_ACCESS_DENIED",
+    context: {
+      ...auditContextFromRequest(req, {
+        actorType: AUDIT_ACTOR_TYPE.ADMIN,
+        actorUserId,
+        portal: AUDIT_PORTAL.ADMIN,
+        source: AUDIT_SOURCE.API,
+      }),
+    },
+    subjectUserId: actorUserId,
+    targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_ROUTE,
+    targetId: req.path || req.originalUrl || "unknown",
+    metadata: {
+      ...(permissions.length === 1 ? { permission: permissions[0] } : {}),
+      requiredPermissions: permissions,
+      method: req.method,
+      path: req.originalUrl || req.path,
+      reasonCode,
+    },
+  });
+}
+
 export function requirePermission(...permissions: AdminPermission[]) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user) {
@@ -191,6 +227,7 @@ export function requirePermission(...permissions: AdminPermission[]) {
     }
 
     if (!hasRequiredPermissions(req, permissions)) {
+      writeAdminAccessDenied(req, "INSUFFICIENT_PERMISSIONS", permissions);
       next(new AppError(403, "FORBIDDEN", "Insufficient permissions"));
       return;
     }
@@ -215,6 +252,7 @@ export function requireAnyPermission(...permissions: AdminPermission[]) {
     const hasAnyPermission = permissions.some((permission) => assignedPermissions.has(permission));
 
     if (!hasAnyPermission) {
+      writeAdminAccessDenied(req, "INSUFFICIENT_PERMISSIONS", permissions);
       next(new AppError(403, "FORBIDDEN", "Insufficient permissions"));
       return;
     }

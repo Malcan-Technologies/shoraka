@@ -206,6 +206,7 @@ Explicit permission coverage:
 - [ ] Open Issuer / Investor detail:
   - [ ] With `organizations.view` only: management toggle/actions disabled
   - [ ] With `organizations.manage`: enabled
+  - [ ] Investor Activity tab wallet panel: `GET /v1/admin/organizations/investor/:id/balance-activity` allowed with `organizations.view`
 
 Explicit permission coverage:
 - [ ] `organizations.view`
@@ -253,8 +254,12 @@ Explicit permission coverage:
   - [ ] Missing permission => not visible or Access Denied
 - [ ] Repeat spot checks for:
   - [ ] `audit.security.view`
+  - [ ] `onboarding.view` (`/audit?tab=onboarding`)
   - [ ] `audit.product.view`
+  - [ ] `document_management.view` (`/audit?tab=legal-documents`)
+  - [ ] `notifications.view` (`/audit?tab=notifications`)
 - [ ] Confirm Document Logs / `audit.document.view` do not exist
+- [ ] Confirm there is no global Application / Signing / Note / Payment `/audit` tab
 
 ### Legal Documents
 
@@ -338,8 +343,12 @@ For each test role, paste these into the browser address bar. Confirm the expect
 - [ ] `/settings/roles`
 - [ ] `/settings/roles/configuration`
 - [ ] `/settings/notifications`
-- [ ] `/audit/access-logs`
-- [ ] `/audit/security-logs`
+- [ ] `/audit?tab=access` (legacy `/audit/access-logs` redirects here)
+- [ ] `/audit?tab=security` (legacy `/audit/security-logs` redirects here)
+- [ ] `/audit?tab=onboarding`
+- [ ] `/audit?tab=products`
+- [ ] `/audit?tab=legal-documents`
+- [ ] `/audit?tab=notifications`
 - [ ] `/legal-documents`
 - [ ] `/legal-document-acceptances`
 - [ ] `/finance/buckets`

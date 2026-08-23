@@ -69,9 +69,21 @@ import {
   resubmitApplication as amendmentResubmitApplication,
 } from "./amendments/service";
 import { prisma } from "../../lib/prisma";
-import { loadUserDisplayNameMap } from "../../lib/user-display-name";
-import { logApplicationActivity } from "./logs/service";
-import { ActivityPortal, ApplicationLogEventType } from "./logs/types";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_SOURCE,
+  type AuditRequestContext,
+} from "../../lib/audit/context";
+import { applicationAuditLogReader, mergeApplicationAndSigningAuditLogs } from "./audit/reader";
+import { signingAuditLogReader } from "../signing/audit/reader";
+import {
+  APPLICATION_AUDIT_TARGET_TYPE,
+  issuerApplicationAuditContext,
+  writeApplicationAuditLog,
+  writeApplicationDocumentAuditLogs,
+} from "./audit/writer";
+import { APPLICATION_OFFER_COMPLETION_METHOD } from "./audit/events";
+import { diffAcceptanceDocuments, diffSupportingDocuments } from "./audit/documents";
 import { assertApplicationProcessingFeePaid } from "../payment/processing-fee-service";
 import {
   generateContractOfferLetterStream,
@@ -79,7 +91,11 @@ import {
   type ContractOfferDetails,
   type InvoiceOfferDetails,
 } from "./offer-letter-pdf";
-import { applyContractCapacityChange } from "../../lib/refresh-contract-facility";
+import {
+  applyContractCapacityChange,
+  overlayReadCapacityOnApplicationContract,
+  overlayReadCapacityOnApplications,
+} from "../../lib/refresh-contract-facility";
 import {
   resolveContractValue,
   resolveOfferedFacility,
@@ -124,10 +140,6 @@ import {
   enrichApplicationOriginationFields,
   resolveApplicationOriginationPhase,
 } from "./origination-guards";
-import {
-  overlayReadCapacityOnApplicationContract,
-  overlayReadCapacityOnApplications,
-} from "../../lib/refresh-contract-facility";
 import {
   assertApplicationSubmitOrigination,
   assertExistingFacilityDrawdown,
@@ -776,7 +788,11 @@ export class ApplicationService {
   /**
    * Create a new application
    */
-  async createApplication(input: CreateApplicationInput, userId: string): Promise<Application> {
+  async createApplication(
+    input: CreateApplicationInput,
+    userId: string,
+    auditContext: AuditRequestContext = issuerApplicationAuditContext(userId)
+  ): Promise<Application> {
     await legalDocumentAcceptanceService.assertNoPendingReacceptance(
       userId,
       input.issuerOrganizationId,
@@ -838,6 +854,18 @@ export class ApplicationService {
             data: { display_reference: reference },
           });
         }
+      );
+
+      await writeApplicationAuditLog(
+        {
+          eventType: "APPLICATION_CREATED",
+          context: auditContext,
+          applicationId: created.id,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+          targetId: created.id,
+          metadata: { reviewCycle: 1 },
+        },
+        tx
       );
 
       return tx.application.findUniqueOrThrow({
@@ -993,38 +1021,52 @@ export class ApplicationService {
       await this.verifyApplicationAccess(id, userId);
     }
 
-    const logs = await prisma.applicationLog.findMany({
-      where: { application_id: id },
-      orderBy: { created_at: "desc" },
-    });
+    const [applicationLogs, signingLogs] = await Promise.all([
+      applicationAuditLogReader.listByApplicationId(id),
+      signingAuditLogReader.listByApplicationId(id),
+    ]);
 
-    const actorIds = [...new Set(logs.map((l) => l.user_id).filter(Boolean))] as string[];
-    const actorNameMap = await loadUserDisplayNameMap(prisma, actorIds);
+    return mergeApplicationAndSigningAuditLogs(applicationLogs, signingLogs);
+  }
 
-    return logs.map((log) => {
-      const meta = (log.metadata as Record<string, unknown>) ?? {};
-      const actorName = log.user_id ? (actorNameMap.get(log.user_id) ?? null) : null;
-      const mergedMeta = actorName ? { ...meta, actorName } : meta;
-      let activity: string | undefined;
-      const resubmitChanges = mergedMeta.resubmit_changes as
-        | { activity_summary?: string }
-        | undefined;
-      if (log.event_type === "APPLICATION_RESUBMITTED" && resubmitChanges?.activity_summary) {
-        activity = resubmitChanges.activity_summary;
-      }
-      return {
-        ...log,
-        metadata: mergedMeta,
-        ...(activity ? { activity } : {}),
-      };
-    });
+  async getAdminApplicationAuditHistory(
+    id: string,
+    query: { page: number; pageSize: number }
+  ) {
+    const application = await this.repository.findById(id);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const [applicationLogs, signingLogs] = await Promise.all([
+      applicationAuditLogReader.listByApplicationId(id),
+      signingAuditLogReader.listByApplicationId(id),
+    ]);
+    const merged = mergeApplicationAndSigningAuditLogs(applicationLogs, signingLogs);
+    const totalCount = merged.length;
+    const start = (query.page - 1) * query.pageSize;
+
+    return {
+      logs: merged.slice(start, start + query.pageSize),
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        totalCount,
+        totalPages: Math.max(1, Math.ceil(totalCount / query.pageSize)),
+      },
+    };
   }
 
   /**
    * Acknowledge a workflowId during amendment mode.
    * Appends workflowId to application's amendment_acknowledged_workflow_ids if missing.
    */
-  async acknowledgeWorkflow(applicationId: string, userId: string, workflowId: string) {
+  async acknowledgeWorkflow(
+    applicationId: string,
+    userId: string,
+    workflowId: string,
+    auditContext: AuditRequestContext = issuerApplicationAuditContext(userId)
+  ) {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
     if (!application) {
@@ -1038,7 +1080,7 @@ export class ApplicationService {
         "Acknowledgement allowed only in AMENDMENT_REQUESTED state"
       );
     }
-    return amendmentAcknowledgeWorkflow(applicationId, workflowId, this.repository);
+    return amendmentAcknowledgeWorkflow(applicationId, workflowId, this.repository, auditContext);
   }
 
   /**
@@ -1047,7 +1089,11 @@ export class ApplicationService {
    * 2. Create application revision snapshot
    * 3. Set status to RESUBMITTED
    */
-  async resubmitApplication(applicationId: string, userId: string) {
+  async resubmitApplication(
+    applicationId: string,
+    userId: string,
+    auditContext: AuditRequestContext = issuerApplicationAuditContext(userId)
+  ) {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
     if (!application) {
@@ -1061,7 +1107,12 @@ export class ApplicationService {
       );
     }
     await assertIssuerOrgDirectorShareholderOnboardingReady(application.issuer_organization_id);
-    const result = await amendmentResubmitApplication(applicationId, userId, this.repository);
+    const result = await amendmentResubmitApplication(
+      applicationId,
+      userId,
+      this.repository,
+      auditContext
+    );
 
     try {
       await this.sendIssuerNotification(
@@ -1091,7 +1142,8 @@ export class ApplicationService {
   async updateStep(
     id: string,
     input: UpdateApplicationStepInput,
-    userId: string
+    userId: string,
+    auditContext: AuditRequestContext = issuerApplicationAuditContext(userId)
   ): Promise<Application> {
     await this.verifyApplicationAccess(id, userId);
 
@@ -1335,7 +1387,32 @@ export class ApplicationService {
           assertAcceptanceDocumentIndexEditableInChangesRequested(idx, flagged);
         }
       }
-      return this.repository.update(id, updateData);
+      const previousDocs = (application as { acceptance_documents?: unknown }).acceptance_documents;
+      const existingKeys = this.extractS3KeysFromAcceptanceDocuments(previousDocs);
+      const incomingKeys = this.extractS3KeysFromAcceptanceDocuments(input.data);
+      const newKeys = [...incomingKeys].filter((k) => !existingKeys.has(k));
+      const removedKeys = [...existingKeys].filter((k) => !incomingKeys.has(k));
+      const changes = diffAcceptanceDocuments(previousDocs, input.data);
+      try {
+        const updated = await prisma.$transaction(async (tx) => {
+          const row = await tx.application.update({
+            where: { id },
+            data: updateData,
+          });
+          await writeApplicationDocumentAuditLogs(id, auditContext, changes, tx);
+          return row;
+        });
+        if (
+          removedKeys.length > 0 &&
+          !shouldPreserveApplicationDocumentsInS3(application.status as string)
+        ) {
+          await this.deleteOrphanS3Keys(removedKeys);
+        }
+        return updated as Application;
+      } catch (err) {
+        await this.deleteOrphanS3Keys(newKeys);
+        throw err;
+      }
     }
 
     if (fieldName === "supporting_documents") {
@@ -1344,9 +1421,25 @@ export class ApplicationService {
       );
       const incomingKeys = this.extractS3KeysFromSupportingDocuments(input.data);
       const newKeys = [...incomingKeys].filter((k) => !existingKeys.has(k));
+      const removedKeys = [...existingKeys].filter((k) => !incomingKeys.has(k));
+      const changes = diffSupportingDocuments(application.supporting_documents, input.data);
 
       try {
-        return await this.repository.update(id, updateData);
+        const updated = await prisma.$transaction(async (tx) => {
+          const row = await tx.application.update({
+            where: { id },
+            data: updateData,
+          });
+          await writeApplicationDocumentAuditLogs(id, auditContext, changes, tx);
+          return row;
+        });
+        if (
+          removedKeys.length > 0 &&
+          !shouldPreserveApplicationDocumentsInS3(application.status as string)
+        ) {
+          await this.deleteOrphanS3Keys(removedKeys);
+        }
+        return updated as Application;
       } catch (err) {
         await this.deleteOrphanS3Keys(newKeys);
         throw err;
@@ -1373,7 +1466,11 @@ export class ApplicationService {
    * - Deletes DRAFT contract if it was created inside the draft
    * - Never deletes existing contracts or approved/submitted invoices
    */
-  async deleteDraftApplication(id: string, userId: string): Promise<void> {
+  async deleteDraftApplication(
+    id: string,
+    userId: string,
+    auditContext: AuditRequestContext = issuerApplicationAuditContext(userId)
+  ): Promise<void> {
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
@@ -1420,6 +1517,19 @@ export class ApplicationService {
         });
       }
 
+      await writeApplicationAuditLog(
+        {
+          eventType: "APPLICATION_DRAFT_DELETED",
+          context: auditContext,
+          applicationId: id,
+          organizationId: application.issuer_organization_id,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+          targetId: id,
+          metadata: { previousStatus: "DRAFT" },
+        },
+        tx
+      );
+
       await tx.application.delete({
         where: { id },
       });
@@ -1429,8 +1539,11 @@ export class ApplicationService {
   /**
    * Archive an application
    */
-  async archiveApplication(id: string, userId: string): Promise<Application> {
-    // Verify user has access to this application
+  async archiveApplication(
+    id: string,
+    userId: string,
+    auditContext: AuditRequestContext = issuerApplicationAuditContext(userId)
+  ): Promise<Application> {
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
@@ -1466,23 +1579,68 @@ export class ApplicationService {
       );
     }
 
+    const now = new Date();
     if (phase === "draft") {
-      return this.repository.update(id, {
-        status: "ARCHIVED",
-        updated_at: new Date(),
+      return prisma.$transaction(async (tx) => {
+        const updated = await tx.application.update({
+          where: { id },
+          data: {
+            status: "ARCHIVED",
+            updated_at: now,
+          },
+        });
+        await writeApplicationAuditLog(
+          {
+            eventType: "APPLICATION_ARCHIVED",
+            context: auditContext,
+            applicationId: id,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+            targetId: id,
+            metadata: {
+              previousStatus: application.status,
+              newStatus: "ARCHIVED",
+            },
+          },
+          tx
+        );
+        return updated;
       });
     }
 
-    return this.repository.update(id, {
-      archived_at: new Date(),
-      updated_at: new Date(),
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.application.update({
+        where: { id },
+        data: {
+          archived_at: now,
+          updated_at: now,
+        },
+      });
+      await writeApplicationAuditLog(
+        {
+          eventType: "APPLICATION_ARCHIVED",
+          context: auditContext,
+          applicationId: id,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+          targetId: id,
+          metadata: {
+            previousStatus: application.status,
+            archivedAt: now.toISOString(),
+          },
+        },
+        tx
+      );
+      return updated;
     });
   }
 
   /**
    * Cancel an application (issuer-only). Withdraws active invoices and contract only.
    */
-  async cancelApplication(id: string, userId: string): Promise<Application> {
+  async cancelApplication(
+    id: string,
+    userId: string,
+    auditContext: AuditRequestContext = issuerApplicationAuditContext(userId)
+  ): Promise<Application> {
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
@@ -1624,6 +1782,23 @@ export class ApplicationService {
       if (statusWrite.count === 0) {
         throw new AppError(409, "CONFLICT", "Application status changed during withdrawal.");
       }
+      if (newStatus === ApplicationStatus.WITHDRAWN) {
+        await writeApplicationAuditLog(
+          {
+            eventType: "APPLICATION_WITHDRAWN",
+            context: auditContext,
+            applicationId: id,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+            targetId: id,
+            metadata: {
+              previousStatus: status,
+              newStatus: "WITHDRAWN",
+              withdrawReason: WithdrawReason.USER_CANCELLED,
+            },
+          },
+          tx
+        );
+      }
     };
 
     const capacityContractId =
@@ -1640,10 +1815,11 @@ export class ApplicationService {
       const { signingService } = await import("../signing/service");
       for (const envelopeId of voidableIds) {
         try {
-          await signingService.voidEnvelope(envelopeId, "Application withdrawn by issuer", {
-            userId,
-            portal: ActivityPortal.ISSUER,
-          });
+          await signingService.voidEnvelope(
+            envelopeId,
+            "Application withdrawn by issuer",
+            auditContext
+          );
         } catch (voidError) {
           logger.error(
             { error: voidError, applicationId: id, envelopeId },
@@ -1659,13 +1835,6 @@ export class ApplicationService {
     }
 
     if ((updated.status as string) === "WITHDRAWN") {
-      await logApplicationActivity({
-        userId,
-        applicationId: id,
-        eventType: "APPLICATION_WITHDRAWN",
-        portal: ActivityPortal.ISSUER,
-        metadata: { withdraw_reason: WithdrawReason.USER_CANCELLED },
-      });
       try {
         await this.sendIssuerNotification(
           id,
@@ -1869,7 +2038,12 @@ export class ApplicationService {
   /**
    * Update application status and perform cleanup
    */
-  async updateApplicationStatus(id: string, status: string, userId: string): Promise<Application> {
+  async updateApplicationStatus(
+    id: string,
+    status: string,
+    userId: string,
+    auditContext: AuditRequestContext = issuerApplicationAuditContext(userId)
+  ): Promise<Application> {
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
@@ -1984,9 +2158,8 @@ export class ApplicationService {
 
     // Resubmit flow is handled by dedicated resubmitApplication method to keep behavior deterministic.
     if (currentStatus === "AMENDMENT_REQUESTED" && status === "RESUBMITTED") {
-      const res = await this.resubmitApplication(id, userId);
-      // return updated application
-      return res as any;
+      const res = await this.resubmitApplication(id, userId, auditContext);
+      return res as Application;
     }
 
     // If submitting, perform cleanup of unused steps
@@ -2101,10 +2274,27 @@ export class ApplicationService {
           }
         }
 
-        await tx.application.update({
+        const updated = await tx.application.update({
           where: { id },
           data: updateData,
         });
+        if (status === "SUBMITTED" && currentStatus === "DRAFT") {
+          await writeApplicationAuditLog(
+            {
+              eventType: "APPLICATION_SUBMITTED",
+              context: auditContext,
+              applicationId: id,
+              targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+              targetId: id,
+              metadata: {
+                previousStatus: currentStatus,
+                newStatus: "SUBMITTED",
+                reviewCycle: updated.review_cycle,
+              },
+            },
+            tx
+          );
+        }
       };
 
       const contractId = application.contract_id;
@@ -2122,7 +2312,30 @@ export class ApplicationService {
       return submitted;
     }
 
-    return this.repository.update(id, updateData);
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.application.update({
+        where: { id },
+        data: updateData,
+      });
+      if (status === "SUBMITTED" && currentStatus === "DRAFT") {
+        await writeApplicationAuditLog(
+          {
+            eventType: "APPLICATION_SUBMITTED",
+            context: auditContext,
+            applicationId: id,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+            targetId: id,
+            metadata: {
+              previousStatus: currentStatus,
+              newStatus: "SUBMITTED",
+              reviewCycle: updated.review_cycle,
+            },
+          },
+          tx
+        );
+      }
+      return updated;
+    });
   }
 
   /**
@@ -2222,6 +2435,7 @@ export class ApplicationService {
         await tx.applicationReviewRemark.deleteMany({
           where: {
             application_id: applicationId,
+            review_cycle: (application as { review_cycle?: number }).review_cycle ?? 1,
             scope: "item",
             scope_key: itemId,
           },
@@ -2332,70 +2546,54 @@ export class ApplicationService {
         workflow,
         acceptance?.status
       );
-    });
 
-    const contractNumber = (
-      application as {
-        contract?: { contract_details?: { number?: string | number } | null } | null;
-      }
-    ).contract?.contract_details?.number;
-    const offerRecord =
-      (
-        application as {
-          contract?: { offer_details?: Record<string, unknown> | null } | null;
-        }
-      ).contract?.offer_details ?? null;
-
-    const isAcceptanceResubmit = previousAcceptanceStatus === "CHANGES_REQUESTED";
-    await logApplicationActivity({
-      userId,
-      applicationId,
-      entityId: contractId,
-      portal: ActivityPortal.ISSUER,
-      eventType: isAcceptanceResubmit
-        ? ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED
-        : ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED,
-      metadata: {
-        contract_id: contractId,
-        ...(contractNumber != null && String(contractNumber).trim() !== ""
-          ? { contract_number: String(contractNumber).trim() }
-          : {}),
-        offer_acceptance_status: nextStatus,
-        submitted_at: now,
-        ...(isAcceptanceResubmit ? { resubmitted_from: "CHANGES_REQUESTED" } : {}),
-        ...(offerRecord?.offered_facility != null
-          ? { offered_facility: Number(offerRecord.offered_facility) || 0 }
-          : {}),
-        ...(offerRecord?.requested_facility != null
-          ? { requested_facility: Number(offerRecord.requested_facility) || 0 }
-          : {}),
-      },
-    });
-
-    if (nextStatus === "APPROVED_FOR_SIGNING") {
-      await logApplicationActivity({
-        userId,
-        applicationId,
-        entityId: contractId,
-        portal: ActivityPortal.ISSUER,
-        eventType: ApplicationLogEventType.CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING,
-        metadata: {
-          contract_id: contractId,
-          ...(contractNumber != null && String(contractNumber).trim() !== ""
-            ? { contract_number: String(contractNumber).trim() }
-            : {}),
-          auto_approved: true,
-        },
+      const isInvoiceOnly =
+        (application as { financing_structure?: { structure_type?: string } }).financing_structure
+          ?.structure_type === "invoice_only";
+      const appStatus = resolveApplicationStatusAfterOfferAcceptanceSubmit(
+        isInvoiceOnly,
+        nextStatus
+      );
+      await tx.application.update({
+        where: { id: applicationId },
+        data: { status: appStatus as DbApplicationStatus },
       });
-    }
 
-    const isInvoiceOnly =
-      (application as { financing_structure?: { structure_type?: string } }).financing_structure
-        ?.structure_type === "invoice_only";
-    const appStatus = resolveApplicationStatusAfterOfferAcceptanceSubmit(isInvoiceOnly, nextStatus);
-    await prisma.application.update({
-      where: { id: applicationId },
-      data: { status: appStatus as DbApplicationStatus },
+      const isAcceptanceResubmit = previousAcceptanceStatus === "CHANGES_REQUESTED";
+      await writeApplicationAuditLog(
+        {
+          eventType: isAcceptanceResubmit
+            ? "CONTRACT_ACCEPTANCE_RESUBMITTED"
+            : "CONTRACT_ACCEPTANCE_SUBMITTED",
+          context: issuerApplicationAuditContext(userId),
+          applicationId,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.CONTRACT,
+          targetId: contractId,
+          metadata: {
+            previousStatus: previousAcceptanceStatus ?? undefined,
+            newStatus: nextStatus,
+            submittedAt: now,
+          },
+        },
+        tx
+      );
+      if (nextStatus === "APPROVED_FOR_SIGNING") {
+        await writeApplicationAuditLog(
+          {
+            eventType: "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING",
+            context: issuerApplicationAuditContext(userId),
+            applicationId,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.CONTRACT,
+            targetId: contractId,
+            metadata: {
+              previousStatus: previousAcceptanceStatus ?? undefined,
+              newStatus: nextStatus,
+              autoApproved: true,
+            },
+          },
+          tx
+        );
+      }
     });
 
     return this.repository.findById(applicationId) as Promise<Application>;
@@ -2489,69 +2687,54 @@ export class ApplicationService {
         workflow,
         acceptance?.status
       );
-    });
 
-    const invWithDetails = (
-      application as {
-        invoices?: {
-          id: string;
-          details?: { number?: string | number };
-          offer_details?: Record<string, unknown> | null;
-        }[];
-      }
-    ).invoices?.find((item) => item.id === invoiceId);
-    const invoiceNumber =
-      invWithDetails?.details?.number != null && String(invWithDetails.details.number).trim() !== ""
-        ? String(invWithDetails.details.number).trim()
-        : undefined;
-    const offerRecord = invWithDetails?.offer_details ?? null;
-
-    const isAcceptanceResubmit = previousAcceptanceStatus === "CHANGES_REQUESTED";
-    await logApplicationActivity({
-      userId,
-      applicationId,
-      entityId: invoiceId,
-      portal: ActivityPortal.ISSUER,
-      eventType: isAcceptanceResubmit
-        ? ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_RESUBMITTED
-        : ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED,
-      metadata: {
-        invoice_id: invoiceId,
-        ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
-        offer_acceptance_status: nextStatus,
-        submitted_at: now,
-        ...(isAcceptanceResubmit ? { resubmitted_from: "CHANGES_REQUESTED" } : {}),
-        ...(offerRecord?.offered_amount != null
-          ? { offered_amount: Number(offerRecord.offered_amount) || 0 }
-          : {}),
-        ...(offerRecord?.requested_amount != null
-          ? { requested_amount: Number(offerRecord.requested_amount) || 0 }
-          : {}),
-      },
-    });
-
-    if (nextStatus === "APPROVED_FOR_SIGNING") {
-      await logApplicationActivity({
-        userId,
-        applicationId,
-        entityId: invoiceId,
-        portal: ActivityPortal.ISSUER,
-        eventType: ApplicationLogEventType.INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING,
-        metadata: {
-          invoice_id: invoiceId,
-          ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
-          auto_approved: true,
-        },
+      const isInvoiceOnly =
+        (application as { financing_structure?: { structure_type?: string } }).financing_structure
+          ?.structure_type === "invoice_only";
+      const appStatus = resolveApplicationStatusAfterOfferAcceptanceSubmit(
+        isInvoiceOnly,
+        nextStatus
+      );
+      await tx.application.update({
+        where: { id: applicationId },
+        data: { status: appStatus as DbApplicationStatus },
       });
-    }
 
-    const isInvoiceOnly =
-      (application as { financing_structure?: { structure_type?: string } }).financing_structure
-        ?.structure_type === "invoice_only";
-    const appStatus = resolveApplicationStatusAfterOfferAcceptanceSubmit(isInvoiceOnly, nextStatus);
-    await prisma.application.update({
-      where: { id: applicationId },
-      data: { status: appStatus as DbApplicationStatus },
+      const isAcceptanceResubmit = previousAcceptanceStatus === "CHANGES_REQUESTED";
+      await writeApplicationAuditLog(
+        {
+          eventType: isAcceptanceResubmit
+            ? "INVOICE_ACCEPTANCE_RESUBMITTED"
+            : "INVOICE_ACCEPTANCE_SUBMITTED",
+          context: issuerApplicationAuditContext(userId),
+          applicationId,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.INVOICE,
+          targetId: invoiceId,
+          metadata: {
+            previousStatus: previousAcceptanceStatus ?? undefined,
+            newStatus: nextStatus,
+            submittedAt: now,
+          },
+        },
+        tx
+      );
+      if (nextStatus === "APPROVED_FOR_SIGNING") {
+        await writeApplicationAuditLog(
+          {
+            eventType: "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING",
+            context: issuerApplicationAuditContext(userId),
+            applicationId,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.INVOICE,
+            targetId: invoiceId,
+            metadata: {
+              previousStatus: previousAcceptanceStatus ?? undefined,
+              newStatus: nextStatus,
+              autoApproved: true,
+            },
+          },
+          tx
+        );
+      }
     });
 
     return this.repository.findById(applicationId) as Promise<Application>;
@@ -2605,7 +2788,11 @@ export class ApplicationService {
     userId: string,
     rejectionReason?: string,
     options?: {
-      signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
+      signingCompletion?: {
+        signedOfferLetterS3Key: string;
+        signedFileSha256: string;
+        envelopeId?: string;
+      };
     }
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
@@ -2818,37 +3005,83 @@ export class ApplicationService {
         });
         /* --- END: Recompute and persist application status after contract offer response --- */
 
+        const isSigningCompletion = Boolean(options?.signingCompletion);
+        const offerContext: AuditRequestContext = isSigningCompletion
+          ? {
+              actorType: AUDIT_ACTOR_TYPE.SYSTEM,
+              actorUserId: null,
+              source: AUDIT_SOURCE.INTERNAL,
+              portal: "ISSUER",
+              ipAddress: null,
+              userAgent: null,
+              correlationId: null,
+            }
+          : issuerApplicationAuditContext(userId);
+        const previousStatus = contract.status;
+        if (action === "accept") {
+          const envelopeId = options?.signingCompletion
+            ? (options.signingCompletion as { envelopeId?: string }).envelopeId
+            : undefined;
+          await writeApplicationAuditLog(
+            {
+              eventType: "CONTRACT_OFFER_ACCEPTED",
+              context: offerContext,
+              applicationId,
+              targetType: APPLICATION_AUDIT_TARGET_TYPE.CONTRACT,
+              targetId: contractId,
+              metadata: {
+                previousStatus,
+                newStatus,
+                completionMethod: isSigningCompletion
+                  ? APPLICATION_OFFER_COMPLETION_METHOD.SIGNING_COMPLETION
+                  : APPLICATION_OFFER_COMPLETION_METHOD.DIRECT_ACCEPTANCE,
+                ...(envelopeId ? { signingEnvelopeId: envelopeId } : {}),
+              },
+            },
+            tx
+          );
+        } else {
+          await writeApplicationAuditLog(
+            {
+              eventType: "CONTRACT_OFFER_REJECTED",
+              context: issuerApplicationAuditContext(userId),
+              applicationId,
+              targetType: APPLICATION_AUDIT_TARGET_TYPE.CONTRACT,
+              targetId: contractId,
+              metadata: {
+                decision: "rejected",
+                previousStatus,
+                newStatus,
+                withdrawReason: "OFFER_REJECTED",
+                ...(rejectionReason != null && rejectionReason.trim() !== ""
+                  ? { reason: rejectionReason.trim() }
+                  : {}),
+              },
+            },
+            tx
+          );
+        }
+        if (appStatus === ApplicationStatus.COMPLETED) {
+          await writeApplicationAuditLog(
+            {
+              eventType: "APPLICATION_COMPLETED",
+              context: offerContext,
+              applicationId,
+              targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+              targetId: applicationId,
+              metadata: {
+                previousStatus: application.status,
+                newStatus: "COMPLETED",
+              },
+            },
+            tx
+          );
+        }
+
         return { offeredFacility, requestedFacility, now, appStatus };
       },
       { assertWrite: true }
     );
-
-    const eventType = action === "accept" ? "CONTRACT_OFFER_ACCEPTED" : "CONTRACT_WITHDRAWN";
-    const contractNumber = (
-      application as {
-        contract?: { contract_details?: { number?: string | number } | null } | null;
-      }
-    ).contract?.contract_details?.number;
-
-    await logApplicationActivity({
-      userId,
-      applicationId,
-      entityId: application.contract_id ?? undefined,
-      portal: ActivityPortal.ISSUER,
-      eventType,
-      metadata: {
-        ...(application.contract_id ? { contract_id: application.contract_id } : {}),
-        ...(contractNumber != null && String(contractNumber).trim() !== ""
-          ? { contract_number: String(contractNumber).trim() }
-          : {}),
-        offered_facility: responseMeta.offeredFacility,
-        requested_facility: responseMeta.requestedFacility,
-        responded_at: responseMeta.now,
-        ...(action === "reject" && rejectionReason != null && rejectionReason.trim() !== ""
-          ? { rejection_reason: rejectionReason.trim() }
-          : {}),
-      },
-    });
     if (responseMeta.appStatus === ApplicationStatus.WITHDRAWN) {
       try {
         await this.sendIssuerNotification(
@@ -2865,12 +3098,6 @@ export class ApplicationService {
       }
     }
     if (responseMeta.appStatus === ApplicationStatus.COMPLETED) {
-      await logApplicationActivity({
-        userId,
-        applicationId,
-        eventType: "APPLICATION_COMPLETED",
-        portal: ActivityPortal.ISSUER,
-      });
       try {
         await this.sendIssuerNotification(
           applicationId,
@@ -2956,7 +3183,11 @@ export class ApplicationService {
     userId: string,
     rejectionReason?: string,
     options?: {
-      signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
+      signingCompletion?: {
+        signedOfferLetterS3Key: string;
+        signedFileSha256: string;
+        envelopeId?: string;
+      };
     }
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
@@ -3170,15 +3401,96 @@ export class ApplicationService {
       });
       /* --- END: Recompute and persist application status after invoice offer response --- */
 
+      const isSigningCompletion = Boolean(options?.signingCompletion);
+      const offerContext: AuditRequestContext = isSigningCompletion
+        ? {
+            actorType: AUDIT_ACTOR_TYPE.SYSTEM,
+            actorUserId: null,
+            source: AUDIT_SOURCE.INTERNAL,
+            portal: "ISSUER",
+            ipAddress: null,
+            userAgent: null,
+            correlationId: null,
+          }
+        : issuerApplicationAuditContext(userId);
+      if (action === "accept") {
+        const envelopeId = options?.signingCompletion
+          ? (options.signingCompletion as { envelopeId?: string }).envelopeId
+          : undefined;
+        await writeApplicationAuditLog(
+          {
+            eventType: "INVOICE_OFFER_ACCEPTED",
+            context: offerContext,
+            applicationId,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.INVOICE,
+            targetId: invoiceId,
+            metadata: {
+              previousStatus: dbInvoice.status,
+              newStatus,
+              completionMethod: isSigningCompletion
+                ? APPLICATION_OFFER_COMPLETION_METHOD.SIGNING_COMPLETION
+                : APPLICATION_OFFER_COMPLETION_METHOD.DIRECT_ACCEPTANCE,
+              ...(envelopeId ? { signingEnvelopeId: envelopeId } : {}),
+            },
+          },
+          tx
+        );
+      } else {
+        await writeApplicationAuditLog(
+          {
+            eventType: "INVOICE_OFFER_REJECTED",
+            context: issuerApplicationAuditContext(userId),
+            applicationId,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.INVOICE,
+            targetId: invoiceId,
+            metadata: {
+              decision: "rejected",
+              previousStatus: dbInvoice.status,
+              newStatus,
+              withdrawReason: "OFFER_REJECTED",
+              ...(rejectionReason != null && rejectionReason.trim() !== ""
+                ? { reason: rejectionReason.trim() }
+                : {}),
+            },
+          },
+          tx
+        );
+      }
+      if (appStatus === ApplicationStatus.COMPLETED) {
+        await writeApplicationAuditLog(
+          {
+            eventType: "APPLICATION_COMPLETED",
+            context: offerContext,
+            applicationId,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+            targetId: applicationId,
+            metadata: {
+              previousStatus: application.status,
+              newStatus: "COMPLETED",
+            },
+          },
+          tx
+        );
+      }
+
       return { now, offeredAmount, requestedAmount, sectionApproved, appStatus };
     };
     const invoiceAcceptAudit =
       action === "accept"
         ? {
-            userId,
-            applicationId,
-            portal: ActivityPortal.ISSUER,
+            context: options?.signingCompletion
+              ? {
+                  actorType: AUDIT_ACTOR_TYPE.SYSTEM,
+                  actorUserId: null,
+                  source: AUDIT_SOURCE.INTERNAL,
+                  portal: "ISSUER" as const,
+                  ipAddress: null,
+                  userAgent: null,
+                  correlationId: null,
+                }
+              : issuerApplicationAuditContext(userId),
             reason: "INVOICE_ACCEPTED" as const,
+            applicationId,
             invoiceId,
           }
         : undefined;
@@ -3190,33 +3502,6 @@ export class ApplicationService {
           })
         ).result
       : await prisma.$transaction(respondInvoiceInTx);
-
-    const invWithDetails = (
-      application as { invoices?: { id: string; details?: { number?: string | number } }[] }
-    ).invoices?.find((i) => i.id === invoiceId);
-    const invoiceNumber =
-      invWithDetails?.details?.number != null && String(invWithDetails.details.number).trim() !== ""
-        ? String(invWithDetails.details.number).trim()
-        : undefined;
-
-    const eventType = action === "accept" ? "INVOICE_OFFER_ACCEPTED" : "INVOICE_OFFER_REJECTED";
-    await logApplicationActivity({
-      userId,
-      applicationId,
-      entityId: invoiceId,
-      portal: ActivityPortal.ISSUER,
-      eventType,
-      metadata: {
-        invoice_id: invoiceId,
-        invoice_number: invoiceNumber,
-        offered_amount: responseMeta.offeredAmount,
-        requested_amount: responseMeta.requestedAmount,
-        responded_at: responseMeta.now,
-        ...(action === "reject" && rejectionReason != null && rejectionReason.trim() !== ""
-          ? { rejection_reason: rejectionReason.trim() }
-          : {}),
-      },
-    });
     if (responseMeta.appStatus === ApplicationStatus.WITHDRAWN) {
       try {
         await this.sendIssuerNotification(
@@ -3233,12 +3518,6 @@ export class ApplicationService {
       }
     }
     if (responseMeta.appStatus === ApplicationStatus.COMPLETED) {
-      await logApplicationActivity({
-        userId,
-        applicationId,
-        eventType: "APPLICATION_COMPLETED",
-        portal: ActivityPortal.ISSUER,
-      });
       try {
         await this.sendIssuerNotification(
           applicationId,
@@ -3415,6 +3694,7 @@ export class ApplicationService {
     initiatedByUserId: string;
     signedOfferLetterS3Key: string;
     signedFileSha256: string;
+    envelopeId?: string;
   }): Promise<{ skipped: boolean }> {
     if (!input.invoiceId && !input.contractId) {
       throw new AppError(400, "INVALID_STATE", "Signing envelope is not linked to an offer.");
@@ -3432,6 +3712,7 @@ export class ApplicationService {
             signingCompletion: {
               signedOfferLetterS3Key: input.signedOfferLetterS3Key,
               signedFileSha256: input.signedFileSha256,
+              envelopeId: input.envelopeId,
             },
           }
         );
@@ -3448,6 +3729,7 @@ export class ApplicationService {
             signingCompletion: {
               signedOfferLetterS3Key: input.signedOfferLetterS3Key,
               signedFileSha256: input.signedFileSha256,
+              envelopeId: input.envelopeId,
             },
           }
         );

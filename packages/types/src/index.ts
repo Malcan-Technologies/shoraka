@@ -452,6 +452,7 @@ export interface InvoiceOfferDetails {
 export * from "./deadline-config";
 export * from "./invoice-offer-risk-rating";
 export * from "./activity-config";
+export * from "./activity-visibility";
 export * from "./activity-presentation";
 export * from "./admin";
 export * from "./legal-documents";
@@ -493,6 +494,9 @@ export * from "./marketplace-note-dates";
 export * from "./marketplace-catalog";
 export * from "./prospectus-calendar";
 export * from "./signing-envelopes";
+export * from "./signing-audit";
+export * from "./note-audit";
+export * from "./payment-audit";
 export * from "./acceptance-documents";
 export * from "./offer-acceptance";
 export * from "./origination-phase";

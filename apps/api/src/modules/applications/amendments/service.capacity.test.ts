@@ -6,6 +6,7 @@ const mockApply = jest.fn(
       applicationReview: { deleteMany: jest.fn() },
       applicationRevision: { create: jest.fn().mockResolvedValue({ id: "rev-2" }) },
       application: { update: jest.fn() },
+      user: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     await mutate(tx);
     return { result: undefined, snapshot: null };
@@ -24,13 +25,19 @@ jest.mock("../../../lib/prisma", () => ({
     product: { findUnique: jest.fn().mockResolvedValue(null) },
     application: { findUnique: jest.fn() },
     applicationRevision: { findFirst: jest.fn().mockResolvedValue(null) },
-    applicationLog: { create: jest.fn() },
+    user: { findUnique: jest.fn().mockResolvedValue(null) },
     $transaction: (...args: unknown[]) => mockPrismaTransaction(...args),
   },
 }));
 
 jest.mock("../issuer-organization-financial-statements", () => ({
   upsertLatestOrganizationFinancialStatementsFromApplication: jest.fn(),
+}));
+
+jest.mock("../audit/writer", () => ({
+  APPLICATION_AUDIT_TARGET_TYPE: { APPLICATION: "APPLICATION" },
+  issuerApplicationAuditContext: (userId: string) => ({ actorUserId: userId }),
+  writeApplicationAuditLog: jest.fn(),
 }));
 
 jest.mock("../supporting-docs-workflow", () => ({

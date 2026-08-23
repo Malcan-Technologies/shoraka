@@ -5,7 +5,7 @@ import {
   ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY,
   ACCEPTANCE_DEADLINE_WORKFLOW_KEY,
 } from "@cashsouk/types";
-import { ApplicationLogEventType } from "../modules/applications/logs/types";
+import { APPLICATION_AUDIT_EVENTS } from "../modules/applications/audit/events";
 
 function workflowWithAcceptance(days = 7) {
   return [
@@ -104,9 +104,9 @@ describe("previewAcceptanceDeadlineFromWorkflow", () => {
   });
 });
 
-describe("ApplicationLogEventType expiry events", () => {
+describe("application audit expiry events", () => {
   it("includes CONTRACT_OFFER_EXPIRED and INVOICE_OFFER_EXPIRED", () => {
-    expect(ApplicationLogEventType.CONTRACT_OFFER_EXPIRED).toBe("CONTRACT_OFFER_EXPIRED");
-    expect(ApplicationLogEventType.INVOICE_OFFER_EXPIRED).toBe("INVOICE_OFFER_EXPIRED");
+    expect(APPLICATION_AUDIT_EVENTS).toContain("CONTRACT_OFFER_EXPIRED");
+    expect(APPLICATION_AUDIT_EVENTS).toContain("INVOICE_OFFER_EXPIRED");
   });
 });

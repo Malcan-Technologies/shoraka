@@ -42,7 +42,7 @@ jest.mock("./receipt/receipt-service", () => {
 async function gatewayTablesMigrated(): Promise<boolean> {
   try {
     await prisma.$queryRaw`SELECT 1 FROM gateway_payments LIMIT 1`;
-    await prisma.$queryRaw`SELECT 1 FROM gateway_payment_events LIMIT 1`;
+    await prisma.$queryRaw`SELECT 1 FROM payment_audit_logs LIMIT 1`;
     return true;
   } catch {
     return false;
@@ -129,7 +129,7 @@ describeIntegration("admin gateway payments refunds", () => {
       await prisma.noteLedgerEntry.deleteMany({
         where: { gateway_payment_id: { in: createdPaymentIds } },
       });
-      await prisma.gatewayPaymentEvent.deleteMany({
+      await prisma.paymentAuditLog.deleteMany({
         where: { gateway_payment_id: { in: createdPaymentIds } },
       });
       await prisma.gatewayPayment.deleteMany({ where: { id: { in: createdPaymentIds } } });
@@ -202,6 +202,7 @@ describeIntegration("admin gateway payments refunds", () => {
     expect(detail.status).toBe(GatewayPaymentStatus.REFUND_INITIATED);
     expect(detail.refundReference).toBe("rfnd_admin_test");
     expect(mockRefundPayment).toHaveBeenCalledTimes(1);
+    expect(detail.events.map((event) => event.eventType)).toContain("PAYMENT_REFUND_INITIATED");
     expect((createCurlecClient as jest.Mock).mock.calls.at(-1)?.[0]).toEqual({
       gatewayAccount: "OPERATING",
     });
@@ -310,6 +311,7 @@ describeIntegration("admin gateway payments refunds", () => {
     const detail = await getGatewayPaymentDetail(payment.id, prisma);
     expect(detail.purpose).toBe(GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE);
     expect(detail.expectedPayerName).toBeNull();
+    expect(Array.isArray(detail.events)).toBe(true);
   });
 
   it("approves a pending name check and credits the deposit", async () => {
@@ -323,6 +325,9 @@ describeIntegration("admin gateway payments refunds", () => {
 
     const org = await prisma.investorOrganization.findUniqueOrThrow({ where: { id: orgId } });
     expect(org.deposit_received).toBe(true);
+    expect(detail.events.map((event) => event.eventType)).toEqual(
+      expect.arrayContaining(["PAYMENT_NAME_CHECK_APPROVED", "INVESTOR_DEPOSIT_RECEIVED"])
+    );
   });
 
   it("rejects a pending name check and initiates refund", async () => {
@@ -333,5 +338,9 @@ describeIntegration("admin gateway payments refunds", () => {
 
     expect(detail.status).toBe(GatewayPaymentStatus.REFUND_INITIATED);
     expect(mockRefundPayment).toHaveBeenCalledTimes(1);
+    expect(detail.events.map((event) => event.eventType)).toEqual(
+      expect.arrayContaining(["PAYMENT_NAME_CHECK_REJECTED", "PAYMENT_REFUND_INITIATED"])
+    );
+    expect(detail.events.map((event) => event.eventType)).not.toContain("PAYMENT_REVERSED");
   });
 });

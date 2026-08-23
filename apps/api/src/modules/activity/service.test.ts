@@ -37,7 +37,7 @@ describe("ActivityService", () => {
               applicationId: "app_123",
             },
             created_at: new Date(),
-            source_table: "application_logs",
+            source_table: "application_audit_logs",
           },
         ],
         total: 1,

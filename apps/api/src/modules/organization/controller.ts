@@ -605,7 +605,7 @@ async function addMember(req: Request, res: Response, next: NextFunction, portal
     const { id } = organizationIdParamSchema.parse(req.params);
     const input = addMemberSchema.parse(req.body);
 
-    const result = await organizationService.addMember(userId, id, portalType, input);
+    const result = await organizationService.addMember(userId, id, portalType, input, req);
 
     res.status(201).json({
       success: true,
@@ -631,7 +631,7 @@ async function removeMember(
     const userId = getUserId(req);
     const { id, userId: targetUserId } = memberIdParamSchema.parse(req.params);
 
-    const result = await organizationService.removeMember(userId, id, targetUserId, portalType);
+    const result = await organizationService.removeMember(userId, id, targetUserId, portalType, req);
 
     res.json({
       success: true,
@@ -711,7 +711,7 @@ async function inviteMember(
     const { id } = organizationIdParamSchema.parse(req.params);
     const input = inviteMemberSchema.parse(req.body);
 
-    const result = await organizationService.inviteMember(userId, id, portalType, input);
+    const result = await organizationService.inviteMember(userId, id, portalType, input, req);
 
     res.status(201).json({
       success: true,
@@ -738,7 +738,7 @@ async function generateMemberInvitationLink(
     const { id } = organizationIdParamSchema.parse(req.params);
     const input = generateMemberInviteLinkSchema.parse(req.body);
 
-    const result = await organizationService.generateMemberInvitationUrl(userId, id, portalType, input);
+    const result = await organizationService.generateMemberInvitationUrl(userId, id, portalType, input, req);
 
     res.json({
       success: true,
@@ -758,7 +758,7 @@ async function acceptInvitation(req: Request, res: Response, next: NextFunction)
     const userId = getUserId(req);
     const input = acceptOrganizationInvitationSchema.parse(req.body);
 
-    const result = await organizationService.acceptInvitation(userId, input);
+    const result = await organizationService.acceptInvitation(userId, input, req);
 
     res.json({
       success: true,
@@ -811,7 +811,7 @@ async function resendInvitation(
     const { id } = organizationIdParamSchema.parse(req.params);
     const { invitationId } = req.params;
 
-    const result = await organizationService.resendInvitation(userId, id, portalType, invitationId);
+    const result = await organizationService.resendInvitation(userId, id, portalType, invitationId, req);
 
     res.json({
       success: true,
@@ -838,7 +838,7 @@ async function revokeInvitation(
     const { id } = organizationIdParamSchema.parse(req.params);
     const { invitationId } = req.params;
 
-    const result = await organizationService.revokeInvitation(userId, id, portalType, invitationId);
+    const result = await organizationService.revokeInvitation(userId, id, portalType, invitationId, req);
 
     res.json({
       success: true,
@@ -864,7 +864,7 @@ async function leaveOrganization(
     const userId = getUserId(req);
     const { id } = organizationIdParamSchema.parse(req.params);
 
-    const result = await organizationService.leaveOrganization(userId, id, portalType);
+    const result = await organizationService.leaveOrganization(userId, id, portalType, req);
 
     res.json({
       success: true,
@@ -891,7 +891,7 @@ async function changeMemberRole(
     const { id, userId: targetUserId } = memberIdParamSchema.parse(req.params);
     const input = changeMemberRoleSchema.parse({ ...req.body, userId: targetUserId });
 
-    const result = await organizationService.changeMemberRole(userId, id, portalType, input);
+    const result = await organizationService.changeMemberRole(userId, id, portalType, input, req);
 
     res.json({
       success: true,
@@ -918,7 +918,7 @@ async function transferOwnership(
     const { id } = organizationIdParamSchema.parse(req.params);
     const input = transferOwnershipSchema.parse(req.body);
 
-    const result = await organizationService.transferOwnership(userId, id, portalType, input);
+    const result = await organizationService.transferOwnership(userId, id, portalType, input, req);
 
     res.json({
       success: true,
@@ -1019,7 +1019,13 @@ async function sendDirectorOnboarding(
     const userId = getUserId(req);
     const { id } = organizationIdParamSchema.parse(req.params);
     const body = sendDirectorOnboardingSchema.parse(req.body);
-    const data = await organizationService.sendDirectorCtosPartyOnboarding(userId, id, portalType, body);
+    const data = await organizationService.sendDirectorCtosPartyOnboarding(
+      req,
+      userId,
+      id,
+      portalType,
+      body
+    );
     res.json({
       success: true,
       data,

@@ -3,12 +3,13 @@ import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
 import { requirePermission } from "../../lib/auth/middleware";
-import { UserRole } from "@prisma/client";
+import { applicationService } from "../applications/service";
+import { adminAuditHistoryQuerySchema } from "../applications/schemas";
+import { applyAuditExportHeaders } from "../../lib/audit/export-headers";
 import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission, type AdminRoleKey } from "@cashsouk/types";
 import {
   getUsersQuerySchema,
   getAccessLogsQuerySchema,
-  updateUserRolesSchema,
   updateUserOnboardingSchema,
   updateUserProfileSchema,
   updateUserIdSchema,
@@ -368,48 +369,6 @@ router.get(
         error instanceof AppError
           ? error
           : new AppError(500, "INTERNAL_ERROR", "Failed to fetch user")
-      );
-    }
-  }
-);
-
-/**
- * @swagger
- * /v1/admin/users/:id/roles:
- *   patch:
- *     summary: Update user roles (admin only)
- *     tags: [Admin]
- *     security:
- *       - BearerAuth: []
- */
-router.patch(
-  "/users/:id/roles",
-  requirePermission("users.manage"),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = req.params;
-      const validated = updateUserRolesSchema.parse(req.body);
-
-      if (!req.user) {
-        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
-      }
-
-      const updatedUser = await adminService.updateUserRoles(req, id, validated, req.user.user_id);
-
-      res.json({
-        success: true,
-        data: { user: updatedUser },
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(
-        error instanceof AppError
-          ? error
-          : new AppError(
-            400,
-            "VALIDATION_ERROR",
-            error instanceof Error ? error.message : "Failed to update user roles"
-          )
       );
     }
   }
@@ -812,7 +771,7 @@ router.post(
         throw new AppError(400, "VALIDATION_ERROR", "Portal must be 'investor' or 'issuer'");
       }
 
-      const result = await adminService.refreshOrganizationCorporateEntities(id, portal);
+      const result = await adminService.refreshOrganizationCorporateEntities(req, id, portal);
 
       res.json({
         success: true,
@@ -901,6 +860,7 @@ router.patch(
       const adminUserId = res.locals.userId as string | undefined;
 
       const result = await adminService.updateSophisticatedStatus(
+        req,
         id,
         validated.isSophisticatedInvestor,
         validated.reason,
@@ -970,27 +930,27 @@ router.get(
       const { format, ...filterParams } = validated;
 
       const logs = await adminService.exportAccessLogs(filterParams);
+      applyAuditExportHeaders(res, logs.length);
 
       if (format === "csv") {
-        // Generate CSV
         const headers = [
           "Timestamp",
           "User",
           "Email",
           "Event Type",
+          "Portal",
           "IP Address",
           "Device",
-          "Status",
           "Metadata",
         ];
         const rows = logs.map((log) => [
-          log.created_at.toISOString(),
-          `${log.user.first_name} ${log.user.last_name}`,
-          log.user.email,
-          log.event_type,
-          log.ip_address || "",
-          log.device_type || "",
-          log.success ? "Success" : "Failed",
+          log.occurredAt,
+          log.actor.displayName || "",
+          log.actor.email || "",
+          log.eventType,
+          log.portal || "",
+          log.ipAddress || "",
+          log.deviceInfo || "",
           JSON.stringify(log.metadata || {}),
         ]);
 
@@ -1011,22 +971,19 @@ router.get(
         // JSON format - return raw JSON array, not wrapped in API response
         const jsonData = logs.map((log) => ({
           id: log.id,
-          user_id: log.user_id,
-          user: {
-            first_name: log.user.first_name,
-            last_name: log.user.last_name,
-            email: log.user.email,
-            roles: log.user.roles,
-          },
-          event_type: log.event_type,
+          eventType: log.eventType,
+          occurredAt: log.occurredAt,
+          createdAt: log.createdAt,
+          userId: log.userId,
+          actor: log.actor,
+          target: log.target,
+          source: log.source,
           portal: log.portal,
-          ip_address: log.ip_address,
-          user_agent: log.user_agent,
-          device_info: log.device_info,
-          device_type: log.device_type,
-          success: log.success,
+          ipAddress: log.ipAddress,
+          userAgent: log.userAgent,
+          deviceInfo: log.deviceInfo,
+          correlationId: log.correlationId,
           metadata: log.metadata,
-          created_at: log.created_at.toISOString(),
         }));
 
         res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -1119,7 +1076,7 @@ router.patch(
       const { id } = req.params;
       const validated = updateUserIdSchema.parse(req.body);
 
-      const result = await adminService.updateUserId(id, validated.userId);
+      const result = await adminService.updateUserId(req, id, validated.userId);
 
       res.json({
         success: true,
@@ -1280,7 +1237,9 @@ router.post(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const result = await adminService.generateInvitationUrl(validated, req.user.user_id);
+      const result = await adminService.generateInvitationUrl(req, validated, req.user.user_id, {
+        writeLinkGenerated: true,
+      });
 
       res.json({
         success: true,
@@ -1346,7 +1305,9 @@ router.post(
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const result = await adminService.generateInvitationUrl(validated, req.user.user_id);
+      const result = await adminService.generateInvitationUrl(req, validated, req.user.user_id, {
+        writeLinkGenerated: true,
+      });
 
       res.json({
         success: true,
@@ -1427,6 +1388,7 @@ router.get(
       const { format, ...filterParams } = validated;
 
       const logs = await adminService.exportSecurityLogs(filterParams);
+      applyAuditExportHeaders(res, logs.length);
 
       if (format === "csv") {
         const headers = [
@@ -1438,24 +1400,15 @@ router.get(
           "Device",
           "Metadata",
         ];
-        const rows = logs.map(
-          (log: {
-            created_at: Date;
-            user: { first_name: string; last_name: string; email: string };
-            event_type: string;
-            ip_address: string | null;
-            device_info: string | null;
-            metadata: unknown;
-          }) => [
-              log.created_at.toISOString(),
-              `${log.user.first_name} ${log.user.last_name}`,
-              log.user.email,
-              log.event_type,
-              log.ip_address || "",
-              log.device_info || "",
-              JSON.stringify(log.metadata || {}),
-            ]
-        );
+        const rows = logs.map((log) => [
+          log.occurredAt,
+          log.actor.displayName || "",
+          log.actor.email || "",
+          log.eventType,
+          log.ipAddress || "",
+          log.deviceInfo || "",
+          JSON.stringify(log.metadata || {}),
+        ]);
 
         const csvContent = [
           headers.join(","),
@@ -1471,34 +1424,24 @@ router.get(
         );
         res.send(Buffer.from(csvContent, "utf-8"));
       } else {
-        const jsonData = logs.map(
-          (log: {
-            id: string;
-            user_id: string;
-            user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-            event_type: string;
-            ip_address: string | null;
-            user_agent: string | null;
-            device_info: string | null;
-            metadata: unknown;
-            created_at: Date;
-          }) => ({
-            id: log.id,
-            user_id: log.user_id,
-            user: {
-              first_name: log.user.first_name,
-              last_name: log.user.last_name,
-              email: log.user.email,
-              roles: log.user.roles,
-            },
-            event_type: log.event_type,
-            ip_address: log.ip_address,
-            user_agent: log.user_agent,
-            device_info: log.device_info,
-            metadata: log.metadata,
-            created_at: log.created_at.toISOString(),
-          })
-        );
+        const jsonData = logs.map((log) => ({
+          id: log.id,
+          eventType: log.eventType,
+          occurredAt: log.occurredAt,
+          createdAt: log.createdAt,
+          subjectUserId: log.subjectUserId,
+          actor: log.actor,
+          target: log.target,
+          organizationId: log.organizationId,
+          organizationKind: log.organizationKind,
+          source: log.source,
+          portal: log.portal,
+          ipAddress: log.ipAddress,
+          userAgent: log.userAgent,
+          deviceInfo: log.deviceInfo,
+          correlationId: log.correlationId,
+          metadata: log.metadata,
+        }));
 
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         res.setHeader(
@@ -1567,28 +1510,29 @@ router.get(
       const { format, ...filterParams } = validated;
 
       const logs = await adminService.exportOnboardingLogs(filterParams);
+      applyAuditExportHeaders(res, logs.length);
 
       if (format === "csv") {
         const headers = [
           "Timestamp",
-          "User",
+          "Actor",
           "Email",
-          "Role",
           "Event Type",
           "Portal",
+          "Source",
           "IP Address",
           "Device",
           "Metadata",
         ];
         const rows = logs.map((log) => [
-          log.created_at.toISOString(),
-          `${log.user.first_name} ${log.user.last_name}`,
-          log.user.email,
-          log.role,
-          log.event_type,
+          log.occurredAt,
+          log.actor.displayName || log.actor.userId || "",
+          log.actor.email || "",
+          log.eventType,
           log.portal || "",
-          log.ip_address || "",
-          log.device_type || "",
+          log.source,
+          log.ipAddress || "",
+          log.deviceInfo || "",
           JSON.stringify(log.metadata || {}),
         ]);
 
@@ -1608,22 +1552,20 @@ router.get(
       } else {
         const jsonData = logs.map((log) => ({
           id: log.id,
-          user_id: log.user_id,
-          user: {
-            first_name: log.user.first_name,
-            last_name: log.user.last_name,
-            email: log.user.email,
-            roles: log.user.roles,
-          },
-          role: log.role,
-          event_type: log.event_type,
+          eventType: log.eventType,
+          occurredAt: log.occurredAt,
+          createdAt: log.createdAt,
+          subjectUserId: log.subjectUserId,
+          actor: log.actor,
+          organizationId: log.organizationId,
+          organizationKind: log.organizationKind,
+          organizationType: log.organizationType,
           portal: log.portal,
-          ip_address: log.ip_address,
-          user_agent: log.user_agent,
-          device_info: log.device_info,
-          device_type: log.device_type,
+          source: log.source,
+          ipAddress: log.ipAddress,
+          userAgent: log.userAgent,
+          deviceInfo: log.deviceInfo,
           metadata: log.metadata,
-          created_at: log.created_at.toISOString(),
         }));
 
         res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -2481,6 +2423,24 @@ router.get(
  *       200:
  *         description: Application details
  */
+router.get(
+  "/applications/:id/audit-history",
+  requirePermission("applications.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const query = adminAuditHistoryQuerySchema.parse(req.query);
+      const result = await applicationService.getAdminApplicationAuditHistory(req.params.id, query);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.get(
   "/applications/:id",
   requirePermission("applications.view"),

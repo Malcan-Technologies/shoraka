@@ -17,20 +17,23 @@ If the event is only useful for admin audit, debugging, or detailed review trace
 ## Current implementation points
 
 - Shared API contract: `packages/types/src/index.ts`
-- Shared domain badge config: `packages/types/src/activity-config.ts`
+- Shared domain badge config: `packages/types/src/activity-config.ts` (onboarding, application, note, signing, payment)
 - Adapter base contract: `apps/api/src/modules/activity/adapters/base.ts`
 - Onboarding feed shaping: `apps/api/src/modules/activity/adapters/organization-log.ts`
 - Application feed shaping: `apps/api/src/modules/activity/adapters/application-log.ts`
+- Signing feed shaping: `apps/api/src/modules/activity/adapters/signing-log.ts`
 - Note feed shaping: `apps/api/src/modules/activity/adapters/note-log.ts`
+- Payment feed shaping: `apps/api/src/modules/activity/adapters/payment-log.ts`
 - Shared row UI: `packages/ui/src/components/activity-item.tsx`
 - Shared feed UI: `packages/ui/src/components/activity-feed.tsx`
 - Status + href helpers: `packages/types/src/activity-presentation.ts`
+- Visibility: `packages/types/src/activity-visibility.ts`
 
 ## Feed fields
 
 Each visible activity item must provide:
 
-- `domain`: high-level area such as `onboarding`, `application`, or later `note`
+- `domain`: high-level area (`onboarding`, `application`, `note`, `signing`, `payment`)
 - `title`: short event name users can scan quickly
 - `description`: one sentence that explains what happened or whether action is needed
 - `references` so the row can link through to the related object
@@ -61,9 +64,13 @@ Use domains to answer "what part of the product is this about?"
 - `onboarding`
   - Organization setup and approval lifecycle
 - `application`
-  - Financing application lifecycle, offers, and major status changes
+  - Financing application lifecycle, offers, and major status changes (issuer only)
+- `signing`
+  - Issuer-facing signing-package milestones
 - `note`
   - Curated note lifecycle milestones only
+- `payment`
+  - Investor-facing deposit, refund, and withdrawal milestones
 
 Choose the narrowest stable domain that a user would recognize. Do not invent a new domain for one-off internal mechanics.
 
@@ -81,6 +88,7 @@ Hide events that are mostly implementation noise, such as:
 - section-level and item-level review states
 - internal resets or status churn that do not change the user’s next action
 - sub-approvals that are only meaningful to operations or compliance teams
+- facility occupancy snapshots (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Issuers already see the causal milestone (invoice accepted, funding closed, repayment). Occupancy stays on admin Application/Contract Activity and raw Application Audit History.
 
 ## Writing a good title
 
@@ -95,7 +103,7 @@ Good patterns:
 
 Avoid:
 
-- implementation wording like `SECTION_REVIEWED_APPROVED`
+- implementation wording like `APPLICATION_SECTION_REVIEW_UPDATED` dumped as the title, or retired aliases such as `SECTION_REVIEWED_APPROVED`
 - vague titles like `Status Updated`
 - titles that duplicate low-level system mechanics instead of the user outcome
 
@@ -145,7 +153,7 @@ The `note` domain is now used for curated note lifecycle milestones only.
 - issuer-only note events should cover origination, listing, and issuer repayment workflow milestones
 - investor-only note events should cover the investor organization’s own commitment or return milestones
 - when both repayment receipt and settlement payout exist in the lifecycle, prefer the investor-visible payout milestone instead of surfacing both
-- do not surface raw `investor_balance_transactions` rows in `/activity`; those belong on `/investments?tab=transactions` and note-detail money views
+- do not surface raw `investor_balance_transactions` or pending-deposit overlay rows in `/activity`; those belong on Portfolio and admin org Wallet Activity (cash statement, not audit)
 - hide trustee, Shoraka, settlement-approval, and other operational steps unless they are the clearest user-facing milestone
 
 ## Rule of thumb

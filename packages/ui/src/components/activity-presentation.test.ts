@@ -9,19 +9,19 @@ import {
 describe("getActivityStatusToken", () => {
   it("maps issuer-facing events to viewer-centric tokens", () => {
     expect(getActivityStatusToken("CONTRACT_OFFER_SENT")).toBe("action");
-    expect(getActivityStatusToken("AMENDMENTS_SUBMITTED")).toBe("action");
+    expect(getActivityStatusToken("APPLICATION_AMENDMENTS_REQUESTED")).toBe("action");
     expect(getActivityStatusToken("APPLICATION_SUBMITTED")).toBe("submitted");
-    expect(getActivityStatusToken("ACTIVATE")).toBe("active");
-    expect(getActivityStatusToken("APPLICATION_APPROVED")).toBe("success");
-    expect(getActivityStatusToken("FAIL_FUNDING")).toBe("rejected");
+    expect(getActivityStatusToken("NOTE_ACTIVATED")).toBe("active");
+    expect(getActivityStatusToken("APPLICATION_COMPLETED")).toBe("success");
+    expect(getActivityStatusToken("NOTE_FUNDING_FAILED")).toBe("rejected");
     expect(getActivityStatusToken("APPLICATION_WITHDRAWN")).toBe("neutral");
   });
 
   it("does not use leftover indigo/sky tokens", () => {
     expect(getActivityStatusToken("APPLICATION_SUBMITTED")).not.toBe("in-progress" as never);
     expect(getActivityStatusLabel("CONTRACT_OFFER_SENT")).toBe("Action needed");
-    expect(getActivityStatusLabel("PUBLISH")).toBe("Waiting");
-    expect(getActivityStatusLabel("ACTIVATE")).toBe("Live");
+    expect(getActivityStatusLabel("NOTE_PUBLISHED")).toBe("Waiting");
+    expect(getActivityStatusLabel("NOTE_ACTIVATED")).toBe("Live");
   });
 });
 
@@ -35,8 +35,12 @@ describe("getDefaultActivityDomains", () => {
     expect(getDefaultActivityDomains("issuer", { onboardingComplete: true })).toEqual([
       "application",
       "note",
+      "signing",
     ]);
-    expect(getDefaultActivityDomains("investor", { onboardingComplete: true })).toEqual(["note"]);
+    expect(getDefaultActivityDomains("investor", { onboardingComplete: true })).toEqual([
+      "note",
+      "payment",
+    ]);
   });
 });
 
@@ -90,7 +94,7 @@ describe("getActivityHref", () => {
   it("links notes in each portal", () => {
     expect(
       getActivityHref(
-        { domain: "note", event_type: "PUBLISH", references: { noteId: "note_1" } },
+        { domain: "note", event_type: "NOTE_PUBLISHED", references: { noteId: "note_1" } },
         "issuer"
       )
     ).toBe("/financing/notes/note_1");

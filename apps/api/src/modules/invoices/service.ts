@@ -3,9 +3,7 @@ import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
-import { logApplicationActivity } from "../applications/logs/service";
-import { ActivityPortal } from "../applications/logs/types";
-import { Invoice } from "@prisma/client";
+import { Invoice, Prisma } from "@prisma/client";
 import {
   ApplicationStatus,
   ContractStatus,
@@ -18,6 +16,12 @@ import {
   assertMayAttachInvoiceToApplication,
 } from "../applications/split-origination-guards";
 import { computeApplicationStatus } from "../applications/lifecycle";
+import { prisma } from "../../lib/prisma";
+import {
+  APPLICATION_AUDIT_TARGET_TYPE,
+  issuerApplicationAuditContext,
+  writeApplicationAuditLog,
+} from "../applications/audit/writer";
 import {
   generateApplicationDocumentKey,
   parseApplicationDocumentKey,
@@ -27,7 +31,6 @@ import {
   deleteS3Object,
 } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
-import { prisma } from "../../lib/prisma";
 import { ProductRepository } from "../products/repository";
 import { assertMaturityForApplication } from "../products/validate-financial-config";
 import { shouldPreserveApplicationDocumentsInS3 } from "../applications/amendment-preserve-s3";
@@ -694,13 +697,15 @@ export class InvoiceService {
     }
 
     const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
+    const previousStatus = invoice.status;
+    const applicationId = invoice.application_id;
     const capacityContractIds = this.facilityContractIds(
       invoice.contract_id,
       (invoice as { application?: { contract_id?: string | null } }).application?.contract_id
     );
 
-    const persistWithdraw = (tx?: { invoice: { update: typeof prisma.invoice.update } }) =>
-      (tx ?? prisma).invoice.update({
+    const persistWithdraw = async (tx: Prisma.TransactionClient) => {
+      const next = await tx.invoice.update({
         where: { id },
         data: {
           status: InvoiceStatus.WITHDRAWN,
@@ -708,35 +713,37 @@ export class InvoiceService {
         },
       });
 
-    const updated =
-      capacityContractIds.length > 0
-        ? (
-            await applyContractCapacityChanges(capacityContractIds, prisma, (tx) =>
-              persistWithdraw(tx)
-            )
-          ).result
-        : await persistWithdraw();
+      if (!applicationId) {
+        return next;
+      }
 
-    if (invoice.application_id) {
       const details = invoice.details as Record<string, unknown> | null;
       const invoiceNumber = details?.number != null ? String(details.number) : undefined;
-      await logApplicationActivity({
-        userId,
-        applicationId: invoice.application_id,
-        eventType: "INVOICE_WITHDRAWN",
-        portal: ActivityPortal.ISSUER,
-        entityId: id,
-        metadata: {
-          invoice_id: id,
-          withdraw_reason: finalReason,
-          ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
-        },
-      });
 
-      const allInvoices = await this.repository.findByApplicationId(invoice.application_id);
-      const app = await this.applicationRepository.findById(invoice.application_id);
+      await writeApplicationAuditLog(
+        {
+          eventType: "INVOICE_WITHDRAWN",
+          context: issuerApplicationAuditContext(userId),
+          applicationId,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.INVOICE,
+          targetId: id,
+          metadata: {
+            previousStatus,
+            newStatus: "WITHDRAWN",
+            withdrawReason: finalReason,
+            ...(invoiceNumber ? { invoiceNumber } : {}),
+          },
+        },
+        tx
+      );
+
+      const allInvoices = await tx.invoice.findMany({ where: { application_id: applicationId } });
+      const app = await tx.application.findUnique({
+        where: { id: applicationId },
+        select: { status: true, contract_id: true, financing_structure: true },
+      });
       const contract = app?.contract_id
-        ? await this.contractRepository.findById(app.contract_id)
+        ? await tx.contract.findUnique({ where: { id: app.contract_id }, select: { status: true } })
         : null;
       const currentStatus = (app?.status as ApplicationStatus) ?? ApplicationStatus.DRAFT;
       const isInvoiceOnly =
@@ -752,20 +759,34 @@ export class InvoiceService {
         newStatus === ApplicationStatus.WITHDRAWN &&
         currentStatus !== ApplicationStatus.WITHDRAWN
       ) {
-        const { prisma } = await import("../../lib/prisma");
-        await prisma.application.update({
-          where: { id: invoice.application_id },
+        await tx.application.update({
+          where: { id: applicationId },
           data: { status: ApplicationStatus.WITHDRAWN },
         });
-        await logApplicationActivity({
-          userId,
-          applicationId: invoice.application_id,
-          eventType: "APPLICATION_WITHDRAWN",
-          portal: ActivityPortal.ISSUER,
-          metadata: { withdraw_reason: finalReason },
-        });
+        await writeApplicationAuditLog(
+          {
+            eventType: "APPLICATION_WITHDRAWN",
+            context: issuerApplicationAuditContext(userId),
+            applicationId,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+            targetId: applicationId,
+            metadata: {
+              previousStatus: currentStatus,
+              newStatus: "WITHDRAWN",
+              withdrawReason: finalReason,
+            },
+          },
+          tx
+        );
       }
-    }
+
+      return next;
+    };
+
+    const updated =
+      capacityContractIds.length > 0
+        ? (await applyContractCapacityChanges(capacityContractIds, prisma, persistWithdraw)).result
+        : await prisma.$transaction(persistWithdraw);
 
     return updated;
   }

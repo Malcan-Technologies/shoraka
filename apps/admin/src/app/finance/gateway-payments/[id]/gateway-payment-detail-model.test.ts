@@ -1,4 +1,4 @@
-import { getGatewayPaymentDetailVisibility } from "./gateway-payment-detail-model";
+import { getGatewayPaymentDetailVisibility, gatewayAuditEventView, readRefundRequestedAt } from "./gateway-payment-detail-model";
 import type { GatewayPaymentDetailDto } from "@cashsouk/types";
 
 function base(overrides: Partial<GatewayPaymentDetailDto> = {}): GatewayPaymentDetailDto {
@@ -38,6 +38,40 @@ function base(overrides: Partial<GatewayPaymentDetailDto> = {}): GatewayPaymentD
     ...overrides,
   };
 }
+
+describe("readRefundRequestedAt", () => {
+  it("prefers PAYMENT_REFUND_INITIATED occurredAt over legacy REFUND_INITIATED", () => {
+    expect(
+      readRefundRequestedAt({
+        metadata: null,
+        events: [
+          {
+            eventType: "PAYMENT_REFUND_INITIATED",
+            occurredAt: "2026-08-14T01:00:00.000Z",
+          },
+        ],
+      })
+    ).toBe("2026-08-14T01:00:00.000Z");
+  });
+});
+
+describe("gatewayAuditEventView", () => {
+  it("reads typed metadata for status and mismatch reason", () => {
+    const view = gatewayAuditEventView({
+      id: "evt_1",
+      eventType: "PAYMENT_CAPTURE_MISMATCH_DETECTED",
+      occurredAt: "2026-08-14T02:00:00.000Z",
+      metadata: {
+        mismatchType: "AMOUNT_MISMATCH",
+        previousStatus: "CREATED",
+        newStatus: "PAID",
+      },
+    });
+    expect(view.reason).toBe("AMOUNT_MISMATCH");
+    expect(view.fromStatus).toBe("CREATED");
+    expect(view.toStatus).toBe("PAID");
+  });
+});
 
 describe("getGatewayPaymentDetailVisibility", () => {
   it("shows initiate refund only for completed investor deposits", () => {

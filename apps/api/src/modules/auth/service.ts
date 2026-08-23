@@ -13,15 +13,24 @@ import {
   GlobalSignOutCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { AuthRepository } from "./repository";
-import { User, UserRole } from "@prisma/client";
+import { OnboardingStatus, User, UserRole } from "@prisma/client";
 import { formatRolesForCognito } from "../../lib/auth/cognito";
-import { extractRequestMetadata } from "../../lib/http/request-utils";
-import { getPortalFromRole } from "../../lib/role-detector";
 import { verifyCognitoAccessToken } from "../../lib/auth/cognito-jwt-verifier";
 import { Request, Response } from "express";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_SOURCE,
+  auditContextFromRequest,
+  auditPortalFromRole,
+} from "../../lib/audit/context";
+import { changedFieldsOf } from "../../lib/audit/snapshot";
+import { writeAccessAuditLogBestEffort } from "./audit/writer";
+import { accessAuditLogReader } from "./audit/reader";
+import { writeSecurityAuditLog, writeSecurityAuditLogBestEffort } from "../security/audit/writer";
+import { SECURITY_AUDIT_TARGET_TYPE } from "../security/audit/events";
 import { createHmac } from "crypto";
 import { getEnv } from "../../config/env";
 import { NotificationService } from "../notification/service";
@@ -51,6 +60,46 @@ function computeSecretHash(username: string): string {
   return hmac.digest("base64");
 }
 
+async function hasIncompleteOnboardingForRole(userId: string, role: UserRole): Promise<boolean> {
+  const portalType = role === UserRole.ISSUER ? "issuer" : "investor";
+  const orgs =
+    portalType === "investor"
+      ? await prisma.investorOrganization.findMany({
+          where: { owner_user_id: userId },
+          select: { id: true, onboarding_status: true, onboarded_at: true },
+        })
+      : await prisma.issuerOrganization.findMany({
+          where: { owner_user_id: userId },
+          select: { id: true, onboarding_status: true, onboarded_at: true },
+        });
+
+  const sessions = await prisma.regTankOnboarding.findMany({
+    where: { user_id: userId, portal_type: portalType },
+    select: { investor_organization_id: true, issuer_organization_id: true },
+  });
+
+  const sessionOrgIds = new Set(
+    sessions
+      .map((row) =>
+        portalType === "investor" ? row.investor_organization_id : row.issuer_organization_id
+      )
+      .filter((id): id is string => Boolean(id))
+  );
+
+  const hasIncomplete = orgs.some((org) => {
+    if (org.onboarding_status === OnboardingStatus.COMPLETED || org.onboarded_at) {
+      return false;
+    }
+    if (org.onboarding_status !== OnboardingStatus.PENDING) {
+      return true;
+    }
+    return sessionOrgIds.has(org.id);
+  });
+
+  if (hasIncomplete) return true;
+  return false;
+}
+
 export class AuthService {
   private repository: AuthRepository;
   private notificationService: NotificationService;
@@ -61,11 +110,11 @@ export class AuthService {
   }
 
   /**
-   * Sync Cognito user to database after OAuth callback
-   * Creates or updates user record and creates access log for audit trail
+   * Sync Cognito user to database after OAuth callback.
+   * Does not write AccessAuditLog — Cognito callback is the login/signup writer.
    */
   async syncUser(
-    req: Request,
+    _req: Request,
     data: {
       cognitoSub: string;
       email: string;
@@ -82,9 +131,6 @@ export class AuthService {
       issuer: boolean;
     };
   }> {
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-
-    // Upsert user in database
     const user = await this.repository.upsertUser({
       cognitoSub: data.cognitoSub,
       cognitoUsername: data.email, // Default to email
@@ -96,26 +142,6 @@ export class AuthService {
       emailVerified: data.emailVerified,
     });
 
-    // Create access log for audit trail
-    // Note: This may create a duplicate log if called from OAuth callback route,
-    // but both logs serve different purposes:
-    // - This log: Records the sync operation (no portal context)
-    // - Callback log: Records LOGIN/SIGNUP event (with portal context)
-    // Both are needed for complete audit trail
-    await this.repository.createAccessLog({
-      userId: user.user_id,
-      eventType: "LOGIN",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      success: true,
-      metadata: {
-        roles: data.roles,
-        source: "sync-user-endpoint",
-      },
-    });
-
     // Check onboarding status
     const requiresOnboarding = {
       investor: data.roles.includes(UserRole.INVESTOR) && user.investor_account.length === 0,
@@ -123,48 +149,6 @@ export class AuthService {
     };
 
     return { user, requiresOnboarding };
-  }
-
-  /**
-   * Add a role to an existing user
-   * Updates both Cognito custom attribute and database
-   */
-  async addRole(req: Request, userId: string, cognitoSub: string, role: UserRole): Promise<User> {
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-
-    // Add role in database
-    const updatedUser = await this.repository.addRoleToUser(userId, role);
-
-    // Update Cognito custom:roles attribute
-    const rolesString = formatRolesForCognito(updatedUser.roles);
-
-    const command = new AdminUpdateUserAttributesCommand({
-      UserPoolId: COGNITO_USER_POOL_ID,
-      Username: cognitoSub,
-      UserAttributes: [
-        {
-          Name: "custom:roles",
-          Value: rolesString,
-        },
-      ],
-    });
-
-    await cognitoClient.send(command);
-
-    // Create security log (ROLE_ADDED is a security event)
-    await this.repository.createSecurityLog({
-      userId,
-      eventType: "ROLE_ADDED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        addedRole: role,
-        allRoles: updatedUser.roles,
-      },
-    });
-
-    return updatedUser;
   }
 
   /**
@@ -333,16 +317,12 @@ export class AuthService {
       "Onboarding status updated successfully"
     );
 
-    // Note: USER_COMPLETED log is only created when final approval is completed by admin
-    // See apps/api/src/modules/admin/service.ts completeFinalApproval()
-    // Removed USER_COMPLETED log creation from here
-
     return { success: true };
   }
 
   /**
-   * Cancel onboarding - silently cancels user-initiated onboarding (no logs created)
-   * Note: ONBOARDING_CANCELLED logs are only created when admin restarts onboarding
+   * Report whether the user has incomplete onboarding for a portal.
+   * Does not rewind org status, delete provider sessions, or write audit.
    */
   async cancelOnboarding(
     req: Request,
@@ -350,7 +330,6 @@ export class AuthService {
     role?: UserRole,
     reason?: string
   ): Promise<{ success: boolean; cancelled: boolean }> {
-    // Get user to determine role if not provided
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
     });
@@ -359,10 +338,8 @@ export class AuthService {
       throw new Error("User not found");
     }
 
-    // Determine the role
     let onboardingRole = role;
     if (!onboardingRole) {
-      // Try to determine role from token or user
       const authHeader = req.headers.authorization;
       if (authHeader?.startsWith("Bearer ")) {
         try {
@@ -380,63 +357,14 @@ export class AuthService {
       }
     }
 
-    // Check if user has started onboarding but not completed it
-    // Check if there's a recent ONBOARDING_STARTED event for this role
-    const startedEvent = await prisma.onboardingLog.findFirst({
-      where: {
-        user_id: userId,
-        role: onboardingRole,
-        event_type: "ONBOARDING_STARTED",
-      },
-      orderBy: {
-        created_at: "desc",
-      },
-    });
-
-    if (!startedEvent) {
-      // User hasn't started onboarding, nothing to cancel
-      logger.info(
-        { userId, role: onboardingRole },
-        "No onboarding started event found - skipping cancellation"
-      );
-      return { success: true, cancelled: false };
-    }
-
-    // Check if onboarding has been completed (check for COMPLETED event or account array)
-    const completedEvent = await prisma.onboardingLog.findFirst({
-      where: {
-        user_id: userId,
-        role: onboardingRole,
-        event_type: "USER_COMPLETED",
-        created_at: {
-          gte: startedEvent.created_at, // Only count if completed after started
-        },
-      },
-    });
-
-    // Also check if account array indicates completion
-    const accountArray =
-      onboardingRole === UserRole.INVESTOR ? user.investor_account : user.issuer_account;
-    const hasCompletedAccount = accountArray.length > 0 && !accountArray.includes("temp");
-
-    if (completedEvent || hasCompletedAccount) {
-      // Onboarding already completed, nothing to cancel
-      logger.info(
-        { userId, role: onboardingRole, hasCompletedEvent: !!completedEvent, hasCompletedAccount },
-        "Onboarding already completed - skipping cancellation"
-      );
-      return { success: true, cancelled: false };
-    }
-
-    // User has started but not completed - skip logging cancellation
-    // Note: ONBOARDING_CANCELLED logs are only created when admin restarts onboarding
-    // User-initiated cancellations (navigating away, switching orgs) are not logged
+    const cancelled = await hasIncompleteOnboardingForRole(userId, onboardingRole);
     logger.info(
-      { userId, role: onboardingRole, reason },
-      "Onboarding cancelled (user-initiated, no log created)"
+      { userId, role: onboardingRole, reason, cancelled },
+      cancelled
+        ? "Onboarding cancelled (user-initiated, no state mutation)"
+        : "Onboarding cancel skipped — never started or already completed"
     );
-
-    return { success: true, cancelled: true };
+    return { success: true, cancelled };
   }
 
   /**
@@ -450,14 +378,9 @@ export class AuthService {
     success: boolean;
     logoutUrl: string;
   }> {
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-
-    // Find active session
     const session = await this.repository.findActiveSession(userId);
 
-    // Use activeRole from parameter, session, or default to first role
     const roleForPortal = activeRole || session?.active_role || null;
-    const portal = roleForPortal ? getPortalFromRole(roleForPortal) : undefined;
 
     // Check if user has started but not completed onboarding, and cancel it
     if (roleForPortal) {
@@ -485,17 +408,16 @@ export class AuthService {
       await this.repository.revokeSession(session.id);
     }
 
-    // Create access log
-    await this.repository.createAccessLog({
+    await writeAccessAuditLogBestEffort({
+      eventType: "USER_LOGGED_OUT",
+      context: auditContextFromRequest(req, {
+        actorType: AUDIT_ACTOR_TYPE.USER,
+        actorUserId: userId,
+        portal: auditPortalFromRole(roleForPortal),
+        source: AUDIT_SOURCE.API,
+      }),
       userId,
-      eventType: "LOGOUT",
-      portal,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      success: true,
-      metadata: roleForPortal ? { activeRole: roleForPortal } : undefined,
+      metadata: roleForPortal ? { activeRole: roleForPortal } : {},
     });
 
     // Return Cognito logout URL
@@ -549,7 +471,7 @@ export class AuthService {
 
     const activeSession = await this.repository.findActiveSession(user.user_id);
     const activeSessionsCount = await this.repository.countActiveSessions(user.user_id);
-    const recentLogins = await this.repository.findRecentLogins(user.user_id, 3);
+    const recentLogins = await accessAuditLogReader.findRecentLogins(user.user_id, 3);
     const access = user.admin ? await resolveAdminAccess(prisma, user.admin) : null;
 
     return {
@@ -563,58 +485,10 @@ export class AuthService {
         active: activeSessionsCount > 0 ? activeSessionsCount : 1,
       },
       recentLogins: recentLogins.map((login) => ({
-        at: login.created_at,
-        ip: login.ip_address,
-        device: login.device_info,
+        at: new Date(login.occurredAt),
+        ip: login.ipAddress,
+        device: login.deviceInfo,
       })),
-    };
-  }
-
-  /**
-   * Switch active role in current session
-   */
-  async switchRole(
-    req: Request,
-    userId: string,
-    role: UserRole
-  ): Promise<{
-    success: boolean;
-    activeRole: UserRole;
-  }> {
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    const user = await this.repository.findUserByCognitoSub(userId);
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Verify user has the role
-    if (!user.roles.includes(role)) {
-      throw new Error(`User does not have ${role} role`);
-    }
-
-    // Update active session
-    const session = await this.repository.findActiveSession(user.user_id);
-
-    if (session) {
-      await this.repository.updateSessionActiveRole(session.id, role);
-    }
-
-    // Create security log (ROLE_SWITCHED is a security event)
-    await this.repository.createSecurityLog({
-      userId: user.user_id,
-      eventType: "ROLE_SWITCHED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        newRole: role,
-      },
-    });
-
-    return {
-      success: true,
-      activeRole: role,
     };
   }
 
@@ -832,16 +706,11 @@ export class AuthService {
       phone?: string | null;
     }
   ): Promise<User> {
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-
-    // Verify user exists before proceeding
     const currentUser = await prisma.user.findUnique({ where: { user_id: userId } });
     if (!currentUser) {
       throw new Error("User not found");
     }
 
-    // Check if user has completed onboarding - if so, lock name changes
-    // Admins can always edit names (for corrections)
     const isAdmin = currentUser.roles.includes(UserRole.ADMIN);
     const hasCompletedOnboarding =
       currentUser.investor_account.length > 0 || currentUser.issuer_account.length > 0;
@@ -857,26 +726,49 @@ export class AuthService {
       );
     }
 
-    const updatedUser = await this.repository.updateUserProfile(userId, data);
-
-    // Create security log (PROFILE_UPDATED is a security event)
-    await this.repository.createSecurityLog({
-      userId,
-      eventType: "PROFILE_UPDATED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        updatedFields: Object.keys(data).filter((k) => data[k as keyof typeof data] !== undefined),
-        previousValues: {
-          firstName: currentUser.first_name,
-          lastName: currentUser.last_name,
-          phone: currentUser.phone,
-        },
-      },
+    const context = auditContextFromRequest(req, {
+      actorType: isAdmin ? AUDIT_ACTOR_TYPE.ADMIN : AUDIT_ACTOR_TYPE.USER,
+      actorUserId: userId,
     });
 
-    return updatedUser;
+    return prisma.$transaction(async (tx) => {
+      const updateData: Record<string, string | null> = {};
+      if (data.firstName !== undefined) updateData.first_name = data.firstName;
+      if (data.lastName !== undefined) updateData.last_name = data.lastName;
+      if (data.phone !== undefined) updateData.phone = data.phone;
+
+      const updatedUser = await tx.user.update({
+        where: { user_id: userId },
+        data: updateData,
+      });
+
+      const before = {
+        firstName: currentUser.first_name,
+        lastName: currentUser.last_name,
+        phone: currentUser.phone,
+      };
+      const after = {
+        firstName: updatedUser.first_name,
+        lastName: updatedUser.last_name,
+        phone: updatedUser.phone,
+      };
+      const changedFields = changedFieldsOf(before, after);
+      if (changedFields.length > 0) {
+        await writeSecurityAuditLog(
+          {
+            eventType: "USER_PROFILE_UPDATED",
+            context,
+            subjectUserId: userId,
+            targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+            targetId: userId,
+            metadata: { changedFields, before, after },
+          },
+          tx
+        );
+      }
+
+      return updatedUser;
+    });
   }
 
   /**
@@ -892,9 +784,6 @@ export class AuthService {
       newPassword: string;
     }
   ): Promise<{ success: boolean; sessionRevoked?: boolean }> {
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-
-    // Get user for logging purposes
     const user = await prisma.user.findUnique({ where: { user_id: userId } });
     if (!user) {
       throw new AppError(404, "NOT_FOUND", "User not found");
@@ -939,8 +828,6 @@ export class AuthService {
       // Update password changed timestamp in database
       await this.repository.updatePasswordChangedAt(userId);
 
-      // Revoke all sessions using non-admin GlobalSignOut
-      // This invalidates all refresh tokens for the user
       let sessionRevoked = false;
       try {
         const signOutCommand = new GlobalSignOutCommand({
@@ -959,16 +846,17 @@ export class AuthService {
           { userId, error: error instanceof Error ? error.message : String(error) },
           "Failed to revoke sessions after password change"
         );
-        // Don't fail the password change, but log the error
       }
 
-      // Log successful password change (SecurityLog)
-      await this.repository.createSecurityLog({
-        userId,
+      await writeSecurityAuditLogBestEffort({
         eventType: "PASSWORD_CHANGED",
-        ipAddress,
-        userAgent,
-        deviceInfo,
+        context: auditContextFromRequest(req, {
+          actorType: AUDIT_ACTOR_TYPE.USER,
+          actorUserId: userId,
+        }),
+        subjectUserId: userId,
+        targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+        targetId: userId,
         metadata: {
           reason: "USER_INITIATED",
           sessionRevoked,
@@ -988,31 +876,37 @@ export class AuthService {
 
       return { success: true, sessionRevoked };
     } catch (error) {
-      // Log failed password change attempt (SecurityLog)
-      await this.repository.createSecurityLog({
-        userId,
-        eventType: "PASSWORD_CHANGED",
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        metadata: {
-          reason: "USER_INITIATED",
-          success: false,
-          error:
-            error instanceof NotAuthorizedException
-              ? "INCORRECT_PASSWORD"
-              : error instanceof UserNotFoundException
-                ? "USER_NOT_FOUND"
-                : "UNKNOWN_ERROR",
-        },
-      });
-
-      // Log detailed error information
       const errorName = error instanceof Error ? error.name : "Unknown";
       const errorMessage = error instanceof Error ? error.message : String(error);
-      // Get the actual Cognito error message which contains more specific info
       const cognitoMessage =
         error && typeof error === "object" && "message" in error ? (error as Error).message : "";
+
+      const reasonCode =
+        error instanceof NotAuthorizedException
+          ? cognitoMessage.toLowerCase().includes("scope")
+            ? "INSUFFICIENT_SCOPE"
+            : cognitoMessage.toLowerCase().includes("expired") ||
+                cognitoMessage.toLowerCase().includes("token")
+              ? "TOKEN_EXPIRED"
+              : "INCORRECT_PASSWORD"
+          : error instanceof UserNotFoundException
+            ? "USER_NOT_FOUND"
+            : "UNKNOWN_ERROR";
+
+      await writeSecurityAuditLogBestEffort({
+        eventType: "PASSWORD_CHANGE_FAILED",
+        context: auditContextFromRequest(req, {
+          actorType: AUDIT_ACTOR_TYPE.USER,
+          actorUserId: userId,
+        }),
+        subjectUserId: userId,
+        targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+        targetId: userId,
+        metadata: {
+          reasonCode,
+          providerErrorCode: errorName,
+        },
+      });
 
       logger.error(
         {
@@ -1079,9 +973,6 @@ export class AuthService {
       code: string;
     }
   ): Promise<{ success: boolean }> {
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-
-    // Get user
     const user = await prisma.user.findUnique({ where: { user_id: userId } });
     if (!user) {
       throw new AppError(404, "NOT_FOUND", "User not found");
@@ -1129,16 +1020,18 @@ export class AuthService {
         data: { email_verified: true },
       });
 
-      // Log successful verification (SecurityLog)
-      await this.repository.createSecurityLog({
-        userId,
-        eventType: "EMAIL_CHANGED",
-        ipAddress,
-        userAgent,
-        deviceInfo,
+      await writeSecurityAuditLogBestEffort({
+        eventType: "USER_EMAIL_VERIFIED",
+        context: auditContextFromRequest(req, {
+          actorType: AUDIT_ACTOR_TYPE.USER,
+          actorUserId: userId,
+        }),
+        subjectUserId: userId,
+        targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+        targetId: userId,
         metadata: {
           email: user.email,
-          reason: "EMAIL_VERIFIED",
+          reasonCode: "EMAIL_VERIFIED",
         },
       });
 
@@ -1148,19 +1041,29 @@ export class AuthService {
     } catch (error) {
       const errorName = error instanceof Error ? error.name : "Unknown";
       const errorMessage = error instanceof Error ? error.message : String(error);
+      const reasonCode =
+        error instanceof CodeMismatchException
+          ? "INVALID_CODE"
+          : error instanceof ExpiredCodeException
+            ? "EXPIRED_CODE"
+            : error instanceof NotAuthorizedException
+              ? "INVALID_PASSWORD"
+              : error instanceof AppError
+                ? error.code
+                : "UNKNOWN_ERROR";
 
-      // Log failed attempt (SecurityLog)
-      await this.repository.createSecurityLog({
-        userId,
-        eventType: "EMAIL_CHANGED",
-        ipAddress,
-        userAgent,
-        deviceInfo,
+      await writeSecurityAuditLogBestEffort({
+        eventType: "EMAIL_VERIFICATION_FAILED",
+        context: auditContextFromRequest(req, {
+          actorType: AUDIT_ACTOR_TYPE.USER,
+          actorUserId: userId,
+        }),
+        subjectUserId: userId,
+        targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+        targetId: userId,
         metadata: {
           email: user.email,
-          reason: "VERIFICATION_FAILED",
-          success: false,
-          error: errorName,
+          reasonCode,
         },
       });
 

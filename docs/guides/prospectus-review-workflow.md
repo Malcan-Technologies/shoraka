@@ -50,7 +50,7 @@ Table: `note_prospectus_reviews` (1:1 `note_id`).
 - `status`: `DRAFT` \| `READY_FOR_REVIEW` \| `APPROVED` \| `SUPERSEDED`
 - `option_catalogue_version`, `content_version`
 - Actor audit: created/updated/approved by + timestamps
-- Also logged via `NoteAdminAction` / `NoteEvent`
+- Also logged via `NoteAuditLog` (`NOTE_PROSPECTUS_REVIEW_CREATED`, `NOTE_PROSPECTUS_APPROVED`, `NOTE_PROSPECTUS_INVALIDATED`). Live unpublish is `NOTE_UNPUBLISHED`. `UNPUBLISH` is an invalidation **reason**, not an event type. Legacy `NoteAdminAction` / `NoteEvent` stores are removed.
 
 Never writes into Application financial statements, CTOS, invoice/issuer/paymaster snapshots.
 

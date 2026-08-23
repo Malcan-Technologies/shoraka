@@ -17,18 +17,6 @@ export const syncUserSchema = z.object({
 export type SyncUserInput = z.infer<typeof syncUserSchema>;
 
 /**
- * Schema for add-role endpoint
- * Adds an additional role to existing user
- */
-export const addRoleSchema = z.object({
-  role: z.nativeEnum(UserRole, {
-    errorMap: () => ({ message: "Invalid role. Must be INVESTOR, ISSUER, or ADMIN" }),
-  }),
-});
-
-export type AddRoleInput = z.infer<typeof addRoleSchema>;
-
-/**
  * Schema for check-onboarding endpoint
  */
 export const checkOnboardingSchema = z.object({
@@ -55,15 +43,6 @@ export const cancelOnboardingSchema = z.object({
 });
 
 export type CancelOnboardingInput = z.infer<typeof cancelOnboardingSchema>;
-
-/**
- * Schema for switch-role endpoint
- */
-export const switchRoleSchema = z.object({
-  role: z.nativeEnum(UserRole),
-});
-
-export type SwitchRoleInput = z.infer<typeof switchRoleSchema>;
 
 /**
  * Schema for admin create-user endpoint

@@ -1,17 +1,20 @@
-import { WithdrawalType } from "@prisma/client";
 import { NoteLogAdapter } from "./note-log";
 
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
-    noteEvent: { findMany: jest.fn() },
-    withdrawalInstruction: { findMany: jest.fn() },
+    noteAuditLog: { findMany: jest.fn() },
+    note: { findMany: jest.fn() },
+    noteInvestment: { findMany: jest.fn() },
+    noteSettlement: { findMany: jest.fn() },
   },
 }));
 
 const { prisma } = jest.requireMock("../../../lib/prisma") as {
   prisma: {
-    noteEvent: { findMany: jest.Mock };
-    withdrawalInstruction: { findMany: jest.Mock };
+    noteAuditLog: { findMany: jest.Mock };
+    note: { findMany: jest.Mock };
+    noteInvestment: { findMany: jest.Mock };
+    noteSettlement: { findMany: jest.Mock };
   };
 };
 
@@ -19,21 +22,23 @@ function createRecord(overrides: Record<string, unknown> = {}) {
   return {
     id: "event_1",
     note_id: "note_1",
-    event_type: "ACTIVATE",
+    event_type: "NOTE_ACTIVATED",
+    actor_type: "ADMIN",
     actor_user_id: "user_1",
-    actor_role: "ADMIN",
+    organization_id: "issuer-org-1",
+    organization_kind: "ISSUER",
+    target_type: "NOTE",
+    target_id: "note_1",
+    source: "API",
     portal: "ADMIN",
     ip_address: null,
     user_agent: null,
     correlation_id: null,
     metadata: {},
+    occurred_at: new Date("2026-01-01T00:00:00Z"),
     created_at: new Date("2026-01-01T00:00:00Z"),
-    note: {
-      id: "note_1",
-      issuer_organization_id: "issuer-org-1",
-      note_reference: "NOTE-001",
-      title: "Bridge Note",
-    },
+    noteReference: "NOTE-001",
+    noteTitle: "Bridge Note",
     ...overrides,
   };
 }
@@ -43,27 +48,39 @@ describe("NoteLogAdapter", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    prisma.withdrawalInstruction.findMany.mockResolvedValue([]);
+    prisma.note.findMany.mockResolvedValue([
+      {
+        id: "note_1",
+        note_reference: "NOTE-001",
+        title: "Bridge Note",
+        published_at: new Date("2026-01-01T00:00:00Z"),
+        listing_status: "PUBLISHED",
+      },
+    ]);
+    prisma.noteInvestment.findMany.mockResolvedValue([
+      { note_id: "note_1", status: "COMMITTED" },
+    ]);
+    prisma.noteSettlement.findMany.mockResolvedValue([]);
   });
 
   it("builds user-facing note copy", () => {
     expect(
-      adapter.buildPresentation("PUBLISH", {
+      adapter.buildPresentation("NOTE_PUBLISHED", {
         noteReference: "NOTE-001",
       })
     ).toEqual({
       title: "Note Published",
-      description: "Note NOTE-001 is now live and open for investment.",
+      description: "Your note is now listed and open for investment.",
     });
 
-    expect(
-      adapter.buildPresentation("PAUSE_LISTING", {
-        noteReference: "NOTE-001",
-      })
-    ).toEqual({
+    expect(adapter.buildPresentation("NOTE_CAMPAIGN_PAUSED")).toEqual({
       title: "Campaign Paused",
       description:
-        "Note NOTE-001 was temporarily closed to new investment. Existing commitments are held.",
+        "Your campaign was temporarily closed to new investment. Existing commitments are held.",
+    });
+    expect(adapter.buildPresentation("NOTE_CAMPAIGN_RESUMED")).toEqual({
+      title: "Campaign Resumed",
+      description: "Your campaign is open for investment again.",
     });
 
     expect(
@@ -72,19 +89,26 @@ describe("NoteLogAdapter", () => {
       })
     ).toEqual({
       title: "Settlement Posted",
-      description: "Your returns for note Bridge Note were posted.",
+      description: "Settlement was posted.",
+    });
+
+    expect(
+      adapter.buildPresentation(
+        "SETTLEMENT_POSTED",
+        { investorAmount: 9000, currency: "MYR" },
+        "investor"
+      )
+    ).toEqual({
+      title: "Returns Credited",
+      description: "Your returns were credited to your CashSouk balance.",
     });
   });
 
-  it("keeps issuer activity limited to shared and issuer-only events", async () => {
-    prisma.noteEvent.findMany.mockResolvedValue([
-      createRecord({ id: "issuer_1", event_type: "CLOSE_FUNDING" }),
-      createRecord({
-        id: "issuer_2",
-        event_type: "INVESTMENT_COMMITTED",
-        metadata: { investorOrganizationId: "investor-org-1" },
-      }),
-      createRecord({ id: "issuer_3", event_type: "NOTE_DEFAULT_MARKED" }),
+  it("includes the newly approved issuer note lifecycle events", async () => {
+    prisma.noteAuditLog.findMany.mockResolvedValue([
+      createRecord({ id: "unpublished", event_type: "NOTE_UNPUBLISHED" }),
+      createRecord({ id: "received", event_type: "REPAYMENT_RECEIVED" }),
+      createRecord({ id: "residual", event_type: "RESIDUAL_RETURN_COMPLETED" }),
     ]);
 
     const records = await adapter.query("user_1", {
@@ -94,11 +118,39 @@ describe("NoteLogAdapter", () => {
       offset: 0,
     });
 
-    expect(records.map((record) => record.event_type)).toEqual(["CLOSE_FUNDING", "NOTE_DEFAULT_MARKED"]);
+    expect(records.map((record) => record.event_type)).toEqual([
+      "NOTE_UNPUBLISHED",
+      "REPAYMENT_RECEIVED",
+      "RESIDUAL_RETURN_COMPLETED",
+    ]);
+  });
+
+  it("keeps issuer activity limited to shared and issuer-only events", async () => {
+    prisma.noteAuditLog.findMany.mockResolvedValue([
+      createRecord({ id: "issuer_1", event_type: "NOTE_FUNDING_CLOSED" }),
+      createRecord({
+        id: "issuer_2",
+        event_type: "INVESTMENT_COMMITTED",
+        metadata: { investorOrganizationId: "investor-org-1" },
+      }),
+      createRecord({ id: "issuer_3", event_type: "NOTE_MARKED_DEFAULT" }),
+    ]);
+
+    const records = await adapter.query("user_1", {
+      organizationId: "issuer-org-1",
+      portalType: "issuer",
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(records.map((record) => record.event_type)).toEqual([
+      "NOTE_FUNDING_CLOSED",
+      "NOTE_MARKED_DEFAULT",
+    ]);
   });
 
   it("only shows investment commits to the matching investor organization", async () => {
-    prisma.noteEvent.findMany.mockResolvedValue([
+    prisma.noteAuditLog.findMany.mockResolvedValue([
       createRecord({
         id: "investor_1",
         event_type: "INVESTMENT_COMMITTED",
@@ -112,11 +164,20 @@ describe("NoteLogAdapter", () => {
       createRecord({
         id: "investor_3",
         event_type: "SETTLEMENT_POSTED",
+        metadata: { settlementId: "set_1" },
       }),
       createRecord({
         id: "investor_4",
-        event_type: "PAYMENT_RECEIVED",
+        event_type: "REPAYMENT_RECEIVED",
       }),
+    ]);
+    prisma.noteSettlement.findMany.mockResolvedValue([
+      {
+        id: "set_1",
+        preview_snapshot: {
+          allocations: [{ investmentId: "inv_1", investorOrganizationId: "investor-org-1" }],
+        },
+      },
     ]);
 
     const records = await adapter.query("user_1", {
@@ -129,22 +190,49 @@ describe("NoteLogAdapter", () => {
     expect(records.map((record) => record.id)).toEqual(["investor_1", "investor_3"]);
   });
 
-  it("normalizes issuer disbursement completion to note active and hides other withdrawals", async () => {
-    prisma.noteEvent.findMany.mockResolvedValue([
+  it("does not leak funding or settlement events to an unrelated investor", async () => {
+    prisma.noteInvestment.findMany.mockResolvedValue([]);
+    prisma.noteAuditLog.findMany.mockResolvedValue([
+      createRecord({ id: "funding", event_type: "NOTE_FUNDING_CLOSED" }),
       createRecord({
-        id: "withdrawal_1",
-        event_type: "WITHDRAWAL_COMPLETED",
-        metadata: { withdrawalId: "wd_1" },
-      }),
-      createRecord({
-        id: "withdrawal_2",
-        event_type: "WITHDRAWAL_COMPLETED",
-        metadata: { withdrawalId: "wd_2" },
+        id: "settlement",
+        event_type: "SETTLEMENT_POSTED",
+        metadata: { settlementId: "set_1" },
       }),
     ]);
-    prisma.withdrawalInstruction.findMany.mockResolvedValue([
-      { id: "wd_1", withdrawal_type: WithdrawalType.ISSUER_DISBURSEMENT },
-      { id: "wd_2", withdrawal_type: WithdrawalType.ISSUER_RESIDUAL_RETURN },
+    prisma.noteSettlement.findMany.mockResolvedValue([
+      {
+        id: "set_1",
+        preview_snapshot: {
+          allocations: [{ investmentId: "inv_1", investorOrganizationId: "other-org" }],
+        },
+      },
+    ]);
+
+    const records = await adapter.query("user_1", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(records).toEqual([]);
+  });
+
+  it("shows issuer terms updates only after the note is already visible", async () => {
+    prisma.note.findMany.mockResolvedValue([
+      {
+        id: "note_1",
+        note_reference: "NOTE-001",
+        title: "Bridge Note",
+        published_at: null,
+        listing_status: "DRAFT",
+      },
+    ]);
+    prisma.noteAuditLog.findMany.mockResolvedValue([
+      createRecord({ id: "terms", event_type: "NOTE_TERMS_UPDATED" }),
+      createRecord({ id: "published", event_type: "NOTE_PUBLISHED" }),
+      createRecord({ id: "prospectus", event_type: "NOTE_PROSPECTUS_APPROVED" }),
     ]);
 
     const records = await adapter.query("user_1", {
@@ -154,23 +242,140 @@ describe("NoteLogAdapter", () => {
       offset: 0,
     });
 
-    expect(records).toHaveLength(1);
-    expect(records[0].id).toBe("withdrawal_1");
+    expect(records.map((record) => record.event_type)).toEqual(["NOTE_PUBLISHED"]);
+  });
 
-    const transformed = adapter.transform(records[0] as any);
-    expect(transformed.title).toBe("Note Active");
-    expect(transformed.description).toBe("Note NOTE-001 is now active and servicing has started.");
-    expect(transformed.references).toEqual({
+  it("does not treat disbursement completion as note activation", async () => {
+    prisma.noteAuditLog.findMany.mockResolvedValue([
+      createRecord({
+        id: "withdrawal_1",
+        event_type: "DISBURSEMENT_COMPLETED",
+        metadata: { withdrawalId: "wd_1" },
+      }),
+      createRecord({
+        id: "activation_1",
+        event_type: "NOTE_ACTIVATED",
+      }),
+    ]);
+
+    const records = await adapter.query("user_1", {
+      organizationId: "issuer-org-1",
+      portalType: "issuer",
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(records.map((record) => record.event_type)).toEqual([
+      "DISBURSEMENT_COMPLETED",
+      "NOTE_ACTIVATED",
+    ]);
+
+    const completed = adapter.transform(records[0] as never);
+    expect(completed.title).toBe("Disbursement Completed");
+    expect(completed.references).toEqual({
+      noteId: "note_1",
+      noteReference: "NOTE-001",
+    });
+
+    const activated = adapter.transform(records[1] as never);
+    expect(activated.title).toBe("Note Activated");
+    expect(activated.references).toEqual({
       noteId: "note_1",
       noteReference: "NOTE-001",
     });
   });
 
   it("only exposes curated high-signal note events", () => {
-    expect(adapter.getEventTypes()).toContain("ACTIVATE");
+    expect(adapter.getEventTypes()).toContain("NOTE_ACTIVATED");
     expect(adapter.getEventTypes()).toContain("SETTLEMENT_POSTED");
-    expect(adapter.getEventTypes()).not.toContain("PAYMENT_RECEIVED");
+    expect(adapter.getEventTypes()).toContain("REPAYMENT_RECEIVED");
+    expect(adapter.getEventTypes()).toContain("NOTE_UNPUBLISHED");
+    expect(adapter.getEventTypes()).toContain("NOTE_CAMPAIGN_PAUSED");
+    expect(adapter.getEventTypes()).toContain("NOTE_CAMPAIGN_RESUMED");
+    expect(adapter.getEventTypes()).toContain("NOTE_TERMS_UPDATED");
+    expect(adapter.getEventTypes()).not.toContain("NOTE_PROSPECTUS_APPROVED");
     expect(adapter.getEventTypes()).not.toContain("SHORAKA_ORDER_SUBMITTED");
     expect(adapter.getEventTypes()).not.toContain("SETTLEMENT_APPROVED");
+    expect(adapter.getEventTypes()).not.toContain("WITHDRAWAL_COMPLETED");
+  });
+
+  it("shows funding-failed to a released investor who participated", async () => {
+    prisma.noteInvestment.findMany.mockResolvedValue([
+      { note_id: "note_1", status: "RELEASED" },
+    ]);
+    prisma.noteAuditLog.findMany.mockResolvedValue([
+      createRecord({ id: "failed", event_type: "NOTE_FUNDING_FAILED" }),
+      createRecord({ id: "activated", event_type: "NOTE_ACTIVATED" }),
+      createRecord({ id: "defaulted", event_type: "NOTE_MARKED_DEFAULT" }),
+    ]);
+
+    const records = await adapter.query("user_1", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(records.map((record) => record.event_type)).toEqual(["NOTE_FUNDING_FAILED"]);
+  });
+
+  it("hides later lifecycle events from cancelled and released investors", async () => {
+    prisma.noteInvestment.findMany.mockResolvedValue([
+      { note_id: "note_1", status: "CANCELLED" },
+    ]);
+    prisma.noteAuditLog.findMany.mockResolvedValue([
+      createRecord({ id: "closed", event_type: "NOTE_FUNDING_CLOSED" }),
+      createRecord({ id: "activated", event_type: "NOTE_ACTIVATED" }),
+      createRecord({ id: "defaulted", event_type: "NOTE_MARKED_DEFAULT" }),
+    ]);
+
+    const cancelled = await adapter.query("user_1", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+      limit: 10,
+      offset: 0,
+    });
+    expect(cancelled).toEqual([]);
+
+    prisma.noteInvestment.findMany.mockResolvedValue([
+      { note_id: "note_1", status: "RELEASED" },
+    ]);
+    const released = await adapter.query("user_1", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+      limit: 10,
+      offset: 0,
+    });
+    expect(released).toEqual([]);
+  });
+
+  it("keeps settlement ownership independent of investment status", async () => {
+    prisma.noteInvestment.findMany.mockResolvedValue([
+      { note_id: "note_1", status: "CANCELLED" },
+    ]);
+    prisma.noteAuditLog.findMany.mockResolvedValue([
+      createRecord({
+        id: "settlement",
+        event_type: "SETTLEMENT_POSTED",
+        metadata: { settlementId: "set_1" },
+      }),
+    ]);
+    prisma.noteSettlement.findMany.mockResolvedValue([
+      {
+        id: "set_1",
+        preview_snapshot: {
+          allocations: [{ investmentId: "inv_1", investorOrganizationId: "investor-org-1" }],
+        },
+      },
+    ]);
+
+    const records = await adapter.query("user_1", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(records.map((record) => record.id)).toEqual(["settlement"]);
   });
 });

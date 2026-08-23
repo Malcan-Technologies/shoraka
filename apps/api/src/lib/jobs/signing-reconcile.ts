@@ -5,6 +5,8 @@ import { prisma } from "../prisma";
 import { Prisma } from "@prisma/client";
 import { logger } from "../logger";
 import { signingService } from "../../modules/signing/service";
+import { SIGNING_COMPLETION_METHOD } from "../../modules/signing/audit/events";
+import { AUDIT_SOURCE, systemAuditContext } from "../audit/context";
 
 export type SigningReconcileResult = {
   syncedEnvelopeIds: string[];
@@ -35,21 +37,36 @@ export async function runSigningReconcileJob(): Promise<SigningReconcileResult> 
 
   const completedWithoutPdf = await prisma.signingEnvelope.findMany({
     where: {
-      status: "COMPLETED",
-      documents: {
-        some: {
-          provider_contract_ref: { not: null },
-          signed_s3_key: null,
+      OR: [
+        {
           status: "COMPLETED",
+          documents: {
+            some: {
+              provider_contract_ref: { not: null },
+              signed_s3_key: null,
+              status: "COMPLETED",
+            },
+          },
         },
-      },
+        {
+          status: { in: ["SENT", "IN_PROGRESS"] },
+          assignments: {
+            every: {
+              OR: [{ required: false }, { status: "SIGNED" }],
+            },
+          },
+        },
+      ],
     },
     select: { id: true },
   });
 
   for (const row of completedWithoutPdf) {
     try {
-      await signingService.syncEnvelopeFromProvider(row.id);
+      await signingService.syncEnvelopeFromProvider(row.id, {
+        completionMethod: SIGNING_COMPLETION_METHOD.RECONCILE,
+        context: systemAuditContext({ source: AUDIT_SOURCE.SYSTEM_JOB, portal: null }),
+      });
       result.syncedEnvelopeIds.push(row.id);
     } catch (err) {
       result.errors.push(
@@ -73,7 +90,10 @@ export async function runSigningReconcileJob(): Promise<SigningReconcileResult> 
     if (now - startedAtMs <= TRUST_RETURN_SESSION_MAX_MS) continue;
 
     try {
-      await signingService.syncEnvelopeFromProvider(recipient.envelope_id);
+      await signingService.syncEnvelopeFromProvider(recipient.envelope_id, {
+        completionMethod: SIGNING_COMPLETION_METHOD.RECONCILE,
+        context: systemAuditContext({ source: AUDIT_SOURCE.SYSTEM_JOB, portal: null }),
+      });
       result.staleTrustReturnRecipientIds.push(recipient.id);
     } catch (err) {
       result.errors.push(

@@ -154,9 +154,6 @@ describeIntegration("external Curlec refund on COMPLETED payments", () => {
           },
         },
       });
-      await prisma.gatewayPaymentEvent.deleteMany({
-        where: { gateway_payment_id: { in: createdPaymentIds } },
-      });
       await prisma.gatewayPayment.deleteMany({ where: { id: { in: createdPaymentIds } } });
     }
     if (investorOrgId) {

@@ -71,7 +71,12 @@ describe("AdminService.refreshCorporateAmlStatus", () => {
 
     expect(mockFetchAllAMLStatuses).toHaveBeenCalledWith("COD001", "org-1", "investor");
     expect(mockApplyCorporateAmlMilestoneFromLiveKyb).toHaveBeenCalledWith(
-      expect.objectContaining({ codRequestId: "COD001", organizationId: "org-1", userId: "admin-1" })
+      expect.objectContaining({
+        codRequestId: "COD001",
+        organizationId: "org-1",
+        userId: "admin-1",
+        onboardingId: "onboarding-1",
+      })
     );
     expect(result.advanced).toBe(true);
     expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_FINAL_APPROVAL);

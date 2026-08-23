@@ -1,5 +1,14 @@
-import { Prisma, WithdrawalType } from "@prisma/client";
+import { NoteInvestmentStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
+import {
+  audienceFromPortal,
+  formatNoteActivity,
+  getNoteActivityEventTypes,
+  isIssuerNoteTermsVisible,
+  isNoteActivityVisible,
+  settlementHasInvestorAllocation,
+  type ActivityAudience,
+} from "@cashsouk/types";
 import {
   AuditLogAdapter,
   ActivityFilters,
@@ -7,39 +16,25 @@ import {
   buildDateFilter,
 } from "./base";
 
-type NoteActivityRecord = Prisma.NoteEventGetPayload<{
-  include: {
-    note: {
-      select: {
-        id: true;
-        issuer_organization_id: true;
-        note_reference: true;
-        title: true;
-      };
-    };
-  };
-}>;
+type NoteActivityRecord = Prisma.NoteAuditLogGetPayload<object> & {
+  noteReference: string | null;
+  noteTitle: string | null;
+};
 
-type SupportedPortal = "investor" | "issuer";
-
-const SHARED_EVENT_TYPES = ["FAIL_FUNDING", "ACTIVATE", "WITHDRAWAL_COMPLETED", "NOTE_DEFAULT_MARKED"] as const;
-const ISSUER_ONLY_EVENT_TYPES = [
-  "NOTE_CREATED_FROM_INVOICE",
-  "PUBLISH",
-  "PAUSE_LISTING",
-  "RESUME_LISTING",
-  "CLOSE_FUNDING",
-  "ISSUER_PAYMENT_SUBMITTED",
-] as const;
-const INVESTOR_ONLY_EVENT_TYPES = ["INVESTMENT_COMMITTED", "SETTLEMENT_POSTED"] as const;
-
-const ALL_NOTE_EVENT_TYPES = [
-  ...SHARED_EVENT_TYPES,
-  ...ISSUER_ONLY_EVENT_TYPES,
-  ...INVESTOR_ONLY_EVENT_TYPES,
-] as const;
+type NoteVisibilityLabel = {
+  noteReference: string | null;
+  noteTitle: string | null;
+  publishedAt: Date | null;
+  listingStatus: string | null;
+};
 
 const DEFAULT_BATCH_SIZE = 50;
+
+const ACTIVE_INVESTMENT_STATUSES: NoteInvestmentStatus[] = [
+  NoteInvestmentStatus.COMMITTED,
+  NoteInvestmentStatus.CONFIRMED,
+  NoteInvestmentStatus.SETTLED,
+];
 
 export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
   public readonly name = "NoteLogAdapter";
@@ -67,13 +62,17 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
     return visible.length;
   }
 
-  transform(record: NoteActivityRecord): UnifiedActivity {
+  transform(record: NoteActivityRecord, filters?: ActivityFilters): UnifiedActivity {
     const metadata = (record.metadata as Record<string, unknown> | null) ?? {};
-    const presentation = this.buildPresentation(record.event_type, {
-      ...metadata,
-      noteReference: record.note.note_reference,
-      noteTitle: record.note.title,
-    });
+    const presentation = this.buildPresentation(
+      record.event_type,
+      {
+        ...metadata,
+        noteReference: record.noteReference,
+        noteTitle: record.noteTitle,
+      },
+      filters ? this.audienceOf(filters) : "issuer"
+    );
 
     return {
       id: record.id,
@@ -87,107 +86,33 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
       metadata,
       ip_address: record.ip_address,
       user_agent: record.user_agent,
-      created_at: record.created_at,
-      source_table: "note_events",
+      created_at: record.occurred_at,
+      source_table: "note_audit_logs",
       references: {
-        noteId: record.note.id,
-        noteReference: record.note.note_reference,
+        noteId: record.note_id ?? undefined,
+        noteReference: record.noteReference ?? undefined,
       },
     };
   }
 
-  buildPresentation(eventType: string, metadata?: Record<string, unknown>) {
-    const noteLabel = this.getNoteLabel(metadata);
-
-    switch (eventType) {
-      case "NOTE_CREATED_FROM_INVOICE":
-        return {
-          title: "Note Created",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} was created from an approved invoice and can now be prepared for listing.`
-            : "A new note was created from an approved invoice and can now be prepared for listing.",
-        };
-      case "PUBLISH":
-        return {
-          title: "Note Published",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} is now live and open for investment.`
-            : "The note is now live and open for investment.",
-        };
-      case "PAUSE_LISTING":
-        return {
-          title: "Campaign Paused",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} was temporarily closed to new investment. Existing commitments are held.`
-            : "The campaign was temporarily closed to new investment. Existing commitments are held.",
-        };
-      case "RESUME_LISTING":
-        return {
-          title: "Campaign Resumed",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} is open for investment again.`
-            : "The campaign is open for investment again.",
-        };
-      case "CLOSE_FUNDING":
-        return {
-          title: "Funding Closed",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} completed funding and disbursement can proceed.`
-            : "Funding completed and disbursement can proceed.",
-        };
-      case "FAIL_FUNDING":
-        return {
-          title: "Funding Unsuccessful",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} did not meet the minimum funding threshold and committed funds were released.`
-            : "The note did not meet the minimum funding threshold and committed funds were released.",
-        };
-      case "ACTIVATE":
-      case "WITHDRAWAL_COMPLETED":
-        return {
-          title: "Note Active",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} is now active and servicing has started.`
-            : "The note is now active and servicing has started.",
-        };
-      case "ISSUER_PAYMENT_SUBMITTED":
-        return {
-          title: "Payment Submitted",
-          description: noteLabel
-            ? `A repayment for ${noteLabel} was submitted and is awaiting review.`
-            : "A repayment was submitted and is awaiting review.",
-        };
-      case "INVESTMENT_COMMITTED":
-        return {
-          title: "Investment Committed",
-          description: noteLabel
-            ? `Your investment in ${noteLabel} was committed successfully.`
-            : "Your investment was committed successfully.",
-        };
-      case "SETTLEMENT_POSTED":
-        return {
-          title: "Settlement Posted",
-          description: noteLabel
-            ? `Your returns for ${noteLabel} were posted.`
-            : "Your returns for the note were posted.",
-        };
-      case "NOTE_DEFAULT_MARKED":
-        return {
-          title: "Note Defaulted",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} was marked in default and requires attention.`
-            : "The note was marked in default and requires attention.",
-        };
-      default:
-        return {
-          title: "Note Update",
-          description: "A note update was recorded for your organization.",
-        };
-    }
+  buildPresentation(
+    eventType: string,
+    metadata?: Record<string, unknown>,
+    audience: ActivityAudience = "issuer"
+  ) {
+    return formatNoteActivity(audience, eventType, metadata, {
+      noteReference: this.getMetadataString(metadata, "noteReference"),
+      noteTitle: this.getMetadataString(metadata, "noteTitle"),
+    });
   }
 
   getEventTypes(): string[] {
-    return [...ALL_NOTE_EVENT_TYPES];
+    return Array.from(
+      new Set([
+        ...getNoteActivityEventTypes("issuer"),
+        ...getNoteActivityEventTypes("investor"),
+      ])
+    );
   }
 
   private async collectVisibleRecords(
@@ -196,7 +121,7 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
     targetCount?: number
   ): Promise<NoteActivityRecord[]> {
     const { limit } = filters;
-    const supportedTypes = this.getPortalEventTypes(filters.portalType);
+    const supportedTypes = getNoteActivityEventTypes(this.audienceOf(filters));
     const supportedTypeSet = new Set<string>(supportedTypes);
     const filteredTypes = filters.event_types
       ? filters.event_types.filter((eventType) => supportedTypeSet.has(eventType))
@@ -206,26 +131,17 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
       return [];
     }
 
+    const membership = await this.getInvestorNoteMembership(filters);
     const batchSize = Math.max(limit ?? DEFAULT_BATCH_SIZE, DEFAULT_BATCH_SIZE);
     const visible: NoteActivityRecord[] = [];
     let skip = 0;
+    const noteLabels = new Map<string, NoteVisibilityLabel>();
+    const settlementSnapshots = new Map<string, unknown>();
 
-    // Records are post-filtered in memory because visibility depends on withdrawal type
-    // and investor-specific commit metadata, which are not fully expressible in one query.
     while (targetCount == null || visible.length < targetCount) {
-      const records = await prisma.noteEvent.findMany({
-        where: this.buildWhereClause(userId, filters, filteredTypes),
-        include: {
-          note: {
-            select: {
-              id: true,
-              issuer_organization_id: true,
-              note_reference: true,
-              title: true,
-            },
-          },
-        },
-        orderBy: { created_at: "desc" },
+      const records = await prisma.noteAuditLog.findMany({
+        where: await this.buildWhereClause(userId, filters, filteredTypes),
+        orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
         skip,
         take: batchSize,
       });
@@ -234,8 +150,77 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
         break;
       }
 
-      const visibleBatch = await this.filterVisibleRecords(records, filters);
-      visible.push(...visibleBatch);
+      const missingNoteIds = Array.from(
+        new Set(
+          records
+            .map((record) => record.note_id)
+            .filter((noteId): noteId is string => typeof noteId === "string" && !noteLabels.has(noteId))
+        )
+      );
+      if (missingNoteIds.length > 0) {
+        const notes = await prisma.note.findMany({
+          where: { id: { in: missingNoteIds } },
+          select: {
+            id: true,
+            note_reference: true,
+            title: true,
+            published_at: true,
+            listing_status: true,
+          },
+        });
+        for (const note of notes) {
+          noteLabels.set(note.id, {
+            noteReference: note.note_reference,
+            noteTitle: note.title,
+            publishedAt: note.published_at,
+            listingStatus: note.listing_status,
+          });
+        }
+      }
+
+      const missingSettlementIds = Array.from(
+        new Set(
+          records
+            .filter((record) => record.event_type === "SETTLEMENT_POSTED")
+            .map((record) =>
+              this.getMetadataString((record.metadata as Record<string, unknown> | null) ?? {}, "settlementId")
+            )
+            .filter((settlementId): settlementId is string => {
+              if (!settlementId) return false;
+              return !settlementSnapshots.has(settlementId);
+            })
+        )
+      );
+      if (missingSettlementIds.length > 0) {
+        const settlements = await prisma.noteSettlement.findMany({
+          where: { id: { in: missingSettlementIds } },
+          select: { id: true, preview_snapshot: true },
+        });
+        for (const settlement of settlements) {
+          settlementSnapshots.set(settlement.id, settlement.preview_snapshot);
+        }
+      }
+
+      const hydrated = records.map((record) => {
+        const labels = record.note_id ? noteLabels.get(record.note_id) : undefined;
+        return {
+          ...record,
+          noteReference: labels?.noteReference ?? null,
+          noteTitle: labels?.noteTitle ?? null,
+        };
+      });
+
+      for (const record of hydrated) {
+        if (
+          this.isVisibleRecord(record, filters, {
+            note: record.note_id ? noteLabels.get(record.note_id) : undefined,
+            membership,
+            settlementSnapshots,
+          })
+        ) {
+          visible.push(record);
+        }
+      }
 
       if (records.length < batchSize) {
         break;
@@ -247,154 +232,123 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
     return visible;
   }
 
-  private buildWhereClause(userId: string, filters: ActivityFilters, eventTypes: string[]): Prisma.NoteEventWhereInput {
+  private async buildWhereClause(
+    userId: string,
+    filters: ActivityFilters,
+    eventTypes: string[]
+  ): Promise<Prisma.NoteAuditLogWhereInput> {
     const { search, startDate, endDate, organizationId, portalType } = filters;
-    const where: Prisma.NoteEventWhereInput = {
+    const where: Prisma.NoteAuditLogWhereInput = {
       event_type: { in: eventTypes },
-      created_at: buildDateFilter(startDate, endDate),
+      occurred_at: buildDateFilter(startDate, endDate),
     };
 
     if (organizationId && portalType === "issuer") {
-      where.note = {
-        is: {
-          issuer_organization_id: organizationId,
-        },
-      };
+      where.organization_id = organizationId;
     } else if (organizationId && portalType === "investor") {
-      where.note = {
-        is: {
-          investments: {
-            some: {
-              investor_organization_id: organizationId,
-            },
-          },
-        },
-      };
+      const investments = await prisma.noteInvestment.findMany({
+        where: { investor_organization_id: organizationId },
+        select: { note_id: true },
+        distinct: ["note_id"],
+      });
+      where.note_id = { in: investments.map((row) => row.note_id) };
     } else {
       where.actor_user_id = userId;
     }
 
     if (search) {
-      const matchingEventTypes = this.buildSearchEventTypes(search, eventTypes);
+      const matchingEventTypes = this.buildSearchEventTypes(search, eventTypes, filters);
+      const notes = await prisma.note.findMany({
+        where: {
+          OR: [
+            { note_reference: { contains: search, mode: "insensitive" } },
+            { title: { contains: search, mode: "insensitive" } },
+          ],
+        },
+        select: { id: true },
+      });
       where.OR = [
         { event_type: { contains: search, mode: "insensitive" } },
         { event_type: { in: matchingEventTypes } },
-        { note: { is: { note_reference: { contains: search, mode: "insensitive" } } } },
-        { note: { is: { title: { contains: search, mode: "insensitive" } } } },
+        { note_id: { in: notes.map((note) => note.id) } },
       ];
     }
 
     return where;
   }
 
-  private async filterVisibleRecords(records: NoteActivityRecord[], filters: ActivityFilters) {
-    const withdrawalTypeById = await this.getWithdrawalTypeById(records);
-
-    return records.filter((record) => this.isVisibleRecord(record, filters, withdrawalTypeById));
-  }
-
-  private async getWithdrawalTypeById(records: NoteActivityRecord[]) {
-    const withdrawalIds = Array.from(
-      new Set(
-        records
-          .map((record) => this.getMetadataString(record.metadata, "withdrawalId"))
-          .filter((withdrawalId): withdrawalId is string => Boolean(withdrawalId))
-      )
-    );
-
-    if (withdrawalIds.length === 0) {
-      return new Map<string, WithdrawalType>();
-    }
-
-    const withdrawals = await prisma.withdrawalInstruction.findMany({
-      where: { id: { in: withdrawalIds } },
-      select: {
-        id: true,
-        withdrawal_type: true,
-      },
-    });
-
-    return new Map(withdrawals.map((withdrawal) => [withdrawal.id, withdrawal.withdrawal_type]));
-  }
-
   private isVisibleRecord(
     record: NoteActivityRecord,
     filters: ActivityFilters,
-    withdrawalTypeById: Map<string, WithdrawalType>
+    context: {
+      note?: NoteVisibilityLabel;
+      membership: { activeNoteIds: Set<string>; releasedNoteIds: Set<string> };
+      settlementSnapshots: Map<string, unknown>;
+    }
   ) {
-    const portalType = filters.portalType;
-    const organizationId = filters.organizationId;
     const metadata = (record.metadata as Record<string, unknown> | null) ?? {};
+    const settlementId = this.getMetadataString(metadata, "settlementId");
+    const noteId = record.note_id;
+    const investorCommitted =
+      noteId != null &&
+      (context.membership.activeNoteIds.has(noteId) ||
+        (record.event_type === "NOTE_FUNDING_FAILED" &&
+          context.membership.releasedNoteIds.has(noteId)));
 
-    if (record.event_type === "WITHDRAWAL_COMPLETED") {
-      const withdrawalId = this.getMetadataString(metadata, "withdrawalId");
-      return withdrawalId != null && withdrawalTypeById.get(withdrawalId) === WithdrawalType.ISSUER_DISBURSEMENT;
+    return isNoteActivityVisible(this.audienceOf(filters), record.event_type, metadata, {
+      organizationId: filters.organizationId,
+      noteVisibleToIssuer: isIssuerNoteTermsVisible({
+        publishedAt: context.note?.publishedAt,
+        listingStatus: context.note?.listingStatus,
+      }),
+      investorCommitted,
+      settlementHasInvestorAllocation: settlementHasInvestorAllocation(
+        settlementId ? context.settlementSnapshots.get(settlementId) : undefined,
+        filters.organizationId
+      ),
+    });
+  }
+
+  private audienceOf(filters: ActivityFilters): ActivityAudience {
+    return audienceFromPortal(filters.portalType);
+  }
+
+  private async getInvestorNoteMembership(filters: ActivityFilters): Promise<{
+    activeNoteIds: Set<string>;
+    releasedNoteIds: Set<string>;
+  }> {
+    if (filters.portalType !== "investor" || !filters.organizationId) {
+      return { activeNoteIds: new Set(), releasedNoteIds: new Set() };
     }
 
-    if (portalType === "issuer") {
-      return this.isIssuerVisibleEvent(record.event_type);
-    }
+    const investments = await prisma.noteInvestment.findMany({
+      where: { investor_organization_id: filters.organizationId },
+      select: { note_id: true, status: true },
+    });
 
-    if (portalType === "investor") {
-      if (record.event_type === "INVESTMENT_COMMITTED") {
-        return organizationId != null && this.getMetadataString(metadata, "investorOrganizationId") === organizationId;
+    const activeNoteIds = new Set<string>();
+    const releasedNoteIds = new Set<string>();
+    for (const row of investments) {
+      if (ACTIVE_INVESTMENT_STATUSES.includes(row.status)) {
+        activeNoteIds.add(row.note_id);
       }
-
-      return this.isInvestorVisibleEvent(record.event_type);
+      if (row.status === NoteInvestmentStatus.RELEASED) {
+        releasedNoteIds.add(row.note_id);
+      }
     }
-
-    return true;
+    return { activeNoteIds, releasedNoteIds };
   }
 
-  private isIssuerVisibleEvent(eventType: string) {
-    return SHARED_EVENT_TYPES.includes(eventType as (typeof SHARED_EVENT_TYPES)[number]) ||
-      ISSUER_ONLY_EVENT_TYPES.includes(eventType as (typeof ISSUER_ONLY_EVENT_TYPES)[number]);
-  }
-
-  private isInvestorVisibleEvent(eventType: string) {
-    return SHARED_EVENT_TYPES.includes(eventType as (typeof SHARED_EVENT_TYPES)[number]) ||
-      INVESTOR_ONLY_EVENT_TYPES.includes(eventType as (typeof INVESTOR_ONLY_EVENT_TYPES)[number]);
-  }
-
-  private getPortalEventTypes(portalType?: SupportedPortal) {
-    if (portalType === "issuer") {
-      return [...SHARED_EVENT_TYPES, ...ISSUER_ONLY_EVENT_TYPES];
-    }
-
-    if (portalType === "investor") {
-      return [...SHARED_EVENT_TYPES, ...INVESTOR_ONLY_EVENT_TYPES];
-    }
-
-    return [...ALL_NOTE_EVENT_TYPES];
-  }
-
-  private buildSearchEventTypes(search: string, eventTypes: string[]) {
+  private buildSearchEventTypes(search: string, eventTypes: string[], filters: ActivityFilters) {
     const searchTerm = search.toLowerCase();
 
     return eventTypes.filter((eventType) => {
-      const metadata =
-        eventType === "WITHDRAWAL_COMPLETED" ? { withdrawalType: WithdrawalType.ISSUER_DISBURSEMENT } : undefined;
-      const presentation = this.buildPresentation(eventType, metadata);
-
+      const presentation = this.buildPresentation(eventType, {}, this.audienceOf(filters));
       return (
         presentation.title.toLowerCase().includes(searchTerm) ||
         presentation.description.toLowerCase().includes(searchTerm)
       );
     });
-  }
-
-  private getNoteLabel(metadata?: Record<string, unknown>) {
-    const noteReference = this.getMetadataString(metadata, "noteReference");
-    if (noteReference) {
-      return `note ${noteReference}`;
-    }
-
-    const noteTitle = this.getMetadataString(metadata, "noteTitle");
-    if (noteTitle) {
-      return `note ${noteTitle}`;
-    }
-
-    return undefined;
   }
 
   private getMetadataString(metadata: unknown, key: string) {
@@ -409,9 +363,5 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
 
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : undefined;
-  }
-
-  private capitalize(value: string) {
-    return value.charAt(0).toUpperCase() + value.slice(1);
   }
 }

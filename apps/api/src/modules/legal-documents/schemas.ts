@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LEGAL_ADMIN_AUDIT_EVENTS } from "./audit/events";
 
 export const legalDocumentTypes = [
   "PDPA_NOTICE_AND_CONSENT",
@@ -146,25 +147,11 @@ export const acceptLegalDocumentSchema = openLegalDocumentSchema;
 
 export type AcceptLegalDocumentInput = z.infer<typeof acceptLegalDocumentSchema>;
 
-export const legalDocumentEventTypes = [
-  "LEGAL_DOCUMENT_CREATED",
-  "LEGAL_DOCUMENT_UPDATED",
-  "LEGAL_VERSION_UPLOADED",
-  "LEGAL_VERSION_FILE_REPLACED",
-  "LEGAL_VERSION_PUBLISHED",
-  "LEGAL_VERSION_ARCHIVED",
-  "LEGAL_VERSION_RESTORED",
-] as const;
-
-export type LegalDocumentEventType = (typeof legalDocumentEventTypes)[number];
-
-export type LegalDocumentAuditAction = LegalDocumentEventType;
-
 export const listLegalDocumentAuditLogsQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(100).default(20),
   search: z.string().optional(),
-  action: z.enum(legalDocumentEventTypes).optional(),
+  action: z.enum(LEGAL_ADMIN_AUDIT_EVENTS).optional(),
   documentType: z.enum(legalDocumentTypes).optional(),
   legalDocumentId: z.string().optional(),
   actorUserId: z.string().optional(),

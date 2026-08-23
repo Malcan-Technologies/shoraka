@@ -1,4 +1,5 @@
 import type { GatewayPaymentStatus, NameCheckResult } from "./notes";
+import type { PaymentAuditLogDto } from "./payment-audit";
 
 export type GatewayPaymentPurpose =
   | "INVESTOR_DEPOSIT"
@@ -7,30 +8,6 @@ export type GatewayPaymentPurpose =
 
 export type GatewayOrganizationType = "INVESTOR" | "ISSUER";
 export type CurlecGatewayAccount = "OPERATING" | "INVESTOR_POOL";
-
-export type GatewayPaymentEventType =
-  | "NAME_CHECK"
-  | "NAME_CHECK_APPROVED"
-  | "NAME_CHECK_REJECTED"
-  | "OVERRIDE_PROPOSED"
-  | "OVERRIDE_APPROVED"
-  | "OVERRIDE_REJECTED"
-  | "REFUND_INITIATED"
-  | "REFUNDED"
-  | "EXPIRED"
-  | "CAPTURE_MISMATCH"
-  | "REFUND_WALLET_REVERSAL_FAILED";
-
-export interface GatewayPaymentEventDto {
-  id: string;
-  type: GatewayPaymentEventType;
-  actorUserId: string | null;
-  actorName: string | null;
-  fromStatus: GatewayPaymentStatus | null;
-  toStatus: GatewayPaymentStatus | null;
-  reason: string | null;
-  createdAt: string;
-}
 
 export interface GatewayPaymentListItemDto {
   id: string;
@@ -66,7 +43,7 @@ export interface GatewayPaymentDetailDto extends GatewayPaymentListItemDto {
   openOverrideProposedBy: string | null;
   openOverrideReason: string | null;
   metadata: Record<string, unknown> | null;
-  events: GatewayPaymentEventDto[];
+  events: PaymentAuditLogDto[];
   receipt: GatewayPaymentReceiptSummaryDto | null;
 }
 

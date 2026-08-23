@@ -23,8 +23,8 @@ import {
   ORGANIZATION_ACTIVITY_EVENT_TYPES,
   useOrganizationLogs,
 } from "@/hooks/use-organization-logs";
+import { formatOnboardingActivity, type OnboardingLogResponse } from "@cashsouk/types";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { OnboardingLogResponse } from "@cashsouk/types";
 import {
   ClockIcon,
   ArrowPathIcon,
@@ -39,104 +39,37 @@ interface OrganizationActivityTimelineProps {
   description?: string;
 }
 
-function getEventLabel(eventType: string): string {
-  const labels: Record<string, string> = {
-    ONBOARDING_STARTED: "Onboarding Started",
-    ONBOARDING_RESUMED: "Onboarding Resumed",
-    ONBOARDING_STATUS_UPDATED: "Status Updated",
-    ONBOARDING_CANCELLED: "Onboarding Cancelled",
-    ONBOARDING_REJECTED: "Onboarding Rejected",
-    ONBOARDING_APPROVED: "Onboarding Approved",
-    AML_APPROVED: "AML Approved",
-    TNC_APPROVED: "T&C Approved",
-    TNC_ACCEPTED: "T&C Accepted",
-    SSM_APPROVED: "SSM Approved",
-    KYC_APPROVED: "KYC Approved",
-    KYB_APPROVED: "KYB Approved",
-    FINAL_APPROVAL_COMPLETED: "Final Approval Completed",
-    SOPHISTICATED_STATUS_UPDATED: "Sophisticated Status Updated",
-    FORM_FILLED: "Form Submitted",
-    ONBOARDING_RESET: "Onboarding Reset",
-    PROFILE_UPDATED: "Profile Updated",
-    USER_COMPLETED: "User Completed",
-  };
-  return (
-    labels[eventType] ||
-    eventType
-      .split("_")
-      .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-      .join(" ")
-  );
-}
-
-function formatTrigger(trigger: string): string {
-  return trigger
-    .split("_")
-    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-    .join(" ");
+function getEventLabel(eventType: string, metadata?: Record<string, unknown> | null): string {
+  return formatOnboardingActivity("admin", eventType, metadata ?? undefined).title;
 }
 
 function buildEventDescription(
   eventType: string,
   metadata: Record<string, unknown> | null
 ): string | null {
-  if (!metadata) return null;
-
-  switch (eventType) {
-    case "ONBOARDING_STATUS_UPDATED":
-      if (metadata.trigger) return `Triggered by ${formatTrigger(String(metadata.trigger))}`;
-      return null;
-    case "ONBOARDING_REJECTED":
-      return metadata.reason
-        ? String(metadata.reason)
-        : metadata.trigger
-          ? `Triggered by ${formatTrigger(String(metadata.trigger))}`
-          : null;
-    case "ONBOARDING_CANCELLED":
-      return metadata.reason ? String(metadata.reason) : null;
-    case "ONBOARDING_RESET":
-      return metadata.reason ? String(metadata.reason) : "Reset by admin";
-    case "SOPHISTICATED_STATUS_UPDATED": {
-      const action = metadata.action === "granted" ? "Granted" : "Revoked";
-      const reason = metadata.newReason ? ` — ${metadata.newReason}` : "";
-      return `${action}${reason}`;
-    }
-    case "FORM_FILLED":
-      return metadata.section ? `Section: ${String(metadata.section)}` : null;
-    case "PROFILE_UPDATED": {
-      const fields = Array.isArray(metadata.updatedFields)
-        ? metadata.updatedFields.filter((field): field is string => typeof field === "string")
-        : [];
-      return fields.length > 0 ? `Updated ${fields.join(", ")}` : "Profile updated by admin";
-    }
-    case "AML_APPROVED":
-    case "KYB_APPROVED":
-    case "KYC_APPROVED":
-      if (metadata.isCorporateOnboarding) return "Corporate onboarding";
-      return null;
-    default:
-      return null;
-  }
+  const description = formatOnboardingActivity("admin", eventType, metadata ?? undefined).description;
+  return description.trim() ? description : null;
 }
 
 function organizationActorLabel(log: OnboardingLogResponse): string {
-  const userName = [log.user?.first_name, log.user?.last_name].filter(Boolean).join(" ").trim();
-  return userName || log.user?.email?.trim() || log.organizationName?.trim() || "System";
+  const actorType = String(log.actor?.type ?? "").trim().toUpperCase();
+  if (actorType === "INTEGRATION" || actorType === "SYSTEM") return "System";
+  return String(log.actor.displayName ?? "").trim() || "System";
 }
 
 function organizationLogToActivityCsvRow(log: OnboardingLogResponse): AdminActivityCsvRow {
   return {
-    createdAt: log.created_at,
-    event: getEventLabel(log.event_type),
-    eventType: log.event_type,
+    createdAt: log.occurredAt,
+    event: getEventLabel(log.eventType, log.metadata),
+    eventType: log.eventType,
     actor: organizationActorLabel(log),
-    actorUserId: log.user_id,
+    actorUserId: log.actor.userId ?? log.userId ?? "",
     portal: log.portal ?? "",
     remark: "",
     metadata: mergeActivityCsvMetadata(log.metadata, {
-      organizationName: log.organizationName,
-      ip_address: log.ip_address,
-      device_type: log.device_type,
+      actorType: log.actor.type,
+      ipAddress: log.ipAddress,
+      deviceInfo: log.deviceInfo,
     }),
   };
 }
@@ -176,15 +109,15 @@ function OrganizationActivityTimelineList({
       }
     >
       {logs.map((log) => {
-        const eventType = log.event_type;
+        const eventType = log.eventType;
         const metadata = log.metadata;
         return (
           <AdminVerticalTimelineItem
             key={log.id}
-            title={getEventLabel(eventType)}
+            title={getEventLabel(eventType, metadata)}
             description={buildEventDescription(eventType, metadata)}
             descriptionClassName="line-clamp-2"
-            createdAt={log.created_at}
+            createdAt={log.occurredAt}
             actorLabel={organizationActorLabel(log)}
             portal={log.portal}
             bylineChips={extractOrganizationTimelineBylineChips(metadata)}

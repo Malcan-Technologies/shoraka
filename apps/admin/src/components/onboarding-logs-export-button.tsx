@@ -12,6 +12,11 @@ import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { ExportOnboardingLogsParams } from "@cashsouk/types";
 import { toast } from "sonner";
+import {
+  auditExportFilename,
+  downloadAuditExport,
+  truncatedExportDescription,
+} from "@/lib/download-audit-export";
 
 interface OnboardingLogsExportButtonProps {
   filters: Omit<ExportOnboardingLogsParams, "format" | "page" | "pageSize">;
@@ -30,17 +35,13 @@ export function OnboardingLogsExportButton({ filters }: OnboardingLogsExportButt
         format,
       };
 
-      const blob = await apiClient.exportOnboardingLogs(params);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `onboarding-logs-${new Date().toISOString().split("T")[0]}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast.success(`Onboarding logs exported as ${format.toUpperCase()}`);
+      const result = await apiClient.exportOnboardingLogs(params);
+      downloadAuditExport(result.blob, auditExportFilename("onboarding-logs", format));
+      if (result.truncated) {
+        toast.warning("Export truncated", { description: truncatedExportDescription() });
+      } else {
+        toast.success(`Onboarding logs exported as ${format.toUpperCase()}`);
+      }
     } catch (error) {
       toast.error("Failed to export onboarding logs", {
         description: error instanceof Error ? error.message : "Unknown error",

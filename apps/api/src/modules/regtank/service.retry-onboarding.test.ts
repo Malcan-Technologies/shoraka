@@ -37,12 +37,6 @@ jest.mock("../organization/repository", () => ({
   })),
 }));
 
-jest.mock("../auth/repository", () => ({
-  AuthRepository: jest.fn().mockImplementation(() => ({
-    createOnboardingLog: jest.fn(),
-  })),
-}));
-
 jest.mock("../../lib/prisma", () => ({
   prisma: {
     user: {
@@ -56,9 +50,6 @@ jest.mock("../../lib/prisma", () => ({
     },
     gatewayPayment: {
       findFirst: jest.fn().mockResolvedValue(null),
-    },
-    onboardingLog: {
-      create: jest.fn(),
     },
   },
 }));

@@ -13,7 +13,7 @@ const mockFindInvestorOrganizationById = jest.fn();
 const mockFindIssuerOrganizationById = jest.fn();
 
 const mockUserFindUnique = jest.fn();
-const mockOnboardingLogCreate = jest.fn().mockResolvedValue(undefined);
+const mockOnboardingAuditCreate = jest.fn().mockResolvedValue(undefined);
 const mockTxUpdate = jest.fn().mockResolvedValue(undefined);
 const mockTxCreate = jest.fn().mockResolvedValue(undefined);
 const mockPrismaTransaction = jest.fn();
@@ -41,19 +41,13 @@ jest.mock("../organization/repository", () => ({
   })),
 }));
 
-jest.mock("../auth/repository", () => ({
-  AuthRepository: jest.fn().mockImplementation(() => ({
-    createOnboardingLog: jest.fn(),
-  })),
-}));
-
 jest.mock("../../lib/prisma", () => ({
   prisma: {
     user: {
       findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
     },
-    onboardingLog: {
-      create: (...args: unknown[]) => mockOnboardingLogCreate(...args),
+    onboardingAuditLog: {
+      create: (...args: unknown[]) => mockOnboardingAuditCreate(...args),
     },
     issuerOrganization: {
       findUnique: jest.fn(async ({ where }: { where: { id: string } }) => {
@@ -122,7 +116,10 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
     mockFindIssuerOrganizationById.mockResolvedValue(null);
 
     mockFindByOrganizationId.mockResolvedValue(null);
-    mockCreateOnboarding.mockResolvedValue({});
+    mockCreateOnboarding.mockImplementation(async (data: { requestId?: string }) => ({
+      id: "rt_created",
+      request_id: data.requestId ?? "COD0002",
+    }));
 
     mockUserFindUnique.mockResolvedValue({
       user_id: "USR01",
@@ -144,6 +141,12 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
 
     mockPrismaTransaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
       cb({
+        user: {
+          findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
+        },
+        onboardingAuditLog: {
+          create: (...args: unknown[]) => mockOnboardingAuditCreate(...args),
+        },
         regTankOnboarding: {
           update: (...args: unknown[]) => mockTxUpdate(...args),
           create: (...args: unknown[]) => mockTxCreate(...args),

@@ -1,32 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { EventType, GetAccessLogsParams } from "@cashsouk/types";
+import type { GetAccessLogsParams } from "@cashsouk/types";
 import {
   handleAdminApiQueryError,
   shouldRetryAdminApiQuery,
 } from "../lib/handle-api-auth-error";
 
-export interface UseAccessLogsOptions extends GetAccessLogsParams {
-  allowedEventTypes?: EventType[];
-}
-
-export function useAccessLogs(params: UseAccessLogsOptions) {
+export function useAccessLogs(params: GetAccessLogsParams) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(undefined, getAccessToken);
-  const { allowedEventTypes, ...queryParams } = params;
-
-  const finalParams: GetAccessLogsParams = {
-    ...queryParams,
-    eventTypes:
-      allowedEventTypes && (!queryParams.eventType || queryParams.eventType === ("all" as EventType))
-        ? allowedEventTypes
-        : queryParams.eventTypes,
-  };
 
   return useQuery({
-    queryKey: ["admin", "access-logs", finalParams],
+    queryKey: ["admin", "access-logs", params],
     queryFn: async () => {
-      const response = await apiClient.getAccessLogs(finalParams);
+      const response = await apiClient.getAccessLogs(params);
       if (!response.success) {
         handleAdminApiQueryError(response.error);
       }
