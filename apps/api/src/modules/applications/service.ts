@@ -1047,8 +1047,10 @@ export class ApplicationService {
       const resubmitChanges = mergedMeta.resubmit_changes as
         | { activity_summary?: string }
         | undefined;
-      if (log.event_type === "APPLICATION_RESUBMITTED" && resubmitChanges?.activity_summary) {
-        activity = resubmitChanges.activity_summary;
+      if (log.event_type === "APPLICATION_RESUBMITTED") {
+        // Rich amendment resubmits carry a diff-derived summary; the bare status-PATCH path
+        // (no amendment metadata) still needs an accurate, non-empty description.
+        activity = resubmitChanges?.activity_summary || "Application resubmitted for review";
       }
       return {
         ...log,

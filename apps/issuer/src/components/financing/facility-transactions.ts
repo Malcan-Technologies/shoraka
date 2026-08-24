@@ -57,6 +57,7 @@ const LOG_LABELS: Record<string, string> = {
   CONTRACT_OFFER_REJECTED: "Facility offer declined",
   CONTRACT_OFFER_RETRACTED: "Facility offer withdrawn by CashSouk",
   CONTRACT_OFFER_EXPIRED: "Facility offer expired",
+  CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing deadline extended",
   CONTRACT_WITHDRAWN: "Facility offer declined",
   INVOICE_OFFER_SENT: "Invoice offer sent",
   INVOICE_OFFER_ACCEPTANCE_SUBMITTED: "Invoice acceptance submitted",
@@ -65,6 +66,7 @@ const LOG_LABELS: Record<string, string> = {
   INVOICE_OFFER_REJECTED: "Invoice offer declined",
   INVOICE_OFFER_RETRACTED: "Invoice offer withdrawn by CashSouk",
   INVOICE_OFFER_EXPIRED: "Invoice offer expired",
+  INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing deadline extended",
   INVOICE_WITHDRAWN: "Invoice withdrawn",
   OFFER_EXPIRED: "An offer expired",
   SIGNING_PACKAGE_SENT: "Signing package sent",
@@ -79,6 +81,7 @@ const INVOICE_LOG_TYPES = new Set([
   "INVOICE_OFFER_REJECTED",
   "INVOICE_OFFER_RETRACTED",
   "INVOICE_OFFER_EXPIRED",
+  "INVOICE_SIGNING_DEADLINE_EXTENDED",
   "INVOICE_WITHDRAWN",
 ]);
 

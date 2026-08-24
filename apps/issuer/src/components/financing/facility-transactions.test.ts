@@ -281,6 +281,41 @@ describe("buildFacilityTransactions", () => {
   });
 });
 
+describe("buildFacilityTransactions — signing deadline extended visibility", () => {
+  it("shows CONTRACT_SIGNING_DEADLINE_EXTENDED as a facility-side row", () => {
+    const rows = buildFacilityTransactions({
+      contract: contract(),
+      invoices: [],
+      logs: [log({ id: "l1", event_type: "CONTRACT_SIGNING_DEADLINE_EXTENDED" })],
+    });
+    const row = rows.find((r) => r.id === "log:l1");
+    expect(row?.label).toBe("Signing deadline extended");
+  });
+
+  it("shows INVOICE_SIGNING_DEADLINE_EXTENDED as an invoice-linked row", () => {
+    const rows = buildFacilityTransactions({
+      contract: contract(),
+      invoices: [invoice()],
+      logs: [log({ id: "l2", event_type: "INVOICE_SIGNING_DEADLINE_EXTENDED" })],
+    });
+    const row = rows.find((r) => r.id === "log:l2");
+    expect(row?.label).toBe("Signing deadline extended");
+  });
+
+  it("does not expose admin-only acceptance-approved-for-signing events", () => {
+    const rows = buildFacilityTransactions({
+      contract: contract(),
+      invoices: [],
+      logs: [
+        log({ id: "l3", event_type: "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING" }),
+        log({ id: "l4", event_type: "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING" }),
+      ],
+    });
+    expect(rows.find((r) => r.id === "log:l3")).toBeUndefined();
+    expect(rows.find((r) => r.id === "log:l4")).toBeUndefined();
+  });
+});
+
 describe("uniqueFacilityApplicationIds", () => {
   it("collects the facility application and each invoice application", () => {
     expect(uniqueFacilityApplicationIds(contract(), [invoice()])).toEqual([

@@ -44,10 +44,14 @@ describe("Activity Adapters", () => {
     });
 
     it("should only expose major onboarding milestones", () => {
+      // COD_REJECTED (corporate onboarding rejection) was added: the user already receives an
+      // ONBOARDING_REJECTED notification for this outcome, so their own Activity history must
+      // retain the milestone too (docs/audit/audit-product-gap-review.md §4.1).
       expect(adapter.getEventTypes()).toEqual([
         "ONBOARDING_STARTED",
         "ONBOARDING_CANCELLED",
         "ONBOARDING_REJECTED",
+        "COD_REJECTED",
         "FINAL_APPROVAL_COMPLETED",
         "ONBOARDING_APPROVED",
       ]);

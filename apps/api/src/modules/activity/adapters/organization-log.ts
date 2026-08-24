@@ -208,6 +208,11 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
           title: "Onboarding Rejected",
           description: `Your organization onboarding was rejected${metadata?.reason ? `: ${metadata.reason}` : "."}`,
         };
+      case "COD_REJECTED":
+        return {
+          title: "Onboarding Rejected",
+          description: "Your organization onboarding was rejected.",
+        };
       case "ONBOARDING_APPROVED":
         return {
           title: "Onboarding Submission Approved",
@@ -234,6 +239,7 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
       "ONBOARDING_STARTED",
       "ONBOARDING_CANCELLED",
       "ONBOARDING_REJECTED",
+      "COD_REJECTED",
       "FINAL_APPROVAL_COMPLETED",
       "ONBOARDING_APPROVED",
     ];

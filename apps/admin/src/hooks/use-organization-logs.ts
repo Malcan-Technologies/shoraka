@@ -4,6 +4,9 @@ import type { OnboardingEventType, GetOnboardingLogsParams } from "@cashsouk/typ
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+// TNC_ACCEPTED, KYC_APPROVED, and KYB_APPROVED were removed: no production writer emits these
+// event_type values (only TNC_APPROVED and ONBOARDING_STATUS_UPDATED{trigger:"KYC_APPROVED"} are
+// live); they only ever appeared in dev seed fixtures, never as real onboarding_logs rows.
 const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
   "ONBOARDING_STARTED",
   "ONBOARDING_RESUMED",
@@ -17,9 +20,6 @@ const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
   "AML_APPROVED",
   "TNC_APPROVED",
   "SSM_APPROVED",
-  "TNC_ACCEPTED",
-  "KYC_APPROVED",
-  "KYB_APPROVED",
   "PROFILE_UPDATED",
 ];
 

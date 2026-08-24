@@ -22,7 +22,7 @@ copy-only in spirit but touches a visibility-coupled list, or requires populatin
 |---|---|---|---|---|---|---|
 | `APPLICATION_CREATED` | Application Created | Application started | Application Started | — | INTENTIONALLY_DIFFERENT | NO_ACTION |
 | `APPLICATION_SUBMITTED` | Application Submitted | You submitted this application | Application Submitted | — | INTENTIONALLY_DIFFERENT | NO_ACTION |
-| `APPLICATION_RESUBMITTED` | Application Resubmitted (bare PATCH path has no description) | You resubmitted after changes | Application Resubmitted | Application Resubmitted | MISSING_DESCRIPTION (bare path) | NEEDS_PRODUCT_DECISION — requires a writer change, not copy |
+| `APPLICATION_RESUBMITTED` | ~~Application Resubmitted (bare PATCH path has no description)~~ → **"Application resubmitted for review"** fallback on the bare path | You resubmitted after changes | Application Resubmitted | Application Resubmitted | MISSING_DESCRIPTION (bare path) | ~~NEEDS_PRODUCT_DECISION~~ **RESOLVED (2026-08-24)** — approved as a writer-level fix, not copy-only. BEFORE: bare `PATCH .../status` (status=`RESUBMITTED`) wrote no `resubmit_changes` metadata, so `getApplicationLogs` rendered an empty/generic activity string. DECISION: confirmed same business action as the rich amendment-resubmit flow; populate only a plain accurate fallback, no invented amendment count/remarks. AFTER: `applications/service.ts:getApplicationLogs` now falls back to `"Application resubmitted for review"` only when `resubmit_changes.activity_summary` is absent; the rich `amendments/service.ts` resubmit path and its existing metadata are unchanged. |
 | `APPLICATION_REJECTED` | Application Rejected | Application was not approved | Application Rejected | Application Rejected | INTENTIONALLY_DIFFERENT | NO_ACTION |
 | `APPLICATION_RESET_TO_UNDER_REVIEW` | Application Reset to Under Review | Back under review | not shown | — | INTENTIONALLY_DIFFERENT (admin-only) | NO_ACTION |
 | `APPLICATION_WITHDRAWN` | Application Withdrawn | You withdrew this application | ~~Application Closed~~ → **Application Withdrawn** | Application Withdrawn | INCONSISTENT | **IMPLEMENTED** — `application-log.ts` title fixed; description already said "withdrawn" |
@@ -38,14 +38,14 @@ copy-only in spirit but touches a visibility-coupled list, or requires populatin
 | Event | Admin | Issuer Timeline | Issuer Facility Table | Issuer Activity | Notification | Classification | Status |
 |---|---|---|---|---|---|---|---|
 | `CONTRACT_OFFER_SENT` | Facility Offer Sent | Facility financing offer sent | Facility offer sent | Facility Offer Sent | Facility Offer Received | INTENTIONALLY_DIFFERENT | NO_ACTION |
-| `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED` | Facility Offer Acceptance Submitted | not in label map (GENERIC_FALLBACK) ⚠️ | Facility acceptance submitted | Facility Acceptance Submitted | — | INCONSISTENT | NEEDS_PRODUCT_DECISION — adding to `application-timeline.ts`'s `EVENT_LABELS` would also add it to that file's self-referential visibility filter (`ISSUER_VISIBLE_EVENTS = Set(Object.keys(EVENT_LABELS))`), i.e. a currently-invisible row would start appearing. Not a pure copy fix. |
-| `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED` | not in label map (GENERIC_FALLBACK) | not in label map ⚠️ | Facility acceptance resubmitted | Facility Acceptance Resubmitted | — | GENERIC_FALLBACK | Admin: **IMPLEMENTED** (`admin-activity-timeline.tsx` — no visibility filter, safe to add). Issuer timeline: NEEDS_PRODUCT_DECISION (same filter-coupling risk as above). |
+| `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED` | Facility Offer Acceptance Submitted | ~~not in label map (GENERIC_FALLBACK)~~ → **"Facility acceptance submitted"** | Facility acceptance submitted | Facility Acceptance Submitted | — | INCONSISTENT | ~~NEEDS_PRODUCT_DECISION~~ **RESOLVED (2026-08-24)** — product approved deliberately widening visibility for this milestone. BEFORE: absent from `application-timeline.ts`'s `EVENT_LABELS` (and therefore from `ISSUER_VISIBLE_EVENTS`). DECISION: this is a meaningful, already-live issuer milestone that belongs on the per-application timeline, not just the general Activity feed. AFTER: added to `EVENT_LABELS` using the canonical copy-standard term; admin-only events (`CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING`) were deliberately left out. |
+| `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED` | not in label map (GENERIC_FALLBACK) | ~~not in label map~~ → **"Facility acceptance resubmitted"** | Facility acceptance resubmitted | Facility Acceptance Resubmitted | — | GENERIC_FALLBACK | Admin: **IMPLEMENTED** (`admin-activity-timeline.tsx` — no visibility filter, safe to add). Issuer timeline: **RESOLVED (2026-08-24)** — same approval/fix as `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED` above. |
 | `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` | Facility Acceptance Approved for Signing | not shown (admin-only by design) | not shown | not shown (admin-only by design) | — | INTENTIONALLY_DIFFERENT | NO_ACTION |
 | `CONTRACT_OFFER_ACCEPTED` | Facility Offer Signed | ~~You accepted the facility offer~~ → **Facility offer signed** | Facility offer signed | Facility Offer Signed | — | MISLEADING ("accepted" implies a click; event fires at signing completion) | **IMPLEMENTED** |
 | `CONTRACT_WITHDRAWN` (issuer declines) | ~~Facility Offer Withdrawn~~ → **Facility Offer Rejected** | ~~Facility withdrawn~~ → **You declined the facility offer** | ~~Facility withdrawn~~ → **Facility offer declined** | ~~Facility Withdrawn~~ → **Facility Offer Declined** (`application-log.ts`, title + description) | application_withdrawn_confirmation (generic) | MISLEADING — 3-way collision with `CONTRACT_OFFER_RETRACTED` and dead `CONTRACT_OFFER_REJECTED` | **IMPLEMENTED** across all 5 files; rejection-reason detail block preserved unchanged |
 | `CONTRACT_OFFER_RETRACTED` (admin retracts) | Facility Offer Retracted | Facility offer was withdrawn by CashSouk | Facility offer withdrawn by CashSouk | Facility Offer Retracted | Offer Updated | INTENTIONALLY_DIFFERENT | NO_ACTION |
-| `CONTRACT_OFFER_EXPIRED` | Facility Offer Expired | GENERIC_FALLBACK (dead `OFFER_EXPIRED` key only) ⚠️ | Facility offer expired | Facility Offer Expired | Offer Expired / Offer Expiring Soon | GENERIC_FALLBACK on issuer timeline | NEEDS_PRODUCT_DECISION — same self-referential filter risk as above; this event is fully visible today on the general Activity feed, just not on the per-application detail widget |
-| `CONTRACT_SIGNING_DEADLINE_EXTENDED` | Signing Deadline Extended | not in label map ⚠️ | not in label map ⚠️ | Signing Deadline Extended | — | GENERIC_FALLBACK | NEEDS_PRODUCT_DECISION on both issuer files (same filter coupling) |
+| `CONTRACT_OFFER_EXPIRED` | Facility Offer Expired | ~~GENERIC_FALLBACK (dead `OFFER_EXPIRED` key only)~~ → **"Facility offer expired"** | Facility offer expired | Facility Offer Expired | Offer Expired / Offer Expiring Soon | GENERIC_FALLBACK on issuer timeline | **RESOLVED (2026-08-24)** — added the live `CONTRACT_OFFER_EXPIRED` key (dead `OFFER_EXPIRED` key left in place, harmless/unused) to both `application-timeline.ts` and `facility-transactions.ts` label maps using the canonical term. |
+| `CONTRACT_SIGNING_DEADLINE_EXTENDED` | Signing Deadline Extended | ~~not in label map~~ → **"Signing deadline extended"** | ~~not in label map~~ → **"Signing deadline extended"** | Signing Deadline Extended | — | GENERIC_FALLBACK | **RESOLVED (2026-08-24)** on both issuer files — added to `EVENT_LABELS` (`application-timeline.ts`) and to both the label map and `INVOICE_LOG_TYPES` set (`facility-transactions.ts` — also fixes the invoice equivalent below). |
 | `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | Facility Occupancy Updated | not shown | not in label map | Facility occupancy updated | — | CONSISTENT where shown | NO_ACTION |
 | `CONTRACT_FACILITY_FEE_WAIVED` / `_ENABLED` / `_DISABLED`, `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | GENERIC_FALLBACK / RAW_EVENT_NAME | not shown | not shown | not shown | — | GENERIC_FALLBACK | NO_ACTION this pass — exact enum spelling not independently confirmed against source; flagged for a follow-up label-map addition once confirmed |
 | Invoice equivalents (`INVOICE_OFFER_*`) | mirrors contract pattern | mirrors contract pattern | mirrors contract pattern | mirrors contract pattern | Invoice Offer Received | same pattern as contract | Same status per row as contract equivalent above |
@@ -62,7 +62,7 @@ copy-only in spirit but touches a visibility-coupled list, or requires populatin
 | `FINAL_APPROVAL_COMPLETED` (terminal) | Final Approval | Onboarding Approved / "no further action is needed" (kept) | Onboarding Application Approved — "You now have full access" | CONSISTENT after split | **IMPLEMENTED** (case split above; this branch's copy unchanged) |
 | `SIGNUP` | Sign Up (badge) vs ~~Signup~~ (toolbar filter) | — | — | INCONSISTENT | **IMPLEMENTED** — toolbar aligned to "Sign Up" |
 | Access log details dialog title | ~~raw `event_type.replace(/_/g," ")`~~ → shared label lookup with graceful title-case fallback | — | — | RAW_EVENT_NAME | **IMPLEMENTED** (`access-log-details-dialog.tsx` now imports `EVENT_TYPE_CONFIG` from the table row) |
-| `COD_REJECTED` excluded from portal event-type allowlist; 3 dead types present in `use-organization-logs.ts` filter list | — | — | — | Filter/query completeness gap (not wording) | NEEDS_PRODUCT_DECISION — `use-organization-logs.ts`'s array is a **query inclusion list**, not a display fallback; adding/removing entries changes what rows are fetched, so it is out of scope for a copy-only pass |
+| `COD_REJECTED` excluded from portal event-type allowlist; 3 dead types present in `use-organization-logs.ts` filter list | — | — | — | Filter/query completeness gap (not wording) | ~~NEEDS_PRODUCT_DECISION~~ **RESOLVED (2026-08-24)** — product approved both halves. BEFORE: `OrganizationLogAdapter.getEventTypes()` omitted `COD_REJECTED`; `use-organization-logs.ts`'s `ONBOARDING_EVENT_TYPES` still listed `TNC_ACCEPTED`/`KYC_APPROVED`/`KYB_APPROVED`. DECISION: expose `COD_REJECTED` with canonical "Onboarding Rejected" copy (user already gets the notification); remove the 3 dead filter entries after reconfirming zero production writers. AFTER: `organization-log.ts` now includes `COD_REJECTED` in both `getEventTypes()` and `buildPresentation()`; `use-organization-logs.ts` no longer lists the 3 dead types (enum/rows untouched). See `audit-event-catalog.md` §1.4 for full detail. |
 
 ---
 
@@ -154,7 +154,15 @@ counterpart, or are intentionally different for audience framing — no action t
 
 **Confirmed dead (no live `sendTyped`/`sendTypedPlatformOnly` call site) — excluded from this
 review's scope, not touched:** `system_announcement`, `new_product_alert`, `kyc_approved`,
-`kyc_rejected`, `login_new_device`, `application_approved`, `withdrawal_submitted_to_trustee`.
+`kyc_rejected`, `login_new_device`, `application_approved`.
+
+~~`withdrawal_submitted_to_trustee`~~ — **RESOLVED (2026-08-24)**, no longer dead. BEFORE: the
+`WITHDRAWAL_SUBMITTED_TO_TRUSTEE` audit event fired in `notes/service.ts:markWithdrawalSubmitted`
+but no `sendTyped*` call site existed for the registered `withdrawal_submitted_to_trustee`
+notification. DECISION: product approved wiring it (informational-only, no new type). AFTER: that
+same method now calls `notifyWithdrawalSubmittedToTrustee()` right after the audit-event write,
+reusing the existing `sendToIssuerOrg` recipient helper — same channel/preference/workflow as every
+other note-lifecycle notification, only the trigger was added.
 
 Two minor **seed-name vs inbox-title** drifts were found (`contract_offer_sent` seed name "Sent"
 vs inbox title "Received"; `note_payment_received` seed name "Note repayment recorded" vs inbox
@@ -209,22 +217,36 @@ Plus 2 test files updated to assert the corrected copy (`apps/api/src/modules/ac
 `apps/admin/src/notes/utils/note-activity-csv.test.ts`), and `apps/api/src/lib/audit/presentation-baseline.json`
 patched for exactly these 16 files via `apps/api/scripts/audit-presentation-baseline-patch.ts`.
 
-## Items Requiring a Product Decision (not implemented)
+**Follow-up implementation pass (2026-08-24)** — files changed for items 1–3 above (see
+`audit-event-catalog.md` for the complete list including new/updated test files):
+`application-timeline.ts`, `facility-transactions.ts`, `apps/api/src/modules/applications/service.ts`,
+`apps/api/src/modules/activity/adapters/organization-log.ts`,
+`apps/admin/src/hooks/use-organization-logs.ts`,
+`apps/api/src/modules/notification/note-lifecycle-notifications.ts`,
+`apps/api/src/modules/notes/service.ts`.
 
-1. **`CONTRACT_OFFER_ACCEPTANCE_SUBMITTED`, `_RESUBMITTED`, `CONTRACT_OFFER_EXPIRED`,
+## Items Requiring a Product Decision (originally not implemented)
+
+**Update (2026-08-24): items 1–3 below were subsequently approved by product and are now
+implemented.** Items 4–5 remain deferred cosmetic items, unchanged. See
+`audit-event-catalog.md` and `audit-product-gap-review.md` for the full BEFORE/DECISION/AFTER
+record of each fix.
+
+1. ~~**`CONTRACT_OFFER_ACCEPTANCE_SUBMITTED`, `_RESUBMITTED`, `CONTRACT_OFFER_EXPIRED`,
    `CONTRACT_SIGNING_DEADLINE_EXTENDED`** (and invoice equivalents) missing from
-   `application-timeline.ts`'s and/or `facility-transactions.ts`'s label maps. Both files derive
-   their row-inclusion filter directly from `Object.keys()`/`Boolean()` checks on the same map used
-   for text — so adding the label would also make a currently-invisible row appear on that specific
-   widget for the first time. The same events are already fully visible on the general issuer
-   Activity feed (`application-log.ts`), so the practical impact of approving this is low, but it is
-   a visibility change and is flagged rather than auto-applied.
-2. **`APPLICATION_RESUBMITTED` bare-PATCH path has no description** on the admin timeline. Fixing
-   requires the `PATCH /applications/:id` writer to populate `resubmit_changes`/`activity`, which is
-   a writer change, not a copy fix.
-3. **`use-organization-logs.ts` dead filter entries and the `COD_REJECTED` portal-allowlist gap** —
-   this list is a query-inclusion filter, not a display fallback; changing it changes what rows are
-   fetched, which is out of scope for a copy-only pass.
+   `application-timeline.ts`'s and/or `facility-transactions.ts`'s label maps.~~ **RESOLVED** — all
+   four (plus invoice equivalents) added to both files' label maps (and `facility-transactions.ts`'s
+   `INVOICE_LOG_TYPES` set for the invoice signing-deadline event); intentionally-admin-only events
+   (`CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` / `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING`) were
+   deliberately left out of both maps.
+2. ~~**`APPLICATION_RESUBMITTED` bare-PATCH path has no description** on the admin timeline.~~
+   **RESOLVED** — `applications/service.ts:getApplicationLogs` now falls back to a plain
+   `"Application resubmitted for review"` description when no `resubmit_changes.activity_summary`
+   metadata exists; the rich `amendments/service.ts` resubmit path is unchanged.
+3. ~~**`use-organization-logs.ts` dead filter entries and the `COD_REJECTED` portal-allowlist
+   gap**~~ **RESOLVED** — `TNC_ACCEPTED`/`KYC_APPROVED`/`KYB_APPROVED` removed from the admin filter
+   list (confirmed zero production writers; enum/rows untouched); `COD_REJECTED` added to
+   `organization-log.ts`'s `getEventTypes()` and `buildPresentation()` with canonical copy.
 4. **Cosmetic capitalization-only inconsistencies** (signing-package Title Case vs lowercase across
    3 files; `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` 3-way casing) were catalogued but not
    auto-applied this pass — genuinely safe, but lower value than the fixes above; left for a future
