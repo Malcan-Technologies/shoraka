@@ -126,8 +126,18 @@ further action is needed" copy on a portal-facing surface.
 
 **LIVE EVENT TYPES:** `ONBOARDING_STARTED`, `ONBOARDING_CANCELLED`, `ONBOARDING_REJECTED`,
 `ONBOARDING_APPROVED`, `FINAL_APPROVAL_COMPLETED`, plus admin-only compliance sub-steps
-(`AML_APPROVED`, `SSM_APPROVED`, `TNC_APPROVED`/`TNC_ACCEPTED`, `KYC_STATUS_UPDATED`,
-`FORM_FILLED`, `SOPHISTICATED_STATUS_UPDATED`).
+(`AML_APPROVED`, `SSM_APPROVED`, `TNC_APPROVED`, `ONBOARDING_STATUS_UPDATED` — the generic
+status-transition bucket that also carries KYC-status changes via `metadata.trigger`, e.g.
+`trigger:"KYC_APPROVED"` — `FORM_FILLED`, `SOPHISTICATED_STATUS_UPDATED`).
+
+**DEAD / LEGACY (declared, no production writer):** `TNC_ACCEPTED` (`onboarding_logs` — the live
+terms-acceptance path writes `TNC_APPROVED`, not this), `KYC_APPROVED` and `KYB_APPROVED`
+(`onboarding_logs` — the live KYC-status path writes `ONBOARDING_STATUS_UPDATED` with
+`trigger:"KYC_APPROVED"` in metadata instead), `KYC_STATUS_UPDATED` (declared under `access_logs`,
+not `onboarding_logs` — despite the name, it is not an onboarding compliance sub-step; seed-fixture
+only). All four only ever appear in `apps/api/prisma/seed.ts` dev fixtures or as admin-UI
+filter/label entries — never as a real production audit-log row. See `audit-event-catalog.md`
+§1.1–1.3 for the full writer-by-writer inventory.
 
 ---
 
@@ -224,7 +234,11 @@ triggered).
   following registry entries have no live `sendTyped`/`sendTypedPlatformOnly` call site and their
   template text is dead copy, excluded from consistency requirements until wired up:
   `system_announcement`, `new_product_alert`, `kyc_approved`, `kyc_rejected`,
-  `login_new_device`, `application_approved`, `withdrawal_submitted_to_trustee`.
+  `login_new_device`, `application_approved`.
+  `withdrawal_submitted_to_trustee` is **no longer in this dead list** — as of 2026-08-24 it is
+  wired via `notifyWithdrawalSubmittedToTrustee()` (`note-lifecycle-notifications.ts`), called from
+  `notes/service.ts:markWithdrawalSubmitted` right after the `WITHDRAWAL_SUBMITTED_TO_TRUSTEE`
+  audit-event write, and is copy-governed like any other live notification.
 - Audience framing is allowed to differ (issuer vs. investor notifications for the same event may
   use different actor framing — e.g. "Note is active" vs "Investment is active") as long as the
   underlying business fact stated is identical.

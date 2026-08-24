@@ -164,7 +164,7 @@ To keep this report honest about what is *not* broken:
 Ranked by combination of compliance risk and implementation simplicity:
 
 1. **Reminder cadence (§2.1–2)** — config-only change (`deadline-config.ts` reminder arrays) once product confirms the exact required days; lowest engineering effort, highest compliance visibility.
-2. **`withdrawal_submitted_to_trustee` notification (§3.1)** — one `sendTyped` call once product confirms issuers should be told; audit trail already proves the underlying event fires.
+2. ~~**`withdrawal_submitted_to_trustee` notification (§3.1)** — one `sendTyped` call once product confirms issuers should be told; audit trail already proves the underlying event fires.~~ **DONE (2026-08-24)** — see §3.1 for BEFORE/DECISION/AFTER.
 3. **Onboarding fee sequencing (§2.3)** — requires product/legal decision on whether to move the fee step after AML approval, since it changes a monetization flow, not just a log.
 4. **Admin timeline mislabeling for `CONTRACT_WITHDRAWN` and `AMENDMENTS_SUBMITTED` (§4.5–6)** — pure string changes, but user-facing, so listed for product copy sign-off rather than engineering judgment call.
 5. **Notice of Assignment, guarantor acknowledgment, Risk Statement form, T&C SC-clearance gate (§2.4–6, 2.9)** — larger workflow/entity additions; recommend a dedicated compliance-engineering backlog item per requirement, scoped and estimated separately from this audit review.
