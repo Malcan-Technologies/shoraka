@@ -77,6 +77,9 @@ import {
   toMarketplacePublicNote,
   workflowHasRequiredAcceptanceDocuments,
   workflowHasSigningPackage,
+  resolveFinancingTenureDays,
+  invoiceFinancingExceedsMaxRatio,
+  INVOICE_FINANCING_RATIO_CAP_MESSAGE,
 } from "@cashsouk/types";
 import {
   creditInvestorBalance,
@@ -124,6 +127,7 @@ import {
   notifyNoteSettlementPosted,
   resolveNoteNotificationTitle,
 } from "../notification/note-lifecycle-notifications";
+import { notifyExcessLateChargesDue } from "../notification/excess-late-charge-notifications";
 import {
   buildNoteIssuerSnapshot,
   resolveIssuerIndustryFromCorporateData,
@@ -141,7 +145,19 @@ import {
   calculateSettlementWaterfall,
   capLateFeeSuggestionsByHeadroom,
   computeActualReturnRatePercent,
+  resolveActualReturnProfitDays,
 } from "./calculators";
+import {
+  assertTenureInvestorObligationCovered,
+  assertTenurePartialReceiptAllowed,
+  buildTenureSettlementWaterfall,
+  classifyTenureClearedDate,
+  isTenureNote,
+  latestIncludedReceiptDate,
+  resolveTenureClearedDate,
+  resolveTenureLateFeeHeadroom,
+  resolveTenureProfitStartDate,
+} from "./tenure-settlement";
 import type {
   createInvestmentSchema,
   createNoteFromApplicationSchema,
@@ -157,6 +173,7 @@ import type {
   lateChargeSchema,
   overdueLateChargeSchema,
   paymentReviewSchema,
+  approvePaymentSchema,
   recordPaymentSchema,
   settlementPreviewSchema,
   updateNoteFeaturedSchema,
@@ -167,6 +184,15 @@ import type {
   createInvestorWithdrawalSchema,
   getInvestorWithdrawalsQuerySchema,
 } from "./schemas";
+import {
+  assertTrusteeAutoSendRecipients,
+  isTrusteeAutoSendEnabled,
+} from "./trustee-letters/trustee-email-config";
+import {
+  extractLatestSettlementTrusteeLetterS3Key,
+  sendTrusteeInstructionPdfEmail,
+  type TrusteeInstructionEmailKind,
+} from "./trustee-letters/trustee-instruction-email";
 import { loadTrusteeLetterConfig } from "./trustee-letters/trustee-letter-config.loader";
 import {
   buildRepaymentBorrowerEntries,
@@ -182,6 +208,11 @@ import type {
 } from "@cashsouk/types";
 import { randomUUID } from "crypto";
 import type { z } from "zod";
+import {
+  noteActivationUpdateData,
+  resolveTenureActivationFields,
+  syncPaymentScheduleDueDate,
+} from "./tenure-activation";
 
 type ActorContext = {
   userId: string;
@@ -626,7 +657,7 @@ function resolveSettlementAllocations(snapshot: unknown): SettlementAllocation[]
 }
 
 function resolvePaymentSchedulesBySequence(note: {
-  payment_schedules?: Array<{ due_date: Date; sequence?: number | null }>;
+  payment_schedules?: Array<{ due_date: Date | null; sequence?: number | null }>;
 }) {
   return [...(note.payment_schedules ?? [])].sort(
     (left, right) => (left.sequence ?? 0) - (right.sequence ?? 0)
@@ -635,7 +666,7 @@ function resolvePaymentSchedulesBySequence(note: {
 
 function resolveFirstPaymentDueDate(note: {
   maturity_date?: Date | null;
-  payment_schedules?: Array<{ due_date: Date; sequence?: number | null }>;
+  payment_schedules?: Array<{ due_date: Date | null; sequence?: number | null }>;
 }) {
   const schedules = resolvePaymentSchedulesBySequence(note);
   return schedules[0]?.due_date ?? note.maturity_date ?? null;
@@ -643,7 +674,7 @@ function resolveFirstPaymentDueDate(note: {
 
 function resolveProfitMaturityDate(note: {
   maturity_date?: Date | null;
-  payment_schedules?: Array<{ due_date: Date; sequence?: number | null }>;
+  payment_schedules?: Array<{ due_date: Date | null; sequence?: number | null }>;
 }) {
   const schedules = resolvePaymentSchedulesBySequence(note);
   return note.maturity_date ?? schedules.at(-1)?.due_date ?? null;
@@ -654,26 +685,65 @@ function calculateProfitDays(startDate: Date | null, maturityDate: Date | null) 
   return calculateCalendarDayCount(startDate, maturityDate);
 }
 
+function resolvePostedSettlementProfitDays(
+  settlement: {
+    actual_settlement_date?: Date | null;
+    profit_start_date?: Date | null;
+    profit_days?: number | null;
+  } | null,
+  snapshot: Record<string, unknown> | null,
+  profitStartDate: Date | null
+): number | null {
+  if (!settlement) return null;
+  return resolveActualReturnProfitDays({
+    profitStartDate: profitStartDate ?? snapshot?.profitStartDate ?? settlement.profit_start_date,
+    actualSettlementDate:
+      settlement.actual_settlement_date ?? snapshot?.actualSettlementDate ?? null,
+    fallbackProfitDays:
+      typeof snapshot?.profitDays === "number" ? snapshot.profitDays : settlement.profit_days,
+  });
+}
+
 function resolveAvailableLateFeeHeadroomForNote(
   note: {
     activated_at?: Date | null;
+    tenure_days?: number | null;
+    disbursement_value_date?: Date | null;
+    grace_period_days?: number;
     funded_amount: Prisma.Decimal | number | string;
     profit_rate_percent?: Prisma.Decimal | number | string | null;
     service_fee_rate_percent: Prisma.Decimal | number | string;
     maturity_date?: Date | null;
-    payment_schedules?: Array<{ due_date: Date; sequence?: number | null }>;
+    payment_schedules?: Array<{ due_date: Date | null; sequence?: number | null }>;
     invoice_snapshot?: Prisma.JsonValue | null;
     requested_amount?: Prisma.Decimal | number | string | null;
   },
-  grossReceiptAmount?: number
+  grossReceiptAmount?: number,
+  clearedDate?: Date
 ): number | null {
   const settlementAmount = grossReceiptAmount ?? resolveNoteSettlementAmount(note);
-  if (settlementAmount <= 0 || !note.activated_at) return null;
-  const profitMaturityDate = resolveProfitMaturityDate(note);
-  if (!profitMaturityDate) return null;
+  if (settlementAmount <= 0) return null;
   const profitRatePercent = toNumber(note.profit_rate_percent);
   if (profitRatePercent <= 0) return 0;
+  const profitMaturityDate = resolveProfitMaturityDate(note);
+  if (!profitMaturityDate) return null;
 
+  if (isTenureNote(note.tenure_days)) {
+    const startDate = resolveTenureProfitStartDate(note);
+    if (!startDate) return null;
+    return resolveTenureLateFeeHeadroom({
+      settlementAmount,
+      fundedPrincipal: toNumber(note.funded_amount),
+      annualRatePercent: profitRatePercent,
+      startDate,
+      maturityDate: profitMaturityDate,
+      clearedDate: clearedDate ?? startDate,
+      graceDays: note.grace_period_days ?? 7,
+      invoiceFaceValue: settlementAmount,
+    });
+  }
+
+  if (!note.activated_at) return null;
   return calculateSettlementWaterfall({
     grossReceiptAmount: settlementAmount,
     fundedPrincipal: toNumber(note.funded_amount),
@@ -713,8 +783,11 @@ function buildInvestorRepaymentSummary(
     INVESTOR_RETURN_RATE_DISPLAY_DECIMALS
   );
   const profitMaturityDate = resolveProfitMaturityDate(note);
-  const expectedProfitDays =
-    note.activated_at && profitMaturityDate
+  const tenureBacked = isTenureNote(note.tenure_days);
+  const tenureStartDate = resolveTenureProfitStartDate(note);
+  const expectedProfitDays = tenureBacked
+    ? (note.tenure_days ?? 0)
+    : note.activated_at && profitMaturityDate
       ? calculateProfitDays(note.activated_at, profitMaturityDate)
       : 365;
   const expectedProfitGrossAmount =
@@ -723,8 +796,30 @@ function buildInvestorRepaymentSummary(
     expectedProfitGrossAmount * (toNumber(note.service_fee_rate_percent) / 100);
   const expectedProfitAmount = Math.max(0, expectedProfitGrossAmount - expectedServiceFeeAmount);
   const expectedPayoutAmount = investedPrincipal + expectedProfitAmount;
-  const profitStartDate = note.activated_at?.toISOString() ?? null;
+  const profitStartDate = tenureBacked
+    ? (tenureStartDate?.toISOString() ?? null)
+    : (note.activated_at?.toISOString() ?? null);
   const profitMaturityDateIso = profitMaturityDate?.toISOString() ?? null;
+  const postedSettlement = note.settlements.find(
+    (settlement) => settlement.status === NoteSettlementStatus.POSTED
+  );
+  const postedSnapshot = postedSettlement ? asRecord(postedSettlement.preview_snapshot) : null;
+  const actualProfitStart =
+    postedSettlement?.profit_start_date ??
+    tenureStartDate ??
+    note.activated_at ??
+    null;
+  const actualSettlementDate = postedSettlement?.actual_settlement_date ?? null;
+  const actualProfitDays = resolvePostedSettlementProfitDays(
+    postedSettlement ?? null,
+    postedSnapshot,
+    actualProfitStart
+  );
+  const actualProfitStartDate = actualProfitStart?.toISOString() ?? null;
+  const actualProfitEndDate =
+    actualSettlementDate?.toISOString() ??
+    postedSettlement?.profit_maturity_date?.toISOString() ??
+    null;
   const serviceFeeRatePercent = toNumber(note.service_fee_rate_percent);
 
   const receivedAllocations = note.settlements
@@ -789,6 +884,7 @@ function buildInvestorRepaymentSummary(
     investedPrincipal,
     receivedProfitNetAmount,
     receivedTawidhCompensationAmount,
+    profitDays: actualProfitDays,
   });
   const progressPercent =
     expectedPayoutAmount > 0
@@ -804,6 +900,9 @@ function buildInvestorRepaymentSummary(
     profitDays: expectedProfitDays,
     profitStartDate,
     profitMaturityDate: profitMaturityDateIso,
+    actualProfitDays,
+    actualProfitStartDate,
+    actualProfitEndDate,
     receivedPayoutAmount: roundNoteMoney(receivedPayoutAmount, 2),
     receivedProfitNetAmount: roundNoteMoney(receivedProfitNetAmount, 2),
     receivedProfitGrossAmount: roundNoteMoney(receivedProfitGrossAmount, 2),
@@ -868,29 +967,44 @@ function isUniqueConstraintError(error: unknown, target: string): boolean {
   return Array.isArray(constraint) ? constraint.includes(target) : constraint === target;
 }
 
+function settlementAllowsLateFeeOnlyShortfall(settlement: {
+  preview_snapshot?: Prisma.JsonValue | null;
+  note: { tenure_days?: number | null };
+}) {
+  if (!isTenureNote(settlement.note.tenure_days)) return false;
+  const snapshot = asRecord(settlement.preview_snapshot);
+  return (
+    snapshot?.classification === "LATE" &&
+    snapshot?.investorObligationCovered === true
+  );
+}
+
 function assertSettlementAmountComplete(settlement: {
   gross_receipt_amount: Prisma.Decimal | number | string;
   tawidh_amount?: Prisma.Decimal | number | string;
   gharamah_amount?: Prisma.Decimal | number | string;
+  preview_snapshot?: Prisma.JsonValue | null;
   note: {
     invoice_snapshot?: Prisma.JsonValue | null;
     requested_amount?: Prisma.Decimal | number | string | null;
+    tenure_days?: number | null;
   };
 }) {
   const settlementAmount = resolveNoteSettlementAmount(settlement.note);
   const grossReceiptAmount = toNumber(settlement.gross_receipt_amount);
-  if (settlementAmount > 0 && grossReceiptAmount + 0.005 < settlementAmount) {
-    throw new AppError(
-      422,
-      "INCOMPLETE_SETTLEMENT_AMOUNT",
-      "Settlement cannot be approved or posted until the full invoice settlement amount has been received"
-    );
-  }
   if (settlementAmount > 0 && grossReceiptAmount > settlementAmount + 0.005) {
     throw new AppError(
       422,
       "SETTLEMENT_RECEIPT_LIMIT_EXCEEDED",
       "Settlement receipt cannot exceed the invoice settlement amount. Late fees are allocated from this receipt in the waterfall."
+    );
+  }
+  if (settlementAllowsLateFeeOnlyShortfall(settlement)) return;
+  if (settlementAmount > 0 && grossReceiptAmount + 0.005 < settlementAmount) {
+    throw new AppError(
+      422,
+      "INCOMPLETE_SETTLEMENT_AMOUNT",
+      "Settlement cannot be approved or posted until the full invoice settlement amount has been received"
     );
   }
 }
@@ -959,7 +1073,7 @@ function resolvePendingReceiptLateFeeAmount(
     grace_period_days: number;
     tawidh_rate_cap_percent: Prisma.Decimal | number | string;
     gharamah_rate_cap_percent: Prisma.Decimal | number | string;
-    payment_schedules?: Array<{ due_date: Date; sequence?: number | null }>;
+    payment_schedules?: Array<{ due_date: Date | null; sequence?: number | null }>;
     settlements?: Array<{
       status: NoteSettlementStatus;
       tawidh_amount?: Prisma.Decimal | number | string | null;
@@ -1519,16 +1633,32 @@ export class NoteService {
     };
   }
 
+  private async resolveTrusteeAutoSendEmailEnabled(): Promise<boolean> {
+    const settings = await prisma.platformFinanceSetting.findUnique({
+      where: { key: "DEFAULT" },
+      select: { trustee_letter_config: true },
+    });
+    return isTrusteeAutoSendEnabled(
+      (settings?.trustee_letter_config as TrusteeLetterConfig | null | undefined) ?? null
+    );
+  }
+
   async getAdminNoteDetail(id: string) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    const withdrawals = await prisma.withdrawalInstruction.findMany({
-      where: { note_id: id },
-      orderBy: { created_at: "desc" },
-    });
+    const [withdrawals, trusteeAutoSendEmailEnabled] = await Promise.all([
+      prisma.withdrawalInstruction.findMany({
+        where: { note_id: id },
+        orderBy: { created_at: "desc" },
+      }),
+      this.resolveTrusteeAutoSendEmailEnabled(),
+    ]);
     const mapped = await mapNoteDetail(note, { withdrawals });
 
-    return mapped;
+    return {
+      ...mapped,
+      trusteeAutoSendEmailEnabled,
+    };
   }
 
   async listSourceInvoicesForNotes() {
@@ -2315,6 +2445,14 @@ export class NoteService {
 
     const invoiceDetails = asRecord(invoice.details) ?? {};
     const invoiceOffer = asRecord(invoice.offer_details) ?? {};
+    const tenureDays = resolveFinancingTenureDays(invoice.offer_details, invoice.details);
+    if (tenureDays == null) {
+      throw new AppError(
+        422,
+        "FINANCING_TENURE_REQUIRED",
+        "Financing tenure is required to create a note."
+      );
+    }
     const contractDetails = asRecord(sourceContract?.contract_details) ?? {};
     const financingType = asRecord(application.financing_type);
     const productId =
@@ -2354,8 +2492,10 @@ export class NoteService {
       businessDetails: application.business_details,
     });
     const invoiceFaceValue = resolveRequestedInvoiceAmount(invoiceDetails);
+    const invoiceFace = Number(invoiceDetails.value ?? invoiceDetails.invoice_value);
+    const offeredAmount = resolveOfferedAmount(invoiceOffer);
     const targetAmount =
-      resolveOfferedAmount(invoiceOffer) ||
+      offeredAmount ||
       invoiceFaceValue ||
       resolveApprovedFacilityForRefresh(sourceContract?.status ?? "", contractDetails) ||
       toNumber(contractDetails.financing) ||
@@ -2363,6 +2503,14 @@ export class NoteService {
 
     if (targetAmount <= 0) {
       throw new AppError(422, "NOTE_AMOUNT_UNRESOLVED", "Unable to resolve note target amount");
+    }
+    if (
+      offeredAmount > 0 &&
+      Number.isFinite(invoiceFace) &&
+      invoiceFace > 0 &&
+      invoiceFinancingExceedsMaxRatio({ offeredAmount, invoiceFace })
+    ) {
+      throw new AppError(400, "INVALID_INPUT", INVOICE_FINANCING_RATIO_CAP_MESSAGE);
     }
 
     const invoiceNumber =
@@ -2437,10 +2585,8 @@ export class NoteService {
             service_fee_rate_percent: money(
               product?.service_fee_rate_percent ? product.service_fee_rate_percent.toNumber() : 15
             ),
-            maturity_date:
-              typeof invoiceDetails.maturity_date === "string"
-                ? dateFrom(invoiceDetails.maturity_date)
-                : null,
+            tenure_days: tenureDays,
+            maturity_date: null,
             events: {
               create: {
                 event_type: "NOTE_CREATED_FROM_INVOICE",
@@ -2471,7 +2617,7 @@ export class NoteService {
           data: {
             note_id: created.id,
             sequence: 1,
-            due_date: created.maturity_date ?? new Date(),
+            due_date: null,
             expected_principal: created.target_amount,
             expected_profit: money(
               created.profit_rate_percent
@@ -3630,7 +3776,11 @@ export class NoteService {
     return await mapNoteDetail(updated);
   }
 
-  async activate(id: string, actor: ActorContext) {
+  async activate(
+    id: string,
+    actor: ActorContext,
+    input: { disbursementValueDate?: string } = {}
+  ) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     const issuerDisbursement = await prisma.withdrawalInstruction.findFirst({
@@ -3658,6 +3808,11 @@ export class NoteService {
       throw new AppError(409, "NOTE_ALREADY_ACTIVATED", "Note has already been activated");
     }
     const now = new Date();
+    const activation = resolveTenureActivationFields({
+      tenureDays: note.tenure_days,
+      disbursementValueDate: input.disbursementValueDate,
+      now,
+    });
     const updated = await prisma.$transaction(async (tx) => {
       const stateUpdate = await tx.note.updateMany({
         where: {
@@ -3668,11 +3823,14 @@ export class NoteService {
         data: {
           status: NoteStatus.ACTIVE,
           servicing_status: NoteServicingStatus.CURRENT,
-          activated_at: now,
+          ...noteActivationUpdateData(activation),
         },
       });
       if (stateUpdate.count !== 1) {
         throw new AppError(409, "NOTE_ALREADY_ACTIVATED", "Note has already been activated");
+      }
+      if (activation.updateMaturity && activation.maturityDate) {
+        await syncPaymentScheduleDueDate(tx, id, activation.maturityDate);
       }
       const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
       // For legacy safety: facility fee is charged at funding close; activation ledger uses facility fee = 0.
@@ -4550,8 +4708,38 @@ export class NoteService {
     }
     const status = requiresAdminReview ? NotePaymentStatus.PENDING : NotePaymentStatus.RECEIVED;
     const eventType = requiresAdminReview ? "ISSUER_PAYMENT_SUBMITTED" : "PAYMENT_RECEIVED";
-    const paymentMetadata =
+    let receiptDate = new Date(input.receiptDate);
+    const paymentMetadataBase =
       input.metadata ?? (requiresAdminReview ? { paymentPurpose } : undefined);
+    let paymentMetadata: Record<string, unknown> | undefined = paymentMetadataBase ?? undefined;
+    if (isTenureNote(note.tenure_days) && !requiresAdminReview) {
+      const startDate = resolveTenureProfitStartDate(note);
+      const profitMaturityDate = resolveProfitMaturityDate(note);
+      receiptDate = resolveTenureClearedDate({
+        actualSettlementDate: input.actualSettlementDate,
+        receiptDate: input.receiptDate,
+        disbursementDate: startDate,
+        required: true,
+      });
+      if (startDate && profitMaturityDate) {
+        const classification = classifyTenureClearedDate({
+          startDate,
+          maturityDate: profitMaturityDate,
+          clearedDate: receiptDate,
+          graceDays: note.grace_period_days,
+        });
+        assertTenurePartialReceiptAllowed({
+          classification,
+          openReceiptAmount: openReceiptAmount + input.receiptAmount,
+          invoiceSettlementAmount: resolveNoteSettlementAmount(note),
+        });
+      }
+    } else if (requiresAdminReview && paymentMetadataBase) {
+      paymentMetadata = {
+        ...paymentMetadataBase,
+        adviceReceiptDate: input.receiptDate,
+      };
+    }
     const { updatedNote, paymentId } = await prisma.$transaction(async (tx) => {
       const payment = await tx.notePayment.create({
         data: {
@@ -4560,7 +4748,7 @@ export class NoteService {
           source: input.source,
           status,
           receipt_amount: money(input.receiptAmount),
-          receipt_date: new Date(input.receiptDate),
+          receipt_date: receiptDate,
           evidence_files: input.evidenceFiles
             ? (input.evidenceFiles as Prisma.InputJsonValue)
             : undefined,
@@ -4587,14 +4775,19 @@ export class NoteService {
     return await mapNoteDetail(updatedNote);
   }
 
-  async approvePayment(id: string, paymentId: string, actor: ActorContext) {
+  async approvePayment(
+    id: string,
+    paymentId: string,
+    actor: ActorContext,
+    input: z.infer<typeof approvePaymentSchema> = {}
+  ) {
     const payment = await prisma.notePayment.findUnique({
       where: { id: paymentId },
       include: {
         note: {
           include: {
             payments: {
-              select: { status: true, receipt_amount: true },
+              select: { id: true, status: true, receipt_amount: true, receipt_date: true },
             },
             settlements: {
               orderBy: { created_at: "desc" },
@@ -4614,6 +4807,41 @@ export class NoteService {
       throw new AppError(409, "PAYMENT_NOT_PENDING", "Only pending payments can be approved");
     }
 
+    let clearedReceiptDate: Date | undefined;
+    if (isTenureNote(payment.note.tenure_days)) {
+      const startDate = resolveTenureProfitStartDate(payment.note);
+      const profitMaturityDate = resolveProfitMaturityDate(payment.note);
+      const eligibleReceipts = payment.note.payments.filter(
+        (candidate) =>
+          candidate.id !== paymentId &&
+          (candidate.status === NotePaymentStatus.RECEIVED ||
+            candidate.status === NotePaymentStatus.RECONCILED ||
+            candidate.status === NotePaymentStatus.PARTIAL)
+      );
+      clearedReceiptDate = resolveTenureClearedDate({
+        actualSettlementDate: input.actualSettlementDate,
+        disbursementDate: startDate,
+        latestIncludedReceiptDate: latestIncludedReceiptDate(eligibleReceipts),
+        required: true,
+      });
+      if (startDate && profitMaturityDate) {
+        const classification = classifyTenureClearedDate({
+          startDate,
+          maturityDate: profitMaturityDate,
+          clearedDate: clearedReceiptDate,
+          graceDays: payment.note.grace_period_days,
+        });
+        const openReceiptAmount = payment.note.payments
+          .filter((candidate) => OPEN_PAYMENT_STATUSES.includes(candidate.status))
+          .reduce((sum, candidate) => sum + toNumber(candidate.receipt_amount), 0);
+        assertTenurePartialReceiptAllowed({
+          classification,
+          openReceiptAmount,
+          invoiceSettlementAmount: resolveNoteSettlementAmount(payment.note),
+        });
+      }
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       const updatedPayment = await tx.notePayment.update({
         where: { id: paymentId },
@@ -4621,6 +4849,15 @@ export class NoteService {
           status: NotePaymentStatus.RECEIVED,
           reconciled_by_user_id: actor.userId,
           reconciled_at: new Date(),
+          ...(clearedReceiptDate
+            ? {
+                receipt_date: clearedReceiptDate,
+                metadata: {
+                  ...(asRecord(payment.metadata) ?? {}),
+                  adviceReceiptDate: payment.receipt_date.toISOString(),
+                },
+              }
+            : {}),
         },
       });
       await this.postPaymentReceiptLedger(tx, updatedPayment, actor);
@@ -4709,9 +4946,24 @@ export class NoteService {
     assertReceiptAmountWithinSettlementLimit(note, grossReceipt);
     const previewTawidhAmount = input.tawidhAmount ?? 0;
     const previewGharamahAmount = input.gharamahAmount ?? 0;
+    const tenureNote = isTenureNote(note.tenure_days);
+    const eligibleReceiptDates = eligiblePayments.map((payment) => ({
+      receipt_date: payment.receipt_date,
+    }));
+    const latestReceipt = latestIncludedReceiptDate(eligibleReceiptDates);
+    const tenureClearedDate = tenureNote
+      ? resolveTenureClearedDate({
+          actualSettlementDate: input.actualSettlementDate,
+          receiptDate: input.receiptDate,
+          disbursementDate: resolveTenureProfitStartDate(note),
+          latestIncludedReceiptDate: latestReceipt,
+          required: true,
+        })
+      : null;
     if (previewTawidhAmount + previewGharamahAmount > 0.005) {
       resolvePendingReceiptLateFeeAmount(note, {
-        receiptDate: input.receiptDate ?? new Date().toISOString(),
+        receiptDate:
+          tenureClearedDate?.toISOString() ?? input.receiptDate ?? new Date().toISOString(),
         pendingTawidhAmount: previewTawidhAmount,
         pendingGharamahAmount: previewGharamahAmount,
       });
@@ -4724,7 +4976,7 @@ export class NoteService {
           ? eligiblePayments[0].id
           : null;
 
-    if (!note.activated_at) {
+    if (!note.activated_at && !note.disbursement_value_date) {
       throw new AppError(
         409,
         "NOTE_ACTIVATION_DATE_REQUIRED",
@@ -4748,20 +5000,59 @@ export class NoteService {
       );
     }
 
-    const waterfall = calculateSettlementWaterfall({
-      grossReceiptAmount: grossReceipt,
-      fundedPrincipal: toNumber(note.funded_amount),
-      profitRatePercent,
-      profitStartDate: note.activated_at,
-      profitMaturityDate,
-      serviceFeeRatePercent: toNumber(note.service_fee_rate_percent),
-      tawidhAmount: previewTawidhAmount,
-      tawidhInvestorSharePercent: input.tawidhInvestorSharePercent ?? 0,
-      gharamahAmount: previewGharamahAmount,
-    });
+    const tenureResult = tenureNote
+      ? buildTenureSettlementWaterfall({
+          grossReceiptAmount: grossReceipt,
+          fundedPrincipal: toNumber(note.funded_amount),
+          invoiceFaceValue: resolveNoteSettlementAmount(note),
+          profitRatePercent,
+          startDate: resolveTenureProfitStartDate(note) ?? note.activated_at!,
+          maturityDate: profitMaturityDate,
+          clearedDate: tenureClearedDate!,
+          graceDays: note.grace_period_days,
+          serviceFeeRatePercent: toNumber(note.service_fee_rate_percent),
+          tawidhAmount: previewTawidhAmount,
+          tawidhInvestorSharePercent: input.tawidhInvestorSharePercent ?? 0,
+          gharamahAmount: previewGharamahAmount,
+        })
+      : null;
+    if (tenureResult) {
+      if (tenureResult.classification !== "LATE") {
+        if (previewTawidhAmount + previewGharamahAmount > 0.005) {
+          throw new AppError(
+            422,
+            "LATE_FEES_NOT_APPLICABLE",
+            "Late fees cannot be applied before the grace period ends"
+          );
+        }
+        const invoiceAmount = resolveNoteSettlementAmount(note);
+        if (invoiceAmount > 0 && grossReceipt + 0.005 < invoiceAmount) {
+          throw new AppError(
+            422,
+            "PARTIAL_REPAYMENT_NOT_ALLOWED",
+            "Before the grace period ends, the recorded receipt must cover the full invoice settlement amount. Partial receipts can accumulate only after grace."
+          );
+        }
+      }
+      assertTenureInvestorObligationCovered(tenureResult);
+    }
+    const waterfall = tenureResult
+      ? tenureResult
+      : calculateSettlementWaterfall({
+          grossReceiptAmount: grossReceipt,
+          fundedPrincipal: toNumber(note.funded_amount),
+          profitRatePercent,
+          profitStartDate: note.activated_at!,
+          profitMaturityDate,
+          serviceFeeRatePercent: toNumber(note.service_fee_rate_percent),
+          tawidhAmount: previewTawidhAmount,
+          tawidhInvestorSharePercent: input.tawidhInvestorSharePercent ?? 0,
+          gharamahAmount: previewGharamahAmount,
+        });
     if (
+      !tenureResult &&
       previewTawidhAmount + previewGharamahAmount >
-      waterfall.availableLateFeeHeadroomAmount + 0.005
+        waterfall.availableLateFeeHeadroomAmount + 0.005
     ) {
       throw new AppError(
         422,
@@ -4769,7 +5060,7 @@ export class NoteService {
         "Late fees exceed the repayment headroom available after investor principal and contractual profit"
       );
     }
-    if (waterfall.settlementShortfallAmount > 0.005) {
+    if (!tenureResult && waterfall.settlementShortfallAmount > 0.005) {
       throw new AppError(
         422,
         "SETTLEMENT_WATERFALL_SHORTFALL",
@@ -4803,6 +5094,19 @@ export class NoteService {
       profitMaturityDate: waterfall.profitMaturityDate.toISOString(),
       includedPaymentIds,
       allocations,
+      ...(tenureResult
+        ? {
+            actualSettlementDate: tenureResult.actualSettlementDate.toISOString(),
+            classification: tenureResult.classification,
+            ceilingAmount: tenureResult.ceilingAmount,
+            ceilingUsedAmount: tenureResult.ceilingUsedAmount,
+            ceilingRemainingAmount: tenureResult.ceilingRemainingAmount,
+            excessLateChargeAmount: tenureResult.excessLateChargeAmount,
+            unpaidTawidhAmount: tenureResult.unpaidTawidhAmount,
+            unpaidGharamahAmount: tenureResult.unpaidGharamahAmount,
+            investorObligationCovered: tenureResult.investorObligationCovered,
+          }
+        : {}),
     };
 
     const settlement = await prisma.$transaction(async (tx) => {
@@ -4830,8 +5134,17 @@ export class NoteService {
           gharamah_amount: money(waterfall.gharamahAmount),
           issuer_residual_amount: money(waterfall.issuerResidualAmount),
           unapplied_amount: money(waterfall.unappliedAmount),
+          excess_late_charge_amount: money(
+            (tenureResult?.unpaidTawidhAmount ?? 0) + (tenureResult?.unpaidGharamahAmount ?? 0) ||
+              (tenureResult?.excessLateChargeAmount ?? 0)
+          ),
+          excess_tawidh_amount: money(tenureResult?.unpaidTawidhAmount ?? 0),
+          excess_gharamah_amount: money(tenureResult?.unpaidGharamahAmount ?? 0),
+          actual_settlement_date: tenureResult?.actualSettlementDate ?? null,
           settlement_type:
-            waterfall.tawidhAmount > 0 || waterfall.gharamahAmount > 0
+            waterfall.tawidhAmount > 0 ||
+            waterfall.gharamahAmount > 0 ||
+            (tenureResult?.excessLateChargeAmount ?? 0) > 0.005
               ? NoteSettlementType.LATE
               : NoteSettlementType.STANDARD,
           preview_snapshot: snapshot,
@@ -4990,6 +5303,17 @@ export class NoteService {
     }
     assertSettlementAmountComplete(settlement);
     assertSettlementWaterfallBalanced(settlement);
+    const postedSnapshot = asRecord(settlement.preview_snapshot);
+    if (
+      isTenureNote(settlement.note.tenure_days) &&
+      postedSnapshot?.investorObligationCovered === false
+    ) {
+      throw new AppError(
+        422,
+        "SETTLEMENT_INVESTOR_SHORTFALL",
+        "Final settlement needs enough receipts to cover investor principal and accrued profit. Unpaid late charges can be billed separately."
+      );
+    }
     await assertRepaymentReceiptLedgerComplete(
       settlement.note_id,
       toNumber(settlement.gross_receipt_amount)
@@ -5126,6 +5450,18 @@ export class NoteService {
       settlementId,
       investorOrganizationIds: repaidInvestorOrgIds,
     });
+    const postedExcessOwed = toNumber(settlement.excess_late_charge_amount);
+    const postedExcessPaid = toNumber(settlement.excess_late_charge_paid_amount);
+    if (postedExcessOwed - postedExcessPaid > 0.005) {
+      await notifyExcessLateChargesDue({
+        notificationService: this.notificationService,
+        noteId: id,
+        settlementId,
+        issuerOrganizationId: settlement.note.issuer_organization_id,
+        noteReference: settlement.note.note_reference,
+        outstandingAmount: postedExcessOwed - postedExcessPaid,
+      });
+    }
     if (!needsTrusteeInstruction) {
       await notifyNoteIssuerRepaid({
         notificationService: this.notificationService,
@@ -5158,7 +5494,16 @@ export class NoteService {
     assertNoPostedSettlement(note);
 
     const dueDate = resolveFirstPaymentDueDate(note);
-    const checkDate = input.receiptDate ? new Date(input.receiptDate) : new Date();
+    const checkDate = isTenureNote(note.tenure_days)
+      ? resolveTenureClearedDate({
+          actualSettlementDate: input.actualSettlementDate,
+          receiptDate: input.receiptDate,
+          disbursementDate: resolveTenureProfitStartDate(note),
+          required: false,
+        })
+      : input.receiptDate
+        ? new Date(input.receiptDate)
+        : new Date();
     const invoiceSettlementAmount = resolveNoteSettlementAmount(note);
     const receiptAmount = input.receiptAmount ?? invoiceSettlementAmount;
 
@@ -5210,12 +5555,15 @@ export class NoteService {
     const overdue = total.daysLate > 0;
     const availableLateFeeHeadroomAmount = resolveAvailableLateFeeHeadroomForNote(
       note,
-      invoiceSettlementAmount
+      invoiceSettlementAmount,
+      checkDate
     );
     const cappedSuggestions = capLateFeeSuggestionsByHeadroom({
       remainingTawidhAmount: overdue ? remainingTawidhAmount : 0,
       remainingGharamahAmount: overdue ? remainingGharamahAmount : 0,
-      availableLateFeeHeadroomAmount,
+      availableLateFeeHeadroomAmount: isTenureNote(note.tenure_days)
+        ? null
+        : availableLateFeeHeadroomAmount,
     });
     const suggestedTawidhAmount = overdue ? cappedSuggestions.suggestedTawidhAmount : 0;
     const suggestedGharamahAmount = overdue ? cappedSuggestions.suggestedGharamahAmount : 0;
@@ -5571,7 +5919,15 @@ export class NoteService {
       );
     }
 
-    // TODO: future enhancement — send trustee instruction email with generated PDF attachment before marking as submitted.
+    const settings = await this.getPlatformFinanceSettings();
+    if (isTrusteeAutoSendEnabled(settings.trusteeLetterConfig)) {
+      await this.deliverSettlementTrusteeEmail(
+        noteId,
+        settlementId,
+        settings.trusteeLetterConfig,
+        actor
+      );
+    }
 
     await prisma.$transaction(async (tx) => {
       const row = await tx.noteSettlement.updateMany({
@@ -5598,6 +5954,52 @@ export class NoteService {
       });
     });
 
+    return this.getAdminNoteDetail(noteId);
+  }
+
+  async resendServiceFeeTrusteeEmail(noteId: string, settlementId: string, actor: ActorContext) {
+    const settlement = await prisma.noteSettlement.findFirst({
+      where: { id: settlementId, note_id: noteId },
+    });
+    if (!settlement) {
+      throw new AppError(404, "SETTLEMENT_NOT_FOUND", "Settlement not found");
+    }
+    if (settlement.status !== NoteSettlementStatus.POSTED) {
+      throw new AppError(
+        409,
+        "SETTLEMENT_NOT_POSTED",
+        "Only posted settlements can move the settlement trustee workflow forward."
+      );
+    }
+    const st = settlement.service_fee_trustee_status;
+    if (
+      st !== ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED &&
+      st !== ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE
+    ) {
+      throw new AppError(
+        409,
+        "TRUSTEE_EMAIL_NOT_RESENDABLE",
+        st === ServiceFeeTrusteeInstructionStatus.COMPLETED
+          ? "Trustee email cannot be resent after the settlement instruction is completed."
+          : "Resend is available only after the trustee email has already been sent."
+      );
+    }
+    if (!settlement.service_fee_trustee_email_sent_at) {
+      throw new AppError(
+        409,
+        "TRUSTEE_EMAIL_NOT_SENT",
+        "Resend is available only after the trustee email has already been sent."
+      );
+    }
+
+    const settings = await this.getPlatformFinanceSettings();
+    await this.deliverSettlementTrusteeEmail(
+      noteId,
+      settlementId,
+      settings.trusteeLetterConfig,
+      actor,
+      "resend"
+    );
     return this.getAdminNoteDetail(noteId);
   }
 
@@ -5836,6 +6238,10 @@ export class NoteService {
       applicationProcessingFeeAmount: toNumber(settings.application_processing_fee_amount),
       investorMinDepositAmount: toNumber(settings.investor_min_deposit_amount),
       investorMaxDepositAmount: toNumber(settings.investor_max_deposit_amount),
+      facilityFeeGatewayTxnMaxAmount: toNumber(settings.facility_fee_gateway_txn_max_amount),
+      excessLateChargeGatewayTxnMaxAmount: toNumber(
+        settings.excess_late_charge_gateway_txn_max_amount
+      ),
       offerDeadlineReminderHour: settings.offer_deadline_reminder_hour,
       trusteeLetterConfig:
         (settings.trustee_letter_config as TrusteeLetterConfig | null) ?? null,
@@ -5893,6 +6299,14 @@ export class NoteService {
           input.investorMaxDepositAmount != null
             ? money(input.investorMaxDepositAmount)
             : undefined,
+        facility_fee_gateway_txn_max_amount:
+          input.facilityFeeGatewayTxnMaxAmount != null
+            ? money(input.facilityFeeGatewayTxnMaxAmount)
+            : undefined,
+        excess_late_charge_gateway_txn_max_amount:
+          input.excessLateChargeGatewayTxnMaxAmount != null
+            ? money(input.excessLateChargeGatewayTxnMaxAmount)
+            : undefined,
         offer_deadline_reminder_hour: input.offerDeadlineReminderHour,
         trustee_letter_config:
           input.trusteeLetterConfig != null
@@ -5945,6 +6359,14 @@ export class NoteService {
         investor_max_deposit_amount:
           input.investorMaxDepositAmount != null
             ? money(input.investorMaxDepositAmount)
+            : undefined,
+        facility_fee_gateway_txn_max_amount:
+          input.facilityFeeGatewayTxnMaxAmount != null
+            ? money(input.facilityFeeGatewayTxnMaxAmount)
+            : undefined,
+        excess_late_charge_gateway_txn_max_amount:
+          input.excessLateChargeGatewayTxnMaxAmount != null
+            ? money(input.excessLateChargeGatewayTxnMaxAmount)
             : undefined,
         offer_deadline_reminder_hour: input.offerDeadlineReminderHour,
         trustee_letter_config:
@@ -6065,6 +6487,7 @@ export class NoteService {
         letterS3Key: withdrawal.letter_s3_key,
         generatedAt: withdrawal.generated_at?.toISOString() ?? null,
         submittedToTrusteeAt: withdrawal.submitted_to_trustee_at?.toISOString() ?? null,
+        trusteeEmailSentAt: withdrawal.trustee_email_sent_at?.toISOString() ?? null,
         completedAt: withdrawal.completed_at?.toISOString() ?? null,
         createdAt: withdrawal.created_at.toISOString(),
       };
@@ -6078,7 +6501,10 @@ export class NoteService {
     if (!withdrawal || withdrawal.withdrawal_type !== WithdrawalType.INVESTOR_WITHDRAWAL) {
       throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal instruction not found");
     }
-    return this.mapWithdrawal(withdrawal);
+    return {
+      ...this.mapWithdrawal(withdrawal),
+      trusteeAutoSendEmailEnabled: await this.resolveTrusteeAutoSendEmailEnabled(),
+    };
   }
 
   async createInvestorWithdrawal(
@@ -6245,7 +6671,10 @@ export class NoteService {
       );
     }
 
-    // TODO: future enhancement — send trustee instruction email with generated PDF attachment before marking as submitted.
+    const settings = await this.getPlatformFinanceSettings();
+    if (isTrusteeAutoSendEnabled(settings.trusteeLetterConfig)) {
+      await this.deliverWithdrawalTrusteeEmail(existing.id, settings.trusteeLetterConfig, actor);
+    }
 
     const withdrawal = await prisma.$transaction(async (tx) => {
       const stateUpdate = await tx.withdrawalInstruction.updateMany({
@@ -6270,6 +6699,45 @@ export class NoteService {
         withdrawalId: id,
       });
     }
+    return this.mapWithdrawal(withdrawal);
+  }
+
+  async resendWithdrawalTrusteeEmail(id: string, actor: ActorContext) {
+    const existing = await prisma.withdrawalInstruction.findUnique({ where: { id } });
+    if (!existing) throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal not found");
+    if (
+      existing.status === WithdrawalStatus.DRAFT ||
+      existing.status === WithdrawalStatus.COMPLETED ||
+      existing.status === WithdrawalStatus.CANCELLED
+    ) {
+      throw new AppError(
+        409,
+        "TRUSTEE_EMAIL_NOT_RESENDABLE",
+        existing.status === WithdrawalStatus.DRAFT
+          ? "Trustee email cannot be resent while the withdrawal is still in draft."
+          : existing.status === WithdrawalStatus.CANCELLED
+            ? "Trustee email cannot be resent after the withdrawal is cancelled."
+            : "Trustee email cannot be resent after the withdrawal is completed."
+      );
+    }
+    if (!existing.trustee_email_sent_at) {
+      throw new AppError(
+        409,
+        "TRUSTEE_EMAIL_NOT_SENT",
+        "Resend is available only after the trustee email has already been sent."
+      );
+    }
+    if (!existing.letter_s3_key) {
+      throw new AppError(
+        409,
+        "WITHDRAWAL_LETTER_REQUIRED",
+        "Withdrawal can be submitted to trustee only after its instruction letter is generated"
+      );
+    }
+
+    const settings = await this.getPlatformFinanceSettings();
+    await this.deliverWithdrawalTrusteeEmail(existing.id, settings.trusteeLetterConfig, actor, "resend");
+    const withdrawal = await prisma.withdrawalInstruction.findUniqueOrThrow({ where: { id } });
     return this.mapWithdrawal(withdrawal);
   }
 
@@ -6301,7 +6769,11 @@ export class NoteService {
     return this.mapWithdrawal(updated);
   }
 
-  async markWithdrawalCompleted(id: string, actor: ActorContext) {
+  async markWithdrawalCompleted(
+    id: string,
+    actor: ActorContext,
+    input: { disbursementValueDate?: string } = {}
+  ) {
     const existing = await prisma.withdrawalInstruction.findUnique({ where: { id } });
     if (!existing) throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal not found");
     if (existing.status !== WithdrawalStatus.SUBMITTED_TO_TRUSTEE) {
@@ -6322,9 +6794,18 @@ export class NoteService {
             source_contract_id: true,
             source_invoice_id: true,
             source_application_id: true,
+            tenure_days: true,
           },
         })
       : null;
+    const activation =
+      existing.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT && existing.note_id
+        ? resolveTenureActivationFields({
+            tenureDays: noteForCapacity?.tenure_days,
+            disbursementValueDate: input.disbursementValueDate,
+            now: completedAt,
+          })
+        : null;
     const withdrawal = await prisma.$transaction(async (tx) => {
       if (noteForCapacity?.source_contract_id) {
         await lockContractRow(tx, noteForCapacity.source_contract_id);
@@ -6389,6 +6870,9 @@ export class NoteService {
         });
 
         if (existing.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {
+          const activationFields =
+            activation ??
+            resolveTenureActivationFields({ tenureDays: null, now: completedAt });
           await tx.note.updateMany({
             where: {
               id: existing.note_id,
@@ -6397,9 +6881,12 @@ export class NoteService {
             data: {
               status: NoteStatus.ACTIVE,
               servicing_status: NoteServicingStatus.CURRENT,
-              activated_at: completedAt,
+              ...noteActivationUpdateData(activationFields),
             },
           });
+          if (activationFields.updateMaturity && activationFields.maturityDate) {
+            await syncPaymentScheduleDueDate(tx, existing.note_id, activationFields.maturityDate);
+          }
         } else {
           const postedResidualSettlement = existing.settlement_id
             ? await tx.noteSettlement.findFirst({
@@ -6597,6 +7084,182 @@ export class NoteService {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     return (await mapNoteDetail(note)).events;
+  }
+
+  /**
+   * SES cannot share a DB transaction. We send first, then persist sent-at.
+   * Initial submit uses a null-check so a later status-transition failure leaves
+   * sent-at set and skips a second send. Resend always sends and replaces the
+   * timestamp. Failed sends never write sent-at.
+   */
+  private async deliverWithdrawalTrusteeEmail(
+    withdrawalId: string,
+    config: TrusteeLetterConfig | null,
+    actor: ActorContext,
+    mode: "initial" | "resend" = "initial"
+  ) {
+    assertTrusteeAutoSendRecipients(config);
+    const latest = await prisma.withdrawalInstruction.findUnique({
+      where: { id: withdrawalId },
+      select: {
+        id: true,
+        note_id: true,
+        display_reference: true,
+        letter_s3_key: true,
+        withdrawal_type: true,
+        trustee_email_sent_at: true,
+      },
+    });
+    if (!latest) throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal not found");
+    if (mode === "initial" && latest.trustee_email_sent_at) return;
+    if (!latest.letter_s3_key) {
+      throw new AppError(
+        409,
+        "WITHDRAWAL_LETTER_REQUIRED",
+        "Withdrawal can be submitted to trustee only after its instruction letter is generated"
+      );
+    }
+    if (!config) {
+      throw new AppError(
+        409,
+        "TRUSTEE_EMAIL_NOT_CONFIGURED",
+        "A valid trustee email must be configured before auto-sending the instruction."
+      );
+    }
+
+    const { messageId } = await sendTrusteeInstructionPdfEmail({
+      kind: latest.withdrawal_type as TrusteeInstructionEmailKind,
+      reference: latest.display_reference?.trim() || latest.id,
+      s3Key: latest.letter_s3_key,
+      config,
+    });
+    await this.persistWithdrawalTrusteeEmailSent(latest.id, latest.note_id, actor, messageId, mode);
+  }
+
+  private async persistWithdrawalTrusteeEmailSent(
+    withdrawalId: string,
+    noteId: string | null,
+    actor: ActorContext,
+    messageId: string,
+    mode: "initial" | "resend" = "initial"
+  ) {
+    const persist = await prisma.withdrawalInstruction.updateMany({
+      where:
+        mode === "resend"
+          ? {
+              id: withdrawalId,
+              trustee_email_sent_at: { not: null },
+              status: {
+                in: [WithdrawalStatus.LETTER_GENERATED, WithdrawalStatus.SUBMITTED_TO_TRUSTEE],
+              },
+            }
+          : { id: withdrawalId, trustee_email_sent_at: null },
+      data: { trustee_email_sent_at: new Date() },
+    });
+    if (mode === "resend" && persist.count !== 1) {
+      this.throwTrusteeEmailResendStateChanged();
+    }
+    if (persist.count !== 1 || !noteId) return;
+    await this.logEvent(prisma, noteId, "WITHDRAWAL_TRUSTEE_EMAIL_SENT", actor, {
+      withdrawalId,
+      messageId,
+      ...(mode === "resend" ? { resend: true } : {}),
+    });
+  }
+
+  private async deliverSettlementTrusteeEmail(
+    noteId: string,
+    settlementId: string,
+    config: TrusteeLetterConfig | null,
+    actor: ActorContext,
+    mode: "initial" | "resend" = "initial"
+  ) {
+    assertTrusteeAutoSendRecipients(config);
+    const latest = await prisma.noteSettlement.findFirst({
+      where: { id: settlementId, note_id: noteId },
+      select: {
+        id: true,
+        display_reference: true,
+        service_fee_trustee_email_sent_at: true,
+      },
+    });
+    if (!latest) throw new AppError(404, "SETTLEMENT_NOT_FOUND", "Settlement not found");
+    if (mode === "initial" && latest.service_fee_trustee_email_sent_at) return;
+    if (!config) {
+      throw new AppError(
+        409,
+        "TRUSTEE_EMAIL_NOT_CONFIGURED",
+        "A valid trustee email must be configured before auto-sending the instruction."
+      );
+    }
+
+    const events = await prisma.noteEvent.findMany({
+      where: { note_id: noteId, event_type: "SERVICE_FEE_TRUSTEE_LETTER_GENERATED" },
+      orderBy: { created_at: "desc" },
+      select: { metadata: true, created_at: true },
+    });
+    const s3Key = extractLatestSettlementTrusteeLetterS3Key(
+      events.map((event) => ({ metadata: event.metadata, createdAt: event.created_at })),
+      settlementId
+    );
+    if (!s3Key) {
+      throw new AppError(
+        409,
+        "SERVICE_FEE_TRUSTEE_LETTER_S3_KEY_MISSING",
+        "The generated trustee instruction PDF could not be found for this settlement."
+      );
+    }
+
+    const { messageId } = await sendTrusteeInstructionPdfEmail({
+      kind: "SERVICE_FEE",
+      reference: latest.display_reference?.trim() || latest.id,
+      s3Key,
+      config,
+    });
+    await this.persistSettlementTrusteeEmailSent(noteId, settlementId, actor, messageId, mode);
+  }
+
+  private async persistSettlementTrusteeEmailSent(
+    noteId: string,
+    settlementId: string,
+    actor: ActorContext,
+    messageId: string,
+    mode: "initial" | "resend" = "initial"
+  ) {
+    const persist = await prisma.noteSettlement.updateMany({
+      where:
+        mode === "resend"
+          ? {
+              id: settlementId,
+              note_id: noteId,
+              service_fee_trustee_email_sent_at: { not: null },
+              service_fee_trustee_status: {
+                in: [
+                  ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
+                  ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+                ],
+              },
+            }
+          : { id: settlementId, note_id: noteId, service_fee_trustee_email_sent_at: null },
+      data: { service_fee_trustee_email_sent_at: new Date() },
+    });
+    if (mode === "resend" && persist.count !== 1) {
+      this.throwTrusteeEmailResendStateChanged();
+    }
+    if (persist.count !== 1) return;
+    await this.logEvent(prisma, noteId, "SERVICE_FEE_TRUSTEE_EMAIL_SENT", actor, {
+      settlementId,
+      messageId,
+      ...(mode === "resend" ? { resend: true } : {}),
+    });
+  }
+
+  private throwTrusteeEmailResendStateChanged(): never {
+    throw new AppError(
+      409,
+      "TRUSTEE_EMAIL_RESEND_STATE_CHANGED",
+      "The email was accepted by the mail service, but the trustee workflow changed before the delivery time could be recorded. Refresh this page and review the current status before taking further action."
+    );
   }
 
   private mapWithdrawal(

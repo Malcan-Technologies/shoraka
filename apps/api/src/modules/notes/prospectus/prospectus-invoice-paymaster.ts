@@ -10,6 +10,7 @@ import {
 } from "@cashsouk/types";
 import { formatProspectusDateUtc } from "./prospectus-dates-paymaster";
 import {
+  parseInvoiceSnapshotDueDate,
   parseInvoiceSnapshotFaceValue,
   parsePaymasterSnapshot,
 } from "./prospectus-json-guards";
@@ -34,6 +35,7 @@ export function buildProspectusInvoicePaymaster(
   // Observational only — prove target/funded/live invoice/docs never become Canva values.
   void input.targetAmount;
   void input.fundedAmount;
+  void input.maturityDate;
   void input.liveInvoiceMaturityDate;
   void input.supportingDocuments;
 
@@ -55,7 +57,7 @@ export function buildProspectusInvoicePaymaster(
   return {
     sectionHeading: PROSPECTUS_INVOICE_PAYMASTER_SECTION_HEADING,
     invoiceAmount: formatProspectusMoneyMyr(faceValue),
-    invoiceDueDate: formatProspectusDateUtc(input.maturityDate),
+    invoiceDueDate: formatProspectusDateUtc(parseInvoiceSnapshotDueDate(input.invoiceSnapshot)),
     paymasterName: paymasterName ?? PROSPECTUS_DATA_NOT_AVAILABLE,
     paymasterNature: paymasterNature ?? PROSPECTUS_DATA_NOT_AVAILABLE,
     deedOfAssignment,

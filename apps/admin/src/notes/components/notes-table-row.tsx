@@ -9,7 +9,7 @@ import {
   StatusBadge,
   getNoteDerivedStatusToken,
 } from "@cashsouk/ui";
-import type { EligibleNoteInvoice, NoteListItem } from "@cashsouk/types";
+import { resolveNoteTimingDisplay, type EligibleNoteInvoice, type NoteListItem } from "@cashsouk/types";
 import {
   formatInvoiceReference,
   formatProspectusListBadge,
@@ -64,20 +64,40 @@ interface NoteRowProps {
 }
 
 function formatDate(value: string | null) {
-  return value ? format(new Date(value), "dd MMM yyyy") : "—";
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return format(date, "dd MMM yyyy");
 }
 
 function MaturityCell({
   maturityDate,
+  tenureDays,
   highlightCountdown = true,
   settled = false,
+  invoiceDue = false,
 }: {
   maturityDate: string | null;
+  tenureDays?: number | null;
   highlightCountdown?: boolean;
   settled?: boolean;
+  invoiceDue?: boolean;
 }) {
-  const dateLabel = formatDate(maturityDate);
-  const countdown = settled ? "Settled" : formatMaturityCountdown(maturityDate);
+  const timing = resolveNoteTimingDisplay({ maturityDate, tenureDays });
+  const parsedDate =
+    timing.kind === "tenure_activated" || timing.kind === "legacy" ? maturityDate : null;
+  const dateLabel = invoiceDue
+    ? parsedDate
+      ? formatDate(parsedDate)
+      : "—"
+    : timing.value;
+  const countdown = invoiceDue
+    ? "Invoice due date"
+    : settled
+      ? "Settled"
+      : parsedDate
+        ? formatMaturityCountdown(parsedDate)
+        : null;
   const days = calendarDaysUntilMaturity(maturityDate);
   const title = countdown ? `${dateLabel} · ${countdown}` : dateLabel;
   const dateClass = maturityCountdownClass(days, {
@@ -260,6 +280,7 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
       </TableCell>
       <MaturityCell
         maturityDate={note.maturityDate}
+        tenureDays={note.tenureDays}
         highlightCountdown={!settlementPosted}
         settled={settlementPosted}
       />
@@ -327,7 +348,7 @@ function ReadyInvoiceRow({
       <TableCell className="min-w-0 overflow-hidden">
         <span className="text-muted-foreground">—</span>
       </TableCell>
-      <MaturityCell maturityDate={invoice.maturityDate} />
+      <MaturityCell maturityDate={invoice.maturityDate} invoiceDue />
       <TableCell className="whitespace-nowrap">
         <TooltipProvider>
           <Tooltip>

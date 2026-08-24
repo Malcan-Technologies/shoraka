@@ -52,6 +52,19 @@ describe("extractNoteTimelineDetails", () => {
     ]);
   });
 
+  it("shows resend metadata as Resent instead of Yes", () => {
+    const { compact } = extractNoteTimelineDetails(
+      event({
+        eventType: "WITHDRAWAL_TRUSTEE_EMAIL_SENT",
+        metadata: { withdrawalId: "wd-1", messageId: "ses-2", resend: true },
+      })
+    );
+    expect(compact).toEqual(
+      expect.arrayContaining([{ key: "resend", label: "Resend", value: "Resent" }])
+    );
+    expect(compact.find((row) => row.key === "resend")?.value).not.toBe("Yes");
+  });
+
   it("hides s3 keys from generic events", () => {
     const { compact, prose } = extractNoteTimelineDetails(
       event({

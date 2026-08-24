@@ -1,3 +1,5 @@
+import { moneyAmountExceeds } from "./note-money";
+
 /**
  * Split facility origination from invoice drawdowns.
  *
@@ -356,9 +358,13 @@ export function previewDualLimits(input: {
   const financingAmount = Number.isFinite(input.financingAmount) ? input.financingAmount : 0;
   const invoiceFace = Number.isFinite(input.invoiceFace) ? input.invoiceFace : 0;
   const financingOverage =
-    leftToDraw != null && financingAmount > leftToDraw ? financingAmount - leftToDraw : 0;
+    leftToDraw != null && moneyAmountExceeds(financingAmount, leftToDraw)
+      ? financingAmount - leftToDraw
+      : 0;
   const faceOverage =
-    leftOnContract != null && invoiceFace > leftOnContract ? invoiceFace - leftOnContract : 0;
+    leftOnContract != null && moneyAmountExceeds(invoiceFace, leftOnContract)
+      ? invoiceFace - leftOnContract
+      : 0;
   return {
     leftToDraw,
     leftOnContract,

@@ -17,6 +17,12 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function parseInvoiceSnapshotDueDate(snapshot: unknown): string | null {
+  const details = asRecord(asRecord(snapshot)?.details);
+  const raw = details?.maturity_date;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
 function textOrDna(value: unknown): string {
   if (typeof value === "string" && value.trim()) return value.trim();
   return DATA_NOT_AVAILABLE;
@@ -233,7 +239,7 @@ export function buildInvoicePaymasterVerificationRows(note: NoteDetail): CoreTer
   const faceValue = parseInvoiceSnapshotFaceValue(note.invoiceSnapshot);
   return [
     { label: "Invoice Amount", value: formatMoneyOrDna(faceValue) },
-    { label: "Invoice Due Date", value: formatDateUtc(note.maturityDate) },
+    { label: "Invoice Due Date", value: formatDateUtc(parseInvoiceSnapshotDueDate(note.invoiceSnapshot)) },
     { label: "Paymaster", value: textOrDna(note.paymasterName ?? paymaster?.name) },
     {
       label: "Nature of Paymaster",

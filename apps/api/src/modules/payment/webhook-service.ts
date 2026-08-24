@@ -15,6 +15,12 @@ import { getCurlecConfig } from "../../config/curlec";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma as defaultPrisma } from "../../lib/prisma";
+import {
+  NOTE_MONEY_TOLERANCE,
+  resolveFacilityFeeBalance,
+  roundNoteMoney,
+} from "@cashsouk/types";
+import { lockContractRow } from "../../lib/refresh-contract-facility";
 import { postLedgerEntry } from "../notes/ledger";
 import {
   creditCompletedDeposit,
@@ -26,12 +32,15 @@ import { createCurlecClient } from "./curlec-client";
 import { assertGatewayAccountMatch } from "./gateway-account";
 import { recordGatewayPaymentEvent } from "./gateway-events";
 import { scheduleGatewayPaymentReceipt } from "./receipt/receipt-service";
+import { notifyFacilityFeeUpfrontPaidIfSettled } from "../notification/facility-fee-notifications";
+import { notifyExcessLateChargesPaidIfSettled } from "../notification/excess-late-charge-notifications";
+import { completeExcessLateChargePayment } from "./excess-late-charge-payment-service";
 import {
   extractBankCodeFromPayment,
   extractPayerNameFromPayment,
   type CurlecPayment,
 } from "./curlec-schemas";
-import { myrDecimalToSen } from "./money";
+import { myrDecimalToSen, myrToSen } from "./money";
 import { runNameCheck } from "./name-check";
 import { handleGatewayPaymentAmountMismatch } from "./amount-mismatch-service";
 import {
@@ -66,6 +75,9 @@ export type IngestCurlecWebhookResult = {
 const DEPOSIT_CAPTURE_EVENTS = new Set(["payment.captured", "order.paid"]);
 const AMOUNT_MISMATCH_ERROR = "Curlec captured amount does not match internal payment amount";
 const CURRENCY_MISMATCH_ERROR = "Curlec captured currency does not match internal payment currency";
+const FACILITY_FEE_EXCEEDS_TOTAL_ERROR = "Captured facility fee would exceed the total owed";
+const EXCESS_LATE_CHARGE_EXCEEDS_TOTAL_ERROR =
+  "Captured late charges would exceed the total owed";
 const ORDER_MISMATCH_ERROR = "Curlec captured payment order does not match webhook order";
 const PAYMENT_ID_CONFLICT_ERROR = "Curlec payment is already linked to another gateway payment";
 
@@ -243,111 +255,122 @@ async function validateCapturedPayment(
   return { ok: true };
 }
 
+type GatewayPaymentHoldInput = {
+  reason: string;
+  mismatchType: string;
+  curlecPaymentId?: string | null;
+  curlecOrderId?: string | null;
+  expectedSen?: number;
+  actualSen?: number;
+  expectedCurrency?: string;
+  actualCurrency?: string;
+};
+
 /**
- * Money was captured at Curlec but failed local validation (e.g. currency mismatch).
+ * Money was captured at Curlec but failed local validation (e.g. currency mismatch
+ * or a stale facility-fee capture that would over-credit the contract).
  * Claim CREATED/EXPIRED → PAID, then move to HELD with auditable metadata.
- * Never COMPLETED — and never auto-refund for currency mismatch.
- * Works for deposits and issuer fees.
+ * Never COMPLETED — and never auto-refund on this path.
+ * Works for deposits and issuer fees. Safe to call inside an existing transaction.
  */
+async function applyGatewayPaymentCaptureHold(
+  tx: Prisma.TransactionClient,
+  payment: Pick<GatewayPayment, "id">,
+  input: GatewayPaymentHoldInput
+): Promise<void> {
+  const current = await tx.gatewayPayment.findUnique({ where: { id: payment.id } });
+  if (!current) return;
+
+  if (
+    current.status !== GatewayPaymentStatus.CREATED &&
+    current.status !== GatewayPaymentStatus.EXPIRED &&
+    current.status !== GatewayPaymentStatus.PAID
+  ) {
+    return;
+  }
+
+  let fromStatus = current.status;
+  if (
+    current.status === GatewayPaymentStatus.CREATED ||
+    current.status === GatewayPaymentStatus.EXPIRED
+  ) {
+    const claimedStatus = await claimCaptureToPaid(tx, payment.id);
+    if (claimedStatus !== GatewayPaymentStatus.PAID) {
+      return;
+    }
+    fromStatus = GatewayPaymentStatus.PAID;
+  }
+
+  const claimed = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+  if (claimed.status === GatewayPaymentStatus.HELD) {
+    return;
+  }
+  if (claimed.status !== GatewayPaymentStatus.PAID) {
+    return;
+  }
+
+  assertTransition(claimed.status, GatewayPaymentStatus.HELD);
+
+  const baseMetadata =
+    claimed.metadata && typeof claimed.metadata === "object" && !Array.isArray(claimed.metadata)
+      ? claimed.metadata
+      : {};
+
+  const reason =
+    input.mismatchType === "CURRENCY_MISMATCH" ? "Currency mismatch" : input.reason;
+
+  await tx.gatewayPayment.update({
+    where: { id: payment.id },
+    data: {
+      status: GatewayPaymentStatus.HELD,
+      curlec_payment_id: input.curlecPaymentId ?? claimed.curlec_payment_id,
+      metadata: {
+        ...baseMetadata,
+        captureMismatch: {
+          mismatchType: input.mismatchType,
+          reason,
+          gatewayPaymentId: payment.id,
+          curlecOrderId: input.curlecOrderId ?? claimed.curlec_order_id,
+          curlecPaymentId: input.curlecPaymentId ?? claimed.curlec_payment_id,
+          gatewayAccount: claimed.gatewayAccount,
+          purpose: claimed.purpose,
+          expectedSen: input.expectedSen ?? null,
+          actualSen: input.actualSen ?? null,
+          expectedCurrency: input.expectedCurrency ?? null,
+          actualCurrency: input.actualCurrency ?? null,
+          detectedAt: new Date().toISOString(),
+        },
+      } as Prisma.InputJsonValue,
+    },
+  });
+
+  await recordGatewayPaymentEvent(tx, {
+    gatewayPaymentId: payment.id,
+    type: GatewayPaymentEventType.CAPTURE_MISMATCH,
+    fromStatus,
+    toStatus: GatewayPaymentStatus.HELD,
+    reason,
+    metadata: {
+      mismatchType: input.mismatchType,
+      gatewayAccount: claimed.gatewayAccount,
+      purpose: claimed.purpose,
+      curlecOrderId: input.curlecOrderId ?? claimed.curlec_order_id,
+      curlecPaymentId: input.curlecPaymentId ?? claimed.curlec_payment_id,
+      expectedCurrency: input.expectedCurrency ?? null,
+      actualCurrency: input.actualCurrency ?? null,
+      expectedSen: input.expectedSen ?? null,
+      actualSen: input.actualSen ?? null,
+    },
+  });
+}
+
 async function holdGatewayPaymentCaptureMismatch(
   db: PrismaClient,
   payment: GatewayPayment,
-  input: {
-    reason: string;
-    mismatchType: string;
-    curlecPaymentId?: string | null;
-    curlecOrderId?: string | null;
-    expectedSen?: number;
-    actualSen?: number;
-    expectedCurrency?: string;
-    actualCurrency?: string;
-  }
+  input: GatewayPaymentHoldInput
 ): Promise<void> {
   await db.$transaction(async (tx) => {
-    const current = await tx.gatewayPayment.findUnique({ where: { id: payment.id } });
-    if (!current) return;
-
-    if (
-      current.status !== GatewayPaymentStatus.CREATED &&
-      current.status !== GatewayPaymentStatus.EXPIRED &&
-      current.status !== GatewayPaymentStatus.PAID
-    ) {
-      return;
-    }
-
-    let fromStatus = current.status;
-    if (
-      current.status === GatewayPaymentStatus.CREATED ||
-      current.status === GatewayPaymentStatus.EXPIRED
-    ) {
-      const claimedStatus = await claimCaptureToPaid(tx, payment.id);
-      if (claimedStatus !== GatewayPaymentStatus.PAID) {
-        return;
-      }
-      fromStatus = GatewayPaymentStatus.PAID;
-    }
-
-    const claimed = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    if (claimed.status === GatewayPaymentStatus.HELD) {
-      return;
-    }
-    if (claimed.status !== GatewayPaymentStatus.PAID) {
-      return;
-    }
-
-    assertTransition(claimed.status, GatewayPaymentStatus.HELD);
-
-    const baseMetadata =
-      claimed.metadata && typeof claimed.metadata === "object" && !Array.isArray(claimed.metadata)
-        ? claimed.metadata
-        : {};
-
-    const reason =
-      input.mismatchType === "CURRENCY_MISMATCH" ? "Currency mismatch" : input.reason;
-
-    await tx.gatewayPayment.update({
-      where: { id: payment.id },
-      data: {
-        status: GatewayPaymentStatus.HELD,
-        curlec_payment_id: input.curlecPaymentId ?? claimed.curlec_payment_id,
-        metadata: {
-          ...baseMetadata,
-          captureMismatch: {
-            mismatchType: input.mismatchType,
-            reason,
-            gatewayPaymentId: payment.id,
-            curlecOrderId: input.curlecOrderId ?? claimed.curlec_order_id,
-            curlecPaymentId: input.curlecPaymentId ?? claimed.curlec_payment_id,
-            gatewayAccount: claimed.gatewayAccount,
-            purpose: claimed.purpose,
-            expectedSen: input.expectedSen ?? null,
-            actualSen: input.actualSen ?? null,
-            expectedCurrency: input.expectedCurrency ?? null,
-            actualCurrency: input.actualCurrency ?? null,
-            detectedAt: new Date().toISOString(),
-          },
-        } as Prisma.InputJsonValue,
-      },
-    });
-
-    await recordGatewayPaymentEvent(tx, {
-      gatewayPaymentId: payment.id,
-      type: GatewayPaymentEventType.CAPTURE_MISMATCH,
-      fromStatus,
-      toStatus: GatewayPaymentStatus.HELD,
-      reason,
-      metadata: {
-        mismatchType: input.mismatchType,
-        gatewayAccount: claimed.gatewayAccount,
-        purpose: claimed.purpose,
-        curlecOrderId: input.curlecOrderId ?? claimed.curlec_order_id,
-        curlecPaymentId: input.curlecPaymentId ?? claimed.curlec_payment_id,
-        expectedCurrency: input.expectedCurrency ?? null,
-        actualCurrency: input.actualCurrency ?? null,
-        expectedSen: input.expectedSen ?? null,
-        actualSen: input.actualSen ?? null,
-      },
-    });
+    await applyGatewayPaymentCaptureHold(tx, payment, input);
   });
 }
 
@@ -746,6 +769,12 @@ async function processGatewayPaymentCapture(
     case GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE:
       await processProcessingFeeCapture(input, db);
       return;
+    case GatewayPaymentPurpose.FACILITY_FEE:
+      await processFacilityFeeCapture(input, db);
+      return;
+    case GatewayPaymentPurpose.EXCESS_LATE_CHARGES:
+      await processExcessLateChargeCapture(input, db);
+      return;
     default:
       await markWebhookProcessed(db, input.eventId, null, input.routeGatewayAccount);
   }
@@ -991,6 +1020,318 @@ export async function processProcessingFeeCapture(
   );
 }
 
+export async function processFacilityFeeCapture(
+  input: {
+    orderId: string;
+    paymentId: string;
+    eventId: string;
+    routeGatewayAccount?: CurlecGatewayAccount;
+  },
+  db: PrismaClient = defaultPrisma
+): Promise<void> {
+  const routeGatewayAccount = input.routeGatewayAccount;
+  if (!routeGatewayAccount) {
+    throw new AppError(500, "GATEWAY_ACCOUNT_REQUIRED", "routeGatewayAccount is required");
+  }
+  const payment = await db.gatewayPayment.findFirst({
+    where: { curlec_order_id: input.orderId, gatewayAccount: routeGatewayAccount },
+  });
+
+  if (!payment) {
+    await markWebhookProcessed(
+      db,
+      input.eventId,
+      "Gateway payment not found for order in route account",
+      routeGatewayAccount
+    );
+    return;
+  }
+
+  assertGatewayAccountMatch(routeGatewayAccount, payment.gatewayAccount, "facility-fee-capture");
+
+  if (isCaptureSkippableStatus(payment.status)) {
+    await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
+    return;
+  }
+
+  const curlecClient = createCurlecClient({ gatewayAccount: payment.gatewayAccount });
+  const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
+  const captureValidation = await validateCapturedPayment(
+    db,
+    { id: payment.id, currency: payment.currency, gatewayAccount: payment.gatewayAccount },
+    { id: curlecPayment.id, order_id: curlecPayment.order_id, currency: curlecPayment.currency },
+    input.orderId,
+    input.eventId,
+    routeGatewayAccount
+  );
+  if (!captureValidation.ok) {
+    await holdGatewayPaymentCaptureMismatch(db, payment, {
+      mismatchType: captureValidation.mismatchType,
+      reason: captureValidation.reason,
+      curlecPaymentId: curlecPayment.id,
+      curlecOrderId: input.orderId,
+      expectedCurrency: captureValidation.expectedCurrency,
+      actualCurrency: captureValidation.actualCurrency,
+    });
+    return;
+  }
+  const amountMismatch = getAmountMismatch(payment, curlecPayment);
+
+  await db.gatewayPayment.update({
+    where: { id: payment.id },
+    data: {
+      curlec_payment_id: curlecPayment.id,
+      method: curlecPayment.method,
+    },
+  });
+
+  if (amountMismatch) {
+    const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    await handleGatewayPaymentAmountMismatch(
+      refreshed,
+      {
+        expectedSen: amountMismatch.expectedSen,
+        actualSen: amountMismatch.actualSen,
+        curlecPaymentId: curlecPayment.id,
+        curlecOrderId: input.orderId,
+        claimCapture: true,
+      },
+      db
+    );
+    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR, routeGatewayAccount);
+    logger.warn(
+      {
+        eventId: input.eventId,
+        gatewayPaymentId: payment.id,
+        orderId: input.orderId,
+        expectedSen: amountMismatch.expectedSen,
+        actualSen: amountMismatch.actualSen,
+      },
+      "Facility fee auto-refund triggered due to Curlec amount mismatch"
+    );
+    return;
+  }
+
+  await db.$transaction(async (tx) => {
+    const statusAfterClaim = await claimCaptureToPaid(tx, payment.id);
+    if (!statusAfterClaim || statusAfterClaim !== GatewayPaymentStatus.PAID) {
+      return;
+    }
+
+    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    await completeFacilityFeePayment(tx, current);
+  });
+
+  const completedFacility = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
+  if (completedFacility?.status === GatewayPaymentStatus.COMPLETED) {
+    scheduleGatewayPaymentReceipt(completedFacility.id, db);
+    if (completedFacility.contract_id) {
+      await notifyFacilityFeeUpfrontPaidIfSettled({
+        contractId: completedFacility.contract_id,
+        issuerOrganizationId: completedFacility.issuer_organization_id,
+      });
+    }
+  }
+
+  const heldForOverCredit =
+    completedFacility?.status === GatewayPaymentStatus.HELD &&
+    readCaptureMismatchType(completedFacility.metadata) === "FACILITY_FEE_CAPTURE_EXCEEDS_TOTAL";
+  if (heldForOverCredit) {
+    logger.warn(
+      {
+        eventId: input.eventId,
+        gatewayPaymentId: payment.id,
+        orderId: input.orderId,
+        contractId: payment.contract_id,
+      },
+      "Facility fee held because capture would exceed total owed"
+    );
+  }
+
+  await markWebhookProcessed(
+    db,
+    input.eventId,
+    heldForOverCredit ? FACILITY_FEE_EXCEEDS_TOTAL_ERROR : null,
+    routeGatewayAccount
+  );
+
+  logger.info(
+    {
+      eventId: input.eventId,
+      gatewayPaymentId: payment.id,
+      gatewayAccount: payment.gatewayAccount,
+      orderId: input.orderId,
+      contractId: payment.contract_id,
+    },
+    "Facility fee webhook processed"
+  );
+}
+
+export async function processExcessLateChargeCapture(
+  input: {
+    orderId: string;
+    paymentId: string;
+    eventId: string;
+    routeGatewayAccount?: CurlecGatewayAccount;
+  },
+  db: PrismaClient = defaultPrisma
+): Promise<void> {
+  const routeGatewayAccount = input.routeGatewayAccount;
+  if (!routeGatewayAccount) {
+    throw new AppError(500, "GATEWAY_ACCOUNT_REQUIRED", "routeGatewayAccount is required");
+  }
+  const payment = await db.gatewayPayment.findFirst({
+    where: { curlec_order_id: input.orderId, gatewayAccount: routeGatewayAccount },
+  });
+
+  if (!payment) {
+    await markWebhookProcessed(
+      db,
+      input.eventId,
+      "Gateway payment not found for order in route account",
+      routeGatewayAccount
+    );
+    return;
+  }
+
+  assertGatewayAccountMatch(routeGatewayAccount, payment.gatewayAccount, "excess-late-charge-capture");
+
+  if (isCaptureSkippableStatus(payment.status)) {
+    await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
+    return;
+  }
+
+  const curlecClient = createCurlecClient({ gatewayAccount: payment.gatewayAccount });
+  const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
+  const captureValidation = await validateCapturedPayment(
+    db,
+    { id: payment.id, currency: payment.currency, gatewayAccount: payment.gatewayAccount },
+    { id: curlecPayment.id, order_id: curlecPayment.order_id, currency: curlecPayment.currency },
+    input.orderId,
+    input.eventId,
+    routeGatewayAccount
+  );
+  if (!captureValidation.ok) {
+    await holdGatewayPaymentCaptureMismatch(db, payment, {
+      mismatchType: captureValidation.mismatchType,
+      reason: captureValidation.reason,
+      curlecPaymentId: curlecPayment.id,
+      curlecOrderId: input.orderId,
+      expectedCurrency: captureValidation.expectedCurrency,
+      actualCurrency: captureValidation.actualCurrency,
+    });
+    return;
+  }
+  const amountMismatch = getAmountMismatch(payment, curlecPayment);
+
+  await db.gatewayPayment.update({
+    where: { id: payment.id },
+    data: {
+      curlec_payment_id: curlecPayment.id,
+      method: curlecPayment.method,
+    },
+  });
+
+  if (amountMismatch) {
+    const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    await handleGatewayPaymentAmountMismatch(
+      refreshed,
+      {
+        expectedSen: amountMismatch.expectedSen,
+        actualSen: amountMismatch.actualSen,
+        curlecPaymentId: curlecPayment.id,
+        curlecOrderId: input.orderId,
+        claimCapture: true,
+      },
+      db
+    );
+    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR, routeGatewayAccount);
+    logger.warn(
+      {
+        eventId: input.eventId,
+        gatewayPaymentId: payment.id,
+        orderId: input.orderId,
+        expectedSen: amountMismatch.expectedSen,
+        actualSen: amountMismatch.actualSen,
+      },
+      "Late charge auto-refund triggered due to Curlec amount mismatch"
+    );
+    return;
+  }
+
+  let heldForOverCredit = false;
+  await db.$transaction(async (tx) => {
+    const statusAfterClaim = await claimCaptureToPaid(tx, payment.id);
+    if (!statusAfterClaim || statusAfterClaim !== GatewayPaymentStatus.PAID) {
+      return;
+    }
+
+    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    const result = await completeExcessLateChargePayment(tx, current);
+    if (result.heldForOverCredit) {
+      heldForOverCredit = true;
+      await applyGatewayPaymentCaptureHold(tx, current, {
+        mismatchType: "EXCESS_LATE_CHARGE_CAPTURE_EXCEEDS_TOTAL",
+        reason: EXCESS_LATE_CHARGE_EXCEEDS_TOTAL_ERROR,
+        curlecPaymentId: current.curlec_payment_id,
+        curlecOrderId: current.curlec_order_id,
+        expectedSen: myrToSen(Math.max(0, result.remainingOwed)),
+        actualSen: myrToSen(roundNoteMoney(current.amount.toNumber())),
+      });
+    }
+  });
+
+  const completed = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
+  if (completed?.status === GatewayPaymentStatus.COMPLETED) {
+    scheduleGatewayPaymentReceipt(completed.id, db);
+    if (completed.note_id) {
+      const note = await db.note.findUnique({
+        where: { id: completed.note_id },
+        select: { note_reference: true, issuer_organization_id: true },
+      });
+      await notifyExcessLateChargesPaidIfSettled({
+        noteId: completed.note_id,
+        issuerOrganizationId: completed.issuer_organization_id ?? note?.issuer_organization_id,
+        noteReference: note?.note_reference ?? "",
+      });
+    }
+  }
+
+  if (heldForOverCredit || completed?.status === GatewayPaymentStatus.HELD) {
+    logger.warn(
+      {
+        eventId: input.eventId,
+        gatewayPaymentId: payment.id,
+        orderId: input.orderId,
+        noteId: payment.note_id,
+      },
+      "Late charges held because capture would exceed total owed"
+    );
+  }
+
+  await markWebhookProcessed(
+    db,
+    input.eventId,
+    heldForOverCredit ||
+      readCaptureMismatchType(completed?.metadata ?? null) ===
+        "EXCESS_LATE_CHARGE_CAPTURE_EXCEEDS_TOTAL"
+      ? EXCESS_LATE_CHARGE_EXCEEDS_TOTAL_ERROR
+      : null,
+    routeGatewayAccount
+  );
+
+  logger.info(
+    {
+      eventId: input.eventId,
+      gatewayPaymentId: payment.id,
+      gatewayAccount: payment.gatewayAccount,
+      orderId: input.orderId,
+      noteId: payment.note_id,
+    },
+    "Excess late charges webhook processed"
+  );
+}
+
 async function markGatewayPaymentFailedByOrderId(
   db: PrismaClient,
   orderId: string,
@@ -1157,6 +1498,85 @@ async function completeProcessingFeePayment(
     metadata: {
       gatewayPaymentId: gatewayPayment.id,
       applicationId: gatewayPayment.application_id,
+      issuerOrganizationId: gatewayPayment.issuer_organization_id,
+      curlecOrderId: gatewayPayment.curlec_order_id,
+      curlecPaymentId: gatewayPayment.curlec_payment_id,
+    },
+  });
+
+  await tx.gatewayPayment.update({
+    where: { id: gatewayPayment.id },
+    data: { status: GatewayPaymentStatus.COMPLETED },
+  });
+}
+
+function readCaptureMismatchType(metadata: Prisma.JsonValue | null): string | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const mismatch = (metadata as Record<string, unknown>).captureMismatch;
+  if (!mismatch || typeof mismatch !== "object" || Array.isArray(mismatch)) return null;
+  const mismatchType = (mismatch as Record<string, unknown>).mismatchType;
+  return typeof mismatchType === "string" ? mismatchType : null;
+}
+
+async function completeFacilityFeePayment(
+  tx: Prisma.TransactionClient,
+  gatewayPayment: GatewayPayment
+) {
+  if (!gatewayPayment.contract_id) {
+    throw new AppError(500, "GATEWAY_PAYMENT_INVALID", "Facility fee is missing contract");
+  }
+
+  const contractId = gatewayPayment.contract_id;
+  const captured = roundNoteMoney(gatewayPayment.amount.toNumber());
+  await lockContractRow(tx, contractId);
+  const contract = await tx.contract.findUnique({
+    where: { id: contractId },
+    select: { contract_details: true },
+  });
+  if (!contract) {
+    throw new AppError(404, "NOT_FOUND", "Facility not found");
+  }
+
+  const details =
+    contract.contract_details &&
+    typeof contract.contract_details === "object" &&
+    !Array.isArray(contract.contract_details)
+      ? { ...(contract.contract_details as Record<string, unknown>) }
+      : {};
+  const balance = resolveFacilityFeeBalance(details);
+  const nextPaid = roundNoteMoney(balance.paid + captured);
+  if (nextPaid - balance.totalOwed > NOTE_MONEY_TOLERANCE) {
+    await applyGatewayPaymentCaptureHold(tx, gatewayPayment, {
+      mismatchType: "FACILITY_FEE_CAPTURE_EXCEEDS_TOTAL",
+      reason: FACILITY_FEE_EXCEEDS_TOTAL_ERROR,
+      curlecPaymentId: gatewayPayment.curlec_payment_id,
+      curlecOrderId: gatewayPayment.curlec_order_id,
+      expectedSen: myrToSen(Math.max(0, roundNoteMoney(balance.totalOwed - balance.paid))),
+      actualSen: myrToSen(captured),
+    });
+    return;
+  }
+
+  assertTransition(gatewayPayment.status, GatewayPaymentStatus.COMPLETED);
+
+  const paidAmount = Math.min(nextPaid, balance.totalOwed);
+  details.facility_fee_paid_amount = paidAmount;
+
+  await tx.contract.update({
+    where: { id: contractId },
+    data: { contract_details: details as Prisma.InputJsonValue },
+  });
+
+  await postLedgerEntry(tx, {
+    accountCode: "OPERATING_ACCOUNT",
+    direction: NoteLedgerDirection.CREDIT,
+    amount: captured,
+    description: "Facility fee received into operating account",
+    idempotencyKey: `gateway-facility-fee:ledger:${gatewayPayment.id}`,
+    gatewayPaymentId: gatewayPayment.id,
+    metadata: {
+      gatewayPaymentId: gatewayPayment.id,
+      contractId,
       issuerOrganizationId: gatewayPayment.issuer_organization_id,
       curlecOrderId: gatewayPayment.curlec_order_id,
       curlecPaymentId: gatewayPayment.curlec_payment_id,

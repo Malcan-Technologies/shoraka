@@ -20,6 +20,7 @@ export function buildProspectusAtAGlance(input: ProspectusAtAGlanceInput): Prosp
   const timing = buildProspectusTenureAndMaturity({
     listingOpensAt: input.listingOpensAt,
     maturityDate: input.maturityDate,
+    tenureDays: input.tenureDays,
   });
 
   return {

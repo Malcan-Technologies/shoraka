@@ -6,8 +6,13 @@ import {
   BuildingOffice2Icon,
   EllipsisVerticalIcon,
 } from "@heroicons/react/24/outline";
-import { formatInvestorReturnRatePercent, formatNoteReferenceDisplay } from "@cashsouk/types";
-import { Button, ProductNameWithIcon, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
+import {
+  formatInvestorReturnRatePercent,
+  formatNoteReferenceDisplay,
+  isCompactNoteTimingValueShort,
+  type NoteTimingDisplay,
+} from "@cashsouk/types";
+import { Button, InfoTooltip, ProductNameWithIcon, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
 
 export type PublicMarketplaceNote = {
   id: string;
@@ -26,6 +31,7 @@ export type PublicMarketplaceNote = {
   goalAmount: number;
   annualReturn: number | null;
   tenorDays: number | null;
+  timing: NoteTimingDisplay;
   riskScore: string | null;
   daysLeft: number | null;
   investable: boolean;
@@ -128,15 +134,29 @@ export function PublicMarketplaceNoteCard({ note }: { note: PublicMarketplaceNot
                   {formatInvestorReturnRatePercent(note.annualReturn)}
                 </div>
               </div>
-              <div className="mt-1 text-[11px] text-muted-foreground">Per annum</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">
+                {note.timing.isTenureNote ? "Up to" : "Per annum"}
+              </div>
             </div>
             <div className="flex flex-col text-center">
               <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
-                <div className="flex min-h-[4.25rem] flex-1 items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
-                  {note.tenorDays ?? "-"}
+                <div
+                  className={cn(
+                    "flex min-h-[4.25rem] flex-1 items-center justify-center px-1 font-semibold leading-tight tabular-nums text-foreground",
+                    !isCompactNoteTimingValueShort(note.timing.compactValue)
+                      ? "text-xl"
+                      : "text-4xl leading-none"
+                  )}
+                >
+                  {note.timing.compactValue}
                 </div>
               </div>
-              <div className="mt-1 text-[11px] text-muted-foreground">Days</div>
+              <div className="mt-1 inline-flex items-center justify-center gap-1 text-meta text-muted-foreground">
+                {note.timing.compactLabel}
+                {note.timing.tooltip ? (
+                  <InfoTooltip content={note.timing.tooltip} iconClassName="h-3.5 w-3.5" />
+                ) : null}
+              </div>
             </div>
             <div className="flex flex-col text-center">
               <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">

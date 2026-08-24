@@ -58,6 +58,7 @@ import {
   getContractUtilizationProgressClass,
   parseFacilityAmount,
   resolveContractFacilityFeeLedger,
+  resolveContractFacilityFeeWaitingNote,
   resolveContractFacilityMetrics,
 } from "@/contracts/utils/contract-facility-metrics";
 import {
@@ -85,7 +86,11 @@ import {
   resolveContractOverviewTabToken,
   type ContractDetailTabId,
 } from "@/contracts/utils/contract-detail-next-action";
-import { adminTabStatusLabel, getAdminStatusToken } from "@/lib/admin-status-token";
+import {
+  ADMIN_WAITING_SURFACE_CLASS,
+  adminTabStatusLabel,
+  getAdminStatusToken,
+} from "@/lib/admin-status-token";
 import { orgHref } from "@/lib/admin-directory-hrefs";
 import { usePermissions } from "@/hooks/use-permissions";
 
@@ -108,6 +113,7 @@ const CONTRACT_CURATED_KEYS = [
   "facility_fee_rate_percent",
   "facility_fee_paid_amount",
   "facility_fee_total_amount",
+  "facility_fee_upfront_amount",
   "facility_fee_waived",
   "facility_fee_waived_amount",
   "facility_fee_waived_at",
@@ -137,6 +143,8 @@ const OFFER_CURATED_KEYS = [
   "responded_at",
   "requested_facility",
   "offered_facility",
+  "facility_fee_rate_percent",
+  "facility_fee_upfront_collect_amount",
   "sent_by_user_id",
   "responded_by_user_id",
 ];
@@ -304,6 +312,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
     approved: facility.approved,
     contractDetails,
   });
+  const facilityFeeWaitingNote = resolveContractFacilityFeeWaitingNote(facilityFeeLedger);
   const headerMetrics = getContractHeaderMetrics(contractDetails, {
     approvedFacility: facility.approved,
   });
@@ -461,6 +470,16 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
           description={nextAction.description}
           ctaLabel={nextAction.ctaLabel}
           onClick={() => setActiveTab(nextAction.tabId)}
+        />
+      ) : null}
+      {facilityFeeWaitingNote ? (
+        <AdminNextActionBanner
+          title={facilityFeeWaitingNote.title}
+          description={facilityFeeWaitingNote.description}
+          ctaLabel="Open Facility & Offer"
+          onClick={() => setActiveTab("facility-offer")}
+          tone="neutral"
+          className={ADMIN_WAITING_SURFACE_CLASS}
         />
       ) : null}
 
@@ -657,6 +676,20 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
                         value={formatContractFieldValue(
                           "offered_facility",
                           data.offerDetails?.offered_facility
+                        )}
+                      />
+                      <ContractDetailRow
+                        label="Facility fee rate"
+                        value={formatContractFieldValue(
+                          "facility_fee_rate_percent",
+                          data.offerDetails?.facility_fee_rate_percent
+                        )}
+                      />
+                      <ContractDetailRow
+                        label="Upfront via payment gateway"
+                        value={formatContractFieldValue(
+                          "facility_fee_upfront_collect_amount",
+                          data.offerDetails?.facility_fee_upfront_collect_amount ?? 0
                         )}
                       />
                       <ContractDetailRow

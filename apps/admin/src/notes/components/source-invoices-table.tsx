@@ -1,7 +1,7 @@
 import { formatCurrency } from "@cashsouk/config";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import type { EligibleNoteInvoice } from "@cashsouk/types";
-import { formatInvoiceReference } from "@cashsouk/types";
+import { formatInvoiceReference, formatNoteDateEnMy } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { formatNoteStatus } from "@/notes/utils/format-note-status";
 import { getAdminStatusToken, adminActionRowClass } from "@/lib/admin-status-token";
@@ -26,7 +26,7 @@ interface SourceInvoicesTableProps {
 }
 
 function formatDate(value: string | null) {
-  return value ? new Date(value).toLocaleDateString("en-MY") : "-";
+  return formatNoteDateEnMy(value) ?? "-";
 }
 
 function SourceInvoicesTableSkeleton() {
@@ -73,7 +73,7 @@ export function SourceInvoicesTable({
               <TableHead>Paymaster</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Profit</TableHead>
-              <TableHead>Maturity</TableHead>
+              <TableHead>Invoice due date</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Action</TableHead>
             </TableRow>

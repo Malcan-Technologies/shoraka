@@ -1,3 +1,15 @@
+jest.mock("@cashsouk/config", () => ({
+  formatCurrency: (amount: number) =>
+    `RM ${amount.toLocaleString("en-MY", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`,
+}));
+
+jest.mock("@cashsouk/ui", () => ({
+  isNoteFullySettled: () => false,
+}));
+
 import type { NoteListItem } from "@cashsouk/types";
 import { getNoteAttentionAction } from "./note-attention-card-model";
 
@@ -51,6 +63,22 @@ function note(overrides: Partial<NoteListItem> = {}): NoteListItem {
 }
 
 describe("getNoteAttentionAction", () => {
+  it("asks the issuer to pay separately billed late charges first", () => {
+    const action = getNoteAttentionAction(
+      note({
+        excessLateCharges: {
+          owed: 250,
+          paid: 0,
+          outstanding: 250,
+          noteReference: "NOTE-1",
+        },
+      })
+    );
+    expect(action.headline).toBe("Pay outstanding late charges");
+    expect(action.label).toBe("Pay late charges");
+    expect(action.hint).toContain("NOTE-1");
+  });
+
   it("asks for repayment proof when the note is in arrears", () => {
     const action = getNoteAttentionAction(
       note({

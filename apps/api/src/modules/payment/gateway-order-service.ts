@@ -27,6 +27,9 @@ export type CreateGatewayOrderParams = {
   investorOrganizationId?: string;
   issuerOrganizationId?: string;
   applicationId?: string;
+  contractId?: string;
+  noteId?: string;
+  settlementId?: string;
   idempotencyKey?: string;
   gatewayAccount?: CurlecGatewayAccount;
 };
@@ -59,6 +62,8 @@ export function mapGatewayPaymentResponse(payment: GatewayPayment) {
     investorOrganizationId: payment.investor_organization_id,
     issuerOrganizationId: payment.issuer_organization_id,
     applicationId: payment.application_id,
+    contractId: payment.contract_id,
+    noteId: payment.note_id,
     nameCheckResult: payment.name_check_result,
     payerName: payment.payer_name,
     createdAt: payment.created_at.toISOString(),
@@ -75,6 +80,12 @@ function resolveOrderAttemptScopeKey(params: CreateGatewayOrderParams): string {
   if (params.idempotencyKey) return params.idempotencyKey;
   if (params.purpose === GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE && params.applicationId) {
     return `application:${params.applicationId}`;
+  }
+  if (params.purpose === GatewayPaymentPurpose.FACILITY_FEE && params.contractId) {
+    return `contract:${params.contractId}:facility-fee`;
+  }
+  if (params.purpose === GatewayPaymentPurpose.EXCESS_LATE_CHARGES && params.noteId) {
+    return params.idempotencyKey ?? `note:${params.noteId}:excess-late-charges`;
   }
   if (params.purpose === GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE && params.issuerOrganizationId) {
     return `issuer-org:${params.issuerOrganizationId}`;
@@ -240,6 +251,9 @@ export async function createGatewayOrder(
         investor_organization_id: params.investorOrganizationId,
         issuer_organization_id: params.issuerOrganizationId,
         application_id: params.applicationId,
+        contract_id: params.contractId,
+        note_id: params.noteId,
+        settlement_id: params.settlementId,
         amount: new Prisma.Decimal(params.amount.toFixed(6)),
         currency: "MYR",
         status: GatewayPaymentStatus.CREATED,

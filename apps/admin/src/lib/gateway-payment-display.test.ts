@@ -41,5 +41,7 @@ describe("gateway-payment-display", () => {
     expect(PURPOSE_LABEL.INVESTOR_DEPOSIT).toBe("Investor Deposit");
     expect(PURPOSE_LABEL.ISSUER_ONBOARDING_FEE).toBe("Issuer Registration Fee");
     expect(PURPOSE_LABEL.APPLICATION_PROCESSING_FEE).toBe("Application Processing Fee");
+    expect(PURPOSE_LABEL.FACILITY_FEE).toBe("Facility Fee");
+    expect(PURPOSE_LABEL.EXCESS_LATE_CHARGES).toBe("Late Payment Charges");
   });
 });

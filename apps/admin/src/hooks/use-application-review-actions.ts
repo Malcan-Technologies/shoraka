@@ -356,15 +356,18 @@ export function useSendContractOffer() {
       applicationId,
       offeredFacility,
       facilityFeeRatePercent,
+      facilityFeeUpfrontCollectAmount,
     }: {
       applicationId: string;
       offeredFacility: number;
       facilityFeeRatePercent?: number | null;
+      facilityFeeUpfrontCollectAmount?: number;
     }) => {
       const response = await apiClient.sendContractOffer(
         applicationId,
         offeredFacility,
-        facilityFeeRatePercent ?? null
+        facilityFeeRatePercent ?? null,
+        facilityFeeUpfrontCollectAmount ?? 0
       );
       if (!response.success) {
         throwCapacityAwareActionError(response as ApiError, "Failed to send facility offer");
@@ -470,6 +473,7 @@ export function useSendInvoiceOffer() {
       offeredProfitRatePercent,
       platformFeeRatePercent,
       risk_rating,
+      financingTenureDays,
       feeScheduleMode,
       facilityFeeCollectAmount,
       additionalFees,
@@ -481,6 +485,7 @@ export function useSendInvoiceOffer() {
       offeredProfitRatePercent?: number | null;
       platformFeeRatePercent?: number | null;
       risk_rating: SoukscoreRiskRating;
+      financingTenureDays: number;
       feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode;
       facilityFeeCollectAmount?: number | null;
       additionalFees?: AdditionalFeeLine[];
@@ -491,6 +496,7 @@ export function useSendInvoiceOffer() {
         offeredProfitRatePercent,
         platformFeeRatePercent,
         risk_rating,
+        financingTenureDays,
         feeScheduleMode,
         facilityFeeCollectAmount,
         additionalFees,

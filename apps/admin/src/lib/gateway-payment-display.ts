@@ -17,6 +17,8 @@ export const PURPOSE_LABEL: Record<string, string> = {
   INVESTOR_DEPOSIT: "Investor Deposit",
   ISSUER_ONBOARDING_FEE: "Issuer Registration Fee",
   APPLICATION_PROCESSING_FEE: "Application Processing Fee",
+  FACILITY_FEE: "Facility Fee",
+  EXCESS_LATE_CHARGES: "Late Payment Charges",
 };
 
 /**

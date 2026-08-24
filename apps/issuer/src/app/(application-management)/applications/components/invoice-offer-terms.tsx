@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatFinancingTenureFromDisbursement } from "@cashsouk/types";
 import type { InvoiceFeeDisplay } from "@/lib/facility-fee-display";
 import { buildInvoiceOfferMoneyRows } from "./invoice-offer-money-rows";
 
@@ -59,6 +60,7 @@ export function InvoiceOfferTerms({
   invoiceNumber,
   invoiceValue,
   maturityDate,
+  financingTenureDays,
   profitRate,
   requestedFinancing,
   approvedFinancing,
@@ -69,6 +71,7 @@ export function InvoiceOfferTerms({
   invoiceNumber: string;
   invoiceValue: number | null;
   maturityDate: string | null;
+  financingTenureDays: number | null;
   profitRate: string;
   requestedFinancing: number | null;
   approvedFinancing: number | null;
@@ -100,8 +103,16 @@ export function InvoiceOfferTerms({
         </div>
         {maturityDate ? (
           <div className="space-y-1">
-            <dt className="text-muted-foreground">Maturity date</dt>
+            <dt className="text-muted-foreground">Invoice due date</dt>
             <dd className="font-medium tabular-nums">{maturityDate}</dd>
+          </div>
+        ) : null}
+        {financingTenureDays != null ? (
+          <div className="space-y-1">
+            <dt className="text-muted-foreground">Financing tenure</dt>
+            <dd className="font-medium tabular-nums">
+              {formatFinancingTenureFromDisbursement(financingTenureDays)}
+            </dd>
           </div>
         ) : null}
         <div className="space-y-1">

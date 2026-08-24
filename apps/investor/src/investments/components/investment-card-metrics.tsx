@@ -1,18 +1,11 @@
 import { formatCurrency } from "@cashsouk/config";
+import { InfoTooltip } from "@cashsouk/ui";
 import { ArrowTrendingDownIcon, ArrowTrendingUpIcon } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
-import type { InvestmentCardPayoutResult, InvestmentMaturityTone } from "../investment-position-model";
+import type { InvestmentCardPayoutResult } from "../investment-position-model";
 
 export const LARGE_METRIC_CLASS = "text-3xl leading-none tracking-tight md:text-4xl";
-
-export const MATURITY_VALUE_CLASS: Record<InvestmentMaturityTone, string> = {
-  soon: cn(LARGE_METRIC_CLASS, "text-foreground"),
-  today: cn(LARGE_METRIC_CLASS, "text-foreground"),
-  overdue: cn(LARGE_METRIC_CLASS, "text-status-rejected-text"),
-  upcoming: cn(LARGE_METRIC_CLASS, "text-foreground"),
-  settled: "text-xl leading-none tracking-tight text-foreground md:text-2xl",
-  unknown: "text-xl leading-none tracking-tight text-muted-foreground md:text-2xl",
-};
+export { investmentDateKpiValueClassName } from "./investment-date-kpi";
 
 export function formatRiskScore(riskRating: string | null | undefined): string {
   const grade = riskRating?.trim().toUpperCase();
@@ -23,11 +16,13 @@ export function InvestmentKpiBox({
   value,
   label,
   extra,
+  tooltip,
   valueClassName,
 }: {
   value: string;
   label: string;
   extra?: string;
+  tooltip?: string | null;
   valueClassName?: string;
 }) {
   return (
@@ -35,7 +30,10 @@ export function InvestmentKpiBox({
       <p className={cn("font-semibold tabular-nums", LARGE_METRIC_CLASS, valueClassName)}>
         {value}
       </p>
-      <p className="text-ui text-muted-foreground">{label}</p>
+      <p className="inline-flex items-center justify-center gap-1 text-ui text-muted-foreground">
+        {label}
+        {tooltip ? <InfoTooltip content={tooltip} iconClassName="h-3.5 w-3.5" /> : null}
+      </p>
       {extra ? <p className="text-ui text-muted-foreground">{extra}</p> : null}
     </div>
   );

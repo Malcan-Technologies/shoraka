@@ -1,7 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { BanknotesIcon, DocumentTextIcon, UserGroupIcon } from "@heroicons/react/24/outline";
+import {
+  BanknotesIcon,
+  DocumentTextIcon,
+  UserGroupIcon,
+} from "@heroicons/react/24/outline";
 import { StarIcon } from "@heroicons/react/24/solid";
 import { formatInvestorReturnRatePercent } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
@@ -10,6 +14,7 @@ import {
   InvestmentKpiBox,
   LARGE_METRIC_CLASS,
   formatRiskScore,
+  investmentDateKpiValueClassName,
 } from "@/investments/components/investment-card-metrics";
 import { cn } from "@/lib/utils";
 import { MarketplaceFailedFundingTooltip } from "./marketplace-failed-funding-tooltip";
@@ -21,6 +26,7 @@ import {
   marketplaceInvestAnyAmountLabel,
   marketplaceInvestorSummary,
   marketplaceListingUrgency,
+  marketplaceReturnRateLabel,
   type MarketplaceNote,
 } from "./marketplace-note-model";
 
@@ -111,7 +117,7 @@ function MarketplaceNoteMetrics({
           {formatInvestorReturnRatePercent(note.annualReturn)}
         </p>
         <p className="mt-1 inline-flex items-center justify-center gap-1 text-ui text-muted-foreground">
-          p.a.
+          {marketplaceReturnRateLabel(note)}
           <MarketplaceReturnRateTooltip />
         </p>
       </div>
@@ -121,9 +127,10 @@ function MarketplaceNoteMetrics({
         valueClassName="text-foreground"
       />
       <InvestmentKpiBox
-        value={note.tenorDays != null ? String(note.tenorDays) : "—"}
-        label="Days"
-        valueClassName="text-foreground"
+        value={note.timing.compactValue}
+        label={note.timing.compactLabel}
+        tooltip={note.timing.tooltip}
+        valueClassName={investmentDateKpiValueClassName(note.timing.compactValue)}
       />
     </div>
   );

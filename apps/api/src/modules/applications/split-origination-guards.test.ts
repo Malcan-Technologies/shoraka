@@ -103,6 +103,49 @@ describe("split origination API guards", () => {
     );
   });
 
+  it("rejects existing-facility drawdowns while upfront facility fee is outstanding", () => {
+    expectAppError(
+      () =>
+        assertExistingFacilityDrawdown(
+          {
+            financing_type: { split_origination: true },
+            financing_structure: { structure_type: "existing_contract" },
+            issuer_organization_id: "org_1",
+          },
+          {
+            ...approvedContract,
+            contract_details: {
+              facility_fee_total_amount: 1_500,
+              facility_fee_upfront_amount: 400,
+              facility_fee_paid_amount: 0,
+            },
+          }
+        ),
+      "FACILITY_FEE_UPFRONT_REQUIRED"
+    );
+  });
+
+  it("allows existing-facility drawdowns when upfront facility fee is waived", () => {
+    expect(() =>
+      assertExistingFacilityDrawdown(
+        {
+          financing_type: { split_origination: true },
+          financing_structure: { structure_type: "existing_contract" },
+          issuer_organization_id: "org_1",
+        },
+        {
+          ...approvedContract,
+          contract_details: {
+            facility_fee_total_amount: 1_500,
+            facility_fee_upfront_amount: 400,
+            facility_fee_paid_amount: 0,
+            facility_fee_waived: true,
+          },
+        }
+      )
+    ).not.toThrow();
+  });
+
   it("allows existing-facility drawdowns when facility_enabled is omitted (legacy)", () => {
     expect(() =>
       assertExistingFacilityDrawdown(

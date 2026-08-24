@@ -76,6 +76,8 @@ export interface ProspectusAtAGlanceInput {
   listingOpensAt: Date | string | null | undefined;
   /** notes.maturity_date */
   maturityDate: Date | string | null | undefined;
+  /** notes.tenure_days */
+  tenureDays?: number | null;
 }
 
 export interface ProspectusAtAGlanceFieldSource {
@@ -125,7 +127,7 @@ export const PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES: Record<
   tenure: {
     label: "Tenure",
     canonicalSource:
-      "buildProspectusTenureAndMaturity → calculateCalendarDayCount(opens_at, maturity_date)",
+      "notes.tenure_days when set; else calculateCalendarDayCount(opens_at, maturity_date)",
     availability: "calculated",
     surface: "canva",
     reusedFrom: "Stage 2 buildProspectusTenureAndMaturity.tenure",

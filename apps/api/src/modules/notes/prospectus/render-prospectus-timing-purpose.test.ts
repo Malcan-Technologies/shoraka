@@ -14,7 +14,7 @@ import { buildProspectusTimingPurposeDocument } from "./render-prospectus-timing
 describe("prospectus Timing and Purpose (Page 1 DATA STAGE 4B)", () => {
   it("documents Stage 2 reuse and frozen purpose_snapshot path", () => {
     expect(PROSPECTUS_TIMING_PURPOSE_FIELD_SOURCES.tenure.canonicalSource).toContain(
-      "buildProspectusTenureAndMaturity"
+      "notes.tenure_days"
     );
     expect(PROSPECTUS_TIMING_PURPOSE_FIELD_SOURCES.purposeOfFinancing.canonicalSource).toBe(
       "notes.purpose_snapshot.financing_for"

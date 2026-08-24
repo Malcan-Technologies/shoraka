@@ -22,7 +22,14 @@ import { Button } from "@/components/ui/button";
 import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
 import { useInvoice } from "@/hooks/use-invoices";
 import { useIssuerProduct } from "@/hooks/use-products";
-import { resolveProductImageS3KeyFromWorkflow } from "@cashsouk/types";
+import {
+  formatInvoiceReference,
+  formatIssuerFinancingTenure,
+  formatIssuerNoteMaturity,
+  formatNoteInvestorCount,
+  resolveIssuerInvoiceNoteTiming,
+  resolveProductImageS3KeyFromWorkflow,
+} from "@cashsouk/types";
 import { resolveProductDisplayName } from "@/lib/product-display";
 import {
   issuerContentMaxWidthClassName,
@@ -57,7 +64,6 @@ import {
   issuerCampaignDaysLeftLabel,
 } from "@/components/financing/marketplace-campaign";
 import { buildInvoiceFeeDisplay, money } from "@/lib/facility-fee-display";
-import { formatInvoiceReference, formatNoteInvestorCount } from "@cashsouk/types";
 import { FacilityTiedAnchor } from "@/components/financing/facility-tied-link";
 import { resolveIssuerFacilityLink } from "@/components/financing/facility-tied";
 import { FacilityImpactSection } from "@/components/financing/facility-impact";
@@ -113,7 +119,12 @@ export default function InvoiceDetailPage() {
 
   const invDetails = modalInvoice?.details;
   const offerDetails = (modalInvoice?.offer_details ?? null) as Record<string, unknown> | null;
-  const maturityRaw = invDetails?.maturity_date ?? row?.note?.maturityDate ?? null;
+  const invoiceDueRaw = invDetails?.maturity_date ?? null;
+  const invoiceNoteTiming = resolveIssuerInvoiceNoteTiming({
+    note: row?.note ?? null,
+    offerDetails,
+    invoiceDetails: invDetails,
+  });
   const document = invDetails?.document;
 
   const relatedContract = React.useMemo(() => {
@@ -366,7 +377,7 @@ export default function InvoiceDetailPage() {
                     : EM_DASH
               }
             />
-            <MetricCell label="Maturity" value={formatDate(maturityRaw)} />
+            <MetricCell label="Invoice due date" value={formatDate(invoiceDueRaw)} />
             <MetricCell
               label="Profit rate"
               value={
@@ -389,6 +400,22 @@ export default function InvoiceDetailPage() {
           ) : null}
           <KeyValueGrid
             items={[
+              ...(invoiceNoteTiming?.isTenureNote
+                ? [
+                    {
+                      label: "Financing tenure",
+                      value: formatIssuerFinancingTenure(invoiceNoteTiming) ?? EM_DASH,
+                    },
+                  ]
+                : []),
+              ...(row?.note && invoiceNoteTiming
+                ? [
+                    {
+                      label: "Note maturity",
+                      value: formatIssuerNoteMaturity(invoiceNoteTiming),
+                    },
+                  ]
+                : []),
               { label: "CashSouk Reference", value: displayCell(cashSoukReference) },
               { label: "Invoice number", value: displayCell(invoiceBusinessNumber) },
               { label: "Customer", value: displayCell(customerName) },

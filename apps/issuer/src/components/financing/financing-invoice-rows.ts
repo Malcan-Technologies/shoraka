@@ -97,6 +97,7 @@ export function dashboardNoteFromListItem(note: NoteListItem): IssuerDashboardNo
     minimumFundingPercent: String(note.minimumFundingPercent),
     fundingDeadline: note.listingClosesAt,
     maturityDate: note.maturityDate,
+    tenureDays: note.tenureDays ?? null,
     marketplaceStatusLabel: null,
     investorCount: note.investorCount ?? 0,
     disbursementBreakdown: null,

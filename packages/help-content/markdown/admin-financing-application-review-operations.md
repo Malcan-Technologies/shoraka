@@ -6,7 +6,7 @@ tags:
   - admin
   - operations
 order: 11
-updated: 2026-08-21
+updated: 2026-08-24
 ---
 
 ## Purpose
@@ -21,7 +21,7 @@ This document describes the admin application review workflow for issuer financi
 4. For each section or item, the reviewer records an outcome: approve, reject, or request amendment as appropriate.
 5. When amendments are issued, the application enters **Amendment requested** until the issuer updates only the flagged areas and resubmits. A new review cycle begins. The portal may surface a comparison of changes.
 6. After prerequisite sections are approved, the reviewer sends facility and/or invoice offers where the product requires them.
-7. The issuer accepts, signs, or rejects each offer in the issuer portal.
+7. The issuer accepts, signs, or rejects each offer in the issuer portal. Invoice offers on an approved facility are confirmed with an emailed verification code, not a new signature.
 8. The application reaches **approved** or **completed** when all required offers are accepted or signed, or it closes on **rejected** or **withdrawn**.
 
 ## Review Scope by Tab
@@ -33,7 +33,7 @@ The admin UI builds tabs from the product workflow. **Financial** is always firs
 - **Business & Guarantor:** operating and trading context, repayment position where captured, guarantors and their screening, and **Declarations** when the workflow includes that confirmation. Declarations are not a separate tab.
 - **Documents:** supporting uploads. When the product uses item-level review, each file is its own row with per-row actions.
 - **Facility:** facility and customer data for the product (new facility, existing facility, or invoice-only path). For invoice-only structures the content centers on customer or paymaster fields. Facility offers and signing run from this tab when the product requires them.
-- **Invoice:** each invoice as its own row where applicable (attachments, amounts, tenor, ratio limits, and other invoice fields the product defines). Per-row review and invoice offers follow the product rules.
+- **Invoice:** each invoice as its own row where applicable (attachments, amounts, financing tenure, ratio limits, and other invoice fields the product defines). Per-row review and invoice offers follow the product rules. Tenure is 30 to 180 days in 15-day steps; you may adjust it in the final offer. Financing cannot exceed **80%** of invoice value. The invoice due date is a source-invoice fact, not the public note maturity. After listing, profit days and the settlement worked example are in **Note Money Flow and Servicing Guide**.
 
 ## Sections and Line Items
 
@@ -73,6 +73,12 @@ Typical sequence:
 1. Validate the data shown on the facility or invoice tab.
 2. Send the facility offer or send the invoice offer (per row where applicable).
 3. Await issuer acceptance or signature (or issuer rejection) in the issuer portal.
+
+For an invoice on an **approved facility**, the issuer does not sign again. They see utilisation terms and conditions for that drawdown (also on the offer letter) and must tick every confirmation before Accept is available. Someone in their organisation chooses the director or authorised signatory who is accepting. That person receives a 6-digit email code. The offer is accepted only after the code is entered. Decline does not need the confirmations or a code. New facility offers and invoice-only offers still use the usual signing steps.
+
+Before you send a facility-linked invoice offer, check that the people who signed the facility (or the current directors) have a working email. If none are available, the issuer cannot request a code.
+
+Issuers can download an **application summary** PDF from the application and later from the note. It includes application details, your remarks and requested changes, and the application history. It is not an offer letter.
 
 For these stages, the commercial step is normally closed only after the offer is sent and the issuer has accepted or signed as required. Follow the primary actions shown on the tab (for example send offer) rather than assuming a single approve control completes the stage in the same way as company or document review.
 
@@ -136,10 +142,10 @@ After issuer acceptance or signature, the facility becomes the reference for lat
 
 ## Preconditions for Sending an Invoice Offer
 
-- Validate amount, ratio, tenor, profit rate, and risk attributes as shown.
+- Validate amount, ratio, financing tenure, profit rate, and risk attributes as shown.
 - Offered amount does not exceed requested amount.
 - Offered financing must fit remaining credit; invoice face must fit remaining allocation. **Reserved** pending invoices already occupy the line. The send control is disabled when the offer would go over-limit — there is no override.
-- Tenor satisfies product rules.
+- Tenure is 30 to 180 days in 15-day steps, covers the time until the invoice due date, and may be adjusted in the final offer.
 - If the invoice was previously rejected, return it to pending when the portal allows, before sending a new offer.
 
 Send offers only when prerequisite sections are approved and the target tab is unlocked. Marketplace funding that fails after the product listing window (default 14 days) releases both ledgers.
@@ -150,7 +156,7 @@ Send offers only when prerequisite sections are approved and the target tab is u
 2. **Facility sent**: offer delivered to issuer. Wait for issuer response.
 3. **Facility accepted**: issuer agreed. Proceed to invoice offers where the product requires them.
 4. **Invoice pending**: invoice tab active. Validate rows and send invoice offer(s) as required.
-5. **Invoices sent**: required invoice offers are outstanding. Wait for issuer responses.
+5. **Invoices sent**: required invoice offers are outstanding. Wait for issuer responses. On an approved facility, that response is a verification code from the chosen signatory, not a new signing package.
 
 Invoice-only products omit facility stages and move from **invoice pending** to **invoices sent**.
 

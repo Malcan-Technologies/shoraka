@@ -11,6 +11,9 @@ import {
   parseSigningPackagesConfig,
   writeSigningPackagesConfig,
   ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY,
+  DEFAULT_MAX_INVOICE_FINANCING_RATIO_PERCENT,
+  DEFAULT_MIN_INVOICE_FINANCING_RATIO_PERCENT,
+  MAX_INVOICE_FINANCING_RATIO_PERCENT,
   validateSigningTemplateConfig,
 } from "@cashsouk/types";
 import { isDeclarationHtmlEmpty } from "@cashsouk/ui/declaration-rich-text";
@@ -95,8 +98,8 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
               : null,
 
         /** Default 60–80 when blank. */
-        min_financing_ratio_percent: parseRatio(minRatioRaw) ?? 60,
-        max_financing_ratio_percent: parseRatio(maxRatioRaw) ?? 80,
+        min_financing_ratio_percent: parseRatio(minRatioRaw) ?? DEFAULT_MIN_INVOICE_FINANCING_RATIO_PERCENT,
+        max_financing_ratio_percent: parseRatio(maxRatioRaw) ?? DEFAULT_MAX_INVOICE_FINANCING_RATIO_PERCENT,
         min_months_application_to_maturity:
           applicationMonths != null && applicationMonths > 0 ? applicationMonths : null,
         min_months_review_to_maturity: reviewMonths != null && reviewMonths > 0 ? reviewMonths : null,
@@ -335,7 +338,7 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
         stepIdsWithErrors.add(stepId);
       }
 
-      /** Financing ratio validation: min/max must be numbers, min <= max, min >= 0, max <= 100. */
+      /** Financing ratio validation: min/max must be numbers, min <= max, min >= 0, max <= 80. */
       const parseRatio = (v: unknown): number | null => {
         if (v == null || v === "") return null;
         if (typeof v === "number" && !Number.isNaN(v)) return v;
@@ -352,8 +355,10 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
         errors.push(`${stepLabel}: minimum financing ratio cannot be negative`);
         stepIdsWithErrors.add(stepId);
       }
-      if (maxRatio != null && maxRatio > 100) {
-        errors.push(`${stepLabel}: maximum financing ratio cannot exceed 100`);
+      if (maxRatio != null && maxRatio > MAX_INVOICE_FINANCING_RATIO_PERCENT) {
+        errors.push(
+          `${stepLabel}: maximum financing ratio cannot exceed ${MAX_INVOICE_FINANCING_RATIO_PERCENT}`
+        );
         stepIdsWithErrors.add(stepId);
       }
       if (minRatio != null && maxRatio != null && minRatio > maxRatio) {

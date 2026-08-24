@@ -11,7 +11,10 @@ import {
   ACCEPTANCE_DEADLINE_WORKFLOW_KEY,
   SIGNING_DEADLINE_WORKFLOW_KEY,
   assertPhaseDeadlineConfigValid,
+  DEFAULT_MAX_INVOICE_FINANCING_RATIO_PERCENT,
+  DEFAULT_MIN_INVOICE_FINANCING_RATIO_PERCENT,
   getStepKeyFromStepId,
+  MAX_INVOICE_FINANCING_RATIO_PERCENT,
   parsePhaseDeadlineConfig,
   parseSigningPackagesConfig,
   workflowUsesOfferAcceptanceFlow,
@@ -70,8 +73,8 @@ function getInvoiceDetailsConfig(workflow: unknown[]): Record<string, unknown> |
   return config && typeof config === "object" ? (config as Record<string, unknown>) : null;
 }
 
-const DEFAULT_MIN_FINANCING_RATIO = 60;
-const DEFAULT_MAX_FINANCING_RATIO = 80;
+const DEFAULT_MIN_FINANCING_RATIO = DEFAULT_MIN_INVOICE_FINANCING_RATIO_PERCENT;
+const DEFAULT_MAX_FINANCING_RATIO = DEFAULT_MAX_INVOICE_FINANCING_RATIO_PERCENT;
 
 /**
  * Apply default financing ratios when missing. Mutates workflow in place.
@@ -128,7 +131,7 @@ export function applyFinancialDefaults(workflow: unknown[]): void {
 
 /**
  * Validate invoice_details financing ratio config from workflow.
- * min_financing_ratio_percent >= 0, max_financing_ratio_percent <= 100, min <= max.
+ * min_financing_ratio_percent >= 0, max_financing_ratio_percent <= 80, min <= max.
  */
 export function validateWorkflowFinancialConfig(workflow: unknown[]): void {
   const config = getInvoiceDetailsConfig(Array.isArray(workflow) ? workflow : []);
@@ -150,7 +153,7 @@ export function validateWorkflowFinancialConfig(workflow: unknown[]): void {
   if (minRatio != null && minRatio < 0) {
     throw new AppError(400, "VALIDATION_ERROR", "Invalid financing ratio configuration");
   }
-  if (maxRatio != null && maxRatio > 100) {
+  if (maxRatio != null && maxRatio > MAX_INVOICE_FINANCING_RATIO_PERCENT) {
     throw new AppError(400, "VALIDATION_ERROR", "Invalid financing ratio configuration");
   }
   if (minRatio != null && maxRatio != null && minRatio > maxRatio) {

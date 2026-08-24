@@ -11,12 +11,20 @@ import {
   getNoteDerivedStatusLabel,
   type FilterChip,
 } from "@cashsouk/ui";
-import { resolveNetExpectedReturnRatePercent, type NoteListItem } from "@cashsouk/types";
+import {
+  matchesMarketplaceTenureFilter,
+  resolveMarketplaceFilterDays,
+  resolveNetExpectedReturnRatePercent,
+  type NoteListItem,
+} from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { InvestNowButton } from "@/components/invest-now-button";
 import { useInvestorInvestments } from "../hooks/use-marketplace-notes";
 import { sortInvestorInvestments } from "../sort-investments";
-import { calendarDaysFromToday, partitionInvestorInvestments } from "../investment-position-model";
+import {
+  compareCompletedInvestmentLatestFirst,
+  partitionInvestorInvestments,
+} from "../investment-position-model";
 import {
   DEFAULT_INVESTMENT_LIST_FILTERS,
   InvestmentFilterToolbar,
@@ -73,14 +81,8 @@ function noteMatchesFilters(
       ((filters.profit === "low" && annualReturn < 14) ||
         (filters.profit === "mid" && annualReturn >= 14 && annualReturn <= 15) ||
         (filters.profit === "high" && annualReturn > 15)));
-  const tenorDays = calendarDaysFromToday(note.maturityDate);
-  const matchesTenor =
-    filters.tenor === "all" ||
-    (tenorDays !== null &&
-      tenorDays >= 0 &&
-      ((filters.tenor === "short" && tenorDays <= 30) ||
-        (filters.tenor === "medium" && tenorDays > 30 && tenorDays <= 45) ||
-        (filters.tenor === "long" && tenorDays > 45)));
+  const tenorDays = resolveMarketplaceFilterDays(note);
+  const matchesTenor = matchesMarketplaceTenureFilter(tenorDays, filters.tenor);
 
   return (
     matchesStatus &&
@@ -165,7 +167,10 @@ export function InvestorInvestmentsList({
     [activeIds, filteredNotes]
   );
   const filteredCompleted = useMemo(
-    () => filteredNotes.filter((item) => completedIds.has(item.id)),
+    () =>
+      filteredNotes
+        .filter((item) => completedIds.has(item.id))
+        .sort(compareCompletedInvestmentLatestFirst),
     [completedIds, filteredNotes]
   );
 

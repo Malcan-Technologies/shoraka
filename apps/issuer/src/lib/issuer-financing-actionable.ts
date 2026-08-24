@@ -1,4 +1,7 @@
-import type { NoteListItem } from "@cashsouk/types";
+import {
+  malaysiaCalendarDaysRemaining,
+  type NoteListItem,
+} from "@cashsouk/types";
 import { isNoteFullySettled } from "@cashsouk/ui";
 import {
   getIssuerOfferActionCtaFromOfferDetails,
@@ -12,8 +15,14 @@ import {
 } from "@/types/issuer-dashboard";
 import { buildFinancingInvoiceRows, type FinancingInvoiceRow } from "@/components/financing/financing-invoice-rows";
 import { financingOfferHref } from "@/lib/financing-offer-href";
-import { actionsRequiredLabel } from "@/lib/issuer-pending-actions";
+import { actionsRequiredLabel, joinBannerSentences } from "@/lib/issuer-action-required";
 import { isIssuerContractActionable } from "@/lib/issuer-contract-actionable";
+import {
+  aggregateFacilityFeeBannerAmounts,
+  facilityFeeBannerDescription,
+  isIssuerContractFeeOnlyActionable,
+  outstandingFacilityFeeAmount,
+} from "@/lib/issuer-facility-fee-pending";
 
 export { isIssuerContractActionable } from "@/lib/issuer-contract-actionable";
 
@@ -22,16 +31,22 @@ export function isIssuerInvoiceActionable(invoice: IssuerDashboardInvoice): bool
   return shouldShowIssuerReviewOfferCta(asInvoiceForModal(invoice.invoiceForModal));
 }
 
+export function outstandingExcessLateCharges(note: NoteListItem): number {
+  const outstanding = Number(note.excessLateCharges?.outstanding ?? 0);
+  return Number.isFinite(outstanding) ? Math.max(0, outstanding) : 0;
+}
+
 /** Formal arrears status (stronger than late / past-due attention). */
 export function isIssuerNoteInArrears(note: NoteListItem): boolean {
-  if (isNoteFullySettled(note)) return false;
+  if (isNoteFullySettled(note) && outstandingExcessLateCharges(note) <= 0) return false;
   const status = String(note.status ?? "").toUpperCase();
   const servicing = String(note.servicingStatus ?? "").toUpperCase();
   return status === "ARREARS" || servicing === "ARREARS";
 }
 
-/** Notes where the issuer should act (late / arrears / past due repayment). */
-export function isIssuerNoteActionable(note: NoteListItem): boolean {
+/** Notes where the issuer should act (late charges / arrears / past due repayment). */
+export function isIssuerNoteActionable(note: NoteListItem, now: Date = new Date()): boolean {
+  if (outstandingExcessLateCharges(note) > 0) return true;
   if (isNoteFullySettled(note)) return false;
   const status = String(note.status ?? "").toUpperCase();
   const servicing = String(note.servicingStatus ?? "").toUpperCase();
@@ -39,8 +54,8 @@ export function isIssuerNoteActionable(note: NoteListItem): boolean {
     return true;
   }
   if (!note.maturityDate) return false;
-  const maturity = new Date(note.maturityDate);
-  if (Number.isNaN(maturity.getTime()) || maturity.getTime() >= Date.now()) return false;
+  const remaining = malaysiaCalendarDaysRemaining(now, note.maturityDate);
+  if (remaining == null || remaining >= 0) return false;
   return (
     status === "ACTIVE" ||
     servicing === "ACTIVE" ||
@@ -89,7 +104,14 @@ export type IssuerFinancingPendingAction = {
   description: string;
   href: string;
   ctaLabel: string;
+  uniqueCount: number;
+  uniqueDescription: string | null;
 };
+
+function isApplicationCoveredFinancingInvoice(invoice: IssuerDashboardInvoice): boolean {
+  if (shouldShowIssuerReviewOfferCta(asInvoiceForModal(invoice.invoiceForModal))) return true;
+  return (invoice.actionRequiredApplicationIds ?? []).length > 0;
+}
 
 function contractActionHref(contract: IssuerDashboardContract): string {
   if (shouldShowIssuerReviewOfferCta(asContractForModal(contract.contractForModal))) {
@@ -134,31 +156,59 @@ export function buildIssuerFinancingPendingAction(input: {
   const { total, contracts, invoices } = countIssuerFinancingActionable(input);
   if (total === 0) return null;
 
+  const feeOnlyContracts = actionableContracts.filter(isIssuerContractFeeOnlyActionable);
+  const feeContracts = actionableContracts.filter(
+    (contract) => outstandingFacilityFeeAmount(contract) > 0
+  );
+  const uniqueInvoiceRows = actionableInvoiceRows.filter((row) =>
+    row.kind === "note" ? true : !isApplicationCoveredFinancingInvoice(row.invoice)
+  );
+  const uniqueCount = feeContracts.length + uniqueInvoiceRows.length;
+  const feeDescription = facilityFeeBannerDescription(
+    aggregateFacilityFeeBannerAmounts(actionableContracts)
+  );
+  const uniqueInvoicePart =
+    uniqueInvoiceRows.length > 0
+      ? `Needs attention: ${uniqueInvoiceRows.length} invoice${uniqueInvoiceRows.length === 1 ? "" : "s"}.`
+      : null;
+  const uniqueDescription =
+    uniqueCount > 0 ? joinBannerSentences(uniqueInvoicePart, feeDescription) || null : null;
+
   const parts: string[] = [];
   if (contracts > 0) parts.push(`${contracts} ${contracts === 1 ? "facility" : "facilities"}`);
   if (invoices > 0) parts.push(`${invoices} invoice${invoices === 1 ? "" : "s"}`);
 
-  const description =
+  const listDescription =
     parts.length > 0
       ? `Needs attention: ${parts.join(", ")}.`
       : "Open Financing to clear items that need your response.";
+  const description =
+    feeOnlyContracts.length === total && total === 1
+      ? (feeDescription ?? listDescription)
+      : joinBannerSentences(listDescription, feeDescription);
 
   const singles = [
     ...actionableContracts.map((c) => {
       const modal = asContractForModal(c.contractForModal);
       const reviewVisible = shouldShowIssuerReviewOfferCta(modal);
+      const feeOnly = isIssuerContractFeeOnlyActionable(c);
       return {
         href: contractActionHref(c),
         ctaLabel: reviewVisible
           ? getIssuerOfferActionCtaFromOfferDetails(modal.offer_details, { scope: "contract" }).label
-          : "Make changes",
+          : feeOnly
+            ? "Pay facility fee"
+            : "Make changes",
       };
     }),
     ...actionableInvoiceRows.map((row) => {
       if (row.kind === "note") {
+        const lateChargesDue = outstandingExcessLateCharges(row.note) > 0;
         return {
-          href: `/financing/notes/${row.note.id}`,
-          ctaLabel: "View invoice note",
+          href: lateChargesDue
+            ? `/financing/notes/${row.note.id}#late-charges`
+            : `/financing/notes/${row.note.id}`,
+          ctaLabel: lateChargesDue ? "Pay outstanding late charges" : "View invoice note",
         };
       }
       const modal = asInvoiceForModal(row.invoice.invoiceForModal);
@@ -179,6 +229,8 @@ export function buildIssuerFinancingPendingAction(input: {
       description,
       href: singles[0].href,
       ctaLabel: singles[0].ctaLabel,
+      uniqueCount,
+      uniqueDescription,
     };
   }
 
@@ -190,5 +242,7 @@ export function buildIssuerFinancingPendingAction(input: {
     description,
     href: `/financing?tab=${tab}`,
     ctaLabel: "View financing",
+    uniqueCount,
+    uniqueDescription,
   };
 }

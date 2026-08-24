@@ -12,9 +12,20 @@ import {
   ArrowPathIcon,
   ArrowUpTrayIcon,
   DocumentTextIcon,
+  EnvelopeIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { getAdminStatusToken } from "@/lib/admin-status-token";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,7 +38,17 @@ import {
   useGenerateWithdrawalLetter,
   useMarkWithdrawalCompleted,
   useMarkWithdrawalSubmitted,
+  useResendWithdrawalTrusteeEmail,
 } from "@/notes/hooks/use-notes";
+import {
+  formatTrusteeInstructionEmailedCopy,
+  TRUSTEE_EMAIL_DELIVERED_LABEL,
+} from "@/lib/trustee-letter-sent-state";
+import {
+  canResendWithdrawalTrusteeEmail,
+  getTrusteeResendCopy,
+} from "@/lib/trustee-letter-resend";
+import { getTrusteeSubmitCopy } from "@/lib/trustee-letter-submit-copy";
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Draft",
@@ -70,7 +91,10 @@ export default function InvestorWithdrawalDetailPage() {
   const { handleViewDocument, viewDocumentPending } = useAdminS3DocumentViewDownload();
   const generateLetter = useGenerateWithdrawalLetter();
   const markSubmitted = useMarkWithdrawalSubmitted();
+  const resendTrusteeEmail = useResendWithdrawalTrusteeEmail();
   const markCompleted = useMarkWithdrawalCompleted();
+  const [submitConfirmOpen, setSubmitConfirmOpen] = React.useState(false);
+  const [resendConfirmOpen, setResendConfirmOpen] = React.useState(false);
 
   const snapshot =
     withdrawal && withdrawal.beneficiarySnapshot && typeof withdrawal.beneficiarySnapshot === "object"
@@ -89,6 +113,7 @@ export default function InvestorWithdrawalDetailPage() {
   const isActionPending =
     generateLetter.isPending ||
     markSubmitted.isPending ||
+    resendTrusteeEmail.isPending ||
     markCompleted.isPending ||
     viewDocumentPending;
 
@@ -98,6 +123,39 @@ export default function InvestorWithdrawalDetailPage() {
         id: withdrawal.id,
       })
     : "—";
+  const trusteeSubmitCopy = getTrusteeSubmitCopy(
+    withdrawal?.trusteeAutoSendEmailEnabled === true
+  );
+  const trusteeResendCopy = getTrusteeResendCopy();
+  const showResendTrusteeEmail = canResendWithdrawalTrusteeEmail(
+    withdrawal?.trusteeEmailSentAt,
+    withdrawal?.status
+  );
+  const trusteeEmailedCopy = formatTrusteeInstructionEmailedCopy(
+    withdrawal?.trusteeEmailSentAt
+  );
+
+  const confirmSubmitToTrustee = async () => {
+    if (!withdrawal) return;
+    try {
+      await markSubmitted.mutateAsync(withdrawal.id);
+      toast.success(trusteeSubmitCopy.success);
+      setSubmitConfirmOpen(false);
+    } catch (mutationError) {
+      toast.error(mutationError instanceof Error ? mutationError.message : "Action failed");
+    }
+  };
+
+  const confirmResendTrusteeEmail = async () => {
+    if (!withdrawal) return;
+    try {
+      await resendTrusteeEmail.mutateAsync(withdrawal.id);
+      toast.success(trusteeResendCopy.success);
+      setResendConfirmOpen(false);
+    } catch (mutationError) {
+      toast.error(mutationError instanceof Error ? mutationError.message : "Action failed");
+    }
+  };
 
   return (
     <RequirePermission permission="investor_withdrawals.view">
@@ -264,6 +322,9 @@ export default function InvestorWithdrawalDetailPage() {
                         <p className="text-sm text-muted-foreground">
                           Generated at: {formatDateTime(withdrawal.generatedAt)}
                         </p>
+                        {trusteeEmailedCopy ? (
+                          <p className="text-meta text-muted-foreground">{trusteeEmailedCopy}</p>
+                        ) : null}
                         {withdrawal.letterS3Key ? (
                           <p className="text-xs text-muted-foreground">
                             This letter was generated previously. Download opens the saved PDF. Regenerate is
@@ -299,19 +360,27 @@ export default function InvestorWithdrawalDetailPage() {
                           </Button>
                         ) : null}
 
+                        {showResendTrusteeEmail ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            disabled={isActionPending || !canManage}
+                            onClick={() => setResendConfirmOpen(true)}
+                          >
+                            <EnvelopeIcon className="h-4 w-4" />
+                            {trusteeResendCopy.button}
+                          </Button>
+                        ) : null}
+
                         {canSubmitToTrustee ? (
                           <Button
                             type="button"
                             className="w-full bg-primary text-primary-foreground shadow-brand hover:opacity-95"
                             disabled={isActionPending}
-                            onClick={() => {
-                              markSubmitted.mutate(withdrawal.id, {
-                                onSuccess: () => toast.success("Marked submitted to trustee"),
-                                onError: (mutationError) => toast.error(mutationError.message),
-                              });
-                            }}
+                            onClick={() => setSubmitConfirmOpen(true)}
                           >
-                            Submit to trustee
+                            {trusteeSubmitCopy.button}
                           </Button>
                         ) : null}
 
@@ -356,6 +425,12 @@ export default function InvestorWithdrawalDetailPage() {
                           <span className="text-muted-foreground">Submitted to trustee</span>
                           <span>{formatDateTime(withdrawal.submittedToTrusteeAt)}</span>
                         </div>
+                        {withdrawal.trusteeEmailSentAt ? (
+                          <div className="flex justify-between gap-3">
+                            <span className="text-muted-foreground">{TRUSTEE_EMAIL_DELIVERED_LABEL}</span>
+                            <span>{formatDateTime(withdrawal.trusteeEmailSentAt)}</span>
+                          </div>
+                        ) : null}
                         <div className="flex justify-between gap-3">
                           <span className="text-muted-foreground">Completed</span>
                           <span>{formatDateTime(withdrawal.completedAt)}</span>
@@ -375,6 +450,57 @@ export default function InvestorWithdrawalDetailPage() {
           </div>
         </div>
 
+        <AlertDialog
+          open={submitConfirmOpen}
+          onOpenChange={(open) => {
+            if (!open && !markSubmitted.isPending) setSubmitConfirmOpen(false);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{trusteeSubmitCopy.confirmTitle}</AlertDialogTitle>
+              <AlertDialogDescription>{trusteeSubmitCopy.description}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={markSubmitted.isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={markSubmitted.isPending}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void confirmSubmitToTrustee();
+                }}
+              >
+                {trusteeSubmitCopy.confirmLabel}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={resendConfirmOpen}
+          onOpenChange={(open) => {
+            if (!open && !resendTrusteeEmail.isPending) setResendConfirmOpen(false);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{trusteeResendCopy.confirmTitle}</AlertDialogTitle>
+              <AlertDialogDescription>{trusteeResendCopy.description}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={resendTrusteeEmail.isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={resendTrusteeEmail.isPending}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void confirmResendTrusteeEmail();
+                }}
+              >
+                {trusteeResendCopy.confirmLabel}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </>
     </RequirePermission>
   );

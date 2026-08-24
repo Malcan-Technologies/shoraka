@@ -4,10 +4,14 @@ import * as React from "react";
 import { ArrowTopRightOnSquareIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
 import {
+  currencyAmountExceeds,
   formatCurrency,
+  invoiceAmountFromFaceAndRatio,
+  invoiceOfferExceedsRequested,
   resolveOfferedAmount,
   resolveOfferedProfitRate,
   resolveOfferedPlatformFeeRatePercent,
+  resolveRequestedInvoiceAmount,
   maturityMeetsMinimumMonthsFrom,
   parseInvoiceMaturityDate,
 } from "@cashsouk/config";
@@ -15,6 +19,7 @@ import {
   getOfferPhaseDeadlineDisplay,
   isSoukscoreRiskRating,
   previewAcceptanceDeadlineFromWorkflow,
+  resolveFinancingTenureDays,
   SOUKSCORE_RISK_RATING_GRADES,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
@@ -217,6 +222,7 @@ export function InvoiceList({
     additionalFees: SendInvoiceOfferUiPayload["additionalFees"];
     invoiceValue: number | null;
     risk_rating: SoukscoreRiskRating;
+    financingTenureDays: number;
     offerFingerprint: string;
   } | null>(null);
 
@@ -420,7 +426,7 @@ export function InvoiceList({
   const invoiceOfferConfirmExceedsCredit =
     remainingAvailableFacility != null &&
     invoiceOfferConfirm != null &&
-    invoiceOfferConfirm.offeredAmount > remainingAvailableFacility;
+    currencyAmountExceeds(invoiceOfferConfirm.offeredAmount, remainingAvailableFacility);
 
   React.useEffect(() => {
     if (invoiceOfferConfirmGuard?.fingerprintStale) {
@@ -447,6 +453,7 @@ export function InvoiceList({
       offeredProfitRatePercent: invoiceOfferConfirm.offeredProfitRatePercent,
       platformFeeRatePercent: invoiceOfferConfirm.platformFeeRatePercent,
       risk_rating: invoiceOfferConfirm.risk_rating,
+      financingTenureDays: invoiceOfferConfirm.financingTenureDays,
       feeScheduleMode: invoiceOfferConfirm.feeScheduleMode,
       facilityFeeCollectAmount: invoiceOfferConfirm.facilityFeeCollectAmount,
       additionalFees: invoiceOfferConfirm.additionalFees,
@@ -514,10 +521,9 @@ export function InvoiceList({
             const isExpanded = Boolean(expandedById[inv.id]);
             const invoiceValue = toNumber(details?.value);
             const financingRatio = toNumber(details?.financing_ratio_percent);
-            const issuerFinancingAmount =
-              invoiceValue !== null && financingRatio !== null
-                ? (invoiceValue * financingRatio) / 100
-                : null;
+            const issuerFinancingAmount = resolveRequestedInvoiceAmount(
+              inv.details as Record<string, unknown>
+            );
             const maturityDate = details?.maturity_date ?? details?.due_date;
             const documentName = invoiceDocument?.file_name ?? "No document uploaded";
 
@@ -633,7 +639,7 @@ export function InvoiceList({
                               const offeredAmount = hasOfferSnapshot
                                 ? resolveOfferedAmount(offerDetails) || null
                                 : invoiceValue !== null
-                                  ? (invoiceValue * offered.ratio) / 100
+                                  ? invoiceAmountFromFaceAndRatio(invoiceValue, offered.ratio)
                                   : null;
                               const offeredRatio = hasOfferSnapshot
                                 ? (typeof offerDetails?.offered_ratio_percent === "number" &&
@@ -939,7 +945,7 @@ export function InvoiceList({
                                     </div>
                                     {isOfferSent ? (
                                       <span
-                                        className={`${applicationTableExpandableValueClass} font-medium ${issuerFinancingAmount != null && offeredAmount != null && offeredAmount > issuerFinancingAmount ? "text-destructive" : ""}`}
+                                        className={`${applicationTableExpandableValueClass} font-medium ${invoiceOfferExceedsRequested(offeredAmount, issuerFinancingAmount) ? "text-destructive" : ""}`}
                                       >
                                         {offeredRatio}%
                                       </span>
@@ -1052,7 +1058,7 @@ export function InvoiceList({
                                     </p>
                                     <p
                                       className={`${applicationTableExpandableValueClass} ${
-                                        issuerFinancingAmount != null && offeredAmount != null && offeredAmount > issuerFinancingAmount
+                                        invoiceOfferExceedsRequested(offeredAmount, issuerFinancingAmount)
                                           ? "text-destructive font-semibold"
                                           : ""
                                       }`}
@@ -1062,9 +1068,7 @@ export function InvoiceList({
                                         : REVIEW_EMPTY_LABEL}
                                     </p>
                                     {!isOfferSent &&
-                                      issuerFinancingAmount != null &&
-                                      offeredAmount != null &&
-                                      offeredAmount > issuerFinancingAmount && (
+                                      invoiceOfferExceedsRequested(offeredAmount, issuerFinancingAmount) && (
                                         <p
                                           role="alert"
                                           className="mt-2 rounded-md border border-destructive/35 bg-destructive/5 px-2.5 py-2 text-xs leading-snug text-destructive"
@@ -1158,6 +1162,14 @@ export function InvoiceList({
                                           setOffered(inv.id, { platformFeeRatePercent });
                                         }
                                         const feeFields = toSendInvoiceOfferFeeFields(feeEditor);
+                                        const financingTenureDays = resolveFinancingTenureDays(
+                                          inv.offer_details,
+                                          inv.details
+                                        );
+                                        if (financingTenureDays == null) {
+                                          alert("Financing tenure is required before sending the offer.");
+                                          return;
+                                        }
                                         setInvoiceOfferConfirm({
                                           invoiceId: inv.id,
                                           invoiceNo,
@@ -1168,6 +1180,7 @@ export function InvoiceList({
                                           ...feeFields,
                                           invoiceValue,
                                           risk_rating: rr,
+                                          financingTenureDays,
                                           offerFingerprint: invoiceOfferFeeFingerprint(inv.offer_details),
                                         });
                                       }}
@@ -1274,7 +1287,10 @@ export function InvoiceList({
                   feeScheduleMode={invoiceOfferConfirm.feeScheduleMode}
                   facilityFeeCollectAmount={invoiceOfferConfirm.facilityFeeCollectAmount}
                   additionalFees={invoiceOfferConfirm.additionalFees}
-                  facilityFeeRemaining={invoiceOfferConfirmGuard?.facilityFeeRemaining}
+                  liveFacilityFee={{
+                    remaining: invoiceOfferConfirmGuard?.facilityFeeRemaining,
+                    collectEnabled: invoiceOfferConfirmGuard?.collectEnabled ?? false,
+                  }}
                 />
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm font-medium text-muted-foreground">Risk Rating</span>
@@ -1290,7 +1306,10 @@ export function InvoiceList({
                   />
                 ) : null}
                 {remainingAvailableFacility != null &&
-                invoiceOfferConfirm.offeredAmount > remainingAvailableFacility ? (
+                currencyAmountExceeds(
+                  invoiceOfferConfirm.offeredAmount,
+                  remainingAvailableFacility
+                ) ? (
                   <p role="alert" className="rounded-xl border border-border bg-muted/20 px-3 py-2 text-ui text-destructive">
                     This offer ({formatCurrency(invoiceOfferConfirm.offeredAmount)}) exceeds remaining
                     credit ({formatCurrency(remainingAvailableFacility)}). Sending is blocked. There is

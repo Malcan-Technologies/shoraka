@@ -1,36 +1,68 @@
 import {
+  UTILISATION_OFFER_TERMS_TITLE,
+} from "@cashsouk/types";
+import {
   buildContractOfferLetterTerms,
   buildInvoiceOfferLetterDto,
   buildInvoiceOfferLetterTerms,
   generateContractOfferLetterBuffer,
   generateGuarantorAgreementPlaceholderBuffer,
+  invoiceOfferLetterKindForContract,
+  invoiceOfferLetterPresentation,
 } from "./offer-letter-pdf";
 
 describe("buildContractOfferLetterTerms", () => {
-  it("shows facility fee rate, exact RM total, due on acceptance, and Shoraka collection discretion", () => {
+  it("shows exact snapshot upfront and remaining drawdown collection amounts", () => {
     const terms = buildContractOfferLetterTerms("con-1", {
       requested_facility: 200_000,
       offered_facility: 150_000,
       facility_fee_rate_percent: 1,
+      facility_fee_upfront_collect_amount: 400,
     });
     expect(terms).toContainEqual({ label: "Facility fee rate", value: "1%" });
     expect(terms).toContainEqual({ label: "Facility fee total", value: "RM 1,500.00" });
     expect(terms).toContainEqual({
-      label: "Facility fee collection",
-      value:
-        "Due in full upon acceptance of this facility offer. Collection timing is at Shoraka's discretion.",
+      label: "Upfront facility fee",
+      value: "RM 400.00 is payable by gateway after you accept this facility offer.",
     });
-    expect(terms.map((term) => term.value).join(" ")).not.toMatch(/progressively/i);
+    expect(terms).toContainEqual({
+      label: "Remaining facility fee",
+      value: "RM 1,100.00 is intended for collection from later invoice drawdowns.",
+    });
+    expect(terms.map((term) => term.value).join(" ")).not.toMatch(/progressively|due in full/i);
   });
 
-  it("makes a 0% facility fee explicit with a zero RM total", () => {
+  it("says no upfront gateway payment is required when the snapshot upfront is RM0", () => {
     const terms = buildContractOfferLetterTerms("con-0", {
+      requested_facility: 150_000,
+      offered_facility: 150_000,
+      facility_fee_rate_percent: 1,
+      facility_fee_upfront_collect_amount: 0,
+    });
+    expect(terms).toContainEqual({ label: "Facility fee total", value: "RM 1,500.00" });
+    expect(terms).toContainEqual({
+      label: "Upfront facility fee",
+      value: "No upfront gateway payment is required.",
+    });
+    expect(terms).toContainEqual({
+      label: "Remaining facility fee",
+      value: "RM 1,500.00 is intended for collection from later invoice drawdowns.",
+    });
+    expect(terms.map((term) => term.value).join(" ")).not.toMatch(/due in full/i);
+  });
+
+  it("makes a 0% facility fee explicit with a zero RM total and no upfront payment", () => {
+    const terms = buildContractOfferLetterTerms("con-0-rate", {
       requested_facility: 150_000,
       offered_facility: 150_000,
       facility_fee_rate_percent: 0,
     });
     expect(terms).toContainEqual({ label: "Facility fee rate", value: "0%" });
     expect(terms).toContainEqual({ label: "Facility fee total", value: "RM 0.00" });
+    expect(terms).toContainEqual({
+      label: "Upfront facility fee",
+      value: "No upfront gateway payment is required.",
+    });
   });
 
   it("treats an omitted facility fee rate as 0%", () => {
@@ -39,6 +71,10 @@ describe("buildContractOfferLetterTerms", () => {
     });
     expect(terms).toContainEqual({ label: "Facility fee rate", value: "0%" });
     expect(terms).toContainEqual({ label: "Facility fee total", value: "RM 0.00" });
+    expect(terms).toContainEqual({
+      label: "Upfront facility fee",
+      value: "No upfront gateway payment is required.",
+    });
   });
 });
 
@@ -50,6 +86,7 @@ describe("buildInvoiceOfferLetterDto", () => {
         offered_amount: 80_000,
         offered_ratio_percent: 80,
         offered_profit_rate_percent: 12,
+        financing_tenure_days: 90,
         platform_fee_rate_percent: 3,
         fee_schedule_version: 1,
         facility_fee_collect_amount: 800,
@@ -72,6 +109,7 @@ describe("buildInvoiceOfferLetterDto", () => {
     expect(dto.facility_fee_rate_percent).toBeUndefined();
     expect(dto.facility_fee_cap_amount).toBeUndefined();
     expect(dto.platform_fee_rate_percent).toBe(3);
+    expect(dto.financing_tenure_days).toBe(90);
   });
 
   it("reconstructs progressive facility terms only when the schedule key is absent", () => {
@@ -98,8 +136,13 @@ describe("buildInvoiceOfferLetterTerms", () => {
       offered_amount: 8_000,
       offered_ratio_percent: 80,
       offered_profit_rate_percent: 12,
+      financing_tenure_days: 90,
       platform_fee_rate_percent: 2.5,
       expires_at: "2026-12-31T00:00:00.000Z",
+    });
+    expect(terms).toContainEqual({
+      label: "Financing tenure",
+      value: "90 days from disbursement",
     });
     expect(terms).toContainEqual({
       label: "Drawdown fee",
@@ -125,9 +168,10 @@ describe("buildInvoiceOfferLetterTerms", () => {
     const terms = buildInvoiceOfferLetterTerms("inv-v1", {
       offered_amount: 100_000,
       offered_ratio_percent: 80,
-      offered_profit_rate_percent: 12,
-      platform_fee_rate_percent: 3,
-      fee_schedule_version: 1,
+        offered_profit_rate_percent: 12,
+        financing_tenure_days: 90,
+        platform_fee_rate_percent: 3,
+        fee_schedule_version: 1,
       facility_fee_collect_amount: 800,
       additional_fees: [
         { name: "Legal fee", kind: "amount", value: 500 },
@@ -248,5 +292,34 @@ describe("generateGuarantorAgreementPlaceholderBuffer", () => {
         width: 100,
       }),
     ]);
+  });
+});
+
+describe("invoice utilisation offer letter", () => {
+  it("uses utilisation headings when the invoice is on a facility", () => {
+    expect(invoiceOfferLetterKindForContract("con-1")).toBe("utilisation");
+    expect(invoiceOfferLetterKindForContract(null)).toBe("invoice");
+    expect(invoiceOfferLetterPresentation("utilisation")).toMatchObject({
+      title: "UTILISATION OFFER — INVOICE FINANCING",
+      subtitle: "Utilisation of your existing approved facility against the invoice identified below",
+      particularsSection: "Particulars of this utilisation",
+      termsSection: UTILISATION_OFFER_TERMS_TITLE,
+    });
+    expect(invoiceOfferLetterPresentation("utilisation").intro).toMatch(/verification code/i);
+    expect(invoiceOfferLetterPresentation("utilisation").intro).not.toMatch(/definitive documentation/i);
+    expect(invoiceOfferLetterPresentation("utilisation").includeSignatureBlocks).toBe(false);
+    expect(invoiceOfferLetterPresentation("invoice").termsSection).toBe("General");
+    expect(invoiceOfferLetterPresentation("invoice").intro).toMatch(/definitive documentation/i);
+    expect(invoiceOfferLetterPresentation("invoice").includeSignatureBlocks).toBe(true);
+  });
+
+  it("writes the required confirmations and a no-signature close into the utilisation letter", () => {
+    const fs = require("fs") as typeof import("fs");
+    const path = require("path") as typeof import("path");
+    const source = fs.readFileSync(path.join(__dirname, "offer-letter-pdf.ts"), "utf8");
+    expect(source).toContain("UTILISATION_OFFER_CONSENTS");
+    expect(source).toContain("UTILISATION_OFFER_CONSENTS_TITLE");
+    expect(source).toContain("drawUtilisationAcceptanceClose");
+    expect(source).toContain("if (copy.includeSignatureBlocks)");
   });
 });

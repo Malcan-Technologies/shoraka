@@ -81,5 +81,22 @@ describe("issuer track-record aggregates (shared dashboard + prospectus)", () =>
         excludeNoteId: "current",
       })
     ).toBeNull();
+
+    expect(
+      computeOnTimePaymentRatePercent({
+        schedules: [
+          {
+            id: "pending",
+            note_id: "b",
+            due_date: null,
+            expected_total: 100,
+          },
+        ],
+        payments: [],
+        now,
+        windowStart,
+        excludeNoteId: "current",
+      })
+    ).toBeNull();
   });
 });

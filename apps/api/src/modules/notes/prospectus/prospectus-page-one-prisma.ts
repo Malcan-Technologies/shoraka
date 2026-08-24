@@ -15,6 +15,7 @@ export const PROSPECTUS_PAGE_ONE_NOTE_SELECT = {
   profit_rate_percent: true,
   service_fee_rate_percent: true,
   maturity_date: true,
+  tenure_days: true,
   status: true,
   repaid_at: true,
   published_at: true,
@@ -43,6 +44,7 @@ export type ProspectusPageOneNoteRecord = {
   profit_rate_percent: unknown;
   service_fee_rate_percent: unknown;
   maturity_date: Date | null;
+  tenure_days: number | null;
   status: NoteStatus;
   repaid_at: Date | null;
   published_at: Date | null;

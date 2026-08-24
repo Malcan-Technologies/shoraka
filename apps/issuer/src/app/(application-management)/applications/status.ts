@@ -113,6 +113,7 @@ export interface NormalizedInvoice {
   /** Linked Contract ID (when contract financing is used for this invoice). */
   contractId: string | null;
   maturityDate: string | null;
+  financingTenureDays: number | null;
   value: number | null;
   appliedFinancing: number | null;
   /** Numeric invoice offer amount when CashSouk has sent or accepted an offer. */
@@ -194,6 +195,8 @@ export interface NormalizedApplication {
   facilityFeeWaived?: boolean;
   facilityFeeWaivedAmount?: number | null;
   facilityFeeRemainingAmount?: number | null;
+  facilityFeeUpfrontAmount?: number | null;
+  facilityFeeUpfrontOutstanding?: number | null;
   facilityEnabled?: boolean;
   facilityDisabledReason?: string | null;
   updatedAt: string;

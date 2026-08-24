@@ -9,6 +9,7 @@ import {
   WithdrawalType,
 } from "@prisma/client";
 import { countNoteInvestors, resolveFacilityFeeBalance } from "@cashsouk/types";
+import { facilityFeeUpfrontDto } from "../../lib/facility-fee-upfront-guard";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import { OrganizationRepository } from "../organization/repository";
@@ -67,6 +68,7 @@ export type IssuerDashboardNoteDto = {
   minimumFundingPercent: string;
   fundingDeadline: string | null;
   maturityDate: string | null;
+  tenureDays?: number | null;
   marketplaceStatusLabel: string | null;
   investorCount: number;
   disbursementBreakdown: IssuerDashboardDisbursementBreakdown | null;
@@ -117,6 +119,8 @@ export type IssuerDashboardContractDto = {
   facilityFeeCapAmount: string | null;
   facilityFeePaidAmount: string | null;
   facilityFeeRemainingAmount: string | null;
+  facilityFeeUpfrontAmount: number | null;
+  facilityFeeUpfrontOutstanding: number | null;
   facilityFeeWaived?: boolean;
   facilityEnabled?: boolean;
   facilityDisabledReason?: string | null;
@@ -187,6 +191,7 @@ function mapNoteToDto(
     funded_amount: Prisma.Decimal;
     minimum_funding_percent: Prisma.Decimal;
     maturity_date: Date | null;
+    tenure_days?: number | null;
     listing: { status: string; closes_at: Date | null } | null;
   },
   disbursementBreakdown?: IssuerDashboardNoteDto["disbursementBreakdown"],
@@ -222,6 +227,7 @@ function mapNoteToDto(
     minimumFundingPercent: note.minimum_funding_percent.toString(),
     fundingDeadline,
     maturityDate,
+    tenureDays: note.tenure_days ?? null,
     marketplaceStatusLabel,
     investorCount,
     disbursementBreakdown: disbursementBreakdown ?? null,
@@ -466,6 +472,10 @@ export class IssuerDashboardService {
       const facilityFeeCapNum = feeBalance.totalOwed;
       const facilityFeePaidNum = feeBalance.paid;
       const facilityFeeRemainingNum = feeBalance.remaining;
+      const upfrontDto = facilityFeeUpfrontDto({
+        ...(details ?? {}),
+        approved_facility: approvedNum,
+      });
 
       const activeNotesOnContract = contractNotes.filter((n) => n.status === NoteStatus.ACTIVE).length;
 
@@ -507,6 +517,10 @@ export class IssuerDashboardService {
         facilityFeeCapAmount: facilityFeeApplies ? facilityFeeCapNum.toFixed(2) : null,
         facilityFeePaidAmount: facilityFeeApplies ? facilityFeePaidNum.toFixed(2) : null,
         facilityFeeRemainingAmount: facilityFeeApplies ? facilityFeeRemainingNum.toFixed(2) : null,
+        facilityFeeUpfrontAmount: facilityFeeApplies ? upfrontDto.facilityFeeUpfrontAmount : null,
+        facilityFeeUpfrontOutstanding: facilityFeeApplies
+          ? upfrontDto.facilityFeeUpfrontOutstanding
+          : null,
         facilityFeeWaived: feeBalance.waived,
         facilityEnabled: feeBalance.enabled,
         facilityDisabledReason: feeBalance.disabledReason,

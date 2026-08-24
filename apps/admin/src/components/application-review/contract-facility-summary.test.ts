@@ -40,13 +40,15 @@ describe("admin dual-limit surfaces", () => {
     const source = fs.readFileSync(path.join(__dirname, "../invoice-offer-panel.tsx"), "utf8");
     expect(source).not.toContain("You can still send it");
     expect(source).toContain("resolveInvoiceOfferDisable");
-    expect(source).toContain("REMAINING_CREDIT_LABEL");
-    expect(source).toContain("REMAINING_ALLOCATION_LABEL");
     expect(source).toContain("resolveRequestedInvoiceAmount");
+    expect(source).toContain("invoiceOfferExceedsRequested");
     expect(source).toContain("addBackFinancing: reservedInvoice ? (issuerFinancingAmount ?? 0) : 0");
+    expect(source).not.toContain("offeredAmount > issuerFinancingAmount");
     expect(source).not.toMatch(
       /issuerFinancingAmount\s*=\s*\n?\s*invoiceValue !== null && financingRatio !== null/
     );
+    expect(source).toContain("REMAINING_CREDIT_LABEL");
+    expect(source).toContain("REMAINING_ALLOCATION_LABEL");
   });
 
   it("keeps settlement allocation on repaid facility-backed notes", () => {

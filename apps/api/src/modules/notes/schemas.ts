@@ -8,6 +8,11 @@ import {
   NoteServicingStatus,
   NoteStatus,
 } from "@prisma/client";
+import {
+  normalizeTrusteeCcEmails,
+  optionalTrusteeEmailSchema,
+  trusteeCcEmailsSchema,
+} from "./trustee-letters/trustee-email-config";
 
 export const idParamSchema = z.object({
   id: z.string().min(1),
@@ -166,14 +171,23 @@ export const testInvestorBalanceTopupSchema = z.object({
   amount: z.number().positive(),
 });
 
+const malaysiaCalendarYmdSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be a calendar date (yyyy-MM-dd)");
+
 export const recordPaymentSchema = z.object({
   source: z.nativeEnum(NotePaymentSource),
   receiptAmount: z.number().positive(),
   receiptDate: z.string().datetime(),
+  actualSettlementDate: malaysiaCalendarYmdSchema.optional(),
   reference: z.string().max(120).nullable().optional(),
   evidenceFiles: z.array(paymentEvidenceFileSchema).max(5).nullable().optional(),
   scheduleId: z.string().nullable().optional(),
   metadata: z.record(z.unknown()).nullable().optional(),
+});
+
+export const approvePaymentSchema = z.object({
+  actualSettlementDate: malaysiaCalendarYmdSchema.optional(),
 });
 
 export const issuerPaymentAdviceSchema = recordPaymentSchema.extend({
@@ -190,6 +204,7 @@ export const settlementPreviewSchema = z.object({
   paymentId: z.string().nullable().optional(),
   receiptAmount: z.number().positive().optional(),
   receiptDate: z.string().datetime().optional(),
+  actualSettlementDate: malaysiaCalendarYmdSchema.optional(),
   tawidhAmount: z.number().min(0).optional(),
   tawidhInvestorSharePercent: z.number().min(0).max(100).optional(),
   gharamahAmount: z.number().min(0).optional(),
@@ -210,6 +225,7 @@ export const lateChargeSchema = z.object({
 export const overdueLateChargeSchema = z.object({
   receiptAmount: z.number().positive().optional(),
   receiptDate: z.string().datetime().optional(),
+  actualSettlementDate: malaysiaCalendarYmdSchema.optional(),
 });
 
 export const defaultMarkSchema = z.object({
@@ -219,6 +235,45 @@ export const defaultMarkSchema = z.object({
 export const waiveNoteFacilityFeeCollectionSchema = z.object({
   reason: z.string().trim().min(1).max(1000),
 });
+
+export const trusteeLetterConfigSchema = z
+  .object({
+    trusteeName: z.string().optional(),
+    trusteeAddressLine1: z.string().optional(),
+    trusteeAddressLine2: z.string().optional(),
+    trusteeAddressLine3: z.string().optional(),
+    attentionPerson: z.string().optional(),
+    defaultContactPerson: z.string().optional(),
+    authorisedSignatoryLabel: z.string().optional(),
+    authorisedSignatureImageKey: z.string().optional(),
+    authorisedSignatureImageUrl: z.string().optional(),
+    authorisedSignatureImageFileName: z.string().optional(),
+    authorisedSignatureImageContentType: z.string().optional(),
+    platformDisplayName: z.string().optional(),
+    defaultValueDateBehavior: z.string().optional(),
+    defaultLetterRefPrefix: z.string().optional(),
+    autoSendTrusteeEmail: z.boolean().optional(),
+    trusteeEmail: optionalTrusteeEmailSchema,
+    trusteeCcEmails: trusteeCcEmailsSchema,
+  })
+  .passthrough()
+  .superRefine((value, ctx) => {
+    if (value.autoSendTrusteeEmail === true && !value.trusteeEmail) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Trustee email is required when auto-send is enabled",
+        path: ["trusteeEmail"],
+      });
+    }
+  })
+  .transform((value) => {
+    if (!value.trusteeEmail || value.trusteeCcEmails == null) return value;
+    const trusteeCcEmails = normalizeTrusteeCcEmails(value.trusteeCcEmails, value.trusteeEmail);
+    return {
+      ...value,
+      trusteeCcEmails: trusteeCcEmails.length > 0 ? trusteeCcEmails : undefined,
+    };
+  });
 
 export const updatePlatformFinanceSettingsSchema = z.object({
   gracePeriodDays: z.number().int().min(0).max(60).optional(),
@@ -235,8 +290,22 @@ export const updatePlatformFinanceSettingsSchema = z.object({
   applicationProcessingFeeAmount: z.number().positive().optional(),
   investorMinDepositAmount: z.number().positive().optional(),
   investorMaxDepositAmount: z.number().positive().optional(),
+  facilityFeeGatewayTxnMaxAmount: z
+    .number()
+    .positive()
+    .refine((v) => isNoteMoneyAmount(v), {
+      message: "Facility fee gateway transaction max can have up to 2 decimal places",
+    })
+    .optional(),
+  excessLateChargeGatewayTxnMaxAmount: z
+    .number()
+    .positive()
+    .refine((v) => isNoteMoneyAmount(v), {
+      message: "Late charge gateway transaction max can have up to 2 decimal places",
+    })
+    .optional(),
   offerDeadlineReminderHour: z.number().int().min(0).max(23).optional(),
-  trusteeLetterConfig: z.record(z.unknown()).optional(),
+  trusteeLetterConfig: trusteeLetterConfigSchema.optional(),
   platformAccountsConfig: z.record(z.unknown()).optional(),
   ledgerBucketAccountsConfig: z.record(z.unknown()).optional(),
 });
@@ -278,6 +347,10 @@ export const createWithdrawalSchema = z.object({
 
 export const updateWithdrawalBeneficiarySchema = z.object({
   beneficiarySnapshot: z.record(z.unknown()),
+});
+
+export const disbursementValueDateBodySchema = z.object({
+  disbursementValueDate: z.string().trim().min(1).optional(),
 });
 
 export type GetNotesQuery = z.infer<typeof getNotesQuerySchema>;

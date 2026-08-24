@@ -115,4 +115,100 @@ describe("ApplicationService split origination submit", () => {
       code: "INVALID_CONTRACT_STATUS",
     });
   });
+
+  it("rejects starting an existing-facility application while upfront is outstanding", async () => {
+    mockFindById.mockResolvedValue({
+      id: "app-start",
+      status: "DRAFT",
+      issuer_organization_id: "org_1",
+      last_completed_step: 1,
+      financing_type: { split_origination: true },
+      financing_structure: { structure_type: "new_contract" },
+    });
+    mockFindContractById.mockResolvedValue({
+      id: "con-1",
+      status: "APPROVED",
+      issuer_organization_id: "org_1",
+      contract_details: {
+        facility_fee_total_amount: 1_500,
+        facility_fee_upfront_amount: 400,
+        facility_fee_paid_amount: 0,
+      },
+    });
+    (service as unknown as { verifyApplicationStepEditable: jest.Mock }).verifyApplicationStepEditable =
+      jest.fn();
+    (service as unknown as { resetFinancingStructureBranchData: jest.Mock }).resetFinancingStructureBranchData =
+      jest.fn();
+
+    await expect(
+      service.updateStep(
+        "app-start",
+        {
+          stepNumber: 2,
+          stepId: "financing_structure",
+          data: { structure_type: "existing_contract", existing_contract_id: "con-1" },
+        },
+        "user-1"
+      )
+    ).rejects.toMatchObject({
+      code: "FACILITY_FEE_UPFRONT_REQUIRED",
+      statusCode: 409,
+    } satisfies Partial<AppError>);
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects existing-facility submit while upfront is outstanding", async () => {
+    mockFindById.mockResolvedValue({
+      id: "app-draw",
+      status: "DRAFT",
+      issuer_organization_id: "org_1",
+      financing_type: { split_origination: true },
+      financing_structure: { structure_type: "existing_contract" },
+      invoices: [{ id: "inv-1" }],
+      contract: {
+        id: "con-1",
+        status: "APPROVED",
+        issuer_organization_id: "org_1",
+        contract_details: {
+          facility_fee_total_amount: 1_500,
+          facility_fee_upfront_amount: 400,
+          facility_fee_paid_amount: 50,
+        },
+      },
+    });
+
+    await expect(service.updateApplicationStatus("app-draw", "SUBMITTED", "user-1")).rejects.toMatchObject({
+      code: "FACILITY_FEE_UPFRONT_REQUIRED",
+      statusCode: 409,
+    } satisfies Partial<AppError>);
+  });
+
+  it("allows existing-facility submit after a facility fee waiver", async () => {
+    mockFindById.mockResolvedValue({
+      id: "app-draw",
+      status: "DRAFT",
+      issuer_organization_id: "org_1",
+      financing_type: { split_origination: true },
+      financing_structure: { structure_type: "existing_contract" },
+      last_completed_step: 8,
+      invoices: [{ id: "inv-1" }],
+      contract: {
+        id: "con-1",
+        status: "APPROVED",
+        issuer_organization_id: "org_1",
+        contract_details: {
+          facility_fee_total_amount: 1_500,
+          facility_fee_upfront_amount: 400,
+          facility_fee_paid_amount: 0,
+          facility_fee_waived: true,
+        },
+      },
+    });
+
+    try {
+      await service.updateApplicationStatus("app-draw", "SUBMITTED", "user-1");
+    } catch (error) {
+      expect((error as AppError).code).not.toBe("FACILITY_FEE_UPFRONT_REQUIRED");
+    }
+  });
 });

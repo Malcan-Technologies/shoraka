@@ -40,7 +40,8 @@ export function isIssuerFeeCaptureMismatchHeldError(error: unknown): boolean {
   const code = "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
   if (
     code === "ONBOARDING_FEE_CAPTURE_MISMATCH_HELD" ||
-    code === "PROCESSING_FEE_CAPTURE_MISMATCH_HELD"
+    code === "PROCESSING_FEE_CAPTURE_MISMATCH_HELD" ||
+    code === "FACILITY_FEE_CAPTURE_MISMATCH_HELD"
   ) {
     return true;
   }
@@ -48,6 +49,7 @@ export function isIssuerFeeCaptureMismatchHeldError(error: unknown): boolean {
   return (
     message.includes("ONBOARDING_FEE_CAPTURE_MISMATCH_HELD") ||
     message.includes("PROCESSING_FEE_CAPTURE_MISMATCH_HELD") ||
+    message.includes("FACILITY_FEE_CAPTURE_MISMATCH_HELD") ||
     message.includes("under review")
   );
 }

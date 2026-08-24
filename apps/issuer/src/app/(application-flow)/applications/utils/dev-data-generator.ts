@@ -2,7 +2,12 @@
 // Safe to delete. Used only for development testing.
 
 import { formatMoney } from "@cashsouk/ui";
-import { getIssuerFinancialTabYears, issuerUnauditedPlddForFyEndYear } from "@cashsouk/types";
+import {
+  getIssuerFinancialTabYears,
+  issuerUnauditedPlddForFyEndYear,
+  malaysiaCalendarDaysRemaining,
+  smallestFinancingTenureDaysCovering,
+} from "@cashsouk/types";
 import { format, subDays, addDays, startOfDay } from "date-fns";
 
 function randomInt(min: number, max: number): number {
@@ -104,6 +109,7 @@ export interface InvoiceRowInput {
   number: string;
   value: string;
   maturity_date: string;
+  financing_tenure_days?: number;
   financing_ratio_percent?: number;
   status?: string;
   document?: { file_name: string; file_size: number; s3_key?: string } | null;
@@ -125,6 +131,7 @@ export function generateInvoiceData(): { invoices: InvoiceRowInput[] } {
 
     const maturityDate = format(addDays(today, randomInt(7, 90)), "d/M/yyyy");
     const value = randomDecimal(50000, 500000);
+    const remaining = malaysiaCalendarDaysRemaining(today, maturityDate) ?? 30;
 
     invoices.push({
       id: crypto.randomUUID(),
@@ -132,6 +139,7 @@ export function generateInvoiceData(): { invoices: InvoiceRowInput[] } {
       number,
       value: formatMoney(value),
       maturity_date: maturityDate,
+      financing_tenure_days: smallestFinancingTenureDaysCovering(remaining) ?? 180,
       financing_ratio_percent: randomInt(60, 80),
       status: "DRAFT",
       document: null,

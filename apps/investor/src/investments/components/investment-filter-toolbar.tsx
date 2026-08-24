@@ -1,6 +1,10 @@
 "use client";
 
-import { SOUKSCORE_RISK_RATING_GRADES } from "@cashsouk/types";
+import {
+  MARKETPLACE_TENURE_FILTER_LABELS,
+  SOUKSCORE_RISK_RATING_GRADES,
+  marketplaceTenureFilterLabel,
+} from "@cashsouk/types";
 import { ListToolbarFilterTrigger } from "@cashsouk/ui";
 import {
   DropdownMenu,
@@ -35,11 +39,7 @@ const PROFIT_LABELS: Record<string, string> = {
   high: "Above 15%",
 };
 
-const TENOR_LABELS: Record<string, string> = {
-  short: "Up to 30 days",
-  medium: "31 – 45 days",
-  long: "46+ days",
-};
+const TENOR_LABELS = MARKETPLACE_TENURE_FILTER_LABELS;
 
 export function investmentFilterChipLabels(filters: InvestmentListFilters) {
   return {
@@ -47,7 +47,10 @@ export function investmentFilterChipLabels(filters: InvestmentListFilters) {
     industry: filters.industry === "all" ? null : `Industry: ${filters.industry}`,
     risk: filters.risk === "all" ? null : `Risk: ${filters.risk}`,
     profit: filters.profit === "all" ? null : `Profit: ${PROFIT_LABELS[filters.profit] ?? filters.profit}`,
-    tenor: filters.tenor === "all" ? null : `Tenor: ${TENOR_LABELS[filters.tenor] ?? filters.tenor}`,
+    tenor:
+      filters.tenor === "all"
+        ? null
+        : `Tenure: ${marketplaceTenureFilterLabel(filters.tenor) ?? filters.tenor}`,
   };
 }
 
@@ -149,15 +152,15 @@ export function InvestmentFilterToolbar({
           </div>
           <DropdownMenuSeparator />
           <div className="p-1">
-            <DropdownMenuLabel>Days to maturity</DropdownMenuLabel>
+            <DropdownMenuLabel>Tenure</DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={filters.tenor}
               onValueChange={(tenor) => onChange({ ...filters, tenor })}
             >
-              <DropdownMenuRadioItem value="all">Any remaining tenor</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="short">Up to 30 days</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="medium">31 – 45 days</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="long">46+ days</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="all">Any tenure</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="short">{TENOR_LABELS.short}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="medium">{TENOR_LABELS.medium}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="long">{TENOR_LABELS.long}</DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
           </div>
         </DropdownMenuContent>

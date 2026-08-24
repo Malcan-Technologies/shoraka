@@ -4,8 +4,13 @@ import {
   BuildingOffice2Icon,
   EllipsisVerticalIcon,
 } from "@heroicons/react/24/outline";
-import { formatInvestorReturnRatePercent, formatNoteReferenceDisplay } from "@cashsouk/types";
-import { Button, ProductNameWithIcon, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
+import {
+  formatInvestorReturnRatePercent,
+  formatNoteReferenceDisplay,
+  isCompactNoteTimingValueShort,
+  type NoteTimingDisplay,
+} from "@cashsouk/types";
+import { Button, InfoTooltip, ProductNameWithIcon, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
 
 export type InvestmentListingData = {
   id: string;
@@ -24,6 +29,7 @@ export type InvestmentListingData = {
   goal: number;
   ratePercent: number | null;
   tenorDays: number | null;
+  timing: NoteTimingDisplay;
   score: string | null;
 };
 
@@ -128,15 +134,29 @@ export function InvestmentListingCard({
                   {formatInvestorReturnRatePercent(data.ratePercent)}
                 </p>
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">Per annum</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {data.timing.isTenureNote ? "Up to" : "Per annum"}
+              </p>
             </div>
             <div className="text-center">
               <div className="rounded-2xl border bg-muted/20 p-3">
-                <p className="flex min-h-[4.25rem] items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
-                  {data.tenorDays ?? "-"}
+                <p
+                  className={cn(
+                    "flex min-h-[4.25rem] items-center justify-center px-1 font-semibold leading-tight tabular-nums text-foreground",
+                    !isCompactNoteTimingValueShort(data.timing.compactValue)
+                      ? "text-xl"
+                      : "text-4xl leading-none"
+                  )}
+                >
+                  {data.timing.compactValue}
                 </p>
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">Days</p>
+              <p className="mt-1 inline-flex items-center justify-center gap-1 text-meta text-muted-foreground">
+                {data.timing.compactLabel}
+                {data.timing.tooltip ? (
+                  <InfoTooltip content={data.timing.tooltip} iconClassName="h-3.5 w-3.5" />
+                ) : null}
+              </p>
             </div>
             <div className="text-center">
               <div className="rounded-2xl border bg-muted/20 p-3">

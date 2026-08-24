@@ -5,6 +5,7 @@ describe("sendInvoiceOfferSchema", () => {
     offeredAmount: 1000,
     offeredRatioPercent: 70,
     offeredProfitRatePercent: 12,
+    financingTenureDays: 90,
     expiresAt: null as string | null,
   };
 
@@ -55,6 +56,7 @@ describe("sendInvoiceOfferSchema fee schedule", () => {
     offeredAmount: 1000,
     offeredRatioPercent: 70,
     offeredProfitRatePercent: 12,
+    financingTenureDays: 90,
     risk_rating: "A",
   };
 
@@ -108,6 +110,32 @@ describe("sendInvoiceOfferSchema fee schedule", () => {
     expect(
       sendInvoiceOfferSchema.safeParse({ ...base, feeScheduleMode: "grandfather" }).success
     ).toBe(false);
+  });
+
+  it("requires a published financingTenureDays option", () => {
+    expect(
+      sendInvoiceOfferSchema.safeParse({ ...base, financingTenureDays: undefined }).success
+    ).toBe(false);
+    expect(sendInvoiceOfferSchema.safeParse({ ...base, financingTenureDays: 40 }).success).toBe(
+      false
+    );
+    expect(sendInvoiceOfferSchema.safeParse({ ...base, financingTenureDays: 30 }).success).toBe(
+      true
+    );
+    expect(sendInvoiceOfferSchema.safeParse({ ...base, financingTenureDays: 180 }).success).toBe(
+      true
+    );
+  });
+
+  it("accepts offeredRatioPercent 80 and rejects 80.01 / 81 / 100", () => {
+    expect(
+      sendInvoiceOfferSchema.safeParse({ ...base, offeredRatioPercent: 80 }).success
+    ).toBe(true);
+    for (const offeredRatioPercent of [80.01, 81, 100]) {
+      expect(
+        sendInvoiceOfferSchema.safeParse({ ...base, offeredRatioPercent }).success
+      ).toBe(false);
+    }
   });
 
   it("does not default feeScheduleMode so the service can infer grandfather preserve", () => {

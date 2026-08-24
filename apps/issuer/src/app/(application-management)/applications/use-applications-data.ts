@@ -30,6 +30,8 @@ import {
   offerAcceptanceAllowsIssuerReviewCta,
   type OfferAcceptanceStatus,
   isCompletedWithNoApprovedInvoices,
+  resolveFacilityFeeUpfront,
+  resolveFinancingTenureDays,
 } from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { getOfferStatus, getOfferPhaseDeadlineDisplay } from "@/lib/offer-utils";
@@ -50,6 +52,8 @@ interface ApiContract {
   contract_details?: Record<string, unknown> | null;
   customer_details?: Record<string, unknown> | null;
   offer_signing?: unknown;
+  facilityFeeUpfrontAmount?: number;
+  facilityFeeUpfrontOutstanding?: number;
 }
 
 interface ApiInvoice {
@@ -230,6 +234,7 @@ function prepareInvoice(
     number: String(details.invoice_number ?? details.number ?? "—"),
     contractId: contractId ? String(contractId) : null,
     maturityDate: details.maturity_date ? String(details.maturity_date) : null,
+    financingTenureDays: resolveFinancingTenureDays(api.offer_details, details),
     value: invoiceValue,
     appliedFinancing,
     offeredAmount: offeredAmount > 0 ? offeredAmount : null,
@@ -366,7 +371,27 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
   const facilityGate = resolveIssuerFacilityGate({
     contractDetails,
     contractStatus,
+    facilityFeeUpfrontOutstanding:
+      numberOrNull(contract?.facilityFeeUpfrontOutstanding) ??
+      resolveFacilityFeeUpfront({
+        ...contractDetails,
+        ...(facilityFeeRatePercent != null
+          ? { facility_fee_rate_percent: facilityFeeRatePercent }
+          : {}),
+      }).outstanding,
   });
+  const facilityFeeUpfront = resolveFacilityFeeUpfront({
+    ...contractDetails,
+    ...(facilityFeeRatePercent != null
+      ? { facility_fee_rate_percent: facilityFeeRatePercent }
+      : {}),
+  });
+  const facilityFeeUpfrontAmount =
+    numberOrNull(contract?.facilityFeeUpfrontAmount) ??
+    (approvedFacilityAmount != null ? facilityFeeUpfront.upfrontAmount : null);
+  const facilityFeeUpfrontOutstanding =
+    numberOrNull(contract?.facilityFeeUpfrontOutstanding) ??
+    (approvedFacilityAmount != null ? facilityFeeUpfront.outstanding : null);
   const facilityFeePaidAmount = feeBalance.paid;
   const facilityFeeCapAmount =
     approvedFacilityAmount != null && (feeBalance.totalOwed > 0 || (facilityFeeRatePercent ?? 0) > 0)
@@ -470,6 +495,8 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     facilityFeeWaived: feeBalance.waived,
     facilityFeeWaivedAmount: feeBalance.waivedAmount,
     facilityFeeRemainingAmount: feeBalance.remaining,
+    facilityFeeUpfrontAmount,
+    facilityFeeUpfrontOutstanding,
     facilityEnabled: facilityGate.enabled,
     facilityDisabledReason: facilityGate.disabledReason,
     updatedAt: updated.toISOString(),

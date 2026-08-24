@@ -62,6 +62,7 @@ function makeInvoice(overrides: Partial<NormalizedInvoice> = {}): NormalizedInvo
     number: "INV-1",
     contractId: null,
     maturityDate: null,
+    financingTenureDays: null,
     value: 30,
     appliedFinancing: 25,
     offeredAmount: null,

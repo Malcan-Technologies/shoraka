@@ -16,13 +16,15 @@ import {
   type FilterChip,
 } from "@cashsouk/ui";
 import {
+  MARKETPLACE_TENURE_FILTER_LABELS,
   SOUKSCORE_RISK_RATING_GRADES,
   formatNoteReferenceDisplay,
+  marketplaceTenureFilterLabel,
+  matchesMarketplaceTenureFilter,
   type NoteListItem,
 } from "@cashsouk/types";
 import { computeMarketplaceCommitBounds } from "@/lib/marketplace-commit-bounds";
-import { resolveMarketplaceListingDaysLeft } from "@/lib/marketplace-listing-days";
-import { resolveMarketplaceDaysToMaturity } from "@cashsouk/types";
+import { mapPublicNoteTiming } from "@/lib/public-note-timing";
 import {
   PublicMarketplaceNoteCard,
   type PublicMarketplaceNote,
@@ -52,8 +54,7 @@ const MARKETPLACE_LISTINGS_PAGE_SIZE = 9;
 
 function toMarketplaceNote(note: NoteListItem): PublicMarketplaceNote {
   const { investable } = computeMarketplaceCommitBounds(note.targetAmount, note.fundedAmount);
-  const daysLeft = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
-  const tenorDays = resolveMarketplaceDaysToMaturity(note.maturityDate);
+  const timing = mapPublicNoteTiming(note);
 
   return {
     id: note.id,
@@ -68,9 +69,10 @@ function toMarketplaceNote(note: NoteListItem): PublicMarketplaceNote {
     fundedAmount: note.fundedAmount,
     goalAmount: note.targetAmount,
     annualReturn: note.profitRatePercent,
-    tenorDays,
+    tenorDays: timing.tenorDays,
+    timing: timing.timing,
     riskScore: note.riskRating,
-    daysLeft,
+    daysLeft: timing.daysLeft,
     investable,
     isFeatured: note.featuredActive,
     featuredRank: note.featuredRank ?? undefined,
@@ -257,12 +259,7 @@ export function PublicMarketplaceBrowser({
           ((profitFilter === "low" && note.annualReturn < 14) ||
             (profitFilter === "mid" && note.annualReturn >= 14 && note.annualReturn <= 15) ||
             (profitFilter === "high" && note.annualReturn > 15)));
-      const matchesTenor =
-        tenorFilter === "all" ||
-        (note.tenorDays !== null &&
-          ((tenorFilter === "short" && note.tenorDays <= 30) ||
-            (tenorFilter === "medium" && note.tenorDays > 30 && note.tenorDays <= 45) ||
-            (tenorFilter === "long" && note.tenorDays > 45)));
+      const matchesTenor = matchesMarketplaceTenureFilter(note.tenorDays, tenorFilter);
 
       return (
         matchesSearch &&
@@ -351,14 +348,9 @@ export function PublicMarketplaceBrowser({
       });
     }
     if (tenorFilter !== "all") {
-      const labels: Record<string, string> = {
-        short: "Up to 30 days",
-        medium: "31 - 45 days",
-        long: "46+ days",
-      };
       chips.push({
         id: "tenor",
-        label: `Tenor: ${labels[tenorFilter] ?? tenorFilter}`,
+        label: `Tenure: ${marketplaceTenureFilterLabel(tenorFilter) ?? tenorFilter}`,
         onRemove: () => handleTenorChange("all"),
       });
     }
@@ -465,17 +457,23 @@ export function PublicMarketplaceBrowser({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <ListToolbarFilterTrigger
-                  label="Tenor"
+                  label="Tenure"
                   count={tenorFilter !== "all" ? 1 : 0}
                 />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Tenor</DropdownMenuLabel>
+                <DropdownMenuLabel>Tenure</DropdownMenuLabel>
                 <DropdownMenuRadioGroup value={tenorFilter} onValueChange={handleTenorChange}>
-                  <DropdownMenuRadioItem value="all">All tenors</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="short">Up to 30 days</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="medium">31 - 45 days</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="long">46+ days</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="all">Any tenure</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="short">
+                    {MARKETPLACE_TENURE_FILTER_LABELS.short}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="medium">
+                    {MARKETPLACE_TENURE_FILTER_LABELS.medium}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="long">
+                    {MARKETPLACE_TENURE_FILTER_LABELS.long}
+                  </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>

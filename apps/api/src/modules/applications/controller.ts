@@ -9,9 +9,13 @@ import {
   createApplicationSchema,
   updateApplicationStepSchema,
   applicationIdParamSchema,
+  invoiceOfferParamsSchema,
+  requestInvoiceOfferAcceptOtpBodySchema,
+  acceptInvoiceOfferBodySchema,
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
+import { otpRequestRateLimiter } from "../../lib/http/rate-limit";
 import { z } from "zod";
 import { logApplicationActivity } from "./logs/service";
 import { ActivityPortal } from "./logs/types";
@@ -339,6 +343,30 @@ async function getApplicationLogsHandler(req: Request, res: Response, next: Next
   }
 }
 
+function attachmentFilename(filename: string): string {
+  return filename.replace(/["\r\n\\]/g, "");
+}
+
+/**
+ * Issuer application summary PDF (on demand, not stored).
+ * GET /v1/applications/:id/summary-pdf
+ */
+async function getApplicationSummaryPdf(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+    const { buffer, filename } = await applicationService.getApplicationSummaryPdf(id, userId);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${attachmentFilename(filename)}"`
+    );
+    res.send(buffer);
+  } catch (error) {
+    next(error);
+  }
+}
+
 /**
  * Create router for application routes
  */
@@ -407,24 +435,64 @@ export function createApplicationRouter(): Router {
       }
     }
   );
+  router.get(
+    "/:id/offers/invoices/:invoiceId/accept-otp/signatories",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id, invoiceId } = invoiceOfferParamsSchema.parse(req.params);
+        const userId = getUserId(req);
+        const data = await applicationService.listInvoiceOfferAcceptSignatories(id, invoiceId, userId);
+        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.post(
+    "/:id/offers/invoices/:invoiceId/accept-otp/request",
+    requireAuth,
+    otpRequestRateLimiter,
+    async (req, res, next) => {
+      try {
+        const { id, invoiceId } = invoiceOfferParamsSchema.parse(req.params);
+        const { signatory_email } = requestInvoiceOfferAcceptOtpBodySchema.parse(req.body ?? {});
+        const userId = getUserId(req);
+        const data = await applicationService.requestInvoiceOfferAcceptOtp(
+          id,
+          invoiceId,
+          userId,
+          signatory_email
+        );
+        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
   router.post(
     "/:id/offers/invoices/:invoiceId/accept",
     requireAuth,
     async (req, res, next) => {
       try {
-        const { id } = applicationIdParamSchema.parse(req.params);
-        const invoiceId = z.string().cuid().parse(req.params.invoiceId);
+        const { id, invoiceId } = invoiceOfferParamsSchema.parse(req.params);
         const userId = getUserId(req);
-        if (readSigningCloudConfigFromEnv()) {
-          // Contract-linked + contract envelope COMPLETED may accept without an envelope.
-          // Invoice-only / incomplete contract signing still require the signing flow.
-          await applicationService.assertInvoiceOfferAcceptAllowed(id, invoiceId, userId);
-        }
+        // Eligibility before OTP body so invoice-only / incomplete facility return
+        // USE_SIGNING_FLOW / CONTRACT_SIGNING_INCOMPLETE instead of a validation error.
+        await applicationService.assertInvoiceOfferAcceptAllowed(id, invoiceId, userId);
+        const { challenge_id, otp_code, consent_ids } = acceptInvoiceOfferBodySchema.parse(
+          req.body ?? {}
+        );
         const data = await applicationService.respondToInvoiceOffer(
           id,
           invoiceId,
           "accept",
-          userId
+          userId,
+          undefined,
+          {
+            otp: { challengeId: challenge_id, otpCode: otp_code },
+            consent_ids,
+          }
         );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
@@ -537,6 +605,7 @@ export function createApplicationRouter(): Router {
       }
     }
   );
+  router.get("/:id/summary-pdf", requireAuth, getApplicationSummaryPdf);
   router.delete("/:id/document", requireAuth, deleteDocument);
   router.patch("/:id/step", requireAuth, updateApplicationStep);
   router.patch("/:id/status", requireAuth, updateApplicationStatus);

@@ -52,6 +52,11 @@ export type FacilityFeeBalance = {
   disabledReason: string | null;
 };
 
+export type FacilityFeeUpfront = {
+  upfrontAmount: number;
+  outstanding: number;
+};
+
 export type FeeLineValidationIssue = {
   path: string;
   message: string;
@@ -463,6 +468,15 @@ export function resolveFacilityFeeBalance(details: unknown): FacilityFeeBalance 
     enabled: isFacilityEnabled(record),
     disabledReason,
   };
+}
+
+export function resolveFacilityFeeUpfront(details: unknown): FacilityFeeUpfront {
+  const record = asRecord(details) ?? {};
+  const balance = resolveFacilityFeeBalance(details);
+  const rawUpfront = Math.max(0, parseFiniteNumber(record.facility_fee_upfront_amount) ?? 0);
+  const upfrontAmount = roundNoteMoney(Math.min(rawUpfront, balance.totalOwed));
+  const outstanding = balance.waived ? 0 : Math.max(0, roundNoteMoney(upfrontAmount - balance.paid));
+  return { upfrontAmount, outstanding };
 }
 
 export function computeDrawdownFee(fundedAmount: number, platformFeeRatePercent: number): number {

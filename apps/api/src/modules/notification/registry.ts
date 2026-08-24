@@ -56,6 +56,11 @@ export const NotificationTypeIds = {
   NOTE_DEFAULTED: "note_defaulted",
   NOTE_DEFAULTED_INVESTOR: "note_defaulted_investor",
   WITHDRAWAL_SUBMITTED_TO_TRUSTEE: "withdrawal_submitted_to_trustee",
+
+  FACILITY_FEE_PAYMENT_REQUESTED: "facility_fee_payment_requested",
+  FACILITY_FEE_UPFRONT_PAID: "facility_fee_upfront_paid",
+  EXCESS_LATE_CHARGES_DUE: "excess_late_charges_due",
+  EXCESS_LATE_CHARGES_PAID: "excess_late_charges_paid",
 } as const;
 
 export type NotificationTypeId = typeof NotificationTypeIds[keyof typeof NotificationTypeIds];
@@ -226,6 +231,26 @@ export interface NotificationPayloads {
   };
   [NotificationTypeIds.WITHDRAWAL_SUBMITTED_TO_TRUSTEE]: {
     withdrawalId: string;
+  };
+  [NotificationTypeIds.FACILITY_FEE_PAYMENT_REQUESTED]: {
+    applicationId: string;
+    displayReference?: string | null;
+    contractId: string;
+    upfrontAmount: number;
+  };
+  [NotificationTypeIds.FACILITY_FEE_UPFRONT_PAID]: {
+    contractId: string;
+    upfrontAmount: number;
+  };
+  [NotificationTypeIds.EXCESS_LATE_CHARGES_DUE]: {
+    noteId: string;
+    noteReference: string;
+    outstandingAmount: number;
+  };
+  [NotificationTypeIds.EXCESS_LATE_CHARGES_PAID]: {
+    noteId: string;
+    noteReference: string;
+    paidAmount: number;
   };
 }
 
@@ -506,6 +531,34 @@ export const NOTIFICATION_TEMPLATES: {
     title: 'Withdrawal Submitted to Trustee',
     message: (data) => `Withdrawal instruction ${data.withdrawalId} has been submitted to the trustee.`,
     linkPath: () => `/account`,
+  },
+  [NotificationTypeIds.FACILITY_FEE_PAYMENT_REQUESTED]: {
+    title: "Upfront facility fee payment required",
+    message: (data) =>
+      `An upfront facility fee of RM${data.upfrontAmount.toLocaleString()} is due on your financing contract. Pay it before starting invoice financing.`,
+    linkPath: (data) => `/financing/contracts/${data.contractId}`,
+    portal: "issuer",
+  },
+  [NotificationTypeIds.FACILITY_FEE_UPFRONT_PAID]: {
+    title: "Upfront facility fee paid",
+    message: (data) =>
+      `The upfront facility fee of RM${data.upfrontAmount.toLocaleString()} has been received. You can now use this facility for invoice financing.`,
+    linkPath: (data) => `/financing/contracts/${data.contractId}`,
+    portal: "issuer",
+  },
+  [NotificationTypeIds.EXCESS_LATE_CHARGES_DUE]: {
+    title: "Outstanding late charges to pay",
+    message: (data) =>
+      `RM${data.outstandingAmount.toLocaleString()} in late payment charges is due on note ${data.noteReference}.`,
+    linkPath: (data) => `/financing/notes/${data.noteId}#late-charges`,
+    portal: "issuer",
+  },
+  [NotificationTypeIds.EXCESS_LATE_CHARGES_PAID]: {
+    title: "Late payment charges received",
+    message: (data) =>
+      `The outstanding late payment charges of RM${data.paidAmount.toLocaleString()} on note ${data.noteReference} have been received.`,
+    linkPath: (data) => `/financing/notes/${data.noteId}`,
+    portal: "issuer",
   },
 };
 

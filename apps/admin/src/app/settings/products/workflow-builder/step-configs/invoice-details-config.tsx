@@ -5,6 +5,11 @@ import { cn } from "@/lib/utils";
 import { Input } from "../../../../../components/ui/input";
 import { Label } from "../../../../../components/ui/label";
 import { INPUT_CLASS, FIELD_GAP, SECTION_GAP } from "../product-form-input-styles";
+import {
+  DEFAULT_MAX_INVOICE_FINANCING_RATIO_PERCENT,
+  DEFAULT_MIN_INVOICE_FINANCING_RATIO_PERCENT,
+  MAX_INVOICE_FINANCING_RATIO_PERCENT,
+} from "@cashsouk/types";
 import { formatMoney } from "@cashsouk/ui";
 import { MoneyInput } from "@cashsouk/ui";
 
@@ -19,8 +24,8 @@ export interface InvoiceDetailsConfigShape {
   min_months_review_to_maturity?: number | null;
 }
 
-const DEFAULT_MIN_RATIO = 60;
-const DEFAULT_MAX_RATIO = 80;
+const DEFAULT_MIN_RATIO = DEFAULT_MIN_INVOICE_FINANCING_RATIO_PERCENT;
+const DEFAULT_MAX_RATIO = DEFAULT_MAX_INVOICE_FINANCING_RATIO_PERCENT;
 
 function getConfig(
   config: unknown
@@ -167,13 +172,15 @@ export function InvoiceDetailsConfig({
               update({ max_financing_ratio_percent: num != null && !Number.isNaN(num) ? num : null });
             }}
             placeholder={String(DEFAULT_MAX_RATIO)}
-            maxLength={3}
+            max={MAX_INVOICE_FINANCING_RATIO_PERCENT}
+            maxLength={2}
             className={INPUT_CLASS}
           />
         </div>
       </div>
       <p className="text-xs text-muted-foreground -mt-2">
         Used for issuer and admin invoice financing ratio limits. Defaults to 60–80% if blank.
+        Maximum {MAX_INVOICE_FINANCING_RATIO_PERCENT}%.
       </p>
 
       <div className={cn("grid grid-cols-2", SECTION_GAP)}>

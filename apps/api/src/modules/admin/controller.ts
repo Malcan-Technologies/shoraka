@@ -3369,6 +3369,7 @@ router.post(
         id,
         validated.offeredFacility,
         validated.facilityFeeRatePercent ?? null,
+        validated.facilityFeeUpfrontCollectAmount,
         req.user.user_id,
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
@@ -3432,7 +3433,8 @@ router.post(
           feeScheduleMode: validated.feeScheduleMode,
           facilityFeeCollectAmount: validated.facilityFeeCollectAmount,
           additionalFees: validated.additionalFees,
-        }
+        },
+        validated.financingTenureDays
       );
 
       res.json({

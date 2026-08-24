@@ -19,7 +19,12 @@ import {
   type OfferStatus,
 } from "@/lib/offer-utils";
 import { cn } from "@/lib/utils";
-import { formatInvoiceReference } from "@cashsouk/types";
+import {
+  formatInvoiceReference,
+  formatIssuerFinancingTenure,
+  formatIssuerNoteMaturity,
+  resolveIssuerInvoiceNoteTiming,
+} from "@cashsouk/types";
 import { FinancingDonut, financingDonutTone } from "./financing-donut";
 import { FinancingKpiTile } from "./financing-kpi-strip";
 import {
@@ -146,7 +151,7 @@ export function DashboardInvoiceCard({
   const fundingLabel = resolveFundingStatusText(row.note);
   const invoiceModal = asInvoiceForModal(row.invoiceForModal);
   const invDetails = invoiceModal?.details;
-  const maturityRaw = invDetails?.maturity_date ?? row.note?.maturityDate ?? null;
+  const invoiceDueRaw = invDetails?.maturity_date ?? null;
   const offerDetails = invoiceModal?.offer_details as Record<string, unknown> | null | undefined;
   const feeDisplay = buildInvoiceFeeDisplay({
     status: row.note?.noteStatus ?? row.invoiceStatus,
@@ -184,6 +189,11 @@ export function DashboardInvoiceCard({
         issuerCampaignDaysLeftLabel(campaign.daysLeft, campaign.raising)
       )
     : EM_DASH;
+  const invoiceNoteTiming = resolveIssuerInvoiceNoteTiming({
+    note: row.note,
+    offerDetails,
+    invoiceDetails: invDetails,
+  });
 
   return (
     <article
@@ -337,7 +347,17 @@ export function DashboardInvoiceCard({
                 {campaign ? (
                   <LabelValue label="Min to succeed">{`${campaign.minimumPercent}%`}</LabelValue>
                 ) : null}
-                <LabelValue label="Maturity date">{formatDate(maturityRaw)}</LabelValue>
+                <LabelValue label="Invoice due date">{formatDate(invoiceDueRaw)}</LabelValue>
+                {invoiceNoteTiming?.isTenureNote ? (
+                  <LabelValue label="Financing tenure">
+                    {formatIssuerFinancingTenure(invoiceNoteTiming) ?? EM_DASH}
+                  </LabelValue>
+                ) : null}
+                {row.note && invoiceNoteTiming ? (
+                  <LabelValue label="Note maturity">
+                    {formatIssuerNoteMaturity(invoiceNoteTiming)}
+                  </LabelValue>
+                ) : null}
                 {showFeeSummary ? (
                   <InvoiceFeeSummary
                     display={feeDisplay}

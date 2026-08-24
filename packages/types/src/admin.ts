@@ -1183,6 +1183,8 @@ export interface AdminContractDetail {
   lifetimeCap: number;
   lifetimeUsed: number;
   lifetimeRemaining: number;
+  facilityFeeUpfrontAmount: number;
+  facilityFeeUpfrontOutstanding: number;
   status: string;
   createdAt: string;
   updatedAt: string;

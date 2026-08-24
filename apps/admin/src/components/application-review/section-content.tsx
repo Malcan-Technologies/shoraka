@@ -153,6 +153,7 @@ export interface SectionContentProps {
   onSendContractOffer?: (payload: {
     offeredFacility: number;
     facilityFeeRatePercent: number | null;
+    facilityFeeUpfrontCollectAmount: number;
   }) => Promise<void>;
   onSendInvoiceOffer?: (payload: SendInvoiceOfferUiPayload) => Promise<void>;
   sendContractOfferPending?: boolean;

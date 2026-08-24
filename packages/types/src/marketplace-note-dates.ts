@@ -1,3 +1,5 @@
+import { malaysiaCalendarDaysRemaining } from "./financing-tenure";
+
 /** Days remaining until marketplace listing closes (`note_listings.closes_at`). */
 export function resolveMarketplaceListingDaysLeft(
   listingClosesAt?: string | null
@@ -13,17 +15,13 @@ export function resolveMarketplaceListingDaysLeft(
   return Math.max(0, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
 }
 
-/** Calendar days from now until note maturity. */
+/** Malaysia calendar days from now until note maturity. Past dates clamp to 0 for filters. */
 export function resolveMarketplaceDaysToMaturity(
-  maturityDate?: string | null
+  maturityDate?: string | null,
+  now: Date = new Date()
 ): number | null {
   if (!maturityDate) return null;
-
-  const target = new Date(maturityDate);
-  if (Number.isNaN(target.getTime())) {
-    return null;
-  }
-
-  const millisRemaining = target.getTime() - Date.now();
-  return Math.max(0, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
+  const remaining = malaysiaCalendarDaysRemaining(now, maturityDate);
+  if (remaining == null) return null;
+  return Math.max(0, remaining);
 }

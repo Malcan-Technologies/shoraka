@@ -50,6 +50,7 @@ export function buildProspectusReturnHighlight(
   const timing = buildProspectusTenureAndMaturity({
     listingOpensAt: input.listingOpensAt,
     maturityDate: input.maturityDate,
+    tenureDays: input.tenureDays,
   });
 
   return {

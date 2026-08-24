@@ -65,6 +65,27 @@ describe("Zod fee/rate validation (service fee + facility fee)", () => {
         expectPass(sendContractOfferSchema, { offeredFacility: 100, facilityFeeRatePercent: rate });
       }
       expectPass(sendContractOfferSchema, { offeredFacility: 100, facilityFeeRatePercent: null });
+      expectPass(sendContractOfferSchema, {
+        offeredFacility: 100,
+        facilityFeeRatePercent: 1,
+        facilityFeeUpfrontCollectAmount: 0,
+      });
+      expectPass(sendContractOfferSchema, {
+        offeredFacility: 100,
+        facilityFeeRatePercent: 1,
+        facilityFeeUpfrontCollectAmount: 1.25,
+      });
+    });
+
+    it("facilityFeeUpfrontCollectAmount rejects negatives and extra decimals", () => {
+      expectFail(sendContractOfferSchema, {
+        offeredFacility: 100,
+        facilityFeeUpfrontCollectAmount: -1,
+      });
+      expectFail(sendContractOfferSchema, {
+        offeredFacility: 100,
+        facilityFeeUpfrontCollectAmount: 1.001,
+      });
     });
 
     it("facilityFeeRatePercent rejects -1, 1.01, 1.001, 100", () => {

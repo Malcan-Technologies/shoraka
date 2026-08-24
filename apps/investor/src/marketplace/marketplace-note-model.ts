@@ -4,11 +4,14 @@ import {
   formatNoteInvestorCommitment,
   formatNoteReferenceDisplay,
   marketplaceListingKind,
-  resolveMarketplaceDaysToMaturity,
+  matchesMarketplaceTenureFilter,
+  resolveMarketplaceFilterDays,
   resolveMarketplaceListingDaysLeft,
+  resolveNoteTimingDisplay,
   type MarketplaceListingFilter,
   type MarketplaceListingKind,
   type NoteListItem,
+  type NoteTimingDisplay,
 } from "@cashsouk/types";
 
 export type MarketplaceNote = {
@@ -28,6 +31,7 @@ export type MarketplaceNote = {
   fundingPercent: number;
   annualReturn: number | null;
   tenorDays: number | null;
+  timing: NoteTimingDisplay;
   riskScore: string | null;
   daysLeft: number | null;
   minInvestment: number;
@@ -89,7 +93,8 @@ export function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
     remainingCapacity,
     fundingPercent,
     annualReturn: note.profitRatePercent,
-    tenorDays: resolveMarketplaceDaysToMaturity(note.maturityDate),
+    tenorDays: resolveMarketplaceFilterDays(note),
+    timing: resolveNoteTimingDisplay(note),
     riskScore: note.riskRating,
     daysLeft: resolveMarketplaceListingDaysLeft(note.listingClosesAt),
     minInvestment: minCommit,
@@ -140,12 +145,7 @@ export function marketplaceNoteMatchesFilters(
       ((filters.profit === "low" && note.annualReturn < 14) ||
         (filters.profit === "mid" && note.annualReturn >= 14 && note.annualReturn <= 15) ||
         (filters.profit === "high" && note.annualReturn > 15)));
-  const matchesTenor =
-    filters.tenor === "all" ||
-    (note.tenorDays !== null &&
-      ((filters.tenor === "short" && note.tenorDays <= 30) ||
-        (filters.tenor === "medium" && note.tenorDays > 30 && note.tenorDays <= 45) ||
-        (filters.tenor === "long" && note.tenorDays > 45)));
+  const matchesTenor = matchesMarketplaceTenureFilter(note.tenorDays, filters.tenor);
   const matchesListing = filters.listing === "all" || note.listingKind === filters.listing;
 
   return (
@@ -231,6 +231,10 @@ export function marketplaceNoteContextLine(note: MarketplaceNote): string | null
     note.industry?.trim() || null,
   ].filter((part): part is string => Boolean(part));
   return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+export function marketplaceReturnRateLabel(note: Pick<MarketplaceNote, "timing">): string {
+  return note.timing.isTenureNote ? "Up to" : "p.a.";
 }
 
 /** Investor-facing card/dialog headline. Purpose first; note reference if unpublished. */

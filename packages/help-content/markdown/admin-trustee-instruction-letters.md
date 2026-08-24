@@ -8,14 +8,14 @@ tags:
   - trustee
   - finance
 order: 22
-updated: 2026-06-30
+updated: 2026-08-24
 ---
 
 ## What these letters are
 
 Trustee instruction letters are **PDF documents** you generate in the admin portal and provide to the **trustee** so they can execute (or record) specific money movements. Each letter summarises the instruction: what it is for, amounts, references, and sometimes beneficiary or pool details.
 
-They are **not** sent automatically to the trustee from the portal. You generate the file, review it, then follow your operating procedure to deliver it and track confirmation.
+You generate the file, review it, then submit it. If **Automatically email trustee** is enabled in **Settings → Platform Finance → Trustee Letter**, the action is **Email to Trustee**: SES acceptance is shown as delivered, and the workflow stays **Submitted to trustee** until you later confirm the trustee processed the payment. If that setting is off, the action is **Mark submitted to trustee** and you deliver the letter manually. After the first email is delivered, **Resend Email to Trustee** stays available until the financial workflow is marked disbursed or completed. Resend uses the latest configured recipients and the current signed PDF, updates the delivery timestamp, and does not complete the workflow.
 
 ## Where you work (Note Detail tabs)
 
@@ -40,8 +40,9 @@ The **Activity timeline** on the right records when letters were generated and l
 1. Complete **Tawarruq transaction / certificate** steps when shown on the card. Callbacks may update Tawarruq order status, but the certificate step completes only after **Fetch Tawarruq Certificate** stores the PDF (use **Query Status**, fetch, or reload on an open page).
 2. Confirm **beneficiary details** are complete (snapshotted onto the letter).
 3. **Generate** the trustee letter (PDF).
-4. Mark **submitted to trustee** when the trustee has received it.
-5. Mark **disbursed / complete** when the trustee confirms payout. This moves the note to **Active** and starts servicing.
+4. Click **Email to Trustee** when auto-send is on, or **Mark submitted to trustee** when it is off.
+5. Use **Resend Email to Trustee** if needed until you mark disbursed. It updates the delivery timestamp only.
+6. Mark **disbursed / complete** when the trustee confirms payout. This moves the note to **Active** and starts servicing.
 
 ## Settlement trustee instruction (after settlement post)
 
@@ -55,8 +56,9 @@ The **Activity timeline** on the right records when letters were generated and l
 
 1. **Settlement posted** — automatic when you post the waterfall.
 2. **Generate** the settlement trustee instruction PDF (required before submit).
-3. Mark **submitted to trustee** after the trustee has received the signed instruction.
-4. Mark **instruction completed** when the trustee confirms processing. Until then, the status badge shows **Active · servicing** and the settlement strip shows **Trustee instruction** as the current step.
+3. Click **Email to Trustee** when auto-send is on, or **Mark submitted to trustee** when it is off.
+4. Use **Resend Email to Trustee** if needed until you mark the instruction completed. It updates the delivery timestamp only.
+5. Mark **instruction completed** when the trustee confirms processing. Until then, the status badge shows **Active · servicing** and the settlement strip shows **Trustee instruction** as the current step.
 
 **Issuer refund allocation** is included in this instruction when the waterfall has a positive issuer refund amount. It is **not** a separate Note Detail card or lifecycle workflow.
 

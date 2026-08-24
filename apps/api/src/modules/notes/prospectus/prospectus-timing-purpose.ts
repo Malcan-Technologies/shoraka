@@ -26,6 +26,7 @@ export function buildProspectusTimingPurpose(
   const timing = buildProspectusTenureAndMaturity({
     listingOpensAt: input.listingOpensAt,
     maturityDate: input.maturityDate,
+    tenureDays: input.tenureDays,
   });
   const purpose = nonEmptyString(input.purposeSnapshotFinancingFor);
 

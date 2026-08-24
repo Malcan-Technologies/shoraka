@@ -146,7 +146,12 @@ export function filterContracts(
 ): IssuerDashboardContract[] {
   return rows.filter((row) => {
     if (f.statusKind !== "all") {
-      if (resolveIssuerContractDashboardBadge(row.contractStatus) !== f.statusKind) return false;
+      if (
+        resolveIssuerContractDashboardBadge(row.contractStatus, {
+          facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
+        }) !== f.statusKind
+      )
+        return false;
     }
     if (f.customer) {
       const name = (row.customerName ?? "").trim();

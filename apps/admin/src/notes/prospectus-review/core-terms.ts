@@ -7,6 +7,7 @@ import {
   formatInvestorReturnRatePercent,
   formatUtcCalendarDateEnMy,
   resolveNetExpectedReturnRatePercent,
+  resolveNoteTimingDisplay,
   resolveSoukscoreRiskRatingPresentation,
   type NoteDetail,
 } from "@cashsouk/types";
@@ -103,7 +104,12 @@ export function buildNoteInvestmentDetailSections(
   // Same sources as Page 1 prospectus Stage 2 — no publishedAt/createdAt fallbacks.
   const opensAt = note.listing?.opensAt ?? null;
   const closesAt = note.listing?.closesAt ?? note.listingClosesAt ?? null;
-  const tenure = formatProspectusAlignedTenure(opensAt, note.maturityDate);
+  const timing = resolveNoteTimingDisplay(note);
+  const tenure = timing.isTenureNote
+    ? `${timing.tenureDays} days`
+    : formatProspectusAlignedTenure(opensAt, note.maturityDate);
+  const maturityDisplay =
+    timing.kind === "tenure_pending" ? timing.value : formatProspectusAlignedDate(note.maturityDate);
   const financingAmount = formatCurrency(note.targetAmount);
   const minimumInvestment = formatCurrency(MARKETPLACE_MIN_COMMIT_MYR);
   const profitRate = formatRatePercent(note.profitRatePercent);
@@ -139,7 +145,7 @@ export function buildNoteInvestmentDetailSections(
         { label: "Closing Date", value: formatProspectusAlignedDate(closesAt) },
         {
           label: "Maturity Date",
-          value: formatProspectusAlignedDate(note.maturityDate),
+          value: maturityDisplay,
         },
         { label: "Tenure", value: tenure },
         { label: "Paymaster", value: paymasterName },
@@ -158,7 +164,7 @@ export function buildNoteInvestmentDetailSections(
         { label: "Tenure", value: tenure },
         {
           label: "Maturity Date",
-          value: formatProspectusAlignedDate(note.maturityDate),
+          value: maturityDisplay,
         },
         {
           label: "Purpose of Financing",

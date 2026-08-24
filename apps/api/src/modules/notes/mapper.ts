@@ -11,10 +11,12 @@ import {
   resolveContractTitle,
   resolveProductImageS3KeyFromSnapshot,
   resolvePurposeOfFinancing,
+  mapExcessLateChargesDto,
   roundNoteMoney,
   toMarketplacePublicNote,
   type IssuerResidualPayoutListStatus,
   type NoteProspectusSummary,
+  type ProfitWindowClassification,
 } from "@cashsouk/types";
 import { NoteSettlementStatus, Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
 import { sortAdminNoteEvents } from "./admin-note-events-sorting";
@@ -158,6 +160,7 @@ export function mapWithdrawalInstruction(withdrawal: WithdrawalRecord) {
     letterS3Key: withdrawal.letter_s3_key,
     generatedAt: iso(withdrawal.generated_at),
     submittedToTrusteeAt: iso(withdrawal.submitted_to_trustee_at),
+    trusteeEmailSentAt: iso(withdrawal.trustee_email_sent_at),
     completedAt: iso(withdrawal.completed_at),
     createdAt: withdrawal.created_at.toISOString(),
     hasShorakaCertificate,
@@ -186,6 +189,26 @@ function asRecord(value: Prisma.JsonValue | null | undefined): Record<string, un
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function snapshotString(snapshot: Record<string, unknown> | null, key: string): string | null {
+  const value = snapshot?.[key];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function snapshotNumber(snapshot: Record<string, unknown> | null, key: string): number | null {
+  const value = snapshot?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function snapshotClassification(
+  snapshot: Record<string, unknown> | null
+): ProfitWindowClassification | null {
+  const value = snapshotString(snapshot, "classification") ?? snapshotString(snapshot, "profitClassification");
+  if (value === "EARLY" || value === "ON_MATURITY" || value === "GRACE" || value === "LATE") {
+    return value;
+  }
+  return null;
 }
 
 function asPaymentEvidenceFiles(value: Prisma.JsonValue | null | undefined) {
@@ -350,6 +373,11 @@ function resolveSettlementSummary(note: NoteWithRelations) {
     gharamahAccountAmount: moneyToNumber(settlement.gharamah_amount),
     issuerResidualAmount: moneyToNumber(settlement.issuer_residual_amount),
     unappliedAmount: moneyToNumber(settlement.unapplied_amount),
+    excessLateChargeAmount: moneyToNumber(settlement.excess_late_charge_amount),
+    excessLateChargePaidAmount: moneyToNumber(settlement.excess_late_charge_paid_amount),
+    excessTawidhAmount: moneyToNumber(settlement.excess_tawidh_amount),
+    excessGharamahAmount: moneyToNumber(settlement.excess_gharamah_amount),
+    actualSettlementDate: iso(settlement.actual_settlement_date),
     profitStartDate: iso(settlement.profit_start_date),
     profitMaturityDate: iso(settlement.profit_maturity_date),
     profitDays: settlement.profit_days,
@@ -369,6 +397,9 @@ function resolveSettlementSummary(note: NoteWithRelations) {
       : null,
     serviceFeeTrusteeCompletedAt: hasSettlementTrusteeMovement
       ? iso(settlement.service_fee_trustee_completed_at)
+      : null,
+    serviceFeeTrusteeEmailSentAt: hasSettlementTrusteeMovement
+      ? iso(settlement.service_fee_trustee_email_sent_at)
       : null,
   };
 }
@@ -449,6 +480,7 @@ export function mapNoteListItem(note: NoteWithRelations) {
   const invoiceAmount = resolveInvoiceAmount(note);
   const fundingPercent =
     targetAmount > 0 ? roundNoteMoney((fundedAmount / targetAmount) * 100, 1) : 0;
+  const settlementSummary = resolveSettlementSummary(note);
 
   return {
     id: note.id,
@@ -495,12 +527,21 @@ export function mapNoteListItem(note: NoteWithRelations) {
       }))
     ),
     maturityDate: iso(note.maturity_date),
+    tenureDays: note.tenure_days ?? null,
+    gracePeriodDays: note.grace_period_days,
+    disbursementValueDate: iso(note.disbursement_value_date),
     listingClosesAt: note.listing ? iso(note.listing.closes_at) : null,
     activatedAt: iso(note.activated_at),
     publishedAt: iso(note.published_at),
     fundingClosedAt: iso(note.funding_closed_at),
     repaidAt: iso(note.repaid_at),
-    settlementSummary: resolveSettlementSummary(note),
+    settlementSummary,
+    excessLateCharges: mapExcessLateChargesDto({
+      status: settlementSummary?.status,
+      excessLateChargeAmount: settlementSummary?.excessLateChargeAmount,
+      excessLateChargePaidAmount: settlementSummary?.excessLateChargePaidAmount,
+      noteReference: note.note_reference,
+    }),
     prospectus: mapProspectusSummary(note),
     createdAt: note.created_at.toISOString(),
     updatedAt: note.updated_at.toISOString(),
@@ -587,7 +628,7 @@ export async function mapNoteDetail(
       noteId: schedule.note_id,
       status: schedule.status,
       sequence: schedule.sequence,
-      dueDate: schedule.due_date.toISOString(),
+      dueDate: iso(schedule.due_date),
       expectedPrincipal: moneyToNumber(schedule.expected_principal),
       expectedProfit: moneyToNumber(schedule.expected_profit),
       expectedTotal: moneyToNumber(schedule.expected_total),
@@ -634,6 +675,18 @@ export async function mapNoteDetail(
       gharamahAmount: moneyToNumber(settlement.gharamah_amount),
       issuerResidualAmount: moneyToNumber(settlement.issuer_residual_amount),
       unappliedAmount: moneyToNumber(settlement.unapplied_amount),
+      excessLateChargeAmount: moneyToNumber(settlement.excess_late_charge_amount),
+      excessLateChargePaidAmount: moneyToNumber(settlement.excess_late_charge_paid_amount),
+      excessTawidhAmount: moneyToNumber(settlement.excess_tawidh_amount),
+      excessGharamahAmount: moneyToNumber(settlement.excess_gharamah_amount),
+      actualSettlementDate: iso(settlement.actual_settlement_date),
+      profitClassification: snapshotClassification(asRecord(settlement.preview_snapshot)),
+      ceilingAmount: snapshotNumber(asRecord(settlement.preview_snapshot), "ceilingAmount"),
+      ceilingUsedAmount: snapshotNumber(asRecord(settlement.preview_snapshot), "ceilingUsedAmount"),
+      ceilingRemainingAmount: snapshotNumber(
+        asRecord(settlement.preview_snapshot),
+        "ceilingRemainingAmount"
+      ),
       previewSnapshot: asRecord(settlement.preview_snapshot) ?? {},
       approvedAt: iso(settlement.approved_at),
       postedAt: iso(settlement.posted_at),
@@ -642,6 +695,7 @@ export async function mapNoteDetail(
       serviceFeeTrusteeLetterGeneratedAt: iso(settlement.service_fee_trustee_letter_generated_at),
       serviceFeeTrusteeSubmittedAt: iso(settlement.service_fee_trustee_submitted_at),
       serviceFeeTrusteeCompletedAt: iso(settlement.service_fee_trustee_completed_at),
+      serviceFeeTrusteeEmailSentAt: iso(settlement.service_fee_trustee_email_sent_at),
     })),
     events: includeEvents
       ? sortedEvents.map((sortedEvent) => {

@@ -5,7 +5,7 @@ category: Application Review
 tags:
   - admin
 order: 10
-updated: 2026-08-21
+updated: 2026-08-24
 ---
 
 ## Purpose
@@ -20,14 +20,14 @@ Use this guide when reviewing issuer financing applications in the admin portal.
 4. Admin either approves sections, rejects sections, or adds amendment remarks.
 5. If amendments are sent, the issuer edits only the flagged areas and resubmits for the next review cycle.
 6. Once prerequisites are approved, admin sends facility or invoice offers where applicable.
-7. The issuer accepts, signs, or rejects each offer.
+7. The issuer accepts, signs, or rejects each offer. Invoice offers on an approved facility use an emailed verification code instead of a new signature.
 8. The application is complete when all required offers are accepted or signed.
 
 ## What Admins Review
 
 - Financing structure: whether the request is for a new facility, an existing facility, or invoice-only financing.
 - Facility or paymaster details: the customer or obligor expected to pay the obligation.
-- Invoice details: invoice documents, requested financing amount, maturity, and financing ratio.
+- Invoice details: invoice documents, requested financing amount, invoice due date, financing tenure (30 to 180 days, 15-day steps), and financing ratio. Financing cannot exceed **80%** of invoice value. The invoice due date is a source-invoice fact, not the public note maturity.
 - Company and business details: issuer profile, operating context, and repayment information.
 - Financial statements and CTOS data: uploaded unaudited figures compared with pulled CTOS financials where available.
 - Directors, shareholders, and guarantors: ownership, controller, KYC/KYB, and AML status.
@@ -94,11 +94,17 @@ Once accepted or signed, the approved terms become the facility reference. New f
 
 Use an invoice offer when an individual invoice is ready for approval. Before sending:
 
-- Review invoice value, requested financing ratio, requested amount, maturity, profit rate, and risk rating.
+- Review invoice value, requested financing ratio, requested amount, financing tenure, profit rate, and risk rating.
+- You may adjust the issuer’s tenure in the final offer. Tenure must be 30 to 180 days in 15-day steps and must cover the time until the invoice due date. Offered financing cannot exceed **80%** of invoice value. After listing, profit days and the settlement worked example are in **Note Money Flow and Servicing Guide**.
 - Make sure the offered amount does not exceed the requested amount.
 - Make sure offered financing fits **remaining credit** and invoice face fits **remaining allocation**. Pending invoices already occupy remaining credit (shown as **Reserved**). There is no over-limit override.
-- Make sure the maturity rules for the selected product are satisfied.
 - Reset rejected invoices to pending before sending an offer. Resend after expiry re-reserves under the same lock. A 14-day marketplace failure releases both ledgers.
+
+Once sent, an invoice on an **approved facility** does not go through signing again. The issuer sees utilisation terms and conditions for that drawdown (also on the offer letter) and must tick every confirmation before Accept is available. In the issuer portal, someone from the organisation chooses the director or authorised signatory who is accepting. A 6-digit code is emailed to that person. The offer is accepted only after the code is entered. Decline does not need the confirmations or a code. New facility offers and invoice-only offers still use the usual signing steps.
+
+Before you send a facility-linked invoice offer, check that the people who signed the facility (or the current directors) have a working email. If none are available, the issuer cannot request a code.
+
+Issuers can download an **application summary** PDF from the application and later from the note. It includes application details, your remarks and requested changes, and the application history. It is not an offer letter.
 
 ## Status Guide
 
@@ -107,7 +113,7 @@ Use an invoice offer when an individual invoice is ready for approval. Before se
 - Facility Pending or Invoice Pending: the relevant offer stage is unlocked.
 - Amendment Requested: issuer must address admin remarks and resubmit.
 - Resubmitted: issuer has returned the application for another review cycle.
-- Facility Sent or Invoices Sent: issuer must accept, sign, or reject the offer.
+- Facility Sent or Invoices Sent: issuer must accept, sign, or reject the offer. For an invoice on an approved facility, acceptance uses an emailed verification code rather than a new signature.
 - Approved or Completed: required offers have been resolved.
 - Withdrawn or Rejected: the application is no longer progressing.
 

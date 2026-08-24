@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { ChevronDownIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
+import { ApplicationSummaryDownloadButton } from "@/components/application-summary-download-button";
 import {
   Card,
   CardContent,
@@ -44,6 +45,8 @@ import {
   useViewIssuerShorakaCertificate,
 } from "@/notes/hooks/use-issuer-notes";
 import { LedgerPanel } from "@/notes/components/ledger-panel";
+import { ExcessLateChargePaymentCard } from "@/components/financing/excess-late-charge-payment-card";
+import { ExcessLateChargeReturnListener } from "@/components/excess-late-charge-return-listener";
 import {
   getActiveSettlementLateFees,
   getIssuerReceiptCap,
@@ -55,9 +58,16 @@ import {
   REPAYMENT_RECEIPT_SOURCE_ORDER,
 } from "@/notes/lib/repayment-capacity";
 import {
+  formatIssuerFinancingTenure,
+  formatIssuerMaturityCountdown,
+  formatIssuerNoteMaturity,
   formatNoteInvestorCount,
+  formatTenureDaysSecondary,
+  joinNoteTimingExtra,
+  formatProfitAccruedCopy,
   getNoteHeaderPurposeRows,
   isSoukscoreRiskRating,
+  resolveNoteTimingDisplay,
   mapNoteSettlementToPoolSummary,
   NotePaymentSource,
   NotePaymentStatus,
@@ -207,27 +217,6 @@ function getFundingProgressClass(fundingStatus: NoteDetail["fundingStatus"]) {
   return "[&>div]:bg-primary";
 }
 
-function formatMaturityDate(value: string | null) {
-  return value ? new Date(value).toLocaleDateString("en-MY") : "Not set";
-}
-
-function formatMaturityTiming(value: string | null) {
-  if (!value) return "No maturity date set";
-  const maturityDate = new Date(value);
-  const today = new Date();
-  const maturityStart = new Date(
-    maturityDate.getFullYear(),
-    maturityDate.getMonth(),
-    maturityDate.getDate()
-  );
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const days = Math.round((maturityStart.getTime() - todayStart.getTime()) / 86_400_000);
-  const absoluteDays = Math.abs(days);
-  const dayLabel = `${absoluteDays} day${absoluteDays === 1 ? "" : "s"}`;
-
-  if (days === 0) return "Due today";
-  return days > 0 ? `${dayLabel} remaining` : `${dayLabel} overdue`;
-}
 
 function getLateFeeSummary(note: NoteDetail) {
   const lateFeeSettlements = note.settlements.filter((settlement) => settlement.status !== "VOID");
@@ -491,8 +480,18 @@ export default function IssuerNoteDetailPage() {
   const progressClassName = getFundingProgressClass(note.fundingStatus);
   const instructionEntries = Object.entries(instructions ?? {});
   const lateFeeSummary = getLateFeeSummary(note);
-  const maturityDateLabel = formatMaturityDate(note.maturityDate);
-  const maturityTimingLabel = formatMaturityTiming(note.maturityDate);
+  const noteTiming = resolveNoteTimingDisplay(note);
+  const maturityDateLabel = formatIssuerNoteMaturity(noteTiming);
+  const maturityCountdown = formatIssuerMaturityCountdown(note.maturityDate, {
+    tenureDays: note.tenureDays,
+    gracePeriodDays: note.gracePeriodDays,
+  });
+  const maturityTimingLabel = noteTiming.isTenureNote
+    ? joinNoteTimingExtra(
+        noteTiming.tenureDays != null ? formatTenureDaysSecondary(noteTiming.tenureDays) : null,
+        maturityCountdown
+      ) ?? null
+    : maturityCountdown;
   const settlementSummary = getPostedSettlementSummary(note);
   const issuerResidualDisbursement = settlementSummary
     ? getIssuerResidualDisbursementState(
@@ -567,8 +566,11 @@ export default function IssuerNoteDetailPage() {
     paymentAmountParsed > MONEY_TOLERANCE &&
     settlementCapReceiptsTotal + paymentAmountParsed <= receiptCap + MONEY_TOLERANCE;
 
+  const excessLateCharges = note.excessLateCharges;
+
   return (
     <div className={issuerMainContentClassName}>
+      <ExcessLateChargeReturnListener noteId={note.id} />
       <div className={cn(issuerContentMaxWidthClassName, "space-y-6", issuerPageGutterClassName)}>
         <DetailHeader
           breadcrumb={
@@ -594,6 +596,14 @@ export default function IssuerNoteDetailPage() {
           }
           title={note.title}
           contextRows={getNoteHeaderPurposeRows(note)}
+          actions={
+            note.sourceApplicationId ? (
+              <ApplicationSummaryDownloadButton
+                applicationId={note.sourceApplicationId}
+                size="default"
+              />
+            ) : null
+          }
           status={
             <NoteStatusBadge
               note={note}
@@ -714,6 +724,34 @@ export default function IssuerNoteDetailPage() {
                   <div className="mt-1 text-ui font-medium text-foreground">
                     {formatNoteInvestorCount(note.investorCount)}
                   </div>
+                </div>
+                {noteTiming.isTenureNote ? (
+                  <div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <span>Financing tenure</span>
+                      {noteTiming.kind === "tenure_pending" && noteTiming.tooltip ? (
+                        <InfoTooltip
+                          content={noteTiming.tooltip}
+                          iconClassName="h-3.5 w-3.5 shrink-0"
+                        />
+                      ) : null}
+                    </div>
+                    <div className="mt-1 text-ui font-medium text-foreground">
+                      {formatIssuerFinancingTenure(noteTiming)}
+                    </div>
+                  </div>
+                ) : null}
+                <div>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span>Maturity date</span>
+                    {noteTiming.tooltip && noteTiming.kind !== "tenure_pending" ? (
+                      <InfoTooltip content={noteTiming.tooltip} iconClassName="h-3.5 w-3.5 shrink-0" />
+                    ) : null}
+                  </div>
+                  <div className="mt-1 text-ui font-medium text-foreground">{maturityDateLabel}</div>
+                  {maturityCountdown ? (
+                    <div className="mt-1 text-xs text-muted-foreground">{maturityCountdown}</div>
+                  ) : null}
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Facility</div>
@@ -864,12 +902,17 @@ export default function IssuerNoteDetailPage() {
                   )}
                 >
                   <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <span>Maturity</span>
+                    <span>Maturity date</span>
+                    {noteTiming.tooltip ? (
+                      <InfoTooltip content={noteTiming.tooltip} iconClassName="h-3.5 w-3.5 shrink-0" />
+                    ) : null}
                   </div>
                   <div className="mt-1 text-2xl font-semibold text-foreground">
                     {maturityDateLabel}
                   </div>
-                  <div className="mt-1 text-xs text-muted-foreground">{maturityTimingLabel}</div>
+                  {maturityTimingLabel ? (
+                    <div className="mt-1 text-xs text-muted-foreground">{maturityTimingLabel}</div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -982,6 +1025,18 @@ export default function IssuerNoteDetailPage() {
           </Card>
         ) : null}
 
+        {excessLateCharges && excessLateCharges.owed > 0 ? (
+          <div id="late-charges">
+            <ExcessLateChargePaymentCard
+              noteId={note.id}
+              owedAmount={excessLateCharges.owed}
+              paidAmount={excessLateCharges.paid}
+              outstanding={excessLateCharges.outstanding}
+              noteReference={excessLateCharges.noteReference || note.noteReference}
+            />
+          </div>
+        ) : null}
+
         {settlementSummary ? (
           <Card>
             <CardHeader>
@@ -1020,9 +1075,13 @@ export default function IssuerNoteDetailPage() {
                 <p className="text-sm text-muted-foreground">
                   <span className="font-medium text-foreground">Issuer residual:</span>{" "}
                   {formatCurrency(settlementSummary.issuerResidualAmount)} is the residual refund
-                  after investor allocation, service fee, full Ta&apos;widh, and Gharamah.
-                  Contractual profit is locked for {settlementSummary.profitDays} days at{" "}
-                  {settlementSummary.annualProfitRatePercent}% p.a. through note maturity.
+                  after investor allocation, service fee, full Ta&apos;widh, and Gharamah.{" "}
+                  {formatProfitAccruedCopy({
+                    startDate: settlementSummary.profitStartDate,
+                    endDate: settlementSummary.profitMaturityDate,
+                    profitDays: settlementSummary.profitDays,
+                  }) ??
+                    `Profit accrued for ${settlementSummary.profitDays} days at ${settlementSummary.annualProfitRatePercent}% p.a.`}
                   {issuerResidualDisbursement?.kind === "paid" &&
                   issuerResidualDisbursement.completedAt ? (
                     <span className="mt-1 block text-xs text-muted-foreground">

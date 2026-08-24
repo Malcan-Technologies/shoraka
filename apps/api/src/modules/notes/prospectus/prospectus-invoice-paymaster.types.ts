@@ -18,7 +18,7 @@ export interface ProspectusInvoicePaymasterAudit {
     isFrozen: true;
   };
   invoiceDueDate: {
-    source: "notes.maturity_date";
+    source: "notes.invoice_snapshot.details.maturity_date";
     sourceAtCreate: "invoice.details.maturity_date";
     isFrozen: true;
   };
@@ -66,7 +66,7 @@ export const PROSPECTUS_INVOICE_PAYMASTER_AUDIT: ProspectusInvoicePaymasterAudit
     isFrozen: true,
   },
   invoiceDueDate: {
-    source: "notes.maturity_date",
+    source: "notes.invoice_snapshot.details.maturity_date",
     sourceAtCreate: "invoice.details.maturity_date",
     isFrozen: true,
   },
@@ -187,12 +187,12 @@ export const PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES: Record<
   },
   invoiceDueDate: {
     label: "Invoice Due Date",
-    canonicalSource: "notes.maturity_date",
+    canonicalSource: "notes.invoice_snapshot.details.maturity_date",
     availability: "stored",
     surface: "canva",
     possibleAlternatives:
-      "live Invoice.details.maturity_date; listing closes_at; repaid_at — not used",
-    notes: "Copied from invoice maturity at Note create. formatProspectusDateUtc. No live fallback.",
+      "notes.maturity_date; live Invoice.details.maturity_date; listing closes_at; repaid_at — not used",
+    notes: "Frozen invoice due date only. formatProspectusDateUtc. Never note maturity.",
   },
   paymasterName: {
     label: "Paymaster",

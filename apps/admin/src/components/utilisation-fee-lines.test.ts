@@ -4,12 +4,21 @@ import {
   convertGrandfatherOfferToCurrentV1,
   emptyAdditionalFeeLine,
   FACILITY_FEE_AVAILABLE_FOR_OFFER_LABEL,
+  FACILITY_FEE_COLLECT_REQUIRED_MESSAGE,
+  remainingFacilityFeeAfterCollect,
   GRANDFATHER_OFFER_FEE_CONFIRMATION,
+  INVOICE_OFFER_CONFIRM_INVOICE_MISSING_MESSAGE,
+  INVOICE_OFFER_CONFIRM_REFRESH_FAILED_MESSAGE,
+  INVOICE_OFFER_CONFIRM_REFRESHING_MESSAGE,
+  facilityFeeCollectExceedsAvailableMessage,
   invoiceOfferFacilityFeeCollectEnabled,
   invoiceOfferConfirmSubmitBlocked,
+  invoiceOfferConfirmUiBlocked,
   invoiceOfferFeeFingerprint,
   parseInvoiceOfferFeeEditorState,
   resolveInvoiceOfferConfirmGuard,
+  resolveInvoiceOfferConfirmRefreshStart,
+  resolveInvoiceOfferConfirmUiMessage,
   parseOfferFeeSchedule,
   resolveDrawdownFeeRateForSend,
   resolveInvoiceOfferFacilityFeeRemaining,
@@ -21,9 +30,9 @@ import {
 } from "./utilisation-fee-lines";
 
 describe("parseOfferFeeSchedule", () => {
-  it("returns zeros when the offer has no fee schedule", () => {
+  it("leaves collect unset when the offer has no fee schedule", () => {
     expect(parseOfferFeeSchedule({ offered_amount: 10_000 })).toEqual({
-      facilityFeeCollectAmount: 0,
+      facilityFeeCollectAmount: null,
       additionalFees: [],
     });
   });
@@ -46,7 +55,7 @@ describe("invoice offer fee editor mode", () => {
   it("treats a brand-new offer as current v1 and a sent unversioned offer as grandfather", () => {
     expect(parseInvoiceOfferFeeEditorState(null)).toEqual({
       mode: "v1",
-      schedule: { facilityFeeCollectAmount: 0, additionalFees: [] },
+      schedule: { facilityFeeCollectAmount: null, additionalFees: [] },
     });
     expect(
       parseInvoiceOfferFeeEditorState({
@@ -56,7 +65,7 @@ describe("invoice offer fee editor mode", () => {
       })
     ).toEqual({
       mode: "grandfather",
-      schedule: { facilityFeeCollectAmount: 0, additionalFees: [] },
+      schedule: { facilityFeeCollectAmount: null, additionalFees: [] },
     });
     expect(
       parseInvoiceOfferFeeEditorState({
@@ -74,7 +83,7 @@ describe("invoice offer fee editor mode", () => {
   it("converts grandfather to an empty current v1 schedule without inferring a progressive amount", () => {
     expect(convertGrandfatherOfferToCurrentV1()).toEqual({
       mode: "v1",
-      schedule: { facilityFeeCollectAmount: 0, additionalFees: [] },
+      schedule: { facilityFeeCollectAmount: null, additionalFees: [] },
     });
     expect(CONVERT_TO_CURRENT_FEE_SCHEDULE_LABEL).toBe("Use current fee schedule");
   });
@@ -93,7 +102,7 @@ describe("invoice offer fee editor mode", () => {
     expect(
       toSendInvoiceOfferFeeFields({
         mode: "v1",
-        schedule: { facilityFeeCollectAmount: 0, additionalFees: [] },
+        schedule: { facilityFeeCollectAmount: null, additionalFees: [] },
       })
     ).toEqual({
       feeScheduleMode: "v1",
@@ -223,20 +232,32 @@ describe("summariseUtilisationFees", () => {
     expect(totals.exceedsAtMinimum).toBe(false);
   });
 
-  it("caps displayed facility collection at remaining while overflow still uses the offered collect amount", () => {
+  it("shows entered collect in totals even when above available, while the remaining blocker still fires", () => {
+    const schedule = {
+      facilityFeeCollectAmount: 90,
+      additionalFees: [] as [],
+    };
     const totals = summariseUtilisationFees({
       offeredAmount: 100,
       platformFeeRatePercent: 0,
-      schedule: {
-        facilityFeeCollectAmount: 90,
-        additionalFees: [],
-      },
+      schedule,
       facilityFeeRemaining: 40,
     });
-    expect(totals.full.facilityFee).toBe(40);
-    expect(totals.minimum.facilityFee).toBe(40);
+    expect(totals.full.facilityFee).toBe(90);
+    expect(totals.minimum.facilityFee).toBe(90);
+    expect(totals.full.totalFees).toBe(90);
+    expect(totals.full.net).toBe(10);
     expect(totals.exceedsAtFull).toBe(false);
     expect(totals.exceedsAtMinimum).toBe(true);
+    expect(
+      utilisationFeeSendBlockedReason({
+        offeredAmount: 100,
+        platformFeeRatePercent: 0,
+        schedule,
+        facilityFeeRemaining: 40,
+        collectEnabled: true,
+      })
+    ).toBe(facilityFeeCollectExceedsAvailableMessage(40));
   });
 });
 
@@ -331,6 +352,48 @@ describe("invoice offer remaining from API", () => {
       false
     );
     expect(FACILITY_FEE_AVAILABLE_FOR_OFFER_LABEL).toBe("Available for this offer");
+    expect(facilityFeeCollectExceedsAvailableMessage(200)).toMatch(/available for this offer of 200\.00/);
+  });
+});
+
+describe("facility fee collect entry", () => {
+  it("blocks send until an amount is entered when fee is still available", () => {
+    expect(
+      utilisationFeeSendBlockedReason({
+        offeredAmount: 10_000,
+        platformFeeRatePercent: 1,
+        schedule: { facilityFeeCollectAmount: null, additionalFees: [] },
+        facilityFeeRemaining: 5_000,
+        collectEnabled: true,
+      })
+    ).toBe(FACILITY_FEE_COLLECT_REQUIRED_MESSAGE);
+    expect(
+      utilisationFeeSendBlockedReason({
+        offeredAmount: 10_000,
+        platformFeeRatePercent: 1,
+        schedule: { facilityFeeCollectAmount: 0, additionalFees: [] },
+        facilityFeeRemaining: 5_000,
+        collectEnabled: true,
+      })
+    ).toBeNull();
+  });
+
+  it("does not require an entry when nothing is left to collect", () => {
+    expect(
+      utilisationFeeSendBlockedReason({
+        offeredAmount: 10_000,
+        platformFeeRatePercent: 1,
+        schedule: { facilityFeeCollectAmount: null, additionalFees: [] },
+        facilityFeeRemaining: 0,
+        collectEnabled: true,
+      })
+    ).toBeNull();
+  });
+
+  it("names the leftover for later drawdowns without changing the entered collect", () => {
+    expect(remainingFacilityFeeAfterCollect(5_000, 1_000)).toBe(4_000);
+    expect(remainingFacilityFeeAfterCollect(5_000, 5_000)).toBe(0);
+    expect(remainingFacilityFeeAfterCollect(5_000, null)).toBeNull();
   });
 });
 
@@ -355,6 +418,7 @@ describe("invoice offer confirm-time fee guard", () => {
       invoice: { offer_details: offerDetails, facilityFeeAvailableToReserve: 1_000 },
     });
     expect(opened.feeBlockedReason).toBeNull();
+    expect(opened.collectEnabled).toBe(true);
     expect(opened.fingerprintStale).toBe(false);
     expect(invoiceOfferConfirmSubmitBlocked(opened)).toBe(false);
 
@@ -390,5 +454,71 @@ describe("invoice offer confirm-time fee guard", () => {
     });
     expect(afterFingerprint.fingerprintStale).toBe(true);
     expect(invoiceOfferConfirmSubmitBlocked(afterFingerprint)).toBe(true);
+  });
+
+  it("blocks confirm while refresh is pending or failed, then uses live remaining", () => {
+    const opened = resolveInvoiceOfferConfirmGuard({
+      confirm,
+      invoice: { offer_details: offerDetails, facilityFeeAvailableToReserve: 1_000 },
+    });
+    expect(
+      invoiceOfferConfirmUiBlocked({ refreshStatus: "idle", guard: opened })
+    ).toBe(true);
+    expect(
+      invoiceOfferConfirmUiBlocked({ refreshStatus: "pending", guard: opened })
+    ).toBe(true);
+    expect(
+      resolveInvoiceOfferConfirmUiMessage({ refreshStatus: "pending", guard: opened })
+    ).toBe(INVOICE_OFFER_CONFIRM_REFRESHING_MESSAGE);
+    expect(
+      invoiceOfferConfirmUiBlocked({ refreshStatus: "failed", guard: opened })
+    ).toBe(true);
+    expect(
+      resolveInvoiceOfferConfirmUiMessage({ refreshStatus: "failed", guard: opened })
+    ).toBe(INVOICE_OFFER_CONFIRM_REFRESH_FAILED_MESSAGE);
+    expect(
+      invoiceOfferConfirmUiBlocked({ refreshStatus: "ready", guard: opened })
+    ).toBe(false);
+
+    const afterDrop = resolveInvoiceOfferConfirmGuard({
+      confirm,
+      invoice: { offer_details: offerDetails, facilityFeeAvailableToReserve: 200 },
+    });
+    expect(
+      invoiceOfferConfirmUiBlocked({ refreshStatus: "ready", guard: afterDrop })
+    ).toBe(true);
+    expect(
+      resolveInvoiceOfferConfirmUiMessage({ refreshStatus: "ready", guard: afterDrop })
+    ).toBe(facilityFeeCollectExceedsAvailableMessage(200));
+  });
+
+  it("treats a missing application id as a failed refresh, not ready", () => {
+    const opened = resolveInvoiceOfferConfirmGuard({
+      confirm,
+      invoice: { offer_details: offerDetails, facilityFeeAvailableToReserve: 1_000 },
+    });
+    expect(resolveInvoiceOfferConfirmRefreshStart(undefined)).toBe("failed");
+    expect(resolveInvoiceOfferConfirmRefreshStart("")).toBe("failed");
+    expect(resolveInvoiceOfferConfirmRefreshStart("app_1")).toBe("pending");
+    expect(
+      invoiceOfferConfirmUiBlocked({
+        refreshStatus: resolveInvoiceOfferConfirmRefreshStart(undefined),
+        guard: opened,
+      })
+    ).toBe(true);
+    expect(
+      resolveInvoiceOfferConfirmUiMessage({
+        refreshStatus: "failed",
+        guard: opened,
+      })
+    ).toBe(INVOICE_OFFER_CONFIRM_REFRESH_FAILED_MESSAGE);
+  });
+
+  it("blocks confirm when the invoice disappears after refresh", () => {
+    const missing = resolveInvoiceOfferConfirmGuard({ confirm });
+    expect(missing.invoiceMissing).toBe(true);
+    expect(missing.collectEnabled).toBe(false);
+    expect(missing.feeBlockedReason).toBe(INVOICE_OFFER_CONFIRM_INVOICE_MISSING_MESSAGE);
+    expect(invoiceOfferConfirmSubmitBlocked(missing)).toBe(true);
   });
 });

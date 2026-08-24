@@ -25,6 +25,7 @@ import {
   isIssuerContractActionable,
   isIssuerInvoiceActionable,
   isIssuerNoteActionable,
+  outstandingExcessLateCharges,
 } from "@/lib/issuer-financing-actionable";
 import { actionsRequiredLabel } from "@/lib/issuer-pending-actions";
 import { RecentSectionHeader } from "@/components/dashboard/recent-section-header";
@@ -52,7 +53,14 @@ const STATUS_RANK: Record<IssuerFinancingStatusKind, number> = {
 
 function rankContract(c: IssuerDashboardContract): number {
   const base = isIssuerContractActionable(c) ? -10 : 0;
-  return base + (STATUS_RANK[resolveIssuerContractDashboardBadge(c.contractStatus)] ?? 99);
+  return (
+    base +
+    (STATUS_RANK[
+      resolveIssuerContractDashboardBadge(c.contractStatus, {
+        facilityFeeUpfrontOutstanding: c.facilityFeeUpfrontOutstanding,
+      })
+    ] ?? 99)
+  );
 }
 
 function rankInvoice(i: IssuerDashboardInvoice): number {
@@ -156,7 +164,9 @@ function StatusPill({ kind }: { kind: IssuerFinancingStatusKind }) {
 }
 
 function ContractRow({ row }: { row: IssuerDashboardContract }) {
-  const kind = resolveIssuerContractDashboardBadge(row.contractStatus);
+  const kind = resolveIssuerContractDashboardBadge(row.contractStatus, {
+    facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
+  });
   return (
     <li>
       <Link
@@ -209,10 +219,15 @@ function InvoiceRow({ row }: { row: IssuerDashboardInvoice }) {
 }
 
 function NoteRow({ note }: { note: NoteListItem }) {
+  const lateChargesDue = outstandingExcessLateCharges(note) > 0;
   return (
     <li>
       <Link
-        href={`/financing/notes/${note.id}`}
+        href={
+          lateChargesDue
+            ? `/financing/notes/${note.id}#late-charges`
+            : `/financing/notes/${note.id}`
+        }
         className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         <div className="min-w-0 flex-1">
@@ -226,7 +241,11 @@ function NoteRow({ note }: { note: NoteListItem }) {
             Target {formatCurrency(note.targetAmount)} · Funded {note.fundingPercent.toFixed(1)}%
           </p>
         </div>
-        <NoteStatusBadge note={note} className="shrink-0" />
+        {lateChargesDue ? (
+          <StatusPill kind="action_required" />
+        ) : (
+          <NoteStatusBadge note={note} className="shrink-0" />
+        )}
         <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
       </Link>
     </li>

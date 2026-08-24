@@ -74,7 +74,7 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     },
     contractSnapshot: null,
     invoiceSnapshot: {
-      details: { value: 625_000 },
+      details: { value: 625_000, maturity_date: "2026-11-22T00:00:00.000Z" },
     },
     serviceFeeCustomerScope: null,
     gracePeriodDays: 0,
@@ -117,6 +117,10 @@ describe("page two coverage verification", () => {
     );
     expect(rows.find((r) => r.label === "Paymaster Rating")?.value).toBe("—");
     expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe("—");
+    expect(rows.find((r) => r.label === "Invoice Due Date")?.value).toBe("22 November 2026");
+    expect(rows.find((r) => r.label === "Invoice Due Date")?.value).not.toBe(
+      "31 December 2026"
+    );
   });
 
   it("parses invoice face value only from invoice_snapshot.details.value", () => {

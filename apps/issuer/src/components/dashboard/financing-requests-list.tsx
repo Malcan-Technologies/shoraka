@@ -149,7 +149,7 @@ export function FinancingRequestsList() {
                   )}
 
                   <p>
-                    Maturity date:{" "}
+                    Invoice due date:{" "}
                     <span className="font-medium text-foreground">
                       {item.maturityDate}
                     </span>

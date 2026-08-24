@@ -20,6 +20,7 @@ import {
   type ContractFacilitySnapshot,
   type InvoiceForFacilityRefresh,
 } from "./contract-facility";
+import { overlayFacilityFeeUpfrontDto } from "./facility-fee-upfront-guard";
 import { prisma } from "./prisma";
 
 type ContractFacilityDb = PrismaClient | Prisma.TransactionClient;
@@ -438,14 +439,14 @@ export async function overlayReadCapacityOnContracts<T extends ContractCapacityR
 
   return contracts.map((contract) => {
     if (!isUnmarkedCapacityContract(contract) || !contract.id) {
-      return overlayStoredCapacityOnContractDetails(contract);
+      return overlayFacilityFeeUpfrontDto(overlayStoredCapacityOnContractDetails(contract));
     }
     const snapshot = computeContractCapacitySnapshot(
       contract.status ?? "",
       contractDetailsRecord(contract.contract_details),
       mapInvoicesWithNotes(invoicesByContract.get(contract.id) ?? [], sources.notes)
     );
-    return overlayComputedCapacityOnContractDetails(contract, snapshot);
+    return overlayFacilityFeeUpfrontDto(overlayComputedCapacityOnContractDetails(contract, snapshot));
   });
 }
 

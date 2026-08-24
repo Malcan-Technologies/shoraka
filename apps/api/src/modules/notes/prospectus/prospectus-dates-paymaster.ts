@@ -3,6 +3,7 @@
  * WHY: Pure formatting/calculation for Stage 2 — no Prisma; no closing-date fallbacks
  */
 
+import { isTenureBackedNote } from "@cashsouk/types";
 import { calculateCalendarDayCount } from "../calculators";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -37,24 +38,31 @@ export function formatProspectusDateUtc(value: Date | string | null | undefined)
 
 /**
  * Shared tenure + maturity + listing display for Stage 2 and later stages.
- * Tenure = calculateCalendarDayCount(opens_at, maturity_date) → "{n} days".
+ * New notes: tenure = stored tenure_days; maturity = date after activation, else
+ * "{n} days from disbursement". Legacy notes keep opens_at → maturity_date.
  */
 export function buildProspectusTenureAndMaturity(input: {
   listingOpensAt: Date | string | null | undefined;
   maturityDate: Date | string | null | undefined;
+  tenureDays?: number | null;
 }): { tenure: string; maturityDate: string; listingDate: string } {
   const opensAt = toValidDate(input.listingOpensAt);
   const maturity = toValidDate(input.maturityDate);
+  const tenureDays = isTenureBackedNote(input.tenureDays) ? input.tenureDays : null;
 
   let tenure = PROSPECTUS_DATA_NOT_AVAILABLE;
-  if (opensAt && maturity) {
-    const days = calculateCalendarDayCount(opensAt, maturity);
-    tenure = `${days} days`;
+  if (tenureDays != null) {
+    tenure = `${tenureDays} days`;
+  } else if (opensAt && maturity) {
+    tenure = `${calculateCalendarDayCount(opensAt, maturity)} days`;
   }
 
   return {
     listingDate: formatProspectusDateUtc(opensAt),
-    maturityDate: formatProspectusDateUtc(maturity),
+    maturityDate:
+      tenureDays != null && !maturity
+        ? `${tenureDays} days from disbursement`
+        : formatProspectusDateUtc(maturity),
     tenure,
   };
 }
@@ -66,6 +74,9 @@ export function composeProspectusMaturityDateWithTenure(
 ): string {
   if (maturityDate === PROSPECTUS_DATA_NOT_AVAILABLE) {
     return PROSPECTUS_DATA_NOT_AVAILABLE;
+  }
+  if (maturityDate.includes("from disbursement")) {
+    return maturityDate;
   }
   if (tenure === PROSPECTUS_DATA_NOT_AVAILABLE) {
     return maturityDate;
@@ -106,6 +117,7 @@ export function buildProspectusDatesPaymaster(
   const timing = buildProspectusTenureAndMaturity({
     listingOpensAt: input.listingOpensAt,
     maturityDate: input.maturityDate,
+    tenureDays: input.tenureDays,
   });
   const opensAt = toValidDate(input.listingOpensAt);
   const closesAt = toValidDate(input.listingClosesAt);

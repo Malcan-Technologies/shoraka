@@ -112,7 +112,7 @@ export async function assertFacilityLinkedInvoiceOfferFees(
     throw new AppError(
       400,
       "FACILITY_FEE_COLLECT_EXCEEDS_REMAINING",
-      `Facility fee collection cannot exceed remaining facility fee of ${available.toFixed(2)}`
+      `Facility fee collection cannot exceed the facility fee available for this offer of ${available.toFixed(2)}`
     );
   }
 }

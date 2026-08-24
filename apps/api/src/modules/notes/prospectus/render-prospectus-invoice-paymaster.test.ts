@@ -76,21 +76,21 @@ describe("prospectus Page 2 Invoice & Paymaster Information (DATA STAGE 2)", () 
     expect(moduleSource).not.toMatch(/formatCompact|compactMoney|mil\b/i);
   });
 
-  it("formats Invoice Due Date from notes.maturity_date only", () => {
+  it("formats Invoice Due Date from frozen invoice_snapshot.details.maturity_date", () => {
     const data = buildProspectusInvoicePaymaster({
-      invoiceSnapshot: { details: { value: 1 } },
-      maturityDate: "2025-09-12T00:00:00.000Z",
+      invoiceSnapshot: { details: { value: 1, maturity_date: "2025-09-12T00:00:00.000Z" } },
+      maturityDate: "2026-11-18T00:00:00.000Z",
       paymasterSnapshot: null,
     });
     expect(data.invoiceDueDate).toBe("12 September 2025");
   });
 
-  it("returns DNA for missing maturity and does not use live invoice maturity", () => {
+  it("returns DNA when snapshot due is missing and does not use note or live maturity", () => {
     const missing = buildProspectusInvoicePaymaster({
       invoiceSnapshot: {
-        details: { value: 625_000, maturity_date: "2025-08-01T00:00:00.000Z" },
+        details: { value: 625_000 },
       },
-      maturityDate: null,
+      maturityDate: "2025-09-12T00:00:00.000Z",
       liveInvoiceMaturityDate: "2025-08-01T00:00:00.000Z",
       paymasterSnapshot: null,
     });
@@ -157,7 +157,7 @@ describe("prospectus Page 2 Invoice & Paymaster Information (DATA STAGE 2)", () 
       "notes.invoice_snapshot.details.value"
     );
     expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.invoiceDueDate.canonicalSource).toBe(
-      "notes.maturity_date"
+      "notes.invoice_snapshot.details.maturity_date"
     );
     expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.paymasterName.canonicalSource).toBe(
       "notes.paymaster_snapshot.name"
@@ -202,7 +202,7 @@ describe("prospectus Page 2 Invoice & Paymaster Information (DATA STAGE 2)", () 
     expect(html).toContain("Confidence Grading:");
 
     expect(html).toContain("RM 625,000.00");
-    expect(html).toContain("12 September 2025");
+    expect(html).toContain("1 August 2025");
     expect(html).toContain("Kementerian Kerja Raya (KKR)");
     expect(html).toContain("Federal Government Agency");
     expect(html).toContain(PROSPECTUS_DATA_NOT_AVAILABLE);
@@ -226,7 +226,9 @@ describe("prospectus Page 2 Invoice & Paymaster Information (DATA STAGE 2)", () 
     const data = buildProspectusInvoicePaymaster(SAMPLE_PROSPECTUS_INVOICE_PAYMASTER_INPUT);
     expect(data.audit.invoiceAmount.meaning).toBe("invoice_face_value");
     expect(data.audit.invoiceAmount.isFrozen).toBe(true);
-    expect(data.audit.invoiceDueDate.source).toBe("notes.maturity_date");
+    expect(data.audit.invoiceDueDate.source).toBe(
+      "notes.invoice_snapshot.details.maturity_date"
+    );
     expect(data.audit.paymasterNature.fullStoredValuePreserved).toBe(true);
     expect(data.audit.paymasterNature.displayMapping).toBe("none");
     expect(data.audit.deedOfAssignment.isOfficerContent).toBe(true);

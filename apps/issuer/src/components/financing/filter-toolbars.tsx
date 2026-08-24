@@ -102,7 +102,11 @@ export function FinancingContractFilterToolbar({
 }) {
   const kindsPresent = new Set<IssuerFinancingStatusKind>();
   for (const r of rows) {
-    kindsPresent.add(resolveIssuerContractDashboardBadge(r.contractStatus));
+    kindsPresent.add(
+      resolveIssuerContractDashboardBadge(r.contractStatus, {
+        facilityFeeUpfrontOutstanding: r.facilityFeeUpfrontOutstanding,
+      })
+    );
   }
   const statusOptions = FINANCING_STATUS_ORDER.filter((k) => kindsPresent.has(k));
 

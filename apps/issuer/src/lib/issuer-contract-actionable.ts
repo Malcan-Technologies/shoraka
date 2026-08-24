@@ -16,5 +16,6 @@ export function isFacilityAmendmentRequested(status: string | null | undefined):
  */
 export function isIssuerContractActionable(contract: IssuerDashboardContract): boolean {
   if (shouldShowIssuerReviewOfferCta(asContractForModal(contract.contractForModal))) return true;
-  return isFacilityAmendmentRequested(contract.contractStatus);
+  if (isFacilityAmendmentRequested(contract.contractStatus)) return true;
+  return Number(contract.facilityFeeUpfrontOutstanding ?? 0) > 0;
 }

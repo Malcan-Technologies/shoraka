@@ -110,6 +110,8 @@ type PaymentForReceipt = Prisma.GatewayPaymentGetPayload<{
     investor_organization: { include: { owner: true } };
     issuer_organization: { include: { owner: true } };
     application: true;
+    contract: true;
+    note: true;
   };
 }>;
 
@@ -140,6 +142,56 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
       relatedEntityId: org.id,
       relatedReference: null,
       walletCredited: payment.status === GatewayPaymentStatus.COMPLETED,
+    };
+  }
+
+  if (payment.purpose === GatewayPaymentPurpose.FACILITY_FEE) {
+    const contract = payment.contract;
+    const org = payment.issuer_organization;
+    if (!contract) {
+      throw new Error("Facility fee receipt is missing contract");
+    }
+    const companyName = org ? buildCompanyName(org) : null;
+    const personName = org
+      ? [org.first_name, org.middle_name, org.last_name]
+          .map((p) => p?.trim())
+          .filter(Boolean)
+          .join(" ")
+      : "";
+
+    return {
+      payerName: personName || payment.payer_name,
+      payerCompanyName: companyName,
+      payerEmail: org?.owner?.email ?? null,
+      payerPhone: org?.phone_number ?? org?.owner?.phone ?? null,
+      relatedEntityId: contract.id,
+      relatedReference: contract.display_reference?.trim() || contract.id,
+      walletCredited: false,
+    };
+  }
+
+  if (payment.purpose === GatewayPaymentPurpose.EXCESS_LATE_CHARGES) {
+    const note = payment.note;
+    const org = payment.issuer_organization;
+    if (!note) {
+      throw new Error("Late charge receipt is missing note");
+    }
+    const companyName = org ? buildCompanyName(org) : null;
+    const personName = org
+      ? [org.first_name, org.middle_name, org.last_name]
+          .map((p) => p?.trim())
+          .filter(Boolean)
+          .join(" ")
+      : "";
+
+    return {
+      payerName: personName || payment.payer_name,
+      payerCompanyName: companyName,
+      payerEmail: org?.owner?.email ?? null,
+      payerPhone: org?.phone_number ?? org?.owner?.phone ?? null,
+      relatedEntityId: note.id,
+      relatedReference: note.note_reference?.trim() || note.id,
+      walletCredited: false,
     };
   }
 
@@ -202,6 +254,8 @@ async function loadPaymentForReceipt(
       investor_organization: { include: { owner: true } },
       issuer_organization: { include: { owner: true } },
       application: true,
+      contract: true,
+      note: true,
     },
   });
 }

@@ -29,7 +29,19 @@ describe("formatNoteActivityEventLabel", () => {
     expect(formatNoteActivityEventLabel("SHORAKA_ORDER_SUBMITTED")).toBe(
       "Tawarruq order submitted"
     );
+    expect(formatNoteActivityEventLabel("WITHDRAWAL_TRUSTEE_EMAIL_SENT")).toBe(
+      "Withdrawal email delivered to Trustee"
+    );
+    expect(formatNoteActivityEventLabel("SERVICE_FEE_TRUSTEE_EMAIL_SENT")).toBe(
+      "Settlement email delivered to Trustee"
+    );
     expect(formatNoteActivityEventLabel("CUSTOM_EVENT_TYPE")).toBe("Custom Event Type");
+    expect(
+      formatNoteActivityEventLabel("WITHDRAWAL_TRUSTEE_EMAIL_SENT", { resend: true })
+    ).toBe("Withdrawal email redelivered to Trustee");
+    expect(
+      formatNoteActivityEventLabel("SERVICE_FEE_TRUSTEE_EMAIL_SENT", { resend: true })
+    ).toBe("Settlement email redelivered to Trustee");
   });
 });
 

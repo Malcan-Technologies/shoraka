@@ -48,6 +48,8 @@ export function useGatewayPayments(params?: {
   gatewayAccount?: CurlecGatewayAccount;
   status?: string;
   purpose?: string;
+  contractId?: string;
+  noteId?: string;
   filter?: "needs_attention" | "review" | "refunding" | "refunded" | "completed";
   search?: string;
 }) {

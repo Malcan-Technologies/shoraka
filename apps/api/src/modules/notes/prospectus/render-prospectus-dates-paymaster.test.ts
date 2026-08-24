@@ -23,8 +23,11 @@ describe("prospectus Dates and Paymaster (Page 1 DATA STAGE 2)", () => {
     expect(PROSPECTUS_DATES_PAYMASTER_FIELD_SOURCES.closingDate.possibleAlternatives).toContain(
       "funding_closed_at"
     );
-    expect(PROSPECTUS_DATES_PAYMASTER_FIELD_SOURCES.maturityDate.canonicalSource).toBe(
+    expect(PROSPECTUS_DATES_PAYMASTER_FIELD_SOURCES.maturityDate.canonicalSource).toContain(
       "notes.maturity_date"
+    );
+    expect(PROSPECTUS_DATES_PAYMASTER_FIELD_SOURCES.tenure.canonicalSource).toContain(
+      "notes.tenure_days"
     );
     expect(PROSPECTUS_DATES_PAYMASTER_FIELD_SOURCES.paymasterName.canonicalSource).toBe(
       "notes.paymaster_snapshot.name"
@@ -161,6 +164,28 @@ describe("prospectus Dates and Paymaster (Page 1 DATA STAGE 2)", () => {
     expect(missing.tenure).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(missing.paymasterName).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(missing.paymasterEntityType).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("uses stored tenure and from-disbursement copy for new notes before activation", () => {
+    const built = buildProspectusDatesPaymaster({
+      ...SAMPLE_PROSPECTUS_DATES_PAYMASTER_INPUT,
+      maturityDate: null,
+      tenureDays: 90,
+    });
+    expect(built.tenure).toBe("90 days");
+    expect(built.maturityDate).toBe("90 days from disbursement");
+    expect(built.maturityDateWithTenure).toBe("90 days from disbursement");
+  });
+
+  it("keeps stored tenure and the computed maturity date after activation", () => {
+    const built = buildProspectusDatesPaymaster({
+      ...SAMPLE_PROSPECTUS_DATES_PAYMASTER_INPUT,
+      maturityDate: "2026-11-18T00:00:00.000Z",
+      tenureDays: 90,
+    });
+    expect(built.tenure).toBe("90 days");
+    expect(built.maturityDate).toBe("18 November 2026");
+    expect(built.maturityDateWithTenure).toBe("18 November 2026 (90 days)");
   });
 
   it("renders Closing Date label immediately after Listing Date", () => {

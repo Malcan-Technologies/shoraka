@@ -110,11 +110,16 @@ import {
   canResetReviewToPending,
   resolveOriginationPhase,
   buildInvoiceFeeScheduleOfferPatch,
+  computeFacilityFeeTotalOwed,
   NOTE_DEFAULT_MINIMUM_FUNDING_PERCENT,
+  NOTE_MONEY_TOLERANCE,
   offerFeesExceedFundingThresholds,
   resolveFacilityFeeBalance,
+  roundNoteMoney,
   resolveInvoiceFeeScheduleWriteMode,
   isFacilityEnabled,
+  invoiceFinancingExceedsMaxRatio,
+  INVOICE_FINANCING_RATIO_CAP_MESSAGE,
   type AdditionalFeeLine,
   type InvoiceOfferFeeScheduleWriteMode,
 } from "@cashsouk/types";
@@ -149,13 +154,16 @@ import {
   resolveRequestedFacility,
   resolveRequestedInvoiceFinancing,
 } from "../../lib/contract-facility";
+import { invoiceOfferExceedsRequested } from "../../lib/invoice-offer";
 import { assertFacilityBelowContractValue } from "../../lib/contract-capacity-errors";
-import { applyContractCapacityChange } from "../../lib/refresh-contract-facility";
+import { applyContractCapacityChange, lockContractRow } from "../../lib/refresh-contract-facility";
+import { assertFacilityFeeUpfrontSettled } from "../../lib/facility-fee-upfront-guard";
 import { assertFacilityLinkedInvoiceOfferFees } from "../../lib/facility-fee-collect-reservation";
 import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { computeSupportingDocumentsSectionStatus } from "../applications/supporting-documents-section-status";
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
 import { assertMaturityForSendInvoiceOffer } from "../products/validate-financial-config";
+import { assertOfferFinancingTenure } from "../../lib/financing-tenure-guard";
 import { extractSubmittedAtFromWebhookPayloads } from "./extract-submitted-at";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 import { patchOfferAcceptance } from "../applications/offer-acceptance";
@@ -8021,6 +8029,7 @@ export class AdminService {
     applicationId: string,
     offeredFacility: number,
     facilityFeeRatePercent: number | null,
+    facilityFeeUpfrontCollectAmount: number,
     reviewerUserId: string,
     logContext?: AdminLogContext
   ) {
@@ -8122,11 +8131,33 @@ export class AdminService {
         typeof previousOffer?.version === "number" && Number.isFinite(previousOffer.version)
           ? previousOffer.version
           : 0;
+      const facilityFeeRateForTotal =
+        facilityFeeRatePercent != null && Number.isFinite(facilityFeeRatePercent)
+          ? facilityFeeRatePercent
+          : 0;
+      const facilityFeeTotalAmount = computeFacilityFeeTotalOwed(
+        offeredFacility,
+        facilityFeeRateForTotal
+      );
+      const rawUpfront = Number.isFinite(facilityFeeUpfrontCollectAmount)
+        ? facilityFeeUpfrontCollectAmount
+        : 0;
+      if (rawUpfront < 0 || rawUpfront - facilityFeeTotalAmount > NOTE_MONEY_TOLERANCE) {
+        throw new AppError(
+          400,
+          "INVALID_INPUT",
+          "Upfront facility fee must be between 0 and the computed facility fee"
+        );
+      }
+      const facilityFeeUpfrontCollect = roundNoteMoney(
+        Math.min(Math.max(0, rawUpfront), facilityFeeTotalAmount)
+      );
       const now = new Date().toISOString();
       const offerDetails: Record<string, unknown> = {
         requested_facility: requestedFacility,
         offered_facility: offeredFacility,
         facility_fee_rate_percent: facilityFeeRatePercent,
+        facility_fee_upfront_collect_amount: facilityFeeUpfrontCollect,
         sent_at: now,
         responded_at: null,
         sent_by_user_id: reviewerUserId,
@@ -8396,7 +8427,8 @@ export class AdminService {
       feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode | null;
       facilityFeeCollectAmount?: number | null;
       additionalFees?: AdditionalFeeLine[];
-    }
+    },
+    financingTenureDays?: number
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(
@@ -8442,6 +8474,10 @@ export class AdminService {
     // Use frozen application.product_version workflow (same as load above) — not live catalog.
     const invoiceDetailsForMaturity = (invoice.details as Record<string, unknown> | null) ?? {};
     assertMaturityForSendInvoiceOffer(workflow, invoiceDetailsForMaturity);
+    const offeredFinancingTenureDays = assertOfferFinancingTenure(
+      financingTenureDays,
+      invoiceDetailsForMaturity
+    );
 
     const sendInvoiceOfferInTx = async (tx: Prisma.TransactionClient) => {
       const lockedApplications = await tx.$queryRaw<{ status: string }[]>`
@@ -8493,12 +8529,21 @@ export class AdminService {
       if (!Number.isFinite(invoiceValue) || invoiceValue <= 0) {
         throw new AppError(400, "INVALID_STATE", "Invoice value is invalid");
       }
+      if (
+        invoiceFinancingExceedsMaxRatio({
+          offeredAmount,
+          invoiceFace: invoiceValue,
+          offeredRatioPercent,
+        })
+      ) {
+        throw new AppError(400, "INVALID_INPUT", INVOICE_FINANCING_RATIO_CAP_MESSAGE);
+      }
 
       const requestedAmount = resolveRequestedInvoiceFinancing(details);
       if (!(requestedAmount > 0)) {
         throw new AppError(400, "INVALID_STATE", "Invoice requested financing is invalid");
       }
-      if (offeredAmount > requestedAmount) {
+      if (invoiceOfferExceedsRequested(offeredAmount, requestedAmount)) {
         throw new AppError(
           400,
           "INVALID_INPUT",
@@ -8551,6 +8596,7 @@ export class AdminService {
         );
       }
       if (contractIdForFees) {
+        await lockContractRow(tx, contractIdForFees);
         const feeContract = await tx.contract.findUnique({
           where: { id: contractIdForFees },
           select: { contract_details: true },
@@ -8558,6 +8604,7 @@ export class AdminService {
         if (!feeContract) {
           throw new AppError(404, "NOT_FOUND", "Facility not found");
         }
+        assertFacilityFeeUpfrontSettled(feeContract.contract_details);
         await assertFacilityLinkedInvoiceOfferFees(tx, {
           contractId: contractIdForFees,
           currentInvoiceId: invoiceId,
@@ -8602,6 +8649,7 @@ export class AdminService {
         requested_ratio_percent: requestedRatioPercent,
         offered_ratio_percent: offeredRatioPercent,
         offered_profit_rate_percent: offeredProfitRatePercent,
+        financing_tenure_days: offeredFinancingTenureDays,
         platform_fee_rate_percent: platformFeeStored,
         risk_rating: riskRating,
         ...feeSchedulePatch,

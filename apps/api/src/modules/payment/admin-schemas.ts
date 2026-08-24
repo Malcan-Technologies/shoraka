@@ -16,6 +16,8 @@ export const listGatewayPaymentsQuerySchema = z.object({
   status: z.nativeEnum(GatewayPaymentStatus).optional(),
   gatewayAccount: z.nativeEnum(CurlecGatewayAccount).optional(),
   purpose: z.nativeEnum(GatewayPaymentPurpose).optional(),
+  contractId: z.string().min(1).optional(),
+  noteId: z.string().min(1).optional(),
   organizationType: z.nativeEnum(GatewayOrganizationType).optional(),
   filter: z.enum(["needs_attention", "review", "refunding", "refunded", "completed"]).optional(),
   search: z.string().trim().optional(),

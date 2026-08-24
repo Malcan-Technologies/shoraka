@@ -2,11 +2,13 @@
  * Guide: docs/guides/application-flow/financial-statements-step.md — Financial statements step schema and field mappings
  */
 
-import { isRegtankIso3166Code } from "@cashsouk/types";
 import { z } from "zod";
 import {
   GUARANTOR_COMPANY_RELATIONSHIPS,
   GUARANTOR_INDIVIDUAL_RELATIONSHIPS,
+  UTILISATION_OFFER_CONSENT_IDS,
+  areUtilisationOfferConsentsComplete,
+  isRegtankIso3166Code,
   type GuarantorCompanyRelationship,
   type GuarantorIndividualRelationship,
 } from "@cashsouk/types";
@@ -212,6 +214,25 @@ export const financialStatementsV2Schema = z.object({
 });
 
 export type FinancialStatementsV2Stored = z.infer<typeof financialStatementsV2Schema>;
+
+export const invoiceOfferParamsSchema = z.object({
+  id: z.string().cuid(),
+  invoiceId: z.string().cuid(),
+});
+
+export const requestInvoiceOfferAcceptOtpBodySchema = z.object({
+  signatory_email: z.string().email(),
+});
+
+export const acceptInvoiceOfferBodySchema = z.object({
+  challenge_id: z.string().cuid(),
+  otp_code: z.string().regex(/^\d{6}$/, "OTP must be 6 digits"),
+  consent_ids: z
+    .array(z.enum(UTILISATION_OFFER_CONSENT_IDS))
+    .refine((ids) => areUtilisationOfferConsentsComplete(ids), {
+      message: "Tick every utilisation confirmation before accepting.",
+    }),
+});
 
 export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;
 export type UpdateApplicationStepInput = z.infer<typeof updateApplicationStepSchema>;

@@ -139,7 +139,7 @@
  * - Invoice Amount → notes.invoice_snapshot.details.value (invoice face value)
  *   formatProspectusMoneyMyr only (e.g. RM 625,000.00). Compact money rejected.
  *   Do not use target_amount / funded_amount / requested_amount.
- * - Invoice Due Date → notes.maturity_date (copied from invoice maturity at create)
+ * - Invoice Due Date → notes.invoice_snapshot.details.maturity_date
  *   formatProspectusDateUtc. No live Invoice fallback.
  * - Paymaster → notes.paymaster_snapshot.name (frozen at create)
  * - Nature of Paymaster → notes.paymaster_snapshot.entity_type (full value; no "Government" shorten)
@@ -447,7 +447,7 @@
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
  * - Listing date must use note_listings.opens_at only
- * - Tenure must use opens_at → maturity_date only
+ * - Tenure uses notes.tenure_days when set; else opens_at → maturity_date (legacy)
  * - Expected period return still needs a business decision
  * - Stage 4C (payment basis / shariah principle) implemented as unresolved → —
  * - Stage 5A (paymaster highlight) in prospectus-paymaster-highlight.* — name/entity only; claims unresolved
@@ -473,7 +473,7 @@
  * - Annual gross: notes.profit_rate_percent via Stage 4A buildProspectusMainFinancialTerms
  * - Annual net expected return: computeNetExpectedReturnRatePercent (fee on gross profit, not principal)
  * - Annual net ≠ period return; expected period return remains unresolved (Stage 4A DNA)
- * - Prospectus tenure (opens_at→maturity) differs from settlement accrual (activated_at→profit maturity)
+ * - Prospectus tenure uses stored tenure_days for new notes; legacy keeps opens_at→maturity. Settlement uses the persisted profit window.
  * - No attractive / short-term classification; no approved title or explanation
  * - Stage 6 continues using Stage 4A for gross rate and unresolved period return
  * - Future decisions: gross vs net period value, % vs RM, start date, day-count, rounding, approved wording
@@ -685,10 +685,10 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
   tenure: {
     label: "Tenure",
     model: "n/a",
-    path: "calculateCalendarDayCount(note_listings.opens_at, notes.maturity_date)",
+    path: "notes.tenure_days when set; else calculateCalendarDayCount(note_listings.opens_at, notes.maturity_date)",
     origin: "calculated",
     availability: "calculated",
-    existingApi: "calculateCalendarDayCount()",
+    existingApi: "buildProspectusTenureAndMaturity()",
     notes: "Implemented in DATA STAGE 2. Marketplace days-left is not used.",
   },
   purposeOfFinancing: {

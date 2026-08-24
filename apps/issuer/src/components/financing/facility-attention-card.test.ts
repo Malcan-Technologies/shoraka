@@ -1,3 +1,11 @@
+jest.mock("@cashsouk/config", () => ({
+  formatCurrency: (amount: number) =>
+    `RM ${amount.toLocaleString("en-MY", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`,
+}));
+
 import type { IssuerDashboardContract } from "@/types/issuer-dashboard";
 import {
   facilityAttentionDetail,
@@ -65,6 +73,21 @@ describe("getFacilityAttentionAction", () => {
     expect(action.headline).toBe("Make the requested changes");
     expect(action.href).toBe("/applications/app_1/edit");
     expect(action.label).toBe("Make amendments");
+  });
+
+  it("sends an unpaid upfront facility fee to the contract pay page", () => {
+    const action = getFacilityAttentionAction(
+      contract({
+        contractStatus: "APPROVED",
+        contractForModal: { status: "APPROVED" },
+        facilityFeeUpfrontAmount: 5000,
+        facilityFeeUpfrontOutstanding: 2500,
+      })
+    );
+    expect(action.headline).toBe("Pay the upfront facility fee");
+    expect(action.href).toBe("/financing/contracts/con_1");
+    expect(action.label).toBe("Pay facility fee");
+    expect(action.hint).toMatch(/2,500/);
   });
 
   it("does not treat an approved facility as an amendment task when only a tied invoice needs changes", () => {

@@ -33,7 +33,11 @@ export function FacilityAttentionCard({
       surfaceClassName={FINANCING_ATTENTION_SURFACE}
       kind="facility"
       badge={
-        <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
+        <IssuerFinancingStatusBadge
+          kind={resolveIssuerContractDashboardBadge(row.contractStatus, {
+            facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
+          })}
+        />
       }
       headline={action.headline}
       customer={displayCell(row.customerName)}

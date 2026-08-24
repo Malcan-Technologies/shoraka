@@ -20,6 +20,7 @@ import {
 import {
   readFinancingStructureType,
   resolveAdminContractApplicationKind,
+  resolveFacilityFeeUpfront,
   type AdminRoleKey,
 } from "@cashsouk/types";
 import type {
@@ -2422,6 +2423,8 @@ export class AdminRepository {
     lifetimeCap: number;
     lifetimeUsed: number;
     lifetimeRemaining: number;
+    facilityFeeUpfrontAmount: number;
+    facilityFeeUpfrontOutstanding: number;
     status: string;
     createdAt: Date;
     updatedAt: Date;
@@ -2523,6 +2526,7 @@ export class AdminRepository {
       typeof offerDetails.requested_facility === "number" && Number.isFinite(offerDetails.requested_facility)
         ? offerDetails.requested_facility
         : resolveRequestedFacility(contractDetails);
+    const facilityFeeUpfront = resolveFacilityFeeUpfront(contractDetails);
     const offeredFacility = resolveOfferedFacility(offerDetails);
 
     const originatingApplicationId = contract.originating_application_id;
@@ -2664,6 +2668,8 @@ export class AdminRepository {
       lifetimeCap: capacity.lifetimeCap,
       lifetimeUsed: capacity.lifetimeUsed,
       lifetimeRemaining: capacity.lifetimeRemaining,
+      facilityFeeUpfrontAmount: facilityFeeUpfront.upfrontAmount,
+      facilityFeeUpfrontOutstanding: facilityFeeUpfront.outstanding,
       status: contract.status,
       createdAt: contract.created_at,
       updatedAt: contract.updated_at,

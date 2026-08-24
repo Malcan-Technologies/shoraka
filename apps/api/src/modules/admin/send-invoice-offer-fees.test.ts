@@ -1,7 +1,9 @@
 const mockApply = jest.fn();
+const mockLockContractRow = jest.fn();
 
 jest.mock("../../lib/refresh-contract-facility", () => ({
   applyContractCapacityChange: (...args: unknown[]) => mockApply(...args),
+  lockContractRow: (...args: unknown[]) => mockLockContractRow(...args),
 }));
 
 jest.mock("./repository", () => ({
@@ -43,10 +45,25 @@ jest.mock("../applications/logs/service", () => ({
   logApplicationActivity: jest.fn(),
 }));
 
+import { addMytCalendarDays, mytCalendarParts } from "@cashsouk/types";
 import { AdminService } from "./service";
 import { prisma } from "../../lib/prisma";
 import { ApplicationStatus } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
+
+function invoiceDueDateWithinTenure(): string {
+  const parts = addMytCalendarDays(mytCalendarParts(new Date()), 60);
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+const invoiceOfferDetails = {
+  number: "INV-1",
+  value: 80_000,
+  financing_ratio_percent: 70,
+  applied_financing: 40_000,
+  maturity_date: invoiceDueDateWithinTenure(),
+  financing_tenure_days: 90,
+};
 
 const v1Schedule = (amount: number) => ({
   fee_schedule_version: 1,
@@ -86,12 +103,7 @@ function createTx(options: {
         return [
           {
             status: "SUBMITTED",
-            details: {
-              number: "INV-1",
-              value: 80_000,
-              financing_ratio_percent: 70,
-              applied_financing: 40_000,
-            },
+            details: invoiceOfferDetails,
             offer_details: options.currentOfferDetails ?? null,
             contract_id: "contract-1",
             updated_at: lockedAt,
@@ -147,7 +159,7 @@ describe("AdminService sendInvoiceOffer facility fees", () => {
           invoices: [
             {
               id: "inv-1",
-              details: { number: "INV-1", value: 80_000, financing_ratio_percent: 70, applied_financing: 40_000 },
+              details: invoiceOfferDetails,
             },
           ],
         },
@@ -191,7 +203,8 @@ describe("AdminService sendInvoiceOffer facility fees", () => {
         feeScheduleMode: extra?.feeScheduleMode,
         facilityFeeCollectAmount: amount,
         additionalFees: extra?.additionalFees,
-      }
+      },
+      90
     );
   }
 
@@ -222,6 +235,106 @@ describe("AdminService sendInvoiceOffer facility fees", () => {
       expect.any(Function),
       expect.objectContaining({ assertWrite: true })
     );
+  });
+
+  it("locks and re-reads the contract before checking fees", async () => {
+    const tx = createTx({
+      contractDetails: {
+        facility_enabled: true,
+        facility_fee_total_amount: 1_000,
+        facility_fee_paid_amount: 0,
+      },
+    });
+    const findOrder: string[] = [];
+    mockLockContractRow.mockImplementation(async () => {
+      findOrder.push("lock");
+    });
+    tx.contract.findUnique.mockImplementation(async () => {
+      findOrder.push("read");
+      return {
+        contract_details: {
+          facility_enabled: true,
+          facility_fee_total_amount: 1_000,
+          facility_fee_paid_amount: 0,
+        },
+      };
+    });
+    mockApply.mockImplementation(async (_id, _db, mutate: (inner: unknown) => Promise<unknown>) => ({
+      result: await mutate(tx),
+      snapshot: null,
+    }));
+
+    await sendCollect(200);
+    expect(mockLockContractRow).toHaveBeenCalledWith(tx, "contract-1");
+    expect(findOrder).toEqual(["lock", "read"]);
+  });
+
+  it("rejects a facility-linked invoice offer while upfront facility fee is outstanding", async () => {
+    const tx = createTx({
+      contractDetails: {
+        facility_enabled: true,
+        facility_fee_total_amount: 1_500,
+        facility_fee_upfront_amount: 400,
+        facility_fee_paid_amount: 0,
+      },
+    });
+    mockApply.mockImplementation(async (_id, _db, mutate: (inner: unknown) => Promise<unknown>) => ({
+      result: await mutate(tx),
+      snapshot: null,
+    }));
+
+    await expect(sendCollect(0)).rejects.toMatchObject({
+      code: "FACILITY_FEE_UPFRONT_REQUIRED",
+      statusCode: 409,
+    } satisfies Partial<AppError>);
+    expect(tx.invoice.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("uses post-lock contract details so a stale pre-lock read cannot send", async () => {
+    const tx = createTx({
+      contractDetails: {
+        facility_enabled: true,
+        facility_fee_total_amount: 1_500,
+        facility_fee_paid_amount: 1_500,
+      },
+    });
+    tx.contract.findUnique.mockResolvedValue({
+      contract_details: {
+        facility_enabled: true,
+        facility_fee_total_amount: 1_500,
+        facility_fee_upfront_amount: 400,
+        facility_fee_paid_amount: 0,
+      },
+    });
+    mockApply.mockImplementation(async (_id, _db, mutate: (inner: unknown) => Promise<unknown>) => ({
+      result: await mutate(tx),
+      snapshot: null,
+    }));
+
+    await expect(sendCollect(0)).rejects.toMatchObject({
+      code: "FACILITY_FEE_UPFRONT_REQUIRED",
+    });
+    expect(mockLockContractRow).toHaveBeenCalledWith(tx, "contract-1");
+    expect(tx.invoice.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("sends a facility-linked invoice offer after a facility fee waiver", async () => {
+    const tx = createTx({
+      contractDetails: {
+        facility_enabled: true,
+        facility_fee_total_amount: 1_500,
+        facility_fee_upfront_amount: 400,
+        facility_fee_paid_amount: 0,
+        facility_fee_waived: true,
+      },
+    });
+    mockApply.mockImplementation(async (_id, _db, mutate: (inner: unknown) => Promise<unknown>) => ({
+      result: await mutate(tx),
+      snapshot: null,
+    }));
+
+    await sendCollect(0, { feeScheduleMode: "v1" });
+    expect(tx.invoice.updateMany).toHaveBeenCalled();
   });
 
   it("rejects a facility-linked invoice offer while the contract is disabled", async () => {

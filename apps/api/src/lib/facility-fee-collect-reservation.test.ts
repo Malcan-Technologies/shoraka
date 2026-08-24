@@ -95,7 +95,10 @@ describe("assertFacilityLinkedInvoiceOfferFees", () => {
         proposedCollectAmount: 800,
         contractDetails: enabledDetails,
       })
-    ).rejects.toMatchObject({ code: "FACILITY_FEE_COLLECT_EXCEEDS_REMAINING" });
+    ).rejects.toMatchObject({
+      code: "FACILITY_FEE_COLLECT_EXCEEDS_REMAINING",
+      message: "Facility fee collection cannot exceed the facility fee available for this offer of 200.00",
+    });
   });
 
   it("ignores the current invoice's existing amount on resend", async () => {

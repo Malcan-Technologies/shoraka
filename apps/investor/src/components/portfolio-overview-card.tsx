@@ -3,15 +3,13 @@
 import { useMemo, useState } from "react";
 import { formatCurrency, useOrganization } from "@cashsouk/config";
 import {
-  NoteServicingStatus,
-  NoteStatus,
-  roundNoteMoney,
+  formatInvestorReturnRatePercent,
   type InvestorPortfolioHistoryGranularity,
-  type NoteListItem,
 } from "@cashsouk/types";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { buildDashboardInvestmentSummary } from "@/investments/dashboard-investment-summary";
 import {
   useInvestorInvestments,
   useInvestorPortfolio,
@@ -101,62 +99,6 @@ function formatYAxisTick(value: number) {
   return value.toFixed(0);
 }
 
-function isSettledInvestment(note: NoteListItem) {
-  return note.servicingStatus === NoteServicingStatus.SETTLED || note.status === NoteStatus.REPAID;
-}
-
-function isDefaultedInvestment(note: NoteListItem) {
-  return note.servicingStatus === NoteServicingStatus.DEFAULTED || note.status === NoteStatus.DEFAULTED;
-}
-
-function isUnderPerformingInvestment(note: NoteListItem) {
-  return (
-    isDefaultedInvestment(note) ||
-    note.servicingStatus === NoteServicingStatus.LATE ||
-    note.servicingStatus === NoteServicingStatus.ARREARS ||
-    note.status === NoteStatus.ARREARS
-  );
-}
-
-function buildInvestmentSummary(notes: NoteListItem[]) {
-  let activeInvestments = 0;
-  let successfulInvestments = 0;
-  let underPerformingInvestments = 0;
-  let defaultedInvestments = 0;
-  let realizedProfitAmount = 0;
-  let realizedReturnBase = 0;
-
-  for (const note of notes) {
-    if (isSettledInvestment(note)) {
-      successfulInvestments += 1;
-
-      const investedAmount = Number(note.investorRepaymentSummary?.investedPrincipal ?? 0);
-      const receivedAmount = Number(note.investorRepaymentSummary?.receivedPayoutAmount ?? 0);
-      if (Number.isFinite(investedAmount) && investedAmount > 0 && Number.isFinite(receivedAmount)) {
-        realizedProfitAmount += roundNoteMoney(receivedAmount - investedAmount, 2);
-        realizedReturnBase += investedAmount;
-      }
-    } else if (isUnderPerformingInvestment(note)) {
-      underPerformingInvestments += 1;
-      if (isDefaultedInvestment(note)) {
-        defaultedInvestments += 1;
-      }
-    } else {
-      activeInvestments += 1;
-    }
-  }
-
-  return {
-    totalInvestments: notes.length,
-    activeInvestments,
-    successfulInvestments,
-    underPerformingInvestments,
-    defaultedInvestments,
-    realizedPerformance:
-      realizedReturnBase > 0 ? (realizedProfitAmount / realizedReturnBase) * 100 : 0,
-  };
-}
-
 export function PortfolioOverviewCard() {
   const [activeRange, setActiveRange] = useState<RangeOption>("3m");
   const { activeOrganization } = useOrganization();
@@ -167,7 +109,7 @@ export function PortfolioOverviewCard() {
 
   const portfolioTotal = Number(portfolio?.portfolioTotal ?? 0);
   const investmentSummary = useMemo(
-    () => buildInvestmentSummary(investedNotesData?.notes ?? []),
+    () => buildDashboardInvestmentSummary(investedNotesData?.notes ?? []),
     [investedNotesData?.notes]
   );
   const maxSummaryCount = Math.max(
@@ -201,7 +143,7 @@ export function PortfolioOverviewCard() {
         <p className="text-sm text-muted-foreground">
           Performance:{" "}
           <span className="font-semibold text-primary">
-            {investmentSummary.realizedPerformance.toFixed(1)}%
+            {formatInvestorReturnRatePercent(investmentSummary.realizedPerformance)} p.a.
           </span>
         </p>
       </CardHeader>

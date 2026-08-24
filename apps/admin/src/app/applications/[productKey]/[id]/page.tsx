@@ -75,6 +75,7 @@ import {
   canRejectApplication,
   isCompletedWithNoApprovedInvoices,
   resolveOriginationPhase,
+  resolveInvoiceFinancingRatioBounds,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { orgHref } from "@/lib/admin-directory-hrefs";
@@ -426,12 +427,12 @@ export default function DynamicApplicationDetailPage() {
     const min =
       typeof config.min_financing_ratio_percent === "number"
         ? config.min_financing_ratio_percent
-        : 60;
+        : undefined;
     const max =
       typeof config.max_financing_ratio_percent === "number"
         ? config.max_financing_ratio_percent
-        : 80;
-    return { min: Math.min(min, max), max: Math.max(min, max) };
+        : undefined;
+    return resolveInvoiceFinancingRatioBounds(min, max);
   }, [reviewProductWorkflow]);
 
   const minMonthsReviewToMaturityForOffer = React.useMemo(() => {
@@ -1019,12 +1020,17 @@ export default function DynamicApplicationDetailPage() {
                               });
                               toast.success("Comment posted");
                             }}
-                            onSendContractOffer={async ({ offeredFacility, facilityFeeRatePercent }) => {
+                            onSendContractOffer={async ({
+                              offeredFacility,
+                              facilityFeeRatePercent,
+                              facilityFeeUpfrontCollectAmount,
+                            }) => {
                               try {
                                 await sendContractOffer.mutateAsync({
                                   applicationId,
                                   offeredFacility,
                                   facilityFeeRatePercent,
+                                  facilityFeeUpfrontCollectAmount,
                                 });
                                 if (hasAcceptanceTab) {
                                   toast.success("Facility offer sent — continue on Acceptance");
@@ -1048,6 +1054,7 @@ export default function DynamicApplicationDetailPage() {
                               offeredProfitRatePercent,
                               platformFeeRatePercent,
                               risk_rating,
+                              financingTenureDays,
                               feeScheduleMode,
                               facilityFeeCollectAmount,
                               additionalFees,
@@ -1061,6 +1068,7 @@ export default function DynamicApplicationDetailPage() {
                                   offeredProfitRatePercent,
                                   platformFeeRatePercent,
                                   risk_rating,
+                                  financingTenureDays,
                                   feeScheduleMode,
                                   facilityFeeCollectAmount,
                                   additionalFees,

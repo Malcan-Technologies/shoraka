@@ -60,6 +60,10 @@ describe("gateway-payment-list-search", () => {
       expect(matchPurposesFromSearch("processing fee")).toContain(
         GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE
       );
+      expect(matchPurposesFromSearch("facility fee")).toContain(GatewayPaymentPurpose.FACILITY_FEE);
+      expect(matchPurposesFromSearch("late charges")).toContain(
+        GatewayPaymentPurpose.EXCESS_LATE_CHARGES
+      );
     });
 
     it("ignores short terms", () => {

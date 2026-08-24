@@ -21,6 +21,8 @@ import { NoteStatusBadge, Skeleton, StatusBadge, getNoteDerivedStatusToken } fro
 import { formatCurrency } from "@cashsouk/config";
 import {
   isNoteSettlementPosted,
+  NOTE_MATURITY_PENDING_VALUE,
+  resolveNoteTimingDisplay,
   resolveProductImageS3KeyFromWorkflow,
   type NoteDetail,
 } from "@cashsouk/types";
@@ -46,6 +48,11 @@ import {
 import { NoteInvestorsPanel } from "@/notes/components/note-investors-panel";
 import { useOpenAdminProspectusPdf } from "@/notes/hooks/use-prospectus-review";
 import { getNoteCommercialTermRows } from "@/notes/utils/note-commercial-terms";
+import {
+  getNoteSettlementDateSummary,
+  getNoteSettlementPayoutHeader,
+} from "@/notes/utils/note-settlement-header";
+import { NoteSettlementPayoutHeader } from "@/notes/components/note-settlement-payout-header";
 import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
@@ -103,6 +110,17 @@ function snapshotProductId(snapshot: unknown): string | null {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
   const productId = (snapshot as Record<string, unknown>).product_id;
   return typeof productId === "string" && productId.trim() ? productId.trim() : null;
+}
+
+function getNoteTimingSummary(note: NoteDetail) {
+  const timing = resolveNoteTimingDisplay(note);
+  return {
+    label: timing.label,
+    value: timing.value,
+    hint:
+      timing.secondary ??
+      (timing.kind === "tenure_pending" ? NOTE_MATURITY_PENDING_VALUE : undefined),
+  };
 }
 
 function getNotePaymentDueSummary(note: NoteDetail) {
@@ -387,6 +405,8 @@ export default function NoteDetailPage() {
       : [];
     return [...servicingMetrics, ...getNoteCommercialTermRows(note)];
   }, [note]);
+  const settlementPayoutHeader = note ? getNoteSettlementPayoutHeader(note) : null;
+  const settlementPosted = Boolean(note && isNoteSettlementPosted(note));
 
   return (
     <RequirePermission permission="notes.view">
@@ -453,7 +473,18 @@ export default function NoteDetailPage() {
                   }
                   metrics={headerMetrics}
                   summaryCards={[
-                    <AdminEntitySummaryCard key="payment-due" {...getNotePaymentDueSummary(note)} />,
+                    <AdminEntitySummaryCard key="timing" {...getNoteTimingSummary(note)} />,
+                    settlementPosted ? (
+                      <AdminEntitySummaryCard
+                        key="settlement-date"
+                        {...getNoteSettlementDateSummary(note)}
+                      />
+                    ) : (
+                      <AdminEntitySummaryCard
+                        key="payment-due"
+                        {...getNotePaymentDueSummary(note)}
+                      />
+                    ),
                     <AdminEntitySummaryCard
                       key="investors"
                       label="Investors"
@@ -470,18 +501,22 @@ export default function NoteDetailPage() {
                     />,
                   ]}
                   visualization={
-                    <AdminMetricProgress
-                      variant="hero"
-                      percent={note.fundingPercent}
-                      leftLabel="Funded"
-                      leftValue={formatCurrency(note.fundedAmount)}
-                      leftHint={`of ${formatCurrency(note.targetAmount)} target`}
-                      rightLabel="Progress"
-                      rightValue={`${note.fundingPercent.toFixed(1)}%`}
-                      barClassName={getNoteFundingProgressClass(note)}
-                      indicatorClassName={getNoteFundingIndicatorClass(note)}
-                      accentClassName={getNoteFundingAccentClass(note)}
-                    />
+                    settlementPayoutHeader ? (
+                      <NoteSettlementPayoutHeader model={settlementPayoutHeader} />
+                    ) : (
+                      <AdminMetricProgress
+                        variant="hero"
+                        percent={note.fundingPercent}
+                        leftLabel="Funded"
+                        leftValue={formatCurrency(note.fundedAmount)}
+                        leftHint={`of ${formatCurrency(note.targetAmount)} target`}
+                        rightLabel="Progress"
+                        rightValue={`${note.fundingPercent.toFixed(1)}%`}
+                        barClassName={getNoteFundingProgressClass(note)}
+                        indicatorClassName={getNoteFundingIndicatorClass(note)}
+                        accentClassName={getNoteFundingAccentClass(note)}
+                      />
+                    )
                   }
                 />
 
