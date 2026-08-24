@@ -46,6 +46,7 @@ function getEventLabel(eventType: string): string {
     ONBOARDING_STATUS_UPDATED: "Status Updated",
     ONBOARDING_CANCELLED: "Onboarding Cancelled",
     ONBOARDING_REJECTED: "Onboarding Rejected",
+    COD_REJECTED: "Onboarding Rejected",
     ONBOARDING_APPROVED: "Onboarding Approved",
     AML_APPROVED: "AML Approved",
     TNC_APPROVED: "T&C Approved",

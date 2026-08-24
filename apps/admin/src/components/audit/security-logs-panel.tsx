@@ -4,17 +4,11 @@ import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AccessLogsTable } from "@/components/access-logs-table";
 import { AccessLogsToolbar } from "@/components/access-logs-toolbar";
-import { useSecurityLogs } from "@/hooks/use-security-logs";
+import { SECURITY_EVENT_TYPES, useSecurityLogs } from "@/hooks/use-security-logs";
 import { AdminQueryErrorState } from "@/components/admin-query-error-state";
 import type { SecurityEventType, GetSecurityLogsParams } from "@cashsouk/types";
 
-const SECURITY_EVENT_TYPES: SecurityEventType[] = [
-  "PASSWORD_CHANGED",
-  "EMAIL_CHANGED",
-  "ROLE_ADDED",
-  "ROLE_SWITCHED",
-  "PROFILE_UPDATED",
-];
+export { SECURITY_EVENT_TYPES };
 
 export function SecurityLogsPanel() {
   const queryClient = useQueryClient();

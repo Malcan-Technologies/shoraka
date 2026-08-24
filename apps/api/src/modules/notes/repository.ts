@@ -206,6 +206,19 @@ export class NoteRepository {
     });
   }
 
+  /**
+   * Full, unlimited note event history for exports/audit — `noteInclude.events` is capped at
+   * take:50 for the note-detail timeline's UI performance, but compliance/audit CSV exports
+   * must never silently truncate. Ordering matches the timeline (sortAdminNoteEvents applies
+   * the deterministic tie-break) since this returns raw rows, not pre-sorted ones.
+   */
+  findAllEventsByNoteId(noteId: string) {
+    return prisma.noteEvent.findMany({
+      where: { note_id: noteId },
+      orderBy: { created_at: "desc" },
+    });
+  }
+
   findBySource(applicationId: string, invoiceId?: string | null) {
     return prisma.note.findFirst({
       where: {

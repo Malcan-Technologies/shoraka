@@ -7,12 +7,16 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 // TNC_ACCEPTED, KYC_APPROVED, and KYB_APPROVED were removed: no production writer emits these
 // event_type values (only TNC_APPROVED and ONBOARDING_STATUS_UPDATED{trigger:"KYC_APPROVED"} are
 // live); they only ever appeared in dev seed fixtures, never as real onboarding_logs rows.
+// COD_REJECTED (corporate onboarding data rejection, cod-handler.ts) is a live onboarding_logs
+// writer that was missing here — issuer/investor Activity and the raw admin onboarding export
+// already surface it; only this org-detail-scoped query excluded it.
 const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
   "ONBOARDING_STARTED",
   "ONBOARDING_RESUMED",
   "ONBOARDING_STATUS_UPDATED",
   "ONBOARDING_CANCELLED",
   "ONBOARDING_REJECTED",
+  "COD_REJECTED",
   "SOPHISTICATED_STATUS_UPDATED",
   "FINAL_APPROVAL_COMPLETED",
   "FORM_FILLED",

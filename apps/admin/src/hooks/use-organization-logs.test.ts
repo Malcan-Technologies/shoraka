@@ -23,6 +23,7 @@ describe("ORGANIZATION_ACTIVITY_EVENT_TYPES — dead filter cleanup", () => {
         "ONBOARDING_STATUS_UPDATED",
         "ONBOARDING_CANCELLED",
         "ONBOARDING_REJECTED",
+        "COD_REJECTED",
         "SOPHISTICATED_STATUS_UPDATED",
         "FINAL_APPROVAL_COMPLETED",
         "FORM_FILLED",
@@ -33,6 +34,13 @@ describe("ORGANIZATION_ACTIVITY_EVENT_TYPES — dead filter cleanup", () => {
         "PROFILE_UPDATED",
       ])
     );
+  });
+
+  it("includes COD_REJECTED so the org-detail Activity query/CSV matches issuer/investor Activity and the raw admin export", () => {
+    // cod-handler.ts writes COD_REJECTED to onboarding_logs on corporate COD rejection;
+    // issuer/investor Activity (organization-log.ts adapter) and the raw admin onboarding
+    // export already surfaced it — only this org-detail-scoped query excluded it.
+    expect(ORGANIZATION_ACTIVITY_EVENT_TYPES).toContain("COD_REJECTED");
   });
 
   it("does not delete the historical event type from the enum/DB — only the query filter list is affected", () => {

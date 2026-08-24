@@ -4,16 +4,11 @@ import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AccessLogsTable } from "@/components/access-logs-table";
 import { AccessLogsToolbar } from "@/components/access-logs-toolbar";
-import { useAccessLogs } from "@/hooks/use-access-logs";
+import { ACCESS_EVENT_TYPES, useAccessLogs } from "@/hooks/use-access-logs";
 import { AdminQueryErrorState } from "@/components/admin-query-error-state";
 import type { EventType, GetAccessLogsParams } from "@cashsouk/types";
 
-const ACCESS_EVENT_TYPES: EventType[] = [
-  "LOGIN",
-  "LOGOUT",
-  "SIGNUP",
-  "KYC_STATUS_UPDATED",
-];
+export { ACCESS_EVENT_TYPES };
 
 export function AccessLogsPanel() {
   const queryClient = useQueryClient();

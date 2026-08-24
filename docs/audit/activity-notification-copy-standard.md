@@ -129,7 +129,7 @@ actually cares about) — both are correct, for different audiences, and should 
 | Concept | Admin | General Activity (Issuer/Investor) |
 |---|---|---|
 | Started | Onboarding Started | Onboarding Started |
-| Cancelled by user | Onboarding Cancelled | **Onboarding Cancelled** (not "Closed") |
+| Admin restarts onboarding (`ONBOARDING_CANCELLED` — forensic name; actor is admin, not the user) | Onboarding Cancelled | **Onboarding Restarted** (not "Closed", and not "Cancelled" — **corrected 2026-08-24**: "cancelled" reads as permanent termination, but the actual action is a restart. Description: "Your previous onboarding request was cancelled and a new onboarding request has been started.") |
 | Rejected by admin | Onboarding Rejected | Onboarding Rejected |
 | Submission approved (admin clears a gate; onboarding continues) | Onboarding Approved | **Onboarding Submission Approved** — "no further action needed" must never appear here, since more steps may follow |
 | Final approval (terminal, full platform access granted) | Final Approval | **Onboarding Approved** — this is the only moment where "no further action is needed" is true |
@@ -141,9 +141,18 @@ further action is needed" copy on a portal-facing surface.
 
 **LIVE EVENT TYPES:** `ONBOARDING_STARTED`, `ONBOARDING_CANCELLED`, `ONBOARDING_REJECTED`,
 `ONBOARDING_APPROVED`, `FINAL_APPROVAL_COMPLETED`, plus admin-only compliance sub-steps
-(`AML_APPROVED`, `SSM_APPROVED`, `TNC_APPROVED`, `ONBOARDING_STATUS_UPDATED` — the generic
-status-transition bucket that also carries KYC-status changes via `metadata.trigger`, e.g.
-`trigger:"KYC_APPROVED"` — `FORM_FILLED`, `SOPHISTICATED_STATUS_UPDATED`).
+(`SSM_APPROVED`, `TNC_APPROVED`, `ONBOARDING_STATUS_UPDATED` — the generic status-transition bucket
+that also carries KYC-status changes via `metadata.trigger` (e.g. `trigger:"KYC_APPROVED"`) **and**
+the live AML-clearance milestone via `metadata.amlApproved:true` — `FORM_FILLED`,
+`SOPHISTICATED_STATUS_UPDATED`).
+
+**UNREACHABLE (writer exists, no UI caller — reclassified 2026-08-24):** `AML_APPROVED` is a
+designed manual admin AML approval/override — the route, service, SDK method, and
+`useApproveAmlScreening` hook all exist, but no `.tsx` component calls the hook, so it can never
+actually be written from the current Admin UI. The live AML mechanism is
+`ONBOARDING_STATUS_UPDATED` + `metadata.amlApproved:true` (listed above), not `AML_APPROVED`. If a
+copy need ever arises for `AML_APPROVED`, do not assume it behaves like the other admin-only
+sub-steps above — confirm reachability first. Full trace in `audit-event-surface-matrix.md` §2.3.
 
 **DEAD / LEGACY (declared, no production writer):** `TNC_ACCEPTED` (`onboarding_logs` — the live
 terms-acceptance path writes `TNC_APPROVED`, not this), `KYC_APPROVED` and `KYB_APPROVED`

@@ -548,6 +548,41 @@ export function mapNoteListItem(note: NoteWithRelations) {
   };
 }
 
+type NoteEventRecord = NoteWithRelations["events"][number];
+
+/**
+ * Deterministically ordered NoteEvent DTOs, shared by the note-detail timeline (capped via
+ * `noteInclude.events` take:50 for UI performance) and the full-history export path (unlimited
+ * query), so both surfaces use identical labels/metadata/timestamp/ordering semantics.
+ */
+export function mapNoteEventRecords(
+  events: NoteEventRecord[],
+  actorNameById: Map<string, string>
+) {
+  const sortedEvents = sortAdminNoteEvents(
+    events.map((event) => ({
+      id: event.id,
+      eventType: event.event_type,
+      createdAt: event.created_at,
+      record: event,
+    })),
+    "newest-first"
+  );
+
+  return sortedEvents.map(({ record: event }) => ({
+    id: event.id,
+    noteId: event.note_id,
+    eventType: event.event_type,
+    actorUserId: event.actor_user_id,
+    actorName: event.actor_user_id ? actorNameById.get(event.actor_user_id) ?? null : null,
+    actorRole: event.actor_role,
+    portal: event.portal,
+    correlationId: event.correlation_id,
+    metadata: asRecord(event.metadata),
+    createdAt: event.created_at.toISOString(),
+  }));
+}
+
 export async function mapNoteDetail(
   note: NoteWithRelations,
   options: {
@@ -567,16 +602,7 @@ export async function mapNoteDetail(
         )
       : new Map());
 
-  const sortedEvents = includeEvents
-    ? sortAdminNoteEvents(
-        note.events.map((event) => ({
-          id: event.id,
-          eventType: event.event_type,
-          createdAt: event.created_at,
-        })),
-        "newest-first"
-      )
-    : [];
+  const mappedEvents = includeEvents ? mapNoteEventRecords(note.events, actorNameById) : [];
 
   return {
     ...mapNoteListItem(note),
@@ -697,41 +723,7 @@ export async function mapNoteDetail(
       serviceFeeTrusteeCompletedAt: iso(settlement.service_fee_trustee_completed_at),
       serviceFeeTrusteeEmailSentAt: iso(settlement.service_fee_trustee_email_sent_at),
     })),
-    events: includeEvents
-      ? sortedEvents.map((sortedEvent) => {
-          const event = note.events.find((e) => e.id === sortedEvent.id);
-          if (!event) {
-            // Defensive fallback for unexpected missing events.
-            return {
-              id: sortedEvent.id,
-              noteId: note.id,
-              eventType: sortedEvent.eventType,
-              actorUserId: null,
-              actorName: null,
-              actorRole: null,
-              portal: null,
-              correlationId: null,
-              metadata: null,
-              createdAt: new Date(sortedEvent.createdAt).toISOString(),
-            };
-          }
-
-          return {
-            id: event.id,
-            noteId: event.note_id,
-            eventType: event.event_type,
-            actorUserId: event.actor_user_id,
-            actorName: event.actor_user_id
-              ? actorNameById.get(event.actor_user_id) ?? null
-              : null,
-            actorRole: event.actor_role,
-            portal: event.portal,
-            correlationId: event.correlation_id,
-            metadata: asRecord(event.metadata),
-            createdAt: event.created_at.toISOString(),
-          };
-        })
-      : [],
+    events: mappedEvents,
     withdrawals: withdrawals.map(mapWithdrawalInstruction),
   };
 }

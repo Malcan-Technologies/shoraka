@@ -17,10 +17,8 @@ import {
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { AdminActivityCsvExportButton } from "@/components/admin-activity-csv-export-button";
 import { resolveAdminTimelineActorLabel } from "@/components/admin-timeline-originator";
-import {
-  formatNoteActivityEventLabel,
-  noteEventToActivityCsvRow,
-} from "@/notes/utils/note-activity-csv";
+import { useNoteEventsExport } from "@/notes/hooks/use-note-events-export";
+import { formatNoteActivityEventLabel } from "@/notes/utils/note-activity-csv";
 import {
   extractNoteTimelineDetails,
   noteDocumentFileName,
@@ -42,8 +40,8 @@ function buildDownloadName(event: NoteEvent) {
 export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
+  const exportNoteEvents = useNoteEventsExport(note.id);
   const totalCount = note.events.length;
-  const csvRows = note.events.map(noteEventToActivityCsvRow);
 
   return (
     <Card className="rounded-2xl">
@@ -58,7 +56,8 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
         actions={
           <AdminActivityCsvExportButton
             fileName={`${note.noteReference}-activity.csv`}
-            rows={csvRows}
+            rows={exportNoteEvents}
+            disabled={totalCount === 0}
           />
         }
       />

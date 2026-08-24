@@ -177,7 +177,7 @@ in §2; notifications in §3–§6; counts, legacy names, and the reconciliation
 | `ONBOARDING_APPROVED` | LIVE | Submission/provider-gate approval | System / Admin | onboarding_logs | Y | Y | Y | — | Y | **Not** the final approval — see `FINAL_APPROVAL_COMPLETED` |
 | `FINAL_APPROVAL_COMPLETED` | LIVE | Platform access granted (terminal) | Admin | onboarding_logs | Y | Y | Y | `onboarding_approved` | Y | The real "you're approved" moment |
 | `TNC_APPROVED` | LIVE | User accepted Terms & Conditions | Applicant | onboarding_logs | Y | — | — | — | Y | Org-level gate; per-PDF evidence is separate |
-| `AML_APPROVED` | LIVE | Admin approved AML screening | Admin | onboarding_logs | Y | — | — | — | Y | |
+| `AML_APPROVED` | **UNREACHABLE** | Would be a manual admin AML approval/override | Admin | onboarding_logs | Y *(filter + label)* | — | — | — | Y | `approveAmlScreening` has zero UI callers — see §9 #11. Live AML progression is automatic: `ONBOARDING_STATUS_UPDATED` + `metadata.amlApproved:true` |
 | `SSM_APPROVED` | LIVE | Admin approved SSM/CTOS verification | Admin | onboarding_logs | Y | — | — | — | Y | |
 | `SOPHISTICATED_STATUS_UPDATED` | LIVE | Sophisticated-investor status granted/revoked | Admin / System | onboarding_logs | Y | — | — | — | Y | |
 | `FORM_FILLED` | LIVE | Form-progress / liveness webhook step | Applicant / System | onboarding_logs | Y | — | — | — | Y | Stores the raw webhook payload |
@@ -693,13 +693,39 @@ matched (`issuer_organization_id` vs `investor_organization_id`).
 | `ONBOARDING_RESET` | `admin/service.ts:resetOnboarding` (~2405) | Admin | `resetBy`, `previousStatus:true`, `newStatus:false`, `adminAction:true` | `"Onboarding Reset"` | **No** — label exists but rows are never fetched |
 | `ONBOARDING_STATUS_UPDATED` | 6+ writers: `admin/service.ts:updateUserOnboarding` (~1307/~1331) and manual refresh (~4738); `individual-onboarding-handler.ts` (~356); `kyc-handler.ts` (~445/~513); `cod-handler.ts` (~720/~802/~1477); `org-aml-milestone.ts` (~160); `regtank/service.ts` (~2857) | Applicant / Admin / System | Always a `trigger` key — e.g. `"KYC_APPROVED"`, `"REGTANK_APPROVED"`, `"ADMIN_MANUAL_ONBOARDING_REFRESH"` — plus `previousStatus`, `newStatus`, and path-specific extras such as `amlApproved:true` | `"Status Updated"`, description `"Triggered by {trigger}"` | Yes |
 | `TNC_APPROVED` | `organization/service.ts:acceptTnc` (~835) | Applicant | `organizationId`, `organizationType`, `organizationName`, `role`, `legalDocumentsRequired` | `"T&C Approved"` | Yes |
-| `AML_APPROVED` | `admin/service.ts:approveAmlScreening` (~4321) | Admin | `organizationId`, `organizationType`, `portalType`, `onboardingRequestId`, `isCorporateOnboarding`, `previousStatus`, `newStatus`, `approvedBy`, `approvedAt` | `"AML Approved"` | Yes |
+| `AML_APPROVED` **(UNREACHABLE)** | `admin/service.ts:approveAmlScreening` (~4321), route `POST /v1/admin/onboarding-applications/:id/approve-aml`, SDK method, `useApproveAmlScreening` hook — **no `.tsx` component imports or calls that hook**, so this writer can never fire from the current Admin UI | Admin *(designed actor; never actually reached)* | `organizationId`, `organizationType`, `portalType`, `onboardingRequestId`, `isCorporateOnboarding`, `previousStatus`, `newStatus`, `approvedBy`, `approvedAt` | `"AML Approved"` | Yes *(would be, if ever written)* |
 | `SSM_APPROVED` | `admin/service.ts:approveSsmVerification` (~4452) | Admin | `organizationId`, `organizationType`, `portalType`, `approvedBy`, `regtankRequestId`, `adminApprovedAt` | `"SSM Approved"` | Yes |
 | `SOPHISTICATED_STATUS_UPDATED` | `admin/service.ts:updateSophisticatedStatus` (~3077); `regtank/service.ts` auto-grant (~2299) | Admin / System | `previousStatus`, `previousReason`, `newStatus`, `newReason`, `updatedBy`, `action` (`"granted"`/`"revoked"`/`"auto_granted"`), `source` | `"Sophisticated Status Updated"`, description `"Granted"`/`"Revoked"` + reason | Yes |
 | `FORM_FILLED` | `individual-onboarding-handler.ts` (~154); `regtank/service.ts:handleWebhookUpdate` (~2967/~2973) | Applicant / System | `requestId`, `status`, `substatus`, `payload` (**the full raw webhook body**) or `{section}` | `"Form Submitted"`, description `"Section: {section}"` | Yes |
 | `PROFILE_UPDATED` | `admin/organization-admin-profile.ts` (~152) — **organization** profile, not user profile | Admin | `updatedBy`, `updatedFields`, `bankFieldsChanged`, `previousValues` | `"Profile Updated"`, description `"Updated {fields}"` | Yes |
 | `WEBHOOK_RECEIVED` / `WEBHOOK_APPROVED` / `WEBHOOK_REJECTED` / `WEBHOOK_PENDING_APPROVAL` / `WEBHOOK_IN_PROGRESS` | `regtank/service.ts:handleWebhookUpdate` (~2957–2975), branching on webhook status | System | `requestId`, `status`, `substatus`, `payload` | *(fallback title-case)* | **No** |
 | `EOD_APPROVED` / `EOD_REJECTED` / `EOD_WEBHOOK` | `regtank/webhooks/eod-handler.ts:handle` (~279) — director/shareholder EOD outcome | System | `eodRequestId`, `codRequestId`, `status`, `confidence`, `kycId`, `organizationId`, `onboardingType` | *(fallback title-case)* | **No** |
+
+> **`AML_APPROVED` is a designed manual-override path, not the live AML mechanism — verified
+> 2026-08-24.** Full chain of evidence:
+> - `POST /v1/admin/onboarding-applications/:id/approve-aml` → `AdminService.approveAmlScreening`
+>   → `createOnboardingLogRow({ eventType: "AML_APPROVED" })` — the route, service, SDK client
+>   method, and the `useApproveAmlScreening` React hook (`use-onboarding-applications.ts`) **all
+>   exist**, but **zero `.tsx` files import or call that hook**. `onboarding-review-dialog.tsx`
+>   (the actual admin review UI for the `PENDING_AML` phase) only offers an "Open KYB/AML Review"
+>   deep link to RegTank and a generic "Refresh" button — never an "Approve AML" action.
+> - **Live AML progression is 100% automatic.** Both the RegTank webhook path
+>   (`kyc-handler.ts`, `kyb-handler.ts`) and the admin "Refresh" button
+>   (`refreshCorporateAmlStatus` / `refreshOnboardingStatus` in `admin/service.ts`) converge on the
+>   same helper, `org-aml-milestone.ts:maybeAdvanceOrgAfterAmlScreeningCleared`, which **re-queries
+>   RegTank's live result** (never a manual admin decision) and writes
+>   `ONBOARDING_STATUS_UPDATED` with `metadata.amlApproved:true` plus a path-specific `trigger`
+>   (`REGTANK_KYC_PERSONAL_AML_CLEARED`, `REGTANK_KYB_MAIN_COMPANY_APPROVED`,
+>   `ADMIN_MANUAL_AML_REFRESH`, `ADMIN_MANUAL_ONBOARDING_REFRESH_PERSONAL`,
+>   `SELF_SERVICE_AML_REFRESH`, …). This is the **canonical live AML event shape** — treat
+>   `AML_APPROVED` as dormant plumbing, not a second active canonical path.
+> - **`KYC_APPROVED` is not a standalone production event under any writer.** The RegTank KYC
+>   webhook (`kyc-handler.ts`) writes `ONBOARDING_STATUS_UPDATED` with
+>   `metadata.trigger:"KYC_APPROVED"` as an **informational** log entry only — it does not itself
+>   change `onboarding_status` or `aml_approved`. For personal (`INDIVIDUAL`) onboardings the same
+>   handler separately calls `maybeAdvanceOrgAfterAmlScreeningCleared` with
+>   `trigger:"REGTANK_KYC_PERSONAL_AML_CLEARED"`, which is the row that actually advances AML. See
+>   §9 #11 for the full reclassification record and Q&A.
 
 **Dead / non-production values in `onboarding_logs`:**
 
@@ -1447,11 +1473,15 @@ each has either a live replacement or no supporting feature. See
 
 **Events that deliberately have no notification.** The following are logged but intentionally
 silent, because a later, larger milestone carries the user-facing message:
-`ONBOARDING_APPROVED` (superseded by `FINAL_APPROVAL_COMPLETED`), `AML_APPROVED`, `SSM_APPROVED`,
+`ONBOARDING_APPROVED` (superseded by `FINAL_APPROVAL_COMPLETED`), `SSM_APPROVED`,
 `TNC_APPROVED`, `APPLICATION_SUBMITTED`, `SETTLEMENT_APPROVED`, `WITHDRAWAL_COMPLETED`, all
 `SHORAKA_*`, all prospectus events, all letter-generation events, and `PAYMENT_REJECTED`.
 Whether some of these *should* notify is a product question tracked in
 `audit-product-gap-review.md` §3.2 — **do not infer a requirement from the absence.**
+(`AML_APPROVED` is excluded from this list: it is `UNREACHABLE`, not merely silent — see §2.3.
+The live AML milestone, `ONBOARDING_STATUS_UPDATED` + `metadata.amlApproved:true`, is covered by
+§13 of the Pass B notification policy review below and is currently silent for the same
+"intermediate admin gate" reason.)
 
 ---
 
@@ -1622,7 +1652,10 @@ SIGNING_PACKAGE_SENT
 APPLICATION_SUBMITTED            Audit: YES   Notification: NO
 APPLICATION_CREATED              Audit: YES   Notification: NO
 ONBOARDING_APPROVED              Audit: YES   Notification: NO (deferred to FINAL_APPROVAL_COMPLETED)
-AML_APPROVED / SSM_APPROVED      Audit: YES   Notification: NO (intermediate admin gates)
+AML_APPROVED                     Audit: N/A — UNREACHABLE, never written (see §2.3)
+ONBOARDING_STATUS_UPDATED        Audit: YES   Notification: NO (live AML milestone; intermediate)
+  {amlApproved:true}
+SSM_APPROVED                     Audit: YES   Notification: NO (intermediate admin gate)
 TNC_APPROVED                     Audit: YES   Notification: NO
 CONTRACT_OFFER_ACCEPTED          Audit: YES   Notification: NO (APPLICATION_COMPLETED covers it)
 INVOICE_OFFER_ACCEPTED           Audit: YES   Notification: NO
@@ -1689,13 +1722,13 @@ supersede them** — see §9.
 |---|---|---|---|---|
 | `access_logs` | 14 | 7 | 7 | 6 declared-but-written-elsewhere, 1 seed-only |
 | `security_logs` | 9 | 9 | 0 | — |
-| `onboarding_logs` | 27 | 23 | 4 | 3 seed-only, 1 dev-only |
+| `onboarding_logs` | 27 | 22 | 5 | 3 seed-only, 1 dev-only, 1 unreachable (`AML_APPROVED` — reclassified 2026-08-24, see §9 #11) |
 | `application_logs` | 45 | 43 | 2 | 2 dead (`APPLICATION_APPROVED`, `CONTRACT_OFFER_REJECTED`) |
 | `note_events` | 43 | 42 | 1 | 1 dead (`ISSUER_RESIDUAL_WITHDRAWAL_CREATED`) |
 | `legal_document_audit_logs` | 7 | 7 | 0 | — |
 | `product_logs` | 5 | 3 | 2 | 2 unreachable (writer exists, no caller) |
 | `gateway_payment_events` | 11 | 8 | 3 | 3 dead (`OVERRIDE_*`) |
-| **Total** | **161** | **142** | **19** | |
+| **Total** | **161** | **141** | **20** | |
 
 Not counted as events above, documented separately:
 
@@ -1863,6 +1896,7 @@ deletion.
 | 8 | `audit-product-gap-review.md` §1, §5 | Dead-event total of 17 | 19 non-live values across the eight stores, using precise classifications | Superseded by §7.1 here |
 | 9 | All four documents | No stated division of responsibility; each read as a competing source of truth | — | Responsibility header added to each, cross-referencing §0.1 |
 | 10 | All four documents | No warning about the stale `*/audit/events.ts` index entries | The vocabulary in those index hits is not real | Warning added; full detail in §8.1 |
+| 11 | This document (previously) | `AML_APPROVED` classified **LIVE** | Re-traced from source 2026-08-24: the route (`POST /v1/admin/onboarding-applications/:id/approve-aml`), service (`approveAmlScreening`), SDK method, and `useApproveAmlScreening` hook all exist, but **zero `.tsx` files call the hook**. It is designed manual-override plumbing that has never been wired into the Admin UI. Live AML progression is fully automatic via `maybeAdvanceOrgAfterAmlScreeningCleared`, which writes `ONBOARDING_STATUS_UPDATED` + `metadata.amlApproved:true`. Standalone `KYC_APPROVED` remains SEED_ONLY; the live KYC audit trail is `ONBOARDING_STATUS_UPDATED` + `metadata.trigger:"KYC_APPROVED"` | Reclassified **UNREACHABLE**; §2.3, §7.1 totals, and §4/§5 notification cross-references updated (Live 142→141, Not-live 19→20) |
 
 
 

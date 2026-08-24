@@ -6,6 +6,22 @@ import {
   shouldRetryAdminApiQuery,
 } from "../lib/handle-api-auth-error";
 
+// KYC_STATUS_UPDATED intentionally excluded: no production writer emits it as an
+// access_logs event_type (see docs/audit/audit-event-catalog.md) — kept in the
+// EventType union and label maps only for historical row rendering, never as a
+// selectable/query filter. ROLE_ADDED/ROLE_REMOVED/PROFILE_UPDATED/ONBOARDING_RESET
+// are live access_logs writers (admin/service.ts) that were previously missing here,
+// which silently excluded them from the default "All events" admin view.
+export const ACCESS_EVENT_TYPES: EventType[] = [
+  "LOGIN",
+  "LOGOUT",
+  "SIGNUP",
+  "ROLE_ADDED",
+  "ROLE_REMOVED",
+  "PROFILE_UPDATED",
+  "ONBOARDING_RESET",
+];
+
 export interface UseAccessLogsOptions extends GetAccessLogsParams {
   allowedEventTypes?: EventType[];
 }

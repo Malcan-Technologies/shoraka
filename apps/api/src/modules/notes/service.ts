@@ -25,6 +25,7 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
+import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import {
   assertInvoiceFeeScheduleChargeable,
   settleCloseFundingFacilityFees,
@@ -109,6 +110,7 @@ import {
   mapLedgerEntry,
   mapMarketplaceNoteDetail,
   mapNoteDetail,
+  mapNoteEventRecords,
   mapNoteListItem,
   mapWithdrawalInstruction,
   resolveIssuerResidualPayoutListStatus,
@@ -7091,10 +7093,20 @@ export class NoteService {
     };
   }
 
+  /**
+   * Full, unlimited note event history (not capped at the note-detail timeline's take:50) —
+   * used by compliance/audit CSV export so it never silently truncates.
+   */
   async listEvents(id: string) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    return (await mapNoteDetail(note)).events;
+
+    const events = await noteRepository.findAllEventsByNoteId(id);
+    const actorNameById = await loadUserDisplayNameMap(
+      prisma,
+      events.map((event) => event.actor_user_id)
+    );
+    return mapNoteEventRecords(events, actorNameById);
   }
 
   /**

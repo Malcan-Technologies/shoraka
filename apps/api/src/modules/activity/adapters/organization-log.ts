@@ -199,9 +199,13 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
           description: "Your organization onboarding has started and you can continue it at any time.",
         };
       case "ONBOARDING_CANCELLED":
+        // The stored event_type name is historical/forensic (an admin restart cancels the
+        // previous RegTank request and issues a new one) — the portal-facing copy describes
+        // the actual business action (restart), not a permanent termination.
         return {
-          title: "Onboarding Cancelled",
-          description: "Your organization onboarding was cancelled and will not continue.",
+          title: "Onboarding Restarted",
+          description:
+            "Your previous onboarding request was cancelled and a new onboarding request has been started.",
         };
       case "ONBOARDING_REJECTED":
         return {

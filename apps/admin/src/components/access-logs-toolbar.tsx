@@ -9,18 +9,27 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { AccessLogsExportButton } from "./access-logs-export-button";
-import type { ExportAccessLogsParams, EventType } from "@cashsouk/types";
+import type { ExportAccessLogsParams, EventType, SecurityEventType } from "@cashsouk/types";
 
-const EVENT_TYPE_OPTIONS: { value: EventType; label: string }[] = [
+// Shared toolbar for both the access_logs and security_logs panels — labels cover the union
+// of both tables' event types; each panel narrows the visible options via `allowedEventTypes`.
+type ToolbarEventType = EventType | SecurityEventType;
+
+const EVENT_TYPE_OPTIONS: { value: ToolbarEventType; label: string }[] = [
   { value: "LOGIN", label: "Login" },
   { value: "LOGOUT", label: "Logout" },
   { value: "SIGNUP", label: "Sign Up" },
   { value: "PASSWORD_CHANGED", label: "Password changed" },
   { value: "EMAIL_CHANGED", label: "Email changed" },
   { value: "ROLE_ADDED", label: "Role added" },
+  { value: "ROLE_REMOVED", label: "Role removed" },
   { value: "ROLE_SWITCHED", label: "Role switched" },
+  { value: "ROLE_CREATED", label: "Role created" },
+  { value: "ROLE_PERMISSIONS_UPDATED", label: "Role permissions updated" },
+  { value: "INVITATION_REVOKED", label: "Invitation revoked" },
   { value: "USER_COMPLETED", label: "User completed" },
   { value: "ONBOARDING_STATUS_UPDATED", label: "Onboarding status updated" },
+  { value: "ONBOARDING_RESET", label: "Onboarding reset" },
   { value: "KYC_STATUS_UPDATED", label: "KYC status updated" },
   { value: "PROFILE_UPDATED", label: "Profile updated" },
 ];
@@ -48,10 +57,16 @@ interface AccessLogsToolbarProps {
   totalCount: number;
   filteredCount: number;
   onClearFilters: () => void;
-  exportFilters?: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize">;
+  exportFilters?: Omit<
+    ExportAccessLogsParams,
+    "format" | "page" | "pageSize" | "eventType" | "eventTypes"
+  > & {
+    eventType?: ToolbarEventType;
+    eventTypes?: ToolbarEventType[];
+  };
   onRefresh?: () => void;
   isLoading?: boolean;
-  allowedEventTypes?: EventType[];
+  allowedEventTypes?: ToolbarEventType[];
 }
 
 export function AccessLogsToolbar({

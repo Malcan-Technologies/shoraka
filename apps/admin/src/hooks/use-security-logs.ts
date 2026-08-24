@@ -8,6 +8,24 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+// ROLE_REMOVED here is the admin-role CATALOGUE deletion event (RoleRepository/admin RBAC
+// config), distinct from access_logs.ROLE_REMOVED (a user's portal role being removed) —
+// same string, two unrelated tables/types; do not merge or rename either.
+// ROLE_CREATED / ROLE_PERMISSIONS_UPDATED / INVITATION_REVOKED are live security_logs
+// writers (admin/service.ts) that were previously missing here, which silently excluded
+// them from the default "All events" admin view.
+export const SECURITY_EVENT_TYPES: SecurityEventType[] = [
+  "PASSWORD_CHANGED",
+  "EMAIL_CHANGED",
+  "ROLE_ADDED",
+  "ROLE_REMOVED",
+  "ROLE_SWITCHED",
+  "ROLE_CREATED",
+  "ROLE_PERMISSIONS_UPDATED",
+  "INVITATION_REVOKED",
+  "PROFILE_UPDATED",
+];
+
 export interface UseSecurityLogsOptions extends GetSecurityLogsParams {
   allowedEventTypes?: SecurityEventType[];
 }

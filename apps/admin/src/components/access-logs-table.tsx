@@ -16,8 +16,12 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import type { AccessLogResponse } from "@cashsouk/types";
 
-interface AccessLog extends Omit<AccessLogResponse, "created_at"> {
+// event_type is widened to `string`: this table/row/dialog trio renders both access_logs
+// (EventType) and security_logs (SecurityEventType) rows via the same shared components —
+// display-only, so the literal union isn't needed here (see access-logs-toolbar.tsx).
+interface AccessLog extends Omit<AccessLogResponse, "created_at" | "event_type"> {
   created_at: Date;
+  event_type: string;
 }
 
 interface AccessLogsTableProps {

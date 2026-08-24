@@ -10,11 +10,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { ExportAccessLogsParams } from "@cashsouk/types";
+import type { EventType, ExportAccessLogsParams, SecurityEventType } from "@cashsouk/types";
 import { toast } from "sonner";
 
 interface AccessLogsExportButtonProps {
-  filters: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize">;
+  // eventType/eventTypes are widened to accept SecurityEventType too: this button is shared
+  // by both the access_logs and security_logs panels via AccessLogsToolbar. The backend export
+  // query schemas accept freeform event_type strings for both tables (no enum validation), so
+  // this is a display/wiring-layer widening only, not an API contract change.
+  filters: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize" | "eventType" | "eventTypes"> & {
+    eventType?: EventType | SecurityEventType;
+    eventTypes?: (EventType | SecurityEventType)[];
+  };
 }
 
 export function AccessLogsExportButton({ filters }: AccessLogsExportButtonProps) {
@@ -27,6 +34,8 @@ export function AccessLogsExportButton({ filters }: AccessLogsExportButtonProps)
       setIsExporting(true);
       const params: ExportAccessLogsParams = {
         ...filters,
+        eventType: filters.eventType as ExportAccessLogsParams["eventType"],
+        eventTypes: filters.eventTypes as ExportAccessLogsParams["eventTypes"],
         format,
       };
 

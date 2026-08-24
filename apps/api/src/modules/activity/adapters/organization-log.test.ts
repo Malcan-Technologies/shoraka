@@ -36,6 +36,23 @@ describe("OrganizationLogAdapter", () => {
     expect(cod.title).toBe(individual.title);
   });
 
+  it("describes ONBOARDING_CANCELLED as a restart, not a permanent termination", () => {
+    // The stored event_type is historical/forensic (admin restart cancels the previous
+    // RegTank request and starts a new one) — portal copy must describe the real business
+    // action instead of implying the onboarding is permanently over.
+    const presentation = adapter.buildPresentation("ONBOARDING_CANCELLED", {
+      cancelledRequestId: "req-old",
+      newRequestId: "req-new",
+      reason: "Restart requested by admin",
+    });
+    expect(presentation).toEqual({
+      title: "Onboarding Restarted",
+      description:
+        "Your previous onboarding request was cancelled and a new onboarding request has been started.",
+    });
+    expect(presentation.description).not.toMatch(/will not continue/i);
+  });
+
   it("does not expose unrelated admin/internal onboarding event types", () => {
     const eventTypes = adapter.getEventTypes();
     expect(eventTypes).not.toContain("TNC_ACCEPTED");

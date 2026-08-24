@@ -54,8 +54,11 @@ function isSophisticatedStatusMetadata(metadata: unknown): metadata is Sophistic
   );
 }
 
-interface AccessLog extends Omit<AccessLogResponse, "created_at"> {
+// event_type is widened to `string`: this dialog renders both access_logs (EventType) and
+// security_logs (SecurityEventType) rows via the shared toolbar/table — display-only.
+interface AccessLog extends Omit<AccessLogResponse, "created_at" | "event_type"> {
   created_at: Date;
+  event_type: string;
 }
 
 interface AccessLogDetailsDialogProps {
