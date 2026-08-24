@@ -244,11 +244,67 @@ const issuerAuthorizedPartySchema = z.object({
   representatives: z.array(issuerAuthorizedRepresentativeSchema).min(1),
 });
 
-/** Step 1 acceptance POST — issuer directors only in slice 1. */
+const guarantorAuthorizedRepresentativeSchema = z.object({
+  name: z.string().trim().min(1),
+  email: signingEmailSchema,
+  ic_number: signingIcSchema,
+  capacity: z.enum(["director", "authorised_signatory"]),
+});
+
+const corporateGuarantorAuthorizedPartySchema = z.object({
+  key: z.string().trim().min(1),
+  entity_kind: z.literal("CORPORATE_GUARANTOR"),
+  application_guarantor_id: z.string().trim().min(1),
+  representatives: z.array(guarantorAuthorizedRepresentativeSchema).min(1),
+});
+
+const individualGuarantorAuthorizedPartySchema = z.object({
+  key: z.string().trim().min(1),
+  entity_kind: z.literal("INDIVIDUAL_GUARANTOR"),
+  application_guarantor_id: z.string().trim().min(1),
+  representatives: z.array(guarantorAuthorizedRepresentativeSchema).min(1).max(1),
+});
+
+const authorizedPartySchema = z.discriminatedUnion("entity_kind", [
+  issuerAuthorizedPartySchema,
+  corporateGuarantorAuthorizedPartySchema,
+  individualGuarantorAuthorizedPartySchema,
+]);
+
+const authorizedPartiesSubmitSchema = z.object({
+  parties: z
+    .array(authorizedPartySchema)
+    .min(1)
+    .superRefine((parties, ctx) => {
+      const issuerCount = parties.filter((party) => party.entity_kind === "ISSUER").length;
+      if (issuerCount !== 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Exactly one issuer party is required",
+        });
+      }
+      const keys = parties.map((party) => party.key);
+      if (new Set(keys).size !== keys.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Party keys must be unique",
+        });
+      }
+      const guarantorIds = parties
+        .filter((party) => party.entity_kind !== "ISSUER")
+        .map((party) => party.application_guarantor_id);
+      if (new Set(guarantorIds).size !== guarantorIds.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Each guarantor may appear only once",
+        });
+      }
+    }),
+});
+
+/** Step 1 acceptance POST — issuer plus one party per application guarantor. */
 export const submitOfferAcceptanceBodySchema = z.object({
-  authorized_parties: z.object({
-    parties: z.array(issuerAuthorizedPartySchema).min(1).max(1),
-  }),
+  authorized_parties: authorizedPartiesSubmitSchema,
 });
 
 export type SubmitOfferAcceptanceBody = z.infer<typeof submitOfferAcceptanceBodySchema>;

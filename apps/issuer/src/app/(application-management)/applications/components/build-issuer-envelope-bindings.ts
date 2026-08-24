@@ -1,6 +1,7 @@
 import {
   AUTHORIZED_PARTY_ISSUER_KEY,
   getIssuerAuthorizedParty,
+  guarantorBindingsFromSnapshot,
   issuerDirectorBindingsFromSnapshot,
   type AuthorizedPartiesSnapshot,
   type AuthorizedPartiesSubmitPayload,
@@ -16,6 +17,7 @@ import {
 
 export type ApplicationGuarantorRow = {
   id: string;
+  guarantor_type: "individual" | "company";
   name?: string | null;
   business_name?: string | null;
   email: string;
@@ -36,6 +38,7 @@ export function guarantorsFromApplication(rows: unknown): ApplicationGuarantorRo
     if (!id) continue;
     result.push({
       id,
+      guarantor_type: guarantor.guarantor_type === "company" ? "company" : "individual",
       name: typeof guarantor.name === "string" ? guarantor.name : null,
       business_name:
         typeof guarantor.business_name === "string" ? guarantor.business_name : null,
@@ -123,6 +126,9 @@ export function buildIssuerEnvelopeBindings(
           directors
         )
       : [];
+    const snapshotGuarantorBindings = isGuarantorRole(role)
+      ? guarantorBindingsFromSnapshot(authorizedParties, role.key)
+      : [];
     let roleBindings: RecipientBinding[];
     if (isDirectorRole(role) && snapshotDirectorBindings.length > 0) {
       roleBindings = snapshotDirectorBindings;
@@ -133,11 +139,13 @@ export function buildIssuerEnvelopeBindings(
         email: director.email,
         ic_number: director.ic_number,
       }));
+    } else if (isGuarantorRole(role) && snapshotGuarantorBindings.length > 0) {
+      roleBindings = snapshotGuarantorBindings;
     } else if (isGuarantorRole(role) && guarantorRows.length > 0) {
       const maxRows = role.max_count ?? guarantorRows.length;
       roleBindings = guarantorRows.slice(0, maxRows).map((guarantor) => ({
         role_key: role.key,
-        name: guarantor.name ?? guarantor.business_name ?? "",
+        name: guarantor.guarantor_type === "company" ? "" : (guarantor.name ?? ""),
         email: guarantor.email,
         ic_number: null,
         application_guarantor_id: guarantor.id,

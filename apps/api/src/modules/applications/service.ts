@@ -62,7 +62,8 @@ import {
   resolveAcceptanceDocumentReviewKeysToResetOnSubmit,
 } from "./acceptance-document-issuer-lock";
 import {
-  assertIssuerAuthorizedPartiesValid,
+  applicationGuarantorsForParties,
+  assertAuthorizedPartiesValid,
   loadIssuerDirectorPool,
 } from "./authorized-parties";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
@@ -2264,8 +2265,9 @@ export class ApplicationService {
   }
 
   /**
-   * Step 1 of offer acceptance: require acceptance uploads and issuer directors,
-   * then move to PENDING_ADMIN_REVIEW (or APPROVED_FOR_SIGNING when no acceptance docs).
+   * Step 1 of offer acceptance: require acceptance uploads, issuer directors, and
+   * one authorised-party list per guarantor, then move to PENDING_ADMIN_REVIEW
+   * (or APPROVED_FOR_SIGNING when no acceptance docs).
    */
   async submitContractOfferAcceptance(
     applicationId: string,
@@ -2295,7 +2297,13 @@ export class ApplicationService {
     );
 
     const directorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
-    assertIssuerAuthorizedPartiesValid(authorizedPartiesPayload.parties, directorPool);
+    assertAuthorizedPartiesValid(
+      authorizedPartiesPayload.parties,
+      directorPool,
+      applicationGuarantorsForParties(
+        (application as { application_guarantors?: unknown }).application_guarantors
+      )
+    );
 
     const now = new Date().toISOString();
     const authorizedParties = stampAuthorizedPartiesSnapshot({
@@ -2464,7 +2472,13 @@ export class ApplicationService {
     );
 
     const directorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
-    assertIssuerAuthorizedPartiesValid(authorizedPartiesPayload.parties, directorPool);
+    assertAuthorizedPartiesValid(
+      authorizedPartiesPayload.parties,
+      directorPool,
+      applicationGuarantorsForParties(
+        (application as { application_guarantors?: unknown }).application_guarantors
+      )
+    );
 
     const now = new Date().toISOString();
     const authorizedParties = stampAuthorizedPartiesSnapshot({

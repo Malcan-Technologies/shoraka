@@ -106,6 +106,8 @@ import { OfferAcceptanceSubmittedSuccessView } from "@/components/onboarding-fee
 import { InvoiceOfferTerms } from "./invoice-offer-terms";
 import { buildInvoiceFeeDisplay } from "@/lib/facility-fee-display";
 import { IssuerAuthorizedRepresentativesCard } from "./issuer-authorized-representatives-card";
+import { CorporateGuarantorRepresentativesCard } from "./corporate-guarantor-representatives-card";
+import { IndividualGuarantorRepresentativesCard } from "./individual-guarantor-representatives-card";
 import {
   areIssuerDirectorSelectionsReady,
   isDirectorRole,
@@ -113,11 +115,17 @@ import {
   resolveBindingDirectorKey,
 } from "./issuer-directors";
 import {
-  buildIssuerAuthorizedPartiesSubmitPayload,
   buildIssuerEnvelopeBindings,
   guarantorsFromApplication,
   nextIssuerRepMatchKeys,
 } from "./build-issuer-envelope-bindings";
+import {
+  areGuarantorPartiesReady,
+  buildAuthorizedPartiesSubmitPayload,
+  emptyGuarantorPartyDrafts,
+  EMPTY_CORPORATE_REP,
+  nextGuarantorPartyDrafts,
+} from "./guarantor-authorized-parties";
 
 const CONTRACT_FACILITY_FEE_RATE_TOOLTIP =
   "The facility fee is owed in full when you accept this offer (maximum 1%). CashSouk collects it at its discretion.";
@@ -528,6 +536,10 @@ export function OfferReviewPanel({
     () => issuerDirectorsFromOrganization(directorSourceOrganization),
     [directorSourceOrganization]
   );
+  const guarantorRows = React.useMemo(
+    () => guarantorsFromApplication(applicationRecord?.application_guarantors),
+    [applicationRecord?.application_guarantors]
+  );
 
   const shouldLoadContract = type === "contract" ? !!contractId : !!invoiceContractId;
   const contractLookupId =
@@ -679,6 +691,8 @@ export function OfferReviewPanel({
   const [issuerRepMatchKeys, setIssuerRepMatchKeys] = React.useState<string[]>([]);
   const issuerRepInitializedRef = React.useRef(false);
   const issuerRepDirtyRef = React.useRef(false);
+  const [guarantorDrafts, setGuarantorDrafts] = React.useState(emptyGuarantorPartyDrafts);
+  const guarantorPartiesDirtyRef = React.useRef(false);
   const [signerConfirmOpen, setSignerConfirmOpen] = React.useState(false);
   const [acceptOfferConfirmOpen, setAcceptOfferConfirmOpen] = React.useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = React.useState(false);
@@ -694,6 +708,8 @@ export function OfferReviewPanel({
     issuerRepInitializedRef.current = false;
     issuerRepDirtyRef.current = false;
     setIssuerRepMatchKeys([]);
+    guarantorPartiesDirtyRef.current = false;
+    setGuarantorDrafts(emptyGuarantorPartyDrafts());
   }, [applicationId]);
 
   const offerDetailsReady =
@@ -723,6 +739,24 @@ export function OfferReviewPanel({
   ]);
 
   React.useEffect(() => {
+    if (!usesAcceptanceFlow) return;
+    if (!isApplicationFetched) return;
+    const nextDrafts = nextGuarantorPartyDrafts({
+      snapshot: authorizedParties,
+      guarantors: guarantorRows,
+      current: guarantorDrafts,
+      dirty: guarantorPartiesDirtyRef.current,
+    });
+    if (nextDrafts) setGuarantorDrafts(nextDrafts);
+  }, [
+    authorizedParties,
+    guarantorDrafts,
+    guarantorRows,
+    isApplicationFetched,
+    usesAcceptanceFlow,
+  ]);
+
+  React.useEffect(() => {
     if (!useSigningStepper) {
       setSignerBindings([]);
       return;
@@ -736,15 +770,15 @@ export function OfferReviewPanel({
       buildIssuerEnvelopeBindings(
         signingTemplate,
         directorSourceOrganization,
-        guarantorsFromApplication(applicationRecord?.application_guarantors),
+        guarantorRows,
         authorizedParties
       )
     );
   }, [
     activeSigningEnvelope,
-    applicationRecord?.application_guarantors,
     authorizedParties,
     directorSourceOrganization,
+    guarantorRows,
     isLoadingSigningEnvelopes,
     signingTemplate,
     useSigningStepper,
@@ -1081,10 +1115,16 @@ export function OfferReviewPanel({
       toast.error("Select at least one director to represent the issuer company.");
       return;
     }
-    const authorizedPartiesPayload = buildIssuerAuthorizedPartiesSubmitPayload(
-      issuerDirectors,
-      issuerRepMatchKeys
-    );
+    if (!areGuarantorPartiesReady(guarantorRows, guarantorDrafts)) {
+      toast.error("Complete authorised representatives for every guarantor.");
+      return;
+    }
+    const authorizedPartiesPayload = buildAuthorizedPartiesSubmitPayload({
+      directors: issuerDirectors,
+      selectedMatchKeys: issuerRepMatchKeys,
+      guarantors: guarantorRows,
+      drafts: guarantorDrafts,
+    });
     setIsSubmittingAcceptance(true);
     try {
       const response =
@@ -1117,6 +1157,8 @@ export function OfferReviewPanel({
     apiClient,
     applicationId,
     ensurePostApplicationDocumentsSaved,
+    guarantorDrafts,
+    guarantorRows,
     hasPostDocs,
     invalidateOfferAcceptanceQueries,
     invoice?.id,
@@ -1358,7 +1400,9 @@ export function OfferReviewPanel({
   const postDocsReady =
     signingPhaseSkipsUploadGate || !hasPostDocs || postDocsState.areAllFilesUploaded;
   const issuerRepsReady =
-    !usesAcceptanceFlow || areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys);
+    !usesAcceptanceFlow ||
+    (areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys) &&
+      areGuarantorPartiesReady(guarantorRows, guarantorDrafts));
   const updateSignerBinding = (index: number, updates: Partial<RecipientBinding>) => {
     setSignerBindings((prev) =>
       prev.map((binding, i) => (i === index ? { ...binding, ...updates } : binding))
@@ -2004,28 +2048,80 @@ export function OfferReviewPanel({
               </CardTitle>
               <CardDescription>
                 {usesAcceptanceFlow
-                  ? "Name the directors who may represent your company, then upload required acceptance documents (for example a Board Resolution). CashSouk must approve them before signing."
+                  ? "Name who may represent the issuer and each company guarantor, confirm individual guarantors, then upload required acceptance documents (for example a Board Resolution). CashSouk must approve them before signing."
                   : "Complete all required documents before you confirm signers. Optional documents can stay empty."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {usesAcceptanceFlow ? (
-                <IssuerAuthorizedRepresentativesCard
-                  companyName={activeOrganization?.name?.trim() || "Your company"}
-                  directors={issuerDirectors}
-                  selectedMatchKeys={issuerRepMatchKeys}
-                  onChange={(keys) => {
-                    issuerRepDirtyRef.current = true;
-                    setIssuerRepMatchKeys(keys);
-                  }}
-                  readOnly={
-                    signersLocked || !offerAcceptanceIsStep1Editable(acceptanceStatus)
-                  }
-                  isLoading={
-                    (useSigningStepper && !isCorporateEntitiesFetched) ||
-                    (usesAcceptanceFlow && !offerDetailsReady)
-                  }
-                />
+                <div className="space-y-3">
+                  <IssuerAuthorizedRepresentativesCard
+                    companyName={activeOrganization?.name?.trim() || "Your company"}
+                    directors={issuerDirectors}
+                    selectedMatchKeys={issuerRepMatchKeys}
+                    onChange={(keys) => {
+                      issuerRepDirtyRef.current = true;
+                      setIssuerRepMatchKeys(keys);
+                    }}
+                    readOnly={
+                      signersLocked || !offerAcceptanceIsStep1Editable(acceptanceStatus)
+                    }
+                    isLoading={
+                      (useSigningStepper && !isCorporateEntitiesFetched) ||
+                      (usesAcceptanceFlow && !offerDetailsReady)
+                    }
+                  />
+                  {guarantorRows.map((guarantor) =>
+                    guarantor.guarantor_type === "company" ? (
+                      <CorporateGuarantorRepresentativesCard
+                        key={guarantor.id}
+                        entityId={guarantor.id}
+                        companyName={guarantor.business_name?.trim() || "Company guarantor"}
+                        representatives={
+                          guarantorDrafts.corporateRepsById[guarantor.id] ?? [
+                            { ...EMPTY_CORPORATE_REP },
+                          ]
+                        }
+                        onChange={(representatives) => {
+                          guarantorPartiesDirtyRef.current = true;
+                          setGuarantorDrafts((prev) => ({
+                            ...prev,
+                            corporateRepsById: {
+                              ...prev.corporateRepsById,
+                              [guarantor.id]: representatives,
+                            },
+                          }));
+                        }}
+                        readOnly={
+                          signersLocked || !offerAcceptanceIsStep1Editable(acceptanceStatus)
+                        }
+                      />
+                    ) : (
+                      <IndividualGuarantorRepresentativesCard
+                        key={guarantor.id}
+                        entityId={guarantor.id}
+                        personName={guarantor.name?.trim() || ""}
+                        icNumber={guarantor.ic_number ?? ""}
+                        email={
+                          guarantorDrafts.individualEmailsById[guarantor.id] ?? guarantor.email
+                        }
+                        onEmailChange={(email) => {
+                          guarantorPartiesDirtyRef.current = true;
+                          setGuarantorDrafts((prev) => ({
+                            ...prev,
+                            individualEmailsById: {
+                              ...prev.individualEmailsById,
+                              [guarantor.id]: email,
+                            },
+                          }));
+                        }}
+                        readOnly={
+                          signersLocked || !offerAcceptanceIsStep1Editable(acceptanceStatus)
+                        }
+                      />
+                    )
+                  )}
+                </div>
               ) : null}
               {usesAcceptanceFlow && isAcceptanceChangesRequested && acceptanceFlaggedCount > 0 ? (
                 <AcceptanceDocumentChangesRequestedBanner flaggedCount={acceptanceFlaggedCount} />
@@ -2085,7 +2181,8 @@ export function OfferReviewPanel({
               !issuerRepsReady &&
               isCorporateEntitiesFetched ? (
                 <p className="text-ui text-muted-foreground">
-                  Select at least one director before submitting.
+                  Complete authorised representatives for the issuer and every guarantor before
+                  submitting.
                 </p>
               ) : null}
             </CardContent>

@@ -11,7 +11,6 @@ import {
   getOfferAcceptanceFromOfferDetails,
   getOfferAcceptanceStatusPresentation,
   getOfferPhaseDeadlineDisplay,
-  getIssuerAuthorizedParty,
   isOfferAcceptanceDocumentsVisibleToAdmin,
   workflowHasAcceptanceDocuments,
   type ApplicationPersonRow,
@@ -36,6 +35,7 @@ import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { reviewCardTitleClass } from "../review-section-styles";
 import { useAdminSignedSigningDocument } from "@/hooks/use-admin-signed-signing-document";
 import { cn } from "@/lib/utils";
+import { AuthorizedPartiesReadOnly } from "./authorized-parties-read-only";
 
 export type AcceptanceSectionProps = {
   supportingDocuments: unknown;
@@ -118,41 +118,17 @@ function isAcceptanceDocumentsSectionActive(offerDetails: unknown): boolean {
   );
 }
 
-function IssuerRepresentativesReadOnly({ offerDetails }: { offerDetails: unknown }) {
-  const party = getIssuerAuthorizedParty(
-    getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties
-  );
-  if (!party) return null;
-  return (
-    <div className="space-y-2">
-      <p className="text-ui font-medium text-foreground">Issuer representatives</p>
-      <ul className="space-y-1.5">
-        {party.representatives.map((representative, index) => (
-          <li
-            key={`${representative.person_match_key ?? representative.email}-${index}`}
-            className="text-ui text-foreground"
-          >
-            <span className="font-medium">{representative.name}</span>
-            <span className="text-muted-foreground"> · Director</span>
-            {representative.email ? (
-              <span className="block text-meta text-muted-foreground">{representative.email}</span>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 function OfferAcceptanceBlock({
   offerDetails,
   structureType,
   documentsSlot,
+  guarantors,
 }: {
   offerDetails: unknown;
   structureType?: string | null;
   /** Acceptance documents list rendered inside this same package card. */
   documentsSlot?: React.ReactNode;
+  guarantors?: unknown;
 }) {
   const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
   const isInvoiceOnly = structureType === "invoice_only";
@@ -183,7 +159,7 @@ function OfferAcceptanceBlock({
       ) : null}
 
       {isOfferAcceptanceDocumentsVisibleToAdmin(acceptance) ? (
-        <IssuerRepresentativesReadOnly offerDetails={offerDetails} />
+        <AuthorizedPartiesReadOnly offerDetails={offerDetails} guarantors={guarantors} />
       ) : null}
 
       {documentsSlot ? (
@@ -391,6 +367,7 @@ export function AcceptanceSection({
                   offerDetails={acceptanceOfferDetails}
                   structureType={structureType}
                   documentsSlot={showAcceptanceDocuments ? documentsList : undefined}
+                  guarantors={guarantors}
                 />
               </ReviewFieldBlock>
             );

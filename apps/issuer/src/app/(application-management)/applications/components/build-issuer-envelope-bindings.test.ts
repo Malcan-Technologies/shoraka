@@ -95,6 +95,123 @@ describe("buildIssuerEnvelopeBindings", () => {
       },
     ]);
   });
+
+  it("prefills two guarantor bindings from two corporate representatives", () => {
+    const mixed: AuthorizedPartiesSnapshot = {
+      ...snapshot,
+      parties: [
+        ...snapshot.parties,
+        {
+          key: "g_co",
+          entity_kind: "CORPORATE_GUARANTOR",
+          application_guarantor_id: "g_co",
+          representatives: [
+            {
+              name: "Nora",
+              email: "nora@holdco.my",
+              ic_number: "880101015555",
+              capacity: "authorised_signatory",
+            },
+            {
+              name: "Farid",
+              email: "farid@holdco.my",
+              ic_number: "770202025555",
+              capacity: "director",
+            },
+          ],
+        },
+      ],
+    };
+    const bindings = buildIssuerEnvelopeBindings(
+      TEMPLATE,
+      organization,
+      [
+        {
+          id: "g_co",
+          guarantor_type: "company",
+          business_name: "HoldCo Sdn Bhd",
+          email: "holdco@co.my",
+        },
+      ],
+      mixed
+    );
+    const guarantors = bindings.filter((binding) => binding.role_key === "guarantor");
+    expect(guarantors.map((binding) => binding.name)).toEqual(["Nora", "Farid"]);
+    expect(guarantors.every((binding) => binding.application_guarantor_id === "g_co")).toBe(true);
+    expect(guarantors.some((binding) => binding.name === "HoldCo Sdn Bhd")).toBe(false);
+  });
+
+  it("does not use a company business_name as the signer name without a snapshot", () => {
+    const bindings = buildIssuerEnvelopeBindings(TEMPLATE, organization, [
+      {
+        id: "g_co",
+        guarantor_type: "company",
+        business_name: "HoldCo Sdn Bhd",
+        email: "holdco@co.my",
+      },
+    ]);
+    const guarantors = bindings.filter((binding) => binding.role_key === "guarantor");
+    expect(guarantors).toEqual([
+      {
+        role_key: "guarantor",
+        name: "",
+        email: "holdco@co.my",
+        ic_number: null,
+        application_guarantor_id: "g_co",
+      },
+    ]);
+  });
+
+  it("keeps separate issuer and guarantor bindings when the same person holds both roles", () => {
+    const mixed: AuthorizedPartiesSnapshot = {
+      ...snapshot,
+      parties: [
+        {
+          key: "issuer",
+          entity_kind: "ISSUER",
+          representatives: [
+            {
+              name: "Ali Bin Abu",
+              email: "ali@co.my",
+              ic_number: SAMPLE_IC,
+              capacity: "director",
+              person_match_key: SAMPLE_IC,
+            },
+          ],
+        },
+        {
+          key: "g_ind",
+          entity_kind: "INDIVIDUAL_GUARANTOR",
+          application_guarantor_id: "g_ind",
+          representatives: [
+            {
+              name: "Ali Bin Abu",
+              email: "ali@co.my",
+              ic_number: SAMPLE_IC,
+              capacity: "authorised_signatory",
+            },
+          ],
+        },
+      ],
+    };
+    const bindings = buildIssuerEnvelopeBindings(
+      TEMPLATE,
+      organization,
+      [
+        {
+          id: "g_ind",
+          guarantor_type: "individual",
+          name: "Ali Bin Abu",
+          email: "ali@co.my",
+          ic_number: SAMPLE_IC,
+        },
+      ],
+      mixed
+    );
+    expect(bindings.filter((binding) => binding.role_key === "issuer_director")).toHaveLength(1);
+    expect(bindings.filter((binding) => binding.role_key === "guarantor")).toHaveLength(1);
+    expect(bindings).toHaveLength(2);
+  });
 });
 
 const directors = [

@@ -76,7 +76,7 @@ export type OfferAcceptanceDetails = {
   status: OfferAcceptanceStatus;
   /** Set on Step 1 submit; proves which commercial numbers were acknowledged. */
   acknowledged_terms?: OfferAcknowledgedTermsSnapshot;
-  /** Issuer (and later guarantor) authorised representatives declared at Step 1. */
+  /** Issuer and guarantor authorised representatives declared at Step 1. */
   authorized_parties?: AuthorizedPartiesSnapshot;
   submitted_at?: string | null;
   reviewed_at?: string | null;

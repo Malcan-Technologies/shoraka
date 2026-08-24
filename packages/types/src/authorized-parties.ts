@@ -220,6 +220,102 @@ export function getIssuerAuthorizedParty(
   return party ?? null;
 }
 
+export function isGuarantorAuthorizedParty(
+  party: AuthorizedParty
+): party is AuthorizedPartyCorporateGuarantor | AuthorizedPartyIndividualGuarantor {
+  return party.entity_kind === "CORPORATE_GUARANTOR" || party.entity_kind === "INDIVIDUAL_GUARANTOR";
+}
+
+export function authorizedRepresentativeCapacityLabel(
+  capacity: AuthorizedRepresentativeCapacity
+): string {
+  return capacity === "director" ? "Director" : "Authorised signatory";
+}
+
+export type AuthorizedPartyGuarantorLookup = {
+  id: string;
+  name?: string | null;
+  business_name?: string | null;
+};
+
+/** Issuer first, then guarantors in `guarantorIds` order, then any remaining snapshot guarantors. */
+export function listAuthorizedPartiesInDisplayOrder(
+  snapshot: AuthorizedPartiesSnapshot | null | undefined,
+  guarantorIds: string[] = []
+): AuthorizedParty[] {
+  if (!snapshot) return [];
+  const issuer = snapshot.parties.filter(
+    (party): party is AuthorizedPartyIssuer => party.entity_kind === "ISSUER"
+  );
+  const byGuarantorId = new Map<string, AuthorizedPartyCorporateGuarantor | AuthorizedPartyIndividualGuarantor>();
+  for (const party of snapshot.parties) {
+    if (!isGuarantorAuthorizedParty(party)) continue;
+    byGuarantorId.set(party.application_guarantor_id, party);
+  }
+  const ordered: Array<AuthorizedPartyCorporateGuarantor | AuthorizedPartyIndividualGuarantor> = [];
+  const seen = new Set<string>();
+  for (const id of guarantorIds) {
+    const party = byGuarantorId.get(id);
+    if (!party || seen.has(id)) continue;
+    ordered.push(party);
+    seen.add(id);
+  }
+  for (const party of snapshot.parties) {
+    if (!isGuarantorAuthorizedParty(party)) continue;
+    if (seen.has(party.application_guarantor_id)) continue;
+    ordered.push(party);
+    seen.add(party.application_guarantor_id);
+  }
+  return [...issuer, ...ordered];
+}
+
+export function authorizedPartyEntityTitle(
+  party: AuthorizedParty,
+  guarantor?: AuthorizedPartyGuarantorLookup | null
+): string {
+  if (party.entity_kind === "ISSUER") return "Issuer representatives";
+  if (party.entity_kind === "CORPORATE_GUARANTOR") {
+    const businessName = guarantor?.business_name?.trim();
+    return businessName || "Company guarantor";
+  }
+  const name = guarantor?.name?.trim() || party.representatives[0]?.name?.trim();
+  return name || "Individual guarantor";
+}
+
+export type AuthorizedPartyReadOnlyBlock = {
+  key: string;
+  title: string;
+  entity_kind: AuthorizedParty["entity_kind"];
+  representatives: Array<{
+    name: string;
+    email: string;
+    capacity_label: string;
+  }>;
+};
+
+export function authorizedPartyReadOnlyBlocks(
+  snapshot: AuthorizedPartiesSnapshot | null | undefined,
+  guarantors: AuthorizedPartyGuarantorLookup[] = []
+): AuthorizedPartyReadOnlyBlock[] {
+  const byId = new Map(guarantors.map((row) => [row.id, row]));
+  return listAuthorizedPartiesInDisplayOrder(
+    snapshot,
+    guarantors.map((row) => row.id)
+  ).map((party) => ({
+    key: party.key,
+    title: authorizedPartyEntityTitle(
+      party,
+      isGuarantorAuthorizedParty(party) ? byId.get(party.application_guarantor_id) : null
+    ),
+    entity_kind: party.entity_kind,
+    representatives: party.representatives.map((rep) => ({
+      name: rep.name,
+      email: rep.email,
+      capacity_label: authorizedRepresentativeCapacityLabel(rep.capacity),
+    })),
+  }));
+}
+
 export function stampAuthorizedPartiesSnapshot(input: {
   parties: AuthorizedParty[];
   submittedByUserId: string;
@@ -269,4 +365,26 @@ export function issuerDirectorBindingsFromSnapshot(
     email: rep.email,
     ic_number: isValidSigningIcNumber(rep.ic_number) ? rep.ic_number : null,
   }));
+}
+
+/** Map guarantor snapshot reps onto guarantor bindings (snapshot party order, one binding per rep). */
+export function guarantorBindingsFromSnapshot(
+  snapshot: AuthorizedPartiesSnapshot | null | undefined,
+  roleKey: string
+): RecipientBinding[] {
+  if (!snapshot) return [];
+  const bindings: RecipientBinding[] = [];
+  for (const party of snapshot.parties) {
+    if (!isGuarantorAuthorizedParty(party)) continue;
+    for (const rep of party.representatives) {
+      bindings.push({
+        role_key: roleKey,
+        name: rep.name,
+        email: rep.email,
+        ic_number: isValidSigningIcNumber(rep.ic_number) ? rep.ic_number : null,
+        application_guarantor_id: party.application_guarantor_id,
+      });
+    }
+  }
+  return bindings;
 }

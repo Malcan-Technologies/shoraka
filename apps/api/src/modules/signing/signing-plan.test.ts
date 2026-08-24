@@ -612,6 +612,33 @@ describe("buildEnvelopePlanFromTemplate", () => {
     expect(guaranteeAssignees).toHaveLength(3);
     expect(new Set(plan.recipients.map((r) => r.ref)).size).toBe(3);
   });
+
+  it("keeps two corporate representatives as two recipients sharing an application_guarantor_id", () => {
+    const bindings: RecipientBinding[] = [
+      { role_key: "issuer_director", name: "Ali", email: "ali@co.my", ic_number: SAMPLE_IC },
+      {
+        role_key: "guarantor",
+        name: "Nora",
+        email: "nora@holdco.my",
+        application_guarantor_id: "g_co",
+        ic_number: "880101015555",
+      },
+      {
+        role_key: "guarantor",
+        name: "Farid",
+        email: "farid@holdco.my",
+        application_guarantor_id: "g_co",
+        ic_number: "770202025555",
+      },
+    ];
+    const plan = buildEnvelopePlanFromTemplate(TEMPLATE, bindings);
+    const guarantors = plan.recipients.filter((recipient) => recipient.role_key === "guarantor");
+    expect(guarantors.map((recipient) => recipient.name)).toEqual(["Nora", "Farid"]);
+    expect(guarantors.every((recipient) => recipient.application_guarantor_id === "g_co")).toBe(true);
+    expect(guarantors.some((recipient) => recipient.name.toLowerCase().includes("holdco"))).toBe(
+      false
+    );
+  });
 });
 
 describe("computeSigningEnvelopeProgress", () => {
