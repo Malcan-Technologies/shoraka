@@ -9,6 +9,21 @@ import {
 
 const router = Router();
 
+/** Mirrors ACTION_OPTIONS labels in apps/admin/src/components/audit/legal-document-audit-panel.tsx. */
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  LEGAL_DOCUMENT_CREATED: "Document created",
+  LEGAL_DOCUMENT_UPDATED: "Document updated",
+  LEGAL_VERSION_UPLOADED: "Version uploaded",
+  LEGAL_VERSION_FILE_REPLACED: "Version file replaced",
+  LEGAL_VERSION_PUBLISHED: "Version published",
+  LEGAL_VERSION_ARCHIVED: "Version archived",
+  LEGAL_VERSION_RESTORED: "Version restored",
+};
+
+function auditActionLabel(action: string): string {
+  return AUDIT_ACTION_LABELS[action] ?? action;
+}
+
 /**
  * GET /v1/admin/legal-document-audit-logs
  * Paginated admin legal-document change history (read-only).
@@ -70,7 +85,7 @@ router.get(
         ];
         const csvRows = rows.map((row) => [
           row.id,
-          row.action,
+          auditActionLabel(row.action),
           row.legalDocumentId ?? "",
           row.legalDocumentVersionId ?? "",
           row.documentType ?? "",

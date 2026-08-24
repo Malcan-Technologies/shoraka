@@ -22,7 +22,7 @@ interface AccessLogTableRowProps {
 }
 
 // Event type configuration with dot color and readable label
-const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
+export const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   LOGIN: { label: "Login", color: "bg-blue-500" },
   LOGOUT: { label: "Logout", color: "bg-gray-500" },
   SIGNUP: { label: "Sign Up", color: "bg-green-500" },

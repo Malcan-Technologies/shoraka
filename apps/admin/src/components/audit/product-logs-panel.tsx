@@ -39,6 +39,8 @@ const PRODUCT_EVENT_TYPES: { value: ProductEventType; label: string; color: stri
   { value: "PRODUCT_CREATED", label: "Created", color: "bg-green-500" },
   { value: "PRODUCT_UPDATED", label: "Updated", color: "bg-blue-500" },
   { value: "PRODUCT_DELETED", label: "Deleted", color: "bg-red-500" },
+  { value: "PRODUCT_INACTIVATED", label: "Inactivated", color: "bg-amber-500" },
+  { value: "PRODUCT_REACTIVATED", label: "Reactivated", color: "bg-emerald-500" },
 ];
 
 function formatDate(dateStr: string): string {

@@ -943,7 +943,9 @@ export interface DownloadUrlResponse {
 export type ProductEventType =
   | "PRODUCT_CREATED"
   | "PRODUCT_UPDATED"
-  | "PRODUCT_DELETED";
+  | "PRODUCT_DELETED"
+  | "PRODUCT_INACTIVATED"
+  | "PRODUCT_REACTIVATED";
 
 export interface ProductLogUser {
   first_name: string;

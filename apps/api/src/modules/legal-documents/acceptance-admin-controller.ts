@@ -9,6 +9,17 @@ import {
 
 const router = Router();
 
+/** Mirrors LEGAL_ACCEPTANCE_STATUS_OPTIONS labels in apps/admin/src/lib/legal-acceptance-display.ts. */
+const ACCEPTANCE_STATUS_LABELS: Record<string, string> = {
+  NOT_OPENED: "Not opened",
+  OPENED: "Opened",
+  ACCEPTED: "Accepted",
+};
+
+function acceptanceStatusLabel(status: string): string {
+  return ACCEPTANCE_STATUS_LABELS[status] ?? status;
+}
+
 /**
  * GET /v1/admin/legal-document-acceptances
  * Paginated acceptance evidence (read-only).
@@ -92,7 +103,7 @@ router.get(
           row.organizationName ?? "",
           row.organizationAccountType ?? "",
           row.portal,
-          row.status,
+          acceptanceStatusLabel(row.status),
           row.openedAt ?? "",
           row.openedIpAddress ?? "",
           row.openedUserAgent ?? "",

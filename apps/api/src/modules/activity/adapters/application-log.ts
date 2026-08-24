@@ -305,10 +305,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
           : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_WITHDRAWN:
         if (contractRef && applicationRef) {
-          return `${this.capitalize(contractRef)} linked to ${applicationRef} was withdrawn.`;
+          return `The offer for ${contractRef} linked to ${applicationRef} was declined and this application is now closed.`;
         }
         return contractRef
-          ? `${this.capitalize(contractRef)} was withdrawn.`
+          ? `The offer for ${contractRef} was declined and this application is now closed.`
           : fallbackDescription;
       case ApplicationLogEventType.INVOICE_OFFER_SENT:
         return invoiceRef
@@ -516,7 +516,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         description: "Your financing application was rejected and will not continue.",
       },
       [ApplicationLogEventType.APPLICATION_WITHDRAWN]: {
-        title: "Application Closed",
+        title: "Application Withdrawn",
         description: "Your financing application was withdrawn and is no longer active.",
       },
       [ApplicationLogEventType.APPLICATION_COMPLETED]: {
@@ -560,8 +560,8 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         description: "CashSouk extended the signing deadline so you can complete the signing package.",
       },
       [ApplicationLogEventType.CONTRACT_WITHDRAWN]: {
-        title: "Facility Withdrawn",
-        description: "The facility linked to this application was withdrawn.",
+        title: "Facility Offer Declined",
+        description: "The facility offer was declined and this application is now closed.",
       },
       [ApplicationLogEventType.INVOICE_OFFER_SENT]: {
         title: "Invoice Offer Sent",

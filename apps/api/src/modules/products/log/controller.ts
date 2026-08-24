@@ -9,6 +9,19 @@ import {
 
 const router = Router();
 
+/** Mirrors PRODUCT_EVENT_TYPES labels in apps/admin/src/components/audit/product-logs-panel.tsx. */
+const PRODUCT_EVENT_LABELS: Record<string, string> = {
+  PRODUCT_CREATED: "Created",
+  PRODUCT_UPDATED: "Updated",
+  PRODUCT_DELETED: "Deleted",
+  PRODUCT_INACTIVATED: "Inactivated",
+  PRODUCT_REACTIVATED: "Reactivated",
+};
+
+function productEventLabel(eventType: string): string {
+  return PRODUCT_EVENT_LABELS[eventType] ?? eventType;
+}
+
 /**
  * GET /v1/admin/product-logs
  * List product logs with pagination and filters
@@ -89,7 +102,7 @@ router.get(
             logItem.created_at.toISOString(),
             `${logItem.user.first_name} ${logItem.user.last_name}`,
             logItem.user.email,
-            logItem.event_type,
+            productEventLabel(logItem.event_type),
             productName,
             logItem.product_id || "",
             logItem.ip_address || "",

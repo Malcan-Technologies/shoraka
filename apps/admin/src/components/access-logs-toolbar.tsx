@@ -14,7 +14,7 @@ import type { ExportAccessLogsParams, EventType } from "@cashsouk/types";
 const EVENT_TYPE_OPTIONS: { value: EventType; label: string }[] = [
   { value: "LOGIN", label: "Login" },
   { value: "LOGOUT", label: "Logout" },
-  { value: "SIGNUP", label: "Signup" },
+  { value: "SIGNUP", label: "Sign Up" },
   { value: "PASSWORD_CHANGED", label: "Password changed" },
   { value: "EMAIL_CHANGED", label: "Email changed" },
   { value: "ROLE_ADDED", label: "Role added" },

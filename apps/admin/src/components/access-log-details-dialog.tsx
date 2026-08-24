@@ -21,6 +21,14 @@ import {
 import { format } from "date-fns";
 import * as React from "react";
 import type { AccessLogResponse } from "@cashsouk/types";
+import { EVENT_TYPE_CONFIG } from "./access-log-table-row";
+
+function eventTypeLabel(eventType: string): string {
+  return (
+    EVENT_TYPE_CONFIG[eventType]?.label ??
+    eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase())
+  );
+}
 
 // Type for sophisticated status metadata
 interface SophisticatedStatusMetadata {
@@ -98,7 +106,7 @@ export function AccessLogDetailsDialog({ open, onOpenChange, log }: AccessLogDet
           <DialogTitle className="flex items-center gap-3">
             Access Log Details
             <Badge variant="outline" className={`text-xs ${eventTypeColors[log.event_type]}`}>
-              {log.event_type.replace(/_/g, " ")}
+              {eventTypeLabel(log.event_type)}
             </Badge>
           </DialogTitle>
           <DialogDescription>

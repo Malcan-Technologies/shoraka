@@ -19,9 +19,9 @@ function event(overrides: Partial<NoteEvent> = {}): NoteEvent {
 
 describe("formatNoteActivityEventLabel", () => {
   it("maps known types and rewrites Shoraka to Tawarruq", () => {
-    expect(formatNoteActivityEventLabel("NOTE_PUBLISHED")).toBe("Published to marketplace");
+    expect(formatNoteActivityEventLabel("NOTE_PUBLISHED")).toBe("Note published");
     expect(formatNoteActivityEventLabel("PAUSE_LISTING")).toBe("Campaign paused");
-    expect(formatNoteActivityEventLabel("FAIL_FUNDING")).toBe("Funding failed");
+    expect(formatNoteActivityEventLabel("FAIL_FUNDING")).toBe("Funding unsuccessful");
     expect(formatNoteActivityEventLabel("PROSPECTUS_REVIEW_APPROVE")).toBe("Prospectus approved");
     expect(formatNoteActivityEventLabel("PROSPECTUS_APPROVAL_INVALIDATED_UNPUBLISH")).toBe(
       "Prospectus approval cleared after unpublish"

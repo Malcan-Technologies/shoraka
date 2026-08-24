@@ -143,12 +143,18 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
             : "The note did not meet the minimum funding threshold and committed funds were released.",
         };
       case "ACTIVATE":
-      case "WITHDRAWAL_COMPLETED":
         return {
           title: "Note Active",
           description: noteLabel
             ? `${this.capitalize(noteLabel)} is now active and servicing has started.`
             : "The note is now active and servicing has started.",
+        };
+      case "WITHDRAWAL_COMPLETED":
+        return {
+          title: "Disbursement Completed",
+          description: noteLabel
+            ? `Disbursement for ${noteLabel} has been completed.`
+            : "Disbursement for the note has been completed.",
         };
       case "ISSUER_PAYMENT_SUBMITTED":
         return {

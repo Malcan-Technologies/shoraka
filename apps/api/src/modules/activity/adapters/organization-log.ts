@@ -200,7 +200,7 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
         };
       case "ONBOARDING_CANCELLED":
         return {
-          title: "Onboarding Closed",
+          title: "Onboarding Cancelled",
           description: "Your organization onboarding was cancelled and will not continue.",
         };
       case "ONBOARDING_REJECTED":
@@ -208,8 +208,12 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
           title: "Onboarding Rejected",
           description: `Your organization onboarding was rejected${metadata?.reason ? `: ${metadata.reason}` : "."}`,
         };
-      case "FINAL_APPROVAL_COMPLETED":
       case "ONBOARDING_APPROVED":
+        return {
+          title: "Onboarding Submission Approved",
+          description: "Your onboarding submission was approved. We'll notify you when your onboarding is fully complete.",
+        };
+      case "FINAL_APPROVAL_COMPLETED":
         return {
           title: "Onboarding Approved",
           description: "Your organization onboarding was approved and no further action is needed.",

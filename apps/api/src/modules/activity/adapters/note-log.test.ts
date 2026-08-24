@@ -129,7 +129,7 @@ describe("NoteLogAdapter", () => {
     expect(records.map((record) => record.id)).toEqual(["investor_1", "investor_3"]);
   });
 
-  it("normalizes issuer disbursement completion to note active and hides other withdrawals", async () => {
+  it("normalizes issuer disbursement completion to its own title and hides other withdrawals", async () => {
     prisma.noteEvent.findMany.mockResolvedValue([
       createRecord({
         id: "withdrawal_1",
@@ -158,8 +158,8 @@ describe("NoteLogAdapter", () => {
     expect(records[0].id).toBe("withdrawal_1");
 
     const transformed = adapter.transform(records[0] as any);
-    expect(transformed.title).toBe("Note Active");
-    expect(transformed.description).toBe("Note NOTE-001 is now active and servicing has started.");
+    expect(transformed.title).toBe("Disbursement Completed");
+    expect(transformed.description).toBe("Disbursement for note NOTE-001 has been completed.");
     expect(transformed.references).toEqual({
       noteId: "note_1",
       noteReference: "NOTE-001",

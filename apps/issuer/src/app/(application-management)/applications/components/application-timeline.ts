@@ -23,17 +23,17 @@ const EVENT_LABELS: Record<string, string> = {
   SECTION_REVIEWED_REJECTED: "A section was not approved",
   ITEM_REVIEWED_REJECTED: "An item was not approved",
   CONTRACT_OFFER_SENT: "Facility financing offer sent",
-  CONTRACT_OFFER_ACCEPTED: "You accepted the facility offer",
+  CONTRACT_OFFER_ACCEPTED: "Facility offer signed",
   CONTRACT_OFFER_REJECTED: "You declined the facility offer",
   CONTRACT_OFFER_RETRACTED: "Facility offer was withdrawn by CashSouk",
-  CONTRACT_WITHDRAWN: "Facility withdrawn",
+  CONTRACT_WITHDRAWN: "You declined the facility offer",
   INVOICE_OFFER_SENT: "Invoice financing offer sent",
-  INVOICE_OFFER_ACCEPTED: "You accepted an invoice offer",
+  INVOICE_OFFER_ACCEPTED: "Invoice offer signed",
   INVOICE_OFFER_REJECTED: "You declined an invoice offer",
   INVOICE_OFFER_RETRACTED: "Invoice offer was withdrawn by CashSouk",
   INVOICE_WITHDRAWN: "Invoice withdrawn",
   OFFER_EXPIRED: "An offer expired",
-  AMENDMENTS_SUBMITTED: "You submitted requested changes",
+  AMENDMENTS_SUBMITTED: "Changes requested",
 };
 
 /** Events useful for issuer-facing timeline (skip noisy section/item approve noise). */

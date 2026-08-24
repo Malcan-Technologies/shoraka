@@ -32,7 +32,7 @@ const EVENT_LABELS: Record<string, string> = {
   CONTRACT_FACILITY_OCCUPANCY_UPDATED: "Facility occupancy updated",
   CONTRACT_OFFER_EXPIRED: "Facility offer expired",
   CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing deadline extended",
-  CONTRACT_WITHDRAWN: "Facility offer withdrawn",
+  CONTRACT_WITHDRAWN: "Facility offer rejected",
   SIGNING_PACKAGE_CREATED: "Signing package created",
   SIGNING_PACKAGE_SENT: "Signing package sent",
   SIGNING_PACKAGE_COMPLETED: "Signing package completed",
