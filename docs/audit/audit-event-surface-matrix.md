@@ -137,10 +137,10 @@ in §2; notifications in §3–§6; counts, legacy names, and the reconciliation
 | `LOGIN` | LIVE | User signed in | User | access_logs | Y | n/a | n/a | — | Y | Also written on *failed* admin-portal login (`success:false`) |
 | `LOGOUT` | LIVE | User signed out | User | access_logs | Y | n/a | n/a | — | Y | |
 | `SIGNUP` | LIVE | First OAuth signup | User | access_logs | Y | n/a | n/a | — | Y | Emitted alongside `LOGIN` |
-| `ROLE_ADDED` | LIVE | Admin added roles to a user | Admin | access_logs | — | n/a | n/a | — | — | Not in the panel query allowlist |
-| `ROLE_REMOVED` | LIVE | Admin removed the admin role | Admin | access_logs | — | n/a | n/a | — | — | Not in the declared TS union either |
-| `PROFILE_UPDATED` | LIVE | Admin edited a user profile | Admin | access_logs | — | n/a | n/a | — | — | Not in the panel query allowlist |
-| `ONBOARDING_RESET` | LIVE | Admin cleared the onboarded flag | Admin | access_logs | — | n/a | n/a | — | — | Mirrored into `onboarding_logs` |
+| `ROLE_ADDED` | **UNREACHABLE** | Fallback branch of `updateUserRoles` for any outcome that doesn't strip ADMIN — not literally "a role was added" | Admin | access_logs | Y *(filter + label; no `.tsx` caller reaches the writer)* | n/a | n/a | — | Y | Re-traced 2026-08-25 — see §2.1 detail card and §9 |
+| `ROLE_REMOVED` | **UNREACHABLE** | ADMIN role specifically stripped by `updateUserRoles` — not "any role removed" | Admin | access_logs | Y *(filter only; no curated label, no `.tsx` caller)* | n/a | n/a | — | Y | Same writer/route as `ROLE_ADDED`; re-traced 2026-08-25 |
+| `PROFILE_UPDATED` | LIVE | Admin edited a user's name/phone from the user detail page | Admin | access_logs | Y | n/a | n/a | — | Y | `useUpdateUserProfile` → `user-account-profile-panel.tsx` / org member-edit dialog |
+| `ONBOARDING_RESET` | **UNREACHABLE** | Route-only "temporary feature for testing" (per its own Swagger comment); clears the onboarded flag | Admin | access_logs | Y *(filter only; no curated label, no SDK method, no hook, no UI caller)* | n/a | n/a | — | Y | Mirrored into `onboarding_logs`; re-traced 2026-08-25 |
 | `ROLE_SWITCHED` | DEAD | — | — | — | — | n/a | n/a | — | — | Live equivalent lives in `security_logs` |
 | `ONBOARDING` | DEAD | — | — | — | — | n/a | n/a | — | — | No writer anywhere |
 | `USER_COMPLETED` | DEAD *(here)* | — | — | — | — | n/a | n/a | — | — | `DEV_ONLY` writer targets `onboarding_logs`, not this table |
@@ -170,7 +170,7 @@ in §2; notifications in §3–§6; counts, legacy names, and the reconciliation
 | `ONBOARDING_STARTED` | LIVE | Onboarding begun (personal or corporate) | Applicant | onboarding_logs | Y | Y | Y | — | Y | Only 6 onboarding events reach the portals |
 | `ONBOARDING_RESUMED` | LIVE | Resume / regenerate expired link | Applicant | onboarding_logs | Y | — | — | — | Y | Admin-only |
 | `ONBOARDING_CANCELLED` | LIVE | Admin restarted onboarding | Admin | onboarding_logs | Y | Y | Y | — | Y | |
-| `ONBOARDING_RESET` | LIVE | Admin cleared the onboarded flag | Admin | onboarding_logs | — | — | — | — | — | Has a label but is not in the admin query allowlist |
+| `ONBOARDING_RESET` | **UNREACHABLE** | Admin cleared the onboarded flag | Admin | onboarding_logs | — | — | — | — | — | Same `resetOnboarding` writer as the `access_logs` variant (route-only, no SDK/hook/UI caller) — also has a label but is not in the admin org-detail query allowlist |
 | `ONBOARDING_STATUS_UPDATED` | LIVE | Generic status transition bucket | Applicant / Admin / System | onboarding_logs | Y | — | — | — | Y | Carries KYC outcomes via `metadata.trigger` |
 | `ONBOARDING_REJECTED` | LIVE | RegTank **individual** rejection | System | onboarding_logs | Y | Y | Y | `onboarding_rejected` | Y | |
 | `COD_REJECTED` | LIVE | RegTank **corporate (COD)** rejection | System | onboarding_logs | — | Y | Y | `onboarding_rejected` | — | Portal-visible but missing from the admin org filter |
@@ -441,45 +441,49 @@ Declared union: `EventType` in `packages/types/src/admin.ts`. Central writer:
 ---
 
 **EVENT TYPE:** `ROLE_ADDED` *(access_logs variant)*
-**STATUS:** LIVE · **CANONICAL BUSINESS NAME:** Admin changed a user's roles
+**STATUS:** **UNREACHABLE** *(re-traced 2026-08-25)* · **CANONICAL BUSINESS NAME:** Fallback branch of an admin role-set edit
 **DO NOT CONFUSE WITH:** the `security_logs` `ROLE_ADDED` (user self-adds a portal role — different table, different actor semantics)
-**BUSINESS TRIGGER:** Admin edits a user's role set. **ACTOR:** Admin (the **admin's** id lands in `user_id`; the subject is in metadata)
-**WRITER:** `admin/service.ts:updateUserRoles` (~1222) · **TABLE:** `access_logs` · **TARGET:** user
+**BUSINESS TRIGGER:** `AdminService.updateUserRoles` emits `adminRoleRemoved ? "ROLE_REMOVED" : "ROLE_ADDED"`. `ROLE_ADDED` is **not** literally "a role was added" — it is the fallback for every outcome that doesn't specifically strip the `ADMIN` role, including a call that only removed `INVESTOR`/`ISSUER`. **ACTOR:** Admin (the **admin's** id lands in `user_id`; the subject is in metadata)
+**WRITER:** `admin/service.ts:updateUserRoles` (~1222) · **ROUTE:** `PATCH /v1/admin/users/:id/roles` (`requirePermission("users.manage")`) · **TABLE:** `access_logs` · **TARGET:** user
 **STORED EVIDENCE:** metadata `targetUserId`, `targetUserEmail`, `newRoles`, `previousRoles`, `adminRoleRemoved`
-**SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: **Hidden (not queried)** — outside `ACCESS_EVENT_TYPES`. A label `"Role Added"` exists in `EVENT_TYPE_CONFIG` but is unreachable. CSV: **Excluded** — same filter.
+**REACHABILITY:** SDK method `apiClient.updateUserRoles` and hook `useUpdateUserRoles()` (`apps/admin/src/hooks/use-users.ts`) both exist, but **zero `.tsx` components call the hook** (`rg -n "useUpdateUserRoles" apps/admin/src -g '*.tsx'` → no matches). The only Admin UI path that changes portal roles is the "Portal access" panel, which calls `useUpdateUserOnboarding` (a different service method, `AdminService.updateUserOnboarding`) and writes `onboarding_logs.ONBOARDING_STATUS_UPDATED` instead — it never reaches this writer. **BACKEND/API REACHABLE, CURRENT ADMIN UI UNREACHABLE.**
+**SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: in `ACCESS_EVENT_TYPES` (added 2026-08-24) so a row would be **Shown** with label `"Role Added"` if one ever existed — but no UI action can create one. CSV: **Included** for the same reason.
 **NOTIFICATION:** NO
 
 ---
 
 **EVENT TYPE:** `ROLE_REMOVED` *(access_logs variant)*
-**STATUS:** LIVE · **CANONICAL BUSINESS NAME:** Admin removed the admin role from a user
+**STATUS:** **UNREACHABLE** *(re-traced 2026-08-25)* · **CANONICAL BUSINESS NAME:** ADMIN role specifically stripped from a user
 **DO NOT CONFUSE WITH:** `security_logs` `ROLE_REMOVED`, which is an **admin role-catalogue delete**, not a user losing a role
-**BUSINESS TRIGGER:** Same `updateUserRoles` call as above, on the `adminRoleRemoved` branch. **ACTOR:** Admin
-**WRITER:** `admin/service.ts:updateUserRoles` (~1222) · **TABLE:** `access_logs` · **TARGET:** user
+**BUSINESS TRIGGER:** Same `updateUserRoles` call as `ROLE_ADDED`, but only the branch where `ADMIN` was present before and absent after (`adminRoleRemoved`). It does **not** mean "any role removed" — removing only `INVESTOR`/`ISSUER` emits `ROLE_ADDED` instead (see above). **ACTOR:** Admin
+**WRITER:** `admin/service.ts:updateUserRoles` (~1222) · **ROUTE:** `PATCH /v1/admin/users/:id/roles` (`requirePermission("users.manage")`) · **TABLE:** `access_logs` · **TARGET:** user
 **STORED EVIDENCE:** identical metadata object to `ROLE_ADDED`
-**SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: **Hidden (not queried)**. CSV: **Excluded**. Also absent from the declared `EventType` union.
+**REACHABILITY:** Same hook/route as `ROLE_ADDED` — `useUpdateUserRoles()` exists, zero `.tsx` callers. **BACKEND/API REACHABLE, CURRENT ADMIN UI UNREACHABLE.**
+**SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: in `ACCESS_EVENT_TYPES` (added 2026-08-24), no curated label in `EVENT_TYPE_CONFIG` (falls back to title-case if a row ever existed). CSV: **Included** for the same reason. Also absent from the declared `EventType` union prior to 2026-08-24.
 **NOTIFICATION:** NO
 
 ---
 
 **EVENT TYPE:** `PROFILE_UPDATED` *(access_logs variant)*
-**STATUS:** LIVE · **CANONICAL BUSINESS NAME:** Admin edited a user profile
+**STATUS:** LIVE_UI_REACHABLE · **CANONICAL BUSINESS NAME:** Admin edited a user's name/phone
 **DO NOT CONFUSE WITH:** `security_logs` `PROFILE_UPDATED` (self-service edit, subject-actored) and `onboarding_logs` `PROFILE_UPDATED` (organization profile, not user profile). **Three different tables use this same string for three different things.**
-**BUSINESS TRIGGER:** Admin patches a user profile. **ACTOR:** Admin
-**WRITER:** `admin/service.ts:updateUserProfile` (~1379) · **TABLE:** `access_logs` · **TARGET:** user
+**BUSINESS TRIGGER:** Admin patches a user's name/phone from the user detail page. **ACTOR:** Admin
+**WRITER:** `admin/service.ts:updateUserProfile` (~1379) · **ROUTE:** `PATCH /v1/admin/users/:id/profile` · **TABLE:** `access_logs` · **TARGET:** user
 **STORED EVIDENCE:** metadata `targetUserId`, `targetUserEmail`, `updatedFields`, `previousValues`, `nameLockedOverride`
-**SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: **Hidden (not queried)**. CSV: **Excluded**.
+**REACHABILITY:** hook `useUpdateUserProfile()` (`apps/admin/src/hooks/use-users.ts`) is called from `user-account-profile-panel.tsx` (the user detail "Profile" edit form) and from `organization-member-edit-dialog.tsx`. **LIVE_UI_REACHABLE.**
+**SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: in `ACCESS_EVENT_TYPES` (added 2026-08-24) — **Shown** with label `"Profile Updated"`. CSV: **Included**.
 **NOTIFICATION:** NO
 
 ---
 
 **EVENT TYPE:** `ONBOARDING_RESET` *(access_logs variant)*
-**STATUS:** LIVE · **CANONICAL BUSINESS NAME:** Admin cleared the user's onboarded flag
+**STATUS:** **UNREACHABLE — route-only** *(re-traced 2026-08-25)* · **CANONICAL BUSINESS NAME:** Admin cleared the user's onboarded flag
 **DO NOT CONFUSE WITH:** `ONBOARDING_CANCELLED` (admin restarts the RegTank onboarding request) — reset only flips the completion flag
-**BUSINESS TRIGGER:** Admin "reset onboarding" action. Writes to **both** `access_logs` and `onboarding_logs`. **ACTOR:** Admin
-**WRITER:** `admin/service.ts:resetOnboarding` (~2426) · **TABLE:** `access_logs` · **TARGET:** user
+**BUSINESS TRIGGER:** Would be an admin "reset onboarding" action. Writes to **both** `access_logs` and `onboarding_logs`. **ACTOR:** Admin
+**WRITER:** `admin/service.ts:resetOnboarding` (~2358) · **ROUTE:** `POST /v1/admin/users/:id/reset-onboarding` (`requirePermission("onboarding.manage")`) · **TABLE:** `access_logs` · **TARGET:** user
 **STORED EVIDENCE:** metadata `targetUserId`, `targetUserEmail`, `portal`
-**SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: **Hidden (not queried)**. CSV: **Excluded**.
+**REACHABILITY:** The route's own Swagger doc comment calls it *"admin only, temporary feature for testing"*. There is **no SDK method** wrapping it in `packages/config/src/api-client.ts`, **no hook**, and **no `.tsx` caller** — it is one tier more unreachable than `ROLE_ADDED`/`ROLE_REMOVED`, which at least have SDK+hook plumbing. **ROUTE-ONLY, NOT EVEN SDK-WRAPPED.**
+**SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: in `ACCESS_EVENT_TYPES` (added 2026-08-24), no curated label. CSV: **Included** for the same reason.
 **NOTIFICATION:** NO
 
 ---
@@ -690,7 +694,7 @@ matched (`issuer_organization_id` vs `investor_organization_id`).
 | Event | Trigger / writer | Actor | Business-specific evidence | Admin detail copy | In admin query filter |
 |---|---|---|---|---|---|
 | `ONBOARDING_RESUMED` | `regtank/service.ts` (~720/~812/~1030) — resume or regenerate an expired link | Applicant | `organizationId`, `previousRequestId`, `newRequestId`, `onboardingType`, `trigger` | `"Onboarding Resumed"` | Yes |
-| `ONBOARDING_RESET` | `admin/service.ts:resetOnboarding` (~2405) | Admin | `resetBy`, `previousStatus:true`, `newStatus:false`, `adminAction:true` | `"Onboarding Reset"` | **No** — label exists but rows are never fetched |
+| `ONBOARDING_RESET` **(UNREACHABLE)** | `admin/service.ts:resetOnboarding` (~2358), route `POST /v1/admin/users/:id/reset-onboarding` (documented in its own Swagger comment as "temporary feature for testing") — **no SDK method, no hook, no `.tsx` caller**, so this writer can never fire from the current Admin UI | Admin *(designed actor; never actually reached)* | `resetBy`, `previousStatus:true`, `newStatus:false`, `adminAction:true` | `"Onboarding Reset"` | **No** — outside `ONBOARDING_EVENT_TYPES` (org-detail query allowlist), and unreachable from the UI regardless |
 | `ONBOARDING_STATUS_UPDATED` | 6+ writers: `admin/service.ts:updateUserOnboarding` (~1307/~1331) and manual refresh (~4738); `individual-onboarding-handler.ts` (~356); `kyc-handler.ts` (~445/~513); `cod-handler.ts` (~720/~802/~1477); `org-aml-milestone.ts` (~160); `regtank/service.ts` (~2857) | Applicant / Admin / System | Always a `trigger` key — e.g. `"KYC_APPROVED"`, `"REGTANK_APPROVED"`, `"ADMIN_MANUAL_ONBOARDING_REFRESH"` — plus `previousStatus`, `newStatus`, and path-specific extras such as `amlApproved:true` | `"Status Updated"`, description `"Triggered by {trigger}"` | Yes |
 | `TNC_APPROVED` | `organization/service.ts:acceptTnc` (~835) | Applicant | `organizationId`, `organizationType`, `organizationName`, `role`, `legalDocumentsRequired` | `"T&C Approved"` | Yes |
 | `AML_APPROVED` **(UNREACHABLE)** | `admin/service.ts:approveAmlScreening` (~4321), route `POST /v1/admin/onboarding-applications/:id/approve-aml`, SDK method, `useApproveAmlScreening` hook — **no `.tsx` component imports or calls that hook**, so this writer can never fire from the current Admin UI | Admin *(designed actor; never actually reached)* | `organizationId`, `organizationType`, `portalType`, `onboardingRequestId`, `isCorporateOnboarding`, `previousStatus`, `newStatus`, `approvedBy`, `approvedAt` | `"AML Approved"` | Yes *(would be, if ever written)* |
@@ -1720,15 +1724,15 @@ supersede them** — see §9.
 
 | Store | Documented | Live | Not live | Breakdown of "not live" |
 |---|---|---|---|---|
-| `access_logs` | 14 | 7 | 7 | 6 declared-but-written-elsewhere, 1 seed-only |
+| `access_logs` | 14 | 4 | 10 | 6 declared-but-written-elsewhere, 1 seed-only, 3 unreachable (`ROLE_ADDED`, `ROLE_REMOVED`, `ONBOARDING_RESET` — reclassified 2026-08-25, see §9 #12) |
 | `security_logs` | 9 | 9 | 0 | — |
-| `onboarding_logs` | 27 | 22 | 5 | 3 seed-only, 1 dev-only, 1 unreachable (`AML_APPROVED` — reclassified 2026-08-24, see §9 #11) |
+| `onboarding_logs` | 27 | 21 | 6 | 3 seed-only, 1 dev-only, 2 unreachable (`AML_APPROVED` — reclassified 2026-08-24; `ONBOARDING_RESET` — reclassified 2026-08-25, see §9 #11–#12) |
 | `application_logs` | 45 | 43 | 2 | 2 dead (`APPLICATION_APPROVED`, `CONTRACT_OFFER_REJECTED`) |
 | `note_events` | 43 | 42 | 1 | 1 dead (`ISSUER_RESIDUAL_WITHDRAWAL_CREATED`) |
 | `legal_document_audit_logs` | 7 | 7 | 0 | — |
 | `product_logs` | 5 | 3 | 2 | 2 unreachable (writer exists, no caller) |
 | `gateway_payment_events` | 11 | 8 | 3 | 3 dead (`OVERRIDE_*`) |
-| **Total** | **161** | **141** | **20** | |
+| **Total** | **161** | **137** | **24** | |
 
 Not counted as events above, documented separately:
 
@@ -1897,6 +1901,7 @@ deletion.
 | 9 | All four documents | No stated division of responsibility; each read as a competing source of truth | — | Responsibility header added to each, cross-referencing §0.1 |
 | 10 | All four documents | No warning about the stale `*/audit/events.ts` index entries | The vocabulary in those index hits is not real | Warning added; full detail in §8.1 |
 | 11 | This document (previously) | `AML_APPROVED` classified **LIVE** | Re-traced from source 2026-08-24: the route (`POST /v1/admin/onboarding-applications/:id/approve-aml`), service (`approveAmlScreening`), SDK method, and `useApproveAmlScreening` hook all exist, but **zero `.tsx` files call the hook**. It is designed manual-override plumbing that has never been wired into the Admin UI. Live AML progression is fully automatic via `maybeAdvanceOrgAfterAmlScreeningCleared`, which writes `ONBOARDING_STATUS_UPDATED` + `metadata.amlApproved:true`. Standalone `KYC_APPROVED` remains SEED_ONLY; the live KYC audit trail is `ONBOARDING_STATUS_UPDATED` + `metadata.trigger:"KYC_APPROVED"` | Reclassified **UNREACHABLE**; §2.3, §7.1 totals, and §4/§5 notification cross-references updated (Live 142→141, Not-live 19→20) |
+| 12 | This document (previously, and the 2026-08-24 Pass A filter-fix rationale in `use-access-logs.ts`) | `access_logs.ROLE_ADDED`, `access_logs.ROLE_REMOVED`, `access_logs.ONBOARDING_RESET`, and `onboarding_logs.ONBOARDING_RESET` classified **LIVE** on the strength of "writer exists" alone | Re-traced from source 2026-08-25, starting from `AdminService.updateUserRoles` and `AdminService.resetOnboarding` per explicit user request. `updateUserRoles`: route `PATCH /v1/admin/users/:id/roles`, SDK method, and `useUpdateUserRoles()` hook all exist, but **zero `.tsx` callers** — the only UI path that changes portal roles is the "Portal access" panel, which calls the unrelated `useUpdateUserOnboarding` and never reaches this writer. `resetOnboarding`: route `POST /v1/admin/users/:id/reset-onboarding` exists (its own Swagger comment calls it "temporary feature for testing") but has **no SDK method, no hook, no `.tsx` caller** at all — one tier more unreachable than the roles writer. `access_logs.PROFILE_UPDATED` was re-confirmed genuinely **LIVE_UI_REACHABLE** (`useUpdateUserProfile` → `user-account-profile-panel.tsx` / `organization-member-edit-dialog.tsx`), as were all four `security_logs` additions from the same Pass A fix (`ROLE_CREATED`, `ROLE_REMOVED`, `ROLE_PERMISSIONS_UPDATED`, `INVITATION_REVOKED` — all wired to `admin-permission-configuration.tsx` or `app/settings/roles/page.tsx`). Also documented two writer-behavior nuances: `ROLE_ADDED` is the fallback branch of `updateUserRoles` for *any* non-ADMIN-removal outcome (not literally "a role was added"), and `ROLE_REMOVED` fires only when `ADMIN` is specifically stripped (not "any role removed") | Reclassified **UNREACHABLE** (3 in `access_logs`, 1 in `onboarding_logs`); filter/query allowlist and code left unchanged on purpose — see the `use-access-logs.ts` comment. §1.1, §1.3, §2.1, §2.3, and §7.1 totals updated (Live 141→137, Not-live 20→24); `security_logs` additions re-confirmed with no changes |
 
 
 
