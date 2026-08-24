@@ -22,6 +22,27 @@ describe("formatContractActivityEventLabel", () => {
     expect(formatContractActivityEventLabel("CONTRACT_OFFER_ACCEPTED")).toBe("Facility offer signed");
     expect(formatContractActivityEventLabel("CUSTOM_EVENT_TYPE")).toBe("Custom Event Type");
   });
+
+  // Cosmetic-copy regression: canonical wording from activity-notification-copy-standard.md §2
+  // ("Facility/Invoice Acceptance Approved for Signing"), aligned with admin-activity-timeline.tsx.
+  it("uses the canonical Facility-prefixed wording for acceptance approved for signing", () => {
+    expect(formatContractActivityEventLabel("CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING")).toBe(
+      "Facility acceptance approved for signing"
+    );
+  });
+
+  it("uses sentence-case signing-package wording, matching the facility/invoice timeline", () => {
+    expect(formatContractActivityEventLabel("SIGNING_PACKAGE_CREATED")).toBe(
+      "Signing package created"
+    );
+    expect(formatContractActivityEventLabel("SIGNING_PACKAGE_SENT")).toBe("Signing package sent");
+    expect(formatContractActivityEventLabel("SIGNING_PACKAGE_COMPLETED")).toBe(
+      "Signing package completed"
+    );
+    expect(formatContractActivityEventLabel("SIGNING_PACKAGE_VOIDED")).toBe(
+      "Signing package voided"
+    );
+  });
 });
 
 describe("buildContractActivityCsv", () => {

@@ -157,9 +157,9 @@ function getEventLabel(
     INVOICE_OFFER_EXPIRED: "Invoice Offer Expired",
     INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
     INVOICE_WITHDRAWN: "Invoice Withdrawn",
-    SIGNING_PACKAGE_CREATED: "Signing Package Created",
-    SIGNING_PACKAGE_SENT: "Signing Package Sent",
-    SIGNING_PACKAGE_VOIDED: "Signing Package Voided",
+    SIGNING_PACKAGE_CREATED: "Signing package created",
+    SIGNING_PACKAGE_SENT: "Signing package sent",
+    SIGNING_PACKAGE_VOIDED: "Signing package voided",
     AMENDMENTS_SUBMITTED: "Amendment Request Sent",
   };
   if (eventType === "INVOICE_OFFER_SENT") {

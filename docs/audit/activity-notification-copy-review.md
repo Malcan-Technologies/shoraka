@@ -49,7 +49,7 @@ copy-only in spirit but touches a visibility-coupled list, or requires populatin
 | `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | Facility Occupancy Updated | not shown | not in label map | Facility occupancy updated | — | CONSISTENT where shown | NO_ACTION |
 | `CONTRACT_FACILITY_FEE_WAIVED` / `_ENABLED` / `_DISABLED`, `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | GENERIC_FALLBACK / RAW_EVENT_NAME | not shown | not shown | not shown | — | GENERIC_FALLBACK | NO_ACTION this pass — exact enum spelling not independently confirmed against source; flagged for a follow-up label-map addition once confirmed |
 | Invoice equivalents (`INVOICE_OFFER_*`) | mirrors contract pattern | mirrors contract pattern | mirrors contract pattern | mirrors contract pattern | Invoice Offer Received | same pattern as contract | Same status per row as contract equivalent above |
-| `SIGNING_PACKAGE_CREATED/SENT/COMPLETED/VOIDED` | Title Case; `COMPLETED` hidden from timeline UI by design | not shown / not in label map | Signing package sent/completed (lowercase) | Signing Package Sent/Completed | Signature requested (direct email) | INCONSISTENT capitalization only | NO_ACTION this pass — cosmetic casing only, low value relative to scope already covered; noted for future cleanup |
+| `SIGNING_PACKAGE_CREATED/SENT/COMPLETED/VOIDED` | ~~Title Case~~ → sentence case; `COMPLETED` hidden from timeline UI by design (unchanged) | not shown / not in label map | Signing package sent/completed (lowercase, unchanged) | ~~Signing Package Sent/Completed~~ → **Signing package sent/completed** | Signature requested (direct email) | ~~INCONSISTENT capitalization only~~ | **RESOLVED (2026-08-24)** — BEFORE: `admin-activity-timeline.tsx`'s `CREATED`/`SENT`/`VOIDED` labels and the general-Activity `application-log.ts` presentation titles for `SENT`/`COMPLETED` used Title Case ("Signing Package Sent"), while the Facility Table and CSV surfaces already used the canonical sentence case ("Signing package sent") per `activity-notification-copy-standard.md` §3. DECISION: align the two Title Case surfaces to the documented canonical sentence case. AFTER: `admin-activity-timeline.tsx` now reads "Signing package created/sent/voided"; `application-log.ts`'s presentation titles now read "Signing package sent"/"Signing package completed". `SIGNING_PACKAGE_COMPLETED` remains absent from the admin timeline's visible label map (still hidden by design via `TIMELINE_HIDDEN_EVENT_TYPES`) and absent from `application-log.ts`'s `getEventTypes()` query allowlist — no visibility change on either surface, text-only. |
 
 ---
 
@@ -118,7 +118,7 @@ copy-only in spirit but touches a visibility-coupled list, or requires populatin
 | `LEGAL_DOCUMENT_CREATED` / `_UPDATED` | Document created / updated | ~~raw enum~~ → **friendly label** | INCONSISTENT (UI vs CSV) | **IMPLEMENTED** (`audit-admin-controller.ts`) |
 | `LEGAL_VERSION_UPLOADED` / `_FILE_REPLACED` / `_PUBLISHED` / `_ARCHIVED` / `_RESTORED` | Version uploaded/file replaced/published/archived/restored | ~~raw enum~~ → **friendly label** (all 5) | INCONSISTENT (UI vs CSV) | **IMPLEMENTED** |
 | Acceptance status `NOT_OPENED` / `OPENED` / `ACCEPTED` | Not opened / Opened / Accepted | ~~raw enum~~ → **friendly label** | INCONSISTENT (UI vs CSV) | **IMPLEMENTED** (`acceptance-admin-controller.ts`) |
-| `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` casing across timeline/badge/CSV | 3 slightly different casings | INCONSISTENT (cosmetic) | NO_ACTION this pass — low value, deferred |
+| `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` casing across timeline/badge/CSV | ~~3 slightly different casings~~ → aligned to canonical | ~~INCONSISTENT (cosmetic)~~ | **RESOLVED (2026-08-24)** — BEFORE: `admin-activity-timeline.tsx` already read "Facility/Invoice Acceptance Approved for Signing" (canonical); `contract-activity-csv.ts` read "Acceptance approved for signing" (no product prefix, all-lowercase); the Acceptance-tab phase badge (`getOfferAcceptanceStatusPresentation` in `packages/types/src/offer-acceptance.ts`, shared by both contract and invoice offer-acceptance UI) read "Approved For Signing" (capitalized "For"). DECISION: align wording/preposition casing to the canonical `Facility/Invoice Acceptance Approved for Signing` term from `activity-notification-copy-standard.md` §2 without threading product-type context into the shared, product-agnostic badge function (that would be a component/prop-signature change, out of scope for a copy-only pass). AFTER: CSV now reads "Facility acceptance approved for signing" (product-prefixed, matches this CSV's own sentence-case convention); badge now reads "Approved for Signing" (lowercase preposition, same meaning, no product prefix since the shared function has no product-type input). Admin timeline copy was already correct and is unchanged. Meaning, visibility, and workflow are unchanged on all three surfaces. |
 | `BOARD_RESOLUTION_UPLOADED/REMOVED` | test-fixture only | DEAD_COPY_REFERENCE | NO_ACTION |
 
 ---
@@ -191,6 +191,13 @@ scope.
 | **NEEDS_PRODUCT_DECISION** (visibility-coupled lists, or requires a writer change) | 6 |
 | **NO_ACTION** (already consistent, intentionally different, dead, or deferred low-value cosmetic) | remainder |
 
+**Later passes (2026-08-24):** the 2026-08-24 non-compliance cleanup pass resolved 3 of the 6
+`NEEDS_PRODUCT_DECISION` items above (§1 row 41/42, §2 rows 47/48, plus the onboarding/trustee items
+tracked in `audit-product-gap-review.md`). The 2026-08-24 cosmetic-only follow-up pass separately
+resolved 2 of the remaining deferred low-value cosmetic items (signing-package casing; `*_ACCEPTANCE_APPROVED_FOR_SIGNING`
+casing). Only the seed `name` vs inbox `title` drift (item 5 in "Items Requiring a Product Decision")
+remains open, by explicit product decision to leave seed content untouched.
+
 ---
 
 ## Files Changed
@@ -225,6 +232,17 @@ patched for exactly these 16 files via `apps/api/scripts/audit-presentation-base
 `apps/api/src/modules/notification/note-lifecycle-notifications.ts`,
 `apps/api/src/modules/notes/service.ts`.
 
+**Cosmetic-only follow-up pass (2026-08-24)** — files changed for item 4 above:
+`apps/admin/src/components/admin-activity-timeline.tsx` (signing-package label casing),
+`apps/api/src/modules/activity/adapters/application-log.ts` (signing-package presentation-title
+casing), `apps/admin/src/contracts/utils/contract-activity-csv.ts` (acceptance-approved-for-signing
+label), `packages/types/src/offer-acceptance.ts` (offer-acceptance-phase badge preposition casing).
+New/updated test files: `apps/admin/src/components/admin-activity-timeline-copy.test.ts` (new),
+`apps/admin/src/contracts/utils/contract-activity-csv.test.ts` (updated),
+`apps/issuer/src/lib/offer-acceptance-status-presentation.test.ts` (new),
+`apps/api/src/modules/activity/adapters/application-log.test.ts` (updated). Presentation baseline
+patched for `application-log.ts`, `admin-activity-timeline.tsx`, and `contract-activity-csv.ts`.
+
 ## Items Requiring a Product Decision (originally not implemented)
 
 **Update (2026-08-24): items 1–3 below were subsequently approved by product and are now
@@ -247,9 +265,17 @@ record of each fix.
    gap**~~ **RESOLVED** — `TNC_ACCEPTED`/`KYC_APPROVED`/`KYB_APPROVED` removed from the admin filter
    list (confirmed zero production writers; enum/rows untouched); `COD_REJECTED` added to
    `organization-log.ts`'s `getEventTypes()` and `buildPresentation()` with canonical copy.
-4. **Cosmetic capitalization-only inconsistencies** (signing-package Title Case vs lowercase across
+4. ~~**Cosmetic capitalization-only inconsistencies** (signing-package Title Case vs lowercase across
    3 files; `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` 3-way casing) were catalogued but not
    auto-applied this pass — genuinely safe, but lower value than the fixes above; left for a future
-   pass if desired.
+   pass if desired.~~ **RESOLVED (2026-08-24), cosmetic-only follow-up pass** — see §5 and §6 rows
+   above for the per-surface BEFORE/AFTER. Signing-package labels aligned to sentence case in
+   `admin-activity-timeline.tsx` and `application-log.ts` (Facility Table and CSV were already
+   correct); `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING`/`INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING`
+   aligned in `contract-activity-csv.ts` and the shared offer-acceptance-phase badge
+   (`packages/types/src/offer-acceptance.ts`). No event, schema, visibility, remark, CSV
+   row-inclusion, or notification-recipient/channel change in any of these edits.
 5. **Seed `name` vs notification inbox `title` drift** (`contract_offer_sent`, `note_payment_received`)
-   is a database seed-content edit, not a source-file copy fix, and was left untouched.
+   is a database seed-content edit, not a source-file copy fix, and remains intentionally untouched
+   per product decision (seed changes don't guarantee existing environments update; left documented
+   only, not implemented).

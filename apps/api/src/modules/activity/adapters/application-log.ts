@@ -604,11 +604,11 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         description: "We need updates to your application before it can continue.",
       },
       [ApplicationLogEventType.SIGNING_PACKAGE_SENT]: {
-        title: "Signing Package Sent",
+        title: "Signing package sent",
         description: "The signing package was sent to all required signers.",
       },
       [ApplicationLogEventType.SIGNING_PACKAGE_COMPLETED]: {
-        title: "Signing Package Completed",
+        title: "Signing package completed",
         description: "All required signers completed the signing package.",
       },
     };

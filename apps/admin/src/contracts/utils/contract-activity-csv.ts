@@ -25,7 +25,7 @@ const EVENT_LABELS: Record<string, string> = {
   CONTRACT_OFFER_SENT: "Facility offer sent",
   CONTRACT_OFFER_ACCEPTANCE_SUBMITTED: "Acceptance submitted",
   CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED: "Acceptance resubmitted",
-  CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING: "Acceptance approved for signing",
+  CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING: "Facility acceptance approved for signing",
   CONTRACT_OFFER_ACCEPTED: "Facility offer signed",
   CONTRACT_OFFER_REJECTED: "Facility offer withdrawn",
   CONTRACT_OFFER_RETRACTED: "Facility offer retracted",

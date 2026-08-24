@@ -71,6 +71,14 @@ that is a rejection, not a withdrawal, and "Withdrawn" is reserved for `CONTRACT
 "Accepted" for the terminal signed state on issuer-facing surfaces — "signed" is the correct verb
 because the moment fires when the signing package completes, not when the issuer clicks "accept."
 
+**Note on the Acceptance-tab phase badge:** `getOfferAcceptanceStatusPresentation` (`packages/types`)
+renders the `APPROVED_FOR_SIGNING` sub-status as **"Approved for Signing"** (no Facility/Invoice
+prefix) because that function is shared, product-agnostic UI used by both contract and invoice
+offer-acceptance panels — it has no product-type input to key a prefix off of. This is not a copy
+bug; product context is already visible elsewhere on that screen. Only the audit-log/CSV/Admin-timeline
+copy for the underlying `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` / `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING`
+events uses the full "Facility/Invoice Acceptance Approved for Signing" term below.
+
 **LIVE EVENT TYPES (contract):** `CONTRACT_OFFER_SENT`, `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED`,
 `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED`, `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING`,
 `CONTRACT_OFFER_ACCEPTED`, `CONTRACT_OFFER_RETRACTED`, `CONTRACT_OFFER_EXPIRED`,
