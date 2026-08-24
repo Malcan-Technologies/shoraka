@@ -1,5 +1,21 @@
 # Activity & Notification Copy Consistency Review
 
+> **Document responsibility:** this file owns the **historical copy-consistency review and
+> implementation record** — the BEFORE/AFTER of every wording change, and why each was or was not
+> applied. It answers *"why does this surface word it that way, and was it reviewed?"* It is a
+> **historical record**, so entries are annotated rather than rewritten as work lands.
+>
+> | Question | Document |
+> |---|---|
+> | What happens for `EVENT_X`? | [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) — **primary reference** |
+> | What should I *call* this on a new surface? | [`activity-notification-copy-standard.md`](./activity-notification-copy-standard.md) |
+> | Is the evidence we store good enough? | [`audit-event-catalog.md`](./audit-event-catalog.md) |
+> | What is still broken or awaiting sign-off? | [`audit-product-gap-review.md`](./audit-product-gap-review.md) |
+>
+> **Do not read this file as the current state of the copy.** Because it preserves history, some
+> BEFORE values here no longer exist in code. For the copy that is live *today*, see
+> [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) §2.
+
 Full per-event copy consistency matrix across Admin, Issuer, Investor, Notification, and CSV/export
 surfaces. Companion to `docs/audit/activity-notification-copy-standard.md` (canonical terms) and
 `docs/audit/audit-event-catalog.md` (what's stored/who reads it).
@@ -119,7 +135,7 @@ copy-only in spirit but touches a visibility-coupled list, or requires populatin
 | `LEGAL_VERSION_UPLOADED` / `_FILE_REPLACED` / `_PUBLISHED` / `_ARCHIVED` / `_RESTORED` | Version uploaded/file replaced/published/archived/restored | ~~raw enum~~ → **friendly label** (all 5) | INCONSISTENT (UI vs CSV) | **IMPLEMENTED** |
 | Acceptance status `NOT_OPENED` / `OPENED` / `ACCEPTED` | Not opened / Opened / Accepted | ~~raw enum~~ → **friendly label** | INCONSISTENT (UI vs CSV) | **IMPLEMENTED** (`acceptance-admin-controller.ts`) |
 | `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` casing across timeline/badge/CSV | ~~3 slightly different casings~~ → aligned to canonical | ~~INCONSISTENT (cosmetic)~~ | **RESOLVED (2026-08-24)** — BEFORE: `admin-activity-timeline.tsx` already read "Facility/Invoice Acceptance Approved for Signing" (canonical); `contract-activity-csv.ts` read "Acceptance approved for signing" (no product prefix, all-lowercase); the Acceptance-tab phase badge (`getOfferAcceptanceStatusPresentation` in `packages/types/src/offer-acceptance.ts`, shared by both contract and invoice offer-acceptance UI) read "Approved For Signing" (capitalized "For"). DECISION: align wording/preposition casing to the canonical `Facility/Invoice Acceptance Approved for Signing` term from `activity-notification-copy-standard.md` §2 without threading product-type context into the shared, product-agnostic badge function (that would be a component/prop-signature change, out of scope for a copy-only pass). AFTER: CSV now reads "Facility acceptance approved for signing" (product-prefixed, matches this CSV's own sentence-case convention); badge now reads "Approved for Signing" (lowercase preposition, same meaning, no product prefix since the shared function has no product-type input). Admin timeline copy was already correct and is unchanged. Meaning, visibility, and workflow are unchanged on all three surfaces. |
-| `BOARD_RESOLUTION_UPLOADED/REMOVED` | test-fixture only | DEAD_COPY_REFERENCE | NO_ACTION |
+| ~~`BOARD_RESOLUTION_UPLOADED/REMOVED`~~ | ~~test-fixture only~~ **CORRECTED (2026-08-24)** — zero occurrences in the repository; phantom search-index hits from an unmerged branch, not real event types (matrix §8.1) | ~~DEAD_COPY_REFERENCE~~ NOT_AN_ACTUAL_EVENT | NO_ACTION |
 
 ---
 

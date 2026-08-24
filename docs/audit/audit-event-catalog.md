@@ -1,5 +1,25 @@
 # Audit Event Catalog
 
+> **Document responsibility:** this file owns the **technical writer / storage / evidence**
+> reference, organised by module, with an evidence-sufficiency assessment per event. It answers
+> *"is the evidence we store for this event good enough?"*
+>
+> | Question | Document |
+> |---|---|
+> | What happens for `EVENT_X`? | [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) — **primary reference** |
+> | What is still broken or awaiting sign-off? | [`audit-product-gap-review.md`](./audit-product-gap-review.md) |
+> | What should I *call* this on a new surface? | [`activity-notification-copy-standard.md`](./activity-notification-copy-standard.md) |
+> | Why is it worded that way, and was it reviewed? | [`activity-notification-copy-review.md`](./activity-notification-copy-review.md) |
+>
+> For the authoritative event/notification **counts** and the per-event **surface map**, use
+> [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) §7 and §2, plus its
+> machine-readable companion [`audit-event-registry.json`](./audit-event-registry.json).
+>
+> ⚠️ Editor search indexes on this repository return phantom files under
+> `apps/api/src/modules/*/audit/` that **do not exist on disk** and carry a different event
+> vocabulary (`USER_LOGGED_IN`, `CONTRACT_ACCEPTANCE_SUBMITTED`, `SHORAKA_CERTIFICATE_RECEIVED`, …).
+> Verify with `ls`/`cat` before trusting any hit under that path. Full list in matrix §8.1.
+
 Developer reference for every live audit/log event and per-user notification type in production code, organized by module. This is a **read-only catalog of what exists today** — it does not propose changes. For gaps, mismatches, and recommended follow-ups, see [`audit-product-gap-review.md`](./audit-product-gap-review.md).
 
 Companion documents:
@@ -66,7 +86,7 @@ Presentation classification legend: **CONSISTENT** · **INTENTIONALLY_DIFFERENT*
 | `SOPHISTICATED_STATUS_UPDATED` | Sophisticated-investor status toggle | `admin/service.ts`; auto in `regtank/service.ts` | Applicant/system | `metadata.{action,newReason,updatedBy,previousStatus,newStatus}` | ENOUGH |
 | `PROFILE_UPDATED` | Admin patches org profile (bank fields, etc.) | `admin/organization-admin-profile.ts` | Owner (actor=admin) | `metadata.{updatedBy,updatedFields,bankFieldsChanged,previousValues}` | ENOUGH |
 
-**Dead (declared, no writer):** `TNC_ACCEPTED` (live writer uses `TNC_APPROVED`), `KYC_APPROVED` (seed only; live path uses `ONBOARDING_STATUS_UPDATED` with `trigger:"KYC_APPROVED"`), `KYB_APPROVED` (no writer anywhere). Additionally **`DIRECTOR_KYC_STATUS_UPDATED`** has a writer module (`director-kyc-outcomes.ts`) with zero importers — dead in practice, not previously catalogued. **RESOLVED (2026-08-24):** these three dead types were removed from the admin `use-organization-logs.ts` query-filter array (see §1.4); they remain valid, catalogued enum values.
+**Dead (declared, no writer):** `TNC_ACCEPTED` (live writer uses `TNC_APPROVED`), `KYC_APPROVED` (seed only; live path uses `ONBOARDING_STATUS_UPDATED` with `trigger:"KYC_APPROVED"`), `KYB_APPROVED` (no writer anywhere). ~~Additionally **`DIRECTOR_KYC_STATUS_UPDATED`** has a writer module (`director-kyc-outcomes.ts`) with zero importers — dead in practice, not previously catalogued.~~ **CORRECTED (2026-08-24):** that claim was wrong. `rg` returns **zero** occurrences of `DIRECTOR_KYC_STATUS_UPDATED` anywhere in the repository and `director-kyc-outcomes.ts` does not exist — it was a phantom search-index hit from an unmerged branch. Reclassified `NOT_AN_ACTUAL_EVENT`; director/shareholder outcomes are recorded as `EOD_APPROVED` / `EOD_REJECTED` / `EOD_WEBHOOK`. **RESOLVED (2026-08-24):** these three dead types were removed from the admin `use-organization-logs.ts` query-filter array (see §1.4); they remain valid, catalogued enum values.
 
 ### 1.4 Presentation notes (Access/Security/Onboarding)
 
@@ -258,7 +278,7 @@ Each required legal document type (Terms, PDPA, Risk Statement, Warning, Issuer 
 | Item approved / rejected | Admin per-item review | `application_review_items.status`, `reviewed_at`, `reviewer_user_id` | Admin | ENOUGH |
 | Acceptance approved for signing | All items approved | `offer_acceptance.reviewed_at`/`reviewed_by_user_id` + `application_logs.CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` | Admin | PARTIAL (log metadata is thin — approver identity lives in the JSON blob, not always in the log's own metadata) |
 
-**Dead:** `BOARD_RESOLUTION_UPLOADED` / `BOARD_RESOLUTION_REMOVED` (test-fixture-only strings; no production writer — the generic acceptance-documents pipeline is what's actually used).
+~~**Dead:** `BOARD_RESOLUTION_UPLOADED` / `BOARD_RESOLUTION_REMOVED` (test-fixture-only strings; no production writer — the generic acceptance-documents pipeline is what's actually used).~~ **CORRECTED (2026-08-24):** neither string exists anywhere in the repository — not in production code and not in any test. They are phantom search-index hits from an unmerged branch (see [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) §8.1), so they are not "dead events" in this codebase at all. The substantive point stands: board-resolution handling goes through the generic acceptance-documents pipeline, which has no dedicated event type.
 
 ### 4.4 Signing (`SIGNING_PACKAGE_*` in `application_logs`, plus `signing_*` tables)
 

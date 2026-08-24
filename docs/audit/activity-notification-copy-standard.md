@@ -1,5 +1,20 @@
 # Activity & Notification Copy Standard
 
+> **Document responsibility:** this file owns the **canonical terminology rules** — which word means
+> which business action, and the casing conventions. It answers *"what should I call this on a new
+> surface?"*
+>
+> | Question | Document |
+> |---|---|
+> | What happens for `EVENT_X`? | [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) — **primary reference** |
+> | Is the evidence we store good enough? | [`audit-event-catalog.md`](./audit-event-catalog.md) |
+> | Why is it worded that way, and was it reviewed? | [`activity-notification-copy-review.md`](./activity-notification-copy-review.md) |
+> | What is still broken or awaiting sign-off? | [`audit-product-gap-review.md`](./audit-product-gap-review.md) |
+>
+> This file states the **rule**. For the *actual current copy on every surface, verbatim*, see
+> [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) §2 — that is where the
+> transcription of what the code says today is maintained.
+
 Canonical terminology for user-visible audit/activity/notification copy, derived from the
 majority-usage wording already live in the product (not invented). Same business action = same
 core term everywhere; phrasing may soften per audience (Admin sees technical/forensic language,
@@ -193,7 +208,10 @@ full list; headline terms above cover the ones with more than one presentation s
 **LIVE EVENT TYPES:** `LEGAL_DOCUMENT_CREATED`, `LEGAL_DOCUMENT_UPDATED`,
 `LEGAL_VERSION_UPLOADED`, `LEGAL_VERSION_FILE_REPLACED`, `LEGAL_VERSION_PUBLISHED`,
 `LEGAL_VERSION_ARCHIVED`, `LEGAL_VERSION_RESTORED`.
-**DEAD:** `BOARD_RESOLUTION_UPLOADED` / `BOARD_RESOLUTION_REMOVED` (test-fixture only).
+~~**DEAD:** `BOARD_RESOLUTION_UPLOADED` / `BOARD_RESOLUTION_REMOVED` (test-fixture only).~~
+**CORRECTED (2026-08-24):** these strings do not exist anywhere in the repository. They are phantom
+search-index hits from an unmerged branch — see
+[`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) §8.1. Do not coin copy for them.
 
 ---
 

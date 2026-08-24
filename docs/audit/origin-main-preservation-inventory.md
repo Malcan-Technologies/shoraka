@@ -434,7 +434,13 @@ before the DB row; `signing/service.ts sendEnvelope` may leave partially-sent en
 `NoteEvent`: `ISSUER_RESIDUAL_WITHDRAWAL_CREATED`.
 `GatewayPaymentEventType`: `OVERRIDE_PROPOSED`, `OVERRIDE_APPROVED`, `OVERRIDE_REJECTED`.
 Notification types with no automatic trigger: `login_new_device`, `kyc_approved`, `kyc_rejected`,
-`new_product_alert`, `application_approved`, `withdrawal_submitted_to_trustee`.
+`new_product_alert`, `application_approved`, ~~`withdrawal_submitted_to_trustee`~~.
+
+> **Superseded (2026-08-24).** This inventory is a **point-in-time snapshot** of the preservation
+> audit and is preserved as history — it is not maintained. Two corrections apply to the list above:
+> `withdrawal_submitted_to_trustee` was wired on 2026-08-24 and is now live, and `system_announcement`
+> belongs alongside `new_product_alert` as bulk-broadcast-only rather than dead. For the current
+> state, see [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) §3 and §7.
 
 **MISSING_WRITER**
 

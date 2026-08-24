@@ -1,5 +1,26 @@
 # Audit & Notification Product Gap Review
 
+> **Document responsibility:** this file owns **unresolved product/compliance gaps** and the
+> **historical resolution record** for gaps that have since been closed. It answers *"what is still
+> broken or awaiting product sign-off?"* It is deliberately **not** the place to look up what an
+> event does or where it appears.
+>
+> | Question | Document |
+> |---|---|
+> | What happens for `EVENT_X`? | [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) — **primary reference** |
+> | Is the evidence we store good enough? | [`audit-event-catalog.md`](./audit-event-catalog.md) |
+> | What should I *call* this on a new surface? | [`activity-notification-copy-standard.md`](./activity-notification-copy-standard.md) |
+> | Why is it worded that way, and was it reviewed? | [`activity-notification-copy-review.md`](./activity-notification-copy-review.md) |
+>
+> **Reconciled against source 2026-08-24.** Several findings below were stale — either already fixed
+> or never accurate. Rather than deleting them, each carries a strikethrough plus a
+> **RESOLVED** / **CORRECTED** annotation so the history stays legible. Counts in §1 and §5 are
+> superseded by [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) §7.
+>
+> ⚠️ **Before acting on any finding here, re-verify against source with `rg`/`cat`.** Editor search
+> indexes on this repository return phantom files under `apps/api/src/modules/*/audit/` that do not
+> exist on disk and carry a different event vocabulary. See matrix §8.1.
+
 This is a **findings-and-recommendations report**, not an implementation. It covers log completeness, correct representation of business actions, notification correctness, and compliance-evidence gaps across Admin, Issuer, and Investor portals, cross-checked against the *Cashsouk Issuer User Journey v2 ATS* compliance document.
 
 Companion document: [`audit-event-catalog.md`](./audit-event-catalog.md) (developer reference for every live event/notification, by module).
@@ -14,8 +35,8 @@ Companion document: [`audit-event-catalog.md`](./audit-event-catalog.md) (develo
 |---|---|---|
 | Compliance sequence/requirement gaps vs. issuer journey PDF | 9 | **HIGH** — several are hard regulatory requirements (reminder cadence, fee timing, Notice of Assignment, guarantor acknowledgment) |
 | Notification correctness issues (dead, misdirected, or missing) | 8 | MEDIUM–HIGH |
-| Presentation/visibility mismatches (stored but hidden, or mislabeled) | 11 | MEDIUM |
-| Dead events (declared, never written) | 17 confirmed (16 previously catalogued + `DIRECTOR_KYC_STATUS_UPDATED`) | LOW (no user impact; cleanup candidates only) |
+| Presentation/visibility mismatches (stored but hidden, or mislabeled) | ~~11~~ **6 still open** — 5 of the 11 have since been resolved or were found to be inaccurate (see §4) | MEDIUM |
+| Dead events (declared, never written) | ~~17 confirmed (16 previously catalogued + `DIRECTOR_KYC_STATUS_UPDATED`)~~ **19 non-live values, using precise classifications** — see matrix §7.1. `DIRECTOR_KYC_STATUS_UPDATED` was **not** a real event and has been withdrawn from the count | LOW (no user impact; cleanup candidates only) |
 | Data-quality / evidence gaps on live writers | 6 | LOW–MEDIUM |
 | Fixed in this pass | 1 (stale code comment) | — |
 
@@ -99,36 +120,55 @@ None of these is "wrong" in isolation, but the same organization will see differ
 | # | Finding | Where | Classification |
 |---|---|---|---|
 | 1 | ~~`COD_REJECTED` (corporate onboarding rejection) is excluded from the issuer/investor Activity feed allowlist, even though the `ONBOARDING_REJECTED` notification **is** sent for the same rejection~~ **RESOLVED (2026-08-24)** — added to `getEventTypes()` with canonical "Onboarding Rejected" copy; see `audit-event-catalog.md` §1.4 for BEFORE/DECISION/AFTER | `OrganizationLogAdapter.getEventTypes()` | VISIBILITY_MISMATCH — user gets a notification pointing at an event that then doesn't appear in their own activity history |
-| 2 | `ONBOARDING_APPROVED` and `FINAL_APPROVAL_COMPLETED` share the identical portal title "Onboarding Approved" | `organization-log.ts:211-216` | MISLEADING — indistinguishable to the user even though they're different admin gates (admin panel keeps them distinct) |
+| 2 | ~~`ONBOARDING_APPROVED` and `FINAL_APPROVAL_COMPLETED` share the identical portal title "Onboarding Approved"~~ **CORRECTED (2026-08-24)** — the finding is stale. BEFORE: reported as identical. DECISION: re-verify in source. AFTER: `organization-log.ts:216–225` gives them **distinct** titles and descriptions — `ONBOARDING_APPROVED` → "Onboarding Submission Approved", `FINAL_APPROVAL_COMPLETED` → "Onboarding Approved". No action required | ~~`organization-log.ts:211-216`~~ `organization-log.ts:216-225` | ~~MISLEADING~~ **NOT A DEFECT** |
 | 3 | Admin Access-log filter dropdown lists `KYC_STATUS_UPDATED` (never written) but omits live `ROLE_ADDED`, `ROLE_REMOVED`, `PROFILE_UPDATED`, `ONBOARDING_RESET` | `access-logs-panel.tsx:11-16` | VISIBILITY_MISMATCH |
 | 4 | Admin Security-log filter shows 5 types; `ROLE_CREATED`, `ROLE_REMOVED`, `ROLE_PERMISSIONS_UPDATED`, `INVITATION_REVOKED` are stored but excluded | `security-logs-panel.tsx` | VISIBILITY_MISMATCH |
-| 5 | `CONTRACT_WITHDRAWN` (fired when an **issuer rejects** an offer) is labeled **"Facility Offer Withdrawn"** in the admin timeline and CSV — identical wording to `CONTRACT_OFFER_RETRACTED` (fired when **CashSouk** pulls an offer) | `admin-activity-timeline.tsx:142-148`; `contract-activity-csv.ts:29-35` — confirmed by direct inspection | MISLEADING — an admin reading the timeline cannot distinguish "issuer said no" from "we pulled the offer." (Note: the **issuer-facing** timeline already labels this correctly as "Facility withdrawn" / distinct from "withdrawn by CashSouk", so this is admin-surface-only.) |
-| 6 | `AMENDMENTS_SUBMITTED` issuer-facing label reads **"You submitted requested changes"** — but the writer is the **admin** sending amendment requests **to** the issuer | `apps/issuer/src/components/financing/facility-transactions.ts:52`; `apps/issuer/src/app/(application-management)/applications/components/application-timeline.ts:36` — confirmed by direct inspection | MISLEADING — backwards direction of action |
+| 5 | ~~`CONTRACT_WITHDRAWN` (fired when an **issuer rejects** an offer) is labeled **"Facility Offer Withdrawn"** in the admin timeline and CSV — identical wording to `CONTRACT_OFFER_RETRACTED`~~ **RESOLVED (2026-08-24)**. BEFORE: as described; the parenthetical also claimed the issuer timeline said "Facility withdrawn". DECISION: relabel so the admin surfaces state who acted. AFTER, verified in source: admin timeline `CONTRACT_WITHDRAWN: "Facility Offer Rejected"` (`admin-activity-timeline.tsx:149`) vs `CONTRACT_OFFER_RETRACTED: "Facility Offer Retracted"` (:145); CSV `"Facility offer rejected"` (`contract-activity-csv.ts:35`) vs `"Facility offer retracted"` (:31). Issuer copy is **"You declined the facility offer"** (`application-timeline.ts:33`), not "Facility withdrawn". The confusing `"Facility Offer Withdrawn"` string now sits only on the **dead** `CONTRACT_OFFER_REJECTED`, which no writer can produce | `admin-activity-timeline.tsx:144-149`; `contract-activity-csv.ts:30-35` | ~~MISLEADING~~ **RESOLVED** |
+| 6 | ~~`AMENDMENTS_SUBMITTED` issuer-facing label reads **"You submitted requested changes"** — but the writer is the **admin** sending amendment requests **to** the issuer~~ **RESOLVED (2026-08-24)**. BEFORE: as described. DECISION: reword so the direction of action is correct. AFTER, verified in source: **both** issuer surfaces now read **"Changes requested"** (`facility-transactions.ts:52`, `application-timeline.ts:44`), the issuer activity feed reads "Changes Requested" / "We need updates to your application before it can continue." (`application-log.ts:602`), admin reads "Amendment Request Sent" and CSV reads "Amendment request sent". The misleading *enum name* remains — it is documented as a permanent naming trap in matrix §8.2, not renamed | `facility-transactions.ts:52`; `application-timeline.ts:44` | ~~MISLEADING~~ **RESOLVED (copy)**; enum name intentionally left alone |
 | 7 | ~~Issuer timeline `EVENT_LABELS` map still keys off dead `OFFER_EXPIRED`/`CONTRACT_OFFER_REJECTED` instead of the live `CONTRACT_OFFER_EXPIRED`/`CONTRACT_WITHDRAWN` — those milestones fall through to a generic label or don't render~~ **RESOLVED** — `CONTRACT_WITHDRAWN` relabeled in the prior copy-consistency pass; `CONTRACT_OFFER_EXPIRED` (plus the other 7 approved milestones, contract + invoice) added to the label map on 2026-08-24, see `audit-event-catalog.md` §2.2 | `application-timeline.ts:27-35` | VISIBILITY_MISMATCH / GENERIC_FALLBACK |
 | 8 | `application_review_events` table has no production reader at all (confirmed: `admin/repository.ts` never queries it; `RecentActivityCard` ignores its `events` prop when `applicationId` is set) | catalog §2.5 | Documentation fixed in this pass (stale header comment corrected); table itself left untouched per the preservation contract |
 | 9 | Admin note timeline **and** its CSV export are hard-capped at 50 events (`take: 50`), with no unlimited compliance-export path | `noteInclude.events`; `NoteTimelinePanel` | MEDIUM — a note with a long servicing history can silently lose early events from both the UI and any export pulled from it |
-| 10 | Product-log admin panel badges/filters only style `PRODUCT_CREATED`/`_UPDATED`/`_DELETED`; `_INACTIVATED`/`_REACTIVATED` fall back to a raw badge | `product-logs-panel.tsx:38-42` | GENERIC_FALLBACK — cosmetic only |
+| 10 | ~~Product-log admin panel badges/filters only style `PRODUCT_CREATED`/`_UPDATED`/`_DELETED`; `_INACTIVATED`/`_REACTIVATED` fall back to a raw badge~~ **CORRECTED (2026-08-24)** — the finding was inaccurate. All **five** types have a label and a colour (`product-logs-panel.tsx:39-43`). The real, more serious issue is the inverse: `PRODUCT_INACTIVATED` and `PRODUCT_REACTIVATED` are **UNREACHABLE** — their writers (`setInactive()`, `restoreProduct()`) have zero callers, so the panel offers two filter options that can never return a row. Reclassified below | ~~`product-logs-panel.tsx:38-42`~~ `product-logs-panel.tsx:39-43` | ~~GENERIC_FALLBACK~~ **UNREACHABLE_WRITER** — still open, cosmetic impact only |
 | 11 | ~~Legacy dead event types (`TNC_ACCEPTED`, `KYC_APPROVED`, `KYB_APPROVED`) still appear as filter options in the admin org-log dropdown despite never being written~~ **RESOLVED (2026-08-24)** — removed from the `ONBOARDING_EVENT_TYPES` query-inclusion array after reconfirming zero production writers; enum values and historical rows untouched | `use-organization-logs.ts` filter list | VISIBILITY_MISMATCH — dropdown offers options that always return zero results |
 
-**Items 1, 7, and 11 above were approved and implemented on 2026-08-24** (see `audit-event-catalog.md` for full BEFORE/DECISION/AFTER detail); items 2–6, 8, 9, 10 remain reported-not-fixed. Each of the remaining items involves either a user-facing string change (5, 6), an admin filter-list change that could hide/show rows differently (3, 4), or an export/pagination behavior change (9) — all explicitly out of scope for silent implementation per the preservation contract. They're listed here, ranked roughly by user confusion potential, for product triage.
+**Items 1, 7, and 11 were approved and implemented on 2026-08-24**; **items 5 and 6 were also
+resolved** by the copy-consistency pass; **items 2 and 10 were found to be inaccurate** and are
+corrected above. That leaves **items 3, 4, 8, 9, and the reclassified 10 open**:
+
+| Still open | Nature | Why it was not silently fixed |
+|---|---|---|
+| 3, 4 | Admin filter dropdowns omit live event types and offer dead ones | Changing a filter list changes which rows an admin sees; needs sign-off |
+| 8 | `application_review_events` has no production reader | Table left in place per the preservation contract |
+| 9 | Note timeline **and** its CSV export are hard-capped at 50 events | Export/pagination behaviour change |
+| 10 *(reclassified)* | `PRODUCT_INACTIVATED` / `PRODUCT_REACTIVATED` writers are unreachable | Either wire the callers or remove the filter options — a product decision either way |
+
+See `audit-event-catalog.md` for full BEFORE/DECISION/AFTER detail on the implemented items.
 
 ---
 
 ## 5. Dead events (confirmed, no action needed)
 
-These were already largely known from the preservation inventory; this pass re-verified all of them against live source and found **one additional** dead artifact not previously catalogued.
+These were already largely known from the preservation inventory. **Re-verified 2026-08-24** — two
+of the previously-reported entries turned out not to be real events at all.
 
-| Table | Dead events |
-|---|---|
-| `access_logs` | `ROLE_SWITCHED`, `ONBOARDING`, `USER_COMPLETED`, `KYC_STATUS_UPDATED`, `ONBOARDING_STATUS_UPDATED`, `PASSWORD_CHANGED`, `EMAIL_CHANGED` (7 — all previously catalogued; each has a live equivalent in a different table) |
-| `onboarding_logs` | `TNC_ACCEPTED`, `KYC_APPROVED`, `KYB_APPROVED` (3 — previously catalogued; **removed from the admin filter list on 2026-08-24**, enum/rows untouched — see §4 item 11) |
-| `onboarding_logs` (**new find**) | `DIRECTOR_KYC_STATUS_UPDATED` — has a writer module (`director-kyc-outcomes.ts`) but zero importers anywhere |
-| `application_logs` | `APPLICATION_APPROVED`, `CONTRACT_OFFER_REJECTED` (2 — previously catalogued) |
-| `note_events` | `ISSUER_RESIDUAL_WITHDRAWAL_CREATED` (1 — previously catalogued) |
-| `gateway_payment_events` | `OVERRIDE_PROPOSED`, `OVERRIDE_APPROVED`, `OVERRIDE_REJECTED` (3 — previously catalogued) |
-| `legal-documents` (test-fixture only) | `BOARD_RESOLUTION_UPLOADED`, `BOARD_RESOLUTION_REMOVED` — never referenced outside `cutover.test.ts` |
+| Table | Non-live values | Status |
+|---|---|---|
+| `access_logs` | `ROLE_SWITCHED`, `ONBOARDING`, `USER_COMPLETED`, `ONBOARDING_STATUS_UPDATED`, `PASSWORD_CHANGED`, `EMAIL_CHANGED` (6 — each has a live equivalent in a *different* table) | Confirmed |
+| `access_logs` | `KYC_STATUS_UPDATED` | Reclassified **SEED_ONLY** (written by `seed.ts`, so not strictly "never written") |
+| `onboarding_logs` | `TNC_ACCEPTED`, `KYC_APPROVED`, `KYB_APPROVED` (3) | Reclassified **SEED_ONLY**; removed from the admin filter list on 2026-08-24, enum/rows untouched — see §4 item 11 |
+| `onboarding_logs` | `USER_COMPLETED` | Reclassified **DEV_ONLY** — the sole writer is `regtank/webhook-handler-dev.ts` (~492), which targets `DATABASE_URL_DEV` |
+| ~~`onboarding_logs` (**new find**)~~ | ~~`DIRECTOR_KYC_STATUS_UPDATED` — has a writer module (`director-kyc-outcomes.ts`) but zero importers anywhere~~ | **WITHDRAWN (2026-08-24)** — `rg` returns **zero** occurrences of that string anywhere in the repository, and `director-kyc-outcomes.ts` does not exist. Reclassified `NOT_AN_ACTUAL_EVENT`; almost certainly a phantom search-index hit. Director/shareholder outcomes are recorded as `EOD_APPROVED` / `EOD_REJECTED` / `EOD_WEBHOOK` |
+| `application_logs` | `APPLICATION_APPROVED`, `CONTRACT_OFFER_REJECTED` (2) | Confirmed **DEAD** |
+| `note_events` | `ISSUER_RESIDUAL_WITHDRAWAL_CREATED` (1) | Confirmed **DEAD** |
+| `gateway_payment_events` | `OVERRIDE_PROPOSED`, `OVERRIDE_APPROVED`, `OVERRIDE_REJECTED` (3) | Confirmed **DEAD** |
+| `product_logs` | `PRODUCT_INACTIVATED`, `PRODUCT_REACTIVATED` (2) | **UNREACHABLE** — writers exist, zero callers. Newly classified; see §4 item 10 |
+| ~~`legal-documents` (test-fixture only)~~ | ~~`BOARD_RESOLUTION_UPLOADED`, `BOARD_RESOLUTION_REMOVED` — never referenced outside `cutover.test.ts`~~ | **WITHDRAWN (2026-08-24)** — `cutover.test.ts` does not exist on disk and both strings have zero occurrences. Phantom index hits from an unmerged branch; see matrix §8.1 |
 
-**Total: 17 confirmed dead events/actions** (16 previously known + `DIRECTOR_KYC_STATUS_UPDATED`). Per the preservation contract, **none were removed** — dead enum members and unused columns are cleanup candidates for a future, separate change, not something to touch here.
+~~**Total: 17 confirmed dead events/actions**~~ **Total: 19 non-live values across the eight stores**,
+using the precise classifications above. The full per-store breakdown lives in
+[`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) §7.1, which is now the
+authoritative count. Per the preservation contract, **none were removed** — dead enum members and
+unused columns are cleanup candidates for a future, separate change, not something to touch here.
 
 ---
 
@@ -166,7 +206,7 @@ Ranked by combination of compliance risk and implementation simplicity:
 1. **Reminder cadence (§2.1–2)** — config-only change (`deadline-config.ts` reminder arrays) once product confirms the exact required days; lowest engineering effort, highest compliance visibility.
 2. ~~**`withdrawal_submitted_to_trustee` notification (§3.1)** — one `sendTyped` call once product confirms issuers should be told; audit trail already proves the underlying event fires.~~ **DONE (2026-08-24)** — see §3.1 for BEFORE/DECISION/AFTER.
 3. **Onboarding fee sequencing (§2.3)** — requires product/legal decision on whether to move the fee step after AML approval, since it changes a monetization flow, not just a log.
-4. **Admin timeline mislabeling for `CONTRACT_WITHDRAWN` and `AMENDMENTS_SUBMITTED` (§4.5–6)** — pure string changes, but user-facing, so listed for product copy sign-off rather than engineering judgment call.
+4. ~~**Admin timeline mislabeling for `CONTRACT_WITHDRAWN` and `AMENDMENTS_SUBMITTED` (§4.5–6)** — pure string changes, but user-facing, so listed for product copy sign-off rather than engineering judgment call.~~ **DONE (2026-08-24)** — both resolved by the copy-consistency pass; see §4 items 5 and 6 for the verified after-state.
 5. **Notice of Assignment, guarantor acknowledgment, Risk Statement form, T&C SC-clearance gate (§2.4–6, 2.9)** — larger workflow/entity additions; recommend a dedicated compliance-engineering backlog item per requirement, scoped and estimated separately from this audit review.
 6. **Note timeline 50-event cap (§4.9)** — if compliance needs a full, unlimited export path, this is a straightforward addition (a dedicated export endpoint without the `take: 50`) that doesn't change the existing UI behavior at all.
 
