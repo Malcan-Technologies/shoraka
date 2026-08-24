@@ -216,3 +216,39 @@ export type FinancialStatementsV2Stored = z.infer<typeof financialStatementsV2Sc
 export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;
 export type UpdateApplicationStepInput = z.infer<typeof updateApplicationStepSchema>;
 export type BusinessDetailsData = z.infer<typeof businessDetailsDataSchema>;
+
+const signingEmailSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .transform((value) => value.toLowerCase())
+  .refine((value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value), "Valid email required");
+
+const signingIcSchema = z
+  .string()
+  .min(1)
+  .transform((value) => value.replace(/\D/g, ""))
+  .refine((value) => value.length === 12, "IC must be 12 digits");
+
+const issuerAuthorizedRepresentativeSchema = z.object({
+  name: z.string().trim().min(1),
+  email: signingEmailSchema,
+  ic_number: signingIcSchema,
+  capacity: z.literal("director"),
+  person_match_key: z.string().trim().min(1),
+});
+
+const issuerAuthorizedPartySchema = z.object({
+  key: z.literal("issuer"),
+  entity_kind: z.literal("ISSUER"),
+  representatives: z.array(issuerAuthorizedRepresentativeSchema).min(1),
+});
+
+/** Step 1 acceptance POST — issuer directors only in slice 1. */
+export const submitOfferAcceptanceBodySchema = z.object({
+  authorized_parties: z.object({
+    parties: z.array(issuerAuthorizedPartySchema).min(1).max(1),
+  }),
+});
+
+export type SubmitOfferAcceptanceBody = z.infer<typeof submitOfferAcceptanceBodySchema>;

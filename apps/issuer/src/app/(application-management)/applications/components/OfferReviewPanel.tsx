@@ -55,10 +55,8 @@ import {
   parseSigningPackagesConfig,
   resolveSigningTemplateForOffer,
   isValidSigningIcNumber,
-  normalizeSigningIcNumber,
   roleRequiresBindingIcAtOffer,
   type ApiError,
-  type ApplicationPersonRow,
   type RecipientBinding,
   type SigningEnvelopeDto,
   type SigningPackageOfferKind,
@@ -68,6 +66,7 @@ import {
   getOfferAcceptanceStatusPresentation,
   offerAcceptanceAllowsSigning,
   offerAcceptanceIsStep1Editable,
+  getOfferAcceptanceFromOfferDetails,
   type Application,
 } from "@cashsouk/types";
 import {
@@ -106,6 +105,19 @@ import { cn } from "@/lib/utils";
 import { OfferAcceptanceSubmittedSuccessView } from "@/components/onboarding-fee-return-views";
 import { InvoiceOfferTerms } from "./invoice-offer-terms";
 import { buildInvoiceFeeDisplay } from "@/lib/facility-fee-display";
+import { IssuerAuthorizedRepresentativesCard } from "./issuer-authorized-representatives-card";
+import {
+  areIssuerDirectorSelectionsReady,
+  isDirectorRole,
+  issuerDirectorsFromOrganization,
+  resolveBindingDirectorKey,
+} from "./issuer-directors";
+import {
+  buildIssuerAuthorizedPartiesSubmitPayload,
+  buildIssuerEnvelopeBindings,
+  guarantorsFromApplication,
+  nextIssuerRepMatchKeys,
+} from "./build-issuer-envelope-bindings";
 
 const CONTRACT_FACILITY_FEE_RATE_TOOLTIP =
   "The facility fee is owed in full when you accept this offer (maximum 1%). CashSouk collects it at its discretion.";
@@ -210,225 +222,6 @@ function readSigningTemplateForOffer(
     packages: parseSigningPackagesConfig(null),
     kind,
   });
-}
-
-type IssuerDirectorOption = {
-  matchKey: string;
-  name: string;
-  email: string;
-  ic_number: string | null;
-};
-
-type ApplicationGuarantorRow = {
-  id: string;
-  name?: string | null;
-  business_name?: string | null;
-  email: string;
-  ic_number?: string | null;
-};
-
-function directorIcFromMatchKey(matchKey: string): string | null {
-  const normalized = normalizeSigningIcNumber(matchKey);
-  return normalized.length === 12 ? normalized : null;
-}
-
-function isDirectorRole(role: SigningTemplateRole): boolean {
-  return role.key === "issuer_director" || role.source_hint === "issuer_director";
-}
-
-function isGuarantorRole(role: SigningTemplateRole): boolean {
-  return role.key === "guarantor" || role.source_hint === "guarantor";
-}
-
-function guarantorsFromApplication(rows: unknown): ApplicationGuarantorRow[] {
-  if (!Array.isArray(rows)) return [];
-  const result: ApplicationGuarantorRow[] = [];
-  for (const row of rows) {
-    if (!row || typeof row !== "object") continue;
-    const guarantor = row as Record<string, unknown>;
-    const id = typeof guarantor.id === "string" ? guarantor.id : "";
-    if (!id) continue;
-    result.push({
-      id,
-      name: typeof guarantor.name === "string" ? guarantor.name : null,
-      business_name:
-        typeof guarantor.business_name === "string" ? guarantor.business_name : null,
-      email: typeof guarantor.email === "string" ? guarantor.email : "",
-      ic_number: typeof guarantor.ic_number === "string" ? guarantor.ic_number : null,
-    });
-  }
-  return result;
-}
-
-function dedupeIssuerDirectors(directors: IssuerDirectorOption[]): IssuerDirectorOption[] {
-  const seen = new Set<string>();
-  return directors.filter((director) => {
-    const key = directorIcFromMatchKey(director.matchKey) ?? director.matchKey.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function issuerDirectorsFromOrganization(activeOrganization: unknown): IssuerDirectorOption[] {
-  const org = activeOrganization as
-    | {
-        people?: ApplicationPersonRow[];
-        directorKycStatus?: {
-          directors?: Array<{
-            name?: string;
-            email?: string;
-            role?: string;
-            kycId?: string;
-            eodRequestId?: string;
-          }>;
-        };
-        directorAmlStatus?: {
-          directors?: Array<{
-            name?: string;
-            email?: string;
-            role?: string;
-            kycId?: string;
-          }>;
-        };
-      }
-    | null
-    | undefined;
-
-  const fromPeople = (org?.people ?? [])
-    .filter((person) => person.roles?.some((role) => role.toUpperCase() === "DIRECTOR"))
-    .map((person) => ({
-      matchKey: person.matchKey,
-      name: String(person.name ?? "").trim(),
-      email: String(person.email ?? "").trim(),
-      ic_number: directorIcFromMatchKey(person.matchKey),
-    }))
-    .filter((person) => person.name.length > 0);
-  if (fromPeople.length > 0) return dedupeIssuerDirectors(fromPeople);
-
-  const fromKyc = (org?.directorKycStatus?.directors ?? [])
-    .filter((director) => {
-      const role = String(director.role ?? "").toUpperCase();
-      return role.length === 0 || role.includes("DIRECTOR");
-    })
-    .map((director, index) => ({
-      matchKey: director.kycId ?? director.eodRequestId ?? `director-kyc-${index}`,
-      name: String(director.name ?? "").trim(),
-      email: String(director.email ?? "").trim(),
-      ic_number: directorIcFromMatchKey(
-        director.kycId ?? director.eodRequestId ?? `director-kyc-${index}`
-      ),
-    }))
-    .filter((director) => director.name.length > 0);
-  if (fromKyc.length > 0) return dedupeIssuerDirectors(fromKyc);
-
-  const fromAml = (org?.directorAmlStatus?.directors ?? [])
-    .filter((director) => {
-      const role = String(director.role ?? "").toUpperCase();
-      return role.length === 0 || role.includes("DIRECTOR");
-    })
-    .map((director, index) => ({
-      matchKey: director.kycId ?? `director-aml-${index}`,
-      name: String(director.name ?? "").trim(),
-      email: String(director.email ?? "").trim(),
-      ic_number: directorIcFromMatchKey(director.kycId ?? `director-aml-${index}`),
-    }))
-    .filter((director) => director.name.length > 0);
-
-  return dedupeIssuerDirectors(fromAml);
-}
-
-function resolveBindingDirectorKey(
-  directors: IssuerDirectorOption[],
-  binding: RecipientBinding
-): string {
-  const name = binding.name.trim();
-  const email = binding.email.trim();
-  const exact = directors.find((director) => director.name === name && director.email === email);
-  if (exact) return exact.matchKey;
-  const byName = directors.find((director) => director.name === name);
-  return byName?.matchKey ?? "";
-}
-
-function buildFallbackBinding(
-  role: SigningTemplateRole,
-  activeOrganization: unknown,
-  directors: IssuerDirectorOption[]
-): RecipientBinding {
-  const director = directors[0];
-  if (director) {
-    return {
-      role_key: role.key,
-      name: director.name,
-      email: director.email,
-      ic_number: director.ic_number,
-    };
-  }
-  const org = activeOrganization as
-    | {
-        name?: string | null;
-        firstName?: string | null;
-        lastName?: string | null;
-        members?: Array<{ email?: string; firstName?: string; lastName?: string }>;
-      }
-    | null
-    | undefined;
-  const member = org?.members?.[0];
-  const fallbackName =
-    [member?.firstName, member?.lastName].filter(Boolean).join(" ").trim() ||
-    [org?.firstName, org?.lastName].filter(Boolean).join(" ").trim() ||
-    org?.name ||
-    role.label ||
-    "Issuer signer";
-  return {
-    role_key: role.key,
-    name: fallbackName,
-    email: member?.email ?? "",
-    ic_number: "",
-  };
-}
-
-function buildIssuerEnvelopeBindings(
-  template: SigningTemplateConfig,
-  activeOrganization: unknown,
-  applicationGuarantors: ApplicationGuarantorRow[] = []
-): RecipientBinding[] {
-  const directors = issuerDirectorsFromOrganization(activeOrganization);
-  const guarantorRows = guarantorsFromApplication(applicationGuarantors);
-  const bindings: RecipientBinding[] = [];
-
-  for (const role of template.roles) {
-    const preferredCount = Math.max(role.min_count, 1);
-    let roleBindings: RecipientBinding[];
-    if (isDirectorRole(role) && directors.length > 0) {
-      roleBindings = directors.slice(0, preferredCount).map((director) => ({
-        role_key: role.key,
-        name: director.name,
-        email: director.email,
-        ic_number: director.ic_number,
-      }));
-    } else if (isGuarantorRole(role) && guarantorRows.length > 0) {
-      const maxRows = role.max_count ?? guarantorRows.length;
-      roleBindings = guarantorRows.slice(0, maxRows).map((guarantor) => ({
-        role_key: role.key,
-        name: guarantor.name ?? guarantor.business_name ?? "",
-        email: guarantor.email,
-        // Guarantors self-declare IC on the signing link; never pre-bind from application.
-        ic_number: null,
-        application_guarantor_id: guarantor.id,
-      }));
-    } else {
-      roleBindings = [buildFallbackBinding(role, activeOrganization, directors)];
-    }
-    const limited: RecipientBinding[] =
-      role.max_count != null ? roleBindings.slice(0, role.max_count) : roleBindings;
-    while (limited.length < role.min_count) {
-      limited.push(buildFallbackBinding(role, activeOrganization, directors));
-    }
-    bindings.push(...limited);
-  }
-
-  return bindings;
 }
 
 function validateSignerBindings(bindings: RecipientBinding[], template: SigningTemplateConfig): string | null {
@@ -721,8 +514,8 @@ export function OfferReviewPanel({
   // Always enabled (not gated on useSigningStepper): this is the polling source of truth for
   // acceptance phase — application/contract refresh on the detail policy (15s), so the modal
   // never derives phase from a stale snapshot.
-  const { data: applicationRecord } = useApplication(applicationId);
-  const { data: corporateEntities } = useCorporateEntities(
+  const { data: applicationRecord, isFetched: isApplicationFetched } = useApplication(applicationId);
+  const { data: corporateEntities, isFetched: isCorporateEntitiesFetched } = useCorporateEntities(
     useSigningStepper ? issuerOrganizationId : undefined
   );
   const directorSourceOrganization = React.useMemo(() => {
@@ -780,6 +573,10 @@ export function OfferReviewPanel({
         (invoice as { offer_details?: Record<string, unknown> } | undefined)?.offer_details);
   const od = offerDetails as Record<string, unknown> | null | undefined;
   const acceptanceStatus = resolveOfferAcceptanceStatus(offerDetails);
+  const authorizedParties = React.useMemo(
+    () => getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null,
+    [offerDetails]
+  );
   const isAcceptanceChangesRequested = acceptanceStatus === "CHANGES_REQUESTED";
 
   type ReviewItemRow = { item_type: string; item_id: string; status: string };
@@ -879,6 +676,9 @@ export function OfferReviewPanel({
   }, []);
   const [isSavingPostDocs, setIsSavingPostDocs] = React.useState(false);
   const [signerBindings, setSignerBindings] = React.useState<RecipientBinding[]>([]);
+  const [issuerRepMatchKeys, setIssuerRepMatchKeys] = React.useState<string[]>([]);
+  const issuerRepInitializedRef = React.useRef(false);
+  const issuerRepDirtyRef = React.useRef(false);
   const [signerConfirmOpen, setSignerConfirmOpen] = React.useState(false);
   const [acceptOfferConfirmOpen, setAcceptOfferConfirmOpen] = React.useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = React.useState(false);
@@ -889,6 +689,38 @@ export function OfferReviewPanel({
   /** When true, the user picked an earlier step in the sidebar — do not auto-advance the main panel. */
   const viewStepPinnedRef = React.useRef(false);
   const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
+
+  React.useEffect(() => {
+    issuerRepInitializedRef.current = false;
+    issuerRepDirtyRef.current = false;
+    setIssuerRepMatchKeys([]);
+  }, [applicationId]);
+
+  const offerDetailsReady =
+    type === "contract" ? !isLoadingContract : isApplicationFetched;
+
+  React.useEffect(() => {
+    if (!usesAcceptanceFlow) return;
+    if (useSigningStepper && !isCorporateEntitiesFetched) return;
+    if (!offerDetailsReady) return;
+    const nextKeys = nextIssuerRepMatchKeys({
+      snapshot: authorizedParties,
+      directors: issuerDirectors,
+      currentKeys: issuerRepMatchKeys,
+      initialized: issuerRepInitializedRef.current,
+      dirty: issuerRepDirtyRef.current,
+    });
+    if (nextKeys) setIssuerRepMatchKeys(nextKeys);
+    issuerRepInitializedRef.current = true;
+  }, [
+    authorizedParties,
+    isCorporateEntitiesFetched,
+    issuerDirectors,
+    issuerRepMatchKeys,
+    offerDetailsReady,
+    useSigningStepper,
+    usesAcceptanceFlow,
+  ]);
 
   React.useEffect(() => {
     if (!useSigningStepper) {
@@ -904,12 +736,14 @@ export function OfferReviewPanel({
       buildIssuerEnvelopeBindings(
         signingTemplate,
         directorSourceOrganization,
-        guarantorsFromApplication(applicationRecord?.application_guarantors)
+        guarantorsFromApplication(applicationRecord?.application_guarantors),
+        authorizedParties
       )
     );
   }, [
     activeSigningEnvelope,
     applicationRecord?.application_guarantors,
+    authorizedParties,
     directorSourceOrganization,
     isLoadingSigningEnvelopes,
     signingTemplate,
@@ -1243,13 +1077,25 @@ export function OfferReviewPanel({
       const saved = await ensurePostApplicationDocumentsSaved();
       if (!saved) return;
     }
+    if (!areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys)) {
+      toast.error("Select at least one director to represent the issuer company.");
+      return;
+    }
+    const authorizedPartiesPayload = buildIssuerAuthorizedPartiesSubmitPayload(
+      issuerDirectors,
+      issuerRepMatchKeys
+    );
     setIsSubmittingAcceptance(true);
     try {
       const response =
         type === "contract"
-          ? await apiClient.submitContractOfferAcceptance(applicationId)
+          ? await apiClient.submitContractOfferAcceptance(applicationId, {
+              authorized_parties: authorizedPartiesPayload,
+            })
           : invoice?.id
-            ? await apiClient.submitInvoiceOfferAcceptance(applicationId, invoice.id)
+            ? await apiClient.submitInvoiceOfferAcceptance(applicationId, invoice.id, {
+                authorized_parties: authorizedPartiesPayload,
+              })
             : null;
       if (!response?.success) {
         const err = getApiErrorDetails(
@@ -1275,6 +1121,8 @@ export function OfferReviewPanel({
     invalidateOfferAcceptanceQueries,
     invoice?.id,
     isPhaseDeadlinePast,
+    issuerDirectors,
+    issuerRepMatchKeys,
     type,
   ]);
 
@@ -1509,6 +1357,8 @@ export function OfferReviewPanel({
     usesAcceptanceFlow && offerAcceptanceAllowsSigning(acceptanceStatus);
   const postDocsReady =
     signingPhaseSkipsUploadGate || !hasPostDocs || postDocsState.areAllFilesUploaded;
+  const issuerRepsReady =
+    !usesAcceptanceFlow || areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys);
   const updateSignerBinding = (index: number, updates: Partial<RecipientBinding>) => {
     setSignerBindings((prev) =>
       prev.map((binding, i) => (i === index ? { ...binding, ...updates } : binding))
@@ -2154,11 +2004,29 @@ export function OfferReviewPanel({
               </CardTitle>
               <CardDescription>
                 {usesAcceptanceFlow
-                  ? "Upload required acceptance documents (for example a Board Resolution). CashSouk must approve them before signing."
+                  ? "Name the directors who may represent your company, then upload required acceptance documents (for example a Board Resolution). CashSouk must approve them before signing."
                   : "Complete all required documents before you confirm signers. Optional documents can stay empty."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {usesAcceptanceFlow ? (
+                <IssuerAuthorizedRepresentativesCard
+                  companyName={activeOrganization?.name?.trim() || "Your company"}
+                  directors={issuerDirectors}
+                  selectedMatchKeys={issuerRepMatchKeys}
+                  onChange={(keys) => {
+                    issuerRepDirtyRef.current = true;
+                    setIssuerRepMatchKeys(keys);
+                  }}
+                  readOnly={
+                    signersLocked || !offerAcceptanceIsStep1Editable(acceptanceStatus)
+                  }
+                  isLoading={
+                    (useSigningStepper && !isCorporateEntitiesFetched) ||
+                    (usesAcceptanceFlow && !offerDetailsReady)
+                  }
+                />
+              ) : null}
               {usesAcceptanceFlow && isAcceptanceChangesRequested && acceptanceFlaggedCount > 0 ? (
                 <AcceptanceDocumentChangesRequestedBanner flaggedCount={acceptanceFlaggedCount} />
               ) : null}
@@ -2192,7 +2060,7 @@ export function OfferReviewPanel({
                 usesAcceptanceFlow ? (
                   <Button
                     className="h-11 w-full rounded-xl"
-                    disabled={isSubmittingAcceptance}
+                    disabled={isSubmittingAcceptance || !issuerRepsReady}
                     onClick={() => {
                       void submitOfferAcceptance();
                     }}
@@ -2210,6 +2078,16 @@ export function OfferReviewPanel({
                   </Button>
                 )
               ) : null}
+              {usesAcceptanceFlow &&
+              !signersLocked &&
+              !isLoadingFrozenProductWorkflow &&
+              postDocsReady &&
+              !issuerRepsReady &&
+              isCorporateEntitiesFetched ? (
+                <p className="text-ui text-muted-foreground">
+                  Select at least one director before submitting.
+                </p>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -2222,8 +2100,9 @@ export function OfferReviewPanel({
                 Configure signers
               </CardTitle>
               <CardDescription>
-                Assign who will sign each document. Signing emails with secure links will be sent
-                to every signer when you confirm.
+                {usesAcceptanceFlow && authorizedParties
+                  ? "These names came from offer acceptance. You can still change them before sending signing emails."
+                  : "Assign who will sign each document. Signing emails with secure links will be sent to every signer when you confirm."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

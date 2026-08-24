@@ -44,6 +44,9 @@ import {
   workflowUsesOfferAcceptanceFlow,
   workflowShowsAcceptanceReviewSection,
   buildAcknowledgedTermsSnapshot,
+  stampAuthorizedPartiesSnapshot,
+  summarizeAuthorizedParties,
+  type AuthorizedPartiesSubmitPayload,
 } from "@cashsouk/types";
 import { patchOfferAcceptance } from "./offer-acceptance";
 import {
@@ -58,6 +61,10 @@ import {
   findChangedAcceptanceDocumentIndices,
   resolveAcceptanceDocumentReviewKeysToResetOnSubmit,
 } from "./acceptance-document-issuer-lock";
+import {
+  assertIssuerAuthorizedPartiesValid,
+  loadIssuerDirectorPool,
+} from "./authorized-parties";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import { upsertLatestOrganizationFinancialStatementsFromApplication } from "./issuer-organization-financial-statements";
 import { deleteS3Object } from "../../lib/s3/client";
@@ -2257,10 +2264,14 @@ export class ApplicationService {
   }
 
   /**
-   * Step 1 of offer acceptance: require acceptance uploads,
+   * Step 1 of offer acceptance: require acceptance uploads and issuer directors,
    * then move to PENDING_ADMIN_REVIEW (or APPROVED_FOR_SIGNING when no acceptance docs).
    */
-  async submitContractOfferAcceptance(applicationId: string, userId: string): Promise<Application> {
+  async submitContractOfferAcceptance(
+    applicationId: string,
+    userId: string,
+    authorizedPartiesPayload: AuthorizedPartiesSubmitPayload
+  ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
     if (!application) {
@@ -2283,7 +2294,15 @@ export class ApplicationService {
       (application as { acceptance_documents?: unknown }).acceptance_documents
     );
 
+    const directorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
+    assertIssuerAuthorizedPartiesValid(authorizedPartiesPayload.parties, directorPool);
+
     const now = new Date().toISOString();
+    const authorizedParties = stampAuthorizedPartiesSnapshot({
+      parties: authorizedPartiesPayload.parties,
+      submittedByUserId: userId,
+      submittedAt: now,
+    });
     const nextStatus = resolveStatusAfterOfferAcceptanceSubmit(workflow);
     let previousAcceptanceStatus: string | null = null;
 
@@ -2317,6 +2336,7 @@ export class ApplicationService {
           offerDetails: offer,
           productVersion,
         }),
+        authorized_parties: authorizedParties,
         submitted_at: now,
         reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
         reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,
@@ -2365,6 +2385,8 @@ export class ApplicationService {
           : {}),
         offer_acceptance_status: nextStatus,
         submitted_at: now,
+        submitted_by_user_id: userId,
+        authorized_parties: summarizeAuthorizedParties(authorizedParties),
         ...(isAcceptanceResubmit ? { resubmitted_from: "CHANGES_REQUESTED" } : {}),
         ...(offerRecord?.offered_facility != null
           ? { offered_facility: Number(offerRecord.offered_facility) || 0 }
@@ -2407,7 +2429,8 @@ export class ApplicationService {
   async submitInvoiceOfferAcceptance(
     applicationId: string,
     invoiceId: string,
-    userId: string
+    userId: string,
+    authorizedPartiesPayload: AuthorizedPartiesSubmitPayload
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
@@ -2440,7 +2463,15 @@ export class ApplicationService {
       (application as { acceptance_documents?: unknown }).acceptance_documents
     );
 
+    const directorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
+    assertIssuerAuthorizedPartiesValid(authorizedPartiesPayload.parties, directorPool);
+
     const now = new Date().toISOString();
+    const authorizedParties = stampAuthorizedPartiesSnapshot({
+      parties: authorizedPartiesPayload.parties,
+      submittedByUserId: userId,
+      submittedAt: now,
+    });
     const nextStatus = resolveStatusAfterOfferAcceptanceSubmit(workflow);
     let previousAcceptanceStatus: string | null = null;
 
@@ -2474,6 +2505,7 @@ export class ApplicationService {
           offerDetails: offer,
           productVersion,
         }),
+        authorized_parties: authorizedParties,
         submitted_at: now,
         reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
         reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,
@@ -2523,6 +2555,8 @@ export class ApplicationService {
         ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
         offer_acceptance_status: nextStatus,
         submitted_at: now,
+        submitted_by_user_id: userId,
+        authorized_parties: summarizeAuthorizedParties(authorizedParties),
         ...(isAcceptanceResubmit ? { resubmitted_from: "CHANGES_REQUESTED" } : {}),
         ...(offerRecord?.offered_amount != null
           ? { offered_amount: Number(offerRecord.offered_amount) || 0 }

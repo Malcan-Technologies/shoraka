@@ -139,6 +139,7 @@ import type {
   GatewayReconRunStatus,
   GatewayReconRunDetailDto,
   GatewayReconRunListResponse,
+  AuthorizedPartiesSubmitPayload,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -2619,11 +2620,12 @@ export class ApiClient {
   }
 
   async submitContractOfferAcceptance(
-    applicationId: string
+    applicationId: string,
+    body: { authorized_parties: AuthorizedPartiesSubmitPayload }
   ): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(
       `/v1/applications/${applicationId}/offers/contracts/acceptance`,
-      {}
+      body
     );
   }
 
@@ -2650,11 +2652,12 @@ export class ApiClient {
 
   async submitInvoiceOfferAcceptance(
     applicationId: string,
-    invoiceId: string
+    invoiceId: string,
+    body: { authorized_parties: AuthorizedPartiesSubmitPayload }
   ): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(
       `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/acceptance`,
-      {}
+      body
     );
   }
 

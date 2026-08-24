@@ -38,7 +38,7 @@ Manual test: `pnpm seed-expired-acceptance-deadline-for-test` then `pnpm run-acc
 
 | Phase | Actor | UI | Outcome |
 |-------|--------|-----|---------|
-| **Step 1 — Accept offer** | Issuer | Shared Review Offer modal | Upload acceptance documents configured on the product (e.g. Board Resolution). **Submit** writes `acceptance_documents` and advances the phase. |
+| **Step 1 — Accept offer** | Issuer | Shared Review Offer modal | Declare issuer directors, upload acceptance documents configured on the product (e.g. Board Resolution). **Submit** writes `acceptance_documents` and `offer_acceptance.authorized_parties`, then advances the phase. |
 | **Step 2 — Review acceptance** | Admin | Acceptance Documents review tab | Approve / request changes / reject. No SigningCloud yet. |
 | **Step 3 — Execution pack** | Issuer | Same modal, signing steps only | Configure signers → send → track. No upload step (done in Step 1). |
 
@@ -75,6 +75,22 @@ type OfferAcceptanceDetails = {
   status: OfferAcceptanceStatus;
   /** Frozen commercial terms at Step 1 submit (audit). */
   acknowledged_terms?: OfferAcknowledgedTermsSnapshot;
+  /** Issuer directors declared at Step 1 (JSON; see packages/types/src/authorized-parties.ts). */
+  authorized_parties?: {
+    submitted_by_user_id: string;
+    submitted_at: string;
+    parties: Array<{
+      key: "issuer";
+      entity_kind: "ISSUER";
+      representatives: Array<{
+        name: string;
+        email: string;
+        ic_number: string;
+        capacity: "director";
+        person_match_key: string;
+      }>;
+    }>;
+  };
   submitted_at?: string | null;
   reviewed_at?: string | null;
   reviewed_by_user_id?: string | null;
@@ -112,6 +128,7 @@ Stale `offer_acknowledgements` keys on saved products are stripped on product sa
 
 - Existing: Configure signers → Document signing → Complete.
 - **No** “Upload documents” step.
+- Issuer director rows prefill from `authorized_parties` when present (still editable until a later freeze slice).
 
 **Contract-linked invoices:** unchanged `accept_decline` mode after contract envelope `COMPLETED`.
 
@@ -119,8 +136,9 @@ Stale `offer_acknowledgements` keys on saved products are stripped on product sa
 
 - Acceptance tab is the **primary-offer hub** (single outer card). Layout:
   1. **Offer acceptance** — financing-offer status + acceptance deadline
-  2. **Acceptance documents** — nested under offer acceptance when active (`PENDING_ADMIN_REVIEW`+ or uploads exist); Download all beside the documents heading
-  3. **Signing package** — remind / void / history; signed PDF **View / Download** inline on each package document row when `signed_s3_key` is set (including the offer letter when keyed)
+  2. **Issuer representatives** — read-only names from `authorized_parties` after `submitted_at` (same visibility as documents)
+  3. **Acceptance documents** — nested under offer acceptance when active (`PENDING_ADMIN_REVIEW`+ or uploads exist); Download all beside the documents heading
+  4. **Signing package** — remind / void / history; signed PDF **View / Download** inline on each package document row when `signed_s3_key` is set (including the offer letter when keyed)
 - Actions on acceptance docs drive `CHANGES_REQUESTED` / `APPROVED_FOR_SIGNING` / reject-withdraw.
 - Signing package create/send messaging stays issuer-side; admin panel disables until `APPROVED_FOR_SIGNING` when the phased acceptance flow is in use.
 - Tab visibility: show Acceptance when `workflowShowsAcceptanceReviewSection` (product has `acceptance_documents` **or** a signing package with documents). Signing-only products skip the documents block and show the signing hub only.
@@ -139,7 +157,7 @@ Stale `offer_acknowledgements` keys on saved products are stripped on product sa
 
 | Action | Requires |
 |--------|----------|
-| Submit Step 1 | Required acceptance files present |
+| Submit Step 1 | Required acceptance files present **and** at least one issuer director in `authorized_parties` |
 | Create / send envelope | `offer_acceptance.status` ∈ `APPROVED_FOR_SIGNING` \| `SIGNING_IN_PROGRESS` **and** acceptance review keys approved (same note-publish style keys) |
 | Auto-accept on envelope COMPLETED | Existing behaviour; set `offer_acceptance.status = COMPLETED`; Contract + Acceptance review sections → `APPROVED` |
 

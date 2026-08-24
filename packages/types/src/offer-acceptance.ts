@@ -1,6 +1,6 @@
 /**
  * Offer-acceptance phase (Option A): status lives on offer_details.offer_acceptance.
- * Step 1 is upload-only via product acceptance_documents.
+ * Step 1 is acceptance documents plus authorised representatives.
  * See docs/guides/application-flow/offer-acceptance-and-signing-phases.md
  */
 
@@ -20,6 +20,10 @@ import {
   SIGNING_DEADLINE_WORKFLOW_KEY,
   type PhaseDeadlineConfig,
 } from "./deadline-config";
+import {
+  parseAuthorizedPartiesSnapshot,
+  type AuthorizedPartiesSnapshot,
+} from "./authorized-parties";
 
 export {
   ACCEPTANCE_DEADLINE_WORKFLOW_KEY,
@@ -72,6 +76,8 @@ export type OfferAcceptanceDetails = {
   status: OfferAcceptanceStatus;
   /** Set on Step 1 submit; proves which commercial numbers were acknowledged. */
   acknowledged_terms?: OfferAcknowledgedTermsSnapshot;
+  /** Issuer (and later guarantor) authorised representatives declared at Step 1. */
+  authorized_parties?: AuthorizedPartiesSnapshot;
   submitted_at?: string | null;
   reviewed_at?: string | null;
   reviewed_by_user_id?: string | null;
@@ -98,6 +104,7 @@ export function parseOfferAcceptanceDetails(value: unknown): OfferAcceptanceDeta
   if (!root) return null;
   if (!isOfferAcceptanceStatus(root.status)) return null;
   const acknowledgedTerms = parseAcknowledgedTermsSnapshot(root.acknowledged_terms);
+  const authorizedParties = parseAuthorizedPartiesSnapshot(root.authorized_parties);
   const remindersSent = asRecord(root.deadline_reminders_sent);
   const deadlineRemindersSent: Record<string, string> | undefined = remindersSent
     ? Object.fromEntries(
@@ -109,6 +116,7 @@ export function parseOfferAcceptanceDetails(value: unknown): OfferAcceptanceDeta
   return {
     status: root.status,
     ...(acknowledgedTerms ? { acknowledged_terms: acknowledgedTerms } : {}),
+    ...(authorizedParties ? { authorized_parties: authorizedParties } : {}),
     submitted_at: typeof root.submitted_at === "string" ? root.submitted_at : root.submitted_at === null ? null : undefined,
     reviewed_at: typeof root.reviewed_at === "string" ? root.reviewed_at : root.reviewed_at === null ? null : undefined,
     reviewed_by_user_id:

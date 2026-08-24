@@ -9,6 +9,7 @@ import {
   createApplicationSchema,
   updateApplicationStepSchema,
   applicationIdParamSchema,
+  submitOfferAcceptanceBodySchema,
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
@@ -402,8 +403,13 @@ export function createApplicationRouter(): Router {
     async (req, res, next) => {
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
+        const { authorized_parties } = submitOfferAcceptanceBodySchema.parse(req.body ?? {});
         const userId = getUserId(req);
-        const data = await applicationService.submitContractOfferAcceptance(id, userId);
+        const data = await applicationService.submitContractOfferAcceptance(
+          id,
+          userId,
+          authorized_parties
+        );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
         next(e);
@@ -458,11 +464,13 @@ export function createApplicationRouter(): Router {
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
         const invoiceId = z.string().cuid().parse(req.params.invoiceId);
+        const { authorized_parties } = submitOfferAcceptanceBodySchema.parse(req.body ?? {});
         const userId = getUserId(req);
         const data = await applicationService.submitInvoiceOfferAcceptance(
           id,
           invoiceId,
-          userId
+          userId,
+          authorized_parties
         );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
