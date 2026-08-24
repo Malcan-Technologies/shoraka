@@ -33,6 +33,8 @@ This guide explains the current marketplace surfaces end to end and how investor
 2. These landing surfaces load read-only note data from `GET /v1/public/marketplace/notes`.
 3. Landing cards reuse the same marketplace card language as the investor marketplace, but the CTA leads to `/get-started` instead of opening an invest dialog.
 
+Marketplace list and detail responses hide issuer name and note titles that include the issuer. Cards and browse-mode detail use frozen `purpose_snapshot.financing_for` as the headline, falling back to the note reference. Admin note detail still shows the issuer and adds purpose of contract plus purpose of invoice in the header.
+
 ## API endpoints involved
 
 ### Marketplace and portfolio

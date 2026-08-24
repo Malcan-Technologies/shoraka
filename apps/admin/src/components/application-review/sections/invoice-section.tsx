@@ -24,11 +24,13 @@ import {
   ComparisonDocumentTitleRow,
   fileDocToComparisonChips,
 } from "../comparison-document-pair";
-import { formatCurrency, resolveOfferedAmount } from "@cashsouk/config";
-import type { SoukscoreRiskRating } from "@cashsouk/types";
+import { formatCurrency, resolveOfferedAmount, resolveRequestedInvoiceAmount } from "@cashsouk/config";
+import { parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics";
+import type { SendInvoiceOfferUiPayload } from "@/components/utilisation-fee-lines";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
 import { InvoiceOfferPanel } from "@/components/invoice-offer-panel";
+import { FacilityImpact } from "@/components/financing/facility-impact";
 import { isSignedInvoiceOfferLetterAvailable } from "@/components/application-review/offer-signing-availability";
 import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 import { Label } from "@/components/ui/label";
@@ -45,6 +47,8 @@ export interface InvoiceSectionProps {
     status?: string;
     offer_details?: unknown;
     offer_signing?: unknown;
+    contract_id?: string | null;
+    facilityFeeAvailableToReserve?: number | null;
   }[];
   /** Invoices on the same facility but owned by other applications (read-only context). */
   otherFacilityInvoices?: {
@@ -63,6 +67,10 @@ export interface InvoiceSectionProps {
     availableFacility: number;
     utilizedFacility: number;
     pendingFacility?: number;
+    lifetimeCap?: number;
+    lifetimeUsed?: number;
+    lifetimeRemaining?: number;
+    isOverLimit?: boolean;
   };
   reviewItems: { item_type: string; item_id: string; status: string }[];
   isReviewable: boolean;
@@ -81,14 +89,7 @@ export interface InvoiceSectionProps {
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
   onResetItemToPending?: (itemId: string) => void;
-  onSendInvoiceOffer?: (payload: {
-    invoiceId: string;
-    offeredAmount: number;
-    offeredRatioPercent: number;
-    offeredProfitRatePercent: number;
-    platformFeeRatePercent: number;
-    risk_rating: SoukscoreRiskRating;
-  }) => Promise<void>;
+  onSendInvoiceOffer?: (payload: SendInvoiceOfferUiPayload) => Promise<void>;
   isSendInvoiceOfferPending?: boolean;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
@@ -99,6 +100,9 @@ export interface InvoiceSectionProps {
     isPathChanged: (path: string) => boolean;
   };
   hideSectionComments?: boolean;
+  contractId?: string | null;
+  contractHref?: string | null;
+  contractLabel?: string | null;
 }
 
 const OTHER_FACILITY_INVOICE_HELPER =
@@ -278,6 +282,9 @@ export function InvoiceSection({
   onViewSignedInvoiceOffer,
   sectionComparison,
   hideSectionComments = false,
+  contractId,
+  contractHref,
+  contractLabel,
 }: InvoiceSectionProps) {
   const { data: signingEnvelopes = [] } = useAdminSigningEnvelopes(applicationId ?? "");
   const [activeInvoiceTab, setActiveInvoiceTab] = React.useState<string | null>(null);
@@ -412,6 +419,9 @@ export function InvoiceSection({
           availableFacility={contractFacility.availableFacility}
           utilizedFacility={contractFacility.utilizedFacility}
           pendingFacility={contractFacility.pendingFacility}
+          lifetimeCap={contractFacility.lifetimeCap}
+          lifetimeUsed={contractFacility.lifetimeUsed}
+          lifetimeRemaining={contractFacility.lifetimeRemaining}
         />
       ) : null}
 
@@ -531,6 +541,19 @@ export function InvoiceSection({
                     viewDocumentPending={viewDocumentPending}
                   />
                 </ReviewFieldBlock>
+                <FacilityImpact
+                  contractId={contractId}
+                  contractHref={contractHref}
+                  contractLabel={contractLabel}
+                  financingAmount={
+                    resolveOfferedAmount(inv.offer_details as Record<string, unknown> | null) ||
+                    resolveRequestedInvoiceAmount(inv.details as Record<string, unknown> | undefined)
+                  }
+                  invoiceFace={parseFacilityAmount(
+                    (inv.details as Record<string, unknown> | undefined)?.value
+                  )}
+                  invoiceStatus={inv.status}
+                />
                 <ReviewFieldBlock title="Offer to issuer">
                   <InvoiceOfferPanel
                     invoice={inv}
@@ -546,6 +569,8 @@ export function InvoiceSection({
                     onResetItemToPending={onResetItemToPending}
                     isItemActionPending={approvePending}
                     remainingAvailableFacility={contractFacility?.availableFacility}
+                    remainingAllocation={contractFacility?.lifetimeRemaining}
+                    facilityOverLimit={contractFacility?.isOverLimit}
                     scopeKey={scopeKey}
                   />
                 </ReviewFieldBlock>

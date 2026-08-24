@@ -53,6 +53,10 @@ import {
   applicationFlowSectionTitleClassName,
   applicationFlowStepOuterClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
+import {
+  formatIssuerAllowedTypesHint,
+  formatIssuerAllowedTypesLabel,
+} from "./supporting-documents-formats";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -746,7 +750,9 @@ export function SupportingDocumentsStep({
     for (const file of selected) {
       if (!issuerFileMatchesAllowedTypes(file, types)) {
         console.log("Rejected file for allowedTypes:", types, "name:", file.name);
-        toast.error("File type not allowed for this document");
+        toast.error(
+          `This document accepts ${formatIssuerAllowedTypesLabel(types)}`
+        );
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
@@ -1290,7 +1296,7 @@ export function SupportingDocumentsStep({
                                     </>
                                   ) : null}
                                 </h3>
-                                <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                                <p className="mt-1 flex items-center gap-1 text-meta text-muted-foreground">
                                   {mode === "multiple" ? (
                                     <>
                                       <DocumentDuplicateIcon
@@ -1308,6 +1314,9 @@ export function SupportingDocumentsStep({
                                       <span>One file only</span>
                                     </>
                                   )}
+                                </p>
+                                <p className="text-meta text-muted-foreground">
+                                  {formatIssuerAllowedTypesHint(document.allowedTypes ?? ["pdf"])}
                                 </p>
                               </div>
                               {isAcceptanceDoc && isAcceptanceChangeMode && isItemFlagged ? (

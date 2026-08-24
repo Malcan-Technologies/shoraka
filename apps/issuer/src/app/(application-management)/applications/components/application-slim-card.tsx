@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { StatusBadge } from "@cashsouk/ui";
+import { ProductCatalogName, StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { isIssuerApplicationActionable, type NormalizedApplication } from "../status";
@@ -26,12 +26,14 @@ export function ApplicationSlimCard({
   onCancelApplication,
   onDeleteDraft,
   isCancelApplicationPending,
+  productImageS3Key,
 }: {
   application: NormalizedApplication;
   onViewSignedContractOffer?: (signedOfferLetterS3Key: string) => Promise<void>;
   onCancelApplication?: (applicationId: string) => void;
   onDeleteDraft?: (applicationId: string) => void;
   isCancelApplicationPending?: boolean;
+  productImageS3Key?: string | null;
 }) {
   const { cardStatus } = application;
   const displayId = formatApplicationDisplayId(application.id, application.displayReference);
@@ -51,10 +53,14 @@ export function ApplicationSlimCard({
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge label={statusLabel} status={statusToken} />
-            <span className="text-ui font-semibold text-foreground">
-              {displayId}
-              {application.type !== "Generic" ? ` · ${application.type}` : ""}
-            </span>
+            <span className="text-ui font-semibold text-foreground">{displayId}</span>
+            {application.type !== "Generic" ? (
+              <ProductCatalogName
+                name={application.type}
+                imageS3Key={productImageS3Key}
+                size="xs"
+              />
+            ) : null}
           </div>
           <p className="text-ui leading-6 text-foreground">
             {application.customer}

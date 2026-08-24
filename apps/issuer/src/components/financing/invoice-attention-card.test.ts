@@ -11,6 +11,7 @@ function invoice(overrides: Partial<IssuerDashboardInvoice> = {}): IssuerDashboa
     displayReference: "INV-ARF-1",
     applicationId: "app_1",
     productId: "prod_1",
+    productName: "Account Receivable (AR) Financing",
     contractId: null,
     invoiceForModal: {
       status: "OFFER_SENT",

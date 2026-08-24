@@ -88,6 +88,14 @@ describe("facility attention copy", () => {
     expect(
       facilityAttentionDetail(
         contract({
+          lifetimeCapAmount: "500000",
+          lifetimeRemainingAmount: "380000",
+        })
+      )
+    ).toMatch(/Left on contract/);
+    expect(
+      facilityAttentionDetail(
+        contract({
           approvedFacilityAmount: null,
           utilizedFacilityAmount: null,
           invoiceStats: {

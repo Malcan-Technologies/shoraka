@@ -45,6 +45,7 @@ import {
   getInvestorWithdrawalsQuerySchema,
   requestTrusteeSignatureUploadUrlSchema,
   requestIssuerPaymentEvidenceUploadUrlSchema,
+  waiveNoteFacilityFeeCollectionSchema,
 } from "./schemas";
 
 function getActor(req: Request, res: Response, portal: string) {
@@ -423,6 +424,23 @@ adminNotesRouter.post(
   } catch (error) {
     next(error);
   }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/facility-fee-collection/waive",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const input = waiveNoteFacilityFeeCollectionSchema.parse(req.body);
+      send(
+        res,
+        await noteService.waiveFacilityFeeCollection(id, input.reason, getActor(req, res, "ADMIN"))
+      );
+    } catch (error) {
+      next(error);
+    }
   }
 );
 

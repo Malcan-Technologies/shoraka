@@ -86,13 +86,13 @@ export function LabelValue({
   tabular?: boolean;
 }) {
   return (
-    <p className="text-ui leading-6 text-foreground">
-      <span className="font-normal text-muted-foreground">{label}: </span>
+    <p className="flex items-center text-ui leading-6 text-foreground">
+      <span className="font-normal text-muted-foreground">{label}:&nbsp;</span>
       <span
         className={
           tabular
-            ? "font-medium tabular-nums text-foreground"
-            : "font-medium text-foreground"
+            ? "min-w-0 font-medium tabular-nums text-foreground"
+            : "min-w-0 font-medium text-foreground"
         }
       >
         {children}

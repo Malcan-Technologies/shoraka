@@ -101,6 +101,7 @@ function makeInvoice(overrides: Partial<IssuerDashboardInvoice> = {}): IssuerDas
     displayReference: "INV-1",
     applicationId: "app_1",
     productId: "prod_1",
+    productName: "Account Receivable (AR) Financing",
     contractId: null,
     invoiceForModal: {},
     invoiceStatus: "APPROVED",
@@ -262,6 +263,16 @@ describe("classifyLiveInvoice", () => {
     expect(classifyLiveInvoice(makeInvoice({ invoiceStatus: "APPROVED" }), null)).toBe(
       "approvedNotListed"
     );
+    expect(
+      classifyLiveInvoice(
+        makeInvoice({ invoiceStatus: "APPROVED" }),
+        makeDashboardNote({
+          noteStatus: "DRAFT",
+          listingStatus: "NOT_LISTED",
+          fundingStatus: "NOT_OPEN",
+        })
+      )
+    ).toBe("approvedNotListed");
     expect(classifyLiveInvoice(makeInvoice({ invoiceStatus: "SUBMITTED" }), null)).toBe("inReview");
   });
 });
@@ -441,6 +452,34 @@ describe("buildIssuerBookSnapshot", () => {
     });
     expect(snapshot.invoiceBook?.invoices.total).toBe(1);
     expect(snapshot.invoiceBook?.invoices.approvedNotListed).toBe(1);
+  });
+
+  it("keeps reserved pending separate and uses available that already subtracts it", () => {
+    const snapshot = buildIssuerBookSnapshot({
+      applications: [makeApp({ type: "Facility financing", contractId: "con_1" })],
+      contracts: [
+        makeContract({
+          approvedFacilityAmount: "100000",
+          utilizedFacilityAmount: "40000",
+          pendingFacilityAmount: "15000",
+          availableFacilityAmount: "45000",
+          lifetimeCapAmount: "500000",
+          lifetimeUsedAmount: "120000",
+          lifetimeRemainingAmount: "380000",
+        }),
+      ],
+      invoices: [],
+      notes: [],
+      now,
+    });
+    expect(snapshot.facilityBook).toMatchObject({
+      approvedAmount: 100_000,
+      utilizedAmount: 40_000,
+      pendingAmount: 15_000,
+      availableAmount: 45_000,
+      lifetimeUsedAmount: 120_000,
+      lifetimeRemainingAmount: 380_000,
+    });
   });
 
   it("keeps repaid facility invoices visible without counting them as live draws", () => {

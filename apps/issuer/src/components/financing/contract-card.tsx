@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { DocumentTextIcon, EllipsisVerticalIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
-import { StatusBadge } from "@cashsouk/ui";
+import { DocumentTextIcon, EllipsisVerticalIcon } from "@heroicons/react/24/outline";
+import { ProductCatalogName, StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,8 +22,15 @@ import {
 } from "@/lib/offer-utils";
 import { isFacilityAmendmentRequested } from "@/lib/issuer-contract-actionable";
 import { formatContractReference } from "@cashsouk/types";
+import {
+  compactLifetimeLine,
+  compactReservedLine,
+  resolveFacilityDisplayMetrics,
+} from "@/lib/facility-capacity-display";
 import { asContractForModal } from "@/types/issuer-dashboard";
 import { cn } from "@/lib/utils";
+import { resolveIssuerFacilityFeeBalance, resolveIssuerFacilityGate } from "@/lib/facility-enabled";
+import { FacilityDisabledBanner, FacilityFeeBalanceSummary } from "./facility-fee-status";
 import { FinancingDonut } from "./financing-donut";
 import { FinancingKpiTile } from "./financing-kpi-strip";
 import {
@@ -48,9 +55,13 @@ function OfferStatusBadge({ offerStatus }: { offerStatus: OfferStatus }) {
 export function DashboardContractCard({
   row,
   offerStatus,
+  productName,
+  productImageS3Key,
 }: {
   row: IssuerDashboardContract;
   offerStatus: OfferStatus;
+  productName?: string | null;
+  productImageS3Key?: string | null;
 }) {
   const router = useRouter();
   const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
@@ -59,12 +70,15 @@ export function DashboardContractCard({
   const showActionRequired = facilityNeedsAmendment && actionRequiredCount > 0;
   const actionRequiredLabel =
     actionRequiredCount === 1 ? "Action required" : `Action required (${actionRequiredCount})`;
-  const approvedNum = row.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : null;
-  const utilisedNum = row.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : null;
+  const metrics = resolveFacilityDisplayMetrics(row);
+  const approvedNum = metrics.approved;
+  const utilisedNum = metrics.utilized;
   const utilisationPct =
     approvedNum != null && utilisedNum != null && approvedNum > 0
       ? Math.round((utilisedNum / approvedNum) * 100)
       : 0;
+  const reservedLine = compactReservedLine(metrics.pending, formatMoney);
+  const lifetimeLine = compactLifetimeLine(metrics, formatMoney);
 
   const contractPeriod =
     row.contractStartDate && row.contractEndDate
@@ -75,6 +89,23 @@ export function DashboardContractCard({
 
   const stats = row.invoiceStats;
   const offerDetails = asContractForModal(row.contractForModal)?.offer_details;
+  const contractDetails = asContractForModal(row.contractForModal)?.contract_details;
+  const facilityGate = resolveIssuerFacilityGate({
+    contractDetails,
+    facilityEnabled: row.facilityEnabled,
+    facilityDisabledReason: row.facilityDisabledReason,
+    contractStatus: row.contractStatus,
+  });
+  const feeBalance =
+    row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null
+      ? resolveIssuerFacilityFeeBalance({
+          contractDetails,
+          approvedFacilityAmount: row.approvedFacilityAmount,
+          facilityFeeCapAmount: row.facilityFeeCapAmount,
+          facilityFeePaidAmount: row.facilityFeePaidAmount,
+          facilityFeeWaived: row.facilityFeeWaived,
+        })
+      : null;
   const reviewOfferVisible = shouldShowIssuerReviewOfferCta({
     status: offerStatus === "Offer received" ? "OFFER_SENT" : offerStatus,
     offer_details: offerDetails,
@@ -210,15 +241,28 @@ export function DashboardContractCard({
                 value={formatMoney(row.approvedFacilityAmount)}
               />
             </div>
-            {row.pendingFacilityAmount != null && Number(row.pendingFacilityAmount) > 0 ? (
-              <p className="text-ui leading-6 text-muted-foreground">
-                {formatMoney(row.pendingFacilityAmount)} pending — not occupying the line
-              </p>
+            {reservedLine || lifetimeLine ? (
+              <div className="space-y-1">
+                {reservedLine ? (
+                  <p className="text-ui leading-6 text-muted-foreground">{reservedLine}</p>
+                ) : null}
+                {lifetimeLine ? (
+                  <p className="text-ui leading-6 text-muted-foreground">{lifetimeLine}</p>
+                ) : null}
+              </div>
             ) : null}
 
             <div className="grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-2">
               <div className="min-w-0 space-y-2">
                 <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
+                <LabelValue label="Product">
+                  <ProductCatalogName
+                    name={productName ?? row.productName}
+                    imageS3Key={productImageS3Key}
+                    empty={EM_DASH}
+                    size="xs"
+                  />
+                </LabelValue>
                 <LabelValue label="Contract period">{contractPeriod}</LabelValue>
                 <LabelValue label="Active notes">{String(row.activeNotesCount)}</LabelValue>
                 <p className="text-ui leading-7 text-foreground">
@@ -227,29 +271,10 @@ export function DashboardContractCard({
                 </p>
               </div>
               <div className="min-w-0 space-y-2">
-                {row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null ? (
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    Facility fee collected:{" "}
-                    <span className="font-medium tabular-nums text-foreground">
-                      {formatMoney(row.facilityFeePaidAmount)} /{" "}
-                      {formatMoney(row.facilityFeeCapAmount)} cap
-                    </span>
-                    <span className="ml-1 inline-flex items-center align-middle">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <InformationCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-[260px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
-                            Shows the total facility fee collected so far for this facility.
-                            Facility fee is deducted from each invoice financing disbursement until
-                            the cap is reached.
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </span>
-                  </p>
+                {facilityGate.enabled === false ? (
+                  <FacilityDisabledBanner reason={facilityGate.disabledReason} />
                 ) : null}
+                {feeBalance ? <FacilityFeeBalanceSummary balance={feeBalance} compact /> : null}
               </div>
             </div>
           </div>

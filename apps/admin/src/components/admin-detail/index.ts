@@ -1,10 +1,15 @@
 export { AdminEntityHeader } from "./admin-entity-header";
+export { AdminProductIdentity } from "./admin-product-identity";
 export {
   HERO_SUMMARY_CARD_LIMIT,
   heroSummaryClusterClass,
   type AdminHeroTint,
 } from "./admin-entity-header-layout";
-export type { AdminEntityHeaderMetric, AdminEntityHeaderProps } from "./admin-entity-header";
+export type {
+  AdminEntityHeaderContextRow,
+  AdminEntityHeaderMetric,
+  AdminEntityHeaderProps,
+} from "./admin-entity-header";
 export { AdminEntitySummaryCard } from "./admin-entity-summary-card";
 export type { AdminEntitySummaryCardProps } from "./admin-entity-summary-card";
 export { AdminMetricProgress } from "./admin-metric-progress";

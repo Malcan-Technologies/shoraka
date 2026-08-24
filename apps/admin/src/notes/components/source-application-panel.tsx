@@ -4,6 +4,7 @@ import Link from "next/link";
 import { LinkIcon } from "@heroicons/react/24/outline";
 import type { NoteDetail } from "@cashsouk/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FacilityImpact } from "@/components/financing/facility-impact";
 import { resolveNoteSourceLinkage } from "@/notes/utils/note-source-linkage";
 import { orgHref } from "@/lib/admin-directory-hrefs";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -93,6 +94,17 @@ export function SourceApplicationPanel({ note }: { note: NoteDetail }) {
           value={note.issuerOrganizationId}
           href={organizationHref}
           display={note.issuerName ? `${note.issuerName} (${note.issuerOrganizationId})` : note.issuerOrganizationId}
+        />
+        <FacilityImpact
+          contractId={linkage.contractId}
+          contractHref={linkage.contractHref}
+          contractLabel="Open facility"
+          applicationHref={applicationHref}
+          financingAmount={note.targetAmount}
+          invoiceFace={note.invoiceAmount}
+          invoiceStatus={null}
+          noteStatus={note.status}
+          servicingStatus={note.servicingStatus}
         />
       </CardContent>
     </Card>

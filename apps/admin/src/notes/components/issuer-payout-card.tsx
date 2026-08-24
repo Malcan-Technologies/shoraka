@@ -529,17 +529,33 @@ export function IssuerPayoutCard({
               description="Total funded amount before deductions."
             />
             <PoolSummaryCard
-              label="Platform fee"
+              label="Drawdown fee"
               value={withdrawal.platformFeeAmount}
-              description="Platform fee deducted from funded amount."
+              description="Drawdown fee deducted from funded amount."
             />
             {withdrawal.facilityFeeCharged != null ? (
               <PoolSummaryCard
                 label="Facility fee"
                 value={withdrawal.facilityFeeCharged}
-                description="Facility fee deducted from funded amount, if applicable."
+                description={
+                  withdrawal.facilityFeeCollectionWaived
+                    ? "Facility fee collection was waived for this note."
+                    : "Facility fee deducted from funded amount, if applicable."
+                }
               />
             ) : null}
+            {(withdrawal.additionalFees ?? []).map((line) => (
+              <PoolSummaryCard
+                key={`${line.name}-${line.kind}`}
+                label={line.name}
+                value={line.chargedAmount}
+                description={
+                  line.kind === "percent_of_funded"
+                    ? `${line.value}% of actual funds raised.`
+                    : "Fixed amount deducted from funded amount."
+                }
+              />
+            ))}
             <PoolSummaryCard
               label="Net to issuer"
               value={withdrawal.netIssuerDisbursement}

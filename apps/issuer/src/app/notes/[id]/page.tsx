@@ -56,6 +56,7 @@ import {
 } from "@/notes/lib/repayment-capacity";
 import {
   formatNoteInvestorCount,
+  getNoteHeaderPurposeRows,
   isSoukscoreRiskRating,
   mapNoteSettlementToPoolSummary,
   NotePaymentSource,
@@ -72,6 +73,9 @@ import {
   issuerCampaignDaysLeftLabel,
 } from "@/components/financing/marketplace-campaign";
 import { formatDate } from "@/components/financing/utils";
+import { FacilityTiedAnchor } from "@/components/financing/facility-tied-link";
+import { resolveIssuerFacilityLink } from "@/components/financing/facility-tied";
+import { FacilityImpactSection } from "@/components/financing/facility-impact";
 import { issuerFieldChromeClassName } from "@/lib/issuer-input-chrome";
 import {
   issuerContentMaxWidthClassName,
@@ -531,6 +535,15 @@ export default function IssuerNoteDetailPage() {
   const contractTitleRaw =
     contractDetailsRecord?.title ?? contractDetailsRecord?.contract_title ?? null;
   const contractTitleLabel = typeof contractTitleRaw === "string" ? contractTitleRaw.trim() : "";
+  const facilityLink = resolveIssuerFacilityLink({
+    contractId: note.sourceContractId,
+    displayReference: note.sourceContractDisplayReference,
+  });
+  const facilityHeaderLabel = facilityLink
+    ? contractTitleLabel && contractTitleLabel !== facilityLink.label
+      ? `Facility: ${facilityLink.label} · ${contractTitleLabel}`
+      : `Facility: ${facilityLink.label}`
+    : null;
   const invoiceDetailHref = note.sourceInvoiceId
     ? `/financing/invoices/${note.sourceInvoiceId}`
     : invoiceNumberLabel
@@ -580,6 +593,7 @@ export default function IssuerNoteDetailPage() {
             </nav>
           }
           title={note.title}
+          contextRows={getNoteHeaderPurposeRows(note)}
           status={
             <NoteStatusBadge
               note={note}
@@ -589,14 +603,14 @@ export default function IssuerNoteDetailPage() {
           facts={
             <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span>{note.noteReference}</span>
-              {note.sourceContractId ? (
+              {facilityLink && facilityHeaderLabel ? (
                 <>
                   <span aria-hidden>·</span>
                   <Link
-                    href={`/financing/contracts/${note.sourceContractId}`}
+                    href={facilityLink.href}
                     className="text-primary underline-offset-4 hover:underline"
                   >
-                    {contractTitleLabel ? `Facility: ${contractTitleLabel}` : "Facility"}
+                    {facilityHeaderLabel}
                   </Link>
                 </>
               ) : null}
@@ -701,10 +715,92 @@ export default function IssuerNoteDetailPage() {
                     {formatNoteInvestorCount(note.investorCount)}
                   </div>
                 </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Facility</div>
+                  <div className="mt-1 min-w-0 text-ui font-medium text-foreground">
+                    {facilityLink ? (
+                      <FacilityTiedAnchor
+                        contractId={note.sourceContractId}
+                        displayReference={note.sourceContractDisplayReference}
+                      />
+                    ) : (
+                      "On its own"
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {note.sourceContractId ? (
+          <FacilityImpactSection
+            contractId={note.sourceContractId}
+            displayReference={note.sourceContractDisplayReference}
+            financingAmount={note.targetAmount}
+            invoiceFace={invoiceDetailsRecord?.value ?? settlementAmount}
+            invoiceStatus={
+              typeof invoiceSnapshotRecord?.status === "string"
+                ? invoiceSnapshotRecord.status
+                : "APPROVED"
+            }
+            noteStatus={note.status}
+            servicingStatus={note.servicingStatus}
+          />
+        ) : null}
+
+        {note.feeSchedule || note.facilityFeeCollectionWaiver?.facilityFeeCollectionWaived ? (
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle className="text-xl sm:text-2xl">Fee schedule</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-ui leading-6 text-muted-foreground">
+                Frozen at offer acceptance. Drawdown fee uses actual funded; fixed extra fees stay
+                unchanged at partial funding.
+              </p>
+              {note.feeSchedule ? (
+                <dl className="space-y-2 text-ui">
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-muted-foreground">Drawdown fee</dt>
+                    <dd className="font-medium tabular-nums">
+                      {note.platformFeeRatePercent}% of actual funded
+                    </dd>
+                  </div>
+                  {note.sourceContractId ? (
+                    <div className="flex items-center justify-between gap-4">
+                      <dt className="text-muted-foreground">Facility fee collection</dt>
+                      <dd className="font-medium tabular-nums">
+                        {formatCurrency(note.feeSchedule.facilityFeeCollectAmount)}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {note.feeSchedule.additionalFees.map((line) => (
+                    <div
+                      key={`${line.name}-${line.kind}`}
+                      className="flex items-center justify-between gap-4"
+                    >
+                      <dt className="text-muted-foreground">{line.name}</dt>
+                      <dd className="font-medium tabular-nums">
+                        {line.kind === "percent_of_funded"
+                          ? `${line.value}% of actual funded`
+                          : formatCurrency(line.value)}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+              {note.facilityFeeCollectionWaiver?.facilityFeeCollectionWaived ? (
+                <p className="text-ui leading-6 text-muted-foreground" role="status">
+                  Facility fee collection for this note is waived
+                  {note.facilityFeeCollectionWaiver.waivedReason
+                    ? `: ${note.facilityFeeCollectionWaiver.waivedReason}`
+                    : "."}
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card>
           <CardHeader className="space-y-0 gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
@@ -813,19 +909,41 @@ export default function IssuerNoteDetailPage() {
                 </span>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <span className="text-sm text-muted-foreground">Platform fee</span>
+                <span className="text-sm text-muted-foreground">Drawdown fee</span>
                 <span className="text-sm font-semibold text-foreground tabular-nums">
                   {formatCurrency(issuerDisbursementWithdrawal.platformFeeAmount!)}
                 </span>
               </div>
               {issuerDisbursementWithdrawal.facilityFeeCharged != null ? (
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm text-muted-foreground">Facility fee</span>
+                  <span className="text-sm text-muted-foreground">
+                    {issuerDisbursementWithdrawal.facilityFeeCollectionWaived
+                      ? "Facility fee (waived)"
+                      : "Facility fee"}
+                  </span>
                   <span className="text-sm font-semibold text-foreground tabular-nums">
                     {formatCurrency(issuerDisbursementWithdrawal.facilityFeeCharged)}
                   </span>
                 </div>
               ) : null}
+              {issuerDisbursementWithdrawal.facilityFeeCollectionWaived &&
+              issuerDisbursementWithdrawal.facilityFeeCharged == null ? (
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-muted-foreground">Facility fee</span>
+                  <span className="text-sm font-semibold text-foreground">Waived</span>
+                </div>
+              ) : null}
+              {(issuerDisbursementWithdrawal.additionalFees ?? []).map((line, index) => (
+                <div
+                  key={`${line.name}-${index}`}
+                  className="flex items-center justify-between gap-4"
+                >
+                  <span className="text-sm text-muted-foreground">{line.name}</span>
+                  <span className="text-sm font-semibold text-foreground tabular-nums">
+                    {formatCurrency(line.chargedAmount)}
+                  </span>
+                </div>
+              ))}
               <div className="flex items-center justify-between gap-4 pt-1">
                 <span className="text-sm text-muted-foreground">Net to issuer</span>
                 <span className="text-sm font-semibold text-primary tabular-nums">
@@ -883,7 +1001,7 @@ export default function IssuerNoteDetailPage() {
                   description="Principal, net profit, and any investor Ta'widh compensation."
                 />
                 <BucketPayoutCard
-                  label="Platform fee"
+                  label="Service fee"
                   value={settlementSummary.operatingAccountAmount}
                   description="Service fee retained by the platform."
                 />

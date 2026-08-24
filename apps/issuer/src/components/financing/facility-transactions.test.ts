@@ -69,6 +69,7 @@ function invoice(
     displayReference: "INV-1",
     applicationId: "app_invoice",
     productId: "prod_1",
+    productName: "Account Receivable (AR) Financing",
     contractId: "con_1",
     invoiceForModal: {
       id: "inv_1",
@@ -225,7 +226,49 @@ describe("buildFacilityTransactions", () => {
     const disbursed = rows.filter((row) => row.label === "Disbursed");
     expect(disbursed).toHaveLength(1);
     expect(disbursed[0]?.amount).toBe(7880);
+    expect(rows.find((row) => row.label === "Drawdown fee charged")?.amount).toBe(80);
     expect(rows.find((row) => row.label === "Facility fee charged")?.amount).toBe(40);
+  });
+
+  it("shows extra fee lines from withdrawal metadata", () => {
+    const rows = buildFacilityTransactions({
+      contract: contract(),
+      invoices: [
+        invoice({
+          invoiceStatus: InvoiceStatus.APPROVED,
+          note: {
+            id: "note_1",
+            noteReference: "NOTE-1",
+            noteStatus: "ACTIVE",
+            listingStatus: "CLOSED",
+            noteListingStatus: null,
+            fundingStatus: "FUNDED",
+            servicingStatus: "CURRENT",
+            targetAmount: "8000",
+            fundedAmount: "8000",
+            fundingProgressPercent: 100,
+            minimumFundingPercent: "80",
+            fundingDeadline: "2026-08-15T09:00:00.000Z",
+            maturityDate: null,
+            marketplaceStatusLabel: null,
+            investorCount: 3,
+            disbursementBreakdown: {
+              grossFundedAmount: "8000",
+              platformFeeAmount: "80",
+              facilityFeeCharged: "0",
+              netIssuerDisbursement: "7420",
+              additionalFees: [
+                { name: "Legal fee", kind: "amount", value: 500, chargedAmount: 500 },
+              ],
+              facilityFeeCollectionWaived: true,
+            },
+          },
+        }),
+      ],
+      notes: [note({ activatedAt: "2026-08-20T09:00:00.000Z" })],
+    });
+    expect(rows.find((row) => row.label === "Legal fee charged")?.amount).toBe(500);
+    expect(rows.find((row) => row.label === "Facility fee collection waived")).toBeTruthy();
   });
 
   it("sorts newest first", () => {

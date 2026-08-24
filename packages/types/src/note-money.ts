@@ -1,5 +1,12 @@
 import { roundNoteMoney } from "./note-expected-return";
 
+/**
+ * Product catalog has no minimum-funding field. Notes persist
+ * `minimum_funding_percent` with Prisma default 80 and create-from-invoice
+ * does not override it. Offer-stage fee overflow checks use this same default.
+ */
+export const NOTE_DEFAULT_MINIMUM_FUNDING_PERCENT = 80;
+
 /** Half-cent tolerance used across note money comparisons (MYR). */
 export const NOTE_MONEY_TOLERANCE = 0.005;
 
@@ -81,7 +88,7 @@ export function computeMarketplaceCommitBounds(
 export function meetsMinimumFunding(
   fundedAmount: number,
   targetAmount: number,
-  minimumFundingPercent = 80
+  minimumFundingPercent = NOTE_DEFAULT_MINIMUM_FUNDING_PERCENT
 ): boolean {
   if (targetAmount <= 0) return false;
   const fundingPercent = (fundedAmount / targetAmount) * 100;

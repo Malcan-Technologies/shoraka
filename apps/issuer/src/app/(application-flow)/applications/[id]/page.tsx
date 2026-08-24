@@ -653,7 +653,7 @@ export default function ApplicationDetailPage() {
                       <span className="inline-flex items-center gap-1.5">
                         Facility fee rate
                         <InfoTooltip
-                          content="Facility fee is deducted from each invoice financing disbursement under this facility."
+                          content="The facility fee is owed in full when the facility offer is accepted (maximum 1%). CashSouk collects it at its discretion."
                           iconClassName="h-3.5 w-3.5 shrink-0"
                         />
                       </span>
@@ -666,19 +666,35 @@ export default function ApplicationDetailPage() {
                         : "—",
                   },
                   {
-                    label: (
-                      <span className="inline-flex items-center gap-1.5">
-                        Facility fee cap
-                        <InfoTooltip
-                          content="Maximum total facility fee that can be collected for this facility."
-                          iconClassName="h-3.5 w-3.5 shrink-0"
-                        />
-                      </span>
-                    ),
+                    label: "Facility fee owed",
                     value:
                       application.approvedFacilityAmount != null &&
                       application.facilityFeeCapAmount != null
                         ? formatCurrency(application.facilityFeeCapAmount)
+                        : "—",
+                  },
+                  {
+                    label: "Facility fee charged",
+                    value:
+                      application.approvedFacilityAmount != null &&
+                      application.facilityFeeCapAmount != null
+                        ? formatCurrency(application.facilityFeePaidAmount ?? 0)
+                        : "—",
+                  },
+                  {
+                    label: "Facility fee waived",
+                    value: application.facilityFeeWaived
+                      ? application.facilityFeeWaivedAmount != null
+                        ? formatCurrency(application.facilityFeeWaivedAmount)
+                        : "Waived"
+                      : "—",
+                  },
+                  {
+                    label: "Facility fee remaining",
+                    value:
+                      application.approvedFacilityAmount != null &&
+                      application.facilityFeeCapAmount != null
+                        ? formatCurrency(application.facilityFeeRemainingAmount ?? 0)
                         : "—",
                   },
                   {
@@ -691,6 +707,16 @@ export default function ApplicationDetailPage() {
                     label: "Last updated",
                     value: format(new Date(application.updatedAt), "d MMM yyyy, h:mm a"),
                   },
+                  ...(application.facilityEnabled === false
+                    ? [
+                        {
+                          label: "Facility status",
+                          value: application.facilityDisabledReason
+                            ? `Disabled — ${application.facilityDisabledReason}`
+                            : "Disabled",
+                        },
+                      ]
+                    : []),
                 ]}
               />
               {application.contractId ? (

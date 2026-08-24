@@ -14,12 +14,16 @@ import {
   EmptyState,
   KeyValueGrid,
   LoadingState,
+  ProductCatalogName,
   StatusBadge,
 } from "@cashsouk/ui";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
 import { useInvoice } from "@/hooks/use-invoices";
+import { useIssuerProduct } from "@/hooks/use-products";
+import { resolveProductImageS3KeyFromWorkflow } from "@cashsouk/types";
+import { resolveProductDisplayName } from "@/lib/product-display";
 import {
   issuerContentMaxWidthClassName,
   issuerMainContentClassName,
@@ -54,6 +58,9 @@ import {
 } from "@/components/financing/marketplace-campaign";
 import { buildInvoiceFeeDisplay, money } from "@/lib/facility-fee-display";
 import { formatInvoiceReference, formatNoteInvestorCount } from "@cashsouk/types";
+import { FacilityTiedAnchor } from "@/components/financing/facility-tied-link";
+import { resolveIssuerFacilityLink } from "@/components/financing/facility-tied";
+import { FacilityImpactSection } from "@/components/financing/facility-impact";
 
 export default function InvoiceDetailPage() {
   const params = useParams();
@@ -113,6 +120,10 @@ export default function InvoiceDetailPage() {
     if (!contractId || !dashboard) return null;
     return dashboard.contracts.find((c) => c.id === contractId) ?? null;
   }, [contractId, dashboard]);
+  const productId = row?.productId ?? relatedContract?.productId ?? "";
+  const { data: productRecord } = useIssuerProduct(productId);
+  const productImageS3Key = resolveProductImageS3KeyFromWorkflow(productRecord?.workflow);
+  const catalogProductName = resolveProductDisplayName(productRecord);
 
   const feeDisplay = buildInvoiceFeeDisplay({
     status: row?.note?.noteStatus ?? row?.invoiceStatus ?? modalInvoice?.status,
@@ -126,6 +137,10 @@ export default function InvoiceDetailPage() {
     )?.contract_details?.facility_fee_rate_percent,
     contractFacilityFeeCapAmount: relatedContract?.facilityFeeCapAmount,
     contractFacilityFeePaidAmount: relatedContract?.facilityFeePaidAmount,
+    contractDetails: (
+      relatedContract?.contractForModal as { contract_details?: unknown } | null
+    )?.contract_details,
+    invoiceSnapshot: modalInvoice,
     actual: row?.note?.disbursementBreakdown,
   });
 
@@ -218,6 +233,10 @@ export default function InvoiceDetailPage() {
     businessNumber: invoiceBusinessNumber != null ? String(invoiceBusinessNumber) : null,
     id: invoiceId,
   });
+  const facilityLink = resolveIssuerFacilityLink({
+    contractId,
+    displayReference: relatedContract?.displayReference,
+  });
   const customerName = row?.customerName ?? null;
   const campaign = row?.note ? buildIssuerMarketplaceCampaign(row.note) : null;
   const campaignCloseLabel = campaign
@@ -277,16 +296,14 @@ export default function InvoiceDetailPage() {
                 </Link>
               </>
             ) : null}
-            {contractId ? (
+            {facilityLink ? (
               <>
                 <span aria-hidden>·</span>
                 <Link
-                  href={`/financing/contracts/${contractId}`}
+                  href={facilityLink.href}
                   className="text-primary underline-offset-4 hover:underline"
                 >
-                  {relatedContract?.title
-                    ? `Facility: ${relatedContract.title}`
-                    : "Facility"}
+                  {`Facility: ${facilityLink.label}`}
                 </Link>
               </>
             ) : null}
@@ -359,12 +376,49 @@ export default function InvoiceDetailPage() {
               }
             />
           </div>
+          {contractId ? (
+            <FacilityImpactSection
+              contractId={contractId}
+              displayReference={relatedContract?.displayReference}
+              financingAmount={row?.financingAmount ?? offerDetails?.offered_amount}
+              invoiceFace={row?.invoiceValue ?? invDetails?.value}
+              invoiceStatus={row?.invoiceStatus ?? modalInvoice?.status}
+              noteStatus={row?.note?.noteStatus}
+              servicingStatus={row?.note?.servicingStatus}
+            />
+          ) : null}
           <KeyValueGrid
             items={[
               { label: "CashSouk Reference", value: displayCell(cashSoukReference) },
               { label: "Invoice number", value: displayCell(invoiceBusinessNumber) },
               { label: "Customer", value: displayCell(customerName) },
+              {
+                label: "Product",
+                value: (
+                  <ProductCatalogName
+                    name={
+                      catalogProductName ??
+                      row?.productName ??
+                      relatedContract?.productName
+                    }
+                    imageS3Key={productImageS3Key}
+                    empty={EM_DASH}
+                    size="xs"
+                  />
+                ),
+              },
               { label: "Submission date", value: formatDate(row?.submissionDate) },
+              {
+                label: "Facility",
+                value: facilityLink ? (
+                  <FacilityTiedAnchor
+                    contractId={contractId}
+                    displayReference={relatedContract?.displayReference}
+                  />
+                ) : (
+                  "On its own"
+                ),
+              },
               {
                 label: "Campaign closes",
                 value: campaign?.closesAt ? campaignCloseLabel : EM_DASH,
@@ -454,7 +508,7 @@ export default function InvoiceDetailPage() {
                     tabular: true,
                   },
                   {
-                    label: "Platform fee",
+                    label: "Drawdown fee",
                     value:
                       feeDisplay.platformFeeAmount != null
                         ? money(feeDisplay.platformFeeAmount)
@@ -463,8 +517,11 @@ export default function InvoiceDetailPage() {
                   },
                   {
                     label: "Facility fee",
-                    value:
-                      feeDisplay.facilityFeeAmount != null
+                    value: feeDisplay.facilityFeeCollectionWaived
+                      ? feeDisplay.waiverReason
+                        ? `Waived — ${feeDisplay.waiverReason}`
+                        : "Waived"
+                      : feeDisplay.facilityFeeAmount != null
                         ? `${money(feeDisplay.facilityFeeAmount)}${
                             feeDisplay.facilityFeeFullyCollected &&
                             feeDisplay.facilityFeeAmount === 0
@@ -474,6 +531,11 @@ export default function InvoiceDetailPage() {
                         : EM_DASH,
                     tabular: true,
                   },
+                  ...feeDisplay.additionalFeeCharges.map((line) => ({
+                    label: line.name,
+                    value: money(line.chargedAmount),
+                    tabular: true as const,
+                  })),
                 ]}
               />
             )}

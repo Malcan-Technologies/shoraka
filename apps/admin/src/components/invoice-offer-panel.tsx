@@ -6,16 +6,42 @@ import {
   resolveOfferedAmount,
   resolveOfferedProfitRate,
   resolveOfferedPlatformFeeRatePercent,
+  resolveRequestedInvoiceAmount,
   maturityMeetsMinimumMonthsFrom,
   parseInvoiceMaturityDate,
 } from "@cashsouk/config";
 import {
   getOfferPhaseDeadlineDisplay,
+  isReservedCapacityInvoiceStatus,
   isSoukscoreRiskRating,
   previewAcceptanceDeadlineFromWorkflow,
   SOUKSCORE_RISK_RATING_GRADES,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
+import {
+  invoiceOfferFacilityFeeCollectEnabled,
+  invoiceOfferConfirmSubmitBlocked,
+  invoiceOfferFeeFingerprint,
+  parseInvoiceOfferFeeEditorState,
+  resolveDrawdownFeeRateForSend,
+  resolveInvoiceOfferConfirmGuard,
+  resolveInvoiceOfferFacilityFeeRemaining,
+  toSendInvoiceOfferFeeFields,
+  utilisationFeeSendBlockedReason,
+  convertGrandfatherOfferToCurrentV1,
+  clampOfferPlatformFeePercent,
+  type InvoiceOfferFeeEditorState,
+  type SendInvoiceOfferUiPayload,
+} from "@/components/utilisation-fee-lines";
+import {
+  InvoiceOfferFeeConfirmRows,
+  InvoiceOfferFeeScheduleSection,
+} from "@/components/utilisation-fee-lines-editor";
+import {
+  REMAINING_ALLOCATION_LABEL,
+  REMAINING_CREDIT_LABEL,
+  resolveInvoiceOfferDisable,
+} from "@/lib/facility-capacity-display";
 import { cn } from "@/lib/utils";
 import { OfferAcceptanceDeadlineConfirmRows } from "@/components/application-review/offer-acceptance-deadline-confirm-rows";
 import { REVIEW_EMPTY_LABEL, reviewLabelClass, reviewRowGridClass, reviewValueClass } from "@/components/application-review/review-section-styles";
@@ -45,16 +71,13 @@ function toNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function clampPlatformFeePercent(parsed: number, fallback: number, cap: number): number {
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(cap, Math.max(0, Math.round(parsed * 100) / 100));
-}
-
 export interface InvoiceOfferPanelInvoice {
   id: string;
   details?: unknown;
   status?: string;
   offer_details?: unknown;
+  contract_id?: string | null;
+  facilityFeeAvailableToReserve?: number | null;
 }
 
 export interface InvoiceOfferPanelProps {
@@ -66,18 +89,13 @@ export interface InvoiceOfferPanelProps {
   platformFeeRateCapPercent?: number | null;
   minMonthsReviewToMaturityForOffer?: number | null;
   productWorkflow?: unknown;
-  onSendInvoiceOffer?: (payload: {
-    invoiceId: string;
-    offeredAmount: number;
-    offeredRatioPercent: number;
-    offeredProfitRatePercent: number;
-    platformFeeRatePercent: number;
-    risk_rating: SoukscoreRiskRating;
-  }) => Promise<void>;
+  onSendInvoiceOffer?: (payload: SendInvoiceOfferUiPayload) => Promise<void>;
   isSendInvoiceOfferPending?: boolean;
   onResetItemToPending?: (itemId: string) => void;
   isItemActionPending: boolean;
   remainingAvailableFacility?: number;
+  remainingAllocation?: number;
+  facilityOverLimit?: boolean;
   scopeKey: string;
 }
 
@@ -95,18 +113,21 @@ export function InvoiceOfferPanel({
   onResetItemToPending,
   isItemActionPending,
   remainingAvailableFacility,
+  remainingAllocation,
+  facilityOverLimit,
   scopeKey,
 }: InvoiceOfferPanelProps) {
+  const facilityFeeRemaining = resolveInvoiceOfferFacilityFeeRemaining(invoice);
+  const collectEnabled = invoiceOfferFacilityFeeCollectEnabled(invoice);
   const details = invoice.details as
     | { number?: string | number; value?: string | number; financing_ratio_percent?: string | number; maturity_date?: string; due_date?: string }
     | undefined;
   const invoiceNo = details?.number ?? invoice.id;
   const invoiceValue = toNumber(details?.value);
   const financingRatio = toNumber(details?.financing_ratio_percent);
-  const issuerFinancingAmount =
-    invoiceValue !== null && financingRatio !== null
-      ? (invoiceValue * financingRatio) / 100
-      : null;
+  const issuerFinancingAmount = resolveRequestedInvoiceAmount(
+    invoice.details as Record<string, unknown>
+  );
   const maturityDate = details?.maturity_date ?? details?.due_date;
   const status = reviewItemStatus;
   const isOfferSent = status === "OFFER_SENT";
@@ -134,7 +155,7 @@ export function InvoiceOfferPanel({
       (PROFIT_RATE_OPTIONS as readonly number[]).includes(offer.offered_profit_rate_percent)
         ? offer.offered_profit_rate_percent
         : 12;
-    const platformFeeRatePercent = clampPlatformFeePercent(
+    const platformFeeRatePercent = clampOfferPlatformFeePercent(
       resolveOfferedPlatformFeeRatePercent(invoice.offer_details as Record<string, unknown>),
       0,
       platformFeeCap
@@ -164,6 +185,17 @@ export function InvoiceOfferPanel({
   const [financingRatioSliderOpen, setFinancingRatioSliderOpen] = React.useState(false);
   const [platformFeeDraft, setPlatformFeeDraft] = React.useState<string | undefined>(undefined);
   const financingRatioPanelRef = React.useRef<HTMLDivElement | null>(null);
+  const feeFingerprint = invoiceOfferFeeFingerprint(invoice.offer_details);
+  const feeFingerprintRef = React.useRef(feeFingerprint);
+  const [feeEditor, setFeeEditor] = React.useState<InvoiceOfferFeeEditorState>(() =>
+    parseInvoiceOfferFeeEditorState(invoice.offer_details)
+  );
+  React.useEffect(() => {
+    if (feeFingerprintRef.current === feeFingerprint) return;
+    feeFingerprintRef.current = feeFingerprint;
+    setFeeEditor(parseInvoiceOfferFeeEditorState(invoice.offer_details));
+  }, [feeFingerprint, invoice.offer_details]);
+
   const [invoiceOfferConfirm, setInvoiceOfferConfirm] = React.useState<{
     invoiceId: string;
     invoiceNo: string | number;
@@ -171,8 +203,12 @@ export function InvoiceOfferPanel({
     offeredRatioPercent: number;
     offeredProfitRatePercent: number;
     platformFeeRatePercent: number;
+    feeScheduleMode: SendInvoiceOfferUiPayload["feeScheduleMode"];
+    facilityFeeCollectAmount: number;
+    additionalFees: SendInvoiceOfferUiPayload["additionalFees"];
     invoiceValue: number | null;
     risk_rating: SoukscoreRiskRating;
+    offerFingerprint: string;
   } | null>(null);
 
   React.useEffect(() => {
@@ -226,11 +262,63 @@ export function InvoiceOfferPanel({
       ));
   const exceedsIssuerRequest =
     issuerFinancingAmount != null && offeredAmount != null && offeredAmount > issuerFinancingAmount;
+  const reservedInvoice = isReservedCapacityInvoiceStatus(invoice.status);
+  const offerDisable = resolveInvoiceOfferDisable({
+    isAdminRejected,
+    sendOfferBlockedByMaturity,
+    offeredAmount,
+    invoiceFace: invoiceValue,
+    hasRiskRating: Boolean(riskRating),
+    remainingCredit: remainingAvailableFacility,
+    remainingAllocation,
+    invoiceStatus: invoice.status,
+    addBackFinancing: reservedInvoice ? (issuerFinancingAmount ?? 0) : 0,
+    addBackFace: reservedInvoice ? (invoiceValue ?? 0) : 0,
+    facilityOverLimit,
+  });
+  const drawdownFeeRateForSend = hasOfferSnapshot
+    ? offeredPlatformFeePercent
+    : resolveDrawdownFeeRateForSend({
+        committedPercent: offered.platformFeeRatePercent,
+        draft: platformFeeDraft,
+        capPercent: platformFeeCap,
+      });
+  const feeSendBlockedReason =
+    offeredAmount != null
+      ? utilisationFeeSendBlockedReason({
+          offeredAmount,
+          platformFeeRatePercent: drawdownFeeRateForSend,
+          schedule:
+            feeEditor.mode === "v1"
+              ? feeEditor.schedule
+              : { facilityFeeCollectAmount: 0, additionalFees: [] },
+          facilityFeeRemaining,
+          collectEnabled: feeEditor.mode === "v1" ? collectEnabled : false,
+        })
+      : null;
+
+  const invoiceOfferConfirmGuard = React.useMemo(() => {
+    if (!invoiceOfferConfirm) return null;
+    return resolveInvoiceOfferConfirmGuard({ confirm: invoiceOfferConfirm, invoice });
+  }, [invoiceOfferConfirm, invoice]);
+  const invoiceOfferConfirmFeeBlockedReason = invoiceOfferConfirmGuard?.feeBlockedReason ?? null;
+
+  React.useEffect(() => {
+    if (invoiceOfferConfirmGuard?.fingerprintStale) {
+      setInvoiceOfferConfirm(null);
+    }
+  }, [invoiceOfferConfirmGuard]);
 
   const handleConfirmInvoiceOffer = React.useCallback(async () => {
-    if (!onSendInvoiceOffer || !invoiceOfferConfirm) return;
+    if (!onSendInvoiceOffer || !invoiceOfferConfirm || !invoiceOfferConfirmGuard) return;
     if (!invoiceOfferConfirm.risk_rating) {
       alert("Please select a risk rating before sending the offer.");
+      return;
+    }
+    if (
+      offerDisable.disabled ||
+      invoiceOfferConfirmSubmitBlocked(invoiceOfferConfirmGuard)
+    ) {
       return;
     }
     await onSendInvoiceOffer({
@@ -240,9 +328,18 @@ export function InvoiceOfferPanel({
       offeredProfitRatePercent: invoiceOfferConfirm.offeredProfitRatePercent,
       platformFeeRatePercent: invoiceOfferConfirm.platformFeeRatePercent,
       risk_rating: invoiceOfferConfirm.risk_rating,
+      feeScheduleMode: invoiceOfferConfirm.feeScheduleMode,
+      facilityFeeCollectAmount: invoiceOfferConfirm.facilityFeeCollectAmount,
+      additionalFees: invoiceOfferConfirm.additionalFees,
     });
     setInvoiceOfferConfirm(null);
-  }, [onSendInvoiceOffer, invoiceOfferConfirm]);
+  }, [
+    onSendInvoiceOffer,
+    invoiceOfferConfirm,
+    invoiceOfferConfirmGuard,
+    offerDisable.disabled,
+    setInvoiceOfferConfirm,
+  ]);
 
   const controlsDisabled = isRowGreyedOut || isAdminRejected;
 
@@ -304,7 +401,7 @@ export function InvoiceOfferPanel({
         )}
 
         <div className="space-y-0.5">
-          <Label className={reviewLabelClass}>Platform fee</Label>
+          <Label className={reviewLabelClass}>Drawdown fee</Label>
           {!isOfferSent ? (
             <p className="text-meta text-muted-foreground tabular-nums">0–{platformFeeCap}%</p>
           ) : null}
@@ -317,7 +414,7 @@ export function InvoiceOfferPanel({
               type="text"
               inputMode="decimal"
               autoComplete="off"
-              aria-label={`Platform fee percent, allowed 0% to ${platformFeeCap}%`}
+              aria-label={`Drawdown fee percent, allowed 0% to ${platformFeeCap}%`}
               className={`${OFFER_CONTROL_WIDTH_CLASS} px-3 text-right tabular-nums shadow-sm`}
               disabled={controlsDisabled}
               value={platformFeeDraft !== undefined ? platformFeeDraft : String(offered.platformFeeRatePercent)}
@@ -329,7 +426,7 @@ export function InvoiceOfferPanel({
                 const draft = platformFeeDraft;
                 setPlatformFeeDraft(undefined);
                 const fallback = offered.platformFeeRatePercent;
-                const clamped = clampPlatformFeePercent(
+                const clamped = clampOfferPlatformFeePercent(
                   draft === undefined || draft === "" ? fallback : Number(draft.replace(/,/g, "")),
                   fallback,
                   platformFeeCap
@@ -431,6 +528,48 @@ export function InvoiceOfferPanel({
         </div>
       </div>
 
+      {remainingAvailableFacility != null || remainingAllocation != null ? (
+        <div className="grid gap-3 rounded-xl border border-border bg-muted/20 px-3 py-2.5 sm:grid-cols-2">
+          <div>
+            <p className={reviewLabelClass}>{REMAINING_CREDIT_LABEL}</p>
+            <p className={cn(reviewValueClass, "tabular-nums")}>
+              {remainingAvailableFacility != null
+                ? formatCurrency(remainingAvailableFacility)
+                : REVIEW_EMPTY_LABEL}
+            </p>
+            {offeredAmount != null ? (
+              <p className="text-meta text-muted-foreground">
+                Offered financing {formatCurrency(offeredAmount)}
+              </p>
+            ) : null}
+          </div>
+          <div>
+            <p className={reviewLabelClass}>{REMAINING_ALLOCATION_LABEL}</p>
+            <p className={cn(reviewValueClass, "tabular-nums")}>
+              {remainingAllocation != null ? formatCurrency(remainingAllocation) : REVIEW_EMPTY_LABEL}
+            </p>
+            {invoiceValue != null ? (
+              <p className="text-meta text-muted-foreground">
+                Invoice face {formatCurrency(invoiceValue)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <InvoiceOfferFeeScheduleSection
+        idPrefix={`invoice-offer-${invoice.id}`}
+        editor={feeEditor}
+        onChange={setFeeEditor}
+        onConvertToCurrentV1={() => setFeeEditor(convertGrandfatherOfferToCurrentV1())}
+        offeredAmount={offeredAmount}
+        platformFeeRatePercent={drawdownFeeRateForSend}
+        facilityFeeRemaining={facilityFeeRemaining}
+        collectEnabled={collectEnabled}
+        disabled={controlsDisabled}
+        readOnly={isOfferSent}
+      />
+
       {!isOfferSent && onSendInvoiceOffer ? (
         isAdminRejected ? (
           <div className="space-y-2">
@@ -460,35 +599,29 @@ export function InvoiceOfferPanel({
             </p>
           </div>
         ) : (
+          <div className="space-y-2">
           <Button
             type="button"
             className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 h-10"
             disabled={
               isRowGreyedOut ||
               !!isSendInvoiceOfferPending ||
-              offeredAmount === null ||
-              !riskRating
+              offerDisable.disabled ||
+              Boolean(feeSendBlockedReason)
             }
             onClick={() => {
+              if (offerDisable.disabled || feeSendBlockedReason) return;
               const rr = riskRating;
               if (!rr) {
                 alert("Please select a risk rating before sending the offer.");
                 return;
               }
-              let platformFeeRatePercent = clampPlatformFeePercent(
-                offered.platformFeeRatePercent,
-                0,
-                platformFeeCap
-              );
+              const platformFeeRatePercent = resolveDrawdownFeeRateForSend({
+                committedPercent: offered.platformFeeRatePercent,
+                draft: platformFeeDraft,
+                capPercent: platformFeeCap,
+              });
               if (platformFeeDraft !== undefined) {
-                platformFeeRatePercent =
-                  platformFeeDraft === ""
-                    ? 0
-                    : clampPlatformFeePercent(
-                        Number(platformFeeDraft.replace(/,/g, "")),
-                        offered.platformFeeRatePercent,
-                        platformFeeCap
-                      );
                 setPlatformFeeDraft(undefined);
               }
               if (platformFeeRatePercent !== offered.platformFeeRatePercent) {
@@ -501,13 +634,29 @@ export function InvoiceOfferPanel({
                 offeredRatioPercent: offered.ratio,
                 offeredProfitRatePercent: offered.profitRate,
                 platformFeeRatePercent,
+                ...toSendInvoiceOfferFeeFields(feeEditor),
                 invoiceValue,
                 risk_rating: rr,
+                offerFingerprint: feeFingerprint,
               });
             }}
           >
             {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
           </Button>
+          {offerDisable.message &&
+          offerDisable.reason !== "rejected" &&
+          offerDisable.reason !== "maturity" &&
+          offerDisable.reason !== "missing_risk" &&
+          offerDisable.reason !== "missing_amount" ? (
+            <p role="alert" className="text-sm leading-snug text-destructive">
+              {offerDisable.message}
+            </p>
+          ) : feeSendBlockedReason ? (
+            <p role="alert" className="text-sm leading-snug text-destructive">
+              {feeSendBlockedReason}
+            </p>
+          ) : null}
+          </div>
         )
       ) : null}
 
@@ -539,7 +688,7 @@ export function InvoiceOfferPanel({
       ) : null}
 
       <Dialog open={!!invoiceOfferConfirm} onOpenChange={(open) => !open && setInvoiceOfferConfirm(null)}>
-        <DialogContent className="rounded-2xl sm:max-w-md">
+        <DialogContent className="rounded-2xl sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               Confirm Invoice Offer
@@ -582,12 +731,14 @@ export function InvoiceOfferPanel({
                     {invoiceOfferConfirm.offeredProfitRatePercent}%
                   </span>
                 </div>
-                <div className="flex justify-between items-baseline">
-                  <span className="text-sm font-medium text-muted-foreground">Platform fee</span>
-                  <span className="text-ui font-medium tabular-nums">
-                    {invoiceOfferConfirm.platformFeeRatePercent}% at disbursement
-                  </span>
-                </div>
+                <InvoiceOfferFeeConfirmRows
+                  offeredAmount={invoiceOfferConfirm.offeredAmount}
+                  platformFeeRatePercent={invoiceOfferConfirm.platformFeeRatePercent}
+                  feeScheduleMode={invoiceOfferConfirm.feeScheduleMode}
+                  facilityFeeCollectAmount={invoiceOfferConfirm.facilityFeeCollectAmount}
+                  additionalFees={invoiceOfferConfirm.additionalFees}
+                  facilityFeeRemaining={facilityFeeRemaining}
+                />
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm font-medium text-muted-foreground">Risk Rating</span>
                   <span className="text-ui font-medium tabular-nums">
@@ -601,11 +752,27 @@ export function InvoiceOfferPanel({
                     valueClassName="text-ui font-medium"
                   />
                 ) : null}
-                {remainingAvailableFacility != null &&
-                invoiceOfferConfirm.offeredAmount > remainingAvailableFacility ? (
-                  <p className="rounded-xl border border-border bg-muted/20 px-3 py-2 text-ui text-foreground">
-                    This offer ({formatCurrency(invoiceOfferConfirm.offeredAmount)}) exceeds remaining
-                    available facility ({formatCurrency(remainingAvailableFacility)}). You can still send it.
+                {remainingAvailableFacility != null ? (
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-sm font-medium text-muted-foreground">{REMAINING_CREDIT_LABEL}</span>
+                    <span className="text-ui font-medium tabular-nums">
+                      {formatCurrency(remainingAvailableFacility)}
+                    </span>
+                  </div>
+                ) : null}
+                {remainingAllocation != null ? (
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {REMAINING_ALLOCATION_LABEL}
+                    </span>
+                    <span className="text-ui font-medium tabular-nums">
+                      {formatCurrency(remainingAllocation)}
+                    </span>
+                  </div>
+                ) : null}
+                {invoiceOfferConfirmFeeBlockedReason ? (
+                  <p role="alert" className="rounded-xl border border-border bg-muted/20 px-3 py-2 text-ui text-destructive">
+                    {invoiceOfferConfirmFeeBlockedReason}
                   </p>
                 ) : null}
               </div>
@@ -615,7 +782,12 @@ export function InvoiceOfferPanel({
                 </Button>
                 <Button
                   onClick={handleConfirmInvoiceOffer}
-                  disabled={!!isSendInvoiceOfferPending}
+                  disabled={
+                    !!isSendInvoiceOfferPending ||
+                    offerDisable.disabled ||
+                    (invoiceOfferConfirmGuard != null &&
+                      invoiceOfferConfirmSubmitBlocked(invoiceOfferConfirmGuard))
+                  }
                   className="rounded-xl"
                 >
                   {isSendInvoiceOfferPending ? "Sending..." : "Confirm & Send Offer"}

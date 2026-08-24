@@ -18,16 +18,20 @@ import { cn } from "@/lib/utils";
 
 export function ContractApplicationsTable({
   applications,
+  emptyTitle,
+  emptyDescription,
+  requestedColumnLabel = "Requested",
 }: {
   applications: AdminContractApplicationSummary[];
+  emptyTitle: string;
+  emptyDescription: string;
+  requestedColumnLabel?: string;
 }) {
   if (applications.length === 0) {
     return (
       <div className="rounded-xl border border-dashed bg-muted/20 p-4">
-        <p className="text-ui font-medium">No linked applications</p>
-        <p className="mt-1 text-meta text-muted-foreground">
-          Applications drawn against this facility will appear here once the issuer submits them.
-        </p>
+        <p className="text-ui font-medium">{emptyTitle}</p>
+        <p className="mt-1 text-meta text-muted-foreground">{emptyDescription}</p>
       </div>
     );
   }
@@ -37,7 +41,7 @@ export function ContractApplicationsTable({
       <TableHeader>
         <TableRow className="hover:bg-transparent">
           <TableHead>Application</TableHead>
-          <TableHead>Requested</TableHead>
+          <TableHead>{requestedColumnLabel}</TableHead>
           <TableHead className="hidden md:table-cell">Submitted</TableHead>
           <TableHead>Status</TableHead>
           <TableHead className="hidden lg:table-cell">Updated</TableHead>

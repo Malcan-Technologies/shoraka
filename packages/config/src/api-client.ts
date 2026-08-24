@@ -46,6 +46,8 @@ import type {
   GetAdminContractsParams,
   AdminContractsResponse,
   AdminContractDetail,
+  AdditionalFeeLine,
+  InvoiceOfferFeeScheduleWriteMode,
   DownloadUrlResponse,
   GetProductLogsParams,
   ProductLogsResponse,
@@ -173,6 +175,8 @@ type AdminApplicationDetail = Application &
       details?: Record<string, unknown>;
       status?: string;
       offer_details?: unknown;
+      contract_id?: string | null;
+      facilityFeeAvailableToReserve?: number | null;
     }>;
     linked_notes?: Array<{
       id: string;
@@ -590,6 +594,24 @@ export class ApiClient {
     return this.get<AdminContractDetail>(`/v1/admin/contracts/${id}`);
   }
 
+  async waiveAdminContractFacilityFee(
+    id: string,
+    reason: string
+  ): Promise<ApiResponse<AdminContractDetail> | ApiError> {
+    return this.post<AdminContractDetail>(`/v1/admin/contracts/${id}/facility-fee/waive`, { reason });
+  }
+
+  async setAdminContractFacilityEnabled(
+    id: string,
+    enabled: boolean,
+    reason?: string
+  ): Promise<ApiResponse<AdminContractDetail> | ApiError> {
+    return this.post<AdminContractDetail>(`/v1/admin/contracts/${id}/facility/enabled`, {
+      enabled,
+      ...(reason ? { reason } : {}),
+    });
+  }
+
   async getAdminNotes(params: GetAdminNotesParams): Promise<ApiResponse<NotesResponse> | ApiError> {
     const queryParams = new URLSearchParams();
     queryParams.append("page", String(params.page));
@@ -764,6 +786,13 @@ export class ApiClient {
 
   async closeAdminNoteFunding(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(`/v1/admin/notes/${id}/funding/close`, {});
+  }
+
+  async waiveAdminNoteFacilityFeeCollection(
+    id: string,
+    reason: string
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/facility-fee-collection/waive`, { reason });
   }
 
   async failAdminNoteFunding(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
@@ -1517,6 +1546,9 @@ export class ApiClient {
       offeredProfitRatePercent?: number | null;
       platformFeeRatePercent?: number | null;
       risk_rating: SoukscoreRiskRating;
+      feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode;
+      facilityFeeCollectAmount?: number | null;
+      additionalFees?: AdditionalFeeLine[];
     }
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
     return this.post<AdminApplicationActionResult>(
@@ -1527,6 +1559,9 @@ export class ApiClient {
         offeredProfitRatePercent: payload.offeredProfitRatePercent ?? null,
         platformFeeRatePercent: payload.platformFeeRatePercent ?? null,
         risk_rating: payload.risk_rating,
+        ...(payload.feeScheduleMode ? { feeScheduleMode: payload.feeScheduleMode } : {}),
+        facilityFeeCollectAmount: payload.facilityFeeCollectAmount ?? 0,
+        additionalFees: payload.additionalFees ?? [],
       }
     );
   }
@@ -3285,6 +3320,12 @@ export class ApiClient {
 
   // Invoice APIs removed.
   // Methods related to invoices were deleted because invoice backend was removed.
+
+  async getS3ViewUrl(
+    s3Key: string
+  ): Promise<ApiResponse<{ viewUrl: string; expiresIn: number }> | ApiError> {
+    return this.post<{ viewUrl: string; expiresIn: number }>("/v1/s3/view-url", { s3Key });
+  }
 
   async deleteContractDocument(
     id: string,

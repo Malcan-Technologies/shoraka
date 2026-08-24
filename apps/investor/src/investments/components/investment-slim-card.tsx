@@ -19,6 +19,7 @@ import {
   MATURITY_VALUE_CLASS,
   formatRiskScore,
 } from "./investment-card-metrics";
+import { InvestmentNoteIdentity } from "./investment-note-identity";
 
 export function InvestmentSlimCard({
   note,
@@ -49,10 +50,7 @@ export function InvestmentSlimCard({
             <NoteStatusBadge note={note} viewer="investor" />
             <span className="text-ui font-semibold text-foreground">{facts.noteLabel}</span>
           </div>
-          <p className="text-ui leading-6 text-foreground">
-            {facts.issuerName}
-            {note.issuerIndustry?.trim() ? ` · ${note.issuerIndustry.trim()}` : ""}
-          </p>
+          <InvestmentNoteIdentity note={note} />
           <p className="text-ui leading-6 text-foreground">{investmentCardHeadline(note)}</p>
           {meta ? <p className="text-ui leading-5 text-muted-foreground">{meta}</p> : null}
           {payoutResult ? <InvestmentPayoutResultLine result={payoutResult} /> : null}

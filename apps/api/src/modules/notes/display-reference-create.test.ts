@@ -3,6 +3,10 @@ const mockNoteRepository = {
 };
 
 const mockTx: any = {
+  $queryRaw: jest.fn(async () => []),
+  contract: {
+    findUnique: jest.fn(),
+  },
   note: {
     create: jest.fn(),
     update: jest.fn(),
@@ -46,6 +50,7 @@ jest.mock("./mapper", () => ({
 }));
 
 import { InvoiceStatus, NoteStatus } from "@prisma/client";
+import { AppError } from "../../lib/http/error-handler";
 import { NoteService } from "./service";
 
 describe("NoteService createFromInvoiceSource display reference", () => {
@@ -54,6 +59,12 @@ describe("NoteService createFromInvoiceSource display reference", () => {
     mockNoteRepository.findBySource.mockReset();
     mockPrisma.product.findUnique.mockReset();
     mockPrisma.$transaction.mockClear();
+    mockTx.$queryRaw.mockReset();
+    mockTx.$queryRaw.mockResolvedValue([]);
+    mockTx.contract.findUnique.mockReset();
+    mockTx.contract.findUnique.mockResolvedValue({
+      contract_details: { financing: 10000, facility_enabled: true },
+    });
     mockTx.note.create.mockReset();
     mockTx.note.update.mockReset();
     mockTx.note.findUniqueOrThrow.mockReset();
@@ -189,5 +200,51 @@ describe("NoteService createFromInvoiceSource display reference", () => {
     expect(result.noteReference).toBe("NOTE-20250512-A1B2C3D4");
     expect(mockPrisma.$transaction).not.toHaveBeenCalled();
     expect(mockTx.displayReferenceAllocation.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects creating a note from a disabled facility", async () => {
+    mockNoteRepository.findBySource.mockResolvedValue(null);
+    mockTx.contract.findUnique.mockResolvedValue({
+      contract_details: { facility_enabled: false, facility_disabled_reason: "Paused" },
+    });
+    const service = new NoteService();
+
+    await expect(
+      (service as any).createFromInvoiceSource({
+        application: {
+          id: "app_1",
+          issuer_organization_id: "org_1",
+          contract_id: "con_1",
+          product_version: 2,
+          financing_type: { product_id: "prod_1", product_code: "ARF" },
+          business_details: null,
+          issuer_organization: {
+            id: "org_1",
+            name: "Issuer Co",
+            type: "COMPANY",
+            registration_number: "123",
+            country: "MY",
+            corporate_onboarding_data: null,
+          },
+        },
+        invoice: {
+          id: "inv_1",
+          application_id: "app_1",
+          contract_id: "con_1",
+          details: { number: "INV-556728", value: 10000, maturity_date: "2026-12-10" },
+          offer_details: { offered_amount: 10000, offered_profit_rate_percent: 10 },
+          status: InvoiceStatus.APPROVED,
+        },
+        sourceContract: {
+          id: "con_1",
+          status: "APPROVED",
+          contract_details: { financing: 10000, facility_enabled: false },
+          offer_details: null,
+          customer_details: null,
+        },
+        actor: { userId: "admin_1", role: "ADMIN", portal: "ADMIN" },
+      })
+    ).rejects.toMatchObject({ code: "FACILITY_DISABLED" } satisfies Partial<AppError>);
+    expect(mockTx.note.create).not.toHaveBeenCalled();
   });
 });

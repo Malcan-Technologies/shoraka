@@ -13,6 +13,7 @@ function note(status: string): AdminContractNoteSummary {
     sourceInvoiceId: "inv-1",
     targetAmount: 8000,
     fundedAmount: 0,
+    invoiceFaceAmount: null,
   };
 }
 
@@ -48,6 +49,7 @@ describe("ContractNotesTable action row", () => {
     expect(tableSource).toContain("odd:bg-muted/40 hover:bg-muted");
     expect(tableSource).toContain("cn(");
     expect(tableSource).toContain("formatCurrency(note.targetAmount)");
-    expect(tableSource).toContain(">Amount<");
+    expect(tableSource).toContain("Financing / allocation");
+    expect(tableSource).toContain("invoiceFaceAmount");
   });
 });

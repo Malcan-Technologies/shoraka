@@ -41,13 +41,13 @@ export function generateCustomerData(): Record<string, unknown> {
   };
 }
 
-/** Contract data for contract step. Start must be before end; financing <= value. */
+/** Contract data for contract step. Start must be before end; financing must be strictly below value. */
 export function generateContractData(): Record<string, unknown> {
   const today = new Date();
   const startDate = subDays(today, randomInt(60, 90));
   const endDate = subDays(today, randomInt(0, 30));
   const value = randomDecimal(100000, 1000000);
-  const financing = Math.min(randomDecimal(10000, value * 0.8), value);
+  const financing = Math.min(randomDecimal(10000, value * 0.8), value * 0.8);
   return {
     title: "Supply Agreement",
     description: "Supply of goods and services",

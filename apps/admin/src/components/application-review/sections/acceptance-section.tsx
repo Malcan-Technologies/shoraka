@@ -15,7 +15,12 @@ import {
   workflowHasAcceptanceDocuments,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
+import { formatCurrency } from "@cashsouk/config";
 import { StatusBadge } from "@cashsouk/ui";
+import {
+  REMAINING_ALLOCATION_LABEL,
+  REMAINING_CREDIT_LABEL,
+} from "@/lib/facility-capacity-display";
 import { getAdminStatusToken } from "@/lib/admin-status-token";
 import { getReviewStatusPresentation } from "../status-presentation";
 import { Button } from "@/components/ui/button";
@@ -67,6 +72,8 @@ export type AcceptanceSectionProps = {
   inheritedSourceApplication?: { id: string; productId: string | null };
   /** Derived acceptance_documents section status (same source as review tab dot). */
   sectionStatus?: string;
+  remainingCredit?: number | null;
+  remainingAllocation?: number | null;
 };
 
 function collectAcceptanceDownloadFiles(
@@ -193,6 +200,8 @@ export function AcceptanceSection({
   acceptanceReviewMode = "live",
   inheritedSourceApplication,
   sectionStatus,
+  remainingCredit,
+  remainingAllocation,
 }: AcceptanceSectionProps) {
   const isInheritedAcceptance = acceptanceReviewMode === "inherited";
   const showSigningHub = typeof applicationId === "string" && applicationId.length > 0;
@@ -267,6 +276,22 @@ export function AcceptanceSection({
               " in the originating application"
             )}
             . This view is read-only.
+          </div>
+        ) : null}
+        {remainingCredit != null || remainingAllocation != null ? (
+          <div className="grid gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3 sm:grid-cols-2">
+            <div>
+              <p className="text-meta text-muted-foreground">{REMAINING_CREDIT_LABEL}</p>
+              <p className="mt-1 text-ui font-semibold tabular-nums">
+                {remainingCredit != null ? formatCurrency(remainingCredit) : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-meta text-muted-foreground">{REMAINING_ALLOCATION_LABEL}</p>
+              <p className="mt-1 text-ui font-semibold tabular-nums">
+                {remainingAllocation != null ? formatCurrency(remainingAllocation) : "—"}
+              </p>
+            </div>
           </div>
         ) : null}
         {(() => {

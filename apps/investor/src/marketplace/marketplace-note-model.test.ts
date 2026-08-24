@@ -11,8 +11,10 @@ import {
   marketplaceHasActiveFilters,
   marketplaceInvestAnyAmountLabel,
   marketplaceInvestorSummary,
-  marketplaceIssuerLabel,
+  marketplaceContractPurposeLabel,
   marketplaceListingUrgency,
+  marketplaceNoteHeadline,
+  marketplaceNoteContextLine,
   marketplaceMinimumThresholdPercent,
   marketplaceNoteMatchesFilters,
   sortFeaturedMarketplaceNotes,
@@ -28,7 +30,7 @@ function note(overrides: Partial<NoteListItem> = {}): NoteListItem {
   return {
     id: "note_1",
     noteReference: "NOTE-20260819-ABC",
-    title: "Acme invoice note",
+    title: "Invoice note",
     productCategory: null,
     productName: "Invoice financing",
     issuerIndustry: "Manufacturing",
@@ -37,6 +39,9 @@ function note(overrides: Partial<NoteListItem> = {}): NoteListItem {
     sourceContractDisplayReference: null,
     sourceInvoiceId: "inv_1",
     issuerOrganizationId: "org_1",
+    purposeOfFinancing: "Working capital for a new contract",
+    contractTitle: "Mining Rig Repair 12654",
+    purposeOfContract: "Repair and maintenance for 12 mining rigs",
     issuerName: "Acme Sdn Bhd",
     paymasterName: "Paymaster Co",
     riskRating: "B",
@@ -78,9 +83,11 @@ function listing(overrides: Partial<MarketplaceNote> = {}): MarketplaceNote {
 }
 
 describe("toMarketplaceNote", () => {
-  it("exposes issuer, remaining capacity, and investable bounds", () => {
+  it("exposes purpose, remaining capacity, and investable bounds", () => {
     const mapped = toMarketplaceNote(note());
-    expect(mapped.issuerName).toBe("Acme Sdn Bhd");
+    expect(mapped.purposeOfFinancing).toBe("Working capital for a new contract");
+    expect(mapped.contractTitle).toBe("Mining Rig Repair 12654");
+    expect(mapped.purposeOfContract).toBe("Repair and maintenance for 12 mining rigs");
     expect(mapped.industry).toBe("Manufacturing");
     expect(mapped.fundingPercent).toBe(32);
     expect(mapped.remainingCapacity).toBe(68000);
@@ -142,7 +149,27 @@ describe("sortFeaturedMarketplaceNotes", () => {
 describe("marketplaceNoteMatchesFilters", () => {
   const acme = listing();
 
-  it("matches search against issuer, industry, and note reference", () => {
+  it("matches search against purpose, industry, and note reference", () => {
+    expect(
+      marketplaceNoteMatchesFilters(acme, {
+        search: "working capital",
+        industry: "all",
+        risk: "all",
+        profit: "all",
+        tenor: "all",
+        listing: "open",
+      })
+    ).toBe(true);
+    expect(
+      marketplaceNoteMatchesFilters(acme, {
+        search: "mining rig",
+        industry: "all",
+        risk: "all",
+        profit: "all",
+        tenor: "all",
+        listing: "open",
+      })
+    ).toBe(true);
     expect(
       marketplaceNoteMatchesFilters(acme, {
         search: "acme",
@@ -152,7 +179,7 @@ describe("marketplaceNoteMatchesFilters", () => {
         tenor: "all",
         listing: "open",
       })
-    ).toBe(true);
+    ).toBe(false);
     expect(
       marketplaceNoteMatchesFilters(acme, {
         search: "manufacturing",
@@ -257,7 +284,27 @@ describe("marketplace copy helpers", () => {
     expect(
       marketplaceFundingSummary(listing({ listingKind: "failed", fundingPercent: 40 }))
     ).toBe("40% raised · Funding unsuccessful");
-    expect(marketplaceIssuerLabel(listing({ issuerName: null }))).toBe("Issuer not published");
+    expect(marketplaceNoteHeadline(listing({ purposeOfFinancing: null }))).toBe(
+      "Note 20260819-ABC"
+    );
+    expect(marketplaceNoteHeadline(listing())).toBe("Working capital for a new contract");
+    expect(marketplaceContractPurposeLabel(listing())).toBe(
+      "Mining Rig Repair 12654 · Repair and maintenance for 12 mining rigs"
+    );
+    expect(
+      marketplaceContractPurposeLabel(
+        listing({ contractTitle: null, purposeOfContract: "Repair and maintenance" })
+      )
+    ).toBe("Repair and maintenance");
+    expect(
+      marketplaceContractPurposeLabel(listing({ contractTitle: null, purposeOfContract: null }))
+    ).toBeNull();
+    expect(marketplaceNoteContextLine(listing())).toBe(
+      "Note 20260819-ABC · Invoice financing · Manufacturing"
+    );
+    expect(marketplaceNoteContextLine(listing({ productName: null, industry: null }))).toBe(
+      "Note 20260819-ABC"
+    );
     expect(marketplaceInvestorSummary(listing({ fundedAmount: 32000, investorCount: 3 }))).toBe(
       "RM 32000 committed by 3 investors"
     );

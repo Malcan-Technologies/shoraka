@@ -7,6 +7,14 @@
  */
 
 import PDFDocument from "pdfkit";
+import {
+  computeFacilityFeeTotalOwed,
+  hasInvoiceFeeSchedule,
+  parseFiniteNumber,
+  parseInvoiceFeeSchedule,
+  type AdditionalFeeLine,
+} from "@cashsouk/types";
+import { resolveOfferedPlatformFeeRatePercent } from "../../lib/invoice-offer";
 
 type PDFDoc = InstanceType<typeof PDFDocument>;
 
@@ -173,10 +181,13 @@ export type InvoiceOfferDetails = {
   offered_amount?: number;
   offered_ratio_percent?: number;
   offered_profit_rate_percent?: number;
-  /** Percent of funded amount withheld as platform fee at disbursement. */
+  /** Stored API name `platform_fee_rate_percent`; user-visible label is Drawdown fee. */
   platform_fee_rate_percent?: number;
   facility_fee_rate_percent?: number;
   facility_fee_cap_amount?: number;
+  fee_schedule_version?: number;
+  facility_fee_collect_amount?: number;
+  additional_fees?: AdditionalFeeLine[];
   expires_at?: string;
 };
 
@@ -195,6 +206,88 @@ function formatPercent(value: number | undefined): string {
   return `${Number.isInteger(value) ? value : Number(value.toFixed(2))}%`;
 }
 
+const CHARGED_ON_SUCCESSFUL_FUNDING = "Charged only if funding succeeds.";
+
+function drawdownFeeTerm(ratePercent: number): OfferLetterTerm {
+  return {
+    label: "Drawdown fee",
+    value: `${formatPercent(ratePercent)} of the actual funded amount. ${CHARGED_ON_SUCCESSFUL_FUNDING}`,
+  };
+}
+
+function additionalFeeTerm(line: AdditionalFeeLine): OfferLetterTerm {
+  const basis =
+    line.kind === "percent_of_funded"
+      ? `${formatPercent(line.value)} of the actual funded amount`
+      : `${formatAmount(line.value)} (fixed)`;
+  return {
+    label: line.name,
+    value: `${basis}. ${CHARGED_ON_SUCCESSFUL_FUNDING}`,
+  };
+}
+
+export function buildContractOfferLetterTerms(
+  contractId: string,
+  offer: ContractOfferDetails
+): OfferLetterTerm[] {
+  const rate =
+    offer.facility_fee_rate_percent != null && Number.isFinite(offer.facility_fee_rate_percent)
+      ? offer.facility_fee_rate_percent
+      : 0;
+  const total =
+    offer.offered_facility != null && Number.isFinite(offer.offered_facility)
+      ? computeFacilityFeeTotalOwed(offer.offered_facility, rate)
+      : undefined;
+  return [
+    { label: "Our reference (contract ID)", value: contractId },
+    { label: "Requested facility", value: formatAmount(offer.requested_facility) },
+    { label: "Proposed offered facility", value: formatAmount(offer.offered_facility) },
+    { label: "Facility fee rate", value: formatPercent(rate) },
+    { label: "Facility fee total", value: formatAmount(total) },
+    {
+      label: "Facility fee collection",
+      value:
+        "Due in full upon acceptance of this facility offer. Collection timing is at Shoraka's discretion.",
+    },
+  ];
+}
+
+/**
+ * Map stored invoice offer_details (plus optional contract details for grandfather
+ * offers) into the PDF DTO. Versioned schedules are taken from the offer; they are
+ * never rebuilt as progressive facility-fee terms.
+ */
+export function buildInvoiceOfferLetterDto(
+  offer: Record<string, unknown>,
+  contractDetails?: Record<string, unknown> | null
+): InvoiceOfferDetails {
+  const dto: InvoiceOfferDetails = {
+    requested_amount: parseFiniteNumber(offer.requested_amount),
+    offered_amount: parseFiniteNumber(offer.offered_amount),
+    offered_ratio_percent: parseFiniteNumber(offer.offered_ratio_percent),
+    offered_profit_rate_percent: parseFiniteNumber(offer.offered_profit_rate_percent),
+    platform_fee_rate_percent: resolveOfferedPlatformFeeRatePercent(offer),
+  };
+  const schedule = parseInvoiceFeeSchedule(offer);
+  if (schedule) {
+    dto.fee_schedule_version = schedule.version;
+    dto.facility_fee_collect_amount = schedule.facilityFeeCollectAmount;
+    dto.additional_fees = schedule.additionalFees;
+    return dto;
+  }
+  if (contractDetails) {
+    const rate = parseFiniteNumber(contractDetails.facility_fee_rate_percent);
+    const approvedFacility = parseFiniteNumber(contractDetails.approved_facility);
+    if (rate != null && rate >= 0) {
+      dto.facility_fee_rate_percent = rate;
+      if (approvedFacility != null && approvedFacility > 0) {
+        dto.facility_fee_cap_amount = computeFacilityFeeTotalOwed(approvedFacility, rate);
+      }
+    }
+  }
+  return dto;
+}
+
 export function buildInvoiceOfferLetterTerms(
   invoiceId: string,
   offer: InvoiceOfferDetails
@@ -203,6 +296,31 @@ export function buildInvoiceOfferLetterTerms(
     offer.platform_fee_rate_percent != null && Number.isFinite(offer.platform_fee_rate_percent)
       ? offer.platform_fee_rate_percent
       : 0;
+  const base: OfferLetterTerm[] = [
+    { label: "Our reference (invoice ID)", value: invoiceId },
+    { label: "Requested amount", value: formatAmount(offer.requested_amount) },
+    { label: "Proposed financing amount", value: formatAmount(offer.offered_amount) },
+    { label: "Proposed financing ratio", value: `${offer.offered_ratio_percent ?? "—"}%` },
+    {
+      label: "Proposed profit rate (per annum)",
+      value: `${offer.offered_profit_rate_percent ?? "—"}%`,
+    },
+    drawdownFeeTerm(platformFeePct),
+  ];
+
+  if (hasInvoiceFeeSchedule(offer) || (offer.fee_schedule_version != null && offer.fee_schedule_version >= 1)) {
+    const collect = offer.facility_fee_collect_amount ?? 0;
+    const additional = offer.additional_fees ?? [];
+    return [
+      ...base,
+      {
+        label: "Facility fee collection",
+        value: `${formatAmount(collect)} (exact amount on this offer). ${CHARGED_ON_SUCCESSFUL_FUNDING}`,
+      },
+      ...additional.map(additionalFeeTerm),
+    ];
+  }
+
   const facilityFeeTerms =
     offer.facility_fee_rate_percent != null && offer.facility_fee_rate_percent > 0
       ? [
@@ -222,21 +340,7 @@ export function buildInvoiceOfferLetterTerms(
         ]
       : [];
 
-  return [
-    { label: "Our reference (invoice ID)", value: invoiceId },
-    { label: "Requested amount", value: formatAmount(offer.requested_amount) },
-    { label: "Proposed financing amount", value: formatAmount(offer.offered_amount) },
-    { label: "Proposed financing ratio", value: `${offer.offered_ratio_percent ?? "—"}%` },
-    {
-      label: "Proposed profit rate (per annum)",
-      value: `${offer.offered_profit_rate_percent ?? "—"}%`,
-    },
-    {
-      label: "Platform fee (at disbursement)",
-      value: `${platformFeePct}% of the funded amount, deducted from disbursement proceeds`,
-    },
-    ...facilityFeeTerms,
-  ];
+  return [...base, ...facilityFeeTerms];
 }
 
 function createTrackedOfferLetterDoc(): { doc: PDFDoc; getPageIndex: () => number } {
@@ -274,21 +378,8 @@ export function buildContractOfferLetterPdf(
     "Indicative facility offer in respect of the contract identified below"
   );
   sectionHeading(doc, "Particulars of the proposed facility");
-  termLine(doc, "Our reference (contract ID)", contractId);
-  termLine(doc, "Requested facility", formatAmount(offer.requested_facility));
-  termLine(doc, "Proposed offered facility", formatAmount(offer.offered_facility));
-  if (offer.facility_fee_rate_percent != null && offer.facility_fee_rate_percent > 0) {
-    const cap =
-      offer.offered_facility != null
-        ? offer.offered_facility * (offer.facility_fee_rate_percent / 100)
-        : undefined;
-    termLine(doc, "Facility fee rate", formatPercent(offer.facility_fee_rate_percent));
-    termLine(doc, "Facility fee cap", formatAmount(cap));
-    termLine(
-      doc,
-      "Facility fee collection",
-      "Deducted from issuer disbursement progressively when invoice financing is disbursed"
-    );
+  for (const term of buildContractOfferLetterTerms(contractId, offer)) {
+    termLine(doc, term.label, term.value);
   }
   sectionHeading(doc, "General");
   bodyParagraphs(doc);

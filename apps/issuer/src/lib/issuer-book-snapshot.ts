@@ -56,6 +56,9 @@ export type FacilityBookSnapshot = {
   utilizedAmount: number | null;
   pendingAmount: number | null;
   repaidAmount: number | null;
+  lifetimeCapAmount: number | null;
+  lifetimeUsedAmount: number | null;
+  lifetimeRemainingAmount: number | null;
   invoices: InvoiceLaneBreakdown;
 };
 
@@ -201,6 +204,7 @@ export function classifyLiveInvoice(
   if (note && isNoteRaisingNow(note)) return "raisingNow";
   if (badge === "active" || badge === "arrears") return "servicing";
   if (badge === "funded") return "funded";
+  if (badge === "pending_listing") return "approvedNotListed";
   if (badge === "in_progress" && String(invoice.invoiceStatus).toUpperCase() === "APPROVED") {
     return "approvedNotListed";
   }
@@ -253,6 +257,12 @@ function buildFacilityBook(
   const utilizedAmount = sumContractAmounts(facilities, (c) => c.utilizedFacilityAmount);
   const pendingAmount = sumContractAmounts(facilities, (c) => c.pendingFacilityAmount ?? null);
   const repaidAmount = sumContractAmounts(facilities, (c) => c.repaidFacilityAmount ?? null);
+  const lifetimeCapAmount = sumContractAmounts(facilities, (c) => c.lifetimeCapAmount ?? null);
+  const lifetimeUsedAmount = sumContractAmounts(facilities, (c) => c.lifetimeUsedAmount ?? null);
+  const lifetimeRemainingAmount = sumContractAmounts(
+    facilities,
+    (c) => c.lifetimeRemainingAmount ?? null
+  );
   const availableListed = sumContractAmounts(facilities, (c) => c.availableFacilityAmount);
   const availableAmount =
     availableListed != null
@@ -270,6 +280,9 @@ function buildFacilityBook(
     utilizedAmount,
     pendingAmount,
     repaidAmount,
+    lifetimeCapAmount,
+    lifetimeUsedAmount,
+    lifetimeRemainingAmount,
     invoices,
   };
 }

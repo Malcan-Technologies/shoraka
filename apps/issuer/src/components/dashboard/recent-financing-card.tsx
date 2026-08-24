@@ -41,12 +41,13 @@ const STATUS_RANK: Record<IssuerFinancingStatusKind, number> = {
   action_required: 0,
   arrears: 1,
   pending_approval: 2,
-  in_progress: 3,
-  funded: 4,
-  active: 5,
-  draft: 6,
-  completed: 7,
-  unsuccessful: 8,
+  pending_listing: 3,
+  in_progress: 4,
+  funded: 5,
+  active: 6,
+  draft: 7,
+  completed: 8,
+  unsuccessful: 9,
 };
 
 function rankContract(c: IssuerDashboardContract): number {
@@ -217,7 +218,9 @@ function NoteRow({ note }: { note: NoteListItem }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <span className="text-sm text-muted-foreground">Note:</span>
-            <span className="truncate text-sm font-semibold text-foreground">{note.title}</span>
+            <span className="truncate text-sm font-semibold text-foreground">
+              {note.purposeOfFinancing?.trim() || note.title}
+            </span>
           </div>
           <p className="mt-0.5 truncate text-sm text-muted-foreground">
             Target {formatCurrency(note.targetAmount)} · Funded {note.fundingPercent.toFixed(1)}%

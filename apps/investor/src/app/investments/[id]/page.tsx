@@ -174,7 +174,11 @@ export default function InvestmentDetailPage() {
         title={note ? formatNoteReferenceDisplay(note.noteReference) || "Investment" : "Investment"}
         description={
           note
-            ? [note.issuerName?.trim() || "Issuer", note.issuerIndustry?.trim()]
+            ? [
+                note.purposeOfFinancing?.trim() ||
+                  formatNoteReferenceDisplay(note.noteReference),
+                note.issuerIndustry?.trim(),
+              ]
                 .filter(Boolean)
                 .join(" · ")
             : undefined

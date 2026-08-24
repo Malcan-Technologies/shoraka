@@ -8,7 +8,7 @@ tags:
   - notes
   - repayment
 order: 12
-updated: 2026-08-19
+updated: 2026-08-22
 ---
 
 ## What You're Investing In
@@ -22,9 +22,10 @@ Notes are denominated in MYR and move through a four-stage lifecycle: Draft → 
 
 ## Browsing the Marketplace
 
-The marketplace lists only notes currently in the **Published** stage. For each note you can see:
+The marketplace lists only notes currently in the **Published** stage. Issuer identity stays hidden. For each note you can see:
 
-- the **issuer** and **paymaster** (the party that will ultimately repay),
+- the **purpose of financing** and **industry**,
+- the **paymaster** (the party that will ultimately repay) on the note detail,
 - the **target amount** (how much the note is raising),
 - the **profit rate**,
 - the **maturity date** (when the paymaster is expected to repay in full),
@@ -59,7 +60,7 @@ You can review your active commitments and confirmed positions from the **Portfo
 You don't need to do anything at disbursement. When funding closes successfully, the platform:
 
 1. confirms all commitments on the note,
-2. takes the platform fee (capped by Platform Finance Settings) into the Operating Account,
+2. takes issuer disbursement fees (drawdown fee and any frozen utilisation lines) into the Operating Account — these are charged to the issuer, not to your principal,
 3. disburses the net funded amount to the issuer,
 4. moves the note to **Active**.
 

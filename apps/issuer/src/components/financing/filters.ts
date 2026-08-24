@@ -9,6 +9,7 @@ export const FINANCING_STATUS_ORDER: IssuerFinancingStatusKind[] = [
   "draft",
   "action_required",
   "pending_approval",
+  "pending_listing",
   "in_progress",
   "funded",
   "active",

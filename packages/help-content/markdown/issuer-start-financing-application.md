@@ -6,7 +6,7 @@ tags:
   - issuer
   - applications
 order: 8
-updated: 2026-04-30
+updated: 2026-08-21
 ---
 
 ## What this is
@@ -36,21 +36,22 @@ Use **Save and Continue** to move forward and **Back** to fix an earlier screen.
 
 Follow the progress bar. The middle steps are **only** what your product includes. Examples you might see (not every product has all of them) include **Company Details**, **Business & Guarantor Details**, **Financial Statements**, **Upload Supporting Documents**, **Provide Facility and Customer Details**, **Upload invoice**, or a **Financing Structure** style question. Your product may use other labels or skip some of these entirely.
 
+On **Company Details**, if a director or shareholder is missing a government ID, enter it on that step or open **Organisation** to finish it on the company people list.
+
 ## When you see Financing Structure
 
 Some products ask **How would you like to apply for financing?** with three choices. Use the one that matches your situation.
 
-**Submit a new facility**  
-*My invoice is under a facility that hasn't been approved by Cashsouk*  
-For a **new** facility CashSouk has not approved yet. You will enter facility and customer details where the form asks. You may add **one** invoice on this application now, or originate the facility first and finance an invoice later from the facility page.
+**Set up a new facility**
+Start a facility CashSouk has not approved yet. Enter facility and customer details only. Invoice details are not part of this application. After the facility is approved, use **Finance an invoice** from the facility page.
 
-**Use an existing facility**  
-*My invoice is under a facility already approved by Cashsouk*  
-When you already have an approved CashSouk facility. Choose it in **Select an existing facility**. Each application finances **one** invoice. To finance another invoice against the same facility, start a new application (for example from the facility page).
+**Finance an invoice from an approved facility**
+When you already have an approved CashSouk facility. Choose it in **Select an existing facility**. Each application finances **one** invoice. The chooser shows **left to draw** (remaining credit) and **left on contract** (remaining allocation). To finance another invoice against the same facility, start a new application from the facility page. This choice stays visible but disabled until you have an approved facility.
 
-**Invoice-only financing**  
-*I want to finance my invoice without a facility*  
-When the product supports invoice-led financing without a full new-facility path. You still complete customer or paymaster details where the product requires them.
+**Finance one invoice without a facility**
+When the product supports invoice-led financing without a facility. You still complete customer or paymaster details where the product requires them.
+
+On an approved facility, a draft invoice that is over remaining credit or remaining allocation can be **saved** but not submitted. After submit, that amount is **reserved** until the offer is rejected, withdrawn, expired, or marketplace funding fails (default **14-day** listing window). Repayment frees credit; settled invoice face still uses contract allocation.
 
 ## Declarations and submit
 

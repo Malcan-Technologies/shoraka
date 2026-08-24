@@ -14,6 +14,7 @@ import {
 import type { Prisma } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
+import { applyContractCapacityChange } from "../../lib/refresh-contract-facility";
 import { patchOfferAcceptanceUnchecked } from "./offer-acceptance";
 
 export const VOIDABLE_ENVELOPE_STATUSES = ["DRAFT", "SENT", "IN_PROGRESS"] as const;
@@ -56,7 +57,7 @@ export function rejectOfferDetailsJson(
  * Open signing envelopes must already be voided; otherwise this throws and leaves status unchanged.
  */
 export async function closeApplicationAsRejected(applicationId: string): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+  const rejectInTx = async (tx: Prisma.TransactionClient) => {
     const application = await tx.application.findUnique({
       where: { id: applicationId },
       include: {
@@ -129,5 +130,18 @@ export async function closeApplicationAsRejected(applicationId: string): Promise
         },
       });
     }
+    return application.contract?.id ?? null;
+  };
+
+  const preview = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { contract_id: true },
   });
+  if (preview?.contract_id) {
+    await applyContractCapacityChange(preview.contract_id, prisma, rejectInTx, {
+      assertWrite: true,
+    });
+    return;
+  }
+  await prisma.$transaction(rejectInTx);
 }

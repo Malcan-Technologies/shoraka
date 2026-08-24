@@ -11,15 +11,13 @@ import type { ContractListItem, GetAdminContractsParams } from "@cashsouk/types"
 import { AdminPageHeader } from "@/components/admin-page-header";
 import { RequirePermission } from "@/components/require-permission";
 
-const DEFAULT_STATUS_FILTERS = ["SUBMITTED", "OFFER_SENT", "AMENDMENT_REQUESTED"];
-
 export default function ContractsPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [statusFilters, setStatusFilters] = React.useState<string[]>(DEFAULT_STATUS_FILTERS);
+  const [statusFilters, setStatusFilters] = React.useState<string[]>([]);
 
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 20;

@@ -197,7 +197,7 @@ export function InvestorDepositForm({
           </p>
         ) : (
           <p id="deposit-amount-hint" className="text-ui text-destructive">
-            We couldn't load deposit limits. Try again shortly.
+            We couldn&apos;t load deposit limits. Try again shortly.
           </p>
         )}
       </div>
@@ -217,8 +217,8 @@ export function InvestorDepositForm({
               : "Continue to FPX"}
         </Button>
         <p className="text-center text-meta leading-5 text-muted-foreground">
-          You'll be taken to your bank to finish the payment. Deposits must come from an account in
-          your name — we can't accept transfers from someone else.
+          You&apos;ll be taken to your bank to finish the payment. Deposits must come from an account in
+          your name — we can&apos;t accept transfers from someone else.
         </p>
       </div>
     </div>

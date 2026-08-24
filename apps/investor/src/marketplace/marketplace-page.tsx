@@ -369,7 +369,7 @@ export function MarketplacePage() {
               setSearch(value);
               setCurrentPage(1);
             }}
-            searchPlaceholder="Search by issuer, note, industry, or product"
+            searchPlaceholder="Search by purpose, note, industry, or product"
             appliedFilters={appliedFilters}
             onClearFilters={hasActiveFilters ? handleClearFilters : undefined}
             onReload={() => {

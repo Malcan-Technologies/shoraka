@@ -56,7 +56,7 @@ import {
 import { buildInvoiceFeeDisplay, money } from "@/lib/facility-fee-display";
 
 const FEES_HEADER_TOOLTIP =
-  "Platform fee and facility fee, where applicable, deducted from issuer disbursement.";
+  "Drawdown fee, facility fee, and any extra fees, where applicable, deducted from issuer disbursement.";
 
 const PROFIT_RATE_HEADER_TOOLTIP =
   "Profit per annum (%). Deducted during settlement when calculating the residual refund to the issuer.";
@@ -189,20 +189,34 @@ function InvoiceFeesCell({
     contractFacilityFeeRatePercent: application.facilityFeeRatePercent,
     contractFacilityFeeCapAmount: application.facilityFeeCapAmount,
     contractFacilityFeePaidAmount: application.facilityFeePaidAmount,
+    contractDetails: {
+      facility_fee_rate_percent: application.facilityFeeRatePercent,
+      facility_fee_total_amount: application.facilityFeeCapAmount,
+      facility_fee_paid_amount: application.facilityFeePaidAmount,
+      facility_fee_waived: application.facilityFeeWaived,
+    },
+    invoiceSnapshot: invoice.invoiceSnapshot ?? invoice.details,
   });
 
   if (display.phase === "none") return <span className="tabular-nums">—</span>;
   if (display.phase === "pending") return <span className="tabular-nums">—</span>;
 
   const platformLine =
-    display.platformFeeAmount != null ? `Platform ${money(display.platformFeeAmount)}` : null;
+    display.platformFeeAmount != null ? `Drawdown ${money(display.platformFeeAmount)}` : null;
 
-  if (platformLine == null && display.facilityFeeAmount == null) {
+  if (
+    platformLine == null &&
+    display.facilityFeeAmount == null &&
+    display.additionalFeeCharges.length === 0
+  ) {
     return <span className="tabular-nums">—</span>;
   }
 
   const facilityLine = (() => {
     if (display.facilityFeeAmount == null) return null;
+    if (display.facilityFeeCollectionWaived) {
+      return "Facility waived";
+    }
     const capReached = display.facilityFeeFullyCollected && display.facilityFeeAmount === 0;
     if (capReached) {
       return "cap_reached";
@@ -229,6 +243,14 @@ function InvoiceFeesCell({
           )}
         </div>
       ) : null}
+      {display.additionalFeeCharges.map((line, index) => (
+        <div
+          key={`${line.name}-${index}`}
+          className="text-ui leading-5 whitespace-normal break-words tabular-nums"
+        >
+          {line.name} {money(line.chargedAmount)}
+        </div>
+      ))}
     </div>
   );
 }

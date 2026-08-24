@@ -145,7 +145,7 @@ interface GuarantorIndividualRow {
   guarantorType: "individual";
   name: string;
   icNumber: string;
-  /** RegTank appendix A ISO 3166 alpha-2 (e.g. MY). */
+  /** ISO 3166 alpha-2 country code (e.g. MY). */
   nationality: string;
   email: string;
   relationship: GuarantorIndividualRelationship | "";

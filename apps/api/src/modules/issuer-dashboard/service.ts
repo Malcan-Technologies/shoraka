@@ -8,10 +8,14 @@ import {
   ApplicationStatus,
   WithdrawalType,
 } from "@prisma/client";
-import { countNoteInvestors } from "@cashsouk/types";
+import { countNoteInvestors, resolveFacilityFeeBalance } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import { OrganizationRepository } from "../organization/repository";
+import {
+  mapIssuerDisbursementBreakdown,
+  type IssuerDashboardDisbursementBreakdown,
+} from "./disbursement-breakdown";
 import {
   computeOnTimePaymentRate,
   decimalToNumber,
@@ -19,6 +23,7 @@ import {
 } from "./track-record-aggregates";
 import {
   computeContractFacilitySnapshot,
+  facilitySnapshotToDetailsPatch,
   toFacilityNoteOccupancy,
 } from "../../lib/contract-facility";
 
@@ -26,6 +31,14 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function productNameFromFinancingType(financing: Record<string, unknown> | null): string | null {
+  const candidates = [financing?.product_name, financing?.name];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
 }
 
 function jsonForModal(value: unknown): unknown {
@@ -56,12 +69,7 @@ export type IssuerDashboardNoteDto = {
   maturityDate: string | null;
   marketplaceStatusLabel: string | null;
   investorCount: number;
-  disbursementBreakdown: {
-    grossFundedAmount: string | null;
-    platformFeeAmount: string | null;
-    facilityFeeCharged: string | null;
-    netIssuerDisbursement: string | null;
-  } | null;
+  disbursementBreakdown: IssuerDashboardDisbursementBreakdown | null;
 };
 
 export type IssuerDashboardInvoiceDto = {
@@ -69,6 +77,7 @@ export type IssuerDashboardInvoiceDto = {
   displayReference: string | null;
   applicationId: string;
   productId: string;
+  productName: string | null;
   contractId: string | null;
   /** JSON-serialized invoice row for issuer offer modal. */
   invoiceForModal: unknown;
@@ -101,9 +110,16 @@ export type IssuerDashboardContractDto = {
   availableFacilityAmount: string | null;
   pendingFacilityAmount: string | null;
   repaidFacilityAmount: string | null;
+  lifetimeCapAmount: string | null;
+  lifetimeUsedAmount: string | null;
+  lifetimeRemainingAmount: string | null;
+  contractValueAmount: string | null;
   facilityFeeCapAmount: string | null;
   facilityFeePaidAmount: string | null;
   facilityFeeRemainingAmount: string | null;
+  facilityFeeWaived?: boolean;
+  facilityEnabled?: boolean;
+  facilityDisabledReason?: string | null;
   activeNotesCount: number;
   contractStatus: ContractStatus;
   /** Application IDs that require action (AMENDMENT_REQUESTED) across all applications sharing this contract. */
@@ -306,18 +322,7 @@ export class IssuerDashboardService {
     for (const withdrawal of disbursementWithdrawals) {
       if (!withdrawal.note_id || disbursementByNoteId.has(withdrawal.note_id)) continue;
       const metadata = asRecord(withdrawal.metadata);
-      disbursementByNoteId.set(withdrawal.note_id, {
-        grossFundedAmount:
-          metadata?.grossFundedAmount != null ? decimalToNumber(metadata.grossFundedAmount).toFixed(2) : null,
-        platformFeeAmount:
-          metadata?.platformFeeAmount != null ? decimalToNumber(metadata.platformFeeAmount).toFixed(2) : null,
-        facilityFeeCharged:
-          metadata?.facilityFeeCharged != null ? decimalToNumber(metadata.facilityFeeCharged).toFixed(2) : null,
-        netIssuerDisbursement:
-          metadata?.netIssuerDisbursement != null
-            ? decimalToNumber(metadata.netIssuerDisbursement).toFixed(2)
-            : null,
-      });
+      disbursementByNoteId.set(withdrawal.note_id, mapIssuerDisbursementBreakdown(metadata));
     }
     for (const n of notes) {
       if (n.source_invoice_id) {
@@ -447,41 +452,43 @@ export class IssuerDashboardService {
         return !notesByInvoiceId.has(i.id);
       }).length;
 
-      const facilityFeeRateRaw = details?.facility_fee_rate_percent;
-      const facilityFeeRateNum =
-        facilityFeeRateRaw !== undefined &&
-        facilityFeeRateRaw !== null &&
-        String(facilityFeeRateRaw).trim() !== ""
-          ? decimalToNumber(facilityFeeRateRaw)
-          : 0;
-
-      const facilityFeePaidRaw = details?.facility_fee_paid_amount;
-      const facilityFeePaidNum =
-        facilityFeePaidRaw !== undefined &&
-        facilityFeePaidRaw !== null &&
-        String(facilityFeePaidRaw).trim() !== ""
-          ? decimalToNumber(facilityFeePaidRaw)
-          : 0;
-
-      const facilityFeeCapNum =
-        approvedNum !== null ? approvedNum * (facilityFeeRateNum / 100) : 0;
-      const facilityFeeRemainingNum = Math.max(0, facilityFeeCapNum - facilityFeePaidNum);
-      const facilityFeeApplies = facilityFeeRateNum > 0 && approvedNum !== null;
+      const feeBalance = resolveFacilityFeeBalance({
+        ...(details ?? {}),
+        approved_facility: approvedNum,
+      });
+      const hasFeeState =
+        details != null &&
+        ("facility_fee_total_amount" in details ||
+          "facility_fee_rate_percent" in details ||
+          "facility_fee_paid_amount" in details ||
+          "facility_fee_waived" in details);
+      const facilityFeeApplies = approvedNum !== null && hasFeeState;
+      const facilityFeeCapNum = feeBalance.totalOwed;
+      const facilityFeePaidNum = feeBalance.paid;
+      const facilityFeeRemainingNum = feeBalance.remaining;
 
       const activeNotesOnContract = contractNotes.filter((n) => n.status === NoteStatus.ACTIVE).length;
 
       const titleRaw = details?.title;
       const contractTitle =
         typeof titleRaw === "string" && titleRaw.trim().length > 0 ? titleRaw.trim() : null;
+      const lifetimeCapAmount = occupancy.lifetimeCap > 0 ? occupancy.lifetimeCap.toFixed(2) : null;
+      const contractForModal = jsonForModal({
+        ...c,
+        contract_details: {
+          ...(details ?? {}),
+          ...facilitySnapshotToDetailsPatch(occupancy),
+        },
+      });
 
       contractsOut.push({
         id: c.id,
         displayReference: c.display_reference ?? null,
         applicationId: primaryApp.id,
         productId,
-        contractForModal: jsonForModal(c),
+        contractForModal,
         title: contractTitle,
-        productName: null,
+        productName: productNameFromFinancingType(financing),
         customerName: (customer?.name as string | undefined) ?? null,
         contractStartDate: (details?.start_date as string | undefined) ?? null,
         contractEndDate: (details?.end_date as string | undefined) ?? null,
@@ -491,9 +498,18 @@ export class IssuerDashboardService {
         availableFacilityAmount,
         pendingFacilityAmount,
         repaidFacilityAmount,
+        lifetimeCapAmount,
+        lifetimeUsedAmount: lifetimeCapAmount != null ? occupancy.lifetimeUsed.toFixed(2) : null,
+        lifetimeRemainingAmount:
+          lifetimeCapAmount != null ? occupancy.lifetimeRemaining.toFixed(2) : null,
+        contractValueAmount:
+          occupancy.contractValue > 0 ? occupancy.contractValue.toFixed(2) : null,
         facilityFeeCapAmount: facilityFeeApplies ? facilityFeeCapNum.toFixed(2) : null,
         facilityFeePaidAmount: facilityFeeApplies ? facilityFeePaidNum.toFixed(2) : null,
         facilityFeeRemainingAmount: facilityFeeApplies ? facilityFeeRemainingNum.toFixed(2) : null,
+        facilityFeeWaived: feeBalance.waived,
+        facilityEnabled: feeBalance.enabled,
+        facilityDisabledReason: feeBalance.disabledReason,
         activeNotesCount: activeNotesOnContract,
         contractStatus: c.status,
         actionRequiredApplicationIds,
@@ -546,6 +562,7 @@ export class IssuerDashboardService {
           displayReference: inv.display_reference ?? null,
           applicationId: app.id,
           productId,
+          productName: productNameFromFinancingType(financing),
           contractId: inv.contract_id,
           invoiceForModal: jsonForModal(inv),
           invoiceStatus: inv.status,

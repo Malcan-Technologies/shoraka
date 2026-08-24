@@ -30,6 +30,15 @@ export const sendDirectorOnboardingSchema = z.object({
   partyKey: z.string().min(1),
 });
 
+export const recoverUnresolvedIdentitySchema = z.object({
+  eodRequestId: z.string().min(1),
+  email: z.string().email().optional(),
+  role: z.enum(["DIRECTOR", "SHAREHOLDER"]),
+  governmentId: z.string().min(6).max(32),
+});
+
+export type RecoverUnresolvedIdentityInput = z.infer<typeof recoverUnresolvedIdentitySchema>;
+
 export type SendDirectorOnboardingInput = z.infer<typeof sendDirectorOnboardingSchema>;
 
 export const memberIdParamSchema = z.object({

@@ -18,7 +18,7 @@ This implementation covers:
 - **Admin Investor Withdrawals** list page (`/finance/investor-withdrawals`) and detail page (`/finance/investor-withdrawals/[id]`)
 - **Sidebar/dashboard pending badge** for investor withdrawals awaiting action
 - **Dedicated RBAC permissions** `investor_withdrawals.view` and `investor_withdrawals.manage`
-- **Fee row mapping cleanup** so Platform Fee, Facility Fee, and Service Fee render as separate payment rows when separate source amounts exist, reusing **Operating Account** as destination
+- **Fee row mapping cleanup** so Drawdown Fee, Facility Fee, additional utilisation lines, and Service Fee render as separate payment rows when separate source amounts exist, reusing **Operating Account** as destination
 
 Out of scope / not implemented:
 
@@ -144,7 +144,7 @@ In every trustee instruction PDF:
 
 | Letter type | Destination rows |
 |-------------|------------------|
-| Issuer disbursement | Issuer/borrower bank account; Platform Fee → Operating Account; Facility Fee → Operating Account |
+| Issuer disbursement | Issuer/borrower bank account; Drawdown Fee → Operating Account; Facility Fee → Operating Account; each additional utilisation fee → Operating Account |
 | Investor withdrawal | Investor beneficiary bank account |
 | Repayment/settlement | Investor Pool (principal+profit); Service Fee → Operating Account; Ta'widh → Ta'widh Account; Gharamah → Gharamah Account; issuer residual → issuer beneficiary bank (or ISSUER_PAYABLE fallback) |
 
@@ -170,22 +170,25 @@ Data mappers: `trustee-letter-data.mapper.ts`
 **Destination rows** (from `mapDisbursementLetterData`):
 
 1. **Disbursement to Borrower** — net amount to issuer beneficiary snapshot (`metadata.netIssuerDisbursement` or withdrawal amount)
-2. **Platform Fee to Platform** — if `metadata.platformFeeAmount > 0` → Operating Account
+2. **Drawdown Fee to Platform** — if `metadata.platformFeeAmount > 0` → Operating Account
 3. **Facility Fee to Platform** — if `metadata.facilityFeeCharged > 0` → Operating Account
+4. **Named additional fees** — `metadata.additionalFees` in stored order, each with charged amount > 0 and a validated name → Operating Account (`{name} to Platform`)
 
 **Source metadata** (set at funding close in `service.ts` when creating disbursement withdrawal):
 
 - `grossFundedAmount`
-- `platformFeeAmount`
+- `platformFeeAmount` (drawdown fee)
 - `facilityFeeCharged`
 - `facilityFeeRatePercent`, `facilityFeeCap`, `facilityFeePaidBefore`, `facilityFeeRemainingAfter`
+- `additionalFees`
 - `netIssuerDisbursement`
 
 **Constraints:**
 
 - No Success Fee row or field
-- Platform Fee and Facility Fee are separate rows when both amounts > 0
-- Both fee rows use Operating Account destination details
+- Drawdown Fee, Facility Fee, and each additional line are separate rows when amounts > 0
+- Fee rows use Operating Account destination details
+- Additional-fee remarks use shared validated names; blank or invalid lines are omitted
 
 **Shoraka guard:** For `ISSUER_DISBURSEMENT`, trustee letter generation may require Tawarruq certificate before letter generate (existing Shoraka STP integration — unchanged by this work).
 
@@ -238,8 +241,9 @@ Current CashSouk fee terms used in trustee letter context:
 
 | Term | When used in letters |
 |------|---------------------|
-| **Platform Fee** | Disbursement letter row; from `metadata.platformFeeAmount` |
+| **Drawdown Fee** | Disbursement letter row; from `metadata.platformFeeAmount` (stored/API name unchanged) |
 | **Facility Fee** | Disbursement letter row; from `metadata.facilityFeeCharged` |
+| **Additional utilisation fees** | Disbursement letter rows; from `metadata.additionalFees` (validated names, stored order) |
 | **Service Fee** | Repayment/settlement letter row; from `service_fee_amount` |
 | **Ta'widh** | Late-payment compensation; repayment letter row |
 | **Gharamah** | Penalty/charity portion; repayment letter row |

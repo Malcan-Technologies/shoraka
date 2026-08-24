@@ -8,19 +8,19 @@ The step is a stacked form (same shell as Facility Details), not a spreadsheet. 
 
 ## Validation Summary
 
-| # | Validation | Applies to | Description |
-|---|------------|------------|-------------|
-| 1 | Partial invoice | All | All 4 required fields must be filled or the invoice must be empty. |
-| 2 | Duplicate invoice numbers | All | Invoice numbers must be unique on this application and on the same facility (non-withdrawn). |
-| 3 | Product config | All | Product config must exist. |
-| 4 | Invalid date format | All | Maturity date must be parseable. |
-| 5 | Past maturity date | All | Maturity date must be today or future. |
-| 6 | Contract date window | new_contract, existing_contract | Maturity date ≥ contract start date. |
-| 7 | Min/max financing amount | All | Per-invoice financing amount within product limits. |
-| 8 | At least one valid invoice | invoice_only, existing_contract | Exactly one complete valid invoice required (max one per application). |
-| 9 | Financing ratio 60–80% | All | Financing ratio must be between 60% and 80%. |
-| 10 | Facility limit | new_contract, existing_contract | This application's invoice financing must not exceed facility limit (warning only). |
-| 11 | Max one invoice | All | Each application allows at most one invoice (legacy files may still show more as extra tabs). |
+| #   | Validation                 | Applies to                                                         | Description                                                                                                                                                        |
+| --- | -------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Partial invoice            | All                                                                | All 4 required fields must be filled or the invoice must be empty.                                                                                                 |
+| 2   | Duplicate invoice numbers  | All                                                                | Invoice numbers must be unique on this application and on the same facility (non-withdrawn).                                                                       |
+| 3   | Product config             | All                                                                | Product config must exist.                                                                                                                                         |
+| 4   | Invalid date format        | All                                                                | Maturity date must be parseable.                                                                                                                                   |
+| 5   | Past maturity date         | All                                                                | Maturity date must be today or future.                                                                                                                             |
+| 6   | Contract date window       | new_contract, existing_contract                                    | Maturity date ≥ contract start date.                                                                                                                               |
+| 7   | Min/max financing amount   | All                                                                | Per-invoice financing amount within product limits.                                                                                                                |
+| 8   | At least one valid invoice | invoice_only, existing_contract                                    | Exactly one complete valid invoice required (max one per application).                                                                                             |
+| 9   | Financing ratio 60–80%     | All                                                                | Financing ratio must be between 60% and 80%.                                                                                                                       |
+| 10  | Dual facility limits       | existing_contract (split); legacy new_contract + existing_contract | Draft overage is a saveable warning. Submit and reserved amendment edits are hard-blocked on remaining credit (financing) and remaining allocation (invoice face). |
+| 11  | Max one invoice            | All                                                                | Each application allows at most one invoice (legacy files may still show more as extra tabs).                                                                      |
 
 ---
 
@@ -35,10 +35,9 @@ The step is a stacked form (same shell as Facility Details), not a spreadsheet. 
 
 ### new_contract
 
-- Contract exists but may be unapproved.
-- Validations: 1–11.
-- **0 or 1 invoice** on this application (originate the facility first; finance more invoices later via separate `existing_contract` applications). Continue without an invoice remains valid.
-- Facility limit: this application's financing amount vs `approvedFacility` or `contractFinancing`.
+- **Split (new) applications** omit this step. The application is facility-only; finance an invoice later from the approved facility.
+- **Legacy combined** applications still allow **0 or 1 invoice** on the same file.
+- Validations for legacy combined: 1–11. Continue without an invoice remains valid.
 
 ### existing_contract
 
@@ -46,7 +45,7 @@ The step is a stacked form (same shell as Facility Details), not a spreadsheet. 
 - Validations: 1–11.
 - **Exactly one invoice** on this application.
 - Other invoices on the same facility appear as read-only tabs (display only; not saved from this step).
-- Facility limit: this application's `nonApprovedFinancingAmount` vs `availableFacility` (approved − utilised).
+- Dual limits: requested financing vs remaining credit; invoice face vs remaining allocation. Reserved invoices add back this row before the comparison.
 
 ---
 
@@ -106,16 +105,18 @@ At least one non-empty invoice must pass `validateRow` (all 4 fields filled).
 
 Financing ratio must be between 60% and 80% for each non-empty invoice.
 
-### 10. Facility limit
+### 10. Dual facility limits
 
-**Applies to:** new_contract, existing_contract. **Skipped for:** invoice_only.
+**Applies to:** existing_contract, and legacy combined `new_contract`. **Skipped for:** invoice_only and split facility-only `new_contract`.
 
-This is a **warning**, not a hard block.
+Two independent caps:
 
-| Structure | Amount checked | Limit |
-|-----------|----------------|-------|
-| new_contract | totalFinancingAmount | approvedFacility or contractFinancing |
-| existing_contract | nonApprovedFinancingAmount (DRAFT + SUBMITTED) | availableFacility (approved − utilised) |
+| Cap                | Amount checked      | Remaining shown                                                  |
+| ------------------ | ------------------- | ---------------------------------------------------------------- |
+| Revolving facility | requested financing | Left to draw / remaining credit (approved − utilised − reserved) |
+| Contract lifetime  | invoice face value  | Left on contract / remaining allocation                          |
+
+Draft overage is an amber preview: the issuer can save, but cannot submit. Reserved amendment overage and server capacity errors (`FACILITY_CAPACITY_EXCEEDED`, `CONTRACT_LIFETIME_EXCEEDED`) are hard blocks. Admins cannot send an over-limit offer.
 
 ---
 

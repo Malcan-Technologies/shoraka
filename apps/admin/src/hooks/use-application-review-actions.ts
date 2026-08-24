@@ -1,13 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { ApiError, SoukscoreRiskRating } from "@cashsouk/types";
+import type { AdditionalFeeLine, ApiError, InvoiceOfferFeeScheduleWriteMode, SoukscoreRiskRating } from "@cashsouk/types";
 import { applicationLogsKeys } from "./use-application-logs";
 import { applicationsKeys } from "@/applications/query-keys";
+import { contractsKeys } from "@/contracts/query-keys";
 import {
   invalidateAdminApplicationDetailQueries,
   invalidateAdminApplicationNavQueries,
 } from "@/lib/admin-application-nav-cache";
+import { mapAdminCapacityActionError } from "@/lib/facility-capacity-display";
 import { signingKeys } from "./use-signing-envelopes";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -17,6 +19,23 @@ const pendingAmendmentKeys = {
   list: (applicationId: string) =>
     [...pendingAmendmentKeys.all, applicationId] as const,
 };
+
+function throwCapacityAwareActionError(response: ApiError, fallback: string): never {
+  const mapped = mapAdminCapacityActionError(response, fallback);
+  throw Object.assign(new Error(mapped.message), {
+    code: response.error?.code,
+  });
+}
+
+async function refetchApplicationAndFacility(
+  queryClient: QueryClient,
+  applicationId: string
+): Promise<void> {
+  await queryClient.refetchQueries({
+    queryKey: applicationsKeys.detail(applicationId),
+  });
+  void queryClient.invalidateQueries({ queryKey: contractsKeys.all });
+}
 
 function invalidateReviewDetailExtras(
   queryClient: QueryClient,
@@ -348,7 +367,7 @@ export function useSendContractOffer() {
         facilityFeeRatePercent ?? null
       );
       if (!response.success) {
-        throw new Error((response as ApiError).error?.message ?? "Failed to send facility offer");
+        throwCapacityAwareActionError(response as ApiError, "Failed to send facility offer");
       }
       return response.data;
     },
@@ -363,9 +382,12 @@ export function useSendContractOffer() {
       void queryClient.invalidateQueries({
         queryKey: signingKeys.byApplication(variables.applicationId),
       });
-      await queryClient.refetchQueries({
-        queryKey: applicationsKeys.detail(variables.applicationId),
-      });
+      await refetchApplicationAndFacility(queryClient, variables.applicationId);
+    },
+    onError: async (error, variables) => {
+      if (mapAdminCapacityActionError(error, "").shouldRefetch) {
+        await refetchApplicationAndFacility(queryClient, variables.applicationId);
+      }
     },
   });
 }
@@ -448,6 +470,9 @@ export function useSendInvoiceOffer() {
       offeredProfitRatePercent,
       platformFeeRatePercent,
       risk_rating,
+      feeScheduleMode,
+      facilityFeeCollectAmount,
+      additionalFees,
     }: {
       applicationId: string;
       invoiceId: string;
@@ -456,6 +481,9 @@ export function useSendInvoiceOffer() {
       offeredProfitRatePercent?: number | null;
       platformFeeRatePercent?: number | null;
       risk_rating: SoukscoreRiskRating;
+      feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode;
+      facilityFeeCollectAmount?: number | null;
+      additionalFees?: AdditionalFeeLine[];
     }) => {
       const response = await apiClient.sendInvoiceOffer(applicationId, invoiceId, {
         offeredAmount,
@@ -463,9 +491,12 @@ export function useSendInvoiceOffer() {
         offeredProfitRatePercent,
         platformFeeRatePercent,
         risk_rating,
+        feeScheduleMode,
+        facilityFeeCollectAmount,
+        additionalFees,
       });
       if (!response.success) {
-        throw new Error((response as ApiError).error?.message ?? "Failed to send invoice offer");
+        throwCapacityAwareActionError(response as ApiError, "Failed to send invoice offer");
       }
       return response.data;
     },
@@ -480,9 +511,12 @@ export function useSendInvoiceOffer() {
       void queryClient.invalidateQueries({
         queryKey: signingKeys.byApplication(variables.applicationId),
       });
-      await queryClient.refetchQueries({
-        queryKey: applicationsKeys.detail(variables.applicationId),
-      });
+      await refetchApplicationAndFacility(queryClient, variables.applicationId);
+    },
+    onError: async (error, variables) => {
+      if (mapAdminCapacityActionError(error, "").shouldRefetch) {
+        await refetchApplicationAndFacility(queryClient, variables.applicationId);
+      }
     },
   });
 }

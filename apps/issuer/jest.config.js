@@ -5,6 +5,7 @@ module.exports = {
   testMatch: ["**/__tests__/**/*.ts", "**/?(*.)+(spec|test).ts"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
+    "^@cashsouk/types$": "<rootDir>/../../packages/types/src/index.ts",
   },
   collectCoverageFrom: [
     "src/**/*.ts",

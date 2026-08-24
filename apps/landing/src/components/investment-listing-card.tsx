@@ -2,18 +2,22 @@ import Link from "next/link";
 import {
   ArrowDownTrayIcon,
   BuildingOffice2Icon,
-  DocumentTextIcon,
   EllipsisVerticalIcon,
 } from "@heroicons/react/24/outline";
 import { formatInvestorReturnRatePercent, formatNoteReferenceDisplay } from "@cashsouk/types";
-import { Button, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
+import { Button, ProductNameWithIcon, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
 
 export type InvestmentListingData = {
   id: string;
-  /** Stored note reference; card headline uses formatted display. */
+  /** Investor-visible purpose of financing. Card headline prefers this over the note reference. */
+  purposeOfFinancing?: string | null;
+  contractTitle?: string | null;
+  purposeOfContract?: string | null;
+  /** Stored note reference; card headline uses formatted display when purpose is missing. */
   noteReference: string | null;
   /** Product name (document icon row). */
   productName: string | null;
+  productImageUrl?: string | null;
   sector: string | null;
   daysLeft: number | null;
   funded: number;
@@ -54,18 +58,34 @@ export function InvestmentListingCard({
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-1">
-              <h3 className="text-lg font-semibold tracking-tight text-foreground">
-                {textOrDash(formatNoteReferenceDisplay(data.noteReference))}
+              <h3 className="line-clamp-2 text-lg font-semibold tracking-tight text-foreground">
+                {textOrDash(
+                  data.purposeOfFinancing?.trim() || formatNoteReferenceDisplay(data.noteReference)
+                )}
               </h3>
+              {data.purposeOfContract?.trim() || data.contractTitle?.trim() ? (
+                <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+                  {data.purposeOfContract?.trim() &&
+                  data.contractTitle?.trim() &&
+                  data.purposeOfContract.trim().toLowerCase() !==
+                    data.contractTitle.trim().toLowerCase()
+                    ? `${data.contractTitle.trim()} · ${data.purposeOfContract.trim()}`
+                    : data.purposeOfContract?.trim() || data.contractTitle?.trim()}
+                </p>
+              ) : null}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <BuildingOffice2Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
                   {textOrDash(data.sector)}
                 </span>
-                <span className="inline-flex min-w-0 items-center gap-1">
-                  <DocumentTextIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  <span className="truncate">Product: {textOrDash(data.productName)}</span>
-                </span>
+                <ProductNameWithIcon
+                  name={data.productName}
+                  imageUrl={data.productImageUrl}
+                  empty="-"
+                  size="xs"
+                  className="text-xs leading-5 text-muted-foreground"
+                  iconClassName="h-3.5 w-3.5"
+                />
               </div>
             </div>
             <Button

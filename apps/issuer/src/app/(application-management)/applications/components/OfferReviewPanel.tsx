@@ -108,10 +108,10 @@ import { InvoiceOfferTerms } from "./invoice-offer-terms";
 import { buildInvoiceFeeDisplay } from "@/lib/facility-fee-display";
 
 const CONTRACT_FACILITY_FEE_RATE_TOOLTIP =
-  "Facility fee is deducted from each invoice financing disbursement under this facility.";
+  "The facility fee is owed in full when you accept this offer (maximum 1%). CashSouk collects it at its discretion.";
 
 const CONTRACT_FACILITY_FEE_CAP_TOOLTIP =
-  "Maximum total facility fee that can be collected for this facility.";
+  "Total facility fee owed for this facility. Collection timing is at Shoraka's discretion.";
 
 export type OfferReviewPanelProps = {
   type: "contract" | "invoice";
@@ -880,6 +880,7 @@ export function OfferReviewPanel({
   const [isSavingPostDocs, setIsSavingPostDocs] = React.useState(false);
   const [signerBindings, setSignerBindings] = React.useState<RecipientBinding[]>([]);
   const [signerConfirmOpen, setSignerConfirmOpen] = React.useState(false);
+  const [acceptOfferConfirmOpen, setAcceptOfferConfirmOpen] = React.useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = React.useState(false);
   const [remindLoading, setRemindLoading] = React.useState(false);
   const [isSyncingSigning, setIsSyncingSigning] = React.useState(false);
@@ -1024,6 +1025,8 @@ export function OfferReviewPanel({
     contractFacilityFeeRatePercent: contractFacilityFeeRatePercentNumber,
     contractFacilityFeeCapAmount: invoiceFacilityFeeCapAmount,
     contractFacilityFeePaidAmount: contractFacilityFeePaidAmountNumber,
+    contractDetails,
+    invoiceSnapshot: invoice?.invoiceSnapshot ?? invoice?.details ?? null,
   });
 
 
@@ -1279,6 +1282,7 @@ export function OfferReviewPanel({
     if (isPhaseDeadlinePast) {
       setIsRejectMode(false);
       setSignerConfirmOpen(false);
+      setAcceptOfferConfirmOpen(false);
     }
   }, [isPhaseDeadlinePast]);
 
@@ -1343,17 +1347,7 @@ export function OfferReviewPanel({
         });
         return false;
       }
-      setAcceptSigningLoading(true);
-      try {
-        await acceptInvoice.mutateAsync({ applicationId, invoiceId: invoiceId! });
-        toast.success("Offer accepted");
-        onClose?.();
-      } catch {
-        // toast handled by hook
-      } finally {
-        setAcceptSigningLoading(false);
-      }
-      return false;
+      return true;
     }
 
     const docsReady = await ensurePostApplicationDocumentsSaved();
@@ -1396,12 +1390,33 @@ export function OfferReviewPanel({
     const ready = await prepareAccept();
     if (!ready) return;
 
+    if (modalMode.ui === "accept_decline") {
+      setAcceptOfferConfirmOpen(true);
+      return;
+    }
+
     if (needsSigningConfirm) {
       setSignerConfirmOpen(true);
       return;
     }
 
     await executeAccept();
+  };
+
+  const handleConfirmDirectInvoiceAccept = async () => {
+    const invoiceId = invoice?.id;
+    if (!invoiceId) return;
+    setAcceptSigningLoading(true);
+    try {
+      await acceptInvoice.mutateAsync({ applicationId, invoiceId });
+      toast.success("Offer accepted");
+      setAcceptOfferConfirmOpen(false);
+      onClose?.();
+    } catch {
+      // toast handled by hook
+    } finally {
+      setAcceptSigningLoading(false);
+    }
   };
 
   const handleConfirmSignersAccept = async () => {
@@ -1776,7 +1791,7 @@ export function OfferReviewPanel({
         </div>
         <div className="space-y-1">
           <dt className="text-muted-foreground inline-flex items-center gap-1">
-            Facility fee cap
+            Facility fee owed
             <InfoTooltip content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
           </dt>
           <dd className="font-medium tabular-nums">
@@ -2417,7 +2432,7 @@ export function OfferReviewPanel({
       {linkedFacilityFeeCapNumber != null ? (
         <div className="space-y-1">
           <dt className="text-muted-foreground inline-flex items-center gap-1">
-            Facility fee cap
+            Facility fee owed
             <InfoTooltip
               content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP}
               iconClassName="h-3.5 w-3.5 shrink-0"
@@ -2697,6 +2712,20 @@ export function OfferReviewPanel({
         cancelText="Go back"
         onConfirm={handleConfirmSignersAccept}
         isLoading={acceptSigningLoading}
+      />
+      <ConfirmDialog
+        open={acceptOfferConfirmOpen}
+        onOpenChange={setAcceptOfferConfirmOpen}
+        title="Accept this offer?"
+        description={
+          offeredValue !== "—"
+            ? `Accept ${offeredValue} of financing for this invoice. It will be reserved against your facility.`
+            : "Accept this invoice offer. The financing will be reserved against your facility."
+        }
+        confirmText="Accept offer"
+        cancelText="Go back"
+        onConfirm={handleConfirmDirectInvoiceAccept}
+        isLoading={acceptSigningLoading || acceptInvoice.isPending}
       />
       <ConfirmDialog
         open={discardConfirmOpen}

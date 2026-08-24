@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { BuildingOffice2Icon, DocumentTextIcon } from "@heroicons/react/24/outline";
-import { Button, Card, CardContent, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
+import { BuildingOffice2Icon } from "@heroicons/react/24/outline";
+import { Button, Card, CardContent, ProductNameWithIcon, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
 import {
   formatNoteReferenceDisplay,
   formatInvestorReturnRatePercent,
@@ -81,12 +81,14 @@ export function LandingMarketplacePreview({
                             <BuildingOffice2Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
                             <span className="truncate">{textOrDash(note.issuerIndustry)}</span>
                           </span>
-                          <span className="inline-flex min-w-0 items-center gap-1 sm:text-right">
-                            <DocumentTextIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                            <span className="truncate">
-                              Product: {textOrDash(note.productName)}
-                            </span>
-                          </span>
+                          <ProductNameWithIcon
+                            name={note.productName}
+                            imageUrl={note.productImageUrl}
+                            empty="-"
+                            size="xs"
+                            className="text-xs leading-5 text-muted-foreground sm:text-right"
+                            iconClassName="h-3.5 w-3.5"
+                          />
                         </div>
                       </div>
 

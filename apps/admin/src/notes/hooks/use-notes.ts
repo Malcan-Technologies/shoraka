@@ -10,6 +10,7 @@ import type {
   ShorakaSubmitOrderStateResponse,
 } from "@cashsouk/types";
 import { adminInvestmentsKeys } from "@/investments/hooks/use-admin-investments";
+import { contractsKeys } from "@/contracts/query-keys";
 import { notesKeys } from "../query-keys";
 
 /**
@@ -337,6 +338,26 @@ export function useFailNoteFunding() {
 
 export function useActivateNote() {
   return useNoteAction("activate");
+}
+
+export function useWaiveNoteFacilityFeeCollection() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const response = await apiClient.waiveAdminNoteFacilityFeeCollection(id, reason);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (note) => {
+      invalidateAdminRegistries(queryClient);
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
+      if (note.sourceContractId) {
+        queryClient.invalidateQueries({ queryKey: contractsKeys.detail(note.sourceContractId) });
+        queryClient.invalidateQueries({ queryKey: contractsKeys.all });
+      }
+    },
+  });
 }
 
 export function useRecordNotePayment() {

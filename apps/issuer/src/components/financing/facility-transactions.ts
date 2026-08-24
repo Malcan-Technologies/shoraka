@@ -3,6 +3,9 @@ import {
   getActivityStatusLabel,
   getActivityStatusToken,
   InvoiceStatus,
+  parseInvoiceFeeSchedule,
+  computeAdditionalFeeAmount,
+  parseFacilityFeeCollectionWaiver,
   type ActivityStatusToken,
 } from "@cashsouk/types";
 import type { ApplicationLogEntry } from "@/hooks/use-application-logs";
@@ -337,7 +340,21 @@ function derivedFromInvoice(
   const breakdown = invoice.note?.disbursementBreakdown;
   const netDisbursed = parseAmount(breakdown?.netIssuerDisbursement);
   const facilityFee = parseAmount(breakdown?.facilityFeeCharged);
+  const drawdownFee = parseAmount(breakdown?.platformFeeAmount);
   const disbursedAt = matchingNote?.activatedAt ?? matchingNote?.fundingClosedAt ?? null;
+  const waiver = parseFacilityFeeCollectionWaiver(modal);
+  const actualExtra = breakdown?.additionalFees ?? [];
+  const schedule = parseInvoiceFeeSchedule(offer);
+  const fundedAmount = parseAmount(breakdown?.grossFundedAmount);
+  const extraCharges =
+    actualExtra.length > 0
+      ? actualExtra
+      : schedule && fundedAmount != null
+        ? schedule.additionalFees.map((line) => ({
+            ...line,
+            chargedAmount: computeAdditionalFeeAmount(line, fundedAmount),
+          }))
+        : [];
   if (netDisbursed != null && netDisbursed > 0) {
     pushDerived(rows, {
       id: `derived:disbursed:${invoice.id}`,
@@ -350,12 +367,51 @@ function derivedFromInvoice(
       statusToken: "active",
     });
   }
+  if (drawdownFee != null && drawdownFee > 0) {
+    pushDerived(rows, {
+      id: `derived:drawdown-fee:${invoice.id}`,
+      at: disbursedAt,
+      label: "Drawdown fee charged",
+      amount: drawdownFee,
+      referenceLabel,
+      href,
+      eventType: "SETTLEMENT_POSTED",
+      statusToken: "success",
+    });
+  }
   if (facilityFee != null && facilityFee > 0) {
     pushDerived(rows, {
       id: `derived:facility-fee:${invoice.id}`,
       at: disbursedAt,
       label: "Facility fee charged",
       amount: facilityFee,
+      referenceLabel,
+      href,
+      eventType: "SETTLEMENT_POSTED",
+      statusToken: "success",
+    });
+  } else if (
+    waiver?.facilityFeeCollectionWaived === true ||
+    breakdown?.facilityFeeCollectionWaived === true
+  ) {
+    pushDerived(rows, {
+      id: `derived:facility-fee-waived:${invoice.id}`,
+      at: disbursedAt,
+      label: "Facility fee collection waived",
+      amount: 0,
+      referenceLabel,
+      href,
+      eventType: "SETTLEMENT_POSTED",
+      statusToken: "neutral",
+    });
+  }
+  for (const [index, line] of extraCharges.entries()) {
+    if (line.chargedAmount <= 0) continue;
+    pushDerived(rows, {
+      id: `derived:extra-fee:${invoice.id}:${index}`,
+      at: disbursedAt,
+      label: `${line.name} charged`,
+      amount: line.chargedAmount,
       referenceLabel,
       href,
       eventType: "SETTLEMENT_POSTED",

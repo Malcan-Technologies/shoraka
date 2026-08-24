@@ -1,5 +1,5 @@
 import { formatCurrency } from "@cashsouk/config";
-import { isSoukscoreRiskRating, type NoteDetail } from "@cashsouk/types";
+import { isSoukscoreRiskRating, parseInvoiceFeeSchedule, type NoteDetail } from "@cashsouk/types";
 
 export type NoteCommercialTermRow = {
   label: string;
@@ -28,6 +28,13 @@ function getRiskRating(note: NoteDetail) {
 }
 
 function getFacilityFeeDisplay(note: NoteDetail): string | null {
+  const schedule =
+    note.feeSchedule ?? parseInvoiceFeeSchedule(asRecord(note.invoiceSnapshot)?.offer_details);
+  if (schedule) {
+    if (!(schedule.facilityFeeCollectAmount > 0)) return null;
+    return `${formatCurrency(schedule.facilityFeeCollectAmount)} at disbursement`;
+  }
+
   const disbursement = note.withdrawals?.find(
     (withdrawal) => withdrawal.withdrawalType === "ISSUER_DISBURSEMENT"
   );
@@ -54,6 +61,12 @@ function getFacilityFeeDisplay(note: NoteDetail): string | null {
   return `${formatCurrency(estimatedFee)} at disbursement`;
 }
 
+function extraFeeValue(line: { kind: "amount" | "percent_of_funded"; value: number }): string {
+  return line.kind === "percent_of_funded"
+    ? `${line.value}% of funds raised`
+    : `${formatCurrency(line.value)} at disbursement`;
+}
+
 /** Commercial terms for the note header and terms card. Invoice amount is omitted — it equals settlement amount. */
 export function getNoteCommercialTermRows(note: NoteDetail): NoteCommercialTermRow[] {
   const rows: NoteCommercialTermRow[] = [
@@ -63,11 +76,19 @@ export function getNoteCommercialTermRows(note: NoteDetail): NoteCommercialTermR
       label: "Profit rate",
       value: note.profitRatePercent == null ? "—" : `${note.profitRatePercent}% p.a.`,
     },
-    { label: "Platform fee", value: `${note.platformFeeRatePercent}% at disbursement` },
+    { label: "Drawdown fee", value: `${note.platformFeeRatePercent}% at disbursement` },
   ];
-  const facilityFeeDisplay = getFacilityFeeDisplay(note);
-  if (facilityFeeDisplay) {
-    rows.push({ label: "Facility fee", value: facilityFeeDisplay });
+  if (note.facilityFeeCollectionWaiver?.facilityFeeCollectionWaived) {
+    rows.push({ label: "Facility fee", value: "Collection waived for this note" });
+  } else {
+    const facilityFeeDisplay = getFacilityFeeDisplay(note);
+    if (facilityFeeDisplay) {
+      rows.push({ label: "Facility fee", value: facilityFeeDisplay });
+    }
+  }
+  const extraFees = note.feeSchedule?.additionalFees ?? [];
+  for (const line of extraFees) {
+    rows.push({ label: line.name, value: extraFeeValue(line) });
   }
   rows.push(
     { label: "Service fee", value: `${note.serviceFeeRatePercent}% of investor profit` },

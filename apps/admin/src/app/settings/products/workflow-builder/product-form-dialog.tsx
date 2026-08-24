@@ -68,6 +68,7 @@ import { AcceptanceDocumentsConfig } from "./step-configs/acceptance-documents-c
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
+  FACILITY_FEE_RATE_MAX_PERCENT,
   isSigningTemplateDocumentCategoryKey,
   parseSigningPackagesConfig,
   writeSigningPackagesConfig,
@@ -462,7 +463,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                 const decimalOk =
                   /^\d+(\.\d{0,2})?$/.test(v) || /^\d+\.$/.test(v) || /^\.\d{1,2}$/.test(v);
                 const n = Number(v);
-                return !Number.isNaN(n) && n >= 0 && n <= 1 && decimalOk ? n : null;
+                return !Number.isNaN(n) && n >= 0 && n <= FACILITY_FEE_RATE_MAX_PERCENT && decimalOk ? n : null;
               })()
             : 1;
         const created = await createProduct.mutateAsync({
@@ -513,7 +514,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
               const decimalOk =
                 /^\d+(\.\d{0,2})?$/.test(v) || /^\d+\.$/.test(v) || /^\.\d{1,2}$/.test(v);
               const n = Number(v);
-              return !Number.isNaN(n) && n >= 0 && n <= 1 && decimalOk ? n : null;
+              return !Number.isNaN(n) && n >= 0 && n <= FACILITY_FEE_RATE_MAX_PERCENT && decimalOk ? n : null;
             })()
           : 1;
       if (isEdit && product) {
@@ -606,18 +607,18 @@ const serviceFeeRatePercentError = (() => {
   return null;
 })();
 
-/** Default facility fee rate validation: blank treated as default (1). 0-100 inclusive. */
+/** Default facility fee rate validation: blank treated as default (1). 0 to FACILITY_FEE_RATE_MAX_PERCENT inclusive. */
 const defaultFacilityFeeRatePercentError = (() => {
   const v = defaultFacilityFeeRatePercent.trim();
   if (v === "") return null;
   const decimalOk =
     /^\d+(\.\d{0,2})?$/.test(v) || /^\d+\.$/.test(v) || /^\.\d{1,2}$/.test(v);
   if (!decimalOk)
-    return "Default facility fee rate must be between 0% and 100%, up to 2 decimal places";
+    return `Default facility fee rate must be between 0% and ${FACILITY_FEE_RATE_MAX_PERCENT}%, up to 2 decimal places`;
   const num = Number(v);
   if (Number.isNaN(num)) return "Default facility fee rate must be a valid number";
-  if (num < 0 || num > 100)
-    return "Default facility fee rate must be between 0% and 100%";
+  if (num < 0 || num > FACILITY_FEE_RATE_MAX_PERCENT)
+    return `Default facility fee rate must be between 0% and ${FACILITY_FEE_RATE_MAX_PERCENT}%`;
   return null;
 })();
 
@@ -1038,8 +1039,9 @@ const hasChanges = !isEdit
                         className={INPUT_CLASS}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Default Facility Fee rate for new facility offers. Allowed range: 0% to 100%, up to 2 decimal
-                        places. Admin can override this value before sending the facility offer.
+                        Default Facility Fee rate for new facility offers. Allowed range: 0% to{" "}
+                        {FACILITY_FEE_RATE_MAX_PERCENT}%, up to 2 decimal places. Admin can override this value
+                        before sending the facility offer.
                       </p>
                     </div>
                   </div>

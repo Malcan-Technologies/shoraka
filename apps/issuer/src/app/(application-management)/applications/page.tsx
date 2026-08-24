@@ -20,6 +20,8 @@ import {
   useAuthToken,
 } from "@cashsouk/config";
 import { filterVisiblePeopleRows } from "@cashsouk/types";
+import { useIssuerProducts } from "@/hooks/use-products";
+import { buildProductDisplayMap } from "@/lib/product-display";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -67,6 +69,11 @@ export default function ApplicationsPage() {
     debugShowSkeleton,
     debugMockApplications,
   });
+  const { data: productsData } = useIssuerProducts({ page: 1, pageSize: 100, search: "" });
+  const productDisplayMap = React.useMemo(
+    () => buildProductDisplayMap(productsData?.products ?? []),
+    [productsData?.products]
+  );
 
   const cancelApplication = useCancelApplication();
   const deleteDraftApplication = useDeleteDraftApplication();
@@ -666,6 +673,9 @@ export default function ApplicationsPage() {
                         <ApplicationSlimCard
                           key={app.id}
                           application={app}
+                          productImageS3Key={
+                            productDisplayMap.get(app.productId ?? "")?.imageS3Key ?? null
+                          }
                           onViewSignedContractOffer={handleDocumentDownload}
                           onCancelApplication={handleWithdrawApplicationClick}
                           onDeleteDraft={handleDeleteDraftClick}

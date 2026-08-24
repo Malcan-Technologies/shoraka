@@ -8,12 +8,12 @@ tags:
   - marketplace
   - repayment
 order: 12
-updated: 2026-05-12
+updated: 2026-08-22
 ---
 
 ## What Happens After Your Application Is Approved
 
-Once admin approves a financing application linked to one of your invoices, CashSouk creates a **note** for that invoice and publishes it on the investor **marketplace**. From here on, the note moves through four stages: Draft → Published → Active → Repaid.
+Once admin approves a financing application linked to one of your invoices, CashSouk creates a **note** for that invoice and publishes it on the investor **marketplace**. In Financing, that invoice shows **Pending listing** (blue — waiting on CashSouk) until admin publishes it. After that, the note moves through Published → Active → Repaid.
 
 You do not list or unlist the note yourself — admin handles publishing — but you can track every stage of its progress from the issuer portal.
 
@@ -25,7 +25,7 @@ Each published note is listed on the marketplace for **`marketplace_listing_dura
 - The note shows a live funding percentage against its target amount.
 - The note will **close early if it reaches 100% funded**.
 - If, at the end of the product&apos;s `marketplace_listing_duration_days` window, the note has met its **minimum funding threshold** (set per note), funding is closed successfully and the note moves to Active.
-- If the minimum is not met, the note is marked **Failed Funding**. Investor commitments are released and no money moves to your account. You can request a new financing application against the same invoice if you wish to try again.
+- If the minimum is not met, the note is marked **Failed Funding**. Investor commitments are released, the reserved facility credit and contract allocation are freed, and no money moves to your account. You can request a new financing application against the same invoice if you wish to try again.
 
 You can see how much of your note has been funded, and the time remaining on the listing, from the note detail page in your portal.
 
@@ -33,13 +33,9 @@ You can see how much of your note has been funded, and the time remaining on the
 
 When funding closes successfully, the platform disburses the **funded portion** of the invoice to your designated bank account on file.
 
-A **platform fee** (set per note and capped by Platform Finance Settings) is deducted from the funded amount at this point. The net amount you receive is:
+Deductions come from the **utilisation offer** you accepted: a **drawdown fee** (% of the actual funded amount), any frozen RM **facility-fee collection**, and any named additional lines (fixed RM or % of actual funds raised). They are charged only if funding succeeds. Net payout is funded amount minus those lines. Invoice-only notes have no facility fee.
 
-```
-Net disbursement = Funded amount − Platform fee
-```
-
-The platform fee is shown on the note before publishing, so there are no surprises. You receive the disbursement once the note transitions to **Active**.
+See **Facility, Drawdown, and Additional Fees** for examples, waivers, and partial funding. You receive the disbursement once the note transitions to **Active**.
 
 ## During Servicing
 
@@ -96,7 +92,7 @@ If the matter escalates further, admin may mark the note as **Defaulted** and tr
 ## What You'll See in Your Portal
 
 - **Marketplace status** — current funding percentage, time remaining on the listing, target amount, minimum funding threshold.
-- **Disbursement** — net amount sent to your account, with the platform fee shown.
+- **Disbursement** — net amount sent to your account, with the drawdown fee and any other frozen utilisation fees shown.
 - **Repayment timeline** — payments received from paymaster, plus any payments you submitted yourself.
 - **Settlement summary** — how the receipt was split across investor returns, fees, late charges, and your residual.
 - **Residual refund tracker** — the four-step workflow with the current step highlighted.
@@ -105,7 +101,7 @@ If the matter escalates further, admin may mark the note as **Defaulted** and tr
 
 ```mermaid
 flowchart LR
-  approved["Approved application"] --> draft["Note in Draft"]
+  approved["Approved application"] --> draft["Pending listing"]
   draft -->|"Admin publishes"| listed["Listed on marketplace (marketplace_listing_duration_days)"]
   listed -->|"Reaches target"| active["Active — net disbursement to issuer"]
   listed -->|"Reaches 100% early"| active

@@ -15,6 +15,7 @@ import {
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { ApplyForFinancingButton } from "@/components/apply-for-financing-button";
 import { useIssuerBookSnapshot } from "@/hooks/use-issuer-book-snapshot";
+import { LEFT_ON_CONTRACT_LABEL } from "@cashsouk/types";
 import {
   formatRaisingDeadline,
   type FacilityBookSnapshot,
@@ -206,7 +207,15 @@ function FacilityPanel({ book }: { book: FacilityBookSnapshot }) {
           </p>
           {book.pendingAmount != null && book.pendingAmount > 0 ? (
             <p className="text-ui leading-6 text-muted-foreground">
-              {formatMoneyDisplay(book.pendingAmount)} pending — not occupying the line
+              {formatMoneyDisplay(book.pendingAmount)} reserved
+            </p>
+          ) : null}
+          {book.lifetimeRemainingAmount != null ? (
+            <p className="text-ui leading-6 text-muted-foreground">
+              {LEFT_ON_CONTRACT_LABEL}: {formatMoneyDisplay(book.lifetimeRemainingAmount)}
+              {book.lifetimeCapAmount != null
+                ? ` of ${formatMoneyDisplay(book.lifetimeCapAmount)}`
+                : ""}
             </p>
           ) : null}
           {book.repaidAmount != null && book.repaidAmount > 0 ? (

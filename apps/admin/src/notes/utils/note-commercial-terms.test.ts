@@ -36,7 +36,7 @@ describe("getNoteCommercialTermRows", () => {
       "Paymaster",
       "Risk rating",
       "Profit rate",
-      "Platform fee",
+      "Drawdown fee",
       "Service fee",
       "Late caps",
     ]);
@@ -49,7 +49,7 @@ describe("getNoteCommercialTermRows", () => {
     expect(rows["Paymaster"]).toBe("—");
     expect(rows["Risk rating"]).toBe("B");
     expect(rows["Profit rate"]).toBe("10% p.a.");
-    expect(rows["Platform fee"]).toBe("1.5% at disbursement");
+    expect(rows["Drawdown fee"]).toBe("1.5% at disbursement");
     expect(rows["Service fee"]).toBe("15% of investor profit");
     expect(rows["Late caps"]).toBe("Ta'widh 1%, Gharamah 9%");
   });
@@ -81,10 +81,80 @@ describe("getNoteCommercialTermRows", () => {
       "Paymaster",
       "Risk rating",
       "Profit rate",
-      "Platform fee",
+      "Drawdown fee",
       "Facility fee",
       "Service fee",
       "Late caps",
     ]);
+  });
+
+  it("shows the exact v1 facility collection instead of grandfather funded×rate math", () => {
+    const rows = getNoteCommercialTermRows(
+      termNote({
+        fundedAmount: 100_000,
+        targetAmount: 100_000,
+        feeSchedule: {
+          version: 1,
+          facilityFeeCollectAmount: 800,
+          additionalFees: [],
+        },
+        contractSnapshot: {
+          contract_details: {
+            approved_facility: 200_000,
+            facility_fee_rate_percent: 1,
+            facility_fee_paid_amount: 0,
+          },
+        },
+      })
+    );
+    const facility = rows.find((row) => row.label === "Facility fee");
+    expect(facility?.value).toBe("RM 800.00 at disbursement");
+  });
+
+  it("keeps the v1 collection amount after a grandfather-style disbursement charge", () => {
+    const rows = getNoteCommercialTermRows(
+      termNote({
+        feeSchedule: {
+          version: 1,
+          facilityFeeCollectAmount: 800,
+          additionalFees: [],
+        },
+        withdrawals: [
+          {
+            withdrawalType: "ISSUER_DISBURSEMENT",
+            facilityFeeCharged: 1_250,
+          },
+        ] as NoteDetail["withdrawals"],
+      })
+    );
+    expect(rows.find((row) => row.label === "Facility fee")?.value).toBe(
+      "RM 800.00 at disbursement"
+    );
+  });
+
+  it("shows waived facility collection and extra fee lines from the frozen schedule", () => {
+    const rows = getNoteCommercialTermRows(
+      termNote({
+        facilityFeeCollectionWaiver: {
+          version: 1,
+          facilityFeeCollectionWaived: true,
+          waivedAt: "2026-08-22T00:00:00.000Z",
+          waivedByUserId: "admin",
+          waivedReason: "Issuer request",
+        },
+        feeSchedule: {
+          version: 1,
+          facilityFeeCollectAmount: 800,
+          additionalFees: [
+            { name: "Legal", kind: "amount", value: 50 },
+            { name: "Admin", kind: "percent_of_funded", value: 1 },
+          ],
+        },
+      })
+    );
+    const byLabel = Object.fromEntries(rows.map((row) => [row.label, row.value]));
+    expect(byLabel["Facility fee"]).toBe("Collection waived for this note");
+    expect(byLabel["Legal"]).toBe("RM 50.00 at disbursement");
+    expect(byLabel["Admin"]).toBe("1% of funds raised");
   });
 });

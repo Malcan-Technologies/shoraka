@@ -83,7 +83,7 @@ describe("ApplicationService createApplication display reference", () => {
     expect(mockTx.application.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          financing_type: { product_id: "prod_1", product_code: "ARF" },
+          financing_type: { product_id: "prod_1", product_code: "ARF", split_origination: true },
         }),
       })
     );

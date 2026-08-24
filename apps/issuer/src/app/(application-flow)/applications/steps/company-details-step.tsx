@@ -12,7 +12,9 @@
  */
 
 import * as React from "react";
-import { useOrganization, MALAYSIAN_BANKS } from "@cashsouk/config";
+import Link from "next/link";
+import { createApiClient, useAuthToken, useOrganization, MALAYSIAN_BANKS } from "@cashsouk/config";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
@@ -23,6 +25,8 @@ import {
   getFinalStatusToken,
   isMissingGovernmentIdPerson,
   resolveDirectorShareholderCtosEmptyWarning,
+  UNRESOLVED_IDENTITY_RECOVERY_COPY,
+  UNRESOLVED_IDENTITY_RECOVERY_TITLE,
 } from "@cashsouk/types";
 import {
   DirectorShareholderCtosEmptyAlert,
@@ -44,7 +48,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { InformationCircleIcon, PencilIcon } from "@heroicons/react/24/outline";
-import Link from "next/link";
 import {
   Dialog,
   DialogContent,
@@ -183,12 +186,17 @@ const inputClassNameEditable = formInputClassName;
 const labelClassName = formLabelClassName;
 const labelClassNameEditable = formLabelClassName;
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
 export function CompanyDetailsStep({
   applicationId,
   onDataChange,
 }: CompanyDetailsStepProps) {
   const { activeOrganization } = useOrganization();
   const organizationId = activeOrganization?.id;
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
 
   const devTools = useDevTools();
 
@@ -211,6 +219,35 @@ export function CompanyDetailsStep({
     () => filterVisiblePeopleRows(entitiesData?.people ?? []),
     [entitiesData?.people]
   );
+  const [recoverPendingKey, setRecoverPendingKey] = React.useState<string | null>(null);
+  const recoverUnresolvedIdentity = React.useCallback(
+    async (payload: {
+      eodRequestId: string;
+      email?: string | null;
+      role: "DIRECTOR" | "SHAREHOLDER";
+      governmentId: string;
+    }) => {
+      if (!organizationId) return;
+      const pendingKey = `${payload.eodRequestId}:${payload.email ?? ""}`;
+      setRecoverPendingKey(pendingKey);
+      try {
+        const result = await apiClient.patch<{ success: true }>(
+          `/v1/organizations/issuer/${organizationId}/unresolved-identity`,
+          payload
+        );
+        if (!result.success) {
+          toast.error(result.error.message);
+          return;
+        }
+        await queryClient.invalidateQueries({ queryKey: ["corporate-entities", organizationId] });
+        toast.success("Government ID saved. This record can now be matched.");
+      } finally {
+        setRecoverPendingKey(null);
+      }
+    },
+    [apiClient, organizationId, queryClient]
+  );
+
   const resolvedCtosEmptyWarning = React.useMemo(
     () =>
       resolveDirectorShareholderCtosEmptyWarning({
@@ -484,7 +521,7 @@ export function CompanyDetailsStep({
      VALIDITY CHECK - Compute from current state
      ================================================================ */
 
-  /** Form-only: director/shareholder RegTank readiness is enforced on final submit (declarations), not here. */
+  /** Form-only: director/shareholder identity readiness is enforced on final submit (declarations), not here. */
   const isValid = React.useMemo(() => {
     return !!(
       isValidAddress(formState.businessAddress) &&
@@ -760,6 +797,20 @@ export function CompanyDetailsStep({
                 {visiblePeopleRows.some((p) => isMissingGovernmentIdPerson(p)) ? (
                   <div className="col-span-2">
                     <DirectorShareholderUnresolvedIdentitySection
+                      noticeTitle={UNRESOLVED_IDENTITY_RECOVERY_TITLE}
+                      noticeDescription={UNRESOLVED_IDENTITY_RECOVERY_COPY}
+                      showTechnicalIds={false}
+                      noticeAction={
+                        <Link
+                          href="/profile?focus=directors"
+                          className="text-ui font-medium text-primary underline-offset-4 hover:underline"
+                        >
+                          Open Organisation
+                        </Link>
+                      }
+                      canRecover={effectiveCanEdit}
+                      recoverPendingKey={recoverPendingKey}
+                      onRecoverGovernmentId={recoverUnresolvedIdentity}
                       people={visiblePeopleRows
                         .filter((p) => isMissingGovernmentIdPerson(p))
                         .map((p) => ({
@@ -767,6 +818,12 @@ export function CompanyDetailsStep({
                           role: formatPeopleRolesLine(p),
                           sharePercentage: p.sharePercentage,
                           eodRequestId: p.requestId,
+                          email: p.email ?? null,
+                          recoverRole: p.roles.includes("DIRECTOR")
+                            ? "DIRECTOR"
+                            : p.roles.includes("SHAREHOLDER")
+                              ? "SHAREHOLDER"
+                              : undefined,
                           onboardingStatus: p.onboarding?.status ?? null,
                           amlStatus: p.screening?.status ?? null,
                           kycId: p.onboarding?.id ?? null,

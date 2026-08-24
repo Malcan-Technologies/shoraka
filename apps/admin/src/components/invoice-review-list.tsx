@@ -18,6 +18,27 @@ import {
   SOUKSCORE_RISK_RATING_GRADES,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
+import {
+  invoiceOfferFacilityFeeCollectEnabled,
+  invoiceOfferConfirmSubmitBlocked,
+  invoiceOfferFeeFingerprint,
+  parseInvoiceOfferFeeEditorState,
+  resolveDrawdownFeeRateForSend,
+  resolveInvoiceOfferConfirmGuard,
+  resolveInvoiceOfferFacilityFeeRemaining,
+  resyncInvoiceFeeEditorBook,
+  toSendInvoiceOfferFeeFields,
+  utilisationFeeSendBlockedReason,
+  convertGrandfatherOfferToCurrentV1,
+  clampOfferPlatformFeePercent,
+  type InvoiceFeeEditorBook,
+  type InvoiceOfferFeeEditorState,
+  type SendInvoiceOfferUiPayload,
+} from "@/components/utilisation-fee-lines";
+import {
+  InvoiceOfferFeeConfirmRows,
+  InvoiceOfferFeeScheduleSection,
+} from "@/components/utilisation-fee-lines-editor";
 import { cn } from "@/lib/utils";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
 import { OfferAcceptanceDeadlineConfirmRows } from "@/components/application-review/offer-acceptance-deadline-confirm-rows";
@@ -85,6 +106,8 @@ interface InvoiceReviewListProps {
     status?: string;
     offer_details?: unknown;
     offer_signing?: unknown;
+    contract_id?: string | null;
+    facilityFeeAvailableToReserve?: number | null;
   }[];
   /** Invoice IDs from other applications (same contract) - read-only, actions locked */
   readOnlyInvoiceIds?: Set<string>;
@@ -105,14 +128,7 @@ interface InvoiceReviewListProps {
   onRequestAmendmentItem: (itemId: string) => void;
   onResetItemToPending?: (itemId: string) => void;
   isItemActionPending: boolean;
-  onSendInvoiceOffer?: (payload: {
-    invoiceId: string;
-    offeredAmount: number;
-    offeredRatioPercent: number;
-    offeredProfitRatePercent: number;
-    platformFeeRatePercent: number;
-    risk_rating: SoukscoreRiskRating;
-  }) => Promise<void>;
+  onSendInvoiceOffer?: (payload: SendInvoiceOfferUiPayload) => Promise<void>;
   isSendInvoiceOfferPending?: boolean;
   /** Opens signed offer document using the same document view-url flow. */
   onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
@@ -158,11 +174,6 @@ function formatDateValue(value: string | undefined): string {
 
 type OfferedState = { ratio: number; profitRate: number; platformFeeRatePercent: number };
 
-function clampPlatformFeePercent(parsed: number, fallback: number, cap: number): number {
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(cap, Math.max(0, Math.round(parsed * 100) / 100));
-}
-
 export function InvoiceList({
   applicationId,
   invoices,
@@ -201,8 +212,12 @@ export function InvoiceList({
     offeredRatioPercent: number;
     offeredProfitRatePercent: number;
     platformFeeRatePercent: number;
+    feeScheduleMode: SendInvoiceOfferUiPayload["feeScheduleMode"];
+    facilityFeeCollectAmount: number;
+    additionalFees: SendInvoiceOfferUiPayload["additionalFees"];
     invoiceValue: number | null;
     risk_rating: SoukscoreRiskRating;
+    offerFingerprint: string;
   } | null>(null);
 
   React.useEffect(() => {
@@ -246,7 +261,7 @@ export function InvoiceList({
         result[inv.id] = {
           ratio,
           profitRate,
-          platformFeeRatePercent: clampPlatformFeePercent(platformFeeRatePercent, 0, platformFeeCap),
+          platformFeeRatePercent: clampOfferPlatformFeePercent(platformFeeRatePercent, 0, platformFeeCap),
         };
       }
     });
@@ -300,6 +315,16 @@ export function InvoiceList({
   const [platformFeeDraftByInvoiceId, setPlatformFeeDraftByInvoiceId] = React.useState<
     Record<string, string>
   >({});
+  const feeEditorBookRef = React.useRef<InvoiceFeeEditorBook>({ states: {}, fingerprints: {} });
+  const [feeEditorByInvoice, setFeeEditorByInvoice] = React.useState<
+    Record<string, InvoiceOfferFeeEditorState>
+  >({});
+
+  React.useEffect(() => {
+    const next = resyncInvoiceFeeEditorBook(feeEditorBookRef.current, invoices);
+    feeEditorBookRef.current = next;
+    setFeeEditorByInvoice(next.states);
+  }, [invoices]);
 
   const financingRatioPanelRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -368,10 +393,51 @@ export function InvoiceList({
     [offeredByInvoice, invoiceRatioLimits]
   );
 
+  const getFeeEditor = React.useCallback(
+    (invoiceId: string, offerDetails: unknown): InvoiceOfferFeeEditorState => {
+      return feeEditorByInvoice[invoiceId] ?? parseInvoiceOfferFeeEditorState(offerDetails);
+    },
+    [feeEditorByInvoice]
+  );
+
+  const setFeeEditor = React.useCallback((invoiceId: string, next: InvoiceOfferFeeEditorState) => {
+    setFeeEditorByInvoice((prev) => {
+      const updated = { ...prev, [invoiceId]: next };
+      feeEditorBookRef.current = {
+        states: updated,
+        fingerprints: feeEditorBookRef.current.fingerprints,
+      };
+      return updated;
+    });
+  }, []);
+
+  const invoiceOfferConfirmGuard = React.useMemo(() => {
+    if (!invoiceOfferConfirm) return null;
+    const invoice = invoices.find((inv) => inv.id === invoiceOfferConfirm.invoiceId);
+    return resolveInvoiceOfferConfirmGuard({ confirm: invoiceOfferConfirm, invoice });
+  }, [invoiceOfferConfirm, invoices]);
+  const invoiceOfferConfirmFeeBlockedReason = invoiceOfferConfirmGuard?.feeBlockedReason ?? null;
+  const invoiceOfferConfirmExceedsCredit =
+    remainingAvailableFacility != null &&
+    invoiceOfferConfirm != null &&
+    invoiceOfferConfirm.offeredAmount > remainingAvailableFacility;
+
+  React.useEffect(() => {
+    if (invoiceOfferConfirmGuard?.fingerprintStale) {
+      setInvoiceOfferConfirm(null);
+    }
+  }, [invoiceOfferConfirmGuard]);
+
   const handleConfirmInvoiceOffer = React.useCallback(async () => {
-    if (!onSendInvoiceOffer || !invoiceOfferConfirm) return;
+    if (!onSendInvoiceOffer || !invoiceOfferConfirm || !invoiceOfferConfirmGuard) return;
     if (!invoiceOfferConfirm.risk_rating) {
       alert("Please select a risk rating before sending the offer.");
+      return;
+    }
+    if (
+      invoiceOfferConfirmSubmitBlocked(invoiceOfferConfirmGuard) ||
+      invoiceOfferConfirmExceedsCredit
+    ) {
       return;
     }
     await onSendInvoiceOffer({
@@ -381,9 +447,18 @@ export function InvoiceList({
       offeredProfitRatePercent: invoiceOfferConfirm.offeredProfitRatePercent,
       platformFeeRatePercent: invoiceOfferConfirm.platformFeeRatePercent,
       risk_rating: invoiceOfferConfirm.risk_rating,
+      feeScheduleMode: invoiceOfferConfirm.feeScheduleMode,
+      facilityFeeCollectAmount: invoiceOfferConfirm.facilityFeeCollectAmount,
+      additionalFees: invoiceOfferConfirm.additionalFees,
     });
     setInvoiceOfferConfirm(null);
-  }, [onSendInvoiceOffer, invoiceOfferConfirm]);
+  }, [
+    onSendInvoiceOffer,
+    invoiceOfferConfirm,
+    invoiceOfferConfirmGuard,
+    invoiceOfferConfirmExceedsCredit,
+    setInvoiceOfferConfirm,
+  ]);
 
   return (
     <div className={applicationTableWrapperClass}>
@@ -576,6 +651,33 @@ export function InvoiceList({
                                     inv.offer_details as Record<string, unknown>
                                   )
                                 : offered.platformFeeRatePercent;
+                              const drawdownFeeRateForSend = hasOfferSnapshot
+                                ? offeredPlatformFeePercent
+                                : resolveDrawdownFeeRateForSend({
+                                    committedPercent: offered.platformFeeRatePercent,
+                                    draft: platformFeeDraftByInvoiceId[inv.id],
+                                    capPercent: platformFeeCap,
+                                  });
+                              const feeEditor = getFeeEditor(inv.id, inv.offer_details);
+                              const facilityFeeRemaining = resolveInvoiceOfferFacilityFeeRemaining(inv);
+                              const collectEnabled = invoiceOfferFacilityFeeCollectEnabled(inv);
+                              const feeSendBlockedReason =
+                                offeredAmount != null && feeEditor.mode === "v1"
+                                  ? utilisationFeeSendBlockedReason({
+                                      offeredAmount,
+                                      platformFeeRatePercent: drawdownFeeRateForSend,
+                                      schedule: feeEditor.schedule,
+                                      facilityFeeRemaining,
+                                      collectEnabled,
+                                    })
+                                  : offeredAmount != null
+                                    ? utilisationFeeSendBlockedReason({
+                                        offeredAmount,
+                                        platformFeeRatePercent: drawdownFeeRateForSend,
+                                        schedule: { facilityFeeCollectAmount: 0, additionalFees: [] },
+                                        collectEnabled: false,
+                                      })
+                                    : null;
                               const reviewDay = new Date();
                               reviewDay.setHours(0, 0, 0, 0);
                               const maturityParsedForOffer = parseInvoiceMaturityDate(
@@ -760,7 +862,7 @@ export function InvoiceList({
                                   <div className={applicationTableExpandableFieldBlockClass}>
                                     <div className="flex items-baseline justify-between gap-2">
                                       <p className={applicationTableExpandableLabelClass}>
-                                        Platform fee
+                                        Drawdown fee
                                       </p>
                                       {!isOfferSent ? (
                                         <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
@@ -778,7 +880,7 @@ export function InvoiceList({
                                           type="text"
                                           inputMode="decimal"
                                           autoComplete="off"
-                                          aria-label={`Platform fee percent, allowed 0% to ${platformFeeCap}%`}
+                                          aria-label={`Drawdown fee percent, allowed 0% to ${platformFeeCap}%`}
                                           className={`${OFFER_CONTROL_WIDTH_CLASS} px-3 text-right tabular-nums shadow-sm`}
                                           disabled={isRowGreyedOut || isAdminRejected}
                                           value={
@@ -803,7 +905,7 @@ export function InvoiceList({
                                               return rest;
                                             });
                                             const fallback = offered.platformFeeRatePercent;
-                                            const clamped = clampPlatformFeePercent(
+                                            const clamped = clampOfferPlatformFeePercent(
                                               draft === undefined || draft === ""
                                                 ? fallback
                                                 : Number(draft.replace(/,/g, "")),
@@ -972,6 +1074,20 @@ export function InvoiceList({
                                       )}
                                   </div>
                                 </div>
+                                <InvoiceOfferFeeScheduleSection
+                                  idPrefix={`invoice-list-offer-${inv.id}`}
+                                  editor={feeEditor}
+                                  onChange={(next) => setFeeEditor(inv.id, next)}
+                                  onConvertToCurrentV1={() =>
+                                    setFeeEditor(inv.id, convertGrandfatherOfferToCurrentV1())
+                                  }
+                                  offeredAmount={offeredAmount}
+                                  platformFeeRatePercent={drawdownFeeRateForSend}
+                                  facilityFeeRemaining={facilityFeeRemaining}
+                                  collectEnabled={collectEnabled}
+                                  disabled={isRowGreyedOut || isAdminRejected}
+                                  readOnly={isOfferSent}
+                                />
                                 {!isOfferSent && onSendInvoiceOffer &&
                                   (isAdminRejected ? (
                                     <div className="mt-3 w-full space-y-2">
@@ -1017,7 +1133,8 @@ export function InvoiceList({
                                         isRowGreyedOut ||
                                         !!isSendInvoiceOfferPending ||
                                         offeredAmount === null ||
-                                        !riskRatingByInvoiceId[inv.id]
+                                        !riskRatingByInvoiceId[inv.id] ||
+                                        Boolean(feeSendBlockedReason)
                                       }
                                       onClick={() => {
                                         const rr = riskRatingByInvoiceId[inv.id];
@@ -1025,22 +1142,12 @@ export function InvoiceList({
                                           alert("Please select a risk rating before sending the offer.");
                                           return;
                                         }
-                                        let platformFeeRatePercent = clampPlatformFeePercent(
-                                          offered.platformFeeRatePercent,
-                                          0,
-                                          platformFeeCap
-                                        );
-                                        const draftPf = platformFeeDraftByInvoiceId[inv.id];
-                                        if (draftPf !== undefined) {
-                                          if (draftPf === "") {
-                                            platformFeeRatePercent = 0;
-                                          } else {
-                                            platformFeeRatePercent = clampPlatformFeePercent(
-                                              Number(draftPf.replace(/,/g, "")),
-                                              offered.platformFeeRatePercent,
-                                              platformFeeCap
-                                            );
-                                          }
+                                        const platformFeeRatePercent = resolveDrawdownFeeRateForSend({
+                                          committedPercent: offered.platformFeeRatePercent,
+                                          draft: platformFeeDraftByInvoiceId[inv.id],
+                                          capPercent: platformFeeCap,
+                                        });
+                                        if (platformFeeDraftByInvoiceId[inv.id] !== undefined) {
                                           setPlatformFeeDraftByInvoiceId((prev) => {
                                             const rest = { ...prev };
                                             delete rest[inv.id];
@@ -1050,6 +1157,7 @@ export function InvoiceList({
                                         if (platformFeeRatePercent !== offered.platformFeeRatePercent) {
                                           setOffered(inv.id, { platformFeeRatePercent });
                                         }
+                                        const feeFields = toSendInvoiceOfferFeeFields(feeEditor);
                                         setInvoiceOfferConfirm({
                                           invoiceId: inv.id,
                                           invoiceNo,
@@ -1057,14 +1165,21 @@ export function InvoiceList({
                                           offeredRatioPercent: offered.ratio,
                                           offeredProfitRatePercent: offered.profitRate,
                                           platformFeeRatePercent,
+                                          ...feeFields,
                                           invoiceValue,
                                           risk_rating: rr,
+                                          offerFingerprint: invoiceOfferFeeFingerprint(inv.offer_details),
                                         });
                                       }}
                                     >
                                       {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
                                     </Button>
                                   ))}
+                                {!isOfferSent && feeSendBlockedReason ? (
+                                  <p role="alert" className="mt-2 text-sm leading-snug text-destructive">
+                                    {feeSendBlockedReason}
+                                  </p>
+                                ) : null}
                                 {phaseDeadlineDisplay ? (
                                   <p
                                     className={cn(
@@ -1110,7 +1225,7 @@ export function InvoiceList({
         open={!!invoiceOfferConfirm}
         onOpenChange={(open) => !open && setInvoiceOfferConfirm(null)}
       >
-        <DialogContent className="rounded-2xl sm:max-w-md">
+        <DialogContent className="rounded-2xl sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               Confirm Invoice Offer
@@ -1153,12 +1268,14 @@ export function InvoiceList({
                     {invoiceOfferConfirm.offeredProfitRatePercent}%
                   </span>
                 </div>
-                <div className="flex justify-between items-baseline">
-                  <span className="text-sm font-medium text-muted-foreground">Platform fee</span>
-                  <span className="text-ui font-medium tabular-nums">
-                    {invoiceOfferConfirm.platformFeeRatePercent}% at disbursement
-                  </span>
-                </div>
+                <InvoiceOfferFeeConfirmRows
+                  offeredAmount={invoiceOfferConfirm.offeredAmount}
+                  platformFeeRatePercent={invoiceOfferConfirm.platformFeeRatePercent}
+                  feeScheduleMode={invoiceOfferConfirm.feeScheduleMode}
+                  facilityFeeCollectAmount={invoiceOfferConfirm.facilityFeeCollectAmount}
+                  additionalFees={invoiceOfferConfirm.additionalFees}
+                  facilityFeeRemaining={invoiceOfferConfirmGuard?.facilityFeeRemaining}
+                />
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm font-medium text-muted-foreground">Risk Rating</span>
                   <span className="text-ui font-medium tabular-nums">
@@ -1174,10 +1291,14 @@ export function InvoiceList({
                 ) : null}
                 {remainingAvailableFacility != null &&
                 invoiceOfferConfirm.offeredAmount > remainingAvailableFacility ? (
-                  <p className="rounded-xl border border-border bg-muted/20 px-3 py-2 text-ui text-foreground">
+                  <p role="alert" className="rounded-xl border border-border bg-muted/20 px-3 py-2 text-ui text-destructive">
                     This offer ({formatCurrency(invoiceOfferConfirm.offeredAmount)}) exceeds remaining
-                    available facility ({formatCurrency(remainingAvailableFacility)}). You can still
-                    send it.
+                    credit ({formatCurrency(remainingAvailableFacility)}). Sending is blocked. There is
+                    no override.
+                  </p>
+                ) : invoiceOfferConfirmFeeBlockedReason ? (
+                  <p role="alert" className="rounded-xl border border-border bg-muted/20 px-3 py-2 text-ui text-destructive">
+                    {invoiceOfferConfirmFeeBlockedReason}
                   </p>
                 ) : null}
               </div>
@@ -1191,7 +1312,12 @@ export function InvoiceList({
                 </Button>
                 <Button
                   onClick={handleConfirmInvoiceOffer}
-                  disabled={!!isSendInvoiceOfferPending}
+                  disabled={
+                    !!isSendInvoiceOfferPending ||
+                    invoiceOfferConfirmExceedsCredit ||
+                    (invoiceOfferConfirmGuard != null &&
+                      invoiceOfferConfirmSubmitBlocked(invoiceOfferConfirmGuard))
+                  }
                   className="rounded-xl"
                 >
                   {isSendInvoiceOfferPending ? "Sending..." : "Confirm & Send Offer"}

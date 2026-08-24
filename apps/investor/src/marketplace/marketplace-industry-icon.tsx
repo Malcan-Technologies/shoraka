@@ -50,9 +50,9 @@ const INDUSTRY_ICONS: Record<
 };
 
 const TONE_CLASS: Record<MarketplaceIndustryTone, string> = {
-  muted: "bg-muted text-foreground",
-  taupe: "bg-secondary/15 text-secondary",
-  brand: "bg-primary/10 text-primary",
+  muted: "text-muted-foreground",
+  taupe: "text-secondary",
+  brand: "text-primary",
 };
 
 export function MarketplaceIndustryIcon({
@@ -69,17 +69,16 @@ export function MarketplaceIndustryIcon({
   const label = industry?.trim() || "Industry not published";
 
   return (
-    <span
-      aria-hidden="true"
-      title={label}
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-2xl",
-        size === "lg" ? "size-14" : "size-11",
-        TONE_CLASS[tone],
-        className
-      )}
-    >
-      <Icon className={size === "lg" ? "size-7" : "size-6"} />
+    <span title={label} className="inline-flex shrink-0">
+      <Icon
+        aria-hidden="true"
+        className={cn(
+          "shrink-0",
+          size === "lg" ? "size-14" : "size-11",
+          TONE_CLASS[tone],
+          className
+        )}
+      />
     </span>
   );
 }

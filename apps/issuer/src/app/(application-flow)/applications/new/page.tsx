@@ -32,6 +32,7 @@ import {
   USE_MOCK_FINANCING_TYPE_CATALOG,
 } from "../lib/mock-financing-type-catalog";
 import { EXISTING_CONTRACT_PREFILL_STORAGE_KEY } from "@/lib/finance-invoice-application-href";
+import { OPENING_APPLICATION_COPY } from "@cashsouk/types";
 
 /**
  * NEW APPLICATION PAGE
@@ -369,9 +370,11 @@ export default function NewApplicationPage() {
         <div className="max-w-7xl mx-auto w-full px-4 py-8">
           {/* Page Title */}
           <div className="mb-6">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Select financing type</h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{OPENING_APPLICATION_COPY.title}</h1>
             <p className="text-ui leading-7 text-muted-foreground mt-1">
-              Browse and invest in verified financing opportunities from your dashboard
+              {prefillContractId
+                ? OPENING_APPLICATION_COPY.prefilledFacilityDescription
+                : OPENING_APPLICATION_COPY.description}
             </p>
           </div>
 
@@ -404,8 +407,8 @@ export default function NewApplicationPage() {
             <div className="text-center py-12 px-4 max-w-lg mx-auto space-y-2 text-muted-foreground">
               <p className="font-medium text-foreground">No financing products available</p>
               <p className="text-ui leading-7">
-                Active products are created and published by platform administrators. Please contact
-                your admin if you expected to see options here.
+                No financing products are available right now. Contact CashSouk support if you
+                expected to see options here.
               </p>
             </div>
           ) : (

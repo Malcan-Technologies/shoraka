@@ -50,6 +50,8 @@ import {
   sendContractOfferSchema,
   patchContractCustomerLargePrivateSchema,
   sendInvoiceOfferSchema,
+  waiveContractFacilityFeeSchema,
+  setContractFacilityEnabledSchema,
   addPendingAmendmentSchema,
   updatePendingAmendmentSchema,
   notifyIssuerDirectorShareholderActionRequiredSchema,
@@ -2467,6 +2469,59 @@ router.get(
   }
 );
 
+router.post(
+  "/contracts/:id/facility-fee/waive",
+  requirePermission("contracts.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const validated = waiveContractFacilityFeeSchema.parse(req.body);
+      const logCtx = extractRequestMetadata(req);
+      const result = await adminService.waiveContractFacilityFee(
+        id,
+        validated.reason,
+        req.user.user_id,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
+      );
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/contracts/:id/facility/enabled",
+  requirePermission("contracts.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const validated = setContractFacilityEnabledSchema.parse(req.body);
+      const logCtx = extractRequestMetadata(req);
+      const result = await adminService.setContractFacilityEnabled(
+        id,
+        validated.enabled,
+        validated.reason,
+        req.user.user_id,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
+      );
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 /**
  * @swagger
  * /v1/admin/applications/{id}:
@@ -3388,7 +3443,12 @@ router.post(
         validated.platformFeeRatePercent ?? null,
         validated.risk_rating,
         req.user.user_id,
-        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo },
+        {
+          feeScheduleMode: validated.feeScheduleMode,
+          facilityFeeCollectAmount: validated.facilityFeeCollectAmount,
+          additionalFees: validated.additionalFees,
+        }
       );
 
       res.json({

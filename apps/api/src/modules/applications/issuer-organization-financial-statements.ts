@@ -1,6 +1,9 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { financialStatementsV2Schema } from "./schemas";
+
+type FinancialStatementClient = typeof prisma | Prisma.TransactionClient;
 
 /**
  * Upsert the latest reusable org financial statements for an issuer organization.
@@ -13,10 +16,11 @@ import { financialStatementsV2Schema } from "./schemas";
 export async function upsertLatestOrganizationFinancialStatementsFromApplication(params: {
   applicationId: string;
   sourceApplicationRevisionId?: string | null;
+  db?: FinancialStatementClient;
 }): Promise<void> {
-  const { applicationId, sourceApplicationRevisionId = null } = params;
+  const { applicationId, sourceApplicationRevisionId = null, db = prisma } = params;
 
-  const application = await prisma.application.findUnique({
+  const application = await db.application.findUnique({
     where: { id: applicationId },
     select: { issuer_organization_id: true, financial_statements: true },
   });
@@ -37,7 +41,7 @@ export async function upsertLatestOrganizationFinancialStatementsFromApplication
   }
 
   try {
-    await prisma.issuerOrganizationFinancialStatement.upsert({
+    await db.issuerOrganizationFinancialStatement.upsert({
       where: { issuer_organization_id: issuerOrganizationId },
       create: {
         issuer_organization_id: issuerOrganizationId,
@@ -59,4 +63,3 @@ export async function upsertLatestOrganizationFinancialStatementsFromApplication
     throw error;
   }
 }
-

@@ -7,7 +7,7 @@ tags:
   - notes
   - finance
 order: 20
-updated: 2026-06-30
+updated: 2026-08-22
 ---
 
 ## Overview
@@ -45,7 +45,7 @@ CashSouk tracks note money through six operational buckets:
 
 - **Investor Pool** holds investor money, investment commitments, repayment returns, and investor withdrawals.
 - **Repayment Pool** receives repayment money from the paymaster or from an issuer paying on behalf of the paymaster, and is the source from which a posted settlement is allocated.
-- **Operating Account** receives application fees, platform fees, and service fees.
+- **Operating Account** receives application processing fees, drawdown fees, facility-fee collections, additional utilisation lines, and service fees.
 - **Ta'widh Account** receives the compensation portion of approved late-payment charges.
 - **Gharamah Account** receives the charity or penalty portion of approved late-payment charges.
 - **Issuer Payable** is a liability bucket. It receives the net disbursement amount when funding is closed, and the issuer refund allocation when settlement is posted. It is cleared when settlement trustee instruction completes (or via legacy residual withdrawal flows on older notes).
@@ -86,7 +86,7 @@ Terminal failure states (Failed Funding, Defaulted, Cancelled) are shown in the 
 flowchart TD
   investor["Investor"] -->|"Investor deposit"| investorPool["Investor Pool"]
   investorPool -->|"Funded amount at funding close"| issuerPayable["Issuer Payable"]
-  investorPool -->|"Platform fee at funding close, capped by settings"| operating["Operating Account"]
+  investorPool -->|"Drawdown fee and other disbursement fees at funding close"| operating["Operating Account"]
   issuerPayable -->|"Initial disbursement via trustee letter"| issuer["SME / Issuer"]
   issuer -->|"Application fee on submission"| operating
   paymaster["Buyer / Paymaster"] -->|"Financing repayment"| repaymentPool["Repayment Pool"]
@@ -123,7 +123,7 @@ flowchart TD
 
 ## From Invoice To Funding
 
-Create notes only from approved invoices. Review the invoice, issuer, paymaster, risk rating, amount, profit rate, platform fee, service fee, maturity date, and listing summary before publishing.
+Create notes only from approved invoices. Review the invoice, issuer, paymaster, risk rating, amount, profit rate, drawdown fee, frozen utilisation schedule, service fee, maturity date, and listing summary before publishing.
 
 When a note is published, it becomes available in the investor marketplace. Investors can commit funds until funding is closed automatically, closed manually, or failed.
 
@@ -145,13 +145,13 @@ Closing funding (manual or automatic) never auto-activates the note. The note st
 
 **Tab:** **Disbursement** on Note Detail.
 
-The platform fee is deducted at disbursement. It is set per note and capped by Platform Finance Settings.
+At disbursement the note takes the fees agreed on the invoice offer: **drawdown fee** (a percentage of the amount actually funded), any exact facility-fee collection for that invoice, and any named extra lines. Older invoices offered before this model still use the previous percentage-of-funded facility fee. See **Facility and Invoice Fee Configuration**.
 
 When funding closes (manually or automatically), the operation:
 
 - confirms all committed investments,
 - debits the Investor Pool by the funded amount,
-- credits the Operating Account with the platform fee,
+- credits the Operating Account with the drawdown fee and any other disbursement fees,
 - credits Issuer Payable with the net funded proceeds owed to the issuer,
 - auto-creates a draft `WithdrawalInstruction` of type `ISSUER_DISBURSEMENT` with the issuer's bank details prefilled from the issuer organisation profile.
 

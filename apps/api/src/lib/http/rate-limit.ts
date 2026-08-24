@@ -3,7 +3,7 @@ import rateLimit from "express-rate-limit";
 /** Default API-wide limiter — applies to all routes after webhooks. */
 export const globalRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 600,
+  max: 6000,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

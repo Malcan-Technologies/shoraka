@@ -33,7 +33,7 @@ export function KeyValueGrid({
         <div
           key={index}
           className={cn(
-            "grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-ui",
+            "grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-0.5 text-ui",
             item.className
           )}
         >

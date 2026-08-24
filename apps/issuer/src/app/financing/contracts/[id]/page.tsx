@@ -1,9 +1,8 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useOrganization } from "@cashsouk/config";
 import {
   Card,
@@ -14,11 +13,14 @@ import {
   EmptyState,
   KeyValueGrid,
   LoadingState,
-  formatMoneyDisplay,
+  ProductCatalogName,
 } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIssuerDashboardContract } from "@/hooks/use-issuer-dashboard";
+import { useIssuerProduct } from "@/hooks/use-products";
+import { resolveProductImageS3KeyFromWorkflow } from "@cashsouk/types";
+import { resolveProductDisplayName } from "@/lib/product-display";
 import { useApplicationLogsMany } from "@/hooks/use-application-logs";
 import { useIssuerNotes } from "@/notes/hooks/use-issuer-notes";
 import {
@@ -55,9 +57,15 @@ import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labe
 import { financeInvoiceApplicationHref } from "@/lib/finance-invoice-application-href";
 import { formatContractReference } from "@cashsouk/types";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
+import { resolveFacilityDisplayMetrics } from "@/lib/facility-capacity-display";
+import { FacilityDualLimitSummaries } from "@/components/financing/facility-dual-limits";
+import { resolveIssuerFacilityFeeBalance, resolveIssuerFacilityGate } from "@/lib/facility-enabled";
+import {
+  FacilityDisabledBanner,
+  FacilityFeeBalanceSummary,
+} from "@/components/financing/facility-fee-status";
 
-const FACILITY_TABS = ["invoices", "transactions"] as const;
-type FacilityDetailTab = (typeof FACILITY_TABS)[number];
+type FacilityDetailTab = "invoices" | "transactions";
 
 function isFacilityDetailTab(value: string | null): value is FacilityDetailTab {
   return value === "invoices" || value === "transactions";
@@ -70,10 +78,6 @@ function contractBusinessNumber(contractForModal: unknown): string | null {
   return typeof details?.number === "string" && details.number.trim().length > 0
     ? details.number.trim()
     : null;
-}
-
-function formatMoney(value: unknown) {
-  return formatMoneyDisplay(value, EM_DASH);
 }
 
 function ContractDetailsPageContent() {
@@ -90,15 +94,20 @@ function ContractDetailsPageContent() {
   const [invoiceListFilters, setInvoiceListFilters] = useState<InvoiceFinancingListFiltersState>(
     DEFAULT_INVOICE_FINANCING_LIST_FILTERS
   );
+  const [filtersForContractId, setFiltersForContractId] = useState(contractId);
 
-  useEffect(() => {
+  if (filtersForContractId !== contractId) {
+    setFiltersForContractId(contractId);
     setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS });
-  }, [contractId]);
+  }
 
   const { data, isLoading, isError, error } = useIssuerDashboardContract(orgId, contractId);
   const { data: notesData, isLoading: notesLoading } = useIssuerNotes();
 
   const row = data?.contract ?? null;
+  const { data: productRecord } = useIssuerProduct(row?.productId ?? "");
+  const productImageS3Key = resolveProductImageS3KeyFromWorkflow(productRecord?.workflow);
+  const catalogProductName = resolveProductDisplayName(productRecord);
   const invoices = data?.invoices ?? [];
   const applicationIds = useMemo(
     () => (row ? uniqueFacilityApplicationIds(row, invoices) : []),
@@ -133,37 +142,21 @@ function ContractDetailsPageContent() {
     next.set("tab", value);
     const qs = next.toString();
     router.replace(
-      qs
-        ? `/financing/contracts/${contractId}?${qs}`
-        : `/financing/contracts/${contractId}`,
+      qs ? `/financing/contracts/${contractId}?${qs}` : `/financing/contracts/${contractId}`,
       { scroll: false }
     );
   };
 
-  const approvedNum = row?.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : null;
-  const utilizedNum = row?.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : null;
-  const availableNum = row?.availableFacilityAmount != null ? Number(row.availableFacilityAmount) : null;
+  const metrics = resolveFacilityDisplayMetrics(row ?? {});
+  const approvedNum = metrics.approved;
+  const utilizedNum = metrics.utilized;
+  const availableNum = metrics.available;
   const overUtilizedAmount =
     approvedNum != null && utilizedNum != null && utilizedNum > approvedNum
       ? utilizedNum - approvedNum
       : availableNum != null && availableNum < 0
         ? Math.abs(availableNum)
         : null;
-  const availableFacilityDisplay =
-    availableNum != null
-      ? Math.max(0, availableNum)
-      : approvedNum != null && utilizedNum != null
-        ? Math.max(0, approvedNum - utilizedNum)
-        : null;
-  const utilisationPct =
-    approvedNum != null && utilizedNum != null && approvedNum > 0
-      ? Math.round((utilizedNum / approvedNum) * 100)
-      : 0;
-
-  const facilityFeeCapNum =
-    row?.facilityFeeCapAmount != null ? Number(row.facilityFeeCapAmount) : null;
-  const facilityFeePaidNum =
-    row?.facilityFeePaidAmount != null ? Number(row.facilityFeePaidAmount) : null;
 
   const contractPeriod =
     row?.contractStartDate && row?.contractEndDate
@@ -172,8 +165,9 @@ function ContractDetailsPageContent() {
         ? formatDate(row.contractStartDate ?? row.contractEndDate)
         : EM_DASH;
 
-  const productLabel =
-    row?.productName?.trim() ? displayCell(row.productName) : "Facility financing";
+  const productLabel = row?.productName?.trim()
+    ? displayCell(row.productName)
+    : catalogProductName ?? "Facility financing";
 
   const shellClass = cn(
     issuerMainContentClassName,
@@ -239,6 +233,22 @@ function ContractDetailsPageContent() {
   const offerActionCta = getIssuerOfferActionCtaFromOfferDetails(modalContract.offer_details, {
     scope: "contract",
   });
+  const facilityGate = resolveIssuerFacilityGate({
+    contractDetails: modalContract.contract_details,
+    facilityEnabled: row.facilityEnabled,
+    facilityDisabledReason: row.facilityDisabledReason,
+    contractStatus: row.contractStatus,
+  });
+  const feeBalance =
+    row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null
+      ? resolveIssuerFacilityFeeBalance({
+          contractDetails: modalContract.contract_details,
+          approvedFacilityAmount: row.approvedFacilityAmount,
+          facilityFeeCapAmount: row.facilityFeeCapAmount,
+          facilityFeePaidAmount: row.facilityFeePaidAmount,
+          facilityFeeWaived: row.facilityFeeWaived,
+        })
+      : null;
 
   const contractNumber = contractBusinessNumber(row.contractForModal);
   const cashSoukReference = formatContractReference({
@@ -253,10 +263,7 @@ function ContractDetailsPageContent() {
       <DetailHeader
         breadcrumb={
           <nav className="flex flex-wrap items-center gap-1.5">
-            <Link
-              href="/financing?tab=contracts"
-              className="hover:text-foreground hover:underline"
-            >
+            <Link href="/financing?tab=contracts" className="hover:text-foreground hover:underline">
               Financing
             </Link>
             <span aria-hidden>›</span>
@@ -277,9 +284,20 @@ function ContractDetailsPageContent() {
         actions={
           <>
             {row.contractStatus === "APPROVED" ? (
-              <Button className="rounded-xl" asChild>
-                <Link href={financeInvoiceApplicationHref(contractId)}>Finance an invoice</Link>
-              </Button>
+              facilityGate.canStartDrawdown ? (
+                <Button className="rounded-xl" asChild>
+                  <Link href={financeInvoiceApplicationHref(contractId)}>Finance an invoice</Link>
+                </Button>
+              ) : (
+                <Button
+                  className="rounded-xl"
+                  disabled
+                  aria-disabled
+                  aria-describedby="facility-disabled-reason"
+                >
+                  Finance an invoice
+                </Button>
+              )
             ) : null}
             {showReviewOffer ? (
               <div className="rounded-xl bg-status-action-bg p-0.5">
@@ -300,71 +318,38 @@ function ContractDetailsPageContent() {
           <CardTitle className="text-xl sm:text-2xl">Facility overview</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <MetricCell
-              label="Utilised"
-              value={formatMoney(row.utilizedFacilityAmount)}
-            />
-            <MetricCell
-              label="Approved"
-              value={formatMoney(row.approvedFacilityAmount)}
-            />
-            <MetricCell
-              label="Available"
-              value={
-                availableFacilityDisplay != null
-                  ? formatMoney(availableFacilityDisplay)
-                  : EM_DASH
-              }
-            />
-            <MetricCell label="Utilisation" value={`${utilisationPct}%`} />
-          </div>
           {overUtilizedAmount != null && overUtilizedAmount > 0 ? (
-            <p className="text-xs font-medium leading-5 text-muted-foreground">
+            <p className="text-meta font-medium leading-5 text-muted-foreground">
               Facility usage exceeds the approved limit. Please contact support.
             </p>
           ) : null}
-          <div>
-            <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-              <span>Facility usage</span>
-              <span>{utilisationPct}%</span>
+          {facilityGate.enabled === false ? (
+            <div id="facility-disabled-reason">
+              <FacilityDisabledBanner reason={facilityGate.disabledReason} />
             </div>
-            <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 shadow-sm dark:bg-muted">
-              <div
-                className="h-3 rounded-full bg-foreground"
-                style={{ width: `${Math.min(100, Math.max(0, utilisationPct))}%` }}
-              />
-            </div>
-          </div>
+          ) : null}
+          <FacilityDualLimitSummaries metrics={metrics} />
           <KeyValueGrid
             columns={2}
             items={[
               { label: "CashSouk Reference", value: displayCell(cashSoukReference) },
               { label: "Contract number", value: displayCell(contractNumber) },
-              { label: "Product", value: productLabel },
+              {
+                label: "Product",
+                value: (
+                  <ProductCatalogName
+                    name={productLabel}
+                    imageS3Key={productImageS3Key}
+                    empty={EM_DASH}
+                    size="xs"
+                  />
+                ),
+              },
               { label: "Customer", value: displayCell(row.customerName) },
               { label: "Contract period", value: contractPeriod },
-              {
-                label: "Facility fee collected",
-                value:
-                  row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null
-                    ? `${facilityFeePaidNum != null ? formatMoney(facilityFeePaidNum) : EM_DASH} / ${
-                        facilityFeeCapNum != null ? formatMoney(facilityFeeCapNum) : EM_DASH
-                      } cap`
-                    : EM_DASH,
-                tabular: true,
-              },
             ]}
           />
-          {row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null ? (
-            <p className="flex items-start gap-1.5 text-sm leading-6 text-muted-foreground">
-              <InformationCircleIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>
-                Facility fee is deducted from each invoice financing disbursement until the cap is
-                reached.
-              </span>
-            </p>
-          ) : null}
+          {feeBalance ? <FacilityFeeBalanceSummary balance={feeBalance} /> : null}
         </CardContent>
       </Card>
 
@@ -423,9 +408,11 @@ function ContractDetailsPageContent() {
                   title="No invoices yet"
                   message="Invoices financed under this facility will appear here."
                   action={
-                    row.contractStatus === "APPROVED" ? (
+                    facilityGate.canStartDrawdown ? (
                       <Button className="rounded-xl" asChild>
-                        <Link href={financeInvoiceApplicationHref(contractId)}>Finance an invoice</Link>
+                        <Link href={financeInvoiceApplicationHref(contractId)}>
+                          Finance an invoice
+                        </Link>
                       </Button>
                     ) : undefined
                   }
@@ -454,6 +441,9 @@ function ContractDetailsPageContent() {
                       key={inv.id}
                       row={inv}
                       offerStatus={getOfferStatus(asInvoiceForModal(inv.invoiceForModal))}
+                      facilityDisplayReference={row.displayReference}
+                      productName={catalogProductName ?? row.productName}
+                      productImageS3Key={productImageS3Key}
                       contractFeeContext={{
                         facilityFeeRatePercent: (
                           modalContract.contract_details as Record<string, unknown> | null
@@ -500,19 +490,10 @@ export default function ContractDetailsPage() {
   );
 }
 
-function MetricCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-xl font-semibold tabular-nums text-foreground">{value}</div>
-    </div>
-  );
-}
-
 function MetricBox({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border bg-background px-3 py-2.5 shadow-none">
-      <p className="text-xs font-medium leading-5 text-muted-foreground">{label}</p>
+      <p className="text-meta font-medium leading-5 text-muted-foreground">{label}</p>
       <p className="text-base font-semibold tabular-nums leading-7 text-foreground">{value}</p>
     </div>
   );

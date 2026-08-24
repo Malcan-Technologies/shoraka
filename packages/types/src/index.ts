@@ -352,6 +352,11 @@ export interface ContractDetails {
   available_facility: number | null;
   pending_facility?: number | null;
   repaid_facility?: number | null;
+  lifetime_cap?: number | null;
+  lifetime_used?: number | null;
+  lifetime_remaining?: number | null;
+  /** Set when persist/refresh/recompute writes a completed dual-ledger snapshot. */
+  capacity_snapshot_version?: number;
   document?: {
     s3_key: string;
     file_name: string;
@@ -421,6 +426,12 @@ export interface Invoice {
   status: InvoiceStatus;
   details: InvoiceDetails;
   offer_details?: InvoiceOfferDetails | null;
+  /**
+   * Facility fee currently available to reserve on this invoice's offer.
+   * Gross remaining minus still-collectible sibling v1 reservations; this invoice is excluded so resend can replace its own reservation.
+   * Computed by the API; not persisted.
+   */
+  facilityFeeAvailableToReserve?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -475,6 +486,9 @@ export * from "./onboarding-readiness";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
 export * from "./notes";
+export * from "./fee-schedule";
+export * from "./facility-fee-reservation";
+export * from "./product-icon";
 export * from "./investor-balance-activity";
 export * from "./display-reference";
 export * from "./prospectus-review";
@@ -495,6 +509,8 @@ export * from "./guarantor-agreement-config";
 export * from "./offer-acceptance";
 export * from "./contract-facility-lo";
 export * from "./origination-phase";
+export * from "./split-origination";
+export * from "./capacity-snapshot";
 export * from "./offer-phase-deadline-display";
 export * from "./guarantors";
 export * from "./company-name-normalization";

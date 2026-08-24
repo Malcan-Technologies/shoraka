@@ -1,10 +1,87 @@
 import type { SoukscoreRiskRating } from "./invoice-offer-risk-rating";
+import type { FacilityFeeCollectionWaiver, InvoiceFeeSchedule } from "./fee-schedule";
 
 /** Display label for a stored note reference (e.g. NOTE-20260512-ABC → Note 20260512-ABC). */
 export function formatNoteReferenceDisplay(reference: string | null | undefined): string {
   const trimmed = (reference ?? "").trim();
   if (!trimmed) return "";
   return trimmed.startsWith("NOTE-") ? `Note ${trimmed.slice("NOTE-".length)}` : trimmed;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function trimmedText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/** Frozen `notes.purpose_snapshot.financing_for` — investor-visible purpose of financing. */
+export function resolvePurposeOfFinancing(purposeSnapshot: unknown): string | null {
+  return trimmedText(asRecord(purposeSnapshot)?.financing_for);
+}
+
+/** Frozen `notes.contract_snapshot.contract_details.description`. */
+export function resolveContractPurpose(contractSnapshot: unknown): string | null {
+  const contract = asRecord(contractSnapshot);
+  return (
+    trimmedText(asRecord(contract?.contract_details)?.description) ??
+    trimmedText(contract?.description)
+  );
+}
+
+/** Frozen `notes.contract_snapshot.contract_details.title`. */
+export function resolveContractTitle(contractSnapshot: unknown): string | null {
+  const contract = asRecord(contractSnapshot);
+  return (
+    trimmedText(asRecord(contract?.contract_details)?.title) ?? trimmedText(contract?.title)
+  );
+}
+
+/** Marketplace list/detail projection: hide issuer identity and prefer purpose as the title. */
+export function toMarketplacePublicNote<
+  T extends Pick<NoteListItem, "issuerName" | "title" | "noteReference"> & {
+    purposeOfFinancing?: string | null;
+  },
+>(note: T): T {
+  const purpose = trimmedText(note.purposeOfFinancing);
+  return {
+    ...note,
+    issuerName: null,
+    title: purpose || formatNoteReferenceDisplay(note.noteReference) || note.title,
+    purposeOfFinancing: purpose,
+  };
+}
+
+export type NoteHeaderPurposeRow = {
+  label: string;
+  value: string;
+};
+
+/**
+ * Note hero rows shared by admin and issuer: contract work description plus
+ * invoice financing purpose (`purpose_snapshot.financing_for`).
+ */
+export function getNoteHeaderPurposeRows(note: {
+  purposeSnapshot?: unknown;
+  contractSnapshot?: unknown;
+  purposeOfFinancing?: string | null;
+}): NoteHeaderPurposeRow[] {
+  const contractPurpose = resolveContractPurpose(note.contractSnapshot);
+  const invoicePurpose =
+    trimmedText(note.purposeOfFinancing) || resolvePurposeOfFinancing(note.purposeSnapshot);
+  const rows: NoteHeaderPurposeRow[] = [];
+  if (contractPurpose) {
+    rows.push({ label: "Purpose of contract", value: contractPurpose });
+  }
+  if (invoicePurpose) {
+    rows.push({ label: "Purpose of invoice", value: invoicePurpose });
+  }
+  return rows;
 }
 
 export enum NoteStatus {
@@ -215,6 +292,16 @@ export interface NoteListItem extends NoteMoneySummary {
   productCategory: string | null;
   /** Display name from product workflow / snapshot; preferred for marketplace card title. */
   productName: string | null;
+  /** Catalog image S3 key from the financing-type step (`products/…`). */
+  productImageS3Key?: string | null;
+  /** Presigned catalog image URL; set on public marketplace payloads. */
+  productImageUrl?: string | null;
+  /** Frozen `purpose_snapshot.financing_for`. Marketplace headline; issuer name stays hidden. */
+  purposeOfFinancing?: string | null;
+  /** Frozen `contract_snapshot.contract_details.title`. */
+  contractTitle?: string | null;
+  /** Frozen `contract_snapshot.contract_details.description` — purpose of contract. */
+  purposeOfContract?: string | null;
   issuerIndustry: string | null;
   sourceApplicationId: string;
   sourceContractId: string | null;
@@ -270,6 +357,8 @@ export interface NoteDetail extends NoteListItem {
   paymasterSnapshot: Record<string, unknown> | null;
   contractSnapshot: Record<string, unknown> | null;
   invoiceSnapshot: Record<string, unknown> | null;
+  feeSchedule?: InvoiceFeeSchedule | null;
+  facilityFeeCollectionWaiver?: FacilityFeeCollectionWaiver | null;
   serviceFeeCustomerScope: string | null;
   gracePeriodDays: number;
   arrearsThresholdDays: number;
@@ -772,6 +861,14 @@ export interface WithdrawalInstruction {
   facilityFeeRemainingAfter?: number;
   /** Present only for some issuer disbursement withdrawals (contract financing). */
   netIssuerDisbursement?: number;
+  additionalFees?: Array<{
+    name: string;
+    kind: "amount" | "percent_of_funded";
+    value: number;
+    chargedAmount: number;
+  }>;
+  facilityFeeCollectionWaived?: boolean;
+  contractFacilityFeeWaived?: boolean;
   currency: string;
   beneficiarySnapshot: Record<string, unknown>;
   letterS3Key: string | null;

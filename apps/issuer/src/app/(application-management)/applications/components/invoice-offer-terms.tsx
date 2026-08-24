@@ -14,16 +14,40 @@ import type { InvoiceFeeDisplay } from "@/lib/facility-fee-display";
 import { buildInvoiceOfferMoneyRows } from "./invoice-offer-money-rows";
 
 export const INVOICE_OFFER_PLATFORM_FEE_TOOLTIP =
-  "Deducted from disbursement when funding closes, applied as a percentage of the funded amount.";
+  "Deducted from disbursement when funding closes, as a percentage of the funded amount. The amount shown is estimated from the offered amount; the final fee uses actual funded.";
 
 export const INVOICE_OFFER_PROFIT_RATE_TOOLTIP =
   "Profit per annum (%). Deducted during settlement when calculating the residual refund to the issuer.";
 
-export const INVOICE_OFFER_FACILITY_FEE_TOOLTIP =
+export const INVOICE_OFFER_FACILITY_FEE_SCHEDULE_TOOLTIP =
+  "This invoice collects the exact facility-fee amount shown. The facility fee is owed in full when the facility offer is accepted; CashSouk collects it at its discretion.";
+
+export const INVOICE_OFFER_FACILITY_FEE_GRANDFATHER_TOOLTIP =
   "Deducted from disbursement when funding closes. For facility financing, this is collected progressively until the facility fee cap is reached.";
 
 export const INVOICE_OFFER_NET_DISBURSEMENT_TOOLTIP =
-  "Approved financing minus platform fee and facility fee. Final amount is confirmed when funding closes.";
+  "Approved financing minus drawdown fee, facility fee, and any extra fees. Estimated at full funding; the final net uses actual funded.";
+
+export function invoiceOfferFacilityFeeTooltip(feeDisplay: InvoiceFeeDisplay): string {
+  if (feeDisplay.facilityFeeCollectionWaived) {
+    return feeDisplay.waiverReason
+      ? `Facility fee collection for this drawdown has been waived: ${feeDisplay.waiverReason}`
+      : "Facility fee collection for this drawdown has been waived.";
+  }
+  if (feeDisplay.contractFacilityFeeWaived) {
+    return "The facility fee for this facility has been waived.";
+  }
+  if (feeDisplay.mode === "schedule") {
+    if (feeDisplay.facilityFeeFullyCollected && (feeDisplay.facilityFeeAmount ?? 0) === 0) {
+      return `${INVOICE_OFFER_FACILITY_FEE_SCHEDULE_TOOLTIP} No facility fee applies here because none remains to collect.`;
+    }
+    return INVOICE_OFFER_FACILITY_FEE_SCHEDULE_TOOLTIP;
+  }
+  if (feeDisplay.facilityFeeFullyCollected) {
+    return `${INVOICE_OFFER_FACILITY_FEE_GRANDFATHER_TOOLTIP} No facility fee applies here because the cap has already been reached.`;
+  }
+  return INVOICE_OFFER_FACILITY_FEE_GRANDFATHER_TOOLTIP;
+}
 
 function formatMoneyCell(amount: number | null, kind: "base" | "deduction" | "net"): string {
   if (amount == null) return "—";
@@ -114,11 +138,7 @@ export function InvoiceOfferTerms({
                     ) : null}
                     {row.key === "facility" ? (
                       <InfoTooltip
-                        content={
-                          feeDisplay.facilityFeeFullyCollected
-                            ? `${INVOICE_OFFER_FACILITY_FEE_TOOLTIP} No facility fee applies here because the cap has already been reached.`
-                            : INVOICE_OFFER_FACILITY_FEE_TOOLTIP
-                        }
+                        content={invoiceOfferFacilityFeeTooltip(feeDisplay)}
                         iconClassName="h-3.5 w-3.5 shrink-0"
                       />
                     ) : null}

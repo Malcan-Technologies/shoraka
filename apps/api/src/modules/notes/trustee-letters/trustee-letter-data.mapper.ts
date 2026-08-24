@@ -1,6 +1,10 @@
 import type { ResolvedTrusteeConfig } from "./trustee-letter-config.loader";
 import type { RepaymentBorrowerEntry, TrusteeLetterData, TrusteePaymentRow } from "./trustee-letter.types";
-import type { TrusteeAccountDetails } from "@cashsouk/types";
+import {
+  parseFiniteNumber,
+  validateAdditionalFeeLines,
+  type TrusteeAccountDetails,
+} from "@cashsouk/types";
 
 const OPENING_PARAGRAPH =
   "The above matter refers. We hereby authorise you to debit the abovementioned account and remit the sum to the following beneficiaries:";
@@ -50,13 +54,35 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function numberFromMeta(metadata: Record<string, unknown> | null, key: string): number {
   if (!metadata) return 0;
-  const value = metadata[key];
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : 0;
+  return parseFiniteNumber(metadata[key]) ?? 0;
+}
+
+function trusteeFeeRemark(name: string): string {
+  return `${name} to Platform`;
+}
+
+/**
+ * Additional fee rows from withdrawal metadata, in stored order.
+ * Uses shared name validation so blank or invalid lines never become remarks.
+ */
+function additionalFeeRowsFromMetadata(
+  metadata: Record<string, unknown> | null
+): Array<{ name: string; chargedAmount: number }> {
+  if (!metadata) return [];
+  const raw = metadata.additionalFees;
+  if (!Array.isArray(raw)) return [];
+  const rows: Array<{ name: string; chargedAmount: number }> = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const record = item as Record<string, unknown>;
+    const chargedAmount = parseFiniteNumber(record.chargedAmount) ?? 0;
+    if (!(chargedAmount > 0.005)) continue;
+    const validated = validateAdditionalFeeLines([item]);
+    const name = validated.lines[0]?.name;
+    if (!name) continue;
+    rows.push({ name, chargedAmount });
   }
-  return 0;
+  return rows;
 }
 
 function beneficiaryField(snapshot: Record<string, unknown>, key: string): string {
@@ -103,7 +129,7 @@ export function mapDisbursementLetterData(input: {
     rowNo,
     account: operatingAccount,
     amount: platformFee,
-    remarks: "Platform Fee to Platform",
+    remarks: trusteeFeeRemark("Drawdown Fee"),
   });
 
   rowNo = addPaymentRowIfPositive({
@@ -111,8 +137,18 @@ export function mapDisbursementLetterData(input: {
     rowNo,
     account: operatingAccount,
     amount: facilityFee,
-    remarks: "Facility Fee to Platform",
+    remarks: trusteeFeeRemark("Facility Fee"),
   });
+
+  for (const extra of additionalFeeRowsFromMetadata(input.metadata)) {
+    rowNo = addPaymentRowIfPositive({
+      rows,
+      rowNo,
+      account: operatingAccount,
+      amount: extra.chargedAmount,
+      remarks: trusteeFeeRemark(extra.name),
+    });
+  }
 
   const now = input.referenceDate ?? new Date();
   return {

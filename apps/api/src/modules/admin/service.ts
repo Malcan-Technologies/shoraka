@@ -21,6 +21,10 @@ import { sendEmail } from "../../lib/email/ses-client";
 import { adminInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
 import { logger } from "../../lib/logger";
+import {
+  attachFacilityFeeAvailableToReserve,
+  loadFacilityFeeAvailableByInvoiceId,
+} from "../../lib/facility-fee-available-to-reserve";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
 import type {
   GetUsersQuery,
@@ -92,6 +96,7 @@ import {
   workflowShowsAcceptanceReviewSection,
   isAcceptanceHubCompleteFromOffer,
   shouldShowAcceptanceDocumentsReviewSection,
+  isFacilityOnlyNewContract,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
   canManageDirectorShareholder,
@@ -104,6 +109,14 @@ import {
   canRejectApplication,
   canResetReviewToPending,
   resolveOriginationPhase,
+  buildInvoiceFeeScheduleOfferPatch,
+  NOTE_DEFAULT_MINIMUM_FUNDING_PERCENT,
+  offerFeesExceedFundingThresholds,
+  resolveFacilityFeeBalance,
+  resolveInvoiceFeeScheduleWriteMode,
+  isFacilityEnabled,
+  type AdditionalFeeLine,
+  type InvoiceOfferFeeScheduleWriteMode,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { OrganizationRepository } from "../organization/repository";
@@ -131,8 +144,14 @@ export interface AdminLogContext {
   deviceInfo?: string | null;
 }
 import { ProductRepository } from "../products/repository";
-import { resolveRequestedFacility } from "../../lib/contract-facility";
-import { refreshContractFacilityValues } from "../../lib/refresh-contract-facility";
+import {
+  resolveContractValue,
+  resolveRequestedFacility,
+  resolveRequestedInvoiceFinancing,
+} from "../../lib/contract-facility";
+import { assertFacilityBelowContractValue } from "../../lib/contract-capacity-errors";
+import { applyContractCapacityChange } from "../../lib/refresh-contract-facility";
+import { assertFacilityLinkedInvoiceOfferFees } from "../../lib/facility-fee-collect-reservation";
 import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { computeSupportingDocumentsSectionStatus } from "../applications/supporting-documents-section-status";
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
@@ -643,14 +662,6 @@ export class AdminService {
     );
   }
 
-  /**
-   * Recompute revolving occupancy (live utilized, pending, repaid) on contract_details.
-   * approved_facility is non-zero only when contract is APPROVED and issuer accepted the offer.
-   */
-  private async refreshContractFacilityValues(contractId: string): Promise<void> {
-    await refreshContractFacilityValues(contractId);
-  }
-
   private ensureContractOfferActionAllowed(
     application: { contract_id?: string | null; contract?: { status?: string | null } | null }
   ): void {
@@ -842,6 +853,14 @@ export class AdminService {
 
     if (!productId) {
       const fallback = new Set(sectionOrder);
+      if (
+        isFacilityOnlyNewContract({
+          structureType,
+          financingType: application.financing_type,
+        })
+      ) {
+        fallback.delete("invoice_details");
+      }
       return {
         requiredSections: fallback,
         visibleSections: new Set(fallback),
@@ -857,6 +876,14 @@ export class AdminService {
         : await this.productRepository.findById(productId);
     if (!product) {
       const fallback = new Set(sectionOrder);
+      if (
+        isFacilityOnlyNewContract({
+          structureType,
+          financingType: application.financing_type,
+        })
+      ) {
+        fallback.delete("invoice_details");
+      }
       return {
         requiredSections: fallback,
         visibleSections: new Set(fallback),
@@ -878,6 +905,15 @@ export class AdminService {
       }
       if (!AdminService.WORKFLOW_REVIEW_SECTION_KEYS.has(stepKey)) continue;
       requiredSections.add(stepKey as ReviewSection);
+    }
+
+    if (
+      isFacilityOnlyNewContract({
+        structureType,
+        financingType: application.financing_type,
+      })
+    ) {
+      requiredSections.delete("invoice_details");
     }
 
     const visibleSections = new Set(requiredSections);
@@ -5875,6 +5911,11 @@ export class AdminService {
       contractValue: number;
       approvedFacility: number;
       utilizedFacility: number;
+      pendingFacility: number;
+      availableFacility: number;
+      lifetimeCap: number;
+      lifetimeUsed: number;
+      lifetimeRemaining: number;
       status: string;
       updatedAt: Date;
     }[];
@@ -5906,6 +5947,176 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Facility not found");
     }
     return contract;
+  }
+
+  async waiveContractFacilityFee(
+    contractId: string,
+    reason: string,
+    reviewerUserId: string,
+    logContext?: AdminLogContext
+  ) {
+    const now = new Date().toISOString();
+    const waived = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<
+        {
+          status: string;
+          contract_details: Prisma.JsonValue | null;
+          originating_application_id: string | null;
+        }[]
+      >`
+        SELECT status, contract_details, originating_application_id
+        FROM contracts
+        WHERE id = ${contractId}
+        FOR UPDATE
+      `;
+      const contract = locked[0];
+      if (!contract) {
+        throw new AppError(404, "NOT_FOUND", "Facility not found");
+      }
+      const details = (contract.contract_details as Record<string, unknown> | null) ?? {};
+      const balance = resolveFacilityFeeBalance(details);
+      if (balance.waived) {
+        throw new AppError(400, "FACILITY_FEE_ALREADY_WAIVED", "Remaining facility fee is already waived");
+      }
+      if (balance.remaining <= 0) {
+        throw new AppError(400, "NO_FACILITY_FEE_REMAINING", "There is no uncharged facility fee remaining to waive");
+      }
+      const nextDetails = {
+        ...details,
+        facility_fee_waived: true,
+        facility_fee_waived_amount: balance.remaining,
+        facility_fee_waived_at: now,
+        facility_fee_waived_by_user_id: reviewerUserId,
+        facility_fee_waived_reason: reason.trim(),
+      };
+      await tx.contract.update({
+        where: { id: contractId },
+        data: { contract_details: nextDetails as Prisma.InputJsonValue },
+      });
+      return {
+        remainingWaived: balance.remaining,
+        paid: balance.paid,
+        totalOwed: balance.totalOwed,
+        originatingApplicationId: contract.originating_application_id,
+      };
+    });
+
+    await logApplicationActivity({
+      userId: reviewerUserId,
+      applicationId: waived.originatingApplicationId ?? undefined,
+      entityId: contractId,
+      portal: ActivityPortal.ADMIN,
+      eventType: ApplicationLogEventType.CONTRACT_FACILITY_FEE_WAIVED,
+      metadata: {
+        contract_id: contractId,
+        waived_amount: waived.remainingWaived,
+        paid_amount: waived.paid,
+        total_owed: waived.totalOwed,
+        reason: reason.trim(),
+      },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
+    });
+
+    return this.getContractDetail(contractId);
+  }
+
+  async setContractFacilityEnabled(
+    contractId: string,
+    enabled: boolean,
+    reason: string | undefined,
+    reviewerUserId: string,
+    logContext?: AdminLogContext
+  ) {
+    const now = new Date().toISOString();
+    const updated = await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<
+        {
+          status: string;
+          contract_details: Prisma.JsonValue | null;
+          originating_application_id: string | null;
+        }[]
+      >`
+        SELECT status, contract_details, originating_application_id
+        FROM contracts
+        WHERE id = ${contractId}
+        FOR UPDATE
+      `;
+      const contract = locked[0];
+      if (!contract) {
+        throw new AppError(404, "NOT_FOUND", "Facility not found");
+      }
+      const details = (contract.contract_details as Record<string, unknown> | null) ?? {};
+      const currentlyEnabled = isFacilityEnabled(details);
+      if (enabled === currentlyEnabled) {
+        return {
+          originatingApplicationId: contract.originating_application_id,
+          unchanged: true,
+        };
+      }
+      if (!enabled) {
+        const liveNotes = await tx.note.count({
+          where: {
+            source_contract_id: contractId,
+            status: "PUBLISHED",
+            OR: [{ funding_status: "OPEN" }, { listing_status: "PUBLISHED" }],
+          },
+        });
+        if (liveNotes > 0) {
+          throw new AppError(
+            409,
+            "FACILITY_HAS_LIVE_MARKETPLACE_NOTES",
+            "Cannot disable a facility while notes are live on the marketplace"
+          );
+        }
+      }
+      const nextDetails = enabled
+        ? {
+            ...details,
+            facility_enabled: true,
+            facility_disabled_reason: null,
+            facility_disabled_at: null,
+            facility_disabled_by_user_id: null,
+          }
+        : {
+            ...details,
+            facility_enabled: false,
+            facility_disabled_reason: (reason ?? "").trim(),
+            facility_disabled_at: now,
+            facility_disabled_by_user_id: reviewerUserId,
+          };
+      await tx.contract.update({
+        where: { id: contractId },
+        data: { contract_details: nextDetails as Prisma.InputJsonValue },
+      });
+      return {
+        originatingApplicationId: contract.originating_application_id,
+        unchanged: false,
+      };
+    });
+
+    if (!updated.unchanged) {
+      await logApplicationActivity({
+        userId: reviewerUserId,
+        applicationId: updated.originatingApplicationId ?? undefined,
+        entityId: contractId,
+        portal: ActivityPortal.ADMIN,
+        eventType: enabled
+          ? ApplicationLogEventType.CONTRACT_FACILITY_ENABLED
+          : ApplicationLogEventType.CONTRACT_FACILITY_DISABLED,
+        metadata: {
+          contract_id: contractId,
+          enabled,
+          ...(enabled ? {} : { reason: (reason ?? "").trim() }),
+        },
+        ipAddress: logContext?.ipAddress ?? undefined,
+        userAgent: logContext?.userAgent ?? undefined,
+        deviceInfo: logContext?.deviceInfo ?? undefined,
+      });
+    }
+
+    return this.getContractDetail(contractId);
   }
 
   /**
@@ -6157,11 +6368,19 @@ export class AdminService {
       ...invoice,
       displayReference: invoice.display_reference ?? null,
     }));
+    const invoicesWithFacilityFeeAvailable = attachFacilityFeeAvailableToReserve(
+      invoicesWithDisplayReference,
+      await loadFacilityFeeAvailableByInvoiceId(
+        prisma,
+        invoicesWithDisplayReference,
+        applicationWithIssuerExtras.contract_id
+      )
+    );
     const applicationWithDisplayReference = {
       ...applicationWithIssuerExtras,
       displayReference: applicationWithIssuerExtras.display_reference ?? null,
       contract: contractWithDisplayReference,
-      invoices: invoicesWithDisplayReference,
+      invoices: invoicesWithFacilityFeeAvailable,
     };
 
     return {
@@ -7925,6 +8144,12 @@ export class AdminService {
           "Offered facility cannot be greater than requested facility"
         );
       }
+      assertFacilityBelowContractValue({
+        contractValue: resolveContractValue(contractDetails),
+        requestedFacility,
+        approvedFacility: offeredFacility,
+        contractId,
+      });
 
       const previousOffer = (lockedContract.offer_details as Record<string, unknown> | null) ?? null;
       if (stampOfferAcceptance && lockedContract.status !== "OFFER_EXPIRED") {
@@ -8203,7 +8428,12 @@ export class AdminService {
     platformFeeRatePercent: number | null,
     riskRating: SoukscoreRiskRating,
     reviewerUserId: string,
-    logContext?: AdminLogContext
+    logContext?: AdminLogContext,
+    feeSchedule?: {
+      feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode | null;
+      facilityFeeCollectAmount?: number | null;
+      additionalFees?: AdditionalFeeLine[];
+    }
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(
@@ -8250,7 +8480,7 @@ export class AdminService {
     const invoiceDetailsForMaturity = (invoice.details as Record<string, unknown> | null) ?? {};
     assertMaturityForSendInvoiceOffer(workflow, invoiceDetailsForMaturity);
 
-    const invoiceOfferMeta = await prisma.$transaction(async (tx) => {
+    const sendInvoiceOfferInTx = async (tx: Prisma.TransactionClient) => {
       const lockedApplications = await tx.$queryRaw<{ status: string }[]>`
         SELECT status
         FROM applications
@@ -8300,11 +8530,11 @@ export class AdminService {
       if (!Number.isFinite(invoiceValue) || invoiceValue <= 0) {
         throw new AppError(400, "INVALID_STATE", "Invoice value is invalid");
       }
-      if (!Number.isFinite(requestedRatioPercent) || requestedRatioPercent <= 0) {
-        throw new AppError(400, "INVALID_STATE", "Invoice requested financing ratio is invalid");
-      }
 
-      const requestedAmount = (invoiceValue * requestedRatioPercent) / 100;
+      const requestedAmount = resolveRequestedInvoiceFinancing(details);
+      if (!(requestedAmount > 0)) {
+        throw new AppError(400, "INVALID_STATE", "Invoice requested financing is invalid");
+      }
       if (offeredAmount > requestedAmount) {
         throw new AppError(
           400,
@@ -8327,11 +8557,73 @@ export class AdminService {
         throw new AppError(
           422,
           "PLATFORM_FEE_CAP_EXCEEDED",
-          `Platform fee rate cannot exceed ${platformFeeRateCapPercent}%`
+          `Drawdown fee rate cannot exceed ${platformFeeRateCapPercent}%`
         );
       }
 
       const previousOffer = (lockedInvoice.offer_details as Record<string, unknown> | null) ?? null;
+      const writeModeResult = resolveInvoiceFeeScheduleWriteMode({
+        requestedMode: feeSchedule?.feeScheduleMode,
+        previousOfferDetails: previousOffer,
+      });
+      if (!writeModeResult.ok) {
+        throw new AppError(400, writeModeResult.code, writeModeResult.message);
+      }
+      const writeV1Schedule = writeModeResult.mode === "v1";
+      const facilityFeeCollectAmount = writeV1Schedule
+        ? (
+            feeSchedule?.facilityFeeCollectAmount != null &&
+            Number.isFinite(feeSchedule.facilityFeeCollectAmount)
+              ? Math.max(0, Math.round(feeSchedule.facilityFeeCollectAmount * 100) / 100)
+              : 0
+          )
+        : 0;
+      const additionalFees = writeV1Schedule ? (feeSchedule?.additionalFees ?? []) : [];
+      const contractIdForFees = lockedInvoice.contract_id;
+      if (facilityFeeCollectAmount > 0 && !contractIdForFees) {
+        throw new AppError(
+          400,
+          "FACILITY_FEE_REQUIRES_CONTRACT",
+          "Facility fee collection can only be set on a facility-linked invoice"
+        );
+      }
+      if (contractIdForFees) {
+        const feeContract = await tx.contract.findUnique({
+          where: { id: contractIdForFees },
+          select: { contract_details: true },
+        });
+        if (!feeContract) {
+          throw new AppError(404, "NOT_FOUND", "Facility not found");
+        }
+        await assertFacilityLinkedInvoiceOfferFees(tx, {
+          contractId: contractIdForFees,
+          currentInvoiceId: invoiceId,
+          proposedCollectAmount: facilityFeeCollectAmount,
+          contractDetails: feeContract.contract_details,
+        });
+      }
+      const overflow = offerFeesExceedFundingThresholds({
+        offeredAmount,
+        platformFeeRatePercent: platformFeeStored,
+        facilityFeeCollectAmount,
+        additionalFees,
+        minimumFundingPercent: NOTE_DEFAULT_MINIMUM_FUNDING_PERCENT,
+      });
+      if (overflow.exceedsAtFull || overflow.exceedsAtMinimum) {
+        throw new AppError(
+          400,
+          "OFFER_FEES_EXCEED_FUNDED_AMOUNT",
+          overflow.exceedsAtMinimum && !overflow.exceedsAtFull
+            ? `Fees exceed the note amount at the ${NOTE_DEFAULT_MINIMUM_FUNDING_PERCENT}% minimum funding threshold`
+            : "Fees cannot exceed the offered amount at full funding or at the note minimum funding threshold"
+        );
+      }
+      const feeSchedulePatch = writeV1Schedule
+        ? buildInvoiceFeeScheduleOfferPatch({
+            facilityFeeCollectAmount,
+            additionalFees,
+          })
+        : {};
       if (stampOfferAcceptance && lockedInvoice.status !== "OFFER_EXPIRED") {
         this.assertOfferAcceptanceAllowsResend(previousOffer);
       }
@@ -8349,6 +8641,7 @@ export class AdminService {
         offered_profit_rate_percent: offeredProfitRatePercent,
         platform_fee_rate_percent: platformFeeStored,
         risk_rating: riskRating,
+        ...feeSchedulePatch,
         sent_at: now,
         responded_at: null,
         sent_by_user_id: reviewerUserId,
@@ -8405,10 +8698,6 @@ export class AdminService {
         },
       });
 
-      if (application.contract_id) {
-        await refreshContractFacilityValues(application.contract_id, tx);
-      }
-
       await tx.applicationReviewEvent.create({
         data: {
           application_id: applicationId,
@@ -8445,9 +8734,23 @@ export class AdminService {
         requestedAmount,
         previousVersion,
         platformFeeStored,
+        feeScheduleMode: writeModeResult.mode,
+        facilityFeeCollectAmount: writeV1Schedule ? facilityFeeCollectAmount : undefined,
+        additionalFees: writeV1Schedule ? additionalFees : undefined,
         acceptanceExpiresAt,
       };
-    });
+    };
+    const occupancyContractId = invoiceForSend?.contract_id ?? application.contract_id ?? null;
+    const invoiceOfferMeta = occupancyContractId
+      ? (
+          await applyContractCapacityChange(
+            occupancyContractId,
+            prisma,
+            sendInvoiceOfferInTx,
+            { assertWrite: true }
+          )
+        ).result
+      : await prisma.$transaction(sendInvoiceOfferInTx);
 
     await logApplicationActivity({
       userId: reviewerUserId,
@@ -8463,6 +8766,13 @@ export class AdminService {
         offered_ratio_percent: offeredRatioPercent,
         offered_profit_rate_percent: offeredProfitRatePercent,
         platform_fee_rate_percent: invoiceOfferMeta.platformFeeStored,
+        fee_schedule_mode: invoiceOfferMeta.feeScheduleMode,
+        ...(invoiceOfferMeta.feeScheduleMode === "v1"
+          ? {
+              facility_fee_collect_amount: invoiceOfferMeta.facilityFeeCollectAmount,
+              additional_fees: invoiceOfferMeta.additionalFees,
+            }
+          : {}),
         version: invoiceOfferMeta.previousVersion + 1,
         ...(invoiceOfferMeta.acceptanceExpiresAt
           ? { acceptance_expires_at: invoiceOfferMeta.acceptanceExpiresAt }
@@ -8929,22 +9239,24 @@ export class AdminService {
 
     await repository.resetSectionReviewToPending(applicationId, section);
     if (section === "contract_details" && application.contract_id) {
-      const contract = await prisma.contract.findUnique({
-        where: { id: application.contract_id },
-        select: { status: true },
+      const contractId = application.contract_id;
+      await applyContractCapacityChange(contractId, prisma, async (tx) => {
+        const contract = await tx.contract.findUnique({
+          where: { id: contractId },
+          select: { status: true },
+        });
+        const updateData: Prisma.ContractUpdateInput = {
+          status: "SUBMITTED",
+        };
+        didRetractContractOffer = oldStatus === "OFFER_SENT" || contract?.status === "OFFER_SENT";
+        if (didRetractContractOffer) {
+          updateData.offer_details = Prisma.JsonNull;
+        }
+        await tx.contract.update({
+          where: { id: contractId },
+          data: updateData,
+        });
       });
-      const updateData: Prisma.ContractUpdateInput = {
-        status: "SUBMITTED",
-      };
-      didRetractContractOffer = oldStatus === "OFFER_SENT" || contract?.status === "OFFER_SENT";
-      if (didRetractContractOffer) {
-        updateData.offer_details = Prisma.JsonNull;
-      }
-      await prisma.contract.update({
-        where: { id: application.contract_id },
-        data: updateData,
-      });
-      await this.refreshContractFacilityValues(application.contract_id);
     }
     if (didRetractContractOffer && section === "contract_details") {
       const contractReference = this.getContractReference(
@@ -9077,24 +9389,35 @@ export class AdminService {
         itemId
       );
       if (invoiceId) {
-        const currentInvoice = await prisma.invoice.findUnique({
-          where: { id: invoiceId, application_id: applicationId },
-          select: { status: true },
-        });
-        const updateData: Prisma.InvoiceUpdateInput = {
-          status: "SUBMITTED",
+        const persistRetract = async (tx: Prisma.TransactionClient) => {
+          const currentInvoice = await tx.invoice.findUnique({
+            where: { id: invoiceId, application_id: applicationId },
+            select: { status: true },
+          });
+          const updateData: Prisma.InvoiceUpdateInput = {
+            status: "SUBMITTED",
+          };
+          didRetractInvoiceOffer = oldStatus === "OFFER_SENT" || currentInvoice?.status === "OFFER_SENT";
+          if (didRetractInvoiceOffer) {
+            updateData.offer_details = Prisma.JsonNull;
+          }
+          await tx.invoice.update({
+            where: { id: invoiceId, application_id: applicationId },
+            data: updateData,
+          });
         };
-        didRetractInvoiceOffer = oldStatus === "OFFER_SENT" || currentInvoice?.status === "OFFER_SENT";
-        if (didRetractInvoiceOffer) {
-          updateData.offer_details = Prisma.JsonNull;
+        const invoiceForRetract = (
+          application.invoices as Array<{ id: string; contract_id?: string | null }> | undefined
+        )?.find((inv) => inv.id === invoiceId);
+        const occupancyContractId =
+          invoiceForRetract?.contract_id ?? application.contract_id ?? null;
+        if (occupancyContractId) {
+          await applyContractCapacityChange(occupancyContractId, prisma, persistRetract, {
+            assertWrite: false,
+          });
+        } else {
+          await prisma.$transaction(persistRetract);
         }
-        await prisma.invoice.update({
-          where: { id: invoiceId, application_id: applicationId },
-          data: updateData,
-        });
-      }
-      if (application.contract_id) {
-        await this.refreshContractFacilityValues(application.contract_id);
       }
     }
     if (didRetractInvoiceOffer && itemType === "invoice") {
@@ -9683,14 +10006,18 @@ export class AdminService {
         application as { invoices?: { id: string; details?: { number?: string | number } }[] },
         itemId
       );
-      if (invoiceId) {
-        await prisma.invoice.update({
-          where: { id: invoiceId, application_id: applicationId },
-          data: { status: "REJECTED" },
-        });
-      }
+      const persistReject = async (tx: Prisma.TransactionClient) => {
+        if (invoiceId) {
+          await tx.invoice.update({
+            where: { id: invoiceId, application_id: applicationId },
+            data: { status: "REJECTED" },
+          });
+        }
+      };
       if (application.contract_id) {
-        await this.refreshContractFacilityValues(application.contract_id);
+        await applyContractCapacityChange(application.contract_id, prisma, persistReject);
+      } else {
+        await prisma.$transaction(persistReject);
       }
     }
 
@@ -9824,14 +10151,18 @@ export class AdminService {
         application as { invoices?: { id: string; details?: { number?: string | number } }[] },
         itemId
       );
-      if (invoiceId) {
-        await prisma.invoice.update({
-          where: { id: invoiceId, application_id: applicationId },
-          data: { status: "AMENDMENT_REQUESTED" },
-        });
-      }
+      const persistAmendment = async (tx: Prisma.TransactionClient) => {
+        if (invoiceId) {
+          await tx.invoice.update({
+            where: { id: invoiceId, application_id: applicationId },
+            data: { status: "AMENDMENT_REQUESTED" },
+          });
+        }
+      };
       if (application.contract_id) {
-        await this.refreshContractFacilityValues(application.contract_id);
+        await applyContractCapacityChange(application.contract_id, prisma, persistAmendment);
+      } else {
+        await prisma.$transaction(persistAmendment);
       }
     }
 
@@ -10021,14 +10352,18 @@ export class AdminService {
           application as { invoices?: { id: string; details?: { number?: string | number } }[] },
           itemId
         );
-        if (invoiceId) {
-          await prisma.invoice.update({
-            where: { id: invoiceId, application_id: applicationId },
-            data: { status: "AMENDMENT_REQUESTED" },
-          });
-        }
+        const persistAmendment = async (tx: Prisma.TransactionClient) => {
+          if (invoiceId) {
+            await tx.invoice.update({
+              where: { id: invoiceId, application_id: applicationId },
+              data: { status: "AMENDMENT_REQUESTED" },
+            });
+          }
+        };
         if (application.contract_id) {
-          await this.refreshContractFacilityValues(application.contract_id);
+          await applyContractCapacityChange(application.contract_id, prisma, persistAmendment);
+        } else {
+          await prisma.$transaction(persistAmendment);
         }
       }
     }
@@ -10209,14 +10544,18 @@ export class AdminService {
             )
           : null;
         if (invoiceId) {
-          await prisma.invoice.update({
-            where: { id: invoiceId, application_id: applicationId },
-            data: { status: "SUBMITTED" },
-          });
-          await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
+          const persistReset = async (tx: Prisma.TransactionClient) => {
+            await tx.invoice.update({
+              where: { id: invoiceId, application_id: applicationId },
+              data: { status: "SUBMITTED" },
+            });
+          };
           if (application?.contract_id) {
-            await this.refreshContractFacilityValues(application.contract_id);
+            await applyContractCapacityChange(application.contract_id, prisma, persistReset);
+          } else {
+            await prisma.$transaction(persistReset);
           }
+          await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
         }
       }
     }

@@ -1,4 +1,4 @@
-import type { Contract, Invoice } from "@cashsouk/types";
+import type { AdditionalFeeCharge, Contract, Invoice } from "@cashsouk/types";
 
 export type IssuerDashboardNote = {
   id: string;
@@ -21,6 +21,8 @@ export type IssuerDashboardNote = {
     platformFeeAmount: string | null;
     facilityFeeCharged: string | null;
     netIssuerDisbursement: string | null;
+    additionalFees?: AdditionalFeeCharge[] | null;
+    facilityFeeCollectionWaived?: boolean;
   } | null;
 };
 
@@ -29,6 +31,7 @@ export type IssuerDashboardInvoice = {
   displayReference: string | null;
   applicationId: string;
   productId: string;
+  productName: string | null;
   contractId: string | null;
   invoiceForModal: unknown;
   invoiceStatus: string;
@@ -58,9 +61,16 @@ export type IssuerDashboardContract = {
   availableFacilityAmount: string | null;
   pendingFacilityAmount?: string | null;
   repaidFacilityAmount?: string | null;
+  lifetimeCapAmount?: string | null;
+  lifetimeUsedAmount?: string | null;
+  lifetimeRemainingAmount?: string | null;
+  contractValueAmount?: string | null;
   facilityFeeCapAmount: string | null;
   facilityFeePaidAmount: string | null;
   facilityFeeRemainingAmount: string | null;
+  facilityFeeWaived?: boolean;
+  facilityEnabled?: boolean;
+  facilityDisabledReason?: string | null;
   activeNotesCount: number;
   contractStatus: string;
   /** Application IDs in AMENDMENT_REQUESTED that share this contract. Invoice-only changes do not hide an approved facility. */
