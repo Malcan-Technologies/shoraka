@@ -66,10 +66,14 @@ Priority numbers increase from earliest → latest lifecycle step.
 15. `SERVICE_FEE_TRUSTEE_LETTER_GENERATED`
 16. `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED`
 17. `SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED`
-18. `ISSUER_RESIDUAL_WITHDRAWAL_CREATED`
-19. `ARREARS_LETTER_GENERATED`
-20. `DEFAULT_LETTER_GENERATED`
-21. `NOTE_DEFAULT_MARKED`
+18. `ARREARS_LETTER_GENERATED`
+19. `DEFAULT_LETTER_GENERATED`
+20. `NOTE_DEFAULT_MARKED`
+
+**Cleanup (2026-08-25):** `ISSUER_RESIDUAL_WITHDRAWAL_CREATED` was removed from this list — it had
+zero production writers anywhere in `apps/api/src` (confirmed dead; see
+`docs/audit/audit-product-gap-review.md` §6). It was never looked up by
+`sortAdminNoteEvents`, so removing it does not change the sort order of any real note event.
 
 Unknown event types use `UNKNOWN_EVENT_PRIORITY = 999`.
 

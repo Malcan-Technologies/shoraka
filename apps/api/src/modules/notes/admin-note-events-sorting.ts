@@ -36,8 +36,6 @@ const ADMIN_NOTE_EVENT_LIFECYCLE_PRIORITY: Record<string, number> = Object.freez
     "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
     "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED",
     "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED",
-    // Residual / refund withdrawal creation (actual backend event type)
-    "ISSUER_RESIDUAL_WITHDRAWAL_CREATED",
     // Residual/refund letters reuse the normal WITHDRAWAL_* events above.
     "ARREARS_LETTER_GENERATED",
     "DEFAULT_LETTER_GENERATED",

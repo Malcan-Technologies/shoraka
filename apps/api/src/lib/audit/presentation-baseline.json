@@ -30,7 +30,7 @@
     "apps/api/src/modules/notes/mapper.ts": "22619464d98720617840dbc8b26f5e9530f8d1ef965cf88792b8bb76bf3ac398",
     "apps/api/src/modules/notes/investor-balance-activity.ts": "acc0b9ce1f40ebd00c8319ed07381d1af1dc6d331d3bbfb8377662260f8a34e0",
     "apps/api/src/modules/notes/investor-balance-statement.ts": "6edff829eb960262ca4a3fdaa3205dfa0cb2badc857f05cc557f14960cb5aabd",
-    "apps/api/src/modules/notes/admin-note-events-sorting.ts": "e001f75926730fe864fe143fe8404d898fd1e1b256e9c4c0ce79df6c728913a9",
+    "apps/api/src/modules/notes/admin-note-events-sorting.ts": "9ee136926a809f1fc2e4166c6de82192c25fca05a26fd452ac28b56d420496d4",
     "apps/api/src/modules/applications/revision-snapshot.ts": "f626a1366e6131783f15f68e18b6f22aee7f57dd45def6d68b2ce898b600c85d",
     "apps/api/src/modules/application-revision-diff/index.ts": "30c7ef8c783076ac505d9e2358748f5dbba007a1d647a17f3ffb2f313f0be2b2",
     "apps/api/src/modules/signing/mapper.ts": "733eadfb4a747922b5fdb4e5a5e9d01dc6fe6bf1f2526f24ce0cec00c3e13df9",
