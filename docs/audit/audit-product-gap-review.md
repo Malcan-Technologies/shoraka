@@ -101,12 +101,28 @@ Confirmed via exhaustive `sendTyped`/`sendTypedPlatformOnly` call-site search ac
 | Admin approves onboarding submission (pre-AML gate) | `ONBOARDING_APPROVED` logged, no notification | PRODUCT_DECISION_REQUIRED |
 | ~~Admin approves AML screening~~ Live AML clearance (automatic, provider-driven) | ~~`AML_APPROVED` logged, no notification~~ **CORRECTED (2026-08-24):** `AML_APPROVED` is **UNREACHABLE** — it is never actually written (see §5, §6 item 2, and `audit-event-surface-matrix.md` §2.3). The real, live AML milestone is `ONBOARDING_STATUS_UPDATED` + `metadata.amlApproved:true`, written automatically from RegTank results; it has no notification either | PRODUCT_DECISION_REQUIRED |
 | Admin approves SSM/CTOS verification | `SSM_APPROVED` logged, no notification | PRODUCT_DECISION_REQUIRED |
-| Application submitted (issuer's own confirmation) | `APPLICATION_SUBMITTED` logged, no confirmation notification | PRODUCT_DECISION_REQUIRED |
+| Application submitted (issuer's own confirmation) | `APPLICATION_SUBMITTED` logged + `application_submitted_confirmation` (2026-08-25) | **RESOLVED** — persistent org-admin inbox confirmation; session toast already existed for the submitter |
 | Issuer full repayment / note payoff to issuer per-payment | Only `note_repaid_issuer` on full payoff; no partial-payment notice to issuer — **asymmetric with the investor side**, which already gets `note_payment_received` per payment | LIKELY_MISSING_NOTIFICATION |
-| Gateway refund outcomes (`REFUND_INITIATED`/`REFUNDED`) | No notification type exists — the depositor is never told their deposit was refunded | LIKELY_MISSING_NOTIFICATION |
-| Gateway deposit name-check outcomes (`NAME_CHECK`/`_APPROVED`/`_REJECTED`) | No notification type exists — the depositor is never told their deposit is held pending manual review | NEEDS_POLICY_CONFIRMATION (could be intentionally silent while admin resolves, to avoid alarming the user pre-resolution; could also be a real gap) |
+| Gateway refund outcomes (`REFUND_INITIATED`/`REFUNDED`) | `deposit_refund_initiated` / `deposit_refunded` (2026-08-25), `INVESTOR_DEPOSIT` only | **RESOLVED** for investor deposits. Onboarding-fee / processing-fee refunds stay silent. |
+| Gateway deposit name-check outcomes (`NAME_CHECK`/`_APPROVED`/`_REJECTED`) | `deposit_name_check_rejected` (2026-08-25) on reject. `NAME_CHECK` (held pending) and `NAME_CHECK_APPROVED` stay silent | **RESOLVED** for rejection. Pending/approved remain `NEEDS_POLICY_CONFIRMATION` (avoid alarming the user pre-resolution) |
 
-**Reclassified 2026-08-24** using the requested policy taxonomy (`INTENTIONAL_SILENT` / `PRODUCT_DECISION_REQUIRED` / `LIKELY_MISSING_NOTIFICATION` / `INTENTIONAL_RECIPIENT_SCOPE` / `NEEDS_POLICY_CONFIRMATION`), documentation only — **no notifications were added**. The four intermediate-admin-gate rows (`ONBOARDING_APPROVED`, the live AML milestone, `SSM_APPROVED`, `APPLICATION_SUBMITTED`) all precede a later, larger milestone that *is* notified (e.g., AML clearance precedes final activation, which is notified) — this is a consistent, repeated pattern in the code, but there is no source comment or product record confirming it was a deliberate silence decision rather than an oversight, so `PRODUCT_DECISION_REQUIRED` (not `INTENTIONAL_SILENT`) is the honest classification until product confirms. The partial-repayment and refund gaps are asymmetric with an already-notified counterpart action, which is why they're classified as more likely genuine gaps rather than open questions.
+**Reclassified 2026-08-24** using the requested policy taxonomy (`INTENTIONAL_SILENT` / `PRODUCT_DECISION_REQUIRED` / `LIKELY_MISSING_NOTIFICATION` / `INTENTIONAL_RECIPIENT_SCOPE` / `NEEDS_POLICY_CONFIRMATION`), documentation only — **no notifications were added** in that pass. **2026-08-25 coverage pass** then implemented notifications for `APPLICATION_SUBMITTED`, `PAYMENT_REJECTED`, `WITHDRAWAL_COMPLETED` (issuer disbursement only), `NAME_CHECK_REJECTED`, `REFUND_INITIATED`, `REFUNDED`, plus signing-deadline-extended and `CONTRACT_FACILITY_DISABLED`. Remaining intermediate-admin-gate rows (`ONBOARDING_APPROVED`, live AML, `SSM_APPROVED`) stay `PRODUCT_DECISION_REQUIRED`. Issuer partial-repayment notice is still `LIKELY_MISSING_NOTIFICATION`.
+
+### 3.2a Investigated-only (2026-08-25 coverage pass — not implemented)
+
+| Event | Affected user | Recommendation | Why |
+|---|---|---|---|
+| `CONTRACT_FACILITY_ENABLED` | Issuer owner + admins | OPTIONAL | Re-enable is recovery of access; disable is the blocking event and now notifies. Re-enable can wait for a later product pass. |
+| `CONTRACT_FACILITY_FEE_WAIVED` | Issuer owner + admins | KEEP_SILENT | Internal commercial concession; no user action required. |
+| `INVOICE_WITHDRAWN` | Issuer owner + admins | OPTIONAL | Issuer already performed the withdraw; a confirmation would match `application_withdrawn_confirmation` but is not a money/deadline/access change. |
+| `SIGNING_PACKAGE_VOIDED` | Issuer / signers | OPTIONAL | Signers already get the DocuSign decline/void email; a platform copy would duplicate that channel unless product wants an inbox trail. |
+| `ONBOARDING_CANCELLED` | Applicant | KEEP_SILENT | Admin restart/cancel is an operational reset; current copy already describes a restart, not a user-facing rejection. |
+| `SOPHISTICATED_STATUS_UPDATED` | Investor | OPTIONAL | Status change can affect investability; no existing neighboring investor-status notification pattern to copy without a product decision. |
+| `UNPUBLISH` | Issuer | OPTIONAL | Admin pulled the listing entirely; pause/resume are more frequent operational toggles. |
+| `PAUSE_LISTING` / `RESUME_LISTING` | Issuer | KEEP_SILENT for pause/resume pair | Temporary marketplace visibility; no money moved. Pause without resume would be noisy. |
+| `ISSUER_PAYMENT_SUBMITTED` | Issuer | KEEP_SILENT | The issuer just submitted it; they already have the form success. Admin review outcome (`PAYMENT_REJECTED` / `note_payment_received`) is the user-facing result. |
+| `LATE_CHARGE_APPROVED` | Issuer | OPTIONAL | Fee applied; could match arrears-domain convention, but `note_arrears` already covers the servicing-state change. |
+| Successful deposit / balance credit | Investor | OPTIONAL | No dedicated success audit event exists (explicit non-goal: no new gateway success event). Crediting is visible in transactions; adding a notification would invent a new trigger. |
 
 ### 3.3 Recipient-scope inconsistency (not wrong, but worth knowing)
 

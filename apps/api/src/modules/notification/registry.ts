@@ -31,6 +31,10 @@ export const NotificationTypeIds = {
   APPLICATION_RESUBMITTED_CONFIRMATION: "application_resubmitted_confirmation",
   APPLICATION_WITHDRAWN_CONFIRMATION: "application_withdrawn_confirmation",
   APPLICATION_COMPLETED: "application_completed",
+  APPLICATION_SUBMITTED_CONFIRMATION: "application_submitted_confirmation",
+  CONTRACT_SIGNING_DEADLINE_EXTENDED: "contract_signing_deadline_extended",
+  INVOICE_SIGNING_DEADLINE_EXTENDED: "invoice_signing_deadline_extended",
+  FACILITY_DISABLED: "facility_disabled",
 
   /** Issuer: CTOS or admin requests onboarding action for a director/shareholder party. */
   DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: "director_shareholder_action_required",
@@ -52,11 +56,17 @@ export const NotificationTypeIds = {
   NOTE_DEFAULTED: "note_defaulted",
   NOTE_DEFAULTED_INVESTOR: "note_defaulted_investor",
   WITHDRAWAL_SUBMITTED_TO_TRUSTEE: "withdrawal_submitted_to_trustee",
+  NOTE_PAYMENT_REJECTED: "note_payment_rejected",
+  WITHDRAWAL_COMPLETED: "withdrawal_completed",
 
   FACILITY_FEE_PAYMENT_REQUESTED: "facility_fee_payment_requested",
   FACILITY_FEE_UPFRONT_PAID: "facility_fee_upfront_paid",
   EXCESS_LATE_CHARGES_DUE: "excess_late_charges_due",
   EXCESS_LATE_CHARGES_PAID: "excess_late_charges_paid",
+
+  DEPOSIT_NAME_CHECK_REJECTED: "deposit_name_check_rejected",
+  DEPOSIT_REFUND_INITIATED: "deposit_refund_initiated",
+  DEPOSIT_REFUNDED: "deposit_refunded",
 } as const;
 
 export type NotificationTypeId = (typeof NotificationTypeIds)[keyof typeof NotificationTypeIds];
@@ -146,6 +156,25 @@ export interface NotificationPayloads {
     applicationId: string;
     displayReference?: string | null;
   };
+  [NotificationTypeIds.APPLICATION_SUBMITTED_CONFIRMATION]: {
+    applicationId: string;
+    displayReference?: string | null;
+  };
+  [NotificationTypeIds.CONTRACT_SIGNING_DEADLINE_EXTENDED]: {
+    applicationId: string;
+    displayReference?: string | null;
+    deadline: string | null;
+  };
+  [NotificationTypeIds.INVOICE_SIGNING_DEADLINE_EXTENDED]: {
+    applicationId: string;
+    displayReference?: string | null;
+    invoiceNumber?: string | null;
+    deadline: string | null;
+  };
+  [NotificationTypeIds.FACILITY_DISABLED]: {
+    applicationId: string;
+    displayReference?: string | null;
+  };
   [NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
     issuerOrganizationId: string;
     partyKey: string;
@@ -219,6 +248,14 @@ export interface NotificationPayloads {
     withdrawalType: string;
     portalType: "investor" | "issuer";
   };
+  [NotificationTypeIds.NOTE_PAYMENT_REJECTED]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.WITHDRAWAL_COMPLETED]: {
+    noteId: string;
+    noteTitle: string;
+  };
   [NotificationTypeIds.FACILITY_FEE_PAYMENT_REQUESTED]: {
     applicationId: string;
     displayReference?: string | null;
@@ -238,6 +275,15 @@ export interface NotificationPayloads {
     noteId: string;
     noteReference: string;
     paidAmount: number;
+  };
+  [NotificationTypeIds.DEPOSIT_NAME_CHECK_REJECTED]: {
+    amount: number;
+  };
+  [NotificationTypeIds.DEPOSIT_REFUND_INITIATED]: {
+    amount: number;
+  };
+  [NotificationTypeIds.DEPOSIT_REFUNDED]: {
+    amount: number;
   };
 }
 
@@ -392,6 +438,34 @@ export const NOTIFICATION_TEMPLATES: {
     linkPath: (data) => `/applications/${data.applicationId}`,
     portal: "issuer",
   },
+  [NotificationTypeIds.APPLICATION_SUBMITTED_CONFIRMATION]: {
+    title: 'Application Submitted',
+    message: (data) =>
+      `Your application ${getApplicationNotificationRef(data)} has been submitted successfully and is now under review.`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.CONTRACT_SIGNING_DEADLINE_EXTENDED]: {
+    title: 'Signing Deadline Extended',
+    message: (data) =>
+      `The signing deadline for application ${getApplicationNotificationRef(data)} has been extended${data.deadline ? ` to ${formatPhaseDeadlineDateDDMMYYYY(data.deadline)}` : ""}.`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.INVOICE_SIGNING_DEADLINE_EXTENDED]: {
+    title: 'Signing Deadline Extended',
+    message: (data) =>
+      `The signing deadline for invoice ${data.invoiceNumber ?? getApplicationNotificationRef(data)} has been extended${data.deadline ? ` to ${formatPhaseDeadlineDateDDMMYYYY(data.deadline)}` : ""}.`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.FACILITY_DISABLED]: {
+    title: 'Facility Disabled',
+    message: (data) =>
+      `Your facility for application ${getApplicationNotificationRef(data)} has been disabled. New drawdowns are currently unavailable.`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
   [NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
     title: "Action Required: Complete Director/Shareholder Onboarding",
     message: (data) => {
@@ -510,6 +584,19 @@ export const NOTIFICATION_TEMPLATES: {
         : `/financing/notes/${data.noteId}`,
     portal: (data) => data.portalType,
   },
+  [NotificationTypeIds.NOTE_PAYMENT_REJECTED]: {
+    title: 'Repayment Rejected',
+    message: (data) =>
+      `Your repayment for note ${data.noteTitle} was rejected. Please review the repayment details.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.WITHDRAWAL_COMPLETED]: {
+    title: 'Disbursement Completed',
+    message: (data) => `The disbursement for note ${data.noteTitle} has been completed.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: 'issuer',
+  },
   [NotificationTypeIds.FACILITY_FEE_PAYMENT_REQUESTED]: {
     title: "Upfront facility fee payment required",
     message: (data) =>
@@ -537,6 +624,24 @@ export const NOTIFICATION_TEMPLATES: {
       `The outstanding late payment charges of RM${data.paidAmount.toLocaleString()} on note ${data.noteReference} have been received.`,
     linkPath: (data) => `/financing/notes/${data.noteId}`,
     portal: "issuer",
+  },
+  [NotificationTypeIds.DEPOSIT_NAME_CHECK_REJECTED]: {
+    title: 'Deposit Verification Failed',
+    message: () => `Your deposit could not be verified and will be returned.`,
+    linkPath: () => `/transactions`,
+    portal: 'investor',
+  },
+  [NotificationTypeIds.DEPOSIT_REFUND_INITIATED]: {
+    title: 'Refund Started',
+    message: (data) => `A refund for your deposit of RM${data.amount.toLocaleString()} has been initiated.`,
+    linkPath: () => `/transactions`,
+    portal: 'investor',
+  },
+  [NotificationTypeIds.DEPOSIT_REFUNDED]: {
+    title: 'Refund Completed',
+    message: (data) => `Your refund of RM${data.amount.toLocaleString()} has been completed.`,
+    linkPath: () => `/transactions`,
+    portal: 'investor',
   },
 };
 

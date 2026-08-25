@@ -18,6 +18,10 @@ import { createCurlecClient } from "./curlec-client";
 import { recordGatewayPaymentEvent } from "./gateway-events";
 import { myrDecimalToSen, senToMyrDecimal } from "./money";
 import { markGatewayPaymentReceiptRefunded } from "./receipt/receipt-service";
+import {
+  notifyDepositRefundInitiated,
+  notifyDepositRefunded,
+} from "../notification/gateway-payment-notifications";
 import { assertTransition } from "./state";
 import {
   clearIssuerOnboardingFeePaidAt,
@@ -297,6 +301,8 @@ export async function initiateGatewayPaymentRefund(
       },
     });
   });
+
+  await notifyDepositRefundInitiated(payment);
 
   return GatewayPaymentStatus.REFUND_INITIATED;
 }
@@ -974,6 +980,8 @@ export async function completeGatewayPaymentRefund(
     if (!completed) {
       return;
     }
+
+    await notifyDepositRefunded(working);
 
     const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: working.id } });
     const metadata = asMetadataObject(refreshed.metadata);

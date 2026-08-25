@@ -21,6 +21,9 @@ import {
   notifyNoteFundingFailed,
   notifyNoteIssuerRepaid,
   notifyNotePaymentReceived,
+  notifyNotePaymentRejected,
+  notifyIssuerDisbursementCompleted,
+  isIssuerFinancingDisbursement,
   notifyNotePublished,
   notifyNoteSettlementPosted,
   resolveNoteNotificationTitle,
@@ -265,5 +268,78 @@ describe("notifyNoteSettlementPosted", () => {
     );
     expect(settlementCalls.length).toBe(4);
     expect(settlementCalls[0]?.[3]).toContain("settlement_posted:set-1");
+  });
+});
+
+describe("isIssuerFinancingDisbursement", () => {
+  it("is true only for ISSUER_DISBURSEMENT", () => {
+    expect(isIssuerFinancingDisbursement("ISSUER_DISBURSEMENT")).toBe(true);
+    expect(isIssuerFinancingDisbursement("ISSUER_RESIDUAL_RETURN")).toBe(false);
+    expect(isIssuerFinancingDisbursement("INVESTOR_WITHDRAWAL")).toBe(false);
+    expect(isIssuerFinancingDisbursement("ADMIN_ADJUSTMENT")).toBe(false);
+    expect(isIssuerFinancingDisbursement(null)).toBe(false);
+  });
+});
+
+describe("notifyNotePaymentRejected", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({ owner_user_id: "WOWN" });
+    (prisma.organizationMember.findMany as jest.Mock).mockResolvedValue([{ user_id: "UM1" }]);
+  });
+
+  it("notifies the issuer org with a payment-scoped idempotency key", async () => {
+    const notificationService = {
+      sendTyped,
+      logTypedSystemBatch,
+    } as unknown as NotificationService;
+
+    await notifyNotePaymentRejected({
+      notificationService,
+      noteId: "note-1",
+      noteTitle: "Note One",
+      issuerOrganizationId: "iss-1",
+      paymentId: "pay-9",
+    });
+
+    expect(sendTyped).toHaveBeenCalledTimes(2);
+    expect(sendTyped).toHaveBeenCalledWith(
+      "WOWN",
+      NotificationTypeIds.NOTE_PAYMENT_REJECTED,
+      { noteId: "note-1", noteTitle: "Note One" },
+      "note:lifecycle:note-1:payment_rejected:pay-9:user:WOWN"
+    );
+    expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("notifyIssuerDisbursementCompleted", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({ owner_user_id: "WOWN" });
+    (prisma.organizationMember.findMany as jest.Mock).mockResolvedValue([{ user_id: "UM1" }]);
+  });
+
+  it("notifies the issuer org with a withdrawal-scoped idempotency key", async () => {
+    const notificationService = {
+      sendTyped,
+      logTypedSystemBatch,
+    } as unknown as NotificationService;
+
+    await notifyIssuerDisbursementCompleted({
+      notificationService,
+      noteId: "note-1",
+      noteTitle: "Note One",
+      issuerOrganizationId: "iss-1",
+      withdrawalId: "wd-9",
+    });
+
+    expect(sendTyped).toHaveBeenCalledWith(
+      "WOWN",
+      NotificationTypeIds.WITHDRAWAL_COMPLETED,
+      { noteId: "note-1", noteTitle: "Note One" },
+      "withdrawal:lifecycle:wd-9:issuer_disbursement_completed:user:WOWN"
+    );
+    expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
   });
 });

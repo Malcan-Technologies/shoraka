@@ -20,6 +20,7 @@ import {
   initiateInvestorDepositRefund,
   retryWalletReversalForConfirmedRefund,
 } from "./refund-service";
+import { notifyDepositNameCheckRejected } from "../notification/gateway-payment-notifications";
 import { scheduleGatewayPaymentReceipt } from "./receipt/receipt-service";
 import { getReceiptRelatedReferenceLabel } from "./receipt/receipt-purpose";
 import { buildGatewayPaymentSearchOr } from "./gateway-payment-list-search";
@@ -486,6 +487,8 @@ export async function rejectNameCheck(
       reason: "Admin rejected the name match. A refund was started.",
     });
   });
+
+  await notifyDepositNameCheckRejected(payment);
 
   await initiateInvestorDepositRefund(
     payment,

@@ -125,8 +125,11 @@ import {
   notifyNoteFundingSucceeded,
   notifyNoteIssuerRepaid,
   notifyNotePaymentReceived,
+  notifyNotePaymentRejected,
   notifyNotePublished,
   notifyNoteSettlementPosted,
+  notifyIssuerDisbursementCompleted,
+  isIssuerFinancingDisbursement,
   resolveNoteNotificationTitle,
 } from "../notification/note-lifecycle-notifications";
 import { notifyExcessLateChargesDue } from "../notification/excess-late-charge-notifications";
@@ -4915,6 +4918,15 @@ export class NoteService {
       });
       return tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
     });
+    if (updated.issuer_organization_id) {
+      await notifyNotePaymentRejected({
+        notificationService: this.notificationService,
+        noteId: id,
+        noteTitle: resolveNoteNotificationTitle(updated),
+        issuerOrganizationId: updated.issuer_organization_id,
+        paymentId,
+      });
+    }
     return await mapNoteDetail(updated);
   }
 
@@ -6808,6 +6820,9 @@ export class NoteService {
             source_invoice_id: true,
             source_application_id: true,
             tenure_days: true,
+            title: true,
+            note_reference: true,
+            issuer_organization_id: true,
           },
         })
       : null;
@@ -6966,6 +6981,21 @@ export class NoteService {
         withdrawalId: id,
         amount: toNumber(withdrawal.amount),
       });
+
+      // Only the issuer financing disbursement withdrawal type represents a user-facing
+      // disbursement outcome; residual return / investor withdrawal / admin adjustment do not.
+      if (
+        isIssuerFinancingDisbursement(withdrawal.withdrawal_type) &&
+        noteForCapacity?.issuer_organization_id
+      ) {
+        await notifyIssuerDisbursementCompleted({
+          notificationService: this.notificationService,
+          noteId: withdrawal.note_id,
+          noteTitle: resolveNoteNotificationTitle(noteForCapacity),
+          issuerOrganizationId: noteForCapacity.issuer_organization_id,
+          withdrawalId: id,
+        });
+      }
     }
     return this.mapWithdrawal(withdrawal);
   }

@@ -6197,6 +6197,7 @@ export class AdminService {
         return {
           originatingApplicationId: contract.originating_application_id,
           unchanged: true,
+          facilityDisabledAt: null,
         };
       }
       if (!enabled) {
@@ -6237,6 +6238,7 @@ export class AdminService {
       return {
         originatingApplicationId: contract.originating_application_id,
         unchanged: false,
+        facilityDisabledAt: enabled ? null : now,
       };
     });
 
@@ -6258,6 +6260,22 @@ export class AdminService {
         userAgent: logContext?.userAgent ?? undefined,
         deviceInfo: logContext?.deviceInfo ?? undefined,
       });
+
+      if (!enabled && updated.originatingApplicationId) {
+        try {
+          await this.sendIssuerNotification(
+            updated.originatingApplicationId,
+            NotificationTypeIds.FACILITY_DISABLED,
+            { applicationId: updated.originatingApplicationId },
+            `facility-disabled:${contractId}:${updated.facilityDisabledAt ?? now}`
+          );
+        } catch (notificationError) {
+          logger.error(
+            { error: notificationError, contractId, applicationId: updated.originatingApplicationId },
+            "Failed to send facility disabled notification to issuer"
+          );
+        }
+      }
     }
 
     return this.getContractDetail(contractId);
@@ -8614,6 +8632,20 @@ export class AdminService {
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
+    try {
+      await this.sendIssuerNotification(
+        applicationId,
+        NotificationTypeIds.CONTRACT_SIGNING_DEADLINE_EXTENDED,
+        { applicationId, deadline: signingExpiresAt },
+        `contract-signing-deadline-extended:${signingExpiresAt ?? "unknown"}`
+      );
+    } catch (notificationError) {
+      logger.error(
+        { error: notificationError, applicationId, contractId },
+        "Failed to send signing deadline extended notification to issuer"
+      );
+    }
+
     return repository.getApplicationById(applicationId);
   }
 
@@ -9159,6 +9191,24 @@ export class AdminService {
       userAgent: logContext?.userAgent ?? undefined,
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
+
+    try {
+      const { invoiceNumber } = this.getInvoiceReference(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        invoiceId
+      );
+      await this.sendIssuerNotification(
+        applicationId,
+        NotificationTypeIds.INVOICE_SIGNING_DEADLINE_EXTENDED,
+        { applicationId, invoiceNumber, deadline: signingExpiresAt },
+        `invoice-signing-deadline-extended:${invoiceId}:${signingExpiresAt ?? "unknown"}`
+      );
+    } catch (notificationError) {
+      logger.error(
+        { error: notificationError, applicationId, invoiceId },
+        "Failed to send signing deadline extended notification to issuer"
+      );
+    }
 
     return repository.getApplicationById(applicationId);
   }

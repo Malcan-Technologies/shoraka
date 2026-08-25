@@ -2162,6 +2162,21 @@ export class ApplicationService {
       if (!submitted) {
         throw new AppError(500, "INTERNAL_ERROR", "Failed to fetch updated application");
       }
+
+      try {
+        await this.sendIssuerNotification(
+          id,
+          NotificationTypeIds.APPLICATION_SUBMITTED_CONFIRMATION,
+          { applicationId: id },
+          "submitted"
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId: id },
+          "Failed to send application submitted confirmation notification"
+        );
+      }
+
       return submitted;
     }
 

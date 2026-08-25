@@ -266,6 +266,12 @@ triggered).
   wired via `notifyWithdrawalSubmittedToTrustee()` (`note-lifecycle-notifications.ts`), called from
   `notes/service.ts:markWithdrawalSubmitted` right after the `WITHDRAWAL_SUBMITTED_TO_TRUSTEE`
   audit-event write, and is copy-governed like any other live notification.
+- **2026-08-25 coverage pass (live, copy-governed):** `application_submitted_confirmation`,
+  `contract_signing_deadline_extended`, `invoice_signing_deadline_extended`, `facility_disabled`,
+  `note_payment_rejected`, `withdrawal_completed`, `deposit_name_check_rejected`,
+  `deposit_refund_initiated`, `deposit_refunded`. Use the same core term as the matching Activity
+  label where one exists (`Application Submitted`, `Signing Deadline Extended`, `Repayment rejected`,
+  `Disbursement Completed`, `Refund requested`/`Refund completed`).
 - Audience framing is allowed to differ (issuer vs. investor notifications for the same event may
   use different actor framing — e.g. "Note is active" vs "Investment is active") as long as the
   underlying business fact stated is identical.

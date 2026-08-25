@@ -5,7 +5,7 @@ If you need to answer *"what happens for `EVENT_X`?"* — what it means, whether
 it, what evidence it stores, where it appears in Admin / Issuer / Investor / CSV, what wording each
 surface uses, and whether a notification fires — start here.
 
-**Verified against:** working tree on branch `redo_log`, 2026-08-24. Every event type, writer,
+**Verified against:** working tree on branch `redo_log`, 2026-08-25. Every event type, writer,
 allowlist, label map, and notification registry entry below was read directly from source. Where
 documentation and source disagreed, **source won** and the older document was corrected (see
 §9 Reconciliation Log).
@@ -200,7 +200,7 @@ in §2; notifications in §3–§6; counts, legacy names, and the reconciliation
 | Event Type | Status | Business Action | Actor | Store | Admin | Issuer | Investor | Notification | CSV | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `APPLICATION_CREATED` | LIVE | Issuer created a draft application | Issuer | application_logs | Y | Y | n/a | — | Y | |
-| `APPLICATION_SUBMITTED` | LIVE | Issuer submitted for review | Issuer | application_logs | Y | Y | n/a | — | Y | No confirmation notification (by design today) |
+| `APPLICATION_SUBMITTED` | LIVE | Issuer submitted for review | Issuer | application_logs | Y | Y | n/a | `application_submitted_confirmation` | Y | Persistent org-admin confirmation (2026-08-25). Session toast on the submitter's browser is a separate, existing channel — same pattern as resubmit. |
 | `APPLICATION_RESUBMITTED` | LIVE | Issuer resubmitted after amendments | Issuer | application_logs | Y | Y | n/a | `application_resubmitted_confirmation` | Y | **Two writer paths** — rich and bare |
 | `APPLICATION_REJECTED` | LIVE | Admin rejected the application | Admin | application_logs | Y | Y | n/a | `application_rejected` | Y | Current overall rejection flow does not collect a reason; therefore no reason is expected on this audit row. This is a future product decision, not an audit-evidence defect — see §2.4 |
 | `APPLICATION_WITHDRAWN` | LIVE | Issuer withdrew / cascade from contract or last invoice | Issuer | application_logs | Y | Y | n/a | `application_withdrawn_confirmation` | Y | Three writer paths |
@@ -230,10 +230,10 @@ in §2; notifications in §3–§6; counts, legacy names, and the reconciliation
 | `CONTRACT_OFFER_RETRACTED` | LIVE | **CashSouk** pulled the offer back | Admin | application_logs | Y | Y | n/a | `offer_retracted_or_reset` | Y | |
 | `CONTRACT_WITHDRAWN` | LIVE | **Issuer declined** the facility offer | Issuer | application_logs | Y | Y | n/a | `application_withdrawn_confirmation` | Y | Name is misleading — see §8 |
 | `CONTRACT_OFFER_EXPIRED` | LIVE | Acceptance/signing deadline lapsed | System | application_logs | Y | Y | n/a | `offer_expired` | Y | Entity status becomes `OFFER_EXPIRED` |
-| `CONTRACT_SIGNING_DEADLINE_EXTENDED` | LIVE | Admin restamped the signing deadline | Admin | application_logs | Y | Y | n/a | — | Y | |
+| `CONTRACT_SIGNING_DEADLINE_EXTENDED` | LIVE | Admin restamped the signing deadline | Admin | application_logs | Y | Y | n/a | `contract_signing_deadline_extended` | Y | |
 | `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | LIVE | Revolving capacity recomputed | Issuer / Admin / System | application_logs | Y | Y *(general activity only)* | n/a | — | Y | In the issuer allowlist with curated copy, but absent from both issuer detail label maps. Stores before/after snapshots |
 | `CONTRACT_FACILITY_FEE_WAIVED` | LIVE | Admin waived the remaining facility fee | Admin | application_logs | Y *(fallback)* | — | n/a | — | Y *(fallback)* | No curated label anywhere |
-| `CONTRACT_FACILITY_DISABLED` | LIVE | Admin disabled the facility | Admin | application_logs | Y *(fallback)* | — | n/a | — | Y *(fallback)* | No curated label anywhere |
+| `CONTRACT_FACILITY_DISABLED` | LIVE | Admin disabled the facility | Admin | application_logs | Y *(fallback)* | — | n/a | `facility_disabled` | Y *(fallback)* | No curated activity label anywhere; notification added 2026-08-25 |
 | `CONTRACT_FACILITY_ENABLED` | LIVE | Admin re-enabled the facility | Admin | application_logs | Y *(fallback)* | — | n/a | — | Y *(fallback)* | No curated label anywhere |
 
 ### 1.6 Invoice (`application_logs`)
@@ -248,7 +248,7 @@ in §2; notifications in §3–§6; counts, legacy names, and the reconciliation
 | `INVOICE_OFFER_REJECTED` | **LIVE** | **Issuer declined** the invoice offer | Issuer | application_logs | Y | Y | n/a | `application_withdrawn_confirmation` | — | Asymmetric with contract — see §8 |
 | `INVOICE_OFFER_RETRACTED` | LIVE | **CashSouk** pulled the invoice offer back | Admin | application_logs | Y | Y | n/a | `offer_retracted_or_reset` | — | |
 | `INVOICE_OFFER_EXPIRED` | LIVE | Acceptance/signing deadline lapsed | System | application_logs | Y | Y | n/a | `offer_expired` | — | |
-| `INVOICE_SIGNING_DEADLINE_EXTENDED` | LIVE | Admin restamped the signing deadline | Admin | application_logs | Y | Y | n/a | — | — | |
+| `INVOICE_SIGNING_DEADLINE_EXTENDED` | LIVE | Admin restamped the signing deadline | Admin | application_logs | Y | Y | n/a | `invoice_signing_deadline_extended` | — | |
 | `INVOICE_WITHDRAWN` | LIVE | Issuer withdrew an invoice | Issuer | application_logs | Y | Y | n/a | — | — | Last invoice withdrawn cascades to `APPLICATION_WITHDRAWN` |
 
 > **CSV note for the invoice domain:** `contract-activity-csv.ts` has **no invoice entries** in its
@@ -321,7 +321,7 @@ surface can show them. All are mirrored to `note_admin_actions`.
 | `ISSUER_PAYMENT_SUBMITTED` | LIVE | Issuer submitted a repayment for review | Issuer | note_events | Y | Y | — | — | Y | Same writer as `PAYMENT_RECEIVED`, portal decides |
 | `PAYMENT_RECEIVED` | LIVE | Admin recorded a repayment directly | Admin | note_events | Y | — | Y *(via notification only)* | `note_payment_received` | Y | Not in the investor activity allowlist |
 | `PAYMENT_APPROVED` | LIVE | Pending repayment approved | Admin | note_events | Y | — | — | `note_payment_received` | Y | |
-| `PAYMENT_REJECTED` | LIVE | Pending repayment rejected | Admin | note_events | Y | — | — | — | Y | |
+| `PAYMENT_REJECTED` | LIVE | Pending repayment rejected | Admin | note_events | Y | — | — | `note_payment_rejected` | Y | Issuer org, all members, platform only |
 | `SETTLEMENT_PREVIEWED` | LIVE | Settlement preview saved | Admin | note_events | Y | — | — | — | Y | |
 | `SETTLEMENT_APPROVED` | LIVE | Settlement preview approved | Admin | note_events | Y | — | — | — | Y | |
 | `SETTLEMENT_POSTED` | LIVE | Settlement posted to the ledger | Admin | note_events | Y | — | Y | `note_settlement_posted` (+ `note_repaid_issuer`) | Y | |
@@ -341,7 +341,7 @@ surface can show them. All are mirrored to `note_admin_actions`.
 | `WITHDRAWAL_LETTER_GENERATED` | LIVE | Trustee withdrawal letter PDF generated | Admin | note_events | Y | — | — | — | Y | |
 | `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | LIVE | Instruction submitted to the trustee | Admin | note_events | Y | — | — | `withdrawal_submitted_to_trustee` | Y | Wired 2026-08-24 |
 | `WITHDRAWAL_BENEFICIARY_UPDATED` | LIVE | Beneficiary details edited on a draft | Admin | note_events | Y | — | — | — | Y | |
-| `WITHDRAWAL_COMPLETED` | LIVE | Trustee payout completed | Admin | note_events | Y | Y *(disbursements only)* | Y *(disbursements only)* | — | Y | Post-query filter on `withdrawal_type`, applied **before** the portal branch |
+| `WITHDRAWAL_COMPLETED` | LIVE | Trustee payout completed | Admin | note_events | Y | Y *(disbursements only)* | Y *(disbursements only)* | `withdrawal_completed` *(ISSUER_DISBURSEMENT only)* | Y | Notification gated by `isIssuerFinancingDisbursement`; residual/refund/investor withdrawals stay silent |
 | `SHORAKA_ORDER_SUBMITTED` | LIVE | Tawarruq commodity order submitted to the provider | System | note_events | Y | — | — | — | Y | Stored name is `SHORAKA_*`; UI says "Tawarruq" |
 | `SHORAKA_CERTIFICATE_FETCHED` | LIVE | Tawarruq trade certificate retrieved | System | note_events | Y | — | — | — | Y | `actorUserId: null` — no human actor |
 
@@ -354,11 +354,11 @@ No CSV export exists for this table.
 |---|---|---|---|---|---|---|---|---|---|---|
 | `NAME_CHECK` | LIVE | Auto name-check flagged for review | System | gateway_payment_events | Y | n/a | n/a | — | n/a | |
 | `NAME_CHECK_APPROVED` | LIVE | Admin approved the name match | Admin | gateway_payment_events | Y | n/a | n/a | — | n/a | |
-| `NAME_CHECK_REJECTED` | LIVE | Admin rejected the name match → refund | Admin | gateway_payment_events | Y | n/a | n/a | — | n/a | |
+| `NAME_CHECK_REJECTED` | LIVE | Admin rejected the name match → refund | Admin | gateway_payment_events | Y | n/a | n/a | `deposit_name_check_rejected` *(INVESTOR_DEPOSIT only)* | n/a | Investor org members of the deposit's `investor_organization_id`; platform only |
 | `CAPTURE_MISMATCH` | LIVE | Currency/amount mismatch on capture | System / Admin | gateway_payment_events | Y | n/a | n/a | — | n/a | |
 | `EXPIRED` | LIVE | Abandoned checkout expired by cron | System | gateway_payment_events | Y | n/a | n/a | — | n/a | |
-| `REFUND_INITIATED` | LIVE | Refund started (manual or automatic) | Admin / System | gateway_payment_events | Y | n/a | n/a | — | n/a | `metadata.auto` distinguishes |
-| `REFUNDED` | LIVE | Refund confirmed and wallet reversed | Admin / System | gateway_payment_events | Y | n/a | n/a | — | n/a | |
+| `REFUND_INITIATED` | LIVE | Refund started (manual or automatic) | Admin / System | gateway_payment_events | Y | n/a | n/a | `deposit_refund_initiated` *(INVESTOR_DEPOSIT only)* | n/a | `metadata.auto` distinguishes. Idempotency key is per gateway payment + type + user |
+| `REFUNDED` | LIVE | Refund confirmed and wallet reversed | Admin / System | gateway_payment_events | Y | n/a | n/a | `deposit_refunded` *(INVESTOR_DEPOSIT only)* | n/a | Notifies only after the wallet reversal transaction commits |
 | `REFUND_WALLET_REVERSAL_FAILED` | LIVE | Wallet debit failed after refund | System / Admin | gateway_payment_events | Y | n/a | n/a | — | n/a | |
 | `OVERRIDE_PROPOSED` | **DEAD** | — | — | — | Y *(copy only)* | n/a | n/a | — | n/a | Read path exists; nothing writes it |
 | `OVERRIDE_APPROVED` | **DEAD** | — | — | — | Y *(copy only)* | n/a | n/a | — | n/a | |
@@ -1177,7 +1177,7 @@ application/facility/investor-detail surfaces.
 | `ISSUER_PAYMENT_SUBMITTED` | Issuer submits a repayment for review — `recordPayment` (~4559→4582) when `actor.portal === "ISSUER"` | Issuer | full payment input incl. `paymentPurpose` | `Repayment submitted` | *(issuer)* `Payment Submitted` / `A repayment for {note} was submitted and is awaiting review.` | NO |
 | `PAYMENT_RECEIVED` | Admin records a repayment directly — same writer, admin portal | Admin | same | `Repayment received` | — | **YES — `note_payment_received`** (to investors) |
 | `PAYMENT_APPROVED` | Pending repayment approved — `approvePayment` (~4634) | Admin | `paymentId` | `Repayment approved` | — | **YES — `note_payment_received`** |
-| `PAYMENT_REJECTED` | Pending repayment rejected — `rejectPayment` (~4673) | Admin | `paymentId`, `reason` | `Repayment rejected` | — | NO |
+| `PAYMENT_REJECTED` | Pending repayment rejected — `rejectPayment` (~4673) | Admin | `paymentId`, `reason` | `Repayment rejected` | — | **YES — `note_payment_rejected`** (issuer org, platform only) |
 | `SETTLEMENT_PREVIEWED` | Settlement preview saved — `previewSettlement` (~4848) | Admin | `settlementId` + full snapshot | `Settlement previewed` | — | NO |
 | `SETTLEMENT_APPROVED` | Preview approved — `approveSettlement` (~4957) | Admin | `settlementId` | `Settlement approved` | — | NO |
 | `SETTLEMENT_POSTED` | Settlement posted to the ledger — `postSettlement` (~5102) | Admin | `settlementId`, `investorPayoutCount`, `residualAmount`, `residualWithdrawalCreated` | `Settlement posted` | *(investor)* `Settlement Posted` / `Your returns for {note} were posted.` | **YES — `note_settlement_posted`** (investors) **+ `note_repaid_issuer`** (issuer, when no trustee step follows) |
@@ -1207,7 +1207,7 @@ except where noted.
 | `WITHDRAWAL_LETTER_GENERATED` | Trustee letter PDF generated — `generateWithdrawalLetter` (~6222) | `withdrawalId`, `s3Key` | `Withdrawal letter generated` | Hidden (not queried) | NO |
 | `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | Instruction marked submitted — `markWithdrawalSubmitted` (~6269) | `withdrawalId` | `Withdrawal submitted to trustee` | Hidden (not queried) | **YES — `withdrawal_submitted_to_trustee`** |
 | `WITHDRAWAL_BENEFICIARY_UPDATED` | Beneficiary edited while draft — `updateWithdrawalBeneficiary` (~6304) | `withdrawalId` | `Withdrawal beneficiary updated` | Hidden (not queried) | NO |
-| `WITHDRAWAL_COMPLETED` | Trustee payout completed — `markWithdrawalCompleted` (~6472) | `withdrawalId`, `amount` | `Withdrawal completed` | **Shown when `withdrawal_type === ISSUER_DISBURSEMENT`, in both portals** (the check precedes the portal branch) — Copy: `Disbursement Completed` / `Disbursement for {note} has been completed.` Any other withdrawal type is dropped. | NO |
+| `WITHDRAWAL_COMPLETED` | Trustee payout completed — `markWithdrawalCompleted` (~6472) | `withdrawalId`, `amount` | `Withdrawal completed` | **Shown when `withdrawal_type === ISSUER_DISBURSEMENT`, in both portals** (the check precedes the portal branch) — Copy: `Disbursement Completed` / `Disbursement for {note} has been completed.` Any other withdrawal type is dropped. | **YES — `withdrawal_completed`**, same `ISSUER_DISBURSEMENT` guard |
 
 **`WITHDRAWAL_SUBMITTED_TO_TRUSTEE` notification detail:**
 - **TYPE ID:** `withdrawal_submitted_to_trustee`
@@ -1324,7 +1324,7 @@ importers anywhere in the repository.
 ## 3. Notification catalogue
 
 Source of truth: `apps/api/src/modules/notification/registry.ts` (templates and payloads) and
-`seed-data.ts` (channel defaults). **36 registry type ids** exist.
+`seed-data.ts` (channel defaults). **45 registry type ids** exist.
 
 ### 3.1 How delivery actually works
 
@@ -1386,6 +1386,10 @@ table.
 | `application_resubmitted_confirmation` | LIVE | `Application Resubmitted` | `Your application {ref} was successfully resubmitted for review (review cycle {reviewCycle}).` | Issuer owner + org admins | **platform only** (seed `enabled_email:false`) | `applications/service.ts:resubmitApplication` (~1072) |
 | `application_withdrawn_confirmation` | LIVE | `Application Withdrawn` | `Your application {ref} has been withdrawn successfully.` | Issuer owner + org admins | **platform only** | `applications/service.ts` (~1675, ~2867, ~3258) |
 | `application_completed` | LIVE | `Application Completed` | `Your application {ref} has been completed successfully.` | Issuer owner + org admins | **platform only** | `applications/service.ts` (~2888, ~3279) — event `APPLICATION_COMPLETED` |
+| `application_submitted_confirmation` | LIVE | `Application Submitted` | `Your application {ref} has been submitted successfully and is now under review.` | Issuer owner + org admins | **platform only** (seed `enabled_email:false`) | `applications/service.ts:updateApplicationStatus` — event `APPLICATION_SUBMITTED`. Idempotency suffix `submitted`. Coexists with the submitter's session toast; does not fire on `RESUBMITTED`. |
+| `contract_signing_deadline_extended` | LIVE | `Signing Deadline Extended` | `The signing deadline for application {ref} has been extended to {deadline}.` | Issuer owner + org admins | platform + email | `admin/service.ts:extendContractSigningDeadline` — event `CONTRACT_SIGNING_DEADLINE_EXTENDED`. Deadline taken from the writer (`signingExpiresAt`); no extra query. |
+| `invoice_signing_deadline_extended` | LIVE | `Signing Deadline Extended` | `The signing deadline for invoice {invoiceNumber} has been extended to {deadline}.` | Issuer owner + org admins | platform + email | `admin/service.ts:extendInvoiceSigningDeadline` — event `INVOICE_SIGNING_DEADLINE_EXTENDED`. Invoice number from `getInvoiceReference` already in scope. |
+| `facility_disabled` | LIVE | `Facility Disabled` | `Your facility for application {ref} has been disabled. New drawdowns are currently unavailable.` | Issuer owner + org admins | platform + email | `admin/service.ts:setContractFacilityEnabled` — event `CONTRACT_FACILITY_DISABLED`. Idempotency includes disable timestamp so a later re-disable after re-enable still notifies. |
 | `director_shareholder_action_required` | LIVE | `Action Required: Complete Director/Shareholder Onboarding` | `Please complete onboarding for {personName}.` | **Issuer org owner only** | platform + email (not configurable) | `director-shareholder-notifications.ts` (~172, ~246) — **no audit event** |
 | `investor_director_shareholder_action_required` | LIVE | `Action Required: Complete Director/Shareholder Onboarding` | Same as above | **Investor org owner only** | platform + email (not configurable) | `director-shareholder-notifications.ts` (~172) — **no audit event** |
 | `note_published` | LIVE | `Note published` | `Your note "{noteTitle}" has been published to the marketplace for investor funding.` | Issuer org owner + **all** members | platform only | `notes/service.ts:publish` (~2811) — event `PUBLISH` |
@@ -1402,6 +1406,11 @@ table.
 | `note_defaulted` | LIVE | `Note marked as default` | `"{noteTitle}" has been marked as default.` | Issuer org, all members | platform only | `markDefault` (~5807) — event `NOTE_DEFAULT_MARKED` |
 | `note_defaulted_investor` | LIVE | `Note marked as default` | `"{noteTitle}" has been marked as default. This may affect recovery timelines; check your investments view for updates.` | Confirmed investors | platform only | `markDefault` (~5807) |
 | `withdrawal_submitted_to_trustee` | LIVE | `Withdrawal Submitted to Trustee` | `Withdrawal instruction {withdrawalId} has been submitted to the trustee.` | Issuer org, all members | platform only | `markWithdrawalSubmitted` (~6274) — event `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` |
+| `note_payment_rejected` | LIVE | `Repayment Rejected` | `Your repayment for note {noteTitle} was rejected. Please review the repayment details.` | Issuer org, all members | platform only | `notes/service.ts:rejectPayment` — event `PAYMENT_REJECTED`. Idempotency includes `paymentId`. |
+| `withdrawal_completed` | LIVE | `Disbursement Completed` | `The disbursement for note {noteTitle} has been completed.` | Issuer org, all members | platform only | `notes/service.ts:markWithdrawalCompleted` — event `WITHDRAWAL_COMPLETED`, **only when `isIssuerFinancingDisbursement`**. Residual return / investor / admin-adjustment withdrawals stay silent. Idempotency includes `withdrawalId`. |
+| `deposit_name_check_rejected` | LIVE | `Deposit Verification Failed` | `Your deposit could not be verified and will be returned.` | Members of the deposit's investor organization | platform only | `payment/admin-service.ts:rejectNameCheck` — event `NAME_CHECK_REJECTED`. `GatewayPayment` has no depositor user id; ownership is `investor_organization_id`. Gated to `INVESTOR_DEPOSIT`. Idempotency per payment + type + user. |
+| `deposit_refund_initiated` | LIVE | `Refund Started` | `A refund for your deposit of RM{amount} has been initiated.` | Members of the deposit's investor organization | platform only | `refund-service.ts:initiateGatewayPaymentRefund` — event `REFUND_INITIATED`. Gated to `INVESTOR_DEPOSIT`. |
+| `deposit_refunded` | LIVE | `Refund Completed` | `Your refund of RM{amount} has been completed.` | Members of the deposit's investor organization | platform only | `refund-service.ts:completeGatewayPaymentRefund` — event `REFUNDED`, after the wallet-reversal transaction commits. Gated to `INVESTOR_DEPOSIT`. |
 
 **`DEAD_NOT_CONFIGURABLE` (added 2026-08-25):** `login_new_device`, `kyc_approved`, `kyc_rejected`,
 and `application_approved` have zero automatic send path and never appeared in the end-user Account
@@ -1418,7 +1427,7 @@ still needs every type to be enumerable for filtering historical sends. See §9 
 
 `seed-data.ts` `name` is what an **admin** sees when picking a notification type (e.g. in the bulk
 broadcast tool and preference screens); `registry.ts` `title` is what the **user** sees in their
-inbox. These 20 differ. None is a defect — they serve different audiences — but do not assume one
+inbox. These 28 differ. None is a defect — they serve different audiences — but do not assume one
 from the other:
 
 | Type ID | Admin-facing seed name | User-facing inbox title |
@@ -1443,6 +1452,14 @@ from the other:
 | `note_settlement_posted` | Note settlement posted | Settlement Posted |
 | `note_defaulted` | Note defaulted (issuer) | Note marked as default |
 | `withdrawal_submitted_to_trustee` | Withdrawal submitted to trustee | Withdrawal Submitted to Trustee |
+| `application_submitted_confirmation` | Application Submitted Confirmation | Application Submitted |
+| `contract_signing_deadline_extended` | Facility Signing Deadline Extended | Signing Deadline Extended |
+| `invoice_signing_deadline_extended` | Invoice Signing Deadline Extended | Signing Deadline Extended |
+| `note_payment_rejected` | Repayment rejected | Repayment Rejected |
+| `withdrawal_completed` | Disbursement completed | Disbursement Completed |
+| `deposit_name_check_rejected` | Deposit verification failed | Deposit Verification Failed |
+| `deposit_refund_initiated` | Deposit refund started | Refund Started |
+| `deposit_refunded` | Deposit refund completed | Refund Completed |
 
 ---
 
@@ -1493,9 +1510,11 @@ each has either a live replacement or no supporting feature. See
 **Events that deliberately have no notification.** The following are logged but intentionally
 silent, because a later, larger milestone carries the user-facing message:
 `ONBOARDING_APPROVED` (superseded by `FINAL_APPROVAL_COMPLETED`), `SSM_APPROVED`,
-`TNC_APPROVED`, `APPLICATION_SUBMITTED`, `SETTLEMENT_APPROVED`, `WITHDRAWAL_COMPLETED`, all
-`SHORAKA_*`, all prospectus events, all letter-generation events, and `PAYMENT_REJECTED`.
-Whether some of these *should* notify is a product question tracked in
+`TNC_APPROVED`, `SETTLEMENT_APPROVED`, all
+`SHORAKA_*`, all prospectus events, all letter-generation events.
+`APPLICATION_SUBMITTED`, `WITHDRAWAL_COMPLETED` (issuer financing disbursement only),
+`PAYMENT_REJECTED`, `NAME_CHECK_REJECTED`, `REFUND_INITIATED`, and `REFUNDED` **now notify**
+(2026-08-25 coverage pass — see §3.2). Remaining silent candidates are tracked in
 `audit-product-gap-review.md` §3.2 — **do not infer a requirement from the absence.**
 (`AML_APPROVED` is excluded from this list: it is `UNREACHABLE`, not merely silent — see §2.3.
 The live AML milestone, `ONBOARDING_STATUS_UPDATED` + `metadata.amlApproved:true`, is covered by
@@ -1561,6 +1580,34 @@ APPLICATION_COMPLETED
   Recipient: issuer owner + org admins
   Channel: platform only
 
+APPLICATION_SUBMITTED
+  Audit: YES
+  Notification: application_submitted_confirmation
+  Recipient: issuer owner + org admins
+  Channel: platform only
+  Note: session toast on the submitter's browser already exists; this is the persistent org-admin inbox confirmation, matching resubmit
+
+CONTRACT_SIGNING_DEADLINE_EXTENDED
+  Audit: YES
+  Notification: contract_signing_deadline_extended
+  Recipient: issuer owner + org admins
+  Channel: platform + email
+  Idempotency: includes the new signingExpiresAt
+
+INVOICE_SIGNING_DEADLINE_EXTENDED
+  Audit: YES
+  Notification: invoice_signing_deadline_extended
+  Recipient: issuer owner + org admins
+  Channel: platform + email
+  Idempotency: includes invoiceId + signingExpiresAt
+
+CONTRACT_FACILITY_DISABLED
+  Audit: YES
+  Notification: facility_disabled
+  Recipient: issuer owner + org admins
+  Channel: platform + email
+  Idempotency: includes contractId + facilityDisabledAt so a later re-disable still notifies
+
 AMENDMENTS_SUBMITTED
   Audit: YES
   Notification: application_amendments_requested
@@ -1620,8 +1667,9 @@ ACTIVATE
   Notification: note_active_issuer + note_active_investor
   Recipient: issuer org (all members) + confirmed investors
   Channel: platform only
-  Note: only the MANUAL activate path. Auto-activation via disbursement completion
-        writes WITHDRAWAL_COMPLETED and notifies nobody.
+  Note: only the MANUAL activate path fires `note_active_*`. Auto-activation via
+        disbursement completion writes WITHDRAWAL_COMPLETED and now fires
+        `withdrawal_completed` (disbursement copy), not `note_active_*`.
 
 PAYMENT_RECEIVED / PAYMENT_APPROVED
   Audit: YES
@@ -1659,6 +1707,41 @@ WITHDRAWAL_SUBMITTED_TO_TRUSTEE
   Recipient: issuer org owner + ALL members
   Channel: platform only
 
+PAYMENT_REJECTED
+  Audit: YES
+  Notification: note_payment_rejected
+  Recipient: issuer org owner + ALL members
+  Channel: platform only
+  Idempotency: includes paymentId
+
+WITHDRAWAL_COMPLETED
+  Audit: YES
+  Notification: withdrawal_completed  ← ISSUER_DISBURSEMENT only
+  Recipient: issuer org owner + ALL members
+  Channel: platform only
+  Idempotency: includes withdrawalId
+  Guard: isIssuerFinancingDisbursement; residual/investor/admin-adjustment stay silent
+
+NAME_CHECK_REJECTED
+  Audit: YES (gateway_payment_events)
+  Notification: deposit_name_check_rejected  ← INVESTOR_DEPOSIT only
+  Recipient: members of the deposit's investor organization
+  Channel: platform only
+  Idempotency: gateway-payment:{id}:notif:{type}:user:{userId}:name_check_rejected
+
+REFUND_INITIATED
+  Audit: YES
+  Notification: deposit_refund_initiated  ← INVESTOR_DEPOSIT only
+  Recipient: members of the deposit's investor organization
+  Channel: platform only
+
+REFUNDED
+  Audit: YES
+  Notification: deposit_refunded  ← INVESTOR_DEPOSIT only
+  Recipient: members of the deposit's investor organization
+  Channel: platform only
+  Trigger: after wallet-reversal transaction commits
+
 SIGNING_PACKAGE_SENT
   Audit: YES
   Notification: NO registry notification.
@@ -1668,7 +1751,6 @@ SIGNING_PACKAGE_SENT
 ### 5.2 Notable events that do NOT notify
 
 ```
-APPLICATION_SUBMITTED            Audit: YES   Notification: NO
 APPLICATION_CREATED              Audit: YES   Notification: NO
 ONBOARDING_APPROVED              Audit: YES   Notification: NO (deferred to FINAL_APPROVAL_COMPLETED)
 AML_APPROVED                     Audit: N/A — UNREACHABLE, never written (see §2.3)
@@ -1678,16 +1760,22 @@ SSM_APPROVED                     Audit: YES   Notification: NO (intermediate adm
 TNC_APPROVED                     Audit: YES   Notification: NO
 CONTRACT_OFFER_ACCEPTED          Audit: YES   Notification: NO (APPLICATION_COMPLETED covers it)
 INVOICE_OFFER_ACCEPTED           Audit: YES   Notification: NO
-CONTRACT_SIGNING_DEADLINE_EXTENDED  Audit: YES   Notification: NO
-WITHDRAWAL_COMPLETED             Audit: YES   Notification: NO
 SETTLEMENT_APPROVED              Audit: YES   Notification: NO
-PAYMENT_REJECTED                 Audit: YES   Notification: NO
 All SECTION_/ITEM_REVIEWED_*     Audit: YES   Notification: NO (batched into AMENDMENTS_SUBMITTED)
 All prospectus events            Audit: YES   Notification: NO
 All SHORAKA_* events             Audit: YES   Notification: NO
 All legal-document events        Audit: YES   Notification: NO
 All product events               Audit: YES   Notification: NO
-All gateway events               Audit: YES   Notification: NO
+Gateway diagnostic events        Audit: YES   Notification: NO
+CONTRACT_FACILITY_ENABLED        Audit: YES   Notification: NO (investigated 2026-08-25 — OPTIONAL)
+CONTRACT_FACILITY_FEE_WAIVED     Audit: YES   Notification: NO (investigated 2026-08-25 — KEEP_SILENT)
+INVOICE_WITHDRAWN                Audit: YES   Notification: NO (investigated 2026-08-25 — OPTIONAL)
+SIGNING_PACKAGE_VOIDED           Audit: YES   Notification: NO (investigated 2026-08-25 — OPTIONAL)
+UNPUBLISH / PAUSE_LISTING / RESUME_LISTING  Audit: YES   Notification: NO (investigated 2026-08-25)
+ISSUER_PAYMENT_SUBMITTED         Audit: YES   Notification: NO (investigated 2026-08-25 — KEEP_SILENT)
+LATE_CHARGE_APPROVED             Audit: YES   Notification: NO (investigated 2026-08-25 — OPTIONAL)
+SOPHISTICATED_STATUS_UPDATED     Audit: YES   Notification: NO (investigated 2026-08-25 — OPTIONAL)
+ONBOARDING_CANCELLED             Audit: YES   Notification: NO (investigated 2026-08-25 — KEEP_SILENT)
 ```
 
 ---
@@ -1762,12 +1850,12 @@ Not counted as events above, documented separately:
 
 | Metric | Count |
 |---|---|
-| Registry type ids | **36** |
-| Live (≥1 hardcoded `sendTyped`/`sendTypedPlatformOnly` call site) | **30** |
+| Registry type ids | **45** |
+| Live (≥1 hardcoded `sendTyped`/`sendTypedPlatformOnly` call site) | **39** |
 | Bulk-broadcast-only | **2** (`system_announcement`, `new_product_alert`) |
 | Dead (zero send path) | **4** (`kyc_approved`, `kyc_rejected`, `login_new_device`, `application_approved`) |
-| Distinct **events** that fire a registry notification | **28** |
-| Live events with **no** registry notification | **114** |
+| Distinct **events** that fire a registry notification | **37** |
+| Live events with **no** registry notification | **105** |
 | Events that trigger a **direct email** instead | **1** (`SIGNING_PACKAGE_SENT`) |
 | Direct-email paths outside the registry | **7** |
 
@@ -1919,6 +2007,7 @@ deletion.
 | 12 | This document (previously, and the 2026-08-24 Pass A filter-fix rationale in `use-access-logs.ts`) | `access_logs.ROLE_ADDED`, `access_logs.ROLE_REMOVED`, `access_logs.ONBOARDING_RESET`, and `onboarding_logs.ONBOARDING_RESET` classified **LIVE** on the strength of "writer exists" alone | Re-traced from source 2026-08-25, starting from `AdminService.updateUserRoles` and `AdminService.resetOnboarding` per explicit user request. `updateUserRoles`: route `PATCH /v1/admin/users/:id/roles`, SDK method, and `useUpdateUserRoles()` hook all exist, but **zero `.tsx` callers** — the only UI path that changes portal roles is the "Portal access" panel, which calls the unrelated `useUpdateUserOnboarding` and never reaches this writer. `resetOnboarding`: route `POST /v1/admin/users/:id/reset-onboarding` exists (its own Swagger comment calls it "temporary feature for testing") but has **no SDK method, no hook, no `.tsx` caller** at all — one tier more unreachable than the roles writer. `access_logs.PROFILE_UPDATED` was re-confirmed genuinely **LIVE_UI_REACHABLE** (`useUpdateUserProfile` → `user-account-profile-panel.tsx` / `organization-member-edit-dialog.tsx`), as were all four `security_logs` additions from the same Pass A fix (`ROLE_CREATED`, `ROLE_REMOVED`, `ROLE_PERMISSIONS_UPDATED`, `INVITATION_REVOKED` — all wired to `admin-permission-configuration.tsx` or `app/settings/roles/page.tsx`). Also documented two writer-behavior nuances: `ROLE_ADDED` is the fallback branch of `updateUserRoles` for *any* non-ADMIN-removal outcome (not literally "a role was added"), and `ROLE_REMOVED` fires only when `ADMIN` is specifically stripped (not "any role removed") | Reclassified **UNREACHABLE** (3 in `access_logs`, 1 in `onboarding_logs`); filter/query allowlist and code left unchanged on purpose — see the `use-access-logs.ts` comment. §1.1, §1.3, §2.1, §2.3, and §7.1 totals updated (Live 141→137, Not-live 20→24); `security_logs` additions re-confirmed with no changes |
 | 13 | This document / `audit-product-gap-review.md` §5 (dead-events table) | 14 candidate `DEAD`/`SEED_ONLY` audit and notification artifacts flagged as generic "cleanup candidates" without a per-item safety verdict | **2026-08-25 cleanup pass**, verified from source, not from prior docs. **1 of 14 was safe to remove**: `note_events.ISSUER_RESIDUAL_WITHDRAWAL_CREATED` had zero writers anywhere in `apps/api/src` and existed only as one never-looked-up entry in `admin-note-events-sorting.ts`'s lifecycle-priority array — deleted from that array (and its docs mirror), `presentation-baseline.json` regenerated, full API + Admin test suites green, no schema/enum touched (the column is a plain `String`). **13 of 14 were investigated and retained**, each for a source-verified reason rather than "docs said so": (i) `KYC_STATUS_UPDATED`/`TNC_ACCEPTED`/`KYC_APPROVED`/`KYB_APPROVED` — already excluded from the default admin query allowlists (2026-08-24 pass); the remaining label/dropdown-option code exists specifically to render/filter `seed.ts`'s real historical seed rows and already degrades gracefully, so removing it has no safety benefit; (ii) `APPLICATION_APPROVED`/`CONTRACT_OFFER_REJECTED` — `apps/api/src/lib/audit/preservation.test.ts` explicitly asserts a source reference must survive for these two ("a reader/label reference to them already exists and must keep existing"); removing it would fail that regression test and reverse a documented prior design decision; (iii) `OVERRIDE_PROPOSED`/`OVERRIDE_APPROVED`/`OVERRIDE_REJECTED` — confirmed a real Prisma `enum GatewayPaymentEventType` (`schema.prisma:2272-2284`), not a plain string column; removing enum members is a migration, forbidden by this pass's "no destructive database migration" rule; the surviving read path (`getOpenOverrideProposal()`) suggests a paused feature, not cruft; (iv) `kyc_approved`/`kyc_rejected`/`login_new_device`/`application_approved` notification types — `notification_types` is a real cascading-FK-backed table (`schema.prisma:1972-2078`); removing the row (or the registry/seed-data entry that syncs it) risks orphaning or cascade-deleting historical `notifications`/`notification_logs` rows, exactly the destructive-history risk this pass must avoid; (v) `USER_COMPLETED` — confirmed `webhook-handler-dev.ts` is an intentionally-live-registered dev-only testing route (writes to `DATABASE_URL_DEV`, never production data), not obsolete, so out of scope per explicit instruction. **Correction (same day, re-verified against fresh source):** `KYB_APPROVED` in group (i) is not actually `SEED_ONLY` like the other three — it has **zero** occurrences in `seed.ts` as well, so it is `DEAD`, not `SEED_ONLY` (only the classification label changed; the retain decision and reasoning in (i) are unchanged). Also, `notification_types` cascade FKs in (iv) are from `notifications` and `user_notification_preferences` only — `notification_logs`'s FK has no explicit `onDelete` (defaults to `RESTRICT`), not `Cascade`. And none of the 4 dead notification types in (iv) show as end-user toggles in Account settings (that page filters to `category === "MARKETING"`, and all 4 are `SYSTEM`/`AUTHENTICATION`); they instead show as global platform/email toggles in Admin → Settings → Notifications → Configuration, which lists every `SYSTEM`/`AUTHENTICATION` type regardless of `user_configurable` | Removed 1 (`note_events.ISSUER_RESIDUAL_WITHDRAWAL_CREATED`); retained 13, one relabelled `SEED_ONLY`→`DEAD` (`KYB_APPROVED`, no count-total change — see §7.1). §1.9, §2.6.3, and §7.1 totals updated (Documented 161→160, Not-live 24→23); full per-item reasoning in `audit-product-gap-review.md` §4 item 12; catalog lines updated in `audit-event-catalog.md` §1.1, §2.1, §3.1, §3.3, and §5 |
 | 14 | Follow-up to #13 — narrow code cleanup on the retained items, not another investigation | Several items in #13 were retained with no code change; a second pass asked whether any *specific dead reference* within those retained items could still be cleaned safely | **2026-08-25 same-day follow-up pass.** `access_logs.USER_COMPLETED` — **CODE_REMOVED**: confirmed zero writers ever emit it into `access_logs` (only writer is `onboardingLog.create` in the dev-only regtank webhook handler, a different table/domain); removed from the `EventType` union (`packages/types/src/admin.ts`), the `AccessLog` OpenAPI enum (`swagger.ts`), and the access-log label/color/dropdown maps (`access-log-table-row.tsx`, `access-log-details-dialog.tsx`, `access-logs-toolbar.tsx`). `onboarding_logs.USER_COMPLETED` (DEV_ONLY) and its dev webhook writer, `cancelOnboarding`'s historical reader, and the split `DATABASE_URL_DEV` behavior are all untouched. `onboarding_logs.KYB_APPROVED` — **CODE_REMOVED**: unlike `KYC_STATUS_UPDATED`/`TNC_ACCEPTED`/`KYC_APPROVED` (real `seed.ts` rows, kept for historical rendering), `KYB_APPROVED` has zero occurrences anywhere including `seed.ts`, so its label-map/switch-case/union entries served no historical-compatibility purpose — removed from `OnboardingEventType` (`packages/types/src/admin.ts`), `activity-events.json`, and `organization-activity-timeline.tsx`'s label map and `buildEventDescription` switch; status stays `DEAD` (declared value, no schema/enum change). `application_logs.CONTRACT_OFFER_REJECTED` — **RETAINED, classified `HISTORICAL_COMPATIBILITY_ONLY`**: `event_type` is a plain `String`/TEXT column and a real production writer existed for this value before the live issuer-decline path was renamed to `CONTRACT_WITHDRAWN`, so historical rows may reasonably exist; removing it from `application-log.ts`'s `CONTRACT_EVENT_TYPES`/`getEventTypes()` would hide any such row from the API-served activity feed (the same `VISIBILITY_MISMATCH` risk class fixed for `ROLE_ADDED`/`ROLE_REMOVED` in #12 of the prior pass) — no code changed. `application_logs.APPLICATION_APPROVED` — **DB event stays DEAD; distinguished from an ACTIVE synthetic UI alias**: `apps/issuer/src/components/financing/facility-transactions.ts` synthesizes a display-only row with `eventType: "APPLICATION_APPROVED"` for approved invoices (not a DB write) — that alias is live and was not touched; no code changed, only documented (§2.4). Dead notification types (`kyc_approved`, `kyc_rejected`, `login_new_device`, `application_approved`) — **UI hidden, registry/seed retained**: added a client-side exclusion filter in `apps/admin/src/app/settings/notifications/page.tsx` so these 4 no longer appear as platform/email toggles in Admin → Settings → Notifications → Configuration (they never appeared in the end-user Account preferences page, which only shows `MARKETING`-category types); `notification_types`/`seed-data.ts`/`registry.ts` rows untouched (cascade-delete FK risk on real historical `notifications`/`user_notification_preferences` rows) and the Logs tab's type filter still lists them for historical-log filtering. Reclassified `DEAD` → `DEAD_NOT_CONFIGURABLE` in §3.2 | `packages/types/src/admin.ts` (2 union members removed), `packages/types/src/activity-events.json`, `apps/api/src/lib/swagger.ts`, `apps/admin/src/components/{access-log-table-row,access-log-details-dialog,access-logs-toolbar,organization-activity-timeline}.tsx`, `apps/admin/src/hooks/{use-access-logs,use-organization-logs}.ts` (comments), `apps/admin/src/app/settings/notifications/page.tsx`, `apps/api/src/lib/audit/presentation-baseline.json` (regenerated). Full API suite (269/270 suites, 2473/2474 tests — 1 known unrelated pre-existing failure in `site-document-removal.test.ts`) and full Admin suite (69/69 suites, 506/506 tests) green; typecheck clean for `api` and `admin`; `packages/types` rebuilt | 2 **CODE_REMOVED** (`access_logs.USER_COMPLETED`, `onboarding_logs.KYB_APPROVED`); 1 **RETAINED — HISTORICAL_COMPATIBILITY_ONLY** (`CONTRACT_OFFER_REJECTED`); 1 **documented distinction, no change** (`APPLICATION_APPROVED` DB-dead vs. synthetic-UI-active); 4 notification types **UI hidden (DEAD_NOT_CONFIGURABLE), registry retained**. No schema/enum/DB migration; no historical row rewritten; no runtime business behavior changed |
+| 15 | Focused user-notification coverage pass (not audit cleanup) | Nine LIVE business events had audit/log writers but no registry notification | **2026-08-25.** Added 9 live notification types, triggered from the same successful mutation path as the existing audit event. No audit events added/renamed/deleted. Recipients follow existing helpers: application domain → owner+org admins (`sendTyped`); note lifecycle → all issuer org members (`sendTypedPlatformOnly`); gateway deposits → members of the deposit's investor org (`sendTypedPlatformOnly`) because `GatewayPayment` has no depositor `user_id`. `WITHDRAWAL_COMPLETED` is type-gated to `ISSUER_DISBURSEMENT`. Gateway types use per-payment+user idempotency keys so webhook retries do not duplicate. Session toast on application submit already existed and is not treated as a duplicate of the persistent org-admin inbox confirmation (same pattern as resubmit). | `registry.ts`, `seed-data.ts`, application/admin/notes/payment services, `note-lifecycle-notifications.ts`, `gateway-payment-notifications.ts`, focused tests, presentation baseline regenerated | Live notification types 30→39; dead still 4; bulk-only still 2; events-with-notification 28→37; live-events-without-notification 114→105. Audit event counts unchanged. |
 
 
 
