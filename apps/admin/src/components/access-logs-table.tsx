@@ -33,6 +33,8 @@ interface AccessLogsTableProps {
   onPageChange: (page: number) => void;
   showRole?: boolean;
   showOrganization?: boolean;
+  /** Per-domain label overrides for event types whose canonical wording differs by source table. */
+  labelOverrides?: Record<string, string>;
 }
 
 function TableSkeleton({ showRole = false, showOrganization = false }: { showRole?: boolean; showOrganization?: boolean }) {
@@ -91,6 +93,7 @@ export function AccessLogsTable({
   onPageChange,
   showRole = false,
   showOrganization = false,
+  labelOverrides,
 }: AccessLogsTableProps) {
   const [selectedLog, setSelectedLog] = React.useState<AccessLog | null>(null);
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -142,6 +145,7 @@ export function AccessLogsTable({
                     onViewDetails={() => handleViewDetails(log)}
                     showRole={showRole}
                     showOrganization={showOrganization}
+                    labelOverrides={labelOverrides}
                   />
                 ))
               )}
@@ -179,7 +183,12 @@ export function AccessLogsTable({
         )}
       </div>
 
-      <AccessLogDetailsDialog open={dialogOpen} onOpenChange={setDialogOpen} log={selectedLog} />
+      <AccessLogDetailsDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        log={selectedLog}
+        labelOverrides={labelOverrides}
+      />
     </>
   );
 }

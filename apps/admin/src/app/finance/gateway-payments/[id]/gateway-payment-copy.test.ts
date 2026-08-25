@@ -27,7 +27,7 @@ describe("gateway payment admin copy", () => {
     expect(formatGatewayEventTitle("REFUND_WALLET_REVERSAL_FAILED")).toBe(
       "Wallet balance could not be updated"
     );
-    expect(formatGatewayEventTitle("REFUND_INITIATED")).toBe("Refund requested");
+    expect(formatGatewayEventTitle("REFUND_INITIATED")).toBe("Refund Started");
   });
 
   it("maps known reasons to plain descriptions", () => {

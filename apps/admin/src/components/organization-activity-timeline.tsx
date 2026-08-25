@@ -43,8 +43,8 @@ function getEventLabel(eventType: string): string {
   const labels: Record<string, string> = {
     ONBOARDING_STARTED: "Onboarding Started",
     ONBOARDING_RESUMED: "Onboarding Resumed",
-    ONBOARDING_STATUS_UPDATED: "Status Updated",
-    ONBOARDING_CANCELLED: "Onboarding Cancelled",
+    ONBOARDING_STATUS_UPDATED: "Onboarding Status Updated",
+    ONBOARDING_CANCELLED: "Onboarding Restarted",
     ONBOARDING_REJECTED: "Onboarding Rejected",
     COD_REJECTED: "Onboarding Rejected",
     ONBOARDING_APPROVED: "Onboarding Approved",
@@ -57,7 +57,7 @@ function getEventLabel(eventType: string): string {
     SOPHISTICATED_STATUS_UPDATED: "Sophisticated Status Updated",
     FORM_FILLED: "Form Submitted",
     ONBOARDING_RESET: "Onboarding Reset",
-    PROFILE_UPDATED: "Profile Updated",
+    PROFILE_UPDATED: "Organization Profile Updated",
     USER_COMPLETED: "User Completed",
   };
   return (

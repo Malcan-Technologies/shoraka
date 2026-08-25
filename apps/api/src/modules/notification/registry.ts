@@ -151,6 +151,9 @@ export interface NotificationPayloads {
   [NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION]: {
     applicationId: string;
     displayReference?: string | null;
+    /** Distinguishes a true application withdrawal from an issuer declining a facility/invoice offer, which also transitions the application to WITHDRAWN. Undefined = true withdrawal (default copy). */
+    withdrawalReason?: "contract_offer_declined" | "invoice_offer_declined";
+    invoiceNumber?: string | null;
   };
   [NotificationTypeIds.APPLICATION_COMPLETED]: {
     applicationId: string;
@@ -355,7 +358,7 @@ export const NOTIFICATION_TEMPLATES: {
   [NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED]: {
     title: "Amendment Requested",
     message: (data) =>
-      `Your application ${getApplicationNotificationRef(data)} requires updates. ${data.amendmentCount} amendment item(s) were requested by the reviewer.`,
+      `An amendment is required for application ${getApplicationNotificationRef(data)}. Review the request and resubmit your application.`,
     linkPath: (data) => `/applications/${data.applicationId}/edit`,
     portal: "issuer",
   },
@@ -425,9 +428,22 @@ export const NOTIFICATION_TEMPLATES: {
     portal: "issuer",
   },
   [NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION]: {
-    title: "Application Withdrawn",
-    message: (data) =>
-      `Your application ${getApplicationNotificationRef(data)} has been withdrawn successfully.`,
+    title: (data) => {
+      if (data.withdrawalReason === "contract_offer_declined") return "Facility Offer Declined";
+      if (data.withdrawalReason === "invoice_offer_declined") return "Invoice Offer Declined";
+      return "Application Withdrawn";
+    },
+    message: (data) => {
+      if (data.withdrawalReason === "contract_offer_declined") {
+        return `The facility offer on your application ${getApplicationNotificationRef(data)} was declined and the application is now closed.`;
+      }
+      if (data.withdrawalReason === "invoice_offer_declined") {
+        return data.invoiceNumber
+          ? `The invoice offer for invoice ${data.invoiceNumber} was declined.`
+          : `The invoice offer on your application ${getApplicationNotificationRef(data)} was declined.`;
+      }
+      return `Your application ${getApplicationNotificationRef(data)} has been withdrawn successfully.`;
+    },
     linkPath: (data) => `/applications/${data.applicationId}`,
     portal: "issuer",
   },
@@ -485,14 +501,14 @@ export const NOTIFICATION_TEMPLATES: {
     portal: "investor",
   },
   [NotificationTypeIds.NOTE_PUBLISHED]: {
-    title: "Note published",
+    title: "Note Published",
     message: (data) =>
       `Your note "${data.noteTitle}" has been published to the marketplace for investor funding.`,
     linkPath: (data) => `/notes/${data.noteId}`,
     portal: "issuer",
   },
   [NotificationTypeIds.NOTE_FUNDING_SUCCEEDED]: {
-    title: "Funding closed successfully",
+    title: "Funding Closed",
     message: (data) =>
       `Funding for "${data.noteTitle}" has closed — the minimum threshold was reached and commitments are locked in.`,
     linkPath: (data) => `/notes/${data.noteId}`,
@@ -513,14 +529,14 @@ export const NOTIFICATION_TEMPLATES: {
     portal: "investor",
   },
   [NotificationTypeIds.NOTE_ACTIVE_ISSUER]: {
-    title: "Note is active",
+    title: "Your Note Is Active",
     message: (data) =>
       `Your note "${data.noteTitle}" is now active. Disbursement and servicing proceeds under the agreed terms.`,
     linkPath: (data) => `/notes/${data.noteId}`,
     portal: "issuer",
   },
   [NotificationTypeIds.NOTE_ACTIVE_INVESTOR]: {
-    title: "Investment is active",
+    title: "Your Investment Is Active",
     message: (data) =>
       `Funding for "${data.noteTitle}" is complete and the note is now active. Monitor repayments from your investments view.`,
     linkPath: (data) => `/investments/${data.noteId}`,
@@ -553,20 +569,20 @@ export const NOTIFICATION_TEMPLATES: {
     portal: "issuer",
   },
   [NotificationTypeIds.NOTE_ARREARS_INVESTOR]: {
-    title: "Note in arrears",
+    title: "Note in Arrears",
     message: (data) =>
       `"${data.noteTitle}" is in arrears. We will keep you informed as servicing actions progress.`,
     linkPath: (data) => `/investments/${data.noteId}`,
     portal: "investor",
   },
   [NotificationTypeIds.NOTE_DEFAULTED]: {
-    title: "Note marked as default",
+    title: "Your Note Is in Default",
     message: (data) => `"${data.noteTitle}" has been marked as default.`,
     linkPath: (data) => `/notes/${data.noteId}`,
     portal: "issuer",
   },
   [NotificationTypeIds.NOTE_DEFAULTED_INVESTOR]: {
-    title: "Note marked as default",
+    title: "Your Investment Is in Default",
     message: (data) =>
       `"${data.noteTitle}" has been marked as default. This may affect recovery timelines; check your investments view for updates.`,
     linkPath: (data) => `/investments/${data.noteId}`,
@@ -592,7 +608,7 @@ export const NOTIFICATION_TEMPLATES: {
     portal: 'issuer',
   },
   [NotificationTypeIds.WITHDRAWAL_COMPLETED]: {
-    title: 'Disbursement Completed',
+    title: 'Your Disbursement Is Complete',
     message: (data) => `The disbursement for note ${data.noteTitle} has been completed.`,
     linkPath: (data) => `/notes/${data.noteId}`,
     portal: 'issuer',

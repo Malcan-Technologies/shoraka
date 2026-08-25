@@ -2950,7 +2950,7 @@ export class ApplicationService {
         await this.sendIssuerNotification(
           applicationId,
           NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION,
-          { applicationId },
+          { applicationId, withdrawalReason: "contract_offer_declined" },
           "withdrawn:contract-offer-response"
         );
       } catch (notificationError) {
@@ -3564,7 +3564,7 @@ export class ApplicationService {
         await this.sendIssuerNotification(
           applicationId,
           NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION,
-          { applicationId },
+          { applicationId, withdrawalReason: "invoice_offer_declined", invoiceNumber },
           "withdrawn:invoice-offer-response"
         );
       } catch (notificationError) {

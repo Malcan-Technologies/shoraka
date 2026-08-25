@@ -18,8 +18,8 @@ function event(overrides: Partial<AdminContractActivityEvent> = {}): AdminContra
 
 describe("formatContractActivityEventLabel", () => {
   it("maps known contract events and title-cases unknown types", () => {
-    expect(formatContractActivityEventLabel("CONTRACT_OFFER_SENT")).toBe("Facility offer sent");
-    expect(formatContractActivityEventLabel("CONTRACT_OFFER_ACCEPTED")).toBe("Facility offer signed");
+    expect(formatContractActivityEventLabel("CONTRACT_OFFER_SENT")).toBe("Facility Offer Sent");
+    expect(formatContractActivityEventLabel("CONTRACT_OFFER_ACCEPTED")).toBe("Facility Offer Signed");
     expect(formatContractActivityEventLabel("CUSTOM_EVENT_TYPE")).toBe("Custom Event Type");
   });
 
@@ -33,7 +33,7 @@ describe("formatContractActivityEventLabel", () => {
 
   it("uses sentence-case signing-package wording, matching the facility/invoice timeline", () => {
     expect(formatContractActivityEventLabel("SIGNING_PACKAGE_CREATED")).toBe(
-      "Signing package created"
+      "Signing Package Created"
     );
     expect(formatContractActivityEventLabel("SIGNING_PACKAGE_SENT")).toBe("Signing package sent");
     expect(formatContractActivityEventLabel("SIGNING_PACKAGE_COMPLETED")).toBe(
@@ -57,7 +57,7 @@ describe("buildContractActivityCsv", () => {
     expect(lines[0]).toContain("createdAt");
     expect(lines[0]).toContain("event");
     expect(lines[0]).toContain("actor");
-    expect(lines[1]).toContain("Facility offer sent");
+    expect(lines[1]).toContain("Facility Offer Sent");
     expect(lines[1]).toContain("CONTRACT_OFFER_SENT");
     expect(lines[1]).toContain("Facility set at 500k");
     expect(lines[1]).toContain("500000");

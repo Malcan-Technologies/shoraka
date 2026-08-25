@@ -158,7 +158,7 @@ describe("NoteLogAdapter", () => {
     expect(records[0].id).toBe("withdrawal_1");
 
     const transformed = adapter.transform(records[0] as any);
-    expect(transformed.title).toBe("Disbursement Completed");
+    expect(transformed.title).toBe("Your Disbursement Is Complete");
     expect(transformed.description).toBe("Disbursement for note NOTE-001 has been completed.");
     expect(transformed.references).toEqual({
       noteId: "note_1",

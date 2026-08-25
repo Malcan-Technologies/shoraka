@@ -159,7 +159,7 @@ describe("buildFacilityTransactions", () => {
       ],
     });
     expect(rows.map((row) => row.label)).toEqual(
-      expect.arrayContaining(["Funding requested", "Funding approved", "Invoice offer sent"])
+      expect.arrayContaining(["Funding requested", "Funding approved", "You Received an Invoice Offer"])
     );
   });
 
@@ -169,7 +169,7 @@ describe("buildFacilityTransactions", () => {
       invoices: [],
       logs: [log({ event_type: "CONTRACT_OFFER_SENT" })],
     });
-    const offerSent = rows.filter((row) => row.label === "Facility offer sent");
+    const offerSent = rows.filter((row) => row.label === "You Received a Facility Offer");
     expect(offerSent).toHaveLength(1);
     expect(offerSent[0]?.id).toBe("log:log_1");
   });

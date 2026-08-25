@@ -135,7 +135,7 @@ function getEventLabel(
     APPLICATION_REJECTED: "Application Rejected",
     APPLICATION_WITHDRAWN: "Application Withdrawn",
     APPLICATION_COMPLETED: "Application Completed",
-    APPLICATION_RESET_TO_UNDER_REVIEW: "Application Reset to Under Review",
+    APPLICATION_RESET_TO_UNDER_REVIEW: "Application Returned to Review",
     CONTRACT_OFFER_SENT: "Facility Offer Sent",
     CONTRACT_OFFER_ACCEPTANCE_SUBMITTED: "Facility Offer Acceptance Submitted",
     CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED: "Facility Offer Acceptance Resubmitted",
@@ -146,21 +146,24 @@ function getEventLabel(
     CONTRACT_FACILITY_OCCUPANCY_UPDATED: "Facility Occupancy Updated",
     CONTRACT_OFFER_EXPIRED: "Facility Offer Expired",
     CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
-    CONTRACT_WITHDRAWN: "Facility Offer Rejected",
+    CONTRACT_WITHDRAWN: "Facility Offer Declined",
     INVOICE_OFFER_SENT: "Invoice Offer Sent",
     INVOICE_OFFER_ACCEPTANCE_SUBMITTED: "Invoice Offer Acceptance Submitted",
     INVOICE_OFFER_ACCEPTANCE_RESUBMITTED: "Invoice Offer Acceptance Resubmitted",
     INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING: "Invoice Acceptance Approved for Signing",
     INVOICE_OFFER_ACCEPTED: "Invoice Offer Signed",
-    INVOICE_OFFER_REJECTED: "Invoice Offer Rejected",
+    INVOICE_OFFER_REJECTED: "Invoice Offer Declined",
     INVOICE_OFFER_RETRACTED: "Invoice Offer Retracted",
     INVOICE_OFFER_EXPIRED: "Invoice Offer Expired",
     INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
     INVOICE_WITHDRAWN: "Invoice Withdrawn",
-    SIGNING_PACKAGE_CREATED: "Signing package created",
+    SIGNING_PACKAGE_CREATED: "Signing Package Created",
     SIGNING_PACKAGE_SENT: "Signing package sent",
     SIGNING_PACKAGE_VOIDED: "Signing package voided",
-    AMENDMENTS_SUBMITTED: "Amendment Request Sent",
+    AMENDMENTS_SUBMITTED: "Amendment Requested",
+    CONTRACT_FACILITY_FEE_WAIVED: "Facility Fee Waived",
+    CONTRACT_FACILITY_DISABLED: "Facility Disabled",
+    CONTRACT_FACILITY_ENABLED: "Facility Enabled",
   };
   if (eventType === "INVOICE_OFFER_SENT") {
     const invoiceNumber = metadata?.invoice_number;
@@ -183,8 +186,8 @@ function getEventLabel(
   if (eventType === "INVOICE_OFFER_REJECTED") {
     const invoiceNumber = metadata?.invoice_number;
     return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Offer Rejected`
-      : "Invoice Offer Rejected";
+      ? `Invoice ${invoiceNumber} Offer Declined`
+      : "Invoice Offer Declined";
   }
   if (eventType === "INVOICE_WITHDRAWN") {
     const invoiceNumber = metadata?.invoice_number;

@@ -22,6 +22,8 @@ interface AccessLogTableRowProps {
   onViewDetails: () => void;
   showRole?: boolean;
   showOrganization?: boolean;
+  /** Per-domain label overrides for event types whose canonical wording differs by source table. */
+  labelOverrides?: Record<string, string>;
 }
 
 // Event type configuration with dot color and readable label
@@ -45,7 +47,7 @@ export const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }>
   FINAL_APPROVAL_COMPLETED: { label: "Final Approval", color: "bg-green-500" },
   KYC_STATUS_UPDATED: { label: "KYC Updated", color: "bg-yellow-500" },
   PASSWORD_CHANGED: { label: "Password Changed", color: "bg-rose-500" },
-  EMAIL_CHANGED: { label: "Email Changed", color: "bg-cyan-500" },
+  EMAIL_CHANGED: { label: "Email Verified", color: "bg-cyan-500" },
   PROFILE_UPDATED: { label: "Profile Updated", color: "bg-blue-500" },
   SOPHISTICATED_STATUS_UPDATED: { label: "Sophisticated Updated", color: "bg-violet-500" },
 };
@@ -76,10 +78,11 @@ const COLOR_MAP: Record<string, string> = {
   "bg-violet-500": "rgb(139 92 246)",
 };
 
-function getEventTypeBadge(eventType: string) {
+function getEventTypeBadge(eventType: string, labelOverrides?: Record<string, string>) {
   const config = EVENT_TYPE_CONFIG[eventType];
   const color = config?.color || "bg-gray-500";
   const label =
+    labelOverrides?.[eventType] ||
     config?.label ||
     eventType
       .replace(/_/g, " ")
@@ -128,6 +131,7 @@ export function AccessLogTableRow({
   onViewDetails,
   showRole = false,
   showOrganization = false,
+  labelOverrides,
 }: AccessLogTableRowProps) {
   return (
     <TableRow className="hover:bg-muted/50">
@@ -161,7 +165,7 @@ export function AccessLogTableRow({
           </span>
         </div>
       </TableCell>
-      <TableCell>{getEventTypeBadge(log.event_type)}</TableCell>
+      <TableCell>{getEventTypeBadge(log.event_type, labelOverrides)}</TableCell>
       {showRole && (
         <TableCell>
           {log.role ? (

@@ -8,8 +8,8 @@ import { join } from "node:path";
 describe("admin activity timeline signing-package copy", () => {
   const source = readFileSync(join(__dirname, "admin-activity-timeline.tsx"), "utf8");
 
-  it("uses sentence-case signing-package labels", () => {
-    expect(source).toMatch(/SIGNING_PACKAGE_CREATED:\s*"Signing package created"/);
+  it("uses Title Case for Signing Package Created (copy standardization) and sentence-case for the rest", () => {
+    expect(source).toMatch(/SIGNING_PACKAGE_CREATED:\s*"Signing Package Created"/);
     expect(source).toMatch(/SIGNING_PACKAGE_SENT:\s*"Signing package sent"/);
     expect(source).toMatch(/SIGNING_PACKAGE_VOIDED:\s*"Signing package voided"/);
   });

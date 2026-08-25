@@ -10,6 +10,13 @@ import type { EventType, GetAccessLogsParams } from "@cashsouk/types";
 
 export { ACCESS_EVENT_TYPES };
 
+// access_logs.PROFILE_UPDATED (an admin editing a user's own profile fields) collides with the
+// unrelated security_logs.PROFILE_UPDATED (self-service profile update) in the shared event-type
+// label config; disambiguated here so only this panel shows the access_logs-specific wording.
+const ACCESS_LOG_LABEL_OVERRIDES: Record<string, string> = {
+  PROFILE_UPDATED: "User Profile Updated",
+};
+
 export function AccessLogsPanel() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -106,6 +113,7 @@ export function AccessLogsPanel() {
         pageSize={pageSize}
         totalLogs={totalLogs}
         onPageChange={setCurrentPage}
+        labelOverrides={ACCESS_LOG_LABEL_OVERRIDES}
       />
     </div>
   );

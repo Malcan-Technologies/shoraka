@@ -19,7 +19,7 @@ function event(overrides: Partial<NoteEvent> = {}): NoteEvent {
 
 describe("formatNoteActivityEventLabel", () => {
   it("maps known types and rewrites Shoraka to Tawarruq", () => {
-    expect(formatNoteActivityEventLabel("NOTE_PUBLISHED")).toBe("Note published");
+    expect(formatNoteActivityEventLabel("NOTE_PUBLISHED")).toBe("Note Published");
     expect(formatNoteActivityEventLabel("PAUSE_LISTING")).toBe("Campaign paused");
     expect(formatNoteActivityEventLabel("FAIL_FUNDING")).toBe("Funding unsuccessful");
     expect(formatNoteActivityEventLabel("PROSPECTUS_REVIEW_APPROVE")).toBe("Prospectus approved");
@@ -27,7 +27,7 @@ describe("formatNoteActivityEventLabel", () => {
       "Prospectus approval cleared after unpublish"
     );
     expect(formatNoteActivityEventLabel("SHORAKA_ORDER_SUBMITTED")).toBe(
-      "Tawarruq order submitted"
+      "Tawarruq Order Submitted"
     );
     expect(formatNoteActivityEventLabel("WITHDRAWAL_TRUSTEE_EMAIL_SENT")).toBe(
       "Withdrawal email delivered to Trustee"

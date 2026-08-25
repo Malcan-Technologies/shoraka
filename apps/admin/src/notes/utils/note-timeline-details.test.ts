@@ -65,6 +65,34 @@ describe("extractNoteTimelineDetails", () => {
     expect(compact.find((row) => row.key === "resend")?.value).not.toBe("Yes");
   });
 
+  it("builds an activation sentence with the actor and note title", () => {
+    const { compact, prose } = extractNoteTimelineDetails(
+      event({ eventType: "ACTIVATE", actorName: "Jane Admin" }),
+      "Acme Note 1"
+    );
+
+    expect(compact).toEqual([]);
+    expect(prose).toEqual([
+      {
+        key: "message",
+        label: "Message",
+        value: "Jane Admin activated Acme Note 1. Servicing has started.",
+      },
+    ]);
+  });
+
+  it("falls back to generic actor/note wording when unavailable", () => {
+    const { prose } = extractNoteTimelineDetails(event({ eventType: "ACTIVATE" }));
+
+    expect(prose).toEqual([
+      {
+        key: "message",
+        label: "Message",
+        value: "An admin activated the note. Servicing has started.",
+      },
+    ]);
+  });
+
   it("hides s3 keys from generic events", () => {
     const { compact, prose } = extractNoteTimelineDetails(
       event({

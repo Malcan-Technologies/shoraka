@@ -55,7 +55,10 @@ function pushDetail(
   rows.push({ key, label, value });
 }
 
-export function extractNoteTimelineDetails(event: NoteEvent): {
+export function extractNoteTimelineDetails(
+  event: NoteEvent,
+  noteTitle?: string | null
+): {
   compact: AdminTimelineDetail[];
   prose: AdminTimelineDetail[];
 } {
@@ -69,6 +72,21 @@ export function extractNoteTimelineDetails(event: NoteEvent): {
     const prose: AdminTimelineDetail[] = [];
     pushDetail(prose, "message", "Message", metadata.message);
     return { compact, prose };
+  }
+
+  if (event.eventType === "ACTIVATE") {
+    const actor = event.actorName?.trim() || "An admin";
+    const noteLabel = noteTitle?.trim() ? ` ${noteTitle.trim()}` : " the note";
+    return {
+      compact: [],
+      prose: [
+        {
+          key: "message",
+          label: "Message",
+          value: `${actor} activated${noteLabel}. Servicing has started.`,
+        },
+      ],
+    };
   }
 
   const compact: AdminTimelineDetail[] = [];

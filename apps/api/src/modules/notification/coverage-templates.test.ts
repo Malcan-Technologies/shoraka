@@ -49,7 +49,7 @@ describe("notification coverage templates", () => {
     expect(rejected.portal).toBe("issuer");
 
     const completed = NOTIFICATION_TEMPLATES[NotificationTypeIds.WITHDRAWAL_COMPLETED];
-    expect(completed.title).toBe("Disbursement Completed");
+    expect(completed.title).toBe("Your Disbursement Is Complete");
     expect(completed.message({ noteId: "n1", noteTitle: "N-1" })).toBe(
       "The disbursement for note N-1 has been completed."
     );

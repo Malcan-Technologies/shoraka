@@ -70,7 +70,7 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
           <AdminVerticalTimeline>
             {note.events.map((event) => {
               const s3Key = extractS3Key(event);
-              const { compact, prose } = extractNoteTimelineDetails(event);
+              const { compact, prose } = extractNoteTimelineDetails(event, note.title);
 
               return (
                 <AdminVerticalTimelineItem

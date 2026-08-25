@@ -954,6 +954,18 @@ router.get(
   }
 );
 
+// Curated labels for access_logs CSV export; anything not listed keeps its raw event_type string.
+const ACCESS_LOG_CSV_EVENT_LABELS: Record<string, string> = {
+  LOGIN: "Login",
+  LOGOUT: "Logout",
+  SIGNUP: "Sign Up",
+  PROFILE_UPDATED: "User Profile Updated",
+};
+
+function formatAccessLogCsvEventType(eventType: string): string {
+  return ACCESS_LOG_CSV_EVENT_LABELS[eventType] ?? eventType;
+}
+
 /**
  * @swagger
  * /v1/admin/access-logs/export:
@@ -989,7 +1001,7 @@ router.get(
           log.created_at.toISOString(),
           `${log.user.first_name} ${log.user.last_name}`,
           log.user.email,
-          log.event_type,
+          formatAccessLogCsvEventType(log.event_type),
           log.ip_address || "",
           log.device_type || "",
           log.success ? "Success" : "Failed",
@@ -1411,6 +1423,18 @@ router.get(
   }
 );
 
+// Curated labels for security_logs CSV export; anything not listed keeps its raw event_type string.
+const SECURITY_LOG_CSV_EVENT_LABELS: Record<string, string> = {
+  ROLE_ADDED: "Role Added",
+  ROLE_SWITCHED: "Role Switched",
+  PROFILE_UPDATED: "Profile Updated",
+  EMAIL_CHANGED: "Email Verified",
+};
+
+function formatSecurityLogCsvEventType(eventType: string): string {
+  return SECURITY_LOG_CSV_EVENT_LABELS[eventType] ?? eventType;
+}
+
 /**
  * @swagger
  * /v1/admin/security-logs/export:
@@ -1452,7 +1476,7 @@ router.get(
               log.created_at.toISOString(),
               `${log.user.first_name} ${log.user.last_name}`,
               log.user.email,
-              log.event_type,
+              formatSecurityLogCsvEventType(log.event_type),
               log.ip_address || "",
               log.device_info || "",
               JSON.stringify(log.metadata || {}),

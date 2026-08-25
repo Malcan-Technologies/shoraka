@@ -23,8 +23,9 @@ import * as React from "react";
 import type { AccessLogResponse } from "@cashsouk/types";
 import { EVENT_TYPE_CONFIG } from "./access-log-table-row";
 
-function eventTypeLabel(eventType: string): string {
+function eventTypeLabel(eventType: string, labelOverrides?: Record<string, string>): string {
   return (
+    labelOverrides?.[eventType] ??
     EVENT_TYPE_CONFIG[eventType]?.label ??
     eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase())
   );
@@ -65,6 +66,8 @@ interface AccessLogDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   log: AccessLog | null;
+  /** Per-domain label overrides for event types whose canonical wording differs by source table. */
+  labelOverrides?: Record<string, string>;
 }
 
 // Extended event type colors including onboarding-specific events
@@ -90,7 +93,12 @@ const eventTypeColors: Record<string, string> = {
   SOPHISTICATED_STATUS_UPDATED: "bg-violet-100 text-violet-800 border-violet-200",
 };
 
-export function AccessLogDetailsDialog({ open, onOpenChange, log }: AccessLogDetailsDialogProps) {
+export function AccessLogDetailsDialog({
+  open,
+  onOpenChange,
+  log,
+  labelOverrides,
+}: AccessLogDetailsDialogProps) {
   const [copied, setCopied] = React.useState(false);
 
   if (!log) return null;
@@ -108,7 +116,7 @@ export function AccessLogDetailsDialog({ open, onOpenChange, log }: AccessLogDet
           <DialogTitle className="flex items-center gap-3">
             Access Log Details
             <Badge variant="outline" className={`text-xs ${eventTypeColors[log.event_type]}`}>
-              {eventTypeLabel(log.event_type)}
+              {eventTypeLabel(log.event_type, labelOverrides)}
             </Badge>
           </DialogTitle>
           <DialogDescription>

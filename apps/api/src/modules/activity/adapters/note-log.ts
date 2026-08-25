@@ -67,12 +67,13 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
     return visible.length;
   }
 
-  transform(record: NoteActivityRecord): UnifiedActivity {
+  transform(record: NoteActivityRecord, context?: { portalType?: "investor" | "issuer" }): UnifiedActivity {
     const metadata = (record.metadata as Record<string, unknown> | null) ?? {};
     const presentation = this.buildPresentation(record.event_type, {
       ...metadata,
       noteReference: record.note.note_reference,
       noteTitle: record.note.title,
+      portalType: context?.portalType,
     });
 
     return {
@@ -144,21 +145,21 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
         };
       case "ACTIVATE":
         return {
-          title: "Note Active",
+          title: metadata?.portalType === "investor" ? "Your Investment Is Active" : "Your Note Is Active",
           description: noteLabel
             ? `${this.capitalize(noteLabel)} is now active and servicing has started.`
             : "The note is now active and servicing has started.",
         };
       case "WITHDRAWAL_COMPLETED":
         return {
-          title: "Disbursement Completed",
+          title: "Your Disbursement Is Complete",
           description: noteLabel
             ? `Disbursement for ${noteLabel} has been completed.`
             : "Disbursement for the note has been completed.",
         };
       case "ISSUER_PAYMENT_SUBMITTED":
         return {
-          title: "Payment Submitted",
+          title: "You Submitted a Repayment",
           description: noteLabel
             ? `A repayment for ${noteLabel} was submitted and is awaiting review.`
             : "A repayment was submitted and is awaiting review.",
@@ -179,7 +180,7 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
         };
       case "NOTE_DEFAULT_MARKED":
         return {
-          title: "Note Defaulted",
+          title: metadata?.portalType === "investor" ? "Your Investment Is in Default" : "Your Note Is in Default",
           description: noteLabel
             ? `${this.capitalize(noteLabel)} was marked in default and requires attention.`
             : "The note was marked in default and requires attention.",

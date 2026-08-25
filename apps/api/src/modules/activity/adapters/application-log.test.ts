@@ -46,11 +46,11 @@ describe("ApplicationLogAdapter", () => {
 
   it("builds presentation for offer acceptance and signing package events", () => {
     expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTANCE_SUBMITTED")).toEqual({
-      title: "Facility Acceptance Submitted",
+      title: "You Submitted Your Facility Offer Acceptance",
       description: "You submitted offer acceptance documents for CashSouk review.",
     });
     expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED")).toEqual({
-      title: "Facility Acceptance Resubmitted",
+      title: "You Resubmitted Your Facility Offer Acceptance",
       description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
     });
     expect(adapter.buildPresentation("SIGNING_PACKAGE_SENT")).toEqual({
@@ -130,7 +130,7 @@ describe("ApplicationLogAdapter", () => {
     const unified = adapter.transform(record);
 
     expect(unified.description).toBe(
-      "An invoice offer for invoice INV-001 is ready for your review and response."
+      "You received an invoice offer for invoice INV-001. Review and respond."
     );
     expect(unified.references).toEqual({
       applicationId: "app_123",
@@ -157,7 +157,7 @@ describe("ApplicationLogAdapter", () => {
     const unified = adapter.transform(record);
 
     expect(unified.description).toBe(
-      "An invoice offer for invoice INV-001 is ready for your review and response."
+      "You received an invoice offer for invoice INV-001. Review and respond."
     );
     expect(unified.references).toEqual({
       applicationId: "app_123",
@@ -217,7 +217,7 @@ describe("ApplicationLogAdapter", () => {
     const unified = adapter.transform(record as any);
 
     expect(unified.description).toBe(
-      "A facility offer for facility CT-2026-001 is ready for your review and response."
+      "You received a facility offer for application #RAPP_123. Review and respond."
     );
     expect(unified.references).toEqual({
       applicationId: "issuerapp_123",

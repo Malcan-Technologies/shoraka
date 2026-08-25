@@ -71,9 +71,11 @@ export interface AuditLogAdapter<T> {
   count(userId: string, filters: ActivityFilters): Promise<number>;
 
   /**
-   * Transform a single audit log record into a unified activity
+   * Transform a single audit log record into a unified activity.
+   * `context.portalType` is optional and only used by adapters whose title wording
+   * legitimately differs between the issuer and investor audiences (e.g. Note events).
    */
-  transform(record: T): UnifiedActivity;
+  transform(record: T, context?: { portalType?: "investor" | "issuer" }): UnifiedActivity;
 
   buildPresentation(eventType: string, metadata?: Record<string, unknown>): {
     title: string;
