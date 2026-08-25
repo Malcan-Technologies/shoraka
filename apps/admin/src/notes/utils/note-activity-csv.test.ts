@@ -32,6 +32,9 @@ describe("formatNoteActivityEventLabel", () => {
     expect(formatNoteActivityEventLabel("WITHDRAWAL_TRUSTEE_EMAIL_SENT")).toBe(
       "Withdrawal Trustee Email Sent"
     );
+    expect(formatNoteActivityEventLabel("SETTLEMENT_TRUSTEE_EMAIL_SENT")).toBe(
+      "Settlement Trustee Email Sent"
+    );
     expect(formatNoteActivityEventLabel("SERVICE_FEE_TRUSTEE_EMAIL_SENT")).toBe(
       "Settlement Trustee Email Sent"
     );
@@ -39,6 +42,9 @@ describe("formatNoteActivityEventLabel", () => {
     expect(
       formatNoteActivityEventLabel("WITHDRAWAL_TRUSTEE_EMAIL_SENT", { resend: true })
     ).toBe("Withdrawal Trustee Email Redelivered");
+    expect(
+      formatNoteActivityEventLabel("SETTLEMENT_TRUSTEE_EMAIL_SENT", { resend: true })
+    ).toBe("Settlement Trustee Email Redelivered");
     expect(
       formatNoteActivityEventLabel("SERVICE_FEE_TRUSTEE_EMAIL_SENT", { resend: true })
     ).toBe("Settlement Trustee Email Redelivered");
@@ -75,17 +81,25 @@ describe("buildNoteActivityCsv", () => {
       }),
       event({
         id: "evt-2",
-        eventType: "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
+        eventType: "SETTLEMENT_TRUSTEE_EMAIL_SENT",
         metadata: { settlementId: "set-1", messageId: "ses-2", resend: true },
+      }),
+      event({
+        id: "evt-3",
+        eventType: "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
+        metadata: { settlementId: "set-legacy", messageId: "ses-legacy" },
       }),
     ]);
     expect(csv).toContain("Withdrawal Trustee Email Sent");
     expect(csv).toContain("WITHDRAWAL_TRUSTEE_EMAIL_SENT");
     expect(csv).toContain("wd-1");
     expect(csv).toContain("Settlement Trustee Email Redelivered");
-    expect(csv).toContain("SERVICE_FEE_TRUSTEE_EMAIL_SENT");
+    expect(csv).toContain("SETTLEMENT_TRUSTEE_EMAIL_SENT");
     expect(csv).toContain("set-1");
     expect(csv).toContain("ses-2");
+    expect(csv).toContain("Settlement Trustee Email Sent");
+    expect(csv).toContain("SERVICE_FEE_TRUSTEE_EMAIL_SENT");
+    expect(csv).toContain("set-legacy");
   });
 
   it("keeps the internal withdrawal id and includes the display reference", () => {

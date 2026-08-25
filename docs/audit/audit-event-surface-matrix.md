@@ -327,7 +327,7 @@ surface can show them. All are mirrored to `note_admin_actions`.
 | `ARREARS_LETTER_GENERATED` | LIVE | Arrears letter PDF generated | Admin | note_events | Y | — | — | — | Y | |
 | `DEFAULT_LETTER_GENERATED` | LIVE | Default letter PDF generated | Admin | note_events | Y | — | — | — | Y | |
 | `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` | LIVE | Settlement trustee letter generated | Admin | note_events | Y | — | — | — | Y | |
-| `SERVICE_FEE_TRUSTEE_EMAIL_SENT` | LIVE | Settlement trustee instruction email delivered/redelivered | Admin | note_events | Y | — | — | — (direct SES to trustee) | Y | Distinct from letter submit and from issuer `note_repaid_issuer` |
+| `SETTLEMENT_TRUSTEE_EMAIL_SENT` | LIVE | Settlement trustee instruction email delivered/redelivered | Admin | note_events | Y | — | — | — (direct SES to trustee) | Y | Distinct from letter submit and from issuer `note_repaid_issuer`. Legacy stored type: `SERVICE_FEE_TRUSTEE_EMAIL_SENT` |
 | `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED` | LIVE | Settlement trustee letter submitted | Admin | note_events | Y | — | — | — | Y | |
 | `SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED` | LIVE | Trustee instruction completed | Admin | note_events | Y | — | — | `note_repaid_issuer` | Y | |
 
@@ -1186,7 +1186,7 @@ application/facility/investor-detail surfaces.
 | `ARREARS_LETTER_GENERATED` | Arrears letter PDF — `generateNoteLetter("arrears")` (~5326) | Admin | `s3Key` | `Arrears letter generated` | — | NO |
 | `DEFAULT_LETTER_GENERATED` | Default letter PDF — `generateNoteLetter("default")` (~5326) | Admin | `s3Key` | `Default letter generated` | — | NO |
 | `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` | Settlement trustee letter PDF — `generateServiceFeeTrusteeLetter` | Admin | `s3Key`, `settlementId` | `Settlement trustee letter generated` | — | NO |
-| `SERVICE_FEE_TRUSTEE_EMAIL_SENT` | Trustee SES email delivered — `persistSettlementTrusteeEmailSent` via `markServiceFeeTrusteeLetterSubmitted` (auto-send, before submit tx) or `resendServiceFeeTrusteeEmail` | Admin | `settlementId`, `messageId`, optional `resend` | `Settlement Trustee Email Sent` / `Settlement Trustee Email Redelivered` | Hidden (not queried) | NO registry. Direct SES to trustee. |
+| `SETTLEMENT_TRUSTEE_EMAIL_SENT` | Trustee SES email delivered — `persistSettlementTrusteeEmailSent` via `markServiceFeeTrusteeLetterSubmitted` (auto-send, before submit tx) or `resendServiceFeeTrusteeEmail` | Admin | `settlementId`, `messageId`, optional `resend` | `Settlement Trustee Email Sent` / `Settlement Trustee Email Redelivered` | Hidden (not queried) | NO registry. Direct SES to trustee. Live ID as of 2026-08-26; historical rows may still be `SERVICE_FEE_TRUSTEE_EMAIL_SENT` (same copy). |
 | `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED` | Letter submitted — `markServiceFeeTrusteeLetterSubmitted` | Admin | `settlementId` | `Settlement trustee letter submitted` | — | NO |
 | `SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED` | Trustee instruction completed — `markServiceFeeTrusteeInstructionCompleted` | Admin | `settlementId`, `completedAt` | `Settlement trustee instruction completed` | — | **YES — `note_repaid_issuer`** |
 
@@ -1788,7 +1788,8 @@ UNPUBLISH / PAUSE_LISTING / RESUME_LISTING  Audit: YES   Notification: NO (inves
 ISSUER_PAYMENT_SUBMITTED         Audit: YES   Notification: NO (investigated 2026-08-25 — KEEP_SILENT)
 LATE_CHARGE_APPROVED             Audit: YES   Notification: NO (investigated 2026-08-25 — OPTIONAL)
 WITHDRAWAL_TRUSTEE_EMAIL_SENT    Audit: YES   Notification: NO registry (direct SES to trustee; not issuer notify)
-SERVICE_FEE_TRUSTEE_EMAIL_SENT   Audit: YES   Notification: NO registry (direct SES to trustee; not issuer notify)
+SETTLEMENT_TRUSTEE_EMAIL_SENT    Audit: YES   Notification: NO registry (direct SES to trustee; not issuer notify)
+                                Legacy stored type: SERVICE_FEE_TRUSTEE_EMAIL_SENT (read-compatible, not rewritten)
 SOPHISTICATED_STATUS_UPDATED     Audit: YES   Notification: NO (investigated 2026-08-25 — OPTIONAL)
 ONBOARDING_CANCELLED             Audit: YES   Notification: NO (investigated 2026-08-25 — KEEP_SILENT)
 ```
@@ -1806,7 +1807,7 @@ defaults. They are sent straight through SES.
 |---|---|---|---|
 | Signature request / reminder | Each signer's email — **not necessarily a platform user** | `signing/service.ts:sendEnvelope` (~1264), `remindRecipient` (~2084). Subject: `Signature requested: {title}` or `Reminder: {title}`; body includes "You have been asked to sign **{title}**" and an IC confirmation note | `SIGNING_PACKAGE_SENT` — but note the audit row is written **only if email delivery succeeds** |
 | Withdrawal trustee instruction PDF | Configured trustee email (+ optional CC from trustee letter config) | `notes/service.ts:deliverWithdrawalTrusteeEmail` → `sendTrusteeInstructionPdfEmail`. Auto-send on `markWithdrawalSubmitted` when enabled; also `resendWithdrawalTrusteeEmail`. Audit row only after persist of `trustee_email_sent_at` | `WITHDRAWAL_TRUSTEE_EMAIL_SENT` (`resend: true` on redelivery). Not the issuer platform notification. |
-| Settlement trustee instruction PDF | Configured trustee email (+ optional CC) | `notes/service.ts:deliverSettlementTrusteeEmail` → `sendTrusteeInstructionPdfEmail` (kind `SERVICE_FEE`). Auto-send on `markServiceFeeTrusteeLetterSubmitted` when enabled; also `resendServiceFeeTrusteeEmail` | `SERVICE_FEE_TRUSTEE_EMAIL_SENT` (`resend: true` on redelivery). Settlement-wide instruction, despite the `SERVICE_FEE_` technical prefix. |
+| Settlement trustee instruction PDF | Configured trustee email (+ optional CC) | `notes/service.ts:deliverSettlementTrusteeEmail` → `sendTrusteeInstructionPdfEmail` (kind `SERVICE_FEE`). Auto-send on `markServiceFeeTrusteeLetterSubmitted` when enabled; also `resendServiceFeeTrusteeEmail` | `SETTLEMENT_TRUSTEE_EMAIL_SENT` (`resend: true` on redelivery). Historical rows may still store `SERVICE_FEE_TRUSTEE_EMAIL_SENT`. |
 | Organization member invitation | Invitee email | `organization/service.ts:inviteMember` (~967) | none |
 | Organization invitation resend | Invitation email | `organization/service.ts:resendInvitation` (~1346) | none |
 | Admin portal invitation | Invitee email | `admin/service.ts:inviteAdmin` (~1956) | none |
@@ -1840,7 +1841,7 @@ A separate mechanism from the per-user registry, and easy to mistake for it.
 Reconciled against source on **2026-08-26** for the two main trustee-email events; prior store totals
 were reconciled **2026-08-25**. Where these differ from earlier documents, **these numbers
 supersede them** — see §9. Audit event totals last changed when `WITHDRAWAL_TRUSTEE_EMAIL_SENT`
-and `SERVICE_FEE_TRUSTEE_EMAIL_SENT` were documented after the `redo_log` rebase onto main
+and `SETTLEMENT_TRUSTEE_EMAIL_SENT` (live; historically written as `SERVICE_FEE_TRUSTEE_EMAIL_SENT`) were documented after the `redo_log` rebase onto main
 (documented 160→162 live 137→139). Notification totals last changed in the 2026-08-25 coverage pass
 (live automatic 30→39).
 
@@ -1852,7 +1853,7 @@ and `SERVICE_FEE_TRUSTEE_EMAIL_SENT` were documented after the `redo_log` rebase
 | `security_logs` | 9 | 9 | 0 | — |
 | `onboarding_logs` | 27 | 21 | 6 | ~~3 seed-only~~ **2 seed-only, 1 dead** (`KYB_APPROVED` reclassified SEED_ONLY → DEAD 2026-08-25 — zero occurrences in `seed.ts`, unlike the other two; see §9 #13), 1 dev-only, 2 unreachable (`AML_APPROVED` — reclassified 2026-08-24; `ONBOARDING_RESET` — reclassified 2026-08-25, see §9 #11–#12) |
 | `application_logs` | 45 | 43 | 2 | 2 dead (`APPLICATION_APPROVED`, `CONTRACT_OFFER_REJECTED`) |
-| `note_events` | ~~43~~ ~~42~~ **44** | **44** | ~~1~~ **0** | 2026-08-26 post-rebase: added `WITHDRAWAL_TRUSTEE_EMAIL_SENT` and `SERVICE_FEE_TRUSTEE_EMAIL_SENT` from main (live writers). Earlier: `ISSUER_RESIDUAL_WITHDRAWAL_CREATED` removed 2026-08-25 |
+| `note_events` | ~~43~~ ~~42~~ **44** | **44** | ~~1~~ **0** | 2026-08-26: live writer for the settlement trustee email is `SETTLEMENT_TRUSTEE_EMAIL_SENT`; `SERVICE_FEE_TRUSTEE_EMAIL_SENT` is a DISPLAY_ALIAS for historical rows. Earlier post-rebase: added `WITHDRAWAL_TRUSTEE_EMAIL_SENT` and the settlement trustee email writer from main. Earlier: `ISSUER_RESIDUAL_WITHDRAWAL_CREATED` removed 2026-08-25 |
 | `legal_document_audit_logs` | 7 | 7 | 0 | — |
 | `product_logs` | 5 | 3 | 2 | 2 unreachable (writer exists, no caller) |
 | `gateway_payment_events` | 11 | 8 | 3 | 3 dead (`OVERRIDE_*`) — investigated 2026-08-25, retained: real Prisma enum, removal would require a schema migration (see §9 #13) |
@@ -1863,7 +1864,7 @@ Not counted as events above, documented separately:
 | Kind | Count | Items |
 |---|---|---|
 | `NOT_AN_ACTUAL_EVENT` | 2 | `OFFER_EXPIRED` (a status string in two issuer label maps), `DIRECTOR_KYC_STATUS_UPDATED` (no longer exists in the repository) |
-| `DISPLAY_ALIAS` | 8 | `NOTE_CREATED`, `NOTE_DRAFT_UPDATED`, `NOTE_PUBLISHED`, `NOTE_UNPUBLISHED`, `NOTE_FUNDING_CLOSED`, `NOTE_FUNDING_FAILED`, `NOTE_ACTIVATED`, `PAYMENT_RECORDED` |
+| `DISPLAY_ALIAS` | 9 | `NOTE_CREATED`, `NOTE_DRAFT_UPDATED`, `NOTE_PUBLISHED`, `NOTE_UNPUBLISHED`, `NOTE_FUNDING_CLOSED`, `NOTE_FUNDING_FAILED`, `NOTE_ACTIVATED`, `PAYMENT_RECORDED`, `SERVICE_FEE_TRUSTEE_EMAIL_SENT` |
 | Admin-action-only type | 1 | `CREATE_FROM_INVOICE` — written to `note_admin_actions` but never to `note_events` |
 | Non-event compliance trail | 1 | `legal_document_acceptances` (status-based, not event-typed) |
 
@@ -1877,7 +1878,7 @@ Not counted as events above, documented separately:
 | Dead (zero send path) | **4** (`kyc_approved`, `kyc_rejected`, `login_new_device`, `application_approved`) — **DEAD_NOT_CONFIGURABLE**: hidden from Admin Notification Configuration; retained in registry/seed/history |
 | Distinct **events** that fire a registry notification | **37** |
 | Live events with **no** registry notification | **107** |
-| Events that trigger a **direct email** instead | **3** (`SIGNING_PACKAGE_SENT`, `WITHDRAWAL_TRUSTEE_EMAIL_SENT`, `SERVICE_FEE_TRUSTEE_EMAIL_SENT`) |
+| Events that trigger a **direct email** instead | **3** (`SIGNING_PACKAGE_SENT`, `WITHDRAWAL_TRUSTEE_EMAIL_SENT`, `SETTLEMENT_TRUSTEE_EMAIL_SENT`) |
 | Direct-email paths outside the registry | **9** |
 
 ### 7.3 Surface coverage
@@ -1965,12 +1966,9 @@ audit evidence that a note entered arrears, and it also fires the arrears notifi
 **RELATION:** `UI_ALIAS` — the display layer substitutes the term at render time. The stored value
 keeps the `SHORAKA_` prefix.
 
-**CURRENT EVENT TYPE:** `SERVICE_FEE_TRUSTEE_EMAIL_SENT` (and the `SERVICE_FEE_TRUSTEE_*` family)
-**OLD / LEGACY TERM:** reads as a service-fee-only trustee email
-**RELATION:** `CONCEPTUAL_ALIAS` — source treats this as the **settlement trustee instruction**
-(investor repayment + service fee + tawidh + gharamah + residual when present). Human labels say
-Settlement. Technical IDs are **not** renamed in the 2026-08-26 integration pass; recommended
-future ID for the email event is `SETTLEMENT_TRUSTEE_EMAIL_SENT`.
+**CURRENT EVENT TYPE:** `SETTLEMENT_TRUSTEE_EMAIL_SENT`
+**OLD / LEGACY TERM:** `SERVICE_FEE_TRUSTEE_EMAIL_SENT`
+**RELATION:** `UI_ALIAS` / historical stored type — new writes use `SETTLEMENT_TRUSTEE_EMAIL_SENT`. Historical rows keep the old ID and still render `Settlement Trustee Email Sent` / `Settlement Trustee Email Redelivered`. The remaining `SERVICE_FEE_TRUSTEE_LETTER_*` / `_INSTRUCTION_COMPLETED` IDs are still live and still use the `SERVICE_FEE_` prefix for a settlement-wide trustee instruction; they were **not** renamed in this pass.
 
 ### 8.3 Superseded events (a real replacement exists)
 
@@ -1985,7 +1983,7 @@ future ID for the email event is `SETTLEMENT_TRUSTEE_EMAIL_SENT`.
 
 ### 8.4 Display aliases (keep them — they render historical rows)
 
-`note-activity-csv.ts` carries eight legacy strings alongside the live ones so that older
+`note-activity-csv.ts` carries nine legacy strings alongside the live ones so that older
 `note_events` rows still render with a human label instead of a title-cased raw string.
 
 | Display alias | Live event it shadows | Relation |
@@ -1998,6 +1996,7 @@ future ID for the email event is `SETTLEMENT_TRUSTEE_EMAIL_SENT`.
 | `NOTE_FUNDING_FAILED` | `FAIL_FUNDING` | `UI_ALIAS` |
 | `NOTE_ACTIVATED` | `ACTIVATE` | `UI_ALIAS` |
 | `PAYMENT_RECORDED` | `PAYMENT_RECEIVED` | `UI_ALIAS` |
+| `SERVICE_FEE_TRUSTEE_EMAIL_SENT` | `SETTLEMENT_TRUSTEE_EMAIL_SENT` | `UI_ALIAS` — historical writes from before the 2026-08-26 technical ID rename; not rewritten |
 
 **Do not delete these.** They are display-only and cost nothing; removing them would degrade the
 rendering of historical rows. Equally, **do not write new rows using these strings.**

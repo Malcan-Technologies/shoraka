@@ -276,9 +276,14 @@ describe("trustee instruction submit email wiring", () => {
       expect(prisma.noteEvent.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            event_type: "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
+            event_type: "SETTLEMENT_TRUSTEE_EMAIL_SENT",
             metadata: { settlementId: "set-1", messageId: "ses-1" },
           }),
+        })
+      );
+      expect(prisma.noteEvent.create).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ event_type: "SERVICE_FEE_TRUSTEE_EMAIL_SENT" }),
         })
       );
     });
@@ -529,9 +534,14 @@ describe("trustee instruction submit email wiring", () => {
       expect(prisma.noteEvent.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            event_type: "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
+            event_type: "SETTLEMENT_TRUSTEE_EMAIL_SENT",
             metadata: { settlementId: "set-1", messageId: "ses-1", resend: true },
           }),
+        })
+      );
+      expect(prisma.noteEvent.create).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ event_type: "SERVICE_FEE_TRUSTEE_EMAIL_SENT" }),
         })
       );
     });

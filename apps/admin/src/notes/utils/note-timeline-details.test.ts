@@ -70,7 +70,7 @@ describe("extractNoteTimelineDetails", () => {
 
     const settlement = extractNoteTimelineDetails(
       event({
-        eventType: "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
+        eventType: "SETTLEMENT_TRUSTEE_EMAIL_SENT",
         metadata: { settlementId: "set-1", messageId: "ses-3" },
       })
     );
@@ -78,6 +78,20 @@ describe("extractNoteTimelineDetails", () => {
       { key: "settlementId", label: "Settlement Id", value: "set-1" },
       { key: "messageId", label: "Message Id", value: "ses-3" },
     ]);
+
+    const legacySettlement = extractNoteTimelineDetails(
+      event({
+        eventType: "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
+        metadata: { settlementId: "set-legacy", messageId: "ses-legacy", resend: true },
+      })
+    );
+    expect(legacySettlement.compact).toEqual(
+      expect.arrayContaining([
+        { key: "settlementId", label: "Settlement Id", value: "set-legacy" },
+        { key: "messageId", label: "Message Id", value: "ses-legacy" },
+        { key: "resend", label: "Redelivery", value: "Redelivered" },
+      ])
+    );
   });
 
   it("builds an activation sentence with the actor and note title", () => {

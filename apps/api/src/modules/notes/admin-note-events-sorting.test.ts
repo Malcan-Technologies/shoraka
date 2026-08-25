@@ -109,5 +109,27 @@ describe("admin note events sorting", () => {
 
     expect(sorted.map((e) => e.id)).toEqual(["a", "z"]);
   });
+
+  it("treats the live and legacy settlement trustee-email IDs as the same lifecycle slot", () => {
+    const createdAt = "2026-05-25T00:00:00.000Z";
+
+    const live = sortAdminNoteEvents(
+      [
+        { id: "letter", eventType: "SERVICE_FEE_TRUSTEE_LETTER_GENERATED", createdAt },
+        { id: "email", eventType: "SETTLEMENT_TRUSTEE_EMAIL_SENT", createdAt },
+      ],
+      "oldest-first"
+    );
+    const legacy = sortAdminNoteEvents(
+      [
+        { id: "letter", eventType: "SERVICE_FEE_TRUSTEE_LETTER_GENERATED", createdAt },
+        { id: "email", eventType: "SERVICE_FEE_TRUSTEE_EMAIL_SENT", createdAt },
+      ],
+      "oldest-first"
+    );
+
+    expect(live.map((e) => e.id)).toEqual(["letter", "email"]);
+    expect(legacy.map((e) => e.id)).toEqual(["letter", "email"]);
+  });
 });
 

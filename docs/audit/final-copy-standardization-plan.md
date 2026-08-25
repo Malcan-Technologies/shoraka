@@ -17,6 +17,8 @@ were integrated into the existing Admin Activity / Detail / CSV presentation sys
 | `WITHDRAWAL_TRUSTEE_EMAIL_SENT` | Admin/CSV title: `Withdrawal Trustee Email Sent`; metadata `resend: true` → `Withdrawal Trustee Email Redelivered`. Detail shows `withdrawalId`, `messageId`, Redelivery/Redelivered. No registry notification. Direct SES to trustee. | **CHANGE** (label only) — Title Case operational-delivery wording; keep metadata-aware formatter. Technical ID unchanged. |
 | `SERVICE_FEE_TRUSTEE_EMAIL_SENT` | Admin/CSV title: `Settlement Trustee Email Sent`; metadata `resend: true` → `Settlement Trustee Email Redelivered`. Detail shows `settlementId`, `messageId`. Direct SES to trustee. | **CHANGE** (label only) — human wording is Settlement (source: settlement-wide trustee instruction). Technical ID unchanged; future rename candidate `SETTLEMENT_TRUSTEE_EMAIL_SENT`. |
 
+Post-standardization technical-ID note (2026-08-26): new writes now emit `SETTLEMENT_TRUSTEE_EMAIL_SENT`. `SERVICE_FEE_TRUSTEE_EMAIL_SENT` is retained only as a read-compatible historical ID. Presentation copy above is unchanged. Historical rows are not rewritten.
+
 Do not treat either as a duplicate of `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` or `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED`. Trustee SES email and issuer platform notification remain separate products.
 
 ---

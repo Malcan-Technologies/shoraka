@@ -7306,7 +7306,7 @@ export class NoteService {
       this.throwTrusteeEmailResendStateChanged();
     }
     if (persist.count !== 1) return;
-    await this.logEvent(prisma, noteId, "SERVICE_FEE_TRUSTEE_EMAIL_SENT", actor, {
+    await this.logEvent(prisma, noteId, "SETTLEMENT_TRUSTEE_EMAIL_SENT", actor, {
       settlementId,
       messageId,
       ...(mode === "resend" ? { resend: true } : {}),

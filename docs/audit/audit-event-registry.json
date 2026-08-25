@@ -3680,12 +3680,12 @@
       "docRef": "2.6"
     },
     {
-      "eventType": "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
+      "eventType": "SETTLEMENT_TRUSTEE_EMAIL_SENT",
       "status": "LIVE",
       "domain": "settlement",
       "store": "note_events",
       "canonicalName": "Settlement trustee instruction email delivered or redelivered",
-      "aliases": [],
+      "aliases": ["SERVICE_FEE_TRUSTEE_EMAIL_SENT"],
       "doNotConfuseWith": [
         "SERVICE_FEE_TRUSTEE_LETTER_GENERATED",
         "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED",
@@ -3706,7 +3706,34 @@
         "csv": "INCLUDED"
       },
       "notification": null,
-      "note": "Direct SES to trustee via sendTrusteeInstructionPdfEmail (kind SERVICE_FEE). Settlement-wide instruction despite SERVICE_FEE_ technical prefix. resend:true on redelivery.",
+      "note": "Direct SES to trustee via sendTrusteeInstructionPdfEmail (kind SERVICE_FEE). Live technical ID as of 2026-08-26. Historical rows may still store SERVICE_FEE_TRUSTEE_EMAIL_SENT and are not rewritten. resend:true on redelivery.",
+      "docRef": "2.6"
+    },
+    {
+      "eventType": "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
+      "status": "DISPLAY_ALIAS",
+      "domain": "settlement",
+      "store": "note_events",
+      "canonicalName": "Settlement trustee instruction email delivered or redelivered",
+      "aliases": [],
+      "doNotConfuseWith": [
+        "SETTLEMENT_TRUSTEE_EMAIL_SENT"
+      ],
+      "actor": "Admin",
+      "target": "note",
+      "writer": null,
+      "surfaces": {
+        "adminActivity": "SHOWN",
+        "adminDetail": "SHOWN",
+        "issuerActivity": "HIDDEN_NOT_QUERIED",
+        "issuerApplicationDetail": "NA",
+        "issuerFacilityDetail": "NA",
+        "investorActivity": "HIDDEN_NOT_QUERIED",
+        "investorDetail": "NA",
+        "csv": "INCLUDED"
+      },
+      "notification": null,
+      "note": "Legacy stored type. Readers map it to the same copy as SETTLEMENT_TRUSTEE_EMAIL_SENT. No new writes. Historical rows not rewritten.",
       "docRef": "2.6"
     },
     {
@@ -3828,7 +3855,7 @@
       "doNotConfuseWith": [
         "WITHDRAWAL_LETTER_GENERATED",
         "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
-        "SERVICE_FEE_TRUSTEE_EMAIL_SENT"
+        "SETTLEMENT_TRUSTEE_EMAIL_SENT"
       ],
       "actor": "Admin",
       "target": "note",

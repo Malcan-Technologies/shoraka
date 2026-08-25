@@ -1,6 +1,6 @@
 # Current Audit / Activity / Notification Journal
 
-Verified: 2026-08-26 (CURRENT USER-FACING COPY includes post-rebase trustee-email events `WITHDRAWAL_TRUSTEE_EMAIL_SENT` and `SERVICE_FEE_TRUSTEE_EMAIL_SENT`; source still wins on any remaining discrepancy)
+Verified: 2026-08-26 (CURRENT USER-FACING COPY includes post-rebase trustee-email events `WITHDRAWAL_TRUSTEE_EMAIL_SENT` and `SETTLEMENT_TRUSTEE_EMAIL_SENT`; source still wins on any remaining discrepancy)
 
 Current audit counts:
 - documented: 162
@@ -11473,7 +11473,7 @@ Preferred Notification Title:
 Preferred Notification Message:
 `—`
 
-## `SERVICE_FEE_TRUSTEE_EMAIL_SENT`
+## `SETTLEMENT_TRUSTEE_EMAIL_SENT`
 
 Status: LIVE
 
@@ -11483,7 +11483,10 @@ Business action:
 Operational trustee email for the posted-settlement trustee instruction was delivered or redelivered. This is settlement-wide (investor repayment, service fee, tawidh, gharamah, residual when present), not a service-fee-only payment.
 
 Technical event:
-`SERVICE_FEE_TRUSTEE_EMAIL_SENT`
+`SETTLEMENT_TRUSTEE_EMAIL_SENT`
+
+Legacy historical event ID:
+`SERVICE_FEE_TRUSTEE_EMAIL_SENT` — still rendered/exported identically; historical rows are not rewritten; no new writes use the legacy ID.
 
 Canonical business name:
 `Settlement Trustee Email Sent`
@@ -11548,7 +11551,7 @@ Notification
 
 Direct Email Outside Notification Registry
 - YES
-- Purpose: SES trustee instruction PDF email (`sendTrusteeInstructionPdfEmail`, kind `SERVICE_FEE`) to the configured trustee recipient/CC. Not a platform notification. Distinct from `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED` (business status) and from issuer `note_repaid_issuer` (later, on instruction completed).
+- Purpose: SES trustee instruction PDF email (`sendTrusteeInstructionPdfEmail`, kind `SERVICE_FEE`) to the configured trustee recipient/CC. Not a platform notification. Distinct from `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` (PDF generated), `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED` (business status), and issuer `note_repaid_issuer` (later, on instruction completed).
 
 ### PLACEHOLDERS USED
 
@@ -11559,10 +11562,10 @@ Direct Email Outside Notification Registry
 Classification:
 CONSISTENT
 
-Admin-only operational delivery. Human label uses Settlement; the technical `SERVICE_FEE_` prefix is a legacy name for the settlement trustee instruction family. Do not merge with letter-generated, letter-submitted, or instruction-completed. Historical rows are not rewritten. Technical ID is not renamed in this pass.
+Admin-only operational delivery. Live technical ID is `SETTLEMENT_TRUSTEE_EMAIL_SENT`. The previous stored ID `SERVICE_FEE_TRUSTEE_EMAIL_SENT` is a read-compatible DISPLAY_ALIAS for historical rows only. Do not merge with letter-generated, letter-submitted, or instruction-completed.
 
 Technical-name mismatch:
-YES — stored ID says service fee; business action is the settlement trustee instruction email.
+NO (resolved 2026-08-26 by renaming new writes; historical rows keep the legacy ID)
 
 ### RECOMMENDED CANONICAL PRESENTATION
 
@@ -11584,6 +11587,41 @@ Preferred Notification Title:
 Preferred Notification Message:
 `—`
 
+## `SERVICE_FEE_TRUSTEE_EMAIL_SENT`
+
+Status: DISPLAY_ALIAS
+
+Module: Repayment
+
+Business action:
+Legacy stored type for historical `note_events` rows of the settlement trustee email. See `SETTLEMENT_TRUSTEE_EMAIL_SENT`.
+
+Technical event:
+`SERVICE_FEE_TRUSTEE_EMAIL_SENT`
+
+Canonical business name:
+`Settlement Trustee Email Sent`
+
+Actor:
+Admin (historical)
+
+Trigger:
+No new writes. Readers/CSV/timeline still accept this ID and render the same copy as `SETTLEMENT_TRUSTEE_EMAIL_SENT`.
+
+Stored in:
+`note_events` (historical rows only; not rewritten)
+
+### CURRENT USER-FACING COPY
+
+Same as `SETTLEMENT_TRUSTEE_EMAIL_SENT` on Admin Activity, Admin Detail, and CSV. Issuer/Investor: Hidden (not queried). Notification: NO. Direct SES: the live writer now logs `SETTLEMENT_TRUSTEE_EMAIL_SENT`.
+
+### CONSISTENCY REVIEW
+
+Classification:
+CONSISTENT
+
+Intentional legacy compatibility. Do not backfill or migrate historical rows.
+
 ## `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED`
 
 Status: LIVE
@@ -11603,7 +11641,7 @@ Actor:
 Admin
 
 Trigger:
-`markServiceFeeTrusteeLetterSubmitted` — status transition to `SUBMITTED_TO_TRUSTEE` after any auto-send email attempt. Distinct from `SERVICE_FEE_TRUSTEE_EMAIL_SENT`.
+`markServiceFeeTrusteeLetterSubmitted` — status transition to `SUBMITTED_TO_TRUSTEE` after any auto-send email attempt. Distinct from `SETTLEMENT_TRUSTEE_EMAIL_SENT`.
 
 Stored in:
 `note_events`
@@ -11659,7 +11697,7 @@ Notification
 
 Direct Email Outside Notification Registry
 - NO
-- Purpose: Trustee operational email, if any, is `SERVICE_FEE_TRUSTEE_EMAIL_SENT` — a separate event.
+- Purpose: Trustee operational email, if any, is `SETTLEMENT_TRUSTEE_EMAIL_SENT` (legacy stored type `SERVICE_FEE_TRUSTEE_EMAIL_SENT`) — a separate event.
 
 ### PLACEHOLDERS USED
 
@@ -11670,7 +11708,7 @@ Direct Email Outside Notification Registry
 Classification:
 CONSISTENT
 
-Admin-only status transition. Distinct from `SERVICE_FEE_TRUSTEE_EMAIL_SENT` (operational SES delivery, which may run first when auto-send is enabled) and from `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` / `SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED`.
+Admin-only status transition. Distinct from `SETTLEMENT_TRUSTEE_EMAIL_SENT` (operational SES delivery, which may run first when auto-send is enabled; historical rows may still say `SERVICE_FEE_TRUSTEE_EMAIL_SENT`) and from `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` / `SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED`.
 
 ### RECOMMENDED CANONICAL PRESENTATION
 

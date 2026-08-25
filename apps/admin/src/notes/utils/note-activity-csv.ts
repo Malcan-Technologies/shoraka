@@ -43,6 +43,8 @@ const EVENT_LABELS: Record<string, string> = {
   ARREARS_LETTER_GENERATED: "Arrears letter generated",
   DEFAULT_LETTER_GENERATED: "Default letter generated",
   SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Settlement trustee letter generated",
+  SETTLEMENT_TRUSTEE_EMAIL_SENT: "Settlement Trustee Email Sent",
+  // Legacy stored type for historical rows; new writes use SETTLEMENT_TRUSTEE_EMAIL_SENT.
   SERVICE_FEE_TRUSTEE_EMAIL_SENT: "Settlement Trustee Email Sent",
   SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Settlement trustee letter submitted",
   SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement trustee instruction completed",
@@ -72,7 +74,10 @@ export function formatNoteActivityEventLabel(
   if (metadata?.resend === true) {
     if (eventType === "WITHDRAWAL_TRUSTEE_EMAIL_SENT") {
       label = "Withdrawal Trustee Email Redelivered";
-    } else if (eventType === "SERVICE_FEE_TRUSTEE_EMAIL_SENT") {
+    } else if (
+      eventType === "SETTLEMENT_TRUSTEE_EMAIL_SENT" ||
+      eventType === "SERVICE_FEE_TRUSTEE_EMAIL_SENT"
+    ) {
       label = "Settlement Trustee Email Redelivered";
     }
   }
