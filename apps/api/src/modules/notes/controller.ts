@@ -184,7 +184,7 @@ adminNotesRouter.get(
   requirePermission("service_fee.view"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
-      send(res, await noteService.listPendingServiceFeeTrusteeLetters());
+      send(res, await noteService.listPendingSettlementTrusteeLetters());
     } catch (error) {
       next(error);
     }
@@ -593,7 +593,7 @@ adminNotesRouter.post(
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
       send(
         res,
-        await noteService.generateServiceFeeTrusteeLetter(id, settlementId, getActor(req, res, "ADMIN"))
+        await noteService.generateSettlementTrusteeLetter(id, settlementId, getActor(req, res, "ADMIN"))
       );
     } catch (error) {
       next(error);
@@ -609,7 +609,7 @@ adminNotesRouter.post(
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
       send(
         res,
-        await noteService.markServiceFeeTrusteeLetterSubmitted(
+        await noteService.markSettlementTrusteeLetterSubmitted(
           id,
           settlementId,
           getActor(req, res, "ADMIN")
@@ -629,7 +629,7 @@ adminNotesRouter.post(
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
       send(
         res,
-        await noteService.resendServiceFeeTrusteeEmail(id, settlementId, getActor(req, res, "ADMIN"))
+        await noteService.resendSettlementTrusteeEmail(id, settlementId, getActor(req, res, "ADMIN"))
       );
     } catch (error) {
       next(error);
@@ -645,7 +645,7 @@ adminNotesRouter.post(
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
       send(
         res,
-        await noteService.markServiceFeeTrusteeInstructionCompleted(
+        await noteService.markSettlementTrusteeInstructionCompleted(
           id,
           settlementId,
           getActor(req, res, "ADMIN")

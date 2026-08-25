@@ -1181,11 +1181,17 @@ model NoteSettlement {
   posted_at                               DateTime?
   idempotency_key                         String?                             @unique
   display_reference                       String?                             @unique
+  /// Legacy column name. Settlement-wide trustee instruction status (not service-fee-only).
   service_fee_trustee_status              ServiceFeeTrusteeInstructionStatus?
+  /// Legacy column name. Settlement trustee instruction created_at.
   service_fee_trustee_created_at          DateTime?
+  /// Legacy column name. Settlement trustee letter generated_at.
   service_fee_trustee_letter_generated_at DateTime?
+  /// Legacy column name. Settlement trustee submitted_at.
   service_fee_trustee_submitted_at        DateTime?
+  /// Legacy column name. Settlement trustee completed_at.
   service_fee_trustee_completed_at        DateTime?
+  /// Legacy column name. Settlement trustee email sent_at.
   service_fee_trustee_email_sent_at       DateTime?                           @db.Timestamptz
   created_at                              DateTime                            @default(now())
   updated_at                              DateTime                            @updatedAt
@@ -2379,6 +2385,7 @@ enum NoteSettlementType {
   DEFAULT_RECOVERY
 }
 
+/// Legacy persisted enum name. Settlement-wide trustee instruction workflow (not service-fee-only).
 enum ServiceFeeTrusteeInstructionStatus {
   PENDING_LETTER
   LETTER_GENERATED

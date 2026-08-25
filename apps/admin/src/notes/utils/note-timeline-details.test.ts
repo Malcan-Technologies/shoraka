@@ -56,26 +56,44 @@ describe("extractNoteTimelineDetails", () => {
     const withdrawal = extractNoteTimelineDetails(
       event({
         eventType: "WITHDRAWAL_TRUSTEE_EMAIL_SENT",
-        metadata: { withdrawalId: "wd-1", messageId: "ses-2", resend: true },
+        metadata: {
+          withdrawalId: "wd-1",
+          withdrawalReference: "WD-1",
+          messageId: "ses-2",
+          resend: true,
+        },
       })
     );
     expect(withdrawal.compact).toEqual(
       expect.arrayContaining([
         { key: "withdrawalId", label: "Withdrawal Id", value: "wd-1" },
+        { key: "withdrawalReference", label: "Withdrawal Reference", value: "WD-1" },
         { key: "messageId", label: "Message Id", value: "ses-2" },
         { key: "resend", label: "Redelivery", value: "Redelivered" },
       ])
     );
     expect(withdrawal.compact.find((row) => row.key === "resend")?.value).not.toBe("Yes");
 
+    const historicalWithdrawal = extractNoteTimelineDetails(
+      event({
+        eventType: "WITHDRAWAL_TRUSTEE_EMAIL_SENT",
+        metadata: { withdrawalId: "wd-old", messageId: "ses-old" },
+      })
+    );
+    expect(historicalWithdrawal.compact).toEqual([
+      { key: "withdrawalId", label: "Withdrawal Id", value: "wd-old" },
+      { key: "messageId", label: "Message Id", value: "ses-old" },
+    ]);
+
     const settlement = extractNoteTimelineDetails(
       event({
         eventType: "SETTLEMENT_TRUSTEE_EMAIL_SENT",
-        metadata: { settlementId: "set-1", messageId: "ses-3" },
+        metadata: { settlementId: "set-1", settlementReference: "STL-1", messageId: "ses-3" },
       })
     );
     expect(settlement.compact).toEqual([
       { key: "settlementId", label: "Settlement Id", value: "set-1" },
+      { key: "settlementReference", label: "Settlement Reference", value: "STL-1" },
       { key: "messageId", label: "Message Id", value: "ses-3" },
     ]);
 
@@ -92,6 +110,7 @@ describe("extractNoteTimelineDetails", () => {
         { key: "resend", label: "Redelivery", value: "Redelivered" },
       ])
     );
+    expect(legacySettlement.compact.find((row) => row.key === "settlementReference")).toBeUndefined();
   });
 
   it("preserves settlement trustee letter metadata for live and legacy generated IDs", () => {

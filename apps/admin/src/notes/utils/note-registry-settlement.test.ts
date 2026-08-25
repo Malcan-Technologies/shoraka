@@ -1,6 +1,6 @@
 import {
   NoteSettlementStatus,
-  ServiceFeeTrusteeInstructionStatus,
+  SettlementTrusteeInstructionStatus,
   isNoteSettlementPosted,
   resolveSettlementTrusteeRegistryState,
   settlementTrusteeRegistryLabel,
@@ -30,7 +30,7 @@ function postedSummary(
     profitDays: 0,
     annualProfitRatePercent: 10,
     postedAt: "2026-08-01T00:00:00.000Z",
-    serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus.PENDING_LETTER,
+    serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.PENDING_LETTER,
     serviceFeeTrusteeCreatedAt: "2026-08-01T00:00:00.000Z",
     serviceFeeTrusteeLetterGeneratedAt: null,
     serviceFeeTrusteeSubmittedAt: null,
@@ -88,17 +88,17 @@ describe("resolveSettlementTrusteeRegistryState", () => {
     expect(resolveSettlementTrusteeRegistryState(postedSummary())).toBe("pending_letter");
     expect(
       resolveSettlementTrusteeRegistryState(
-        postedSummary({ serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED })
+        postedSummary({ serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.LETTER_GENERATED })
       )
     ).toBe("letter_generated");
     expect(
       resolveSettlementTrusteeRegistryState(
-        postedSummary({ serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE })
+        postedSummary({ serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE })
       )
     ).toBe("submitted");
     expect(
       resolveSettlementTrusteeRegistryState(
-        postedSummary({ serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus.COMPLETED })
+        postedSummary({ serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.COMPLETED })
       )
     ).toBe("complete");
   });
@@ -109,7 +109,7 @@ describe("resolveSettlementTrusteeRegistryState", () => {
         postedSummary({
           investorPoolAmount: 0,
           operatingAccountAmount: 0,
-          serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus.PENDING_LETTER,
+          serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.PENDING_LETTER,
         })
       )
     ).toBe("pending_letter");
@@ -127,17 +127,17 @@ describe("resolveSettlementTrusteeRegistryState", () => {
     expect(settlementTrusteeRegistryNeedsAdminAction(postedSummary())).toBe(true);
     expect(
       settlementTrusteeRegistryNeedsAdminAction(
-        postedSummary({ serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED })
+        postedSummary({ serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.LETTER_GENERATED })
       )
     ).toBe(true);
     expect(
       settlementTrusteeRegistryNeedsAdminAction(
-        postedSummary({ serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE })
+        postedSummary({ serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE })
       )
     ).toBe(false);
     expect(
       settlementTrusteeRegistryNeedsAdminAction(
-        postedSummary({ serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus.COMPLETED })
+        postedSummary({ serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.COMPLETED })
       )
     ).toBe(false);
   });

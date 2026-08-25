@@ -163,12 +163,16 @@ export enum NoteSettlementType {
   DEFAULT_RECOVERY = "DEFAULT_RECOVERY",
 }
 
-export enum ServiceFeeTrusteeInstructionStatus {
+export enum SettlementTrusteeInstructionStatus {
   PENDING_LETTER = "PENDING_LETTER",
   LETTER_GENERATED = "LETTER_GENERATED",
   SUBMITTED_TO_TRUSTEE = "SUBMITTED_TO_TRUSTEE",
   COMPLETED = "COMPLETED",
 }
+
+/** Legacy application type name. Same values as SettlementTrusteeInstructionStatus. Prisma/DB still use ServiceFeeTrusteeInstructionStatus. */
+export const ServiceFeeTrusteeInstructionStatus = SettlementTrusteeInstructionStatus;
+export type ServiceFeeTrusteeInstructionStatus = SettlementTrusteeInstructionStatus;
 
 export enum NoteLedgerAccountType {
   INVESTOR_POOL = "INVESTOR_POOL",
@@ -236,8 +240,8 @@ export interface NoteSettlementPoolSummary {
   profitDays: number;
   annualProfitRatePercent: number;
   postedAt: string | null;
-  /** Posted settlement with platform service fee: trustee instruction workflow (pools). */
-  serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
+  /** Legacy JSON field name. Settlement-wide trustee instruction workflow status. */
+  serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus | null;
   serviceFeeTrusteeCreatedAt: string | null;
   serviceFeeTrusteeLetterGeneratedAt: string | null;
   serviceFeeTrusteeSubmittedAt: string | null;
@@ -516,7 +520,7 @@ export interface NoteSettlement {
   previewSnapshot: Record<string, unknown>;
   approvedAt: string | null;
   postedAt: string | null;
-  serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
+  serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus | null;
   serviceFeeTrusteeCreatedAt: string | null;
   serviceFeeTrusteeLetterGeneratedAt: string | null;
   serviceFeeTrusteeSubmittedAt: string | null;
@@ -736,7 +740,7 @@ export interface PendingIssuerPayoutsResponse {
 }
 
 /** Posted settlements with trustee movements where the settlement trustee instruction is not fully completed. */
-export interface PendingServiceFeeTrusteeLetterItem {
+export interface PendingSettlementTrusteeLetterItem {
   settlementId: string;
   displayReference: string | null;
   noteId: string;
@@ -744,19 +748,23 @@ export interface PendingServiceFeeTrusteeLetterItem {
   noteStatus: string | null;
   issuerOrganizationId: string | null;
   issuerOrganizationName: string | null;
-  /** Total settlement trustee instruction amount across all instruction rows. */
+  /** Total settlement trustee instruction amount across all instruction rows. JSON field name is legacy. */
   serviceFeeAmount: number;
   currency: string;
   settlementPostedAt: string | null;
-  trusteeInstructionStatus: ServiceFeeTrusteeInstructionStatus | null;
+  trusteeInstructionStatus: SettlementTrusteeInstructionStatus | null;
   submittedToTrusteeAt: string | null;
   instructionCompletedAt: string | null;
 }
 
-export interface PendingServiceFeeTrusteeLettersResponse {
+export type PendingServiceFeeTrusteeLetterItem = PendingSettlementTrusteeLetterItem;
+
+export interface PendingSettlementTrusteeLettersResponse {
   count: number;
-  items: PendingServiceFeeTrusteeLetterItem[];
+  items: PendingSettlementTrusteeLetterItem[];
 }
+
+export type PendingServiceFeeTrusteeLettersResponse = PendingSettlementTrusteeLettersResponse;
 
 export interface PendingInvestorWithdrawalsCountResponse {
   count: number;

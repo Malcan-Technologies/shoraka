@@ -14,7 +14,7 @@ import {
   NoteServicingStatus,
   NoteSettlementStatus,
   NoteSettlementType,
-  ServiceFeeTrusteeInstructionStatus,
+  ServiceFeeTrusteeInstructionStatus as SettlementTrusteeInstructionStatus,
   NoteStatus,
   ProspectusReviewStatus,
   Prisma,
@@ -81,6 +81,7 @@ import {
   resolveFinancingTenureDays,
   invoiceFinancingExceedsMaxRatio,
   INVOICE_FINANCING_RATIO_CAP_MESSAGE,
+  formatSettlementReference,
   formatWithdrawalReference,
 } from "@cashsouk/types";
 import {
@@ -2106,15 +2107,15 @@ export class NoteService {
         .filter((value): value is string => typeof value === "string" && value.trim() !== "")
     );
     const settlementStatusToPayoutStatus = (
-      status: ServiceFeeTrusteeInstructionStatus | null
+      status: SettlementTrusteeInstructionStatus | null
     ): string => {
-      if (!status || status === ServiceFeeTrusteeInstructionStatus.PENDING_LETTER) {
+      if (!status || status === SettlementTrusteeInstructionStatus.PENDING_LETTER) {
         return WithdrawalStatus.DRAFT;
       }
-      if (status === ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED) {
+      if (status === SettlementTrusteeInstructionStatus.LETTER_GENERATED) {
         return WithdrawalStatus.LETTER_GENERATED;
       }
-      if (status === ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE) {
+      if (status === SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE) {
         return WithdrawalStatus.SUBMITTED_TO_TRUSTEE;
       }
       return WithdrawalStatus.COMPLETED;
@@ -2166,10 +2167,10 @@ export class NoteService {
           currency: "MYR",
           status: settlementStatusToPayoutStatus(settlement.service_fee_trustee_status),
           generatedAt:
-            settlement.service_fee_trustee_status === ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED ||
+            settlement.service_fee_trustee_status === SettlementTrusteeInstructionStatus.LETTER_GENERATED ||
             settlement.service_fee_trustee_status ===
-              ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE ||
-            settlement.service_fee_trustee_status === ServiceFeeTrusteeInstructionStatus.COMPLETED
+              SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE ||
+            settlement.service_fee_trustee_status === SettlementTrusteeInstructionStatus.COMPLETED
               ? settlement.created_at.toISOString()
               : null,
           submittedToTrusteeAt: settlement.service_fee_trustee_submitted_at?.toISOString() ?? null,
@@ -2203,7 +2204,7 @@ export class NoteService {
     return { count };
   }
 
-  async listPendingServiceFeeTrusteeLetters() {
+  async listPendingSettlementTrusteeLetters() {
     const settlements = await prisma.noteSettlement.findMany({
       where: {
         status: NoteSettlementStatus.POSTED,
@@ -2224,7 +2225,7 @@ export class NoteService {
               { service_fee_trustee_status: null },
               {
                 service_fee_trustee_status: {
-                  not: ServiceFeeTrusteeInstructionStatus.COMPLETED,
+                  not: SettlementTrusteeInstructionStatus.COMPLETED,
                 },
               },
             ],
@@ -5373,7 +5374,7 @@ export class NoteService {
           preview_snapshot: json(postedSnapshot),
           ...(hasSettlementTrusteeMovement(settlement)
             ? {
-                service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.PENDING_LETTER,
+                service_fee_trustee_status: SettlementTrusteeInstructionStatus.PENDING_LETTER,
                 service_fee_trustee_created_at: postedAt,
               }
             : {}),
@@ -5692,7 +5693,7 @@ export class NoteService {
     return { s3Key: key };
   }
 
-  async generateServiceFeeTrusteeLetter(
+  async generateSettlementTrusteeLetter(
     noteId: string,
     settlementId: string,
     actor: ActorContext
@@ -5736,8 +5737,8 @@ export class NoteService {
 
     const wfStatus = settlement.service_fee_trustee_status;
     if (
-      wfStatus === ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE ||
-      wfStatus === ServiceFeeTrusteeInstructionStatus.COMPLETED
+      wfStatus === SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE ||
+      wfStatus === SettlementTrusteeInstructionStatus.COMPLETED
     ) {
       throw new AppError(
         409,
@@ -5863,15 +5864,15 @@ export class NoteService {
             {
               service_fee_trustee_status: {
                 notIn: [
-                  ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
-                  ServiceFeeTrusteeInstructionStatus.COMPLETED,
+                  SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+                  SettlementTrusteeInstructionStatus.COMPLETED,
                 ],
               },
             },
           ],
         },
         data: {
-          service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
+          service_fee_trustee_status: SettlementTrusteeInstructionStatus.LETTER_GENERATED,
           service_fee_trustee_letter_generated_at: new Date(),
         },
       });
@@ -5890,7 +5891,7 @@ export class NoteService {
     return { s3Key: key };
   }
 
-  async markServiceFeeTrusteeLetterSubmitted(
+  async markSettlementTrusteeLetterSubmitted(
     noteId: string,
     settlementId: string,
     actor: ActorContext
@@ -5926,7 +5927,7 @@ export class NoteService {
       );
     }
     const st = settlement.service_fee_trustee_status;
-    if (st !== ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED) {
+    if (st !== SettlementTrusteeInstructionStatus.LETTER_GENERATED) {
       throw new AppError(
         409,
         "SERVICE_FEE_TRUSTEE_LETTER_REQUIRED",
@@ -5949,10 +5950,10 @@ export class NoteService {
         where: {
           id: settlementId,
           note_id: noteId,
-          service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
+          service_fee_trustee_status: SettlementTrusteeInstructionStatus.LETTER_GENERATED,
         },
         data: {
-          service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+          service_fee_trustee_status: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
           service_fee_trustee_submitted_at:
             settlement.service_fee_trustee_submitted_at ?? new Date(),
         },
@@ -5972,7 +5973,7 @@ export class NoteService {
     return this.getAdminNoteDetail(noteId);
   }
 
-  async resendServiceFeeTrusteeEmail(noteId: string, settlementId: string, actor: ActorContext) {
+  async resendSettlementTrusteeEmail(noteId: string, settlementId: string, actor: ActorContext) {
     const settlement = await prisma.noteSettlement.findFirst({
       where: { id: settlementId, note_id: noteId },
     });
@@ -5988,13 +5989,13 @@ export class NoteService {
     }
     const st = settlement.service_fee_trustee_status;
     if (
-      st !== ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED &&
-      st !== ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE
+      st !== SettlementTrusteeInstructionStatus.LETTER_GENERATED &&
+      st !== SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE
     ) {
       throw new AppError(
         409,
         "TRUSTEE_EMAIL_NOT_RESENDABLE",
-        st === ServiceFeeTrusteeInstructionStatus.COMPLETED
+        st === SettlementTrusteeInstructionStatus.COMPLETED
           ? "Trustee email cannot be resent after the settlement instruction is completed."
           : "Resend is available only after the trustee email has already been sent."
       );
@@ -6018,7 +6019,7 @@ export class NoteService {
     return this.getAdminNoteDetail(noteId);
   }
 
-  async markServiceFeeTrusteeInstructionCompleted(
+  async markSettlementTrusteeInstructionCompleted(
     noteId: string,
     settlementId: string,
     actor: ActorContext
@@ -6055,7 +6056,7 @@ export class NoteService {
     }
     if (
       settlement.service_fee_trustee_status !==
-      ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE
+      SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE
     ) {
       throw new AppError(
         409,
@@ -6084,10 +6085,10 @@ export class NoteService {
         where: {
           id: settlementId,
           note_id: noteId,
-          service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+          service_fee_trustee_status: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
         },
         data: {
-          service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.COMPLETED,
+          service_fee_trustee_status: SettlementTrusteeInstructionStatus.COMPLETED,
           service_fee_trustee_completed_at:
             settlement.service_fee_trustee_completed_at ?? completedAt,
         },
@@ -6940,7 +6941,7 @@ export class NoteService {
           });
           const settlementTrusteeComplete =
             postedResidualSettlement?.service_fee_trustee_status ===
-            ServiceFeeTrusteeInstructionStatus.COMPLETED;
+            SettlementTrusteeInstructionStatus.COMPLETED;
           const settlementNeedsTrustee =
             postedResidualSettlement != null &&
             hasSettlementTrusteeMovement(postedResidualSettlement);
@@ -7192,7 +7193,17 @@ export class NoteService {
       s3Key: latest.letter_s3_key,
       config,
     });
-    await this.persistWithdrawalTrusteeEmailSent(latest.id, latest.note_id, actor, messageId, mode);
+    await this.persistWithdrawalTrusteeEmailSent(
+      latest.id,
+      latest.note_id,
+      actor,
+      messageId,
+      mode,
+      formatWithdrawalReference({
+        displayReference: latest.display_reference,
+        id: latest.id,
+      })
+    );
   }
 
   private async persistWithdrawalTrusteeEmailSent(
@@ -7200,7 +7211,8 @@ export class NoteService {
     noteId: string | null,
     actor: ActorContext,
     messageId: string,
-    mode: "initial" | "resend" = "initial"
+    mode: "initial" | "resend" = "initial",
+    withdrawalReference?: string
   ) {
     const persist = await prisma.withdrawalInstruction.updateMany({
       where:
@@ -7221,6 +7233,7 @@ export class NoteService {
     if (persist.count !== 1 || !noteId) return;
     await this.logEvent(prisma, noteId, "WITHDRAWAL_TRUSTEE_EMAIL_SENT", actor, {
       withdrawalId,
+      ...(withdrawalReference ? { withdrawalReference } : {}),
       messageId,
       ...(mode === "resend" ? { resend: true } : {}),
     });
@@ -7280,7 +7293,17 @@ export class NoteService {
       s3Key,
       config,
     });
-    await this.persistSettlementTrusteeEmailSent(noteId, settlementId, actor, messageId, mode);
+    await this.persistSettlementTrusteeEmailSent(
+      noteId,
+      settlementId,
+      actor,
+      messageId,
+      mode,
+      formatSettlementReference({
+        displayReference: latest.display_reference,
+        id: latest.id,
+      })
+    );
   }
 
   private async persistSettlementTrusteeEmailSent(
@@ -7288,7 +7311,8 @@ export class NoteService {
     settlementId: string,
     actor: ActorContext,
     messageId: string,
-    mode: "initial" | "resend" = "initial"
+    mode: "initial" | "resend" = "initial",
+    settlementReference?: string
   ) {
     const persist = await prisma.noteSettlement.updateMany({
       where:
@@ -7299,8 +7323,8 @@ export class NoteService {
               service_fee_trustee_email_sent_at: { not: null },
               service_fee_trustee_status: {
                 in: [
-                  ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
-                  ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+                  SettlementTrusteeInstructionStatus.LETTER_GENERATED,
+                  SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
                 ],
               },
             }
@@ -7313,6 +7337,7 @@ export class NoteService {
     if (persist.count !== 1) return;
     await this.logEvent(prisma, noteId, "SETTLEMENT_TRUSTEE_EMAIL_SENT", actor, {
       settlementId,
+      ...(settlementReference ? { settlementReference } : {}),
       messageId,
       ...(mode === "resend" ? { resend: true } : {}),
     });

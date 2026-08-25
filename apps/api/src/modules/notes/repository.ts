@@ -5,7 +5,7 @@ import {
   NoteSettlementStatus,
   NoteStatus,
   Prisma,
-  ServiceFeeTrusteeInstructionStatus,
+  ServiceFeeTrusteeInstructionStatus as SettlementTrusteeInstructionStatus,
 } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import type { GetNotesQuery } from "./schemas";
@@ -146,7 +146,7 @@ export class NoteRepository {
               { service_fee_trustee_status: null },
               {
                 service_fee_trustee_status: {
-                  not: ServiceFeeTrusteeInstructionStatus.COMPLETED,
+                  not: SettlementTrusteeInstructionStatus.COMPLETED,
                 },
               },
             ],

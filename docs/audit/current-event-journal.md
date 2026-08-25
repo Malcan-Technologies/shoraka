@@ -11387,7 +11387,7 @@ Actor:
 Admin
 
 Trigger:
-`generateServiceFeeTrusteeLetter` — Admin generates the settlement trustee instruction PDF after settlement is posted.
+`generateSettlementTrusteeLetter` — Admin generates the settlement trustee instruction PDF after settlement is posted.
 
 Stored in:
 `note_events`
@@ -11457,7 +11457,7 @@ Direct Email Outside Notification Registry
 Classification:
 CONSISTENT
 
-Admin-only. Live technical ID is `SETTLEMENT_TRUSTEE_LETTER_GENERATED`. The previous stored ID `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` is a read-compatible DISPLAY_ALIAS for historical rows only. Distinct from email / submit / completion.
+Admin-only. Live technical ID is `SETTLEMENT_TRUSTEE_LETTER_GENERATED`. The previous stored ID `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` is a read-compatible DISPLAY_ALIAS for historical rows only. Distinct from email / submit / completion. Prisma `service_fee_trustee_*` columns / enum `ServiceFeeTrusteeInstructionStatus` are leftover persistence names for this same settlement-wide instruction, not audit IDs.
 
 Technical-name mismatch:
 NO (resolved 2026-08-26 by renaming new writes; historical rows keep the legacy ID)
@@ -11539,22 +11539,25 @@ Actor:
 Admin
 
 Trigger:
-`deliverSettlementTrusteeEmail` / `persistSettlementTrusteeEmailSent`, called from `markServiceFeeTrusteeLetterSubmitted` when trustee auto-send is enabled (before the submit status transaction), or from `resendServiceFeeTrusteeEmail`.
+`deliverSettlementTrusteeEmail` / `persistSettlementTrusteeEmailSent`, called from `markSettlementTrusteeLetterSubmitted` when trustee auto-send is enabled (before the submit status transaction), or from `resendSettlementTrusteeEmail`.
 
 Stored in:
 `note_events`
+
+Metadata:
+`settlementId`, `settlementReference` (from already-loaded `note_settlements.display_reference`; new writes only), `messageId`, optional `resend: true`. Historical rows may omit `settlementReference` and are not rewritten.
 
 ### CURRENT USER-FACING COPY
 
 Admin Activity
 - Visible: YES
 - Title: `Settlement Trustee Email Sent` (metadata `resend: true` → `Settlement Trustee Email Redelivered`)
-- Description: `settlementId`, `messageId`, optional `resend`
+- Description: `settlementId`, `settlementReference` (new writes), `messageId`, optional `resend`
 
 Admin Detail
 - Visible: YES
 - Title: same metadata-aware title as Activity
-- Description: `settlementId`, `messageId`; `resend: true` renders as Redelivery / Redelivered
+- Description: `settlementId`, `settlementReference` (new writes), `messageId`; `resend: true` renders as Redelivery / Redelivered
 
 Issuer General Activity
 - Visible: NO
@@ -11583,7 +11586,7 @@ Investor General Activity
 CSV / Export
 - Included: YES
 - Title/Event: `Settlement Trustee Email Sent` / `Settlement Trustee Email Redelivered`
-- Description/Remark: `settlementId`, `messageId`, optional `resend`
+- Description/Remark: `settlementId`, `settlementReference` (new writes), `messageId`, optional `resend`
 
 Notification
 - Sends: NO
@@ -11657,7 +11660,7 @@ Stored in:
 
 ### CURRENT USER-FACING COPY
 
-Same as `SETTLEMENT_TRUSTEE_EMAIL_SENT` on Admin Activity, Admin Detail, and CSV. Issuer/Investor: Hidden (not queried). Notification: NO. Direct SES: the live writer now logs `SETTLEMENT_TRUSTEE_EMAIL_SENT`.
+Same as `SETTLEMENT_TRUSTEE_EMAIL_SENT` on Admin Activity, Admin Detail, and CSV. Issuer/Investor: Hidden (not queried). Notification: NO. Direct SES: the live writer now logs `SETTLEMENT_TRUSTEE_EMAIL_SENT`. Historical rows typically omit `settlementReference` and are not rewritten.
 
 ### CONSISTENCY REVIEW
 
@@ -11688,7 +11691,7 @@ Actor:
 Admin
 
 Trigger:
-`markServiceFeeTrusteeLetterSubmitted` — status transition to `SUBMITTED_TO_TRUSTEE` after any auto-send email attempt. Distinct from `SETTLEMENT_TRUSTEE_EMAIL_SENT`.
+`markSettlementTrusteeLetterSubmitted` — status transition to `SUBMITTED_TO_TRUSTEE` after any auto-send email attempt. Distinct from `SETTLEMENT_TRUSTEE_EMAIL_SENT`.
 
 Stored in:
 `note_events`
@@ -11840,7 +11843,7 @@ Actor:
 Admin
 
 Trigger:
-`markServiceFeeTrusteeInstructionCompleted` — complete trustee settlement instruction.
+`markSettlementTrusteeInstructionCompleted` — complete trustee settlement instruction.
 
 Stored in:
 `note_events`
@@ -12212,17 +12215,20 @@ Trigger:
 Stored in:
 `note_events`
 
+Metadata:
+`withdrawalId`, `withdrawalReference` (from already-loaded `withdrawal_instructions.display_reference`; new writes only), `messageId`, optional `resend: true`. Historical rows may omit `withdrawalReference` and are not rewritten.
+
 ### CURRENT USER-FACING COPY
 
 Admin Activity
 - Visible: YES
 - Title: `Withdrawal Trustee Email Sent` (metadata `resend: true` → `Withdrawal Trustee Email Redelivered`)
-- Description: `withdrawalId`, `messageId`, optional `resend`
+- Description: `withdrawalId`, `withdrawalReference` (new writes), `messageId`, optional `resend`
 
 Admin Detail
 - Visible: YES
 - Title: same metadata-aware title as Activity
-- Description: `withdrawalId`, `messageId`; `resend: true` renders as Redelivery / Redelivered
+- Description: `withdrawalId`, `withdrawalReference` (new writes), `messageId`; `resend: true` renders as Redelivery / Redelivered
 
 Issuer General Activity
 - Visible: NO
@@ -12251,7 +12257,7 @@ Investor General Activity
 CSV / Export
 - Included: YES
 - Title/Event: `Withdrawal Trustee Email Sent` / `Withdrawal Trustee Email Redelivered`
-- Description/Remark: `withdrawalId`, `messageId`, optional `resend`
+- Description/Remark: `withdrawalId`, `withdrawalReference` (new writes), `messageId`, optional `resend`
 
 Notification
 - Sends: NO

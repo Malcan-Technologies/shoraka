@@ -102,7 +102,7 @@ import type {
   PendingIssuerPayoutsResponse,
   PendingInvestorWithdrawalsCountResponse,
   PendingRepaymentsResponse,
-  PendingServiceFeeTrusteeLettersResponse,
+  PendingSettlementTrusteeLettersResponse,
   NoteEvent,
   NoteLedgerBucketActivityResponse,
   NoteLedgerBucketBalancesResponse,
@@ -870,10 +870,10 @@ export class ApiClient {
     );
   }
 
-  async getAdminPendingServiceFeeTrusteeLetters(): Promise<
-    ApiResponse<PendingServiceFeeTrusteeLettersResponse> | ApiError
+  async getAdminPendingSettlementTrusteeLetters(): Promise<
+    ApiResponse<PendingSettlementTrusteeLettersResponse> | ApiError
   > {
-    return this.get<PendingServiceFeeTrusteeLettersResponse>(
+    return this.get<PendingSettlementTrusteeLettersResponse>(
       "/v1/admin/notes/pending-service-fee-trustee-letters"
     );
   }
@@ -976,7 +976,7 @@ export class ApiClient {
     return this.post<{ s3Key: string }>(`/v1/admin/notes/${id}/default/generate-letter`, {});
   }
 
-  async generateAdminNoteServiceFeeTrusteeLetter(
+  async generateAdminNoteSettlementTrusteeLetter(
     noteId: string,
     settlementId: string
   ): Promise<ApiResponse<{ s3Key: string }> | ApiError> {
@@ -986,7 +986,7 @@ export class ApiClient {
     );
   }
 
-  async markAdminNoteServiceFeeTrusteeLetterSubmitted(
+  async markAdminNoteSettlementTrusteeLetterSubmitted(
     noteId: string,
     settlementId: string
   ): Promise<ApiResponse<NoteDetail> | ApiError> {
@@ -996,7 +996,7 @@ export class ApiClient {
     );
   }
 
-  async resendAdminNoteServiceFeeTrusteeEmail(
+  async resendAdminNoteSettlementTrusteeEmail(
     noteId: string,
     settlementId: string
   ): Promise<ApiResponse<NoteDetail> | ApiError> {
@@ -1006,7 +1006,7 @@ export class ApiClient {
     );
   }
 
-  async markAdminNoteServiceFeeTrusteeInstructionCompleted(
+  async markAdminNoteSettlementTrusteeInstructionCompleted(
     noteId: string,
     settlementId: string
   ): Promise<ApiResponse<NoteDetail> | ApiError> {

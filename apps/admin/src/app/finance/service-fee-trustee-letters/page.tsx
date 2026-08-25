@@ -10,7 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { Skeleton } from "@cashsouk/ui";
-import type { PendingServiceFeeTrusteeLetterItem } from "@cashsouk/types";
+import type { PendingSettlementTrusteeLetterItem } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { usePendingServiceFeeTrusteeLetters } from "@/notes/hooks/use-notes";
+import { usePendingSettlementTrusteeLetters } from "@/notes/hooks/use-notes";
 import { RequirePermission } from "@/components/require-permission";
 import { AdminPageHeader } from "@/components/admin-page-header";
 
@@ -35,7 +35,7 @@ function formatAge(value: string | null) {
   return `${formatDistanceToNowStrict(new Date(value))} ago`;
 }
 
-function formatTrusteeInstructionStatus(item: PendingServiceFeeTrusteeLetterItem) {
+function formatTrusteeInstructionStatus(item: PendingSettlementTrusteeLetterItem) {
   const st = item.trusteeInstructionStatus;
   if (st === "PENDING_LETTER") return "Awaiting PDF";
   if (st === "LETTER_GENERATED") return "Letter generated";
@@ -44,8 +44,8 @@ function formatTrusteeInstructionStatus(item: PendingServiceFeeTrusteeLetterItem
   return "Awaiting PDF";
 }
 
-export default function ServiceFeeTrusteeLettersPage() {
-  const { data, isLoading, error, refetch, isFetching } = usePendingServiceFeeTrusteeLetters();
+export default function SettlementTrusteeLettersPage() {
+  const { data, isLoading, error, refetch, isFetching } = usePendingSettlementTrusteeLetters();
   const items = data?.items ?? [];
 
   const totalFee = items.reduce((sum, item) => sum + item.serviceFeeAmount, 0);

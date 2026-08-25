@@ -23,7 +23,7 @@ import type {
   NoteSettlementPreviewResult,
   OverdueLateChargeResult,
   ProfitWindowClassification,
-  ServiceFeeTrusteeInstructionStatus,
+  SettlementTrusteeInstructionStatus,
 } from "@cashsouk/types";
 import {
   estimateTenureLateFeeHeadroom,
@@ -89,10 +89,10 @@ import {
   usePreviewNoteSettlement,
   useRecordNotePayment,
   useRejectNotePayment,
-  useGenerateServiceFeeTrusteeLetter,
-  useMarkServiceFeeTrusteeLetterSubmitted,
-  useMarkServiceFeeTrusteeInstructionCompleted,
-  useResendServiceFeeTrusteeEmail,
+  useGenerateSettlementTrusteeLetter,
+  useMarkSettlementTrusteeLetterSubmitted,
+  useMarkSettlementTrusteeInstructionCompleted,
+  useResendSettlementTrusteeEmail,
 } from "../hooks/use-notes";
 import { formatLedgerBucketLabel } from "@/lib/ledger-bucket-display";
 import {
@@ -101,7 +101,7 @@ import {
   TRUSTEE_EMAIL_DELIVERED_LABEL,
 } from "@/lib/trustee-letter-sent-state";
 import {
-  canResendServiceFeeTrusteeEmail,
+  canResendSettlementTrusteeEmail,
   getTrusteeResendCopy,
 } from "@/lib/trustee-letter-resend";
 import { getTrusteeSubmitCopy } from "@/lib/trustee-letter-submit-copy";
@@ -141,7 +141,7 @@ const SETTLEMENT_ACTIVE_STEP_CLASS = WORKFLOW_CARD.activeStep;
 const SECTION_COMPLETE_CLASS = WORKFLOW_CARD.successSection;
 const OPEN_PAYMENT_STATUSES = ["PENDING", "PARTIAL", "RECEIVED", "RECONCILED"];
 
-function serviceFeeTrusteeStatusLabel(status: ServiceFeeTrusteeInstructionStatus | null) {
+function settlementTrusteeStatusLabel(status: SettlementTrusteeInstructionStatus | null) {
   if (status === "PENDING_LETTER") return "Not generated";
   if (status === "LETTER_GENERATED") return "Pending trustee submission";
   if (status === "SUBMITTED_TO_TRUSTEE") return "Submitted to trustee";
@@ -539,7 +539,7 @@ export function SettlementPanel({
   const [overdueGharamahPercentInput, setOverdueGharamahPercentInput] = React.useState("0.00");
   const [rejectionReasons, setRejectionReasons] = React.useState<Record<string, string>>({});
   const [rejectingPaymentId, setRejectingPaymentId] = React.useState<string | null>(null);
-  const [serviceFeeTrusteeConfirm, setServiceFeeTrusteeConfirm] = React.useState<
+  const [settlementTrusteeConfirm, setSettlementTrusteeConfirm] = React.useState<
     "submit" | "resend" | "complete" | null
   >(null);
   const [defaultReason, setDefaultReason] = React.useState("");
@@ -561,10 +561,10 @@ export function SettlementPanel({
   const postSettlement = usePostNoteSettlement();
   const arrearsLetter = useGenerateArrearsLetter();
   const defaultLetter = useGenerateDefaultLetter();
-  const generateServiceFeeTrusteeLetter = useGenerateServiceFeeTrusteeLetter();
-  const markServiceFeeTrusteeSubmitted = useMarkServiceFeeTrusteeLetterSubmitted();
-  const resendServiceFeeTrusteeEmail = useResendServiceFeeTrusteeEmail();
-  const markServiceFeeTrusteeCompleted = useMarkServiceFeeTrusteeInstructionCompleted();
+  const generateSettlementTrusteeLetter = useGenerateSettlementTrusteeLetter();
+  const markSettlementTrusteeSubmitted = useMarkSettlementTrusteeLetterSubmitted();
+  const resendSettlementTrusteeEmail = useResendSettlementTrusteeEmail();
+  const markSettlementTrusteeCompleted = useMarkSettlementTrusteeInstructionCompleted();
   const markDefault = useMarkNoteDefault();
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
@@ -715,7 +715,7 @@ export function SettlementPanel({
         };
       });
   }, [note.events]);
-  const serviceFeeTrusteeLetters = persistedPostedSettlementId
+  const settlementTrusteeLetters = persistedPostedSettlementId
     ? note.events
         .filter(
           (event) =>
@@ -1609,10 +1609,10 @@ export function SettlementPanel({
     }
   };
 
-  const handleServiceFeeTrusteeLetter = async () => {
+  const handleSettlementTrusteeLetter = async () => {
     if (!persistedPostedSettlement) return;
     try {
-      const result = await generateServiceFeeTrusteeLetter.mutateAsync({
+      const result = await generateSettlementTrusteeLetter.mutateAsync({
         noteId: note.id,
         settlementId: persistedPostedSettlement.id,
       });
@@ -1636,56 +1636,56 @@ export function SettlementPanel({
     }
   };
 
-  const serviceFeeTrusteeStatus = persistedPostedSettlement?.serviceFeeTrusteeStatus ?? null;
+  const settlementTrusteeStatus = persistedPostedSettlement?.serviceFeeTrusteeStatus ?? null;
   const trusteeSubmitCopy = getTrusteeSubmitCopy(
     note.trusteeAutoSendEmailEnabled === true,
     "instruction"
   );
   const trusteeResendCopy = getTrusteeResendCopy();
-  const canResendTrusteeEmail = canResendServiceFeeTrusteeEmail(
+  const canResendTrusteeEmail = canResendSettlementTrusteeEmail(
     persistedPostedSettlement?.serviceFeeTrusteeEmailSentAt,
-    serviceFeeTrusteeStatus
+    settlementTrusteeStatus
   );
-  const serviceFeeTrusteeEmailedCopy = formatTrusteeInstructionEmailedCopy(
+  const settlementTrusteeEmailedCopy = formatTrusteeInstructionEmailedCopy(
     persistedPostedSettlement?.serviceFeeTrusteeEmailSentAt
   );
-  const serviceFeeTrusteeEmailedAt = formatTrusteeInstructionEmailedAt(
+  const settlementTrusteeEmailedAt = formatTrusteeInstructionEmailedAt(
     persistedPostedSettlement?.serviceFeeTrusteeEmailSentAt
   );
-  const serviceFeeTrusteeWorkflowComplete = serviceFeeTrusteeStatus === "COMPLETED";
-  const serviceFeeTrusteeNeedsPdf =
-    !serviceFeeTrusteeWorkflowComplete &&
-    (serviceFeeTrusteeStatus === null || serviceFeeTrusteeStatus === "PENDING_LETTER");
-  const settlementTrusteeTone = trusteeWorkflowTone(serviceFeeTrusteeStatus, {
-    needsGeneration: serviceFeeTrusteeNeedsPdf,
+  const settlementTrusteeWorkflowComplete = settlementTrusteeStatus === "COMPLETED";
+  const settlementTrusteeNeedsPdf =
+    !settlementTrusteeWorkflowComplete &&
+    (settlementTrusteeStatus === null || settlementTrusteeStatus === "PENDING_LETTER");
+  const settlementTrusteeTone = trusteeWorkflowTone(settlementTrusteeStatus, {
+    needsGeneration: settlementTrusteeNeedsPdf,
   });
-  const serviceFeeTrusteeLetterLocked =
-    serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE" || serviceFeeTrusteeStatus === "COMPLETED";
-  const serviceFeeTrusteePendingAny =
-    generateServiceFeeTrusteeLetter.isPending ||
-    markServiceFeeTrusteeSubmitted.isPending ||
-    resendServiceFeeTrusteeEmail.isPending ||
-    markServiceFeeTrusteeCompleted.isPending;
+  const settlementTrusteeLetterLocked =
+    settlementTrusteeStatus === "SUBMITTED_TO_TRUSTEE" || settlementTrusteeStatus === "COMPLETED";
+  const settlementTrusteePendingAny =
+    generateSettlementTrusteeLetter.isPending ||
+    markSettlementTrusteeSubmitted.isPending ||
+    resendSettlementTrusteeEmail.isPending ||
+    markSettlementTrusteeCompleted.isPending;
   const latestTrusteeLetter =
-    [...serviceFeeTrusteeLetters].reverse().find((letter) => letter.s3Key) ?? null;
+    [...settlementTrusteeLetters].reverse().find((letter) => letter.s3Key) ?? null;
   const trusteeDownloadFileName = persistedPostedSettlement
-    ? `service-fee-trustee-${note.noteReference}-${persistedPostedSettlement.id}.pdf`
+    ? `settlement-trustee-${note.noteReference}-${persistedPostedSettlement.id}.pdf`
     : "settlement-trustee-instruction.pdf";
 
-  const confirmServiceFeeTrusteeCopy =
-    serviceFeeTrusteeConfirm === "submit"
+  const confirmSettlementTrusteeCopy =
+    settlementTrusteeConfirm === "submit"
       ? {
           title: trusteeSubmitCopy.confirmTitle,
           description: trusteeSubmitCopy.description,
           confirmLabel: trusteeSubmitCopy.confirmLabel,
         }
-      : serviceFeeTrusteeConfirm === "resend"
+      : settlementTrusteeConfirm === "resend"
         ? {
             title: trusteeResendCopy.confirmTitle,
             description: trusteeResendCopy.description,
             confirmLabel: trusteeResendCopy.confirmLabel,
           }
-      : serviceFeeTrusteeConfirm === "complete"
+      : settlementTrusteeConfirm === "complete"
         ? {
             title: "Mark instruction completed?",
             description:
@@ -1694,29 +1694,29 @@ export function SettlementPanel({
           }
         : null;
 
-  const runServiceFeeTrusteeConfirm = async () => {
-    if (!serviceFeeTrusteeConfirm || !persistedPostedSettlement) return;
+  const runSettlementTrusteeConfirm = async () => {
+    if (!settlementTrusteeConfirm || !persistedPostedSettlement) return;
     try {
-      if (serviceFeeTrusteeConfirm === "submit") {
-        await markServiceFeeTrusteeSubmitted.mutateAsync({
+      if (settlementTrusteeConfirm === "submit") {
+        await markSettlementTrusteeSubmitted.mutateAsync({
           noteId: note.id,
           settlementId: persistedPostedSettlement.id,
         });
         toast.success(trusteeSubmitCopy.success);
-      } else if (serviceFeeTrusteeConfirm === "resend") {
-        await resendServiceFeeTrusteeEmail.mutateAsync({
+      } else if (settlementTrusteeConfirm === "resend") {
+        await resendSettlementTrusteeEmail.mutateAsync({
           noteId: note.id,
           settlementId: persistedPostedSettlement.id,
         });
         toast.success(trusteeResendCopy.success);
       } else {
-        await markServiceFeeTrusteeCompleted.mutateAsync({
+        await markSettlementTrusteeCompleted.mutateAsync({
           noteId: note.id,
           settlementId: persistedPostedSettlement.id,
         });
         toast.success("Settlement trustee instruction marked complete");
       }
-      setServiceFeeTrusteeConfirm(null);
+      setSettlementTrusteeConfirm(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Action failed");
     }
@@ -2770,41 +2770,41 @@ export function SettlementPanel({
               <div
                 className={cn(
                   "rounded-xl border p-4",
-                  serviceFeeTrusteeWorkflowComplete
+                  settlementTrusteeWorkflowComplete
                     ? SECTION_COMPLETE_CLASS
                     : workflowTaskSurfaceClass(settlementTrusteeTone)
                 )}
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <WorkflowStepTitle
-                    complete={serviceFeeTrusteeWorkflowComplete}
+                    complete={settlementTrusteeWorkflowComplete}
                     completeLabel="3. Trustee instruction complete"
                   >
                     3. Trustee instruction
                   </WorkflowStepTitle>
-                  {serviceFeeTrusteeWorkflowComplete ? null : (
+                  {settlementTrusteeWorkflowComplete ? null : (
                     <StatusBadge
                       label={
-                        serviceFeeTrusteeNeedsPdf
+                        settlementTrusteeNeedsPdf
                           ? "Not generated"
-                          : serviceFeeTrusteeStatusLabel(serviceFeeTrusteeStatus)
+                          : settlementTrusteeStatusLabel(settlementTrusteeStatus)
                       }
                       status={workflowToneToStatusToken(settlementTrusteeTone)}
                     />
                   )}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {serviceFeeTrusteeStatus === "LETTER_GENERATED"
+                  {settlementTrusteeStatus === "LETTER_GENERATED"
                     ? "Trustee instruction letter has been generated. Submit it to the trustee, then mark it as submitted."
-                    : serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE"
+                    : settlementTrusteeStatus === "SUBMITTED_TO_TRUSTEE"
                       ? "Trustee instruction has been submitted. Mark complete once trustee confirmation is received."
-                      : serviceFeeTrusteeWorkflowComplete
+                      : settlementTrusteeWorkflowComplete
                         ? "Trustee submission is complete."
                         : "Generate the trustee instruction letter for the posted settlement waterfall."}
                 </p>
-                {serviceFeeTrusteeEmailedCopy ? (
+                {settlementTrusteeEmailedCopy ? (
                   <p className="mt-1 text-meta text-muted-foreground">
-                    {serviceFeeTrusteeEmailedCopy}
+                    {settlementTrusteeEmailedCopy}
                   </p>
                 ) : null}
                 {latestTrusteeLetter ? (
@@ -2869,11 +2869,11 @@ export function SettlementPanel({
                           },
                         ]
                       : []),
-                    ...(serviceFeeTrusteeEmailedAt
+                    ...(settlementTrusteeEmailedAt
                       ? [
                           {
                             label: TRUSTEE_EMAIL_DELIVERED_LABEL,
-                            value: serviceFeeTrusteeEmailedAt,
+                            value: settlementTrusteeEmailedAt,
                           },
                         ]
                       : []),
@@ -2890,7 +2890,7 @@ export function SettlementPanel({
                       : []),
                   ]}
                 />
-                {serviceFeeTrusteeNeedsPdf ? (
+                {settlementTrusteeNeedsPdf ? (
                   <p className="mt-2 text-xs text-destructive">
                     Generate the settlement trustee instruction before marking submitted or complete.
                   </p>
@@ -2927,14 +2927,14 @@ export function SettlementPanel({
                       </Button>
                     </>
                   ) : null}
-                  {serviceFeeTrusteeNeedsPdf ? (
+                  {settlementTrusteeNeedsPdf ? (
                     <Button
                       type="button"
                       size="sm"
-                      onClick={() => void handleServiceFeeTrusteeLetter()}
+                      onClick={() => void handleSettlementTrusteeLetter()}
                       disabled={
-                        serviceFeeTrusteeLetterLocked ||
-                        serviceFeeTrusteePendingAny ||
+                        settlementTrusteeLetterLocked ||
+                        settlementTrusteePendingAny ||
                         !canDisbursement
                       }
                       title={
@@ -2952,8 +2952,8 @@ export function SettlementPanel({
                       size="sm"
                       variant="outline"
                       className="gap-1.5"
-                      onClick={() => setServiceFeeTrusteeConfirm("resend")}
-                      disabled={serviceFeeTrusteePendingAny || !canDisbursement}
+                      onClick={() => setSettlementTrusteeConfirm("resend")}
+                      disabled={settlementTrusteePendingAny || !canDisbursement}
                       title={
                         !canDisbursement
                           ? "You do not have permission to perform this action."
@@ -2964,12 +2964,12 @@ export function SettlementPanel({
                       {trusteeResendCopy.button}
                     </Button>
                   ) : null}
-                  {serviceFeeTrusteeStatus === "LETTER_GENERATED" ? (
+                  {settlementTrusteeStatus === "LETTER_GENERATED" ? (
                     <Button
                       type="button"
                       size="sm"
-                      onClick={() => setServiceFeeTrusteeConfirm("submit")}
-                      disabled={serviceFeeTrusteePendingAny || !canDisbursement}
+                      onClick={() => setSettlementTrusteeConfirm("submit")}
+                      disabled={settlementTrusteePendingAny || !canDisbursement}
                       title={
                         !canDisbursement
                           ? "You do not have permission to perform this action."
@@ -2979,12 +2979,12 @@ export function SettlementPanel({
                       {trusteeSubmitCopy.button}
                     </Button>
                   ) : null}
-                  {serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE" ? (
+                  {settlementTrusteeStatus === "SUBMITTED_TO_TRUSTEE" ? (
                     <Button
                       type="button"
                       size="sm"
-                      onClick={() => setServiceFeeTrusteeConfirm("complete")}
-                      disabled={serviceFeeTrusteePendingAny || !canDisbursement}
+                      onClick={() => setSettlementTrusteeConfirm("complete")}
+                      disabled={settlementTrusteePendingAny || !canDisbursement}
                       title={
                         !canDisbursement
                           ? "You do not have permission to perform this action."
@@ -2994,7 +2994,7 @@ export function SettlementPanel({
                       Mark completed
                     </Button>
                   ) : null}
-                  {serviceFeeTrusteePendingAny ? (
+                  {settlementTrusteePendingAny ? (
                     <span className="text-xs text-muted-foreground">Working…</span>
                   ) : null}
                 </div>
@@ -3022,27 +3022,27 @@ export function SettlementPanel({
       </Card>
       )}
       <AlertDialog
-        open={serviceFeeTrusteeConfirm !== null}
+        open={settlementTrusteeConfirm !== null}
         onOpenChange={(open) => {
-          if (!open) setServiceFeeTrusteeConfirm(null);
+          if (!open) setSettlementTrusteeConfirm(null);
         }}
       >
         <AlertDialogContent>
-          {confirmServiceFeeTrusteeCopy ? (
+          {confirmSettlementTrusteeCopy ? (
             <>
               <AlertDialogHeader>
-                <AlertDialogTitle>{confirmServiceFeeTrusteeCopy.title}</AlertDialogTitle>
+                <AlertDialogTitle>{confirmSettlementTrusteeCopy.title}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {confirmServiceFeeTrusteeCopy.description}
+                  {confirmSettlementTrusteeCopy.description}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={serviceFeeTrusteePendingAny}>Cancel</AlertDialogCancel>
+                <AlertDialogCancel disabled={settlementTrusteePendingAny}>Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={() => void runServiceFeeTrusteeConfirm()}
-                  disabled={serviceFeeTrusteePendingAny}
+                  onClick={() => void runSettlementTrusteeConfirm()}
+                  disabled={settlementTrusteePendingAny}
                 >
-                  {confirmServiceFeeTrusteeCopy.confirmLabel}
+                  {confirmSettlementTrusteeCopy.confirmLabel}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </>

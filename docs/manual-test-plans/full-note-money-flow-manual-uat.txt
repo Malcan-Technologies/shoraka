@@ -2216,9 +2216,9 @@ Relevant functions:
 - generateWithdrawalLetter()
 - markWithdrawalSubmitted()
 - markWithdrawalCompleted()
-- generateServiceFeeTrusteeLetter()
-- markServiceFeeTrusteeLetterSubmitted()
-- markServiceFeeTrusteeInstructionCompleted()
+- generateSettlementTrusteeLetter()
+- markSettlementTrusteeLetterSubmitted()
+- markSettlementTrusteeInstructionCompleted()
 
 How it is triggered:
 - Admin UI/API.

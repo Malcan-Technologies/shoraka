@@ -57,7 +57,7 @@ import {
   usePendingInvestorWithdrawals,
   usePendingRepayments,
   usePendingIssuerPayouts,
-  usePendingServiceFeeTrusteeLetters,
+  usePendingSettlementTrusteeLetters,
 } from "@/notes/hooks/use-notes";
 import {
   type ApplicationNavGroup,
@@ -192,7 +192,7 @@ type BadgeKey =
   | "onboardingApproval"
   | "noteActions"
   | "pendingRepayments"
-  | "pendingServiceFeeTrusteeLetters"
+  | "pendingSettlementTrusteeLetters"
   | "pendingIssuerPayouts"
   | "pendingInvestorWithdrawals"
   | "gatewayPaymentExceptions"
@@ -250,7 +250,7 @@ const moneyMovementItems: Array<{
   {
     title: "Settlements",
     url: "/finance/service-fee-trustee-letters",
-    badgeKey: "pendingServiceFeeTrusteeLetters",
+    badgeKey: "pendingSettlementTrusteeLetters",
     permission: "serviceFee",
   },
   {
@@ -434,7 +434,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: gatewayReconData } = useGatewayReconPendingCount({
     enabled: canViewReconciliation,
   });
-  const { data: pendingServiceFeeLettersData } = usePendingServiceFeeTrusteeLetters({
+  const { data: pendingSettlementTrusteeLettersData } = usePendingSettlementTrusteeLetters({
     enabled: canViewServiceFee,
   });
 
@@ -453,7 +453,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     onboardingApproval: pendingCountData?.count || 0,
     noteActions: noteActionCountData?.count || 0,
     pendingRepayments: pendingRepaymentsData?.count || 0,
-    pendingServiceFeeTrusteeLetters: pendingServiceFeeLettersData?.count || 0,
+    pendingSettlementTrusteeLetters: pendingSettlementTrusteeLettersData?.count || 0,
     pendingIssuerPayouts: pendingIssuerPayoutsData?.count || 0,
     pendingInvestorWithdrawals: pendingInvestorWithdrawalsData?.count || 0,
     gatewayPaymentExceptions: gatewayPaymentExceptionsData?.count || 0,

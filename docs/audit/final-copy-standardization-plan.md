@@ -23,6 +23,10 @@ Post-standardization technical-ID note (2026-08-26, follow-on): new writes now a
 
 Do not treat either as a duplicate of `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` or `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED` (legacy stored type `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED`). Trustee SES email and issuer platform notification remain separate products.
 
+Post-standardization metadata note (2026-08-26): new `WITHDRAWAL_TRUSTEE_EMAIL_SENT` rows also store `withdrawalReference` (from already-loaded `display_reference`). New `SETTLEMENT_TRUSTEE_EMAIL_SENT` rows also store `settlementReference` (from already-loaded settlement `display_reference`). Internal IDs remain. Historical rows without the friendly fields still render and are not rewritten. Titles unchanged.
+
+Domain-naming note (2026-08-26): application-layer settlement trustee methods/types were renamed to `generateSettlementTrusteeLetter`, `markSettlementTrusteeLetterSubmitted`, `resendSettlementTrusteeEmail`, `markSettlementTrusteeInstructionCompleted`, and `SettlementTrusteeInstructionStatus`. Audit event IDs are unchanged. Prisma columns (`service_fee_trustee_*`), HTTP paths (`/service-fee/...`, `/pending-service-fee-trustee-letters`, `/finance/service-fee-trustee-letters`), JSON DTO fields (`serviceFeeTrusteeStatus`, `serviceFeeAmount`), AppError codes (`SERVICE_FEE_TRUSTEE_*`), email `kind: "SERVICE_FEE"`, and S3 `service-fee-trustee/` remain legacy persistence/contract names. No DB migration.
+
 ---
 
 Scope: the 43 `STANDARDIZATION_RECOMMENDED` + 15 `LEGACY_NAMING_TRAP` events from

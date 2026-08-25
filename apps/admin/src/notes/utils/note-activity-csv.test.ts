@@ -95,12 +95,17 @@ describe("buildNoteActivityCsv", () => {
     const csv = buildNoteActivityCsv([
       event({
         eventType: "WITHDRAWAL_TRUSTEE_EMAIL_SENT",
-        metadata: { withdrawalId: "wd-1", messageId: "ses-1" },
+        metadata: { withdrawalId: "wd-1", withdrawalReference: "WD-1", messageId: "ses-1" },
       }),
       event({
         id: "evt-2",
         eventType: "SETTLEMENT_TRUSTEE_EMAIL_SENT",
-        metadata: { settlementId: "set-1", messageId: "ses-2", resend: true },
+        metadata: {
+          settlementId: "set-1",
+          settlementReference: "STL-1",
+          messageId: "ses-2",
+          resend: true,
+        },
       }),
       event({
         id: "evt-3",
@@ -111,9 +116,11 @@ describe("buildNoteActivityCsv", () => {
     expect(csv).toContain("Withdrawal Trustee Email Sent");
     expect(csv).toContain("WITHDRAWAL_TRUSTEE_EMAIL_SENT");
     expect(csv).toContain("wd-1");
+    expect(csv).toContain("WD-1");
     expect(csv).toContain("Settlement Trustee Email Redelivered");
     expect(csv).toContain("SETTLEMENT_TRUSTEE_EMAIL_SENT");
     expect(csv).toContain("set-1");
+    expect(csv).toContain("STL-1");
     expect(csv).toContain("ses-2");
     expect(csv).toContain("Settlement Trustee Email Sent");
     expect(csv).toContain("SERVICE_FEE_TRUSTEE_EMAIL_SENT");

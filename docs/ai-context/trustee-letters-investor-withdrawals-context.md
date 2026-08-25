@@ -196,7 +196,7 @@ Data mappers: `trustee-letter-data.mapper.ts`
 
 **Purpose:** `Repayment to Investors and Platform`
 
-**Generated from:** `generateServiceFeeTrusteeLetter(noteId, settlementId)` — produces combined repayment waterfall PDF when settlement is POSTED and has trustee-relevant amounts.
+**Generated from:** `generateSettlementTrusteeLetter(noteId, settlementId)` — produces combined repayment waterfall PDF when settlement is POSTED and has trustee-relevant amounts.
 
 **Source/debit:** Repayment Pool
 
@@ -443,6 +443,25 @@ Issuer payout list still uses `GET /v1/admin/withdrawals/pending-issuer-payouts`
 | API client | `packages/config/src/api-client.ts` |
 | Shared types | `packages/types/src/notes.ts`, `packages/types/src/rbac.ts` |
 | Admin hooks | `apps/admin/src/notes/hooks/use-notes.ts` |
+
+### Legacy persistence / HTTP names
+
+Canonical application terminology is **settlement trustee instruction**. These names remain because they are persisted, contracted, or historically stored — they are not fee-only:
+
+| Layer | Legacy name | Application name |
+|------|-------------|------------------|
+| Prisma enum | `ServiceFeeTrusteeInstructionStatus` | aliased in API as `SettlementTrusteeInstructionStatus` |
+| Prisma columns | `service_fee_trustee_status` and `service_fee_trustee_*` timestamps | mapped to JSON `serviceFeeTrustee*` |
+| HTTP | `GET /v1/admin/notes/pending-service-fee-trustee-letters` | `listPendingSettlementTrusteeLetters` |
+| HTTP | `POST .../settlements/:id/service-fee/{generate-trustee-letter,mark-submitted-to-trustee,resend-trustee-email,mark-completed}` | `generateSettlementTrusteeLetter` / `markSettlementTrusteeLetterSubmitted` / `resendSettlementTrusteeEmail` / `markSettlementTrusteeInstructionCompleted` |
+| Admin page | `/finance/service-fee-trustee-letters` | `SettlementTrusteeLettersPage` |
+| Pending-list JSON | `serviceFeeAmount` | total settlement trustee instruction amount (not fee-only) |
+| Email kind | `SERVICE_FEE` | settlement-wide instruction; drives SES Purpose label and attachment filename |
+| S3 prefix | `note-letters/{noteId}/service-fee-trustee/` | stored on each letter; lookups use `s3Key` |
+| Audit (live) | `SETTLEMENT_TRUSTEE_*` | unchanged |
+| Audit (historical) | `SERVICE_FEE_TRUSTEE_*` | read-compatible aliases only |
+
+Do not rename Prisma columns, HTTP paths, S3 keys, email `kind`, or audit IDs without an explicit compatibility plan.
 
 ---
 

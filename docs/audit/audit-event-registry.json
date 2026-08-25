@@ -3668,7 +3668,7 @@
       ],
       "actor": "Admin",
       "target": "note",
-      "writer": "apps/api/src/modules/notes/service.ts:generateServiceFeeTrusteeLetter",
+      "writer": "apps/api/src/modules/notes/service.ts:generateSettlementTrusteeLetter",
       "surfaces": {
         "adminActivity": "SHOWN",
         "adminDetail": "SHOWN",
@@ -3737,7 +3737,7 @@
         "csv": "INCLUDED"
       },
       "notification": null,
-      "note": "Direct SES to trustee via sendTrusteeInstructionPdfEmail (kind SERVICE_FEE). Live technical ID as of 2026-08-26. Historical rows may still store SERVICE_FEE_TRUSTEE_EMAIL_SENT and are not rewritten. resend:true on redelivery.",
+      "note": "Direct SES to trustee via sendTrusteeInstructionPdfEmail (kind SERVICE_FEE). Live technical ID as of 2026-08-26. New writes include settlementId, settlementReference (from already-loaded display_reference), messageId, optional resend:true. Historical rows may still store SERVICE_FEE_TRUSTEE_EMAIL_SENT and/or omit settlementReference; they are not rewritten.",
       "docRef": "2.6"
     },
     {
@@ -3782,7 +3782,7 @@
       ],
       "actor": "Admin",
       "target": "note",
-      "writer": "apps/api/src/modules/notes/service.ts:markServiceFeeTrusteeLetterSubmitted",
+      "writer": "apps/api/src/modules/notes/service.ts:markSettlementTrusteeLetterSubmitted",
       "surfaces": {
         "adminActivity": "SHOWN",
         "adminDetail": "SHOWN",
@@ -3839,7 +3839,7 @@
       ],
       "actor": "Admin",
       "target": "note",
-      "writer": "apps/api/src/modules/notes/service.ts:markServiceFeeTrusteeInstructionCompleted",
+      "writer": "apps/api/src/modules/notes/service.ts:markSettlementTrusteeInstructionCompleted",
       "surfaces": {
         "adminActivity": "SHOWN",
         "adminDetail": "SHOWN",
@@ -3964,7 +3964,7 @@
         "csv": "INCLUDED"
       },
       "notification": null,
-      "note": "Direct SES to trustee via sendTrusteeInstructionPdfEmail. Distinct from issuer platform notification withdrawal_submitted_to_trustee. resend:true on redelivery.",
+      "note": "Direct SES to trustee via sendTrusteeInstructionPdfEmail. Distinct from issuer platform notification withdrawal_submitted_to_trustee. New writes include withdrawalId, withdrawalReference (from already-loaded display_reference), messageId, optional resend:true. Historical rows may omit withdrawalReference and are not rewritten.",
       "docRef": "2.6"
     },
     {

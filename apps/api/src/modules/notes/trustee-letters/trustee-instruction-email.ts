@@ -3,6 +3,7 @@ import { getS3ObjectBuffer } from "../../../lib/s3/client";
 import { sendEmailWithAttachments } from "../../../lib/email/ses-client";
 import { assertTrusteeAutoSendRecipients } from "./trustee-email-config";
 
+/** Transient SES discriminator. `SERVICE_FEE` means settlement-wide trustee instruction (not fee-only). Value is kept: it is inlined into the attachment filename and Purpose label. */
 export type TrusteeInstructionEmailKind =
   | "ISSUER_DISBURSEMENT"
   | "INVESTOR_WITHDRAWAL"
