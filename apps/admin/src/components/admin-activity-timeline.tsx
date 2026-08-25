@@ -183,12 +183,6 @@ function getEventLabel(
       ? `Invoice ${invoiceNumber} Offer Signed`
       : "Invoice Offer Signed";
   }
-  if (eventType === "INVOICE_OFFER_REJECTED") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Offer Declined`
-      : "Invoice Offer Declined";
-  }
   if (eventType === "INVOICE_WITHDRAWN") {
     const invoiceNumber = metadata?.invoice_number;
     return invoiceNumber != null && invoiceNumber !== ""

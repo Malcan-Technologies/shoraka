@@ -1,6 +1,10 @@
 # Final Wording Standardization Plan
 
-Status: **PROPOSAL ONLY — NOT IMPLEMENTED**
+Status: **IMPLEMENTED 2026-08-26** (copy-only presentation / notification-template / CSV-label pass)
+
+Pending / skipped in this pass (see implementation report):
+- Admin Activity/Detail **templated descriptions** for `AMENDMENTS_SUBMITTED`, `CONTRACT_FACILITY_FEE_WAIVED`, `CONTRACT_FACILITY_DISABLED`, and `CONTRACT_FACILITY_ENABLED` — titles were updated; descriptions still render existing metadata/remarks rather than a new narrative sentence (would restructure Admin timeline description rendering).
+- `COD_REJECTED` rejection-reason field and `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` notification UUID — `REQUIRES_DATA_CHANGE`, untouched as scoped.
 
 Scope: the 43 `STANDARDIZATION_RECOMMENDED` + 15 `LEGACY_NAMING_TRAP` events from
 [`current-event-journal.md`](./current-event-journal.md) (58 events total). The 69 `CONSISTENT`,

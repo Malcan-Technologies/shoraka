@@ -78,8 +78,25 @@ function formatTrigger(trigger: string): string {
 
 function buildEventDescription(
   eventType: string,
-  metadata: Record<string, unknown> | null
+  metadata: Record<string, unknown> | null,
+  log?: OnboardingLogResponse
 ): string | null {
+  if (eventType === "PROFILE_UPDATED") {
+    const fields = Array.isArray(metadata?.updatedFields)
+      ? metadata.updatedFields.filter((field): field is string => typeof field === "string")
+      : [];
+    const actor = log ? organizationActorLabel(log) : "An admin";
+    const organizationName = log?.organizationName?.trim();
+    const fieldList = fields.length > 0 ? fields.join(", ") : null;
+    if (organizationName && fieldList) {
+      return `${actor} updated the organization profile for ${organizationName} (${fieldList}).`;
+    }
+    if (organizationName) {
+      return `${actor} updated the organization profile for ${organizationName}.`;
+    }
+    return fieldList ? `Updated ${fieldList}` : "Profile updated by admin";
+  }
+
   if (!metadata) return null;
 
   switch (eventType) {
@@ -103,12 +120,6 @@ function buildEventDescription(
     }
     case "FORM_FILLED":
       return metadata.section ? `Section: ${String(metadata.section)}` : null;
-    case "PROFILE_UPDATED": {
-      const fields = Array.isArray(metadata.updatedFields)
-        ? metadata.updatedFields.filter((field): field is string => typeof field === "string")
-        : [];
-      return fields.length > 0 ? `Updated ${fields.join(", ")}` : "Profile updated by admin";
-    }
     case "AML_APPROVED":
     case "KYC_APPROVED":
       if (metadata.isCorporateOnboarding) return "Corporate onboarding";
@@ -181,7 +192,7 @@ function OrganizationActivityTimelineList({
           <AdminVerticalTimelineItem
             key={log.id}
             title={getEventLabel(eventType)}
-            description={buildEventDescription(eventType, metadata)}
+            description={buildEventDescription(eventType, metadata, log)}
             descriptionClassName="line-clamp-2"
             createdAt={log.created_at}
             actorLabel={organizationActorLabel(log)}

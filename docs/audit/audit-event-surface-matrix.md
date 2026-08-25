@@ -5,10 +5,7 @@ If you need to answer *"what happens for `EVENT_X`?"* — what it means, whether
 it, what evidence it stores, where it appears in Admin / Issuer / Investor / CSV, what wording each
 surface uses, and whether a notification fires — start here.
 
-**Verified against:** working tree on branch `redo_log`, 2026-08-25. Every event type, writer,
-allowlist, label map, and notification registry entry below was read directly from source. Where
-documentation and source disagreed, **source won** and the older document was corrected (see
-§9 Reconciliation Log).
+**Verified against:** working tree on branch `redo_log`, 2026-08-26. User-facing copy for the 58-event wording pass matches live source after `docs/audit/final-copy-standardization-plan.md`. Where documentation and source disagreed, **source won**.
 
 ---
 
@@ -525,7 +522,7 @@ events have no declared type and no admin filter entry. Central writer: `createS
 | `PROFILE_UPDATED` | `auth/service.ts:updateProfile` (~863) — self-service | User | `updatedFields`, `previousValues` | Shown — `"Profile updated"` | Included (raw) | NO |
 | `PROFILE_UPDATED` | `admin/service.ts:updateUserProfile` (~1405) — admin override of an onboarded name | Subject user | `updatedBy`, `updatedFields`, `previousValues`, `adminOverride:true` | Shown — `"Profile updated"` | Included (raw) | NO |
 | `PASSWORD_CHANGED` | `auth/service.ts:changePassword` (~966 success, ~992 failure) | User | success: `reason:"USER_INITIATED"`, `sessionRevoked`; failure: `success:false`, `error` | Shown — `"Password changed"` | Included (raw) | **YES — `password_changed`** |
-| `EMAIL_CHANGED` | `auth/service.ts:verifyEmail` (~1133 success, ~1153 failure) | User | success: `email`, `reason:"EMAIL_VERIFIED"`; failure: `reason:"VERIFICATION_FAILED"`, `success:false`, `error` | Shown — `"Email changed"` | Included (raw) | NO |
+| `EMAIL_CHANGED` | `auth/service.ts:verifyEmail` (~1133 success, ~1153 failure) | User | success: `email`, `reason:"EMAIL_VERIFIED"`; failure: `reason:"VERIFICATION_FAILED"`, `success:false`, `error` | Shown — `"Email Verified"` | Included (`Email Verified`) | NO |
 | `ROLE_PERMISSIONS_UPDATED` | `admin/service.ts:updateAdminRolePermissions` (~472) | Admin | `roleKey`, `previousPermissions`, `nextPermissions`, `previousBadgeColor`, `nextBadgeColor` | **Hidden (not queried)** | **Excluded** | NO |
 | `ROLE_CREATED` | `admin/service.ts:createAdminRole` (~515) | Admin | `roleKey`, `roleName`, `badgeColor` | **Hidden (not queried)** | **Excluded** | NO |
 | `ROLE_REMOVED` | `admin/service.ts:deleteAdminRole` (~578) — **role catalogue delete** | Admin | `deletedRoleKey`, `deletedRoleName` | **Hidden (not queried)** | **Excluded** | NO |
@@ -599,11 +596,11 @@ matched (`issuer_organization_id` vs `investor_organization_id`).
 **BUSINESS TRIGGER:** Admin uses "restart onboarding"; the previous request is cancelled and a new one issued. **ACTOR:** Admin (subject `user_id` is the applicant; `cancelledBy` names the admin)
 **WRITER:** `admin/service.ts:restartOnboarding` (~3839) · **TARGET:** organization
 **STORED EVIDENCE:** metadata `cancelledOnboardingId`, `cancelledRequestId`, `newRequestId`, `previousStatus`, `cancelledBy`, `reason:"Restart requested by admin"`, `organizationType`, `organizationId`
-**ADMIN ACTIVITY:** Shown (raw) · **ADMIN DETAIL:** Shown — Copy: `"Onboarding Cancelled"` (admin's own forensic wording, unchanged)
+**ADMIN ACTIVITY:** Shown · **ADMIN DETAIL:** Shown — Copy: `"Onboarding Restarted"`
 **ISSUER GENERAL ACTIVITY:** Shown — title `"Onboarding Restarted"`, description `"Your previous onboarding request was cancelled and a new onboarding request has been started."` *(corrected 2026-08-24 — see `audit-event-catalog.md` §1.4 and `activity-notification-copy-review.md` for the BEFORE/AFTER)*
 **ISSUER APPLICATION DETAIL / FACILITY DETAIL:** N/A
 **INVESTOR GENERAL ACTIVITY:** Shown — identical copy · **INVESTOR DETAIL:** N/A
-**CSV / EXPORT:** Included — `"Onboarding Cancelled"` (admin's own forensic wording, unchanged)
+**CSV / EXPORT:** Included — `"Onboarding Restarted"`
 **NOTIFICATION:** NO
 
 ---
@@ -621,7 +618,7 @@ matched (`issuer_organization_id` vs `investor_organization_id`).
 **CSV / EXPORT:** Included — `"Onboarding Rejected"`
 **NOTIFICATION:** YES
 - **TYPE ID:** `onboarding_rejected`
-- **TITLE:** `"Onboarding Application Rejected"`
+- **TITLE:** `"Onboarding Rejected"`
 - **MESSAGE:** `"Unfortunately, your {onboardingType} onboarding for {orgName} was rejected."` + `" Reason: {reason}"` when supplied
 - **RECIPIENT:** `onboarding.user_id` — the applicant only
 - **CHANNEL:** platform + email (seed defaults `enabled_platform:true`, `enabled_email:true`, not user-configurable)
@@ -674,7 +671,7 @@ matched (`issuer_organization_id` vs `investor_organization_id`).
 **CSV / EXPORT:** Included — `"Final Approval Completed"`
 **NOTIFICATION:** YES
 - **TYPE ID:** `onboarding_approved`
-- **TITLE:** `"Onboarding Application Approved"`
+- **TITLE:** `"Onboarding Approved"`
 - **MESSAGE:** `"Congratulations! Your {onboardingType} onboarding for {orgName} has been completed successfully. You now have full access to the platform."`
 - **RECIPIENT:** `onboarding.user_id` — the applicant only
 - **CHANNEL:** platform + email (not user-configurable)
@@ -806,48 +803,48 @@ renders it through its generic title-case fallback rather than a curated label.
 
 | Event Type | Admin detail | Issuer general activity (title / description) | Issuer application detail | Issuer facility detail | CSV |
 |---|---|---|---|---|---|
-| `APPLICATION_CREATED` | `Application Created` | `Application Started` / `You created a financing application and can continue it before submitting.` | `Application started` | `Facility application started` | `Application created` |
-| `APPLICATION_SUBMITTED` | `Application Submitted` | `Application Submitted` / `Your financing application was submitted and is now under review.` | `You submitted this application` | `Facility application submitted` | `Application submitted` |
-| `APPLICATION_RESUBMITTED` | `Application Resubmitted` | `Application Resubmitted` / `You resubmitted your application after making the requested updates.` (or `…after updating the requested information.` when `resubmit_changes.activity_summary` is present) | `You resubmitted after changes` | `Facility application resubmitted` | `Application resubmitted` |
+| `APPLICATION_CREATED` | `Application Created` | `Application Started` / `You created a financing application and can continue it before submitting.` | `You Started This Application` | `Facility Application Started` | `Application Created` |
+| `APPLICATION_SUBMITTED` | `Application Submitted` | `Application Submitted` / `Your financing application was submitted and is now under review.` | `You Submitted This Application` | `Facility Application Submitted` | `Application Submitted` |
+| `APPLICATION_RESUBMITTED` | `Application Resubmitted` | `Application Resubmitted` / `You resubmitted your application after making the requested updates.` (or `…after updating the requested information.` when `resubmit_changes.activity_summary` is present) | `You Resubmitted This Application` | `Facility Application Resubmitted` | `Application Resubmitted` |
 | `APPLICATION_APPROVED` *(dead)* | `Application Approved` (fallback) | `Application Approved` / `Your financing application was approved and no further action is needed.` | `Application approved` | `Facility application approved` | `Application approved` |
-| `APPLICATION_REJECTED` | `Application Rejected` | `Application Rejected` / `Your financing application was rejected and will not continue.` | `Application was not approved` | `Facility application was not approved` | `Application rejected` |
-| `APPLICATION_WITHDRAWN` | `Application Withdrawn` | `Application Withdrawn` / `Your financing application was withdrawn and is no longer active.` | `You withdrew this application` | `Facility application withdrawn` | `Application withdrawn` |
-| `APPLICATION_COMPLETED` | `Application Completed` | `Application Completed` / `Your financing application completed successfully.` | `Application completed` | `Facility application completed` | `Application completed` |
-| `APPLICATION_RESET_TO_UNDER_REVIEW` | `Application Reset to Under Review` | — *(not in allowlist)* | `Back under review` | — | `Application reset to under review` |
+| `APPLICATION_REJECTED` | `Application Rejected` | `Application Rejected` / `Your financing application was rejected and will not continue.` | `Your Application Was Not Approved` | `Facility Application Was Not Approved` | `Application Rejected` |
+| `APPLICATION_WITHDRAWN` | `Application Withdrawn` | `Application Withdrawn` / `Your financing application was withdrawn and is no longer active.` | `You Withdrew This Application` | `Facility Application Withdrawn` | `Application Withdrawn` |
+| `APPLICATION_COMPLETED` | `Application Completed` | `Application Completed` / `Your financing application completed successfully.` | `Application Completed` | `Facility Application Completed` | `Application Completed` |
+| `APPLICATION_RESET_TO_UNDER_REVIEW` | `Application Returned to Review` | — *(not in allowlist)* | `Your Application Is Under Review Again` | — | `Application Returned to Review` |
 | `SECTION_REVIEWED_APPROVED` | `{Section} Section Approved` | — | — | — | `Section approved` |
-| `SECTION_REVIEWED_REJECTED` | `{Section} Section Rejected` | — | `A section was not approved` | — | `Section rejected` |
-| `SECTION_REVIEWED_AMENDMENT_REQUESTED` | `{Section} Section Amendment Requested` | — | `Changes requested on a section` | — | `Section amendment requested` |
+| `SECTION_REVIEWED_REJECTED` | `{Section} Section Rejected` | — | `A Section Was Not Approved` | — | `Section Rejected` |
+| `SECTION_REVIEWED_AMENDMENT_REQUESTED` | `{Section} Section Amendment Requested` | — | `Changes Requested on a Section` | — | `Section Amendment Requested` |
 | `SECTION_REVIEWED_PENDING` | `{Section} Section Reset to Pending` | — | — | — | `Section reset to pending` |
 | `ITEM_REVIEWED_APPROVED` | `{Item} Approved` | — | — | — | `Item approved` |
-| `ITEM_REVIEWED_REJECTED` | `{Item} Rejected` | — | `An item was not approved` | — | `Item rejected` |
-| `ITEM_REVIEWED_AMENDMENT_REQUESTED` | `{Item} Amendment Requested` | — | `Changes requested on an item` | — | `Item amendment requested` |
+| `ITEM_REVIEWED_REJECTED` | `{Item} Rejected` | — | `An Item Was Not Approved` | — | `Item Rejected` |
+| `ITEM_REVIEWED_AMENDMENT_REQUESTED` | `{Item} Amendment Requested` | — | `Changes Requested on an Item` | — | `Item Amendment Requested` |
 | `ITEM_REVIEWED_PENDING` | `{Item} Reset to Pending` | — | — | — | `Item reset to pending` |
-| `CONTRACT_OFFER_SENT` | `Facility Offer Sent` | `Facility Offer Sent` / `A facility offer is ready for your review and response.` | `Facility financing offer sent` | `Facility offer sent` | `Facility offer sent` |
-| `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED` | `Facility Offer Acceptance Submitted` | `Facility Acceptance Submitted` / `You submitted offer acceptance documents for CashSouk review.` | `Facility acceptance submitted` | `Facility acceptance submitted` | `Acceptance submitted` |
-| `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED` | `Facility Offer Acceptance Resubmitted` | `Facility Acceptance Resubmitted` / `You resubmitted offer acceptance documents after CashSouk requested changes.` | `Facility acceptance resubmitted` | `Facility acceptance resubmitted` | `Acceptance resubmitted` |
+| `CONTRACT_OFFER_SENT` | `Facility Offer Sent` | `You Received a Facility Offer` / `You received a facility offer for application [Application Ref]. Review and respond.` | `You Received a Facility Offer` | `You Received a Facility Offer` | `Facility Offer Sent` |
+| `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED` | `Facility Offer Acceptance Submitted` | `You Submitted Your Facility Offer Acceptance` / `You submitted offer acceptance documents for CashSouk review.` | `You Submitted Your Facility Offer Acceptance` | `You Submitted Your Facility Offer Acceptance` | `Facility Offer Acceptance Submitted` |
+| `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED` | `Facility Offer Acceptance Resubmitted` | `You Resubmitted Your Facility Offer Acceptance` / `You resubmitted offer acceptance documents after CashSouk requested changes.` | `You Resubmitted Your Facility Offer Acceptance` | `You Resubmitted Your Facility Offer Acceptance` | `Facility Offer Acceptance Resubmitted` |
 | `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` | `Facility Acceptance Approved for Signing` | — | — | — | `Facility acceptance approved for signing` |
-| `CONTRACT_OFFER_ACCEPTED` | `Facility Offer Signed` | `Facility Offer Signed` / `All signers completed the facility offer signing package.` | `Facility offer signed` | `Facility offer signed` | `Facility offer signed` |
+| `CONTRACT_OFFER_ACCEPTED` | `Facility Offer Signed` | `Facility Offer Signed` / `All signers completed the facility offer signing package.` | `Facility Offer Signed` | `Facility Offer Signed` | `Facility Offer Signed` |
 | `CONTRACT_OFFER_REJECTED` *(dead)* | `Facility Offer Withdrawn` | `Facility Offer Declined` / `The facility offer was declined and this application is now closed.` | `You declined the facility offer` | `Facility offer declined` | `Facility offer withdrawn` |
-| `CONTRACT_OFFER_RETRACTED` | `Facility Offer Retracted` | `Facility Offer Retracted` / `The facility offer was withdrawn before it was accepted.` | `Facility offer was withdrawn by CashSouk` | `Facility offer withdrawn by CashSouk` | `Facility offer retracted` |
+| `CONTRACT_OFFER_RETRACTED` | `Facility Offer Retracted` | `CashSouk Retracted the Facility Offer` / `CashSouk retracted the facility offer on your application before it was accepted.` | `CashSouk Retracted the Facility Offer` | `CashSouk Retracted the Facility Offer` | `Facility Offer Retracted` |
 | `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | `Facility Occupancy Updated` | `Facility occupancy updated` / `Live facility occupancy changed after a draw, funding close, or repayment.` *(in allowlist)* | — | — | `Facility occupancy updated` |
 | `CONTRACT_OFFER_EXPIRED` | `Facility Offer Expired` | `Facility Offer Expired` / `The facility offer expired. A new offer can be sent from the Facility tab.` | `Facility offer expired` | `Facility offer expired` | `Facility offer expired` |
 | `CONTRACT_SIGNING_DEADLINE_EXTENDED` | `Signing Deadline Extended` | `Signing Deadline Extended` / `CashSouk extended the signing deadline so you can complete the signing package.` | `Signing deadline extended` | `Signing deadline extended` | `Signing deadline extended` |
-| `CONTRACT_WITHDRAWN` | `Facility Offer Rejected` | `Facility Offer Declined` / `The facility offer was declined and this application is now closed.` | `You declined the facility offer` | `Facility offer declined` | `Facility offer rejected` |
-| `CONTRACT_FACILITY_FEE_WAIVED` | `Contract Facility Fee Waived` (fallback) | — | — | — | `Contract Facility Fee Waived` (fallback) |
-| `CONTRACT_FACILITY_DISABLED` | `Contract Facility Disabled` (fallback) | — | — | — | `Contract Facility Disabled` (fallback) |
-| `CONTRACT_FACILITY_ENABLED` | `Contract Facility Enabled` (fallback) | — | — | — | `Contract Facility Enabled` (fallback) |
-| `INVOICE_OFFER_SENT` | `Invoice {n} Offer Sent` / `Invoice Offer Sent` | `Invoice Offer Sent` / `An invoice offer is ready for your review and response.` | `Invoice financing offer sent` | `Invoice offer sent` | `Invoice Offer Sent` (fallback) |
-| `INVOICE_OFFER_ACCEPTANCE_SUBMITTED` | `Invoice {n} Acceptance Submitted` / `Invoice Offer Acceptance Submitted` | `Invoice Acceptance Submitted` / `You submitted offer acceptance documents for CashSouk review.` | `Invoice acceptance submitted` | `Invoice acceptance submitted` | *(fallback)* |
-| `INVOICE_OFFER_ACCEPTANCE_RESUBMITTED` | `Invoice Offer Acceptance Resubmitted` | `Invoice Acceptance Resubmitted` / `You resubmitted offer acceptance documents after CashSouk requested changes.` | `Invoice acceptance resubmitted` | `Invoice acceptance resubmitted` | *(fallback)* |
+| `CONTRACT_WITHDRAWN` | `Facility Offer Declined` | `Facility Offer Declined` / `The facility offer was declined and this application is now closed.` | `You Declined the Facility Offer` | `Facility Offer Declined` | `Facility Offer Declined` |
+| `CONTRACT_FACILITY_FEE_WAIVED` | `Facility Fee Waived` | — | — | — | `Facility Fee Waived` |
+| `CONTRACT_FACILITY_DISABLED` | `Facility Disabled` | — | — | — | `Facility Disabled` |
+| `CONTRACT_FACILITY_ENABLED` | `Facility Enabled` | — | — | — | `Facility Enabled` |
+| `INVOICE_OFFER_SENT` | `Invoice {n} Offer Sent` / `Invoice Offer Sent` | `You Received an Invoice Offer` / `You received an invoice offer for invoice [Invoice Number]. Review and respond.` | `You Received an Invoice Offer` | `You Received an Invoice Offer` | `Invoice Offer Sent` (fallback) |
+| `INVOICE_OFFER_ACCEPTANCE_SUBMITTED` | `Invoice {n} Acceptance Submitted` / `Invoice Offer Acceptance Submitted` | `You Submitted Your Invoice Offer Acceptance` / `You submitted offer acceptance documents for CashSouk review.` | `You Submitted Your Invoice Offer Acceptance` | `You Submitted Your Invoice Offer Acceptance` | *(fallback)* |
+| `INVOICE_OFFER_ACCEPTANCE_RESUBMITTED` | `Invoice Offer Acceptance Resubmitted` | `You Resubmitted Your Invoice Offer Acceptance` / `You resubmitted offer acceptance documents after CashSouk requested changes.` | `You Resubmitted Your Invoice Offer Acceptance` | `You Resubmitted Your Invoice Offer Acceptance` | *(fallback)* |
 | `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING` | `Invoice Acceptance Approved for Signing` | — | — | — | *(fallback)* |
-| `INVOICE_OFFER_ACCEPTED` | `Invoice {n} Offer Signed` / `Invoice Offer Signed` | `Invoice Offer Signed` / `All signers completed the invoice offer signing package.` | `Invoice offer signed` | `Invoice offer signed` | *(fallback)* |
-| `INVOICE_OFFER_REJECTED` | `Invoice {n} Offer Rejected` / `Invoice Offer Rejected` | `Invoice Offer Declined` / `The invoice offer was declined and this application has stopped moving forward.` | `You declined an invoice offer` | `Invoice offer declined` | *(fallback)* |
-| `INVOICE_OFFER_RETRACTED` | `Invoice Offer Retracted` | `Invoice Offer Retracted` / `The invoice offer was withdrawn before it was accepted.` | `Invoice offer was withdrawn by CashSouk` | `Invoice offer withdrawn by CashSouk` | *(fallback)* |
+| `INVOICE_OFFER_ACCEPTED` | `Invoice {n} Offer Signed` / `Invoice Offer Signed` | `Invoice Offer Signed` / `All signers completed the invoice offer signing package.` | `Invoice Offer Signed` | `Invoice Offer Signed` | `Invoice Offer Signed` |
+| `INVOICE_OFFER_REJECTED` | `Invoice Offer Declined` | `Invoice Offer Declined` / `The invoice offer was declined and this application has stopped moving forward.` | `You Declined the Invoice Offer` | `Invoice Offer Declined` | `Invoice Offer Declined` |
+| `INVOICE_OFFER_RETRACTED` | `Invoice Offer Retracted` | `CashSouk Retracted the Invoice Offer` / `CashSouk retracted the invoice offer for invoice [Invoice Number] before it was accepted.` | `CashSouk Retracted the Invoice Offer` | `CashSouk Retracted the Invoice Offer` | *(fallback)* |
 | `INVOICE_OFFER_EXPIRED` | `Invoice {n} Offer Expired` / `Invoice Offer Expired` | `Invoice Offer Expired` / `The invoice offer expired. A new offer can be sent from the Invoice tab.` | `Invoice offer expired` | `Invoice offer expired` | *(fallback)* |
 | `INVOICE_SIGNING_DEADLINE_EXTENDED` | `Signing Deadline Extended` | `Signing Deadline Extended` / `CashSouk extended the signing deadline so you can complete the signing package.` | `Signing deadline extended` | `Signing deadline extended` | *(fallback)* |
 | `INVOICE_WITHDRAWN` | `Invoice {n} Withdrawn` / `Invoice Withdrawn` | `Invoice Withdrawn` / `An invoice linked to this application was withdrawn.` | `Invoice withdrawn` | `Invoice withdrawn` | *(fallback)* |
-| `AMENDMENTS_SUBMITTED` | `Amendment Request Sent` | `Changes Requested` / `We need updates to your application before it can continue.` | `Changes requested` | `Changes requested` | `Amendment request sent` |
-| `SIGNING_PACKAGE_CREATED` | `Signing package created` | — | — | — | `Signing package created` |
+| `AMENDMENTS_SUBMITTED` | `Amendment Requested` | `CashSouk Requested an Amendment` / `CashSouk requested an amendment to application [Application Ref].` | `CashSouk Requested an Amendment` | `CashSouk Requested an Amendment` | `Amendment Requested` |
+| `SIGNING_PACKAGE_CREATED` | `Signing Package Created` | — | — | — | `Signing Package Created` |
 | `SIGNING_PACKAGE_SENT` | `Signing package sent` | `Signing package sent` / `The signing package was sent to all required signers.` | — | `Signing package sent` | `Signing package sent` |
 | `SIGNING_PACKAGE_COMPLETED` | **Hidden (intentional)** — `TIMELINE_HIDDEN_EVENT_TYPES` | — *(not in allowlist)* | — | `Signing package completed` | `Signing package completed` |
 | `SIGNING_PACKAGE_VOIDED` | `Signing package voided` | — | — | — | `Signing package voided` |
@@ -1133,18 +1130,18 @@ allowlist differs.
 | `NOTE_CREATED_FROM_INVOICE` | LIVE | Note created from an approved invoice — `service.ts:createFromInvoice` (~2453) | Admin | `applicationId`, `invoiceId` | `Note created` | *(issuer)* `Note Created` / `{note} was created from an approved invoice and can now be prepared for listing.` | NO |
 | `UPDATE_DRAFT` | LIVE | Draft note edited — `updateDraft` (~2559), `logAdminAction` | Admin | before/after note snapshots | `Draft updated` | — *(not in allowlist)* | NO |
 | `UPDATE_FEATURED_SETTINGS` | LIVE | Featured flag or rank changed — `updateFeaturedSettings` (~2646) | Admin | before/after | `Featured settings updated` | — | NO |
-| `PUBLISH` | LIVE | Note published to the marketplace — `publish` (~2801) | Admin | before/after | `Note published` | *(issuer)* `Note Published` / `{note} is now live and open for investment.` | **YES — `note_published`** |
+| `PUBLISH` | LIVE | Note published to the marketplace — `publish` (~2801) | Admin | before/after | `Note Published` | *(issuer)* `Note Published` / `{note} is now live and open for investment.` | **YES — `note_published`** |
 | `UNPUBLISH` | LIVE | Note withdrawn from the marketplace (no commitments) — `unpublish` (~2855) | Admin | before/after | `Unpublished from marketplace` | — | NO |
 | `PAUSE_LISTING` | LIVE | Campaign paused — `pauseListing` (~2925) | Admin | before/after | `Campaign paused` | *(issuer)* `Campaign Paused` / `{note} was temporarily closed to new investment. Existing commitments are held.` | NO |
 | `RESUME_LISTING` | LIVE | Campaign resumed — `resumeListing` (~2988) | Admin | before/after | `Campaign resumed` | *(issuer)* `Campaign Resumed` / `{note} is open for investment again.` | NO |
 | `INVESTMENT_COMMITTED` | LIVE | Investor commits funds — `createInvestment` (~3173) | Investor | `investorOrganizationId`, `amount`, `prospectusPublicationId`, `prospectusAcknowledgedAt` | `Investment committed` | *(investor, own org only)* `Investment Committed` / `Your investment in {note} was committed successfully.` | NO |
-| `CLOSE_FUNDING` | LIVE | Funding threshold met / campaign closed — `closeFunding` (~3498) | Admin, or System on auto-close | before/after | `Funding closed` | *(issuer)* `Funding Closed` / `{note} completed funding and disbursement can proceed.` | **YES — `note_funding_succeeded`** |
+| `CLOSE_FUNDING` | LIVE | Funding threshold met / campaign closed — `closeFunding` (~3498) | Admin, or System on auto-close | before/after | `Funding Closed` | *(issuer)* `Funding Closed` / `{note} completed funding and disbursement can proceed.` | **YES — `note_funding_succeeded`** |
 | `FAIL_FUNDING` | LIVE | Minimum threshold not reached — `failFunding` (~3609) | Admin / System | before/after | `Funding unsuccessful` | `Funding Unsuccessful` / `{note} did not meet the minimum funding threshold and committed funds were released.` | **YES — `note_funding_failed_issuer` + `note_funding_failed_investor`** |
-| `ACTIVATE` | LIVE | Note manually activated; servicing begins — `activate` (~3688) | Admin | before/after | `Note activated` | `Note Active` / `{note} is now active and servicing has started.` | **YES — `note_active_issuer` + `note_active_investor`** |
+| `ACTIVATE` | LIVE | Note manually activated; servicing begins — `activate` (~3688) | Admin | before/after | `Note Activated` | Issuer: `Your Note Is Active` / Investor: `Your Investment Is Active` / `{note} is now active and servicing has started.` | **YES — `note_active_issuer` + `note_active_investor`** |
 | `NOTE_FACILITY_FEE_COLLECTION_WAIVED` | LIVE | Admin waives facility-fee collection — `waiveFacilityFeeCollection` (~3270) | Admin | `reason` | `Facility fee collection waived` | — | NO |
-| `WAIVE_FACILITY_FEE_COLLECTION` | LIVE | Same action, `logAdminAction` mirror (~3273) | Admin | before/after + `changedFields` | *(fallback)* `Waive Facility Fee Collection` | — | NO |
+| `WAIVE_FACILITY_FEE_COLLECTION` | LIVE | Same action, `logAdminAction` mirror (~3273) | Admin | before/after + `changedFields` | `Facility Fee Collection Waived` (label map; `note_admin_actions` has no dedicated production reader) | — | NO |
 | `FACILITY_OCCUPANCY_UPDATED` | LIVE | Contract occupancy recomputed with a `noteId` in scope — `refresh-contract-facility.ts` (~599) | System | full occupancy snapshot | `Facility occupancy updated` | — | NO |
-| `NOTE_DEFAULT_MARKED` | LIVE | Note marked in default — `markDefault` (~5806) | Admin | `reason` | `Note defaulted` | `Note Defaulted` / `{note} was marked in default and requires attention.` | **YES — `note_defaulted` + `note_defaulted_investor`** |
+| `NOTE_DEFAULT_MARKED` | LIVE | Note marked in default — `markDefault` (~5806) | Admin | `reason` | `Note Defaulted` | Issuer: `Your Note Is in Default` / Investor: `Your Investment Is in Default` / `{note} was marked in default and requires attention.` | **YES — `note_defaulted` + `note_defaulted_investor`** |
 | ~~`ISSUER_RESIDUAL_WITHDRAWAL_CREATED`~~ | ~~**DEAD**~~ | ~~No writer. Appeared only in `admin-note-events-sorting.ts:38`~~ | — | — | — | — | **REMOVED (2026-08-25)** — the array entry was deleted; nothing looked it up (no row can ever have this `event_type`), so the sort order of every real note event is unchanged. See §9 #13 |
 
 > **`ACTIVATE` has a real behavioural gap.** Completing an issuer disbursement can auto-activate the
@@ -1175,14 +1172,14 @@ application/facility/investor-detail surfaces.
 
 | Event Type | Trigger / writer | Actor | Evidence | Admin + CSV copy | Portal copy | Notification |
 |---|---|---|---|---|---|---|
-| `ISSUER_PAYMENT_SUBMITTED` | Issuer submits a repayment for review — `recordPayment` (~4559→4582) when `actor.portal === "ISSUER"` | Issuer | full payment input incl. `paymentPurpose` | `Repayment submitted` | *(issuer)* `Payment Submitted` / `A repayment for {note} was submitted and is awaiting review.` | NO |
+| `ISSUER_PAYMENT_SUBMITTED` | Issuer submits a repayment for review — `recordPayment` (~4559→4582) when `actor.portal === "ISSUER"` | Issuer | full payment input incl. `paymentPurpose` | `Repayment Submitted` | *(issuer)* `You Submitted a Repayment` / `A repayment for {note} was submitted and is awaiting review.` | NO |
 | `PAYMENT_RECEIVED` | Admin records a repayment directly — same writer, admin portal | Admin | same | `Repayment received` | — | **YES — `note_payment_received`** (to investors) |
 | `PAYMENT_APPROVED` | Pending repayment approved — `approvePayment` (~4634) | Admin | `paymentId` | `Repayment approved` | — | **YES — `note_payment_received`** |
 | `PAYMENT_REJECTED` | Pending repayment rejected — `rejectPayment` (~4673) | Admin | `paymentId`, `reason` | `Repayment rejected` | — | **YES — `note_payment_rejected`** (issuer org, platform only) |
 | `SETTLEMENT_PREVIEWED` | Settlement preview saved — `previewSettlement` (~4848) | Admin | `settlementId` + full snapshot | `Settlement previewed` | — | NO |
 | `SETTLEMENT_APPROVED` | Preview approved — `approveSettlement` (~4957) | Admin | `settlementId` | `Settlement approved` | — | NO |
 | `SETTLEMENT_POSTED` | Settlement posted to the ledger — `postSettlement` (~5102) | Admin | `settlementId`, `investorPayoutCount`, `residualAmount`, `residualWithdrawalCreated` | `Settlement posted` | *(investor)* `Settlement Posted` / `Your returns for {note} were posted.` | **YES — `note_settlement_posted`** (investors) **+ `note_repaid_issuer`** (issuer, when no trustee step follows) |
-| `OVERDUE_LATE_CHARGE_CHECKED` | Overdue / late-fee check executed — `applyOverdueLateCharge` (~5284) | Admin | full result object: `dueDate`, `overdue`, `daysLate`, suggested amounts, message | `Overdue late charge checked` | — | **YES — `note_arrears` + `note_arrears_investor`**, but only when the check moves the note into arrears |
+| `OVERDUE_LATE_CHARGE_CHECKED` | Overdue / late-fee check executed — `applyOverdueLateCharge` (~5284) | Admin | full result object: `dueDate`, `overdue`, `daysLate`, suggested amounts, message | `Overdue Review Completed` | — | **YES — `note_arrears` + `note_arrears_investor`**, but only when the check moves the note into arrears |
 | `LATE_CHARGE_APPROVED` | Late charge calculated and approved — `approveLateCharge` (~5309) | Admin | `calculateLateCharge` result | `Late charge approved` | — | NO |
 | `ARREARS_LETTER_GENERATED` | Arrears letter PDF — `generateNoteLetter("arrears")` (~5326) | Admin | `s3Key` | `Arrears letter generated` | — | NO |
 | `DEFAULT_LETTER_GENERATED` | Default letter PDF — `generateNoteLetter("default")` (~5326) | Admin | `s3Key` | `Default letter generated` | — | NO |
@@ -1208,7 +1205,7 @@ except where noted.
 | `WITHDRAWAL_LETTER_GENERATED` | Trustee letter PDF generated — `generateWithdrawalLetter` (~6222) | `withdrawalId`, `s3Key` | `Withdrawal letter generated` | Hidden (not queried) | NO |
 | `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | Instruction marked submitted — `markWithdrawalSubmitted` (~6269) | `withdrawalId` | `Withdrawal submitted to trustee` | Hidden (not queried) | **YES — `withdrawal_submitted_to_trustee`** |
 | `WITHDRAWAL_BENEFICIARY_UPDATED` | Beneficiary edited while draft — `updateWithdrawalBeneficiary` (~6304) | `withdrawalId` | `Withdrawal beneficiary updated` | Hidden (not queried) | NO |
-| `WITHDRAWAL_COMPLETED` | Trustee payout completed — `markWithdrawalCompleted` (~6472) | `withdrawalId`, `amount` | `Withdrawal completed` | **Shown when `withdrawal_type === ISSUER_DISBURSEMENT`, in both portals** (the check precedes the portal branch) — Copy: `Disbursement Completed` / `Disbursement for {note} has been completed.` Any other withdrawal type is dropped. | **YES — `withdrawal_completed`**, same `ISSUER_DISBURSEMENT` guard |
+| `WITHDRAWAL_COMPLETED` | Trustee payout completed — `markWithdrawalCompleted` (~6472) | `withdrawalId`, `amount` | `Withdrawal Completed` | **Shown when `withdrawal_type === ISSUER_DISBURSEMENT`, in both portals** (the check precedes the portal branch) — Copy: `Your Disbursement Is Complete` / `Disbursement for {note} has been completed.` Any other withdrawal type is dropped. | **YES — `withdrawal_completed`**, same `ISSUER_DISBURSEMENT` guard |
 
 **`WITHDRAWAL_SUBMITTED_TO_TRUSTEE` notification detail:**
 - **TYPE ID:** `withdrawal_submitted_to_trustee`
@@ -1277,10 +1274,10 @@ silent.
 |---|---|---|---|---|---|
 | `NAME_CHECK` | LIVE | Auto name-check needs admin review after deposit capture — `deposit-service.ts:transitionToNameCheckPending` (~379) | System | `reason` = review message; `score`, `matchedVariant` | `Name check needed` |
 | `NAME_CHECK_APPROVED` | LIVE | Admin approves the name match — `admin-service.ts:approveNameCheck` (~438) | Admin | status transition only | `Name check approved` |
-| `NAME_CHECK_REJECTED` | LIVE | Admin rejects the match, triggering a refund — `admin-service.ts:rejectNameCheck` (~476) | Admin | `reason`: `"Admin rejected the name match. A refund was started."` | `Name check rejected` |
+| `NAME_CHECK_REJECTED` | LIVE | Admin rejects the match, triggering a refund — `admin-service.ts:rejectNameCheck` (~476) | Admin | `reason`: `"Admin rejected the name match. A refund was started."` | `Name Check Rejected` |
 | `CAPTURE_MISMATCH` | LIVE | Currency or amount mismatch on capture — `webhook-service.ts` (~333); `amount-mismatch-service.ts` (~147) | System / Admin | `mismatchType`, `gatewayAccount`, `purpose`, `curlecOrderId`, `curlecPaymentId`, `expectedCurrency`, `actualCurrency`, `expectedSen`, `actualSen` | `Payment mismatch found` (specialised for currency vs amount) |
 | `EXPIRED` | LIVE | Cron expires an abandoned `CREATED` checkout — `lib/jobs/gateway-stuck-order-poller.ts` (~64) | System | `reason`: `"Abandoned checkout — no Curlec capture after … minutes"` | `Payment expired` |
-| `REFUND_INITIATED` | LIVE | Refund started, manually or automatically — `refund-service.ts` (~284, ~810, ~873, ~1320, ~1464) | Admin / System | **`auto: !actorUserId`**, `refundId`, `reason`, `gatewayAccount`, `purpose`, `amountSen`, `source` | `Refund requested` |
+| `REFUND_INITIATED` | LIVE | Refund started, manually or automatically — `refund-service.ts` (~284, ~810, ~873, ~1320, ~1464) | Admin / System | **`auto: !actorUserId`**, `refundId`, `reason`, `gatewayAccount`, `purpose`, `amountSen`, `source` | `Refund Started` |
 | `REFUNDED` | LIVE | Curlec refund confirmed and wallet reversal complete — `refund-service.ts` (~367, ~958) | Admin / System | `refundId`, `purpose`, `event`, `externalCurlecRefund` | `Refund completed` |
 | `REFUND_WALLET_REVERSAL_FAILED` | LIVE | Wallet debit failed after a refund — `refund-service.ts` (~433, ~486, ~1103, ~1232) | System / Admin | error context (varies by path) | `Wallet balance could not be updated` |
 | `OVERRIDE_PROPOSED` | **DEAD** | No writer. `getOpenOverrideProposal()` (~62) only **reads** for proposals | — | — | `Status change proposed` *(copy only)* |
@@ -1376,21 +1373,21 @@ table.
 | `login_new_device` | **DEAD_NOT_CONFIGURABLE** | `Login from New Device` | `A new login was detected on {deviceName} from {location} at {time}.` | — | *(would be platform + email)* | none — no device-fingerprinting code exists |
 | `kyc_approved` | **DEAD_NOT_CONFIGURABLE** | `Identity Verification Approved` | `Hello {userName}, your identity verification has been approved.` | — | — | none — superseded by `onboarding_approved` |
 | `kyc_rejected` | **DEAD_NOT_CONFIGURABLE** | `Identity Verification Rejected` | `Hello {userName}, your identity verification was rejected.` + ` Reason: {reason}` | — | — | none — superseded by `onboarding_rejected` |
-| `onboarding_approved` | LIVE | `Onboarding Application Approved` | `Congratulations! Your {onboardingType} onboarding for {orgName} has been completed successfully. You now have full access to the platform.` | Applicant (`onboarding.user_id`) | platform + email (not configurable) | `admin/service.ts:completeFinalApproval` (~4188) — event `FINAL_APPROVAL_COMPLETED` |
-| `onboarding_rejected` | LIVE | `Onboarding Application Rejected` | `Unfortunately, your {onboardingType} onboarding for {orgName} was rejected.` + ` Reason: {reason}` | Applicant | platform + email (not configurable) | `individual-onboarding-handler.ts` (~235, ~288); `cod-handler.ts` (~1580, ~1632) |
+| `onboarding_approved` | LIVE | `Onboarding Approved` | `Congratulations! Your {onboardingType} onboarding for {orgName} has been completed successfully. You now have full access to the platform.` | Applicant (`onboarding.user_id`) | platform + email (not configurable) | `admin/service.ts:completeFinalApproval` (~4188) — event `FINAL_APPROVAL_COMPLETED` |
+| `onboarding_rejected` | LIVE | `Onboarding Rejected` | `Unfortunately, your {onboardingType} onboarding for {orgName} was rejected.` + ` Reason: {reason}` | Applicant | platform + email (not configurable) | `individual-onboarding-handler.ts` (~235, ~288); `cod-handler.ts` (~1580, ~1632) |
 | `system_announcement` | **BULK-ONLY** | `{title}` (admin-supplied) | `{message}` (admin-supplied) | Chosen audience | admin-selected | `sendBulkNotification` only |
 | `new_product_alert` | **BULK-ONLY** | `New Investment Opportunity` | `A new product "{productName}" is now available for investment.` | Investors | admin-selected | `sendBulkNotification` only |
-| `application_amendments_requested` | LIVE | `Amendment Requested` | `Your application {ref} requires updates. {amendmentCount} amendment item(s) were requested by the reviewer.` | Issuer owner + org admins | platform + email | `admin/service.ts:submitPendingAmendments` (~10652) — event `AMENDMENTS_SUBMITTED` |
+| `application_amendments_requested` | LIVE | `Amendment Requested` | `An amendment is required for application {ref}. Review the request and resubmit your application.` | Issuer owner + org admins | platform + email | `admin/service.ts:submitPendingAmendments` (~10652) — event `AMENDMENTS_SUBMITTED` |
 | `acceptance_document_changes_requested` | LIVE | `Acceptance Documents Need Updates` | `A reviewer requested updates to acceptance documents on application {ref}. Open Review Offer to see which files to replace.` | Issuer owner + org admins | **platform only** (`platformOnly: true`; seed `enabled_email:false`) | `admin/service.ts` (~10192) |
 | `application_approved` | **DEAD_NOT_CONFIGURABLE** | `Application Approved` | `Your application {ref} has been approved.` | — | — | none — the `APPLICATION_APPROVED` DB event is dead too (a display-only synthetic UI alias of the same name is unrelated and still active — see §2.4) |
 | `application_rejected` | LIVE | `Application Rejected` | `Your application {ref} has been rejected.` | Issuer owner + org admins | platform + email | `admin/service.ts:updateApplicationStatus` (~6668) — event `APPLICATION_REJECTED` |
 | `contract_offer_sent` | LIVE | `Facility Offer Received` | `A facility offer of {offeredFacility} has been sent to your application {ref}.` + ` It expires on {expiresAt}.` | Issuer owner + org admins | platform + email | `admin/service.ts:sendContractOffer` (~8242) — event `CONTRACT_OFFER_SENT` |
 | `invoice_offer_sent` | LIVE | `Invoice Offer Received` | `An invoice offer for invoice {invoiceNumber} of RM{offeredAmount} has been sent.` + ` It expires on {expiresAt}.` | Issuer owner + org admins | platform + email | `admin/service.ts:sendInvoiceOffer` (~8757) — event `INVOICE_OFFER_SENT` |
-| `offer_retracted_or_reset` | LIVE | `Offer Updated` | `{Facility\|Invoice} offer ({invoiceNumber}) was retracted or reset and is no longer active.` | Issuer owner + org admins | **platform only** (seed `enabled_email:false`) | `admin/service.ts:resetSectionReviewToPending` (~9256), `resetItemReviewToPending` (~9419) |
+| `offer_retracted_or_reset` | LIVE | `Facility Offer Retracted` / `Invoice Offer Retracted` | Facility: `The facility offer on your application was retracted and is no longer active.` Invoice: `The invoice offer for invoice {invoiceNumber} was retracted and is no longer active.` | Issuer owner + org admins | **platform only** (seed `enabled_email:false`) | `admin/service.ts:resetSectionReviewToPending` (~9256), `resetItemReviewToPending` (~9419) |
 | `offer_expired` | LIVE | `Offer Expired` | `{Facility\|Invoice} offer ({invoiceNumber}) has expired.` | Issuer owner + org admins | platform + email | `lib/jobs/acceptance-signing-expiry.ts` (~490) — events `CONTRACT_OFFER_EXPIRED` / `INVOICE_OFFER_EXPIRED` |
 | `offer_expiry_reminder_24h` | LIVE | `Offer Expiring Soon` | `{Facility\|Invoice} offer ({invoiceNumber}) expires {today\|in 1 day\|in N days\|soon} on {expiresAt}.` | Issuer owner + org admins | platform + email | `acceptance-signing-expiry.ts` (~572) — **no audit event** |
 | `application_resubmitted_confirmation` | LIVE | `Application Resubmitted` | `Your application {ref} was successfully resubmitted for review (review cycle {reviewCycle}).` | Issuer owner + org admins | **platform only** (seed `enabled_email:false`) | `applications/service.ts:resubmitApplication` (~1072) |
-| `application_withdrawn_confirmation` | LIVE | `Application Withdrawn` | `Your application {ref} has been withdrawn successfully.` | Issuer owner + org admins | **platform only** | `applications/service.ts` (~1675, ~2867, ~3258) |
+| `application_withdrawn_confirmation` | LIVE | `Application Withdrawn` (true withdrawal) / `Facility Offer Declined` / `Invoice Offer Declined` | True withdrawal: `Your application {ref} has been withdrawn successfully.` Facility decline: `The facility offer on your application {ref} was declined and the application is now closed.` Invoice decline: `The invoice offer for invoice {invoiceNumber} was declined.` | Issuer owner + org admins | **platform only** | `applications/service.ts` (~1675, ~2867, ~3258) — payload `withdrawalReason` branches copy without a new notification type |
 | `application_completed` | LIVE | `Application Completed` | `Your application {ref} has been completed successfully.` | Issuer owner + org admins | **platform only** | `applications/service.ts` (~2888, ~3279) — event `APPLICATION_COMPLETED` |
 | `application_submitted_confirmation` | LIVE | `Application Submitted` | `Your application {ref} has been submitted successfully and is now under review.` | Issuer owner + org admins | **platform only** (seed `enabled_email:false`) | `applications/service.ts:updateApplicationStatus` — event `APPLICATION_SUBMITTED`. Idempotency suffix `submitted`. Coexists with the submitter's session toast; does not fire on `RESUBMITTED`. |
 | `contract_signing_deadline_extended` | LIVE | `Signing Deadline Extended` | `The signing deadline for application {ref} has been extended to {deadline}.` | Issuer owner + org admins | platform + email | `admin/service.ts:extendContractSigningDeadline` — event `CONTRACT_SIGNING_DEADLINE_EXTENDED`. Deadline taken from the writer (`signingExpiresAt`); no extra query. |
@@ -1398,22 +1395,22 @@ table.
 | `facility_disabled` | LIVE | `Facility Disabled` | `Your facility for application {ref} has been disabled. New drawdowns are currently unavailable.` | Issuer owner + org admins | platform + email | `admin/service.ts:setContractFacilityEnabled` — event `CONTRACT_FACILITY_DISABLED`. Idempotency includes disable timestamp so a later re-disable after re-enable still notifies. |
 | `director_shareholder_action_required` | LIVE | `Action Required: Complete Director/Shareholder Onboarding` | `Please complete onboarding for {personName}.` | **Issuer org owner only** | platform + email (not configurable) | `director-shareholder-notifications.ts` (~172, ~246) — **no audit event** |
 | `investor_director_shareholder_action_required` | LIVE | `Action Required: Complete Director/Shareholder Onboarding` | Same as above | **Investor org owner only** | platform + email (not configurable) | `director-shareholder-notifications.ts` (~172) — **no audit event** |
-| `note_published` | LIVE | `Note published` | `Your note "{noteTitle}" has been published to the marketplace for investor funding.` | Issuer org owner + **all** members | platform only | `notes/service.ts:publish` (~2811) — event `PUBLISH` |
-| `note_funding_succeeded` | LIVE | `Funding closed successfully` | `Funding for "{noteTitle}" has closed — the minimum threshold was reached and commitments are locked in.` | Issuer org, all members | platform only | `closeFunding` (~3519) — event `CLOSE_FUNDING` |
+| `note_published` | LIVE | `Note Published` | `Your note "{noteTitle}" has been published to the marketplace for investor funding.` | Issuer org owner + **all** members | platform only | `notes/service.ts:publish` (~2811) — event `PUBLISH` |
+| `note_funding_succeeded` | LIVE | `Funding Closed` | `Funding for "{noteTitle}" has closed — the minimum threshold was reached and commitments are locked in.` | Issuer org, all members | platform only | `closeFunding` (~3519) — event `CLOSE_FUNDING` |
 | `note_funding_failed_issuer` | LIVE | `Note funding did not complete` | `Funding for "{noteTitle}" did not reach the minimum threshold before the listing closed.` | Issuer org, all members | platform only | `failFunding` (~3630) — event `FAIL_FUNDING` |
 | `note_funding_failed_investor` | LIVE | `Commitment released` | `The listing for "{noteTitle}" did not complete funding. Your reserved commitment has been released back to your available balance.` | Investor orgs with commitments, all members | platform only | `failFunding` (~3630) — event `FAIL_FUNDING` |
-| `note_active_issuer` | LIVE | `Note is active` | `Your note "{noteTitle}" is now active. Disbursement and servicing proceeds under the agreed terms.` | Issuer org, all members | platform only | `activate` (~3698) — event `ACTIVATE` |
-| `note_active_investor` | LIVE | `Investment is active` | `Funding for "{noteTitle}" is complete and the note is now active. Monitor repayments from your investments view.` | Confirmed investors on the note | platform only | `activate` (~3698) — event `ACTIVATE` |
+| `note_active_issuer` | LIVE | `Your Note Is Active` | `Your note "{noteTitle}" is now active. Disbursement and servicing proceeds under the agreed terms.` | Issuer org, all members | platform only | `activate` (~3698) — event `ACTIVATE` |
+| `note_active_investor` | LIVE | `Your Investment Is Active` | `Funding for "{noteTitle}" is complete and the note is now active. Monitor repayments from your investments view.` | Confirmed investors on the note | platform only | `activate` (~3698) — event `ACTIVATE` |
 | `note_repaid_issuer` | LIVE | `Note repaid` | `"{noteTitle}" has been fully repaid and settled. Any residual handling will follow operational workflow if applicable.` | Issuer org, all members | platform only | `postSettlement` (~5130); trustee completion (~5777) |
 | `note_payment_received` | LIVE | `Repayment Received` | `A repayment was recorded for "{noteTitle}".` | Confirmed investors on the note | platform only | `recordPayment` (~4587), `approvePayment` (~4637) |
 | `note_settlement_posted` | LIVE | `Settlement Posted` | `Settlement has been posted for "{noteTitle}".` | Investor orgs in the settlement | platform only | `postSettlement` (~5122) — event `SETTLEMENT_POSTED` |
-| `note_arrears` | LIVE | `Note in arrears` | `"{noteTitle}" has moved into arrears. Review repayment status and obligations.` | Issuer org, all members | platform only | `applyOverdueLateCharge` (~5288) — event `OVERDUE_LATE_CHARGE_CHECKED` |
-| `note_arrears_investor` | LIVE | `Note in arrears` | `"{noteTitle}" is in arrears. We will keep you informed as servicing actions progress.` | Confirmed investors | platform only | `applyOverdueLateCharge` (~5288) |
-| `note_defaulted` | LIVE | `Note marked as default` | `"{noteTitle}" has been marked as default.` | Issuer org, all members | platform only | `markDefault` (~5807) — event `NOTE_DEFAULT_MARKED` |
-| `note_defaulted_investor` | LIVE | `Note marked as default` | `"{noteTitle}" has been marked as default. This may affect recovery timelines; check your investments view for updates.` | Confirmed investors | platform only | `markDefault` (~5807) |
+| `note_arrears` | LIVE | `Note in Arrears` | `"{noteTitle}" has moved into arrears. Review repayment status and obligations.` | Issuer org, all members | platform only | `applyOverdueLateCharge` (~5288) — event `OVERDUE_LATE_CHARGE_CHECKED` |
+| `note_arrears_investor` | LIVE | `Note in Arrears` | `"{noteTitle}" is in arrears. We will keep you informed as servicing actions progress.` | Confirmed investors | platform only | `applyOverdueLateCharge` (~5288) |
+| `note_defaulted` | LIVE | `Your Note Is in Default` | `"{noteTitle}" has been marked as default.` | Issuer org, all members | platform only | `markDefault` (~5807) — event `NOTE_DEFAULT_MARKED` |
+| `note_defaulted_investor` | LIVE | `Your Investment Is in Default` | `"{noteTitle}" has been marked as default. This may affect recovery timelines; check your investments view for updates.` | Confirmed investors | platform only | `markDefault` (~5807) |
 | `withdrawal_submitted_to_trustee` | LIVE | `Withdrawal Submitted to Trustee` | `Withdrawal instruction {withdrawalId} has been submitted to the trustee.` | Issuer org, all members | platform only | `markWithdrawalSubmitted` (~6274) — event `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` |
 | `note_payment_rejected` | LIVE | `Repayment Rejected` | `Your repayment for note {noteTitle} was rejected. Please review the repayment details.` | Issuer org, all members | platform only | `notes/service.ts:rejectPayment` — event `PAYMENT_REJECTED`. Idempotency includes `paymentId`. |
-| `withdrawal_completed` | LIVE | `Disbursement Completed` | `The disbursement for note {noteTitle} has been completed.` | Issuer org, all members | platform only | `notes/service.ts:markWithdrawalCompleted` — event `WITHDRAWAL_COMPLETED`, **only when `isIssuerFinancingDisbursement`**. Residual return / investor / admin-adjustment withdrawals stay silent. Idempotency includes `withdrawalId`. |
+| `withdrawal_completed` | LIVE | `Your Disbursement Is Complete` | `The disbursement for note {noteTitle} has been completed.` | Issuer org, all members | platform only | `notes/service.ts:markWithdrawalCompleted` — event `WITHDRAWAL_COMPLETED`, **only when `isIssuerFinancingDisbursement`**. Residual return / investor / admin-adjustment withdrawals stay silent. Idempotency includes `withdrawalId`. |
 | `deposit_name_check_rejected` | LIVE | `Deposit Verification Failed` | `Your deposit could not be verified and will be returned.` | Members of the deposit's investor organization | platform only | `payment/admin-service.ts:rejectNameCheck` — event `NAME_CHECK_REJECTED`. `GatewayPayment` has no depositor user id; ownership is `investor_organization_id`. Gated to `INVESTOR_DEPOSIT`. Idempotency per payment + type + user. |
 | `deposit_refund_initiated` | LIVE | `Refund Started` | `A refund for your deposit of RM{amount} has been initiated.` | Members of the deposit's investor organization | platform only | `refund-service.ts:initiateGatewayPaymentRefund` — event `REFUND_INITIATED`. Gated to `INVESTOR_DEPOSIT`. |
 | `deposit_refunded` | LIVE | `Refund Completed` | `Your refund of RM{amount} has been completed.` | Members of the deposit's investor organization | platform only | `refund-service.ts:completeGatewayPaymentRefund` — event `REFUNDED`, after the wallet-reversal transaction commits. Gated to `INVESTOR_DEPOSIT`. |
@@ -1438,8 +1435,8 @@ from the other:
 
 | Type ID | Admin-facing seed name | User-facing inbox title |
 |---|---|---|
-| `onboarding_approved` | Onboarding Approved | Onboarding Application Approved |
-| `onboarding_rejected` | Onboarding Rejected | Onboarding Application Rejected |
+| `onboarding_approved` | Onboarding Approved | Onboarding Approved |
+| `onboarding_rejected` | Onboarding Rejected | Onboarding Rejected |
 | `kyc_approved` | KYC Approved | Identity Verification Approved |
 | `kyc_rejected` | KYC Rejected | Identity Verification Rejected |
 | `contract_offer_sent` | Facility Offer **Sent** | Facility Offer **Received** |
@@ -1452,17 +1449,17 @@ from the other:
 | `note_funding_succeeded` | Note funding succeeded | Funding closed successfully |
 | `note_funding_failed_issuer` | Note funding failed | Note funding did not complete |
 | `note_funding_failed_investor` | Note funding failed | Commitment released |
-| `note_active_issuer` | Note active | Note is active |
-| `note_active_investor` | Note active | Investment is active |
+| `note_active_issuer` | Note active | Your Note Is Active |
+| `note_active_investor` | Note active | Your Investment Is Active |
 | `note_payment_received` | Note repayment recorded | Repayment Received |
 | `note_settlement_posted` | Note settlement posted | Settlement Posted |
-| `note_defaulted` | Note defaulted (issuer) | Note marked as default |
+| `note_defaulted` | Note defaulted (issuer) | Your Note Is in Default |
 | `withdrawal_submitted_to_trustee` | Withdrawal submitted to trustee | Withdrawal Submitted to Trustee |
 | `application_submitted_confirmation` | Application Submitted Confirmation | Application Submitted |
 | `contract_signing_deadline_extended` | Facility Signing Deadline Extended | Signing Deadline Extended |
 | `invoice_signing_deadline_extended` | Invoice Signing Deadline Extended | Signing Deadline Extended |
 | `note_payment_rejected` | Repayment rejected | Repayment Rejected |
-| `withdrawal_completed` | Disbursement completed | Disbursement Completed |
+| `withdrawal_completed` | Disbursement completed | Your Disbursement Is Complete |
 | `deposit_name_check_rejected` | Deposit verification failed | Deposit Verification Failed |
 | `deposit_refund_initiated` | Deposit refund started | Refund Started |
 | `deposit_refunded` | Deposit refund completed | Refund Completed |

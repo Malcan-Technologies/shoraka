@@ -15,8 +15,8 @@
 > [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) §2 — that is where the
 > transcription of what the code says today is maintained.
 
-Canonical terminology for user-visible audit/activity/notification copy, derived from the
-majority-usage wording already live in the product (not invented). Same business action = same
+Canonical terminology for user-visible audit/activity/notification copy, aligned to the
+2026-08-26 wording pass (`docs/audit/final-copy-standardization-plan.md`). Same business action = same
 core term everywhere; phrasing may soften per audience (Admin sees technical/forensic language,
 Issuer/Investor see plain, audience-appropriate language), but the **business meaning must never
 diverge** between surfaces.
@@ -35,14 +35,14 @@ matrix, classifications, and implementation status).
 
 | Concept | Admin | Issuer | Notification |
 |---|---|---|---|
-| Draft created | Application Created | Application started / You created it | — |
-| Submitted for review | Application Submitted | You submitted this application | Application Submitted |
-| Amendments requested (admin → issuer) | Amendment Request Sent | **Changes requested** | Amendment Requested |
-| Amendments resubmitted (issuer → admin) | Application Resubmitted | You resubmitted after changes | Application Resubmitted |
-| Rejected | Application Rejected | Application was not approved | Application Rejected |
-| Withdrawn (issuer-initiated) | Application Withdrawn | You withdrew this application / **Application Withdrawn** | Application Withdrawn |
-| Reset to review | Application Reset to Under Review | Back under review (admin-only surface otherwise) | — |
-| Completed (terminal) | Application Completed | Application completed | Application Completed |
+| Draft created | Application Created | Application Started / You Started This Application | — |
+| Submitted for review | Application Submitted | You Submitted This Application | Application Submitted |
+| Amendments requested (admin → issuer) | Amendment Requested | **CashSouk Requested an Amendment** | Amendment Requested |
+| Amendments resubmitted (issuer → admin) | Application Resubmitted | You Resubmitted This Application | Application Resubmitted |
+| Rejected | Application Rejected | Your Application Was Not Approved | Application Rejected |
+| Withdrawn (issuer-initiated) | Application Withdrawn | You Withdrew This Application / **Application Withdrawn** | Application Withdrawn |
+| Returned to review | Application Returned to Review | Your Application Is Under Review Again (admin-only surface otherwise) | — |
+| Completed (terminal) | Application Completed | Application Completed | Application Completed |
 
 **DO NOT CONFUSE WITH:** "Completed" (funding/signing finished, terminal success) vs "Approved"
 (dead event type, never written — do not reintroduce). "Withdrawn" (issuer closes their own
@@ -71,21 +71,22 @@ it was previously collapsed into "Withdrawn" everywhere, which hid who took the 
 
 | Concept | Admin | Issuer | Notification |
 |---|---|---|---|
-| Offer sent | Facility/Invoice Offer Sent | Facility/Invoice offer sent | Facility/Invoice Offer Received |
-| Issuer declines the offer (`CONTRACT_WITHDRAWN` / `INVOICE_OFFER_REJECTED`) | **Facility/Invoice Offer Rejected** | **You declined the facility/invoice offer** | (application_withdrawn / offer-specific) |
-| CashSouk retracts the offer (`CONTRACT_OFFER_RETRACTED` / `INVOICE_OFFER_RETRACTED`) | Facility/Invoice Offer Retracted | Facility/invoice offer was withdrawn by CashSouk | Offer Updated |
+| Offer sent | Facility/Invoice Offer Sent | You Received a Facility/Invoice Offer | Facility/Invoice Offer Received |
+| Issuer declines the offer (`CONTRACT_WITHDRAWN` / `INVOICE_OFFER_REJECTED`) | **Facility/Invoice Offer Declined** | **You Declined the Facility/Invoice Offer** | Facility Offer Declined / Invoice Offer Declined (`application_withdrawn_confirmation` branches on `withdrawalReason`) |
+| CashSouk retracts the offer (`CONTRACT_OFFER_RETRACTED` / `INVOICE_OFFER_RETRACTED`) | Facility/Invoice Offer Retracted | CashSouk Retracted the Facility/Invoice Offer | Facility Offer Retracted / Invoice Offer Retracted |
 | Offer expires (`CONTRACT_OFFER_EXPIRED` / `INVOICE_OFFER_EXPIRED`) | Facility/Invoice Offer Expired | Facility/invoice offer expired | Offer Expired / Offer Expiring Soon |
 | Acceptance documents submitted | Facility/Invoice Offer Acceptance Submitted | Facility/invoice acceptance submitted | — |
 | Acceptance documents resubmitted after changes requested | Facility/Invoice Offer Acceptance Resubmitted | Facility/invoice acceptance resubmitted | Acceptance Documents Need Updates (on request) |
 | Acceptance approved, ready to sign | Facility/Invoice Acceptance Approved for Signing | (admin-only surface) | — |
-| Offer fully signed (`CONTRACT_OFFER_ACCEPTED` / `INVOICE_OFFER_ACCEPTED`) | Facility/Invoice Offer Signed | **Facility/invoice offer signed** | — |
+| Offer fully signed (`CONTRACT_OFFER_ACCEPTED` / `INVOICE_OFFER_ACCEPTED`) | Facility/Invoice Offer Signed | **Facility/Invoice Offer Signed** | — |
 | Signing deadline extended | Signing Deadline Extended | Signing deadline extended | Signing Deadline Extended |
-| Facility disabled | Contract Facility Disabled (admin fallback) | — | Facility Disabled |
+| Facility disabled | Facility Disabled | — | Facility Disabled |
 
-**DO NOT CONFUSE WITH:** Do not use "Withdrawn" for an issuer's decline (`CONTRACT_WITHDRAWN`) —
-that is a rejection, not a withdrawal, and "Withdrawn" is reserved for `CONTRACT_OFFER_RETRACTED`
-(admin/CashSouk side) and `APPLICATION_WITHDRAWN` (issuer closes their own application). Do not use
-"Accepted" for the terminal signed state on issuer-facing surfaces — "signed" is the correct verb
+**DO NOT CONFUSE WITH:** Do not use "Withdrawn" or "Rejected" for an issuer's decline (`CONTRACT_WITHDRAWN`) —
+that is a **decline**, not a withdrawal. "Withdrawn" is reserved for `APPLICATION_WITHDRAWN` (issuer closes
+their own application). "Retracted" is reserved for CashSouk pulling back an offer
+(`CONTRACT_OFFER_RETRACTED` / `INVOICE_OFFER_RETRACTED`). Do not use
+"Accepted" for the terminal signed state — "signed" is the correct verb
 because the moment fires when the signing package completes, not when the issuer clicks "accept."
 
 **Note on the Acceptance-tab phase badge:** `getOfferAcceptanceStatusPresentation` (`packages/types`)
@@ -113,7 +114,7 @@ notification (investigated 2026-08-25 — OPTIONAL / KEEP_SILENT).
 
 | Concept | Canonical term | Notes |
 |---|---|---|
-| Draft package created | Signing package created | Sentence case, matches CSV/facility surfaces |
+| Draft package created | Signing Package Created | Title Case on Admin/CSV |
 | Sent to signers | Signing package sent | Direct email uses "Signature requested: {title}" — audience-appropriate, not a copy bug |
 | All signers complete | Signing package completed | Hidden from admin/issuer timeline UI by design (audit/CSV-only); the user-facing milestone is "Facility/Invoice Offer Signed" |
 | Voided | Signing package voided | |
@@ -134,7 +135,7 @@ actually cares about) — both are correct, for different audiences, and should 
 | Concept | Admin | General Activity (Issuer/Investor) |
 |---|---|---|
 | Started | Onboarding Started | Onboarding Started |
-| Admin restarts onboarding (`ONBOARDING_CANCELLED` — forensic name; actor is admin, not the user) | Onboarding Cancelled | **Onboarding Restarted** (not "Closed", and not "Cancelled" — **corrected 2026-08-24**: "cancelled" reads as permanent termination, but the actual action is a restart. Description: "Your previous onboarding request was cancelled and a new onboarding request has been started.") |
+| Admin restarts onboarding (`ONBOARDING_CANCELLED` — forensic name; actor is admin, not the user) | Onboarding Restarted | **Onboarding Restarted** (not "Closed", and not "Cancelled" — "cancelled" reads as permanent termination, but the actual action is a restart. Description: "Your previous onboarding request was cancelled and a new onboarding request has been started.") |
 | Rejected by admin | Onboarding Rejected | Onboarding Rejected |
 | Submission approved (admin clears a gate; onboarding continues) | Onboarding Approved | **Onboarding Submission Approved** — "no further action needed" must never appear here, since more steps may follow |
 | Final approval (terminal, full platform access granted) | Final Approval | **Onboarding Approved** — this is the only moment where "no further action is needed" is true |
@@ -178,6 +179,10 @@ historical compatibility. See `audit-event-catalog.md` §1.1–1.3.
 | Login / Logout | Login / Logout |
 | Password changed | Password Changed |
 | Role added / switched | Role Added / Role Switched |
+| Email verified (`EMAIL_CHANGED`) | Email Verified (not "Email Changed") |
+| Access-log user profile edit (`access_logs.PROFILE_UPDATED`) | User Profile Updated |
+| Onboarding org profile edit (`onboarding_logs.PROFILE_UPDATED`) | Organization Profile Updated |
+| Security self-service profile (`security_logs.PROFILE_UPDATED`) | Profile Updated |
 
 **LIVE EVENT TYPES:** `LOGIN`, `LOGOUT`, `SIGNUP`, `PASSWORD_CHANGED`, `EMAIL_CHANGED`,
 `ROLE_SWITCHED`, `PROFILE_UPDATED` (`access_logs.PROFILE_UPDATED` is **LIVE_UI_REACHABLE**).
@@ -194,17 +199,17 @@ normal live UI action.
 
 | Concept | Admin | Issuer | Investor | Notification |
 |---|---|---|---|---|
-| Published to marketplace | **Note published** | Note Published | (not shown) | Note published |
+| Published to marketplace | **Note Published** | Note Published | (not shown) | Note Published |
 | Campaign paused / resumed | Campaign paused / resumed | Campaign Paused / Resumed | — | — |
-| Funding closed (success) | Funding closed | Funding Closed | — | Funding closed successfully |
+| Funding closed (success) | Funding Closed | Funding Closed | — | Funding Closed |
 | Funding failed | **Funding unsuccessful** | Funding Unsuccessful | Funding Unsuccessful | Note funding did not complete (issuer) / Commitment released (investor) |
-| Note activated / servicing starts | **Note activated** | Note Active | Note Active | Note is active (issuer) / Investment is active (investor) |
-| Issuer repayment submitted | **Repayment submitted** | Payment Submitted (description says "repayment") | — | — |
+| Note activated / servicing starts | **Note Activated** | Your Note Is Active | Your Investment Is Active | Your Note Is Active (issuer) / Your Investment Is Active (investor) |
+| Issuer repayment submitted | **Repayment Submitted** | You Submitted a Repayment | — | — |
 | Repayment recorded | **Repayment received** | — | — | Repayment Received |
 | Repayment approved / rejected | **Repayment approved / rejected** | — | — | Repayment Rejected (issuer, on reject) |
 | Settlement posted | Settlement posted | — | Settlement Posted | Settlement Posted |
-| Default | **Note defaulted** | Note Defaulted | Note Defaulted | Note marked as default |
-| Disbursement to issuer completed (`WITHDRAWAL_COMPLETED`) | **Withdrawal completed** | **Disbursement Completed** (was incorrectly sharing "Note Active" with `ACTIVATE`) | — | Disbursement Completed *(ISSUER_DISBURSEMENT only)* |
+| Default | **Note Defaulted** | Your Note Is in Default | Your Investment Is in Default | Your Note Is in Default / Your Investment Is in Default |
+| Disbursement to issuer completed (`WITHDRAWAL_COMPLETED`) | **Withdrawal Completed** | **Your Disbursement Is Complete** (ISSUER_DISBURSEMENT only) | Your Disbursement Is Complete | Your Disbursement Is Complete *(ISSUER_DISBURSEMENT only)* |
 
 **DO NOT CONFUSE WITH:** `ACTIVATE` (note servicing begins — the whole note goes live) and
 `WITHDRAWAL_COMPLETED` (an issuer disbursement payout completes) are different business moments

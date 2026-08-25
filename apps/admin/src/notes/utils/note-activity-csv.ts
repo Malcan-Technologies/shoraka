@@ -48,6 +48,7 @@ const EVENT_LABELS: Record<string, string> = {
   SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement trustee instruction completed",
   WITHDRAWAL_TRUSTEE_EMAIL_SENT: "Withdrawal email delivered to Trustee",
   NOTE_DEFAULT_MARKED: "Note Defaulted",
+  WAIVE_FACILITY_FEE_COLLECTION: "Facility Fee Collection Waived",
   NOTE_FACILITY_FEE_COLLECTION_WAIVED: "Facility fee collection waived",
   ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED: "Disbursement instruction created",
   WITHDRAWAL_LETTER_GENERATED: "Withdrawal letter generated",

@@ -16,6 +16,11 @@
 > BEFORE values here no longer exist in code. For the copy that is live *today*, see
 > [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) §2.
 
+**2026-08-26 copy standardization:** the approved wording in
+[`final-copy-standardization-plan.md`](./final-copy-standardization-plan.md) was implemented as a
+presentation/template/CSV-label pass. Historical BEFORE/AFTER rows below are **not rewritten**.
+Live copy is in the surface matrix and `current-event-journal.md` CURRENT USER-FACING COPY sections.
+
 Full per-event copy consistency matrix across Admin, Issuer, Investor, Notification, and CSV/export
 surfaces. Companion to `docs/audit/activity-notification-copy-standard.md` (canonical terms) and
 `docs/audit/audit-event-catalog.md` (what's stored/who reads it).

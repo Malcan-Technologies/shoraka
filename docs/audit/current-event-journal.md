@@ -1,6 +1,6 @@
 # Current Audit / Activity / Notification Journal
 
-Verified: 2026-08-25 (source + `docs/audit/audit-event-registry.json` `verifiedOn` + `docs/audit/audit-event-surface-matrix.md`, with source winning on the discrepancies listed below)
+Verified: 2026-08-26 (CURRENT USER-FACING COPY for the 58-event wording pass reflects live source after `docs/audit/final-copy-standardization-plan.md`; source still wins on any remaining discrepancy)
 
 Current audit counts:
 - documented: 160
@@ -110,12 +110,12 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Application started`
+- Title: `You Started This Application`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Facility application started`
+- Title: `Facility Application Started`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -126,7 +126,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Application created`
+- Title/Event: `Application Created`
 - Description/Remark: `remark column (usually empty)`
 
 Notification
@@ -215,12 +215,12 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `You submitted this application`
+- Title: `You Submitted This Application`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Facility application submitted`
+- Title: `Facility Application Submitted`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -231,7 +231,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Application submitted`
+- Title/Event: `Application Submitted`
 - Description/Remark: `remark column (usually empty)`
 
 Notification
@@ -320,12 +320,12 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `You resubmitted after changes`
+- Title: `You Resubmitted This Application`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Facility application resubmitted`
+- Title: `Facility Application Resubmitted`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -336,7 +336,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Application resubmitted`
+- Title/Event: `Application Resubmitted`
 - Description/Remark: `remark / metadata as stored`
 
 Notification
@@ -425,12 +425,12 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Application was not approved`
+- Title: `Your Application Was Not Approved`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Facility application was not approved`
+- Title: `Facility Application Was Not Approved`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -441,7 +441,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Application rejected`
+- Title/Event: `Application Rejected`
 - Description/Remark: `remark column is empty on this flow`
 
 Notification
@@ -530,12 +530,12 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `You withdrew this application`
+- Title: `You Withdrew This Application`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Facility application withdrawn`
+- Title: `Facility Application Withdrawn`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -546,7 +546,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Application withdrawn`
+- Title/Event: `Application Withdrawn`
 - Description/Remark: `remark / withdraw_reason when stored`
 
 Notification
@@ -635,12 +635,12 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Application completed`
+- Title: `Application Completed`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Facility application completed`
+- Title: `Facility Application Completed`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -651,7 +651,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Application completed`
+- Title/Event: `Application Completed`
 - Description/Remark: `remark column (usually empty)`
 
 Notification
@@ -725,12 +725,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Application Reset to Under Review`
+- Title: `Application Returned to Review`
 - Description: `previous_status in metadata`
 
 Admin Detail
 - Visible: YES
-- Title: `Application Reset to Under Review`
+- Title: `Application Returned to Review`
 - Description: `previous_status in metadata`
 
 Issuer General Activity
@@ -741,7 +741,7 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Back under review`
+- Title: `Your Application Is Under Review Again`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
@@ -758,7 +758,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Application reset to under review`
+- Title/Event: `Application Returned to Review`
 - Description/Remark: `previous_status in metadata`
 
 Notification
@@ -958,7 +958,7 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `A section was not approved`
+- Title: `A Section Was Not Approved`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
@@ -975,7 +975,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Section rejected`
+- Title/Event: `Section Rejected`
 - Description/Remark: `remark = [Reason]`
 
 Notification
@@ -1065,7 +1065,7 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Changes requested on a section`
+- Title: `Changes Requested on a Section`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
@@ -1082,7 +1082,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Section amendment requested`
+- Title/Event: `Section Amendment Requested`
 - Description/Remark: `remark = [Reason]`
 
 Notification
@@ -1388,7 +1388,7 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `An item was not approved`
+- Title: `An Item Was Not Approved`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
@@ -1405,7 +1405,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Item rejected`
+- Title/Event: `Item Rejected`
 - Description/Remark: `remark = [Reason]`
 
 Notification
@@ -1495,7 +1495,7 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Changes requested on an item`
+- Title: `Changes Requested on an Item`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
@@ -1512,7 +1512,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Item amendment requested`
+- Title/Event: `Item Amendment Requested`
 - Description/Remark: `remark = [Reason]`
 
 Notification
@@ -1694,27 +1694,27 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Amendment Request Sent`
+- Title: `Amendment Requested`
 - Description: `amendment remarks in metadata`
 
 Admin Detail
 - Visible: YES
-- Title: `Amendment Request Sent`
+- Title: `Amendment Requested`
 - Description: `amendment remarks in metadata`
 
 Issuer General Activity
 - Visible: YES
-- Title: `Changes Requested`
-- Description: `We need updates to your application before it can continue.`
+- Title: `CashSouk Requested an Amendment`
+- Description: `CashSouk requested an amendment to application [Application Ref].`
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Changes requested`
+- Title: `CashSouk Requested an Amendment`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Changes requested`
+- Title: `CashSouk Requested an Amendment`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -1725,14 +1725,14 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Amendment request sent`
+- Title/Event: `Amendment Requested`
 - Description/Remark: `amendment remarks in metadata`
 
 Notification
 - Sends: YES
 - Type: `application_amendments_requested`
 - Title: `Amendment Requested`
-- Message: `Your application [Application Ref] requires updates. [count] amendment item(s) were requested by the reviewer.`
+- Message: `An amendment is required for application [Application Ref]. Review the request and resubmit your application.`
 - Recipient: `issuer owner + org admins`
 - Channel: `platform + email per registry`
 
@@ -1811,17 +1811,17 @@ Admin Detail
 
 Issuer General Activity
 - Visible: YES
-- Title: `Facility Offer Sent`
-- Description: `A facility offer is ready for your review and response.`
+- Title: `You Received a Facility Offer`
+- Description: `You received a facility offer for application [Application Ref]. Review and respond.`
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Facility financing offer sent`
+- Title: `You Received a Facility Offer`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Facility offer sent`
+- Title: `You Received a Facility Offer`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -1832,7 +1832,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Facility offer sent`
+- Title/Event: `Facility Offer Sent`
 - Description/Remark: `metadata (offered facility, [Deadline])`
 
 Notification
@@ -1916,17 +1916,17 @@ Admin Detail
 
 Issuer General Activity
 - Visible: YES
-- Title: `Facility Acceptance Submitted`
+- Title: `You Submitted Your Facility Offer Acceptance`
 - Description: `You submitted offer acceptance documents for CashSouk review.`
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Facility acceptance submitted`
+- Title: `You Submitted Your Facility Offer Acceptance`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Facility acceptance submitted`
+- Title: `You Submitted Your Facility Offer Acceptance`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -1937,7 +1937,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Acceptance submitted`
+- Title/Event: `Facility Offer Acceptance Submitted`
 - Description/Remark: `metadata`
 
 Notification
@@ -2021,17 +2021,17 @@ Admin Detail
 
 Issuer General Activity
 - Visible: YES
-- Title: `Facility Acceptance Resubmitted`
+- Title: `You Resubmitted Your Facility Offer Acceptance`
 - Description: `You resubmitted offer acceptance documents after CashSouk requested changes.`
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Facility acceptance resubmitted`
+- Title: `You Resubmitted Your Facility Offer Acceptance`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Facility acceptance resubmitted`
+- Title: `You Resubmitted Your Facility Offer Acceptance`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -2042,7 +2042,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Acceptance resubmitted`
+- Title/Event: `Facility Offer Acceptance Resubmitted`
 - Description/Remark: `metadata`
 
 Notification
@@ -2239,12 +2239,12 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Facility offer signed`
+- Title: `Facility Offer Signed`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Facility offer signed`
+- Title: `Facility Offer Signed`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -2255,7 +2255,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Facility offer signed`
+- Title/Event: `Facility Offer Signed`
 - Description/Remark: `metadata`
 
 Notification
@@ -2339,17 +2339,17 @@ Admin Detail
 
 Issuer General Activity
 - Visible: YES
-- Title: `Facility Offer Retracted`
-- Description: `The facility offer was withdrawn before it was accepted.`
+- Title: `CashSouk Retracted the Facility Offer`
+- Description: `CashSouk retracted the facility offer on your application before it was accepted.`
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Facility offer was withdrawn by CashSouk`
+- Title: `CashSouk Retracted the Facility Offer`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Facility offer withdrawn by CashSouk`
+- Title: `CashSouk Retracted the Facility Offer`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -2360,14 +2360,14 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Facility offer retracted`
+- Title/Event: `Facility Offer Retracted`
 - Description/Remark: `metadata`
 
 Notification
 - Sends: YES
 - Type: `offer_retracted_or_reset`
-- Title: `Offer Updated`
-- Message: `Facility/Invoice offer ([Invoice Number] when invoice) was retracted or reset and is no longer active.`
+- Title: `Facility Offer Retracted`
+- Message: `The facility offer on your application was retracted and is no longer active.`
 - Recipient: `issuer owner + org admins`
 - Channel: `platform + email per registry`
 
@@ -2434,12 +2434,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Facility Offer Rejected`
+- Title: `Facility Offer Declined`
 - Description: `metadata`
 
 Admin Detail
 - Visible: YES
-- Title: `Facility Offer Rejected`
+- Title: `Facility Offer Declined`
 - Description: `metadata`
 
 Issuer General Activity
@@ -2449,12 +2449,12 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `You declined the facility offer`
+- Title: `You Declined the Facility Offer`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Facility offer declined`
+- Title: `Facility Offer Declined`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -2465,14 +2465,14 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Facility offer rejected`
+- Title/Event: `Facility Offer Declined`
 - Description/Remark: `metadata`
 
 Notification
 - Sends: YES
 - Type: `application_withdrawn_confirmation`
-- Title: `Application Withdrawn`
-- Message: `Your application [Application Ref] has been withdrawn successfully.`
+- Title: `Facility Offer Declined`
+- Message: `The facility offer on your application [Application Ref] was declined and the application is now closed.`
 - Recipient: `issuer owner + org admins`
 - Channel: `platform + email per registry`
 
@@ -2857,13 +2857,13 @@ Stored in:
 Admin Activity
 - Visible: YES
 - Note: rendered via generic title-case fallback
-- Title: `Contract Facility Fee Waived (fallback)`
+- Title: `Facility Fee Waived`
 - Description: `— (no curated description)`
 
 Admin Detail
 - Visible: YES
 - Note: rendered via generic title-case fallback
-- Title: `Contract Facility Fee Waived (fallback)`
+- Title: `Facility Fee Waived`
 - Description: `— (no curated description)`
 
 Issuer General Activity
@@ -2893,7 +2893,7 @@ Investor General Activity
 CSV / Export
 - Included: YES
 - Note: exported via generic title-case fallback
-- Title/Event: `Contract Facility Fee Waived (fallback)`
+- Title/Event: `Facility Fee Waived`
 - Description/Remark: `metadata`
 
 Notification
@@ -2968,13 +2968,13 @@ Stored in:
 Admin Activity
 - Visible: YES
 - Note: rendered via generic title-case fallback
-- Title: `Contract Facility Disabled (fallback)`
+- Title: `Facility Disabled`
 - Description: `— (no curated description)`
 
 Admin Detail
 - Visible: YES
 - Note: rendered via generic title-case fallback
-- Title: `Contract Facility Disabled (fallback)`
+- Title: `Facility Disabled`
 - Description: `— (no curated description)`
 
 Issuer General Activity
@@ -3004,7 +3004,7 @@ Investor General Activity
 CSV / Export
 - Included: YES
 - Note: exported via generic title-case fallback
-- Title/Event: `Contract Facility Disabled (fallback)`
+- Title/Event: `Facility Disabled`
 - Description/Remark: `metadata`
 
 Notification
@@ -3079,13 +3079,13 @@ Stored in:
 Admin Activity
 - Visible: YES
 - Note: rendered via generic title-case fallback
-- Title: `Contract Facility Enabled (fallback)`
+- Title: `Facility Enabled`
 - Description: `— (no curated description)`
 
 Admin Detail
 - Visible: YES
 - Note: rendered via generic title-case fallback
-- Title: `Contract Facility Enabled (fallback)`
+- Title: `Facility Enabled`
 - Description: `— (no curated description)`
 
 Issuer General Activity
@@ -3115,7 +3115,7 @@ Investor General Activity
 CSV / Export
 - Included: YES
 - Note: exported via generic title-case fallback
-- Title/Event: `Contract Facility Enabled (fallback)`
+- Title/Event: `Facility Enabled`
 - Description/Remark: `metadata`
 
 Notification
@@ -3201,17 +3201,17 @@ Admin Detail
 
 Issuer General Activity
 - Visible: YES
-- Title: `Invoice Offer Sent`
-- Description: `An invoice offer is ready for your review and response.`
+- Title: `You Received an Invoice Offer`
+- Description: `You received an invoice offer for invoice [Invoice Number]. Review and respond.`
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Invoice financing offer sent`
+- Title: `You Received an Invoice Offer`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Invoice offer sent`
+- Title: `You Received an Invoice Offer`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -3307,17 +3307,17 @@ Admin Detail
 
 Issuer General Activity
 - Visible: YES
-- Title: `Invoice Acceptance Submitted`
+- Title: `You Submitted Your Invoice Offer Acceptance`
 - Description: `You submitted offer acceptance documents for CashSouk review.`
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Invoice acceptance submitted`
+- Title: `You Submitted Your Invoice Offer Acceptance`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Invoice acceptance submitted`
+- Title: `You Submitted Your Invoice Offer Acceptance`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -3413,17 +3413,17 @@ Admin Detail
 
 Issuer General Activity
 - Visible: YES
-- Title: `Invoice Acceptance Resubmitted`
+- Title: `You Resubmitted Your Invoice Offer Acceptance`
 - Description: `You resubmitted offer acceptance documents after CashSouk requested changes.`
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Invoice acceptance resubmitted`
+- Title: `You Resubmitted Your Invoice Offer Acceptance`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Invoice acceptance resubmitted`
+- Title: `You Resubmitted Your Invoice Offer Acceptance`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -3633,12 +3633,12 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Invoice offer signed`
+- Title: `Invoice Offer Signed`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Invoice offer signed`
+- Title: `Invoice Offer Signed`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -3650,7 +3650,7 @@ Investor General Activity
 CSV / Export
 - Included: YES
 - Note: exported via generic title-case fallback
-- Title/Event: `Invoice Offer Accepted (fallback)`
+- Title/Event: `Invoice Offer Signed`
 - Description/Remark: `metadata — fallback still says Accepted`
 
 Notification
@@ -3724,12 +3724,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Invoice [Invoice Number] Offer Rejected / Invoice Offer Rejected`
+- Title: `Invoice Offer Declined`
 - Description: `metadata`
 
 Admin Detail
 - Visible: YES
-- Title: `Invoice [Invoice Number] Offer Rejected / Invoice Offer Rejected`
+- Title: `Invoice Offer Declined`
 - Description: `metadata`
 
 Issuer General Activity
@@ -3739,12 +3739,12 @@ Issuer General Activity
 
 Issuer Application Detail
 - Visible: YES
-- Title: `You declined an invoice offer`
+- Title: `You Declined the Invoice Offer`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Invoice offer declined`
+- Title: `Invoice Offer Declined`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -3756,14 +3756,14 @@ Investor General Activity
 CSV / Export
 - Included: YES
 - Note: exported via generic title-case fallback
-- Title/Event: `Invoice Offer Rejected (fallback)`
+- Title/Event: `Invoice Offer Declined`
 - Description/Remark: `metadata`
 
 Notification
 - Sends: YES
 - Type: `application_withdrawn_confirmation`
-- Title: `Application Withdrawn`
-- Message: `Your application [Application Ref] has been withdrawn successfully.`
+- Title: `Invoice Offer Declined`
+- Message: `The invoice offer for invoice [Invoice Number] was declined.`
 - Recipient: `issuer owner + org admins`
 - Channel: `platform + email per registry`
 
@@ -3840,17 +3840,17 @@ Admin Detail
 
 Issuer General Activity
 - Visible: YES
-- Title: `Invoice Offer Retracted`
-- Description: `The invoice offer was withdrawn before it was accepted.`
+- Title: `CashSouk Retracted the Invoice Offer`
+- Description: `CashSouk retracted the invoice offer for invoice [Invoice Number] before it was accepted.`
 
 Issuer Application Detail
 - Visible: YES
-- Title: `Invoice offer was withdrawn by CashSouk`
+- Title: `CashSouk Retracted the Invoice Offer`
 - Description: `— (label only)`
 
 Issuer Facility / Transaction Detail
 - Visible: YES
-- Title: `Invoice offer withdrawn by CashSouk`
+- Title: `CashSouk Retracted the Invoice Offer`
 - Description: `— (label only)`
 
 Investor General Activity
@@ -3868,8 +3868,8 @@ CSV / Export
 Notification
 - Sends: YES
 - Type: `offer_retracted_or_reset`
-- Title: `Offer Updated`
-- Message: `Facility/Invoice offer ([Invoice Number] when invoice) was retracted or reset and is no longer active.`
+- Title: `Invoice Offer Retracted`
+- Message: `The invoice offer for invoice [Invoice Number] was retracted and is no longer active.`
 - Recipient: `issuer owner + org admins`
 - Channel: `platform + email per registry`
 
@@ -4256,12 +4256,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Signing package created`
+- Title: `Signing Package Created`
 - Description: `envelope metadata`
 
 Admin Detail
 - Visible: YES
-- Title: `Signing package created`
+- Title: `Signing Package Created`
 - Description: `envelope metadata`
 
 Issuer General Activity
@@ -4290,7 +4290,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Signing package created`
+- Title/Event: `Signing Package Created`
 - Description/Remark: `envelope metadata`
 
 Notification
@@ -4902,12 +4902,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Onboarding Cancelled`
+- Title: `Onboarding Restarted`
 - Description: `[Reason] from metadata.reason when present (Restart requested by admin)`
 
 Admin Detail
 - Visible: YES
-- Title: `Onboarding Cancelled`
+- Title: `Onboarding Restarted`
 - Description: `[Reason] from metadata.reason when present`
 
 Issuer General Activity
@@ -4934,7 +4934,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Onboarding Cancelled`
+- Title/Event: `Onboarding Restarted`
 - Description/Remark: `reason when stored`
 
 Notification
@@ -5008,12 +5008,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Status Updated`
+- Title: `Onboarding Status Updated`
 - Description: `Triggered by [trigger]`
 
 Admin Detail
 - Visible: YES
-- Title: `Status Updated`
+- Title: `Onboarding Status Updated`
 - Description: `Triggered by [trigger]`
 
 Issuer General Activity
@@ -5042,7 +5042,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Status Updated`
+- Title/Event: `Onboarding Status Updated`
 - Description/Remark: `Triggered by [trigger]; previousStatus / newStatus; amlApproved when present`
 
 Notification
@@ -5154,7 +5154,7 @@ CSV / Export
 Notification
 - Sends: YES
 - Type: `onboarding_rejected`
-- Title: `Onboarding Application Rejected`
+- Title: `Onboarding Rejected`
 - Message: `Unfortunately, your [onboarding type] onboarding for [Organization Name] was rejected.[Reason]`
 - Recipient: `the applicant user`
 - Channel: `platform + email`
@@ -5260,7 +5260,7 @@ CSV / Export
 Notification
 - Sends: YES
 - Type: `onboarding_rejected`
-- Title: `Onboarding Application Rejected`
+- Title: `Onboarding Rejected`
 - Message: `Unfortunately, your [onboarding type] onboarding for [Organization Name] was rejected.[Reason]`
 - Recipient: `the applicant user`
 - Channel: `platform + email`
@@ -5474,7 +5474,7 @@ CSV / Export
 Notification
 - Sends: YES
 - Type: `onboarding_approved`
-- Title: `Onboarding Application Approved`
+- Title: `Onboarding Approved`
 - Message: `Congratulations! Your [onboarding type] onboarding for [Organization Name] has been completed successfully. You now have full access to the platform.`
 - Recipient: `the applicant user`
 - Channel: `platform + email`
@@ -5974,13 +5974,13 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Profile Updated`
-- Description: `Updated [fields]`
+- Title: `Organization Profile Updated`
+- Description: `[Actor] updated the organization profile for [Organization Name] ([fields]).`
 
 Admin Detail
 - Visible: YES
-- Title: `Profile Updated`
-- Description: `Updated [fields]`
+- Title: `Organization Profile Updated`
+- Description: `[Actor] updated the organization profile for [Organization Name] ([fields]).`
 
 Issuer General Activity
 - Visible: NO
@@ -6008,7 +6008,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Profile Updated`
+- Title/Event: `Organization Profile Updated`
 - Description/Remark: `updated fields`
 
 Notification
@@ -8053,12 +8053,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Note published`
+- Title: `Note Published`
 - Description: `before/after`
 
 Admin Detail
 - Visible: YES
-- Title: `Note published`
+- Title: `Note Published`
 - Description: `before/after`
 
 Issuer General Activity
@@ -8086,13 +8086,13 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Note published`
+- Title/Event: `Note Published`
 - Description/Remark: `metadata`
 
 Notification
 - Sends: YES
 - Type: `note_published`
-- Title: `Note published`
+- Title: `Note Published`
 - Message: `Your note "[Note Title]" has been published to the marketplace for investor funding.`
 - Recipient: `issuer org members`
 - Channel: `platform + email per registry`
@@ -8589,12 +8589,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Funding closed`
+- Title: `Funding Closed`
 - Description: `before/after`
 
 Admin Detail
 - Visible: YES
-- Title: `Funding closed`
+- Title: `Funding Closed`
 - Description: `before/after`
 
 Issuer General Activity
@@ -8622,13 +8622,13 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Funding closed`
+- Title/Event: `Funding Closed`
 - Description/Remark: `metadata`
 
 Notification
 - Sends: YES
 - Type: `note_funding_succeeded`
-- Title: `Funding closed successfully`
+- Title: `Funding Closed`
 - Message: `Funding for "[Note Title]" has closed — the minimum threshold was reached and commitments are locked in.`
 - Recipient: `issuer org members`
 - Channel: `platform + email per registry`
@@ -8802,17 +8802,17 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Note activated`
-- Description: `before/after`
+- Title: `Note Activated`
+- Description: `[Actor] activated [Note Title]. Servicing has started.`
 
 Admin Detail
 - Visible: YES
-- Title: `Note activated`
-- Description: `before/after`
+- Title: `Note Activated`
+- Description: `[Actor] activated [Note Title]. Servicing has started.`
 
 Issuer General Activity
 - Visible: YES
-- Title: `Note Active`
+- Title: `Your Note Is Active`
 - Description: `[Note Ref] / [Note Title] is now active and servicing has started.`
 
 Issuer Application Detail
@@ -8829,18 +8829,18 @@ Issuer Facility / Transaction Detail
 
 Investor General Activity
 - Visible: YES
-- Title: `Note Active`
+- Title: `Your Investment Is Active`
 - Description: `[Note Ref] / [Note Title] is now active and servicing has started.`
 
 CSV / Export
 - Included: YES
-- Title/Event: `Note activated`
+- Title/Event: `Note Activated`
 - Description/Remark: `metadata`
 
 Notification
 - Sends: YES
 - Type: `note_active_issuer + note_active_investor`
-- Title: `Note is active [note_active_issuer] | Investment is active [note_active_investor]`
+- Title: `Your Note Is Active [note_active_issuer] | Your Investment Is Active [note_active_investor]`
 - Message: `Your note "[Note Title]" is now active. Disbursement and servicing proceeds under the agreed terms. [note_active_issuer] | Funding for "[Note Title]" is complete and the note is now active. Monitor repayments from your investments view. [note_active_investor]`
 - Recipient: `issuer org members; investors on the note`
 - Channel: `platform + email per registry`
@@ -9017,13 +9017,13 @@ Stored in:
 Admin Activity
 - Visible: YES
 - Note: rendered via generic title-case fallback
-- Title: `Waive Facility Fee Collection (fallback)`
+- Title: `Facility Fee Collection Waived`
 - Description: `before/after + changedFields`
 
 Admin Detail
 - Visible: YES
 - Note: rendered via generic title-case fallback
-- Title: `Waive Facility Fee Collection (fallback)`
+- Title: `Facility Fee Collection Waived`
 - Description: `before/after + changedFields`
 
 Issuer General Activity
@@ -9053,7 +9053,7 @@ Investor General Activity
 CSV / Export
 - Included: YES
 - Note: exported via generic title-case fallback
-- Title/Event: `Waive Facility Fee Collection (fallback)`
+- Title/Event: `Facility Fee Collection Waived`
 - Description/Remark: `metadata`
 
 Notification
@@ -9235,17 +9235,17 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Note defaulted`
+- Title: `Note Defaulted`
 - Description: `[Reason]`
 
 Admin Detail
 - Visible: YES
-- Title: `Note defaulted`
+- Title: `Note Defaulted`
 - Description: `[Reason]`
 
 Issuer General Activity
 - Visible: YES
-- Title: `Note Defaulted`
+- Title: `Your Note Is in Default`
 - Description: `[Note Ref] / [Note Title] was marked in default and requires attention.`
 
 Issuer Application Detail
@@ -9262,18 +9262,18 @@ Issuer Facility / Transaction Detail
 
 Investor General Activity
 - Visible: YES
-- Title: `Note Defaulted`
+- Title: `Your Investment Is in Default`
 - Description: `[Note Ref] / [Note Title] was marked in default and requires attention.`
 
 CSV / Export
 - Included: YES
-- Title/Event: `Note defaulted`
+- Title/Event: `Note Defaulted`
 - Description/Remark: `reason`
 
 Notification
 - Sends: YES
 - Type: `note_defaulted + note_defaulted_investor`
-- Title: `Note marked as default [note_defaulted] | Note marked as default [note_defaulted_investor]`
+- Title: `Your Note Is in Default [note_defaulted] | Your Investment Is in Default [note_defaulted_investor]`
 - Message: `"[Note Title]" has been marked as default. [note_defaulted] | "[Note Title]" has been marked as default. This may affect recovery timelines; check your investments view for updates. [note_defaulted_investor]`
 - Recipient: `issuer org members; investors on the note`
 - Channel: `platform + email per registry`
@@ -9989,12 +9989,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Tawarruq order submitted`
+- Title: `Tawarruq Order Submitted`
 - Description: `provider_order_id / amounts / dates`
 
 Admin Detail
 - Visible: YES
-- Title: `Tawarruq order submitted`
+- Title: `Tawarruq Order Submitted`
 - Description: `provider_order_id / amounts / dates`
 
 Issuer General Activity
@@ -10023,7 +10023,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Tawarruq order submitted`
+- Title/Event: `Tawarruq Order Submitted`
 - Description/Remark: `provider_order_id, amounts`
 
 Notification
@@ -10097,12 +10097,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Tawarruq certificate fetched`
+- Title: `Tawarruq Certificate Retrieved`
 - Description: `document_type / provider_order_id`
 
 Admin Detail
 - Visible: YES
-- Title: `Tawarruq certificate fetched`
+- Title: `Tawarruq Certificate Retrieved`
 - Description: `document_type / provider_order_id`
 
 Issuer General Activity
@@ -10131,7 +10131,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Tawarruq certificate fetched`
+- Title/Event: `Tawarruq Certificate Retrieved`
 - Description/Remark: `metadata`
 
 Notification
@@ -10207,17 +10207,17 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Repayment submitted`
+- Title: `Repayment Submitted`
 - Description: `payment input including paymentPurpose`
 
 Admin Detail
 - Visible: YES
-- Title: `Repayment submitted`
+- Title: `Repayment Submitted`
 - Description: `payment input including paymentPurpose`
 
 Issuer General Activity
 - Visible: YES
-- Title: `Payment Submitted`
+- Title: `You Submitted a Repayment`
 - Description: `A repayment for [Note Ref] / [Note Title] was submitted and is awaiting review.`
 
 Issuer Application Detail
@@ -10240,7 +10240,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Repayment submitted`
+- Title/Event: `Repayment Submitted`
 - Description/Remark: `payment metadata`
 
 Notification
@@ -10530,12 +10530,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Repayment rejected`
+- Title: `Repayment Rejected`
 - Description: `paymentId + [Reason]`
 
 Admin Detail
 - Visible: YES
-- Title: `Repayment rejected`
+- Title: `Repayment Rejected`
 - Description: `paymentId + [Reason]`
 
 Issuer General Activity
@@ -10564,7 +10564,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Repayment rejected`
+- Title/Event: `Repayment Rejected`
 - Description/Remark: `reason`
 
 Notification
@@ -10961,12 +10961,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Overdue late charge checked`
+- Title: `Overdue Review Completed`
 - Description: `dueDate / overdue / daysLate / suggested amounts`
 
 Admin Detail
 - Visible: YES
-- Title: `Overdue late charge checked`
+- Title: `Overdue Review Completed`
 - Description: `dueDate / overdue / daysLate / suggested amounts`
 
 Issuer General Activity
@@ -10995,13 +10995,13 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Overdue late charge checked`
+- Title/Event: `Overdue Review Completed`
 - Description/Remark: `full result object`
 
 Notification
 - Sends: YES
 - Type: `note_arrears + note_arrears_investor`
-- Title: `Note in arrears [note_arrears] | Note in arrears [note_arrears_investor]`
+- Title: `Note in Arrears [note_arrears] | Note in Arrears [note_arrears_investor]`
 - Message: `"[Note Title]" has moved into arrears. Review repayment status and obligations. [note_arrears] | "[Note Title]" is in arrears. We will keep you informed as servicing actions progress. [note_arrears_investor]`
 - Recipient: `issuer org members; investors on the note`
 - Channel: `platform + email per registry (condition: only when the check determines the note has entered arrears)`
@@ -11935,12 +11935,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Withdrawal submitted to trustee`
+- Title: `Withdrawal Submitted to Trustee`
 - Description: `withdrawalId`
 
 Admin Detail
 - Visible: YES
-- Title: `Withdrawal submitted to trustee`
+- Title: `Withdrawal Submitted to Trustee`
 - Description: `withdrawalId`
 
 Issuer General Activity
@@ -11969,7 +11969,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `Withdrawal submitted to trustee`
+- Title/Event: `Withdrawal Submitted to Trustee`
 - Description/Remark: `withdrawalId`
 
 Notification
@@ -12153,17 +12153,17 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Withdrawal completed`
+- Title: `Withdrawal Completed`
 - Description: `withdrawalId, [Amount]`
 
 Admin Detail
 - Visible: YES
-- Title: `Withdrawal completed`
+- Title: `Withdrawal Completed`
 - Description: `withdrawalId, [Amount]`
 
 Issuer General Activity
 - Visible: YES
-- Title: `Disbursement Completed (ISSUER_DISBURSEMENT only)`
+- Title: `Your Disbursement Is Complete`
 - Description: `Disbursement for [Note Ref] / [Note Title] has been completed.`
 
 Issuer Application Detail
@@ -12180,18 +12180,18 @@ Issuer Facility / Transaction Detail
 
 Investor General Activity
 - Visible: YES
-- Title: `Disbursement Completed (ISSUER_DISBURSEMENT only; also shown on investor feed for notes they are party to)`
+- Title: `Your Disbursement Is Complete`
 - Description: `Disbursement for [Note Ref] / [Note Title] has been completed.`
 
 CSV / Export
 - Included: YES
-- Title/Event: `Withdrawal completed`
+- Title/Event: `Withdrawal Completed`
 - Description/Remark: `amount`
 
 Notification
 - Sends: YES
 - Type: `withdrawal_completed`
-- Title: `Disbursement Completed`
+- Title: `Your Disbursement Is Complete`
 - Message: `The disbursement for note [Note Title] has been completed.`
 - Recipient: `issuer org members`
 - Channel: `platform only`
@@ -12479,12 +12479,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Name check rejected`
+- Title: `Name Check Rejected`
 - Description: `The names did not match. A refund was started.`
 
 Admin Detail
 - Visible: YES
-- Title: `Name check rejected`
+- Title: `Name Check Rejected`
 - Description: `The names did not match. A refund was started.`
 
 Issuer General Activity
@@ -12806,12 +12806,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Refund requested`
+- Title: `Refund Started`
 - Description: `A full refund was requested. Waiting for Curlec to confirm the result.`
 
 Admin Detail
 - Visible: YES
-- Title: `Refund requested`
+- Title: `Refund Started`
 - Description: `A full refund was requested. Waiting for Curlec to confirm the result.`
 
 Issuer General Activity
@@ -13495,7 +13495,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `LOGIN (raw event_type)`
+- Title/Event: `Login`
 - Description/Remark: `raw export — no friendly label`
 
 Notification
@@ -13603,7 +13603,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `LOGOUT (raw event_type)`
+- Title/Event: `Logout`
 - Description/Remark: `raw export`
 
 Notification
@@ -13711,7 +13711,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `SIGNUP (raw event_type)`
+- Title/Event: `Sign Up`
 - Description/Remark: `raw export`
 
 Notification
@@ -13785,12 +13785,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Profile Updated`
+- Title: `User Profile Updated`
 - Description: `updatedFields / previousValues`
 
 Admin Detail
 - Visible: YES
-- Title: `Profile Updated`
+- Title: `User Profile Updated`
 - Description: `updatedFields / previousValues / nameLockedOverride`
 
 Issuer General Activity
@@ -13819,7 +13819,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `PROFILE_UPDATED (raw event_type)`
+- Title/Event: `User Profile Updated`
 - Description/Remark: `raw export`
 
 Notification
@@ -13895,12 +13895,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Role added`
+- Title: `Role Added`
 - Description: `addedRole / allRoles (or invitation metadata)`
 
 Admin Detail
 - Visible: YES
-- Title: `Role added`
+- Title: `Role Added`
 - Description: `addedRole / allRoles (or invitation metadata)`
 
 Issuer General Activity
@@ -13929,7 +13929,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `ROLE_ADDED (raw event_type)`
+- Title/Event: `Role Added`
 - Description/Remark: `raw export`
 
 Notification
@@ -14003,12 +14003,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Role switched`
+- Title: `Role Switched`
 - Description: `newRole, or action / previousStatus / newStatus`
 
 Admin Detail
 - Visible: YES
-- Title: `Role switched`
+- Title: `Role Switched`
 - Description: `newRole, or action / previousStatus / newStatus`
 
 Issuer General Activity
@@ -14037,7 +14037,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `ROLE_SWITCHED (raw event_type)`
+- Title/Event: `Role Switched`
 - Description/Remark: `raw export`
 
 Notification
@@ -14111,12 +14111,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Profile updated`
+- Title: `Profile Updated`
 - Description: `updatedFields / previousValues (adminOverride when applicable)`
 
 Admin Detail
 - Visible: YES
-- Title: `Profile updated`
+- Title: `Profile Updated`
 - Description: `updatedFields / previousValues`
 
 Issuer General Activity
@@ -14145,7 +14145,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `PROFILE_UPDATED (raw event_type)`
+- Title/Event: `Profile Updated`
 - Description/Remark: `raw export`
 
 Notification
@@ -14327,12 +14327,12 @@ Stored in:
 
 Admin Activity
 - Visible: YES
-- Title: `Email changed`
+- Title: `Email Verified`
 - Description: `success: email / EMAIL_VERIFIED; failure: VERIFICATION_FAILED`
 
 Admin Detail
 - Visible: YES
-- Title: `Email changed`
+- Title: `Email Verified`
 - Description: `success: email / EMAIL_VERIFIED; failure: VERIFICATION_FAILED`
 
 Issuer General Activity
@@ -14361,7 +14361,7 @@ Investor General Activity
 
 CSV / Export
 - Included: YES
-- Title/Event: `EMAIL_CHANGED (raw event_type)`
+- Title/Event: `Email Verified`
 - Description/Remark: `raw export`
 
 Notification
