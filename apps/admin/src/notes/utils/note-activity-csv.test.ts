@@ -66,4 +66,22 @@ describe("buildNoteActivityCsv", () => {
   it("exports an empty table with only the header", () => {
     expect(buildNoteActivityCsv([]).split("\n")).toHaveLength(1);
   });
+
+  it("keeps the internal withdrawal id and includes the display reference", () => {
+    expect(formatNoteActivityEventLabel("WITHDRAWAL_SUBMITTED_TO_TRUSTEE")).toBe(
+      "Withdrawal Submitted to Trustee"
+    );
+    const csv = buildNoteActivityCsv([
+      event({
+        eventType: "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
+        metadata: {
+          withdrawalId: "clyk2n9x0001qwertyuiop",
+          withdrawalReference: "WDL-ARF-202608-A1Z",
+        },
+      }),
+    ]);
+    expect(csv).toContain("Withdrawal Submitted to Trustee");
+    expect(csv).toContain("clyk2n9x0001qwertyuiop");
+    expect(csv).toContain("WDL-ARF-202608-A1Z");
+  });
 });

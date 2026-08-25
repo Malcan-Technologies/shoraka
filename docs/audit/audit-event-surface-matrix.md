@@ -1203,14 +1203,15 @@ except where noted.
 |---|---|---|---|---|---|
 | `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` | Disbursement instruction auto-created when funding closes — `closeFunding` (~3486) | `netDisbursement`, `fundedAmount`, `platformFee`, `facilityFeeCharged`, `additionalFees`, `facilityFeeCollectionWaived`, `contractFacilityFeeWaived` | `Disbursement instruction created` | Hidden (not queried) | NO |
 | `WITHDRAWAL_LETTER_GENERATED` | Trustee letter PDF generated — `generateWithdrawalLetter` (~6222) | `withdrawalId`, `s3Key` | `Withdrawal letter generated` | Hidden (not queried) | NO |
-| `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | Instruction marked submitted — `markWithdrawalSubmitted` (~6269) | `withdrawalId` | `Withdrawal submitted to trustee` | Hidden (not queried) | **YES — `withdrawal_submitted_to_trustee`** |
+| `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | Instruction marked submitted — `markWithdrawalSubmitted` (~6269) | `withdrawalId`, `withdrawalReference` | `Withdrawal Submitted to Trustee` | Hidden (not queried) | **YES — `withdrawal_submitted_to_trustee`** |
 | `WITHDRAWAL_BENEFICIARY_UPDATED` | Beneficiary edited while draft — `updateWithdrawalBeneficiary` (~6304) | `withdrawalId` | `Withdrawal beneficiary updated` | Hidden (not queried) | NO |
 | `WITHDRAWAL_COMPLETED` | Trustee payout completed — `markWithdrawalCompleted` (~6472) | `withdrawalId`, `amount` | `Withdrawal Completed` | **Shown when `withdrawal_type === ISSUER_DISBURSEMENT`, in both portals** (the check precedes the portal branch) — Copy: `Your Disbursement Is Complete` / `Disbursement for {note} has been completed.` Any other withdrawal type is dropped. | **YES — `withdrawal_completed`**, same `ISSUER_DISBURSEMENT` guard |
 
 **`WITHDRAWAL_SUBMITTED_TO_TRUSTEE` notification detail:**
 - **TYPE ID:** `withdrawal_submitted_to_trustee`
 - **TITLE:** `"Withdrawal Submitted to Trustee"`
-- **MESSAGE:** `"Withdrawal instruction {withdrawalId} has been submitted to the trustee."`
+- **MESSAGE:** `"Withdrawal instruction {withdrawalReference} has been submitted to the trustee."`
+- **PAYLOAD:** `{ withdrawalId, withdrawalReference }` — internal id kept for linking/idempotency; display reference used in copy. Historical rows may still have only `withdrawalId`.
 - **RECIPIENT:** issuer organization owner **+ all members** (`sendToIssuerOrg` →
   `listIssuerOrgMemberUserIds`)
 - **CHANNEL:** platform only (`sendTypedPlatformOnly`)
@@ -1408,7 +1409,7 @@ table.
 | `note_arrears_investor` | LIVE | `Note in Arrears` | `"{noteTitle}" is in arrears. We will keep you informed as servicing actions progress.` | Confirmed investors | platform only | `applyOverdueLateCharge` (~5288) |
 | `note_defaulted` | LIVE | `Your Note Is in Default` | `"{noteTitle}" has been marked as default.` | Issuer org, all members | platform only | `markDefault` (~5807) — event `NOTE_DEFAULT_MARKED` |
 | `note_defaulted_investor` | LIVE | `Your Investment Is in Default` | `"{noteTitle}" has been marked as default. This may affect recovery timelines; check your investments view for updates.` | Confirmed investors | platform only | `markDefault` (~5807) |
-| `withdrawal_submitted_to_trustee` | LIVE | `Withdrawal Submitted to Trustee` | `Withdrawal instruction {withdrawalId} has been submitted to the trustee.` | Issuer org, all members | platform only | `markWithdrawalSubmitted` (~6274) — event `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` |
+| `withdrawal_submitted_to_trustee` | LIVE | `Withdrawal Submitted to Trustee` | `Withdrawal instruction {withdrawalReference} has been submitted to the trustee.` | Issuer org, all members | platform only | `markWithdrawalSubmitted` (~6274) — event `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` |
 | `note_payment_rejected` | LIVE | `Repayment Rejected` | `Your repayment for note {noteTitle} was rejected. Please review the repayment details.` | Issuer org, all members | platform only | `notes/service.ts:rejectPayment` — event `PAYMENT_REJECTED`. Idempotency includes `paymentId`. |
 | `withdrawal_completed` | LIVE | `Your Disbursement Is Complete` | `The disbursement for note {noteTitle} has been completed.` | Issuer org, all members | platform only | `notes/service.ts:markWithdrawalCompleted` — event `WITHDRAWAL_COMPLETED`, **only when `isIssuerFinancingDisbursement`**. Residual return / investor / admin-adjustment withdrawals stay silent. Idempotency includes `withdrawalId`. |
 | `deposit_name_check_rejected` | LIVE | `Deposit Verification Failed` | `Your deposit could not be verified and will be returned.` | Members of the deposit's investor organization | platform only | `payment/admin-service.ts:rejectNameCheck` — event `NAME_CHECK_REJECTED`. `GatewayPayment` has no depositor user id; ownership is `investor_organization_id`. Gated to `INVESTOR_DEPOSIT`. Idempotency per payment + type + user. |

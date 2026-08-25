@@ -1,8 +1,7 @@
 /**
- * markWithdrawalSubmitted must fire the already-registered withdrawal_submitted_to_trustee
- * notification at the existing WITHDRAWAL_SUBMITTED_TO_TRUSTEE audit moment, targeting the
- * issuer organisation only (never investor withdrawals), without altering the audit event
- * timing or trustee workflow itself.
+ * markWithdrawalSubmitted fires notifyWithdrawalSubmittedToTrustee (main helper in
+ * withdrawal-notifications) at the WITHDRAWAL_SUBMITTED_TO_TRUSTEE audit moment.
+ * Recipient routing (investor vs issuer org) lives in that helper, not here.
  */
 jest.mock("./mapper", () => ({
   ...jest.requireActual<typeof import("./mapper")>("./mapper"),
@@ -14,10 +13,7 @@ jest.mock("../../lib/audit", () => ({
   createNoteEventRow: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.mock("../notification/note-lifecycle-notifications", () => ({
-  ...jest.requireActual<typeof import("../notification/note-lifecycle-notifications")>(
-    "../notification/note-lifecycle-notifications"
-  ),
+jest.mock("../notification/withdrawal-notifications", () => ({
   notifyWithdrawalSubmittedToTrustee: jest.fn().mockResolvedValue(undefined),
 }));
 
@@ -26,6 +22,14 @@ jest.mock("../../lib/prisma", () => ({
     withdrawalInstruction: {
       findUnique: jest.fn(),
     },
+    platformFinanceSetting: {
+      upsert: jest.fn().mockResolvedValue({
+        id: "pfs-1",
+        key: "DEFAULT",
+        trustee_letter_config: null,
+        updated_at: new Date("2026-08-26T00:00:00.000Z"),
+      }),
+    },
     $transaction: jest.fn(),
   },
 }));
@@ -33,7 +37,7 @@ jest.mock("../../lib/prisma", () => ({
 import { WithdrawalStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { createNoteEventRow } from "../../lib/audit";
-import * as noteLifecycle from "../notification/note-lifecycle-notifications";
+import { notifyWithdrawalSubmittedToTrustee } from "../notification/withdrawal-notifications";
 import { NoteService } from "./service";
 
 describe("NoteService.markWithdrawalSubmitted — trustee notification wiring", () => {
@@ -64,6 +68,7 @@ describe("NoteService.markWithdrawalSubmitted — trustee notification wiring", 
       id: "wd-1",
       note_id: "note-1",
       issuer_organization_id: "iss-1",
+      display_reference: "WDL-ARF-202608-A1Z",
       status: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
     });
 
@@ -75,18 +80,22 @@ describe("NoteService.markWithdrawalSubmitted — trustee notification wiring", 
       expect.objectContaining({
         noteId: "note-1",
         eventType: "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
-        metadata: { withdrawalId: "wd-1" },
+        metadata: { withdrawalId: "wd-1", withdrawalReference: "WDL-ARF-202608-A1Z" },
       })
     );
-    expect(noteLifecycle.notifyWithdrawalSubmittedToTrustee).toHaveBeenCalledTimes(1);
-    expect(noteLifecycle.notifyWithdrawalSubmittedToTrustee).toHaveBeenCalledWith({
+    expect(notifyWithdrawalSubmittedToTrustee).toHaveBeenCalledTimes(1);
+    expect(notifyWithdrawalSubmittedToTrustee).toHaveBeenCalledWith({
       notificationService: expect.any(Object),
-      withdrawalId: "wd-1",
-      issuerOrganizationId: "iss-1",
+      withdrawal: expect.objectContaining({
+        id: "wd-1",
+        note_id: "note-1",
+        issuer_organization_id: "iss-1",
+        display_reference: "WDL-ARF-202608-A1Z",
+      }),
     });
   });
 
-  it("does not notify for an investor withdrawal (no issuer_organization_id)", async () => {
+  it("still notifies for an investor withdrawal so the helper can route to the investor org", async () => {
     (prisma.withdrawalInstruction.findUnique as jest.Mock).mockResolvedValue({
       id: "wd-2",
       status: WithdrawalStatus.LETTER_GENERATED,
@@ -96,6 +105,7 @@ describe("NoteService.markWithdrawalSubmitted — trustee notification wiring", 
       id: "wd-2",
       note_id: "note-2",
       issuer_organization_id: null,
+      display_reference: "WDL-202608-X7A",
       status: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
     });
 
@@ -104,9 +114,20 @@ describe("NoteService.markWithdrawalSubmitted — trustee notification wiring", 
 
     expect(createNoteEventRow).toHaveBeenCalledWith(
       prisma,
-      expect.objectContaining({ eventType: "WITHDRAWAL_SUBMITTED_TO_TRUSTEE" })
+      expect.objectContaining({
+        eventType: "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
+        metadata: { withdrawalId: "wd-2", withdrawalReference: "WDL-202608-X7A" },
+      })
     );
-    expect(noteLifecycle.notifyWithdrawalSubmittedToTrustee).not.toHaveBeenCalled();
+    expect(notifyWithdrawalSubmittedToTrustee).toHaveBeenCalledTimes(1);
+    expect(notifyWithdrawalSubmittedToTrustee).toHaveBeenCalledWith({
+      notificationService: expect.any(Object),
+      withdrawal: expect.objectContaining({
+        id: "wd-2",
+        issuer_organization_id: null,
+        display_reference: "WDL-202608-X7A",
+      }),
+    });
   });
 
   it("still writes the audit event and status transition when the withdrawal has no linked note", async () => {
@@ -119,6 +140,7 @@ describe("NoteService.markWithdrawalSubmitted — trustee notification wiring", 
       id: "wd-3",
       note_id: null,
       issuer_organization_id: "iss-3",
+      display_reference: "WDL-202608-B2C",
       status: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
     });
 
@@ -126,10 +148,14 @@ describe("NoteService.markWithdrawalSubmitted — trustee notification wiring", 
     await service.markWithdrawalSubmitted("wd-3", actor);
 
     expect(createNoteEventRow).not.toHaveBeenCalled();
-    expect(noteLifecycle.notifyWithdrawalSubmittedToTrustee).toHaveBeenCalledWith({
+    expect(notifyWithdrawalSubmittedToTrustee).toHaveBeenCalledWith({
       notificationService: expect.any(Object),
-      withdrawalId: "wd-3",
-      issuerOrganizationId: "iss-3",
+      withdrawal: expect.objectContaining({
+        id: "wd-3",
+        note_id: null,
+        issuer_organization_id: "iss-3",
+        display_reference: "WDL-202608-B2C",
+      }),
     });
   });
 });

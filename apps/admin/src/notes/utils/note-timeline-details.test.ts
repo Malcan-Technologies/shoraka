@@ -103,6 +103,23 @@ describe("extractNoteTimelineDetails", () => {
     expect(compact).toEqual([]);
     expect(prose).toEqual([]);
   });
+
+  it("shows withdrawal id and display reference for trustee submission", () => {
+    const { compact, prose } = extractNoteTimelineDetails(
+      event({
+        eventType: "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
+        metadata: {
+          withdrawalId: "clyk2n9x0001qwertyuiop",
+          withdrawalReference: "WDL-ARF-202608-A1Z",
+        },
+      })
+    );
+    expect(compact).toEqual([
+      { key: "withdrawalId", label: "Withdrawal Id", value: "clyk2n9x0001qwertyuiop" },
+      { key: "withdrawalReference", label: "Withdrawal Reference", value: "WDL-ARF-202608-A1Z" },
+    ]);
+    expect(prose).toEqual([]);
+  });
 });
 
 describe("noteDocumentFileName", () => {

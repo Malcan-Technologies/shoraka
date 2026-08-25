@@ -81,6 +81,7 @@ import {
   resolveFinancingTenureDays,
   invoiceFinancingExceedsMaxRatio,
   INVOICE_FINANCING_RATIO_CAP_MESSAGE,
+  formatWithdrawalReference,
 } from "@cashsouk/types";
 import {
   creditInvestorBalance,
@@ -6708,9 +6709,14 @@ export class NoteService {
       }
       return tx.withdrawalInstruction.findUniqueOrThrow({ where: { id } });
     });
+    const withdrawalReference = formatWithdrawalReference({
+      displayReference: withdrawal.display_reference,
+      id: withdrawal.id,
+    });
     if (withdrawal.note_id) {
       await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_SUBMITTED_TO_TRUSTEE", actor, {
         withdrawalId: id,
+        withdrawalReference,
       });
     }
     try {

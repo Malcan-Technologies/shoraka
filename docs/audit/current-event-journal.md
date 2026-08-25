@@ -20,7 +20,7 @@ Count:
 - INTENTIONALLY_DIFFERENT: 10
 - STANDARDIZATION_RECOMMENDED: 43
 - LEGACY_NAMING_TRAP: 15
-- REQUIRES_DATA_CHANGE: 2
+- REQUIRES_DATA_CHANGE: 1
 
 Primary classification is one of the first four. REQUIRES_DATA_CHANGE is an additional flag on the recommended wording, not a fifth exclusive class.
 
@@ -11936,12 +11936,12 @@ Stored in:
 Admin Activity
 - Visible: YES
 - Title: `Withdrawal Submitted to Trustee`
-- Description: `withdrawalId`
+- Description: `withdrawalId`, `withdrawalReference`
 
 Admin Detail
 - Visible: YES
 - Title: `Withdrawal Submitted to Trustee`
-- Description: `withdrawalId`
+- Description: `withdrawalId`, `withdrawalReference`
 
 Issuer General Activity
 - Visible: NO
@@ -11970,13 +11970,13 @@ Investor General Activity
 CSV / Export
 - Included: YES
 - Title/Event: `Withdrawal Submitted to Trustee`
-- Description/Remark: `withdrawalId`
+- Description/Remark: `withdrawalId`, `withdrawalReference`
 
 Notification
 - Sends: YES
 - Type: `withdrawal_submitted_to_trustee`
 - Title: `Withdrawal Submitted to Trustee`
-- Message: `Withdrawal instruction [withdrawal UUID] has been submitted to the trustee.`
+- Message: `Withdrawal instruction [withdrawalReference] has been submitted to the trustee.`
 - Recipient: `issuer owner + org members`
 - Channel: `platform-only (sendTypedPlatformOnly)`
 
@@ -11993,9 +11993,9 @@ Direct Email Outside Notification Registry
 Classification:
 STANDARDIZATION_RECOMMENDED
 
-Notification is sent (issuer org, platform only) but the event is hidden from issuer activity. Message interpolates the internal withdrawal UUID, not a display reference or note title.
+Notification is sent (issuer org, platform only) but the event is hidden from issuer activity. Message interpolates the withdrawal display reference (`withdrawalReference`); the internal `withdrawalId` remains in audit metadata and notification payload for linking.
 
-REQUIRES_DATA_CHANGE: recommended wording needs a field the current writer/notification payload does not pass.
+RESOLVED (2026-08-26): `REQUIRES_DATA_CHANGE` for the UUID-in-message is closed. The existing `display_reference` is now stored as `withdrawalReference` on new events and used in notification copy. Historical rows are not rewritten. Recommended actor-sentence / note-title wording below is still not implemented.
 
 ### RECOMMENDED CANONICAL PRESENTATION
 

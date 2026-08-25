@@ -70,4 +70,24 @@ describe("notification coverage templates", () => {
     const done = NOTIFICATION_TEMPLATES[NotificationTypeIds.DEPOSIT_REFUNDED];
     expect(done.message({ amount: 1500 })).toBe("Your refund of RM1,500 has been completed.");
   });
+
+  it("renders withdrawal submitted-to-trustee copy with the display reference", () => {
+    const t = NOTIFICATION_TEMPLATES[NotificationTypeIds.WITHDRAWAL_SUBMITTED_TO_TRUSTEE];
+    expect(t.title).toBe("Withdrawal Submitted to Trustee");
+    const payload = {
+      withdrawalId: "clyk2n9x0001qwertyuiop",
+      noteId: "note-1",
+      noteTitle: "Note One",
+      displayReference: "WDL-ARF-202608-A1Z",
+      withdrawalType: "ISSUER_DISBURSEMENT",
+      portalType: "issuer" as const,
+    };
+    expect(t.message(payload)).toBe(
+      'Withdrawal instruction WDL-ARF-202608-A1Z for "Note One" (ISSUER_DISBURSEMENT) has been submitted to the trustee.'
+    );
+    expect(t.message(payload)).not.toContain("clyk2n9x0001qwertyuiop");
+    expect(typeof t.linkPath === "function" ? t.linkPath(payload) : t.linkPath).toBe(
+      "/financing/notes/note-1"
+    );
+  });
 });
