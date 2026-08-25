@@ -173,7 +173,7 @@ in §2; notifications in §3–§6; counts, legacy names, and the reconciliation
 | `ONBOARDING_RESET` | **UNREACHABLE** | Admin cleared the onboarded flag | Admin | onboarding_logs | — | — | — | — | — | Same `resetOnboarding` writer as the `access_logs` variant (route-only, no SDK/hook/UI caller) — also has a label but is not in the admin org-detail query allowlist |
 | `ONBOARDING_STATUS_UPDATED` | LIVE | Generic status transition bucket | Applicant / Admin / System | onboarding_logs | Y | — | — | — | Y | Carries KYC outcomes via `metadata.trigger` |
 | `ONBOARDING_REJECTED` | LIVE | RegTank **individual** rejection | System | onboarding_logs | Y | Y | Y | `onboarding_rejected` | Y | |
-| `COD_REJECTED` | LIVE | RegTank **corporate (COD)** rejection | System | onboarding_logs | — | Y | Y | `onboarding_rejected` | — | Portal-visible but missing from the admin org filter |
+| `COD_REJECTED` | LIVE | RegTank **corporate (COD)** rejection | System | onboarding_logs | Y | Y | Y | `onboarding_rejected` | Y | Admin org-detail Activity/CSV allowlist gap resolved 2026-08-24 |
 | `ONBOARDING_APPROVED` | LIVE | Submission/provider-gate approval | System / Admin | onboarding_logs | Y | Y | Y | — | Y | **Not** the final approval — see `FINAL_APPROVAL_COMPLETED` |
 | `FINAL_APPROVAL_COMPLETED` | LIVE | Platform access granted (terminal) | Admin | onboarding_logs | Y | Y | Y | `onboarding_approved` | Y | The real "you're approved" moment |
 | `TNC_APPROVED` | LIVE | User accepted Terms & Conditions | Applicant | onboarding_logs | Y | — | — | — | Y | Org-level gate; per-PDF evidence is separate |
@@ -599,12 +599,12 @@ matched (`issuer_organization_id` vs `investor_organization_id`).
 **BUSINESS TRIGGER:** Admin uses "restart onboarding"; the previous request is cancelled and a new one issued. **ACTOR:** Admin (subject `user_id` is the applicant; `cancelledBy` names the admin)
 **WRITER:** `admin/service.ts:restartOnboarding` (~3839) · **TARGET:** organization
 **STORED EVIDENCE:** metadata `cancelledOnboardingId`, `cancelledRequestId`, `newRequestId`, `previousStatus`, `cancelledBy`, `reason:"Restart requested by admin"`, `organizationType`, `organizationId`
-**ADMIN ACTIVITY:** Shown (raw) · **ADMIN DETAIL:** Shown — Copy: `"Onboarding Cancelled"`
-**ISSUER GENERAL ACTIVITY:** Shown — title `"Onboarding Cancelled"`, description `"Your organization onboarding was cancelled and will not continue."`
+**ADMIN ACTIVITY:** Shown (raw) · **ADMIN DETAIL:** Shown — Copy: `"Onboarding Cancelled"` (admin's own forensic wording, unchanged)
+**ISSUER GENERAL ACTIVITY:** Shown — title `"Onboarding Restarted"`, description `"Your previous onboarding request was cancelled and a new onboarding request has been started."` *(corrected 2026-08-24 — see `audit-event-catalog.md` §1.4 and `activity-notification-copy-review.md` for the BEFORE/AFTER)*
 **ISSUER APPLICATION DETAIL / FACILITY DETAIL:** N/A
 **INVESTOR GENERAL ACTIVITY:** Shown — identical copy · **INVESTOR DETAIL:** N/A
-**CSV / EXPORT:** Included — `"Onboarding Cancelled"`
-**NOTIFICATION:** NO — *note the copy says "will not continue", but the admin's intent is a restart. Flagged for product in `audit-product-gap-review.md`, not changed here.*
+**CSV / EXPORT:** Included — `"Onboarding Cancelled"` (admin's own forensic wording, unchanged)
+**NOTIFICATION:** NO
 
 ---
 
@@ -638,11 +638,11 @@ matched (`issuer_organization_id` vs `investor_organization_id`).
 **WRITER:** `regtank/webhooks/cod-handler.ts` (~1547 investor, ~1599 issuer) · **TARGET:** organization
 **STORED EVIDENCE:** metadata `organizationId`, `requestId`, `previousStatus`, `newStatus`. **No `reason` field** — an open evidence gap (`audit-product-gap-review.md` §6.1).
 **ADMIN ACTIVITY:** Shown (raw export)
-**ADMIN DETAIL:** **Hidden (not queried)** — absent from `ORGANIZATION_ACTIVITY_EVENT_TYPES` in `use-organization-logs.ts`, so the admin org timeline never fetches it. *This is the inverse of the portal situation and is an open gap.*
+**ADMIN DETAIL:** Shown — Copy: `"Onboarding Rejected"` — added to `ONBOARDING_EVENT_TYPES` in `use-organization-logs.ts` 2026-08-24, so the admin org timeline now fetches it.
 **ISSUER GENERAL ACTIVITY:** Shown — title `"Onboarding Rejected"`, description `"Your organization onboarding was rejected."` *(added 2026-08-24)*
 **INVESTOR GENERAL ACTIVITY:** Shown — identical copy
 **Other surfaces:** N/A
-**CSV / EXPORT:** **Excluded** from the admin org-timeline CSV (follows the same query filter); included in the raw `/onboarding-logs/export` endpoint.
+**CSV / EXPORT:** Included — the admin org-timeline CSV shares the same query and now includes it, alongside the raw `/onboarding-logs/export` endpoint.
 **NOTIFICATION:** YES — `onboarding_rejected`, identical to the individual path. Recipient `onboarding.user_id`, platform + email, SAME MOMENT. **SOURCE:** `cod-handler.ts:1580` (investor), `:1632` (issuer).
 
 ---
@@ -1115,11 +1115,12 @@ would not reveal:
    `metadata.investorOrganizationId` matches their own organization — otherwise one investor could
    see another's commitment on a shared note.
 
-**⚠️ The admin note timeline and its CSV export are capped at 50 events**
-(`notes/repository.ts:19` — `events: { orderBy: { created_at: "desc" }, take: 50 }`). The CSV is
-built from the same payload, so it **inherits the cap**. A note with a long servicing history
-silently loses its earliest events from both the UI and any export taken from it. Tracked as an
-open gap in `audit-product-gap-review.md` §4.9.
+**The admin note timeline UI stays capped at 50 events**
+(`notes/repository.ts:19` — `events: { orderBy: { created_at: "desc" }, take: 50 }`), but the
+**CSV/export path is uncapped** (resolved 2026-08-24 — see `audit-event-catalog.md` §3.4 and
+`audit-product-gap-review.md` §4 item 9). `NoteService.listEvents` (the export data source) uses
+`NoteRepository.findAllEventsByNoteId`, which has no `take` limit, so a note with a long servicing
+history loses earliest events only from the paginated UI timeline, never from the export.
 
 #### 2.6.3 Note lifecycle events
 
@@ -1264,8 +1265,13 @@ meaning. Related but separate operational tables: `gateway_webhook_events` (raw 
   `gateway-payment-copy.ts` (~213), **display-only** with a `formatGatewayEventTitle()` fallback.
 - CSV / EXPORT: **N/A** — no export exists for this table.
 
-**NOTIFICATION for every event in this domain: NO.** There are no notification calls anywhere in
-`apps/api/src/modules/payment/`.
+**NOTIFICATION:** silent for most of this domain, with three live exceptions gated to
+`GatewayPaymentPurpose.INVESTOR_DEPOSIT` (platform only, members of the deposit's investor
+organization) — `NAME_CHECK_REJECTED` → `deposit_name_check_rejected`, `REFUND_INITIATED` →
+`deposit_refund_initiated`, `REFUNDED` → `deposit_refunded` (added 2026-08-25; see §3.2 below and
+`apps/api/src/modules/notification/gateway-payment-notifications.ts`). `NAME_CHECK`,
+`NAME_CHECK_APPROVED`, `CAPTURE_MISMATCH`, `EXPIRED`, and `REFUND_WALLET_REVERSAL_FAILED` remain
+silent.
 
 | Event Type | Status | Trigger / writer | Actor | Evidence | Admin copy |
 |---|---|---|---|---|---|
