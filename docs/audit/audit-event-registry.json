@@ -3654,18 +3654,21 @@
       "docRef": "2.6"
     },
     {
-      "eventType": "SERVICE_FEE_TRUSTEE_LETTER_GENERATED",
+      "eventType": "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
       "status": "LIVE",
       "domain": "settlement",
       "store": "note_events",
       "canonicalName": "Settlement trustee instruction letter generated",
-      "aliases": [],
+      "aliases": ["SERVICE_FEE_TRUSTEE_LETTER_GENERATED"],
       "doNotConfuseWith": [
-        "WITHDRAWAL_LETTER_GENERATED (disbursement side)"
+        "WITHDRAWAL_LETTER_GENERATED (disbursement side)",
+        "SETTLEMENT_TRUSTEE_EMAIL_SENT",
+        "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED",
+        "SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED"
       ],
       "actor": "Admin",
       "target": "note",
-      "writer": "apps/api/src/lib/audit/note-events.ts:createNoteEventRow",
+      "writer": "apps/api/src/modules/notes/service.ts:generateServiceFeeTrusteeLetter",
       "surfaces": {
         "adminActivity": "SHOWN",
         "adminDetail": "SHOWN",
@@ -3677,6 +3680,34 @@
         "csv": "INCLUDED"
       },
       "notification": null,
+      "note": "Live technical ID as of 2026-08-26. Historical rows may still store SERVICE_FEE_TRUSTEE_LETTER_GENERATED and are not rewritten. Metadata: s3Key, settlementId.",
+      "docRef": "2.6"
+    },
+    {
+      "eventType": "SERVICE_FEE_TRUSTEE_LETTER_GENERATED",
+      "status": "DISPLAY_ALIAS",
+      "domain": "settlement",
+      "store": "note_events",
+      "canonicalName": "Settlement trustee instruction letter generated",
+      "aliases": [],
+      "doNotConfuseWith": [
+        "SETTLEMENT_TRUSTEE_LETTER_GENERATED"
+      ],
+      "actor": "Admin",
+      "target": "note",
+      "writer": null,
+      "surfaces": {
+        "adminActivity": "SHOWN",
+        "adminDetail": "SHOWN",
+        "issuerActivity": "HIDDEN_NOT_QUERIED",
+        "issuerApplicationDetail": "NA",
+        "issuerFacilityDetail": "NA",
+        "investorActivity": "HIDDEN_NOT_QUERIED",
+        "investorDetail": "NA",
+        "csv": "INCLUDED"
+      },
+      "notification": null,
+      "note": "Legacy stored type. Readers map it to the same copy as SETTLEMENT_TRUSTEE_LETTER_GENERATED. No new writes. Historical rows not rewritten.",
       "docRef": "2.6"
     },
     {
@@ -3687,9 +3718,9 @@
       "canonicalName": "Settlement trustee instruction email delivered or redelivered",
       "aliases": ["SERVICE_FEE_TRUSTEE_EMAIL_SENT"],
       "doNotConfuseWith": [
-        "SERVICE_FEE_TRUSTEE_LETTER_GENERATED",
-        "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED",
-        "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED",
+        "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
+        "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED",
+        "SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED",
         "WITHDRAWAL_TRUSTEE_EMAIL_SENT"
       ],
       "actor": "Admin",
@@ -3737,18 +3768,21 @@
       "docRef": "2.6"
     },
     {
-      "eventType": "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED",
+      "eventType": "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED",
       "status": "LIVE",
       "domain": "settlement",
       "store": "note_events",
       "canonicalName": "Settlement trustee letter submitted",
-      "aliases": [],
+      "aliases": ["SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED"],
       "doNotConfuseWith": [
-        "WITHDRAWAL_SUBMITTED_TO_TRUSTEE"
+        "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
+        "SETTLEMENT_TRUSTEE_EMAIL_SENT",
+        "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
+        "SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED"
       ],
       "actor": "Admin",
       "target": "note",
-      "writer": "apps/api/src/lib/audit/note-events.ts:createNoteEventRow",
+      "writer": "apps/api/src/modules/notes/service.ts:markServiceFeeTrusteeLetterSubmitted",
       "surfaces": {
         "adminActivity": "SHOWN",
         "adminDetail": "SHOWN",
@@ -3760,21 +3794,52 @@
         "csv": "INCLUDED"
       },
       "notification": null,
+      "note": "Live technical ID as of 2026-08-26. Historical rows may still store SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED and are not rewritten. Metadata: settlementId.",
       "docRef": "2.6"
     },
     {
-      "eventType": "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED",
+      "eventType": "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED",
+      "status": "DISPLAY_ALIAS",
+      "domain": "settlement",
+      "store": "note_events",
+      "canonicalName": "Settlement trustee letter submitted",
+      "aliases": [],
+      "doNotConfuseWith": [
+        "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED"
+      ],
+      "actor": "Admin",
+      "target": "note",
+      "writer": null,
+      "surfaces": {
+        "adminActivity": "SHOWN",
+        "adminDetail": "SHOWN",
+        "issuerActivity": "HIDDEN_NOT_QUERIED",
+        "issuerApplicationDetail": "NA",
+        "issuerFacilityDetail": "NA",
+        "investorActivity": "HIDDEN_NOT_QUERIED",
+        "investorDetail": "NA",
+        "csv": "INCLUDED"
+      },
+      "notification": null,
+      "note": "Legacy stored type. Readers map it to the same copy as SETTLEMENT_TRUSTEE_LETTER_SUBMITTED. No new writes. Historical rows not rewritten.",
+      "docRef": "2.6"
+    },
+    {
+      "eventType": "SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED",
       "status": "LIVE",
       "domain": "settlement",
       "store": "note_events",
       "canonicalName": "Trustee settlement instruction completed",
-      "aliases": [],
+      "aliases": ["SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED"],
       "doNotConfuseWith": [
-        "WITHDRAWAL_COMPLETED"
+        "WITHDRAWAL_COMPLETED",
+        "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
+        "SETTLEMENT_TRUSTEE_EMAIL_SENT",
+        "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED"
       ],
       "actor": "Admin",
       "target": "note",
-      "writer": "apps/api/src/lib/audit/note-events.ts:createNoteEventRow",
+      "writer": "apps/api/src/modules/notes/service.ts:markServiceFeeTrusteeInstructionCompleted",
       "surfaces": {
         "adminActivity": "SHOWN",
         "adminDetail": "SHOWN",
@@ -3791,6 +3856,34 @@
         "channel": "platform + email per registry",
         "triggerRelation": "SAME MOMENT"
       },
+      "note": "Live technical ID as of 2026-08-26. Historical rows may still store SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED and are not rewritten. Notification type/recipients/channel unchanged. Metadata: settlementId, completedAt.",
+      "docRef": "2.6"
+    },
+    {
+      "eventType": "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED",
+      "status": "DISPLAY_ALIAS",
+      "domain": "settlement",
+      "store": "note_events",
+      "canonicalName": "Trustee settlement instruction completed",
+      "aliases": [],
+      "doNotConfuseWith": [
+        "SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED"
+      ],
+      "actor": "Admin",
+      "target": "note",
+      "writer": null,
+      "surfaces": {
+        "adminActivity": "SHOWN",
+        "adminDetail": "SHOWN",
+        "issuerActivity": "HIDDEN_NOT_QUERIED",
+        "issuerApplicationDetail": "NA",
+        "issuerFacilityDetail": "NA",
+        "investorActivity": "HIDDEN_NOT_QUERIED",
+        "investorDetail": "NA",
+        "csv": "INCLUDED"
+      },
+      "notification": null,
+      "note": "Legacy stored type. Readers map it to the same copy as SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED. No new writes. Historical rows not rewritten. The live writer still triggers note_repaid_issuer once.",
       "docRef": "2.6"
     },
     {
@@ -3827,7 +3920,7 @@
       "canonicalName": "Trustee withdrawal letter PDF generated",
       "aliases": [],
       "doNotConfuseWith": [
-        "SERVICE_FEE_TRUSTEE_LETTER_GENERATED (settlement side)"
+        "SETTLEMENT_TRUSTEE_LETTER_GENERATED (settlement side)"
       ],
       "actor": "Admin",
       "target": "note",
@@ -3882,7 +3975,7 @@
       "canonicalName": "Withdrawal instruction submitted to the trustee",
       "aliases": [],
       "doNotConfuseWith": [
-        "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED",
+        "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED",
         "WITHDRAWAL_TRUSTEE_EMAIL_SENT"
       ],
       "actor": "Admin",
@@ -3939,7 +4032,7 @@
       "canonicalName": "Trustee payout completed",
       "aliases": [],
       "doNotConfuseWith": [
-        "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED"
+        "SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED"
       ],
       "actor": "Admin",
       "target": "note",

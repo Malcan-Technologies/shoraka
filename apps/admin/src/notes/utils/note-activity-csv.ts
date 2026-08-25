@@ -42,12 +42,18 @@ const EVENT_LABELS: Record<string, string> = {
   OVERDUE_LATE_CHARGE_CHECKED: "Overdue Review Completed",
   ARREARS_LETTER_GENERATED: "Arrears letter generated",
   DEFAULT_LETTER_GENERATED: "Default letter generated",
-  SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Settlement trustee letter generated",
+  SETTLEMENT_TRUSTEE_LETTER_GENERATED: "Settlement Trustee Letter Generated",
+  // Legacy stored type for historical rows; new writes use SETTLEMENT_TRUSTEE_LETTER_GENERATED.
+  SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Settlement Trustee Letter Generated",
   SETTLEMENT_TRUSTEE_EMAIL_SENT: "Settlement Trustee Email Sent",
   // Legacy stored type for historical rows; new writes use SETTLEMENT_TRUSTEE_EMAIL_SENT.
   SERVICE_FEE_TRUSTEE_EMAIL_SENT: "Settlement Trustee Email Sent",
-  SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Settlement trustee letter submitted",
-  SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement trustee instruction completed",
+  SETTLEMENT_TRUSTEE_LETTER_SUBMITTED: "Settlement Trustee Letter Submitted",
+  // Legacy stored type for historical rows; new writes use SETTLEMENT_TRUSTEE_LETTER_SUBMITTED.
+  SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Settlement Trustee Letter Submitted",
+  SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement Trustee Instruction Completed",
+  // Legacy stored type for historical rows; new writes use SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED.
+  SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement Trustee Instruction Completed",
   WITHDRAWAL_TRUSTEE_EMAIL_SENT: "Withdrawal Trustee Email Sent",
   NOTE_DEFAULT_MARKED: "Note Defaulted",
   WAIVE_FACILITY_FEE_COLLECTION: "Facility Fee Collection Waived",

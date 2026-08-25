@@ -5882,7 +5882,7 @@ export class NoteService {
           "The instruction has already been submitted to the trustee and cannot be regenerated."
         );
       }
-      await this.logEvent(tx, noteId, "SERVICE_FEE_TRUSTEE_LETTER_GENERATED", actor, {
+      await this.logEvent(tx, noteId, "SETTLEMENT_TRUSTEE_LETTER_GENERATED", actor, {
         s3Key: key,
         settlementId: settlement.id,
       });
@@ -5964,7 +5964,7 @@ export class NoteService {
           "Generate the trustee instruction PDF before marking it submitted."
         );
       }
-      await this.logEvent(tx, noteId, "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED", actor, {
+      await this.logEvent(tx, noteId, "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED", actor, {
         settlementId,
       });
     });
@@ -6159,7 +6159,7 @@ export class NoteService {
         },
       });
       noteMarkedRepaid = noteUpdate.count > 0;
-      await this.logEvent(tx, noteId, "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED", actor, {
+      await this.logEvent(tx, noteId, "SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED", actor, {
         settlementId,
         completedAt: completedAt.toISOString(),
       });
@@ -7253,7 +7253,12 @@ export class NoteService {
     }
 
     const events = await prisma.noteEvent.findMany({
-      where: { note_id: noteId, event_type: "SERVICE_FEE_TRUSTEE_LETTER_GENERATED" },
+      where: {
+        note_id: noteId,
+        event_type: {
+          in: ["SETTLEMENT_TRUSTEE_LETTER_GENERATED", "SERVICE_FEE_TRUSTEE_LETTER_GENERATED"],
+        },
+      },
       orderBy: { created_at: "desc" },
       select: { metadata: true, created_at: true },
     });

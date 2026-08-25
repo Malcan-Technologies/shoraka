@@ -717,7 +717,11 @@ export function SettlementPanel({
   }, [note.events]);
   const serviceFeeTrusteeLetters = persistedPostedSettlementId
     ? note.events
-        .filter((event) => event.eventType === "SERVICE_FEE_TRUSTEE_LETTER_GENERATED")
+        .filter(
+          (event) =>
+            event.eventType === "SETTLEMENT_TRUSTEE_LETTER_GENERATED" ||
+            event.eventType === "SERVICE_FEE_TRUSTEE_LETTER_GENERATED"
+        )
         .filter((event) => event.metadata?.settlementId === persistedPostedSettlementId)
         .map((event) => ({
           id: event.id,

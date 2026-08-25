@@ -131,5 +131,32 @@ describe("admin note events sorting", () => {
     expect(live.map((e) => e.id)).toEqual(["letter", "email"]);
     expect(legacy.map((e) => e.id)).toEqual(["letter", "email"]);
   });
+
+  it("treats live and legacy settlement trustee letter/submit/complete IDs as the same lifecycle slots", () => {
+    const createdAt = "2026-05-25T00:00:00.000Z";
+    const pairs = [
+      ["SETTLEMENT_TRUSTEE_LETTER_GENERATED", "SERVICE_FEE_TRUSTEE_LETTER_GENERATED"],
+      ["SETTLEMENT_TRUSTEE_LETTER_SUBMITTED", "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED"],
+      ["SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED", "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED"],
+    ] as const;
+
+    for (const [liveType, legacyType] of pairs) {
+      const live = sortAdminNoteEvents(
+        [
+          { id: "email", eventType: "SETTLEMENT_TRUSTEE_EMAIL_SENT", createdAt },
+          { id: "step", eventType: liveType, createdAt },
+        ],
+        "oldest-first"
+      );
+      const legacy = sortAdminNoteEvents(
+        [
+          { id: "email", eventType: "SETTLEMENT_TRUSTEE_EMAIL_SENT", createdAt },
+          { id: "step", eventType: legacyType, createdAt },
+        ],
+        "oldest-first"
+      );
+      expect(live.map((e) => e.id)).toEqual(legacy.map((e) => e.id));
+    }
+  });
 });
 

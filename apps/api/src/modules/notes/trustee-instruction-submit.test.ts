@@ -1,6 +1,18 @@
 jest.mock("./mapper", () => ({
   ...jest.requireActual<typeof import("./mapper")>("./mapper"),
   mapNoteDetail: jest.fn(() => ({ id: "note-1" })),
+  mapNoteListItem: jest.fn(() => ({ paymasterName: "Paymaster Co", issuerName: "Issuer Co" })),
+}));
+
+jest.mock("./trustee-letters/trustee-letter-pdf.renderer", () => ({
+  renderTrusteeLetterPdf: jest.fn().mockResolvedValue(Buffer.from("pdf")),
+}));
+
+jest.mock("../../lib/s3/client", () => ({
+  generatePresignedUploadUrl: jest.fn(),
+  generatePresignedViewUrl: jest.fn(),
+  getS3ObjectBuffer: jest.fn(),
+  putS3ObjectBuffer: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock("./trustee-letters/trustee-instruction-email", () => ({
@@ -16,15 +28,30 @@ jest.mock("../../lib/prisma", () => ({
     withdrawalInstruction: {
       findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
+      findFirst: jest.fn(),
       updateMany: jest.fn(),
     },
     noteSettlement: {
       findFirst: jest.fn(),
       updateMany: jest.fn(),
     },
+    notePayment: {
+      findMany: jest.fn(),
+    },
+    issuerOrganization: {
+      findUnique: jest.fn(),
+    },
     noteEvent: {
       findMany: jest.fn(),
       create: jest.fn(),
+    },
+    note: {
+      findUnique: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    noteLedgerEntry: {
+      findFirst: jest.fn(),
+      upsert: jest.fn(),
     },
   },
 }));
@@ -49,6 +76,22 @@ jest.mock("../notification/withdrawal-notifications", () => ({
   }),
 }));
 
+jest.mock("../notification/note-lifecycle-notifications", () => {
+  const actual =
+    jest.requireActual<typeof import("../notification/note-lifecycle-notifications")>(
+      "../notification/note-lifecycle-notifications"
+    );
+  return {
+    ...actual,
+    notifyNoteIssuerRepaid: jest.fn().mockResolvedValue(undefined),
+  };
+});
+
+jest.mock("../../lib/refresh-contract-facility", () => ({
+  lockContractRow: jest.fn(),
+  refreshContractFacilityForNote: jest.fn(),
+}));
+
 import {
   NoteSettlementStatus,
   ServiceFeeTrusteeInstructionStatus,
@@ -56,6 +99,8 @@ import {
   WithdrawalType,
 } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
+import * as noteLifecycle from "../notification/note-lifecycle-notifications";
+import { noteRepository } from "./repository";
 import { NoteService } from "./service";
 import { sendTrusteeInstructionPdfEmail } from "./trustee-letters/trustee-instruction-email";
 import { notifyWithdrawalSubmittedToTrustee } from "../notification/withdrawal-notifications";
@@ -234,6 +279,57 @@ describe("trustee instruction submit email wiring", () => {
     });
   });
 
+  describe("generateServiceFeeTrusteeLetter", () => {
+    it("writes SETTLEMENT_TRUSTEE_LETTER_GENERATED and does not emit the legacy ID", async () => {
+      (prisma.noteSettlement.findFirst as jest.Mock).mockResolvedValue({
+        ...settlementRow,
+        preview_snapshot: {},
+        payment_id: null,
+        gross_receipt_amount: 100,
+        posted_at: new Date("2026-08-01T00:00:00.000Z"),
+        service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
+      });
+      (noteRepository.findById as jest.Mock).mockResolvedValue({
+        id: "note-1",
+        issuer_organization_id: "org-1",
+      });
+      (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({
+        id: "org-1",
+        name: "Issuer Co",
+        bank_account_details: null,
+      });
+      (prisma.withdrawalInstruction.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.notePayment.findMany as jest.Mock).mockResolvedValue([]);
+      jest
+        .spyOn(
+          service as unknown as { resolveTrusteeSignatureImageBuffer: () => Promise<null> },
+          "resolveTrusteeSignatureImageBuffer"
+        )
+        .mockResolvedValue(null);
+
+      await expect(
+        service.generateServiceFeeTrusteeLetter("note-1", "set-1", actor)
+      ).resolves.toEqual({ s3Key: expect.stringContaining("note-letters/note-1/service-fee-trustee/") });
+
+      expect(prisma.noteEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            event_type: "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
+            metadata: expect.objectContaining({
+              settlementId: "set-1",
+              s3Key: expect.stringContaining("note-letters/note-1/service-fee-trustee/"),
+            }),
+          }),
+        })
+      );
+      expect(prisma.noteEvent.create).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ event_type: "SERVICE_FEE_TRUSTEE_LETTER_GENERATED" }),
+        })
+      );
+    });
+  });
+
   describe("markServiceFeeTrusteeLetterSubmitted", () => {
     it("keeps status-only behavior when auto-send is off", async () => {
       (prisma.noteSettlement.findFirst as jest.Mock).mockResolvedValue(settlementRow);
@@ -249,6 +345,19 @@ describe("trustee instruction submit email wiring", () => {
             note_id: "note-1",
             service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
           },
+        })
+      );
+      expect(prisma.noteEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            event_type: "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED",
+            metadata: { settlementId: "set-1" },
+          }),
+        })
+      );
+      expect(prisma.noteEvent.create).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ event_type: "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED" }),
         })
       );
     });
@@ -267,6 +376,16 @@ describe("trustee instruction submit email wiring", () => {
         s3Key: "note-letters/n1/letter.pdf",
         config: autoSendConfig,
       });
+      expect(prisma.noteEvent.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            note_id: "note-1",
+            event_type: {
+              in: ["SETTLEMENT_TRUSTEE_LETTER_GENERATED", "SERVICE_FEE_TRUSTEE_LETTER_GENERATED"],
+            },
+          },
+        })
+      );
       expect(prisma.noteSettlement.updateMany).toHaveBeenNthCalledWith(
         1,
         expect.objectContaining({
@@ -627,6 +746,53 @@ describe("trustee instruction submit email wiring", () => {
       expect(sendTrusteeInstructionPdfEmail).toHaveBeenCalled();
       expect(prisma.noteEvent.create).not.toHaveBeenCalled();
       expect(service.getAdminNoteDetail).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("markServiceFeeTrusteeInstructionCompleted", () => {
+    it("writes SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED and notifies the issuer once", async () => {
+      (prisma.noteSettlement.findFirst as jest.Mock).mockResolvedValue({
+        ...settlementRow,
+        service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+        issuer_residual_amount: 0,
+      });
+      (prisma.note.findUnique as jest.Mock).mockResolvedValue({
+        id: "note-1",
+        source_contract_id: null,
+        source_invoice_id: null,
+        source_application_id: null,
+        issuer_organization_id: "org-1",
+        title: "Note One",
+        note_reference: "NT-1",
+      });
+      (prisma.note.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+      await expect(
+        service.markServiceFeeTrusteeInstructionCompleted("note-1", "set-1", actor)
+      ).resolves.toMatchObject({ id: "note-1" });
+
+      expect(prisma.noteEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            event_type: "SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED",
+            metadata: expect.objectContaining({ settlementId: "set-1" }),
+          }),
+        })
+      );
+      expect(prisma.noteEvent.create).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            event_type: "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED",
+          }),
+        })
+      );
+      expect(noteLifecycle.notifyNoteIssuerRepaid).toHaveBeenCalledTimes(1);
+      expect(noteLifecycle.notifyNoteIssuerRepaid).toHaveBeenCalledWith(
+        expect.objectContaining({
+          noteId: "note-1",
+          issuerOrganizationId: "org-1",
+        })
+      );
     });
   });
 });

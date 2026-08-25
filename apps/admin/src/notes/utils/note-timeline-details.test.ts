@@ -94,6 +94,27 @@ describe("extractNoteTimelineDetails", () => {
     );
   });
 
+  it("preserves settlement trustee letter metadata for live and legacy generated IDs", () => {
+    const live = extractNoteTimelineDetails(
+      event({
+        eventType: "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
+        metadata: { settlementId: "set-1", s3Key: "note-letters/n1/letter.pdf" },
+      })
+    );
+    const legacy = extractNoteTimelineDetails(
+      event({
+        eventType: "SERVICE_FEE_TRUSTEE_LETTER_GENERATED",
+        metadata: { settlementId: "set-legacy", s3Key: "note-letters/n1/legacy.pdf" },
+      })
+    );
+    expect(live.compact).toEqual([{ key: "settlementId", label: "Settlement Id", value: "set-1" }]);
+    expect(legacy.compact).toEqual([
+      { key: "settlementId", label: "Settlement Id", value: "set-legacy" },
+    ]);
+    expect(live.compact.find((row) => row.key === "s3Key")).toBeUndefined();
+    expect(legacy.compact.find((row) => row.key === "s3Key")).toBeUndefined();
+  });
+
   it("builds an activation sentence with the actor and note title", () => {
     const { compact, prose } = extractNoteTimelineDetails(
       event({ eventType: "ACTIVATE", actorName: "Jane Admin" }),

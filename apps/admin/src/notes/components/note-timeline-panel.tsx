@@ -31,7 +31,10 @@ function extractS3Key(event: NoteEvent) {
 
 function buildDownloadName(event: NoteEvent) {
   if (event.eventType === "ARREARS_LETTER_GENERATED") return `arrears-letter-${event.noteId}.pdf`;
-  if (event.eventType === "SERVICE_FEE_TRUSTEE_LETTER_GENERATED") {
+  if (
+    event.eventType === "SETTLEMENT_TRUSTEE_LETTER_GENERATED" ||
+    event.eventType === "SERVICE_FEE_TRUSTEE_LETTER_GENERATED"
+  ) {
     return `settlement-trustee-letter-${event.noteId}.pdf`;
   }
   return `note-letter-${event.noteId}.pdf`;

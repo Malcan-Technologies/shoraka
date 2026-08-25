@@ -19,7 +19,9 @@ were integrated into the existing Admin Activity / Detail / CSV presentation sys
 
 Post-standardization technical-ID note (2026-08-26): new writes now emit `SETTLEMENT_TRUSTEE_EMAIL_SENT`. `SERVICE_FEE_TRUSTEE_EMAIL_SENT` is retained only as a read-compatible historical ID. Presentation copy above is unchanged. Historical rows are not rewritten.
 
-Do not treat either as a duplicate of `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` or `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED`. Trustee SES email and issuer platform notification remain separate products.
+Post-standardization technical-ID note (2026-08-26, follow-on): new writes now also emit `SETTLEMENT_TRUSTEE_LETTER_GENERATED`, `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED`, and `SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED`. The corresponding `SERVICE_FEE_TRUSTEE_*` IDs are retained only as read-compatible historical IDs. Presentation copy is settlement Title Case (`Settlement Trustee Letter Generated` / `Settlement Trustee Letter Submitted` / `Settlement Trustee Instruction Completed`). Historical rows are not rewritten. Completion still triggers existing `note_repaid_issuer` once.
+
+Do not treat either as a duplicate of `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` or `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED` (legacy stored type `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED`). Trustee SES email and issuer platform notification remain separate products.
 
 ---
 
