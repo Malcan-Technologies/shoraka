@@ -1,5 +1,11 @@
 # origin/main Audit Standardization — Final Report
 
+> **Snapshot, not current state.** Reference revision: `origin/main` @ `28ae5c58`.
+> Current event/notification counts and classifications live in
+> [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) §7
+> (documented **160** / live **137** / not-live **23**; notification registry **45** / live **39** /
+> dead **4** / bulk-only **2**). Do not treat the event tables below as today's inventory.
+
 Reference revision: `origin/main` @ `28ae5c58`. Companion documents:
 `origin-main-preservation-inventory.md` (Phase 1) and `origin-main-standardization-plan.md`
 (Phase 2, as-built).

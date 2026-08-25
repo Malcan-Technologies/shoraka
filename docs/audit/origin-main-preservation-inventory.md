@@ -1,5 +1,14 @@
 # origin/main Audit & Logging Preservation Inventory
 
+> **Snapshot, not current state.** This inventory records `origin/main` at commit `28ae5c58`.
+> Current classifications, counts, and notification mappings live in
+> [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) and
+> [`audit-event-registry.json`](./audit-event-registry.json).
+> Later on this branch (2026-08-25): `note_events.ISSUER_RESIDUAL_WITHDRAWAL_CREATED` was removed
+> from source; `access_logs.USER_COMPLETED` display/type/swagger references were removed
+> (`onboarding_logs.USER_COMPLETED` remains DEV_ONLY); `onboarding_logs.KYB_APPROVED` is DEAD
+> (not SEED_ONLY) with display artifacts removed.
+
 Read-only inventory of every audit/logging table, live event, writer, reader, UI surface and export
 path as they exist on `origin/main` (commit `28ae5c58`).
 

@@ -1,5 +1,8 @@
 # origin/main Audit Standardization Plan
 
+> **As-built snapshot of the standardization work**, not the current event/notification inventory.
+> Current state: [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md).
+
 Companion to `origin-main-preservation-inventory.md`. Records the as-built plan; every change is
 additive and the expected UI effect is `NONE` throughout.
 

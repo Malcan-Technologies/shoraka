@@ -1820,8 +1820,10 @@ A separate mechanism from the per-user registry, and easy to mistake for it.
 
 ## 7. Counts
 
-Reconciled against source on 2026-08-24. Where these differ from earlier documents, **these numbers
-supersede them** — see §9.
+Reconciled against source on **2026-08-25**. Where these differ from earlier documents, **these numbers
+supersede them** — see §9. Audit event totals last changed when `ISSUER_RESIDUAL_WITHDRAWAL_CREATED`
+was removed (documented 161→160). Notification totals last changed in the 2026-08-25 coverage pass
+(live automatic 30→39).
 
 ### 7.1 Events
 
@@ -1853,7 +1855,7 @@ Not counted as events above, documented separately:
 | Registry type ids | **45** |
 | Live (≥1 hardcoded `sendTyped`/`sendTypedPlatformOnly` call site) | **39** |
 | Bulk-broadcast-only | **2** (`system_announcement`, `new_product_alert`) |
-| Dead (zero send path) | **4** (`kyc_approved`, `kyc_rejected`, `login_new_device`, `application_approved`) |
+| Dead (zero send path) | **4** (`kyc_approved`, `kyc_rejected`, `login_new_device`, `application_approved`) — **DEAD_NOT_CONFIGURABLE**: hidden from Admin Notification Configuration; retained in registry/seed/history |
 | Distinct **events** that fire a registry notification | **37** |
 | Live events with **no** registry notification | **105** |
 | Events that trigger a **direct email** instead | **1** (`SIGNING_PACKAGE_SENT`) |

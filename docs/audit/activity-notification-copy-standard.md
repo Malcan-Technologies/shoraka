@@ -36,7 +36,7 @@ matrix, classifications, and implementation status).
 | Concept | Admin | Issuer | Notification |
 |---|---|---|---|
 | Draft created | Application Created | Application started / You created it | — |
-| Submitted for review | Application Submitted | You submitted this application | — |
+| Submitted for review | Application Submitted | You submitted this application | Application Submitted |
 | Amendments requested (admin → issuer) | Amendment Request Sent | **Changes requested** | Amendment Requested |
 | Amendments resubmitted (issuer → admin) | Application Resubmitted | You resubmitted after changes | Application Resubmitted |
 | Rejected | Application Rejected | Application was not approved | Application Rejected |
@@ -79,6 +79,8 @@ it was previously collapsed into "Withdrawn" everywhere, which hid who took the 
 | Acceptance documents resubmitted after changes requested | Facility/Invoice Offer Acceptance Resubmitted | Facility/invoice acceptance resubmitted | Acceptance Documents Need Updates (on request) |
 | Acceptance approved, ready to sign | Facility/Invoice Acceptance Approved for Signing | (admin-only surface) | — |
 | Offer fully signed (`CONTRACT_OFFER_ACCEPTED` / `INVOICE_OFFER_ACCEPTED`) | Facility/Invoice Offer Signed | **Facility/invoice offer signed** | — |
+| Signing deadline extended | Signing Deadline Extended | Signing deadline extended | Signing Deadline Extended |
+| Facility disabled | Contract Facility Disabled (admin fallback) | — | Facility Disabled |
 
 **DO NOT CONFUSE WITH:** Do not use "Withdrawn" for an issuer's decline (`CONTRACT_WITHDRAWN`) —
 that is a rejection, not a withdrawal, and "Withdrawn" is reserved for `CONTRACT_OFFER_RETRACTED`
@@ -97,10 +99,13 @@ events uses the full "Facility/Invoice Acceptance Approved for Signing" term bel
 **LIVE EVENT TYPES (contract):** `CONTRACT_OFFER_SENT`, `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED`,
 `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED`, `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING`,
 `CONTRACT_OFFER_ACCEPTED`, `CONTRACT_OFFER_RETRACTED`, `CONTRACT_OFFER_EXPIRED`,
-`CONTRACT_SIGNING_DEADLINE_EXTENDED`, `CONTRACT_WITHDRAWN`, `CONTRACT_FACILITY_OCCUPANCY_UPDATED`.
-**Invoice equivalents:** same suffixes under `INVOICE_*`.
-**DEAD:** `CONTRACT_OFFER_REJECTED` (no writer — do not confuse with live `CONTRACT_WITHDRAWN`,
-which is the event that actually fires when an issuer declines).
+`CONTRACT_SIGNING_DEADLINE_EXTENDED`, `CONTRACT_WITHDRAWN`, `CONTRACT_FACILITY_OCCUPANCY_UPDATED`,
+`CONTRACT_FACILITY_DISABLED`, `CONTRACT_FACILITY_ENABLED`, `CONTRACT_FACILITY_FEE_WAIVED`.
+**Invoice equivalents:** same suffixes under `INVOICE_*` (plus `INVOICE_SIGNING_DEADLINE_EXTENDED`).
+**DEAD / HISTORICAL_COMPATIBILITY_ONLY:** `CONTRACT_OFFER_REJECTED` (zero current production writer — do not confuse with live `CONTRACT_WITHDRAWN`,
+which is the event that actually fires when an issuer declines). `CONTRACT_FACILITY_ENABLED` and
+`CONTRACT_FACILITY_FEE_WAIVED` are live audit events; they do **not** currently send a registry
+notification (investigated 2026-08-25 — OPTIONAL / KEEP_SILENT).
 
 ---
 
@@ -154,14 +159,14 @@ actually be written from the current Admin UI. The live AML mechanism is
 copy need ever arises for `AML_APPROVED`, do not assume it behaves like the other admin-only
 sub-steps above — confirm reachability first. Full trace in `audit-event-surface-matrix.md` §2.3.
 
-**DEAD / LEGACY (declared, no production writer):** `TNC_ACCEPTED` (`onboarding_logs` — the live
-terms-acceptance path writes `TNC_APPROVED`, not this), `KYC_APPROVED` and `KYB_APPROVED`
-(`onboarding_logs` — the live KYC-status path writes `ONBOARDING_STATUS_UPDATED` with
-`trigger:"KYC_APPROVED"` in metadata instead), `KYC_STATUS_UPDATED` (declared under `access_logs`,
-not `onboarding_logs` — despite the name, it is not an onboarding compliance sub-step; seed-fixture
-only). All four only ever appear in `apps/api/prisma/seed.ts` dev fixtures or as admin-UI
-filter/label entries — never as a real production audit-log row. See `audit-event-catalog.md`
-§1.1–1.3 for the full writer-by-writer inventory.
+**DEAD / LEGACY (declared, no production writer):** `TNC_ACCEPTED` (`onboarding_logs` — **SEED_ONLY**; the live
+terms-acceptance path writes `TNC_APPROVED`, not this), `KYC_APPROVED` (`onboarding_logs` — **SEED_ONLY**;
+the live KYC-status path writes `ONBOARDING_STATUS_UPDATED` with `trigger:"KYC_APPROVED"` in metadata
+instead), `KYB_APPROVED` (`onboarding_logs` — **DEAD**, not seed-only: zero `seed.ts` writer; display
+union/label artifacts removed 2026-08-25), `KYC_STATUS_UPDATED` (declared under `access_logs`,
+not `onboarding_logs` — despite the name, it is not an onboarding compliance sub-step; **SEED_ONLY**).
+`TNC_ACCEPTED` / `KYC_APPROVED` / `KYC_STATUS_UPDATED` remain in seed/history display maps for
+historical compatibility. See `audit-event-catalog.md` §1.1–1.3.
 
 ---
 
@@ -175,7 +180,13 @@ filter/label entries — never as a real production audit-log row. See `audit-ev
 | Role added / switched | Role Added / Role Switched |
 
 **LIVE EVENT TYPES:** `LOGIN`, `LOGOUT`, `SIGNUP`, `PASSWORD_CHANGED`, `EMAIL_CHANGED`,
-`ROLE_ADDED`, `ROLE_SWITCHED`, `PROFILE_UPDATED`.
+`ROLE_SWITCHED`, `PROFILE_UPDATED` (`access_logs.PROFILE_UPDATED` is **LIVE_UI_REACHABLE**).
+`security_logs.ROLE_CREATED`, `ROLE_REMOVED` (catalogue), `ROLE_PERMISSIONS_UPDATED`, and
+`INVITATION_REVOKED` are also **LIVE_UI_REACHABLE**.
+**UNREACHABLE_FROM_UI / API_REACHABLE:** `access_logs.ROLE_ADDED`, `access_logs.ROLE_REMOVED`.
+**UNREACHABLE_FROM_UI / ROUTE_ONLY:** `access_logs.ONBOARDING_RESET`.
+**UNREACHABLE:** `onboarding_logs.ONBOARDING_RESET`. Do not treat `access_logs.ROLE_ADDED` as a
+normal live UI action.
 
 ---
 
@@ -190,10 +201,10 @@ filter/label entries — never as a real production audit-log row. See `audit-ev
 | Note activated / servicing starts | **Note activated** | Note Active | Note Active | Note is active (issuer) / Investment is active (investor) |
 | Issuer repayment submitted | **Repayment submitted** | Payment Submitted (description says "repayment") | — | — |
 | Repayment recorded | **Repayment received** | — | — | Repayment Received |
-| Repayment approved / rejected | **Repayment approved / rejected** | — | — | — |
+| Repayment approved / rejected | **Repayment approved / rejected** | — | — | Repayment Rejected (issuer, on reject) |
 | Settlement posted | Settlement posted | — | Settlement Posted | Settlement Posted |
 | Default | **Note defaulted** | Note Defaulted | Note Defaulted | Note marked as default |
-| Disbursement to issuer completed (`WITHDRAWAL_COMPLETED`) | **Withdrawal completed** | **Disbursement Completed** (was incorrectly sharing "Note Active" with `ACTIVATE`) | — | — |
+| Disbursement to issuer completed (`WITHDRAWAL_COMPLETED`) | **Withdrawal completed** | **Disbursement Completed** (was incorrectly sharing "Note Active" with `ACTIVATE`) | — | Disbursement Completed *(ISSUER_DISBURSEMENT only)* |
 
 **DO NOT CONFUSE WITH:** `ACTIVATE` (note servicing begins — the whole note goes live) and
 `WITHDRAWAL_COMPLETED` (an issuer disbursement payout completes) are different business moments
@@ -202,8 +213,8 @@ note itself just activated (it may have activated earlier). Use "Payment"/"Repay
 consistently as **Repayment** (the noun issuers and investors actually see in descriptions) rather
 than the more generic "Payment" that leaked into several admin-only fallback labels.
 
-**LIVE EVENT TYPES (`note_events`, 41 total):** see `docs/audit/audit-event-catalog.md` §for the
-full list; headline terms above cover the ones with more than one presentation surface.
+**LIVE EVENT TYPES (`note_events`, 42 live / 42 documented):** see `docs/audit/audit-event-catalog.md` §3
+for the full list; headline terms above cover the ones with more than one presentation surface.
 
 ---
 
@@ -232,8 +243,10 @@ search-index hits from an unmerged branch — see
 | Hidden from issuers | **Inactivated** |
 | Restored | **Reactivated** |
 
-**LIVE EVENT TYPES:** `PRODUCT_CREATED`, `PRODUCT_UPDATED`, `PRODUCT_DELETED`,
-`PRODUCT_INACTIVATED`, `PRODUCT_REACTIVATED`.
+**LIVE EVENT TYPES:** `PRODUCT_CREATED`, `PRODUCT_UPDATED`, `PRODUCT_DELETED`.
+**UNREACHABLE (writer exists, zero callers):** `PRODUCT_INACTIVATED`, `PRODUCT_REACTIVATED` — filter
+badges exist, but `setInactive` / `restoreProduct` have no route or UI caller. Do not describe them
+as normal live product actions.
 
 ---
 
@@ -248,8 +261,13 @@ search-index hits from an unmerged branch — see
 
 **LIVE EVENT TYPES:** `NAME_CHECK`, `NAME_CHECK_APPROVED`, `NAME_CHECK_REJECTED`,
 `CAPTURE_MISMATCH`, `EXPIRED`, `REFUND_INITIATED`, `REFUNDED`, `REFUND_WALLET_REVERSAL_FAILED`.
-**DEAD:** `OVERRIDE_PROPOSED` / `OVERRIDE_APPROVED` / `OVERRIDE_REJECTED` (enum exists, never
-triggered).
+**DEAD:** `OVERRIDE_PROPOSED` / `OVERRIDE_APPROVED` / `OVERRIDE_REJECTED` (PostgreSQL enum members
+exist, never triggered — do not claim removed).
+
+Investor-deposit notifications (2026-08-25; `INVESTOR_DEPOSIT` only; platform only; deposit's
+investor organization members): name-check rejected → **Deposit Verification Failed**; refund
+started → **Refund Started**; refund completed → **Refund Completed**. There is **no** discrete
+gateway success/capture event and **no** successful-deposit inbox notification.
 
 ---
 
@@ -260,8 +278,10 @@ triggered).
 - Only **live, automatically-sent** notification types are copy-governed by this standard. The
   following registry entries have no live `sendTyped`/`sendTypedPlatformOnly` call site and their
   template text is dead copy, excluded from consistency requirements until wired up:
-  `system_announcement`, `new_product_alert`, `kyc_approved`, `kyc_rejected`,
-  `login_new_device`, `application_approved`.
+  `system_announcement`, `new_product_alert` (**BULK-ONLY**), `kyc_approved`, `kyc_rejected`,
+  `login_new_device`, `application_approved` (**DEAD_NOT_CONFIGURABLE** — zero automatic send path;
+  hidden from Admin Notification Configuration; retained in registry/seed/history; never shown in
+  end-user Account preferences, which only list `MARKETING` types).
   `withdrawal_submitted_to_trustee` is **no longer in this dead list** — as of 2026-08-24 it is
   wired via `notifyWithdrawalSubmittedToTrustee()` (`note-lifecycle-notifications.ts`), called from
   `notes/service.ts:markWithdrawalSubmitted` right after the `WITHDRAWAL_SUBMITTED_TO_TRUSTEE`

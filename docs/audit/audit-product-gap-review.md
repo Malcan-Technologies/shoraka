@@ -106,7 +106,17 @@ Confirmed via exhaustive `sendTyped`/`sendTypedPlatformOnly` call-site search ac
 | Gateway refund outcomes (`REFUND_INITIATED`/`REFUNDED`) | `deposit_refund_initiated` / `deposit_refunded` (2026-08-25), `INVESTOR_DEPOSIT` only | **RESOLVED** for investor deposits. Onboarding-fee / processing-fee refunds stay silent. |
 | Gateway deposit name-check outcomes (`NAME_CHECK`/`_APPROVED`/`_REJECTED`) | `deposit_name_check_rejected` (2026-08-25) on reject. `NAME_CHECK` (held pending) and `NAME_CHECK_APPROVED` stay silent | **RESOLVED** for rejection. Pending/approved remain `NEEDS_POLICY_CONFIRMATION` (avoid alarming the user pre-resolution) |
 
-**Reclassified 2026-08-24** using the requested policy taxonomy (`INTENTIONAL_SILENT` / `PRODUCT_DECISION_REQUIRED` / `LIKELY_MISSING_NOTIFICATION` / `INTENTIONAL_RECIPIENT_SCOPE` / `NEEDS_POLICY_CONFIRMATION`), documentation only — **no notifications were added** in that pass. **2026-08-25 coverage pass** then implemented notifications for `APPLICATION_SUBMITTED`, `PAYMENT_REJECTED`, `WITHDRAWAL_COMPLETED` (issuer disbursement only), `NAME_CHECK_REJECTED`, `REFUND_INITIATED`, `REFUNDED`, plus signing-deadline-extended and `CONTRACT_FACILITY_DISABLED`. Remaining intermediate-admin-gate rows (`ONBOARDING_APPROVED`, live AML, `SSM_APPROVED`) stay `PRODUCT_DECISION_REQUIRED`. Issuer partial-repayment notice is still `LIKELY_MISSING_NOTIFICATION`.
+**Reclassified 2026-08-24** using the requested policy taxonomy (`INTENTIONAL_SILENT` / `PRODUCT_DECISION_REQUIRED` / `LIKELY_MISSING_NOTIFICATION` / `INTENTIONAL_RECIPIENT_SCOPE` / `NEEDS_POLICY_CONFIRMATION`), documentation only — **no notifications were added** in that pass. **2026-08-25 coverage pass** then implemented notifications for:
+`APPLICATION_SUBMITTED` → `application_submitted_confirmation`;
+`CONTRACT_SIGNING_DEADLINE_EXTENDED` → `contract_signing_deadline_extended`;
+`INVOICE_SIGNING_DEADLINE_EXTENDED` → `invoice_signing_deadline_extended`;
+`CONTRACT_FACILITY_DISABLED` → `facility_disabled`;
+`PAYMENT_REJECTED` → `note_payment_rejected`;
+`WITHDRAWAL_COMPLETED` → `withdrawal_completed` (issuer financing disbursement only);
+`NAME_CHECK_REJECTED` → `deposit_name_check_rejected`;
+`REFUND_INITIATED` → `deposit_refund_initiated`;
+`REFUNDED` → `deposit_refunded`.
+Remaining intermediate-admin-gate rows (`ONBOARDING_APPROVED`, live AML, `SSM_APPROVED`) stay `PRODUCT_DECISION_REQUIRED`. Issuer partial-repayment notice is still `LIKELY_MISSING_NOTIFICATION`.
 
 ### 3.2a Investigated-only (2026-08-25 coverage pass — not implemented)
 
