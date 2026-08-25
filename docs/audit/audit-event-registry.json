@@ -3680,6 +3680,36 @@
       "docRef": "2.6"
     },
     {
+      "eventType": "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
+      "status": "LIVE",
+      "domain": "settlement",
+      "store": "note_events",
+      "canonicalName": "Settlement trustee instruction email delivered or redelivered",
+      "aliases": [],
+      "doNotConfuseWith": [
+        "SERVICE_FEE_TRUSTEE_LETTER_GENERATED",
+        "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED",
+        "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED",
+        "WITHDRAWAL_TRUSTEE_EMAIL_SENT"
+      ],
+      "actor": "Admin",
+      "target": "note",
+      "writer": "apps/api/src/modules/notes/service.ts:persistSettlementTrusteeEmailSent",
+      "surfaces": {
+        "adminActivity": "SHOWN",
+        "adminDetail": "SHOWN",
+        "issuerActivity": "HIDDEN_NOT_QUERIED",
+        "issuerApplicationDetail": "NA",
+        "issuerFacilityDetail": "NA",
+        "investorActivity": "HIDDEN_NOT_QUERIED",
+        "investorDetail": "NA",
+        "csv": "INCLUDED"
+      },
+      "notification": null,
+      "note": "Direct SES to trustee via sendTrusteeInstructionPdfEmail (kind SERVICE_FEE). Settlement-wide instruction despite SERVICE_FEE_ technical prefix. resend:true on redelivery.",
+      "docRef": "2.6"
+    },
+    {
       "eventType": "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED",
       "status": "LIVE",
       "domain": "settlement",
@@ -3789,6 +3819,35 @@
       "docRef": "2.6"
     },
     {
+      "eventType": "WITHDRAWAL_TRUSTEE_EMAIL_SENT",
+      "status": "LIVE",
+      "domain": "withdrawal",
+      "store": "note_events",
+      "canonicalName": "Withdrawal trustee instruction email delivered or redelivered",
+      "aliases": [],
+      "doNotConfuseWith": [
+        "WITHDRAWAL_LETTER_GENERATED",
+        "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
+        "SERVICE_FEE_TRUSTEE_EMAIL_SENT"
+      ],
+      "actor": "Admin",
+      "target": "note",
+      "writer": "apps/api/src/modules/notes/service.ts:persistWithdrawalTrusteeEmailSent",
+      "surfaces": {
+        "adminActivity": "SHOWN",
+        "adminDetail": "SHOWN",
+        "issuerActivity": "HIDDEN_NOT_QUERIED",
+        "issuerApplicationDetail": "NA",
+        "issuerFacilityDetail": "NA",
+        "investorActivity": "HIDDEN_NOT_QUERIED",
+        "investorDetail": "NA",
+        "csv": "INCLUDED"
+      },
+      "notification": null,
+      "note": "Direct SES to trustee via sendTrusteeInstructionPdfEmail. Distinct from issuer platform notification withdrawal_submitted_to_trustee. resend:true on redelivery.",
+      "docRef": "2.6"
+    },
+    {
       "eventType": "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
       "status": "LIVE",
       "domain": "withdrawal",
@@ -3796,7 +3855,8 @@
       "canonicalName": "Withdrawal instruction submitted to the trustee",
       "aliases": [],
       "doNotConfuseWith": [
-        "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED"
+        "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED",
+        "WITHDRAWAL_TRUSTEE_EMAIL_SENT"
       ],
       "actor": "Admin",
       "target": "note",

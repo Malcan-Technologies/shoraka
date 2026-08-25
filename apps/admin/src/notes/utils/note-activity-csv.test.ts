@@ -30,18 +30,18 @@ describe("formatNoteActivityEventLabel", () => {
       "Tawarruq Order Submitted"
     );
     expect(formatNoteActivityEventLabel("WITHDRAWAL_TRUSTEE_EMAIL_SENT")).toBe(
-      "Withdrawal email delivered to Trustee"
+      "Withdrawal Trustee Email Sent"
     );
     expect(formatNoteActivityEventLabel("SERVICE_FEE_TRUSTEE_EMAIL_SENT")).toBe(
-      "Settlement email delivered to Trustee"
+      "Settlement Trustee Email Sent"
     );
     expect(formatNoteActivityEventLabel("CUSTOM_EVENT_TYPE")).toBe("Custom Event Type");
     expect(
       formatNoteActivityEventLabel("WITHDRAWAL_TRUSTEE_EMAIL_SENT", { resend: true })
-    ).toBe("Withdrawal email redelivered to Trustee");
+    ).toBe("Withdrawal Trustee Email Redelivered");
     expect(
       formatNoteActivityEventLabel("SERVICE_FEE_TRUSTEE_EMAIL_SENT", { resend: true })
-    ).toBe("Settlement email redelivered to Trustee");
+    ).toBe("Settlement Trustee Email Redelivered");
   });
 });
 
@@ -65,6 +65,27 @@ describe("buildNoteActivityCsv", () => {
 
   it("exports an empty table with only the header", () => {
     expect(buildNoteActivityCsv([]).split("\n")).toHaveLength(1);
+  });
+
+  it("exports trustee-email delivery and redelivery labels with forensic metadata", () => {
+    const csv = buildNoteActivityCsv([
+      event({
+        eventType: "WITHDRAWAL_TRUSTEE_EMAIL_SENT",
+        metadata: { withdrawalId: "wd-1", messageId: "ses-1" },
+      }),
+      event({
+        id: "evt-2",
+        eventType: "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
+        metadata: { settlementId: "set-1", messageId: "ses-2", resend: true },
+      }),
+    ]);
+    expect(csv).toContain("Withdrawal Trustee Email Sent");
+    expect(csv).toContain("WITHDRAWAL_TRUSTEE_EMAIL_SENT");
+    expect(csv).toContain("wd-1");
+    expect(csv).toContain("Settlement Trustee Email Redelivered");
+    expect(csv).toContain("SERVICE_FEE_TRUSTEE_EMAIL_SENT");
+    expect(csv).toContain("set-1");
+    expect(csv).toContain("ses-2");
   });
 
   it("keeps the internal withdrawal id and includes the display reference", () => {

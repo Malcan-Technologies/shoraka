@@ -7,6 +7,20 @@ Pending / skipped in this pass (see implementation report):
 - `COD_REJECTED` rejection-reason field — `REQUIRES_DATA_CHANGE`, still untouched.
 - `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` notification UUID — **RESOLVED (2026-08-26)** via payload enrichment (`withdrawalReference` from existing `display_reference`). Copy-pass table below is the historical plan snapshot.
 
+## Post-rebase addendum (2026-08-26) — trustee operational emails
+
+Not part of the original 58-event copy pass. These writers arrived from `origin/main` on rebase and
+were integrated into the existing Admin Activity / Detail / CSV presentation system.
+
+| Event | Current after integration | Decision |
+| --- | --- | --- |
+| `WITHDRAWAL_TRUSTEE_EMAIL_SENT` | Admin/CSV title: `Withdrawal Trustee Email Sent`; metadata `resend: true` → `Withdrawal Trustee Email Redelivered`. Detail shows `withdrawalId`, `messageId`, Redelivery/Redelivered. No registry notification. Direct SES to trustee. | **CHANGE** (label only) — Title Case operational-delivery wording; keep metadata-aware formatter. Technical ID unchanged. |
+| `SERVICE_FEE_TRUSTEE_EMAIL_SENT` | Admin/CSV title: `Settlement Trustee Email Sent`; metadata `resend: true` → `Settlement Trustee Email Redelivered`. Detail shows `settlementId`, `messageId`. Direct SES to trustee. | **CHANGE** (label only) — human wording is Settlement (source: settlement-wide trustee instruction). Technical ID unchanged; future rename candidate `SETTLEMENT_TRUSTEE_EMAIL_SENT`. |
+
+Do not treat either as a duplicate of `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` or `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED`. Trustee SES email and issuer platform notification remain separate products.
+
+---
+
 Scope: the 43 `STANDARDIZATION_RECOMMENDED` + 15 `LEGACY_NAMING_TRAP` events from
 [`current-event-journal.md`](./current-event-journal.md) (58 events total). The 69 `CONSISTENT`,
 10 `INTENTIONALLY_DIFFERENT`, and 2 `REQUIRES_DATA_CHANGE`-only items already resolved in that

@@ -1,10 +1,10 @@
 # Current Audit / Activity / Notification Journal
 
-Verified: 2026-08-26 (CURRENT USER-FACING COPY for the 58-event wording pass reflects live source after `docs/audit/final-copy-standardization-plan.md`; source still wins on any remaining discrepancy)
+Verified: 2026-08-26 (CURRENT USER-FACING COPY includes post-rebase trustee-email events `WITHDRAWAL_TRUSTEE_EMAIL_SENT` and `SERVICE_FEE_TRUSTEE_EMAIL_SENT`; source still wins on any remaining discrepancy)
 
 Current audit counts:
-- documented: 160
-- live: 137
+- documented: 162
+- live: 139
 - not-live: 23
 
 Current notification counts:
@@ -16,7 +16,7 @@ Current notification counts:
 ## Standardization Summary
 
 Count:
-- CONSISTENT: 69
+- CONSISTENT: 71
 - INTENTIONALLY_DIFFERENT: 10
 - STANDARDIZATION_RECOMMENDED: 43
 - LEGACY_NAMING_TRAP: 15
@@ -46,8 +46,8 @@ Primary classification is one of the first four. REQUIRES_DATA_CHANGE is an addi
 - Onboarding / KYC / AML (21)
 - Legal Documents / T&C (7)
 - Notes / Funding (23)
-- Repayment (14)
-- Withdrawal / Disbursement / Trustee (5)
+- Repayment (15)
+- Withdrawal / Disbursement / Trustee (6)
 - Investor Deposit / Gateway / Refund (8)
 - Products (3)
 - Access (4)
@@ -11473,6 +11473,117 @@ Preferred Notification Title:
 Preferred Notification Message:
 `—`
 
+## `SERVICE_FEE_TRUSTEE_EMAIL_SENT`
+
+Status: LIVE
+
+Module: Repayment
+
+Business action:
+Operational trustee email for the posted-settlement trustee instruction was delivered or redelivered. This is settlement-wide (investor repayment, service fee, tawidh, gharamah, residual when present), not a service-fee-only payment.
+
+Technical event:
+`SERVICE_FEE_TRUSTEE_EMAIL_SENT`
+
+Canonical business name:
+`Settlement Trustee Email Sent`
+
+Actor:
+Admin
+
+Trigger:
+`deliverSettlementTrusteeEmail` / `persistSettlementTrusteeEmailSent`, called from `markServiceFeeTrusteeLetterSubmitted` when trustee auto-send is enabled (before the submit status transaction), or from `resendServiceFeeTrusteeEmail`.
+
+Stored in:
+`note_events`
+
+### CURRENT USER-FACING COPY
+
+Admin Activity
+- Visible: YES
+- Title: `Settlement Trustee Email Sent` (metadata `resend: true` → `Settlement Trustee Email Redelivered`)
+- Description: `settlementId`, `messageId`, optional `resend`
+
+Admin Detail
+- Visible: YES
+- Title: same metadata-aware title as Activity
+- Description: `settlementId`, `messageId`; `resend: true` renders as Redelivery / Redelivered
+
+Issuer General Activity
+- Visible: NO
+- Note: not in this surface's query allowlist
+- Title: `—`
+- Description: `Hidden (not queried)`
+
+Issuer Application Detail
+- Visible: N/A
+- Note: no such surface for this domain
+- Title: `—`
+- Description: `N/A`
+
+Issuer Facility / Transaction Detail
+- Visible: N/A
+- Note: no such surface for this domain
+- Title: `—`
+- Description: `N/A`
+
+Investor General Activity
+- Visible: NO
+- Note: not in this surface's query allowlist
+- Title: `—`
+- Description: `—`
+
+CSV / Export
+- Included: YES
+- Title/Event: `Settlement Trustee Email Sent` / `Settlement Trustee Email Redelivered`
+- Description/Remark: `settlementId`, `messageId`, optional `resend`
+
+Notification
+- Sends: NO
+- Type: `—`
+- Title: `—`
+- Message: `—`
+- Recipient: `—`
+- Channel: `—`
+
+Direct Email Outside Notification Registry
+- YES
+- Purpose: SES trustee instruction PDF email (`sendTrusteeInstructionPdfEmail`, kind `SERVICE_FEE`) to the configured trustee recipient/CC. Not a platform notification. Distinct from `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED` (business status) and from issuer `note_repaid_issuer` (later, on instruction completed).
+
+### PLACEHOLDERS USED
+
+[Note Ref]
+
+### CONSISTENCY REVIEW
+
+Classification:
+CONSISTENT
+
+Admin-only operational delivery. Human label uses Settlement; the technical `SERVICE_FEE_` prefix is a legacy name for the settlement trustee instruction family. Do not merge with letter-generated, letter-submitted, or instruction-completed. Historical rows are not rewritten. Technical ID is not renamed in this pass.
+
+Technical-name mismatch:
+YES — stored ID says service fee; business action is the settlement trustee instruction email.
+
+### RECOMMENDED CANONICAL PRESENTATION
+
+This is a recommendation only.
+DO NOT implement.
+
+Preferred Title:
+`Settlement Trustee Email Sent` / `Settlement Trustee Email Redelivered`
+
+Preferred Admin Description:
+`[Actor] sent the settlement trustee instruction email.`
+
+Preferred User Description:
+`—`
+
+Preferred Notification Title:
+`—`
+
+Preferred Notification Message:
+`—`
+
 ## `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED`
 
 Status: LIVE
@@ -11492,7 +11603,7 @@ Actor:
 Admin
 
 Trigger:
-Submit settlement trustee letter.
+`markServiceFeeTrusteeLetterSubmitted` — status transition to `SUBMITTED_TO_TRUSTEE` after any auto-send email attempt. Distinct from `SERVICE_FEE_TRUSTEE_EMAIL_SENT`.
 
 Stored in:
 `note_events`
@@ -11548,7 +11659,7 @@ Notification
 
 Direct Email Outside Notification Registry
 - NO
-- Purpose: `—`
+- Purpose: Trustee operational email, if any, is `SERVICE_FEE_TRUSTEE_EMAIL_SENT` — a separate event.
 
 ### PLACEHOLDERS USED
 
@@ -11559,7 +11670,7 @@ Direct Email Outside Notification Registry
 Classification:
 CONSISTENT
 
-Admin-only. CSV matches.
+Admin-only status transition. Distinct from `SERVICE_FEE_TRUSTEE_EMAIL_SENT` (operational SES delivery, which may run first when auto-send is enabled) and from `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` / `SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED`.
 
 ### RECOMMENDED CANONICAL PRESENTATION
 
@@ -11885,7 +11996,7 @@ Direct Email Outside Notification Registry
 Classification:
 CONSISTENT
 
-Admin-only document generation.
+Admin-only document generation. Distinct from `WITHDRAWAL_TRUSTEE_EMAIL_SENT` (operational SES delivery of that PDF) and `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` (status submitted + issuer platform notification).
 
 ### RECOMMENDED CANONICAL PRESENTATION
 
@@ -11897,6 +12008,117 @@ Preferred Title:
 
 Preferred Admin Description:
 `[Actor] generated the withdrawal letter.`
+
+Preferred User Description:
+`—`
+
+Preferred Notification Title:
+`—`
+
+Preferred Notification Message:
+`—`
+
+## `WITHDRAWAL_TRUSTEE_EMAIL_SENT`
+
+Status: LIVE
+
+Module: Withdrawal / Disbursement / Trustee
+
+Business action:
+Operational trustee email for a withdrawal/disbursement instruction was delivered or redelivered.
+
+Technical event:
+`WITHDRAWAL_TRUSTEE_EMAIL_SENT`
+
+Canonical business name:
+`Withdrawal Trustee Email Sent`
+
+Actor:
+Admin
+
+Trigger:
+`deliverWithdrawalTrusteeEmail` / `persistWithdrawalTrusteeEmailSent`, called from `markWithdrawalSubmitted` when trustee auto-send is enabled (before the submit status transaction), or from `resendWithdrawalTrusteeEmail`.
+
+Stored in:
+`note_events`
+
+### CURRENT USER-FACING COPY
+
+Admin Activity
+- Visible: YES
+- Title: `Withdrawal Trustee Email Sent` (metadata `resend: true` → `Withdrawal Trustee Email Redelivered`)
+- Description: `withdrawalId`, `messageId`, optional `resend`
+
+Admin Detail
+- Visible: YES
+- Title: same metadata-aware title as Activity
+- Description: `withdrawalId`, `messageId`; `resend: true` renders as Redelivery / Redelivered
+
+Issuer General Activity
+- Visible: NO
+- Note: not in this surface's query allowlist
+- Title: `—`
+- Description: `Hidden (not queried)`
+
+Issuer Application Detail
+- Visible: N/A
+- Note: no such surface for this domain
+- Title: `—`
+- Description: `N/A`
+
+Issuer Facility / Transaction Detail
+- Visible: N/A
+- Note: no such surface for this domain
+- Title: `—`
+- Description: `N/A`
+
+Investor General Activity
+- Visible: NO
+- Note: not in this surface's query allowlist
+- Title: `—`
+- Description: `—`
+
+CSV / Export
+- Included: YES
+- Title/Event: `Withdrawal Trustee Email Sent` / `Withdrawal Trustee Email Redelivered`
+- Description/Remark: `withdrawalId`, `messageId`, optional `resend`
+
+Notification
+- Sends: NO
+- Type: `—`
+- Title: `—`
+- Message: `—`
+- Recipient: `—`
+- Channel: `—`
+
+Direct Email Outside Notification Registry
+- YES
+- Purpose: SES trustee instruction PDF email (`sendTrusteeInstructionPdfEmail`) to the configured trustee recipient/CC. Not a platform notification. Distinct from `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` (business status + issuer platform notification `withdrawal_submitted_to_trustee`).
+
+### PLACEHOLDERS USED
+
+[Note Ref]
+
+### CONSISTENCY REVIEW
+
+Classification:
+CONSISTENT
+
+Admin-only operational delivery. Metadata-aware formatter keeps initial vs redelivery titles. Not a duplicate of letter generation or trustee submission. Historical rows are not rewritten.
+
+Technical-name mismatch:
+NO
+
+### RECOMMENDED CANONICAL PRESENTATION
+
+This is a recommendation only.
+DO NOT implement.
+
+Preferred Title:
+`Withdrawal Trustee Email Sent` / `Withdrawal Trustee Email Redelivered`
+
+Preferred Admin Description:
+`[Actor] sent the withdrawal trustee instruction email.`
 
 Preferred User Description:
 `—`
@@ -11926,7 +12148,7 @@ Actor:
 Admin
 
 Trigger:
-markWithdrawalSubmitted.
+`markWithdrawalSubmitted` — status transition to `SUBMITTED_TO_TRUSTEE` after any auto-send email attempt. Issuer platform notification fires after this audit write. Distinct from `WITHDRAWAL_TRUSTEE_EMAIL_SENT`.
 
 Stored in:
 `note_events`
@@ -11982,7 +12204,7 @@ Notification
 
 Direct Email Outside Notification Registry
 - NO
-- Purpose: `—`
+- Purpose: Trustee operational email, if any, is `WITHDRAWAL_TRUSTEE_EMAIL_SENT` — a separate SES path, not this event.
 
 ### PLACEHOLDERS USED
 
@@ -11994,6 +12216,11 @@ Classification:
 STANDARDIZATION_RECOMMENDED
 
 Notification is sent (issuer org, platform only) but the event is hidden from issuer activity. Message interpolates the withdrawal display reference (`withdrawalReference`); the internal `withdrawalId` remains in audit metadata and notification payload for linking.
+
+These are three distinct products, not duplicates:
+1. Trustee operational email — `WITHDRAWAL_TRUSTEE_EMAIL_SENT` (SES to trustee, auto-send or resend)
+2. This event — withdrawal instruction status submitted to trustee
+3. Issuer platform notification — `withdrawal_submitted_to_trustee` (issuer org, platform-only)
 
 RESOLVED (2026-08-26): `REQUIRES_DATA_CHANGE` for the UUID-in-message is closed. The existing `display_reference` is now stored as `withdrawalReference` on new events and used in notification copy. Historical rows are not rewritten. Recommended actor-sentence / note-title wording below is still not implemented.
 

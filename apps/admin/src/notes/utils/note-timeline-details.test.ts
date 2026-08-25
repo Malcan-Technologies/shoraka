@@ -52,17 +52,32 @@ describe("extractNoteTimelineDetails", () => {
     ]);
   });
 
-  it("shows resend metadata as Resent instead of Yes", () => {
-    const { compact } = extractNoteTimelineDetails(
+  it("shows trustee-email resend metadata as Redelivered instead of Yes", () => {
+    const withdrawal = extractNoteTimelineDetails(
       event({
         eventType: "WITHDRAWAL_TRUSTEE_EMAIL_SENT",
         metadata: { withdrawalId: "wd-1", messageId: "ses-2", resend: true },
       })
     );
-    expect(compact).toEqual(
-      expect.arrayContaining([{ key: "resend", label: "Resend", value: "Resent" }])
+    expect(withdrawal.compact).toEqual(
+      expect.arrayContaining([
+        { key: "withdrawalId", label: "Withdrawal Id", value: "wd-1" },
+        { key: "messageId", label: "Message Id", value: "ses-2" },
+        { key: "resend", label: "Redelivery", value: "Redelivered" },
+      ])
     );
-    expect(compact.find((row) => row.key === "resend")?.value).not.toBe("Yes");
+    expect(withdrawal.compact.find((row) => row.key === "resend")?.value).not.toBe("Yes");
+
+    const settlement = extractNoteTimelineDetails(
+      event({
+        eventType: "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
+        metadata: { settlementId: "set-1", messageId: "ses-3" },
+      })
+    );
+    expect(settlement.compact).toEqual([
+      { key: "settlementId", label: "Settlement Id", value: "set-1" },
+      { key: "messageId", label: "Message Id", value: "ses-3" },
+    ]);
   });
 
   it("builds an activation sentence with the actor and note title", () => {

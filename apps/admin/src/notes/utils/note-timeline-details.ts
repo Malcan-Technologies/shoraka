@@ -95,7 +95,7 @@ export function extractNoteTimelineDetails(
   for (const [key, raw] of Object.entries(metadata)) {
     if (HIDDEN_METADATA_KEYS.has(key)) continue;
     if (key === "resend") {
-      if (raw === true) compact.push({ key, label: "Resend", value: "Resent" });
+      if (raw === true) compact.push({ key, label: "Redelivery", value: "Redelivered" });
       continue;
     }
     const value = stringifyMetadataValue(raw);

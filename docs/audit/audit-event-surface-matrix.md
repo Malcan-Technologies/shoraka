@@ -327,6 +327,7 @@ surface can show them. All are mirrored to `note_admin_actions`.
 | `ARREARS_LETTER_GENERATED` | LIVE | Arrears letter PDF generated | Admin | note_events | Y | — | — | — | Y | |
 | `DEFAULT_LETTER_GENERATED` | LIVE | Default letter PDF generated | Admin | note_events | Y | — | — | — | Y | |
 | `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` | LIVE | Settlement trustee letter generated | Admin | note_events | Y | — | — | — | Y | |
+| `SERVICE_FEE_TRUSTEE_EMAIL_SENT` | LIVE | Settlement trustee instruction email delivered/redelivered | Admin | note_events | Y | — | — | — (direct SES to trustee) | Y | Distinct from letter submit and from issuer `note_repaid_issuer` |
 | `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED` | LIVE | Settlement trustee letter submitted | Admin | note_events | Y | — | — | — | Y | |
 | `SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED` | LIVE | Trustee instruction completed | Admin | note_events | Y | — | — | `note_repaid_issuer` | Y | |
 
@@ -336,6 +337,7 @@ surface can show them. All are mirrored to `note_admin_actions`.
 |---|---|---|---|---|---|---|---|---|---|---|
 | `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` | LIVE | Disbursement instruction auto-created on funding close | Admin / System | note_events | Y | — | — | — | Y | |
 | `WITHDRAWAL_LETTER_GENERATED` | LIVE | Trustee withdrawal letter PDF generated | Admin | note_events | Y | — | — | — | Y | |
+| `WITHDRAWAL_TRUSTEE_EMAIL_SENT` | LIVE | Withdrawal trustee instruction email delivered/redelivered | Admin | note_events | Y | — | — | — (direct SES to trustee) | Y | Distinct from `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` and issuer platform notify |
 | `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | LIVE | Instruction submitted to the trustee | Admin | note_events | Y | — | — | `withdrawal_submitted_to_trustee` | Y | Wired 2026-08-24 |
 | `WITHDRAWAL_BENEFICIARY_UPDATED` | LIVE | Beneficiary details edited on a draft | Admin | note_events | Y | — | — | — | Y | |
 | `WITHDRAWAL_COMPLETED` | LIVE | Trustee payout completed | Admin | note_events | Y | Y *(disbursements only)* | Y *(disbursements only)* | `withdrawal_completed` *(ISSUER_DISBURSEMENT only)* | Y | Notification gated by `isIssuerFinancingDisbursement`; residual/refund/investor withdrawals stay silent |
@@ -1183,9 +1185,10 @@ application/facility/investor-detail surfaces.
 | `LATE_CHARGE_APPROVED` | Late charge calculated and approved — `approveLateCharge` (~5309) | Admin | `calculateLateCharge` result | `Late charge approved` | — | NO |
 | `ARREARS_LETTER_GENERATED` | Arrears letter PDF — `generateNoteLetter("arrears")` (~5326) | Admin | `s3Key` | `Arrears letter generated` | — | NO |
 | `DEFAULT_LETTER_GENERATED` | Default letter PDF — `generateNoteLetter("default")` (~5326) | Admin | `s3Key` | `Default letter generated` | — | NO |
-| `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` | Settlement trustee letter PDF — (~5522) | Admin | `s3Key`, `settlementId` | `Settlement trustee letter generated` | — | NO |
-| `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED` | Letter submitted — (~5596) | Admin | `settlementId` | `Settlement trustee letter submitted` | — | NO |
-| `SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED` | Trustee instruction completed — (~5745) | Admin | `settlementId`, `completedAt` | `Settlement trustee instruction completed` | — | **YES — `note_repaid_issuer`** |
+| `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` | Settlement trustee letter PDF — `generateServiceFeeTrusteeLetter` | Admin | `s3Key`, `settlementId` | `Settlement trustee letter generated` | — | NO |
+| `SERVICE_FEE_TRUSTEE_EMAIL_SENT` | Trustee SES email delivered — `persistSettlementTrusteeEmailSent` via `markServiceFeeTrusteeLetterSubmitted` (auto-send, before submit tx) or `resendServiceFeeTrusteeEmail` | Admin | `settlementId`, `messageId`, optional `resend` | `Settlement Trustee Email Sent` / `Settlement Trustee Email Redelivered` | Hidden (not queried) | NO registry. Direct SES to trustee. |
+| `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED` | Letter submitted — `markServiceFeeTrusteeLetterSubmitted` | Admin | `settlementId` | `Settlement trustee letter submitted` | — | NO |
+| `SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED` | Trustee instruction completed — `markServiceFeeTrusteeInstructionCompleted` | Admin | `settlementId`, `completedAt` | `Settlement trustee instruction completed` | — | **YES — `note_repaid_issuer`** |
 
 > **There is no `NOTE_ARREARS` event.** Arrears is a *state* the note enters during
 > `applyOverdueLateCharge`. The audit evidence for it is `OVERDUE_LATE_CHARGE_CHECKED`, and the
@@ -1196,16 +1199,22 @@ application/facility/investor-detail surfaces.
 
 Backed by the `withdrawal_instructions` table (`status`, `withdrawal_type`, `amount`,
 `beneficiary_snapshot`, `letter_s3_key`, `generated_at`, `submitted_to_trustee_at`, `completed_at`,
-`display_reference`). **Actor: Admin** on all five. Portal surfaces are `Hidden (not queried)`
+`display_reference`, `trustee_email_sent_at`). **Actor: Admin**. Portal surfaces are `Hidden (not queried)`
 except where noted.
+
+Do not merge these three moments:
+1. **Trustee operational email** — `WITHDRAWAL_TRUSTEE_EMAIL_SENT` (SES to trustee; auto-send before submit, or later resend).
+2. **Trustee submission status** — `WITHDRAWAL_SUBMITTED_TO_TRUSTEE`.
+3. **Issuer platform notification** — `withdrawal_submitted_to_trustee` (issuer org, platform-only), fired after the submit audit write.
 
 | Event Type | Trigger / writer | Evidence | Admin + CSV copy | Portal | Notification |
 |---|---|---|---|---|---|
-| `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` | Disbursement instruction auto-created when funding closes — `closeFunding` (~3486) | `netDisbursement`, `fundedAmount`, `platformFee`, `facilityFeeCharged`, `additionalFees`, `facilityFeeCollectionWaived`, `contractFacilityFeeWaived` | `Disbursement instruction created` | Hidden (not queried) | NO |
-| `WITHDRAWAL_LETTER_GENERATED` | Trustee letter PDF generated — `generateWithdrawalLetter` (~6222) | `withdrawalId`, `s3Key` | `Withdrawal letter generated` | Hidden (not queried) | NO |
-| `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | Instruction marked submitted — `markWithdrawalSubmitted` (~6269) | `withdrawalId`, `withdrawalReference` | `Withdrawal Submitted to Trustee` | Hidden (not queried) | **YES — `withdrawal_submitted_to_trustee`** |
-| `WITHDRAWAL_BENEFICIARY_UPDATED` | Beneficiary edited while draft — `updateWithdrawalBeneficiary` (~6304) | `withdrawalId` | `Withdrawal beneficiary updated` | Hidden (not queried) | NO |
-| `WITHDRAWAL_COMPLETED` | Trustee payout completed — `markWithdrawalCompleted` (~6472) | `withdrawalId`, `amount` | `Withdrawal Completed` | **Shown when `withdrawal_type === ISSUER_DISBURSEMENT`, in both portals** (the check precedes the portal branch) — Copy: `Your Disbursement Is Complete` / `Disbursement for {note} has been completed.` Any other withdrawal type is dropped. | **YES — `withdrawal_completed`**, same `ISSUER_DISBURSEMENT` guard |
+| `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` | Disbursement instruction auto-created when funding closes — `closeFunding` | `netDisbursement`, `fundedAmount`, `platformFee`, `facilityFeeCharged`, `additionalFees`, `facilityFeeCollectionWaived`, `contractFacilityFeeWaived` | `Disbursement instruction created` | Hidden (not queried) | NO |
+| `WITHDRAWAL_LETTER_GENERATED` | Trustee letter PDF generated — `generateWithdrawalLetter` | `withdrawalId`, `s3Key` | `Withdrawal letter generated` | Hidden (not queried) | NO |
+| `WITHDRAWAL_TRUSTEE_EMAIL_SENT` | Trustee SES email delivered — `persistWithdrawalTrusteeEmailSent` via `markWithdrawalSubmitted` (auto-send, before submit tx) or `resendWithdrawalTrusteeEmail` | `withdrawalId`, `messageId`, optional `resend` | `Withdrawal Trustee Email Sent` / `Withdrawal Trustee Email Redelivered` | Hidden (not queried) | NO registry. Direct SES to trustee. |
+| `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | Instruction marked submitted — `markWithdrawalSubmitted` | `withdrawalId`, `withdrawalReference` | `Withdrawal Submitted to Trustee` | Hidden (not queried) | **YES — `withdrawal_submitted_to_trustee`** |
+| `WITHDRAWAL_BENEFICIARY_UPDATED` | Beneficiary edited while draft — `updateWithdrawalBeneficiary` | `withdrawalId` | `Withdrawal beneficiary updated` | Hidden (not queried) | NO |
+| `WITHDRAWAL_COMPLETED` | Trustee payout completed — `markWithdrawalCompleted` | `withdrawalId`, `amount` | `Withdrawal Completed` | **Shown when `withdrawal_type === ISSUER_DISBURSEMENT`, in both portals** (the check precedes the portal branch) — Copy: `Your Disbursement Is Complete` / `Disbursement for {note} has been completed.` Any other withdrawal type is dropped. | **YES — `withdrawal_completed`**, same `ISSUER_DISBURSEMENT` guard |
 
 **`WITHDRAWAL_SUBMITTED_TO_TRUSTEE` notification detail:**
 - **TYPE ID:** `withdrawal_submitted_to_trustee`
@@ -1215,7 +1224,7 @@ except where noted.
 - **RECIPIENT:** issuer organization owner **+ all members** (`sendToIssuerOrg` →
   `listIssuerOrgMemberUserIds`)
 - **CHANNEL:** platform only (`sendTypedPlatformOnly`)
-- **TRIGGER RELATION:** SAME MOMENT — fires immediately after the audit write
+- **TRIGGER RELATION:** SAME MOMENT — fires immediately after the **submit** audit write. Not the trustee SES email (`WITHDRAWAL_TRUSTEE_EMAIL_SENT`).
 - **SOURCE:** `notes/service.ts:markWithdrawalSubmitted` (~6274) →
   `note-lifecycle-notifications.ts:notifyWithdrawalSubmittedToTrustee`
 - **History:** wired 2026-08-24. Before that the event fired but no notification was sent.
@@ -1778,6 +1787,8 @@ SIGNING_PACKAGE_VOIDED           Audit: YES   Notification: NO (investigated 202
 UNPUBLISH / PAUSE_LISTING / RESUME_LISTING  Audit: YES   Notification: NO (investigated 2026-08-25)
 ISSUER_PAYMENT_SUBMITTED         Audit: YES   Notification: NO (investigated 2026-08-25 — KEEP_SILENT)
 LATE_CHARGE_APPROVED             Audit: YES   Notification: NO (investigated 2026-08-25 — OPTIONAL)
+WITHDRAWAL_TRUSTEE_EMAIL_SENT    Audit: YES   Notification: NO registry (direct SES to trustee; not issuer notify)
+SERVICE_FEE_TRUSTEE_EMAIL_SENT   Audit: YES   Notification: NO registry (direct SES to trustee; not issuer notify)
 SOPHISTICATED_STATUS_UPDATED     Audit: YES   Notification: NO (investigated 2026-08-25 — OPTIONAL)
 ONBOARDING_CANCELLED             Audit: YES   Notification: NO (investigated 2026-08-25 — KEEP_SILENT)
 ```
@@ -1794,6 +1805,8 @@ defaults. They are sent straight through SES.
 | Purpose | Recipient | Trigger / source | Related event |
 |---|---|---|---|
 | Signature request / reminder | Each signer's email — **not necessarily a platform user** | `signing/service.ts:sendEnvelope` (~1264), `remindRecipient` (~2084). Subject: `Signature requested: {title}` or `Reminder: {title}`; body includes "You have been asked to sign **{title}**" and an IC confirmation note | `SIGNING_PACKAGE_SENT` — but note the audit row is written **only if email delivery succeeds** |
+| Withdrawal trustee instruction PDF | Configured trustee email (+ optional CC from trustee letter config) | `notes/service.ts:deliverWithdrawalTrusteeEmail` → `sendTrusteeInstructionPdfEmail`. Auto-send on `markWithdrawalSubmitted` when enabled; also `resendWithdrawalTrusteeEmail`. Audit row only after persist of `trustee_email_sent_at` | `WITHDRAWAL_TRUSTEE_EMAIL_SENT` (`resend: true` on redelivery). Not the issuer platform notification. |
+| Settlement trustee instruction PDF | Configured trustee email (+ optional CC) | `notes/service.ts:deliverSettlementTrusteeEmail` → `sendTrusteeInstructionPdfEmail` (kind `SERVICE_FEE`). Auto-send on `markServiceFeeTrusteeLetterSubmitted` when enabled; also `resendServiceFeeTrusteeEmail` | `SERVICE_FEE_TRUSTEE_EMAIL_SENT` (`resend: true` on redelivery). Settlement-wide instruction, despite the `SERVICE_FEE_` technical prefix. |
 | Organization member invitation | Invitee email | `organization/service.ts:inviteMember` (~967) | none |
 | Organization invitation resend | Invitation email | `organization/service.ts:resendInvitation` (~1346) | none |
 | Admin portal invitation | Invitee email | `admin/service.ts:inviteAdmin` (~1956) | none |
@@ -1824,9 +1837,11 @@ A separate mechanism from the per-user registry, and easy to mistake for it.
 
 ## 7. Counts
 
-Reconciled against source on **2026-08-25**. Where these differ from earlier documents, **these numbers
-supersede them** — see §9. Audit event totals last changed when `ISSUER_RESIDUAL_WITHDRAWAL_CREATED`
-was removed (documented 161→160). Notification totals last changed in the 2026-08-25 coverage pass
+Reconciled against source on **2026-08-26** for the two main trustee-email events; prior store totals
+were reconciled **2026-08-25**. Where these differ from earlier documents, **these numbers
+supersede them** — see §9. Audit event totals last changed when `WITHDRAWAL_TRUSTEE_EMAIL_SENT`
+and `SERVICE_FEE_TRUSTEE_EMAIL_SENT` were documented after the `redo_log` rebase onto main
+(documented 160→162 live 137→139). Notification totals last changed in the 2026-08-25 coverage pass
 (live automatic 30→39).
 
 ### 7.1 Events
@@ -1837,11 +1852,11 @@ was removed (documented 161→160). Notification totals last changed in the 2026
 | `security_logs` | 9 | 9 | 0 | — |
 | `onboarding_logs` | 27 | 21 | 6 | ~~3 seed-only~~ **2 seed-only, 1 dead** (`KYB_APPROVED` reclassified SEED_ONLY → DEAD 2026-08-25 — zero occurrences in `seed.ts`, unlike the other two; see §9 #13), 1 dev-only, 2 unreachable (`AML_APPROVED` — reclassified 2026-08-24; `ONBOARDING_RESET` — reclassified 2026-08-25, see §9 #11–#12) |
 | `application_logs` | 45 | 43 | 2 | 2 dead (`APPLICATION_APPROVED`, `CONTRACT_OFFER_REJECTED`) |
-| `note_events` | ~~43~~ **42** | 42 | ~~1~~ **0** | ~~1 dead (`ISSUER_RESIDUAL_WITHDRAWAL_CREATED`)~~ — removed 2026-08-25 (zero remaining source references; see §9 #13) |
+| `note_events` | ~~43~~ ~~42~~ **44** | **44** | ~~1~~ **0** | 2026-08-26 post-rebase: added `WITHDRAWAL_TRUSTEE_EMAIL_SENT` and `SERVICE_FEE_TRUSTEE_EMAIL_SENT` from main (live writers). Earlier: `ISSUER_RESIDUAL_WITHDRAWAL_CREATED` removed 2026-08-25 |
 | `legal_document_audit_logs` | 7 | 7 | 0 | — |
 | `product_logs` | 5 | 3 | 2 | 2 unreachable (writer exists, no caller) |
 | `gateway_payment_events` | 11 | 8 | 3 | 3 dead (`OVERRIDE_*`) — investigated 2026-08-25, retained: real Prisma enum, removal would require a schema migration (see §9 #13) |
-| **Total** | ~~161~~ **160** | **137** | ~~24~~ **23** | 2026-08-25: `note_events.ISSUER_RESIDUAL_WITHDRAWAL_CREATED` removed from source (dead entry deleted, −1 documented, −1 not-live) |
+| **Total** | ~~161~~ ~~160~~ **162** | ~~137~~ **139** | ~~24~~ **23** | 2026-08-26: +2 live `note_events` trustee-email writers from main. 2026-08-25: `note_events.ISSUER_RESIDUAL_WITHDRAWAL_CREATED` removed (−1 documented, −1 not-live) |
 
 Not counted as events above, documented separately:
 
@@ -1861,9 +1876,9 @@ Not counted as events above, documented separately:
 | Bulk-broadcast-only | **2** (`system_announcement`, `new_product_alert`) |
 | Dead (zero send path) | **4** (`kyc_approved`, `kyc_rejected`, `login_new_device`, `application_approved`) — **DEAD_NOT_CONFIGURABLE**: hidden from Admin Notification Configuration; retained in registry/seed/history |
 | Distinct **events** that fire a registry notification | **37** |
-| Live events with **no** registry notification | **105** |
-| Events that trigger a **direct email** instead | **1** (`SIGNING_PACKAGE_SENT`) |
-| Direct-email paths outside the registry | **7** |
+| Live events with **no** registry notification | **107** |
+| Events that trigger a **direct email** instead | **3** (`SIGNING_PACKAGE_SENT`, `WITHDRAWAL_TRUSTEE_EMAIL_SENT`, `SERVICE_FEE_TRUSTEE_EMAIL_SENT`) |
+| Direct-email paths outside the registry | **9** |
 
 ### 7.3 Surface coverage
 
@@ -1872,8 +1887,8 @@ Not counted as events above, documented separately:
 | Issuer general activity — application domain (`ApplicationLogAdapter.getEventTypes()`) | 28 of 45 — but 2 of those 28 are dead, so 26 can actually render |
 | Issuer general activity — onboarding (`OrganizationLogAdapter.getEventTypes()`) | 6 of 27 |
 | Investor general activity — onboarding | the same 6 |
-| Issuer general activity — notes (`SHARED` + `ISSUER_ONLY`) | 10 of 43 |
-| Investor general activity — notes (`SHARED` + `INVESTOR_ONLY`) | 6 of 43 |
+| Issuer general activity — notes (`SHARED` + `ISSUER_ONLY`) | 10 of 45 |
+| Investor general activity — notes (`SHARED` + `INVESTOR_ONLY`) | 6 of 45 |
 | Issuer application detail (`EVENT_LABELS` = visibility filter) | 32 keys, of which 1 (`OFFER_EXPIRED`) is not a real event and 2 are dead |
 | Issuer facility detail (`LOG_LABELS` = visibility filter) | 29 keys, of which 1 (`OFFER_EXPIRED`) is not a real event and 2 are dead |
 | Admin application detail (`baseLabels` + review-label map) | 41 curated labels; 1 explicitly hidden (`SIGNING_PACKAGE_COMPLETED`); 3 render via fallback (`CONTRACT_FACILITY_FEE_WAIVED` / `_DISABLED` / `_ENABLED`) |
@@ -1949,6 +1964,13 @@ audit evidence that a note entered arrears, and it also fires the arrears notifi
 **OLD / LEGACY TERM:** user-facing name is **Tawarruq**, not Shoraka
 **RELATION:** `UI_ALIAS` — the display layer substitutes the term at render time. The stored value
 keeps the `SHORAKA_` prefix.
+
+**CURRENT EVENT TYPE:** `SERVICE_FEE_TRUSTEE_EMAIL_SENT` (and the `SERVICE_FEE_TRUSTEE_*` family)
+**OLD / LEGACY TERM:** reads as a service-fee-only trustee email
+**RELATION:** `CONCEPTUAL_ALIAS` — source treats this as the **settlement trustee instruction**
+(investor repayment + service fee + tawidh + gharamah + residual when present). Human labels say
+Settlement. Technical IDs are **not** renamed in the 2026-08-26 integration pass; recommended
+future ID for the email event is `SETTLEMENT_TRUSTEE_EMAIL_SENT`.
 
 ### 8.3 Superseded events (a real replacement exists)
 

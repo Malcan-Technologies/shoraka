@@ -213,8 +213,8 @@ Presentation classification legend: **CONSISTENT** · **INTENTIONALLY_DIFFERENT*
 | `OVERDUE_LATE_CHARGE_CHECKED` | Overdue check run | `checkOverdueLateCharges` | Admin/Cron | `dueDate`, `overdue`, `daysLate` | ENOUGH |
 | `LATE_CHARGE_APPROVED` | Late charge approved | `approveLateCharge` | Admin | Charge breakdown | ENOUGH |
 | `ARREARS_LETTER_GENERATED` / `DEFAULT_LETTER_GENERATED` | Letter PDF generated | `generateLetter` | Admin | `s3Key` | ENOUGH |
-| `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` / `_SUBMITTED` / `_INSTRUCTION_COMPLETED` | Trustee letter lifecycle | Admin service methods | Admin | `s3Key`, settlement id, timestamps | ENOUGH |
-| `WITHDRAWAL_LETTER_GENERATED` / `_SUBMITTED_TO_TRUSTEE` / `_BENEFICIARY_UPDATED` / `_COMPLETED` | Issuer withdrawal lifecycle | Admin service methods | Admin | `withdrawalId`, beneficiary snapshot, amounts | ENOUGH |
+| `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` / `_EMAIL_SENT` / `_SUBMITTED` / `_INSTRUCTION_COMPLETED` | Trustee letter + operational email lifecycle | Admin service methods | Admin | `s3Key`, settlement id, SES `messageId`, `resend` | ENOUGH |
+| `WITHDRAWAL_LETTER_GENERATED` / `_TRUSTEE_EMAIL_SENT` / `_SUBMITTED_TO_TRUSTEE` / `_BENEFICIARY_UPDATED` / `_COMPLETED` | Issuer withdrawal lifecycle | Admin service methods | Admin | `withdrawalId`, SES `messageId`, `resend`, beneficiary snapshot, amounts | ENOUGH |
 | `PROSPECTUS_REVIEW_CREATE` / `_DRAFT_UPDATE` / `_APPROVE` | Prospectus review lifecycle | `prospectus-review.service.ts` | Admin | before/after review state, frozen snapshot refs | ENOUGH |
 | `PROSPECTUS_APPROVAL_INVALIDATED_*` (×3) | Approval cleared (unpublish / source change / edit) | Same service | Admin | before/after | ENOUGH |
 | `SHORAKA_ORDER_SUBMITTED` / `SHORAKA_CERTIFICATE_FETCHED` | Tawarruq commodity trade | `shoraka-stp-service.ts` | Admin/System | `provider_order_id`, amounts, dates, certificate SHA256 | ENOUGH |

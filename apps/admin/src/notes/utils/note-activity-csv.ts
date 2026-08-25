@@ -43,10 +43,10 @@ const EVENT_LABELS: Record<string, string> = {
   ARREARS_LETTER_GENERATED: "Arrears letter generated",
   DEFAULT_LETTER_GENERATED: "Default letter generated",
   SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Settlement trustee letter generated",
-  SERVICE_FEE_TRUSTEE_EMAIL_SENT: "Settlement email delivered to Trustee",
+  SERVICE_FEE_TRUSTEE_EMAIL_SENT: "Settlement Trustee Email Sent",
   SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Settlement trustee letter submitted",
   SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement trustee instruction completed",
-  WITHDRAWAL_TRUSTEE_EMAIL_SENT: "Withdrawal email delivered to Trustee",
+  WITHDRAWAL_TRUSTEE_EMAIL_SENT: "Withdrawal Trustee Email Sent",
   NOTE_DEFAULT_MARKED: "Note Defaulted",
   WAIVE_FACILITY_FEE_COLLECTION: "Facility Fee Collection Waived",
   NOTE_FACILITY_FEE_COLLECTION_WAIVED: "Facility fee collection waived",
@@ -71,9 +71,9 @@ export function formatNoteActivityEventLabel(
   let label = EVENT_LABELS[eventType] ?? fallback;
   if (metadata?.resend === true) {
     if (eventType === "WITHDRAWAL_TRUSTEE_EMAIL_SENT") {
-      label = "Withdrawal email redelivered to Trustee";
+      label = "Withdrawal Trustee Email Redelivered";
     } else if (eventType === "SERVICE_FEE_TRUSTEE_EMAIL_SENT") {
-      label = "Settlement email redelivered to Trustee";
+      label = "Settlement Trustee Email Redelivered";
     }
   }
   label = label.replace(/\bShoraka\s+Stp\b/g, "Tawarruq Transaction");
