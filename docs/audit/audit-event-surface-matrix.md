@@ -915,7 +915,7 @@ relative to the enum names:
 
 | Enum value | Reality | Admin detail label | CSV label |
 |---|---|---|---|
-| `CONTRACT_WITHDRAWN` | Issuer declined the offer | `Facility Offer Rejected` | `Facility offer rejected` |
+| `CONTRACT_WITHDRAWN` | Issuer declined the offer | `Facility Offer Declined` | `Facility Offer Declined` |
 | `CONTRACT_OFFER_REJECTED` *(dead)* | never fires | `Facility Offer Withdrawn` | `Facility offer withdrawn` |
 
 The **labels are semantically correct** for what actually happens; it is the **enum names** that are
@@ -930,7 +930,7 @@ artifact, not a design decision.
 
 **`AMENDMENTS_SUBMITTED` reads backwards.** The name suggests the issuer submitted amendments. It
 actually fires when an **admin sends amendment requests to the issuer**. The admin label
-(`Amendment Request Sent`) and all issuer copy (`Changes requested`) state the direction correctly;
+(`Amendment Requested`) and all issuer copy (`CashSouk Requested an Amendment`) state the direction correctly;
 only the enum name is misleading. The issuer's *response* is `APPLICATION_RESUBMITTED`.
 
 **`SIGNING_PACKAGE_COMPLETED` is deliberately hidden from the admin timeline.** The enum's own doc
