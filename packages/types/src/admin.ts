@@ -103,7 +103,6 @@ export type EventType =
   | "ROLE_SWITCHED"
   | "ONBOARDING"
   | "ONBOARDING_RESET"
-  | "USER_COMPLETED"
   | "KYC_STATUS_UPDATED"
   | "ONBOARDING_STATUS_UPDATED"
   | "PROFILE_UPDATED"
@@ -359,7 +358,6 @@ export type OnboardingEventType =
   | "SSM_APPROVED"
   | "TNC_ACCEPTED"
   | "KYC_APPROVED"
-  | "KYB_APPROVED"
   | "PROFILE_UPDATED";
 
 export interface OnboardingLogUser {

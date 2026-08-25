@@ -53,7 +53,6 @@ function getEventLabel(eventType: string): string {
     TNC_ACCEPTED: "T&C Accepted",
     SSM_APPROVED: "SSM Approved",
     KYC_APPROVED: "KYC Approved",
-    KYB_APPROVED: "KYB Approved",
     FINAL_APPROVAL_COMPLETED: "Final Approval Completed",
     SOPHISTICATED_STATUS_UPDATED: "Sophisticated Status Updated",
     FORM_FILLED: "Form Submitted",
@@ -111,7 +110,6 @@ function buildEventDescription(
       return fields.length > 0 ? `Updated ${fields.join(", ")}` : "Profile updated by admin";
     }
     case "AML_APPROVED":
-    case "KYB_APPROVED":
     case "KYC_APPROVED":
       if (metadata.isCorporateOnboarding) return "Corporate onboarding";
       return null;

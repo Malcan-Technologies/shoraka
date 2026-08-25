@@ -31,7 +31,6 @@ export const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }>
   SIGNUP: { label: "Sign Up", color: "bg-green-500" },
   ROLE_ADDED: { label: "Role Added", color: "bg-purple-500" },
   ROLE_SWITCHED: { label: "Role Switched", color: "bg-orange-500" },
-  USER_COMPLETED: { label: "User Completed", color: "bg-teal-500" },
   ONBOARDING_STARTED: { label: "Onboarding Started", color: "bg-emerald-500" },
   ONBOARDING_RESUMED: { label: "Onboarding Resumed", color: "bg-cyan-500" },
   ONBOARDING_CANCELLED: { label: "Onboarding Cancelled", color: "bg-gray-500" },

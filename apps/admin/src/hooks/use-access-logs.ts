@@ -33,6 +33,14 @@ import {
 // They stay in this allowlist anyway: it gates which stored rows the query can
 // return, not which buttons exist, so removing them would silently hide any row
 // created by direct API/script usage.
+//
+// USER_COMPLETED removed 2026-08-25: unlike the entries above, it has zero
+// writers into access_logs at all (createAccessLogRow never emits it — the only
+// writer is onboardingLog.create in the dev-only regtank webhook handler, which
+// targets onboarding_logs, a different table). Removed from the EventType union,
+// the AccessLog OpenAPI enum, and the access-log label/color/dropdown maps. Not
+// removed from onboarding_logs' own event type, label maps, or its DEV_ONLY
+// writer — those remain untouched.
 export const ACCESS_EVENT_TYPES: EventType[] = [
   "LOGIN",
   "LOGOUT",

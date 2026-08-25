@@ -27,7 +27,6 @@ const EVENT_TYPE_OPTIONS: { value: ToolbarEventType; label: string }[] = [
   { value: "ROLE_CREATED", label: "Role created" },
   { value: "ROLE_PERMISSIONS_UPDATED", label: "Role permissions updated" },
   { value: "INVITATION_REVOKED", label: "Invitation revoked" },
-  { value: "USER_COMPLETED", label: "User completed" },
   { value: "ONBOARDING_STATUS_UPDATED", label: "Onboarding status updated" },
   { value: "ONBOARDING_RESET", label: "Onboarding reset" },
   { value: "KYC_STATUS_UPDATED", label: "KYC status updated" },

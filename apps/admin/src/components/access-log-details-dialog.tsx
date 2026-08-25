@@ -74,7 +74,6 @@ const eventTypeColors: Record<string, string> = {
   SIGNUP: "bg-green-100 text-green-800 border-green-200",
   ROLE_ADDED: "bg-purple-100 text-purple-800 border-purple-200",
   ROLE_SWITCHED: "bg-orange-100 text-orange-800 border-orange-200",
-  USER_COMPLETED: "bg-teal-100 text-teal-800 border-teal-200",
   ONBOARDING_STARTED: "bg-emerald-100 text-emerald-800 border-emerald-200",
   ONBOARDING_RESUMED: "bg-cyan-100 text-cyan-800 border-cyan-200",
   ONBOARDING_CANCELLED: "bg-gray-100 text-gray-800 border-gray-200",
