@@ -719,8 +719,7 @@ export function SettlementPanel({
     ? note.events
         .filter(
           (event) =>
-            event.eventType === "SETTLEMENT_TRUSTEE_LETTER_GENERATED" ||
-            event.eventType === "SERVICE_FEE_TRUSTEE_LETTER_GENERATED"
+            event.eventType === "SETTLEMENT_TRUSTEE_LETTER_GENERATED"
         )
         .filter((event) => event.metadata?.settlementId === persistedPostedSettlementId)
         .map((event) => ({
@@ -1636,21 +1635,21 @@ export function SettlementPanel({
     }
   };
 
-  const settlementTrusteeStatus = persistedPostedSettlement?.serviceFeeTrusteeStatus ?? null;
+  const settlementTrusteeStatus = persistedPostedSettlement?.settlementTrusteeStatus ?? null;
   const trusteeSubmitCopy = getTrusteeSubmitCopy(
     note.trusteeAutoSendEmailEnabled === true,
     "instruction"
   );
   const trusteeResendCopy = getTrusteeResendCopy();
   const canResendTrusteeEmail = canResendSettlementTrusteeEmail(
-    persistedPostedSettlement?.serviceFeeTrusteeEmailSentAt,
+    persistedPostedSettlement?.settlementTrusteeEmailSentAt,
     settlementTrusteeStatus
   );
   const settlementTrusteeEmailedCopy = formatTrusteeInstructionEmailedCopy(
-    persistedPostedSettlement?.serviceFeeTrusteeEmailSentAt
+    persistedPostedSettlement?.settlementTrusteeEmailSentAt
   );
   const settlementTrusteeEmailedAt = formatTrusteeInstructionEmailedAt(
-    persistedPostedSettlement?.serviceFeeTrusteeEmailSentAt
+    persistedPostedSettlement?.settlementTrusteeEmailSentAt
   );
   const settlementTrusteeWorkflowComplete = settlementTrusteeStatus === "COMPLETED";
   const settlementTrusteeNeedsPdf =
@@ -2828,14 +2827,14 @@ export function SettlementPanel({
                 ) : null}
                 <CollapsibleDetailTimeline
                   rows={[
-                    ...(persistedPostedSettlement.serviceFeeTrusteeCreatedAt ??
+                    ...(persistedPostedSettlement.settlementTrusteeCreatedAt ??
                     persistedPostedSettlement.postedAt
                       ? [
                           {
                             label: "Created",
                             value: format(
                               new Date(
-                                persistedPostedSettlement.serviceFeeTrusteeCreatedAt ??
+                                persistedPostedSettlement.settlementTrusteeCreatedAt ??
                                   persistedPostedSettlement.postedAt!
                               ),
                               "dd MMM yyyy, h:mm a"
@@ -2843,14 +2842,14 @@ export function SettlementPanel({
                           },
                         ]
                       : []),
-                    ...(persistedPostedSettlement.serviceFeeTrusteeLetterGeneratedAt ??
+                    ...(persistedPostedSettlement.settlementTrusteeLetterGeneratedAt ??
                     latestTrusteeLetter?.createdAt
                       ? [
                           {
                             label: "Letter generated",
                             value: format(
                               new Date(
-                                persistedPostedSettlement.serviceFeeTrusteeLetterGeneratedAt ??
+                                persistedPostedSettlement.settlementTrusteeLetterGeneratedAt ??
                                   latestTrusteeLetter!.createdAt
                               ),
                               "dd MMM yyyy, h:mm a"
@@ -2858,12 +2857,12 @@ export function SettlementPanel({
                           },
                         ]
                       : []),
-                    ...(persistedPostedSettlement.serviceFeeTrusteeSubmittedAt
+                    ...(persistedPostedSettlement.settlementTrusteeSubmittedAt
                       ? [
                           {
                             label: "Submitted to trustee",
                             value: format(
-                              new Date(persistedPostedSettlement.serviceFeeTrusteeSubmittedAt),
+                              new Date(persistedPostedSettlement.settlementTrusteeSubmittedAt),
                               "dd MMM yyyy, h:mm a"
                             ),
                           },
@@ -2877,12 +2876,12 @@ export function SettlementPanel({
                           },
                         ]
                       : []),
-                    ...(persistedPostedSettlement.serviceFeeTrusteeCompletedAt
+                    ...(persistedPostedSettlement.settlementTrusteeCompletedAt
                       ? [
                           {
                             label: "Completed",
                             value: format(
-                              new Date(persistedPostedSettlement.serviceFeeTrusteeCompletedAt),
+                              new Date(persistedPostedSettlement.settlementTrusteeCompletedAt),
                               "dd MMM yyyy, h:mm a"
                             ),
                           },

@@ -5,7 +5,7 @@ import {
   NoteSettlementStatus,
   NoteStatus,
   Prisma,
-  ServiceFeeTrusteeInstructionStatus as SettlementTrusteeInstructionStatus,
+  SettlementTrusteeInstructionStatus,
 } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import type { GetNotesQuery } from "./schemas";
@@ -127,7 +127,7 @@ export class NoteRepository {
       });
     }
     if (excludeFullySettledRegistryNotes) {
-      const serviceFeeTrusteeIncomplete: Prisma.NoteSettlementWhereInput = {
+      const settlementTrusteeIncomplete: Prisma.NoteSettlementWhereInput = {
         status: NoteSettlementStatus.POSTED,
         AND: [
           {
@@ -143,9 +143,9 @@ export class NoteRepository {
           },
           {
             OR: [
-              { service_fee_trustee_status: null },
+              { settlement_trustee_status: null },
               {
-                service_fee_trustee_status: {
+                settlement_trustee_status: {
                   not: SettlementTrusteeInstructionStatus.COMPLETED,
                 },
               },
@@ -170,7 +170,7 @@ export class NoteRepository {
             {
               NOT: {
                 settlements: {
-                  some: serviceFeeTrusteeIncomplete,
+                  some: settlementTrusteeIncomplete,
                 },
               },
             },

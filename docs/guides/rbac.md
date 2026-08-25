@@ -31,7 +31,7 @@ The API is the real security boundary. Frontend gating is for navigation and UX 
 ### Naming conventions
 
 - Use dotted keys: `module.action` or `module.domain.action`
-- Use `service_fee` (singular), not `service_fees`
+- Use `settlements.view` for the settlement trustee queue page, not `service_fee.view`
 - Use `platform_settings` for admin platform finance settings, not `platform_settings.finance`
 - Use `document_management` for Legal Documents and Legal Acceptances admin pages
 - Use `disbursements` for issuer payouts / issuer money out
@@ -383,14 +383,14 @@ These systems and permissions no longer exist:
 | Frontend page | `apps/admin/src/app/finance/issuer-payouts/page.tsx` |
 | Notes | All withdrawal mutations use `notes.disbursement.manage`. The Issuer Payouts list page itself is read-only and requires only `disbursements.view`. |
 
-### Service Fee
+### Settlements
 
 | | |
 |---|---|
-| View | `service_fee.view` |
+| View | `settlements.view` |
 | Backend | `apps/api/src/modules/notes/controller.ts` |
-| Frontend page | `apps/admin/src/app/finance/service-fee-trustee-letters/page.tsx` |
-| Notes | Service fee workflow actions inside Note Detail use `notes.settlement.manage` |
+| Frontend page | `apps/admin/src/app/finance/pending-settlement-trustee-letters/page.tsx` |
+| Notes | Settlement trustee workflow actions inside Note Detail use `notes.settlement.manage` and `notes.disbursement.manage` |
 
 ### Product Settings
 
@@ -497,7 +497,7 @@ These permissions have been removed from the catalog because they have no active
 | `investments.manage` | Investment listing is read-only; no admin mutation routes |
 | `bucket_balances.manage` | View-only page; no correction/adjustment routes |
 | `repayments.manage` | Repayment actions inside Note Detail use `notes.repayment.manage` |
-| `service_fee.manage` | Service fee workflow actions inside Note Detail use `notes.settlement.manage` |
+| `service_fee.view` / `service_fee.manage` | Renamed/removed pre-production: queue access is `settlements.view`; trustee actions inside Note Detail use `notes.settlement.manage` / `notes.disbursement.manage` |
 | `disbursements.manage` | All withdrawal mutations now use `notes.disbursement.manage`; this permission was redundant |
 
 The following permissions are **not** in this list because they have active backend routes:
@@ -568,7 +568,7 @@ The following permissions are **not** in this list because they have active back
 - **Do not require section manage permission for application comments** — comments use `applications.view`
 - **Do not block the Roles Permission Configuration page behind `roles.manage`** — it must be viewable with `roles.view`
 - **Do not block Notification Management tabs behind `notifications.manage`** — all tabs are viewable with `notifications.view`
-- **Do not rename `service_fee` to `service_fees`** — the catalog uses singular
+- **Do not rename `settlements.view` back to `service_fee.view`** — the settlement trustee queue is not fee-only
 - **Do not rename `platform_settings`** to `platform_settings.finance` or any variant
 - **Do not use `document_management.*`** for documents inside Notes or Application Review — use the parent module's permission
 - **Do not reintroduce SiteDocument, DocumentLog, `/documents`, or `audit.document.view`** — those systems were removed

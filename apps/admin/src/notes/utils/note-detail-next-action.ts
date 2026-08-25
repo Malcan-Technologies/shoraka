@@ -93,12 +93,12 @@ export function resolveNoteServicingTabStatus(note: NoteDetail): SimpleTabStatus
   );
   const postedNeedingTrustee = postedSettlementsNeedingTrusteeInstruction(note);
   const trusteeNeedsAdmin = postedNeedingTrustee.some(
-    (settlement) => settlement.serviceFeeTrusteeStatus !== "SUBMITTED_TO_TRUSTEE"
+    (settlement) => settlement.settlementTrusteeStatus !== "SUBMITTED_TO_TRUSTEE"
   );
   const trusteeWaitingOnOther =
     postedNeedingTrustee.length > 0 &&
     postedNeedingTrustee.every(
-      (settlement) => settlement.serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE"
+      (settlement) => settlement.settlementTrusteeStatus === "SUBMITTED_TO_TRUSTEE"
     );
 
   if (hasPendingPayments || hasUnpostedSettlement || trusteeNeedsAdmin) {

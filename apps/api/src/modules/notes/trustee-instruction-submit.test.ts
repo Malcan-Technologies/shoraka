@@ -94,7 +94,7 @@ jest.mock("../../lib/refresh-contract-facility", () => ({
 
 import {
   NoteSettlementStatus,
-  ServiceFeeTrusteeInstructionStatus,
+  SettlementTrusteeInstructionStatus,
   WithdrawalStatus,
   WithdrawalType,
 } from "@prisma/client";
@@ -142,9 +142,9 @@ describe("trustee instruction submit email wiring", () => {
     tawidh_account_amount: 0,
     gharamah_amount: 0,
     issuer_residual_amount: 0,
-    service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
-    service_fee_trustee_submitted_at: null,
-    service_fee_trustee_email_sent_at: null as Date | null,
+    settlement_trustee_status: SettlementTrusteeInstructionStatus.LETTER_GENERATED,
+    settlement_trustee_submitted_at: null,
+    settlement_trustee_email_sent_at: null as Date | null,
   };
 
   beforeEach(() => {
@@ -287,7 +287,7 @@ describe("trustee instruction submit email wiring", () => {
         payment_id: null,
         gross_receipt_amount: 100,
         posted_at: new Date("2026-08-01T00:00:00.000Z"),
-        service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
+        settlement_trustee_status: SettlementTrusteeInstructionStatus.LETTER_GENERATED,
       });
       (noteRepository.findById as jest.Mock).mockResolvedValue({
         id: "note-1",
@@ -309,7 +309,7 @@ describe("trustee instruction submit email wiring", () => {
 
       await expect(
         service.generateSettlementTrusteeLetter("note-1", "set-1", actor)
-      ).resolves.toEqual({ s3Key: expect.stringContaining("note-letters/note-1/service-fee-trustee/") });
+      ).resolves.toEqual({ s3Key: expect.stringContaining("note-letters/note-1/settlement-trustee/") });
 
       expect(prisma.noteEvent.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -317,7 +317,7 @@ describe("trustee instruction submit email wiring", () => {
             event_type: "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
             metadata: expect.objectContaining({
               settlementId: "set-1",
-              s3Key: expect.stringContaining("note-letters/note-1/service-fee-trustee/"),
+              s3Key: expect.stringContaining("note-letters/note-1/settlement-trustee/"),
             }),
           }),
         })
@@ -343,7 +343,7 @@ describe("trustee instruction submit email wiring", () => {
           where: {
             id: "set-1",
             note_id: "note-1",
-            service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
+            settlement_trustee_status: SettlementTrusteeInstructionStatus.LETTER_GENERATED,
           },
         })
       );
@@ -371,7 +371,7 @@ describe("trustee instruction submit email wiring", () => {
       await service.markSettlementTrusteeLetterSubmitted("note-1", "set-1", actor);
 
       expect(sendTrusteeInstructionPdfEmail).toHaveBeenCalledWith({
-        kind: "SERVICE_FEE",
+        kind: "SETTLEMENT",
         reference: "STL-1",
         s3Key: "note-letters/n1/letter.pdf",
         config: autoSendConfig,
@@ -381,7 +381,7 @@ describe("trustee instruction submit email wiring", () => {
           where: {
             note_id: "note-1",
             event_type: {
-              in: ["SETTLEMENT_TRUSTEE_LETTER_GENERATED", "SERVICE_FEE_TRUSTEE_LETTER_GENERATED"],
+              in: ["SETTLEMENT_TRUSTEE_LETTER_GENERATED"],
             },
           },
         })
@@ -389,7 +389,7 @@ describe("trustee instruction submit email wiring", () => {
       expect(prisma.noteSettlement.updateMany).toHaveBeenNthCalledWith(
         1,
         expect.objectContaining({
-          where: { id: "set-1", note_id: "note-1", service_fee_trustee_email_sent_at: null },
+          where: { id: "set-1", note_id: "note-1", settlement_trustee_email_sent_at: null },
         })
       );
       expect(prisma.noteEvent.create).toHaveBeenCalledWith(
@@ -426,7 +426,7 @@ describe("trustee instruction submit email wiring", () => {
       } as never);
       (prisma.noteSettlement.findFirst as jest.Mock).mockResolvedValue({
         ...settlementRow,
-        service_fee_trustee_email_sent_at: new Date("2026-08-24T10:00:00.000Z"),
+        settlement_trustee_email_sent_at: new Date("2026-08-24T10:00:00.000Z"),
       });
 
       await service.markSettlementTrusteeLetterSubmitted("note-1", "set-1", actor);
@@ -437,7 +437,7 @@ describe("trustee instruction submit email wiring", () => {
           where: {
             id: "set-1",
             note_id: "note-1",
-            service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
+            settlement_trustee_status: SettlementTrusteeInstructionStatus.LETTER_GENERATED,
           },
         })
       );
@@ -457,7 +457,7 @@ describe("trustee instruction submit email wiring", () => {
 
       await expect(
         service.markSettlementTrusteeLetterSubmitted("note-1", "set-1", actor)
-      ).rejects.toMatchObject({ code: "SERVICE_FEE_TRUSTEE_LETTER_S3_KEY_MISSING" });
+      ).rejects.toMatchObject({ code: "SETTLEMENT_TRUSTEE_LETTER_S3_KEY_MISSING" });
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
@@ -606,8 +606,8 @@ describe("trustee instruction submit email wiring", () => {
   describe("resendSettlementTrusteeEmail", () => {
     const submittedSent = {
       ...settlementRow,
-      service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
-      service_fee_trustee_email_sent_at: new Date("2026-08-24T10:00:00.000Z"),
+      settlement_trustee_status: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+      settlement_trustee_email_sent_at: new Date("2026-08-24T10:00:00.000Z"),
     };
     const latestConfig = {
       ...autoSendConfig,
@@ -624,7 +624,7 @@ describe("trustee instruction submit email wiring", () => {
       await service.resendSettlementTrusteeEmail("note-1", "set-1", actor);
 
       expect(sendTrusteeInstructionPdfEmail).toHaveBeenCalledWith({
-        kind: "SERVICE_FEE",
+        kind: "SETTLEMENT",
         reference: "STL-1",
         s3Key: "note-letters/n1/letter.pdf",
         config: latestConfig,
@@ -634,20 +634,20 @@ describe("trustee instruction submit email wiring", () => {
           where: {
             id: "set-1",
             note_id: "note-1",
-            service_fee_trustee_email_sent_at: { not: null },
-            service_fee_trustee_status: {
+            settlement_trustee_email_sent_at: { not: null },
+            settlement_trustee_status: {
               in: [
-                ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
-                ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+                SettlementTrusteeInstructionStatus.LETTER_GENERATED,
+                SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
               ],
             },
           },
-          data: { service_fee_trustee_email_sent_at: expect.any(Date) },
+          data: { settlement_trustee_email_sent_at: expect.any(Date) },
         })
       );
       expect(prisma.noteSettlement.updateMany).not.toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ service_fee_trustee_status: expect.anything() }),
+          data: expect.objectContaining({ settlement_trustee_status: expect.anything() }),
         })
       );
       expect(prisma.noteEvent.create).toHaveBeenCalledWith(
@@ -671,7 +671,7 @@ describe("trustee instruction submit email wiring", () => {
       } as never);
       (prisma.noteSettlement.findFirst as jest.Mock).mockResolvedValue({
         ...submittedSent,
-        service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
+        settlement_trustee_status: SettlementTrusteeInstructionStatus.LETTER_GENERATED,
       });
 
       await expect(service.resendSettlementTrusteeEmail("note-1", "set-1", actor)).resolves.toMatchObject({
@@ -683,8 +683,8 @@ describe("trustee instruction submit email wiring", () => {
     it("rejects before the first email and after completed", async () => {
       (prisma.noteSettlement.findFirst as jest.Mock).mockResolvedValue({
         ...settlementRow,
-        service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
-        service_fee_trustee_email_sent_at: null,
+        settlement_trustee_status: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+        settlement_trustee_email_sent_at: null,
       });
       await expect(service.resendSettlementTrusteeEmail("note-1", "set-1", actor)).rejects.toMatchObject({
         code: "TRUSTEE_EMAIL_NOT_SENT",
@@ -692,7 +692,7 @@ describe("trustee instruction submit email wiring", () => {
 
       (prisma.noteSettlement.findFirst as jest.Mock).mockResolvedValue({
         ...submittedSent,
-        service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.PENDING_LETTER,
+        settlement_trustee_status: SettlementTrusteeInstructionStatus.PENDING_LETTER,
       });
       await expect(service.resendSettlementTrusteeEmail("note-1", "set-1", actor)).rejects.toMatchObject({
         code: "TRUSTEE_EMAIL_NOT_RESENDABLE",
@@ -700,7 +700,7 @@ describe("trustee instruction submit email wiring", () => {
 
       (prisma.noteSettlement.findFirst as jest.Mock).mockResolvedValue({
         ...submittedSent,
-        service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.COMPLETED,
+        settlement_trustee_status: SettlementTrusteeInstructionStatus.COMPLETED,
       });
       await expect(service.resendSettlementTrusteeEmail("note-1", "set-1", actor)).rejects.toMatchObject({
         code: "TRUSTEE_EMAIL_NOT_RESENDABLE",
@@ -743,7 +743,7 @@ describe("trustee instruction submit email wiring", () => {
     it("writes SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED and notifies the issuer once", async () => {
       (prisma.noteSettlement.findFirst as jest.Mock).mockResolvedValue({
         ...settlementRow,
-        service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+        settlement_trustee_status: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
         issuer_residual_amount: 0,
       });
       (prisma.note.findUnique as jest.Mock).mockResolvedValue({

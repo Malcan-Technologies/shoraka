@@ -48,11 +48,11 @@ export default function SettlementTrusteeLettersPage() {
   const { data, isLoading, error, refetch, isFetching } = usePendingSettlementTrusteeLetters();
   const items = data?.items ?? [];
 
-  const totalFee = items.reduce((sum, item) => sum + item.serviceFeeAmount, 0);
+  const totalTrusteeAmount = items.reduce((sum, item) => sum + item.trusteeInstructionAmount, 0);
   const distinctNotes = new Set(items.map((item) => item.noteId)).size;
 
   return (
-    <RequirePermission permission="service_fee.view">
+    <RequirePermission permission="settlements.view">
       <>
             <div className="flex-1 overflow-y-auto">
         <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
@@ -98,7 +98,11 @@ export default function SettlementTrusteeLettersPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="text-2xl font-semibold">
-                  {isLoading ? <Skeleton className="h-8 w-32" /> : formatCurrency(totalFee)}
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-32" />
+                  ) : (
+                    formatCurrency(totalTrusteeAmount)
+                  )}
                 </CardContent>
               </Card>
               <Card className="rounded-2xl">
@@ -165,7 +169,7 @@ export default function SettlementTrusteeLettersPage() {
                                 </span>
                               </TableCell>
                               <TableCell className="text-right tabular-nums">
-                                {formatCurrency(item.serviceFeeAmount)}
+                                {formatCurrency(item.trusteeInstructionAmount)}
                               </TableCell>
                               <TableCell>{formatTrusteeInstructionStatus(item)}</TableCell>
                               <TableCell>{formatDate(item.settlementPostedAt)}</TableCell>

@@ -239,7 +239,7 @@ const moneyMovementItems: Array<{
   title: string;
   url: string;
   badgeKey: BadgeKey;
-  permission: "repayments" | "serviceFee" | "disbursements" | "investorWithdrawals";
+  permission: "repayments" | "settlements" | "disbursements" | "investorWithdrawals";
 }> = [
   {
     title: "Repayments",
@@ -249,9 +249,9 @@ const moneyMovementItems: Array<{
   },
   {
     title: "Settlements",
-    url: "/finance/service-fee-trustee-letters",
+    url: "/finance/pending-settlement-trustee-letters",
     badgeKey: "pendingSettlementTrusteeLetters",
-    permission: "serviceFee",
+    permission: "settlements",
   },
   {
     title: "Issuer Payouts",
@@ -398,7 +398,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const canViewBucketBalances = can("bucket_balances.view");
   const canViewRepayments = can("repayments.view");
-  const canViewServiceFee = can("service_fee.view");
+  const canViewSettlements = can("settlements.view");
   const canViewDisbursements = can("disbursements.view");
   const canViewInvestorWithdrawals = can("investor_withdrawals.view");
   const canViewGatewayPayments = can("gateway_payments.view");
@@ -435,7 +435,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     enabled: canViewReconciliation,
   });
   const { data: pendingSettlementTrusteeLettersData } = usePendingSettlementTrusteeLetters({
-    enabled: canViewServiceFee,
+    enabled: canViewSettlements,
   });
 
   const { data: productsData } = useProducts({
@@ -462,7 +462,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const permissionFlags = {
     repayments: canViewRepayments,
-    serviceFee: canViewServiceFee,
+    settlements: canViewSettlements,
     disbursements: canViewDisbursements,
     investorWithdrawals: canViewInvestorWithdrawals,
     gatewayPayments: canViewGatewayPayments,

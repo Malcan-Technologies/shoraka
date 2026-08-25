@@ -110,52 +110,41 @@ describe("admin note events sorting", () => {
     expect(sorted.map((e) => e.id)).toEqual(["a", "z"]);
   });
 
-  it("treats the live and legacy settlement trustee-email IDs as the same lifecycle slot", () => {
+  it("orders settlement trustee letter before email at the same timestamp", () => {
     const createdAt = "2026-05-25T00:00:00.000Z";
 
-    const live = sortAdminNoteEvents(
+    const sorted = sortAdminNoteEvents(
       [
-        { id: "letter", eventType: "SERVICE_FEE_TRUSTEE_LETTER_GENERATED", createdAt },
+        { id: "letter", eventType: "SETTLEMENT_TRUSTEE_LETTER_GENERATED", createdAt },
         { id: "email", eventType: "SETTLEMENT_TRUSTEE_EMAIL_SENT", createdAt },
       ],
       "oldest-first"
     );
-    const legacy = sortAdminNoteEvents(
-      [
-        { id: "letter", eventType: "SERVICE_FEE_TRUSTEE_LETTER_GENERATED", createdAt },
-        { id: "email", eventType: "SERVICE_FEE_TRUSTEE_EMAIL_SENT", createdAt },
-      ],
-      "oldest-first"
-    );
 
-    expect(live.map((e) => e.id)).toEqual(["letter", "email"]);
-    expect(legacy.map((e) => e.id)).toEqual(["letter", "email"]);
+    expect(sorted.map((e) => e.id)).toEqual(["letter", "email"]);
   });
 
-  it("treats live and legacy settlement trustee letter/submit/complete IDs as the same lifecycle slots", () => {
+  it("orders settlement trustee email before submit and complete at the same timestamp", () => {
     const createdAt = "2026-05-25T00:00:00.000Z";
-    const pairs = [
-      ["SETTLEMENT_TRUSTEE_LETTER_GENERATED", "SERVICE_FEE_TRUSTEE_LETTER_GENERATED"],
-      ["SETTLEMENT_TRUSTEE_LETTER_SUBMITTED", "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED"],
-      ["SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED", "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED"],
+    const steps = [
+      "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
+      "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED",
+      "SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED",
     ] as const;
 
-    for (const [liveType, legacyType] of pairs) {
-      const live = sortAdminNoteEvents(
+    for (const step of steps) {
+      const sorted = sortAdminNoteEvents(
         [
           { id: "email", eventType: "SETTLEMENT_TRUSTEE_EMAIL_SENT", createdAt },
-          { id: "step", eventType: liveType, createdAt },
+          { id: "step", eventType: step, createdAt },
         ],
         "oldest-first"
       );
-      const legacy = sortAdminNoteEvents(
-        [
-          { id: "email", eventType: "SETTLEMENT_TRUSTEE_EMAIL_SENT", createdAt },
-          { id: "step", eventType: legacyType, createdAt },
-        ],
-        "oldest-first"
-      );
-      expect(live.map((e) => e.id)).toEqual(legacy.map((e) => e.id));
+      if (step === "SETTLEMENT_TRUSTEE_LETTER_GENERATED") {
+        expect(sorted.map((e) => e.id)).toEqual(["step", "email"]);
+      } else {
+        expect(sorted.map((e) => e.id)).toEqual(["email", "step"]);
+      }
     }
   });
 });

@@ -48,7 +48,7 @@ The **Activity timeline** on the right records when letters were generated and l
 
 **When:** Only **after settlement is posted**, when the posted waterfall includes amounts that require trustee instruction (investor pool movements, service fee, Ta'widh/Gharamah account allocations, and/or **issuer refund allocation**).
 
-**Where:** **Servicing & Settlement** tab → settlement waterfall area → **Trustee submission** block. Use **Finance → Service Fee** for the platform-wide queue.
+**Where:** **Servicing & Settlement** tab → settlement waterfall area → **Trustee submission** block. Use **Finance → Settlements** for the platform-wide queue.
 
 **What it documents:** The trustee instruction for all posted pool movements from the repayment waterfall — including service fee to Operating account and issuer refund allocation when applicable. Ledger credits/debits were created at post; the PDF is the instruction and audit record for the trustee.
 

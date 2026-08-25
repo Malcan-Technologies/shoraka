@@ -874,7 +874,7 @@ export class ApiClient {
     ApiResponse<PendingSettlementTrusteeLettersResponse> | ApiError
   > {
     return this.get<PendingSettlementTrusteeLettersResponse>(
-      "/v1/admin/notes/pending-service-fee-trustee-letters"
+      "/v1/admin/notes/pending-settlement-trustee-letters"
     );
   }
 
@@ -981,7 +981,7 @@ export class ApiClient {
     settlementId: string
   ): Promise<ApiResponse<{ s3Key: string }> | ApiError> {
     return this.post<{ s3Key: string }>(
-      `/v1/admin/notes/${noteId}/settlements/${settlementId}/service-fee/generate-trustee-letter`,
+      `/v1/admin/notes/${noteId}/settlements/${settlementId}/settlement-trustee/generate-letter`,
       {}
     );
   }
@@ -991,7 +991,7 @@ export class ApiClient {
     settlementId: string
   ): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(
-      `/v1/admin/notes/${noteId}/settlements/${settlementId}/service-fee/mark-submitted-to-trustee`,
+      `/v1/admin/notes/${noteId}/settlements/${settlementId}/settlement-trustee/mark-submitted-to-trustee`,
       {}
     );
   }
@@ -1001,7 +1001,7 @@ export class ApiClient {
     settlementId: string
   ): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(
-      `/v1/admin/notes/${noteId}/settlements/${settlementId}/service-fee/resend-trustee-email`,
+      `/v1/admin/notes/${noteId}/settlements/${settlementId}/settlement-trustee/resend-trustee-email`,
       {}
     );
   }
@@ -1011,7 +1011,7 @@ export class ApiClient {
     settlementId: string
   ): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(
-      `/v1/admin/notes/${noteId}/settlements/${settlementId}/service-fee/mark-completed`,
+      `/v1/admin/notes/${noteId}/settlements/${settlementId}/settlement-trustee/mark-completed`,
       {}
     );
   }

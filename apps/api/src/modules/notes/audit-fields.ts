@@ -41,7 +41,7 @@ export function resolveNoteEventTarget(
     };
   }
 
-  if (eventType.startsWith("SETTLEMENT_") || eventType.startsWith("SERVICE_FEE_TRUSTEE_")) {
+  if (eventType.startsWith("SETTLEMENT_")) {
     return {
       targetType: AUDIT_TARGET_TYPE.NOTE_SETTLEMENT,
       targetId: metaString(metadata, "settlementId"),

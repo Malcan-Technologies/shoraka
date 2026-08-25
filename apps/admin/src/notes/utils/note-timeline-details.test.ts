@@ -97,41 +97,36 @@ describe("extractNoteTimelineDetails", () => {
       { key: "messageId", label: "Message Id", value: "ses-3" },
     ]);
 
-    const legacySettlement = extractNoteTimelineDetails(
+    const settlementResend = extractNoteTimelineDetails(
       event({
-        eventType: "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
-        metadata: { settlementId: "set-legacy", messageId: "ses-legacy", resend: true },
+        eventType: "SETTLEMENT_TRUSTEE_EMAIL_SENT",
+        metadata: {
+          settlementId: "set-1",
+          settlementReference: "STL-1",
+          messageId: "ses-4",
+          resend: true,
+        },
       })
     );
-    expect(legacySettlement.compact).toEqual(
+    expect(settlementResend.compact).toEqual(
       expect.arrayContaining([
-        { key: "settlementId", label: "Settlement Id", value: "set-legacy" },
-        { key: "messageId", label: "Message Id", value: "ses-legacy" },
+        { key: "settlementId", label: "Settlement Id", value: "set-1" },
+        { key: "settlementReference", label: "Settlement Reference", value: "STL-1" },
+        { key: "messageId", label: "Message Id", value: "ses-4" },
         { key: "resend", label: "Redelivery", value: "Redelivered" },
       ])
     );
-    expect(legacySettlement.compact.find((row) => row.key === "settlementReference")).toBeUndefined();
   });
 
-  it("preserves settlement trustee letter metadata for live and legacy generated IDs", () => {
+  it("hides settlement trustee letter s3Key from compact timeline details", () => {
     const live = extractNoteTimelineDetails(
       event({
         eventType: "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
         metadata: { settlementId: "set-1", s3Key: "note-letters/n1/letter.pdf" },
       })
     );
-    const legacy = extractNoteTimelineDetails(
-      event({
-        eventType: "SERVICE_FEE_TRUSTEE_LETTER_GENERATED",
-        metadata: { settlementId: "set-legacy", s3Key: "note-letters/n1/legacy.pdf" },
-      })
-    );
     expect(live.compact).toEqual([{ key: "settlementId", label: "Settlement Id", value: "set-1" }]);
-    expect(legacy.compact).toEqual([
-      { key: "settlementId", label: "Settlement Id", value: "set-legacy" },
-    ]);
     expect(live.compact.find((row) => row.key === "s3Key")).toBeUndefined();
-    expect(legacy.compact.find((row) => row.key === "s3Key")).toBeUndefined();
   });
 
   it("builds an activation sentence with the actor and note title", () => {

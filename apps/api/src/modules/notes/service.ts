@@ -14,7 +14,7 @@ import {
   NoteServicingStatus,
   NoteSettlementStatus,
   NoteSettlementType,
-  ServiceFeeTrusteeInstructionStatus as SettlementTrusteeInstructionStatus,
+  SettlementTrusteeInstructionStatus,
   NoteStatus,
   ProspectusReviewStatus,
   Prisma,
@@ -2064,8 +2064,8 @@ export class NoteService {
         issuer_residual_amount: true,
         posted_at: true,
         created_at: true,
-        service_fee_trustee_status: true,
-        service_fee_trustee_submitted_at: true,
+        settlement_trustee_status: true,
+        settlement_trustee_submitted_at: true,
       },
     });
 
@@ -2165,15 +2165,15 @@ export class NoteService {
           withdrawalType: WithdrawalType.ISSUER_RESIDUAL_RETURN,
           amount: toNumber(settlement.issuer_residual_amount),
           currency: "MYR",
-          status: settlementStatusToPayoutStatus(settlement.service_fee_trustee_status),
+          status: settlementStatusToPayoutStatus(settlement.settlement_trustee_status),
           generatedAt:
-            settlement.service_fee_trustee_status === SettlementTrusteeInstructionStatus.LETTER_GENERATED ||
-            settlement.service_fee_trustee_status ===
+            settlement.settlement_trustee_status === SettlementTrusteeInstructionStatus.LETTER_GENERATED ||
+            settlement.settlement_trustee_status ===
               SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE ||
-            settlement.service_fee_trustee_status === SettlementTrusteeInstructionStatus.COMPLETED
+            settlement.settlement_trustee_status === SettlementTrusteeInstructionStatus.COMPLETED
               ? settlement.created_at.toISOString()
               : null,
-          submittedToTrusteeAt: settlement.service_fee_trustee_submitted_at?.toISOString() ?? null,
+          submittedToTrusteeAt: settlement.settlement_trustee_submitted_at?.toISOString() ?? null,
           createdAt: (settlement.posted_at ?? settlement.created_at).toISOString(),
         };
       });
@@ -2222,9 +2222,9 @@ export class NoteService {
           },
           {
             OR: [
-              { service_fee_trustee_status: null },
+              { settlement_trustee_status: null },
               {
-                service_fee_trustee_status: {
+                settlement_trustee_status: {
                   not: SettlementTrusteeInstructionStatus.COMPLETED,
                 },
               },
@@ -2245,9 +2245,9 @@ export class NoteService {
         gharamah_amount: true,
         issuer_residual_amount: true,
         posted_at: true,
-        service_fee_trustee_status: true,
-        service_fee_trustee_submitted_at: true,
-        service_fee_trustee_completed_at: true,
+        settlement_trustee_status: true,
+        settlement_trustee_submitted_at: true,
+        settlement_trustee_completed_at: true,
       },
     });
     if (settlements.length === 0) return { count: 0, items: [] };
@@ -2290,12 +2290,12 @@ export class NoteService {
         noteStatus: note?.status ?? null,
         issuerOrganizationId: issuer?.id ?? null,
         issuerOrganizationName: issuer?.name ?? null,
-        serviceFeeAmount: settlementTrusteeAmount,
+        trusteeInstructionAmount: settlementTrusteeAmount,
         currency: "MYR",
         settlementPostedAt: s.posted_at?.toISOString() ?? null,
-        trusteeInstructionStatus: s.service_fee_trustee_status,
-        submittedToTrusteeAt: s.service_fee_trustee_submitted_at?.toISOString() ?? null,
-        instructionCompletedAt: s.service_fee_trustee_completed_at?.toISOString() ?? null,
+        trusteeInstructionStatus: s.settlement_trustee_status,
+        submittedToTrusteeAt: s.settlement_trustee_submitted_at?.toISOString() ?? null,
+        instructionCompletedAt: s.settlement_trustee_completed_at?.toISOString() ?? null,
       };
     });
 
@@ -5374,8 +5374,8 @@ export class NoteService {
           preview_snapshot: json(postedSnapshot),
           ...(hasSettlementTrusteeMovement(settlement)
             ? {
-                service_fee_trustee_status: SettlementTrusteeInstructionStatus.PENDING_LETTER,
-                service_fee_trustee_created_at: postedAt,
+                settlement_trustee_status: SettlementTrusteeInstructionStatus.PENDING_LETTER,
+                settlement_trustee_created_at: postedAt,
               }
             : {}),
         },
@@ -5735,14 +5735,14 @@ export class NoteService {
       );
     }
 
-    const wfStatus = settlement.service_fee_trustee_status;
+    const wfStatus = settlement.settlement_trustee_status;
     if (
       wfStatus === SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE ||
       wfStatus === SettlementTrusteeInstructionStatus.COMPLETED
     ) {
       throw new AppError(
         409,
-        "SERVICE_FEE_TRUSTEE_LETTER_LOCKED",
+        "SETTLEMENT_TRUSTEE_LETTER_LOCKED",
         "The instruction has already been submitted to the trustee and cannot be regenerated."
       );
     }
@@ -5852,7 +5852,7 @@ export class NoteService {
 
     const buffer = await renderTrusteeLetterPdf(letterData);
     const settlementFileRef = settlement.display_reference?.trim() || settlement.id;
-    const key = `note-letters/${noteId}/service-fee-trustee/trustee-${settlementFileRef}-${Date.now()}.pdf`;
+    const key = `note-letters/${noteId}/settlement-trustee/trustee-${settlementFileRef}-${Date.now()}.pdf`;
     await putS3ObjectBuffer({ key, body: buffer, contentType: "application/pdf" });
     await prisma.$transaction(async (tx) => {
       const row = await tx.noteSettlement.updateMany({
@@ -5860,9 +5860,9 @@ export class NoteService {
           id: settlementId,
           note_id: noteId,
           OR: [
-            { service_fee_trustee_status: null },
+            { settlement_trustee_status: null },
             {
-              service_fee_trustee_status: {
+              settlement_trustee_status: {
                 notIn: [
                   SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
                   SettlementTrusteeInstructionStatus.COMPLETED,
@@ -5872,14 +5872,14 @@ export class NoteService {
           ],
         },
         data: {
-          service_fee_trustee_status: SettlementTrusteeInstructionStatus.LETTER_GENERATED,
-          service_fee_trustee_letter_generated_at: new Date(),
+          settlement_trustee_status: SettlementTrusteeInstructionStatus.LETTER_GENERATED,
+          settlement_trustee_letter_generated_at: new Date(),
         },
       });
       if (row.count !== 1) {
         throw new AppError(
           409,
-          "SERVICE_FEE_TRUSTEE_LETTER_LOCKED",
+          "SETTLEMENT_TRUSTEE_LETTER_LOCKED",
           "The instruction has already been submitted to the trustee and cannot be regenerated."
         );
       }
@@ -5926,11 +5926,11 @@ export class NoteService {
         "This settlement has no trustee instruction to submit."
       );
     }
-    const st = settlement.service_fee_trustee_status;
+    const st = settlement.settlement_trustee_status;
     if (st !== SettlementTrusteeInstructionStatus.LETTER_GENERATED) {
       throw new AppError(
         409,
-        "SERVICE_FEE_TRUSTEE_LETTER_REQUIRED",
+        "SETTLEMENT_TRUSTEE_LETTER_REQUIRED",
         "Generate the trustee instruction PDF before marking it submitted."
       );
     }
@@ -5950,18 +5950,18 @@ export class NoteService {
         where: {
           id: settlementId,
           note_id: noteId,
-          service_fee_trustee_status: SettlementTrusteeInstructionStatus.LETTER_GENERATED,
+          settlement_trustee_status: SettlementTrusteeInstructionStatus.LETTER_GENERATED,
         },
         data: {
-          service_fee_trustee_status: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
-          service_fee_trustee_submitted_at:
-            settlement.service_fee_trustee_submitted_at ?? new Date(),
+          settlement_trustee_status: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+          settlement_trustee_submitted_at:
+            settlement.settlement_trustee_submitted_at ?? new Date(),
         },
       });
       if (row.count !== 1) {
         throw new AppError(
           409,
-          "SERVICE_FEE_TRUSTEE_LETTER_REQUIRED",
+          "SETTLEMENT_TRUSTEE_LETTER_REQUIRED",
           "Generate the trustee instruction PDF before marking it submitted."
         );
       }
@@ -5987,7 +5987,7 @@ export class NoteService {
         "Only posted settlements can move the settlement trustee workflow forward."
       );
     }
-    const st = settlement.service_fee_trustee_status;
+    const st = settlement.settlement_trustee_status;
     if (
       st !== SettlementTrusteeInstructionStatus.LETTER_GENERATED &&
       st !== SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE
@@ -6000,7 +6000,7 @@ export class NoteService {
           : "Resend is available only after the trustee email has already been sent."
       );
     }
-    if (!settlement.service_fee_trustee_email_sent_at) {
+    if (!settlement.settlement_trustee_email_sent_at) {
       throw new AppError(
         409,
         "TRUSTEE_EMAIL_NOT_SENT",
@@ -6055,12 +6055,12 @@ export class NoteService {
       );
     }
     if (
-      settlement.service_fee_trustee_status !==
+      settlement.settlement_trustee_status !==
       SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE
     ) {
       throw new AppError(
         409,
-        "SERVICE_FEE_TRUSTEE_NOT_SUBMITTED",
+        "SETTLEMENT_TRUSTEE_NOT_SUBMITTED",
         "Mark the instruction submitted to the trustee before completing it."
       );
     }
@@ -6085,18 +6085,18 @@ export class NoteService {
         where: {
           id: settlementId,
           note_id: noteId,
-          service_fee_trustee_status: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+          settlement_trustee_status: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
         },
         data: {
-          service_fee_trustee_status: SettlementTrusteeInstructionStatus.COMPLETED,
-          service_fee_trustee_completed_at:
-            settlement.service_fee_trustee_completed_at ?? completedAt,
+          settlement_trustee_status: SettlementTrusteeInstructionStatus.COMPLETED,
+          settlement_trustee_completed_at:
+            settlement.settlement_trustee_completed_at ?? completedAt,
         },
       });
       if (row.count !== 1) {
         throw new AppError(
           409,
-          "SERVICE_FEE_TRUSTEE_NOT_SUBMITTED",
+          "SETTLEMENT_TRUSTEE_NOT_SUBMITTED",
           "Mark the instruction submitted to the trustee before completing it."
         );
       }
@@ -6940,7 +6940,7 @@ export class NoteService {
             },
           });
           const settlementTrusteeComplete =
-            postedResidualSettlement?.service_fee_trustee_status ===
+            postedResidualSettlement?.settlement_trustee_status ===
             SettlementTrusteeInstructionStatus.COMPLETED;
           const settlementNeedsTrustee =
             postedResidualSettlement != null &&
@@ -7252,11 +7252,11 @@ export class NoteService {
       select: {
         id: true,
         display_reference: true,
-        service_fee_trustee_email_sent_at: true,
+        settlement_trustee_email_sent_at: true,
       },
     });
     if (!latest) throw new AppError(404, "SETTLEMENT_NOT_FOUND", "Settlement not found");
-    if (mode === "initial" && latest.service_fee_trustee_email_sent_at) return;
+    if (mode === "initial" && latest.settlement_trustee_email_sent_at) return;
     if (!config) {
       throw new AppError(
         409,
@@ -7269,7 +7269,7 @@ export class NoteService {
       where: {
         note_id: noteId,
         event_type: {
-          in: ["SETTLEMENT_TRUSTEE_LETTER_GENERATED", "SERVICE_FEE_TRUSTEE_LETTER_GENERATED"],
+          in: ["SETTLEMENT_TRUSTEE_LETTER_GENERATED"],
         },
       },
       orderBy: { created_at: "desc" },
@@ -7282,13 +7282,13 @@ export class NoteService {
     if (!s3Key) {
       throw new AppError(
         409,
-        "SERVICE_FEE_TRUSTEE_LETTER_S3_KEY_MISSING",
+        "SETTLEMENT_TRUSTEE_LETTER_S3_KEY_MISSING",
         "The generated trustee instruction PDF could not be found for this settlement."
       );
     }
 
     const { messageId } = await sendTrusteeInstructionPdfEmail({
-      kind: "SERVICE_FEE",
+      kind: "SETTLEMENT",
       reference: latest.display_reference?.trim() || latest.id,
       s3Key,
       config,
@@ -7320,16 +7320,16 @@ export class NoteService {
           ? {
               id: settlementId,
               note_id: noteId,
-              service_fee_trustee_email_sent_at: { not: null },
-              service_fee_trustee_status: {
+              settlement_trustee_email_sent_at: { not: null },
+              settlement_trustee_status: {
                 in: [
                   SettlementTrusteeInstructionStatus.LETTER_GENERATED,
                   SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
                 ],
               },
             }
-          : { id: settlementId, note_id: noteId, service_fee_trustee_email_sent_at: null },
-      data: { service_fee_trustee_email_sent_at: new Date() },
+          : { id: settlementId, note_id: noteId, settlement_trustee_email_sent_at: null },
+      data: { settlement_trustee_email_sent_at: new Date() },
     });
     if (mode === "resend" && persist.count !== 1) {
       this.throwTrusteeEmailResendStateChanged();

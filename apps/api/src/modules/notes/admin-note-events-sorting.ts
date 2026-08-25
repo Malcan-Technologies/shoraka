@@ -44,11 +44,6 @@ const ADMIN_NOTE_EVENT_LIFECYCLE_PRIORITY: Record<string, number> = Object.freez
       priority[eventType] = index;
       return priority;
     }, {} as Record<string, number>);
-    // Historical rows written before the technical ID rename; same lifecycle slot as the live ID.
-    acc.SERVICE_FEE_TRUSTEE_EMAIL_SENT = acc.SETTLEMENT_TRUSTEE_EMAIL_SENT;
-    acc.SERVICE_FEE_TRUSTEE_LETTER_GENERATED = acc.SETTLEMENT_TRUSTEE_LETTER_GENERATED;
-    acc.SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED = acc.SETTLEMENT_TRUSTEE_LETTER_SUBMITTED;
-    acc.SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED = acc.SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED;
     return acc;
   })()
 );

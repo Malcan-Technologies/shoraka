@@ -43,17 +43,9 @@ const EVENT_LABELS: Record<string, string> = {
   ARREARS_LETTER_GENERATED: "Arrears letter generated",
   DEFAULT_LETTER_GENERATED: "Default letter generated",
   SETTLEMENT_TRUSTEE_LETTER_GENERATED: "Settlement Trustee Letter Generated",
-  // Legacy stored type for historical rows; new writes use SETTLEMENT_TRUSTEE_LETTER_GENERATED.
-  SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Settlement Trustee Letter Generated",
   SETTLEMENT_TRUSTEE_EMAIL_SENT: "Settlement Trustee Email Sent",
-  // Legacy stored type for historical rows; new writes use SETTLEMENT_TRUSTEE_EMAIL_SENT.
-  SERVICE_FEE_TRUSTEE_EMAIL_SENT: "Settlement Trustee Email Sent",
   SETTLEMENT_TRUSTEE_LETTER_SUBMITTED: "Settlement Trustee Letter Submitted",
-  // Legacy stored type for historical rows; new writes use SETTLEMENT_TRUSTEE_LETTER_SUBMITTED.
-  SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Settlement Trustee Letter Submitted",
   SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement Trustee Instruction Completed",
-  // Legacy stored type for historical rows; new writes use SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED.
-  SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement Trustee Instruction Completed",
   WITHDRAWAL_TRUSTEE_EMAIL_SENT: "Withdrawal Trustee Email Sent",
   NOTE_DEFAULT_MARKED: "Note Defaulted",
   WAIVE_FACILITY_FEE_COLLECTION: "Facility Fee Collection Waived",
@@ -80,10 +72,7 @@ export function formatNoteActivityEventLabel(
   if (metadata?.resend === true) {
     if (eventType === "WITHDRAWAL_TRUSTEE_EMAIL_SENT") {
       label = "Withdrawal Trustee Email Redelivered";
-    } else if (
-      eventType === "SETTLEMENT_TRUSTEE_EMAIL_SENT" ||
-      eventType === "SERVICE_FEE_TRUSTEE_EMAIL_SENT"
-    ) {
+    } else if (eventType === "SETTLEMENT_TRUSTEE_EMAIL_SENT") {
       label = "Settlement Trustee Email Redelivered";
     }
   }

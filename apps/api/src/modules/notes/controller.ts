@@ -180,8 +180,8 @@ adminNotesRouter.get(
 );
 
 adminNotesRouter.get(
-  "/pending-service-fee-trustee-letters",
-  requirePermission("service_fee.view"),
+  "/pending-settlement-trustee-letters",
+  requirePermission("settlements.view"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       send(res, await noteService.listPendingSettlementTrusteeLetters());
@@ -586,7 +586,7 @@ adminNotesRouter.post(
 );
 
 adminNotesRouter.post(
-  "/:id/settlements/:settlementId/service-fee/generate-trustee-letter",
+  "/:id/settlements/:settlementId/settlement-trustee/generate-letter",
   requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -602,7 +602,7 @@ adminNotesRouter.post(
 );
 
 adminNotesRouter.post(
-  "/:id/settlements/:settlementId/service-fee/mark-submitted-to-trustee",
+  "/:id/settlements/:settlementId/settlement-trustee/mark-submitted-to-trustee",
   requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -622,7 +622,7 @@ adminNotesRouter.post(
 );
 
 adminNotesRouter.post(
-  "/:id/settlements/:settlementId/service-fee/resend-trustee-email",
+  "/:id/settlements/:settlementId/settlement-trustee/resend-trustee-email",
   requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -638,7 +638,7 @@ adminNotesRouter.post(
 );
 
 adminNotesRouter.post(
-  "/:id/settlements/:settlementId/service-fee/mark-completed",
+  "/:id/settlements/:settlementId/settlement-trustee/mark-completed",
   requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {

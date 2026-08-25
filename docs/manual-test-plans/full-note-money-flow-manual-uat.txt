@@ -486,12 +486,12 @@ NoteSettlement
   preview_snapshot
   approved_at
   posted_at
-  service_fee_trustee_status
+  settlement_trustee_status
 - Expected:
   PREVIEW after preview.
   APPROVED after approve.
   POSTED after post.
-  service_fee_trustee_status = PENDING_LETTER if service fee > 0.
+  settlement_trustee_status = PENDING_LETTER if service fee > 0.
 
 
 SECTION 5 - Manual test steps: application to note creation
@@ -1371,7 +1371,7 @@ Expected DB result:
   Investor B + RM43,400.00
 - note_ledger_entries created for settlement waterfall.
 - If service_fee_amount > 0:
-  note_settlements.service_fee_trustee_status = PENDING_LETTER.
+  note_settlements.settlement_trustee_status = PENDING_LETTER.
 
 Expected ledger result:
 - REPAYMENT_POOL DEBIT investor principal RM100,000.
@@ -1425,7 +1425,7 @@ Expected UI result:
 
 Expected DB result:
 - note_settlements.status = POSTED.
-- service_fee_trustee_status progresses PENDING_LETTER → … → COMPLETED.
+- settlement_trustee_status progresses PENDING_LETTER → … → COMPLETED.
 - Unified flow may not create ISSUER_RESIDUAL_RETURN withdrawal at post.
 
 Manual calculation:
@@ -1443,7 +1443,7 @@ Expected UI result:
 - Lifecycle sub-stepper advances.
 
 Expected DB result:
-- service_fee_trustee_status = LETTER_GENERATED (or next valid state).
+- settlement_trustee_status = LETTER_GENERATED (or next valid state).
 
 Expected letter:
 - Includes pool movements and issuer refund allocation as applicable.
@@ -1460,7 +1460,7 @@ Expected UI result:
 - Registry settlement column shows **Settled**.
 
 Expected DB result:
-- service_fee_trustee_status = COMPLETED.
+- settlement_trustee_status = COMPLETED.
 - notes.status = REPAID, servicing_status = SETTLED.
 - Issuer Payable cleared for issuer refund allocation (ledger).
 
@@ -2226,7 +2226,7 @@ How it is triggered:
 Tables written:
 - withdrawal_instructions
 - note_ledger_entries for issuer payable debit when issuer payout is completed
-- note_settlements for service fee trustee workflow
+- note_settlements for settlement trustee workflow
 - note_events
 - notes when issuer disbursement/residual completion changes note status
 
@@ -2235,7 +2235,7 @@ Money/bucket movement:
   ISSUER_PAYABLE DEBIT net issuer disbursement.
 - Mark issuer residual completed:
   ISSUER_PAYABLE DEBIT residual amount.
-- Service fee trustee workflow does not create new money movement; settlement posting already moved the service fee in ledger.
+- Settlement trustee workflow does not create new money movement; settlement posting already moved the waterfall (including service fee) in ledger.
 
 Idempotency:
 - State transitions require exact previous status.
@@ -2324,7 +2324,7 @@ Purpose:
 
 Relevant note-money migrations found:
 - 20260518104500_service_fee_trustee_instruction_status
-  Adds service fee trustee workflow columns and backfills posted settlements with service fee.
+  Historical migration: added trustee workflow columns (later renamed to settlement_trustee_*). Backfills posted settlements with service fee.
 - 20260519120000_marketplace_listing_duration_days
   Adds product marketplace listing duration.
 - 20260521001633_add_shoraka_stp_phase1
@@ -2838,7 +2838,7 @@ select
   unapplied_amount,
   approved_at,
   posted_at,
-  service_fee_trustee_status,
+  settlement_trustee_status,
   preview_snapshot
 from note_settlements
 where note_id = :noteId

@@ -51,7 +51,7 @@ export function isSettlementSummaryTrusteeInstructionComplete(
   if (!hasSettlementTrusteeMovementFromPoolSummary(summary)) {
     return true;
   }
-  return summary.serviceFeeTrusteeStatus === "COMPLETED";
+  return summary.settlementTrusteeStatus === "COMPLETED";
 }
 
 export function areAllPostedSettlementTrusteeInstructionsComplete(
@@ -66,7 +66,7 @@ export function areAllPostedSettlementTrusteeInstructionsComplete(
     return true;
   }
   return postedNeedingTrustee.every(
-    (settlement) => settlement.serviceFeeTrusteeStatus === "COMPLETED"
+    (settlement) => settlement.settlementTrusteeStatus === "COMPLETED"
   );
 }
 
@@ -123,7 +123,7 @@ export function resolveSettlementTrusteeRegistryState(
   summary: NoteSettlementPoolSummary | null | undefined
 ): SettlementTrusteeRegistryState {
   if (!summary || summary.status !== "POSTED") return "none";
-  const status = summary.serviceFeeTrusteeStatus;
+  const status = summary.settlementTrusteeStatus;
   const tracked = hasSettlementTrusteeMovementFromPoolSummary(summary) || status != null;
   if (!tracked) return "none";
   if (status === "COMPLETED") return "complete";

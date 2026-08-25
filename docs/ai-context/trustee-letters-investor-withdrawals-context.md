@@ -138,7 +138,7 @@ In every trustee instruction PDF:
 |-------------|----------------------|
 | Issuer disbursement | Investor Pool |
 | Investor withdrawal | Investor Pool |
-| Repayment / settlement / service-fee trustee letter | Repayment Pool |
+| Repayment / settlement trustee letter | Repayment Pool |
 
 ### Destination row mapping (high level)
 
@@ -444,24 +444,20 @@ Issuer payout list still uses `GET /v1/admin/withdrawals/pending-issuer-payouts`
 | Shared types | `packages/types/src/notes.ts`, `packages/types/src/rbac.ts` |
 | Admin hooks | `apps/admin/src/notes/hooks/use-notes.ts` |
 
-### Legacy persistence / HTTP names
+### Settlement trustee naming (canonical)
 
-Canonical application terminology is **settlement trustee instruction**. These names remain because they are persisted, contracted, or historically stored — they are not fee-only:
-
-| Layer | Legacy name | Application name |
-|------|-------------|------------------|
-| Prisma enum | `ServiceFeeTrusteeInstructionStatus` | aliased in API as `SettlementTrusteeInstructionStatus` |
-| Prisma columns | `service_fee_trustee_status` and `service_fee_trustee_*` timestamps | mapped to JSON `serviceFeeTrustee*` |
-| HTTP | `GET /v1/admin/notes/pending-service-fee-trustee-letters` | `listPendingSettlementTrusteeLetters` |
-| HTTP | `POST .../settlements/:id/service-fee/{generate-trustee-letter,mark-submitted-to-trustee,resend-trustee-email,mark-completed}` | `generateSettlementTrusteeLetter` / `markSettlementTrusteeLetterSubmitted` / `resendSettlementTrusteeEmail` / `markSettlementTrusteeInstructionCompleted` |
-| Admin page | `/finance/service-fee-trustee-letters` | `SettlementTrusteeLettersPage` |
-| Pending-list JSON | `serviceFeeAmount` | total settlement trustee instruction amount (not fee-only) |
-| Email kind | `SERVICE_FEE` | settlement-wide instruction; drives SES Purpose label and attachment filename |
-| S3 prefix | `note-letters/{noteId}/service-fee-trustee/` | stored on each letter; lookups use `s3Key` |
-| Audit (live) | `SETTLEMENT_TRUSTEE_*` | unchanged |
-| Audit (historical) | `SERVICE_FEE_TRUSTEE_*` | read-compatible aliases only |
-
-Do not rename Prisma columns, HTTP paths, S3 keys, email `kind`, or audit IDs without an explicit compatibility plan.
+| Layer | Name |
+|------|------|
+| Prisma enum | `SettlementTrusteeInstructionStatus` |
+| Prisma columns | `settlement_trustee_status` and `settlement_trustee_*` timestamps |
+| HTTP | `GET /v1/admin/notes/pending-settlement-trustee-letters` |
+| HTTP | `POST .../settlements/:id/settlement-trustee/{generate-letter,mark-submitted-to-trustee,resend-trustee-email,mark-completed}` |
+| Admin page | `/finance/pending-settlement-trustee-letters` |
+| Pending-list JSON | `trusteeInstructionAmount` (total instruction amount, not fee-only) |
+| Email kind | `SETTLEMENT` — Purpose: `Settlement trustee instruction` |
+| S3 prefix | `note-letters/{noteId}/settlement-trustee/` |
+| Audit | `SETTLEMENT_TRUSTEE_*` |
+| RBAC | `settlements.view` |
 
 ---
 

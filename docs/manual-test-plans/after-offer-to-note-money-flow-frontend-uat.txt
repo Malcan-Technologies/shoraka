@@ -1273,7 +1273,7 @@ Where to check:
 Admin:
 [ ] Admin portal → Note detail → Settlement panel
 [ ] Finance → Buckets
-[ ] Finance → Service Fee after post
+[ ] Finance → Settlements after post
 [ ] Finance → Issuer Payouts if residual exists
 
 Issuer:
@@ -1324,7 +1324,7 @@ Ledger/activity/frontend history check:
 [ ] Finance → Buckets activity if visible: Repayment Pool split, Operating Account service fee
 [ ] Note timeline if visible: settlement approved/posted
 [ ] Wallet/transaction history if visible: investor payout entries
-[ ] Finance queue if visible: Service Fee queue appears if service fee instruction needed
+[ ] Finance queue if visible: Settlements queue appears if settlement trustee instruction needed
 
 What should NOT happen:
 [ ] Wrong button: Post should not appear before Approve
@@ -1482,15 +1482,16 @@ Notes before next feature:
 
 
 ################################################################################
-FEATURE 14 — Service fee trustee instruction
+FEATURE 14 — Settlement trustee instruction
 ################################################################################
 
 What this feature means:
-- Service fee instruction is an operational/audit step after settlement.
-- It is not a new fee.
+- Settlement trustee instruction is an operational/audit step after settlement is posted.
+- It covers the posted settlement (investor repayment, service fee, ta'widh, gharamah, residual where applicable).
+- It is not a new fee or a second money movement.
 
 Why this feature exists:
-- Trustee/internal operations may need a service fee instruction record after settlement posted.
+- Trustee/internal operations need a settlement-wide instruction record after settlement posted.
 
 Who is involved:
 [ ] Admin
@@ -1499,22 +1500,22 @@ Who is involved:
 
 Where to check:
 Admin:
-[ ] Admin portal → Note detail → Settlement panel → Service fee instruction card
-[ ] Admin portal → Finance → Service Fee
+[ ] Admin portal → Note detail → Settlement panel → Settlement trustee instruction card
+[ ] Admin portal → Finance → Settlements
 [ ] Note timeline/activity if visible
 
 Issuer:
-[ ] Issuer should not provide bank details for service fee instruction
+[ ] Issuer should not provide bank details for the settlement trustee instruction
 
 Investor:
 [ ] Investor should not see service fee as their profit
 
 What should be shown before action:
-[ ] Status: settlement Posted and service fee exists
-[ ] Amount: RM1,500 service fee
+[ ] Status: settlement Posted and trustee movements exist
+[ ] Amount: queue shows total trustee instruction amount; waterfall still shows RM1,500 service fee as a component
 [ ] Button: Generate Letter
 [ ] Warning/helper text: instruction workflow if shown
-[ ] Card/section: service fee instruction card / Finance → Service Fee row
+[ ] Card/section: settlement trustee instruction card / Finance → Settlements row
 
 What to click:
 [ ] Generate Letter
@@ -1526,9 +1527,9 @@ What should be shown after action:
 [ ] New status: Letter Generated → Submitted → Completed
 [ ] New button: next instruction button appears at each step
 [ ] New card: completed instruction or queue item cleared
-[ ] New amount: service fee remains RM1,500
+[ ] New amount: service fee component remains RM1,500
 [ ] Success toast/message: instruction updated
-[ ] Timeline/activity event if visible: service fee letter/submitted/completed
+[ ] Timeline/activity event if visible: settlement trustee letter/submitted/completed
 
 Manual calculation:
 Formula:
@@ -1536,7 +1537,8 @@ Formula:
 Example:
 - RM10,000 x 15% = RM1,500.
 Expected:
-- Instruction amount is RM1,500.
+- Service fee waterfall component is RM1,500.
+- Pending Settlements queue amount is the total trustee instruction (not fee-only).
 
 Bucket movement:
 - Service fee was already allocated during settlement post.
@@ -1545,9 +1547,9 @@ Bucket movement:
 
 Ledger/activity/frontend history check:
 [ ] Finance → Buckets activity if visible: no duplicate service fee movement
-[ ] Note timeline if visible: service fee instruction status events
+[ ] Note timeline if visible: settlement trustee instruction status events
 [ ] Wallet/transaction history if visible: no investor change
-[ ] Finance queue if visible: Service Fee queue moves through statuses or clears after completed
+[ ] Finance queue if visible: Settlements queue moves through statuses or clears after completed
 
 What should NOT happen:
 [ ] Wrong button: no Shoraka
@@ -1557,9 +1559,9 @@ What should NOT happen:
 [ ] Wrong ledger/activity: no issuer bank payout
 
 STOP AND INVESTIGATE if:
-[ ] Service fee instruction asks for issuer bank details.
+[ ] Settlement trustee instruction asks for issuer bank details.
 [ ] Completing instruction creates another service fee.
-[ ] Shoraka is required for service fee instruction.
+[ ] Shoraka is required for settlement trustee instruction.
 [ ] Investor return changes after completing instruction.
 
 Notes:
@@ -1608,7 +1610,7 @@ Where to check:
 Admin:
 [ ] Note detail → **Servicing & Settlement** tab → posted waterfall → Trustee submission
 [ ] Lifecycle card → settlement strip: **Trustee instruction** current (**Active · servicing** until complete)
-[ ] Finance → Service Fee queue
+[ ] Finance → Settlements queue
 [ ] Finance → Buckets
 [ ] Note timeline/activity if visible
 
@@ -1655,7 +1657,7 @@ Ledger/activity/frontend history check:
 [ ] Finance → Buckets activity if visible: Issuer Payable credited/cleared RM2,000
 [ ] Note timeline if visible: settlement trustee workflow events
 [ ] Wallet/transaction history if visible: no investor change from issuer refund alone
-[ ] Finance queue if visible: Service Fee / settlement trustee queue clears on completion
+[ ] Finance queue if visible: Settlements / settlement trustee queue clears on completion
 
 What should NOT happen:
 [ ] Wrong UI: separate Issuer Residual Refund lifecycle strip on Note Detail
@@ -2220,7 +2222,7 @@ What should show:
 [ ] Finance → Buckets: Investor Pool, Repayment Pool, Operating Account, Issuer Payable, Ta'widh Account, Gharamah Account
 [ ] Finance → Issuer Payouts: disbursement and residual payout queue
 [ ] Finance → Repayments: repayment queue and approval status
-[ ] Finance → Service Fee: service fee instruction queue
+[ ] Finance → Settlements: settlement trustee instruction queue
 Why it should show:
 - Admin needs one place to see money waiting for action.
 What action should be available:
@@ -2438,7 +2440,7 @@ Use this only after reading the detailed feature sections.
 [ ] Feature 12: Admin approves and posts settlement.
 [ ] Feature 13: Investor A receives RM65,100.
 [ ] Feature 13: Investor B receives RM43,400.
-[ ] Feature 14: Admin completes service fee trustee instruction if required.
+[ ] Feature 14: Admin completes settlement trustee instruction if required.
 [ ] Feature 15: Residual path tested with RM112,000 repayment.
 [ ] Feature 16: Failed funding below minimum tested.
 [ ] Feature 17: Partial funding above minimum tested.
@@ -2507,7 +2509,7 @@ Fill this table while testing. Test IDs are grouped by feature.
 | FEATURE-12-NO-DUPLICATE    | Admin    | Settlement panel          | Cannot post twice                    | Try post again                | Duplicate blocked                     | Already posted         |               |           |       |
 | FEATURE-13-INVESTOR-A      | Investor | Wallet/Portfolio          | Investor A return                    | Check return                  | RM65,100 visible                      | 60k+5.1k               |               |           |       |
 | FEATURE-13-INVESTOR-B      | Investor | Wallet/Portfolio          | Investor B return                    | Check return                  | RM43,400 visible                      | 40k+3.4k               |               |           |       |
-| FEATURE-14-SERVICE-FEE     | Admin    | Finance → Service Fee     | Service fee instruction              | Generate/submit/complete      | Instruction completed                 | RM1,500                |               |           |       |
+| FEATURE-14-SETTLEMENT-TRUSTEE | Admin | Finance → Settlements     | Settlement trustee instruction       | Generate/submit/complete      | Instruction completed                 | Total instruction      |               |           |       |
 | FEATURE-14-NO-DUP-FEE      | Admin    | Finance → Buckets         | No duplicate service fee             | Complete instruction          | No second fee                         | Fee still RM1.5k       |               |           |       |
 | FEATURE-15-RESIDUAL        | Admin    | Residual card             | Residual refund                      | Generate/complete             | Residual paid/completed               | RM2,000                |               |           |       |
 | FEATURE-15-NO-SHORAKA      | Admin    | Residual card             | Residual no Shoraka                  | Review residual               | No Shoraka required                   | Residual only          |               |           |       |
@@ -2533,7 +2535,7 @@ Fill this table while testing. Test IDs are grouped by feature.
 | LEDGER-WALLET-01           | Investor | Wallet                    | Wallet history coverage              | Review wallet                 | Commitment/release/return visible      | Amounts match          |               |           |       |
 | LETTER-ISSUER-01           | Admin    | Issuer Disbursement card  | Issuer trustee letter                | Generate/submit/disburse      | Correct status sequence                | RM96k                  |               |           |       |
 | LETTER-RESIDUAL-01         | Admin    | Residual card             | Residual letter                      | Generate/submit/disburse      | No Shoraka                             | RM2k                   |               |           |       |
-| LETTER-SERVICE-01          | Admin    | Service Fee queue         | Service fee instruction              | Generate/submit/complete      | No duplicate fee                       | RM1.5k                 |               |           |       |
+| LETTER-SETTLEMENT-01       | Admin    | Settlements queue         | Settlement trustee instruction       | Generate/submit/complete      | No duplicate fee                       | RM1.5k fee component   |               |           |       |
 +----------------------------+----------+---------------------------+--------------------------------------+-------------------------------+--------------------------------------+------------------------+---------------+-----------+-------+
 
 --------------------------------------------------------------------------------

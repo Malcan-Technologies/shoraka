@@ -35,25 +35,13 @@ describe("formatNoteActivityEventLabel", () => {
     expect(formatNoteActivityEventLabel("SETTLEMENT_TRUSTEE_EMAIL_SENT")).toBe(
       "Settlement Trustee Email Sent"
     );
-    expect(formatNoteActivityEventLabel("SERVICE_FEE_TRUSTEE_EMAIL_SENT")).toBe(
-      "Settlement Trustee Email Sent"
-    );
     expect(formatNoteActivityEventLabel("SETTLEMENT_TRUSTEE_LETTER_GENERATED")).toBe(
-      "Settlement Trustee Letter Generated"
-    );
-    expect(formatNoteActivityEventLabel("SERVICE_FEE_TRUSTEE_LETTER_GENERATED")).toBe(
       "Settlement Trustee Letter Generated"
     );
     expect(formatNoteActivityEventLabel("SETTLEMENT_TRUSTEE_LETTER_SUBMITTED")).toBe(
       "Settlement Trustee Letter Submitted"
     );
-    expect(formatNoteActivityEventLabel("SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED")).toBe(
-      "Settlement Trustee Letter Submitted"
-    );
     expect(formatNoteActivityEventLabel("SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED")).toBe(
-      "Settlement Trustee Instruction Completed"
-    );
-    expect(formatNoteActivityEventLabel("SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED")).toBe(
       "Settlement Trustee Instruction Completed"
     );
     expect(formatNoteActivityEventLabel("CUSTOM_EVENT_TYPE")).toBe("Custom Event Type");
@@ -62,9 +50,6 @@ describe("formatNoteActivityEventLabel", () => {
     ).toBe("Withdrawal Trustee Email Redelivered");
     expect(
       formatNoteActivityEventLabel("SETTLEMENT_TRUSTEE_EMAIL_SENT", { resend: true })
-    ).toBe("Settlement Trustee Email Redelivered");
-    expect(
-      formatNoteActivityEventLabel("SERVICE_FEE_TRUSTEE_EMAIL_SENT", { resend: true })
     ).toBe("Settlement Trustee Email Redelivered");
   });
 });
@@ -107,11 +92,6 @@ describe("buildNoteActivityCsv", () => {
           resend: true,
         },
       }),
-      event({
-        id: "evt-3",
-        eventType: "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
-        metadata: { settlementId: "set-legacy", messageId: "ses-legacy" },
-      }),
     ]);
     expect(csv).toContain("Withdrawal Trustee Email Sent");
     expect(csv).toContain("WITHDRAWAL_TRUSTEE_EMAIL_SENT");
@@ -122,21 +102,13 @@ describe("buildNoteActivityCsv", () => {
     expect(csv).toContain("set-1");
     expect(csv).toContain("STL-1");
     expect(csv).toContain("ses-2");
-    expect(csv).toContain("Settlement Trustee Email Sent");
-    expect(csv).toContain("SERVICE_FEE_TRUSTEE_EMAIL_SENT");
-    expect(csv).toContain("set-legacy");
   });
 
-  it("exports live and legacy settlement trustee letter labels identically", () => {
+  it("exports settlement trustee letter, submit, and complete labels", () => {
     const csv = buildNoteActivityCsv([
       event({
         eventType: "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
         metadata: { settlementId: "set-1", s3Key: "letters/a.pdf" },
-      }),
-      event({
-        id: "evt-2",
-        eventType: "SERVICE_FEE_TRUSTEE_LETTER_GENERATED",
-        metadata: { settlementId: "set-legacy", s3Key: "letters/b.pdf" },
       }),
       event({
         id: "evt-3",
@@ -144,32 +116,18 @@ describe("buildNoteActivityCsv", () => {
         metadata: { settlementId: "set-1" },
       }),
       event({
-        id: "evt-4",
-        eventType: "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED",
-        metadata: { settlementId: "set-legacy" },
-      }),
-      event({
         id: "evt-5",
         eventType: "SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED",
         metadata: { settlementId: "set-1", completedAt: "2026-08-26T00:00:00.000Z" },
       }),
-      event({
-        id: "evt-6",
-        eventType: "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED",
-        metadata: { settlementId: "set-legacy", completedAt: "2026-08-01T00:00:00.000Z" },
-      }),
     ]);
     expect(csv).toContain("Settlement Trustee Letter Generated");
     expect(csv).toContain("SETTLEMENT_TRUSTEE_LETTER_GENERATED");
-    expect(csv).toContain("SERVICE_FEE_TRUSTEE_LETTER_GENERATED");
     expect(csv).toContain("Settlement Trustee Letter Submitted");
     expect(csv).toContain("SETTLEMENT_TRUSTEE_LETTER_SUBMITTED");
-    expect(csv).toContain("SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED");
     expect(csv).toContain("Settlement Trustee Instruction Completed");
     expect(csv).toContain("SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED");
-    expect(csv).toContain("SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED");
     expect(csv).toContain("letters/a.pdf");
-    expect(csv).toContain("letters/b.pdf");
   });
 
   it("keeps the internal withdrawal id and includes the display reference", () => {

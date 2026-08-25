@@ -51,13 +51,13 @@ Assign these permissions to the test users. Use exactly what is listed below (no
   - `bucket_balances.view`
   - `repayments.view`
   - `disbursements.view`
-  - `service_fee.view`
+  - `settlements.view`
   - `contracts.view`
   - `dashboard.finance.view`
   - `dashboard.platform.view` (optional, only if you also want to see Platform section)
   - `dashboard.operations.view` (optional, only if you also want to see Operations section)
 - Ensure:
-  - no `investments.manage`, `bucket_balances.manage`, `repayments.manage`, `service_fee.manage`, `contracts.manage`
+  - no `investments.manage`, `bucket_balances.manage`, `repayments.manage`, `contracts.manage`
 
 ### 10) Notes Operations User
 - Assign:
@@ -288,9 +288,9 @@ Explicit permission coverage:
 - [ ] Issuer Payouts / Disbursements:
   - [ ] `disbursements.view` required to see page
   - [ ] `notes.disbursement.manage` required for payout mutation actions (generate letter, mark submitted, mark completed, Tawarruq/Shoraka workflow, edit beneficiary)
-- [ ] Service Fee:
-  - [ ] `service_fee.view` required
-  - [ ] `service_fee.manage` required for service fee mutation actions/buttons
+- [ ] Settlements:
+  - [ ] `settlements.view` required
+  - [ ] `notes.settlement.manage` / `notes.disbursement.manage` required for settlement trustee mutation actions
 - [ ] Facilities:
   - [ ] `contracts.view` required
   - [ ] `contracts.manage` required for “Resign Offer” mutations
@@ -300,7 +300,7 @@ Explicit permission coverage:
 - [ ] `bucket_balances.view`
 - [ ] `repayments.view`
 - [ ] `disbursements.view`
-- [ ] `service_fee.view`
+- [ ] `settlements.view`
 - [ ] `contracts.view`
 - [ ] `contracts.manage`
 - [ ] Ensure “Resign Offer”:

@@ -383,23 +383,23 @@ function resolveSettlementSummary(note: NoteWithRelations) {
     profitDays: settlement.profit_days,
     annualProfitRatePercent: decimalToNumber(settlement.annual_profit_rate_percent),
     postedAt: iso(settlement.posted_at),
-    serviceFeeTrusteeStatus: hasSettlementTrusteeMovement
-      ? (settlement.service_fee_trustee_status ?? null)
+    settlementTrusteeStatus: hasSettlementTrusteeMovement
+      ? (settlement.settlement_trustee_status ?? null)
       : null,
-    serviceFeeTrusteeCreatedAt: hasSettlementTrusteeMovement
-      ? iso(settlement.service_fee_trustee_created_at)
+    settlementTrusteeCreatedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.settlement_trustee_created_at)
       : null,
-    serviceFeeTrusteeLetterGeneratedAt: hasSettlementTrusteeMovement
-      ? iso(settlement.service_fee_trustee_letter_generated_at)
+    settlementTrusteeLetterGeneratedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.settlement_trustee_letter_generated_at)
       : null,
-    serviceFeeTrusteeSubmittedAt: hasSettlementTrusteeMovement
-      ? iso(settlement.service_fee_trustee_submitted_at)
+    settlementTrusteeSubmittedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.settlement_trustee_submitted_at)
       : null,
-    serviceFeeTrusteeCompletedAt: hasSettlementTrusteeMovement
-      ? iso(settlement.service_fee_trustee_completed_at)
+    settlementTrusteeCompletedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.settlement_trustee_completed_at)
       : null,
-    serviceFeeTrusteeEmailSentAt: hasSettlementTrusteeMovement
-      ? iso(settlement.service_fee_trustee_email_sent_at)
+    settlementTrusteeEmailSentAt: hasSettlementTrusteeMovement
+      ? iso(settlement.settlement_trustee_email_sent_at)
       : null,
   };
 }
@@ -419,14 +419,14 @@ export function resolveIssuerResidualPayoutListStatus(
     return { kind: "none" };
   }
 
-  if (settlementSummary.serviceFeeTrusteeStatus === "COMPLETED") {
+  if (settlementSummary.settlementTrusteeStatus === "COMPLETED") {
     return { kind: "paid" };
   }
 
   if (hasSettlementTrusteeMovementFromPoolSummary(settlementSummary)) {
     return {
       kind: "pending",
-      withTrustee: settlementSummary.serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE",
+      withTrustee: settlementSummary.settlementTrusteeStatus === "SUBMITTED_TO_TRUSTEE",
     };
   }
 
@@ -716,12 +716,12 @@ export async function mapNoteDetail(
       previewSnapshot: asRecord(settlement.preview_snapshot) ?? {},
       approvedAt: iso(settlement.approved_at),
       postedAt: iso(settlement.posted_at),
-      serviceFeeTrusteeStatus: settlement.service_fee_trustee_status ?? null,
-      serviceFeeTrusteeCreatedAt: iso(settlement.service_fee_trustee_created_at),
-      serviceFeeTrusteeLetterGeneratedAt: iso(settlement.service_fee_trustee_letter_generated_at),
-      serviceFeeTrusteeSubmittedAt: iso(settlement.service_fee_trustee_submitted_at),
-      serviceFeeTrusteeCompletedAt: iso(settlement.service_fee_trustee_completed_at),
-      serviceFeeTrusteeEmailSentAt: iso(settlement.service_fee_trustee_email_sent_at),
+      settlementTrusteeStatus: settlement.settlement_trustee_status ?? null,
+      settlementTrusteeCreatedAt: iso(settlement.settlement_trustee_created_at),
+      settlementTrusteeLetterGeneratedAt: iso(settlement.settlement_trustee_letter_generated_at),
+      settlementTrusteeSubmittedAt: iso(settlement.settlement_trustee_submitted_at),
+      settlementTrusteeCompletedAt: iso(settlement.settlement_trustee_completed_at),
+      settlementTrusteeEmailSentAt: iso(settlement.settlement_trustee_email_sent_at),
     })),
     events: mappedEvents,
     withdrawals: withdrawals.map(mapWithdrawalInstruction),

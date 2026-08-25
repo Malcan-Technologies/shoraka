@@ -30,12 +30,12 @@ function postedSummary(
     profitDays: 0,
     annualProfitRatePercent: 10,
     postedAt: "2026-08-01T00:00:00.000Z",
-    serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.PENDING_LETTER,
-    serviceFeeTrusteeCreatedAt: "2026-08-01T00:00:00.000Z",
-    serviceFeeTrusteeLetterGeneratedAt: null,
-    serviceFeeTrusteeSubmittedAt: null,
-    serviceFeeTrusteeCompletedAt: null,
-    serviceFeeTrusteeEmailSentAt: null,
+    settlementTrusteeStatus: SettlementTrusteeInstructionStatus.PENDING_LETTER,
+    settlementTrusteeCreatedAt: "2026-08-01T00:00:00.000Z",
+    settlementTrusteeLetterGeneratedAt: null,
+    settlementTrusteeSubmittedAt: null,
+    settlementTrusteeCompletedAt: null,
+    settlementTrusteeEmailSentAt: null,
     ...overrides,
   };
 }
@@ -81,24 +81,24 @@ describe("resolveSettlementTrusteeRegistryState", () => {
         postedSummary({
           investorPoolAmount: 0,
           operatingAccountAmount: 0,
-          serviceFeeTrusteeStatus: null,
+          settlementTrusteeStatus: null,
         })
       )
     ).toBe("none");
     expect(resolveSettlementTrusteeRegistryState(postedSummary())).toBe("pending_letter");
     expect(
       resolveSettlementTrusteeRegistryState(
-        postedSummary({ serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.LETTER_GENERATED })
+        postedSummary({ settlementTrusteeStatus: SettlementTrusteeInstructionStatus.LETTER_GENERATED })
       )
     ).toBe("letter_generated");
     expect(
       resolveSettlementTrusteeRegistryState(
-        postedSummary({ serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE })
+        postedSummary({ settlementTrusteeStatus: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE })
       )
     ).toBe("submitted");
     expect(
       resolveSettlementTrusteeRegistryState(
-        postedSummary({ serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.COMPLETED })
+        postedSummary({ settlementTrusteeStatus: SettlementTrusteeInstructionStatus.COMPLETED })
       )
     ).toBe("complete");
   });
@@ -109,7 +109,7 @@ describe("resolveSettlementTrusteeRegistryState", () => {
         postedSummary({
           investorPoolAmount: 0,
           operatingAccountAmount: 0,
-          serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.PENDING_LETTER,
+          settlementTrusteeStatus: SettlementTrusteeInstructionStatus.PENDING_LETTER,
         })
       )
     ).toBe("pending_letter");
@@ -127,17 +127,17 @@ describe("resolveSettlementTrusteeRegistryState", () => {
     expect(settlementTrusteeRegistryNeedsAdminAction(postedSummary())).toBe(true);
     expect(
       settlementTrusteeRegistryNeedsAdminAction(
-        postedSummary({ serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.LETTER_GENERATED })
+        postedSummary({ settlementTrusteeStatus: SettlementTrusteeInstructionStatus.LETTER_GENERATED })
       )
     ).toBe(true);
     expect(
       settlementTrusteeRegistryNeedsAdminAction(
-        postedSummary({ serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE })
+        postedSummary({ settlementTrusteeStatus: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE })
       )
     ).toBe(false);
     expect(
       settlementTrusteeRegistryNeedsAdminAction(
-        postedSummary({ serviceFeeTrusteeStatus: SettlementTrusteeInstructionStatus.COMPLETED })
+        postedSummary({ settlementTrusteeStatus: SettlementTrusteeInstructionStatus.COMPLETED })
       )
     ).toBe(false);
   });

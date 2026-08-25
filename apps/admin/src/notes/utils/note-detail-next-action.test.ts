@@ -612,7 +612,7 @@ describe("standalone vs contract-linked notes", () => {
     expect(payout).toContain("WorkflowStepTitle");
     expect(payout).toContain("payoutComplete ? null : (");
     expect(settlement).toContain("WorkflowStepTitle");
-    expect(settlement).toContain("serviceFeeTrusteeWorkflowComplete ? null : (");
+    expect(settlement).toContain("settlementTrusteeWorkflowComplete ? null : (");
     expect(settlement).toContain('completeLabel="Late fees complete"');
     expect(settlement).toContain('completeLabel="Default complete"');
     expect(settlement).toContain("PaymentReceiptIdentity");

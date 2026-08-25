@@ -11377,8 +11377,6 @@ Settlement-wide trustee instruction PDF generated for a posted settlement (inves
 Technical event:
 `SETTLEMENT_TRUSTEE_LETTER_GENERATED`
 
-Legacy historical event ID:
-`SERVICE_FEE_TRUSTEE_LETTER_GENERATED` — still rendered/exported identically; historical rows are not rewritten; no new writes use the legacy ID.
 
 Canonical business name:
 `Settlement Trustee Letter Generated`
@@ -11457,10 +11455,10 @@ Direct Email Outside Notification Registry
 Classification:
 CONSISTENT
 
-Admin-only. Live technical ID is `SETTLEMENT_TRUSTEE_LETTER_GENERATED`. The previous stored ID `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` is a read-compatible DISPLAY_ALIAS for historical rows only. Distinct from email / submit / completion. Prisma `service_fee_trustee_*` columns / enum `ServiceFeeTrusteeInstructionStatus` are leftover persistence names for this same settlement-wide instruction, not audit IDs.
+Admin-only. Canonical technical ID is `SETTLEMENT_TRUSTEE_LETTER_GENERATED`. Distinct from email / submit / completion.
 
 Technical-name mismatch:
-NO (resolved 2026-08-26 by renaming new writes; historical rows keep the legacy ID)
+NO
 
 ### RECOMMENDED CANONICAL PRESENTATION
 
@@ -11482,40 +11480,6 @@ Preferred Notification Title:
 Preferred Notification Message:
 `—`
 
-## `SERVICE_FEE_TRUSTEE_LETTER_GENERATED`
-
-Status: DISPLAY_ALIAS
-
-Module: Repayment
-
-Business action:
-Legacy stored type for historical `note_events` rows of the settlement trustee instruction PDF. See `SETTLEMENT_TRUSTEE_LETTER_GENERATED`.
-
-Technical event:
-`SERVICE_FEE_TRUSTEE_LETTER_GENERATED`
-
-Canonical business name:
-`Settlement Trustee Letter Generated`
-
-Actor:
-Admin (historical)
-
-Trigger:
-No new writes. Readers/CSV/timeline still accept this ID and render the same copy as `SETTLEMENT_TRUSTEE_LETTER_GENERATED`.
-
-Stored in:
-`note_events` (historical rows only; not rewritten)
-
-### CURRENT USER-FACING COPY
-
-Same as `SETTLEMENT_TRUSTEE_LETTER_GENERATED` on Admin Activity, Admin Detail, and CSV. Issuer/Investor: Hidden (not queried). Notification: NO.
-
-### CONSISTENCY REVIEW
-
-Classification:
-CONSISTENT
-
-Intentional legacy compatibility. Do not backfill or migrate historical rows.
 
 ## `SETTLEMENT_TRUSTEE_EMAIL_SENT`
 
@@ -11529,8 +11493,6 @@ Operational trustee email for the posted-settlement trustee instruction was deli
 Technical event:
 `SETTLEMENT_TRUSTEE_EMAIL_SENT`
 
-Legacy historical event ID:
-`SERVICE_FEE_TRUSTEE_EMAIL_SENT` — still rendered/exported identically; historical rows are not rewritten; no new writes use the legacy ID.
 
 Canonical business name:
 `Settlement Trustee Email Sent`
@@ -11598,7 +11560,7 @@ Notification
 
 Direct Email Outside Notification Registry
 - YES
-- Purpose: SES trustee instruction PDF email (`sendTrusteeInstructionPdfEmail`, kind `SERVICE_FEE`) to the configured trustee recipient/CC. Not a platform notification. Distinct from `SETTLEMENT_TRUSTEE_LETTER_GENERATED` (PDF generated; historical rows may still say `SERVICE_FEE_TRUSTEE_LETTER_GENERATED`), `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED` (business status), and issuer `note_repaid_issuer` (later, on instruction completed).
+- Purpose: SES trustee instruction PDF email (`sendTrusteeInstructionPdfEmail`, kind `SETTLEMENT`) to the configured trustee recipient/CC. Not a platform notification. Distinct from `SETTLEMENT_TRUSTEE_LETTER_GENERATED` (PDF generated), `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED` (business status), and issuer `note_repaid_issuer` (later, on instruction completed).
 
 ### PLACEHOLDERS USED
 
@@ -11609,10 +11571,10 @@ Direct Email Outside Notification Registry
 Classification:
 CONSISTENT
 
-Admin-only operational delivery. Live technical ID is `SETTLEMENT_TRUSTEE_EMAIL_SENT`. The previous stored ID `SERVICE_FEE_TRUSTEE_EMAIL_SENT` is a read-compatible DISPLAY_ALIAS for historical rows only. Do not merge with letter-generated (`SETTLEMENT_TRUSTEE_LETTER_GENERATED`), letter-submitted (`SETTLEMENT_TRUSTEE_LETTER_SUBMITTED`), or instruction-completed (`SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED`).
+Admin-only operational delivery. Canonical technical ID is `SETTLEMENT_TRUSTEE_EMAIL_SENT`. Do not merge with letter-generated (`SETTLEMENT_TRUSTEE_LETTER_GENERATED`), letter-submitted (`SETTLEMENT_TRUSTEE_LETTER_SUBMITTED`), or instruction-completed (`SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED`).
 
 Technical-name mismatch:
-NO (resolved 2026-08-26 by renaming new writes; historical rows keep the legacy ID)
+NO
 
 ### RECOMMENDED CANONICAL PRESENTATION
 
@@ -11634,40 +11596,6 @@ Preferred Notification Title:
 Preferred Notification Message:
 `—`
 
-## `SERVICE_FEE_TRUSTEE_EMAIL_SENT`
-
-Status: DISPLAY_ALIAS
-
-Module: Repayment
-
-Business action:
-Legacy stored type for historical `note_events` rows of the settlement trustee email. See `SETTLEMENT_TRUSTEE_EMAIL_SENT`.
-
-Technical event:
-`SERVICE_FEE_TRUSTEE_EMAIL_SENT`
-
-Canonical business name:
-`Settlement Trustee Email Sent`
-
-Actor:
-Admin (historical)
-
-Trigger:
-No new writes. Readers/CSV/timeline still accept this ID and render the same copy as `SETTLEMENT_TRUSTEE_EMAIL_SENT`.
-
-Stored in:
-`note_events` (historical rows only; not rewritten)
-
-### CURRENT USER-FACING COPY
-
-Same as `SETTLEMENT_TRUSTEE_EMAIL_SENT` on Admin Activity, Admin Detail, and CSV. Issuer/Investor: Hidden (not queried). Notification: NO. Direct SES: the live writer now logs `SETTLEMENT_TRUSTEE_EMAIL_SENT`. Historical rows typically omit `settlementReference` and are not rewritten.
-
-### CONSISTENCY REVIEW
-
-Classification:
-CONSISTENT
-
-Intentional legacy compatibility. Do not backfill or migrate historical rows.
 
 ## `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED`
 
@@ -11681,8 +11609,6 @@ Settlement trustee instruction status moved to submitted-to-trustee. Distinct fr
 Technical event:
 `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED`
 
-Legacy historical event ID:
-`SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED` — still rendered/exported identically; historical rows are not rewritten; no new writes use the legacy ID.
 
 Canonical business name:
 `Settlement Trustee Letter Submitted`
@@ -11750,7 +11676,7 @@ Notification
 
 Direct Email Outside Notification Registry
 - NO
-- Purpose: Trustee operational email, if any, is `SETTLEMENT_TRUSTEE_EMAIL_SENT` (legacy stored type `SERVICE_FEE_TRUSTEE_EMAIL_SENT`) — a separate event.
+- Purpose: Trustee operational email, if any, is `SETTLEMENT_TRUSTEE_EMAIL_SENT` — a separate event.
 
 ### PLACEHOLDERS USED
 
@@ -11761,10 +11687,10 @@ Direct Email Outside Notification Registry
 Classification:
 CONSISTENT
 
-Admin-only status transition. Live technical ID is `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED`. The previous stored ID `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED` is a read-compatible DISPLAY_ALIAS for historical rows only. Distinct from `SETTLEMENT_TRUSTEE_EMAIL_SENT` (operational SES delivery, which may run first when auto-send is enabled) and from generation / completion.
+Admin-only status transition. Canonical technical ID is `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED`. Distinct from `SETTLEMENT_TRUSTEE_EMAIL_SENT` (operational SES delivery, which may run first when auto-send is enabled) and from generation / completion.
 
 Technical-name mismatch:
-NO (resolved 2026-08-26 by renaming new writes; historical rows keep the legacy ID)
+NO
 
 ### RECOMMENDED CANONICAL PRESENTATION
 
@@ -11786,40 +11712,6 @@ Preferred Notification Title:
 Preferred Notification Message:
 `—`
 
-## `SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED`
-
-Status: DISPLAY_ALIAS
-
-Module: Repayment
-
-Business action:
-Legacy stored type for historical `note_events` rows of the settlement trustee letter submission. See `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED`.
-
-Technical event:
-`SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED`
-
-Canonical business name:
-`Settlement Trustee Letter Submitted`
-
-Actor:
-Admin (historical)
-
-Trigger:
-No new writes. Readers/CSV/timeline still accept this ID and render the same copy as `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED`.
-
-Stored in:
-`note_events` (historical rows only; not rewritten)
-
-### CURRENT USER-FACING COPY
-
-Same as `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED` on Admin Activity, Admin Detail, and CSV. Issuer/Investor: Hidden (not queried). Notification: NO.
-
-### CONSISTENCY REVIEW
-
-Classification:
-CONSISTENT
-
-Intentional legacy compatibility. Do not backfill or migrate historical rows.
 
 ## `SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED`
 
@@ -11833,8 +11725,6 @@ Settlement trustee instruction marked completed. Distinct from `SETTLEMENT_TRUST
 Technical event:
 `SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED`
 
-Legacy historical event ID:
-`SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED` — still rendered/exported identically; historical rows are not rewritten; no new writes use the legacy ID.
 
 Canonical business name:
 `Settlement Trustee Instruction Completed`
@@ -11913,10 +11803,10 @@ Direct Email Outside Notification Registry
 Classification:
 INTENTIONALLY_DIFFERENT
 
-Audit title is the trustee-instruction completion. Issuer notification is `note_repaid_issuer` (Note repaid). Live technical ID is `SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED`. The previous stored ID `SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED` is a read-compatible DISPLAY_ALIAS for historical rows only. Notification type, timing, recipients, and channel are unchanged.
+Audit title is the trustee-instruction completion. Issuer notification is `note_repaid_issuer` (Note repaid). Canonical technical ID is `SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED`. Notification type, timing, recipients, and channel are unchanged.
 
 Technical-name mismatch:
-NO (resolved 2026-08-26 by renaming new writes; historical rows keep the legacy ID)
+NO
 
 ### RECOMMENDED CANONICAL PRESENTATION
 
@@ -11938,42 +11828,6 @@ Preferred Notification Title:
 Preferred Notification Message:
 `"[Note Title]" has been fully repaid and settled. Any residual handling will follow operational workflow if applicable.`
 
-## `SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED`
-
-Status: DISPLAY_ALIAS
-
-Module: Repayment
-
-Business action:
-Legacy stored type for historical `note_events` rows of the settlement trustee instruction completion. See `SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED`.
-
-Technical event:
-`SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED`
-
-Canonical business name:
-`Settlement Trustee Instruction Completed`
-
-Actor:
-Admin (historical)
-
-Trigger:
-No new writes. Readers/CSV/timeline still accept this ID and render the same copy as `SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED`. Completion still maps to the same existing `note_repaid_issuer` moment on the live writer only (no duplicate send from this alias).
-
-Stored in:
-`note_events` (historical rows only; not rewritten)
-
-### CURRENT USER-FACING COPY
-
-Same as `SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED` on Admin Activity, Admin Detail, and CSV. Issuer/Investor: Hidden (not queried). Notification: the live writer `SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED` still triggers `note_repaid_issuer`; this alias is not written.
-
-### CONSISTENCY REVIEW
-
-Classification:
-CONSISTENT
-
-Intentional legacy compatibility. Do not backfill or migrate historical rows.
-
-# Withdrawal / Disbursement / Trustee
 
 ## `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED`
 

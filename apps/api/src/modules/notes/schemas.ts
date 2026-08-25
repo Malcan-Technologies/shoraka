@@ -96,7 +96,7 @@ export const getNotesQuerySchema = z.object({
     .optional(),
   /**
    * Admin registry: hide notes only when status is settled (repaid or servicing SETTLED),
-   * settlement is posted, and service-fee trustee work is finished (no fee or COMPLETED).
+   * settlement is posted, and settlement trustee work is finished (no trustee movement or COMPLETED).
    */
   excludeFullySettledRegistryNotes: z
     .enum(["true", "false", "1", "0"])

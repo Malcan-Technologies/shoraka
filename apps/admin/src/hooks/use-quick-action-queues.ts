@@ -41,7 +41,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
   const canApplications = can("applications.view");
   const canNotes = can("notes.view");
   const canRepayments = can("repayments.view");
-  const canServiceFee = can("service_fee.view");
+  const canSettlements = can("settlements.view");
   const canDisbursements = can("disbursements.view");
   const canViewInvestorWithdrawals = can("investor_withdrawals.view");
   const canViewGatewayPayments = can("gateway_payments.view");
@@ -63,7 +63,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
   const { data: pendingInvestorWithdrawalsData, isLoading: isPendingInvestorWithdrawalsLoading } =
     usePendingInvestorWithdrawals({ enabled: canViewInvestorWithdrawals });
   const { data: pendingSettlementTrusteeLettersData, isLoading: isPendingSettlementTrusteeLettersLoading } =
-    usePendingSettlementTrusteeLetters({ enabled: canServiceFee });
+    usePendingSettlementTrusteeLetters({ enabled: canSettlements });
   const { data: gatewayPaymentExceptionsData, isLoading: isGatewayPaymentExceptionsLoading } =
     useGatewayPaymentsExceptionCount({ enabled: canViewGatewayPayments });
   const { data: gatewayReconExceptionsData, isLoading: isGatewayReconExceptionsLoading } =
@@ -160,15 +160,15 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
         isLoading: loading || isPendingRepaymentsLoading,
       });
     }
-    if (canServiceFee) {
+    if (canSettlements) {
       list.push({
-        id: "service-fee",
+        id: "settlements",
         title: "Settlement Trustee Letters",
         shortTitle: "Trustee letters",
         description: "Posted settlements still in the settlement trustee instruction workflow",
         count: pendingSettlementTrusteeLettersCount,
         countLabel: "pending",
-        href: "/finance/service-fee-trustee-letters",
+        href: "/finance/pending-settlement-trustee-letters",
         icon: ArrowsRightLeftIcon,
         variant: urgencyVariant(pendingSettlementTrusteeLettersCount, 5, 0),
         isLoading: loading || isPendingSettlementTrusteeLettersLoading,
@@ -240,7 +240,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
     canNotes,
     canOnboarding,
     canRepayments,
-    canServiceFee,
+    canSettlements,
     canViewGatewayPayments,
     canViewInvestorWithdrawals,
     canViewReconciliation,

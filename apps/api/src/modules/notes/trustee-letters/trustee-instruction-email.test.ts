@@ -49,8 +49,8 @@ describe("trustee instruction email builder", () => {
   });
 
   it("builds a safe pdf filename", () => {
-    expect(safeTrusteePdfFilename("WD 2026/ABC", "SERVICE_FEE")).toBe(
-      "trustee-service-fee-WD-2026-ABC.pdf"
+    expect(safeTrusteePdfFilename("WD 2026/ABC", "SETTLEMENT")).toBe(
+      "trustee-settlement-WD-2026-ABC.pdf"
     );
     expect(safeTrusteePdfFilename("   ", "INVESTOR_WITHDRAWAL")).toBe(
       "trustee-investor-withdrawal-instruction.pdf"
@@ -90,7 +90,7 @@ describe("trustee instruction email builder", () => {
 
     await expect(
       sendTrusteeInstructionPdfEmail({
-        kind: "SERVICE_FEE",
+        kind: "SETTLEMENT",
         reference: "STL-1",
         s3Key: "note-letters/n1/letter.pdf",
         config,
@@ -102,10 +102,10 @@ describe("trustee instruction email builder", () => {
       expect.objectContaining({
         to: "trustee@example.com",
         cc: ["ops@example.com"],
-        subject: "Trustee instruction — Settlement service-fee instruction — STL-1",
+        subject: "Trustee instruction — Settlement trustee instruction — STL-1",
         attachments: [
           expect.objectContaining({
-            filename: "trustee-service-fee-STL-1.pdf",
+            filename: "trustee-settlement-STL-1.pdf",
             contentType: "application/pdf",
           }),
         ],

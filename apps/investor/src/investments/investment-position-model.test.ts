@@ -121,12 +121,12 @@ function postedSettlement(
     profitDays: 30,
     annualProfitRatePercent: 12.5,
     postedAt: "2026-08-18",
-    serviceFeeTrusteeStatus: "PENDING_LETTER" as NoteSettlementPoolSummary["serviceFeeTrusteeStatus"],
-    serviceFeeTrusteeCreatedAt: "2026-08-18",
-    serviceFeeTrusteeLetterGeneratedAt: null,
-    serviceFeeTrusteeSubmittedAt: null,
-    serviceFeeTrusteeCompletedAt: null,
-    serviceFeeTrusteeEmailSentAt: null,
+    settlementTrusteeStatus: "PENDING_LETTER" as NoteSettlementPoolSummary["settlementTrusteeStatus"],
+    settlementTrusteeCreatedAt: "2026-08-18",
+    settlementTrusteeLetterGeneratedAt: null,
+    settlementTrusteeSubmittedAt: null,
+    settlementTrusteeCompletedAt: null,
+    settlementTrusteeEmailSentAt: null,
     ...overrides,
   };
 }
@@ -159,8 +159,8 @@ describe("completion", () => {
       status: "REPAID" as NoteListItem["status"],
       servicingStatus: "SETTLED" as NoteListItem["servicingStatus"],
       settlementSummary: postedSettlement({
-        serviceFeeTrusteeStatus: "COMPLETED" as NoteSettlementPoolSummary["serviceFeeTrusteeStatus"],
-        serviceFeeTrusteeCompletedAt: "2026-08-18",
+        settlementTrusteeStatus: "COMPLETED" as NoteSettlementPoolSummary["settlementTrusteeStatus"],
+        settlementTrusteeCompletedAt: "2026-08-18",
       }),
     });
     expect(isInvestorInvestmentCompleted(settled)).toBe(true);
@@ -266,8 +266,8 @@ describe("maturity display", () => {
       settlementSummary: postedSettlement({
         actualSettlementDate: "2026-08-10T00:00:00.000Z",
         postedAt: "2026-08-18T00:00:00.000Z",
-        serviceFeeTrusteeStatus: "COMPLETED" as NoteSettlementPoolSummary["serviceFeeTrusteeStatus"],
-        serviceFeeTrusteeCompletedAt: "2026-08-18",
+        settlementTrusteeStatus: "COMPLETED" as NoteSettlementPoolSummary["settlementTrusteeStatus"],
+        settlementTrusteeCompletedAt: "2026-08-18",
       }),
     });
     expect(getInvestmentMaturityDisplay(settledEarly, NOW)).toEqual({

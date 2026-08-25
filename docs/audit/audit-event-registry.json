@@ -3659,7 +3659,7 @@
       "domain": "settlement",
       "store": "note_events",
       "canonicalName": "Settlement trustee instruction letter generated",
-      "aliases": ["SERVICE_FEE_TRUSTEE_LETTER_GENERATED"],
+      "aliases": [],
       "doNotConfuseWith": [
         "WITHDRAWAL_LETTER_GENERATED (disbursement side)",
         "SETTLEMENT_TRUSTEE_EMAIL_SENT",
@@ -3680,34 +3680,7 @@
         "csv": "INCLUDED"
       },
       "notification": null,
-      "note": "Live technical ID as of 2026-08-26. Historical rows may still store SERVICE_FEE_TRUSTEE_LETTER_GENERATED and are not rewritten. Metadata: s3Key, settlementId.",
-      "docRef": "2.6"
-    },
-    {
-      "eventType": "SERVICE_FEE_TRUSTEE_LETTER_GENERATED",
-      "status": "DISPLAY_ALIAS",
-      "domain": "settlement",
-      "store": "note_events",
-      "canonicalName": "Settlement trustee instruction letter generated",
-      "aliases": [],
-      "doNotConfuseWith": [
-        "SETTLEMENT_TRUSTEE_LETTER_GENERATED"
-      ],
-      "actor": "Admin",
-      "target": "note",
-      "writer": null,
-      "surfaces": {
-        "adminActivity": "SHOWN",
-        "adminDetail": "SHOWN",
-        "issuerActivity": "HIDDEN_NOT_QUERIED",
-        "issuerApplicationDetail": "NA",
-        "issuerFacilityDetail": "NA",
-        "investorActivity": "HIDDEN_NOT_QUERIED",
-        "investorDetail": "NA",
-        "csv": "INCLUDED"
-      },
-      "notification": null,
-      "note": "Legacy stored type. Readers map it to the same copy as SETTLEMENT_TRUSTEE_LETTER_GENERATED. No new writes. Historical rows not rewritten.",
+      "note": "Canonical settlement trustee letter ID. Metadata: s3Key, settlementId.",
       "docRef": "2.6"
     },
     {
@@ -3716,7 +3689,7 @@
       "domain": "settlement",
       "store": "note_events",
       "canonicalName": "Settlement trustee instruction email delivered or redelivered",
-      "aliases": ["SERVICE_FEE_TRUSTEE_EMAIL_SENT"],
+      "aliases": [],
       "doNotConfuseWith": [
         "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
         "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED",
@@ -3737,34 +3710,7 @@
         "csv": "INCLUDED"
       },
       "notification": null,
-      "note": "Direct SES to trustee via sendTrusteeInstructionPdfEmail (kind SERVICE_FEE). Live technical ID as of 2026-08-26. New writes include settlementId, settlementReference (from already-loaded display_reference), messageId, optional resend:true. Historical rows may still store SERVICE_FEE_TRUSTEE_EMAIL_SENT and/or omit settlementReference; they are not rewritten.",
-      "docRef": "2.6"
-    },
-    {
-      "eventType": "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
-      "status": "DISPLAY_ALIAS",
-      "domain": "settlement",
-      "store": "note_events",
-      "canonicalName": "Settlement trustee instruction email delivered or redelivered",
-      "aliases": [],
-      "doNotConfuseWith": [
-        "SETTLEMENT_TRUSTEE_EMAIL_SENT"
-      ],
-      "actor": "Admin",
-      "target": "note",
-      "writer": null,
-      "surfaces": {
-        "adminActivity": "SHOWN",
-        "adminDetail": "SHOWN",
-        "issuerActivity": "HIDDEN_NOT_QUERIED",
-        "issuerApplicationDetail": "NA",
-        "issuerFacilityDetail": "NA",
-        "investorActivity": "HIDDEN_NOT_QUERIED",
-        "investorDetail": "NA",
-        "csv": "INCLUDED"
-      },
-      "notification": null,
-      "note": "Legacy stored type. Readers map it to the same copy as SETTLEMENT_TRUSTEE_EMAIL_SENT. No new writes. Historical rows not rewritten.",
+      "note": "Direct SES to trustee via sendTrusteeInstructionPdfEmail (kind SETTLEMENT). Metadata: settlementId, settlementReference (from already-loaded display_reference), messageId, optional resend:true.",
       "docRef": "2.6"
     },
     {
@@ -3773,7 +3719,7 @@
       "domain": "settlement",
       "store": "note_events",
       "canonicalName": "Settlement trustee letter submitted",
-      "aliases": ["SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED"],
+      "aliases": [],
       "doNotConfuseWith": [
         "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
         "SETTLEMENT_TRUSTEE_EMAIL_SENT",
@@ -3794,34 +3740,7 @@
         "csv": "INCLUDED"
       },
       "notification": null,
-      "note": "Live technical ID as of 2026-08-26. Historical rows may still store SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED and are not rewritten. Metadata: settlementId.",
-      "docRef": "2.6"
-    },
-    {
-      "eventType": "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED",
-      "status": "DISPLAY_ALIAS",
-      "domain": "settlement",
-      "store": "note_events",
-      "canonicalName": "Settlement trustee letter submitted",
-      "aliases": [],
-      "doNotConfuseWith": [
-        "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED"
-      ],
-      "actor": "Admin",
-      "target": "note",
-      "writer": null,
-      "surfaces": {
-        "adminActivity": "SHOWN",
-        "adminDetail": "SHOWN",
-        "issuerActivity": "HIDDEN_NOT_QUERIED",
-        "issuerApplicationDetail": "NA",
-        "issuerFacilityDetail": "NA",
-        "investorActivity": "HIDDEN_NOT_QUERIED",
-        "investorDetail": "NA",
-        "csv": "INCLUDED"
-      },
-      "notification": null,
-      "note": "Legacy stored type. Readers map it to the same copy as SETTLEMENT_TRUSTEE_LETTER_SUBMITTED. No new writes. Historical rows not rewritten.",
+      "note": "Canonical settlement trustee submit ID. Metadata: settlementId.",
       "docRef": "2.6"
     },
     {
@@ -3830,7 +3749,7 @@
       "domain": "settlement",
       "store": "note_events",
       "canonicalName": "Trustee settlement instruction completed",
-      "aliases": ["SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED"],
+      "aliases": [],
       "doNotConfuseWith": [
         "WITHDRAWAL_COMPLETED",
         "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
@@ -3856,34 +3775,7 @@
         "channel": "platform + email per registry",
         "triggerRelation": "SAME MOMENT"
       },
-      "note": "Live technical ID as of 2026-08-26. Historical rows may still store SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED and are not rewritten. Notification type/recipients/channel unchanged. Metadata: settlementId, completedAt.",
-      "docRef": "2.6"
-    },
-    {
-      "eventType": "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED",
-      "status": "DISPLAY_ALIAS",
-      "domain": "settlement",
-      "store": "note_events",
-      "canonicalName": "Trustee settlement instruction completed",
-      "aliases": [],
-      "doNotConfuseWith": [
-        "SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED"
-      ],
-      "actor": "Admin",
-      "target": "note",
-      "writer": null,
-      "surfaces": {
-        "adminActivity": "SHOWN",
-        "adminDetail": "SHOWN",
-        "issuerActivity": "HIDDEN_NOT_QUERIED",
-        "issuerApplicationDetail": "NA",
-        "issuerFacilityDetail": "NA",
-        "investorActivity": "HIDDEN_NOT_QUERIED",
-        "investorDetail": "NA",
-        "csv": "INCLUDED"
-      },
-      "notification": null,
-      "note": "Legacy stored type. Readers map it to the same copy as SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED. No new writes. Historical rows not rewritten. The live writer still triggers note_repaid_issuer once.",
+      "note": "Canonical settlement trustee completion ID. Notification type/recipients/channel unchanged (note_repaid_issuer). Metadata: settlementId, completedAt.",
       "docRef": "2.6"
     },
     {
