@@ -35,7 +35,6 @@ import {
   TabsList,
   TabsTrigger,
   ListToolbar,
-  ListToolbarFilterTrigger,
   type FilterChip,
 } from "@cashsouk/ui";
 import { toast } from "sonner";
@@ -47,11 +46,9 @@ import {
   Pencil,
   Trash2,
   History,
-  ChevronLeft,
-  ChevronRight,
   RotateCcw,
 } from "lucide-react";
-import { EyeIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -62,15 +59,6 @@ import {
   DialogTitle,
 } from "../../../components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "../../../components/ui/dropdown-menu";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -80,20 +68,33 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../../../components/ui/alert-dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../../../components/ui/table";
-import { Skeleton } from "../../../components/ui/skeleton";
+import { TableBody, TableCell, TableRow } from "../../../components/ui/table";
 import { RequirePermission } from "../../../components/require-permission";
 import { AdminPageHeader } from "../../../components/admin-page-header";
 import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
 import { notificationLogToAuditDetail } from "@/components/audit/audit-adapters";
 import { formatAuditDateTime } from "@/components/audit/audit-presentation";
+import { AuditEventBadge } from "@/components/audit/audit-event-badge";
+import { AuditLogActorCell } from "@/components/audit/audit-log-actor-cell";
+import {
+  AuditLogFilterOption,
+  AuditLogFilterSection,
+  AuditLogFilters,
+} from "@/components/audit/audit-log-filters";
+import {
+  AUDIT_LOG_PAGE_SIZE,
+  AUDIT_ROW_CLASS,
+  AUDIT_TIMESTAMP_CELL_CLASS,
+  AuditLogEmptyRow,
+  AuditLogHead,
+  AuditLogHeaderRow,
+  AuditLogSkeletonRows,
+  AuditLogTable,
+  AuditLogTableShell,
+  AuditLogViewDetailsButton,
+  auditExportButtonClassName,
+  auditRecordCountLabel,
+} from "@/components/audit/audit-log-shell";
 import { buildAuditCsv, downloadAuditCsv } from "@/components/audit/audit-csv";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 
@@ -113,146 +114,10 @@ const LOG_TARGET_OPTIONS = [
   { value: "GROUP", label: "Group" },
 ] as const;
 
-const COLOR_MAP: Record<string, string> = {
-  "bg-blue-500": "rgb(59 130 246)",
-  "bg-purple-500": "rgb(168 85 247)",
-  "bg-emerald-500": "rgb(16 185 129)",
-  "bg-orange-500": "rgb(249 115 22)",
-  "bg-gray-500": "rgb(107 114 128)",
-};
+const NOTIFICATION_LOG_COLUMNS = 7;
 
-function NotificationLogsTableSkeleton() {
-  return (
-    <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-      <Table>
-        <TableHeader className="bg-muted/30">
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="text-sm font-semibold">Timestamp</TableHead>
-            <TableHead className="text-sm font-semibold">Source</TableHead>
-            <TableHead className="text-sm font-semibold">Target</TableHead>
-            <TableHead className="text-sm font-semibold">Type</TableHead>
-            <TableHead className="text-sm font-semibold">Message</TableHead>
-            <TableHead className="text-sm font-semibold" title="Attempted recipients">
-              Recipients
-            </TableHead>
-            <TableHead
-              className="text-sm font-semibold"
-              title="Selected channel deliveries, not confirmed receipt"
-            >
-              Delivery
-            </TableHead>
-            <TableHead className="text-sm font-semibold">IP Address</TableHead>
-            <TableHead className="text-sm font-semibold">Device</TableHead>
-            <TableHead className="text-sm font-semibold">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {Array.from({ length: 5 }).map((_, index) => (
-            <TableRow key={index}>
-              <TableCell>
-                <Skeleton className="h-5 w-32" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-5 w-40" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-6 w-24 rounded-full" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-5 w-28" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-5 w-56" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-6 w-16 rounded-full" />
-              </TableCell>
-              <TableCell>
-                <div className="space-y-1">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-4 w-16" />
-                </div>
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-5 w-24" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-5 w-32" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="ml-auto h-8 w-20" />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-
-function getTargetBadge(targetType: string) {
-  const config = TARGET_CONFIG[targetType] || {
-    label: targetType.replace("_", " "),
-    color: "bg-gray-500",
-  };
-  const cssColor = COLOR_MAP[config.color] || "rgb(107 114 128)";
-
-  return (
-    <Badge
-      variant="outline"
-      className="text-xs font-medium px-2 py-0.5 flex items-center gap-1.5 w-fit whitespace-nowrap"
-      style={{
-        backgroundColor: `color-mix(in srgb, ${cssColor} 10%, transparent)`,
-        borderColor: `color-mix(in srgb, ${cssColor} 30%, transparent)`,
-        color: "rgb(15, 23, 42)", // slate-900 for dark text
-      }}
-    >
-      <span className={`inline-block w-2 h-2 rounded-full ${config.color}`} />
-      {config.label}
-    </Badge>
-  );
-}
-
-function LogSourceCell({ log }: { log: AdminNotificationLog }) {
-  if (log.source === "SYSTEM" || !log.admin) {
-    return (
-      <div className="flex min-w-0 flex-col">
-        <span className="truncate text-ui font-medium">System</span>
-        <span className="truncate text-meta text-muted-foreground">Automated delivery</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex min-w-0 flex-col">
-      <span
-        className="truncate text-ui font-medium"
-        title={`${log.admin.first_name} ${log.admin.last_name}`}
-      >
-        {log.admin.first_name} {log.admin.last_name}
-      </span>
-      <span className="truncate text-meta text-muted-foreground">
-        Custom message · {log.admin.email}
-      </span>
-    </div>
-  );
-}
-
-function LogDeliveryCell({
-  platformCount,
-  emailCount,
-}: {
-  platformCount: number;
-  emailCount: number;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="whitespace-nowrap text-meta text-muted-foreground">
-        Platform {platformCount}
-      </span>
-      <span className="whitespace-nowrap text-meta text-muted-foreground">Email {emailCount}</span>
-    </div>
-  );
+function audienceLabel(targetType: string): string {
+  return TARGET_CONFIG[targetType]?.label ?? targetType.replaceAll("_", " ");
 }
 
 export default function NotificationsAdminPage() {
@@ -267,7 +132,7 @@ export default function NotificationsAdminPage() {
   const [configPortalFilter, setConfigPortalFilter] = useState<"INVESTOR" | "ISSUER" | "BOTH">(
     "ISSUER"
   );
-  const limit = 10;
+  const limit = AUDIT_LOG_PAGE_SIZE;
   const {
     types,
     isLoadingTypes,
@@ -322,13 +187,6 @@ export default function NotificationsAdminPage() {
   const [exportingLogs, setExportingLogs] = useState(false);
   const [isResetDefaultsOpen, setIsResetDefaultsOpen] = useState(false);
   const [isSendConfirmOpen, setIsSendConfirmOpen] = useState(false);
-
-  const getPortalTargetsLabel = (targets: string[]) => {
-    if (targets.includes("INVESTOR") && targets.includes("ISSUER")) return "Investor + Issuer";
-    if (targets.includes("INVESTOR")) return "Investor";
-    if (targets.includes("ISSUER")) return "Issuer";
-    return "Unscoped";
-  };
 
   const selectedTargetPortal =
     targetType === "INVESTORS" ? "INVESTOR" : targetType === "ISSUERS" ? "ISSUER" : null;
@@ -1124,276 +982,178 @@ export default function NotificationsAdminPage() {
                 onClearFilters={hasLogFilters ? clearLogFilters : undefined}
                 onReload={() => refetchLogs()}
                 isLoading={isLoadingLogs}
-                countLabel={`${paginationLogs?.total || 0} ${paginationLogs?.total === 1 ? "log" : "logs"}`}
+                countLabel={auditRecordCountLabel(paginationLogs?.total || 0)}
                 filterGroups={
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <ListToolbarFilterTrigger
-                        label="Filters"
-                        count={
-                          [logTypeFilter !== "all", logTargetFilter !== "all", logSourceFilter !== "all"].filter(
-                            Boolean
-                          ).length
-                        }
-                      />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuLabel>Notification type</DropdownMenuLabel>
-                      <DropdownMenuRadioGroup
-                        value={logTypeFilter}
-                        onValueChange={(value) => {
-                          setLogTypeFilter(value);
+                  <AuditLogFilters
+                    activeCount={
+                      [logTypeFilter !== "all", logTargetFilter !== "all", logSourceFilter !== "all"].filter(
+                        Boolean
+                      ).length
+                    }
+                  >
+                    <AuditLogFilterSection title="Type">
+                      <AuditLogFilterOption
+                        selected={logTypeFilter === "all"}
+                        onSelect={() => {
+                          setLogTypeFilter("all");
                           setPage(1);
                         }}
                       >
-                        <DropdownMenuRadioItem value="all">All types</DropdownMenuRadioItem>
-                        {types.map((type: AdminNotificationType) => (
-                          <DropdownMenuRadioItem key={type.id} value={type.id}>
-                            {type.name}
-                          </DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel>Audience</DropdownMenuLabel>
-                      <DropdownMenuRadioGroup
-                        value={logTargetFilter}
-                        onValueChange={(value) => {
-                          setLogTargetFilter(value);
+                        All types
+                      </AuditLogFilterOption>
+                      {types.map((type: AdminNotificationType) => (
+                        <AuditLogFilterOption
+                          key={type.id}
+                          selected={logTypeFilter === type.id}
+                          onSelect={() => {
+                            setLogTypeFilter(type.id);
+                            setPage(1);
+                          }}
+                        >
+                          {type.name}
+                        </AuditLogFilterOption>
+                      ))}
+                    </AuditLogFilterSection>
+                    <AuditLogFilterSection title="Audience">
+                      <AuditLogFilterOption
+                        selected={logTargetFilter === "all"}
+                        onSelect={() => {
+                          setLogTargetFilter("all");
                           setPage(1);
                         }}
                       >
-                        <DropdownMenuRadioItem value="all">All audiences</DropdownMenuRadioItem>
-                        {LOG_TARGET_OPTIONS.map((option) => (
-                          <DropdownMenuRadioItem key={option.value} value={option.value}>
-                            {option.label}
-                          </DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel>Source</DropdownMenuLabel>
-                      <DropdownMenuRadioGroup
-                        value={logSourceFilter}
-                        onValueChange={(value) => {
-                          setLogSourceFilter(value as "all" | NotificationLogSource);
+                        All audiences
+                      </AuditLogFilterOption>
+                      {LOG_TARGET_OPTIONS.map((option) => (
+                        <AuditLogFilterOption
+                          key={option.value}
+                          selected={logTargetFilter === option.value}
+                          onSelect={() => {
+                            setLogTargetFilter(option.value);
+                            setPage(1);
+                          }}
+                        >
+                          {option.label}
+                        </AuditLogFilterOption>
+                      ))}
+                    </AuditLogFilterSection>
+                    <AuditLogFilterSection title="Source">
+                      <AuditLogFilterOption
+                        selected={logSourceFilter === "all"}
+                        onSelect={() => {
+                          setLogSourceFilter("all");
                           setPage(1);
                         }}
                       >
-                        <DropdownMenuRadioItem value="all">All sources</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="ADMIN">Admin</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="SYSTEM">System</DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                        All sources
+                      </AuditLogFilterOption>
+                      <AuditLogFilterOption
+                        selected={logSourceFilter === "ADMIN"}
+                        onSelect={() => {
+                          setLogSourceFilter("ADMIN");
+                          setPage(1);
+                        }}
+                      >
+                        Admin
+                      </AuditLogFilterOption>
+                      <AuditLogFilterOption
+                        selected={logSourceFilter === "SYSTEM"}
+                        onSelect={() => {
+                          setLogSourceFilter("SYSTEM");
+                          setPage(1);
+                        }}
+                      >
+                        System
+                      </AuditLogFilterOption>
+                    </AuditLogFilterSection>
+                  </AuditLogFilters>
                 }
               >
                 <Button
                   variant="outline"
                   onClick={() => void handleExportNotificationLogs()}
                   disabled={exportingLogs || (paginationLogs?.total ?? 0) === 0}
-                  className="h-11 gap-2 rounded-xl bg-card"
+                  className={auditExportButtonClassName()}
                 >
                   <ArrowDownTrayIcon className="h-4 w-4" />
-                  {exportingLogs ? "Exporting..." : "Export CSV"}
+                  {exportingLogs ? "Exporting..." : "Export"}
                 </Button>
               </ListToolbar>
 
-              <Card className="border-none shadow-none bg-transparent">
-                <CardContent className="p-0">
-                  {isLoadingLogs ? (
-                    <NotificationLogsTableSkeleton />
-                  ) : logs.length === 0 ? (
-                    <div className="text-center py-20 text-muted-foreground bg-white border rounded-2xl">
-                      <History className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                      <p className="text-lg font-medium">No logs found</p>
-                      <p className="text-sm">
-                        Try adjusting your search or send a new notification.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-                        <Table>
-                          <TableHeader className="bg-muted/30">
-                            <TableRow className="hover:bg-transparent">
-                              <TableHead className="text-sm font-semibold">Timestamp</TableHead>
-                              <TableHead className="text-sm font-semibold">Source</TableHead>
-                              <TableHead className="text-sm font-semibold">Target</TableHead>
-                              <TableHead className="text-sm font-semibold">Type</TableHead>
-                              <TableHead className="text-sm font-semibold">Message</TableHead>
-                              <TableHead
-                                className="text-sm font-semibold"
-                                title="Attempted recipients"
-                              >
-                                Recipients
-                              </TableHead>
-                              <TableHead
-                                className="text-sm font-semibold"
-                                title="Selected channel deliveries, not confirmed receipt"
-                              >
-                                Delivery
-                              </TableHead>
-                              <TableHead className="text-sm font-semibold">IP Address</TableHead>
-                              <TableHead className="text-sm font-semibold">Device</TableHead>
-                              <TableHead className="text-sm font-semibold">Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {logs.map((log: AdminNotificationLog) => (
-                              <TableRow
-                                key={log.id}
-                                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                                onClick={() => openLogDetails(log)}
-                              >
-                                <TableCell className="whitespace-nowrap text-ui text-muted-foreground">
-                                  {formatAuditDateTime(log.created_at)}
-                                </TableCell>
-                                <TableCell>
-                                  <LogSourceCell log={log} />
-                                </TableCell>
-                                <TableCell>{getTargetBadge(log.target_type)}</TableCell>
-                                <TableCell>
-                                  <div
-                                    className="text-xs font-bold text-slate-700 whitespace-normal break-words"
-                                    title={log.notification_type?.name}
-                                  >
-                                    {log.notification_type?.name || "Custom"}
-                                  </div>
-                                  {log.notification_type?.portal_targets?.length ? (
-                                    <Badge variant="outline" className="mt-1 text-meta">
-                                      {getPortalTargetsLabel(log.notification_type.portal_targets)}
-                                    </Badge>
-                                  ) : null}
-                                </TableCell>
-                                <TableCell>
-                                  <div className="max-w-[300px]">
-                                    <div
-                                      className="text-sm font-medium truncate mb-0.5"
-                                      title={log.title}
-                                    >
-                                      {log.title}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground line-clamp-1">
-                                      {log.message}
-                                    </div>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <div
-                                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-normal text-xs"
-                                    title="Attempted recipients"
-                                  >
-                                    <Users className="h-3 w-3" />
-                                    <span className="sr-only">Attempted recipients: </span>
-                                    {log.recipient_count}
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <LogDeliveryCell
-                                    platformCount={log.delivered_platform_count}
-                                    emailCount={log.delivered_email_count}
-                                  />
-                                </TableCell>
-                                <TableCell className="font-mono text-sm text-muted-foreground">
-                                  {log.ip_address || "—"}
-                                </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">
-                                  {log.device_info ? (
-                                    <span
-                                      title={log.user_agent ?? undefined}
-                                      className="line-clamp-2 leading-snug"
-                                    >
-                                      {log.device_info}
-                                    </span>
-                                  ) : (
-                                    "—"
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-8 px-2"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      openLogDetails(log);
-                                    }}
-                                  >
-                                    <EyeIcon className="h-4 w-4 mr-1" />
-                                    View
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-
-                      {/* Pagination for Logs */}
-                      {paginationLogs && paginationLogs.pages > 1 && (
-                        <div className="flex items-center justify-between border-t px-6 py-4">
-                          <div className="text-sm text-muted-foreground">
-                            Showing {Math.min((page - 1) * limit + 1, paginationLogs.total)}-
-                            {Math.min(page * limit, paginationLogs.total)} of {paginationLogs.total}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="rounded-xl h-9"
-                              onClick={() => setPage((p) => Math.max(1, p - 1))}
-                              disabled={page === 1}
-                            >
-                              <ChevronLeft className="h-4 w-4 mr-1" />
-                              Previous
-                            </Button>
-                            <div className="flex items-center gap-1">
-                              {Array.from({ length: paginationLogs.pages }, (_, i) => i + 1).map(
-                                (p) => {
-                                  if (
-                                    p === 1 ||
-                                    p === paginationLogs.pages ||
-                                    (p >= page - 1 && p <= page + 1)
-                                  ) {
-                                    return (
-                                      <Button
-                                        key={p}
-                                        variant={p === page ? "default" : "outline"}
-                                        size="sm"
-                                        className="h-9 w-9 p-0 rounded-xl"
-                                        onClick={() => setPage(p)}
-                                      >
-                                        {p}
-                                      </Button>
-                                    );
-                                  }
-                                  if (p === 2 || p === paginationLogs.pages - 1) {
-                                    return (
-                                      <span key={p} className="px-1 text-muted-foreground">
-                                        ...
-                                      </span>
-                                    );
-                                  }
-                                  return null;
-                                }
-                              )}
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="rounded-xl h-9"
-                              onClick={() => setPage((p) => Math.min(paginationLogs.pages, p + 1))}
-                              disabled={page === paginationLogs.pages}
-                            >
-                              Next
-                              <ChevronRight className="h-4 w-4 ml-1" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <AuditLogTableShell
+                pagination={
+                  isLoadingLogs
+                    ? null
+                    : {
+                        currentPage: page,
+                        totalPages: paginationLogs?.pages ?? 0,
+                        pageSize: limit,
+                        totalItems: paginationLogs?.total ?? 0,
+                        onPageChange: setPage,
+                      }
+                }
+              >
+                <AuditLogTable>
+                  <AuditLogHeaderRow>
+                    <AuditLogHead>Timestamp</AuditLogHead>
+                    <AuditLogHead>Event</AuditLogHead>
+                    <AuditLogHead>Actor/Source</AuditLogHead>
+                    <AuditLogHead>Audience</AuditLogHead>
+                    <AuditLogHead>Platform Delivered</AuditLogHead>
+                    <AuditLogHead>Email Delivered</AuditLogHead>
+                    <AuditLogHead align="right">Actions</AuditLogHead>
+                  </AuditLogHeaderRow>
+                  <TableBody>
+                    {isLoadingLogs ? (
+                      <AuditLogSkeletonRows columns={NOTIFICATION_LOG_COLUMNS} />
+                    ) : logs.length === 0 ? (
+                      <AuditLogEmptyRow colSpan={NOTIFICATION_LOG_COLUMNS} />
+                    ) : (
+                      logs.map((log: AdminNotificationLog) => (
+                        <TableRow
+                          key={log.id}
+                          className={AUDIT_ROW_CLASS}
+                          onClick={() => openLogDetails(log)}
+                        >
+                          <TableCell className={AUDIT_TIMESTAMP_CELL_CLASS}>
+                            {formatAuditDateTime(log.created_at)}
+                          </TableCell>
+                          <TableCell>
+                            <AuditEventBadge
+                              eventType={log.notification_type_id}
+                              label={log.notification_type?.name || log.title || "Custom"}
+                            />
+                          </TableCell>
+                          <AuditLogActorCell
+                            name={
+                              log.source === "SYSTEM" || !log.admin
+                                ? "System"
+                                : `${log.admin.first_name} ${log.admin.last_name}`.trim()
+                            }
+                            email={log.source === "SYSTEM" || !log.admin ? null : log.admin.email}
+                            actorType={log.source === "SYSTEM" || !log.admin ? "SYSTEM" : "ADMIN"}
+                          />
+                          <TableCell className="text-ui">{audienceLabel(log.target_type)}</TableCell>
+                          <TableCell className="text-ui tabular-nums">
+                            {log.delivered_platform_count}
+                          </TableCell>
+                          <TableCell className="text-ui tabular-nums">
+                            {log.delivered_email_count}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <AuditLogViewDetailsButton
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openLogDetails(log);
+                              }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </AuditLogTable>
+              </AuditLogTableShell>
             </TabsContent>
           </Tabs>
 

@@ -1,25 +1,20 @@
 "use client";
 
 import * as React from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Skeleton } from "@cashsouk/ui";
+import { TableBody } from "@/components/ui/table";
 import { AccessLogTableRow } from "./access-log-table-row";
 import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
 import { accessLogToAuditDetail } from "@/components/audit/audit-adapters";
-import { Button } from "@/components/ui/button";
-import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import {
+  AuditLogEmptyRow,
+  AuditLogHead,
+  AuditLogHeaderRow,
+  AuditLogSkeletonRows,
+  AuditLogTable,
+  AuditLogTableShell,
+} from "@/components/audit/audit-log-shell";
 import type { AccessLogResponse } from "@cashsouk/types";
 
-// event_type is widened to `string`: this table/row/dialog trio renders both access_logs
-// (EventType) and security_logs (SecurityEventType) rows via the same shared components —
-// display-only, so the literal union isn't needed here (see access-logs-toolbar.tsx).
 interface AccessLog extends Omit<AccessLogResponse, "created_at" | "event_type"> {
   created_at: Date;
   event_type: string;
@@ -32,58 +27,10 @@ interface AccessLogsTableProps {
   pageSize: number;
   totalLogs: number;
   onPageChange: (page: number) => void;
-  showRole?: boolean;
-  showOrganization?: boolean;
-  /** Per-domain label overrides for event types whose canonical wording differs by source table. */
   labelOverrides?: Record<string, string>;
 }
 
-function TableSkeleton({ showRole = false, showOrganization = false }: { showRole?: boolean; showOrganization?: boolean }) {
-  return (
-    <>
-      {Array.from({ length: 7 }).map((_, i) => (
-        <TableRow key={i}>
-          <TableCell>
-            <Skeleton className="h-5 w-32" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-5 w-40" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-5 w-24" />
-          </TableCell>
-          {showRole && (
-            <TableCell>
-              <Skeleton className="h-5 w-20" />
-            </TableCell>
-          )}
-          {showOrganization && (
-            <>
-              <TableCell>
-                <Skeleton className="h-5 w-32" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-5 w-20" />
-              </TableCell>
-            </>
-          )}
-          <TableCell>
-            <Skeleton className="h-5 w-28" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-5 w-24" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-5 w-16" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-8 w-16" />
-          </TableCell>
-        </TableRow>
-      ))}
-    </>
-  );
-}
+const COLUMN_COUNT = 8;
 
 export function AccessLogsTable({
   logs,
@@ -92,8 +39,6 @@ export function AccessLogsTable({
   pageSize,
   totalLogs,
   onPageChange,
-  showRole = false,
-  showOrganization = false,
   labelOverrides,
 }: AccessLogsTableProps) {
   const [selectedLog, setSelectedLog] = React.useState<AccessLog | null>(null);
@@ -104,85 +49,52 @@ export function AccessLogsTable({
     setDialogOpen(true);
   };
 
-  const totalPages = Math.ceil(totalLogs / pageSize);
-  const startIndex = (currentPage - 1) * pageSize + 1;
-  const endIndex = Math.min(currentPage * pageSize, totalLogs);
-
-  const columnCount = 7 + (showRole ? 1 : 0) + (showOrganization ? 2 : 0);
+  const totalPages = Math.max(1, Math.ceil(totalLogs / pageSize));
 
   return (
     <>
-      <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-sm font-semibold">Timestamp</TableHead>
-                {showOrganization && <TableHead className="text-sm font-semibold">Organization</TableHead>}
-                {showOrganization && <TableHead className="text-sm font-semibold">Type</TableHead>}
-                <TableHead className="text-sm font-semibold min-w-[180px] max-w-[280px]">User</TableHead>
-                <TableHead className="text-sm font-semibold">Event</TableHead>
-                {showRole && <TableHead className="text-sm font-semibold">Role</TableHead>}
-                <TableHead className="text-sm font-semibold">IP Address</TableHead>
-                <TableHead className="text-sm font-semibold">Device</TableHead>
-                <TableHead className="text-sm font-semibold">Status</TableHead>
-                <TableHead className="text-sm font-semibold">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableSkeleton showRole={showRole} showOrganization={showOrganization} />
-              ) : logs.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={columnCount} className="py-10 text-center text-ui text-muted-foreground">
-                    No logs found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                logs.map((log) => (
-                  <AccessLogTableRow
-                    key={log.id}
-                    log={log}
-                    onViewDetails={() => handleViewDetails(log)}
-                    showRole={showRole}
-                    showOrganization={showOrganization}
-                    labelOverrides={labelOverrides}
-                  />
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {!loading && logs.length > 0 && (
-          <div className="flex items-center justify-between border-t px-6 py-4">
-            <div className="text-sm text-muted-foreground">
-              Showing {startIndex}-{endIndex} of {totalLogs}
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onPageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeftIcon className="h-4 w-4" />
-              </Button>
-              <div className="text-sm font-medium">
-                Page {currentPage} of {totalPages}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onPageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRightIcon className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+      <AuditLogTableShell
+        pagination={
+          loading
+            ? null
+            : {
+                currentPage,
+                totalPages,
+                pageSize,
+                totalItems: totalLogs,
+                onPageChange,
+              }
+        }
+      >
+        <AuditLogTable>
+          <AuditLogHeaderRow>
+            <AuditLogHead>Timestamp</AuditLogHead>
+            <AuditLogHead>Event</AuditLogHead>
+            <AuditLogHead>Actor</AuditLogHead>
+            <AuditLogHead>Source</AuditLogHead>
+            <AuditLogHead>IP Address</AuditLogHead>
+            <AuditLogHead>Device</AuditLogHead>
+            <AuditLogHead>Status</AuditLogHead>
+            <AuditLogHead align="right">Actions</AuditLogHead>
+          </AuditLogHeaderRow>
+          <TableBody>
+            {loading ? (
+              <AuditLogSkeletonRows columns={COLUMN_COUNT} />
+            ) : logs.length === 0 ? (
+              <AuditLogEmptyRow colSpan={COLUMN_COUNT} />
+            ) : (
+              logs.map((log) => (
+                <AccessLogTableRow
+                  key={log.id}
+                  log={log}
+                  onViewDetails={() => handleViewDetails(log)}
+                  labelOverrides={labelOverrides}
+                />
+              ))
+            )}
+          </TableBody>
+        </AuditLogTable>
+      </AuditLogTableShell>
 
       <AuditDetailDrawer
         open={dialogOpen}
@@ -192,4 +104,3 @@ export function AccessLogsTable({
     </>
   );
 }
-

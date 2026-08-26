@@ -1,25 +1,25 @@
 import { TableCell, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { EyeIcon } from "@heroicons/react/24/outline";
-import type { AccessLogResponse, UserRole } from "@cashsouk/types";
-import { PortalBadge, StatusBadge } from "@cashsouk/ui";
-import { OrganizationTypeBadge } from "@/components/organization-type-badge";
+import { StatusBadge } from "@cashsouk/ui";
 import { AuditEventBadge } from "@/components/audit/audit-event-badge";
+import { AuditSourceBadge } from "@/components/audit/audit-source-badge";
+import { AuditLogActorCell } from "@/components/audit/audit-log-actor-cell";
+import {
+  AuditLogViewDetailsButton,
+  AUDIT_IP_CELL_CLASS,
+  AUDIT_ROW_CLASS,
+  AUDIT_TIMESTAMP_CELL_CLASS,
+} from "@/components/audit/audit-log-shell";
 import { formatAuditDateTime } from "@/components/audit/audit-presentation";
+import type { AccessLogResponse } from "@cashsouk/types";
 
 interface AccessLog extends Omit<AccessLogResponse, "created_at" | "event_type"> {
   created_at: Date;
   event_type: string;
-  role?: UserRole | null;
-  organizationName?: string | null;
-  organizationType?: "PERSONAL" | "COMPANY" | null;
 }
 
 interface AccessLogTableRowProps {
   log: AccessLog;
   onViewDetails: () => void;
-  showRole?: boolean;
-  showOrganization?: boolean;
   labelOverrides?: Record<string, string>;
 }
 
@@ -52,56 +52,19 @@ export const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }>
   SOPHISTICATED_STATUS_UPDATED: { label: "Sophisticated Updated", color: "bg-status-active-text" },
 };
 
-function getRoleBadge(role: UserRole) {
-  if (role === "INVESTOR" || role === "ISSUER") {
-    return <PortalBadge portal={role === "INVESTOR" ? "investor" : "issuer"} />;
-  }
-  return <StatusBadge label="Admin" status="active" />;
-}
-
 export function AccessLogTableRow({
   log,
   onViewDetails,
-  showRole = false,
-  showOrganization = false,
   labelOverrides,
 }: AccessLogTableRowProps) {
   const eventLabel = labelOverrides?.[log.event_type] ?? EVENT_TYPE_CONFIG[log.event_type]?.label;
+  const actorName = `${log.user.first_name} ${log.user.last_name}`.trim();
+  const source = log.source || log.portal;
 
   return (
-    <TableRow
-      className="cursor-pointer hover:bg-muted/50"
-      onClick={onViewDetails}
-    >
-      <TableCell className="whitespace-nowrap text-ui text-muted-foreground">
+    <TableRow className={AUDIT_ROW_CLASS} onClick={onViewDetails}>
+      <TableCell className={AUDIT_TIMESTAMP_CELL_CLASS}>
         {formatAuditDateTime(log.created_at)}
-      </TableCell>
-      {showOrganization && (
-        <>
-          <TableCell className="text-ui text-muted-foreground">
-            {log.organizationName || "—"}
-          </TableCell>
-          <TableCell>
-            {log.organizationType ? (
-              <OrganizationTypeBadge type={log.organizationType} />
-            ) : (
-              <span className="text-ui text-muted-foreground">—</span>
-            )}
-          </TableCell>
-        </>
-      )}
-      <TableCell className="min-w-[180px] max-w-[280px]">
-        <div className="flex min-w-0 flex-col">
-          <span
-            className="truncate text-ui font-medium"
-            title={`${log.user.first_name} ${log.user.last_name}`}
-          >
-            {log.user.first_name} {log.user.last_name}
-          </span>
-          <span className="truncate text-meta text-muted-foreground" title={log.user.email}>
-            {log.user.email}
-          </span>
-        </div>
       </TableCell>
       <TableCell>
         <AuditEventBadge
@@ -111,29 +74,29 @@ export function AccessLogTableRow({
           overrides={labelOverrides}
         />
       </TableCell>
-      {showRole && (
-        <TableCell>
-          {log.role ? getRoleBadge(log.role) : <span className="text-ui text-muted-foreground">—</span>}
-        </TableCell>
-      )}
-      <TableCell className="font-mono text-ui text-muted-foreground">{log.ip_address || "—"}</TableCell>
+      <AuditLogActorCell name={actorName} email={log.user.email} actorType={log.actor_type} />
+      <TableCell>
+        {source ? (
+          <AuditSourceBadge source={source} />
+        ) : (
+          <span className="text-ui text-muted-foreground">—</span>
+        )}
+      </TableCell>
+      <TableCell className={AUDIT_IP_CELL_CLASS}>{log.ip_address || "—"}</TableCell>
       <TableCell className="text-ui text-muted-foreground">{log.device_info || "—"}</TableCell>
       <TableCell>
-        <StatusBadge label={log.success ? "Success" : "Failed"} status={log.success ? "success" : "rejected"} />
+        <StatusBadge
+          label={log.success ? "Success" : "Failed"}
+          status={log.success ? "success" : "rejected"}
+        />
       </TableCell>
-      <TableCell>
-        <Button
-          size="sm"
-          variant="ghost"
+      <TableCell className="text-right">
+        <AuditLogViewDetailsButton
           onClick={(event) => {
             event.stopPropagation();
             onViewDetails();
           }}
-          className="h-8 px-2"
-        >
-          <EyeIcon className="mr-1 h-4 w-4" />
-          View
-        </Button>
+        />
       </TableCell>
     </TableRow>
   );

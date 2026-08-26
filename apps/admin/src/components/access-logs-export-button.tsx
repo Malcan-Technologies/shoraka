@@ -12,6 +12,7 @@ import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { EventType, ExportAccessLogsParams, SecurityEventType } from "@cashsouk/types";
 import { toast } from "sonner";
+import { auditExportButtonClassName } from "@/components/audit/audit-log-shell";
 
 interface AccessLogsExportButtonProps {
   filters: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize" | "eventType" | "eventTypes"> & {
@@ -69,7 +70,7 @@ export function AccessLogsExportButton({ filters, kind = "access" }: AccessLogsE
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" disabled={isExporting} className="gap-2">
+        <Button variant="outline" disabled={isExporting} className={auditExportButtonClassName()}>
           <ArrowDownTrayIcon className="h-4 w-4" />
           {isExporting ? "Exporting..." : "Export"}
         </Button>

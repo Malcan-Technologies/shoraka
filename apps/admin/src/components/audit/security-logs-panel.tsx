@@ -6,6 +6,7 @@ import { AccessLogsTable } from "@/components/access-logs-table";
 import { AccessLogsToolbar } from "@/components/access-logs-toolbar";
 import { SECURITY_EVENT_TYPES, useSecurityLogs } from "@/hooks/use-security-logs";
 import { AdminQueryErrorState } from "@/components/admin-query-error-state";
+import { AUDIT_LOG_PAGE_SIZE } from "@/components/audit/audit-log-shell";
 import type { SecurityEventType, GetSecurityLogsParams } from "@cashsouk/types";
 
 export { SECURITY_EVENT_TYPES };
@@ -17,7 +18,7 @@ export function SecurityLogsPanel() {
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [dateRangeFilter, setDateRangeFilter] = React.useState("all");
   const [currentPage, setCurrentPage] = React.useState(1);
-  const pageSize = 15;
+  const pageSize = AUDIT_LOG_PAGE_SIZE;
 
   const apiParams = React.useMemo(() => {
     const params: GetSecurityLogsParams = {

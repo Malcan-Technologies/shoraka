@@ -2,42 +2,47 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ListToolbar, ListToolbarFilterTrigger, type FilterChip } from "@cashsouk/ui";
+import { ListToolbar, type FilterChip } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { TableBody, TableCell, TableRow } from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useProductLogs, useExportProductLogs } from "@/hooks/use-product-logs";
 import { AdminQueryErrorState } from "@/components/admin-query-error-state";
-import {
-  ArrowDownTrayIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CubeIcon,
-  EyeIcon,
-} from "@heroicons/react/24/outline";
+import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import type { ProductEventType, GetProductLogsParams, ProductLogResponse } from "@cashsouk/types";
-import { DATE_RANGES } from "@cashsouk/config";
 import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
 import { AuditEventBadge } from "@/components/audit/audit-event-badge";
+import { AuditSourceBadge } from "@/components/audit/audit-source-badge";
 import { productLogToAuditDetail } from "@/components/audit/audit-adapters";
 import { formatAuditDateTime, formatAuditEventLabel } from "@/components/audit/audit-presentation";
+import {
+  AUDIT_DATE_RANGE_OPTIONS,
+  AuditLogDateRangeOptions,
+  AuditLogFilterOption,
+  AuditLogFilterSection,
+  AuditLogFilters,
+} from "@/components/audit/audit-log-filters";
+import { AuditLogActorCell } from "@/components/audit/audit-log-actor-cell";
+import {
+  AUDIT_IP_CELL_CLASS,
+  AUDIT_LOG_PAGE_SIZE,
+  AUDIT_ROW_CLASS,
+  AUDIT_TIMESTAMP_CELL_CLASS,
+  AuditLogEmptyRow,
+  AuditLogHead,
+  AuditLogHeaderRow,
+  AuditLogSkeletonRows,
+  AuditLogTable,
+  AuditLogTableShell,
+  AuditLogViewDetailsButton,
+  auditExportButtonClassName,
+  auditRecordCountLabel,
+} from "@/components/audit/audit-log-shell";
 
 const PRODUCT_EVENT_TYPES: { value: ProductEventType; label: string }[] = [
   { value: "PRODUCT_CREATED", label: "Product Created" },
@@ -47,7 +52,7 @@ const PRODUCT_EVENT_TYPES: { value: ProductEventType; label: string }[] = [
   { value: "PRODUCT_REACTIVATED", label: "Product Reactivated" },
 ];
 
-const ITEMS_PER_PAGE = 15;
+const COLUMN_COUNT = 7;
 
 export function ProductLogsPanel() {
   const queryClient = useQueryClient();
@@ -63,7 +68,7 @@ export function ProductLogsPanel() {
   const apiParams = React.useMemo(() => {
     const params: GetProductLogsParams = {
       page,
-      pageSize: ITEMS_PER_PAGE,
+      pageSize: AUDIT_LOG_PAGE_SIZE,
       dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
     };
 
@@ -100,7 +105,9 @@ export function ProductLogsPanel() {
   if (dateRangeFilter !== "all") {
     appliedFilters.push({
       id: "date",
-      label: DATE_RANGES.find((range) => range.value === dateRangeFilter)?.label ?? dateRangeFilter,
+      label:
+        AUDIT_DATE_RANGE_OPTIONS.find((range) => range.value === dateRangeFilter)?.label ??
+        dateRangeFilter,
       onRemove: () => setDateRangeFilter("all"),
     });
   }
@@ -157,41 +164,35 @@ export function ProductLogsPanel() {
         onClearFilters={hasFilters ? handleClearFilters : undefined}
         onReload={handleReload}
         isLoading={isLoading}
-        countLabel={`${totalCount} ${totalCount === 1 ? "log" : "logs"}`}
+        countLabel={auditRecordCountLabel(totalCount)}
         filterGroups={
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <ListToolbarFilterTrigger
-                label="Filters"
-                count={[eventTypeFilter !== "all", dateRangeFilter !== "all"].filter(Boolean).length}
-              />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Event type</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={eventTypeFilter} onValueChange={setEventTypeFilter}>
-                <DropdownMenuRadioItem value="all">All events</DropdownMenuRadioItem>
-                {PRODUCT_EVENT_TYPES.map((type) => (
-                  <DropdownMenuRadioItem key={type.value} value={type.value}>
-                    {type.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>Date range</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={dateRangeFilter} onValueChange={setDateRangeFilter}>
-                {DATE_RANGES.map((range) => (
-                  <DropdownMenuRadioItem key={range.value} value={range.value}>
-                    {range.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <AuditLogFilters
+            activeCount={[eventTypeFilter !== "all", dateRangeFilter !== "all"].filter(Boolean).length}
+          >
+            <AuditLogFilterSection title="Event">
+              <AuditLogFilterOption
+                selected={eventTypeFilter === "all"}
+                onSelect={() => setEventTypeFilter("all")}
+              >
+                All events
+              </AuditLogFilterOption>
+              {PRODUCT_EVENT_TYPES.map((type) => (
+                <AuditLogFilterOption
+                  key={type.value}
+                  selected={eventTypeFilter === type.value}
+                  onSelect={() => setEventTypeFilter(type.value)}
+                >
+                  {type.label}
+                </AuditLogFilterOption>
+              ))}
+            </AuditLogFilterSection>
+            <AuditLogDateRangeOptions value={dateRangeFilter} onChange={setDateRangeFilter} />
+          </AuditLogFilters>
         }
       >
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
+            <Button variant="outline" className={auditExportButtonClassName()}>
               <ArrowDownTrayIcon className="h-4 w-4" />
               Export
             </Button>
@@ -203,51 +204,34 @@ export function ProductLogsPanel() {
         </DropdownMenu>
       </ListToolbar>
 
-      <div className="rounded-xl border border-border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Timestamp</TableHead>
-              <TableHead className="min-w-[180px] max-w-[280px]">Admin</TableHead>
-              <TableHead>Event</TableHead>
-              <TableHead>Product</TableHead>
-              <TableHead>IP Address</TableHead>
-              <TableHead>Device</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+      <AuditLogTableShell
+        pagination={
+          isLoading
+            ? null
+            : {
+                currentPage: page,
+                totalPages,
+                pageSize: AUDIT_LOG_PAGE_SIZE,
+                totalItems: totalCount,
+                onPageChange: setPage,
+              }
+        }
+      >
+        <AuditLogTable>
+          <AuditLogHeaderRow>
+            <AuditLogHead>Timestamp</AuditLogHead>
+            <AuditLogHead>Event</AuditLogHead>
+            <AuditLogHead>Actor</AuditLogHead>
+            <AuditLogHead>Product</AuditLogHead>
+            <AuditLogHead>Source</AuditLogHead>
+            <AuditLogHead>IP Address</AuditLogHead>
+            <AuditLogHead align="right">Actions</AuditLogHead>
+          </AuditLogHeaderRow>
           <TableBody>
             {isLoading ? (
-              Array.from({ length: 10 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell>
-                    <Skeleton className="h-5 w-32" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-40" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-24" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-32" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-24" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-32" />
-                  </TableCell>
-                </TableRow>
-              ))
+              <AuditLogSkeletonRows columns={COLUMN_COUNT} />
             ) : logs.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="py-12 text-center text-ui text-muted-foreground">
-                  <CubeIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
-                  <p>No logs found</p>
-                  <p className="mt-1 text-meta">Product changes will be recorded here</p>
-                </TableCell>
-              </TableRow>
+              <AuditLogEmptyRow colSpan={COLUMN_COUNT} />
             ) : (
               logs.map((log) => {
                 const metadata = log.metadata as Record<string, unknown> | null;
@@ -263,35 +247,29 @@ export function ProductLogsPanel() {
                 const eventLabel =
                   PRODUCT_EVENT_TYPES.find((type) => type.value === log.event_type)?.label ??
                   formatAuditEventLabel(log.event_type);
+                const actorName = `${log.user.first_name} ${log.user.last_name}`.trim();
+                const source = log.source || log.portal;
 
                 return (
                   <TableRow
                     key={log.id}
-                    className="cursor-pointer hover:bg-muted/50"
+                    className={AUDIT_ROW_CLASS}
                     onClick={() => {
                       setSelectedLog(log);
                       setDetailOpen(true);
                     }}
                   >
-                    <TableCell className="whitespace-nowrap text-ui text-muted-foreground">
+                    <TableCell className={AUDIT_TIMESTAMP_CELL_CLASS}>
                       {formatAuditDateTime(log.created_at)}
-                    </TableCell>
-                    <TableCell className="min-w-[180px] max-w-[280px] text-ui">
-                      <div className="min-w-0">
-                        <p
-                          className="truncate text-ui font-medium"
-                          title={`${log.user.first_name} ${log.user.last_name}`}
-                        >
-                          {log.user.first_name} {log.user.last_name}
-                        </p>
-                        <p className="truncate text-meta text-muted-foreground" title={log.user.email}>
-                          {log.user.email}
-                        </p>
-                      </div>
                     </TableCell>
                     <TableCell>
                       <AuditEventBadge eventType={log.event_type} label={eventLabel} />
                     </TableCell>
+                    <AuditLogActorCell
+                      name={actorName}
+                      email={log.user.email}
+                      actorType={log.actor_type}
+                    />
                     <TableCell className="text-ui">
                       <div className="min-w-[140px] max-w-[250px]">
                         <p className="truncate text-ui font-medium" title={productName || undefined}>
@@ -299,65 +277,35 @@ export function ProductLogsPanel() {
                         </p>
                         {productId ? (
                           <p className="truncate text-meta text-muted-foreground" title={productId}>
-                            ID: {productId}
+                            {productId}
                           </p>
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell className="text-ui text-muted-foreground">{log.ip_address || "—"}</TableCell>
-                    <TableCell className="max-w-[200px] truncate text-ui text-muted-foreground">
-                      {log.device_info || "—"}
-                    </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 px-2"
+                      {source ? (
+                        <AuditSourceBadge source={source} />
+                      ) : (
+                        <span className="text-ui text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className={AUDIT_IP_CELL_CLASS}>{log.ip_address || "—"}</TableCell>
+                    <TableCell className="text-right">
+                      <AuditLogViewDetailsButton
                         onClick={(event) => {
                           event.stopPropagation();
                           setSelectedLog(log);
                           setDetailOpen(true);
                         }}
-                      >
-                        <EyeIcon className="mr-1 h-4 w-4" />
-                        View
-                      </Button>
+                      />
                     </TableCell>
                   </TableRow>
                 );
               })
             )}
           </TableBody>
-        </Table>
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t">
-            <p className="text-sm text-muted-foreground">
-              Page {page} of {totalPages} ({totalCount} total)
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-              >
-                <ChevronLeftIcon className="h-4 w-4 mr-1" />
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-              >
-                Next
-                <ChevronRightIcon className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+        </AuditLogTable>
+      </AuditLogTableShell>
 
       <AuditDetailDrawer
         open={detailOpen}

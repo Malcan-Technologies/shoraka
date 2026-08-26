@@ -1,14 +1,13 @@
-import { ListToolbar, ListToolbarFilterTrigger, type FilterChip } from "@cashsouk/ui";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+import { ListToolbar, type FilterChip } from "@cashsouk/ui";
 import { AccessLogsExportButton } from "./access-logs-export-button";
+import {
+  AUDIT_DATE_RANGE_OPTIONS,
+  AuditLogDateRangeOptions,
+  AuditLogFilterOption,
+  AuditLogFilterSection,
+  AuditLogFilters,
+} from "@/components/audit/audit-log-filters";
+import { auditRecordCountLabel } from "@/components/audit/audit-log-shell";
 import type { ExportAccessLogsParams, EventType, SecurityEventType } from "@cashsouk/types";
 
 // Shared toolbar for both the access_logs and security_logs panels — labels cover the union
@@ -34,11 +33,9 @@ const EVENT_TYPE_OPTIONS: { value: ToolbarEventType; label: string }[] = [
   { value: "PROFILE_UPDATED", label: "Profile updated" },
 ];
 
-const DATE_LABELS: Record<string, string> = {
-  "24h": "Last 24 hours",
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-};
+const DATE_LABELS = Object.fromEntries(
+  AUDIT_DATE_RANGE_OPTIONS.map((option) => [option.value, option.label])
+);
 
 const STATUS_LABELS: Record<string, string> = {
   success: "Success",
@@ -68,6 +65,7 @@ interface AccessLogsToolbarProps {
   isLoading?: boolean;
   allowedEventTypes?: ToolbarEventType[];
   exportKind?: "access" | "security";
+  showStatusFilter?: boolean;
 }
 
 export function AccessLogsToolbar({
@@ -87,6 +85,7 @@ export function AccessLogsToolbar({
   isLoading = false,
   allowedEventTypes,
   exportKind = "access",
+  showStatusFilter = true,
 }: AccessLogsToolbarProps) {
   const filteredEventTypes = allowedEventTypes
     ? EVENT_TYPE_OPTIONS.filter((opt) => allowedEventTypes.includes(opt.value))
@@ -95,12 +94,12 @@ export function AccessLogsToolbar({
   const hasFilters =
     searchQuery !== "" ||
     eventTypeFilter !== "all" ||
-    statusFilter !== "all" ||
+    (showStatusFilter && statusFilter !== "all") ||
     dateRangeFilter !== "all";
 
   const activeFilterCount = [
     eventTypeFilter !== "all",
-    statusFilter !== "all",
+    showStatusFilter && statusFilter !== "all",
     dateRangeFilter !== "all",
   ].filter(Boolean).length;
 
@@ -114,7 +113,7 @@ export function AccessLogsToolbar({
       onRemove: () => onEventTypeFilterChange("all"),
     });
   }
-  if (statusFilter !== "all") {
+  if (showStatusFilter && statusFilter !== "all") {
     appliedFilters.push({
       id: "status",
       label: `Status: ${STATUS_LABELS[statusFilter] ?? statusFilter}`,
@@ -138,43 +137,50 @@ export function AccessLogsToolbar({
       onClearFilters={hasFilters ? onClearFilters : undefined}
       onReload={onRefresh}
       isLoading={isLoading}
-      countLabel={`${filteredCount} ${filteredCount === 1 ? "log" : "logs"}${
-        hasFilters ? ` of ${totalCount}` : ""
-      }`}
+      countLabel={auditRecordCountLabel(filteredCount || totalCount)}
       filterGroups={
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <ListToolbarFilterTrigger label="Filters" count={activeFilterCount} />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>Event type</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={eventTypeFilter} onValueChange={onEventTypeFilterChange}>
-              <DropdownMenuRadioItem value="all">All events</DropdownMenuRadioItem>
-              {filteredEventTypes.map((opt) => (
-                <DropdownMenuRadioItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Status</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={statusFilter} onValueChange={onStatusFilterChange}>
-              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="success">Success</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="failed">Failed</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Date range</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={dateRangeFilter} onValueChange={onDateRangeFilterChange}>
-              <DropdownMenuRadioItem value="all">All time</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="24h">Last 24 hours</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="7d">Last 7 days</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="30d">Last 30 days</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <AuditLogFilters activeCount={activeFilterCount}>
+          <AuditLogFilterSection title="Event">
+            <AuditLogFilterOption
+              selected={eventTypeFilter === "all"}
+              onSelect={() => onEventTypeFilterChange("all")}
+            >
+              All events
+            </AuditLogFilterOption>
+            {filteredEventTypes.map((opt) => (
+              <AuditLogFilterOption
+                key={opt.value}
+                selected={eventTypeFilter === opt.value}
+                onSelect={() => onEventTypeFilterChange(opt.value)}
+              >
+                {opt.label}
+              </AuditLogFilterOption>
+            ))}
+          </AuditLogFilterSection>
+          {showStatusFilter ? (
+            <AuditLogFilterSection title="Status">
+              <AuditLogFilterOption
+                selected={statusFilter === "all"}
+                onSelect={() => onStatusFilterChange("all")}
+              >
+                All
+              </AuditLogFilterOption>
+              <AuditLogFilterOption
+                selected={statusFilter === "success"}
+                onSelect={() => onStatusFilterChange("success")}
+              >
+                Success
+              </AuditLogFilterOption>
+              <AuditLogFilterOption
+                selected={statusFilter === "failed"}
+                onSelect={() => onStatusFilterChange("failed")}
+              >
+                Failed
+              </AuditLogFilterOption>
+            </AuditLogFilterSection>
+          ) : null}
+          <AuditLogDateRangeOptions value={dateRangeFilter} onChange={onDateRangeFilterChange} />
+        </AuditLogFilters>
       }
     >
       {exportFilters ? <AccessLogsExportButton filters={exportFilters} kind={exportKind} /> : null}
