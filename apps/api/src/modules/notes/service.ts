@@ -230,6 +230,12 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function asDateOrIso(value: unknown): Date | string | null {
+  if (value instanceof Date && Number.isFinite(value.getTime())) return value;
+  if (typeof value === "string" && value.length > 0) return value;
+  return null;
+}
+
 async function assertSourceFacilityEnabled(
   tx: Prisma.TransactionClient,
   contractId: string | null | undefined
@@ -697,9 +703,10 @@ function resolvePostedSettlementProfitDays(
 ): number | null {
   if (!settlement) return null;
   return resolveActualReturnProfitDays({
-    profitStartDate: profitStartDate ?? snapshot?.profitStartDate ?? settlement.profit_start_date,
+    profitStartDate:
+      profitStartDate ?? asDateOrIso(snapshot?.profitStartDate) ?? settlement.profit_start_date,
     actualSettlementDate:
-      settlement.actual_settlement_date ?? snapshot?.actualSettlementDate ?? null,
+      settlement.actual_settlement_date ?? asDateOrIso(snapshot?.actualSettlementDate),
     fallbackProfitDays:
       typeof snapshot?.profitDays === "number" ? snapshot.profitDays : settlement.profit_days,
   });
