@@ -137,8 +137,25 @@ describe("buildInvoiceOfferLetterTerms", () => {
       offered_ratio_percent: 80,
       offered_profit_rate_percent: 12,
       financing_tenure_days: 90,
+      risk_rating: "B",
       platform_fee_rate_percent: 2.5,
       expires_at: "2026-12-31T00:00:00.000Z",
+    });
+    expect(terms).toContainEqual({
+      label: "Risk rating",
+      value: "B",
+    });
+    expect(terms).toContainEqual({
+      label: "Financing margin",
+      value: "80%",
+    });
+    expect(terms).toContainEqual({
+      label: "Indicative profit",
+      value: "RM 236.71",
+    });
+    expect(terms).toContainEqual({
+      label: "Indicative amount payable",
+      value: "RM 8,236.71",
     });
     expect(terms).toContainEqual({
       label: "Financing tenure",
@@ -319,6 +336,8 @@ describe("invoice utilisation offer letter", () => {
     const source = fs.readFileSync(path.join(__dirname, "offer-letter-pdf.ts"), "utf8");
     expect(source).toContain("UTILISATION_OFFER_CONSENTS");
     expect(source).toContain("UTILISATION_OFFER_CONSENTS_TITLE");
+    expect(source).toContain("UTILISATION_FULL_AUTHORISATION_TITLE");
+    expect(source).toContain("UTILISATION_OFFER_BINDING_FOOTER");
     expect(source).toContain("drawUtilisationAcceptanceClose");
     expect(source).toContain("if (copy.includeSignatureBlocks)");
   });

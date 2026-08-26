@@ -74,7 +74,7 @@ Typical sequence:
 2. Send the facility offer or send the invoice offer (per row where applicable).
 3. Await issuer acceptance or signature (or issuer rejection) in the issuer portal.
 
-For an invoice on an **approved facility**, the issuer does not sign again. They see utilisation terms and conditions for that drawdown (also on the offer letter) and must tick every confirmation before Accept is available. Someone in their organisation chooses the director or authorised signatory who is accepting. That person receives a 6-digit email code. The offer is accepted only after the code is entered. Decline does not need the confirmations or a code. New facility offers and invoice-only offers still use the usual signing steps.
+For an invoice on an **approved facility**, the issuer does not sign again. They must tick both confirmations, then confirm the full authorisation, before Accept is available. Utilisation terms are on the offer letter and behind a link on the offer. Someone in their organisation chooses the director or authorised signatory who is accepting. That person receives a 6-digit email code. The offer is accepted only after the code is entered. Decline does not need the confirmations or a code. New facility offers and invoice-only offers still use the usual signing steps.
 
 Before you send a facility-linked invoice offer, check that the people who signed the facility (or the current directors) have a working email. If none are available, the issuer cannot request a code.
 

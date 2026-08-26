@@ -79,7 +79,7 @@ describe("invoice offer accept OTP API client", () => {
     await client.acceptInvoiceOffer("clapp00000000000000000001", "clinv00000000000000000001", {
       challenge_id: "cmchallenge000000000000001",
       otp_code: "123456",
-      consent_ids: ["terms", "authority", "binding_acceptance", "funding_and_fees"],
+      consent_ids: ["transaction_details", "digital_authorisation", "full_authorisation"],
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -89,7 +89,7 @@ describe("invoice offer accept OTP API client", () => {
         body: JSON.stringify({
           challenge_id: "cmchallenge000000000000001",
           otp_code: "123456",
-          consent_ids: ["terms", "authority", "binding_acceptance", "funding_and_fees"],
+          consent_ids: ["transaction_details", "digital_authorisation", "full_authorisation"],
         }),
       })
     );

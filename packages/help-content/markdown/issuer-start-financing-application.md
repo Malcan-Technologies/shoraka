@@ -78,7 +78,7 @@ How you accept depends on the type of offer.
 CashSouk may ask you to upload acceptance documents and complete signing. Follow the steps in **Review offer**. Anyone who needs to sign receives an email with a signing link.
 
 **Invoice on an approved facility**
-You do not sign again. Review the commercial terms and the utilisation terms and conditions for this drawdown. The same utilisation terms are in the offer letter. Tick every confirmation before Accept is available. Then choose the director or authorised signatory who is accepting. A 6-digit verification code is emailed to that person. Enter the code to accept. Anyone in your organisation can start this, but the code must go to the chosen signatory. Codes expire after 10 minutes. You can request a new code if needed.
+You do not sign again. Review the commercial terms. Utilisation terms and conditions are available from **Read utilisation terms and conditions** and in the offer letter. Tick both confirmations, open **Read full authorisation**, and tap **Confirm and continue** before Accept is available. Then choose the director or authorised signatory who is accepting. A 6-digit verification code is emailed to that person. Enter the code to accept. Anyone in your organisation can start this, but the code must go to the chosen signatory. Codes expire after 10 minutes. You can request a new code if needed.
 
 You can **Decline** an offer without the confirmations or a verification code.
 

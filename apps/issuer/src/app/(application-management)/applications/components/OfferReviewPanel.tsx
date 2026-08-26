@@ -69,6 +69,9 @@ import {
   offerAcceptanceAllowsSigning,
   offerAcceptanceIsStep1Editable,
   areUtilisationOfferConsentsComplete,
+  computeIndicativeAmountPayable,
+  computeIndicativeUtilisationProfit,
+  utilisationOfferAcceptBlockedReason,
   type Application,
   type UtilisationOfferConsentId,
 } from "@cashsouk/types";
@@ -111,12 +114,14 @@ import { cn } from "@/lib/utils";
 import { OfferAcceptanceSubmittedSuccessView } from "@/components/onboarding-fee-return-views";
 import { InvoiceOfferTerms } from "./invoice-offer-terms";
 import { buildInvoiceFeeDisplay } from "@/lib/facility-fee-display";
+import { resolveIssuerFacilityFeeBalance } from "@/lib/facility-enabled";
+import { FacilityFeeBalanceSummary } from "@/components/financing/facility-fee-status";
 
 const CONTRACT_FACILITY_FEE_RATE_TOOLTIP =
   "The facility fee is owed in full when you accept this offer (maximum 1%). CashSouk collects it at its discretion.";
 
 const CONTRACT_FACILITY_FEE_CAP_TOOLTIP =
-  "Total facility fee owed for this facility. Collection timing is at Shoraka's discretion.";
+  "Amount already collected toward the facility fee, against the facility fee cap. Collection timing is at Shoraka's discretion.";
 
 export type OfferReviewPanelProps = {
   type: "contract" | "invoice";
@@ -1003,6 +1008,18 @@ export function OfferReviewPanel({
       ? offeredFacilityNumber * (facilityFeeRatePercentNumber / 100)
       : null;
 
+  const contractOfferFeeBalance =
+    type === "contract" && offeredFacilityNumber != null && facilityFeeRatePercentNumber != null
+      ? resolveIssuerFacilityFeeBalance({
+          contractDetails: {
+            ...(contractDetails ?? {}),
+            facility_fee_rate_percent: facilityFeeRatePercentNumber,
+          },
+          approvedFacilityAmount: offeredFacilityNumber,
+          facilityFeeCapAmount: maximumFacilityFeeNumber,
+        })
+      : null;
+
   const isContractLinkedInvoice = type === "invoice" && !!invoiceContractId;
 
   const approvedFacilityAmountNumber =
@@ -1022,6 +1039,36 @@ export function OfferReviewPanel({
 
   const invoiceFinancingAmountNumber =
     type === "invoice" && od?.offered_amount != null ? Number(od.offered_amount) : null;
+
+  const invoiceRiskRating =
+    type === "invoice" && typeof od?.risk_rating === "string" && od.risk_rating.trim()
+      ? od.risk_rating.trim()
+      : null;
+
+  const invoiceFinancingMarginPercent =
+    type === "invoice" &&
+    od?.offered_ratio_percent != null &&
+    Number.isFinite(Number(od.offered_ratio_percent))
+      ? Number(od.offered_ratio_percent)
+      : null;
+
+  const invoiceProfitRatePercent =
+    type === "invoice" &&
+    od?.offered_profit_rate_percent != null &&
+    Number.isFinite(Number(od.offered_profit_rate_percent))
+      ? Number(od.offered_profit_rate_percent)
+      : null;
+
+  const invoiceIndicativeProfit = computeIndicativeUtilisationProfit({
+    offeredAmount: invoiceFinancingAmountNumber,
+    profitRatePercent: invoiceProfitRatePercent,
+    tenureDays: invoice?.financingTenureDays ?? null,
+  });
+
+  const invoiceIndicativeAmountPayable = computeIndicativeAmountPayable(
+    invoiceFinancingAmountNumber,
+    invoiceIndicativeProfit
+  );
 
   const invoiceFacilityFeeCapAmount =
     approvedFacilityAmountNumber != null &&
@@ -1364,7 +1411,9 @@ export function OfferReviewPanel({
       }
       if (!areUtilisationOfferConsentsComplete(utilisationConsentIds)) {
         toast.error("Confirm the utilisation terms", {
-          description: "Tick every confirmation before accepting.",
+          description:
+            utilisationOfferAcceptBlockedReason(utilisationConsentIds) ??
+            "Tick both confirmations and confirm the full authorisation before accepting.",
         });
         return false;
       }
@@ -1435,7 +1484,10 @@ export function OfferReviewPanel({
     }
     const consentIds = frozenUtilisationConsentsRef.current;
     if (!consentIds || !areUtilisationOfferConsentsComplete(consentIds)) {
-      throw new Error("Tick every utilisation confirmation before accepting.");
+      throw new Error(
+        utilisationOfferAcceptBlockedReason(consentIds ?? []) ??
+          "Tick both confirmations and confirm the full authorisation before accepting."
+      );
     }
     await acceptInvoice.mutateAsync({
       applicationId,
@@ -1776,6 +1828,10 @@ export function OfferReviewPanel({
       maturityDate={invoiceMaturityDate}
       financingTenureDays={invoice?.financingTenureDays ?? null}
       profitRate={profitRateDisplay}
+      riskRating={invoiceRiskRating}
+      financingMarginPercent={invoiceFinancingMarginPercent}
+      indicativeProfit={invoiceIndicativeProfit}
+      indicativeAmountPayable={invoiceIndicativeAmountPayable}
       requestedFinancing={requestedFinancingNumber}
       approvedFinancing={invoiceFinancingAmountNumber}
       includeFacilityFee={isContractLinkedInvoice}
@@ -1821,15 +1877,25 @@ export function OfferReviewPanel({
             {facilityFeeRatePercentNumber != null ? `${facilityFeeRatePercentNumber}%` : "—"}
           </dd>
         </div>
-        <div className="space-y-1">
-          <dt className="text-muted-foreground inline-flex items-center gap-1">
-            Facility fee owed
-            <InfoTooltip content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-          </dt>
-          <dd className="font-medium tabular-nums">
-            {maximumFacilityFeeNumber != null ? formatCurrency(maximumFacilityFeeNumber) : "—"}
-          </dd>
-        </div>
+        {contractOfferFeeBalance ? (
+          <FacilityFeeBalanceSummary
+            balance={contractOfferFeeBalance}
+            stacked
+            owedLabelExtra={
+              <InfoTooltip content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+            }
+          />
+        ) : (
+          <div className="space-y-1">
+            <dt className="text-muted-foreground inline-flex items-center gap-1">
+              Facility fee owed
+              <InfoTooltip content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+            </dt>
+            <dd className="font-medium tabular-nums">
+              {maximumFacilityFeeNumber != null ? formatCurrency(maximumFacilityFeeNumber) : "—"}
+            </dd>
+          </div>
+        )}
         {phaseDeadline ? (
           <div className="space-y-1">
             <dt className="text-muted-foreground">{phaseDeadlineRowLabel}</dt>
@@ -2080,9 +2146,13 @@ export function OfferReviewPanel({
       return (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardHeader>
-            <CardTitle className="text-lg text-destructive">Decline offer</CardTitle>
+            <CardTitle className="text-lg text-destructive">
+              {modalMode.ui === "accept_decline" ? "Reject offer" : "Decline offer"}
+            </CardTitle>
             <CardDescription>
-              Select a reason and confirm if you wish to decline this financing offer.
+              {modalMode.ui === "accept_decline"
+                ? "Select a reason and confirm if you wish to reject this financing offer."
+                : "Select a reason and confirm if you wish to decline this financing offer."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -2417,8 +2487,24 @@ export function OfferReviewPanel({
       ? Number(linkedContractOfferDetails.facility_fee_rate_percent)
       : null);
   const linkedFacilityFeeCapNumber =
-    linkedFacilityFeeRatePercent != null && linkedOfferedFacilityNumber != null
-      ? linkedOfferedFacilityNumber * (linkedFacilityFeeRatePercent / 100)
+    linkedFacilityFeeRatePercent != null && linkedApprovedFacilityNumber != null
+      ? linkedApprovedFacilityNumber * (linkedFacilityFeeRatePercent / 100)
+      : linkedFacilityFeeRatePercent != null && linkedOfferedFacilityNumber != null
+        ? linkedOfferedFacilityNumber * (linkedFacilityFeeRatePercent / 100)
+        : null;
+  const linkedFacilityFeeBalance =
+    linkedFacilityFeeRatePercent != null &&
+    (linkedApprovedFacilityNumber != null || linkedOfferedFacilityNumber != null)
+      ? resolveIssuerFacilityFeeBalance({
+          contractDetails: {
+            ...(contractDetails ?? {}),
+            facility_fee_rate_percent: linkedFacilityFeeRatePercent,
+          },
+          approvedFacilityAmount: linkedApprovedFacilityNumber ?? linkedOfferedFacilityNumber,
+          facilityFeeCapAmount: linkedFacilityFeeCapNumber,
+          facilityFeePaidAmount: contractFacilityFeePaidAmountNumber,
+          facilityFeeWaived: contractDetails?.facility_fee_waived === true,
+        })
       : null;
 
   const linkedContractDetailsList = (
@@ -2461,19 +2547,17 @@ export function OfferReviewPanel({
           {linkedFacilityFeeRatePercent != null ? `${linkedFacilityFeeRatePercent}%` : "—"}
         </dd>
       </div>
-      {linkedFacilityFeeCapNumber != null ? (
-        <div className="space-y-1">
-          <dt className="text-muted-foreground inline-flex items-center gap-1">
-            Facility fee owed
+      {linkedFacilityFeeBalance ? (
+        <FacilityFeeBalanceSummary
+          balance={linkedFacilityFeeBalance}
+          stacked
+          owedLabelExtra={
             <InfoTooltip
               content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP}
               iconClassName="h-3.5 w-3.5 shrink-0"
             />
-          </dt>
-          <dd className="font-medium tabular-nums">
-            {formatCurrency(linkedFacilityFeeCapNumber)}
-          </dd>
-        </div>
+          }
+        />
       ) : null}
     </dl>
   );
@@ -2500,7 +2584,7 @@ export function OfferReviewPanel({
           </CardTitle>
           <CardDescription>
             {canDirectAccept
-              ? "No signing package is required for this invoice. Review the utilisation terms, then accept or decline."
+              ? "No signing package is required for this invoice. Confirm the utilisation, then accept or decline."
               : (modalMode.ui === "accept_decline" && modalMode.blockedMessage) ||
                 "Finish facility signing first before accepting this invoice offer."}
           </CardDescription>
@@ -2540,17 +2624,14 @@ export function OfferReviewPanel({
               disabled={isPending}
               onClick={() => setIsRejectMode(true)}
             >
-              Decline offer
+              Reject Offer
             </Button>
             <Button className="h-11 rounded-xl" onClick={handleAccept} disabled={acceptDisabled}>
-              {acceptSigningLoading || acceptInvoice.isPending ? "Accepting..." : "Accept offer"}
+              {acceptSigningLoading || acceptInvoice.isPending
+                ? "Accepting..."
+                : "Accept Offer & Authorize Listing"}
             </Button>
           </div>
-          {canDirectAccept && !utilisationConsentsComplete ? (
-            <p className="text-ui text-muted-foreground">
-              Tick every confirmation to enable Accept.
-            </p>
-          ) : null}
         </CardContent>
       </Card>
     );

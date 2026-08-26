@@ -230,7 +230,7 @@ export const acceptInvoiceOfferBodySchema = z.object({
   consent_ids: z
     .array(z.enum(UTILISATION_OFFER_CONSENT_IDS))
     .refine((ids) => areUtilisationOfferConsentsComplete(ids), {
-      message: "Tick every utilisation confirmation before accepting.",
+      message: "Tick both confirmations and confirm the full authorisation before accepting.",
     }),
 });
 

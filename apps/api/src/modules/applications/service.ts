@@ -3298,7 +3298,7 @@ export class ApplicationService {
           throw new AppError(
             400,
             "CONSENTS_REQUIRED",
-            "Tick every utilisation confirmation before accepting."
+            "Tick both confirmations and confirm the full authorisation before accepting."
           );
         }
         acceptedSignatory = await consumeOfferAcceptOtpInTx(tx, {

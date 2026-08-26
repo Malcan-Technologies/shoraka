@@ -98,7 +98,7 @@ export function offerAcceptOtpErrorCopy(code: string | undefined, fallback: stri
     case "OTP_EMAIL_FAILED":
       return "Could not send the verification code. Please try again.";
     case "CONSENTS_REQUIRED":
-      return "Tick every utilisation confirmation before accepting.";
+      return "Tick both confirmations and confirm the full authorisation before accepting.";
     default:
       return fallback;
   }

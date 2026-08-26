@@ -10,10 +10,16 @@
 import PDFDocument from "pdfkit";
 import {
   computeFacilityFeeTotalOwed,
+  computeIndicativeAmountPayable,
+  computeIndicativeUtilisationProfit,
   hasInvoiceFeeSchedule,
   parseFiniteNumber,
   parseInvoiceFeeSchedule,
   roundNoteMoney,
+  UTILISATION_FULL_AUTHORISATION_CLAUSES,
+  UTILISATION_FULL_AUTHORISATION_INTRO,
+  UTILISATION_FULL_AUTHORISATION_TITLE,
+  UTILISATION_OFFER_BINDING_FOOTER,
   UTILISATION_OFFER_CONSENTS,
   UTILISATION_OFFER_CONSENTS_LETTER_INTRO,
   UTILISATION_OFFER_CONSENTS_TITLE,
@@ -136,9 +142,22 @@ function utilisationTermsParagraphs(doc: PDFDoc): void {
   doc.font("Helvetica").text(UTILISATION_OFFER_CONSENTS_LETTER_INTRO, { align: "justify" });
   doc.moveDown(0.35);
   for (const consent of UTILISATION_OFFER_CONSENTS) {
-    doc.text(consent.label, { align: "justify" });
+    doc.font("Helvetica-Bold").text(consent.title, { align: "justify" });
+    doc.font("Helvetica").text(consent.detail, { align: "justify" });
     doc.moveDown(0.3);
   }
+  doc.font("Helvetica").text(UTILISATION_OFFER_BINDING_FOOTER, { align: "justify" });
+  doc.moveDown(0.45);
+  doc.font("Helvetica-Bold").text(UTILISATION_FULL_AUTHORISATION_TITLE);
+  doc.font("Helvetica").text(UTILISATION_FULL_AUTHORISATION_INTRO, { align: "justify" });
+  doc.moveDown(0.35);
+  UTILISATION_FULL_AUTHORISATION_CLAUSES.forEach((clause, index) => {
+    doc.font("Helvetica-Bold").text(`${index + 1}. ${clause.title}`);
+    for (const paragraph of clause.paragraphs) {
+      doc.font("Helvetica").text(paragraph, { align: "justify" });
+    }
+    doc.moveDown(0.3);
+  });
 }
 
 function ensureSignatureBlockFits(doc: PDFDoc): void {
@@ -258,6 +277,7 @@ export type InvoiceOfferDetails = {
   offered_ratio_percent?: number;
   offered_profit_rate_percent?: number;
   financing_tenure_days?: number;
+  risk_rating?: string;
   /** Stored API name `platform_fee_rate_percent`; user-visible label is Drawdown fee. */
   platform_fee_rate_percent?: number;
   facility_fee_rate_percent?: number;
@@ -376,6 +396,7 @@ export function buildInvoiceOfferLetterDto(
     offered_ratio_percent: parseFiniteNumber(offer.offered_ratio_percent),
     offered_profit_rate_percent: parseFiniteNumber(offer.offered_profit_rate_percent),
     financing_tenure_days: parseFiniteNumber(offer.financing_tenure_days) ?? undefined,
+    risk_rating: typeof offer.risk_rating === "string" ? offer.risk_rating : undefined,
     platform_fee_rate_percent: resolveOfferedPlatformFeeRatePercent(offer),
   };
   const schedule = parseInvoiceFeeSchedule(offer);
@@ -406,15 +427,24 @@ export function buildInvoiceOfferLetterTerms(
     offer.platform_fee_rate_percent != null && Number.isFinite(offer.platform_fee_rate_percent)
       ? offer.platform_fee_rate_percent
       : 0;
+  const indicativeProfit = computeIndicativeUtilisationProfit({
+    offeredAmount: offer.offered_amount,
+    profitRatePercent: offer.offered_profit_rate_percent,
+    tenureDays: offer.financing_tenure_days,
+  });
+  const indicativePayable = computeIndicativeAmountPayable(offer.offered_amount, indicativeProfit);
   const base: OfferLetterTerm[] = [
     { label: "Our reference (invoice ID)", value: invoiceId },
     { label: "Requested amount", value: formatAmount(offer.requested_amount) },
     { label: "Proposed financing amount", value: formatAmount(offer.offered_amount) },
-    { label: "Proposed financing ratio", value: `${offer.offered_ratio_percent ?? "—"}%` },
+    { label: "Financing margin", value: `${offer.offered_ratio_percent ?? "—"}%` },
     {
       label: "Proposed profit rate (per annum)",
       value: `${offer.offered_profit_rate_percent ?? "—"}%`,
     },
+    ...(offer.risk_rating
+      ? [{ label: "Risk rating", value: offer.risk_rating }]
+      : []),
     ...(offer.financing_tenure_days != null && Number.isFinite(offer.financing_tenure_days)
       ? [
           {
@@ -422,6 +452,12 @@ export function buildInvoiceOfferLetterTerms(
             value: `${offer.financing_tenure_days} days from disbursement`,
           },
         ]
+      : []),
+    ...(indicativeProfit != null
+      ? [{ label: "Indicative profit", value: formatAmount(indicativeProfit) }]
+      : []),
+    ...(indicativePayable != null
+      ? [{ label: "Indicative amount payable", value: formatAmount(indicativePayable) }]
       : []),
     drawdownFeeTerm(platformFeePct),
   ];
