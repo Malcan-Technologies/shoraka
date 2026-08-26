@@ -845,8 +845,6 @@ export interface CreateProductLogData {
  * Product log repository: read/write product audit logs only.
  * Product CRUD and image logic have been removed.
  */
-export class ProductLogRepository {
-  async create(data: CreateProductLogData) {
     return createProductLogRow({
       userId: data.userId,
       productId: data.productId ?? null,
@@ -890,6 +888,7 @@ export class ProductLogRepository {
         { user: { email: { contains: search, mode: "insensitive" } } },
         { user: { first_name: { contains: search, mode: "insensitive" } } },
         { user: { last_name: { contains: search, mode: "insensitive" } } },
+        { product_id: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -953,6 +952,7 @@ export class ProductLogRepository {
         { user: { email: { contains: params.search, mode: "insensitive" } } },
         { user: { first_name: { contains: params.search, mode: "insensitive" } } },
         { user: { last_name: { contains: params.search, mode: "insensitive" } } },
+        { product_id: { contains: params.search, mode: "insensitive" } },
       ];
     }
 

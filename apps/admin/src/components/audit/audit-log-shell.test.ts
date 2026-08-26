@@ -88,16 +88,16 @@ describe("dedicated Admin log tables share one visual shell", () => {
       'searchPlaceholder="Search by user name, email, or User ID..."'
     );
     expect(read("product-logs-panel.tsx")).toContain(
-      'searchPlaceholder="Search by actor name or email..."'
+      'searchPlaceholder="Search by actor name, email, or product ID..."'
     );
     expect(read("legal-document-audit-panel.tsx")).toContain(
       'searchPlaceholder="Search by actor, document ID, version ID, or event..."'
     );
     expect(read("legal-acceptances-panel.tsx")).toContain(
-      'searchPlaceholder="Search by user, email, or organisation..."'
+      'searchPlaceholder="Search by user, email, organisation, or acceptance ID..."'
     );
     expect(read("notification-logs-panel.tsx")).toContain(
-      'searchPlaceholder="Search title, message, type, or actor..."'
+      'searchPlaceholder="Search by title, message, type, or admin..."'
     );
   });
 });
