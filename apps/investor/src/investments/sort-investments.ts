@@ -1,5 +1,10 @@
 import { resolveNetExpectedReturnRatePercent, type NoteListItem } from "@cashsouk/types";
-import { compareInvestmentMaturity, getInvestmentRelevanceRank } from "./investment-position-model";
+import {
+  compareCompletedInvestmentLatestFirst,
+  compareInvestmentMaturity,
+  getInvestmentRelevanceRank,
+  isInvestorInvestmentCompleted,
+} from "./investment-position-model";
 
 export type InvestmentSortOption =
   | "most_relevant"
@@ -44,12 +49,6 @@ function getUpdatedTimestamp(note: NoteListItem) {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-function getMaturityTimestamp(note: NoteListItem) {
-  if (!note.maturityDate) return Number.POSITIVE_INFINITY;
-  const timestamp = new Date(note.maturityDate).getTime();
-  return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
-}
-
 function getMostRelevantRank(note: NoteListItem) {
   return getInvestmentRelevanceRank(note);
 }
@@ -64,11 +63,15 @@ function compareBySortOption(
   if (sortOption === "highest_amount") return getInvestedAmount(right) - getInvestedAmount(left);
   if (sortOption === "lowest_amount") return getInvestedAmount(left) - getInvestedAmount(right);
   if (sortOption === "highest_return") return getExpectedReturn(right) - getExpectedReturn(left);
-  if (sortOption === "maturity_soonest")
-    return getMaturityTimestamp(left) - getMaturityTimestamp(right);
+  if (sortOption === "maturity_soonest") return compareInvestmentMaturity(left, right);
 
   const rankDifference = getMostRelevantRank(left) - getMostRelevantRank(right);
   if (rankDifference !== 0) return rankDifference;
+  if (isInvestorInvestmentCompleted(left) && isInvestorInvestmentCompleted(right)) {
+    const byLatest = compareCompletedInvestmentLatestFirst(left, right);
+    if (byLatest !== 0) return byLatest;
+    return getUpdatedTimestamp(right) - getUpdatedTimestamp(left);
+  }
   const byMaturity = compareInvestmentMaturity(left, right);
   if (byMaturity !== 0) return byMaturity;
   return getUpdatedTimestamp(right) - getUpdatedTimestamp(left);

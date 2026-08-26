@@ -508,6 +508,8 @@ describe("overlayReadCapacityOnContracts", () => {
     expect(details.available_facility).toBe(40_000);
     expect(details.pending_facility).toBe(60_000);
     expect(details.lifetime_used).toBe(120_000);
+    expect(overlaid.contract?.facilityFeeUpfrontAmount).toBe(0);
+    expect(overlaid.contract?.facilityFeeUpfrontOutstanding).toBe(0);
   });
 
   it("wires issuer application and contract reads through the live overlay", () => {

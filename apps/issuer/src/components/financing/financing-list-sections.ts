@@ -9,7 +9,11 @@ import {
 } from "./financing-invoice-rows";
 
 export function isActiveFacility(row: IssuerDashboardContract): boolean {
-  return resolveIssuerContractDashboardBadge(row.contractStatus) === "active";
+  return (
+    resolveIssuerContractDashboardBadge(row.contractStatus, {
+      facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
+    }) === "active"
+  );
 }
 
 export function partitionByPredicate<T>(

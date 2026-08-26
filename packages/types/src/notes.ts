@@ -1,5 +1,7 @@
 import type { SoukscoreRiskRating } from "./invoice-offer-risk-rating";
 import type { FacilityFeeCollectionWaiver, InvoiceFeeSchedule } from "./fee-schedule";
+import type { ProfitWindowClassification } from "./tenure-profit";
+import type { ExcessLateChargesDto } from "./excess-late-charges";
 
 /** Display label for a stored note reference (e.g. NOTE-20260512-ABC → Note 20260512-ABC). */
 export function formatNoteReferenceDisplay(reference: string | null | undefined): string {
@@ -224,6 +226,11 @@ export interface NoteSettlementPoolSummary {
   gharamahAccountAmount: number;
   issuerResidualAmount: number;
   unappliedAmount: number;
+  excessLateChargeAmount?: number;
+  excessLateChargePaidAmount?: number;
+  excessTawidhAmount?: number;
+  excessGharamahAmount?: number;
+  actualSettlementDate?: string | null;
   profitStartDate: string | null;
   profitMaturityDate: string | null;
   profitDays: number;
@@ -235,6 +242,7 @@ export interface NoteSettlementPoolSummary {
   serviceFeeTrusteeLetterGeneratedAt: string | null;
   serviceFeeTrusteeSubmittedAt: string | null;
   serviceFeeTrusteeCompletedAt: string | null;
+  serviceFeeTrusteeEmailSentAt: string | null;
 }
 
 /** Issuer portal: derived residual payout state for a note with `settlementSummary`. */
@@ -262,12 +270,17 @@ export interface NoteInvestorRepaymentSummary {
   profitDays: number;
   profitStartDate: string | null;
   profitMaturityDate: string | null;
+  /** Days from profit start to the actual settlement date, not contractual tenure. */
+  actualProfitDays?: number | null;
+  actualProfitStartDate?: string | null;
+  actualProfitEndDate?: string | null;
   receivedPayoutAmount: number;
   receivedProfitNetAmount: number;
   receivedProfitGrossAmount: number;
   receivedServiceFeeAmount: number;
   receivedTawidhCompensationAmount: number;
   expectedReturnRatePercent: number;
+  /** Annualized net return using actual settlement days, or null before a payout. */
   actualReturnRatePercent: number | null;
   progressPercent: number;
   receivedSettlementEvents: NoteInvestorSettlementEvent[];
@@ -324,6 +337,11 @@ export interface NoteListItem extends NoteMoneySummary {
   /** Unique investor organisations with a non-cancelled commitment on this note. */
   investorCount: number;
   maturityDate: string | null;
+  /** Null/omitted = grandfathered legacy profit engine. Set = tenure-based engine. */
+  tenureDays?: number | null;
+  /** Days after note maturity before late charges. Present on list payloads for tenure notes. */
+  gracePeriodDays?: number;
+  disbursementValueDate?: string | null;
   /** Marketplace listing close time (`note_listings.closes_at`); used for funding-window countdown. */
   listingClosesAt: string | null;
   activatedAt: string | null;
@@ -335,6 +353,8 @@ export interface NoteListItem extends NoteMoneySummary {
   settlementSummary: NoteSettlementPoolSummary | null;
   /** Issuer portal list: residual trustee payout vs `settlementSummary` (omitted elsewhere). */
   issuerResidualPayout?: IssuerResidualPayoutListStatus;
+  /** Posted settlement late charges billed separately to the issuer. */
+  excessLateCharges?: ExcessLateChargesDto | null;
   investorRepaymentSummary?: NoteInvestorRepaymentSummary | null;
   /** Admin list/detail: Prospectus workflow status for badges and publish checklist. */
   prospectus?: NoteProspectusSummary | null;
@@ -373,6 +393,11 @@ export interface NoteDetail extends NoteListItem {
   settlements: NoteSettlement[];
   withdrawals: WithdrawalInstruction[];
   events: NoteEvent[];
+  /**
+   * Present on admin note detail responses. Derived from Platform Finance trustee letter settings.
+   * Generic mapper/mutation responses may omit it.
+   */
+  trusteeAutoSendEmailEnabled?: boolean;
 }
 
 export interface NoteListing {
@@ -422,7 +447,7 @@ export interface NotePaymentSchedule {
   noteId: string;
   status: NotePaymentStatus;
   sequence: number;
-  dueDate: string;
+  dueDate: string | null;
   expectedPrincipal: number;
   expectedProfit: number;
   expectedTotal: number;
@@ -479,6 +504,15 @@ export interface NoteSettlement {
   gharamahAmount: number;
   issuerResidualAmount: number;
   unappliedAmount: number;
+  excessLateChargeAmount?: number;
+  excessLateChargePaidAmount?: number;
+  excessTawidhAmount?: number;
+  excessGharamahAmount?: number;
+  actualSettlementDate?: string | null;
+  profitClassification?: ProfitWindowClassification | null;
+  ceilingAmount?: number | null;
+  ceilingUsedAmount?: number | null;
+  ceilingRemainingAmount?: number | null;
   previewSnapshot: Record<string, unknown>;
   approvedAt: string | null;
   postedAt: string | null;
@@ -487,6 +521,7 @@ export interface NoteSettlement {
   serviceFeeTrusteeLetterGeneratedAt: string | null;
   serviceFeeTrusteeSubmittedAt: string | null;
   serviceFeeTrusteeCompletedAt: string | null;
+  serviceFeeTrusteeEmailSentAt: string | null;
 }
 
 export interface NoteSettlementAllocationPreview {
@@ -518,6 +553,15 @@ export interface NoteSettlementPreviewResult {
   settlementShortfallAmount: number;
   issuerResidualAmount: number;
   unappliedAmount: number;
+  excessLateChargeAmount?: number;
+  unpaidTawidhAmount?: number;
+  unpaidGharamahAmount?: number;
+  actualSettlementDate?: string;
+  profitClassification?: ProfitWindowClassification;
+  ceilingAmount?: number;
+  ceilingUsedAmount?: number;
+  ceilingRemainingAmount?: number;
+  investorObligationCovered?: boolean;
   includedPaymentIds: string[];
   allocations: NoteSettlementAllocationPreview[];
 }
@@ -735,6 +779,8 @@ export interface PlatformFinanceSetting {
   applicationProcessingFeeAmount: number;
   investorMinDepositAmount: number;
   investorMaxDepositAmount: number;
+  facilityFeeGatewayTxnMaxAmount: number;
+  excessLateChargeGatewayTxnMaxAmount: number;
   /** Whole hour 0–23 MYT when offer phase deadline reminders are sent. */
   offerDeadlineReminderHour: number;
   trusteeLetterConfig: TrusteeLetterConfig | null;
@@ -769,6 +815,9 @@ export interface TrusteeLetterConfig {
   defaultValueDateBehavior?: string;
   /** @deprecated Global reference prefix is no longer used by trustee PDF generation. */
   defaultLetterRefPrefix?: string;
+  autoSendTrusteeEmail?: boolean;
+  trusteeEmail?: string;
+  trusteeCcEmails?: string[];
 }
 
 export interface TrusteeSignatureUploadUrlRequest {
@@ -824,6 +873,7 @@ export interface InvestorWithdrawalListItem {
   letterS3Key: string | null;
   generatedAt: string | null;
   submittedToTrusteeAt: string | null;
+  trusteeEmailSentAt: string | null;
   completedAt: string | null;
   createdAt: string;
 }
@@ -879,6 +929,12 @@ export interface WithdrawalInstruction {
   hasShorakaCertificate?: boolean;
   generatedAt: string | null;
   submittedToTrusteeAt: string | null;
+  trusteeEmailSentAt: string | null;
+  /**
+   * Present on investor withdrawal detail. Derived from Platform Finance trustee letter settings.
+   * Generic mapper/mutation responses may omit it.
+   */
+  trusteeAutoSendEmailEnabled?: boolean;
   completedAt: string | null;
   createdAt: string;
 }
@@ -1168,6 +1224,7 @@ export interface IssuerOnboardingFeeResponse {
   curlecKeyId: string;
   issuerOrganizationId: string | null;
   applicationId: string | null;
+  contractId?: string | null;
   nameCheckResult: NameCheckResult | null;
   payerName: string | null;
   createdAt: string;
@@ -1189,14 +1246,37 @@ export interface CreateApplicationProcessingFeeInput {
 
 export type ApplicationProcessingFeeResponse = IssuerOnboardingFeeResponse;
 
+export interface FacilityFeePaymentResponse extends IssuerOnboardingFeeResponse {
+  contractId: string | null;
+  upfrontAmount: number;
+  paidAmount: number;
+  outstanding: number;
+  perTxnMaxAmount: number;
+}
+
+export interface ExcessLateChargePaymentResponse extends IssuerOnboardingFeeResponse {
+  noteId: string | null;
+  settlementId: string | null;
+  owedAmount: number;
+  paidAmount: number;
+  outstanding: number;
+  perTxnMaxAmount: number;
+  noteReference: string;
+}
+
 export interface RecordNotePaymentInput {
   source: NotePaymentSource;
   receiptAmount: number;
   receiptDate: string;
+  actualSettlementDate?: string;
   reference?: string | null;
   evidenceFiles?: PaymentEvidenceFile[] | null;
   scheduleId?: string | null;
   metadata?: Record<string, unknown> | null;
+}
+
+export interface ApproveNotePaymentInput {
+  actualSettlementDate?: string;
 }
 
 export function mapNoteSettlementToPoolSummary(
@@ -1215,6 +1295,11 @@ export function mapNoteSettlementToPoolSummary(
     | "gharamahAmount"
     | "issuerResidualAmount"
     | "unappliedAmount"
+    | "excessLateChargeAmount"
+    | "excessLateChargePaidAmount"
+    | "excessTawidhAmount"
+    | "excessGharamahAmount"
+    | "actualSettlementDate"
     | "profitStartDate"
     | "profitMaturityDate"
     | "profitDays"
@@ -1226,6 +1311,7 @@ export function mapNoteSettlementToPoolSummary(
     | "serviceFeeTrusteeLetterGeneratedAt"
     | "serviceFeeTrusteeSubmittedAt"
     | "serviceFeeTrusteeCompletedAt"
+    | "serviceFeeTrusteeEmailSentAt"
   >
 ): NoteSettlementPoolSummary {
   return {
@@ -1245,6 +1331,11 @@ export function mapNoteSettlementToPoolSummary(
     gharamahAccountAmount: settlement.gharamahAmount,
     issuerResidualAmount: settlement.issuerResidualAmount,
     unappliedAmount: settlement.unappliedAmount,
+    excessLateChargeAmount: settlement.excessLateChargeAmount ?? 0,
+    excessLateChargePaidAmount: settlement.excessLateChargePaidAmount ?? 0,
+    excessTawidhAmount: settlement.excessTawidhAmount ?? 0,
+    excessGharamahAmount: settlement.excessGharamahAmount ?? 0,
+    actualSettlementDate: settlement.actualSettlementDate ?? null,
     profitStartDate: settlement.profitStartDate,
     profitMaturityDate: settlement.profitMaturityDate,
     profitDays: settlement.profitDays,
@@ -1255,6 +1346,7 @@ export function mapNoteSettlementToPoolSummary(
     serviceFeeTrusteeLetterGeneratedAt: settlement.serviceFeeTrusteeLetterGeneratedAt,
     serviceFeeTrusteeSubmittedAt: settlement.serviceFeeTrusteeSubmittedAt,
     serviceFeeTrusteeCompletedAt: settlement.serviceFeeTrusteeCompletedAt,
+    serviceFeeTrusteeEmailSentAt: settlement.serviceFeeTrusteeEmailSentAt,
   };
 }
 
@@ -1262,6 +1354,7 @@ export interface SettlementPreviewInput {
   paymentId?: string | null;
   receiptAmount?: number;
   receiptDate?: string;
+  actualSettlementDate?: string;
   tawidhAmount?: number;
   tawidhInvestorSharePercent?: number;
   gharamahAmount?: number;
@@ -1270,6 +1363,7 @@ export interface SettlementPreviewInput {
 export interface OverdueLateChargeInput {
   receiptAmount?: number;
   receiptDate?: string;
+  actualSettlementDate?: string;
 }
 
 export interface OverdueLateChargeResult {

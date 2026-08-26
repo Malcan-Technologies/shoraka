@@ -173,6 +173,7 @@ export const GATEWAY_PAYMENT_COPY = {
     nameCheckAt: "Name check at",
     refundedAt: "Refunded at",
     refundNotes: "Refund notes",
+    facility: "Facility",
   },
 
   receipt: {

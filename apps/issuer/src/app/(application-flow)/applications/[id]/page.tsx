@@ -28,6 +28,7 @@ import {
 import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ApplicationSummaryDownloadButton } from "@/components/application-summary-download-button";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -396,6 +397,7 @@ export default function ApplicationDetailPage() {
           facts="This draft is not submitted yet. Continue editing when you are ready."
           actions={
             <>
+              <ApplicationSummaryDownloadButton applicationId={application.id} size="default" />
               <Button className="rounded-xl" asChild>
                 <Link href={`/applications/${application.id}/edit`}>Continue editing</Link>
               </Button>
@@ -502,6 +504,7 @@ export default function ApplicationDetailPage() {
         }
         actions={
           <>
+            <ApplicationSummaryDownloadButton applicationId={application.id} size="default" />
             {application.cardStatus.showReviewOffer && hasOffer ? (
               <div className="rounded-xl bg-status-action-bg p-0.5">
                 <Button className="rounded-xl" onClick={() => setTab("offer")}>
@@ -698,6 +701,22 @@ export default function ApplicationDetailPage() {
                         : "—",
                   },
                   {
+                    label: "Upfront facility fee requested",
+                    value:
+                      application.approvedFacilityAmount != null &&
+                      application.facilityFeeUpfrontAmount != null
+                        ? formatCurrency(application.facilityFeeUpfrontAmount)
+                        : "—",
+                  },
+                  {
+                    label: "Upfront facility fee outstanding",
+                    value:
+                      application.approvedFacilityAmount != null &&
+                      application.facilityFeeUpfrontOutstanding != null
+                        ? formatCurrency(application.facilityFeeUpfrontOutstanding)
+                        : "—",
+                  },
+                  {
                     label: "Submitted",
                     value: application.submittedAt
                       ? format(new Date(application.submittedAt), "d MMM yyyy, h:mm a")
@@ -720,7 +739,13 @@ export default function ApplicationDetailPage() {
                 ]}
               />
               {application.contractId ? (
-                <div className="mt-4">
+                <div className="mt-4 space-y-2">
+                  {application.facilityFeeUpfrontOutstanding != null &&
+                  application.facilityFeeUpfrontOutstanding > 0 ? (
+                    <p className="text-ui text-status-action-text" role="status">
+                      Pay the upfront facility fee to start drawdowns.
+                    </p>
+                  ) : null}
                   <Button variant="link" className="h-auto px-0" asChild>
                     <Link href={`/financing/contracts/${application.contractId}`}>
                       View facility in Financing
@@ -894,46 +919,48 @@ export default function ApplicationDetailPage() {
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">
-          {documents.length === 0 ? (
-            <EmptyState
-              variant="no-data"
-              className="bg-card"
-              title="No documents yet"
-              message="Uploaded invoices, supporting files, and signed offers will show here."
-            />
-          ) : (
-            <Card className="overflow-hidden rounded-2xl">
-              <CardHeader>
-                <CardTitle className="text-xl sm:text-2xl">Documents</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <ul className="divide-y divide-border border-t border-border">
-                  {documents.map((doc) => (
-                    <li
-                      key={doc.id}
-                      className="flex flex-wrap items-center justify-between gap-3 px-6 py-3"
+          <Card className="overflow-hidden rounded-2xl">
+            <CardHeader>
+              <CardTitle className="text-xl sm:text-2xl">Documents</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ul className="divide-y divide-border border-t border-border">
+                <li className="flex flex-wrap items-center justify-between gap-3 px-6 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-ui font-medium text-foreground">
+                      Application summary
+                    </p>
+                    <p className="text-ui text-muted-foreground">
+                      Generated PDF of this application, remarks, and timeline
+                    </p>
+                  </div>
+                  <ApplicationSummaryDownloadButton applicationId={application.id} />
+                </li>
+                {documents.map((doc) => (
+                  <li
+                    key={doc.id}
+                    className="flex flex-wrap items-center justify-between gap-3 px-6 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-ui font-medium text-foreground">
+                        {doc.name}
+                      </p>
+                      <p className="text-ui text-muted-foreground">{doc.source}</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl"
+                      onClick={() => void handleDocumentDownload(doc.s3Key)}
                     >
-                      <div className="min-w-0">
-                        <p className="truncate text-ui font-medium text-foreground">
-                          {doc.name}
-                        </p>
-                        <p className="text-ui text-muted-foreground">{doc.source}</p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-xl"
-                        onClick={() => void handleDocumentDownload(doc.s3Key)}
-                      >
-                        <ArrowDownTrayIcon className="mr-2 h-4 w-4" />
-                        Download
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
+                      <ArrowDownTrayIcon className="mr-2 h-4 w-4" />
+                      Download
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="timeline" className="mt-6">

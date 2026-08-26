@@ -1,6 +1,7 @@
 /**
- * PDFKit-based offer letter generator. Produces a sample PDF with Lorem Ipsum content.
- * Used for contract and invoice offer letter downloads and signing envelopes.
+ * PDFKit-based offer letter generator.
+ * Facility and invoice-only letters still use placeholder General copy.
+ * Facility-linked utilisation downloads use the shared utilisation terms.
  *
  * Envelope signing generates one signature block per signatory; coordinates are returned
  * alongside the PDF so SigningCloud signsets match the rendered layout.
@@ -9,9 +10,23 @@
 import PDFDocument from "pdfkit";
 import {
   computeFacilityFeeTotalOwed,
+  computeIndicativeAmountPayable,
+  computeIndicativeUtilisationProfit,
   hasInvoiceFeeSchedule,
   parseFiniteNumber,
   parseInvoiceFeeSchedule,
+  roundNoteMoney,
+  UTILISATION_FULL_AUTHORISATION_CLAUSES,
+  UTILISATION_FULL_AUTHORISATION_INTRO,
+  UTILISATION_FULL_AUTHORISATION_TITLE,
+  UTILISATION_OFFER_BINDING_FOOTER,
+  UTILISATION_OFFER_CONSENTS,
+  UTILISATION_OFFER_CONSENTS_LETTER_INTRO,
+  UTILISATION_OFFER_CONSENTS_TITLE,
+  UTILISATION_OFFER_LETTER_CLOSE,
+  UTILISATION_OFFER_TERM_CLAUSES,
+  UTILISATION_OFFER_TERMS_INTRO,
+  UTILISATION_OFFER_TERMS_TITLE,
   type AdditionalFeeLine,
 } from "@cashsouk/types";
 import { resolveOfferedPlatformFeeRatePercent } from "../../lib/invoice-offer";
@@ -75,7 +90,12 @@ function drawTitleRule(doc: PDFDoc): void {
   doc.moveDown(0.6);
 }
 
-function formalOpen(doc: PDFDoc, documentTitle: string, referenceLine: string): void {
+function formalOpen(
+  doc: PDFDoc,
+  documentTitle: string,
+  referenceLine: string,
+  intro: string = FORMAL_INTRO
+): void {
   doc.font("Helvetica-Bold").fontSize(TITLE_SIZE).text(documentTitle, { align: "center" });
   doc.moveDown(0.35);
   drawTitleRule(doc);
@@ -88,7 +108,7 @@ function formalOpen(doc: PDFDoc, documentTitle: string, referenceLine: string): 
   doc.moveDown(0.5);
   doc.font("Helvetica").text("Dear Sir/Madam,");
   doc.moveDown(0.5);
-  doc.text(FORMAL_INTRO, { align: "justify" });
+  doc.text(intro, { align: "justify" });
   doc.moveDown(0.65);
 }
 
@@ -112,9 +132,47 @@ function bodyParagraphs(doc: PDFDoc): void {
   doc.text(SAMPLE_TEXT, { align: "justify" });
 }
 
+function utilisationTermsParagraphs(doc: PDFDoc): void {
+  for (const clause of UTILISATION_OFFER_TERM_CLAUSES) {
+    doc.font("Helvetica-Bold").fontSize(BODY_SIZE).text(clause.title);
+    doc.font("Helvetica").text(clause.body, { align: "justify" });
+    doc.moveDown(0.35);
+  }
+  doc.font("Helvetica-Bold").text(UTILISATION_OFFER_CONSENTS_TITLE);
+  doc.font("Helvetica").text(UTILISATION_OFFER_CONSENTS_LETTER_INTRO, { align: "justify" });
+  doc.moveDown(0.35);
+  for (const consent of UTILISATION_OFFER_CONSENTS) {
+    doc.font("Helvetica-Bold").text(consent.title, { align: "justify" });
+    doc.font("Helvetica").text(consent.detail, { align: "justify" });
+    doc.moveDown(0.3);
+  }
+  doc.font("Helvetica").text(UTILISATION_OFFER_BINDING_FOOTER, { align: "justify" });
+  doc.moveDown(0.45);
+  doc.font("Helvetica-Bold").text(UTILISATION_FULL_AUTHORISATION_TITLE);
+  doc.font("Helvetica").text(UTILISATION_FULL_AUTHORISATION_INTRO, { align: "justify" });
+  doc.moveDown(0.35);
+  UTILISATION_FULL_AUTHORISATION_CLAUSES.forEach((clause, index) => {
+    doc.font("Helvetica-Bold").text(`${index + 1}. ${clause.title}`);
+    for (const paragraph of clause.paragraphs) {
+      doc.font("Helvetica").text(paragraph, { align: "justify" });
+    }
+    doc.moveDown(0.3);
+  });
+}
+
 function ensureSignatureBlockFits(doc: PDFDoc): void {
   if (doc.y + SIGNATORY_BLOCK_HEIGHT_PT <= PAGE_HEIGHT_PT - MARGIN) return;
   doc.addPage();
+}
+
+function drawUtilisationAcceptanceClose(doc: PDFDoc): void {
+  doc.moveDown(1);
+  doc.font("Helvetica").fontSize(BODY_SIZE).text(UTILISATION_OFFER_LETTER_CLOSE, { align: "justify" });
+  doc.moveDown(0.75);
+  doc.text("Yours faithfully,");
+  doc.moveDown(1.25);
+  doc.font("Helvetica-Bold").text("For and on behalf of");
+  doc.font("Helvetica").text(PLACEHOLDER_INSTITUTION);
 }
 
 function drawSignatureBlocks(
@@ -173,14 +231,53 @@ export type ContractOfferDetails = {
   requested_facility?: number;
   offered_facility?: number;
   facility_fee_rate_percent?: number;
+  facility_fee_upfront_collect_amount?: number;
   expires_at?: string;
 };
+
+export type InvoiceOfferLetterKind = "invoice" | "utilisation";
+
+export function invoiceOfferLetterKindForContract(
+  contractId: string | null | undefined
+): InvoiceOfferLetterKind {
+  return contractId ? "utilisation" : "invoice";
+}
+
+export function invoiceOfferLetterPresentation(kind: InvoiceOfferLetterKind): {
+  title: string;
+  subtitle: string;
+  intro: string;
+  termsSection: string;
+  particularsSection: string;
+  includeSignatureBlocks: boolean;
+} {
+  if (kind === "utilisation") {
+    return {
+      title: "UTILISATION OFFER — INVOICE FINANCING",
+      subtitle: "Utilisation of your existing approved facility against the invoice identified below",
+      intro: UTILISATION_OFFER_TERMS_INTRO,
+      particularsSection: "Particulars of this utilisation",
+      termsSection: UTILISATION_OFFER_TERMS_TITLE,
+      includeSignatureBlocks: false,
+    };
+  }
+  return {
+    title: "LETTER OF OFFER — INVOICE FINANCING",
+    subtitle: "Indicative offer of financing against the invoice identified below",
+    intro: FORMAL_INTRO,
+    particularsSection: "Particulars of the proposed facility",
+    termsSection: "General",
+    includeSignatureBlocks: true,
+  };
+}
 
 export type InvoiceOfferDetails = {
   requested_amount?: number;
   offered_amount?: number;
   offered_ratio_percent?: number;
   offered_profit_rate_percent?: number;
+  financing_tenure_days?: number;
+  risk_rating?: string;
   /** Stored API name `platform_fee_rate_percent`; user-visible label is Drawdown fee. */
   platform_fee_rate_percent?: number;
   facility_fee_rate_percent?: number;
@@ -226,6 +323,42 @@ function additionalFeeTerm(line: AdditionalFeeLine): OfferLetterTerm {
   };
 }
 
+function facilityFeeUpfrontTerms(total: number | undefined, offer: ContractOfferDetails): OfferLetterTerm[] {
+  const rawUpfront = Math.max(0, parseFiniteNumber(offer.facility_fee_upfront_collect_amount) ?? 0);
+  const upfrontAmount =
+    total != null ? roundNoteMoney(Math.min(rawUpfront, total)) : roundNoteMoney(rawUpfront);
+  const remaining =
+    total != null ? roundNoteMoney(Math.max(0, total - upfrontAmount)) : undefined;
+  if (upfrontAmount <= 0) {
+    return [
+      {
+        label: "Upfront facility fee",
+        value: "No upfront gateway payment is required.",
+      },
+      {
+        label: "Remaining facility fee",
+        value:
+          remaining == null
+            ? "Any remaining facility fee is intended for collection from later invoice drawdowns."
+            : `${formatAmount(remaining)} is intended for collection from later invoice drawdowns.`,
+      },
+    ];
+  }
+  return [
+    {
+      label: "Upfront facility fee",
+      value: `${formatAmount(upfrontAmount)} is payable by gateway after you accept this facility offer.`,
+    },
+    {
+      label: "Remaining facility fee",
+      value:
+        remaining == null
+          ? "Any remaining facility fee is intended for collection from later invoice drawdowns."
+          : `${formatAmount(remaining)} is intended for collection from later invoice drawdowns.`,
+    },
+  ];
+}
+
 export function buildContractOfferLetterTerms(
   contractId: string,
   offer: ContractOfferDetails
@@ -244,11 +377,7 @@ export function buildContractOfferLetterTerms(
     { label: "Proposed offered facility", value: formatAmount(offer.offered_facility) },
     { label: "Facility fee rate", value: formatPercent(rate) },
     { label: "Facility fee total", value: formatAmount(total) },
-    {
-      label: "Facility fee collection",
-      value:
-        "Due in full upon acceptance of this facility offer. Collection timing is at Shoraka's discretion.",
-    },
+    ...facilityFeeUpfrontTerms(total, offer),
   ];
 }
 
@@ -266,6 +395,8 @@ export function buildInvoiceOfferLetterDto(
     offered_amount: parseFiniteNumber(offer.offered_amount),
     offered_ratio_percent: parseFiniteNumber(offer.offered_ratio_percent),
     offered_profit_rate_percent: parseFiniteNumber(offer.offered_profit_rate_percent),
+    financing_tenure_days: parseFiniteNumber(offer.financing_tenure_days) ?? undefined,
+    risk_rating: typeof offer.risk_rating === "string" ? offer.risk_rating : undefined,
     platform_fee_rate_percent: resolveOfferedPlatformFeeRatePercent(offer),
   };
   const schedule = parseInvoiceFeeSchedule(offer);
@@ -296,15 +427,38 @@ export function buildInvoiceOfferLetterTerms(
     offer.platform_fee_rate_percent != null && Number.isFinite(offer.platform_fee_rate_percent)
       ? offer.platform_fee_rate_percent
       : 0;
+  const indicativeProfit = computeIndicativeUtilisationProfit({
+    offeredAmount: offer.offered_amount,
+    profitRatePercent: offer.offered_profit_rate_percent,
+    tenureDays: offer.financing_tenure_days,
+  });
+  const indicativePayable = computeIndicativeAmountPayable(offer.offered_amount, indicativeProfit);
   const base: OfferLetterTerm[] = [
     { label: "Our reference (invoice ID)", value: invoiceId },
     { label: "Requested amount", value: formatAmount(offer.requested_amount) },
     { label: "Proposed financing amount", value: formatAmount(offer.offered_amount) },
-    { label: "Proposed financing ratio", value: `${offer.offered_ratio_percent ?? "—"}%` },
+    { label: "Financing margin", value: `${offer.offered_ratio_percent ?? "—"}%` },
     {
       label: "Proposed profit rate (per annum)",
       value: `${offer.offered_profit_rate_percent ?? "—"}%`,
     },
+    ...(offer.risk_rating
+      ? [{ label: "Risk rating", value: offer.risk_rating }]
+      : []),
+    ...(offer.financing_tenure_days != null && Number.isFinite(offer.financing_tenure_days)
+      ? [
+          {
+            label: "Financing tenure",
+            value: `${offer.financing_tenure_days} days from disbursement`,
+          },
+        ]
+      : []),
+    ...(indicativeProfit != null
+      ? [{ label: "Indicative profit", value: formatAmount(indicativeProfit) }]
+      : []),
+    ...(indicativePayable != null
+      ? [{ label: "Indicative amount payable", value: formatAmount(indicativePayable) }]
+      : []),
     drawdownFeeTerm(platformFeePct),
   ];
 
@@ -394,20 +548,26 @@ export function buildInvoiceOfferLetterPdf(
   invoiceId: string,
   offer: InvoiceOfferDetails,
   signatories: OfferLetterSignatory[] = [],
-  layout?: SignatureLayoutContext
+  layout?: SignatureLayoutContext,
+  kind: InvoiceOfferLetterKind = "invoice"
 ): void {
-  formalOpen(
-    doc,
-    "LETTER OF OFFER — INVOICE FINANCING",
-    "Indicative offer of financing against the invoice identified below"
-  );
-  sectionHeading(doc, "Particulars of the proposed facility");
+  const copy = invoiceOfferLetterPresentation(kind);
+  formalOpen(doc, copy.title, copy.subtitle, copy.intro);
+  sectionHeading(doc, copy.particularsSection);
   for (const term of buildInvoiceOfferLetterTerms(invoiceId, offer)) {
     termLine(doc, term.label, term.value);
   }
-  sectionHeading(doc, "General");
-  bodyParagraphs(doc);
-  drawSignatureBlocks(doc, signatories, layout);
+  sectionHeading(doc, copy.termsSection);
+  if (kind === "utilisation") {
+    utilisationTermsParagraphs(doc);
+  } else {
+    bodyParagraphs(doc);
+  }
+  if (copy.includeSignatureBlocks) {
+    drawSignatureBlocks(doc, signatories, layout);
+  } else {
+    drawUtilisationAcceptanceClose(doc);
+  }
 }
 
 export async function generateContractOfferLetterBuffer(
@@ -428,14 +588,15 @@ export async function generateContractOfferLetterBuffer(
 export async function generateInvoiceOfferLetterBuffer(
   invoiceId: string,
   offer: InvoiceOfferDetails,
-  signatories: OfferLetterSignatory[]
+  signatories: OfferLetterSignatory[],
+  kind: InvoiceOfferLetterKind = "invoice"
 ): Promise<GeneratedOfferLetterResult> {
   const tracked = createTrackedOfferLetterDoc();
   const layout: SignatureLayoutContext = {
     signsets: [],
     getPageIndex: tracked.getPageIndex,
   };
-  buildInvoiceOfferLetterPdf(tracked.doc, invoiceId, offer, signatories, layout);
+  buildInvoiceOfferLetterPdf(tracked.doc, invoiceId, offer, signatories, layout, kind);
   const pdfBuffer = await pdfBufferFromDoc(tracked.doc);
   return { pdfBuffer, signsets: layout.signsets };
 }
@@ -491,10 +652,11 @@ export function generateContractOfferLetterStream(
  */
 export function generateInvoiceOfferLetterStream(
   invoiceId: string,
-  offer: InvoiceOfferDetails
+  offer: InvoiceOfferDetails,
+  kind: InvoiceOfferLetterKind = "invoice"
 ): PDFDoc {
   const doc = new PDFDocument({ margin: MARGIN });
-  buildInvoiceOfferLetterPdf(doc, invoiceId, offer);
+  buildInvoiceOfferLetterPdf(doc, invoiceId, offer, [], undefined, kind);
   doc.end();
   return doc;
 }

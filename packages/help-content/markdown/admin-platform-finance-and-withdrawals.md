@@ -8,14 +8,14 @@ tags:
   - trustee
   - withdrawals
 order: 24
-updated: 2026-06-22
+updated: 2026-08-24
 ---
 
 ## Platform Finance Settings
 
 Open **Settings → Platform Finance** to manage platform-wide finance and trustee letter settings.
 
-The page has three tabs. Edit the fields you need, then click the save button for that tab.
+The page has tabs for late payment, gateway fees, offer deadlines, trustee letters, and money-flow accounts. Edit the fields you need, then click the save button for that tab.
 
 ### Late Payment
 
@@ -23,14 +23,27 @@ Use this tab to set default late-payment rules used in note servicing.
 
 You can configure:
 
-- Grace period days
+- Grace period days (default 7). During grace, profit has already stopped at maturity and no Ta'widh or Gharamah applies
 - Arrears threshold days
 - Ta'widh rate cap %
 - Default Ta'widh rate %
 - Gharamah rate cap %
 - Default Gharamah rate %
 
+After grace, profit can continue to the cleared date (capped by invoice value minus funded principal) and late charges may apply. A late-charge shortfall billed separately to the issuer does not block investor settlement.
+
 When you finish editing, click **Save Late Payment**.
+
+### Gateway Fees
+
+Use this tab to set payment-gateway amounts:
+
+- Issuer onboarding fee
+- Application processing fee
+- Minimum and maximum investor deposit
+- **Facility fee payment gateway transaction limit** — this caps each FPX facility-fee transaction, not the overall upfront amount on a facility offer
+
+When you finish editing, click **Save Gateway Fees**.
 
 ### Trustee Letter
 
@@ -44,10 +57,9 @@ You can configure:
 - Default contact person
 - Authorised signatory label
 - Platform display name
-- Default value date
-- Default reference prefix
+- Automatically email trustee, plus the trustee To address and optional CC list
 
-These values are used when the system generates trustee instruction PDFs.
+These values are used when the system generates trustee instruction PDFs. If automatic email is enabled, the submit action is **Email to Trustee**; SES acceptance is shown as delivered, and the workflow stays submitted until payment execution is confirmed. If it is disabled, the action is **Mark submitted to trustee**. After the first email is delivered, **Resend Email to Trustee** remains available until the withdrawal is completed or cancelled; it uses the latest configured recipients and updates the delivery timestamp without completing the workflow.
 
 When you finish editing, click **Save Trustee Letter**.
 
@@ -121,25 +133,25 @@ Processing actions are available on the detail page according to the withdrawal 
 **Available actions:**
 
 - Download letter
-- Submit to trustee
+- **Email to Trustee** when automatic trustee email is enabled, or **Mark submitted to trustee** when it is disabled
 
 **How to process:**
 
 1. Download and review the generated trustee letter.
-2. Submit the instruction to the trustee using your operating procedure (outside the portal).
-3. After submission, click **Submit to trustee** in the portal.
+2. Click **Email to Trustee** if automatic trustee email is enabled. SES acceptance is shown as delivered; the withdrawal stays submitted until you confirm the trustee processed the payment. A send failure leaves it unsubmitted. If automatic email is disabled, deliver the letter manually and click **Mark submitted to trustee**.
 
 ### Submitted to trustee
 
 **Available actions:**
 
 - Download letter
+- **Resend Email to Trustee** after a previous email delivery
 - Mark completed
 
 **How to process:**
 
 1. Confirm the trustee has completed the payment instruction.
-2. Click **Mark completed**.
+2. Click **Mark completed**. Use **Resend Email to Trustee** only if the letter must be emailed again; this updates the delivery timestamp and does not mark the withdrawal completed.
 
 ### Completed
 

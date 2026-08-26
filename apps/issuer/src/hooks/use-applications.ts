@@ -10,6 +10,7 @@ import type {
   Application,
   CreateApplicationInput,
   UpdateApplicationStepInput,
+  UtilisationOfferConsentId,
 } from "@cashsouk/types";
 import { toast } from "sonner";
 
@@ -401,9 +402,21 @@ export function useIssuerOrganizationLatestFinancialStatements(organizationId?: 
   });
 }
 
-function getOfferError(res: { success: true } | { success: false; error: { message?: string } }): string {
+function getOfferError(
+  res: { success: true } | { success: false; error: { code?: string; message?: string } }
+): string {
   if (res.success) return "";
   return res.error?.message ?? "Offer operation failed";
+}
+
+function throwOfferError(
+  res: { success: true } | { success: false; error: { code?: string; message?: string } }
+): never {
+  const error = new Error(getOfferError(res)) as Error & { code?: string };
+  if (!res.success && typeof res.error?.code === "string") {
+    error.code = res.error.code;
+  }
+  throw error;
 }
 
 export function useRejectContractOffer() {
@@ -449,9 +462,25 @@ export function useAcceptInvoiceOffer() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ applicationId, invoiceId }: { applicationId: string; invoiceId: string }) => {
-      const res = await apiClient.acceptInvoiceOffer(applicationId, invoiceId);
-      if (!res.success) throw new Error(getOfferError(res));
+    mutationFn: async ({
+      applicationId,
+      invoiceId,
+      challenge_id,
+      otp_code,
+      consent_ids,
+    }: {
+      applicationId: string;
+      invoiceId: string;
+      challenge_id: string;
+      otp_code: string;
+      consent_ids: UtilisationOfferConsentId[];
+    }) => {
+      const res = await apiClient.acceptInvoiceOffer(applicationId, invoiceId, {
+        challenge_id,
+        otp_code,
+        consent_ids,
+      });
+      if (!res.success) throwOfferError(res);
       return res.data;
     },
     onSuccess: async (data, { applicationId }) => {
@@ -464,9 +493,6 @@ export function useAcceptInvoiceOffer() {
       await queryClient.refetchQueries({ queryKey: ["applications"] });
       queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["issuer-dashboard-contract"] });
-    },
-    onError: (error: Error) => {
-      toast.error("Failed to accept offer", { description: error.message });
     },
   });
 }

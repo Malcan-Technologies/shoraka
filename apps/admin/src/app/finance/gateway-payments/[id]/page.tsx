@@ -3,6 +3,7 @@
 import { StatusBadge } from "@cashsouk/ui";
 
 import * as React from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -350,7 +351,9 @@ export default function GatewayPaymentDetailPage() {
                         {PURPOSE_LABEL[payment.purpose] ?? payment.purpose}
                       </h2>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {payment.investorOrganizationName ?? "No organization"}
+                        {payment.investorOrganizationName ??
+                          payment.issuerOrganizationName ??
+                          "No organization"}
                         {" · "}
                         {getGatewayAccountLabel(payment.gatewayAccount)}
                       </p>
@@ -784,6 +787,19 @@ export default function GatewayPaymentDetailPage() {
                             value={payment.settlementId ?? "—"}
                             mono
                           />
+                          {payment.contractId ? (
+                            <DetailRow
+                              label={GATEWAY_PAYMENT_COPY.paymentDetails.facility}
+                              value={
+                                <Link
+                                  href={`/contracts/${payment.contractId}`}
+                                  className="underline-offset-4 hover:underline"
+                                >
+                                  View facility
+                                </Link>
+                              }
+                            />
+                          ) : null}
                           <DetailRow
                             label={GATEWAY_PAYMENT_COPY.paymentDetails.refundReference}
                             value={payment.refundReference ?? "—"}

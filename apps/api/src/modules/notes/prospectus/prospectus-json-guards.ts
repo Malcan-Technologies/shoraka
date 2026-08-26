@@ -120,6 +120,15 @@ export function parseApplicationFinancialStatements(value: unknown): {
  * Prospectus invoice face value — notes.invoice_snapshot.details.value only.
  * Does not use invoice_value / invoiceAmount aliases or requested_amount.
  */
+export function parseInvoiceSnapshotDueDate(value: unknown): string | Date | null {
+  const invoice = asJsonRecord(value);
+  const details = asJsonRecord(invoice?.details);
+  const raw = details?.maturity_date;
+  if (typeof raw === "string" && raw.trim()) return raw.trim();
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw;
+  return null;
+}
+
 export function parseInvoiceSnapshotFaceValue(value: unknown): number | null {
   const invoice = asJsonRecord(value);
   const details = asJsonRecord(invoice?.details);

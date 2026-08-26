@@ -35,6 +35,7 @@ function postedSummary(
     serviceFeeTrusteeLetterGeneratedAt: null,
     serviceFeeTrusteeSubmittedAt: null,
     serviceFeeTrusteeCompletedAt: null,
+    serviceFeeTrusteeEmailSentAt: null,
     ...overrides,
   };
 }

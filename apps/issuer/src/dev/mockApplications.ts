@@ -23,6 +23,7 @@ function makeInvoice(overrides: Partial<NormalizedInvoice> & { id: string }): No
   return {
     number: "INV-" + Math.floor(1000 + Math.random() * 9000),
     maturityDate: "2026-06-15",
+    financingTenureDays: 90,
     value: 50000 + Math.floor(Math.random() * 100000),
     appliedFinancing: 40000,
     offeredAmount: null,

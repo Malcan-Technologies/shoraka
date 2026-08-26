@@ -1,4 +1,5 @@
-import { SESClient, SendEmailCommand, SendEmailCommandInput } from "@aws-sdk/client-ses";
+import { SESClient, SendEmailCommand, SendEmailCommandInput, SendRawEmailCommand } from "@aws-sdk/client-ses";
+import MailComposer from "nodemailer/lib/mail-composer";
 import { logger } from "../logger";
 
 const sesClient = new SESClient({
@@ -21,9 +22,94 @@ export interface EmailOptions {
   bcc?: string[];
 }
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
+
+export interface EmailWithAttachmentsOptions extends EmailOptions {
+  attachments?: EmailAttachment[];
+}
+
+function toRecipientList(to: string | string[]): string[] {
+  return Array.isArray(to) ? to : [to];
+}
+
+export function dedupeSesDestinations(addresses: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of addresses) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(trimmed);
+  }
+  return result;
+}
+
+function logSesContext(options: EmailOptions, extra: Record<string, unknown> = {}) {
+  const toCount = toRecipientList(options.to).length;
+  const ccCount = options.cc?.length ?? 0;
+  const bccCount = options.bcc?.length ?? 0;
+  return {
+    toCount,
+    ccCount,
+    bccCount,
+    recipientCount: toCount + ccCount + bccCount,
+    from: EMAIL_FROM,
+    subject: options.subject,
+    region: process.env.SES_REGION || "ap-southeast-2",
+    ...extra,
+  };
+}
+
+function enhanceSesError(error: unknown): Error {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+
+  if (errorMessage.includes("Could not load credentials") || errorMessage.includes("credentials")) {
+    return new Error(
+      `AWS SES credentials not configured. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables, or configure AWS credentials file at ~/.aws/credentials. Original error: ${errorMessage}`
+    );
+  }
+  if (errorMessage.includes("Email address not verified") || errorMessage.includes("not verified")) {
+    return new Error(
+      `Sender email ${EMAIL_FROM} is not verified in SES. Please verify it in AWS SES Console → Verified identities. Original error: ${errorMessage}`
+    );
+  }
+  if (errorMessage.includes("MessageRejected") || errorMessage.includes("rejected")) {
+    return new Error(
+      `Email rejected by SES. Possible causes: 1) Recipient not verified (if in sandbox mode), 2) Sender not verified, 3) Email on suppression list. Check AWS SES Console for details. Original error: ${errorMessage}`
+    );
+  }
+  return error instanceof Error ? error : new Error(errorMessage);
+}
+
+export async function buildRawEmailMessage(options: EmailWithAttachmentsOptions): Promise<Buffer> {
+  const recipients = toRecipientList(options.to);
+  const composer = new MailComposer({
+    from: EMAIL_FROM,
+    to: recipients,
+    cc: options.cc,
+    bcc: options.bcc,
+    replyTo: options.replyTo,
+    subject: options.subject,
+    html: options.html,
+    text: options.text,
+    attachments: (options.attachments ?? []).map((attachment) => ({
+      filename: attachment.filename,
+      content: attachment.content,
+      contentType: attachment.contentType,
+    })),
+  });
+  return composer.compile().build();
+}
+
 export async function sendEmail(options: EmailOptions): Promise<{ messageId: string }> {
-  const recipients = Array.isArray(options.to) ? options.to : [options.to];
-  
+  const recipients = toRecipientList(options.to);
+
   const params: SendEmailCommandInput = {
     Source: EMAIL_FROM,
     Destination: {
@@ -57,63 +143,55 @@ export async function sendEmail(options: EmailOptions): Promise<{ messageId: str
   try {
     const command = new SendEmailCommand(params);
     const response = await sesClient.send(command);
-    
-    logger.info(
-      {
-        messageId: response.MessageId,
-        to: recipients,
-        from: EMAIL_FROM,
-        subject: options.subject,
-        region: process.env.SES_REGION || "ap-southeast-2",
-      },
-      "Email sent successfully via SES"
-    );
 
-    // Log additional info for debugging
     logger.info(
-      {
-        messageId: response.MessageId,
-        recipients,
-        from: EMAIL_FROM,
-        note: "If email not received, check: 1) SES sandbox mode (verify recipient), 2) Sender verification, 3) Spam folder, 4) SES bounce/complaint suppression list",
-      },
-      "SES email delivery info"
+      { messageId: response.MessageId, ...logSesContext(options) },
+      "Email sent successfully via SES"
     );
 
     return { messageId: response.MessageId || "" };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    
-    // Provide helpful error messages for common SES issues
-    let enhancedError: Error;
-    if (errorMessage.includes("Could not load credentials") || errorMessage.includes("credentials")) {
-      enhancedError = new Error(
-        `AWS SES credentials not configured. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables, or configure AWS credentials file at ~/.aws/credentials. Original error: ${errorMessage}`
-      );
-    } else if (errorMessage.includes("Email address not verified") || errorMessage.includes("not verified")) {
-      enhancedError = new Error(
-        `Sender email ${EMAIL_FROM} is not verified in SES. Please verify it in AWS SES Console → Verified identities. Original error: ${errorMessage}`
-      );
-    } else if (errorMessage.includes("MessageRejected") || errorMessage.includes("rejected")) {
-      enhancedError = new Error(
-        `Email rejected by SES. Possible causes: 1) Recipient not verified (if in sandbox mode), 2) Sender not verified, 3) Email on suppression list. Check AWS SES Console for details. Original error: ${errorMessage}`
-      );
-    } else {
-      enhancedError = error instanceof Error ? error : new Error(errorMessage);
-    }
-    
-    logger.error(
-      {
-        error: errorMessage,
-        to: recipients,
-        from: EMAIL_FROM,
-        subject: options.subject,
-        region: process.env.SES_REGION || "ap-southeast-2",
-      },
-      "Failed to send email via SES"
-    );
-    throw enhancedError;
+    logger.error({ error: error instanceof Error ? error.message : String(error), ...logSesContext(options) }, "Failed to send email via SES");
+    throw enhanceSesError(error);
   }
 }
 
+export async function sendEmailWithAttachments(
+  options: EmailWithAttachmentsOptions
+): Promise<{ messageId: string }> {
+  const destinations = dedupeSesDestinations([
+    ...toRecipientList(options.to),
+    ...(options.cc ?? []),
+    ...(options.bcc ?? []),
+  ]);
+  const rawMessage = await buildRawEmailMessage(options);
 
+  try {
+    const response = await sesClient.send(
+      new SendRawEmailCommand({
+        Source: EMAIL_FROM,
+        Destinations: destinations,
+        RawMessage: { Data: rawMessage },
+      })
+    );
+
+    logger.info(
+      {
+        messageId: response.MessageId,
+        ...logSesContext(options, { attachmentCount: options.attachments?.length ?? 0 }),
+      },
+      "Raw email sent successfully via SES"
+    );
+
+    return { messageId: response.MessageId || "" };
+  } catch (error) {
+    logger.error(
+      {
+        error: error instanceof Error ? error.message : String(error),
+        ...logSesContext(options, { attachmentCount: options.attachments?.length ?? 0 }),
+      },
+      "Failed to send raw email via SES"
+    );
+    throw enhanceSesError(error);
+  }
+}

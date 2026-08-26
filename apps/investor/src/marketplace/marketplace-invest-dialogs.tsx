@@ -1,8 +1,12 @@
 "use client";
 
 import { formatCurrency } from "@cashsouk/config";
-import { formatInvestorReturnRatePercent, isNoteMoneyAmount } from "@cashsouk/types";
-import { MoneyInput } from "@cashsouk/ui";
+import {
+  MARKETPLACE_RETURN_RATE_TOOLTIP,
+  formatInvestorReturnRatePercent,
+  isNoteMoneyAmount,
+} from "@cashsouk/types";
+import { InfoTooltip, MoneyInput } from "@cashsouk/ui";
 import { BanknotesIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,19 +21,35 @@ import { MarketplaceNoteIdentity } from "./marketplace-note-identity";
 import {
   marketplaceAvailableCashHint,
   marketplaceConfirmLead,
+  marketplaceConfirmReturnHint,
   marketplaceInvestLead,
   marketplaceInvestRangeHint,
 } from "./marketplace-invest-copy";
 import {
   marketplaceNoteLabel,
+  marketplaceReturnRateLabel,
   type MarketplaceNote,
 } from "./marketplace-note-model";
 
-function InvestFact({ value, label }: { value: string; label: string }) {
+function InvestFact({
+  value,
+  label,
+  extra,
+  tooltip,
+}: {
+  value: string;
+  label: string;
+  extra?: string | null;
+  tooltip?: string | null;
+}) {
   return (
     <div className="rounded-xl border border-border bg-muted/40 px-2 py-3 text-center">
       <p className="text-card-title tabular-nums text-foreground">{value}</p>
-      <p className="mt-1 text-meta text-muted-foreground">{label}</p>
+      <p className="mt-1 inline-flex items-center justify-center gap-1 text-meta text-muted-foreground">
+        {label}
+        {tooltip ? <InfoTooltip content={tooltip} iconClassName="h-3.5 w-3.5" /> : null}
+      </p>
+      {extra ? <p className="mt-0.5 text-meta text-muted-foreground">{extra}</p> : null}
     </div>
   );
 }
@@ -146,6 +166,9 @@ export function MarketplaceInvestDialog({
           {note ? (
             <p className="mt-2 text-ui text-muted-foreground">{marketplaceNoteLabel(note)}</p>
           ) : null}
+          {marketplaceConfirmReturnHint(note) ? (
+            <p className="mt-3 text-ui text-muted-foreground">{marketplaceConfirmReturnHint(note)}</p>
+          ) : null}
         </div>
       ) : (
         <>
@@ -159,12 +182,14 @@ export function MarketplaceInvestDialog({
             <div className="grid grid-cols-3 gap-2">
               <InvestFact
                 value={formatInvestorReturnRatePercent(note.annualReturn)}
-                label="p.a."
+                label={marketplaceReturnRateLabel(note)}
+                tooltip={MARKETPLACE_RETURN_RATE_TOOLTIP}
               />
               <InvestFact value={formatRiskScore(note.riskScore)} label="Score" />
               <InvestFact
-                value={note.tenorDays != null ? String(note.tenorDays) : "—"}
-                label="Days"
+                value={note.timing.compactValue}
+                label={note.timing.compactLabel}
+                tooltip={note.timing.tooltip}
               />
             </div>
           ) : null}

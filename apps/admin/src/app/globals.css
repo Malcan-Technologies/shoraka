@@ -4,25 +4,25 @@
 
 @layer base {
   :root {
-    /* Sidebar — whisper-grey chrome (pairs with .theme-admin surfaces) */
-    --sidebar-background: 220 8% 97.5%;
+    /* Sidebar — whisper-red chrome (pairs with .theme-admin surfaces) */
+    --sidebar-background: 8 10% 97.5%;
     --sidebar-foreground: 222.2 28% 22%;
     --sidebar-primary: 359.6 95.7% 27.6%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 8% 94.5%;
+    --sidebar-accent: 8 14% 94.5%;
     --sidebar-accent-foreground: 222.2 40% 18%;
-    --sidebar-border: 220 6% 89%;
+    --sidebar-border: 10 8% 89%;
     --sidebar-ring: 359.6 95.7% 42.6%;
   }
 
   .dark {
-    --sidebar-background: 222 8% 8.5%;
+    --sidebar-background: 350 12% 8.5%;
     --sidebar-foreground: 210 16% 92%;
     --sidebar-primary: 359.6 95.7% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 6% 14%;
+    --sidebar-accent: 350 10% 13%;
     --sidebar-accent-foreground: 210 16% 96%;
-    --sidebar-border: 220 6% 15%;
+    --sidebar-border: 350 8% 15%;
     --sidebar-ring: 359.6 95.7% 55%;
   }
 }

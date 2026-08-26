@@ -314,6 +314,17 @@ describe("dual-limit preview and capacity copy", () => {
     expect(preview.exceedsAny).toBe(false);
   });
 
+  it("does not treat a sen-only remainder as exceeding remaining credit", () => {
+    const preview = previewDualLimits({
+      availableFacility: 63_617.0568,
+      lifetimeRemaining: 100_000,
+      financingAmount: 63_617.06,
+      invoiceFace: 80_527.92,
+    });
+    expect(preview.exceedsFacility).toBe(false);
+    expect(preview.exceedsLifetime).toBe(false);
+  });
+
   it("flags draft overage and says it can be saved but not submitted", () => {
     const preview = previewDualLimits({
       availableFacility: 10_000,

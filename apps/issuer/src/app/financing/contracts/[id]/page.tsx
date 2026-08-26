@@ -60,6 +60,9 @@ import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard"
 import { resolveFacilityDisplayMetrics } from "@/lib/facility-capacity-display";
 import { FacilityDualLimitSummaries } from "@/components/financing/facility-dual-limits";
 import { resolveIssuerFacilityFeeBalance, resolveIssuerFacilityGate } from "@/lib/facility-enabled";
+import { FacilityFeeReturnListener } from "@/components/facility-fee-return-listener";
+import { FacilityFeeDrawdownBlockedNotice } from "@/components/financing/facility-fee-drawdown-blocked";
+import { FacilityFeePaymentCard } from "@/components/financing/facility-fee-payment-card";
 import {
   FacilityDisabledBanner,
   FacilityFeeBalanceSummary,
@@ -238,6 +241,7 @@ function ContractDetailsPageContent() {
     facilityEnabled: row.facilityEnabled,
     facilityDisabledReason: row.facilityDisabledReason,
     contractStatus: row.contractStatus,
+    facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
   });
   const feeBalance =
     row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null
@@ -273,7 +277,9 @@ function ContractDetailsPageContent() {
         title={displayCell(contractHeading)}
         status={
           <IssuerFinancingStatusBadge
-            kind={resolveIssuerContractDashboardBadge(row.contractStatus)}
+            kind={resolveIssuerContractDashboardBadge(row.contractStatus, {
+              facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
+            })}
           />
         }
         facts={
@@ -293,7 +299,11 @@ function ContractDetailsPageContent() {
                   className="rounded-xl"
                   disabled
                   aria-disabled
-                  aria-describedby="facility-disabled-reason"
+                  aria-describedby={
+                    facilityGate.requiresFacilityFeePayment
+                      ? "facility-fee-drawdown-blocked"
+                      : "facility-disabled-reason"
+                  }
                 >
                   Finance an invoice
                 </Button>
@@ -327,6 +337,11 @@ function ContractDetailsPageContent() {
             <div id="facility-disabled-reason">
               <FacilityDisabledBanner reason={facilityGate.disabledReason} />
             </div>
+          ) : facilityGate.requiresFacilityFeePayment ? (
+            <FacilityFeeDrawdownBlockedNotice
+              id="facility-fee-drawdown-blocked"
+              href={`/financing/contracts/${contractId}`}
+            />
           ) : null}
           <FacilityDualLimitSummaries metrics={metrics} />
           <KeyValueGrid
@@ -352,6 +367,18 @@ function ContractDetailsPageContent() {
           {feeBalance ? <FacilityFeeBalanceSummary balance={feeBalance} /> : null}
         </CardContent>
       </Card>
+
+      {row.contractStatus === "APPROVED" && row.facilityFeeUpfrontAmount != null ? (
+        <FacilityFeePaymentCard
+          contractId={contractId}
+          upfrontAmount={row.facilityFeeUpfrontAmount}
+          paidAmount={Math.max(
+            0,
+            row.facilityFeeUpfrontAmount - (row.facilityFeeUpfrontOutstanding ?? 0)
+          )}
+          outstanding={row.facilityFeeUpfrontOutstanding ?? 0}
+        />
+      ) : null}
 
       <Card className="rounded-2xl">
         <CardHeader>
@@ -466,6 +493,7 @@ function ContractDetailsPageContent() {
           />
         </TabsContent>
       </Tabs>
+      <FacilityFeeReturnListener contractId={contractId} />
     </div>
   );
 }

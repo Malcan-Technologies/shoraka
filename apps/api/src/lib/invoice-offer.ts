@@ -11,6 +11,18 @@ export type InvoiceOfferDetailsLike = Record<string, unknown> | null | undefined
 /** Field names for requested/applied financing. Checked in order. */
 const REQUESTED_AMOUNT_KEYS = ["applied_financing", "financing_amount"] as const;
 
+function roundToSen(amount: number): number {
+  return Math.round(amount * 100) / 100;
+}
+
+/** Face × integer percent, rounded to sen. Prefer this over `(face * ratio) / 100`. */
+export function invoiceAmountFromFaceAndRatio(face: number, ratioPercent: number): number {
+  if (!Number.isFinite(face) || !Number.isFinite(ratioPercent) || face <= 0 || ratioPercent <= 0) {
+    return 0;
+  }
+  return Math.round(face * ratioPercent) / 100;
+}
+
 function parsePositiveAmount(value: unknown): number | null {
   if (typeof value === "number") {
     return Number.isFinite(value) && value > 0 ? value : null;
@@ -32,14 +44,19 @@ export function resolveRequestedInvoiceAmount(details: InvoiceDetailsLike): numb
   if (!details || typeof details !== "object") return 0;
   for (const key of REQUESTED_AMOUNT_KEYS) {
     const parsed = parsePositiveAmount(details[key]);
-    if (parsed != null) return parsed;
+    if (parsed != null) return roundToSen(parsed);
   }
   const value = parsePositiveAmount(details.value) ?? parsePositiveAmount(details.invoice_value);
   const ratio = parsePositiveAmount(details.financing_ratio_percent);
-  if (value != null && Number.isFinite(value) && ratio != null && Number.isFinite(ratio)) {
-    return Math.round((value * ratio) / 100);
+  if (value != null && ratio != null) {
+    return invoiceAmountFromFaceAndRatio(value, ratio);
   }
   return 0;
+}
+
+/** True when the offer is above the issuer request after sen rounding. */
+export function invoiceOfferExceedsRequested(offeredAmount: number, requestedAmount: number): boolean {
+  return Math.round(offeredAmount * 100) > Math.round(requestedAmount * 100);
 }
 
 /**

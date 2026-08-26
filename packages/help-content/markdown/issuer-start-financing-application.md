@@ -6,7 +6,7 @@ tags:
   - issuer
   - applications
 order: 8
-updated: 2026-08-21
+updated: 2026-08-24
 ---
 
 ## What this is
@@ -38,6 +38,17 @@ Follow the progress bar. The middle steps are **only** what your product include
 
 On **Company Details**, if a director or shareholder is missing a government ID, enter it on that step or open **Organisation** to finish it on the company people list.
 
+### Invoice tenure
+
+When a product asks for invoice details:
+
+- Enter the **invoice due date** — when your customer is due to pay this invoice. That date stays an invoice fact for CashSouk. It is not the public note maturity investors see.
+- Choose a **financing tenure** of **30 to 180 days**, in **15-day steps**. It must cover the time until that invoice due date. The period starts when funds are disbursed.
+- The requested financing cannot exceed **80%** of invoice value.
+- CashSouk may adjust the tenure in the final offer.
+
+Before disbursement, listings show **"{n} days from disbursement"**. Maturity is the Malaysia bank value date plus that tenure. How profit is counted after disbursement — including a worked example of what you pay if you settle early — is in **From Approved Application to Repayment**.
+
 ## When you see Financing Structure
 
 Some products ask **How would you like to apply for financing?** with three choices. Use the one that matches your situation.
@@ -57,4 +68,21 @@ On an approved facility, a draft invoice that is over remaining credit or remain
 
 The last step is **Declarations**. Tick every box, then **Submit**. The application is no longer **Draft** and goes to the team for review. Check **Application** for the latest status.
 
-If you get **Amendment requested**, fix what they flagged and **Resubmit**. When offers are ready, accept or sign **facility** and **invoice** offers as the product requires.
+If you get **Amendment requested**, fix what they flagged and **Resubmit**. When offers are ready, review them from the application **Offer** tab.
+
+## Reviewing an offer
+
+How you accept depends on the type of offer.
+
+**New facility, or an invoice without a facility**
+CashSouk may ask you to upload acceptance documents and complete signing. Follow the steps in **Review offer**. Anyone who needs to sign receives an email with a signing link.
+
+**Invoice on an approved facility**
+You do not sign again. Review the commercial terms. Utilisation terms and conditions are available from **Read utilisation terms and conditions** and in the offer letter. Tick both confirmations, open **Read full authorisation**, and tap **Confirm and continue** before Accept is available. Then choose the director or authorised signatory who is accepting. A 6-digit verification code is emailed to that person. Enter the code to accept. Anyone in your organisation can start this, but the code must go to the chosen signatory. Codes expire after 10 minutes. You can request a new code if needed.
+
+You can **Decline** an offer without the confirmations or a verification code.
+
+**Application summary**
+You can download a PDF summary of the application at any time. It includes the application details, CashSouk remarks and requested changes, and a history of what happened. It is a record for you to review — not the offer letter and not a signed agreement.
+
+Download it from **Review offer**, from the application page (including **Documents**), and later from the note page after the invoice is listed.

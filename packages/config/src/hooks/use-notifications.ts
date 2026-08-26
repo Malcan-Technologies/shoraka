@@ -130,9 +130,10 @@ export function useAdminNotifications(
     search?: string;
     type?: string;
     target?: string;
+    source?: string;
   } = {}
 ) {
-  const { limit = 20, offset = 0, search, type, target } = options;
+  const { limit = 20, offset = 0, search, type, target, source } = options;
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const apiClient = createApiClient(undefined, getAccessToken);
@@ -185,6 +186,9 @@ export function useAdminNotifications(
       if ("error" in response) throw new Error(response.error.message);
       return response.data;
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-notification-logs"] });
+    },
   });
 
   const { data: groups, isLoading: isLoadingGroups } = useQuery({
@@ -209,7 +213,13 @@ export function useAdminNotifications(
   });
 
   const updateGroupMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { name?: string; description?: string; userIds?: string[] } }) => {
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: { name?: string; description?: string; userIds?: string[] };
+    }) => {
       const response = await apiClient.updateAdminNotificationGroup(id, data);
       if ("error" in response) throw new Error(response.error.message);
       return response.data;
@@ -246,7 +256,7 @@ export function useAdminNotifications(
     isLoading: isLoadingLogs,
     refetch: refetchLogs,
   } = useQuery({
-    queryKey: ["admin-notification-logs", limit, offset, search, type, target],
+    queryKey: ["admin-notification-logs", limit, offset, search, type, target, source],
     queryFn: async () => {
       const response = await apiClient.getAdminNotificationLogs({
         limit,
@@ -254,6 +264,7 @@ export function useAdminNotifications(
         search,
         type,
         target,
+        source,
       });
       if ("error" in response) throw new Error(response.error.message);
       return response.data;

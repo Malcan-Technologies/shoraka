@@ -42,6 +42,7 @@ import type {
   OnboardingApplicationResponse,
   GetAdminApplicationsParams,
   AdminApplicationActionRequiredCountResponse,
+  AdminApplicationNavCountsResponse,
   AdminApplicationsResponse,
   GetAdminContractsParams,
   AdminContractsResponse,
@@ -88,6 +89,8 @@ import type {
   IssuerOnboardingFeeResponse,
   IssuerOnboardingFeeStatusResponse,
   ApplicationProcessingFeeResponse,
+  FacilityFeePaymentResponse,
+  ExcessLateChargePaymentResponse,
   EligibleNoteInvoicesResponse,
   GetAdminNotesParams,
   MarketplaceNoteDetail,
@@ -141,7 +144,11 @@ import type {
   GatewayReconRunListResponse,
   AuthorizedPartiesSubmitPayload,
   ReviewItemType,
+  InvoiceOfferAcceptInput,
+  InvoiceOfferAcceptOtpRequestResponse,
+  InvoiceOfferAcceptSignatoriesResponse,
 } from "@cashsouk/types";
+import { parseContentDispositionFilename } from "./content-disposition-filename";
 import { tokenRefreshService } from "./token-refresh-service";
 
 type OverdueLateChargeInput = {
@@ -577,6 +584,12 @@ export class ApiClient {
     );
   }
 
+  async getAdminApplicationNavCounts(): Promise<
+    ApiResponse<AdminApplicationNavCountsResponse> | ApiError
+  > {
+    return this.get<AdminApplicationNavCountsResponse>("/v1/admin/applications/nav-counts");
+  }
+
   async getAdminContracts(
     params: GetAdminContractsParams
   ): Promise<ApiResponse<AdminContractsResponse> | ApiError> {
@@ -801,8 +814,11 @@ export class ApiClient {
     return this.post<NoteDetail>(`/v1/admin/notes/${id}/funding/fail`, {});
   }
 
-  async activateAdminNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
-    return this.post<NoteDetail>(`/v1/admin/notes/${id}/activate`, {});
+  async activateAdminNote(
+    id: string,
+    body: { disbursementValueDate?: string } = {}
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/activate`, body);
   }
 
   async getAdminNoteEvents(id: string): Promise<ApiResponse<NoteEvent[]> | ApiError> {
@@ -888,9 +904,10 @@ export class ApiClient {
 
   async approveAdminNotePayment(
     id: string,
-    paymentId: string
+    paymentId: string,
+    data: { actualSettlementDate?: string } = {}
   ): Promise<ApiResponse<NoteDetail> | ApiError> {
-    return this.post<NoteDetail>(`/v1/admin/notes/${id}/payments/${paymentId}/approve`, {});
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/payments/${paymentId}/approve`, data);
   }
 
   async rejectAdminNotePayment(
@@ -981,6 +998,16 @@ export class ApiClient {
     );
   }
 
+  async resendAdminNoteServiceFeeTrusteeEmail(
+    noteId: string,
+    settlementId: string
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(
+      `/v1/admin/notes/${noteId}/settlements/${settlementId}/service-fee/resend-trustee-email`,
+      {}
+    );
+  }
+
   async markAdminNoteServiceFeeTrusteeInstructionCompleted(
     noteId: string,
     settlementId: string
@@ -1048,6 +1075,8 @@ export class ApiClient {
     gatewayAccount?: CurlecGatewayAccount;
     status?: string;
     purpose?: string;
+    contractId?: string;
+    noteId?: string;
     organizationType?: string;
     filter?: "needs_attention" | "review" | "refunding" | "refunded" | "completed";
     search?: string;
@@ -1058,6 +1087,8 @@ export class ApiClient {
     if (params?.gatewayAccount) search.set("gatewayAccount", params.gatewayAccount);
     if (params?.status) search.set("status", params.status);
     if (params?.purpose) search.set("purpose", params.purpose);
+    if (params?.contractId) search.set("contractId", params.contractId);
+    if (params?.noteId) search.set("noteId", params.noteId);
     if (params?.organizationType) search.set("organizationType", params.organizationType);
     if (params?.filter) search.set("filter", params.filter);
     if (params?.search) search.set("search", params.search);
@@ -1509,13 +1540,15 @@ export class ApiClient {
   async sendContractOffer(
     applicationId: string,
     offeredFacility: number,
-    facilityFeeRatePercent?: number | null
+    facilityFeeRatePercent?: number | null,
+    facilityFeeUpfrontCollectAmount?: number
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
     return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/offers/contracts/send`,
       {
         offeredFacility,
         facilityFeeRatePercent: facilityFeeRatePercent ?? null,
+        facilityFeeUpfrontCollectAmount: facilityFeeUpfrontCollectAmount ?? 0,
       }
     );
   }
@@ -1548,6 +1581,7 @@ export class ApiClient {
       offeredProfitRatePercent?: number | null;
       platformFeeRatePercent?: number | null;
       risk_rating: SoukscoreRiskRating;
+      financingTenureDays: number;
       feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode;
       facilityFeeCollectAmount?: number | null;
       additionalFees?: AdditionalFeeLine[];
@@ -1561,6 +1595,7 @@ export class ApiClient {
         offeredProfitRatePercent: payload.offeredProfitRatePercent ?? null,
         platformFeeRatePercent: payload.platformFeeRatePercent ?? null,
         risk_rating: payload.risk_rating,
+        financingTenureDays: payload.financingTenureDays,
         ...(payload.feeScheduleMode ? { feeScheduleMode: payload.feeScheduleMode } : {}),
         facilityFeeCollectAmount: payload.facilityFeeCollectAmount ?? 0,
         additionalFees: payload.additionalFees ?? [],
@@ -2630,14 +2665,54 @@ export class ApiClient {
     );
   }
 
-  async acceptInvoiceOffer(
+  async getInvoiceAcceptSignatories(
     applicationId: string,
     invoiceId: string
+  ): Promise<ApiResponse<InvoiceOfferAcceptSignatoriesResponse> | ApiError> {
+    return this.get<InvoiceOfferAcceptSignatoriesResponse>(
+      `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/accept-otp/signatories`
+    );
+  }
+
+  async requestInvoiceAcceptOtp(
+    applicationId: string,
+    invoiceId: string,
+    body: { signatory_email: string }
+  ): Promise<ApiResponse<InvoiceOfferAcceptOtpRequestResponse> | ApiError> {
+    return this.post<InvoiceOfferAcceptOtpRequestResponse>(
+      `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/accept-otp/request`,
+      body
+    );
+  }
+
+  async acceptInvoiceOffer(
+    applicationId: string,
+    invoiceId: string,
+    body: InvoiceOfferAcceptInput
   ): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(
       `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/accept`,
-      {}
+      body
     );
+  }
+
+  async getApplicationSummaryPdfBlob(
+    applicationId: string
+  ): Promise<{ blob: Blob; filename: string }> {
+    const url = `${this.baseUrl}/v1/applications/${applicationId}/summary-pdf`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    const blob = await response.blob();
+    const filename =
+      parseContentDispositionFilename(response.headers.get("content-disposition")) ??
+      "application-summary.pdf";
+    return { blob, filename };
   }
 
   async rejectInvoiceOffer(
@@ -2835,6 +2910,7 @@ export class ApiClient {
     search?: string;
     type?: string;
     target?: string;
+    source?: string;
   }): Promise<
     | ApiResponse<{ items: AdminNotificationLog[]; pagination: AdminNotificationLogPagination }>
     | ApiError
@@ -2845,6 +2921,7 @@ export class ApiClient {
     if (params.search) queryParams.append("search", params.search);
     if (params.type) queryParams.append("type", params.type);
     if (params.target) queryParams.append("target", params.target);
+    if (params.source) queryParams.append("source", params.source);
 
     return this.get<{ items: AdminNotificationLog[]; pagination: AdminNotificationLogPagination }>(
       `/v1/notifications/admin/logs?${queryParams.toString()}`
@@ -3202,6 +3279,42 @@ export class ApiClient {
     );
   }
 
+  async createFacilityFeePayment(
+    contractId: string
+  ): Promise<ApiResponse<FacilityFeePaymentResponse> | ApiError> {
+    return this.post<FacilityFeePaymentResponse>(
+      `/v1/contracts/${encodeURIComponent(contractId)}/facility-fee`,
+      {}
+    );
+  }
+
+  async getFacilityFeePayment(
+    contractId: string,
+    paymentId: string
+  ): Promise<ApiResponse<FacilityFeePaymentResponse> | ApiError> {
+    return this.get<FacilityFeePaymentResponse>(
+      `/v1/contracts/${encodeURIComponent(contractId)}/facility-fee/${encodeURIComponent(paymentId)}`
+    );
+  }
+
+  async createExcessLateChargePayment(
+    noteId: string
+  ): Promise<ApiResponse<ExcessLateChargePaymentResponse> | ApiError> {
+    return this.post<ExcessLateChargePaymentResponse>(
+      `/v1/notes/${encodeURIComponent(noteId)}/excess-late-charges`,
+      {}
+    );
+  }
+
+  async getExcessLateChargePayment(
+    noteId: string,
+    paymentId: string
+  ): Promise<ApiResponse<ExcessLateChargePaymentResponse> | ApiError> {
+    return this.get<ExcessLateChargePaymentResponse>(
+      `/v1/notes/${encodeURIComponent(noteId)}/excess-late-charges/${encodeURIComponent(paymentId)}`
+    );
+  }
+
   async postInvestorBalanceTestTopup(input: {
     investorOrganizationId: string;
     amount: number;
@@ -3274,10 +3387,17 @@ export class ApiClient {
     );
   }
 
-  async markWithdrawalCompleted(
+  async resendWithdrawalTrusteeEmail(
     id: string
   ): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
-    return this.post<WithdrawalInstruction>(`/v1/admin/withdrawals/${id}/mark-completed`, {});
+    return this.post<WithdrawalInstruction>(`/v1/admin/withdrawals/${id}/resend-trustee-email`, {});
+  }
+
+  async markWithdrawalCompleted(
+    id: string,
+    body: { disbursementValueDate?: string } = {}
+  ): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
+    return this.post<WithdrawalInstruction>(`/v1/admin/withdrawals/${id}/mark-completed`, body);
   }
 
   async updateWithdrawalBeneficiary(

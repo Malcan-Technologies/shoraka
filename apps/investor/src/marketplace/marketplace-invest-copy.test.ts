@@ -1,7 +1,9 @@
+import { resolveNoteTimingDisplay } from "@cashsouk/types";
 import type { MarketplaceNote } from "./marketplace-note-model";
 import {
   marketplaceAvailableCashHint,
   marketplaceConfirmLead,
+  marketplaceConfirmReturnHint,
   marketplaceInvestLead,
   marketplaceInvestMeta,
   marketplaceInvestRangeHint,
@@ -29,6 +31,7 @@ function note(overrides: Partial<MarketplaceNote> = {}): MarketplaceNote {
     fundingPercent: 40,
     annualReturn: 14.5,
     tenorDays: 45,
+    timing: resolveNoteTimingDisplay({ tenureDays: 45, maturityDate: null }),
     riskScore: "B",
     daysLeft: 6,
     minInvestment: 1000,
@@ -61,5 +64,8 @@ describe("marketplace invest copy", () => {
       "Invest any amount from RM 1000 to RM 50000."
     );
     expect(marketplaceAvailableCashHint(12340)).toBe("Available cash RM 12340");
+    expect(marketplaceConfirmReturnHint(note())).toBe(
+      "45 days from disbursement. Advertised return is up to 14.5% p.a. before the service fee, for the days profit actually runs."
+    );
   });
 });

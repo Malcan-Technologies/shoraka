@@ -15,6 +15,7 @@ import {
   validateAdditionalFeeLines,
   validateFacilityFeeCollectAmount,
   resolveFacilityFeeBalance,
+  resolveFacilityFeeUpfront,
   isFacilityEnabled,
   computeFacilityFeeTotalOwed,
   isDisbursementNetNegative,
@@ -511,6 +512,61 @@ describe("invoice fee schedule", () => {
     expect(
       isNoteOpenForFacilityFeeCollectionWaiver({ status: "DRAFT", fundingStatus: "OPEN" })
     ).toBe(false);
+  });
+
+  it("resolves facility fee upfront by clamping to total owed and remaining paid", () => {
+    expect(
+      resolveFacilityFeeUpfront({
+        approved_facility: 200_000,
+        facility_fee_rate_percent: 1,
+        facility_fee_total_amount: 2_000,
+        facility_fee_upfront_amount: 1_500,
+        facility_fee_paid_amount: 400,
+      })
+    ).toEqual({ upfrontAmount: 1_500, outstanding: 1_100 });
+
+    expect(
+      resolveFacilityFeeUpfront({
+        approved_facility: 200_000,
+        facility_fee_rate_percent: 1,
+        facility_fee_total_amount: 2_000,
+        facility_fee_upfront_amount: 5_000,
+        facility_fee_paid_amount: 0,
+      })
+    ).toEqual({ upfrontAmount: 2_000, outstanding: 2_000 });
+
+    expect(
+      resolveFacilityFeeUpfront({
+        approved_facility: 200_000,
+        facility_fee_rate_percent: 1,
+        facility_fee_total_amount: 2_000,
+        facility_fee_upfront_amount: -50,
+        facility_fee_paid_amount: 0,
+      })
+    ).toEqual({ upfrontAmount: 0, outstanding: 0 });
+
+    expect(
+      resolveFacilityFeeUpfront({
+        approved_facility: 200_000,
+        facility_fee_rate_percent: 1,
+        facility_fee_total_amount: 2_000,
+        facility_fee_upfront_amount: 1_000,
+        facility_fee_paid_amount: 1_250,
+      })
+    ).toEqual({ upfrontAmount: 1_000, outstanding: 0 });
+
+    expect(
+      resolveFacilityFeeUpfront({
+        approved_facility: 200_000,
+        facility_fee_rate_percent: 1,
+        facility_fee_total_amount: 2_000,
+        facility_fee_upfront_amount: 1_500,
+        facility_fee_paid_amount: 200,
+        facility_fee_waived: true,
+      })
+    ).toEqual({ upfrontAmount: 1_500, outstanding: 0 });
+
+    expect(resolveFacilityFeeUpfront({})).toEqual({ upfrontAmount: 0, outstanding: 0 });
   });
 
   it("stores 0% facility fee as a zero total owed", () => {

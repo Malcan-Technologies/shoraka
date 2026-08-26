@@ -79,5 +79,7 @@ describe("maturity countdown", () => {
     expect(
       isActiveNearMaturity({ status: "PUBLISHED", maturityDate: isoDaysFromNow(5) }, NOW)
     ).toBe(false);
+    expect(isActiveNearMaturity({ status: "ACTIVE", maturityDate: null }, NOW)).toBe(false);
+    expect(isActiveNearMaturity({ status: "ACTIVE", maturityDate: "not-a-date" }, NOW)).toBe(false);
   });
 });

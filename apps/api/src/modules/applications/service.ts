@@ -94,10 +94,18 @@ import { assertApplicationProcessingFeePaid } from "../payment/processing-fee-se
 import {
   generateContractOfferLetterStream,
   generateInvoiceOfferLetterStream,
+  invoiceOfferLetterKindForContract,
   buildInvoiceOfferLetterDto,
   type ContractOfferDetails,
 } from "./offer-letter-pdf";
-import { applyContractCapacityChange } from "../../lib/refresh-contract-facility";
+import {
+  composeApplicationSummary,
+  buildApplicationSummaryHtml,
+  renderApplicationSummaryHtmlToPdfBuffer,
+  type ComposeApplicationSummaryInput,
+} from "./summary-pdf";
+import { applyContractCapacityChange, lockContractRow } from "../../lib/refresh-contract-facility";
+import { assertFacilityFeeUpfrontSettled } from "../../lib/facility-fee-upfront-guard";
 import {
   resolveContractValue,
   resolveOfferedFacility,
@@ -123,7 +131,21 @@ import {
   computeFacilityFeeTotalOwed,
   parseFiniteNumber,
   parseInvoiceFeeSchedule,
+  buildUtilisationOfferConsentAcknowledgement,
+  readFinancingStructureType,
+  roundNoteMoney,
 } from "@cashsouk/types";
+import {
+  consumeOfferAcceptOtpInTx,
+  incrementOfferAcceptOtpAttempts,
+  invoiceOfferAcceptRequiresOtp,
+  isOfferAcceptOtpInvalidError,
+  matchOfferAcceptSignatory,
+  persistAndSendOfferAcceptOtp,
+  resolveOfferAcceptEnvelopeSignatories,
+  resolveOfferAcceptSignatories,
+  type AcceptedOfferSignatory,
+} from "./offer-accept-otp";
 import { computeApplicationStatus } from "./lifecycle";
 import {
   resolveApplicationStatusAfterCommercialAccept,
@@ -132,7 +154,9 @@ import {
 import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { NotificationService } from "../notification/service";
 import { NotificationTypeIds } from "../notification/registry";
+import { systemNotificationLogKey } from "../notification/delivery-log";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
+import { sendTypedToUsersSafe } from "../notification/send-typed-safe";
 import { parseGuarantorsFromBusinessDetails } from "../guarantors/utils";
 import { assertIssuerOrgDirectorShareholderOnboardingReady } from "./director-shareholder-onboarding-guard";
 import { buildAdminPeopleList } from "../admin/build-people-list";
@@ -353,16 +377,27 @@ export class ApplicationService {
     idempotencySuffix: string
   ) {
     const recipientUserIds = await getIssuerRecipientUserIdsForApplication(applicationId);
+    if (recipientUserIds.length === 0) {
+      return;
+    }
     const enrichedPayload = await this.enrichApplicationNotificationPayload(applicationId, payload);
-    await Promise.all(
-      recipientUserIds.map((userId) =>
-        this.notificationService.sendTyped(
-          userId,
-          typeId as never,
-          enrichedPayload as never,
-          `app:${applicationId}:notif:${typeId}:user:${userId}:${idempotencySuffix}`
-        )
-      )
+    const results = await sendTypedToUsersSafe(
+      this.notificationService,
+      recipientUserIds,
+      typeId as never,
+      enrichedPayload as never,
+      (userId) => `app:${applicationId}:notif:${typeId}:user:${userId}:${idempotencySuffix}`
+    );
+    await this.notificationService.logTypedSystemBatch(
+      typeId as never,
+      enrichedPayload as never,
+      results,
+      {
+        idempotencyKey: systemNotificationLogKey(
+          typeId,
+          `app:${applicationId}:${idempotencySuffix}`
+        ),
+      }
     );
   }
 
@@ -2104,6 +2139,9 @@ export class ApplicationService {
             where: { id: contractId },
             select: { status: true, contract_details: true },
           });
+          if (readFinancingStructureType(application.financing_structure) === "existing_contract") {
+            assertFacilityFeeUpfrontSettled(contract?.contract_details);
+          }
           if ((contract as { status?: string } | null)?.status === "DRAFT") {
             const cd =
               contract?.contract_details && typeof contract.contract_details === "object"
@@ -2944,6 +2982,10 @@ export class ApplicationService {
           offeredFacility,
           facilityFeeRatePercent
         );
+        const rawUpfront = parseFiniteNumber(offer.facility_fee_upfront_collect_amount) ?? 0;
+        const facilityFeeUpfrontAmount = roundNoteMoney(
+          Math.min(Math.max(0, rawUpfront), facilityFeeTotalAmount)
+        );
 
         let updatedOffer: Record<string, unknown> = {
           ...offer,
@@ -2973,6 +3015,7 @@ export class ApplicationService {
                 facility_fee_rate_percent: facilityFeeRatePercent,
                 facility_fee_total_amount: facilityFeeTotalAmount,
                 facility_fee_paid_amount: existingPaid,
+                facility_fee_upfront_amount: facilityFeeUpfrontAmount,
                 facility_fee_waived: false,
                 facility_enabled: true,
               }
@@ -3086,7 +3129,13 @@ export class ApplicationService {
         });
         /* --- END: Recompute and persist application status after contract offer response --- */
 
-        return { offeredFacility, requestedFacility, now, appStatus };
+        return {
+          offeredFacility,
+          requestedFacility,
+          now,
+          appStatus,
+          facilityFeeUpfrontAmount: action === "accept" ? facilityFeeUpfrontAmount : 0,
+        };
       },
       { assertWrite: true }
     );
@@ -3117,6 +3166,25 @@ export class ApplicationService {
           : {}),
       },
     });
+    if (action === "accept" && responseMeta.facilityFeeUpfrontAmount > 0) {
+      try {
+        await this.sendIssuerNotification(
+          applicationId,
+          NotificationTypeIds.FACILITY_FEE_PAYMENT_REQUESTED,
+          {
+            applicationId,
+            contractId,
+            upfrontAmount: responseMeta.facilityFeeUpfrontAmount,
+          },
+          `facility-fee-payment:${contractId}`
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId, contractId },
+          "Failed to send facility fee payment requested notification"
+        );
+      }
+    }
     if (responseMeta.appStatus === ApplicationStatus.WITHDRAWN) {
       try {
         await this.sendIssuerNotification(
@@ -3217,6 +3285,159 @@ export class ApplicationService {
     );
   }
 
+  private async loadInvoiceOfferAcceptSignatories(params: {
+    applicationId: string;
+    invoiceId: string;
+  }): Promise<{
+    invoice: {
+      id: string;
+      contract_id: string;
+      offer_details: Prisma.JsonValue | null;
+      details: Prisma.JsonValue;
+      display_reference: string | null;
+    };
+    contract: { id: string; display_reference: string | null };
+    signatories: ReturnType<typeof resolveOfferAcceptSignatories>["signatories"];
+    source: ReturnType<typeof resolveOfferAcceptSignatories>["source"];
+  }> {
+    const invoice = await prisma.invoice.findFirst({
+      where: { id: params.invoiceId, application_id: params.applicationId },
+      select: {
+        id: true,
+        contract_id: true,
+        status: true,
+        offer_details: true,
+        details: true,
+        display_reference: true,
+        contract: { select: { id: true, display_reference: true } },
+        application: {
+          select: {
+            issuer_organization_id: true,
+          },
+        },
+      },
+    });
+    if (!invoice) {
+      throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
+    }
+    if (!invoice.contract_id || !invoice.contract) {
+      throw new AppError(
+        400,
+        "USE_SIGNING_FLOW",
+        "Complete signing via the signing envelope before accepting this offer."
+      );
+    }
+    if (invoice.status !== "OFFER_SENT") {
+      throw new AppError(400, "INVALID_STATE", "No pending invoice offer to respond to");
+    }
+
+    const envelope = await prisma.signingEnvelope.findFirst({
+      where: { contract_id: invoice.contract_id, status: "COMPLETED" },
+      orderBy: { completed_at: "desc" },
+      select: {
+        recipients: { select: { role_key: true, name: true, email: true, status: true } },
+      },
+    });
+
+    const envelopeResolved = resolveOfferAcceptEnvelopeSignatories(envelope?.recipients ?? []);
+    if (envelopeResolved) {
+      return {
+        invoice: {
+          id: invoice.id,
+          contract_id: invoice.contract_id,
+          offer_details: invoice.offer_details,
+          details: invoice.details,
+          display_reference: invoice.display_reference,
+        },
+        contract: invoice.contract,
+        ...envelopeResolved,
+      };
+    }
+
+    const issuerOrganization = await prisma.application.findUnique({
+      where: { id: params.applicationId },
+      select: {
+        issuer_organization: {
+          select: {
+            corporate_entities: true,
+            director_kyc_status: true,
+            director_aml_status: true,
+          },
+        },
+      },
+    });
+    const extras = await new OrganizationService().getIssuerPartyListExtras(
+      invoice.application.issuer_organization_id
+    );
+    const people = buildAdminPeopleList({
+      ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+      issuerDirectorKycStatus: issuerOrganization?.issuer_organization?.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: issuerOrganization?.issuer_organization?.director_aml_status ?? null,
+      ctosPartySupplements: extras.ctosPartySupplements,
+      corporateEntities: issuerOrganization?.issuer_organization?.corporate_entities ?? null,
+    });
+    const resolved = resolveOfferAcceptSignatories({
+      envelopeRecipients: envelope?.recipients ?? [],
+      orgDirectors: people,
+    });
+
+    return {
+      invoice: {
+        id: invoice.id,
+        contract_id: invoice.contract_id,
+        offer_details: invoice.offer_details,
+        details: invoice.details,
+        display_reference: invoice.display_reference,
+      },
+      contract: invoice.contract,
+      ...resolved,
+    };
+  }
+
+  async listInvoiceOfferAcceptSignatories(
+    applicationId: string,
+    invoiceId: string,
+    userId: string
+  ): Promise<{
+    source: ReturnType<typeof resolveOfferAcceptSignatories>["source"];
+    signatories: ReturnType<typeof resolveOfferAcceptSignatories>["signatories"];
+  }> {
+    await this.assertInvoiceOfferAcceptAllowed(applicationId, invoiceId, userId);
+    const loaded = await this.loadInvoiceOfferAcceptSignatories({ applicationId, invoiceId });
+    return { source: loaded.source, signatories: loaded.signatories };
+  }
+
+  async requestInvoiceOfferAcceptOtp(
+    applicationId: string,
+    invoiceId: string,
+    userId: string,
+    signatoryEmail: string
+  ) {
+    await this.assertInvoiceOfferAcceptAllowed(applicationId, invoiceId, userId);
+    const loaded = await this.loadInvoiceOfferAcceptSignatories({ applicationId, invoiceId });
+    const signatory = matchOfferAcceptSignatory(loaded.signatories, signatoryEmail);
+    const offer = (loaded.invoice.offer_details as Record<string, unknown> | null) ?? {};
+    const details = (loaded.invoice.details as Record<string, unknown> | null) ?? {};
+    const invoiceNumber =
+      details.number != null && String(details.number).trim() !== ""
+        ? String(details.number).trim()
+        : null;
+    const invoiceReference =
+      loaded.invoice.display_reference?.trim() || invoiceNumber || "invoice offer";
+    const facilityReference = loaded.contract.display_reference?.trim() || "facility";
+    const offeredAmount = Number(offer.offered_amount);
+    return persistAndSendOfferAcceptOtp({
+      applicationId,
+      invoiceId,
+      contractId: loaded.invoice.contract_id,
+      requestedByUserId: userId,
+      signatory,
+      invoiceReference,
+      facilityReference,
+      offeredAmount: Number.isFinite(offeredAmount) ? offeredAmount : null,
+    });
+  }
+
   async respondToInvoiceOffer(
     applicationId: string,
     invoiceId: string,
@@ -3225,6 +3446,8 @@ export class ApplicationService {
     rejectionReason?: string,
     options?: {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
+      otp?: { challengeId: string; otpCode: string };
+      consent_ids?: string[];
     }
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
@@ -3281,10 +3504,12 @@ export class ApplicationService {
       if (action === "accept") {
         const acceptContractId = dbInvoice.contract_id ?? occupancyContractId;
         if (acceptContractId) {
+          await lockContractRow(tx, acceptContractId);
           const contract = await tx.contract.findUnique({
             where: { id: acceptContractId },
             select: { contract_details: true },
           });
+          assertFacilityFeeUpfrontSettled(contract?.contract_details);
           const schedule = parseInvoiceFeeSchedule(offer);
           await assertFacilityLinkedInvoiceAcceptFees(tx, {
             contractId: acceptContractId,
@@ -3320,6 +3545,46 @@ export class ApplicationService {
         updatedOffer = patchOfferAcceptance(updatedOffer, {
           status: action === "accept" ? "COMPLETED" : "DECLINED",
         });
+      }
+
+      let acceptedSignatory: AcceptedOfferSignatory | undefined;
+      let utilisationConsents:
+        | ReturnType<typeof buildUtilisationOfferConsentAcknowledgement>
+        | undefined;
+      if (
+        invoiceOfferAcceptRequiresOtp({
+          action,
+          invoiceContractId: dbInvoice.contract_id,
+          signingCompletion: options?.signingCompletion,
+        })
+      ) {
+        if (!options?.otp) {
+          throw new AppError(
+            400,
+            "OTP_REQUIRED",
+            "Enter the verification code sent to the authorised signatory."
+          );
+        }
+        utilisationConsents = buildUtilisationOfferConsentAcknowledgement(options.consent_ids, now);
+        if (!utilisationConsents) {
+          throw new AppError(
+            400,
+            "CONSENTS_REQUIRED",
+            "Tick both confirmations and confirm the full authorisation before accepting."
+          );
+        }
+        acceptedSignatory = await consumeOfferAcceptOtpInTx(tx, {
+          challengeId: options.otp.challengeId,
+          otpCode: options.otp.otpCode,
+          applicationId,
+          invoiceId,
+          contractId: dbInvoice.contract_id as string,
+        });
+        updatedOffer = {
+          ...updatedOffer,
+          accepted_signatory: acceptedSignatory,
+          utilisation_consents: utilisationConsents,
+        };
       }
 
       await tx.invoice.update({
@@ -3461,7 +3726,15 @@ export class ApplicationService {
       });
       /* --- END: Recompute and persist application status after invoice offer response --- */
 
-      return { now, offeredAmount, requestedAmount, sectionApproved, appStatus };
+      return {
+        now,
+        offeredAmount,
+        requestedAmount,
+        sectionApproved,
+        appStatus,
+        acceptedSignatory,
+        utilisationConsents,
+      };
     };
     const invoiceAcceptAudit =
       action === "accept"
@@ -3473,14 +3746,26 @@ export class ApplicationService {
             invoiceId,
           }
         : undefined;
-    const responseMeta = occupancyContractId
-      ? (
-          await applyContractCapacityChange(occupancyContractId, prisma, respondInvoiceInTx, {
-            assertWrite: true,
-            audit: invoiceAcceptAudit,
-          })
-        ).result
-      : await prisma.$transaction(respondInvoiceInTx);
+    let responseMeta: Awaited<ReturnType<typeof respondInvoiceInTx>>;
+    try {
+      responseMeta = occupancyContractId
+        ? (
+            await applyContractCapacityChange(occupancyContractId, prisma, respondInvoiceInTx, {
+              assertWrite: true,
+              audit: invoiceAcceptAudit,
+            })
+          ).result
+        : await prisma.$transaction(respondInvoiceInTx);
+    } catch (error) {
+      if (isOfferAcceptOtpInvalidError(error) && options?.otp?.challengeId) {
+        await incrementOfferAcceptOtpAttempts({
+          challengeId: options.otp.challengeId,
+          applicationId,
+          invoiceId,
+        });
+      }
+      throw error;
+    }
 
     const invWithDetails = (
       application as { invoices?: { id: string; details?: { number?: string | number } }[] }
@@ -3505,6 +3790,12 @@ export class ApplicationService {
         responded_at: responseMeta.now,
         ...(action === "reject" && rejectionReason != null && rejectionReason.trim() !== ""
           ? { rejection_reason: rejectionReason.trim() }
+          : {}),
+        ...(responseMeta.acceptedSignatory
+          ? { accepted_signatory: responseMeta.acceptedSignatory }
+          : {}),
+        ...(responseMeta.utilisationConsents
+          ? { utilisation_consents: responseMeta.utilisationConsents }
           : {}),
       },
     });
@@ -3651,7 +3942,11 @@ export class ApplicationService {
       expires_at: typeof acceptanceExpiresAt === "string" ? acceptanceExpiresAt : undefined,
     };
 
-    const stream = generateInvoiceOfferLetterStream(invoiceId, offerDetails);
+    const stream = generateInvoiceOfferLetterStream(
+      invoiceId,
+      offerDetails,
+      invoiceOfferLetterKindForContract(dbInvoice.contract_id)
+    );
     const filename = `invoice-offer-${invoiceId}.pdf`;
     return { stream, filename };
   }
@@ -3786,6 +4081,43 @@ export class ApplicationService {
     });
     const buffer = await getS3ObjectBuffer(key);
     return { buffer, filename: `signed-invoice-offer-${invoiceId}.pdf` };
+  }
+
+  /**
+   * On-demand issuer application summary PDF. Not stored; not an offer letter.
+   */
+  async getApplicationSummaryPdf(
+    applicationId: string,
+    userId: string
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    await this.verifyApplicationAccess(applicationId, userId);
+
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const logs = await this.getApplicationLogs(applicationId, userId);
+    const remarks =
+      (
+        application as {
+          application_review_remarks?: Array<{ author_user_id?: string | null }>;
+        }
+      ).application_review_remarks ?? [];
+    const authorNames = await loadUserDisplayNameMap(
+      prisma,
+      remarks.map((row) => row.author_user_id)
+    );
+
+    const model = composeApplicationSummary({
+      application: application as ComposeApplicationSummaryInput["application"],
+      logs,
+      authorNames,
+      generatedAt: new Date(),
+    });
+    const html = buildApplicationSummaryHtml(model);
+    const buffer = await renderApplicationSummaryHtmlToPdfBuffer(html);
+    return { buffer, filename: model.filename };
   }
 }
 

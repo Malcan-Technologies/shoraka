@@ -35,6 +35,8 @@ export interface ProspectusDatesPaymasterInput {
   listingClosesAt: Date | string | null | undefined;
   /** notes.maturity_date */
   maturityDate: Date | string | null | undefined;
+  /** notes.tenure_days — stored tenure for new notes */
+  tenureDays?: number | null;
   /** notes.paymaster_snapshot.name */
   paymasterName: string | null | undefined;
   /** notes.paymaster_snapshot.entity_type */
@@ -71,18 +73,21 @@ export const PROSPECTUS_DATES_PAYMASTER_FIELD_SOURCES: Record<
   },
   maturityDate: {
     label: "Maturity date",
-    canonicalSource: "notes.maturity_date",
+    canonicalSource:
+      "notes.maturity_date when set; else notes.tenure_days (“{n} days from disbursement”)",
     availability: "stored",
     possibleAlternatives: "Invoice.details.maturity_date; payment schedule due_date — not used",
-    notes: "Date-only source field. Prefer maturityDateWithTenure for Canva-facing meta.",
+    notes:
+      "Activated tenure notes and legacy notes use notes.maturity_date. New notes before disbursement show stored tenure from disbursement.",
   },
   tenure: {
     label: "Tenure",
-    canonicalSource: "calculateCalendarDayCount(note_listings.opens_at, notes.maturity_date)",
+    canonicalSource:
+      "notes.tenure_days when set; else calculateCalendarDayCount(note_listings.opens_at, notes.maturity_date)",
     availability: "calculated",
     possibleAlternatives:
       "resolveMarketplaceDaysToMaturity (days left); activated_at→maturity profitDays — not used",
-    notes: "UTC whole calendar days via buildProspectusTenureAndMaturity.",
+    notes: "Stored tenure_days for new notes; legacy notes keep opens_at → maturity_date.",
   },
   maturityDateWithTenure: {
     label: "Maturity date (with tenure)",

@@ -13,8 +13,13 @@ import {
   FACILITY_FEE_RATE_MAX_PERCENT,
   FEE_SCHEDULE_MAX_ADDITIONAL_LINES,
   FEE_SCHEDULE_MAX_NAME_LENGTH,
+  FINANCING_TENURE_MAX_DAYS,
+  FINANCING_TENURE_MIN_DAYS,
+  FINANCING_TENURE_STEP_DAYS,
   INVOICE_OFFER_FEE_SCHEDULE_WRITE_MODES,
+  MAX_INVOICE_FINANCING_RATIO_PERCENT,
   isNoteMoneyAmount,
+  isValidFinancingTenureDays,
   validateAdditionalFeeLines,
   type ReviewItemType,
 } from "@cashsouk/types";
@@ -504,6 +509,14 @@ export const sendContractOfferSchema = z.object({
     })
     .optional()
     .nullable(),
+  facilityFeeUpfrontCollectAmount: z.coerce
+    .number()
+    .min(0)
+    .refine((v) => isNoteMoneyAmount(v), {
+      message: "Upfront facility fee can have up to 2 decimal places",
+    })
+    .optional()
+    .default(0),
 });
 
 export const patchContractCustomerLargePrivateSchema = z.object({
@@ -519,10 +532,24 @@ const additionalFeeLineSchema = z.object({
 export const sendInvoiceOfferSchema = z
   .object({
     offeredAmount: z.coerce.number().positive("Offered amount must be greater than 0"),
-    offeredRatioPercent: z.coerce.number().min(0).max(100).optional().nullable(),
+    offeredRatioPercent: z.coerce
+      .number()
+      .min(0)
+      .max(MAX_INVOICE_FINANCING_RATIO_PERCENT)
+      .optional()
+      .nullable(),
     offeredProfitRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
     platformFeeRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
     risk_rating: z.enum(SOUKSCORE_RISK_RATING_GRADES),
+    financingTenureDays: z.coerce
+      .number({
+        required_error: "Financing tenure is required.",
+        invalid_type_error: "Financing tenure must be a whole number of days.",
+      })
+      .int("Financing tenure must be a whole number of days.")
+      .refine(isValidFinancingTenureDays, {
+        message: `Financing tenure must be between ${FINANCING_TENURE_MIN_DAYS} and ${FINANCING_TENURE_MAX_DAYS} days in ${FINANCING_TENURE_STEP_DAYS}-day steps.`,
+      }),
     feeScheduleMode: z.enum(INVOICE_OFFER_FEE_SCHEDULE_WRITE_MODES).optional(),
     facilityFeeCollectAmount: z.coerce.number().min(0).optional().default(0),
     additionalFees: z.array(additionalFeeLineSchema).max(FEE_SCHEDULE_MAX_ADDITIONAL_LINES).optional().default([]),

@@ -4,10 +4,7 @@ import {
   NotificationPriority,
 } from "@prisma/client";
 
-const BOTH_PORTALS = [
-  NotificationPortalTarget.INVESTOR,
-  NotificationPortalTarget.ISSUER,
-];
+const BOTH_PORTALS = [NotificationPortalTarget.INVESTOR, NotificationPortalTarget.ISSUER];
 const ISSUER_ONLY = [NotificationPortalTarget.ISSUER];
 const INVESTOR_ONLY = [NotificationPortalTarget.INVESTOR];
 
@@ -24,41 +21,8 @@ export const initialNotificationTypes = [
     enabled_platform: true,
     enabled_email: true,
   },
-  {
-    id: "login_new_device",
-    name: "Login from New Device",
-    description: "Sent when a login is detected from a device or location we don't recognize.",
-    category: NotificationCategory.AUTHENTICATION,
-    portal_targets: BOTH_PORTALS,
-    default_priority: NotificationPriority.WARNING,
-    user_configurable: true,
-    enabled_platform: true,
-    enabled_email: true,
-  },
 
   // System / Onboarding
-  {
-    id: "kyc_approved",
-    name: "KYC Approved",
-    description: "Sent when your identity verification has been approved.",
-    category: NotificationCategory.SYSTEM,
-    portal_targets: BOTH_PORTALS,
-    default_priority: NotificationPriority.INFO,
-    user_configurable: false,
-    enabled_platform: true,
-    enabled_email: true,
-  },
-  {
-    id: "kyc_rejected",
-    name: "KYC Rejected",
-    description: "Sent when your identity verification has been rejected.",
-    category: NotificationCategory.SYSTEM,
-    portal_targets: BOTH_PORTALS,
-    default_priority: NotificationPriority.WARNING,
-    user_configurable: false,
-    enabled_platform: true,
-    enabled_email: true,
-  },
   {
     id: "onboarding_approved",
     name: "Onboarding Approved",
@@ -129,17 +93,6 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.WARNING,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
-  },
-  {
-    id: "application_approved",
-    name: "Application Approved",
-    description: "Sent when your application is approved.",
-    category: NotificationCategory.SYSTEM,
-    portal_targets: ISSUER_ONLY,
-    default_priority: NotificationPriority.INFO,
-    user_configurable: true,
-    enabled_platform: true,
     enabled_email: true,
   },
   {
@@ -184,7 +137,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.INFO,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "offer_expired",
@@ -218,7 +171,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.INFO,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "application_withdrawn_confirmation",
@@ -229,7 +182,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.INFO,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "application_completed",
@@ -240,7 +193,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.INFO,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "director_shareholder_action_required",
@@ -275,7 +228,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.INFO,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "note_funding_succeeded",
@@ -286,7 +239,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.INFO,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "note_funding_failed_issuer",
@@ -297,7 +250,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.WARNING,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "note_funding_failed_investor",
@@ -308,7 +261,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.WARNING,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "note_active_issuer",
@@ -319,7 +272,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.INFO,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "note_active_investor",
@@ -330,7 +283,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.INFO,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "note_repaid_issuer",
@@ -341,7 +294,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.INFO,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "note_payment_received",
@@ -352,7 +305,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.INFO,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "note_settlement_posted",
@@ -363,7 +316,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.INFO,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "note_arrears",
@@ -374,7 +327,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.WARNING,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "note_arrears_investor",
@@ -385,7 +338,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.WARNING,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "note_defaulted",
@@ -396,7 +349,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.CRITICAL,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "note_defaulted_investor",
@@ -407,7 +360,7 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.CRITICAL,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
   },
   {
     id: "withdrawal_submitted_to_trustee",
@@ -418,6 +371,53 @@ export const initialNotificationTypes = [
     default_priority: NotificationPriority.INFO,
     user_configurable: true,
     enabled_platform: true,
-    enabled_email: false,
+    enabled_email: true,
+  },
+  {
+    id: "facility_fee_payment_requested",
+    name: "Upfront facility fee payment required",
+    description:
+      "Sent after you accept a facility offer that requires an upfront facility fee gateway payment.",
+    category: NotificationCategory.SYSTEM,
+    portal_targets: ISSUER_ONLY,
+    default_priority: NotificationPriority.WARNING,
+    user_configurable: true,
+    enabled_platform: true,
+    enabled_email: true,
+  },
+  {
+    id: "facility_fee_upfront_paid",
+    name: "Upfront facility fee paid",
+    description: "Sent once when the upfront facility fee on a facility has been paid in full.",
+    category: NotificationCategory.SYSTEM,
+    portal_targets: ISSUER_ONLY,
+    default_priority: NotificationPriority.INFO,
+    user_configurable: true,
+    enabled_platform: true,
+    enabled_email: true,
+  },
+  {
+    id: "excess_late_charges_due",
+    name: "Outstanding late charges to pay",
+    description:
+      "Sent after a settlement is posted with late charges that did not fit into the repayment.",
+    category: NotificationCategory.SYSTEM,
+    portal_targets: ISSUER_ONLY,
+    default_priority: NotificationPriority.WARNING,
+    user_configurable: true,
+    enabled_platform: true,
+    enabled_email: true,
+  },
+  {
+    id: "excess_late_charges_paid",
+    name: "Late payment charges received",
+    description:
+      "Sent once when separately collected late charges on a note have been paid in full.",
+    category: NotificationCategory.SYSTEM,
+    portal_targets: ISSUER_ONLY,
+    default_priority: NotificationPriority.INFO,
+    user_configurable: true,
+    enabled_platform: true,
+    enabled_email: true,
   },
 ];

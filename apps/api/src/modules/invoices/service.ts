@@ -30,6 +30,7 @@ import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { ProductRepository } from "../products/repository";
 import { assertMaturityForApplication } from "../products/validate-financial-config";
+import { assertInvoiceFinancingTenure } from "../../lib/financing-tenure-guard";
 import { shouldPreserveApplicationDocumentsInS3 } from "../applications/amendment-preserve-s3";
 import {
   allocateDisplayReference,
@@ -283,6 +284,7 @@ export class InvoiceService {
     if (workflow) {
       assertMaturityForApplication(workflow, details as Record<string, unknown>);
     }
+    assertInvoiceFinancingTenure(details as Record<string, unknown>);
 
     const s3Key = details?.document?.s3_key;
 
@@ -447,6 +449,9 @@ export class InvoiceService {
     if (workflow) {
       assertMaturityForApplication(workflow, updatedDetails as Record<string, unknown>);
     }
+    assertInvoiceFinancingTenure(updatedDetails as Record<string, unknown>, new Date(), {
+      allowLegacyMissing: true,
+    });
 
     const effectiveContractId =
       contractId !== undefined

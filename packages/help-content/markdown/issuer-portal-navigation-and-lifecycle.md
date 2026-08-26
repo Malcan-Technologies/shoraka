@@ -10,7 +10,7 @@ tags:
   - financing
   - notes
 order: 7
-updated: 2026-08-21
+updated: 2026-08-24
 ---
 
 ## The lifecycle in one picture
@@ -95,6 +95,7 @@ Each row is one invoice you have financed. You can review an offer, see how much
 
 - **Review Invoice Offer** is the same offer as on Applications — it still opens the application Offer tab.
 - Open **View details** to see funding, repayment, and settlement.
+- Separately billed late charges show as **Action required**. Pay them with FPX. This does not block investor settlement.
 
 The longer guide is **From Approved Application to Repayment**.
 
@@ -105,7 +106,8 @@ A few flows you will use often:
 - **Start a new financing request** — Dashboard **Apply for financing** button, or **Applications** > **Apply for financing**.
 - **Resume a draft** — **Applications** > open the draft card > **Edit Application**.
 - **Review a facility offer** — **Applications** > card > **Review Facility Offer**, or **Financing** > Facilities > **Review Facility Offer**. Both open the same application Offer tab; Financing does not host a second review.
-- **Review an invoice offer** — **Applications** > card > **Review Invoice Offer**, or **Financing** > Invoices > **Review Invoice Offer**. Both open the same application Offer tab; Financing does not host a second review.
+- **Review an invoice offer** — **Applications** > card > **Review Invoice Offer**, or **Financing** > Invoices > **Review Invoice Offer**. Both open the same application Offer tab; Financing does not host a second review. An invoice on an approved facility requires both confirmations and the full authorisation to be confirmed, and needs a verification code emailed to a director or authorised signatory — see **Get Financed**.
+- **Download an application summary** — open the application and use **Download application summary**, or open the note after listing and use the same action there.
 - **Make amendments** — Dashboard **Recent applications** > row, or **Applications** > card > **Make Amendments**, or follow an **Action required** pill from a card in **Financing**.
 - **Check a facility** — **Financing** > **Facilities** tab > **View details**.
 - **Open a funded invoice** — **Financing** > **Invoices** tab > the row, or **View details**.

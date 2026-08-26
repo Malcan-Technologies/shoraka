@@ -16,6 +16,7 @@ function base(overrides: Partial<GatewayPaymentDetailDto> = {}): GatewayPaymentD
     investorOrganizationName: "Test",
     issuerOrganizationId: null,
     issuerOrganizationName: null,
+    contractId: null,
     curlecOrderId: "order",
     curlecPaymentId: "pay",
     settlementId: null,
@@ -45,6 +46,16 @@ describe("getGatewayPaymentDetailVisibility", () => {
     expect(
       getGatewayPaymentDetailVisibility(
         base({ purpose: "ISSUER_ONBOARDING_FEE", organizationType: "ISSUER" })
+      ).showInitiateRefund
+    ).toBe(false);
+    expect(
+      getGatewayPaymentDetailVisibility(
+        base({
+          purpose: "FACILITY_FEE",
+          organizationType: "ISSUER",
+          gatewayAccount: "OPERATING",
+          contractId: "con-1",
+        })
       ).showInitiateRefund
     ).toBe(false);
   });

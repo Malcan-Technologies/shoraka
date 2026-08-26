@@ -9,6 +9,9 @@ import { ReasonConfirmDialog } from "@/components/reason-confirm-dialog";
 import { useWaiveNoteFacilityFeeCollection } from "@/notes/hooks/use-notes";
 import {
   canWaiveNoteFacilityFeeCollection,
+  noteFacilityFeeCollectionWaiverButtonLabel,
+  noteFacilityFeeCollectionWaiverConfirmDescription,
+  noteFacilityFeeCollectionWaiverHelp,
   noteFacilityFeeCollectionWaiverLabel,
 } from "@/notes/utils/note-facility-fee-actions";
 
@@ -48,11 +51,10 @@ export function NoteFacilityFeeWaiverPanel({
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-ui font-medium">Facility fee collection</p>
           {waivedLabel ? (
-            <p className="text-sm text-muted-foreground">{waivedLabel} Visible to the issuer.</p>
+            <p className="text-ui text-muted-foreground">{waivedLabel} Visible to the issuer.</p>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              Waive this note&apos;s frozen facility-fee collection before funding closes. The issuer
-              can see the waived state.
+            <p className="text-ui text-muted-foreground">
+              {noteFacilityFeeCollectionWaiverHelp(note)}
             </p>
           )}
         </div>
@@ -69,7 +71,7 @@ export function NoteFacilityFeeWaiverPanel({
             setOpen(true);
           }}
         >
-          Waive facility fee collection
+          {noteFacilityFeeCollectionWaiverButtonLabel(note)}
         </Button>
       ) : null}
       <ReasonConfirmDialog
@@ -78,7 +80,7 @@ export function NoteFacilityFeeWaiverPanel({
           if (!next && !waive.isPending) setOpen(false);
         }}
         title="Waive this note's facility fee collection?"
-        description="This note will not collect the frozen facility fee at disbursement. The remainder stays on the facility. A reason is required and is visible to the issuer."
+        description={noteFacilityFeeCollectionWaiverConfirmDescription(note)}
         confirmLabel="Waive collection"
         pending={waive.isPending}
         reason={reason}

@@ -1,5 +1,4 @@
-import type { ApplicationListItem, Product } from "@cashsouk/types";
-import { APPLICATION_ACTION_REQUIRED_STATUS_SET } from "@/applications/action-required-statuses";
+import type { ApplicationNavCountItem, Product } from "@cashsouk/types";
 import { productName } from "@/app/settings/products/product-utils";
 
 export type ApplicationNavGroup = {
@@ -18,9 +17,24 @@ export function applicationsSidebarProductLabel(title: string): string {
   return t;
 }
 
+function sumCountsForKeys(
+  navCounts: ApplicationNavCountItem[],
+  keys: Iterable<string>
+): { total: number; actionRequired: number } {
+  const keySet = new Set(keys);
+  let total = 0;
+  let actionRequired = 0;
+  for (const item of navCounts) {
+    if (!keySet.has(item.baseProductId)) continue;
+    total += item.total;
+    actionRequired += item.actionRequired;
+  }
+  return { total, actionRequired };
+}
+
 export function buildApplicationSidebarGroups(
   products: Product[],
-  applications: ApplicationListItem[]
+  navCounts: ApplicationNavCountItem[]
 ): ApplicationNavGroup[] {
   const byBase = new Map<string, Product[]>();
   for (const p of products) {
@@ -31,42 +45,43 @@ export function buildApplicationSidebarGroups(
   }
 
   const groups: ApplicationNavGroup[] = [];
+  const consumedCountKeys = new Set<string>();
 
   for (const [, versions] of byBase) {
     const sorted = [...versions].sort((a, b) => a.version - b.version);
     const display =
-      [...sorted].reverse().find((p) => (p.status ?? "ACTIVE") === "ACTIVE") ?? sorted[sorted.length - 1];
+      [...sorted].reverse().find((p) => (p.status ?? "ACTIVE") === "ACTIVE") ??
+      sorted[sorted.length - 1];
     if (!display) continue;
     const baseKey = (display.base_id ?? display.id) as string;
-    const appsFor = applications.filter((a) => (a.baseProductId ?? "") === baseKey);
-    const pendingActionCount = appsFor.filter((a) =>
-      APPLICATION_ACTION_REQUIRED_STATUS_SET.has(a.status)
-    ).length;
+    const countKeys = [baseKey, ...versions.map((p) => p.id)];
+    const counts = sumCountsForKeys(navCounts, countKeys);
     const isLive = (display.status ?? "ACTIVE") === "ACTIVE";
-    if (!isLive && appsFor.length === 0) continue;
+    if (!isLive && counts.total === 0) continue;
+
+    for (const key of countKeys) consumedCountKeys.add(key);
 
     groups.push({
       baseKey,
       productTitle: productName(display),
       queuePath: `/applications/${baseKey}`,
       isInactive: !isLive,
-      pendingActionCount,
+      pendingActionCount: counts.actionRequired,
     });
   }
 
   const basesBuilt = new Set(groups.map((g) => g.baseKey));
-  for (const baseKey of new Set(
-    applications.map((a) => a.baseProductId).filter((x): x is string => Boolean(x))
-  )) {
-    if (basesBuilt.has(baseKey)) continue;
-    const appsFor = applications.filter((a) => a.baseProductId === baseKey);
-    if (appsFor.length === 0) continue;
+  for (const counts of navCounts) {
+    if (basesBuilt.has(counts.baseProductId) || consumedCountKeys.has(counts.baseProductId)) {
+      continue;
+    }
+    if (counts.total === 0) continue;
     groups.push({
-      baseKey,
-      productTitle: appsFor[0]?.financingTypeLabel ?? "Product",
-      queuePath: `/applications/${baseKey}`,
+      baseKey: counts.baseProductId,
+      productTitle: counts.financingTypeLabel || "Product",
+      queuePath: `/applications/${counts.baseProductId}`,
       isInactive: true,
-      pendingActionCount: appsFor.filter((a) => APPLICATION_ACTION_REQUIRED_STATUS_SET.has(a.status)).length,
+      pendingActionCount: counts.actionRequired,
     });
   }
 
@@ -85,4 +100,11 @@ export function activeProductPendingActionTotal(groups: ApplicationNavGroup[]): 
 
 export function activeProductBaseKeySet(groups: ApplicationNavGroup[]): Set<string> {
   return new Set(groups.filter((g) => !g.isInactive).map((g) => g.baseKey));
+}
+
+export function firstActiveActionQueuePath(groups: ApplicationNavGroup[]): string | null {
+  const withActions = groups.find((g) => !g.isInactive && g.pendingActionCount > 0);
+  if (withActions) return withActions.queuePath;
+  const firstActive = groups.find((g) => !g.isInactive);
+  return firstActive?.queuePath ?? null;
 }

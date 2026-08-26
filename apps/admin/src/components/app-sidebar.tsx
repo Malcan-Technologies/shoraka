@@ -51,7 +51,7 @@ import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 import { useGatewayPaymentsExceptionCount } from "@/hooks/use-gateway-payments";
 import { useGatewayReconPendingCount } from "@/hooks/use-gateway-recon";
 import { useProducts } from "@/hooks/use-products";
-import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
+import { useApplicationNavCounts } from "@/hooks/use-application-nav-counts";
 import {
   useNoteActionRequiredCount,
   usePendingInvestorWithdrawals,
@@ -445,7 +445,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     enabled: canViewApplications,
   });
 
-  const { data: applicationsForSidebar = [] } = useAdminApplicationsForSidebar({
+  const { data: navCountsData } = useApplicationNavCounts({
     enabled: canViewApplications,
   });
 
@@ -490,13 +490,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           ...item,
           applicationNavGroups: buildApplicationSidebarGroups(
             productsData?.products ?? [],
-            applicationsForSidebar
+            navCountsData?.products ?? []
           ),
         };
       }
       return item;
     });
-  }, [productsData, applicationsForSidebar]);
+  }, [productsData, navCountsData]);
 
   const hasVisibleLifecycleNav = dynamicNavLifecycle.some((item) => {
     return (

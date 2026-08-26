@@ -52,7 +52,9 @@ import { useDevTools } from "@/app/(application-flow)/applications/components/de
 import { FinancingStructureSkeleton } from "@/app/(application-flow)/applications/components/financing-structure-skeleton";
 import { EXISTING_CONTRACT_PREFILL_STORAGE_KEY } from "@/lib/finance-invoice-application-href";
 import { formatMoney, StatusBadge } from "@cashsouk/ui";
+import { FacilityFeeDrawdownBlockedNotice } from "@/components/financing/facility-fee-drawdown-blocked";
 import { resolveIssuerFacilityGate } from "@/lib/facility-enabled";
+import { facilityFeeContractHref } from "@/lib/facility-fee-payment-ui";
 import {
   goalRadioTabIndex,
   resolveGoalRadioTabStopId,
@@ -245,7 +247,12 @@ export function FinancingStructureStep({
         resolveIssuerFacilityGate({
           contractDetails: approvedContracts.find((c: Contract) => c.id === selectedContractId)
             ?.contract_details,
-        }).enabled);
+          contractStatus: approvedContracts.find((c: Contract) => c.id === selectedContractId)
+            ?.status,
+          facilityFeeUpfrontOutstanding: approvedContracts.find(
+            (c: Contract) => c.id === selectedContractId
+          )?.facilityFeeUpfrontOutstanding,
+        }).canStartDrawdown);
     const isValid =
       selectedStructure !== "existing_contract" ||
       (selectedContractId !== "" && selectedFacilityEnabled);
@@ -326,8 +333,9 @@ export function FinancingStructureStep({
     const gate = resolveIssuerFacilityGate({
       contractDetails: contract?.contract_details,
       contractStatus: contract?.status,
+      facilityFeeUpfrontOutstanding: contract?.facilityFeeUpfrontOutstanding,
     });
-    if (!gate.enabled) return;
+    if (!gate.enabled || gate.requiresFacilityFeePayment) return;
     setSelectedContractId(contractId);
     setFromPrefill(false);
 
@@ -489,13 +497,15 @@ export function FinancingStructureStep({
                           const gate = resolveIssuerFacilityGate({
                             contractDetails: contract.contract_details,
                             contractStatus: contract.status,
+                            facilityFeeUpfrontOutstanding: contract.facilityFeeUpfrontOutstanding,
                           });
                           const title = contract.contract_details?.title ?? "Untitled facility";
+                          const blocked = !gate.enabled || gate.requiresFacilityFeePayment;
                           return (
                             <SelectItem
                               key={contract.id}
                               value={contract.id}
-                              disabled={!gate.enabled}
+                              disabled={blocked}
                               textValue={title}
                             >
                               <span className="flex min-w-0 flex-col">
@@ -504,6 +514,10 @@ export function FinancingStructureStep({
                                   <span className="text-meta leading-5 text-muted-foreground">
                                     Disabled
                                     {gate.disabledReason ? ` — ${gate.disabledReason}` : ""}
+                                  </span>
+                                ) : gate.requiresFacilityFeePayment ? (
+                                  <span className="text-meta leading-5 text-muted-foreground">
+                                    Pay the upfront facility fee to start drawdowns
                                   </span>
                                 ) : null}
                               </span>
@@ -518,7 +532,16 @@ export function FinancingStructureStep({
                           const selectedGate = resolveIssuerFacilityGate({
                             contractDetails: selectedFacility.contract_details,
                             contractStatus: selectedFacility.status,
+                            facilityFeeUpfrontOutstanding:
+                              selectedFacility.facilityFeeUpfrontOutstanding,
                           });
+                          if (selectedGate.requiresFacilityFeePayment) {
+                            return (
+                              <FacilityFeeDrawdownBlockedNotice
+                                href={facilityFeeContractHref(selectedFacility.id)}
+                              />
+                            );
+                          }
                           if (selectedGate.enabled) return null;
                           return (
                             <p className="text-ui text-status-action-text" role="status">

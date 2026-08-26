@@ -17,6 +17,10 @@ export function resolveGatewayAccountForPurpose(
       return CurlecGatewayAccount.OPERATING;
     case GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE:
       return CurlecGatewayAccount.OPERATING;
+    case GatewayPaymentPurpose.FACILITY_FEE:
+      return CurlecGatewayAccount.OPERATING;
+    case GatewayPaymentPurpose.EXCESS_LATE_CHARGES:
+      return CurlecGatewayAccount.OPERATING;
     case GatewayPaymentPurpose.INVESTOR_DEPOSIT:
       return CurlecGatewayAccount.INVESTOR_POOL;
     default:

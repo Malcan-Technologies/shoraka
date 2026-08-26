@@ -14,6 +14,8 @@ import { buildAdminPeopleList } from "../admin/build-people-list";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { NotificationService } from "./service";
+import { sendTypedSafe } from "./send-typed-safe";
+import { systemNotificationLogKey } from "./delivery-log";
 import { NotificationTypeIds, type NotificationTypeId } from "./registry";
 
 type SupplementRow = { party_key: string; onboarding_json: unknown };
@@ -82,8 +84,15 @@ async function sendDirectorShareholderActionRequiredAfterOrgCtosReportInsert(par
   buildSendPayload: (partyKey: string, personName?: string) => Record<string, unknown>;
   createdLogMessage: string;
 }): Promise<void> {
-  const { context, organizationId, portal, notificationTypeId, idempotencyKeyForParty, buildSendPayload, createdLogMessage } =
-    params;
+  const {
+    context,
+    organizationId,
+    portal,
+    notificationTypeId,
+    idempotencyKeyForParty,
+    buildSendPayload,
+    createdLogMessage,
+  } = params;
   const {
     ownerUserId,
     beforeCompanyJson,
@@ -118,14 +127,16 @@ async function sendDirectorShareholderActionRequiredAfterOrgCtosReportInsert(par
   const { visible: beforeVisible } = computeVisiblePeopleState(beforeInput);
   const { visible: afterVisible } = computeVisiblePeopleState(afterInput);
 
-  const newPeopleWithoutOnboarding = computeNewIssuerDirectorShareholderIndividualsAfterCtosVisibleDiff({
-    beforeVisibleIndividuals: beforeVisible,
-    afterVisibleIndividuals: afterVisible,
-    issuerDirectorKycStatus: directorKycStatus,
-    issuerDirectorAmlStatus: directorAmlStatus,
-    ctosPartySupplements: supplements.map((s) => ({ party_key: s.partyKey })),
-  });
-  const shouldTriggerNotification = afterVisible.length > 0 && newPeopleWithoutOnboarding.length > 0;
+  const newPeopleWithoutOnboarding =
+    computeNewIssuerDirectorShareholderIndividualsAfterCtosVisibleDiff({
+      beforeVisibleIndividuals: beforeVisible,
+      afterVisibleIndividuals: afterVisible,
+      issuerDirectorKycStatus: directorKycStatus,
+      issuerDirectorAmlStatus: directorAmlStatus,
+      ctosPartySupplements: supplements.map((s) => ({ party_key: s.partyKey })),
+    });
+  const shouldTriggerNotification =
+    afterVisible.length > 0 && newPeopleWithoutOnboarding.length > 0;
 
   logger.debug(
     {
@@ -155,6 +166,8 @@ async function sendDirectorShareholderActionRequiredAfterOrgCtosReportInsert(par
   }
 
   const notificationService = new NotificationService();
+  const results: Array<Awaited<ReturnType<NotificationService["sendTyped"]>>> = [];
+  let firstPayload: Record<string, unknown> | null = null;
   for (const person of newPeopleWithoutOnboarding) {
     const partyKey = normalizeDirectorShareholderIdKey(person.matchKey);
     if (!partyKey) continue;
@@ -169,13 +182,34 @@ async function sendDirectorShareholderActionRequiredAfterOrgCtosReportInsert(par
       );
       continue;
     }
-    await notificationService.sendTyped(
+    const payload = buildSendPayload(partyKey, person.name ?? undefined);
+    if (!firstPayload) firstPayload = payload;
+    const notification = await sendTypedSafe(
+      notificationService,
       ownerUserId,
       notificationTypeId,
-      buildSendPayload(partyKey, person.name ?? undefined) as never,
+      payload as never,
       idempotencyKey
     );
-    logger.info({ organizationId, portal, newCtosReportId, ownerUserId, partyKey }, createdLogMessage);
+    results.push(notification);
+    logger.info(
+      { organizationId, portal, newCtosReportId, ownerUserId, partyKey },
+      createdLogMessage
+    );
+  }
+  if (firstPayload) {
+    await notificationService.logTypedSystemBatch(
+      notificationTypeId,
+      firstPayload as never,
+      results,
+      {
+        idempotencyKey: systemNotificationLogKey(
+          notificationTypeId,
+          `ds_action_required:${portal}:${organizationId}:${newCtosReportId}`
+        ),
+        metadata: { organizationId, portal, newCtosReportId, attempted: results.length },
+      }
+    );
   }
 }
 
@@ -243,14 +277,28 @@ export async function notifyIssuerDirectorShareholderActionRequired(params: {
   }
 
   const notificationService = new NotificationService();
-  await notificationService.sendTyped(
+  const payload = {
+    issuerOrganizationId: params.issuerOrganizationId,
+    partyKey: pk,
+    personName: params.personName ?? undefined,
+    link: "/profile",
+  };
+  const notification = await sendTypedSafe(
+    notificationService,
     params.ownerUserId,
     NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+    payload,
+    `ds_action_required:${params.issuerOrganizationId}:${pk}`
+  );
+  await notificationService.logTypedSystemBatch(
+    NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+    payload,
+    [notification],
     {
-      issuerOrganizationId: params.issuerOrganizationId,
-      partyKey: pk,
-      personName: params.personName ?? undefined,
-      link: "/profile",
+      idempotencyKey: systemNotificationLogKey(
+        NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+        `ds_action_required:${params.issuerOrganizationId}:${pk}`
+      ),
     }
   );
 }

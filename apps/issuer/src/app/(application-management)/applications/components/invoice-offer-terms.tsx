@@ -10,6 +10,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  formatFinancingTenureFromDisbursement,
+  INVOICE_OFFER_INDICATIVE_PAYABLE_TOOLTIP,
+  INVOICE_OFFER_INDICATIVE_PROFIT_TOOLTIP,
+} from "@cashsouk/types";
 import type { InvoiceFeeDisplay } from "@/lib/facility-fee-display";
 import { buildInvoiceOfferMoneyRows } from "./invoice-offer-money-rows";
 
@@ -59,7 +64,12 @@ export function InvoiceOfferTerms({
   invoiceNumber,
   invoiceValue,
   maturityDate,
+  financingTenureDays,
   profitRate,
+  riskRating,
+  financingMarginPercent,
+  indicativeProfit,
+  indicativeAmountPayable,
   requestedFinancing,
   approvedFinancing,
   includeFacilityFee,
@@ -69,7 +79,12 @@ export function InvoiceOfferTerms({
   invoiceNumber: string;
   invoiceValue: number | null;
   maturityDate: string | null;
+  financingTenureDays: number | null;
   profitRate: string;
+  riskRating?: string | null;
+  financingMarginPercent?: number | null;
+  indicativeProfit?: number | null;
+  indicativeAmountPayable?: number | null;
   requestedFinancing: number | null;
   approvedFinancing: number | null;
   includeFacilityFee: boolean;
@@ -100,8 +115,16 @@ export function InvoiceOfferTerms({
         </div>
         {maturityDate ? (
           <div className="space-y-1">
-            <dt className="text-muted-foreground">Maturity date</dt>
+            <dt className="text-muted-foreground">Invoice due date</dt>
             <dd className="font-medium tabular-nums">{maturityDate}</dd>
+          </div>
+        ) : null}
+        {financingTenureDays != null ? (
+          <div className="space-y-1">
+            <dt className="text-muted-foreground">Financing tenure</dt>
+            <dd className="font-medium tabular-nums">
+              {formatFinancingTenureFromDisbursement(financingTenureDays)}
+            </dd>
           </div>
         ) : null}
         <div className="space-y-1">
@@ -114,6 +137,42 @@ export function InvoiceOfferTerms({
           </dt>
           <dd className="font-medium tabular-nums">{profitRate}</dd>
         </div>
+        {riskRating ? (
+          <div className="space-y-1">
+            <dt className="text-muted-foreground">Risk rating</dt>
+            <dd className="font-medium tabular-nums">{riskRating}</dd>
+          </div>
+        ) : null}
+        {financingMarginPercent != null && Number.isFinite(financingMarginPercent) ? (
+          <div className="space-y-1">
+            <dt className="text-muted-foreground">Financing margin</dt>
+            <dd className="font-medium tabular-nums">{financingMarginPercent}%</dd>
+          </div>
+        ) : null}
+        {indicativeProfit != null ? (
+          <div className="space-y-1">
+            <dt className="inline-flex items-center gap-1 text-muted-foreground">
+              Indicative profit
+              <InfoTooltip
+                content={INVOICE_OFFER_INDICATIVE_PROFIT_TOOLTIP}
+                iconClassName="h-3.5 w-3.5 shrink-0"
+              />
+            </dt>
+            <dd className="font-medium tabular-nums">{formatCurrency(indicativeProfit)}</dd>
+          </div>
+        ) : null}
+        {indicativeAmountPayable != null ? (
+          <div className="space-y-1">
+            <dt className="inline-flex items-center gap-1 text-muted-foreground">
+              Indicative amount payable
+              <InfoTooltip
+                content={INVOICE_OFFER_INDICATIVE_PAYABLE_TOOLTIP}
+                iconClassName="h-3.5 w-3.5 shrink-0"
+              />
+            </dt>
+            <dd className="font-medium tabular-nums">{formatCurrency(indicativeAmountPayable)}</dd>
+          </div>
+        ) : null}
       </dl>
 
       <div className="overflow-hidden rounded-xl border">

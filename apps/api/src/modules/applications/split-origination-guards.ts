@@ -4,6 +4,7 @@ import {
   isLegacyCombinedNewContract,
   readFinancingStructureType,
 } from "@cashsouk/types";
+import { assertFacilityFeeUpfrontSettled } from "../../lib/facility-fee-upfront-guard";
 import { AppError } from "../../lib/http/error-handler";
 
 export type OriginationGuardApplication = {
@@ -73,6 +74,7 @@ export function assertExistingFacilityDrawdown(
     );
   }
   assertFacilityIsEnabled(contract);
+  assertFacilityFeeUpfrontSettled(contract.contract_details);
 }
 
 export function assertApplicationSubmitOrigination(input: {

@@ -14,8 +14,10 @@ import {
   parseFacilityAmount,
   resolveAdminReviewFacilityOccupancy,
   canWaiveContractFacilityFee,
+  resolveContractFacilityFeeCap,
   resolveContractFacilityFeeCollected,
   resolveContractFacilityFeeLedger,
+  resolveContractFacilityFeeWaitingNote,
   resolveContractFacilityMetrics,
   resolvePendingFacilityFromSnapshot,
   sumPendingInvoiceFacility,
@@ -302,6 +304,19 @@ describe("resolveAdminReviewFacilityOccupancy", () => {
   });
 });
 
+describe("resolveContractFacilityFeeCap", () => {
+  it("rounds the rate cap with canonical note money so header and ledger match", () => {
+    expect(resolveContractFacilityFeeCap(12_345, 0.07)).toBe(8.64);
+    expect(12_345 * (0.07 / 100)).not.toBe(8.64);
+    const ledger = resolveContractFacilityFeeLedger({
+      approved: 12_345,
+      contractDetails: { facility_fee_rate_percent: 0.07 },
+    });
+    expect(ledger.owed).toBe(8.64);
+    expect(resolveContractFacilityFeeCap(12_345, 0.07)).toBe(ledger.owed);
+  });
+});
+
 describe("resolveContractFacilityFeeCollected", () => {
   it("formats paid versus the rate cap on the approved line", () => {
     expect(
@@ -346,8 +361,58 @@ describe("resolveContractFacilityFeeLedger", () => {
       remaining: 700,
       enabled: true,
       waivedAtContract: false,
+      upfrontRequested: 0,
+      paidTowardUpfront: 0,
+      upfrontOutstanding: 0,
     });
     expect(canWaiveContractFacilityFee(ledger)).toBe(true);
+  });
+
+  it("splits upfront requested, paid toward upfront, and outstanding from shared helpers", () => {
+    const ledger = resolveContractFacilityFeeLedger({
+      approved: 200_000,
+      contractDetails: {
+        facility_fee_rate_percent: 1,
+        facility_fee_total_amount: 2_000,
+        facility_fee_upfront_amount: 1_500,
+        facility_fee_paid_amount: 400,
+      },
+    });
+    expect(ledger).toMatchObject({
+      owed: 2_000,
+      charged: 400,
+      upfrontRequested: 1_500,
+      paidTowardUpfront: 400,
+      upfrontOutstanding: 1_100,
+      remaining: 1_600,
+    });
+  });
+
+  it("caps paid toward upfront at the requested upfront amount", () => {
+    const ledger = resolveContractFacilityFeeLedger({
+      approved: 200_000,
+      contractDetails: {
+        facility_fee_rate_percent: 1,
+        facility_fee_total_amount: 2_000,
+        facility_fee_upfront_amount: 400,
+        facility_fee_paid_amount: 1_250,
+      },
+    });
+    expect(ledger.paidTowardUpfront).toBe(400);
+    expect(ledger.upfrontOutstanding).toBe(0);
+  });
+
+  it("explains a waiting issuer payment when upfront is outstanding", () => {
+    expect(
+      resolveContractFacilityFeeWaitingNote({
+        upfrontOutstanding: 1_100,
+      })
+    ).toEqual({
+      title: "Issuer has an unpaid upfront facility fee",
+      description:
+        "RM 1,100.00 is still due. Drawdowns stay locked until the issuer pays this via the payment gateway.",
+    });
+    expect(resolveContractFacilityFeeWaitingNote({ upfrontOutstanding: 0 })).toBeNull();
   });
 
   it("zeros remaining after a full remaining waiver and reports disable reason", () => {

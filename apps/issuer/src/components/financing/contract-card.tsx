@@ -30,6 +30,7 @@ import {
 import { asContractForModal } from "@/types/issuer-dashboard";
 import { cn } from "@/lib/utils";
 import { resolveIssuerFacilityFeeBalance, resolveIssuerFacilityGate } from "@/lib/facility-enabled";
+import { FacilityFeeDrawdownBlockedNotice } from "./facility-fee-drawdown-blocked";
 import { FacilityDisabledBanner, FacilityFeeBalanceSummary } from "./facility-fee-status";
 import { FinancingDonut } from "./financing-donut";
 import { FinancingKpiTile } from "./financing-kpi-strip";
@@ -95,7 +96,9 @@ export function DashboardContractCard({
     facilityEnabled: row.facilityEnabled,
     facilityDisabledReason: row.facilityDisabledReason,
     contractStatus: row.contractStatus,
+    facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
   });
+  const requiresFacilityFeePayment = facilityGate.requiresFacilityFeePayment;
   const feeBalance =
     row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null
       ? resolveIssuerFacilityFeeBalance({
@@ -114,7 +117,7 @@ export function DashboardContractCard({
   const offerActionCta = getIssuerOfferActionCtaFromOfferDetails(offerDetails, { scope: "contract" });
   const attentionSurface = showReviewOffer
     ? FINANCING_OFFER_ATTENTION_SURFACE
-    : showActionRequired
+    : showActionRequired || requiresFacilityFeePayment
       ? FINANCING_ATTENTION_SURFACE
       : null;
 
@@ -154,7 +157,14 @@ export function DashboardContractCard({
                   Facility: {displayCell(row.title)}
                 </p>
               ) : null}
-              <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
+              <IssuerFinancingStatusBadge
+                kind={resolveIssuerContractDashboardBadge(row.contractStatus, {
+                  facilityFeeUpfrontOutstanding: row.facilityFeeUpfrontOutstanding,
+                })}
+              />
+              {requiresFacilityFeePayment ? (
+                <StatusBadge label="Pay facility fee" status="action" />
+              ) : null}
               <OfferStatusBadge offerStatus={offerStatus} />
             </div>
           </div>
@@ -174,6 +184,11 @@ export function DashboardContractCard({
                   <Link href={financingOfferHref(row.applicationId)}>{offerActionCta.label}</Link>
                 </Button>
               </div>
+            ) : null}
+            {requiresFacilityFeePayment ? (
+              <Button size="sm" variant="outline" className="rounded-xl border-status-action-text/30 bg-status-action-bg text-status-action-text hover:bg-status-action-bg" asChild>
+                <Link href={`/financing/contracts/${row.id}`}>Pay facility fee</Link>
+              </Button>
             ) : null}
             {showActionRequired ? (
               <TooltipProvider>
@@ -273,6 +288,8 @@ export function DashboardContractCard({
               <div className="min-w-0 space-y-2">
                 {facilityGate.enabled === false ? (
                   <FacilityDisabledBanner reason={facilityGate.disabledReason} />
+                ) : requiresFacilityFeePayment ? (
+                  <FacilityFeeDrawdownBlockedNotice href={`/financing/contracts/${row.id}`} />
                 ) : null}
                 {feeBalance ? <FacilityFeeBalanceSummary balance={feeBalance} compact /> : null}
               </div>

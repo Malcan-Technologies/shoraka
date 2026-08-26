@@ -133,6 +133,12 @@ describe("contract detail default tab", () => {
     expect(viewSource).toContain("onClick={() => setActiveTab(nextAction.tabId)}");
   });
 
+  it("surfaces a waiting note when the issuer still owes the upfront facility fee", () => {
+    expect(viewSource).toContain("resolveContractFacilityFeeWaitingNote");
+    expect(viewSource).toContain("facilityFeeWaitingNote");
+    expect(viewSource).toContain("Open Facility & Offer");
+  });
+
   it("does not preserve-mount contract panels", () => {
     expect(viewSource).not.toContain("preserveMount");
   });

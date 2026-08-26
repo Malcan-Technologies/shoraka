@@ -9,21 +9,31 @@ import {
   CheckCircleIcon,
   ChevronDownIcon,
   DocumentTextIcon,
+  EnvelopeIcon,
   ExclamationTriangleIcon,
   PlusIcon,
   ReceiptPercentIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import { parseMoney, StatusBadge } from "@cashsouk/ui";
+import { fieldTooltipContentClassName, InfoTooltip, parseMoney, StatusBadge } from "@cashsouk/ui";
 import type {
   NoteDetail,
   NotePayment,
   NotePaymentSource,
   NoteSettlementPreviewResult,
   OverdueLateChargeResult,
+  ProfitWindowClassification,
   ServiceFeeTrusteeInstructionStatus,
 } from "@cashsouk/types";
-import { formatSettlementReference } from "@cashsouk/types";
+import {
+  estimateTenureLateFeeHeadroom,
+  formatProfitAccruedCopy,
+  formatSettlementReference,
+  isTenureBackedNote,
+  parseMalaysiaYmdToUtcMidnight,
+  profitWindowClassificationLabel,
+  profitWindowClassificationTooltip,
+} from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -82,8 +92,19 @@ import {
   useGenerateServiceFeeTrusteeLetter,
   useMarkServiceFeeTrusteeLetterSubmitted,
   useMarkServiceFeeTrusteeInstructionCompleted,
+  useResendServiceFeeTrusteeEmail,
 } from "../hooks/use-notes";
 import { formatLedgerBucketLabel } from "@/lib/ledger-bucket-display";
+import {
+  formatTrusteeInstructionEmailedAt,
+  formatTrusteeInstructionEmailedCopy,
+  TRUSTEE_EMAIL_DELIVERED_LABEL,
+} from "@/lib/trustee-letter-sent-state";
+import {
+  canResendServiceFeeTrusteeEmail,
+  getTrusteeResendCopy,
+} from "@/lib/trustee-letter-resend";
+import { getTrusteeSubmitCopy } from "@/lib/trustee-letter-submit-copy";
 import { cn } from "@/lib/utils";
 import {
   BeneficiaryDetailsBlock,
@@ -92,6 +113,7 @@ import {
   WorkflowStepTitle,
 } from "@/notes/components/note-detail-ui-blocks";
 import { NoteWorkflowTabHeader } from "@/notes/components/note-workflow-tab-header";
+import { ExcessLateChargeAdminPanel } from "@/notes/components/excess-late-charge-admin-panel";
 import {
   resolveLatePaymentActionGates,
   resolveLatePaymentTimeline,
@@ -104,6 +126,12 @@ import {
   workflowTaskSurfaceClass,
   workflowToneToStatusToken,
 } from "@/notes/utils/workflow-status-tokens";
+import { ActualSettlementDateField } from "@/notes/components/actual-settlement-date-field";
+import {
+  actualSettlementDateError,
+  defaultActualSettlementDate,
+  noteNeedsActualSettlementDate,
+} from "@/notes/utils/actual-settlement-date";
 
 type RecordPaymentSource = "PAYMASTER" | "ISSUER_ON_BEHALF";
 type OverdueFeeInputMode = "AMOUNT" | "PERCENTAGE";
@@ -395,8 +423,29 @@ function readHeadroomFromPreviewSnapshot(snapshot: Record<string, unknown> | und
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function estimateLateFeeHeadroom(note: NoteDetail, settlementAmount: number) {
-  if (!note.activatedAt || !note.profitRatePercent || settlementAmount <= 0) return null;
+function estimateLateFeeHeadroom(
+  note: NoteDetail,
+  settlementAmount: number,
+  actualSettlementDate?: string | null
+) {
+  if (!note.profitRatePercent || settlementAmount <= 0) return null;
+  if (isTenureBackedNote(note.tenureDays)) {
+    const start = note.disbursementValueDate ?? note.activatedAt;
+    const maturity = resolveProfitMaturityDate(note);
+    if (!start || !maturity) return null;
+    const cleared =
+      (actualSettlementDate ? parseMalaysiaYmdToUtcMidnight(actualSettlementDate) : null) ??
+      new Date(start);
+    const profitDays = calculateCalendarDayCount(new Date(start), cleared);
+    return estimateTenureLateFeeHeadroom({
+      settlementAmount,
+      fundedPrincipal: note.fundedAmount,
+      annualRatePercent: note.profitRatePercent,
+      profitDays,
+      invoiceFaceValue: settlementAmount,
+    });
+  }
+  if (!note.activatedAt) return null;
   const profitMaturityDate = resolveProfitMaturityDate(note);
   if (!profitMaturityDate) return null;
   const profitDays = calculateCalendarDayCount(new Date(note.activatedAt), new Date(profitMaturityDate));
@@ -411,6 +460,7 @@ function resolvePanelLateFeeHeadroom(input: {
   previewSnapshot?: Record<string, unknown>;
   note: NoteDetail;
   settlementAmount: number;
+  actualSettlementDate?: string | null;
 }) {
   if (input.preview != null && typeof input.preview.availableLateFeeHeadroomAmount === "number") {
     return input.preview.availableLateFeeHeadroomAmount;
@@ -423,7 +473,7 @@ function resolvePanelLateFeeHeadroom(input: {
   }
   const fromSnapshot = readHeadroomFromPreviewSnapshot(input.previewSnapshot);
   if (fromSnapshot != null) return fromSnapshot;
-  return estimateLateFeeHeadroom(input.note, input.settlementAmount);
+  return estimateLateFeeHeadroom(input.note, input.settlementAmount, input.actualSettlementDate);
 }
 
 function settlementLateFeeTotal(settlement: { tawidhAmount: number; gharamahAmount: number }) {
@@ -490,12 +540,13 @@ export function SettlementPanel({
   const [rejectionReasons, setRejectionReasons] = React.useState<Record<string, string>>({});
   const [rejectingPaymentId, setRejectingPaymentId] = React.useState<string | null>(null);
   const [serviceFeeTrusteeConfirm, setServiceFeeTrusteeConfirm] = React.useState<
-    "submit" | "complete" | null
+    "submit" | "resend" | "complete" | null
   >(null);
   const [defaultReason, setDefaultReason] = React.useState("");
   const [recordPaymentDialogOpen, setRecordPaymentDialogOpen] = React.useState(false);
   const [overdueFeeDialogOpen, setOverdueFeeDialogOpen] = React.useState(false);
   const [preview, setPreview] = React.useState<NoteSettlementPreviewResult | null>(null);
+  const [actualSettlementDate, setActualSettlementDate] = React.useState("");
   const syncedPreviewIdRef = React.useRef<string | null>(null);
   const [lateChargeResult, setLateChargeResult] = React.useState<OverdueLateChargeResult | null>(
     null
@@ -512,6 +563,7 @@ export function SettlementPanel({
   const defaultLetter = useGenerateDefaultLetter();
   const generateServiceFeeTrusteeLetter = useGenerateServiceFeeTrusteeLetter();
   const markServiceFeeTrusteeSubmitted = useMarkServiceFeeTrusteeLetterSubmitted();
+  const resendServiceFeeTrusteeEmail = useResendServiceFeeTrusteeEmail();
   const markServiceFeeTrusteeCompleted = useMarkServiceFeeTrusteeInstructionCompleted();
   const markDefault = useMarkNoteDefault();
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
@@ -573,9 +625,12 @@ export function SettlementPanel({
     previewSnapshot: persistedPreviewSettlement?.previewSnapshot,
     note,
     settlementAmount,
+    actualSettlementDate,
   });
   const pendingLateFeesExceedHeadroom =
-    availableLateFeeHeadroom != null && pendingLateFeeTotal > availableLateFeeHeadroom + 0.005;
+    !isTenureBackedNote(note.tenureDays) &&
+    availableLateFeeHeadroom != null &&
+    pendingLateFeeTotal > availableLateFeeHeadroom + 0.005;
   const tawidhInvestorSharePercent = Math.min(
     100,
     Math.max(0, parseMoney(tawidhInvestorSharePercentInput))
@@ -595,21 +650,33 @@ export function SettlementPanel({
       ) < 0.01);
   const settlementInputsDirty =
     previewSettlementCandidate != null && !previewInputsMatchSaved && !settlementLocked;
+  const tenureNote = noteNeedsActualSettlementDate(note);
+  const tenureLateInvestorCovered = (candidate: {
+    investorObligationCovered?: boolean;
+    previewSnapshot?: Record<string, unknown>;
+    profitClassification?: string | null;
+  } | null) => {
+    if (!tenureNote || !candidate) return false;
+    if (candidate.investorObligationCovered === true) return true;
+    return candidate.previewSnapshot?.investorObligationCovered === true;
+  };
   const canApproveSettlement =
     approveSettlementId != null &&
     !settlementInputsDirty &&
     pendingPayments.length === 0 &&
-    settlementIsComplete(
-      previewSettlementCandidate?.grossReceiptAmount ?? 0,
-      previewSettlementRequiredAmount
-    );
+    (tenureLateInvestorCovered(previewSettlementCandidate) ||
+      settlementIsComplete(
+        previewSettlementCandidate?.grossReceiptAmount ?? 0,
+        previewSettlementRequiredAmount
+      ));
   const canPostSettlement =
     postSettlementId != null &&
     pendingPayments.length === 0 &&
-    settlementIsComplete(
-      postSettlementCandidate?.grossReceiptAmount ?? 0,
-      postSettlementRequiredAmount
-    );
+    (tenureLateInvestorCovered(postSettlementCandidate) ||
+      settlementIsComplete(
+        postSettlementCandidate?.grossReceiptAmount ?? 0,
+        postSettlementRequiredAmount
+      ));
   const settlementEligiblePayments = note.payments.filter((payment) =>
     ["RECEIVED", "RECONCILED", "PARTIAL"].includes(payment.status)
   );
@@ -618,6 +685,19 @@ export function SettlementPanel({
     0
   );
   const includedPaymentIds = new Set(settlementEligiblePayments.map((payment) => payment.id));
+  const latestEligibleReceiptDate = settlementEligiblePayments.reduce<string | null>(
+    (latest, payment) => {
+      if (!latest || payment.receiptDate > latest) return payment.receiptDate;
+      return latest;
+    },
+    null
+  );
+  const actualSettlementDateValidationError = tenureNote
+    ? actualSettlementDateError(actualSettlementDate, {
+        disbursementDate: note.disbursementValueDate ?? note.activatedAt,
+        latestIncludedReceiptDate: latestEligibleReceiptDate,
+      })
+    : null;
   const generatedLetters = React.useMemo(() => {
     return note.events
       .filter(
@@ -786,6 +866,29 @@ export function SettlementPanel({
     typeof displayedSettlementRecord?.profitMaturityDate === "string"
       ? displayedSettlementRecord.profitMaturityDate
       : null;
+  const waterfallClassification = ((): ProfitWindowClassification | null => {
+    const direct =
+      displayedSettlementRecord?.profitClassification ?? displayedSettlementRecord?.classification;
+    const fromSnapshot = displayedSettlementRecord?.previewSnapshot;
+    const snapshotValue =
+      fromSnapshot && typeof fromSnapshot === "object" && !Array.isArray(fromSnapshot)
+        ? (fromSnapshot as Record<string, unknown>).classification
+        : null;
+    const value = typeof direct === "string" ? direct : snapshotValue;
+    if (value === "EARLY" || value === "ON_MATURITY" || value === "GRACE" || value === "LATE") {
+      return value;
+    }
+    return null;
+  })();
+  const waterfallCeilingUsed = displayedSettlementRecord
+    ? getSettlementValue(displayedSettlementRecord, "ceilingUsedAmount")
+    : 0;
+  const waterfallCeilingRemaining = displayedSettlementRecord
+    ? getSettlementValue(displayedSettlementRecord, "ceilingRemainingAmount")
+    : 0;
+  const waterfallExcessLateCharge = displayedSettlementRecord
+    ? getSettlementValue(displayedSettlementRecord, "excessLateChargeAmount")
+    : 0;
   const waterfallInvestorPoolTotal =
     waterfallInvestorPrincipal + waterfallInvestorProfitNet + waterfallTawidhInvestor;
   const showSettlementTrusteeWorkflow = hasSettlementTrusteeMovement({
@@ -1147,6 +1250,10 @@ export function SettlementPanel({
       toast.error("Enter a valid receipt amount");
       return;
     }
+    if (tenureNote && actualSettlementDateValidationError) {
+      toast.error(actualSettlementDateValidationError);
+      return;
+    }
     if (openReceiptTotal + amount > recordPaymentLimit + 0.005) {
       toast.error(
         `Open receipts cannot exceed the invoice settlement amount of ${formatCurrency(recordPaymentLimit)}`
@@ -1159,7 +1266,10 @@ export function SettlementPanel({
         input: {
           source: recordPaymentSource as NotePaymentSource,
           receiptAmount: amount,
-          receiptDate: new Date().toISOString(),
+          receiptDate: tenureNote
+            ? `${actualSettlementDate}T00:00:00.000Z`
+            : new Date().toISOString(),
+          actualSettlementDate: tenureNote ? actualSettlementDate : undefined,
           reference: reference || null,
           metadata:
             recordPaymentSource === "ISSUER_ON_BEHALF" ? { paymentPurpose: "SETTLEMENT" } : null,
@@ -1187,7 +1297,15 @@ export function SettlementPanel({
       return;
     }
     try {
-      await approvePayment.mutateAsync({ id: note.id, paymentId: payment.id });
+      if (tenureNote && actualSettlementDateValidationError) {
+        toast.error(actualSettlementDateValidationError);
+        return;
+      }
+      await approvePayment.mutateAsync({
+        id: note.id,
+        paymentId: payment.id,
+        actualSettlementDate: tenureNote ? actualSettlementDate : undefined,
+      });
       toast.success("Issuer payment approved");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to approve payment");
@@ -1219,11 +1337,18 @@ export function SettlementPanel({
       toast.info(servicingBlockedReason);
       return null;
     }
+    if (tenureNote && actualSettlementDateValidationError) {
+      toast.error(actualSettlementDateValidationError);
+      return null;
+    }
     const result = await checkOverdueLateCharge.mutateAsync({
       id: note.id,
       input: {
         receiptAmount: settlementAmount,
-        receiptDate: new Date().toISOString(),
+        receiptDate: tenureNote
+          ? `${actualSettlementDate}T00:00:00.000Z`
+          : new Date().toISOString(),
+        actualSettlementDate: tenureNote ? actualSettlementDate : undefined,
       },
     });
     setLateChargeResult(result);
@@ -1232,7 +1357,11 @@ export function SettlementPanel({
 
   const queueLateFeeAmounts = (tawidh: number, gharamah: number) => {
     const total = tawidh + gharamah;
-    if (availableLateFeeHeadroom != null && total > availableLateFeeHeadroom + 0.005) {
+    if (
+      !tenureNote &&
+      availableLateFeeHeadroom != null &&
+      total > availableLateFeeHeadroom + 0.005
+    ) {
       toast.error(
         `Late fees exceed the available settlement headroom of ${formatCurrency(availableLateFeeHeadroom)}`
       );
@@ -1328,6 +1457,24 @@ export function SettlementPanel({
   };
 
   React.useEffect(() => {
+    if (!tenureNote) return;
+    setActualSettlementDate((current) => {
+      const next = defaultActualSettlementDate(latestEligibleReceiptDate);
+      if (!current) return next;
+      if (
+        latestEligibleReceiptDate &&
+        actualSettlementDateError(current, {
+          disbursementDate: note.disbursementValueDate ?? note.activatedAt,
+          latestIncludedReceiptDate: latestEligibleReceiptDate,
+        })
+      ) {
+        return next;
+      }
+      return current;
+    });
+  }, [tenureNote, latestEligibleReceiptDate, note.disbursementValueDate, note.activatedAt]);
+
+  React.useEffect(() => {
     if (!persistedPreviewSettlement || settlementLocked) {
       syncedPreviewIdRef.current = null;
       return;
@@ -1363,6 +1510,10 @@ export function SettlementPanel({
       toast.error("Review or reject pending payments before previewing settlement");
       return;
     }
+    if (tenureNote && actualSettlementDateValidationError) {
+      toast.error(actualSettlementDateValidationError);
+      return;
+    }
     if (pendingLateFeesExceedHeadroom) {
       toast.error(
         `Late fees exceed the available settlement headroom of ${formatCurrency(availableLateFeeHeadroom ?? 0)}`
@@ -1373,7 +1524,10 @@ export function SettlementPanel({
       const result = await previewSettlement.mutateAsync({
         id: note.id,
         input: {
-          receiptDate: new Date().toISOString(),
+          receiptDate: tenureNote
+            ? `${actualSettlementDate}T00:00:00.000Z`
+            : new Date().toISOString(),
+          actualSettlementDate: tenureNote ? actualSettlementDate : undefined,
           tawidhAmount: Number(tawidhAmount) || 0,
           tawidhInvestorSharePercent,
           gharamahAmount: Number(gharamahAmount) || 0,
@@ -1479,6 +1633,21 @@ export function SettlementPanel({
   };
 
   const serviceFeeTrusteeStatus = persistedPostedSettlement?.serviceFeeTrusteeStatus ?? null;
+  const trusteeSubmitCopy = getTrusteeSubmitCopy(
+    note.trusteeAutoSendEmailEnabled === true,
+    "instruction"
+  );
+  const trusteeResendCopy = getTrusteeResendCopy();
+  const canResendTrusteeEmail = canResendServiceFeeTrusteeEmail(
+    persistedPostedSettlement?.serviceFeeTrusteeEmailSentAt,
+    serviceFeeTrusteeStatus
+  );
+  const serviceFeeTrusteeEmailedCopy = formatTrusteeInstructionEmailedCopy(
+    persistedPostedSettlement?.serviceFeeTrusteeEmailSentAt
+  );
+  const serviceFeeTrusteeEmailedAt = formatTrusteeInstructionEmailedAt(
+    persistedPostedSettlement?.serviceFeeTrusteeEmailSentAt
+  );
   const serviceFeeTrusteeWorkflowComplete = serviceFeeTrusteeStatus === "COMPLETED";
   const serviceFeeTrusteeNeedsPdf =
     !serviceFeeTrusteeWorkflowComplete &&
@@ -1491,6 +1660,7 @@ export function SettlementPanel({
   const serviceFeeTrusteePendingAny =
     generateServiceFeeTrusteeLetter.isPending ||
     markServiceFeeTrusteeSubmitted.isPending ||
+    resendServiceFeeTrusteeEmail.isPending ||
     markServiceFeeTrusteeCompleted.isPending;
   const latestTrusteeLetter =
     [...serviceFeeTrusteeLetters].reverse().find((letter) => letter.s3Key) ?? null;
@@ -1501,11 +1671,16 @@ export function SettlementPanel({
   const confirmServiceFeeTrusteeCopy =
     serviceFeeTrusteeConfirm === "submit"
       ? {
-          title: "Submit to trustee?",
-          description:
-            "Confirm the settlement trustee instruction has been sent to the trustee. Mark it complete once the settlement allocations have been processed.",
-          confirmLabel: "Mark submitted",
+          title: trusteeSubmitCopy.confirmTitle,
+          description: trusteeSubmitCopy.description,
+          confirmLabel: trusteeSubmitCopy.confirmLabel,
         }
+      : serviceFeeTrusteeConfirm === "resend"
+        ? {
+            title: trusteeResendCopy.confirmTitle,
+            description: trusteeResendCopy.description,
+            confirmLabel: trusteeResendCopy.confirmLabel,
+          }
       : serviceFeeTrusteeConfirm === "complete"
         ? {
             title: "Mark instruction completed?",
@@ -1523,7 +1698,13 @@ export function SettlementPanel({
           noteId: note.id,
           settlementId: persistedPostedSettlement.id,
         });
-        toast.success("Marked as submitted to trustee");
+        toast.success(trusteeSubmitCopy.success);
+      } else if (serviceFeeTrusteeConfirm === "resend") {
+        await resendServiceFeeTrusteeEmail.mutateAsync({
+          noteId: note.id,
+          settlementId: persistedPostedSettlement.id,
+        });
+        toast.success(trusteeResendCopy.success);
       } else {
         await markServiceFeeTrusteeCompleted.mutateAsync({
           noteId: note.id,
@@ -1933,6 +2114,14 @@ export function SettlementPanel({
           description="Manage repayment receipts, settlement preview and posting, then trustee submission."
         />
         <CardContent className="space-y-6 pt-0">
+          {persistedPostedSettlement &&
+          (persistedPostedSettlement.excessLateChargeAmount ?? 0) > 0 ? (
+            <ExcessLateChargeAdminPanel
+              noteId={note.id}
+              owedAmount={persistedPostedSettlement.excessLateChargeAmount ?? 0}
+              paidAmount={persistedPostedSettlement.excessLateChargePaidAmount ?? 0}
+            />
+          ) : null}
           {servicingWorkflowAvailable ? (
             <>
           <div
@@ -1990,6 +2179,21 @@ export function SettlementPanel({
               <MoneyMetric label="Required settlement amount" value={settlementAmount} />
               <MoneyMetric label="Amount still needed" value={receiptRemainingAmount} />
             </div>
+            {tenureNote ? (
+              <div className="mt-4 max-w-sm">
+                <ActualSettlementDateField
+                  id="actual-settlement-date"
+                  value={actualSettlementDate}
+                  min={
+                    latestEligibleReceiptDate
+                      ? latestEligibleReceiptDate.slice(0, 10)
+                      : note.disbursementValueDate?.slice(0, 10)
+                  }
+                  onChange={setActualSettlementDate}
+                  error={actualSettlementDate ? actualSettlementDateValidationError : null}
+                />
+              </div>
+            ) : null}
 
             {pendingPayments.length > 0 ? (
               <div
@@ -2383,16 +2587,41 @@ export function SettlementPanel({
                         <span className="font-mono">{displayedSettlementReference}</span>
                       </p>
                       <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                        Gross receipt allocated across pools. Profit{" "}
-                        {formatMaturityDate(waterfallProfitStartDate)}–
-                        {formatMaturityDate(waterfallProfitMaturityDate)} ({waterfallProfitDays}d,{" "}
-                        {waterfallAnnualProfitRatePercent}% p.a.).
+                        {formatProfitAccruedCopy({
+                          startDate: waterfallProfitStartDate,
+                          endDate: waterfallProfitMaturityDate,
+                          profitDays: waterfallProfitDays,
+                        }) ??
+                          `Gross receipt allocated across pools. Profit ${formatMaturityDate(waterfallProfitStartDate)}–${formatMaturityDate(waterfallProfitMaturityDate)} (${waterfallProfitDays}d, ${waterfallAnnualProfitRatePercent}% p.a.).`}
                       </p>
                       {waterfallInvestorProfitGross > 0.005 ? (
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           Profit split: {formatCurrency(waterfallInvestorProfitNet)} investors ·{" "}
                           {formatCurrency(waterfallServiceFee)} platform (
                           {waterfallServiceFeeRatePercent}%).
+                        </p>
+                      ) : null}
+                      {waterfallClassification ? (
+                        <p className="mt-1 inline-flex items-center gap-1 text-xs text-foreground">
+                          <span>{profitWindowClassificationLabel(waterfallClassification)}</span>
+                          {profitWindowClassificationTooltip(waterfallClassification) ? (
+                            <InfoTooltip
+                              content={profitWindowClassificationTooltip(waterfallClassification)}
+                              className={fieldTooltipContentClassName}
+                            />
+                          ) : null}
+                        </p>
+                      ) : null}
+                      {waterfallClassification === "LATE" ? (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Profit ceiling used {formatCurrency(waterfallCeilingUsed)} · remaining{" "}
+                          {formatCurrency(waterfallCeilingRemaining)}.
+                        </p>
+                      ) : null}
+                      {waterfallExcessLateCharge > 0.005 ? (
+                        <p className="mt-1 text-xs text-status-action-text">
+                          {formatCurrency(waterfallExcessLateCharge)} in approved late charges was
+                          not covered by this receipt. A separate collection will be added later.
                         </p>
                       ) : null}
                     </div>
@@ -2569,6 +2798,11 @@ export function SettlementPanel({
                         ? "Trustee submission is complete."
                         : "Generate the trustee instruction letter for the posted settlement waterfall."}
                 </p>
+                {serviceFeeTrusteeEmailedCopy ? (
+                  <p className="mt-1 text-meta text-muted-foreground">
+                    {serviceFeeTrusteeEmailedCopy}
+                  </p>
+                ) : null}
                 {latestTrusteeLetter ? (
                   <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                     <DocumentTextIcon className="h-3.5 w-3.5 shrink-0" />
@@ -2628,6 +2862,14 @@ export function SettlementPanel({
                               new Date(persistedPostedSettlement.serviceFeeTrusteeSubmittedAt),
                               "dd MMM yyyy, h:mm a"
                             ),
+                          },
+                        ]
+                      : []),
+                    ...(serviceFeeTrusteeEmailedAt
+                      ? [
+                          {
+                            label: TRUSTEE_EMAIL_DELIVERED_LABEL,
+                            value: serviceFeeTrusteeEmailedAt,
                           },
                         ]
                       : []),
@@ -2700,6 +2942,24 @@ export function SettlementPanel({
                       Generate Letter
                     </Button>
                   ) : null}
+                  {canResendTrusteeEmail ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => setServiceFeeTrusteeConfirm("resend")}
+                      disabled={serviceFeeTrusteePendingAny || !canDisbursement}
+                      title={
+                        !canDisbursement
+                          ? "You do not have permission to perform this action."
+                          : undefined
+                      }
+                    >
+                      <EnvelopeIcon className="h-3.5 w-3.5" />
+                      {trusteeResendCopy.button}
+                    </Button>
+                  ) : null}
                   {serviceFeeTrusteeStatus === "LETTER_GENERATED" ? (
                     <Button
                       type="button"
@@ -2712,7 +2972,7 @@ export function SettlementPanel({
                           : undefined
                       }
                     >
-                      Mark submitted to trustee
+                      {trusteeSubmitCopy.button}
                     </Button>
                   ) : null}
                   {serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE" ? (
@@ -2858,6 +3118,19 @@ export function SettlementPanel({
                 placeholder="Bank transfer reference or receipt number"
               />
             </div>
+            {tenureNote ? (
+              <ActualSettlementDateField
+                id="record-payment-actual-settlement-date"
+                value={actualSettlementDate}
+                min={
+                  latestEligibleReceiptDate
+                    ? latestEligibleReceiptDate.slice(0, 10)
+                    : note.disbursementValueDate?.slice(0, 10)
+                }
+                onChange={setActualSettlementDate}
+                error={actualSettlementDate ? actualSettlementDateValidationError : null}
+              />
+            ) : null}
             <p className="text-xs text-muted-foreground">
               Issuer-submitted Payment Advice from the issuer portal enters pending review. Use
               this form to record a verified receipt directly when you have already confirmed the

@@ -8,38 +8,34 @@ import { formatApplicationNotificationRef, formatPhaseDeadlineDateDDMMYYYY } fro
  */
 export const NotificationTypeIds = {
   // System / Onboarding
-  ONBOARDING_APPROVED: 'onboarding_approved',
-  ONBOARDING_REJECTED: 'onboarding_rejected',
-  KYC_APPROVED: 'kyc_approved',
-  KYC_REJECTED: 'kyc_rejected',
+  ONBOARDING_APPROVED: "onboarding_approved",
+  ONBOARDING_REJECTED: "onboarding_rejected",
 
   // Authentication
-  PASSWORD_CHANGED: 'password_changed',
-  LOGIN_NEW_DEVICE: 'login_new_device',
+  PASSWORD_CHANGED: "password_changed",
 
   // Marketing / Generic
-  SYSTEM_ANNOUNCEMENT: 'system_announcement',
-  NEW_PRODUCT_ALERT: 'new_product_alert',
+  SYSTEM_ANNOUNCEMENT: "system_announcement",
+  NEW_PRODUCT_ALERT: "new_product_alert",
 
   // Issuer application / review lifecycle
-  APPLICATION_AMENDMENTS_REQUESTED: 'application_amendments_requested',
+  APPLICATION_AMENDMENTS_REQUESTED: "application_amendments_requested",
   /** Post-offer acceptance docs: admin requested a specific document change. */
-  ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED: 'acceptance_document_changes_requested',
-  APPLICATION_APPROVED: 'application_approved',
-  APPLICATION_REJECTED: 'application_rejected',
-  CONTRACT_OFFER_SENT: 'contract_offer_sent',
-  INVOICE_OFFER_SENT: 'invoice_offer_sent',
-  OFFER_RETRACTED_OR_RESET: 'offer_retracted_or_reset',
-  OFFER_EXPIRED: 'offer_expired',
-  OFFER_EXPIRY_REMINDER_24H: 'offer_expiry_reminder_24h',
-  APPLICATION_RESUBMITTED_CONFIRMATION: 'application_resubmitted_confirmation',
-  APPLICATION_WITHDRAWN_CONFIRMATION: 'application_withdrawn_confirmation',
-  APPLICATION_COMPLETED: 'application_completed',
+  ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED: "acceptance_document_changes_requested",
+  APPLICATION_REJECTED: "application_rejected",
+  CONTRACT_OFFER_SENT: "contract_offer_sent",
+  INVOICE_OFFER_SENT: "invoice_offer_sent",
+  OFFER_RETRACTED_OR_RESET: "offer_retracted_or_reset",
+  OFFER_EXPIRED: "offer_expired",
+  OFFER_EXPIRY_REMINDER_24H: "offer_expiry_reminder_24h",
+  APPLICATION_RESUBMITTED_CONFIRMATION: "application_resubmitted_confirmation",
+  APPLICATION_WITHDRAWN_CONFIRMATION: "application_withdrawn_confirmation",
+  APPLICATION_COMPLETED: "application_completed",
 
   /** Issuer: CTOS or admin requests onboarding action for a director/shareholder party. */
-  DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: 'director_shareholder_action_required',
+  DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: "director_shareholder_action_required",
   /** Investor company: CTOS finds new directors/shareholders needing onboarding. */
-  INVESTOR_DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: 'investor_director_shareholder_action_required',
+  INVESTOR_DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: "investor_director_shareholder_action_required",
 
   // Note lifecycle
   NOTE_PUBLISHED: "note_published",
@@ -56,9 +52,14 @@ export const NotificationTypeIds = {
   NOTE_DEFAULTED: "note_defaulted",
   NOTE_DEFAULTED_INVESTOR: "note_defaulted_investor",
   WITHDRAWAL_SUBMITTED_TO_TRUSTEE: "withdrawal_submitted_to_trustee",
+
+  FACILITY_FEE_PAYMENT_REQUESTED: "facility_fee_payment_requested",
+  FACILITY_FEE_UPFRONT_PAID: "facility_fee_upfront_paid",
+  EXCESS_LATE_CHARGES_DUE: "excess_late_charges_due",
+  EXCESS_LATE_CHARGES_PAID: "excess_late_charges_paid",
 } as const;
 
-export type NotificationTypeId = typeof NotificationTypeIds[keyof typeof NotificationTypeIds];
+export type NotificationTypeId = (typeof NotificationTypeIds)[keyof typeof NotificationTypeIds];
 
 /**
  * Define the payload data required for each notification type
@@ -67,27 +68,16 @@ export interface NotificationPayloads {
   [NotificationTypeIds.ONBOARDING_APPROVED]: {
     onboardingType: string;
     orgName: string;
-    portalType: 'investor' | 'issuer';
+    portalType: "investor" | "issuer";
   };
   [NotificationTypeIds.ONBOARDING_REJECTED]: {
     onboardingType: string;
     orgName: string;
     reason?: string;
-  };
-  [NotificationTypeIds.KYC_APPROVED]: {
-    userName: string;
-  };
-  [NotificationTypeIds.KYC_REJECTED]: {
-    userName: string;
-    reason?: string;
+    portalType: "investor" | "issuer";
   };
   [NotificationTypeIds.PASSWORD_CHANGED]: {
     changedAt: Date;
-  };
-  [NotificationTypeIds.LOGIN_NEW_DEVICE]: {
-    deviceName: string;
-    location: string;
-    time: Date;
   };
   [NotificationTypeIds.SYSTEM_ANNOUNCEMENT]: {
     title: string;
@@ -103,10 +93,6 @@ export interface NotificationPayloads {
     amendmentCount: number;
   };
   [NotificationTypeIds.ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED]: {
-    applicationId: string;
-    displayReference?: string | null;
-  };
-  [NotificationTypeIds.APPLICATION_APPROVED]: {
     applicationId: string;
     displayReference?: string | null;
   };
@@ -130,21 +116,21 @@ export interface NotificationPayloads {
   };
   [NotificationTypeIds.OFFER_RETRACTED_OR_RESET]: {
     applicationId: string;
-    offerType: 'contract' | 'invoice';
+    offerType: "contract" | "invoice";
     invoiceNumber?: string | null;
   };
   [NotificationTypeIds.OFFER_EXPIRED]: {
     applicationId: string;
-    offerType: 'contract' | 'invoice';
+    offerType: "contract" | "invoice";
     invoiceNumber?: string | null;
-    clock?: 'acceptance' | 'signing';
+    clock?: "acceptance" | "signing";
   };
   [NotificationTypeIds.OFFER_EXPIRY_REMINDER_24H]: {
     applicationId: string;
-    offerType: 'contract' | 'invoice';
+    offerType: "contract" | "invoice";
     invoiceNumber?: string | null;
     expiresAt: string;
-    clock?: 'acceptance' | 'signing';
+    clock?: "acceptance" | "signing";
     daysBeforeExpiry?: number;
   };
   [NotificationTypeIds.APPLICATION_RESUBMITTED_CONFIRMATION]: {
@@ -226,6 +212,32 @@ export interface NotificationPayloads {
   };
   [NotificationTypeIds.WITHDRAWAL_SUBMITTED_TO_TRUSTEE]: {
     withdrawalId: string;
+    noteId: string;
+    noteTitle: string;
+    noteReference?: string | null;
+    displayReference?: string | null;
+    withdrawalType: string;
+    portalType: "investor" | "issuer";
+  };
+  [NotificationTypeIds.FACILITY_FEE_PAYMENT_REQUESTED]: {
+    applicationId: string;
+    displayReference?: string | null;
+    contractId: string;
+    upfrontAmount: number;
+  };
+  [NotificationTypeIds.FACILITY_FEE_UPFRONT_PAID]: {
+    contractId: string;
+    upfrontAmount: number;
+  };
+  [NotificationTypeIds.EXCESS_LATE_CHARGES_DUE]: {
+    noteId: string;
+    noteReference: string;
+    outstandingAmount: number;
+  };
+  [NotificationTypeIds.EXCESS_LATE_CHARGES_PAID]: {
+    noteId: string;
+    noteReference: string;
+    paidAmount: number;
   };
 }
 
@@ -265,155 +277,138 @@ export const NOTIFICATION_TEMPLATES: {
   [T in NotificationTypeId]: NotificationTemplate<T>;
 } = {
   [NotificationTypeIds.ONBOARDING_APPROVED]: {
-    title: 'Onboarding Application Approved',
+    title: "Onboarding Application Approved",
     message: (data) =>
       `Congratulations! Your ${data.onboardingType.toLowerCase()} onboarding for ${data.orgName} has been completed successfully. You now have full access to the platform.`,
-    linkPath: () => '/',
+    linkPath: () => "/",
     portal: (data) => data.portalType,
   },
   [NotificationTypeIds.ONBOARDING_REJECTED]: {
-    title: 'Onboarding Application Rejected',
+    title: "Onboarding Application Rejected",
     message: (data) =>
-      `Unfortunately, your ${data.onboardingType.toLowerCase()} onboarding for ${data.orgName} was rejected.${data.reason ? ` Reason: ${data.reason}` : ''}`,
-    linkPath: () => '/onboarding',
-  },
-  [NotificationTypeIds.KYC_APPROVED]: {
-    title: 'Identity Verification Approved',
-    message: (data) => `Hello ${data.userName}, your identity verification has been approved.`,
-    linkPath: () => '/account',
-  },
-  [NotificationTypeIds.KYC_REJECTED]: {
-    title: 'Identity Verification Rejected',
-    message: (data) => `Hello ${data.userName}, your identity verification was rejected.${data.reason ? ` Reason: ${data.reason}` : ''}`,
-    linkPath: () => '/account',
+      `Unfortunately, your ${data.onboardingType.toLowerCase()} onboarding for ${data.orgName} was rejected.${data.reason ? ` Reason: ${data.reason}` : ""}`,
+    linkPath: () => "/onboarding",
+    portal: (data) => data.portalType,
   },
   [NotificationTypeIds.PASSWORD_CHANGED]: {
-    title: 'Password Changed',
-    message: (data) => `The password for your account was changed on ${formatDateDDMMYYYY(data.changedAt)}.`,
-    linkPath: () => '/account',
-  },
-  [NotificationTypeIds.LOGIN_NEW_DEVICE]: {
-    title: 'Login from New Device',
-    message: (data) => `A new login was detected on ${data.deviceName} from ${data.location} at ${formatDateDDMMYYYY(data.time)}.`,
-    linkPath: () => '/account',
+    title: "Password Changed",
+    message: (data) =>
+      `The password for your account was changed on ${formatDateDDMMYYYY(data.changedAt)}.`,
+    linkPath: () => "/account",
   },
   [NotificationTypeIds.SYSTEM_ANNOUNCEMENT]: {
     title: (data) => data.title,
     message: (data) => data.message,
-    linkPath: () => '/',
+    linkPath: () => "/",
   },
   [NotificationTypeIds.NEW_PRODUCT_ALERT]: {
-    title: 'New Investment Opportunity',
+    title: "New Investment Opportunity",
     message: (data) => `A new product "${data.productName}" is now available for investment.`,
     linkPath: (data) => `/investments/${data.productId}`,
   },
   [NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED]: {
-    title: 'Amendment Requested',
+    title: "Amendment Requested",
     message: (data) =>
       `Your application ${getApplicationNotificationRef(data)} requires updates. ${data.amendmentCount} amendment item(s) were requested by the reviewer.`,
     linkPath: (data) => `/applications/${data.applicationId}/edit`,
-    portal: 'issuer',
+    portal: "issuer",
   },
   [NotificationTypeIds.ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED]: {
-    title: 'Acceptance Documents Need Updates',
+    title: "Acceptance Documents Need Updates",
     message: (data) =>
       `A reviewer requested updates to acceptance documents on application ${getApplicationNotificationRef(data)}. Open Review Offer to see which files to replace.`,
     linkPath: () => `/applications`,
-    portal: 'issuer',
-  },
-  [NotificationTypeIds.APPLICATION_APPROVED]: {
-    title: 'Application Approved',
-    message: (data) => `Your application ${getApplicationNotificationRef(data)} has been approved.`,
-    linkPath: () => `/applications`,
-    portal: 'issuer',
+    portal: "issuer",
   },
   [NotificationTypeIds.APPLICATION_REJECTED]: {
-    title: 'Application Rejected',
+    title: "Application Rejected",
     message: (data) => `Your application ${getApplicationNotificationRef(data)} has been rejected.`,
     linkPath: () => `/applications`,
-    portal: 'issuer',
+    portal: "issuer",
   },
   [NotificationTypeIds.CONTRACT_OFFER_SENT]: {
-    title: 'Facility Offer Received',
+    title: "Facility Offer Received",
     message: (data) =>
-      `A facility offer of ${data.offeredFacility.toLocaleString()} has been sent to your application ${getApplicationNotificationRef(data)}.${data.expiresAt ? ` It expires on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.` : ''}`,
+      `A facility offer of ${data.offeredFacility.toLocaleString()} has been sent to your application ${getApplicationNotificationRef(data)}.${data.expiresAt ? ` It expires on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.` : ""}`,
     linkPath: () => `/applications`,
-    portal: 'issuer',
+    portal: "issuer",
   },
   [NotificationTypeIds.INVOICE_OFFER_SENT]: {
-    title: 'Invoice Offer Received',
+    title: "Invoice Offer Received",
     message: (data) =>
-      `An invoice offer${data.invoiceNumber ? ` for invoice ${data.invoiceNumber}` : ''} of RM${data.offeredAmount.toLocaleString()} has been sent.${data.expiresAt ? ` It expires on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.` : ''}`,
+      `An invoice offer${data.invoiceNumber ? ` for invoice ${data.invoiceNumber}` : ""} of RM${data.offeredAmount.toLocaleString()} has been sent.${data.expiresAt ? ` It expires on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.` : ""}`,
     linkPath: () => `/applications`,
-    portal: 'issuer',
+    portal: "issuer",
   },
   [NotificationTypeIds.OFFER_RETRACTED_OR_RESET]: {
-    title: 'Offer Updated',
+    title: "Offer Updated",
     message: (data) =>
-      `${data.offerType === 'contract' ? 'Facility' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} was retracted or reset and is no longer active.`,
+      `${data.offerType === "contract" ? "Facility" : "Invoice"} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ""} was retracted or reset and is no longer active.`,
     linkPath: () => `/applications`,
-    portal: 'issuer',
+    portal: "issuer",
   },
   [NotificationTypeIds.OFFER_EXPIRED]: {
-    title: 'Offer Expired',
+    title: "Offer Expired",
     message: (data) =>
-      `${data.offerType === 'contract' ? 'Facility' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} has expired.`,
+      `${data.offerType === "contract" ? "Facility" : "Invoice"} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ""} has expired.`,
     linkPath: () => `/applications`,
-    portal: 'issuer',
+    portal: "issuer",
   },
   [NotificationTypeIds.OFFER_EXPIRY_REMINDER_24H]: {
-    title: 'Offer Expiring Soon',
+    title: "Offer Expiring Soon",
     message: (data) => {
       const daysBefore = data.daysBeforeExpiry;
       const windowLabel =
-        typeof daysBefore === 'number' && Number.isFinite(daysBefore)
+        typeof daysBefore === "number" && Number.isFinite(daysBefore)
           ? daysBefore <= 0
-            ? 'today'
+            ? "today"
             : daysBefore === 1
-              ? 'in 1 day'
+              ? "in 1 day"
               : `in ${daysBefore} days`
-          : 'soon';
-      return `${data.offerType === 'contract' ? 'Facility' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} expires ${windowLabel} on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.`;
+          : "soon";
+      return `${data.offerType === "contract" ? "Facility" : "Invoice"} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ""} expires ${windowLabel} on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.`;
     },
     linkPath: () => `/applications`,
-    portal: 'issuer',
+    portal: "issuer",
   },
   [NotificationTypeIds.APPLICATION_RESUBMITTED_CONFIRMATION]: {
-    title: 'Application Resubmitted',
+    title: "Application Resubmitted",
     message: (data) =>
       `Your application ${getApplicationNotificationRef(data)} was successfully resubmitted for review (review cycle ${data.reviewCycle}).`,
     linkPath: () => `/applications`,
-    portal: 'issuer',
+    portal: "issuer",
   },
   [NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION]: {
-    title: 'Application Withdrawn',
-    message: (data) => `Your application ${getApplicationNotificationRef(data)} has been withdrawn successfully.`,
+    title: "Application Withdrawn",
+    message: (data) =>
+      `Your application ${getApplicationNotificationRef(data)} has been withdrawn successfully.`,
     linkPath: (data) => `/applications/${data.applicationId}`,
-    portal: 'issuer',
+    portal: "issuer",
   },
   [NotificationTypeIds.APPLICATION_COMPLETED]: {
-    title: 'Application Completed',
-    message: (data) => `Your application ${getApplicationNotificationRef(data)} has been completed successfully.`,
+    title: "Application Completed",
+    message: (data) =>
+      `Your application ${getApplicationNotificationRef(data)} has been completed successfully.`,
     linkPath: (data) => `/applications/${data.applicationId}`,
-    portal: 'issuer',
+    portal: "issuer",
   },
   [NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
-    title: 'Action Required: Complete Director/Shareholder Onboarding',
+    title: "Action Required: Complete Director/Shareholder Onboarding",
     message: (data) => {
       const who = data.personName?.trim() ? ` for ${data.personName.trim()}` : "";
       return `Please complete onboarding${who}.`;
     },
-    linkPath: (data) => data.link || '/profile',
-    portal: 'issuer',
+    linkPath: (data) => data.link || "/profile",
+    portal: "issuer",
   },
   [NotificationTypeIds.INVESTOR_DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
-    title: 'Action Required: Complete Director/Shareholder Onboarding',
+    title: "Action Required: Complete Director/Shareholder Onboarding",
     message: (data) => {
       const who = data.personName?.trim() ? ` for ${data.personName.trim()}` : "";
       return `Please complete onboarding${who}.`;
     },
-    linkPath: (data) => data.link || '/profile',
-    portal: 'investor',
+    linkPath: (data) => data.link || "/profile",
+    portal: "investor",
   },
   [NotificationTypeIds.NOTE_PUBLISHED]: {
     title: "Note published",
@@ -465,20 +460,21 @@ export const NOTIFICATION_TEMPLATES: {
     portal: "issuer",
   },
   [NotificationTypeIds.NOTE_PAYMENT_RECEIVED]: {
-    title: 'Repayment Received',
+    title: "Repayment Received",
     message: (data) => `A repayment was recorded for "${data.noteTitle}".`,
     linkPath: (data) => `/investments/${data.noteId}`,
-    portal: 'investor',
+    portal: "investor",
   },
   [NotificationTypeIds.NOTE_SETTLEMENT_POSTED]: {
-    title: 'Settlement Posted',
+    title: "Settlement Posted",
     message: (data) => `Settlement has been posted for "${data.noteTitle}".`,
     linkPath: (data) => `/investments/${data.noteId}`,
-    portal: 'investor',
+    portal: "investor",
   },
   [NotificationTypeIds.NOTE_ARREARS]: {
     title: "Note in arrears",
-    message: (data) => `"${data.noteTitle}" has moved into arrears. Review repayment status and obligations.`,
+    message: (data) =>
+      `"${data.noteTitle}" has moved into arrears. Review repayment status and obligations.`,
     linkPath: (data) => `/notes/${data.noteId}`,
     portal: "issuer",
   },
@@ -503,9 +499,44 @@ export const NOTIFICATION_TEMPLATES: {
     portal: "investor",
   },
   [NotificationTypeIds.WITHDRAWAL_SUBMITTED_TO_TRUSTEE]: {
-    title: 'Withdrawal Submitted to Trustee',
-    message: (data) => `Withdrawal instruction ${data.withdrawalId} has been submitted to the trustee.`,
-    linkPath: () => `/account`,
+    title: "Withdrawal Submitted to Trustee",
+    message: (data) => {
+      const ref = data.displayReference?.trim() || data.withdrawalId;
+      return `Withdrawal instruction ${ref} for "${data.noteTitle}" (${data.withdrawalType}) has been submitted to the trustee.`;
+    },
+    linkPath: (data) =>
+      data.portalType === "investor"
+        ? `/investments/${data.noteId}`
+        : `/financing/notes/${data.noteId}`,
+    portal: (data) => data.portalType,
+  },
+  [NotificationTypeIds.FACILITY_FEE_PAYMENT_REQUESTED]: {
+    title: "Upfront facility fee payment required",
+    message: (data) =>
+      `An upfront facility fee of RM${data.upfrontAmount.toLocaleString()} is due on your financing contract. Pay it before starting invoice financing.`,
+    linkPath: (data) => `/financing/contracts/${data.contractId}`,
+    portal: "issuer",
+  },
+  [NotificationTypeIds.FACILITY_FEE_UPFRONT_PAID]: {
+    title: "Upfront facility fee paid",
+    message: (data) =>
+      `The upfront facility fee of RM${data.upfrontAmount.toLocaleString()} has been received. You can now use this facility for invoice financing.`,
+    linkPath: (data) => `/financing/contracts/${data.contractId}`,
+    portal: "issuer",
+  },
+  [NotificationTypeIds.EXCESS_LATE_CHARGES_DUE]: {
+    title: "Outstanding late charges to pay",
+    message: (data) =>
+      `RM${data.outstandingAmount.toLocaleString()} in late payment charges is due on note ${data.noteReference}.`,
+    linkPath: (data) => `/financing/notes/${data.noteId}#late-charges`,
+    portal: "issuer",
+  },
+  [NotificationTypeIds.EXCESS_LATE_CHARGES_PAID]: {
+    title: "Late payment charges received",
+    message: (data) =>
+      `The outstanding late payment charges of RM${data.paidAmount.toLocaleString()} on note ${data.noteReference} have been received.`,
+    linkPath: (data) => `/financing/notes/${data.noteId}`,
+    portal: "issuer",
   },
 };
 
@@ -519,10 +550,11 @@ export function getNotificationContent<T extends NotificationTypeId>(
   const template = NOTIFICATION_TEMPLATES[typeId];
 
   // Resolve portal: 1. Template override, 2. Current context
-  const templatePortal = typeof template.portal === 'function' ? template.portal(data) : template.portal;
+  const templatePortal =
+    typeof template.portal === "function" ? template.portal(data) : template.portal;
 
   return {
-    title: typeof template.title === 'function' ? template.title(data) : template.title,
+    title: typeof template.title === "function" ? template.title(data) : template.title,
     message: template.message(data),
     linkPath: template.linkPath(data),
     portal: templatePortal || PortalContext.get(),

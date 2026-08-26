@@ -1,13 +1,16 @@
 import {
   isFacilityEnabled,
   resolveFacilityFeeBalance,
+  resolveFacilityFeeUpfront,
   type FacilityFeeBalance,
 } from "@cashsouk/types";
+import { readFacilityFeeUpfrontOutstanding } from "@/lib/facility-fee-payment-ui";
 
 export type IssuerFacilityGate = {
   enabled: boolean;
   disabledReason: string | null;
   canStartDrawdown: boolean;
+  requiresFacilityFeePayment: boolean;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -21,6 +24,7 @@ export function resolveIssuerFacilityGate(input: {
   facilityEnabled?: boolean;
   facilityDisabledReason?: string | null;
   contractStatus?: string | null;
+  facilityFeeUpfrontOutstanding?: number | null;
 }): IssuerFacilityGate {
   const details = asRecord(input.contractDetails) ?? {};
   const merged = {
@@ -34,10 +38,16 @@ export function resolveIssuerFacilityGate(input: {
   const balance = resolveFacilityFeeBalance(merged);
   const disabledReason = enabled ? null : balance.disabledReason;
   const status = String(input.contractStatus ?? "").toUpperCase();
+  const outstanding =
+    input.facilityFeeUpfrontOutstanding != null
+      ? readFacilityFeeUpfrontOutstanding(input.facilityFeeUpfrontOutstanding)
+      : resolveFacilityFeeUpfront(merged).outstanding;
+  const requiresFacilityFeePayment = outstanding > 0;
   return {
     enabled,
     disabledReason,
-    canStartDrawdown: enabled && status === "APPROVED",
+    requiresFacilityFeePayment,
+    canStartDrawdown: enabled && status === "APPROVED" && !requiresFacilityFeePayment,
   };
 }
 

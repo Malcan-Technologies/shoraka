@@ -1,21 +1,39 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
+  compareNoteTimingSort,
   formatInvestorReturnRatePercent,
+  formatNoteDateEnMy,
   formatNoteReferenceDisplay,
+  joinNoteTimingExtra,
   isSettlementWrappingUpFromSummary,
+  isTenureBackedNote,
+  malaysiaCalendarDaysRemaining,
+  NOTE_TIMING_GRACE_TOOLTIP,
+  NOTE_TIMING_PAST_MATURITY_TOOLTIP,
+  resolveNoteGracePeriodDays,
+  resolveNoteTimingDisplay,
+  shouldLabelExpectedReturnAsUpTo,
   resolveNetExpectedReturnRatePercent,
   type NoteListItem,
 } from "@cashsouk/types";
 
 export const MATURING_SOON_DAYS = 7;
 
-export type InvestmentMaturityTone = "upcoming" | "soon" | "today" | "overdue" | "settled" | "unknown";
+export type InvestmentMaturityTone =
+  | "upcoming"
+  | "soon"
+  | "today"
+  | "grace"
+  | "overdue"
+  | "settled"
+  | "unknown";
 
 export type InvestmentMaturityDisplay = {
   tone: InvestmentMaturityTone;
   value: string;
   unit: string | null;
   date: string;
+  tooltip?: string | null;
 };
 
 export function calendarDaysFromToday(
@@ -23,22 +41,11 @@ export function calendarDaysFromToday(
   now: Date = new Date()
 ): number | null {
   if (!iso) return null;
-  const target = new Date(iso);
-  if (Number.isNaN(target.getTime())) return null;
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const end = new Date(target.getFullYear(), target.getMonth(), target.getDate());
-  return Math.round((end.getTime() - start.getTime()) / 86_400_000);
+  return malaysiaCalendarDaysRemaining(now, iso);
 }
 
 export function formatInvestmentDate(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatNoteDateEnMy(value) ?? "—";
 }
 
 function statusOf(note: NoteListItem): string {
@@ -72,11 +79,25 @@ export function getInvestmentRelevanceRank(note: NoteListItem): number {
 export function compareInvestmentMaturity(
   left: NoteListItem,
   right: NoteListItem,
-  now: Date = new Date()
+  _now: Date = new Date()
 ): number {
-  const leftDays = calendarDaysFromToday(left.maturityDate, now) ?? Number.POSITIVE_INFINITY;
-  const rightDays = calendarDaysFromToday(right.maturityDate, now) ?? Number.POSITIVE_INFINITY;
-  return leftDays - rightDays;
+  return compareNoteTimingSort(left, right);
+}
+
+function completedSortTime(note: NoteListItem): number {
+  for (const value of [note.maturityDate, note.repaidAt, note.updatedAt]) {
+    if (!value) continue;
+    const time = new Date(value).getTime();
+    if (Number.isFinite(time)) return time;
+  }
+  return 0;
+}
+
+export function compareCompletedInvestmentLatestFirst(
+  left: NoteListItem,
+  right: NoteListItem
+): number {
+  return completedSortTime(right) - completedSortTime(left);
 }
 
 export function partitionInvestorInvestments(notes: readonly NoteListItem[]): {
@@ -98,45 +119,92 @@ export function getInvestmentPositionFacts(note: NoteListItem, now: Date = new D
   const expectedReturn = Number(
     summary?.expectedReturnRatePercent ?? resolveNetExpectedReturnRatePercent(note) ?? 0
   );
+  const expectedProfit = Number(summary?.expectedProfitAmount ?? 0);
   const received = Number(summary?.receivedPayoutAmount ?? 0);
   const profit = Number(summary?.receivedProfitNetAmount ?? Math.max(0, received - invested));
   const tawidh = Number(summary?.receivedTawidhCompensationAmount ?? 0);
   const actualReturn =
     typeof summary?.actualReturnRatePercent === "number" ? summary.actualReturnRatePercent : null;
+  const completed = isInvestorInvestmentCompleted(note);
   return {
     invested,
     expectedReturn,
+    expectedProfit,
     received,
     profit,
     tawidh,
     actualReturn,
     daysToMaturity: calendarDaysFromToday(note.maturityDate, now),
+    expectedReturnIsEstimate: shouldLabelExpectedReturnAsUpTo({
+      tenureDays: note.tenureDays,
+      settled: completed,
+    }),
     noteLabel: formatNoteReferenceDisplay(note.noteReference) || note.title,
   };
+}
+
+export function resolveInvestmentSettlementDate(note: NoteListItem): string | null {
+  return formatNoteDateEnMy(
+    note.settlementSummary?.actualSettlementDate ??
+      note.repaidAt ??
+      note.settlementSummary?.postedAt
+  );
 }
 
 export function getInvestmentMaturityDisplay(
   note: NoteListItem,
   now: Date = new Date()
 ): InvestmentMaturityDisplay {
-  const date = formatInvestmentDate(note.maturityDate);
+  const timing = resolveNoteTimingDisplay(note, now);
+  const date = timing.kind === "tenure_activated" || timing.kind === "legacy" ? timing.value : "";
   if (isInvestorInvestmentCompleted(note)) {
-    return { tone: "settled", value: date, unit: "Matured", date: "" };
+    return {
+      tone: "settled",
+      value: resolveInvestmentSettlementDate(note) ?? "—",
+      unit: "Settled",
+      date: "",
+    };
+  }
+  if (timing.kind === "tenure_pending") {
+    return {
+      tone: "upcoming",
+      value: timing.compactValue,
+      unit: timing.compactLabel,
+      date: "",
+      tooltip: timing.tooltip,
+    };
   }
   const days = calendarDaysFromToday(note.maturityDate, now);
   if (days == null) {
-    return { tone: "unknown", value: "—", unit: "Maturity", date: "" };
+    return { tone: "unknown", value: "—", unit: "Maturity date", date: "" };
   }
   if (days === 0) {
     return { tone: "today", value: "Today", unit: "Matures", date };
   }
   if (days < 0) {
-    const overdue = Math.abs(days);
+    const elapsed = Math.abs(days);
+    const graceDays = resolveNoteGracePeriodDays(note);
+    if (isTenureBackedNote(note.tenureDays) && elapsed <= graceDays) {
+      return {
+        tone: "grace",
+        value: String(elapsed),
+        unit: elapsed === 1 ? "day in grace" : "days in grace",
+        date,
+        tooltip: NOTE_TIMING_GRACE_TOOLTIP,
+      };
+    }
     return {
       tone: "overdue",
-      value: String(overdue),
-      unit: overdue === 1 ? "day past due" : "days past due",
+      value: String(elapsed),
+      unit: isTenureBackedNote(note.tenureDays)
+        ? elapsed === 1
+          ? "day past maturity"
+          : "days past maturity"
+        : elapsed === 1
+          ? "day past due"
+          : "days past due",
       date,
+      tooltip: isTenureBackedNote(note.tenureDays) ? NOTE_TIMING_PAST_MATURITY_TOOLTIP : null,
     };
   }
   return {
@@ -147,14 +215,57 @@ export function getInvestmentMaturityDisplay(
   };
 }
 
+export function investmentMaturityKpiExtra(
+  maturity: InvestmentMaturityDisplay,
+  timing: ReturnType<typeof resolveNoteTimingDisplay>
+): string | undefined {
+  return joinNoteTimingExtra(maturity.date, timing.secondary);
+}
+
+export { resolveNoteGracePeriodDays };
+
+export type InvestmentReturnDisplay = {
+  ratePercent: number;
+  label: "p.a. actual" | "Up to" | "p.a.";
+  tooltip?: string;
+};
+
+export function periodProfitRatePercent(note: NoteListItem): number | null {
+  const facts = getInvestmentPositionFacts(note);
+  if (facts.invested <= 0.005) return null;
+  return ((facts.profit + facts.tawidh) / facts.invested) * 100;
+}
+
+export function actualReturnRateTooltip(note: NoteListItem): string {
+  const periodLabel = formatInvestorReturnRatePercent(periodProfitRatePercent(note) ?? 0);
+  return `p.a. means per annum (annualized). Actual profit on this note was ${periodLabel}.`;
+}
+
+export function getInvestmentReturnDisplay(note: NoteListItem): InvestmentReturnDisplay {
+  const facts = getInvestmentPositionFacts(note);
+  if (isInvestorInvestmentCompleted(note)) {
+    return {
+      ratePercent: facts.actualReturn ?? 0,
+      label: "p.a. actual",
+      tooltip: actualReturnRateTooltip(note),
+    };
+  }
+  if (facts.expectedReturnIsEstimate) {
+    return { ratePercent: facts.expectedReturn, label: "Up to" };
+  }
+  return { ratePercent: facts.expectedReturn, label: "p.a." };
+}
+
 export function investmentCardHeadline(note: NoteListItem): string {
   const facts = getInvestmentPositionFacts(note);
-  const completed = isInvestorInvestmentCompleted(note);
-  const rate =
-    completed && facts.actualReturn != null
-      ? `${formatInvestorReturnRatePercent(facts.actualReturn)} actual`
-      : `${formatInvestorReturnRatePercent(facts.expectedReturn)} p.a.`;
-  return `${formatCurrency(facts.invested)} invested · ${rate}`;
+  const display = getInvestmentReturnDisplay(note);
+  if (display.label === "p.a. actual") {
+    return `${formatCurrency(facts.invested)} invested · ${formatInvestorReturnRatePercent(display.ratePercent)} p.a. actual`;
+  }
+  if (display.label === "Up to" && facts.expectedProfit > 0.005) {
+    return `${formatCurrency(facts.invested)} invested · Up to ${formatCurrency(facts.expectedProfit)}`;
+  }
+  return `${formatCurrency(facts.invested)} invested · ${formatInvestorReturnRatePercent(display.ratePercent)} p.a.`;
 }
 
 export function investmentCardMeta(note: NoteListItem): string {
@@ -210,8 +321,10 @@ export function portfolioPayoutResult(notes: readonly NoteListItem[]): {
 
 export function realizedAnnualReturnRatePercent(note: NoteListItem): number | null {
   const facts = getInvestmentPositionFacts(note);
-  const profitDays = note.investorRepaymentSummary?.profitDays;
   if (facts.received <= 0.005 || facts.invested <= 0.005) return null;
+  if (facts.actualReturn != null) return facts.actualReturn;
+  const profitDays =
+    note.investorRepaymentSummary?.actualProfitDays ?? note.investorRepaymentSummary?.profitDays;
   if (!Number.isFinite(profitDays) || !profitDays || profitDays <= 0) return null;
   const periodReturnPercent = ((facts.received - facts.invested) / facts.invested) * 100;
   return periodReturnPercent * (365 / profitDays);

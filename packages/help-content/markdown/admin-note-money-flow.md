@@ -7,7 +7,7 @@ tags:
   - notes
   - finance
 order: 20
-updated: 2026-08-22
+updated: 2026-08-24
 ---
 
 ## Overview
@@ -123,7 +123,7 @@ flowchart TD
 
 ## From Invoice To Funding
 
-Create notes only from approved invoices. Review the invoice, issuer, paymaster, risk rating, amount, profit rate, drawdown fee, frozen utilisation schedule, service fee, maturity date, and listing summary before publishing.
+Create notes only from approved invoices. Review the invoice, issuer, paymaster, risk rating, amount, profit rate, financing tenure, drawdown fee, frozen utilisation schedule, service fee, and listing summary before publishing. The invoice due date is a source-invoice fact — it is not the public note maturity.
 
 When a note is published, it becomes available in the investor marketplace. Investors can commit funds until funding is closed automatically, closed manually, or failed.
 
@@ -161,9 +161,57 @@ The **Issuer Disbursement** card on the Disbursement tab follows this workflow:
 2. **Tawarruq certificate** — fetch the certificate PDF as proof before marking disbursed (when required).
 3. **Trustee letter** — generate the disbursement instruction PDF.
 4. **Submitted to trustee** — record that the signed letter was handed to the trustee.
-5. **Disbursed** — mark complete once the trustee confirms payout. This clears Issuer Payable, flips the note to **Active**, and starts servicing.
+5. **Disbursed** — mark complete once the trustee confirms payout. Enter **Actual disbursement date** as the Malaysia **bank value date**, not the date you click. This clears Issuer Payable, flips the note to **Active**, and starts servicing.
 
 While disbursement is in flight, the lifecycle card shows **Awaiting issuer disbursement** and the disbursement sub-stepper.
+
+## Tenure, maturity, and profit
+
+Tenure is chosen in **days** (**30 to 180**, in **15-day steps**). You may adjust it in the final invoice offer. The financed amount cannot be more than **80%** of invoice value. The invoice due date stays on the source invoice — it is not the public note maturity.
+
+- Before disbursement, listings and the prospectus show **"{n} days from disbursement"**.
+- Profit starts on the **Actual disbursement date** (Malaysia bank value date).
+- Maturity is that disbursement date plus the tenure.
+
+How profit runs:
+
+- **Early settlement:** profit stops on the **Actual settlement date** (bank value date the funds cleared). Investors earn fewer profit days; the issuer pays less profit. No early-settlement penalty.
+- **On maturity or in the 7-day grace:** profit stops at maturity. No Ta'widh or Gharamah during grace.
+- **After grace:** profit continues to the cleared date, but **gross investor profit can never exceed invoice value minus funded principal**. Ta'widh or Gharamah may apply.
+- The **service fee** (up to 15% of gross investor profit) is taken from that gross. Investors see and earn **net** profit.
+- Separately billed excess late charges are an issuer **Action required** item. They do **not** delay investor principal or profit settlement.
+
+### Dates to enter
+
+1. When you mark disbursed, enter **Actual disbursement date** as the bank value date — not the date you update the status. Profit starts here. Maturity is this date plus the tenure.
+2. When you record settlement, enter **Actual settlement date** as the bank value date the funds cleared — not the date you click.
+3. Open **Preview settlement** and check profit days, gross profit, service fee, and net investor payout before you approve and post.
+
+### Worked example
+
+Use these facts to read the settlement preview. Amounts use days ÷ 365, then 2-decimal money rounding: round gross first, then the 15% service fee, then net = gross − service fee.
+
+- Invoice **RM 100,000**
+- Funded principal **RM 80,000** (80%, the maximum)
+- Annual gross profit rate **12%**
+- Tenure **90 days**
+- Disbursed **20 Aug 2026** → maturity **18 Nov 2026**
+- Service fee **15%** of gross profit
+
+**Full 90 days** (clears on maturity, or in grace such as **22 Nov**):
+
+- Gross: 80,000 × 12% × 90/365 = **RM 2,367.12**
+- Service fee **RM 355.07**; investor net profit **RM 2,012.05**; investor payout **RM 82,012.05**
+- Clearing on 22 Nov is still **90** profit days. Grace ends **25 Nov**. No Ta'widh or Gharamah in grace.
+
+**Early** (clears **1 Nov 2026**): **73** calendar days from 20 Aug to 1 Nov.
+
+- Gross: 80,000 × 12% × 73/365 = **RM 1,920.00**
+- Service fee **RM 288.00**; investor net profit **RM 1,632.00**; investor payout **RM 81,632.00**
+
+**Late** (after 25 Nov): profit continues to the cleared date. Gross investor profit cannot go above **RM 20,000** (invoice RM 100,000 − funded RM 80,000). Once it reaches that ceiling it stops increasing. The service fee is still taken from that (capped) gross. Ta'widh or Gharamah may apply — use the preview; do not assume a late-charge amount.
+
+Older notes that were listed before this tenure model keep their existing contractual terms. Do not apply these rules to those notes unless the note itself already shows a tenure-based maturity.
 
 ### Tawarruq transaction (issuer disbursement proof)
 
@@ -187,9 +235,12 @@ Repayment is usually paid by the paymaster into the Repayment Pool. The issuer m
 
 ### Repayment receipts
 
-Record each tranche with **Record receipt** on the Servicing & Settlement tab. Payment evidence is stored in **`evidence_files`** on the payment record (not a single legacy evidence key). Open receipts must reach the **invoice settlement amount** (invoice face value) before you can preview settlement.
+Record each receipt with **Record receipt** on the Servicing & Settlement tab. Enter **Actual settlement date** as the bank value date the funds cleared. Payment evidence is stored with the payment record. Verify **Preview settlement** before you approve and post.
 
-When open receipts cover the invoice amount and any issuer submissions are approved, preview the waterfall, then approve and post.
+- **Before and through grace:** do not accept a partial receipt. The recorded amount must cover the full invoice settlement amount (invoice face value) before you can preview settlement.
+- **After grace:** receipts may accumulate. Preview the final waterfall only when investor principal and accrued profit are covered. Unpaid late charges can be billed separately (see Late Payments).
+
+When receipts are enough and any issuer submissions are approved, preview the waterfall, then approve and post.
 
 ### Approve and post confirmation
 
@@ -212,8 +263,9 @@ After settlement is posted, further receipt/settlement posting actions on this n
 After post, when the waterfall includes trustee movements (investor pool, service fee, Ta'widh account, Gharamah account, and/or issuer refund allocation), complete:
 
 1. **Generate** the settlement trustee instruction PDF.
-2. **Mark submitted to trustee** after the trustee has received it.
-3. **Mark instruction completed** when the trustee confirms processing.
+2. **Email to Trustee** when auto-send is on, or **Mark submitted to trustee** when it is off.
+3. **Resend Email to Trustee** remains available until the instruction is completed; it updates the delivery timestamp only.
+4. **Mark instruction completed** when the trustee confirms processing.
 
 Until instruction completed, the status badge shows **Active · servicing**, the lifecycle header **Currently Active**, and the settlement strip shows **Trustee instruction** as the current step. Use **Finance → Service Fee** for the platform-wide queue.
 
@@ -227,10 +279,18 @@ Late charges are handled manually when repayment funds are received.
 
 Before applying late charges, use **Apply suggested fees** or **Custom amounts** on the Late Payment tab. Suggested amounts respect Syariah caps and **settlement headroom**.
 
-- **Grace period** default is 7 days.
+- **Grace period** default is 7 days after maturity. No Ta'widh or Gharamah during grace. Profit has already stopped at maturity if funds clear in this window.
 - **Ta'widh** and **Gharamah** are queued, then saved when you **Preview settlement** on the Servicing & Settlement tab.
-- **Arrears** starts after grace plus the arrears threshold (default 21 days after missed payment with standard settings).
+- **Arrears** starts after grace plus the arrears threshold (default 21 days after missed maturity with standard settings).
 - **Default** is never automatic. Admin can mark default only after the note is in arrears.
+
+### Late charges that do not fit the residual
+
+- Take late charges from the issuer residual first.
+- Any shortfall is separately payable by the issuer via FPX. It shows as **Action required** in the issuer portal. It does **not** block investor settlement.
+- Those payments appear in **Finance → Gateway Payments** as **Late Payment Charges**.
+
+On older notes that still use listing-to-maturity terms, follow the contractual terms already on the note.
 
 ## Arrears And Default Letters
 

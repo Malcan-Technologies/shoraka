@@ -14,6 +14,16 @@ describe("resolveGatewayAccountForPurpose", () => {
     );
   });
 
+  it("maps FACILITY_FEE to OPERATING", () => {
+    expect(resolveGatewayAccountForPurpose(GatewayPaymentPurpose.FACILITY_FEE)).toBe("OPERATING");
+  });
+
+  it("maps EXCESS_LATE_CHARGES to OPERATING", () => {
+    expect(resolveGatewayAccountForPurpose(GatewayPaymentPurpose.EXCESS_LATE_CHARGES)).toBe(
+      "OPERATING"
+    );
+  });
+
   it("maps INVESTOR_DEPOSIT to INVESTOR_POOL", () => {
     expect(resolveGatewayAccountForPurpose(GatewayPaymentPurpose.INVESTOR_DEPOSIT)).toBe(
       "INVESTOR_POOL"
@@ -30,6 +40,8 @@ describe("resolveGatewayAccountForPurpose", () => {
     const resolved = [
       resolveGatewayAccountForPurpose(GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE),
       resolveGatewayAccountForPurpose(GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE),
+      resolveGatewayAccountForPurpose(GatewayPaymentPurpose.FACILITY_FEE),
+      resolveGatewayAccountForPurpose(GatewayPaymentPurpose.EXCESS_LATE_CHARGES),
       resolveGatewayAccountForPurpose(GatewayPaymentPurpose.INVESTOR_DEPOSIT),
     ];
     expect(new Set(resolved)).toEqual(new Set(["OPERATING", "INVESTOR_POOL"]));

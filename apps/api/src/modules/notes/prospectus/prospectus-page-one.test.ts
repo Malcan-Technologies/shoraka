@@ -51,6 +51,7 @@ function baseNote(
     profit_rate_percent: 12,
     service_fee_rate_percent: 10,
     maturity_date: new Date("2025-09-12T00:00:00.000Z"),
+    tenure_days: null,
     status: NoteStatus.FUNDING,
     repaid_at: null,
     published_at: null,

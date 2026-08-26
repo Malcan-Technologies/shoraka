@@ -173,6 +173,7 @@ export interface OrganizationTypeStats {
 
 export interface PortalOrganizationStats {
   total: number;
+  percentageChange: number;
   personal: OrganizationTypeStats;
   company: OrganizationTypeStats;
 }
@@ -217,6 +218,18 @@ export interface NoteDashboardMetrics {
   cancelledOrFailedFunding: number;
 }
 
+export interface BookAmountMetric {
+  amount: number;
+  count: number;
+}
+
+export interface BookMetrics {
+  outstanding: BookAmountMetric;
+  inFunding: BookAmountMetric;
+  distressed: BookAmountMetric;
+  dueSoon: BookAmountMetric;
+}
+
 export interface DashboardStatsResponse {
   users: {
     total: UserStatsWithTrend;
@@ -229,6 +242,7 @@ export interface DashboardStatsResponse {
   applicationMetrics?: ApplicationDashboardMetrics;
   contractMetrics?: ContractDashboardMetrics;
   noteMetrics?: NoteDashboardMetrics;
+  bookMetrics?: BookMetrics;
 }
 
 // Admin Management Types
@@ -1003,15 +1017,21 @@ export interface AdminNotificationGroup {
   updated_at: string;
 }
 
+export type NotificationLogSource = "ADMIN" | "SYSTEM";
+
 export interface AdminNotificationLog {
   id: string;
-  admin_user_id: string;
+  admin_user_id: string | null;
+  source: NotificationLogSource;
   target_type: string;
   target_group_id: string | null;
   notification_type_id: string;
   title: string;
   message: string;
   recipient_count: number;
+  delivered_platform_count: number;
+  delivered_email_count: number;
+  idempotency_key: string | null;
   metadata: Record<string, unknown> | null;
   ip_address: string | null;
   user_agent: string | null;
@@ -1021,7 +1041,7 @@ export interface AdminNotificationLog {
     first_name: string;
     last_name: string;
     email: string;
-  };
+  } | null;
   notification_type: AdminNotificationType | null;
 }
 
@@ -1059,6 +1079,7 @@ export interface AdminUpdateNotificationTypePayload {
 export interface AdminSeedTypesResponse {
   count: number;
   added: number;
+  reset: number;
 }
 
 // Financing Applications Types
@@ -1102,6 +1123,17 @@ export interface AdminApplicationActionRequiredCountResponse {
     contractAccepted: number;
     invoicePending: number;
   };
+}
+
+export interface ApplicationNavCountItem {
+  baseProductId: string;
+  financingTypeLabel: string;
+  total: number;
+  actionRequired: number;
+}
+
+export interface AdminApplicationNavCountsResponse {
+  products: ApplicationNavCountItem[];
 }
 
 export interface ContractListItem {
@@ -1191,6 +1223,8 @@ export interface AdminContractDetail {
   lifetimeCap: number;
   lifetimeUsed: number;
   lifetimeRemaining: number;
+  facilityFeeUpfrontAmount: number;
+  facilityFeeUpfrontOutstanding: number;
   status: string;
   createdAt: string;
   updatedAt: string;

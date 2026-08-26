@@ -11,12 +11,19 @@ import {
   ArrowTopRightOnSquareIcon,
   CheckCircleIcon,
   DocumentTextIcon,
+  EnvelopeIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { NoteDetail, WithdrawalInstruction } from "@cashsouk/types";
 import { WithdrawalType, formatWithdrawalReference } from "@cashsouk/types";
 import { StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
+import { DisbursementValueDateField } from "@/notes/components/disbursement-value-date-field";
+import {
+  defaultDisbursementValueDate,
+  disbursementValueDateError,
+  noteNeedsDisbursementValueDate,
+} from "@/notes/utils/disbursement-value-date";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,6 +48,7 @@ import {
   useGenerateWithdrawalLetter,
   useMarkWithdrawalCompleted,
   useMarkWithdrawalSubmitted,
+  useResendWithdrawalTrusteeEmail,
   useUpdateWithdrawalBeneficiary,
   useFetchShorakaCertificate,
   useQueryShorakaStatus,
@@ -50,6 +58,16 @@ import {
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { cn } from "@/lib/utils";
 import { notesKeys } from "@/notes/query-keys";
+import {
+  formatTrusteeInstructionEmailedAt,
+  formatTrusteeInstructionEmailedCopy,
+  TRUSTEE_EMAIL_DELIVERED_LABEL,
+} from "@/lib/trustee-letter-sent-state";
+import {
+  canResendWithdrawalTrusteeEmail,
+  getTrusteeResendCopy,
+} from "@/lib/trustee-letter-resend";
+import { getTrusteeSubmitCopy } from "@/lib/trustee-letter-submit-copy";
 import {
   BeneficiaryDetailsBlock,
   CollapsibleDetailTimeline,
@@ -228,6 +246,7 @@ export function IssuerPayoutCard({
   const kindCopy = KIND_COPY[kind];
   const generateLetter = useGenerateWithdrawalLetter();
   const markSubmitted = useMarkWithdrawalSubmitted();
+  const resendTrusteeEmail = useResendWithdrawalTrusteeEmail();
   const markCompleted = useMarkWithdrawalCompleted();
   const updateBeneficiary = useUpdateWithdrawalBeneficiary();
   const { handleViewDocument, handleDownloadDocument, viewDocumentPending } =
@@ -301,12 +320,16 @@ export function IssuerPayoutCard({
     ) : null;
 
   const [confirmAction, setConfirmAction] = React.useState<
-    "generate" | "submit" | "complete" | null
+    "generate" | "submit" | "resend" | "complete" | null
   >(null);
   const [beneficiaryDialogOpen, setBeneficiaryDialogOpen] = React.useState(false);
   const [beneficiaryDraft, setBeneficiaryDraft] = React.useState<BeneficiaryFields>(() =>
     snapshotToFields(withdrawal.beneficiarySnapshot)
   );
+  const requiresDisbursementDate =
+    kind === "DISBURSEMENT" && noteNeedsDisbursementValueDate(note);
+  const [disbursementValueDate, setDisbursementValueDate] = React.useState("");
+  const [disbursementDateError, setDisbursementDateError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!beneficiaryDialogOpen) {
@@ -315,6 +338,14 @@ export function IssuerPayoutCard({
   }, [withdrawal.beneficiarySnapshot, beneficiaryDialogOpen]);
 
   const status = withdrawal.status;
+  const trusteeSubmitCopy = getTrusteeSubmitCopy(note.trusteeAutoSendEmailEnabled === true);
+  const trusteeResendCopy = getTrusteeResendCopy();
+  const canResendTrusteeEmail = canResendWithdrawalTrusteeEmail(
+    withdrawal.trusteeEmailSentAt,
+    status
+  );
+  const trusteeEmailedCopy = formatTrusteeInstructionEmailedCopy(withdrawal.trusteeEmailSentAt);
+  const trusteeEmailedAt = formatTrusteeInstructionEmailedAt(withdrawal.trusteeEmailSentAt);
   const withdrawalReference = formatWithdrawalReference({
     displayReference: withdrawal.displayReference,
     id: withdrawal.id,
@@ -370,9 +401,24 @@ export function IssuerPayoutCard({
         toast.success("Trustee letter generated");
       } else if (confirmAction === "submit") {
         await markSubmitted.mutateAsync(withdrawal.id);
-        toast.success("Marked as submitted to trustee");
+        toast.success(trusteeSubmitCopy.success);
+      } else if (confirmAction === "resend") {
+        await resendTrusteeEmail.mutateAsync(withdrawal.id);
+        toast.success(trusteeResendCopy.success);
       } else if (confirmAction === "complete") {
-        await markCompleted.mutateAsync(withdrawal.id);
+        if (requiresDisbursementDate) {
+          const dateError = disbursementValueDateError(disbursementValueDate);
+          if (dateError) {
+            setDisbursementDateError(dateError);
+            return;
+          }
+          await markCompleted.mutateAsync({
+            id: withdrawal.id,
+            disbursementValueDate,
+          });
+        } else {
+          await markCompleted.mutateAsync(withdrawal.id);
+        }
         toast.success(
           kind === "DISBURSEMENT"
             ? "Issuer disbursement recorded — note is now active"
@@ -403,6 +449,7 @@ export function IssuerPayoutCard({
   const pendingAny =
     generateLetter.isPending ||
     markSubmitted.isPending ||
+    resendTrusteeEmail.isPending ||
     markCompleted.isPending ||
     updateBeneficiary.isPending;
 
@@ -417,10 +464,16 @@ export function IssuerPayoutCard({
         }
       : confirmAction === "submit"
         ? {
-            title: "Mark letter as submitted to trustee?",
-            description: `Confirm that the trustee letter has been delivered. The withdrawal will move to "Submitted to trustee" and await confirmation of physical disbursement.`,
-            confirmLabel: "Mark Submitted",
+            title: trusteeSubmitCopy.confirmTitle,
+            description: trusteeSubmitCopy.description,
+            confirmLabel: trusteeSubmitCopy.confirmLabel,
           }
+        : confirmAction === "resend"
+          ? {
+              title: trusteeResendCopy.confirmTitle,
+              description: trusteeResendCopy.description,
+              confirmLabel: trusteeResendCopy.confirmLabel,
+            }
         : confirmAction === "complete"
           ? {
               title:
@@ -848,6 +901,9 @@ export function IssuerPayoutCard({
         <p className="mt-1 text-xs text-muted-foreground">
           {withdrawalTrusteeDescription(status, kind)}
         </p>
+        {trusteeEmailedCopy ? (
+          <p className="mt-1 text-meta text-muted-foreground">{trusteeEmailedCopy}</p>
+        ) : null}
         {withdrawal.letterS3Key && withdrawal.generatedAt ? (
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             <DocumentTextIcon className="h-3.5 w-3.5 shrink-0" />
@@ -895,6 +951,14 @@ export function IssuerPayoutCard({
                       new Date(withdrawal.submittedToTrusteeAt),
                       "dd MMM yyyy, h:mm a"
                     ),
+                  },
+                ]
+              : []),
+            ...(trusteeEmailedAt
+              ? [
+                  {
+                    label: TRUSTEE_EMAIL_DELIVERED_LABEL,
+                    value: trusteeEmailedAt,
                   },
                 ]
               : []),
@@ -952,6 +1016,19 @@ export function IssuerPayoutCard({
               Generate Letter
             </Button>
           ) : null}
+          {canResendTrusteeEmail ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => guardedAction(() => setConfirmAction("resend"))}
+              disabled={pendingAny || !canManage}
+              title={!canManage ? "You do not have permission to perform this action." : undefined}
+              className="gap-1.5"
+            >
+              <EnvelopeIcon className="h-4 w-4" />
+              {trusteeResendCopy.button}
+            </Button>
+          ) : null}
           {status === "LETTER_GENERATED" ? (
             <Button
               size="sm"
@@ -961,13 +1038,21 @@ export function IssuerPayoutCard({
               className="gap-1.5"
             >
               <ArrowRightCircleIcon className="h-4 w-4" />
-              Mark submitted to trustee
+              {trusteeSubmitCopy.button}
             </Button>
           ) : null}
           {status === "SUBMITTED_TO_TRUSTEE" ? (
             <Button
               size="sm"
-              onClick={() => guardedAction(() => setConfirmAction("complete"))}
+              onClick={() =>
+                guardedAction(() => {
+                  if (requiresDisbursementDate) {
+                    setDisbursementValueDate(defaultDisbursementValueDate());
+                    setDisbursementDateError(null);
+                  }
+                  setConfirmAction("complete");
+                })
+              }
               disabled={pendingAny || markDisbursedDisabledBecauseShoraka || !canManage}
               title={!canManage ? "You do not have permission to perform this action." : undefined}
               className="gap-1.5"
@@ -999,9 +1084,33 @@ export function IssuerPayoutCard({
                 <AlertDialogTitle>{confirmCopy.title}</AlertDialogTitle>
                 <AlertDialogDescription>{confirmCopy.description}</AlertDialogDescription>
               </AlertDialogHeader>
+              {confirmAction === "complete" && requiresDisbursementDate ? (
+                <DisbursementValueDateField
+                  id="issuer-disbursement-value-date"
+                  value={disbursementValueDate}
+                  error={disbursementDateError}
+                  onChange={(value) => {
+                    setDisbursementValueDate(value);
+                    setDisbursementDateError(null);
+                  }}
+                />
+              ) : null}
               <AlertDialogFooter>
                 <AlertDialogCancel disabled={pendingAny}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmRun} disabled={pendingAny}>
+                <AlertDialogAction
+                  disabled={pendingAny}
+                  onClick={(event) => {
+                    if (confirmAction === "complete" && requiresDisbursementDate) {
+                      const dateError = disbursementValueDateError(disbursementValueDate);
+                      if (dateError) {
+                        event.preventDefault();
+                        setDisbursementDateError(dateError);
+                        return;
+                      }
+                    }
+                    void confirmRun();
+                  }}
+                >
                   {confirmCopy.confirmLabel}
                 </AlertDialogAction>
               </AlertDialogFooter>

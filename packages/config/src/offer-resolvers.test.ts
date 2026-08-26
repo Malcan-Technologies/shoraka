@@ -1,4 +1,6 @@
 import {
+  invoiceAmountFromFaceAndRatio,
+  invoiceOfferExceedsRequested,
   resolveApprovedFacility,
   resolveOfferedAmount,
   resolveOfferedFacility,
@@ -52,6 +54,43 @@ describe("resolveRequestedInvoiceAmount", () => {
         financing_ratio_percent: 80,
       })
     ).toBe(80_000);
+  });
+
+  it("keeps sen instead of rounding requested financing to whole ringgit", () => {
+    expect(
+      resolveRequestedInvoiceAmount({
+        value: 80_527.92,
+        financing_ratio_percent: 79,
+      })
+    ).toBe(63_617.06);
+  });
+
+  it("sen-rounds a stored applied_financing value", () => {
+    expect(
+      resolveRequestedInvoiceAmount({
+        value: 80_527.92,
+        financing_ratio_percent: 79,
+        applied_financing: 63_617.0568,
+      })
+    ).toBe(63_617.06);
+  });
+});
+
+describe("invoiceAmountFromFaceAndRatio", () => {
+  it("rounds face times percent to sen without dropping sen to whole ringgit", () => {
+    expect(invoiceAmountFromFaceAndRatio(80_527.92, 79)).toBe(63_617.06);
+    expect(invoiceAmountFromFaceAndRatio(80_527.92, 80)).toBe(64_422.34);
+  });
+});
+
+describe("invoiceOfferExceedsRequested", () => {
+  it("treats matching sen amounts as equal even with float noise", () => {
+    expect(invoiceOfferExceedsRequested(63_617.06000000001, 63_617.06)).toBe(false);
+    expect(invoiceOfferExceedsRequested(63_617.06, 63_617.0568)).toBe(false);
+  });
+
+  it("flags a real sen increase above the issuer request", () => {
+    expect(invoiceOfferExceedsRequested(63_617.07, 63_617.06)).toBe(true);
   });
 });
 

@@ -301,3 +301,39 @@ export function buildApplicationProcessingFeeCallbackUrl(
     returnTo,
   });
 }
+
+export function buildIssuerExcessLateChargeCallbackUrl(
+  paymentId: string,
+  returnTo?: string,
+  portalOrigin?: string
+): string {
+  const origin =
+    portalOrigin ??
+    resolvePortalOrigin(process.env.NEXT_PUBLIC_ISSUER_URL?.trim());
+
+  return buildGatewayCallbackUrl({
+    portalOrigin: origin,
+    callbackPath: "/financing/excess-late-charges/callback",
+    paymentId,
+    paymentIdParam: "excessLateChargeId",
+    returnTo,
+  });
+}
+
+export function buildIssuerFacilityFeeCallbackUrl(
+  paymentId: string,
+  returnTo?: string,
+  portalOrigin?: string
+): string {
+  const origin =
+    portalOrigin ??
+    resolvePortalOrigin(process.env.NEXT_PUBLIC_ISSUER_URL?.trim());
+
+  return buildGatewayCallbackUrl({
+    portalOrigin: origin,
+    callbackPath: "/financing/facility-fee/callback",
+    paymentId,
+    paymentIdParam: "facilityFeeId",
+    returnTo,
+  });
+}

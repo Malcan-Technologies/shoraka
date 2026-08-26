@@ -41,6 +41,8 @@ import { ekycRouter } from "./modules/ekyc/controller";
 import { investorDepositsRouter } from "./modules/payment/deposit-controller";
 import { issuerOnboardingFeeRouter } from "./modules/payment/onboarding-fee-controller";
 import { applicationProcessingFeeRouter } from "./modules/payment/processing-fee-controller";
+import { facilityFeePaymentRouter } from "./modules/payment/facility-fee-controller";
+import { excessLateChargePaymentRouter } from "./modules/payment/excess-late-charge-controller";
 import { gatewayPaymentsAdminRouter } from "./modules/payment/admin-controller";
 import { gatewayReconAdminRouter } from "./modules/payment/recon-controller";
 import { facilityLoDemoRouter } from "./modules/applications/letter-of-offer/facility-lo-demo.controller";
@@ -109,6 +111,12 @@ export function registerRoutes(app: Application): void {
   // Public issuer catalog (active products + live-check); no auth — same JSON shape as before.
   v1Router.use("/issuer/products", issuerCatalogRouter);
   v1Router.use("/contracts", createContractRouter());
+  v1Router.use("/contracts/:contractId/facility-fee", requireAuth, facilityFeePaymentRouter);
+  v1Router.use(
+    "/notes/:noteId/excess-late-charges",
+    requireAuth,
+    excessLateChargePaymentRouter
+  );
   v1Router.use("/invoices", createInvoiceRouter());
 
   // Multi-party signing envelopes (issuer reads + sign-my-part). Admin lifecycle

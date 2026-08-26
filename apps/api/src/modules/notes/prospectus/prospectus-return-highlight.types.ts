@@ -25,7 +25,7 @@ export interface ProspectusReturnHighlightAudit {
   };
   tenure: {
     reusedFrom: "Stage 2 buildProspectusTenureAndMaturity.tenure";
-    prospectusTenureBasis: "opens_at_to_maturity_date";
+    prospectusTenureBasis: "tenure_days_or_opens_at_to_maturity_date";
   };
   annualNetExpectedReturnRate: {
     helper: "computeNetExpectedReturnRatePercent";
@@ -40,8 +40,8 @@ export interface ProspectusReturnHighlightAudit {
     periodReturnDecision: "unresolved";
   };
   dateBasis: {
-    prospectusTenureBasis: "opens_at → maturity_date";
-    settlementAccrualBasis: "activated_at → profit maturity";
+    prospectusTenureBasis: "notes.tenure_days when set; else opens_at → maturity_date";
+    settlementAccrualBasis: "disbursement_value_date → profit end (cleared/maturity/ceiling)";
     basesEquivalent: false;
   };
   returnClassification: {
@@ -74,7 +74,7 @@ export const PROSPECTUS_RETURN_HIGHLIGHT_AUDIT_BASE = {
   },
   tenure: {
     reusedFrom: "Stage 2 buildProspectusTenureAndMaturity.tenure" as const,
-    prospectusTenureBasis: "opens_at_to_maturity_date" as const,
+    prospectusTenureBasis: "tenure_days_or_opens_at_to_maturity_date" as const,
   },
   annualNetExpectedReturnRate: {
     helper: "computeNetExpectedReturnRatePercent" as const,
@@ -89,8 +89,8 @@ export const PROSPECTUS_RETURN_HIGHLIGHT_AUDIT_BASE = {
     periodReturnDecision: "unresolved" as const,
   },
   dateBasis: {
-    prospectusTenureBasis: "opens_at → maturity_date" as const,
-    settlementAccrualBasis: "activated_at → profit maturity" as const,
+    prospectusTenureBasis: "notes.tenure_days when set; else opens_at → maturity_date" as const,
+    settlementAccrualBasis: "disbursement_value_date → profit end (cleared/maturity/ceiling)" as const,
     basesEquivalent: false as const,
   },
   returnClassification: {
@@ -137,6 +137,8 @@ export interface ProspectusReturnHighlightInput {
   listingOpensAt: Date | string | null | undefined;
   /** notes.maturity_date — for Stage 2 tenure helper */
   maturityDate: Date | string | null | undefined;
+  /** notes.tenure_days — stored tenure for new notes */
+  tenureDays?: number | null;
   /** notes.service_fee_rate_percent — % of gross profit (required for annual net) */
   serviceFeeRatePercent: number | null | undefined;
 }
@@ -176,7 +178,7 @@ export const PROSPECTUS_RETURN_HIGHLIGHT_FIELD_SOURCES: Record<
     availability: "calculated",
     surface: "canva",
     possibleAlternatives: "days remaining; activated_at→maturity — not used",
-    notes: "opens_at → maturity_date only.",
+    notes: "notes.tenure_days when set; else opens_at → maturity_date.",
   },
   annualNetExpectedReturnRate: {
     label: "Annual Net Expected Return Rate (p.a.)",

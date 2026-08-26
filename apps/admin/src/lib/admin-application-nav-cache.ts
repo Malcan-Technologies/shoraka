@@ -2,12 +2,11 @@ import type { QueryClient } from "@tanstack/react-query";
 import { applicationsKeys } from "@/applications/query-keys";
 
 /**
- * After application mutations, refresh list queries, sidebar nav, and product lists
- * (sidebar groups use both products + applications).
+ * After application mutations, refresh list queries, sidebar/dashboard nav counts, and product lists.
  */
 export function invalidateAdminApplicationNavQueries(queryClient: QueryClient): void {
   void queryClient.invalidateQueries({ queryKey: applicationsKeys.all });
-  void queryClient.invalidateQueries({ queryKey: applicationsKeys.sidebarAll });
+  void queryClient.invalidateQueries({ queryKey: applicationsKeys.navCounts });
   void queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
 }
 
@@ -23,5 +22,6 @@ export function invalidateAdminApplicationDetailQueries(
   void queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationId) });
   if (options?.includeActionCount) {
     void queryClient.invalidateQueries({ queryKey: applicationsKeys.actionCount });
+    void queryClient.invalidateQueries({ queryKey: applicationsKeys.navCounts });
   }
 }

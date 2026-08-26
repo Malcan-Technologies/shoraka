@@ -26,6 +26,19 @@ const PURPOSE_SEARCH_ALIASES: Array<{ purpose: GatewayPaymentPurpose; terms: str
       "application_processing_fee",
     ],
   },
+  {
+    purpose: GatewayPaymentPurpose.FACILITY_FEE,
+    terms: ["facility fee", "facility_fee", "upfront facility fee"],
+  },
+  {
+    purpose: GatewayPaymentPurpose.EXCESS_LATE_CHARGES,
+    terms: [
+      "late payment charges",
+      "excess late charges",
+      "excess_late_charges",
+      "late charges",
+    ],
+  },
 ];
 
 export function matchPurposesFromSearch(term: string): GatewayPaymentPurpose[] {

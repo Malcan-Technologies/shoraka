@@ -26,7 +26,7 @@ export type TrackRecordNoteRow = {
 export type OnTimeScheduleRow = {
   id: string;
   note_id: string;
-  due_date: Date;
+  due_date: Date | null;
   expected_total: unknown;
 };
 
@@ -135,8 +135,9 @@ export function computeOnTimePaymentRate(input: {
 }): OnTimePaymentRateResult {
   const { schedules, payments, now, windowStart, excludeNoteId } = input;
 
-  const schedulesInWindow = schedules.filter((s) => {
+  const schedulesInWindow = schedules.filter((s): s is OnTimeScheduleRow & { due_date: Date } => {
     if (excludeNoteId && s.note_id === excludeNoteId) return false;
+    if (s.due_date == null) return false;
     return s.due_date >= windowStart && s.due_date <= now;
   });
 

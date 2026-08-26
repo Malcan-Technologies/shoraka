@@ -3,7 +3,9 @@ import type { GatewayPaymentStatus, NameCheckResult } from "./notes";
 export type GatewayPaymentPurpose =
   | "INVESTOR_DEPOSIT"
   | "ISSUER_ONBOARDING_FEE"
-  | "APPLICATION_PROCESSING_FEE";
+  | "APPLICATION_PROCESSING_FEE"
+  | "FACILITY_FEE"
+  | "EXCESS_LATE_CHARGES";
 
 export type GatewayOrganizationType = "INVESTOR" | "ISSUER";
 export type CurlecGatewayAccount = "OPERATING" | "INVESTOR_POOL";
@@ -46,6 +48,8 @@ export interface GatewayPaymentListItemDto {
   investorOrganizationName: string | null;
   issuerOrganizationId: string | null;
   issuerOrganizationName: string | null;
+  contractId: string | null;
+  noteId?: string | null;
   curlecOrderId: string;
   curlecPaymentId: string | null;
   settlementId: string | null;

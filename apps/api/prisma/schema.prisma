@@ -475,6 +475,7 @@ model Application {
   application_guarantors              ApplicationGuarantor[]
   gateway_payments                    GatewayPayment[]
   signing_envelopes                   SigningEnvelope[]
+  offer_accept_otp_challenges         OfferAcceptOtpChallenge[]
 
   @@index([display_reference])
   @@index([issuer_organization_id, archived_at])
@@ -623,8 +624,10 @@ model Contract {
   originating_application    Application?       @relation("ContractOriginatingApplication", fields: [originating_application_id], references: [id], onDelete: SetNull)
   applications               Application[]
   issuer_organization        IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
-  invoices                   Invoice[]
-  signing_envelopes          SigningEnvelope[]
+  invoices                    Invoice[]
+  signing_envelopes           SigningEnvelope[]
+  gateway_payments            GatewayPayment[]
+  offer_accept_otp_challenges OfferAcceptOtpChallenge[]
 
   @@index([originating_application_id])
   @@index([display_reference])
@@ -642,14 +645,45 @@ model Invoice {
   status            InvoiceStatus     @default(DRAFT)
   withdraw_reason   WithdrawReason?
   display_reference String?           @unique
-  application       Application       @relation(fields: [application_id], references: [id], onDelete: Cascade)
-  contract          Contract?         @relation(fields: [contract_id], references: [id])
-  signing_envelopes SigningEnvelope[]
+  application                   Application               @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  contract                      Contract?                 @relation(fields: [contract_id], references: [id])
+  signing_envelopes             SigningEnvelope[]
+  offer_accept_otp_challenges   OfferAcceptOtpChallenge[]
 
   @@index([contract_id])
   @@index([application_id])
   @@index([display_reference])
   @@map("invoices")
+}
+
+/// One-time email OTP that authorizes direct accept of a facility-linked invoice offer.
+model OfferAcceptOtpChallenge {
+  id                   String                     @id @default(cuid())
+  application_id       String
+  invoice_id           String
+  contract_id          String
+  requested_by_user_id String                     @db.VarChar(5)
+  signatory_name       String
+  signatory_email      String
+  signatory_source     OfferAcceptSignatorySource
+  code_hash            String
+  expires_at           DateTime
+  attempts             Int                        @default(0)
+  consumed_at          DateTime?
+  resend_count         Int                        @default(0)
+  last_sent_at         DateTime
+  created_at           DateTime                   @default(now())
+  updated_at           DateTime                   @updatedAt
+
+  application Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  invoice     Invoice     @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  contract    Contract    @relation(fields: [contract_id], references: [id], onDelete: Restrict)
+
+  @@index([application_id])
+  @@index([invoice_id])
+  @@index([contract_id])
+  @@index([invoice_id, consumed_at])
+  @@map("offer_accept_otp_challenges")
 }
 
 /// A multi-document signing package for one application/offer. All signers are external
@@ -823,6 +857,9 @@ model Note {
   featured_from                   DateTime?
   featured_until                  DateTime?
   maturity_date                   DateTime?
+  /// Null = grandfathered legacy profit engine. Set = tenure-based engine.
+  tenure_days                     Int?
+  disbursement_value_date         DateTime?
   grace_period_days               Int                         @default(7)
   arrears_threshold_days          Int                         @default(14)
   tawidh_rate_cap_percent         Decimal                     @default(1) @db.Decimal(5, 2)
@@ -848,6 +885,7 @@ model Note {
   admin_actions                   NoteAdminAction[]
   prospectus_review               NoteProspectusReview?
   prospectus_publications         NoteProspectusPublication[]
+  gateway_payments                GatewayPayment[]
 
   @@index([source_application_id])
   @@index([source_contract_id])
@@ -1010,7 +1048,7 @@ model NotePaymentSchedule {
   note_id            String
   status             NotePaymentStatus @default(PENDING)
   sequence           Int
-  due_date           DateTime
+  due_date           DateTime?
   expected_principal Decimal           @default(0) @db.Decimal(18, 6)
   expected_profit    Decimal           @default(0) @db.Decimal(18, 6)
   expected_total     Decimal           @default(0) @db.Decimal(18, 6)
@@ -1078,6 +1116,11 @@ model NoteSettlement {
   gharamah_amount                         Decimal                             @default(0) @db.Decimal(18, 6)
   issuer_residual_amount                  Decimal                             @default(0) @db.Decimal(18, 6)
   unapplied_amount                        Decimal                             @default(0) @db.Decimal(18, 6)
+  excess_late_charge_amount               Decimal                             @default(0) @db.Decimal(18, 6)
+  excess_late_charge_paid_amount          Decimal                             @default(0) @db.Decimal(18, 6)
+  excess_tawidh_amount                    Decimal                             @default(0) @db.Decimal(18, 6)
+  excess_gharamah_amount                  Decimal                             @default(0) @db.Decimal(18, 6)
+  actual_settlement_date                  DateTime?
   preview_snapshot                        Json
   approved_by_user_id                     String?
   approved_at                             DateTime?
@@ -1089,6 +1132,7 @@ model NoteSettlement {
   service_fee_trustee_letter_generated_at DateTime?
   service_fee_trustee_submitted_at        DateTime?
   service_fee_trustee_completed_at        DateTime?
+  service_fee_trustee_email_sent_at       DateTime?                           @db.Timestamptz
   created_at                              DateTime                            @default(now())
   updated_at                              DateTime                            @updatedAt
   note                                    Note                                @relation(fields: [note_id], references: [id], onDelete: Cascade)
@@ -1190,30 +1234,32 @@ model NoteAdminAction {
 }
 
 model PlatformFinanceSetting {
-  id                                String   @id @default(cuid())
-  key                               String   @unique
-  grace_period_days                 Int      @default(7)
-  arrears_threshold_days            Int      @default(14)
-  tawidh_rate_cap_percent           Decimal  @default(1) @db.Decimal(5, 2)
-  gharamah_rate_cap_percent         Decimal  @default(9) @db.Decimal(5, 2)
-  platform_fee_rate_cap_percent     Decimal  @default(3) @db.Decimal(5, 2)
-  default_tawidh_rate_percent       Decimal  @default(0) @db.Decimal(5, 2)
-  default_gharamah_rate_percent     Decimal  @default(0) @db.Decimal(5, 2)
-  withdrawal_letter_template        String   @default("DEFAULT_WITHDRAWAL_LETTER")
-  arrears_letter_template           String   @default("DEFAULT_ARREARS_LETTER")
-  default_letter_template           String   @default("DEFAULT_DEFAULT_LETTER")
-  issuer_onboarding_fee_amount      Decimal  @default(150) @db.Decimal(18, 6)
-  application_processing_fee_amount Decimal  @default(50) @db.Decimal(18, 6)
-  investor_min_deposit_amount       Decimal  @default(100) @db.Decimal(18, 6)
-  investor_max_deposit_amount       Decimal  @default(30000) @db.Decimal(18, 6)
-  offer_deadline_reminder_hour      Int      @default(9)
-  updated_by_user_id                String?
-  metadata                          Json?
-  trustee_letter_config             Json?
-  platform_accounts_config          Json?
-  ledger_bucket_accounts_config     Json?
-  created_at                        DateTime @default(now())
-  updated_at                        DateTime @updatedAt
+  id                                  String   @id @default(cuid())
+  key                                 String   @unique
+  grace_period_days                   Int      @default(7)
+  arrears_threshold_days              Int      @default(14)
+  tawidh_rate_cap_percent             Decimal  @default(1) @db.Decimal(5, 2)
+  gharamah_rate_cap_percent           Decimal  @default(9) @db.Decimal(5, 2)
+  platform_fee_rate_cap_percent       Decimal  @default(3) @db.Decimal(5, 2)
+  default_tawidh_rate_percent         Decimal  @default(0) @db.Decimal(5, 2)
+  default_gharamah_rate_percent       Decimal  @default(0) @db.Decimal(5, 2)
+  withdrawal_letter_template          String   @default("DEFAULT_WITHDRAWAL_LETTER")
+  arrears_letter_template             String   @default("DEFAULT_ARREARS_LETTER")
+  default_letter_template             String   @default("DEFAULT_DEFAULT_LETTER")
+  issuer_onboarding_fee_amount        Decimal  @default(150) @db.Decimal(18, 6)
+  application_processing_fee_amount   Decimal  @default(50) @db.Decimal(18, 6)
+  investor_min_deposit_amount         Decimal  @default(100) @db.Decimal(18, 6)
+  investor_max_deposit_amount         Decimal  @default(30000) @db.Decimal(18, 6)
+  facility_fee_gateway_txn_max_amount          Decimal  @default(30000) @db.Decimal(18, 6)
+  excess_late_charge_gateway_txn_max_amount    Decimal  @default(30000) @db.Decimal(18, 6)
+  offer_deadline_reminder_hour        Int      @default(9)
+  updated_by_user_id                  String?
+  metadata                            Json?
+  trustee_letter_config               Json?
+  platform_accounts_config            Json?
+  ledger_bucket_accounts_config       Json?
+  created_at                          DateTime @default(now())
+  updated_at                          DateTime @updatedAt
 
   @@map("platform_finance_settings")
 }
@@ -1227,6 +1273,8 @@ model GatewayPayment {
   investor_organization_id String?
   issuer_organization_id   String?
   application_id           String?
+  contract_id              String?
+  note_id                  String?
   amount                   Decimal                 @db.Decimal(18, 6)
   currency                 String                  @default("MYR")
   status                   GatewayPaymentStatus    @default(CREATED)
@@ -1252,6 +1300,8 @@ model GatewayPayment {
   investor_organization    InvestorOrganization?   @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
   issuer_organization      IssuerOrganization?     @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   application              Application?            @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  contract                 Contract?               @relation(fields: [contract_id], references: [id], onDelete: Cascade)
+  note                     Note?                   @relation(fields: [note_id], references: [id], onDelete: Cascade)
   events                   GatewayPaymentEvent[]
   recon_exceptions         GatewayReconException[]
   receipt                  GatewayPaymentReceipt?
@@ -1263,6 +1313,8 @@ model GatewayPayment {
   @@index([investor_organization_id])
   @@index([issuer_organization_id])
   @@index([application_id])
+  @@index([contract_id])
+  @@index([note_id])
   @@index([gatewayAccount])
   @@index([curlec_order_id])
   @@index([curlec_payment_id])
@@ -1443,6 +1495,7 @@ model WithdrawalInstruction {
   letter_s3_key            String?
   generated_at             DateTime?
   submitted_to_trustee_at  DateTime?
+  trustee_email_sent_at    DateTime?          @db.Timestamptz
   completed_at             DateTime?
   metadata                 Json?
   display_reference        String?            @unique
@@ -1957,24 +2010,29 @@ model NotificationGroup {
 }
 
 model NotificationLog {
-  id                   String           @id @default(cuid())
-  admin_user_id        String
-  target_type          String
-  target_group_id      String?
-  notification_type_id String
-  title                String
-  message              String
-  recipient_count      Int
-  metadata             Json?
-  ip_address           String?
-  user_agent           String?
-  device_info          String?
-  created_at           DateTime         @default(now())
-  admin                User             @relation("AdminNotificationLogs", fields: [admin_user_id], references: [user_id])
-  notification_type    NotificationType @relation(fields: [notification_type_id], references: [id])
+  id                        String                 @id @default(cuid())
+  admin_user_id             String?
+  source                    NotificationLogSource  @default(ADMIN)
+  target_type               String
+  target_group_id           String?
+  notification_type_id      String
+  title                     String
+  message                   String
+  recipient_count           Int
+  delivered_platform_count  Int                    @default(0)
+  delivered_email_count     Int                    @default(0)
+  idempotency_key           String?                @unique
+  metadata                  Json?
+  ip_address                String?
+  user_agent                String?
+  device_info               String?
+  created_at                DateTime               @default(now())
+  admin                     User?                  @relation("AdminNotificationLogs", fields: [admin_user_id], references: [user_id])
+  notification_type         NotificationType       @relation(fields: [notification_type_id], references: [id])
 
   @@index([admin_user_id])
   @@index([created_at])
+  @@index([source])
   @@map("notification_logs")
 }
 
@@ -2126,6 +2184,8 @@ enum GatewayPaymentPurpose {
   INVESTOR_DEPOSIT
   ISSUER_ONBOARDING_FEE
   APPLICATION_PROCESSING_FEE
+  FACILITY_FEE
+  EXCESS_LATE_CHARGES
 }
 
 enum GatewayPaymentReceiptStatus {
@@ -2397,6 +2457,11 @@ enum GuarantorAmlMessage {
   ERROR
 }
 
+enum OfferAcceptSignatorySource {
+  FACILITY_ENVELOPE
+  ORG_DIRECTOR
+}
+
 enum SigningEnvelopeStatus {
   DRAFT
   SENT
@@ -2491,4 +2556,9 @@ enum NotificationPriority {
 enum NotificationPortalTarget {
   INVESTOR
   ISSUER
+}
+
+enum NotificationLogSource {
+  ADMIN
+  SYSTEM
 }

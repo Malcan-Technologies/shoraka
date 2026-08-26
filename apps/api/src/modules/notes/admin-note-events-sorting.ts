@@ -24,6 +24,7 @@ const ADMIN_NOTE_EVENT_LIFECYCLE_PRIORITY: Record<string, number> = Object.freez
     "SHORAKA_ORDER_SUBMITTED",
     "SHORAKA_CERTIFICATE_FETCHED",
     "WITHDRAWAL_LETTER_GENERATED",
+    "WITHDRAWAL_TRUSTEE_EMAIL_SENT",
     "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
     "WITHDRAWAL_COMPLETED",
     "PAYMENT_RECEIVED",
@@ -32,6 +33,7 @@ const ADMIN_NOTE_EVENT_LIFECYCLE_PRIORITY: Record<string, number> = Object.freez
     "SETTLEMENT_APPROVED",
     // Service fee trustee flow (actual event types in the backend end with LETTER_* and *_INSTRUCTION_COMPLETED)
     "SERVICE_FEE_TRUSTEE_LETTER_GENERATED",
+    "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
     "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED",
     "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED",
     // Residual / refund withdrawal creation (actual backend event type)

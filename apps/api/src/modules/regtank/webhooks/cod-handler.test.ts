@@ -42,6 +42,7 @@ jest.mock("../api-client", () => ({
 jest.mock("../../notification/service", () => ({
   NotificationService: jest.fn().mockImplementation(() => ({
     sendTyped: jest.fn(),
+    sendTypedAndLogSystem: jest.fn(),
   })),
 }));
 

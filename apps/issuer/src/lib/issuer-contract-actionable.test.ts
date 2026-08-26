@@ -60,6 +60,17 @@ describe("isIssuerContractActionable", () => {
     ).toBe(true);
   });
 
+  it("treats an approved facility with outstanding upfront fee as actionable", () => {
+    expect(
+      isIssuerContractActionable(
+        contract({
+          facilityFeeUpfrontAmount: 5000,
+          facilityFeeUpfrontOutstanding: 5000,
+        })
+      )
+    ).toBe(true);
+  });
+
   it("treats a facility offer awaiting issuer review as actionable", () => {
     expect(
       isIssuerContractActionable(

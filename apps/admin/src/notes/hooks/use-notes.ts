@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type {
   GetAdminNotesParams,
+  OverdueLateChargeInput,
   RecordNotePaymentInput,
   SettlementPreviewInput,
   UpdateNoteFeaturedInput,
@@ -26,11 +27,6 @@ function invalidateAdminRegistries(queryClient: ReturnType<typeof useQueryClient
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-type OverdueLateChargeInput = {
-  receiptAmount?: number;
-  receiptDate?: string;
-};
 
 type AdminRecordNotePaymentInput = RecordNotePaymentInput & {
   metadata?: Record<string, unknown> | null;
@@ -307,7 +303,7 @@ export function useResumeNoteListing() {
   return useNoteListingVisibilityAction("resume");
 }
 
-function useNoteAction(action: "close" | "fail" | "activate") {
+function useNoteAction(action: "close" | "fail") {
   const apiClient = useNotesApiClient();
   const queryClient = useQueryClient();
   return useMutation({
@@ -315,9 +311,7 @@ function useNoteAction(action: "close" | "fail" | "activate") {
       const response =
         action === "close"
           ? await apiClient.closeAdminNoteFunding(id)
-          : action === "fail"
-            ? await apiClient.failAdminNoteFunding(id)
-            : await apiClient.activateAdminNote(id);
+          : await apiClient.failAdminNoteFunding(id);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
@@ -337,7 +331,22 @@ export function useFailNoteFunding() {
 }
 
 export function useActivateNote() {
-  return useNoteAction("activate");
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: string | { id: string; disbursementValueDate?: string }) => {
+      const id = typeof input === "string" ? input : input.id;
+      const disbursementValueDate =
+        typeof input === "string" ? undefined : input.disbursementValueDate;
+      const response = await apiClient.activateAdminNote(id, { disbursementValueDate });
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (note) => {
+      invalidateAdminRegistries(queryClient);
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
+    },
+  });
 }
 
 export function useWaiveNoteFacilityFeeCollection() {
@@ -380,8 +389,18 @@ export function useApproveNotePayment() {
   const apiClient = useNotesApiClient();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, paymentId }: { id: string; paymentId: string }) => {
-      const response = await apiClient.approveAdminNotePayment(id, paymentId);
+    mutationFn: async ({
+      id,
+      paymentId,
+      actualSettlementDate,
+    }: {
+      id: string;
+      paymentId: string;
+      actualSettlementDate?: string;
+    }) => {
+      const response = await apiClient.approveAdminNotePayment(id, paymentId, {
+        actualSettlementDate,
+      });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
@@ -530,6 +549,22 @@ export function useMarkServiceFeeTrusteeLetterSubmitted() {
   });
 }
 
+export function useResendServiceFeeTrusteeEmail() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ noteId, settlementId }: { noteId: string; settlementId: string }) => {
+      const response = await apiClient.resendAdminNoteServiceFeeTrusteeEmail(noteId, settlementId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (note) => {
+      invalidateAdminRegistries(queryClient);
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
+    },
+  });
+}
+
 export function useMarkServiceFeeTrusteeInstructionCompleted() {
   const apiClient = useNotesApiClient();
   const queryClient = useQueryClient();
@@ -628,12 +663,30 @@ export function useMarkWithdrawalSubmitted() {
   });
 }
 
-export function useMarkWithdrawalCompleted() {
+export function useResendWithdrawalTrusteeEmail() {
   const apiClient = useNotesApiClient();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiClient.markWithdrawalCompleted(id);
+      const response = await apiClient.resendWithdrawalTrusteeEmail(id);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (withdrawal) => {
+      invalidateWithdrawalNote(queryClient, withdrawal.noteId, withdrawal.id);
+    },
+  });
+}
+
+export function useMarkWithdrawalCompleted() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: string | { id: string; disbursementValueDate?: string }) => {
+      const id = typeof input === "string" ? input : input.id;
+      const disbursementValueDate =
+        typeof input === "string" ? undefined : input.disbursementValueDate;
+      const response = await apiClient.markWithdrawalCompleted(id, { disbursementValueDate });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },

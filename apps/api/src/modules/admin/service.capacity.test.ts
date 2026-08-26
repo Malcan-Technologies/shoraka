@@ -14,6 +14,7 @@ const mockApply = jest.fn(async () => ({
 
 jest.mock("../../lib/refresh-contract-facility", () => ({
   applyContractCapacityChange: (...args: unknown[]) => mockApply(...args),
+  lockContractRow: jest.fn(),
 }));
 
 jest.mock("./repository", () => ({
@@ -55,9 +56,23 @@ jest.mock("../applications/logs/service", () => ({
   logApplicationActivity: jest.fn(),
 }));
 
+import { addMytCalendarDays, mytCalendarParts } from "@cashsouk/types";
 import { AdminService } from "./service";
 import { prisma } from "../../lib/prisma";
 import { ApplicationStatus } from "@prisma/client";
+
+function invoiceDueDateWithinTenure(): string {
+  const parts = addMytCalendarDays(mytCalendarParts(new Date()), 60);
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+const invoiceOfferDetails = {
+  number: "INV-1",
+  value: 80_000,
+  financing_ratio_percent: 70,
+  maturity_date: invoiceDueDateWithinTenure(),
+  financing_tenure_days: 90,
+};
 
 describe("AdminService capacity offer paths", () => {
   const service = new AdminService();
@@ -88,7 +103,7 @@ describe("AdminService capacity offer paths", () => {
       status: ApplicationStatus.INVOICE_PENDING,
       contract_id: "contract-1",
       invoices: [
-        { id: "inv-1", details: { number: "INV-1", value: 80_000, financing_ratio_percent: 70 } },
+        { id: "inv-1", details: invoiceOfferDetails },
       ],
     };
     (service as unknown as { prepareForReviewAction: jest.Mock }).prepareForReviewAction = jest
@@ -111,7 +126,19 @@ describe("AdminService capacity offer paths", () => {
       contract_id: "contract-1",
     });
 
-    await service.sendInvoiceOffer("app-1", "inv-1", 40_000, 70, 12, 0, "A", "admin-1");
+    await service.sendInvoiceOffer(
+      "app-1",
+      "inv-1",
+      40_000,
+      70,
+      12,
+      0,
+      "A",
+      "admin-1",
+      undefined,
+      undefined,
+      90
+    );
 
     expect(mockApply).toHaveBeenCalledWith(
       "contract-1",
@@ -177,7 +204,7 @@ describe("AdminService capacity offer paths", () => {
         {
           id: "inv-1",
           contract_id: "contract-invoice-only",
-          details: { number: "INV-1", value: 80_000, financing_ratio_percent: 70 },
+          details: invoiceOfferDetails,
         },
       ],
       application_review_items: [
@@ -215,7 +242,19 @@ describe("AdminService capacity offer paths", () => {
       contract_id: "contract-invoice-only",
     });
 
-    await service.sendInvoiceOffer("app-1", "inv-1", 40_000, 70, 12, 0, "A", "admin-1");
+    await service.sendInvoiceOffer(
+      "app-1",
+      "inv-1",
+      40_000,
+      70,
+      12,
+      0,
+      "A",
+      "admin-1",
+      undefined,
+      undefined,
+      90
+    );
     expect(mockApply).toHaveBeenCalledWith(
       "contract-invoice-only",
       prisma,
@@ -276,6 +315,8 @@ describe("AdminService capacity offer paths", () => {
   it("caps sendInvoiceOffer against canonical requested financing, not face times ratio", () => {
     const source = fs.readFileSync(path.join(__dirname, "service.ts"), "utf8");
     expect(source).toContain("resolveRequestedInvoiceFinancing");
+    expect(source).toContain("invoiceOfferExceedsRequested");
+    expect(source).not.toContain("offeredAmount > requestedAmount");
     expect(source).not.toContain(
       "const requestedAmount = (invoiceValue * requestedRatioPercent) / 100"
     );

@@ -37,6 +37,18 @@ import {
   REQUESTED_FACILITY_BELOW_CONTRACT_COPY,
 } from "@cashsouk/types";
 import {
+  buildSendContractOfferPayload,
+  FACILITY_FEE_RATE_FIELD_TOOLTIP,
+  FACILITY_FEE_UPFRONT_FIELD_TOOLTIP,
+  parseFacilityFeeRatePercentInput,
+  parseFacilityFeeUpfrontInput,
+  resolveFacilityFeeOfferSplit,
+  resolveUpfrontCollectAmountForSubmit,
+  seedFacilityFeeUpfrontInput,
+  validateFacilityFeeUpfrontCollectAmount,
+} from "@/lib/facility-fee-offer-preview";
+import { ReviewFieldLabel } from "../review-field-label";
+import {
   OFFERED_FACILITY_BELOW_CONTRACT_COPY,
   REMAINING_ALLOCATION_LABEL,
   REMAINING_CREDIT_LABEL,
@@ -93,7 +105,11 @@ export interface ContractSectionProps {
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
-  onSendOffer?: (payload: { offeredFacility: number; facilityFeeRatePercent: number | null }) => Promise<void>;
+  onSendOffer?: (payload: {
+    offeredFacility: number;
+    facilityFeeRatePercent: number | null;
+    facilityFeeUpfrontCollectAmount: number;
+  }) => Promise<void>;
   /**
    * Product-level default Facility Fee rate (%).
    * Used only as a prefill when `offer_details.facility_fee_rate_percent` is missing.
@@ -245,6 +261,10 @@ export function ContractSection({
   const [facilityFeeRatePercentInput, setFacilityFeeRatePercentInput] = React.useState<string>(
     seedFacilityFeeInput
   );
+  const seedFacilityFeeUpfront = seedFacilityFeeUpfrontInput(offer);
+  const [facilityFeeUpfrontInput, setFacilityFeeUpfrontInput] = React.useState<string>(
+    seedFacilityFeeUpfront
+  );
   const [contractOfferConfirmOpen, setContractOfferConfirmOpen] = React.useState(false);
   const acceptanceDeadlinePreview = previewAcceptanceDeadlineFromWorkflow(productWorkflow);
 
@@ -255,6 +275,10 @@ export function ContractSection({
     setFacilityFeeRatePercentInput(seedFacilityFeeInput);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offer?.facility_fee_rate_percent, productDefaultFacilityFeeRatePercent]);
+  React.useEffect(() => {
+    setFacilityFeeUpfrontInput(seedFacilityFeeUpfrontInput(offer));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offer?.facility_fee_upfront_collect_amount]);
 
   const hasData = cd || cust;
   const offeredFacility = parseMoney(offeredFacilityInput);
@@ -277,12 +301,10 @@ export function ContractSection({
     !isContractOfferSendLocked &&
     offeredFacility > 0 &&
     !facilityOfferBlockReason;
-  const facilityFeeRatePercentParsed = React.useMemo(() => {
-    const trimmed = facilityFeeRatePercentInput.trim();
-    if (!trimmed) return null;
-    const n = Number(trimmed);
-    return Number.isFinite(n) ? n : null;
-  }, [facilityFeeRatePercentInput]);
+  const facilityFeeRatePercentParsed = React.useMemo(
+    () => parseFacilityFeeRatePercentInput(facilityFeeRatePercentInput),
+    [facilityFeeRatePercentInput]
+  );
   const facilityFeeRatePercentError = (() => {
     if (facilityFeeRatePercentParsed == null) {
       return facilityFeeRatePercentInput.trim().length > 0
@@ -298,6 +320,26 @@ export function ContractSection({
       ? "Facility fee rate can have up to 2 decimal places"
       : null;
   })();
+  const facilityFeeUpfrontParsed = React.useMemo(
+    () => parseFacilityFeeUpfrontInput(facilityFeeUpfrontInput),
+    [facilityFeeUpfrontInput]
+  );
+  const facilityFeeSplit = resolveFacilityFeeOfferSplit({
+    offeredFacility,
+    facilityFeeRatePercent: facilityFeeRatePercentParsed,
+    upfrontCollectAmount: facilityFeeUpfrontParsed ?? 0,
+  });
+  const facilityFeeUpfrontError = validateFacilityFeeUpfrontCollectAmount({
+    rawInput: facilityFeeUpfrontInput,
+    upfrontCollectAmount: facilityFeeUpfrontParsed,
+    totalFacilityFee: facilityFeeSplit.totalFacilityFee,
+  });
+  const facilityFeeInputsDisabled =
+    !isReviewable ||
+    !!isActionLocked ||
+    !onSendOffer ||
+    isContractApproved ||
+    isContractOfferSendLocked;
   // Facility fee rate is optional; errors are only used to block "Send Offer" when a value is provided.
 
   const assertLargePrivateThenOpenOffer = () => {
@@ -324,10 +366,21 @@ export function ContractSection({
       toast.error(facilityFeeRatePercentError);
       return;
     }
-    await onSendOffer({
+    if (facilityFeeUpfrontError) {
+      toast.error(facilityFeeUpfrontError);
+      return;
+    }
+    const upfrontCollectAmount = resolveUpfrontCollectAmountForSubmit(facilityFeeUpfrontInput);
+    if (upfrontCollectAmount == null) {
+      toast.error("Upfront amount must be a valid number");
+      return;
+    }
+    const payload = buildSendContractOfferPayload({
       offeredFacility,
       facilityFeeRatePercent: facilityFeeRatePercentParsed,
+      upfrontCollectAmount,
     });
+    await onSendOffer(payload);
     setContractOfferConfirmOpen(false);
   };
 
@@ -374,6 +427,34 @@ export function ContractSection({
               label="Offered Facility"
               before={of(bOffer) > 0 ? formatCurrency(of(bOffer)) : REVIEW_EMPTY_LABEL}
               after={of(aOffer) > 0 ? formatCurrency(of(aOffer)) : REVIEW_EMPTY_LABEL}
+              changed={isPathChanged("contract")}
+            />
+            <ComparisonFieldRow
+              label="Facility fee rate"
+              before={
+                typeof bOffer?.facility_fee_rate_percent === "number"
+                  ? `${bOffer.facility_fee_rate_percent}%`
+                  : REVIEW_EMPTY_LABEL
+              }
+              after={
+                typeof aOffer?.facility_fee_rate_percent === "number"
+                  ? `${aOffer.facility_fee_rate_percent}%`
+                  : REVIEW_EMPTY_LABEL
+              }
+              changed={isPathChanged("contract")}
+            />
+            <ComparisonFieldRow
+              label="Collect upfront via payment gateway"
+              before={
+                typeof bOffer?.facility_fee_upfront_collect_amount === "number"
+                  ? formatCurrency(bOffer.facility_fee_upfront_collect_amount)
+                  : REVIEW_EMPTY_LABEL
+              }
+              after={
+                typeof aOffer?.facility_fee_upfront_collect_amount === "number"
+                  ? formatCurrency(aOffer.facility_fee_upfront_collect_amount)
+                  : REVIEW_EMPTY_LABEL
+              }
               changed={isPathChanged("contract")}
             />
           </div>
@@ -571,6 +652,7 @@ export function ContractSection({
                           !!isActionLocked ||
                           !!isSendOfferPending ||
                           !!facilityFeeRatePercentError ||
+                          !!facilityFeeUpfrontError ||
                           !canSendContractOffer
                         }
                         onClick={assertLargePrivateThenOpenOffer}
@@ -626,35 +708,80 @@ export function ContractSection({
                   ) : null}
                 </div>
               </div>
-              <div className={reviewRowGridClass}>
-                <Label className={reviewLabelClass}>Facility fee rate (%)</Label>
-                <div className="flex flex-col gap-2">
-                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
-                    <input
-                      value={facilityFeeRatePercentInput}
-                      onChange={(e) => setFacilityFeeRatePercentInput(e.target.value)}
-                      placeholder="0"
-                      inputMode="decimal"
-                      disabled={
-                        !isReviewable ||
-                        !!isActionLocked ||
-                        !onSendOffer ||
-                        isContractApproved ||
-                        isContractOfferSendLocked
-                      }
-                      className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:max-w-[180px]"
-                      aria-invalid={!!facilityFeeRatePercentError}
-                    />
-                    <div className="text-xs text-muted-foreground">
-                      Facility Fee rate for this facility offer. Allowed range: 0% to {FACILITY_FEE_RATE_MAX_PERCENT}%,
-                      up to 2 decimal places. The full fee is owed when the issuer accepts the facility offer;
-                      collection timing is at Shoraka discretion.
+              <div className="space-y-3 rounded-xl border border-border bg-muted/20 px-3 py-3">
+                <p className="text-sm font-medium text-foreground">Facility fee</p>
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,12rem)_1fr] sm:items-start">
+                  <ReviewFieldLabel
+                    htmlFor="facility-fee-rate-percent"
+                    tooltip={FACILITY_FEE_RATE_FIELD_TOOLTIP}
+                  >
+                    Facility fee rate
+                  </ReviewFieldLabel>
+                  <div className="space-y-1.5">
+                    <div className="flex w-full max-w-[11rem] items-center gap-1.5">
+                      <input
+                        id="facility-fee-rate-percent"
+                        value={facilityFeeRatePercentInput}
+                        onChange={(e) => setFacilityFeeRatePercentInput(e.target.value)}
+                        placeholder="0"
+                        inputMode="decimal"
+                        disabled={facilityFeeInputsDisabled}
+                        className="h-9 w-full rounded-lg border border-input bg-background px-3 text-right text-ui tabular-nums focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        aria-invalid={!!facilityFeeRatePercentError}
+                      />
+                      <span className="shrink-0 text-ui text-muted-foreground">%</span>
                     </div>
+                    {facilityFeeRatePercentError ? (
+                      <p className="text-sm text-destructive">{facilityFeeRatePercentError}</p>
+                    ) : null}
                   </div>
-                  {facilityFeeRatePercentError ? (
-                    <p className="text-sm text-destructive">{facilityFeeRatePercentError}</p>
-                  ) : null}
+                  <ReviewFieldLabel
+                    htmlFor="facility-fee-upfront-collect"
+                    tooltip={FACILITY_FEE_UPFRONT_FIELD_TOOLTIP}
+                  >
+                    Collect upfront now
+                  </ReviewFieldLabel>
+                  <div className="space-y-1.5">
+                    <MoneyInput
+                      id="facility-fee-upfront-collect"
+                      value={facilityFeeUpfrontInput}
+                      onValueChange={setFacilityFeeUpfrontInput}
+                      placeholder="0.00"
+                      disabled={facilityFeeInputsDisabled}
+                      className="w-full max-w-[11rem]"
+                      inputClassName="h-9"
+                      prefix="RM"
+                      maxIntDigits={15}
+                      allowEmpty={true}
+                      invalid={!!facilityFeeUpfrontError}
+                    />
+                    {facilityFeeUpfrontError ? (
+                      <p className="text-sm text-destructive" role="alert">
+                        {facilityFeeUpfrontError}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
+                <dl className="grid gap-1 rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-ui">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-muted-foreground">Total facility fee</dt>
+                    <dd className="font-medium tabular-nums">
+                      {formatCurrency(facilityFeeSplit.totalFacilityFee)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-muted-foreground">Upfront via payment gateway</dt>
+                    <dd className="font-medium tabular-nums">
+                      {formatCurrency(facilityFeeSplit.upfrontAmount)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-muted-foreground">Left for later drawdowns</dt>
+                    <dd className="font-medium tabular-nums">
+                      {formatCurrency(facilityFeeSplit.remainingForDrawdown)}
+                    </dd>
+                  </div>
+                </dl>
               </div>
             </div>
           </ReviewFieldBlock>
@@ -863,6 +990,30 @@ export function ContractSection({
               <span className="text-muted-foreground">Offered facility</span>
               <span className="font-medium tabular-nums">{formatCurrency(offeredFacility)}</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Facility fee rate</span>
+              <span className="font-medium tabular-nums">
+                {facilityFeeRatePercentParsed == null ? "—" : `${facilityFeeRatePercentParsed}%`}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total facility fee</span>
+              <span className="font-medium tabular-nums">
+                {formatCurrency(facilityFeeSplit.totalFacilityFee)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Upfront via payment gateway</span>
+              <span className="font-medium tabular-nums">
+                {formatCurrency(facilityFeeSplit.upfrontAmount)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Remaining for drawdown collections</span>
+              <span className="font-medium tabular-nums">
+                {formatCurrency(facilityFeeSplit.remainingForDrawdown)}
+              </span>
+            </div>
             {acceptanceDeadlinePreview ? (
               <OfferAcceptanceDeadlineConfirmRows preview={acceptanceDeadlinePreview} />
             ) : null}
@@ -881,7 +1032,10 @@ export function ContractSection({
             <Button
               onClick={handleConfirmContractOffer}
               disabled={
-                !canSendContractOffer || !!isSendOfferPending || !!facilityFeeRatePercentError
+                !canSendContractOffer ||
+                !!isSendOfferPending ||
+                !!facilityFeeRatePercentError ||
+                !!facilityFeeUpfrontError
               }
               className="rounded-xl"
             >

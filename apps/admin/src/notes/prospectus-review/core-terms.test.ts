@@ -511,6 +511,15 @@ describe("Investment Summary Tenure and Maturity Date", () => {
     expect(value(summary, "Tenure")).toBe("—");
     expect(value(summary, "Maturity Date")).toBe("—");
   });
+
+  it("uses stored tenure and from-disbursement copy for new notes before activation", () => {
+    const rows = sectionRows(
+      sampleNote({ tenureDays: 90, maturityDate: null }),
+      "dates-paymaster"
+    );
+    expect(value(rows, "Tenure")).toBe("90 days");
+    expect(value(rows, "Maturity Date")).toBe("90 days from disbursement");
+  });
 });
 
 describe("Dates & Paymaster prospectus alignment", () => {

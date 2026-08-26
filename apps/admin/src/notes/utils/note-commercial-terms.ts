@@ -1,5 +1,10 @@
 import { formatCurrency } from "@cashsouk/config";
-import { isSoukscoreRiskRating, parseInvoiceFeeSchedule, type NoteDetail } from "@cashsouk/types";
+import {
+  isSoukscoreRiskRating,
+  parseInvoiceFeeSchedule,
+  resolveNoteTimingDisplay,
+  type NoteDetail,
+} from "@cashsouk/types";
 
 export type NoteCommercialTermRow = {
   label: string;
@@ -69,6 +74,7 @@ function extraFeeValue(line: { kind: "amount" | "percent_of_funded"; value: numb
 
 /** Commercial terms for the note header and terms card. Invoice amount is omitted — it equals settlement amount. */
 export function getNoteCommercialTermRows(note: NoteDetail): NoteCommercialTermRow[] {
+  const timing = resolveNoteTimingDisplay(note);
   const rows: NoteCommercialTermRow[] = [
     { label: "Paymaster", value: note.paymasterName?.trim() || "—" },
     { label: "Risk rating", value: getRiskRating(note) },
@@ -89,6 +95,12 @@ export function getNoteCommercialTermRows(note: NoteDetail): NoteCommercialTermR
   const extraFees = note.feeSchedule?.additionalFees ?? [];
   for (const line of extraFees) {
     rows.push({ label: line.name, value: extraFeeValue(line) });
+  }
+  if (timing.isTenureNote) {
+    rows.push({
+      label: "Financing tenure",
+      value: timing.kind === "tenure_pending" ? timing.value : `${timing.tenureDays} days`,
+    });
   }
   rows.push(
     { label: "Service fee", value: `${note.serviceFeeRatePercent}% of investor profit` },

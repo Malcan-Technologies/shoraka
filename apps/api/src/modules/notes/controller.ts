@@ -27,6 +27,7 @@ import {
   lateChargeSchema,
   overdueLateChargeSchema,
   paymentReviewSchema,
+  approvePaymentSchema,
   recordPaymentSchema,
   issuerPaymentAdviceSchema,
   settlementActionSchema,
@@ -46,6 +47,7 @@ import {
   requestTrusteeSignatureUploadUrlSchema,
   requestIssuerPaymentEvidenceUploadUrlSchema,
   waiveNoteFacilityFeeCollectionSchema,
+  disbursementValueDateBodySchema,
 } from "./schemas";
 
 function getActor(req: Request, res: Response, portal: string) {
@@ -463,7 +465,8 @@ adminNotesRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
-    send(res, await noteService.activate(id, getActor(req, res, "ADMIN")));
+    const body = disbursementValueDateBodySchema.parse(req.body ?? {});
+    send(res, await noteService.activate(id, getActor(req, res, "ADMIN"), body));
   } catch (error) {
     next(error);
   }
@@ -517,7 +520,8 @@ adminNotesRouter.post(
   try {
     const { id } = idParamSchema.parse(req.params);
     const paymentId = String(req.params.paymentId ?? "");
-    send(res, await noteService.approvePayment(id, paymentId, getActor(req, res, "ADMIN")));
+    const input = approvePaymentSchema.parse(req.body ?? {});
+    send(res, await noteService.approvePayment(id, paymentId, getActor(req, res, "ADMIN"), input));
   } catch (error) {
     next(error);
   }
@@ -610,6 +614,22 @@ adminNotesRouter.post(
           settlementId,
           getActor(req, res, "ADMIN")
         )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/settlements/:settlementId/service-fee/resend-trustee-email",
+  requirePermission("notes.disbursement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
+      send(
+        res,
+        await noteService.resendServiceFeeTrusteeEmail(id, settlementId, getActor(req, res, "ADMIN"))
       );
     } catch (error) {
       next(error);
@@ -1118,12 +1138,25 @@ withdrawalsRouter.post(
   }
 );
 withdrawalsRouter.post(
+  "/:id/resend-trustee-email",
+  async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    await assertWithdrawalManagePermission(req, id);
+    send(res, await noteService.resendWithdrawalTrusteeEmail(id, getActor(req, res, "ADMIN")));
+  } catch (error) {
+    next(error);
+  }
+  }
+);
+withdrawalsRouter.post(
   "/:id/mark-completed",
   async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     await assertWithdrawalManagePermission(req, id);
-    send(res, await noteService.markWithdrawalCompleted(id, getActor(req, res, "ADMIN")));
+    const body = disbursementValueDateBodySchema.parse(req.body ?? {});
+    send(res, await noteService.markWithdrawalCompleted(id, getActor(req, res, "ADMIN"), body));
   } catch (error) {
     next(error);
   }

@@ -4,6 +4,9 @@ import {
   isIssuerApplicationActionable,
   type NormalizedApplication,
 } from "@/app/(application-management)/applications/status";
+import { actionsRequiredLabel, joinBannerSentences } from "./issuer-action-required";
+
+export { actionsRequiredLabel, joinBannerSentences } from "./issuer-action-required";
 
 /** Deep link for a single actionable application (offer tab, amend flow, or detail). */
 export function issuerApplicationActionHref(app: NormalizedApplication): string {
@@ -33,10 +36,6 @@ export function issuerApplicationActionHref(app: NormalizedApplication): string 
   }
 
   return `/applications/${app.id}`;
-}
-
-export function actionsRequiredLabel(count: number): string {
-  return `${count} action${count === 1 ? "" : "s"} required`;
 }
 
 export type IssuerApplicationsPendingAction = {
@@ -114,41 +113,67 @@ export type IssuerDashboardPendingAction = {
   count: number;
 };
 
+export type IssuerFinancingBannerInput = {
+  count: number;
+  title: string;
+  description: string;
+  href: string;
+  ctaLabel: string;
+  /** Financing work not already counted as an application offer or amendment. */
+  uniqueCount: number;
+  uniqueDescription: string | null;
+};
+
 /**
- * Prefer application actions (offers / amendments), then financing-only items
- * (so offer/amendment work is not double-counted across both surfaces).
+ * Combine application and financing attention into one dashboard banner.
+ * Offer/amendment work that already appears under applications is not counted again;
+ * unpaid fees and other financing-only items are added to the same card.
  */
 export function pickIssuerDashboardPendingAction(input: {
   applications: IssuerApplicationsPendingAction | null;
-  financing: {
-    count: number;
-    title: string;
-    description: string;
-    href: string;
-    ctaLabel: string;
-  } | null;
+  financing: IssuerFinancingBannerInput | null;
 }): IssuerDashboardPendingAction | null {
-  if (input.applications) {
+  const applications = input.applications;
+  const financing = input.financing;
+  const uniqueFinancingCount = financing?.uniqueCount ?? 0;
+  const uniqueFinancingDescription = financing?.uniqueDescription ?? null;
+
+  if (applications && uniqueFinancingCount > 0) {
+    const count = applications.count + uniqueFinancingCount;
     return {
-      title: input.applications.title,
-      description: input.applications.description,
-      href: input.applications.href,
-      ctaLabel: input.applications.ctaLabel,
+      title: actionsRequiredLabel(count),
+      description: joinBannerSentences(applications.description, uniqueFinancingDescription),
+      href: applications.href,
+      ctaLabel: "Review now",
       tone: "action",
       source: "applications",
-      count: input.applications.count,
+      count,
     };
   }
-  if (input.financing) {
+
+  if (applications) {
     return {
-      title: input.financing.title,
-      description: input.financing.description,
-      href: input.financing.href,
-      ctaLabel: input.financing.ctaLabel,
+      title: applications.title,
+      description: applications.description,
+      href: applications.href,
+      ctaLabel: applications.ctaLabel,
+      tone: "action",
+      source: "applications",
+      count: applications.count,
+    };
+  }
+
+  if (financing) {
+    return {
+      title: financing.title,
+      description: financing.description,
+      href: financing.href,
+      ctaLabel: financing.ctaLabel,
       tone: "action",
       source: "financing",
-      count: input.financing.count,
+      count: financing.count,
     };
   }
+
   return null;
 }

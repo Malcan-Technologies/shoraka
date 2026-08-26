@@ -81,7 +81,7 @@ export function LabelValue({
   children,
   tabular,
 }: {
-  label: string;
+  label: React.ReactNode;
   children: React.ReactNode;
   tabular?: boolean;
 }) {

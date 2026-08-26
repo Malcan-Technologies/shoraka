@@ -25,6 +25,11 @@ import {
   fileDocToComparisonChips,
 } from "../comparison-document-pair";
 import { formatCurrency, resolveOfferedAmount, resolveRequestedInvoiceAmount } from "@cashsouk/config";
+import {
+  formatFinancingTenureDaysLabel,
+  parseFinancingTenureDays,
+  isValidFinancingTenureDays,
+} from "@cashsouk/types";
 import { parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics";
 import type { SendInvoiceOfferUiPayload } from "@/components/utilisation-fee-lines";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
@@ -132,6 +137,14 @@ function invoiceMaturityString(inv: { details?: unknown } | undefined): string {
   return String(raw);
 }
 
+function invoiceFinancingTenureDisplay(inv: { details?: unknown } | undefined): string {
+  if (!inv) return REVIEW_EMPTY_LABEL;
+  const d = inv.details as Record<string, unknown> | null | undefined;
+  const parsed = parseFinancingTenureDays(d?.financing_tenure_days);
+  if (parsed == null || !isValidFinancingTenureDays(parsed)) return REVIEW_EMPTY_LABEL;
+  return formatFinancingTenureDaysLabel(parsed);
+}
+
 function invoiceFinancingRatioDisplay(inv: { details?: unknown } | undefined): string {
   if (!inv) return REVIEW_EMPTY_LABEL;
   const d = inv.details as Record<string, unknown> | null | undefined;
@@ -150,15 +163,8 @@ function invoiceFinancingAmountDisplay(inv: {
 }): string {
   const offered = resolveOfferedAmount(inv.offer_details as Record<string, unknown> | null);
   if (offered > 0) return formatCurrency(offered);
-  const d = inv.details as Record<string, unknown> | null | undefined;
-  const value = d?.value;
-  const ratio = d?.financing_ratio_percent ?? d?.financingRatioPercent;
-  const valueNum = typeof value === "number" ? value : Number(String(value ?? "").replace(/,/g, ""));
-  const ratioNum = typeof ratio === "number" ? ratio : Number(String(ratio ?? "").replace(/,/g, ""));
-  if (Number.isFinite(valueNum) && Number.isFinite(ratioNum) && valueNum > 0) {
-    return formatCurrency((valueNum * ratioNum) / 100);
-  }
-  return REVIEW_EMPTY_LABEL;
+  const requested = resolveRequestedInvoiceAmount(inv.details as Record<string, unknown> | undefined);
+  return requested != null ? formatCurrency(requested) : REVIEW_EMPTY_LABEL;
 }
 
 function invoiceTabLabel(inv: {
@@ -208,6 +214,8 @@ function InvoiceStackedFields({
           ? REVIEW_EMPTY_LABEL
           : formatReviewDate(invoiceMaturityString(invoice))}
       </div>
+      <Label className={reviewLabelClass}>Financing tenure</Label>
+      <div className={reviewValueClass}>{invoiceFinancingTenureDisplay(invoice)}</div>
       <Label className={reviewLabelClass}>Invoice value</Label>
       <div className={reviewValueClass}>{valueDisplay}</div>
       <Label className={reviewLabelClass}>Financing ratio</Label>
@@ -344,6 +352,12 @@ export function InvoiceSection({
                       label="Maturity Date"
                       before={bInv ? invoiceMaturityString(bInv) : "—"}
                       after={aInv ? invoiceMaturityString(aInv) : "—"}
+                      changed={changed}
+                    />
+                    <ComparisonFieldRow
+                      label="Financing Tenure"
+                      before={bInv ? invoiceFinancingTenureDisplay(bInv) : "—"}
+                      after={aInv ? invoiceFinancingTenureDisplay(aInv) : "—"}
                       changed={changed}
                     />
                     <ComparisonFieldRow
@@ -557,6 +571,7 @@ export function InvoiceSection({
                 <ReviewFieldBlock title="Offer to issuer">
                   <InvoiceOfferPanel
                     invoice={inv}
+                    applicationId={applicationId}
                     reviewItemStatus={status}
                     isRowGreyedOut={isRowGreyedOut}
                     isAdminRejected={isAdminRejected}

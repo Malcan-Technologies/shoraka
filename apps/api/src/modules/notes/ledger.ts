@@ -27,6 +27,7 @@ export type PostLedgerEntryInput = {
   idempotencyKey: string;
   gatewayPaymentId?: string;
   noteId?: string;
+  settlementId?: string;
   metadata?: Prisma.InputJsonValue;
 };
 
@@ -51,6 +52,7 @@ export async function postLedgerEntry(
         idempotency_key: input.idempotencyKey,
         gateway_payment_id: input.gatewayPaymentId,
         note_id: input.noteId,
+        settlement_id: input.settlementId,
         metadata: input.metadata,
       },
     });

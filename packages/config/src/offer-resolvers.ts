@@ -5,6 +5,7 @@
  */
 
 import { addMonths, isBefore, parseISO, startOfDay, isValid } from "date-fns";
+import { currencyAmountExceeds, roundCurrencyAmount } from "./currency";
 
 export type DetailsLike = Record<string, unknown> | null | undefined;
 
@@ -54,18 +55,36 @@ export function resolveOfferedFacility(offer: DetailsLike): number {
 
 // --- Invoice ---
 
+/** Face × integer percent, rounded to sen. Prefer this over `(face * ratio) / 100`. */
+export function invoiceAmountFromFaceAndRatio(face: number, ratioPercent: number): number {
+  if (!Number.isFinite(face) || !Number.isFinite(ratioPercent) || face <= 0 || ratioPercent <= 0) {
+    return 0;
+  }
+  return Math.round(face * ratioPercent) / 100;
+}
+
 export function resolveRequestedInvoiceAmount(details: DetailsLike): number | null {
   if (!details || typeof details !== "object") return null;
   for (const key of REQUESTED_AMOUNT_KEYS) {
     const parsed = parsePositiveAmount(details[key]);
-    if (parsed != null) return parsed;
+    if (parsed != null) return roundCurrencyAmount(parsed);
   }
   const value = parsePositiveAmount(details.value) ?? parsePositiveAmount(details.invoice_value);
   const ratio = parsePositiveAmount(details.financing_ratio_percent);
-  if (value != null && Number.isFinite(value) && ratio != null && Number.isFinite(ratio)) {
-    return Math.round((value * ratio) / 100);
+  if (value != null && ratio != null) {
+    const requested = invoiceAmountFromFaceAndRatio(value, ratio);
+    return requested > 0 ? requested : null;
   }
   return null;
+}
+
+/** True when the offer is above the issuer request after sen rounding. */
+export function invoiceOfferExceedsRequested(
+  offeredAmount: number | null | undefined,
+  requestedAmount: number | null | undefined
+): boolean {
+  if (offeredAmount == null || requestedAmount == null) return false;
+  return currencyAmountExceeds(offeredAmount, requestedAmount);
 }
 
 export function resolveOfferedAmount(offer: DetailsLike): number {

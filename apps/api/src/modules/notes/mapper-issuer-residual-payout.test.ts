@@ -1,4 +1,10 @@
-import { NoteSettlementStatus, Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
+import {
+  NoteSettlementStatus,
+  Prisma,
+  ServiceFeeTrusteeInstructionStatus,
+  WithdrawalStatus,
+  WithdrawalType,
+} from "@prisma/client";
 import { resolveIssuerResidualPayoutListStatus } from "./mapper";
 
 type WithdrawalRecord =
@@ -15,6 +21,7 @@ describe("resolveIssuerResidualPayoutListStatus", () => {
     investor_principal: d("0"),
     investor_profit_gross: d("0"),
     service_fee_amount: d("0"),
+    service_fee_trustee_status: null as ServiceFeeTrusteeInstructionStatus | null,
     investor_profit_net: d("0"),
     tawidh_amount: d("0"),
     gharamah_amount: d("0"),
@@ -73,7 +80,7 @@ describe("resolveIssuerResidualPayoutListStatus", () => {
         status: NoteSettlementStatus.POSTED,
         posted_at: new Date(),
         service_fee_amount: d("10"),
-        service_fee_trustee_status: "COMPLETED" as const,
+        service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.COMPLETED,
       },
     ]);
     expect(resolveIssuerResidualPayoutListStatus(note, [])).toEqual({ kind: "paid" });
@@ -88,7 +95,7 @@ describe("resolveIssuerResidualPayoutListStatus", () => {
         posted_at: new Date(),
       },
     ]);
-    const withdrawals: WithdrawalRecord[] = [
+    const withdrawals = [
       {
         id: "w1",
         note_id: "note-1",
@@ -107,10 +114,11 @@ describe("resolveIssuerResidualPayoutListStatus", () => {
         submitted_to_trustee_at: null,
         completed_at: null,
         metadata: null,
+        display_reference: "WD-1",
         created_at: new Date(),
         updated_at: new Date(),
       },
-    ];
+    ] as WithdrawalRecord[];
     expect(resolveIssuerResidualPayoutListStatus(note, withdrawals)).toEqual({
       kind: "pending",
       withTrustee: false,

@@ -7,6 +7,7 @@ import {
   capLateFeeSuggestionsByHeadroom,
   computeActualReturnRatePercent,
   meetsMinimumFunding,
+  resolveActualReturnProfitDays,
 } from "./calculators";
 
 describe("note lifecycle calculators", () => {
@@ -254,12 +255,13 @@ describe("note lifecycle calculators", () => {
     expect(allocations.every((row) => row.principal < row.amount)).toBe(true);
   });
 
-  it("includes investor Ta'widh compensation in actual return rate", () => {
+  it("includes investor Ta'widh compensation in the annualized actual return", () => {
     expect(
       computeActualReturnRatePercent({
         investedPrincipal: 10_000,
         receivedProfitNetAmount: 500,
         receivedTawidhCompensationAmount: 100,
+        profitDays: 365,
       })
     ).toBe(6);
 
@@ -268,16 +270,96 @@ describe("note lifecycle calculators", () => {
         investedPrincipal: 10_000,
         receivedProfitNetAmount: 0,
         receivedTawidhCompensationAmount: 250,
+        profitDays: 365,
       })
     ).toBe(2.5);
   });
 
-  it("returns null actual return rate when no investor return has been received", () => {
+  it("prefers the settlement-date span and ignores tenure fallback when both exist", () => {
+    expect(
+      resolveActualReturnProfitDays({
+        profitStartDate: "2026-01-01T00:00:00.000Z",
+        actualSettlementDate: "2026-03-02T00:00:00.000Z",
+        fallbackProfitDays: 90,
+      })
+    ).toBe(60);
+    expect(
+      resolveActualReturnProfitDays({
+        profitStartDate: null,
+        actualSettlementDate: null,
+        fallbackProfitDays: 59,
+      })
+    ).toBe(59);
+  });
+
+  it("annualizes actual return from settlement-date days, not contractual tenure", () => {
+    const start = new Date("2026-01-01T00:00:00.000Z");
+    const earlySettlement = new Date("2026-03-02T00:00:00.000Z");
+    const tenureMaturity = new Date("2026-04-01T00:00:00.000Z");
+    const settlementDays = resolveActualReturnProfitDays({
+      profitStartDate: start,
+      actualSettlementDate: earlySettlement,
+      fallbackProfitDays: 90,
+    });
+    const tenureDays = calculateCalendarDayCount(start, tenureMaturity);
+    const earlyProfit = 10_000 * 0.12 * (60 / 365);
+
+    expect(settlementDays).toBe(60);
+    expect(tenureDays).toBe(90);
+    expect(
+      computeActualReturnRatePercent({
+        investedPrincipal: 10_000,
+        receivedProfitNetAmount: earlyProfit,
+        receivedTawidhCompensationAmount: 0,
+        profitDays: settlementDays,
+      })
+    ).toBeCloseTo(12, 8);
+    expect(
+      computeActualReturnRatePercent({
+        investedPrincipal: 10_000,
+        receivedProfitNetAmount: earlyProfit,
+        receivedTawidhCompensationAmount: 0,
+        profitDays: tenureDays,
+      })
+    ).toBeCloseTo(8, 8);
+  });
+
+  it("uses actual settlement date through grace instead of frozen tenure days", () => {
+    const start = new Date("2026-01-01T00:00:00.000Z");
+    const graceSettlement = new Date("2026-04-08T00:00:00.000Z");
+    const days = resolveActualReturnProfitDays({
+      profitStartDate: start,
+      actualSettlementDate: graceSettlement,
+      fallbackProfitDays: 90,
+    });
+    const graceProfit = 10_000 * 0.12 * (90 / 365);
+
+    expect(days).toBe(97);
+    expect(
+      computeActualReturnRatePercent({
+        investedPrincipal: 10_000,
+        receivedProfitNetAmount: graceProfit,
+        receivedTawidhCompensationAmount: 0,
+        profitDays: days,
+      })
+    ).toBeCloseTo(12 * (90 / 97), 8);
+  });
+
+  it("returns null actual return rate when no investor return or settlement days exist", () => {
     expect(
       computeActualReturnRatePercent({
         investedPrincipal: 10_000,
         receivedProfitNetAmount: 0,
         receivedTawidhCompensationAmount: 0,
+        profitDays: 60,
+      })
+    ).toBeNull();
+    expect(
+      computeActualReturnRatePercent({
+        investedPrincipal: 10_000,
+        receivedProfitNetAmount: 197.26,
+        receivedTawidhCompensationAmount: 0,
+        profitDays: null,
       })
     ).toBeNull();
   });

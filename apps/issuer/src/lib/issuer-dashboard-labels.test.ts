@@ -1,8 +1,21 @@
 import {
   financingKindToStatusToken,
+  resolveIssuerContractDashboardBadge,
   resolveIssuerInvoiceDashboardBadge,
 } from "./issuer-dashboard-labels";
 import type { IssuerDashboardNote } from "@/types/issuer-dashboard";
+
+describe("resolveIssuerContractDashboardBadge", () => {
+  it("keeps an approved facility active until upfront fee is outstanding", () => {
+    expect(resolveIssuerContractDashboardBadge("APPROVED")).toBe("active");
+    expect(
+      resolveIssuerContractDashboardBadge("APPROVED", { facilityFeeUpfrontOutstanding: 0 })
+    ).toBe("active");
+    expect(
+      resolveIssuerContractDashboardBadge("APPROVED", { facilityFeeUpfrontOutstanding: 2500 })
+    ).toBe("action_required");
+  });
+});
 
 describe("financingKindToStatusToken", () => {
   it("maps viewer-centric colours", () => {

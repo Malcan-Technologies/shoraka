@@ -2395,6 +2395,24 @@ router.get(
   }
 );
 
+router.get(
+  "/applications/nav-counts",
+  requirePermission("applications.view"),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await adminService.getApplicationNavCounts();
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 /**
  * @swagger
  * /v1/admin/contracts:
@@ -3386,6 +3404,7 @@ router.post(
         id,
         validated.offeredFacility,
         validated.facilityFeeRatePercent ?? null,
+        validated.facilityFeeUpfrontCollectAmount,
         req.user.user_id,
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
@@ -3449,7 +3468,8 @@ router.post(
           feeScheduleMode: validated.feeScheduleMode,
           facilityFeeCollectAmount: validated.facilityFeeCollectAmount,
           additionalFees: validated.additionalFees,
-        }
+        },
+        validated.financingTenureDays
       );
 
       res.json({

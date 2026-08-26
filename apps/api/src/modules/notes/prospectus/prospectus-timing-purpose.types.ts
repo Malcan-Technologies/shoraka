@@ -35,6 +35,7 @@ export interface ProspectusTimingPurpose {
 export interface ProspectusTimingPurposeInput {
   listingOpensAt: Date | string | null | undefined;
   maturityDate: Date | string | null | undefined;
+  tenureDays?: number | null;
   /** Frozen notes.purpose_snapshot.financing_for only. */
   purposeSnapshotFinancingFor: string | null | undefined;
   /** Observational live Application text — must not be used as fallback. */
@@ -57,7 +58,7 @@ export const PROSPECTUS_TIMING_PURPOSE_FIELD_SOURCES: Record<
   tenure: {
     label: "Tenure",
     canonicalSource:
-      "buildProspectusTenureAndMaturity → calculateCalendarDayCount(note_listings.opens_at, notes.maturity_date)",
+      "notes.tenure_days when set; else calculateCalendarDayCount(note_listings.opens_at, notes.maturity_date)",
     availability: "calculated",
     surface: "canva",
     possibleAlternatives: "days remaining; closes_at; funding_closed_at — not used",
@@ -65,7 +66,8 @@ export const PROSPECTUS_TIMING_PURPOSE_FIELD_SOURCES: Record<
   },
   maturityDate: {
     label: "Maturity Date",
-    canonicalSource: "notes.maturity_date (via Stage 2 formatProspectusDateUtc)",
+    canonicalSource:
+      "notes.maturity_date when set; else notes.tenure_days (“{n} days from disbursement”)",
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "invoice maturity; repaid_at — not used",

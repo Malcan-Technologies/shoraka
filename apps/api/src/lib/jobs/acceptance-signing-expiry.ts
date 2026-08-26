@@ -26,7 +26,9 @@ import { logApplicationActivity } from "../../modules/applications/logs/service"
 import { ActivityPortal } from "../../modules/applications/logs/types";
 import { NotificationService } from "../../modules/notification/service";
 import { NotificationTypeIds } from "../../modules/notification/registry";
+import { systemNotificationLogKey } from "../../modules/notification/delivery-log";
 import { getIssuerRecipientUserIdsForApplication } from "../../modules/notification/application-recipients";
+import { sendTypedToUsersSafe } from "../../modules/notification/send-typed-safe";
 import { ProductRepository } from "../../modules/products/repository";
 import { ACCEPTANCE_ACTIVE, SIGNING_ACTIVE } from "../phase-deadlines";
 import { patchOfferAcceptanceUnchecked } from "../../modules/applications/offer-acceptance";
@@ -109,16 +111,24 @@ async function sendIssuerNotificationForApplication(
   idempotencySuffix: string
 ) {
   const recipients = await getIssuerRecipientUserIdsForApplication(applicationId);
+  if (recipients.length === 0) {
+    return;
+  }
   const enrichedPayload = await enrichApplicationNotificationPayload(applicationId, payload);
-  await Promise.all(
-    recipients.map((userId) =>
-      notificationService.sendTyped(
-        userId,
-        typeId as never,
-        enrichedPayload as never,
-        `app:${applicationId}:notif:${typeId}:user:${userId}:${idempotencySuffix}`
-      )
-    )
+  const results = await sendTypedToUsersSafe(
+    notificationService,
+    recipients,
+    typeId as never,
+    enrichedPayload as never,
+    (userId) => `app:${applicationId}:notif:${typeId}:user:${userId}:${idempotencySuffix}`
+  );
+  await notificationService.logTypedSystemBatch(
+    typeId as never,
+    enrichedPayload as never,
+    results,
+    {
+      idempotencyKey: systemNotificationLogKey(typeId, `app:${applicationId}:${idempotencySuffix}`),
+    }
   );
 }
 
@@ -391,9 +401,7 @@ async function expireOffer(params: {
         },
       });
       const scopeKey =
-        application != null
-          ? resolveInvoiceScopeKeyForId(application.invoices, row.id)
-          : null;
+        application != null ? resolveInvoiceScopeKeyForId(application.invoices, row.id) : null;
 
       await tx.applicationReviewItem.updateMany({
         where: {
@@ -663,7 +671,8 @@ export async function runAcceptanceSigningExpiryJob(): Promise<AcceptanceSigning
                 where: { id: row.id },
                 select: { offer_details: true, status: true },
               });
-        if (!freshOffer || freshOffer.status !== "OFFER_SENT" || !freshOffer.offer_details) continue;
+        if (!freshOffer || freshOffer.status !== "OFFER_SENT" || !freshOffer.offer_details)
+          continue;
         const freshAcceptance = parseOfferAcceptanceDetails(
           (freshOffer.offer_details as Record<string, unknown>).offer_acceptance
         );
@@ -707,8 +716,7 @@ export async function runAcceptanceSigningExpiryJob(): Promise<AcceptanceSigning
       try {
         const offer = (row.offer_details as Record<string, unknown> | null) ?? null;
         if (!offer) continue;
-        const expiresAt =
-          typeof offer.expires_at === "string" ? offer.expires_at : null;
+        const expiresAt = typeof offer.expires_at === "string" ? offer.expires_at : null;
         if (!expiresAt || !isPhaseDeadlineExpired(expiresAt, now)) continue;
 
         await expireOffer({

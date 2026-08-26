@@ -71,6 +71,7 @@ const PURPOSE_FILTER_OPTIONS = [
     value: "APPLICATION_PROCESSING_FEE",
     label: PURPOSE_LABEL.APPLICATION_PROCESSING_FEE,
   },
+  { value: "FACILITY_FEE", label: PURPOSE_LABEL.FACILITY_FEE },
 ] as const;
 
 type GatewayFilter = (typeof STATUS_FILTER_OPTIONS)[number]["value"];
@@ -503,6 +504,20 @@ function GatewayPaymentsTableContent({
                                     label="Settle"
                                     value={item.settlementId}
                                   />
+                                ) : null}
+                                {item.contractId ? (
+                                  <div className="flex items-center gap-1 text-xs">
+                                    <span className="w-14 shrink-0 text-muted-foreground">
+                                      Facility
+                                    </span>
+                                    <Link
+                                      href={`/contracts/${item.contractId}`}
+                                      className="truncate underline-offset-4 hover:underline"
+                                      onClick={(event) => event.stopPropagation()}
+                                    >
+                                      View facility
+                                    </Link>
+                                  </div>
                                 ) : null}
                               </div>
                             </TableCell>

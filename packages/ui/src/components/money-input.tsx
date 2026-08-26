@@ -6,6 +6,7 @@ import { cn } from "../lib/utils";
 import { formatMoney } from "../lib/money";
 
 interface MoneyInputProps {
+  id?: string;
   value: string;
   onValueChange: (next: string) => void;
   placeholder?: string;
@@ -27,6 +28,7 @@ function stripCommas(value: string): string {
 }
 
 export function MoneyInput({
+  id,
   value,
   onValueChange,
   placeholder = "0.00",
@@ -101,6 +103,7 @@ export function MoneyInput({
         </div>
       )}
       <Input
+        id={id}
         type="text"
         inputMode="decimal"
         value={value}

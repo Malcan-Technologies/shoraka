@@ -157,4 +157,17 @@ describe("getNoteCommercialTermRows", () => {
     expect(byLabel["Legal"]).toBe("RM 50.00 at disbursement");
     expect(byLabel["Admin"]).toBe("1% of funds raised");
   });
+
+  it("adds a financing tenure row for new notes", () => {
+    const pending = getNoteCommercialTermRows(
+      termNote({ tenureDays: 90, maturityDate: null })
+    );
+    expect(pending.find((row) => row.label === "Financing tenure")?.value).toBe(
+      "90 days from disbursement"
+    );
+    const activated = getNoteCommercialTermRows(
+      termNote({ tenureDays: 90, maturityDate: "2026-11-18T00:00:00.000Z" })
+    );
+    expect(activated.find((row) => row.label === "Financing tenure")?.value).toBe("90 days");
+  });
 });

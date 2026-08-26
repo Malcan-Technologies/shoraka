@@ -76,7 +76,7 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
               return (
                 <AdminVerticalTimelineItem
                   key={event.id}
-                  title={formatNoteActivityEventLabel(event.eventType)}
+                  title={formatNoteActivityEventLabel(event.eventType, event.metadata)}
                   createdAt={event.createdAt}
                   actorLabel={resolveAdminTimelineActorLabel({
                     actorName: event.actorName,

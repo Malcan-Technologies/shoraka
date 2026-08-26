@@ -26,6 +26,12 @@ import { AdminPageHeader } from "@/components/admin-page-header";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useS3ViewUrl } from "@/hooks/use-s3";
 import { uploadFileToS3 } from "@/lib/upload-file-to-s3";
+import {
+  buildTrusteeLetterConfigPayload,
+  validateTrusteeLetterEmailSettings,
+} from "@/lib/trustee-letter-settings";
+import { notesKeys } from "@/notes/query-keys";
+import { TrusteeLetterEmailFields } from "./trustee-letter-email-fields";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -37,6 +43,13 @@ const EMPTY_ACCOUNT: TrusteeAccountDetails = {
   remarks: "",
 };
 
+type TrusteeLetterTextField = Exclude<
+  {
+    [K in keyof TrusteeLetterConfig]-?: TrusteeLetterConfig[K] extends string | undefined ? K : never;
+  }[keyof TrusteeLetterConfig],
+  undefined
+>;
+
 const DEFAULT_TRUSTEE_LETTER: TrusteeLetterConfig = {
   trusteeName: "RHB Trustees Berhad",
   trusteeAddressLine1: "Level 11 Tower 3 RHB Centre",
@@ -46,6 +59,7 @@ const DEFAULT_TRUSTEE_LETTER: TrusteeLetterConfig = {
   defaultContactPerson: "CashSouk Finance Team",
   authorisedSignatoryLabel: "Authorised Signatories",
   platformDisplayName: "CashSouk Sdn Bhd",
+  autoSendTrusteeEmail: false,
 };
 
 const ALLOWED_SIGNATURE_CONTENT_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
@@ -160,9 +174,12 @@ export default function PlatformFinanceSettingsPage() {
     applicationProcessingFeeAmount: "50",
     investorMinDepositAmount: "100",
     investorMaxDepositAmount: "30000",
+    facilityFeeGatewayTxnMaxAmount: "30000",
+    excessLateChargeGatewayTxnMaxAmount: "30000",
   });
   const [offerDeadlineReminderHour, setOfferDeadlineReminderHour] = React.useState("9");
   const [trusteeLetter, setTrusteeLetter] = React.useState<TrusteeLetterConfig>(DEFAULT_TRUSTEE_LETTER);
+  const [trusteeCcDraft, setTrusteeCcDraft] = React.useState("");
   const [platformAccounts, setPlatformAccounts] =
     React.useState<PlatformAccountsConfig>(emptyPlatformAccounts());
   const [bucketAccounts, setBucketAccounts] =
@@ -218,9 +235,19 @@ export default function PlatformFinanceSettingsPage() {
       label: "Maximum investor deposit (MYR)",
       placeholder: "e.g. 30000",
     },
+    {
+      key: "facilityFeeGatewayTxnMaxAmount",
+      label: "Facility fee payment gateway transaction limit (MYR)",
+      placeholder: "e.g. 30000",
+    },
+    {
+      key: "excessLateChargeGatewayTxnMaxAmount",
+      label: "Late charge payment gateway transaction limit (MYR)",
+      placeholder: "e.g. 30000",
+    },
   ];
 
-  const trusteeFields: Array<{ key: keyof TrusteeLetterConfig; label: string; placeholder: string }> = [
+  const trusteeFields: Array<{ key: TrusteeLetterTextField; label: string; placeholder: string }> = [
     { key: "trusteeName", label: "Trustee name", placeholder: "e.g. RHB Trustees Berhad" },
     {
       key: "trusteeAddressLine1",
@@ -303,9 +330,18 @@ export default function PlatformFinanceSettingsPage() {
       applicationProcessingFeeAmount: String(data.applicationProcessingFeeAmount),
       investorMinDepositAmount: String(data.investorMinDepositAmount),
       investorMaxDepositAmount: String(data.investorMaxDepositAmount),
+      facilityFeeGatewayTxnMaxAmount: String(data.facilityFeeGatewayTxnMaxAmount ?? 30000),
+      excessLateChargeGatewayTxnMaxAmount: String(
+        data.excessLateChargeGatewayTxnMaxAmount ?? 30000
+      ),
     });
     setOfferDeadlineReminderHour(String(data.offerDeadlineReminderHour ?? 9));
-    setTrusteeLetter({ ...DEFAULT_TRUSTEE_LETTER, ...(data.trusteeLetterConfig ?? {}) });
+    setTrusteeLetter({
+      ...DEFAULT_TRUSTEE_LETTER,
+      ...(data.trusteeLetterConfig ?? {}),
+      autoSendTrusteeEmail: data.trusteeLetterConfig?.autoSendTrusteeEmail === true,
+    });
+    setTrusteeCcDraft("");
     setPlatformAccounts({ ...emptyPlatformAccounts(), ...(data.platformAccountsConfig ?? {}) });
     setBucketAccounts({ ...emptyBucketAccounts(), ...(data.ledgerBucketAccountsConfig ?? {}) });
   }, [data]);
@@ -318,6 +354,7 @@ export default function PlatformFinanceSettingsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["platform-finance-settings"] });
+      queryClient.invalidateQueries({ queryKey: notesKeys.all });
       toast.success("Platform finance settings updated");
     },
     onError: (error) =>
@@ -350,6 +387,17 @@ export default function PlatformFinanceSettingsPage() {
   });
 
   const disabled = isLoading || !canManage;
+  const trusteeEmailValidation = validateTrusteeLetterEmailSettings({
+    autoSendTrusteeEmail: trusteeLetter.autoSendTrusteeEmail === true,
+    trusteeEmail: trusteeLetter.trusteeEmail,
+    trusteeCcEmails: trusteeLetter.trusteeCcEmails,
+    ccDraft: trusteeCcDraft,
+  });
+  const trusteeLetterSaveDisabled =
+    disabled ||
+    saveMutation.isPending ||
+    signatureUploadMutation.isPending ||
+    !trusteeEmailValidation.canSave;
 
   const handleSelectSignatureImage = () => {
     if (!canManage || signatureUploadMutation.isPending) return;
@@ -443,8 +491,11 @@ export default function PlatformFinanceSettingsPage() {
                 <CardContent className="grid gap-4 px-0 md:grid-cols-2">
                   {gatewayFeeFields.map(({ key, label, placeholder }) => (
                     <div key={key} className="space-y-2">
-                      <label className="text-sm font-medium">{label}</label>
+                      <label className="text-sm font-medium" htmlFor={`gateway-fee-${key}`}>
+                        {label}
+                      </label>
                       <Input
+                        id={`gateway-fee-${key}`}
                         type="number"
                         min={0}
                         step="0.01"
@@ -456,6 +507,19 @@ export default function PlatformFinanceSettingsPage() {
                           setGatewayFees((prev) => ({ ...prev, [key]: event.target.value }))
                         }
                       />
+                      {key === "facilityFeeGatewayTxnMaxAmount" ? (
+                        <p className="text-meta text-muted-foreground">
+                          Caps each FPX facility-fee transaction, not the overall upfront amount
+                          requested on a facility offer. Larger upfront amounts are paid across
+                          multiple transactions.
+                        </p>
+                      ) : null}
+                      {key === "excessLateChargeGatewayTxnMaxAmount" ? (
+                        <p className="text-meta text-muted-foreground">
+                          Caps each FPX late-charge transaction, not the overall amount billed after
+                          settlement. Larger amounts are paid across multiple transactions.
+                        </p>
+                      ) : null}
                     </div>
                   ))}
                   <div className="md:col-span-2 flex justify-end">
@@ -480,6 +544,12 @@ export default function PlatformFinanceSettingsPage() {
                           ),
                           investorMinDepositAmount,
                           investorMaxDepositAmount,
+                          facilityFeeGatewayTxnMaxAmount: Number(
+                            gatewayFees.facilityFeeGatewayTxnMaxAmount
+                          ),
+                          excessLateChargeGatewayTxnMaxAmount: Number(
+                            gatewayFees.excessLateChargeGatewayTxnMaxAmount
+                          ),
                         });
                       }}
                     >
@@ -562,6 +632,25 @@ export default function PlatformFinanceSettingsPage() {
                       />
                     </div>
                   ))}
+                  <TrusteeLetterEmailFields
+                    autoSendTrusteeEmail={trusteeLetter.autoSendTrusteeEmail === true}
+                    trusteeEmail={trusteeLetter.trusteeEmail ?? ""}
+                    trusteeCcEmails={trusteeLetter.trusteeCcEmails ?? []}
+                    ccDraft={trusteeCcDraft}
+                    disabled={disabled}
+                    trusteeEmailError={trusteeEmailValidation.trusteeEmailError}
+                    trusteeCcError={trusteeEmailValidation.trusteeCcError}
+                    onAutoSendChange={(enabled) =>
+                      setTrusteeLetter((prev) => ({ ...prev, autoSendTrusteeEmail: enabled }))
+                    }
+                    onTrusteeEmailChange={(email) =>
+                      setTrusteeLetter((prev) => ({ ...prev, trusteeEmail: email }))
+                    }
+                    onCcEmailsChange={(emails) =>
+                      setTrusteeLetter((prev) => ({ ...prev, trusteeCcEmails: emails }))
+                    }
+                    onCcDraftChange={setTrusteeCcDraft}
+                  />
                   <div className="space-y-2 md:col-span-2">
                     <label className="text-sm font-medium">Authorised signature image</label>
                     <p className="text-xs text-muted-foreground">
@@ -625,9 +714,24 @@ export default function PlatformFinanceSettingsPage() {
                   </div>
                   <div className="md:col-span-2 flex justify-end">
                     <Button
-                      disabled={disabled || saveMutation.isPending || signatureUploadMutation.isPending}
+                      disabled={trusteeLetterSaveDisabled}
                       className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
-                      onClick={() => saveMutation.mutate({ trusteeLetterConfig: trusteeLetter })}
+                      onClick={() => {
+                        if (!trusteeEmailValidation.canSave) {
+                          toast.error(
+                            trusteeEmailValidation.trusteeEmailError ??
+                              trusteeEmailValidation.trusteeCcError ??
+                              "Check trustee email settings"
+                          );
+                          return;
+                        }
+                        saveMutation.mutate({
+                          trusteeLetterConfig: buildTrusteeLetterConfigPayload(
+                            trusteeLetter,
+                            trusteeCcDraft
+                          ),
+                        });
+                      }}
                     >
                       Save Trustee Letter
                     </Button>

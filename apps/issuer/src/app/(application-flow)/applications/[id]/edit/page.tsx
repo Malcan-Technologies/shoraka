@@ -61,10 +61,13 @@ import {
   mapCapacityApiError,
   type ApplicationStepKey,
   ApplicationStatus,
+  type Contract,
   type Product,
   type ApplicationProcessingFeeResponse,
 } from "@cashsouk/types";
 import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
+import { resolveIssuerFacilityGate } from "@/lib/facility-enabled";
+import { FACILITY_FEE_DRAWDOWN_BLOCKED_MESSAGE } from "@/lib/facility-fee-payment-ui";
 import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import { ProgressIndicator } from "../../components/progress-indicator";
 import {
@@ -494,6 +497,16 @@ function EditApplicationPageBody() {
     if (savedStructureType) return savedStructureType;
     return null;
   }, [sessionStructureType, savedStructureType]);
+
+  const existingFacilityFeeBlocksSubmit = React.useMemo(() => {
+    if (effectiveStructureType !== "existing_contract") return false;
+    const contract = (application as { contract?: Contract | null } | null | undefined)?.contract;
+    return resolveIssuerFacilityGate({
+      contractDetails: contract?.contract_details,
+      contractStatus: contract?.status,
+      facilityFeeUpfrontOutstanding: contract?.facilityFeeUpfrontOutstanding,
+    }).requiresFacilityFeePayment;
+  }, [application, effectiveStructureType]);
 
   /* ================================================================
      PRODUCT & WORKFLOW DERIVATION
@@ -1277,6 +1290,10 @@ function EditApplicationPageBody() {
       toast.error(directorPartySubmitBlockedMessage);
       return;
     }
+    if (existingFacilityFeeBlocksSubmit) {
+      toast.error(FACILITY_FEE_DRAWDOWN_BLOCKED_MESSAGE);
+      return;
+    }
 
     isSubmittingRef.current = true;
     setIsSubmittingApplication(true);
@@ -1317,6 +1334,10 @@ function EditApplicationPageBody() {
     }
     if (!devPreviewAmendment && !directorPartySubmitReady) {
       toast.error(directorPartySubmitBlockedMessage);
+      return;
+    }
+    if (existingFacilityFeeBlocksSubmit) {
+      toast.error(FACILITY_FEE_DRAWDOWN_BLOCKED_MESSAGE);
       return;
     }
 
@@ -1376,6 +1397,10 @@ function EditApplicationPageBody() {
     }
     if (!directorPartySubmitReady) {
       toast.error(directorPartySubmitBlockedMessage);
+      return;
+    }
+    if (existingFacilityFeeBlocksSubmit) {
+      toast.error(FACILITY_FEE_DRAWDOWN_BLOCKED_MESSAGE);
       return;
     }
     setSubmitConfirmOpen(true);

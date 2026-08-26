@@ -1,13 +1,21 @@
 import Link from "next/link";
 import { BuildingOffice2Icon } from "@heroicons/react/24/outline";
-import { Button, Card, CardContent, ProductNameWithIcon, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  InfoTooltip,
+  ProductNameWithIcon,
+  SoukscoreRiskRatingBadge,
+  cn,
+} from "@cashsouk/ui";
 import {
   formatNoteReferenceDisplay,
   formatInvestorReturnRatePercent,
+  isCompactNoteTimingValueShort,
   type NoteListItem,
 } from "@cashsouk/types";
-import { resolveMarketplaceListingDaysLeft } from "@/lib/marketplace-listing-days";
-import { resolveMarketplaceDaysToMaturity } from "@cashsouk/types";
+import { mapPublicNoteTiming } from "@/lib/public-note-timing";
 
 function formatCurrency(amount: number) {
   return `RM ${amount.toLocaleString("en-MY", {
@@ -63,8 +71,7 @@ export function LandingMarketplacePreview({
         ) : (
           <div className="mt-10 grid gap-6 lg:grid-cols-3 lg:items-stretch">
             {notes.map((note) => {
-              const daysLeft = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
-              const daysToMaturity = resolveMarketplaceDaysToMaturity(note.maturityDate);
+              const { daysLeft, timing } = mapPublicNoteTiming(note);
               const fundingPercent = resolveFundingPercent(note);
               const riskRatingForBadge = note.riskRating?.trim() ? note.riskRating : null;
               const grossProfitRate = note.profitRatePercent;
@@ -119,15 +126,29 @@ export function LandingMarketplacePreview({
                               {formatInvestorReturnRatePercent(grossProfitRate)}
                             </div>
                           </div>
-                          <div className="mt-1 text-xs text-muted-foreground">Per annum</div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {timing.isTenureNote ? "Up to" : "Per annum"}
+                          </div>
                         </div>
                         <div className="flex flex-col text-center">
                           <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
-                            <div className="flex min-h-[4.25rem] flex-1 items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
-                              {daysToMaturity ?? "-"}
+                            <div
+                              className={cn(
+                                "flex min-h-[4.25rem] flex-1 items-center justify-center px-1 font-semibold leading-tight tabular-nums text-foreground",
+                                !isCompactNoteTimingValueShort(timing.compactValue)
+                                  ? "text-xl"
+                                  : "text-4xl leading-none"
+                              )}
+                            >
+                              {timing.compactValue}
                             </div>
                           </div>
-                          <div className="mt-1 text-xs text-muted-foreground">Days</div>
+                          <div className="mt-1 inline-flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                            {timing.compactLabel}
+                            {timing.tooltip ? (
+                              <InfoTooltip content={timing.tooltip} iconClassName="h-3.5 w-3.5" />
+                            ) : null}
+                          </div>
                         </div>
                         <div className="flex flex-col text-center">
                           <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">

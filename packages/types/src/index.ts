@@ -350,6 +350,11 @@ export interface ContractDetails {
   approved_facility: number | null;
   utilized_facility: number | null;
   available_facility: number | null;
+  facility_fee_rate_percent?: number | null;
+  facility_fee_total_amount?: number | null;
+  facility_fee_paid_amount?: number | null;
+  facility_fee_upfront_amount?: number | null;
+  facility_fee_waived?: boolean;
   pending_facility?: number | null;
   repaid_facility?: number | null;
   lifetime_cap?: number | null;
@@ -389,6 +394,8 @@ export interface Contract {
   contract_details?: ContractDetails | null;
   offer_details?: ContractOfferDetails | null;
   customer_details?: CustomerDetails | null;
+  facilityFeeUpfrontAmount?: number;
+  facilityFeeUpfrontOutstanding?: number;
   created_at: string;
   updated_at: string;
 }
@@ -396,6 +403,8 @@ export interface Contract {
 export interface ContractOfferDetails {
   requested_facility: number;
   offered_facility: number;
+  facility_fee_rate_percent?: number | null;
+  facility_fee_upfront_collect_amount?: number;
   sent_at: string | null;
   responded_at: string | null;
   sent_by_user_id: string | null;
@@ -411,6 +420,8 @@ export interface InvoiceDetails {
   maturity_date: string;
   /** May be string from JSON/API; normalize when mapping to UI. */
   financing_ratio_percent?: number | string;
+  /** Issuer-selected financing period in calendar days (30–180, step 15). */
+  financing_tenure_days?: number;
   document?: {
     s3_key: string;
     file_name: string;
@@ -442,6 +453,8 @@ export interface InvoiceOfferDetails {
   requested_ratio_percent: number | null;
   offered_ratio_percent: number | null;
   offered_profit_rate_percent: number | null;
+  /** Final offered financing period in calendar days (30–180, step 15). */
+  financing_tenure_days?: number;
   /** Percent of funded amount withheld as platform fee at disbursement. */
   platform_fee_rate_percent?: number | null;
   /** Manual SoukScore placeholder (v1: A | B | C). Present on offers sent after this feature. */
@@ -486,8 +499,14 @@ export * from "./onboarding-readiness";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
 export * from "./notes";
+export * from "./financing-tenure";
+export * from "./invoice-financing-ratio";
+export * from "./disbursement-value-date";
+export * from "./actual-settlement-date";
+export * from "./tenure-profit";
 export * from "./fee-schedule";
 export * from "./facility-fee-reservation";
+export * from "./excess-late-charges";
 export * from "./product-icon";
 export * from "./investor-balance-activity";
 export * from "./display-reference";
@@ -498,6 +517,8 @@ export * from "./prospectus-highlight-recommendations";
 export * from "./prospectus-about-invoice-recommendations";
 export * from "./investor-return-breakdown";
 export * from "./marketplace-note-dates";
+export * from "./note-timing-display";
+export * from "./marketplace-tenure-filter";
 export * from "./marketplace-catalog";
 export * from "./prospectus-calendar";
 export * from "./signing-envelopes";
@@ -509,6 +530,8 @@ export * from "./guarantor-agreement-config";
 export * from "./offer-acceptance";
 export * from "./authorized-parties";
 export * from "./contract-facility-lo";
+export * from "./offer-accept-otp";
+export * from "./utilisation-offer-terms";
 export * from "./origination-phase";
 export * from "./split-origination";
 export * from "./capacity-snapshot";

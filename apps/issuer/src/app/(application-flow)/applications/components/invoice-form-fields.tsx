@@ -15,13 +15,25 @@ import {
   formInputClassName,
   formInputDisabledClassName,
   formLabelClassName,
+  formSelectTriggerClassName,
   withFieldError,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { cn } from "@/lib/utils";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
 import { MoneyInput, Slider } from "@cashsouk/ui";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { WithdrawReason } from "@cashsouk/types";
+import {
+  FINANCING_TENURE_DAYS_OPTIONS,
+  formatFinancingTenureDaysLabel,
+  type WithdrawReason,
+} from "@cashsouk/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export type InvoiceFormModel = {
   id: string;
@@ -29,6 +41,7 @@ export type InvoiceFormModel = {
   number: string;
   value: string;
   maturity_date: string;
+  financing_tenure_days?: number;
   financing_ratio_percent?: number;
   status?: string;
   withdraw_reason?: WithdrawReason;
@@ -39,6 +52,7 @@ export type InvoiceFormModel = {
 export type InvoiceFieldErrors = Partial<{
   number: string;
   maturity_date: string;
+  financing_tenure_days: string;
   value: string;
   financing_ratio_percent: string;
   financing_amount: string;
@@ -113,6 +127,7 @@ export interface InvoiceFormFieldsProps {
   financingAmountDraft?: string;
   onNumberChange?: (value: string) => void;
   onMaturityDateChange?: (value: string) => void;
+  onFinancingTenureDaysChange?: (value: number) => void;
   onValueChange?: (value: string) => void;
   onRatioChange?: (value: number) => void;
   onFinancingAmountDraftChange?: (value: string) => void;
@@ -134,6 +149,7 @@ export function InvoiceFormFields({
   financingAmountDraft,
   onNumberChange,
   onMaturityDateChange,
+  onFinancingTenureDaysChange,
   onValueChange,
   onRatioChange,
   onFinancingAmountDraftChange,
@@ -145,6 +161,7 @@ export function InvoiceFormFields({
   const inputClassName = cn(formInputClassName, !isEditable && formInputDisabledClassName);
   const numberId = `invoice-number-${invoice.id}`;
   const maturityId = `invoice-maturity-${invoice.id}`;
+  const tenureId = `invoice-tenure-${invoice.id}`;
   const ratioNum =
     invoice.financing_ratio_percent == null
       ? minRatio
@@ -198,6 +215,42 @@ export function InvoiceFormFields({
             className={inputClassName}
           />
           <FieldError message={fieldErrors?.maturity_date} />
+        </div>
+
+        <LabelWithTooltip
+          htmlFor={tenureId}
+          label="Financing tenure"
+          tooltip="How long you need the financing for. It must cover the time until your customer is due to pay this invoice. The period starts when funds are disbursed."
+        />
+        <div className="space-y-1">
+          <Select
+            value={
+              invoice.financing_tenure_days != null
+                ? String(invoice.financing_tenure_days)
+                : undefined
+            }
+            onValueChange={(value) => onFinancingTenureDaysChange?.(Number(value))}
+            disabled={!isEditable}
+          >
+            <SelectTrigger
+              id={tenureId}
+              aria-label="Financing tenure"
+              className={withFieldError(
+                cn(formSelectTriggerClassName, !isEditable && formInputDisabledClassName),
+                Boolean(fieldErrors?.financing_tenure_days)
+              )}
+            >
+              <SelectValue placeholder="Select tenure" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[240px]">
+              {FINANCING_TENURE_DAYS_OPTIONS.map((days) => (
+                <SelectItem key={days} value={String(days)}>
+                  {formatFinancingTenureDaysLabel(days)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldError message={fieldErrors?.financing_tenure_days} />
         </div>
 
         <LabelWithTooltip label="Invoice value" />

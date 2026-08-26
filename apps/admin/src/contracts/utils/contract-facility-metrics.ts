@@ -1,5 +1,10 @@
 import { formatCurrency } from "@cashsouk/config";
-import { hasCompletedCapacitySnapshot, resolveFacilityFeeBalance } from "@cashsouk/types";
+import {
+  hasCompletedCapacitySnapshot,
+  resolveFacilityFeeBalance,
+  resolveFacilityFeeUpfront,
+  roundNoteMoney,
+} from "@cashsouk/types";
 
 /**
  * Facility amounts arrive from two places: `approvedFacility` is a typed number
@@ -74,7 +79,7 @@ export function resolveContractFacilityFeeCap(
 ): number | null {
   const rate = parseFacilityAmount(facilityFeeRatePercent);
   if (rate == null || rate <= 0 || approved <= 0) return null;
-  return approved * (rate / 100);
+  return roundNoteMoney(approved * (rate / 100));
 }
 
 export type ContractFacilityFeeLedger = {
@@ -85,16 +90,21 @@ export type ContractFacilityFeeLedger = {
   enabled: boolean;
   disabledReason: string | null;
   waivedAtContract: boolean;
+  upfrontRequested: number;
+  paidTowardUpfront: number;
+  upfrontOutstanding: number;
 };
 
 export function resolveContractFacilityFeeLedger(input: {
   approved: number;
   contractDetails?: Record<string, unknown> | null;
 }): ContractFacilityFeeLedger {
-  const balance = resolveFacilityFeeBalance({
+  const details = {
     ...(input.contractDetails ?? {}),
     approved_facility: input.approved,
-  });
+  };
+  const balance = resolveFacilityFeeBalance(details);
+  const upfront = resolveFacilityFeeUpfront(details);
   return {
     owed: balance.totalOwed,
     charged: balance.paid,
@@ -103,11 +113,29 @@ export function resolveContractFacilityFeeLedger(input: {
     enabled: balance.enabled,
     disabledReason: balance.disabledReason,
     waivedAtContract: balance.waived,
+    upfrontRequested: upfront.upfrontAmount,
+    paidTowardUpfront: roundNoteMoney(Math.min(balance.paid, upfront.upfrontAmount)),
+    upfrontOutstanding: upfront.outstanding,
   };
 }
 
 export function canWaiveContractFacilityFee(ledger: ContractFacilityFeeLedger): boolean {
   return !ledger.waivedAtContract && ledger.remaining > 0;
+}
+
+export type ContractFacilityFeeWaitingNote = {
+  title: string;
+  description: string;
+};
+
+export function resolveContractFacilityFeeWaitingNote(
+  ledger: Pick<ContractFacilityFeeLedger, "upfrontOutstanding">
+): ContractFacilityFeeWaitingNote | null {
+  if (ledger.upfrontOutstanding <= 0) return null;
+  return {
+    title: "Issuer has an unpaid upfront facility fee",
+    description: `${formatCurrency(ledger.upfrontOutstanding)} is still due. Drawdowns stay locked until the issuer pays this via the payment gateway.`,
+  };
 }
 
 /** Paid-to-date vs cap from the same contract_details fields the facility tab uses. */

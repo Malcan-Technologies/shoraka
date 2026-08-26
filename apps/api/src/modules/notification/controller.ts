@@ -9,6 +9,7 @@ import {
   AdminSendNotificationSchema,
   CreateNotificationGroupSchema,
   UpdateNotificationGroupSchema,
+  AdminNotificationLogsQuerySchema,
 } from "./schemas";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 
@@ -299,6 +300,10 @@ router.patch(
         correlationId: res.locals.correlationId,
       });
     } catch (error) {
+      if (error instanceof AppError) {
+        next(error);
+        return;
+      }
       next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
     }
   }
@@ -391,13 +396,7 @@ router.get(
   requirePermission("notifications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const filters = {
-        limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 20,
-        offset: req.query.offset ? parseInt(req.query.offset as string, 10) : 0,
-        search: req.query.search as string | undefined,
-        type: req.query.type as string | undefined,
-        target: req.query.target as string | undefined,
-      };
+      const filters = AdminNotificationLogsQuerySchema.parse(req.query);
       const result = await notificationService.getAdminLogs(filters);
       res.json({
         success: true,
@@ -405,7 +404,7 @@ router.get(
         correlationId: res.locals.correlationId,
       });
     } catch (error) {
-      next(error);
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
     }
   }
 );
@@ -528,7 +527,7 @@ router.post(
   requirePermission("notifications.manage"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await notificationService.seedNotificationTypes();
+      const result = await notificationService.resetNotificationTypesToDefault();
       res.json({
         success: true,
         data: result,

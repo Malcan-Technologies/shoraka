@@ -7,7 +7,13 @@ import {
   LinkIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import type { NoteListItem } from "@cashsouk/types";
+import {
+  formatIssuerFinancingTenure,
+  formatIssuerNoteMaturity,
+  malaysiaCalendarDaysRemaining,
+  resolveNoteTimingDisplay,
+  type NoteListItem,
+} from "@cashsouk/types";
 import { NoteStatusBadge, ProductCatalogName } from "@cashsouk/ui";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { Button } from "@/components/ui/button";
@@ -39,17 +45,9 @@ import { FacilityTiedLink } from "./facility-tied-link";
 
 function daysPastMaturity(maturityDate: string | null | undefined): number | null {
   if (!maturityDate) return null;
-  const maturity = new Date(maturityDate);
-  if (Number.isNaN(maturity.getTime())) return null;
-  const today = new Date();
-  const maturityStart = new Date(
-    maturity.getFullYear(),
-    maturity.getMonth(),
-    maturity.getDate()
-  );
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const days = Math.round((todayStart.getTime() - maturityStart.getTime()) / 86_400_000);
-  return days > 0 ? days : null;
+  const remaining = malaysiaCalendarDaysRemaining(new Date(), maturityDate);
+  if (remaining == null || remaining >= 0) return null;
+  return Math.abs(remaining);
 }
 
 function NoteArrearsAlert({ note }: { note: NoteListItem }) {
@@ -160,6 +158,7 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
   const inArrears = isIssuerNoteInArrears(note);
   const needsAttention = isIssuerNoteActionable(note);
   const campaign = buildIssuerMarketplaceCampaign(note);
+  const noteTiming = resolveNoteTimingDisplay(note);
   const campaignCloseLabel = issuerCampaignCloseLabel(
     formatDate(campaign.closesAt),
     issuerCampaignDaysLeftLabel(campaign.daysLeft, campaign.raising)
@@ -299,7 +298,42 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
                   {campaign.closesAt ? campaignCloseLabel : EM_DASH}
                 </LabelValue>
                 <LabelValue label="Min to succeed">{`${campaign.minimumPercent}%`}</LabelValue>
-                <LabelValue label="Maturity date">{formatDate(note.maturityDate)}</LabelValue>
+                {noteTiming.isTenureNote ? (
+                  <LabelValue
+                    label={
+                      noteTiming.kind === "tenure_pending" && noteTiming.tooltip ? (
+                        <span className="inline-flex items-center gap-1">
+                          Financing tenure
+                          <InfoTooltip
+                            content={noteTiming.tooltip}
+                            iconClassName="h-3.5 w-3.5 shrink-0"
+                          />
+                        </span>
+                      ) : (
+                        "Financing tenure"
+                      )
+                    }
+                  >
+                    {formatIssuerFinancingTenure(noteTiming) ?? EM_DASH}
+                  </LabelValue>
+                ) : null}
+                <LabelValue
+                  label={
+                    noteTiming.tooltip && noteTiming.kind !== "tenure_pending" ? (
+                      <span className="inline-flex items-center gap-1">
+                        Maturity date
+                        <InfoTooltip
+                          content={noteTiming.tooltip}
+                          iconClassName="h-3.5 w-3.5 shrink-0"
+                        />
+                      </span>
+                    ) : (
+                      "Maturity date"
+                    )
+                  }
+                >
+                  {formatIssuerNoteMaturity(noteTiming)}
+                </LabelValue>
               </div>
             </div>
           </div>

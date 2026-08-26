@@ -128,12 +128,18 @@ function norm(s: string | null | undefined): string {
 /**
  * Contract card / contract detail: maps `Contract.status` only (no Note).
  */
-export function resolveIssuerContractDashboardBadge(contractStatus: string): IssuerFinancingStatusKind {
+export function resolveIssuerContractDashboardBadge(
+  contractStatus: string,
+  options?: { facilityFeeUpfrontOutstanding?: number | null }
+): IssuerFinancingStatusKind {
   const c = norm(contractStatus);
   if (c === "DRAFT") return "draft";
   if (c === "OFFER_SENT" || c === "AMENDMENT_REQUESTED") return "action_required";
   if (c === "SUBMITTED") return "pending_approval";
-  if (c === "APPROVED") return "active";
+  if (c === "APPROVED") {
+    const outstanding = Number(options?.facilityFeeUpfrontOutstanding ?? 0);
+    return Number.isFinite(outstanding) && outstanding > 0 ? "action_required" : "active";
+  }
   if (c === "REJECTED" || c === "WITHDRAWN" || c === "CANCELLED" || c === "EXPIRED") return "unsuccessful";
   return "active";
 }

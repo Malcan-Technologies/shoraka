@@ -39,6 +39,7 @@ const mockVerifyAccess = jest.fn();
 
 jest.mock("../../lib/refresh-contract-facility", () => ({
   applyContractCapacityChange: (...args: unknown[]) => mockApply(...args),
+  lockContractRow: jest.fn(),
 }));
 
 jest.mock("./repository", () => ({
@@ -100,6 +101,7 @@ import { resubmitApplication as amendmentResubmitApplication } from "./amendment
 import { prisma } from "../../lib/prisma";
 import { upsertLatestOrganizationFinancialStatementsFromApplication } from "./issuer-organization-financial-statements";
 import { AppError } from "../../lib/http/error-handler";
+import { NotificationTypeIds } from "../notification/registry";
 
 describe("ApplicationService capacity reservations", () => {
   const service = new ApplicationService();
@@ -227,6 +229,85 @@ describe("ApplicationService capacity reservations", () => {
     );
   });
 
+  it("stamps facility_fee_upfront_amount from the offer on accept", async () => {
+    mockFindById.mockResolvedValue({
+      id: "app-1",
+      status: "CONTRACT_SENT",
+      contract_id: "contract-1",
+      financing_structure: { structure_type: "new_contract" },
+    });
+    (
+      service as unknown as { getProductWorkflowForApplication: jest.Mock }
+    ).getProductWorkflowForApplication = jest.fn().mockResolvedValue([]);
+
+    const contractUpdate = jest.fn();
+    mockApply.mockImplementationOnce(async (_id, _db, mutate) => {
+      const tx = {
+        invoice: {
+          updateMany: jest.fn(),
+          findMany: jest.fn().mockResolvedValue([]),
+          update: jest.fn(),
+        },
+        contract: {
+          findUnique: jest.fn().mockResolvedValue({
+            status: "APPROVED",
+            contract_details: { financing: 80_000, value: 1_000_000, approved_facility: 80_000 },
+          }),
+          update: contractUpdate,
+        },
+        application: {
+          update: jest.fn(),
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          findUnique: jest.fn(),
+        },
+        signingEnvelope: { findMany: jest.fn().mockResolvedValue([]) },
+        applicationReview: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+        applicationReviewItem: { upsert: jest.fn() },
+        $queryRaw: jest.fn().mockResolvedValue([
+          {
+            status: "OFFER_SENT",
+            offer_details: {
+              offered_facility: 80_000,
+              requested_facility: 90_000,
+              facility_fee_rate_percent: 1,
+              facility_fee_upfront_collect_amount: 400,
+            },
+            contract_details: { financing: 90_000, value: 1_000_000 },
+            originating_application_id: "app-1",
+          },
+        ]),
+      };
+      return { result: await mutate(tx), snapshot: null };
+    });
+
+    const sendIssuerNotification = jest.fn();
+    (service as unknown as { sendIssuerNotification: jest.Mock }).sendIssuerNotification =
+      sendIssuerNotification;
+
+    await service.respondToContractOffer("app-1", "accept", "user-1");
+    expect(sendIssuerNotification).toHaveBeenCalledWith(
+      "app-1",
+      NotificationTypeIds.FACILITY_FEE_PAYMENT_REQUESTED,
+      expect.objectContaining({
+        applicationId: "app-1",
+        contractId: "contract-1",
+        upfrontAmount: 400,
+      }),
+      "facility-fee-payment:contract-1"
+    );
+    expect(contractUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          contract_details: expect.objectContaining({
+            facility_fee_upfront_amount: 400,
+            facility_fee_total_amount: 800,
+            facility_fee_paid_amount: 0,
+          }),
+        }),
+      })
+    );
+  });
+
   it("accept and reject invoice offers refresh occupancy when the invoice is facility-tied", async () => {
     mockFindById.mockResolvedValue({
       id: "app-1",
@@ -273,6 +354,180 @@ describe("ApplicationService capacity reservations", () => {
       expect.any(Function),
       expect.objectContaining({ assertWrite: true })
     );
+  });
+
+  it("rejects accepting a facility-linked invoice offer while upfront is outstanding", async () => {
+    mockFindById.mockResolvedValue({
+      id: "app-1",
+      status: "INVOICES_SENT",
+      contract_id: "contract-1",
+      invoices: [{ id: "inv-1", contract_id: "contract-1", details: { number: "INV-1" } }],
+      financing_structure: { structure_type: "existing_contract" },
+    });
+    (
+      service as unknown as { resolveInvoiceReviewItemKeyById: jest.Mock }
+    ).resolveInvoiceReviewItemKeyById = jest.fn().mockResolvedValue("invoice_details:0:INV-1");
+    (
+      service as unknown as { getProductWorkflowForApplication: jest.Mock }
+    ).getProductWorkflowForApplication = jest.fn().mockResolvedValue([]);
+    (
+      service as unknown as { assertPhasedOfferDirectAcceptBlocked: jest.Mock }
+    ).assertPhasedOfferDirectAcceptBlocked = jest.fn();
+    mockApply.mockImplementation(async (_id, _db, mutate: (tx: unknown) => Promise<unknown>) => {
+      const tx = {
+        $queryRaw: jest.fn().mockResolvedValue([
+          {
+            status: "OFFER_SENT",
+            offer_details: { offered_amount: 40_000, requested_amount: 50_000 },
+            contract_id: "contract-1",
+          },
+        ]),
+        contract: {
+          findUnique: jest.fn().mockResolvedValue({
+            contract_details: {
+              facility_fee_total_amount: 1_500,
+              facility_fee_upfront_amount: 400,
+              facility_fee_paid_amount: 0,
+            },
+          }),
+        },
+        invoice: { findMany: jest.fn(), update: jest.fn(), count: jest.fn() },
+        application: { update: jest.fn() },
+        applicationReview: { upsert: jest.fn() },
+        applicationReviewItem: { upsert: jest.fn() },
+      };
+      return { result: await mutate(tx), snapshot: null };
+    });
+
+    await expect(
+      service.respondToInvoiceOffer("app-1", "inv-1", "accept", "user-1")
+    ).rejects.toMatchObject({
+      code: "FACILITY_FEE_UPFRONT_REQUIRED",
+      statusCode: 409,
+    } satisfies Partial<AppError>);
+  });
+
+  it("requires OTP only for contract-linked direct accept", async () => {
+    mockFindById.mockResolvedValue({
+      id: "app-1",
+      status: "INVOICES_SENT",
+      contract_id: "contract-1",
+      invoices: [{ id: "inv-1", contract_id: "contract-1", details: { number: "INV-1" } }],
+      financing_structure: { structure_type: "existing_contract" },
+    });
+    (
+      service as unknown as { resolveInvoiceReviewItemKeyById: jest.Mock }
+    ).resolveInvoiceReviewItemKeyById = jest.fn().mockResolvedValue("invoice_details:0:INV-1");
+    (
+      service as unknown as { getProductWorkflowForApplication: jest.Mock }
+    ).getProductWorkflowForApplication = jest.fn().mockResolvedValue([]);
+    (
+      service as unknown as { assertPhasedOfferDirectAcceptBlocked: jest.Mock }
+    ).assertPhasedOfferDirectAcceptBlocked = jest.fn();
+    (service as unknown as { sendIssuerNotification: jest.Mock }).sendIssuerNotification =
+      jest.fn();
+    mockApply.mockImplementation(async (_id, _db, mutate: (tx: unknown) => Promise<unknown>) => {
+      const tx = {
+        $queryRaw: jest.fn().mockResolvedValue([
+          {
+            status: "OFFER_SENT",
+            offer_details: { offered_amount: 40_000, requested_amount: 50_000 },
+            contract_id: "contract-1",
+          },
+        ]),
+        contract: {
+          findUnique: jest.fn().mockResolvedValue({
+            contract_details: {
+              facility_enabled: true,
+              facility_fee_total_amount: 1_500,
+              facility_fee_upfront_amount: 400,
+              facility_fee_paid_amount: 400,
+            },
+          }),
+        },
+        invoice: {
+          findMany: jest.fn().mockResolvedValue([{ status: "WITHDRAWN" }]),
+          update: jest.fn(),
+          count: jest.fn().mockResolvedValue(1),
+        },
+        application: { update: jest.fn() },
+        applicationReview: { upsert: jest.fn() },
+        applicationReviewItem: { upsert: jest.fn() },
+      };
+      return { result: await mutate(tx), snapshot: null };
+    });
+
+    await expect(
+      service.respondToInvoiceOffer("app-1", "inv-1", "accept", "user-1")
+    ).rejects.toMatchObject({ code: "OTP_REQUIRED" });
+
+    await expect(
+      service.respondToInvoiceOffer("app-1", "inv-1", "reject", "user-1")
+    ).resolves.toBeDefined();
+  });
+
+  it("allows accepting a facility-linked invoice offer after a facility fee waiver", async () => {
+    mockFindById.mockResolvedValue({
+      id: "app-1",
+      status: "INVOICES_SENT",
+      contract_id: "contract-1",
+      invoices: [{ id: "inv-1", contract_id: "contract-1", details: { number: "INV-1" } }],
+      financing_structure: { structure_type: "existing_contract" },
+    });
+    (
+      service as unknown as { resolveInvoiceReviewItemKeyById: jest.Mock }
+    ).resolveInvoiceReviewItemKeyById = jest.fn().mockResolvedValue("invoice_details:0:INV-1");
+    (
+      service as unknown as { getProductWorkflowForApplication: jest.Mock }
+    ).getProductWorkflowForApplication = jest.fn().mockResolvedValue([]);
+    (
+      service as unknown as { assertPhasedOfferDirectAcceptBlocked: jest.Mock }
+    ).assertPhasedOfferDirectAcceptBlocked = jest.fn();
+    mockApply.mockImplementation(async (_id, _db, mutate: (tx: unknown) => Promise<unknown>) => {
+      const tx = {
+        $queryRaw: jest.fn().mockResolvedValue([
+          {
+            status: "OFFER_SENT",
+            offer_details: {
+              offered_amount: 40_000,
+              requested_amount: 50_000,
+              fee_schedule_version: 1,
+              facility_fee_collect_amount: 0,
+              additional_fees: [],
+            },
+            contract_id: "contract-1",
+          },
+        ]),
+        contract: {
+          findUnique: jest.fn().mockResolvedValue({
+            contract_details: {
+              facility_enabled: true,
+              facility_fee_total_amount: 1_500,
+              facility_fee_upfront_amount: 400,
+              facility_fee_paid_amount: 0,
+              facility_fee_waived: true,
+            },
+          }),
+        },
+        invoice: {
+          findMany: jest.fn().mockResolvedValue([{ status: "APPROVED" }]),
+          update: jest.fn(),
+          count: jest.fn().mockResolvedValue(1),
+        },
+        application: { update: jest.fn() },
+        applicationReview: { upsert: jest.fn() },
+        applicationReviewItem: { upsert: jest.fn() },
+      };
+      return { result: await mutate(tx), snapshot: null };
+    });
+
+    try {
+      await service.respondToInvoiceOffer("app-1", "inv-1", "accept", "user-1", undefined, {
+        signingCompletion: { signedOfferLetterS3Key: "s3", signedFileSha256: "abc" },
+      });
+    } catch (error) {
+      expect((error as AppError).code).not.toBe("FACILITY_FEE_UPFRONT_REQUIRED");
+    }
   });
 
   it("withdraw releases reserved occupancy under the contract lock", async () => {

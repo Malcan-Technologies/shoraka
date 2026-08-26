@@ -65,6 +65,7 @@ export type OfferAcknowledgedTermsSnapshot = {
   expires_at: string | null;
   offered_facility?: number;
   facility_fee_rate_percent?: number | null;
+  facility_fee_upfront_collect_amount?: number;
   offered_amount?: number;
   offered_ratio_percent?: number | null;
   offered_profit_rate_percent?: number | null;
@@ -183,6 +184,8 @@ export function parseAcknowledgedTermsSnapshot(
   if (offeredFacility != null) snapshot.offered_facility = offeredFacility;
   const facilityFee = parseOptionalNullableNumber(root.facility_fee_rate_percent);
   if (facilityFee !== undefined) snapshot.facility_fee_rate_percent = facilityFee;
+  const upfrontCollect = parseOptionalFiniteNumber(root.facility_fee_upfront_collect_amount);
+  if (upfrontCollect != null) snapshot.facility_fee_upfront_collect_amount = upfrontCollect;
   const offeredAmount = parseOptionalFiniteNumber(root.offered_amount);
   if (offeredAmount != null) snapshot.offered_amount = offeredAmount;
   const offeredRatio = parseOptionalNullableNumber(root.offered_ratio_percent);
@@ -226,6 +229,8 @@ export function buildAcknowledgedTermsSnapshot(params: {
   if (offeredFacility != null) snapshot.offered_facility = offeredFacility;
   const facilityFee = parseOptionalNullableNumber(offer.facility_fee_rate_percent);
   if (facilityFee !== undefined) snapshot.facility_fee_rate_percent = facilityFee;
+  const upfrontCollect = parseOptionalFiniteNumber(offer.facility_fee_upfront_collect_amount);
+  if (upfrontCollect != null) snapshot.facility_fee_upfront_collect_amount = upfrontCollect;
   const offeredAmount = parseOptionalFiniteNumber(offer.offered_amount);
   if (offeredAmount != null) snapshot.offered_amount = offeredAmount;
   const offeredRatio = parseOptionalNullableNumber(offer.offered_ratio_percent);

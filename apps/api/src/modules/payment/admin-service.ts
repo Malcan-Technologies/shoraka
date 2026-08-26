@@ -107,6 +107,8 @@ function mapListItem(
     issuerOrganizationName: payment.issuer_organization
       ? buildIssuerOrgDisplayName(payment.issuer_organization)
       : null,
+    contractId: payment.contract_id,
+    noteId: payment.note_id,
     curlecOrderId: payment.curlec_order_id,
     curlecPaymentId: payment.curlec_payment_id,
     settlementId: payment.settlement_id,
@@ -189,6 +191,8 @@ export async function listGatewayPayments(
   }
 
   if (query.purpose) where.purpose = query.purpose;
+  if (query.contractId) where.contract_id = query.contractId;
+  if (query.noteId) where.note_id = query.noteId;
   if (query.organizationType) where.organization_type = query.organizationType;
   if (query.gatewayAccount) where.gatewayAccount = query.gatewayAccount;
 

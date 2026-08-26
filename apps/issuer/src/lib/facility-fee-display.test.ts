@@ -141,6 +141,7 @@ describe("resolveIssuerFacilityGate", () => {
     });
     expect(gate.enabled).toBe(true);
     expect(gate.canStartDrawdown).toBe(true);
+    expect(gate.requiresFacilityFeePayment).toBe(false);
   });
 
   it("blocks a new drawdown when the facility is disabled and surfaces the reason", () => {
@@ -156,5 +157,21 @@ describe("resolveIssuerFacilityGate", () => {
     expect(gate.enabled).toBe(false);
     expect(gate.canStartDrawdown).toBe(false);
     expect(gate.disabledReason).toBe("Paused by CashSouk");
+  });
+
+  it("blocks a new drawdown when upfront facility fee is outstanding", () => {
+    const gate = resolveIssuerFacilityGate({
+      contractDetails: {
+        approved_facility: 100_000,
+        facility_fee_rate_percent: 1,
+        facility_fee_total_amount: 1_000,
+        facility_fee_upfront_amount: 1_000,
+        facility_fee_paid_amount: 0,
+      },
+      contractStatus: "APPROVED",
+    });
+    expect(gate.enabled).toBe(true);
+    expect(gate.requiresFacilityFeePayment).toBe(true);
+    expect(gate.canStartDrawdown).toBe(false);
   });
 });

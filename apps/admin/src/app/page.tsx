@@ -2,13 +2,12 @@
 
 import { useMemo } from "react";
 
-import { welcomeBackTitle } from "@cashsouk/ui";
-
 import { useDashboardStats } from "../hooks/use-dashboard-stats";
 import { useCurrentUser } from "../hooks/use-current-user";
-import { DashboardNextActions } from "../components/dashboard/dashboard-next-actions";
+import { DashboardHeader } from "../components/dashboard/dashboard-header";
 import { OperationsSection } from "../components/operations-section";
 import { PlatformSection } from "../components/platform-section";
+import { BookMetricsRow } from "../components/book-metrics-row";
 import { BucketBalancesOverview } from "../components/bucket-balances-overview";
 import { RequirePermission } from "../components/require-permission";
 import { AdminQueryGate } from "../components/admin-query-error-state";
@@ -38,12 +37,10 @@ export default function AdminHomePage() {
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="p-2 md:p-4">
           <section className="flex min-w-0 flex-col gap-8">
-            <header className="flex min-w-0 flex-col gap-6 xl:flex-row xl:items-center xl:justify-between xl:gap-16">
-              <div className="min-w-0 space-y-1.5 xl:max-w-md">
-                <h1 className="text-page-title">{welcomeBackTitle(displayName)}</h1>
-                <p className="text-body text-muted-foreground">{description}</p>
-              </div>
-              <DashboardNextActions
+            <header>
+              <DashboardHeader
+                displayName={displayName}
+                description={description}
                 queues={queues}
                 needsAttention={needsAttention}
                 ready={ready}
@@ -61,6 +58,7 @@ export default function AdminHomePage() {
                       Where money sits across investor, repayment, and income pools
                     </p>
                   </div>
+                  <BookMetricsRow metrics={stats?.bookMetrics} loading={isLoading} />
                   <BucketBalancesOverview />
                 </section>
               )}
@@ -72,7 +70,7 @@ export default function AdminHomePage() {
                       Operations
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                      Operational efficiency and processing metrics
+                      Pipeline from onboarding through notes
                     </p>
                   </div>
                   <OperationsSection

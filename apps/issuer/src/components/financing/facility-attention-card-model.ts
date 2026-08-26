@@ -1,3 +1,4 @@
+import { formatCurrency } from "@cashsouk/config";
 import { formatContractReference } from "@cashsouk/types";
 import { compactLifetimeLine, resolveFacilityDisplayMetrics } from "@/lib/facility-capacity-display";
 import { isFacilityAmendmentRequested } from "@/lib/issuer-contract-actionable";
@@ -47,6 +48,17 @@ export function getFacilityAttentionAction(row: IssuerDashboardContract): Facili
           : `/applications?applicationIds=${encodeURIComponent(ids.join(","))}`,
       label: ids.length === 1 ? "Make amendments" : `Review ${ids.length} applications`,
       hint: null,
+      buttonVariant: "default",
+    };
+  }
+
+  const outstandingFee = Number(row.facilityFeeUpfrontOutstanding ?? 0);
+  if (outstandingFee > 0) {
+    return {
+      headline: "Pay the upfront facility fee",
+      href: `/financing/contracts/${row.id}`,
+      label: "Pay facility fee",
+      hint: `${formatCurrency(outstandingFee)} is still due. Drawdowns stay locked until this payment is complete.`,
       buttonVariant: "default",
     };
   }

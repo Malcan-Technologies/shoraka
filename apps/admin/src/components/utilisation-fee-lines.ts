@@ -23,6 +23,7 @@ export type SendInvoiceOfferUiPayload = {
   offeredProfitRatePercent: number;
   platformFeeRatePercent: number;
   risk_rating: SoukscoreRiskRating;
+  financingTenureDays: number;
   feeScheduleMode: InvoiceOfferFeeScheduleWriteMode;
   facilityFeeCollectAmount: number;
   additionalFees: AdditionalFeeLine[];
@@ -31,7 +32,8 @@ export type SendInvoiceOfferUiPayload = {
 export type InvoiceOfferFeeEditorMode = "v1" | "grandfather";
 
 export type UtilisationFeeScheduleState = {
-  facilityFeeCollectAmount: number;
+  /** Null until admin enters an amount on a new or converted offer. */
+  facilityFeeCollectAmount: number | null;
   additionalFees: AdditionalFeeLine[];
 };
 
@@ -61,14 +63,57 @@ export type UtilisationFeeIssue = {
 };
 
 export const FACILITY_FEE_AVAILABLE_FOR_OFFER_LABEL = "Available for this offer";
+export const FACILITY_FEE_COLLECT_REQUIRED_MESSAGE =
+  "Enter the facility fee to collect from this invoice. Use 0 if none should be taken now.";
+export const FACILITY_FEE_COLLECT_NONE_LEFT_MESSAGE =
+  "No facility fee left to collect on this offer.";
+export const FACILITY_FEE_COLLECT_NOW_TOOLTIP =
+  "Exact RM amount to take from this invoice toward the facility fee. Frozen after the issuer accepts. Enter 0 if none should be taken now.";
+export const ADDITIONAL_FEES_SECTION_TOOLTIP =
+  "Optional named lines. Each is a fixed RM amount or a percent of actual funds raised.";
 export const CONVERT_TO_CURRENT_FEE_SCHEDULE_LABEL = "Use current fee schedule";
+export const INVOICE_OFFER_CONFIRM_REFRESHING_MESSAGE =
+  "Refreshing the facility fee available for this offer.";
+export const INVOICE_OFFER_CONFIRM_REFRESH_FAILED_MESSAGE =
+  "Could not refresh the facility fee available for this offer. Cancel and open Confirm & Send again to retry.";
+export const INVOICE_OFFER_CONFIRM_INVOICE_MISSING_MESSAGE =
+  "This invoice is no longer available. Cancel and try again.";
+
+export function facilityFeeCollectExceedsAvailableMessage(available: number): string {
+  return `Facility fee collection cannot exceed the facility fee available for this offer of ${available.toFixed(2)}`;
+}
 export const GRANDFATHER_OFFER_FEE_CALLOUT =
   "This offer uses grandfather progressive facility-fee terms (a percent of funds raised at each disbursement). Exact RM collection and additional lines are not frozen. Using the current fee schedule starts at RM 0.00 and does not convert the old progressive rate into a fixed amount.";
 export const GRANDFATHER_OFFER_FEE_CONFIRMATION =
   "This offer keeps grandfather progressive facility-fee terms (a percent of funds raised at each disbursement). Exact RM facility collection and additional fee lines will not be frozen.";
 
 export function emptyUtilisationFeeSchedule(): UtilisationFeeScheduleState {
-  return { facilityFeeCollectAmount: 0, additionalFees: [] };
+  return { facilityFeeCollectAmount: null, additionalFees: [] };
+}
+
+export function resolvedFacilityFeeCollectAmount(
+  amount: number | null | undefined
+): number {
+  return amount ?? 0;
+}
+
+/** True when collect is enabled, an amount is still due, and admin has not entered one. */
+export function facilityFeeCollectNeedsExplicitAmount(input: {
+  collectAmount: number | null;
+  collectEnabled?: boolean;
+  facilityFeeRemaining?: number;
+}): boolean {
+  if (input.collectEnabled === false) return false;
+  if (input.collectAmount != null) return false;
+  return input.facilityFeeRemaining !== 0;
+}
+
+export function remainingFacilityFeeAfterCollect(
+  available: number | undefined,
+  collect: number | null
+): number | null {
+  if (available == null || collect == null) return null;
+  return Math.max(0, roundNoteMoney(available - collect));
 }
 
 export function resolveInvoiceOfferFacilityFeeRemaining(invoice: {
@@ -93,9 +138,12 @@ export function additionalFeeKindLabel(kind: AdditionalFeeKind): string {
 
 export function parseOfferFeeSchedule(offerDetails: unknown): UtilisationFeeScheduleState {
   const parsed = parseInvoiceFeeSchedule(offerDetails);
+  if (!parsed) {
+    return emptyUtilisationFeeSchedule();
+  }
   return {
-    facilityFeeCollectAmount: parsed?.facilityFeeCollectAmount ?? 0,
-    additionalFees: parsed?.additionalFees ?? [],
+    facilityFeeCollectAmount: parsed.facilityFeeCollectAmount,
+    additionalFees: parsed.additionalFees,
   };
 }
 
@@ -131,7 +179,9 @@ export function toSendInvoiceOfferFeeFields(editor: InvoiceOfferFeeEditorState):
   }
   return {
     feeScheduleMode: "v1",
-    facilityFeeCollectAmount: editor.schedule.facilityFeeCollectAmount,
+    facilityFeeCollectAmount: resolvedFacilityFeeCollectAmount(
+      editor.schedule.facilityFeeCollectAmount
+    ),
     additionalFees: editor.schedule.additionalFees,
   };
 }
@@ -210,28 +260,34 @@ export function summariseUtilisationFees(input: {
   minimumFundingPercent?: number;
 }): UtilisationFeeThresholdTotals {
   const minimumPercent = input.minimumFundingPercent ?? NOTE_DEFAULT_MINIMUM_FUNDING_PERCENT;
+  const facilityFeeCollectAmount = resolvedFacilityFeeCollectAmount(
+    input.schedule.facilityFeeCollectAmount
+  );
   const shared = {
     platformFeeRatePercent: input.platformFeeRatePercent,
-    facilityFeeCollectAmount: input.schedule.facilityFeeCollectAmount,
+    facilityFeeCollectAmount,
     additionalFees: input.schedule.additionalFees,
-    facilityFeeRemaining: input.facilityFeeRemaining,
     facilityFeeCollectionWaived: input.facilityFeeCollectionWaived,
   };
   const overflow = offerFeesExceedFundingThresholds({
     offeredAmount: input.offeredAmount,
     platformFeeRatePercent: input.platformFeeRatePercent,
-    facilityFeeCollectAmount: input.schedule.facilityFeeCollectAmount,
+    facilityFeeCollectAmount,
     additionalFees: input.schedule.additionalFees,
     minimumFundingPercent: minimumPercent,
   });
+  // Display the entered/frozen collect exactly like send/close overflow.
+  // Remaining is validated separately and must not silently cap these totals.
   return {
     full: computeScheduleFeesAtFundedAmount({
       ...shared,
       fundedAmount: input.offeredAmount,
+      facilityFeeRemaining: Number.POSITIVE_INFINITY,
     }),
     minimum: computeScheduleFeesAtFundedAmount({
       ...shared,
       fundedAmount: roundNoteMoney(input.offeredAmount * (minimumPercent / 100)),
+      facilityFeeRemaining: Number.POSITIVE_INFINITY,
     }),
     minimumPercent,
     exceedsAtFull: overflow.exceedsAtFull,
@@ -245,7 +301,21 @@ export function utilisationFeeScheduleIssues(input: {
   collectEnabled?: boolean;
 }): UtilisationFeeIssue[] {
   const issues: UtilisationFeeIssue[] = [];
-  const collect = validateFacilityFeeCollectAmount(input.schedule.facilityFeeCollectAmount);
+  if (
+    facilityFeeCollectNeedsExplicitAmount({
+      collectAmount: input.schedule.facilityFeeCollectAmount,
+      collectEnabled: input.collectEnabled,
+      facilityFeeRemaining: input.facilityFeeRemaining,
+    })
+  ) {
+    issues.push({
+      path: "facilityFeeCollectAmount",
+      message: FACILITY_FEE_COLLECT_REQUIRED_MESSAGE,
+    });
+  }
+  const collect = validateFacilityFeeCollectAmount(
+    resolvedFacilityFeeCollectAmount(input.schedule.facilityFeeCollectAmount)
+  );
   issues.push(...collect.issues);
   if (input.collectEnabled === false && collect.amount > 0) {
     issues.push({
@@ -259,7 +329,7 @@ export function utilisationFeeScheduleIssues(input: {
   ) {
     issues.push({
       path: "facilityFeeCollectAmount",
-      message: `Facility fee collection cannot exceed remaining facility fee of ${input.facilityFeeRemaining.toFixed(2)}`,
+      message: facilityFeeCollectExceedsAvailableMessage(input.facilityFeeRemaining),
     });
   }
   if (input.schedule.additionalFees.length > FEE_SCHEDULE_MAX_ADDITIONAL_LINES) {
@@ -338,10 +408,43 @@ export function invoiceOfferConfirmFeeBlockedReason(input: {
 
 export type InvoiceOfferConfirmGuard = {
   facilityFeeRemaining: number | undefined;
+  collectEnabled: boolean;
   feeBlockedReason: string | null;
   fingerprintStale: boolean;
   invoiceMissing: boolean;
 };
+
+export type InvoiceOfferConfirmRefreshStatus = "idle" | "pending" | "ready" | "failed";
+
+export type InvoiceOfferConfirmLiveFacilityFee = {
+  remaining: number | undefined;
+  collectEnabled: boolean;
+};
+
+/** Missing application id cannot refresh live remaining — treat as failed, not ready. */
+export function resolveInvoiceOfferConfirmRefreshStart(
+  applicationId?: string | null
+): InvoiceOfferConfirmRefreshStatus {
+  return applicationId ? "pending" : "failed";
+}
+
+export function invoiceOfferConfirmUiBlocked(input: {
+  refreshStatus: InvoiceOfferConfirmRefreshStatus;
+  guard: InvoiceOfferConfirmGuard | null;
+}): boolean {
+  if (input.refreshStatus !== "ready") return true;
+  if (input.guard == null) return true;
+  return invoiceOfferConfirmSubmitBlocked(input.guard);
+}
+
+export function resolveInvoiceOfferConfirmUiMessage(input: {
+  refreshStatus: InvoiceOfferConfirmRefreshStatus;
+  guard: InvoiceOfferConfirmGuard | null;
+}): string | null {
+  if (input.refreshStatus === "pending") return INVOICE_OFFER_CONFIRM_REFRESHING_MESSAGE;
+  if (input.refreshStatus === "failed") return INVOICE_OFFER_CONFIRM_REFRESH_FAILED_MESSAGE;
+  return input.guard?.feeBlockedReason ?? null;
+}
 
 /** Live remaining + fingerprint vs the frozen snapshot that Confirm & Send would post. */
 export function resolveInvoiceOfferConfirmGuard(input: {
@@ -363,17 +466,20 @@ export function resolveInvoiceOfferConfirmGuard(input: {
     invoiceOfferFeeFingerprint(input.invoice.offer_details) !== input.confirm.offerFingerprint;
   return {
     facilityFeeRemaining,
+    collectEnabled,
     fingerprintStale,
     invoiceMissing,
-    feeBlockedReason: invoiceOfferConfirmFeeBlockedReason({
-      offeredAmount: input.confirm.offeredAmount,
-      platformFeeRatePercent: input.confirm.platformFeeRatePercent,
-      feeScheduleMode: input.confirm.feeScheduleMode,
-      facilityFeeCollectAmount: input.confirm.facilityFeeCollectAmount,
-      additionalFees: input.confirm.additionalFees,
-      facilityFeeRemaining,
-      collectEnabled,
-    }),
+    feeBlockedReason: invoiceMissing
+      ? INVOICE_OFFER_CONFIRM_INVOICE_MISSING_MESSAGE
+      : invoiceOfferConfirmFeeBlockedReason({
+          offeredAmount: input.confirm.offeredAmount,
+          platformFeeRatePercent: input.confirm.platformFeeRatePercent,
+          feeScheduleMode: input.confirm.feeScheduleMode,
+          facilityFeeCollectAmount: input.confirm.facilityFeeCollectAmount,
+          additionalFees: input.confirm.additionalFees,
+          facilityFeeRemaining,
+          collectEnabled,
+        }),
   };
 }
 

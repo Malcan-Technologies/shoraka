@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { formatCurrency } from "@cashsouk/config";
 import {
+  MARKETPLACE_RETURN_RATE_TOOLTIP,
   type NoteListItem,
 } from "@cashsouk/types";
 import { InfoTooltip } from "@cashsouk/ui";
@@ -121,7 +122,7 @@ export function InvestmentReturnBreakdownCard({ note, className }: InvestmentRet
 export function MarketplaceReturnRateTooltip() {
   return (
     <InfoTooltip
-      content="Advertised return is the annualized gross contractual profit rate, based on the note's maturity, before any service fee is deducted at repayment."
+      content={MARKETPLACE_RETURN_RATE_TOOLTIP}
       iconClassName="h-3.5 w-3.5"
     />
   );

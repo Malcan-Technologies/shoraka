@@ -2,7 +2,10 @@
 
 import { NoteStatusBadge, ProductCatalogName } from "@cashsouk/ui";
 import type { NoteListItem } from "@cashsouk/types";
-import { isIssuerNoteInArrears } from "@/lib/issuer-financing-actionable";
+import {
+  isIssuerNoteInArrears,
+  outstandingExcessLateCharges,
+} from "@/lib/issuer-financing-actionable";
 import {
   FINANCING_ARREARS_SURFACE,
   FINANCING_ATTENTION_SURFACE,
@@ -52,7 +55,11 @@ export function NoteAttentionCard({ note }: { note: NoteListItem }) {
           />
         ) : null
       }
-      ctaHref={`/financing/notes/${note.id}`}
+      ctaHref={
+        outstandingExcessLateCharges(note) > 0
+          ? `/financing/notes/${note.id}#late-charges`
+          : `/financing/notes/${note.id}`
+      }
       ctaLabel={action.label}
     />
   );

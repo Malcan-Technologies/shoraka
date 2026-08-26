@@ -14,6 +14,7 @@ export type IssuerDashboardNote = {
   minimumFundingPercent: string;
   fundingDeadline: string | null;
   maturityDate: string | null;
+  tenureDays?: number | null;
   marketplaceStatusLabel: string | null;
   investorCount: number;
   disbursementBreakdown: {
@@ -68,6 +69,8 @@ export type IssuerDashboardContract = {
   facilityFeeCapAmount: string | null;
   facilityFeePaidAmount: string | null;
   facilityFeeRemainingAmount: string | null;
+  facilityFeeUpfrontAmount?: number | null;
+  facilityFeeUpfrontOutstanding?: number | null;
   facilityFeeWaived?: boolean;
   facilityEnabled?: boolean;
   facilityDisabledReason?: string | null;

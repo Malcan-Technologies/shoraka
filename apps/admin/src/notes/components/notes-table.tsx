@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import type { EligibleNoteInvoice, NoteListItem } from "@cashsouk/types";
+import { resolveNoteTimingDisplay, type EligibleNoteInvoice, type NoteListItem } from "@cashsouk/types";
 import { Skeleton } from "@cashsouk/ui";
 import {
   Table,
@@ -60,7 +60,9 @@ function notesSortValue(row: NotesSortRow, column: NotesSortColumn): number | nu
   if (column === "funding") {
     return row.kind === "note" ? row.note.fundingPercent : null;
   }
-  return timestampOrNull(row.kind === "note" ? row.note.maturityDate : row.invoice.maturityDate);
+  return row.kind === "note"
+    ? resolveNoteTimingDisplay(row.note).sortTime
+    : timestampOrNull(row.invoice.maturityDate);
 }
 
 export function NotesTable({

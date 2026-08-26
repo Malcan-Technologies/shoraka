@@ -11,10 +11,12 @@ jest.mock("../../lib/prisma", () => ({
 }));
 
 const sendTyped = jest.fn().mockResolvedValue({ id: "n1" });
+const logTypedSystemBatch = jest.fn().mockResolvedValue(undefined);
 
 jest.mock("./service", () => ({
   NotificationService: jest.fn().mockImplementation(() => ({
     sendTyped,
+    logTypedSystemBatch,
   })),
 }));
 
@@ -215,6 +217,17 @@ describe("director-shareholder-notifications", () => {
         expect.objectContaining({ partyKey: "701234567890", personName: "Director C" }),
         "ds_action_required:org-1:rep-new:701234567890"
       );
+      expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
+      expect(logTypedSystemBatch).toHaveBeenCalledWith(
+        NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+        expect.any(Object),
+        [{ id: "n1" }, { id: "n1" }],
+        expect.objectContaining({
+          idempotencyKey:
+            "system-log:director_shareholder_action_required:ds_action_required:issuer:org-1:rep-new",
+          metadata: expect.objectContaining({ attempted: 2 }),
+        })
+      );
     });
   });
 
@@ -235,6 +248,17 @@ describe("director-shareholder-notifications", () => {
           link: "/profile",
         },
         "ds_action_required:investor:inv-org-1:rep-inv-new:801234567890"
+      );
+      expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
+      expect(logTypedSystemBatch).toHaveBeenCalledWith(
+        NotificationTypeIds.INVESTOR_DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+        expect.any(Object),
+        [{ id: "n1" }],
+        expect.objectContaining({
+          idempotencyKey:
+            "system-log:investor_director_shareholder_action_required:ds_action_required:investor:inv-org-1:rep-inv-new",
+          metadata: expect.objectContaining({ attempted: 1 }),
+        })
       );
     });
 

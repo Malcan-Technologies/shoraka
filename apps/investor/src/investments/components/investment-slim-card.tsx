@@ -1,23 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { NoteStatusBadge } from "@cashsouk/ui";
-import { formatInvestorReturnRatePercent, type NoteListItem } from "@cashsouk/types";
+import { InfoTooltip, NoteStatusBadge } from "@cashsouk/ui";
+import {
+  EXPECTED_PERIOD_RETURN_UP_TO_TOOLTIP,
+  formatInvestorReturnRatePercent,
+  resolveNoteTimingDisplay,
+  type NoteListItem,
+} from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   getInvestmentMaturityDisplay,
   getInvestmentPositionFacts,
+  getInvestmentReturnDisplay,
   investmentCardHeadline,
   investmentCardMeta,
   investmentCardPayoutResult,
-  isInvestorInvestmentCompleted,
 } from "../investment-position-model";
 import {
   InvestmentKpiBox,
   InvestmentPayoutResultLine,
-  MATURITY_VALUE_CLASS,
   formatRiskScore,
+  investmentDateKpiValueClassName,
 } from "./investment-card-metrics";
 import { InvestmentNoteIdentity } from "./investment-note-identity";
 
@@ -33,12 +38,10 @@ export function InvestmentSlimCard({
   const payoutResult = investmentCardPayoutResult(note);
   const maturity = getInvestmentMaturityDisplay(note);
   const riskScore = formatRiskScore(note.riskRating);
-  const completed = isInvestorInvestmentCompleted(note);
-  const useActualReturn = completed && facts.actualReturn != null;
-  const profitRate = formatInvestorReturnRatePercent(
-    useActualReturn ? facts.actualReturn : facts.expectedReturn
-  );
-  const profitLabel = useActualReturn ? "Actual" : "p.a.";
+  const returnDisplay = getInvestmentReturnDisplay(note);
+  const profitRate = formatInvestorReturnRatePercent(returnDisplay.ratePercent);
+  const profitLabel = returnDisplay.label;
+  const timing = resolveNoteTimingDisplay(note);
 
   return (
     <article
@@ -51,7 +54,14 @@ export function InvestmentSlimCard({
             <span className="text-ui font-semibold text-foreground">{facts.noteLabel}</span>
           </div>
           <InvestmentNoteIdentity note={note} />
-          <p className="text-ui leading-6 text-foreground">{investmentCardHeadline(note)}</p>
+          <p className="inline-flex flex-wrap items-center gap-1.5 text-ui leading-6 text-foreground">
+            {investmentCardHeadline(note)}
+            {returnDisplay.tooltip ? (
+              <InfoTooltip content={returnDisplay.tooltip} iconClassName="h-3.5 w-3.5" />
+            ) : facts.expectedReturnIsEstimate ? (
+              <InfoTooltip content={EXPECTED_PERIOD_RETURN_UP_TO_TOOLTIP} iconClassName="h-3.5 w-3.5" />
+            ) : null}
+          </p>
           {meta ? <p className="text-ui leading-5 text-muted-foreground">{meta}</p> : null}
           {payoutResult ? <InvestmentPayoutResultLine result={payoutResult} /> : null}
         </div>
@@ -61,14 +71,15 @@ export function InvestmentSlimCard({
             <InvestmentKpiBox
               value={profitRate}
               label={profitLabel}
+              tooltip={returnDisplay.tooltip}
               valueClassName="text-foreground"
             />
             <InvestmentKpiBox value={riskScore} label="Score" valueClassName="text-foreground" />
             <InvestmentKpiBox
               value={maturity.value}
               label={maturity.unit ?? "Maturity"}
-              extra={maturity.date || undefined}
-              valueClassName={MATURITY_VALUE_CLASS[maturity.tone]}
+              tooltip={maturity.tooltip ?? timing.tooltip}
+              valueClassName={investmentDateKpiValueClassName(maturity.value, maturity.tone)}
             />
           </div>
           <Button variant="outline" className="h-10 w-full rounded-xl" asChild>

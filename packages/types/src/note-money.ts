@@ -18,6 +18,11 @@ export const MARKETPLACE_MIN_COMMIT_MYR = 100;
 
 const NOTE_MONEY_PRECISION_EPSILON = 1e-9;
 
+/** True when `left` is greater than `right` after rounding both to sen. */
+export function moneyAmountExceeds(left: number, right: number): boolean {
+  return roundNoteMoney(left) > roundNoteMoney(right);
+}
+
 /** True when `value` has at most `decimals` fractional digits (reject 100.999 etc.). */
 export function isNoteMoneyAmount(value: number, decimals = NOTE_MONEY_DECIMALS): boolean {
   if (!Number.isFinite(value)) return false;

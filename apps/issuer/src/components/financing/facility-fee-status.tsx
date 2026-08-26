@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { formatMoneyDisplay } from "@cashsouk/ui";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -33,9 +34,14 @@ export function FacilityDisabledBanner({ reason }: { reason: string | null }) {
 export function FacilityFeeBalanceSummary({
   balance,
   compact = false,
+  stacked = false,
+  owedLabelExtra,
 }: {
   balance: FacilityFeeBalance | null;
   compact?: boolean;
+  /** Vertical rows for narrow sidebars (offer review). */
+  stacked?: boolean;
+  owedLabelExtra?: ReactNode;
 }) {
   if (!balance) return null;
   const owed = formatMoneyDisplay(balance.totalOwed, EM_DASH);
@@ -44,6 +50,25 @@ export function FacilityFeeBalanceSummary({
     ? formatMoneyDisplay(balance.waivedAmount, "Waived")
     : EM_DASH;
   const remaining = formatMoneyDisplay(balance.remaining, EM_DASH);
+
+  if (stacked) {
+    return (
+      <div className="space-y-1">
+        <dt className="inline-flex items-center gap-1 text-muted-foreground">
+          Facility fee collected
+          {owedLabelExtra}
+        </dt>
+        <dd className="font-medium tabular-nums">
+          {charged} / {owed} cap
+          {balance.waived ? (
+            <span className="mt-0.5 block text-meta font-normal text-muted-foreground">
+              Waived {waived}
+            </span>
+          ) : null}
+        </dd>
+      </div>
+    );
+  }
 
   if (compact) {
     return (

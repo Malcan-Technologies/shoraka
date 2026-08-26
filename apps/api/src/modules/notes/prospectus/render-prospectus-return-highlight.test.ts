@@ -58,6 +58,20 @@ describe("prospectus Return Investor Highlight (Page 1 DATA STAGE 5C)", () => {
     expect(data.tenure).toBe("120 days");
   });
 
+  it("uses stored tenure_days for new notes even when listing dates are missing", () => {
+    const data = buildProspectusReturnHighlight({
+      ...SAMPLE_PROSPECTUS_RETURN_HIGHLIGHT_INPUT,
+      listingOpensAt: null,
+      maturityDate: null,
+      tenureDays: 90,
+    });
+    expect(data.tenure).toBe("90 days");
+    expect(PROSPECTUS_RETURN_HIGHLIGHT_FIELD_SOURCES.tenure.notes).toContain("tenure_days");
+    expect(PROSPECTUS_RETURN_HIGHLIGHT_AUDIT_BASE.tenure.prospectusTenureBasis).toBe(
+      "tenure_days_or_opens_at_to_maturity_date"
+    );
+  });
+
   it("returns — when tenure inputs are missing", () => {
     const data = buildProspectusReturnHighlight({
       ...SAMPLE_PROSPECTUS_RETURN_HIGHLIGHT_INPUT,

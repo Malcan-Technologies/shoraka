@@ -24,6 +24,24 @@ describe("receipt-purpose", () => {
     ).toBe("APPLICATION");
   });
 
+  it("maps facility fee", () => {
+    expect(getReceiptPurposeLabel(GatewayPaymentPurpose.FACILITY_FEE)).toBe("Facility Fee");
+    expect(getReceiptRelatedEntityType(GatewayPaymentPurpose.FACILITY_FEE)).toBe("CONTRACT");
+    expect(getReceiptRelatedReferenceLabel(GatewayPaymentPurpose.FACILITY_FEE)).toBe(
+      "Facility Reference"
+    );
+  });
+
+  it("maps excess late charges to the note", () => {
+    expect(getReceiptPurposeLabel(GatewayPaymentPurpose.EXCESS_LATE_CHARGES)).toBe(
+      "Late Payment Charges"
+    );
+    expect(getReceiptRelatedEntityType(GatewayPaymentPurpose.EXCESS_LATE_CHARGES)).toBe("NOTE");
+    expect(getReceiptRelatedReferenceLabel(GatewayPaymentPurpose.EXCESS_LATE_CHARGES)).toBe(
+      "Note Reference"
+    );
+  });
+
   it("maps investor deposit", () => {
     expect(getReceiptPurposeLabel(GatewayPaymentPurpose.INVESTOR_DEPOSIT)).toBe(
       "Investor Deposit"

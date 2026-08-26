@@ -72,13 +72,23 @@ import {
   ApiError,
   dualLimitOverageCopy,
   isEditableReservedInvoiceStatus,
+  isValidFinancingTenureDays,
   mapCapacityApiError,
+  parseFinancingTenureDays,
   previewDualLimits,
+  resolveInvoiceFinancingRatioBounds,
+  validateFinancingTenureAgainstDueDate,
 } from "@cashsouk/types";
 import { InvoiceErrorCard } from "../components/amendments";
 import { StatusBadge } from "@/app/(application-flow)/applications/components/invoice-status-badge";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
 import { ExistingFacilityLimitPreview } from "@/app/(application-flow)/applications/components/existing-facility-limit-preview";
+import { FacilityFeeDrawdownBlockedNotice } from "@/components/financing/facility-fee-drawdown-blocked";
+import { resolveIssuerFacilityGate } from "@/lib/facility-enabled";
+import {
+  FACILITY_FEE_DRAWDOWN_BLOCKED_MESSAGE,
+  facilityFeeContractHref,
+} from "@/lib/facility-fee-payment-ui";
 import { InvoiceDetailsSkeleton } from "@/app/(application-flow)/applications/components/invoice-details-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { generateInvoiceData } from "../utils/dev-data-generator";
@@ -89,6 +99,10 @@ import {
   type InvoiceFormModel,
 } from "@/app/(application-flow)/applications/components/invoice-form-fields";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  hasInvoiceFormRowChanged,
+  isInvoiceFormRowEmpty,
+} from "@/app/(application-flow)/applications/lib/invoice-form-row";
 
 const valueClassName = "text-ui leading-7 text-foreground font-medium";
 
@@ -207,9 +221,9 @@ function getProductInvoiceConfig(
       typeof maxRatio === "number" &&
       Number.isFinite(maxRatio) &&
       minRatio <= maxRatio &&
-      minRatio >= 1 &&
-      maxRatio <= 100;
+      minRatio >= 1;
     if (!hasValidRatioConfig) return null;
+    const ratioBounds = resolveInvoiceFinancingRatioBounds(minRatio, maxRatio);
     const rawMonths = config.min_months_application_to_maturity;
     const applicationMonths =
       typeof rawMonths === "number" && Number.isFinite(rawMonths) && rawMonths > 0
@@ -220,8 +234,8 @@ function getProductInvoiceConfig(
     return {
       min_invoice_value: typeof minInv === "number" && Number.isFinite(minInv) ? minInv : null,
       max_invoice_value: typeof maxInv === "number" && Number.isFinite(maxInv) ? maxInv : null,
-      min_financing_ratio_percent: minRatio,
-      max_financing_ratio_percent: maxRatio,
+      min_financing_ratio_percent: ratioBounds.min,
+      max_financing_ratio_percent: ratioBounds.max,
       min_months_application_to_maturity: applicationMonths,
     };
   } catch {
@@ -293,6 +307,10 @@ function toLocalInvoice(it: Invoice & { withdraw_reason?: WithdrawReason | strin
       if (typeof raw === "string" && raw.trim() === "") return 60;
       const n = typeof raw === "number" ? raw : Number(raw);
       return Number.isFinite(n) ? Math.round(n) : 60;
+    })(),
+    financing_tenure_days: (() => {
+      const parsed = parseFinancingTenureDays(d.financing_tenure_days);
+      return parsed != null && isValidFinancingTenureDays(parsed) ? parsed : undefined;
     })(),
     document: d.document
       ? {
@@ -494,6 +512,7 @@ export default function InvoiceDetailsStep({
           number: "",
           value: "",
           maturity_date: "",
+          financing_tenure_days: undefined,
           financing_ratio_percent: defaultRatio,
           document: null,
           status: "DRAFT",
@@ -587,9 +606,7 @@ export default function InvoiceDetailsStep({
     toast.success("File added");
   };
 
-  const isRowEmpty = (inv: LocalInvoice) => {
-    return !inv.number && inv.value === "" && !inv.maturity_date && !inv.document;
-  };
+  const isRowEmpty = (inv: LocalInvoice) => isInvoiceFormRowEmpty(inv);
 
   const isRowPartial = (inv: LocalInvoice) => {
     if (isRowEmpty(inv)) return false;
@@ -602,9 +619,10 @@ export default function InvoiceDetailsStep({
     const hasNumber = Boolean(String(inv.number).trim());
     const hasValue = inv.value !== ""; // 0 is valid, empty string is not
     const hasDate = Boolean(String(inv.maturity_date).trim());
+    const hasTenure = inv.financing_tenure_days != null;
     const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
-    const filledCount = [hasNumber, hasValue, hasDate, hasDocument].filter(Boolean).length;
-    return filledCount > 0 && filledCount < 4;
+    const filledCount = [hasNumber, hasValue, hasDate, hasTenure, hasDocument].filter(Boolean).length;
+    return filledCount > 0 && filledCount < 5;
   };
 
 
@@ -613,17 +631,19 @@ export default function InvoiceDetailsStep({
     /**
      * VALIDATE COMPLETE ROW
      *
-     * All 4 fields must be filled:
+     * All required fields must be filled:
      * - number: non-empty string
      * - value: non-empty (0 is valid, empty string is not)
      * - maturity_date: non-empty string
+     * - financing_tenure_days: published option
      * - document: file attached
      */
     const hasNumber = Boolean(String(inv.number).trim());
     const hasValue = inv.value !== ""; // 0 is valid, empty string is not
     const hasDate = Boolean(String(inv.maturity_date).trim());
+    const hasTenure = inv.financing_tenure_days != null;
     const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
-    return hasNumber && hasValue && hasDate && hasDocument;
+    return hasNumber && hasValue && hasDate && hasTenure && hasDocument;
   };
 
   const hasDuplicateInvoiceNumbers = () => {
@@ -705,6 +725,13 @@ export default function InvoiceDetailsStep({
       }
     }
 
+    const tenureResult = validateFinancingTenureAgainstDueDate({
+      tenureDays: inv.financing_tenure_days,
+      maturityDate: inv.maturity_date,
+    });
+    if (!tenureResult.ok) {
+      return `Invoice ${inv.number}: ${tenureResult.message}`;
+    }
 
     // min/max invoice value checks only if productConfig provided
     // debug removed
@@ -737,18 +764,8 @@ export default function InvoiceDetailsStep({
   };
 
 
-  const hasRowChanged = (inv: LocalInvoice) => {
-    if (!inv.isPersisted) return !isRowEmpty(inv);
-    const base = initialInvoices[inv.id];
-    if (!base) return false;
-    return (
-      inv.number !== base.number ||
-      inv.value !== base.value ||
-      inv.maturity_date !== base.maturity_date ||
-      inv.financing_ratio_percent !== base.financing_ratio_percent ||
-      inv.document?.s3_key !== base.document?.s3_key
-    );
-  };
+  const hasRowChanged = (inv: LocalInvoice) =>
+    hasInvoiceFormRowChanged(inv, initialInvoices[inv.id]);
 
   const cd = application?.contract?.contract_details;
   const approvedFacility = resolveApprovedFacility(
@@ -799,6 +816,14 @@ export default function InvoiceDetailsStep({
 
   const isInvoiceOnly = structureType === "invoice_only";
   const isExistingContract = structureType === "existing_contract";
+  const existingFacilityGate = isExistingContract
+    ? resolveIssuerFacilityGate({
+        contractDetails: application?.contract?.contract_details,
+        contractStatus: application?.contract?.status,
+        facilityFeeUpfrontOutstanding: application?.contract?.facilityFeeUpfrontOutstanding,
+      })
+    : null;
+  const requiresFacilityFeePayment = existingFacilityGate?.requiresFacilityFeePayment === true;
 
   /** Applications allow at most one invoice; legacy files may still have more. */
   const maxInvoicesReached = invoices.length >= 1;
@@ -816,8 +841,10 @@ export default function InvoiceDetailsStep({
     validationError = error instanceof Error ? error.message : "Product configuration error";
   }
 
-  const displayMinRatio = productConfig?.min_financing_ratio_percent ?? 60;
-  const displayMaxRatio = productConfig?.max_financing_ratio_percent ?? 80;
+  const { min: displayMinRatio, max: displayMaxRatio } = resolveInvoiceFinancingRatioBounds(
+    productConfig?.min_financing_ratio_percent,
+    productConfig?.max_financing_ratio_percent
+  );
 
   const totalFinancingAmount = invoices.reduce((acc, inv) => {
     const value = parseMoney(inv.value);
@@ -879,14 +906,16 @@ export default function InvoiceDetailsStep({
     if (!validationError && (isInvoiceOnly || isExistingContract)) {
       const hasAtLeastOneValidInvoice = invoices.some((inv) => !isRowEmpty(inv) && validateRow(inv));
       if (!hasAtLeastOneValidInvoice) {
-        validationError = "Please add at least one valid invoice with all fields filled (invoice number, value, maturity date, document).";
+        validationError = "Please add at least one valid invoice with all fields filled (invoice number, value, maturity date, financing tenure, document).";
       }
     }
 
     /** Financing ratio from product config applies to all structures including invoice_only. */
     if (!validationError && productConfig) {
-      const minR = productConfig.min_financing_ratio_percent ?? 60;
-      const maxR = productConfig.max_financing_ratio_percent ?? 80;
+      const { min: minR, max: maxR } = resolveInvoiceFinancingRatioBounds(
+        productConfig.min_financing_ratio_percent,
+        productConfig.max_financing_ratio_percent
+      );
       const invalidRatioInvoice = invoices.find(
         (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < minR || inv.financing_ratio_percent! > maxR)
       );
@@ -925,11 +954,13 @@ export default function InvoiceDetailsStep({
       const hasNumber = Boolean(String(inv.number).trim());
       const hasValue = inv.value !== "";
       const hasDate = Boolean(String(inv.maturity_date).trim());
+      const hasTenure = inv.financing_tenure_days != null;
       const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
       if (isRowPartial(inv)) {
         if (!hasNumber) errors.number = "Invoice number is required";
         if (!hasValue) errors.value = "Invoice value is required";
         if (!hasDate) errors.maturity_date = "Maturity date is required";
+        if (!hasTenure) errors.financing_tenure_days = "Financing tenure is required";
         if (!hasDocument) errors.document = "Document is required";
       }
       if (hasNumber && isDuplicateNumber(inv)) {
@@ -944,13 +975,17 @@ export default function InvoiceDetailsStep({
           constraintError.includes("contract start")
         ) {
           errors.maturity_date = constraintError;
+        } else if (constraintError.includes("Financing tenure")) {
+          errors.financing_tenure_days = constraintError;
         } else if (constraintError.includes("Financing amount")) {
           errors.financing_amount = constraintError;
         }
       }
       if (productConfig && !isRowEmpty(inv)) {
-        const minR = productConfig.min_financing_ratio_percent ?? 60;
-        const maxR = productConfig.max_financing_ratio_percent ?? 80;
+        const { min: minR, max: maxR } = resolveInvoiceFinancingRatioBounds(
+          productConfig.min_financing_ratio_percent,
+          productConfig.max_financing_ratio_percent
+        );
         const ratio = inv.financing_ratio_percent ?? minR;
         if (ratio < minR || ratio > maxR) {
           errors.financing_ratio_percent = `Financing ratio must be between ${minR}% and ${maxR}%.`;
@@ -1038,6 +1073,7 @@ export default function InvoiceDetailsStep({
               return pd ? format(pd, "yyyy-MM-dd") : inv.maturity_date;
             })(),
             financing_ratio_percent: inv.financing_ratio_percent ?? displayMinRatio,
+            financing_tenure_days: inv.financing_tenure_days,
           },
         };
 
@@ -1101,6 +1137,7 @@ export default function InvoiceDetailsStep({
             return pd ? format(pd, "yyyy-MM-dd") : inv.maturity_date;
           })(),
           financing_ratio_percent: inv.financing_ratio_percent ?? displayMinRatio,
+          financing_tenure_days: inv.financing_tenure_days,
         };
 
         if (isInvoiceOnly) {
@@ -1244,7 +1281,9 @@ export default function InvoiceDetailsStep({
     Object.keys(deletedInvoices).length > 0;
 
   React.useEffect(() => {
-    const isValid = shouldRunValidation ? !hasPartialRows && !validationError : true;
+    const isValid = shouldRunValidation
+      ? !hasPartialRows && !validationError && !requiresFacilityFeePayment
+      : !requiresFacilityFeePayment;
     onDataChange?.({
       invoices,
       totalFinancingAmount,
@@ -1255,7 +1294,7 @@ export default function InvoiceDetailsStep({
       saveFunction,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoices, totalFinancingAmount, hasPendingFiles, allRowsValid, hasPartialRows, validationError, isInvoiceOnly, isExistingContract]);
+    }, [invoices, totalFinancingAmount, hasPendingFiles, allRowsValid, hasPartialRows, validationError, isInvoiceOnly, isExistingContract, requiresFacilityFeePayment]);
 
   React.useEffect(() => {
     if (!application) return;
@@ -1463,11 +1502,20 @@ export default function InvoiceDetailsStep({
                 </div>
 
                 {structureType === "existing_contract" && (
-                  <div className="col-span-full">
+                  <div className="col-span-full space-y-3">
+                    {requiresFacilityFeePayment && application?.contract?.id ? (
+                      <FacilityFeeDrawdownBlockedNotice
+                        href={facilityFeeContractHref(application.contract.id)}
+                      />
+                    ) : null}
                     <ExistingFacilityLimitPreview
                       preview={dualLimitPreview}
                       warning={draftOverageCopy}
-                      hardError={capacityServerError ?? reservedOverageCopy}
+                      hardError={
+                        requiresFacilityFeePayment
+                          ? FACILITY_FEE_DRAWDOWN_BLOCKED_MESSAGE
+                          : (capacityServerError ?? reservedOverageCopy)
+                      }
                     />
                   </div>
                 )}
@@ -1599,6 +1647,9 @@ export default function InvoiceDetailsStep({
                       onNumberChange={(value) => updateInvoiceField(inv.id, "number", value)}
                       onMaturityDateChange={(value) =>
                         updateInvoiceField(inv.id, "maturity_date", value)
+                      }
+                      onFinancingTenureDaysChange={(value) =>
+                        updateInvoiceField(inv.id, "financing_tenure_days", value)
                       }
                       onValueChange={(value) => {
                         clearFinancingAmountDraft(inv.id);

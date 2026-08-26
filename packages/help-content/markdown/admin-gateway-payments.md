@@ -8,7 +8,7 @@ tags:
   - gateway
   - payments
 order: 25
-updated: 2026-08-07
+updated: 2026-08-24
 ---
 
 ## Open Gateway Payments
@@ -32,7 +32,7 @@ You can search by:
 - Investor or issuer organisation name
 - Organisation registration number
 - Corporate business name
-- Payment purpose, such as Investor Deposit or Onboarding Fee
+- Payment purpose, such as Investor Deposit, Onboarding Fee, Facility Fee, or Late Payment Charges
 - Gateway account, such as Operating or Investor Pool
 - Exact payment amount, such as 100, RM 100, or MYR 100
 
@@ -51,6 +51,17 @@ Open **Filters** to choose:
 - Purpose
 
 Click **Clear** to remove active filters and search.
+
+---
+
+## Late Payment Charges
+
+**Late Payment Charges** are separately billed late charges when they did not fit into the issuer residual on settlement.
+
+- The issuer pays via FPX. This does **not** block investor settlement. Investor principal and profit still follow the dates and worked example in **Note Money Flow and Servicing Guide**.
+- The issuer portal shows the shortfall as **Action required**.
+- Use purpose **Late Payment Charges** to find these rows.
+- Status **Needs attention** means the payment is held for review (for example a name check). **Paid** is still in progress; **Completed** is the final success.
 
 ---
 

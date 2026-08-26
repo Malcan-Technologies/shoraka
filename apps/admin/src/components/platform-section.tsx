@@ -42,14 +42,14 @@ export function PlatformSection({
         <PlatformStatCard
           title="Investor Organizations"
           value={investorOrgTotal}
-          percentageChange={users?.investorsOnboarded.percentageChange}
+          percentageChange={organizations?.investor.percentageChange}
           subtitle="vs last month"
           loading={loading}
         />
         <PlatformStatCard
           title="Issuer Organizations"
           value={issuerOrgTotal}
-          percentageChange={users?.issuersOnboarded.percentageChange}
+          percentageChange={organizations?.issuer.percentageChange}
           subtitle="vs last month"
           loading={loading}
         />

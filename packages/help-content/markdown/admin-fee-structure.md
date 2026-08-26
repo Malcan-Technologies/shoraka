@@ -28,11 +28,13 @@ Nothing is charged if the note fails to fund.
 
 Set the facility fee rate on the **facility offer**. The allowed range is **0% to 1%**, with up to two decimal places. Use 0% if you do not want to charge a facility fee.
 
+You can also set **Collect upfront now**. That amount is frozen when you send the offer. You must enter an amount when a facility fee is due — use 0 if no gateway payment is required. The live preview shows the **total facility fee**, the **upfront** amount, and what remains for later drawdown collections. The upfront amount cannot be more than the total. Field explanations sit in the info icons next to each label.
+
 When the issuer accepts, the portal records the **full amount owed** as approved facility × rate. For example, a RM 10 million facility at 1% owes RM 100,000, even if the issuer later draws only part of the line.
 
-That amount is legally due on acceptance. Collection is flexible: you decide, invoice by invoice, how much of the remaining balance to take from a successful disbursement. You do not have to collect anything on a given invoice.
+That amount is legally due on acceptance. Any frozen upfront amount is collected through the payment gateway. You then decide, invoice by invoice, how much of the remaining balance to take from a successful disbursement.
 
-On the facility page you will see **owed**, **charged**, **waived**, and **remaining**.
+On the facility page you will see **total owed**, **total charged**, **upfront requested**, **paid toward upfront**, **upfront outstanding**, **waived**, and **remaining**, plus gateway payment history for this facility. Admin does not start a new facility-fee payment from that page.
 
 Invoice-only applications have no facility, so they have no facility fee.
 
@@ -41,7 +43,7 @@ Invoice-only applications have no facility, so they have no facility fee.
 Set these on the **invoice offer**, before you send it.
 
 - **Drawdown fee** is a percentage of the amount actually funded, not the invoice face value and not the offer target. If investors fund RM 80,000 of a RM 100,000 offer at 3%, the drawdown fee is RM 2,400.
-- **Facility fee collected** is the exact ringgit amount you want to take from this invoice toward the remaining facility fee. It stays that exact amount even if the note is only partly funded. Enter RM 0.00 if you are not collecting any facility fee on this invoice.
+- **Amount to collect now** is the exact ringgit amount you want to take from this invoice toward the remaining facility fee. It stays that exact amount even if the note is only partly funded. You must enter an amount — the field does not start at RM 0.00. Enter 0 if you are not collecting any facility fee on this invoice.
 - **Additional fees** are optional named lines. Each line is either a fixed ringgit amount or a percentage of funds raised. Names must be unique. You can add up to 10 lines.
 
 Once the issuer accepts the invoice offer, these terms are locked. Do not change them after acceptance.
@@ -52,7 +54,7 @@ On the Invoice tab, fill in the financing terms as usual, then complete the fee 
 
 The portal shows totals **at full funding** and **at 80% funding** (the usual minimum for a note to succeed). You cannot send the offer if all fees would be more than the money raised at either of those points. Fixed ringgit lines, including facility fee collection, are the usual reason an 80% check fails.
 
-The amount you can collect toward the facility fee cannot be more than what is still remaining **and not already promised** on other open offers or notes for the same facility. The editor shows **Available for this offer** for this invoice.
+The amount you can collect toward the facility fee cannot be more than what is still remaining **and not already promised** on other open offers or notes for the same facility. The editor shows **Available for this offer** and how much will still be collected from later drawdowns.
 
 If the facility is disabled, you cannot send a new invoice offer against it.
 
@@ -112,9 +114,10 @@ New invoice offers always use the current fee schedule.
 
 ## Where to look
 
-- **Application → Facility** — facility fee rate on the facility offer.
+- **Application → Facility** — facility fee rate and upfront gateway collection on the facility offer.
 - **Application → Invoice** — drawdown fee, facility collection, and extra lines on the invoice offer.
-- **Facility detail** — owed / charged / waived / remaining, waive remaining fee, enable or disable.
+- **Facility detail** — owed / charged / upfront / remaining, payment history, waive remaining fee, enable or disable.
+- **Settings → Platform Finance → Gateway Fees** — per-transaction FPX limit for facility-fee payments. This does not cap the overall upfront amount.
 - **Note detail** — waive this note’s facility collection while the note is still a draft or while the campaign is open, before funding closes.
 - **Note → Disbursement** — actual fees taken after a successful close.
 - Help article **Note Money Flow and Servicing Guide** — where the deducted fees sit in the operating account.

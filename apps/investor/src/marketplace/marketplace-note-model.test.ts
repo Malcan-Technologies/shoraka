@@ -17,6 +17,7 @@ import {
   marketplaceNoteContextLine,
   marketplaceMinimumThresholdPercent,
   marketplaceNoteMatchesFilters,
+  marketplaceReturnRateLabel,
   sortFeaturedMarketplaceNotes,
   toMarketplaceNote,
   type MarketplaceNote,
@@ -95,6 +96,28 @@ describe("toMarketplaceNote", () => {
     expect(mapped.minInvestment).toBe(100);
     expect(mapped.maxInvestment).toBe(68000);
     expect(mapped.minimumFundingPercent).toBe(80);
+  });
+
+  it("uses stored tenure for new notes instead of days remaining to maturity", () => {
+    expect(toMarketplaceNote(note({ maturityDate: null })).tenorDays).toBeNull();
+    const pending = toMarketplaceNote(note({ maturityDate: null, tenureDays: 90 }));
+    expect(pending.tenorDays).toBe(90);
+    expect(pending.timing.value).toBe("90 days from disbursement");
+    expect(pending.timing.label).toBe("Financing tenure");
+    expect(pending.timing.compactExtra).toBeNull();
+    expect(pending.timing.tooltip).toMatch(/from disbursement/);
+    const activated = toMarketplaceNote(
+      note({ maturityDate: "2026-11-18T00:00:00.000Z", tenureDays: 90 })
+    );
+    expect(activated.tenorDays).toBe(90);
+    expect(activated.timing.compactValue).toBe("90");
+    expect(activated.timing.compactLabel).toBe("days");
+    expect(activated.timing.compactExtra).toMatch(/^Matures /);
+    expect(activated.timing.label).toBe("Maturity date");
+    expect(activated.timing.secondary).toBe("90-day tenure");
+    expect(toMarketplaceNote(note({ maturityDate: "not-a-date", tenureDays: 75 })).tenorDays).toBe(
+      75
+    );
   });
 
   it("defaults a missing minimum threshold to 80%", () => {
@@ -210,6 +233,24 @@ describe("marketplaceNoteMatchesFilters", () => {
         listing: "open",
       })
     ).toBe(false);
+  });
+
+  it("filters new notes by stored tenure, not days remaining", () => {
+    const midTenure = listing(
+      toMarketplaceNote(note({ tenureDays: 90, maturityDate: "2026-08-25T00:00:00.000Z" }))
+    );
+    const filters = {
+      search: "",
+      industry: "all",
+      risk: "all",
+      profit: "all",
+      tenor: "medium" as const,
+      listing: "open" as const,
+    };
+    expect(marketplaceNoteMatchesFilters(midTenure, filters)).toBe(true);
+    expect(marketplaceNoteMatchesFilters(midTenure, { ...filters, tenor: "short" })).toBe(false);
+    expect(marketplaceNoteMatchesFilters(midTenure, { ...filters, tenor: "long" })).toBe(false);
+    expect(marketplaceReturnRateLabel(midTenure)).toBe("Up to");
   });
 
   it("applies industry, risk, and profit bands", () => {

@@ -22,19 +22,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { reviewRowGridClass } from "@/components/application-review/review-section-styles";
 import {
   additionalFeeKindLabel,
+  ADDITIONAL_FEES_SECTION_TOOLTIP,
   CONVERT_TO_CURRENT_FEE_SCHEDULE_LABEL,
   emptyAdditionalFeeLine,
-  FACILITY_FEE_AVAILABLE_FOR_OFFER_LABEL,
+  FACILITY_FEE_COLLECT_NONE_LEFT_MESSAGE,
+  FACILITY_FEE_COLLECT_NOW_TOOLTIP,
   GRANDFATHER_OFFER_FEE_CALLOUT,
   GRANDFATHER_OFFER_FEE_CONFIRMATION,
+  remainingFacilityFeeAfterCollect,
   summariseUtilisationFees,
   utilisationFeeScheduleIssues,
+  type InvoiceOfferConfirmLiveFacilityFee,
   type InvoiceOfferFeeEditorState,
   type UtilisationFeeScheduleState,
   type UtilisationFeeThresholdTotals,
 } from "./utilisation-fee-lines";
+import { ReviewFieldLabel, ReviewInfoTooltip } from "@/components/application-review/review-field-label";
 
 const MONEY_DRAFT = /^\d*\.?\d{0,2}$/;
 
@@ -46,10 +52,12 @@ function UtilisationFeeTotalsColumn({
   title,
   totals,
   exceeds,
+  showFacilityFee,
 }: {
   title: string;
   totals: UtilisationFeeThresholdTotals["full"];
   exceeds: boolean;
+  showFacilityFee: boolean;
 }) {
   return (
     <div
@@ -64,10 +72,12 @@ function UtilisationFeeTotalsColumn({
           <dt className="text-muted-foreground">Drawdown fee</dt>
           <dd className="tabular-nums">{formatCurrency(totals.drawdownFee)}</dd>
         </div>
-        <div className="flex justify-between gap-3">
-          <dt className="text-muted-foreground">Facility fee</dt>
-          <dd className="tabular-nums">{formatCurrency(totals.facilityFee)}</dd>
-        </div>
+        {showFacilityFee ? (
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted-foreground">Facility fee</dt>
+            <dd className="tabular-nums">{formatCurrency(totals.facilityFee)}</dd>
+          </div>
+        ) : null}
         {totals.additionalFeeCharges.map((line) => (
           <div key={`${line.name}-${line.kind}`} className="flex justify-between gap-3">
             <dt className="min-w-0 truncate text-muted-foreground">{line.name || "Unnamed fee"}</dt>
@@ -95,6 +105,7 @@ export function UtilisationFeeTotalsSummary({
   schedule,
   facilityFeeRemaining,
   facilityFeeCollectionWaived,
+  collectEnabled = true,
   className,
 }: {
   offeredAmount: number;
@@ -102,6 +113,7 @@ export function UtilisationFeeTotalsSummary({
   schedule: UtilisationFeeScheduleState;
   facilityFeeRemaining?: number;
   facilityFeeCollectionWaived?: boolean;
+  collectEnabled?: boolean;
   className?: string;
 }) {
   const totals = summariseUtilisationFees({
@@ -119,11 +131,13 @@ export function UtilisationFeeTotalsSummary({
           title="At full funding"
           totals={totals.full}
           exceeds={totals.exceedsAtFull}
+          showFacilityFee={collectEnabled}
         />
         <UtilisationFeeTotalsColumn
           title={`At ${totals.minimumPercent}% minimum`}
           totals={totals.minimum}
           exceeds={totals.exceedsAtMinimum}
+          showFacilityFee={collectEnabled}
         />
       </div>
       {totals.exceedsAtFull || totals.exceedsAtMinimum ? (
@@ -148,6 +162,125 @@ export interface UtilisationFeeLinesEditorProps {
   facilityFeeCollectionWaived?: boolean;
   disabled?: boolean;
   readOnly?: boolean;
+  /** When true, collect fields are omitted so the parent can place them in the offer grid. */
+  hideCollect?: boolean;
+}
+
+export function FacilityFeeCollectOfferRows({
+  idPrefix,
+  schedule,
+  onChange,
+  facilityFeeRemaining,
+  collectEnabled = true,
+  facilityFeeCollectionWaived = false,
+  disabled = false,
+  readOnly = false,
+}: Omit<UtilisationFeeLinesEditorProps, "offeredAmount" | "platformFeeRatePercent" | "hideCollect">) {
+  const locked = disabled || readOnly;
+  const [collectDraft, setCollectDraft] = React.useState<string | undefined>(undefined);
+  const collectIssue = utilisationFeeScheduleIssues({
+    schedule,
+    facilityFeeRemaining,
+    collectEnabled,
+  }).find((issue) => issue.path === "facilityFeeCollectAmount");
+  const leftoverAfterCollect = remainingFacilityFeeAfterCollect(
+    facilityFeeRemaining,
+    schedule.facilityFeeCollectAmount
+  );
+  const nothingLeftToCollect =
+    !readOnly &&
+    collectEnabled &&
+    facilityFeeRemaining === 0 &&
+    schedule.facilityFeeCollectAmount == null;
+
+  const commitCollect = React.useCallback(
+    (raw: string) => {
+      const trimmed = raw.trim();
+      if (trimmed === "") {
+        onChange({ ...schedule, facilityFeeCollectAmount: null });
+        return;
+      }
+      const parsed = Number(trimmed.replace(/,/g, ""));
+      const amount = Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * 100) / 100) : null;
+      onChange({ ...schedule, facilityFeeCollectAmount: amount });
+    },
+    [onChange, schedule]
+  );
+
+  if (!collectEnabled) return null;
+
+  return (
+    <>
+      <div className="space-y-0.5">
+        <ReviewFieldLabel
+          htmlFor={`${idPrefix}-facility-collect`}
+          tooltip={FACILITY_FEE_COLLECT_NOW_TOOLTIP}
+        >
+          Facility fee to collect
+        </ReviewFieldLabel>
+        {facilityFeeRemaining != null ? (
+          <p className="text-meta text-muted-foreground tabular-nums">
+            Remaining {formatCurrency(Math.max(0, facilityFeeRemaining))}
+          </p>
+        ) : null}
+      </div>
+      <div className="space-y-1.5">
+        {nothingLeftToCollect ? (
+          <p className="text-ui text-muted-foreground">{FACILITY_FEE_COLLECT_NONE_LEFT_MESSAGE}</p>
+        ) : readOnly ? (
+          <p className={cn("min-h-9 text-ui tabular-nums")}>
+            {formatCurrency(schedule.facilityFeeCollectAmount ?? 0)}
+            {facilityFeeCollectionWaived ? " · collection waived on this note later" : ""}
+          </p>
+        ) : (
+          <div className="flex w-full max-w-[11rem] items-center gap-1.5">
+            <span className="shrink-0 text-ui text-muted-foreground">RM</span>
+            <Input
+              id={`${idPrefix}-facility-collect`}
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              placeholder="0.00"
+              aria-label="Facility fee to collect from this invoice in ringgit"
+              aria-invalid={Boolean(collectIssue)}
+              disabled={locked}
+              className="h-9 rounded-xl border-border bg-background text-right tabular-nums"
+              value={
+                collectDraft !== undefined
+                  ? collectDraft
+                  : schedule.facilityFeeCollectAmount == null
+                    ? ""
+                    : String(schedule.facilityFeeCollectAmount)
+              }
+              onChange={(event) => {
+                const next = event.target.value;
+                if (next === "" || MONEY_DRAFT.test(next)) setCollectDraft(next);
+              }}
+              onBlur={() => {
+                const draft = collectDraft;
+                setCollectDraft(undefined);
+                if (draft !== undefined) commitCollect(draft);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+              }}
+            />
+          </div>
+        )}
+        {collectIssue ? (
+          <p role="alert" className="text-sm text-destructive">
+            {collectIssue.message}
+          </p>
+        ) : leftoverAfterCollect != null ? (
+          <p className="text-meta text-muted-foreground">
+            {leftoverAfterCollect > 0
+              ? `${formatCurrency(leftoverAfterCollect)} left for later drawdowns.`
+              : "This invoice collects the remaining facility fee."}
+          </p>
+        ) : null}
+      </div>
+    </>
+  );
 }
 
 export function UtilisationFeeLinesEditor({
@@ -161,26 +294,16 @@ export function UtilisationFeeLinesEditor({
   facilityFeeCollectionWaived = false,
   disabled = false,
   readOnly = false,
+  hideCollect = false,
 }: UtilisationFeeLinesEditorProps) {
   const locked = disabled || readOnly;
-  const [collectDraft, setCollectDraft] = React.useState<string | undefined>(undefined);
   const [valueDrafts, setValueDrafts] = React.useState<Record<number, string>>({});
   const issues = utilisationFeeScheduleIssues({
     schedule,
     facilityFeeRemaining,
     collectEnabled,
   });
-  const collectIssue = issues.find((issue) => issue.path === "facilityFeeCollectAmount");
   const canAdd = !locked && schedule.additionalFees.length < FEE_SCHEDULE_MAX_ADDITIONAL_LINES;
-
-  const commitCollect = React.useCallback(
-    (raw: string) => {
-      const parsed = raw.trim() === "" ? 0 : Number(raw.replace(/,/g, ""));
-      const amount = Number.isFinite(parsed) ? Math.max(0, Math.round(parsed * 100) / 100) : 0;
-      onChange({ ...schedule, facilityFeeCollectAmount: amount });
-    },
-    [onChange, schedule]
-  );
 
   const updateLine = React.useCallback(
     (index: number, patch: Partial<AdditionalFeeLine>) => {
@@ -194,80 +317,32 @@ export function UtilisationFeeLinesEditor({
     [onChange, schedule]
   );
 
-  const remainingLabel =
-    facilityFeeRemaining == null ? null : formatCurrency(Math.max(0, facilityFeeRemaining));
-
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,12rem)_1fr] sm:items-start">
-        <div className="space-y-0.5">
-          <Label htmlFor={`${idPrefix}-facility-collect`} className="text-sm font-medium">
-            Facility fee collected
-          </Label>
-          {remainingLabel ? (
-            <p className="text-meta text-muted-foreground">
-              {FACILITY_FEE_AVAILABLE_FOR_OFFER_LABEL} {remainingLabel}
-            </p>
-          ) : null}
+      {hideCollect || !collectEnabled ? null : (
+        <div className={cn(reviewRowGridClass, "items-start")}>
+          <FacilityFeeCollectOfferRows
+            idPrefix={idPrefix}
+            schedule={schedule}
+            onChange={onChange}
+            facilityFeeRemaining={facilityFeeRemaining}
+            collectEnabled={collectEnabled}
+            facilityFeeCollectionWaived={facilityFeeCollectionWaived}
+            disabled={disabled}
+            readOnly={readOnly}
+          />
         </div>
-        {readOnly ? (
-          <p className="min-h-9 text-ui tabular-nums">
-            {formatCurrency(schedule.facilityFeeCollectAmount)}
-            {facilityFeeCollectionWaived ? " · collection waived on this note later" : ""}
-          </p>
-        ) : (
-          <div className="space-y-1.5">
-            <div className="flex w-full max-w-[11rem] items-center gap-1.5">
-              <span className="shrink-0 text-ui text-muted-foreground">RM</span>
-              <Input
-                id={`${idPrefix}-facility-collect`}
-                type="text"
-                inputMode="decimal"
-                autoComplete="off"
-                aria-label="Facility fee collected in ringgit"
-                aria-invalid={Boolean(collectIssue)}
-                disabled={locked || !collectEnabled}
-                className="h-9 rounded-xl border-border bg-background text-right tabular-nums"
-                value={
-                  collectDraft !== undefined
-                    ? collectDraft
-                    : String(schedule.facilityFeeCollectAmount)
-                }
-                onChange={(event) => {
-                  const next = event.target.value;
-                  if (next === "" || MONEY_DRAFT.test(next)) setCollectDraft(next);
-                }}
-                onBlur={() => {
-                  const draft = collectDraft;
-                  setCollectDraft(undefined);
-                  if (draft !== undefined) commitCollect(draft);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-                }}
-              />
-            </div>
-            {!collectEnabled ? (
-              <p className="text-meta text-muted-foreground">
-                Facility fee collection can only be set on a facility-linked invoice.
-              </p>
-            ) : collectIssue ? (
-              <p role="alert" className="text-sm text-destructive">
-                {collectIssue.message}
-              </p>
-            ) : (
-              <p className="text-meta text-muted-foreground">
-                RM amount collected from this drawdown against the facility fee. Frozen after the
-                issuer accepts.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+      )}
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium text-foreground">Additional fees</p>
+          <div className="flex items-center gap-1">
+            <p className="text-sm font-medium text-foreground">Additional fees</p>
+            <ReviewInfoTooltip
+              label="Additional fees"
+              tooltip={ADDITIONAL_FEES_SECTION_TOOLTIP}
+            />
+          </div>
           {readOnly ? null : (
             <Button
               type="button"
@@ -288,9 +363,9 @@ export function UtilisationFeeLinesEditor({
           )}
         </div>
         {schedule.additionalFees.length === 0 ? (
-          <p className="text-meta text-muted-foreground">
-            Optional named lines. Kind is a fixed RM amount or a percent of actual funds raised.
-          </p>
+          readOnly ? (
+            <p className="text-meta text-muted-foreground">None</p>
+          ) : null
         ) : (
           <ul className="space-y-3">
             {schedule.additionalFees.map((line, index) => {
@@ -436,6 +511,7 @@ export function UtilisationFeeLinesEditor({
           schedule={schedule}
           facilityFeeRemaining={facilityFeeRemaining}
           facilityFeeCollectionWaived={facilityFeeCollectionWaived}
+          collectEnabled={collectEnabled}
         />
       ) : null}
     </div>
@@ -484,14 +560,14 @@ export function InvoiceOfferFeeConfirmRows({
   feeScheduleMode,
   facilityFeeCollectAmount,
   additionalFees,
-  facilityFeeRemaining,
+  liveFacilityFee,
 }: {
   offeredAmount: number;
   platformFeeRatePercent: number;
   feeScheduleMode: InvoiceOfferFeeScheduleWriteMode;
   facilityFeeCollectAmount: number;
   additionalFees: AdditionalFeeLine[];
-  facilityFeeRemaining?: number;
+  liveFacilityFee: InvoiceOfferConfirmLiveFacilityFee;
 }) {
   if (feeScheduleMode === "preserve_grandfather") {
     return (
@@ -511,6 +587,10 @@ export function InvoiceOfferFeeConfirmRows({
       </>
     );
   }
+  const leftoverAfterCollect = remainingFacilityFeeAfterCollect(
+    liveFacilityFee.remaining,
+    facilityFeeCollectAmount
+  );
   return (
     <>
       <div className="flex justify-between items-baseline">
@@ -519,12 +599,24 @@ export function InvoiceOfferFeeConfirmRows({
           {platformFeeRatePercent}% at disbursement
         </span>
       </div>
-      <div className="flex justify-between items-baseline">
-        <span className="text-sm font-medium text-muted-foreground">Facility fee collected</span>
-        <span className="text-ui font-medium tabular-nums">
-          {formatCurrency(facilityFeeCollectAmount)}
-        </span>
-      </div>
+      {liveFacilityFee.collectEnabled ? (
+        <>
+          <div className="flex justify-between items-baseline">
+            <span className="text-sm font-medium text-muted-foreground">Facility fee to collect now</span>
+            <span className="text-ui font-medium tabular-nums">
+              {formatCurrency(facilityFeeCollectAmount)}
+            </span>
+          </div>
+          {leftoverAfterCollect != null ? (
+            <div className="flex justify-between items-baseline gap-3">
+              <span className="text-sm font-medium text-muted-foreground">Left for later drawdowns</span>
+              <span className="text-ui font-medium tabular-nums">
+                {formatCurrency(leftoverAfterCollect)}
+              </span>
+            </div>
+          ) : null}
+        </>
+      ) : null}
       {additionalFees.map((line) => (
         <div key={`${line.name}-${line.kind}`} className="flex justify-between items-baseline gap-3">
           <span className="min-w-0 truncate text-sm font-medium text-muted-foreground">
@@ -541,7 +633,8 @@ export function InvoiceOfferFeeConfirmRows({
         offeredAmount={offeredAmount}
         platformFeeRatePercent={platformFeeRatePercent}
         schedule={{ facilityFeeCollectAmount, additionalFees }}
-        facilityFeeRemaining={facilityFeeRemaining}
+        facilityFeeRemaining={liveFacilityFee.remaining}
+        collectEnabled={liveFacilityFee.collectEnabled}
       />
     </>
   );

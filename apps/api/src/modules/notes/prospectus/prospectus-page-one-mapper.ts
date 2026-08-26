@@ -182,6 +182,7 @@ export async function mapProspectusPageOneDataToInput(
       listingOpensAt,
       listingClosesAt,
       maturityDate,
+      tenureDays: note.tenure_days,
       paymasterName: paymaster.name,
       paymasterEntityType: paymaster.entityType,
     },
@@ -196,6 +197,7 @@ export async function mapProspectusPageOneDataToInput(
     timingPurpose: {
       listingOpensAt,
       maturityDate,
+      tenureDays: note.tenure_days,
       purposeSnapshotFinancingFor: purpose?.financing_for ?? null,
       liveApplicationFinancingFor: null,
     },
@@ -211,6 +213,7 @@ export async function mapProspectusPageOneDataToInput(
       profitRatePercent,
       listingOpensAt,
       maturityDate,
+      tenureDays: note.tenure_days,
       serviceFeeRatePercent,
     },
     trackRecordMode: track.trackRecordMode,

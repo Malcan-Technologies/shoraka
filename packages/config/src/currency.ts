@@ -3,8 +3,20 @@
  * Provides consistent formatting across the entire platform
  */
 
+import { moneyAmountExceeds, roundNoteMoney } from "@cashsouk/types";
+
 export const CURRENCY_CODE = "MYR";
 export const CURRENCY_SYMBOL = "RM";
+
+/** Round a money amount to sen (2 decimal places). */
+export function roundCurrencyAmount(amount: number): number {
+  return roundNoteMoney(amount);
+}
+
+/** True when `left` is greater than `right` at sen precision. */
+export function currencyAmountExceeds(left: number, right: number): boolean {
+  return moneyAmountExceeds(left, right);
+}
 
 export interface CurrencyFormatOptions {
   /**
@@ -43,10 +55,7 @@ export function formatCurrency(
     useCommas = true,
   } = options;
 
-  // Round to specified decimal places
-  const rounded = decimals === 0 
-    ? Math.round(amount)
-    : Math.round(amount * 100) / 100;
+  const rounded = decimals === 0 ? Math.round(amount) : roundCurrencyAmount(amount);
 
   // Format with commas and decimals
   let formatted: string;

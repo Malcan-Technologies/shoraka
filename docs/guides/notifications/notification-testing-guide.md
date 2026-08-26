@@ -23,6 +23,11 @@ This guide explains:
 - Admin config:
   - Admin portal `Settings -> Notification Management`
   - portal-scope tabs (`Investor`, `Issuer`, `Both`)
+  - `password_changed` Platform/Email toggles stay locked on
+  - Default for every type is Platform + Email on. **Reset to default** restores those switches and adds any missing types.
+- Admin Notification Logs:
+  - automated sends appear as source **System**; custom sends as **Admin**
+  - Recipients = attempted users; Delivery counts = selected channels (not confirmed receipt)
 
 ---
 
@@ -30,37 +35,34 @@ This guide explains:
 
 ### Both portals (`Investor` + `Issuer`)
 
-| Type ID | Auto-triggered? | Trigger source | How to test |
-|---|---|---|---|
-| `password_changed` | Yes | Auth service password change flow | Change password from account settings; verify in-app and email. |
-| `login_new_device` | No (currently not wired) | Type exists but no current sender call | Send manually from Admin Notification panel (Custom & Groups) using this type. |
-| `kyc_approved` | No (currently not wired) | Type exists but no current sender call | Send manually from Admin Notification panel. |
-| `kyc_rejected` | No (currently not wired) | Type exists but no current sender call | Send manually from Admin Notification panel. |
-| `onboarding_approved` | Yes | Admin final onboarding approval | Complete final approval in onboarding admin flow. |
-| `onboarding_rejected` | Yes | RegTank webhook handlers | Use a rejected onboarding webhook payload in test env, or send manually from admin panel for smoke test. |
-| `system_announcement` | Manual | Admin bulk notification tool | Create and send from admin panel. |
+| Type ID                           | Auto-triggered? | Trigger source                              | How to test                                                                                                                                            |
+| --------------------------------- | --------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `password_changed`                | Yes             | Auth service password change flow           | Change password from account settings; verify in-app and email. Both channels always fire.                                                             |
+| `onboarding_approved`             | Yes             | Admin final onboarding approval             | Complete final approval in onboarding admin flow.                                                                                                      |
+| `withdrawal_submitted_to_trustee` | Yes             | Admin marks withdrawal submitted to trustee | Generate the instruction letter, then submit to trustee. Investor members get `/investments/{noteId}`; issuer members get `/financing/notes/{noteId}`. |
+| `onboarding_rejected`             | Yes             | RegTank webhook handlers                    | Use a rejected onboarding webhook payload in test env, or send manually from admin panel for smoke test.                                               |
+| `system_announcement`             | Manual          | Admin bulk notification tool                | Create and send from admin panel.                                                                                                                      |
 
 ### Investor-only
 
-| Type ID | Auto-triggered? | Trigger source | How to test |
-|---|---|---|---|
+| Type ID             | Auto-triggered?   | Trigger source               | How to test                                |
+| ------------------- | ----------------- | ---------------------------- | ------------------------------------------ |
 | `new_product_alert` | Manual (by admin) | Admin bulk notification tool | Send from admin panel targeting investors. |
 
 ### Issuer-only (application lifecycle)
 
-| Type ID | Auto-triggered? | Trigger source | How to test |
-|---|---|---|---|
-| `application_amendments_requested` | Yes | Admin `submitPendingAmendments` | Add pending amendments in application review, then click "Request Amendment". |
-| `application_approved` | Yes | Admin application status update | In admin review page, approve the application. |
-| `application_rejected` | Yes | Admin application status update | In admin review page, reject the application. |
-| `contract_offer_sent` | Yes | Admin `sendContractOffer` | Send contract offer from admin application review. |
-| `invoice_offer_sent` | Yes | Admin `sendInvoiceOffer` | Send invoice offer from admin application review. |
-| `offer_retracted_or_reset` | Yes | Admin reset/retract flows | Reset contract/invoice offer to pending after sending it. |
-| `offer_expired` | Yes | Acceptance/signing expiry job (durable `OFFER_EXPIRED`) | `pnpm seed-expired-acceptance-deadline-for-test` then `pnpm run-acceptance-signing-expiry`. |
-| `offer_expiry_reminder_24h` | Yes | Same job (configurable `days_before_expiry`; delivery hour from Platform Finance → Offer Deadlines, default 09:00 MYT) | `pnpm seed-reminder-window-acceptance-deadline-for-test` then `pnpm run-acceptance-signing-expiry`. |
-| `application_resubmitted_confirmation` | Yes | Issuer resubmit flow | In issuer portal, resubmit an amended application. |
-| `application_withdrawn_confirmation` | Yes | Issuer cancellation/offer-reject withdrawal path | Cancel application or reject offer in issuer portal. |
-| `application_completed` | Yes | Issuer offer acceptance completion path | Accept final required offer(s) until application becomes `COMPLETED`. |
+| Type ID                                | Auto-triggered? | Trigger source                                                                                                         | How to test                                                                                         |
+| -------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `application_amendments_requested`     | Yes             | Admin `submitPendingAmendments`                                                                                        | Add pending amendments in application review, then click "Request Amendment".                       |
+| `application_rejected`                 | Yes             | Admin application status update                                                                                        | In admin review page, reject the application.                                                       |
+| `contract_offer_sent`                  | Yes             | Admin `sendContractOffer`                                                                                              | Send contract offer from admin application review.                                                  |
+| `invoice_offer_sent`                   | Yes             | Admin `sendInvoiceOffer`                                                                                               | Send invoice offer from admin application review.                                                   |
+| `offer_retracted_or_reset`             | Yes             | Admin reset/retract flows                                                                                              | Reset contract/invoice offer to pending after sending it.                                           |
+| `offer_expired`                        | Yes             | Acceptance/signing expiry job (durable `OFFER_EXPIRED`)                                                                | `pnpm seed-expired-acceptance-deadline-for-test` then `pnpm run-acceptance-signing-expiry`.         |
+| `offer_expiry_reminder_24h`            | Yes             | Same job (configurable `days_before_expiry`; delivery hour from Platform Finance → Offer Deadlines, default 09:00 MYT) | `pnpm seed-reminder-window-acceptance-deadline-for-test` then `pnpm run-acceptance-signing-expiry`. |
+| `application_resubmitted_confirmation` | Yes             | Issuer resubmit flow                                                                                                   | In issuer portal, resubmit an amended application.                                                  |
+| `application_withdrawn_confirmation`   | Yes             | Issuer cancellation/offer-reject withdrawal path                                                                       | Cancel application or reject offer in issuer portal.                                                |
+| `application_completed`                | Yes             | Issuer offer acceptance completion path                                                                                | Accept final required offer(s) until application becomes `COMPLETED`.                               |
 
 ---
 
@@ -75,7 +77,8 @@ pnpm --filter @cashsouk/api run run-acceptance-signing-expiry
 Notes:
 
 - This command processes both:
-  - expired offer notifications (`offer_expired`) after durable `OFFER_EXPIRED`  - configurable reminders (`offer_expiry_reminder_24h` type id; copy uses `daysBeforeExpiry`)
+  - expired offer notifications (`offer_expired`) after durable `OFFER_EXPIRED` - configurable reminders (`offer_expiry_reminder_24h` type id; copy uses `daysBeforeExpiry`)
+
 ## Suggested smoke test checklist
 
 - Issuer app:
@@ -83,8 +86,8 @@ Notes:
   - [ ] Resubmit from issuer -> `application_resubmitted_confirmation`
   - [ ] Send contract offer -> `contract_offer_sent` (includes Accept by when stamped)
   - [ ] Reset/retract contract offer -> `offer_retracted_or_reset`
-  - [ ] Approve application -> `application_approved`
   - [ ] Reject application -> `application_rejected`
+  - [ ] Submit withdrawal to trustee -> `withdrawal_submitted_to_trustee`
 - Scheduled:
   - [ ] Past deadline then job expiry -> `offer_expired` + timeline `*_OFFER_EXPIRED`
   - [ ] Reminder window -> `offer_expiry_reminder_24h`
@@ -101,5 +104,7 @@ Notes:
   - `apps/api/src/modules/applications/service.ts`
   - `apps/api/src/lib/jobs/acceptance-signing-expiry.ts`
   - `apps/api/src/modules/auth/service.ts`
+  - `apps/api/src/modules/notes/service.ts`
+  - `apps/api/src/modules/notification/withdrawal-notifications.ts`
   - `apps/api/src/modules/regtank/webhooks/cod-handler.ts`
   - `apps/api/src/modules/regtank/webhooks/individual-onboarding-handler.ts`
