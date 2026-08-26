@@ -158,6 +158,7 @@ function getEventLabel(
     INVOICE_WITHDRAWN: "Invoice Withdrawn",
     SIGNING_PACKAGE_CREATED: "Signing Package Created",
     SIGNING_PACKAGE_SENT: "Signing package sent",
+    SIGNING_PACKAGE_COMPLETED: "Signing Package Completed",
     SIGNING_PACKAGE_VOIDED: "Signing package voided",
     AMENDMENTS_SUBMITTED: "Amendment Requested",
     CONTRACT_FACILITY_FEE_WAIVED: "Facility Fee Waived",
@@ -218,9 +219,6 @@ function getEventLabel(
 
 const ACTIVITY_PAGE_SIZE = 10;
 
-/** Audit-only events: still stored in application_logs but hidden from the timeline UI. */
-const TIMELINE_HIDDEN_EVENT_TYPES = new Set(["SIGNING_PACKAGE_COMPLETED"]);
-
 function formatActivityText(activity: ApplicationLogEntry["activity"]): string | null {
   if (activity == null) return null;
   if (typeof activity === "string") return activity;
@@ -267,10 +265,7 @@ export function AdminActivityTimeline({
 }: AdminActivityTimelineProps) {
   const { data, isLoading, error } = useApplicationLogs(applicationId);
 
-  const logs: ApplicationLogEntry[] = React.useMemo(
-    () => (data ?? []).filter((log) => !TIMELINE_HIDDEN_EVENT_TYPES.has(log.event_type)),
-    [data]
-  );
+  const logs: ApplicationLogEntry[] = data ?? [];
 
   const [selectedLog, setSelectedLog] = React.useState<ApplicationLogEntry | null>(null);
   const [comparisonModalOpen, setComparisonModalOpen] = React.useState(false);

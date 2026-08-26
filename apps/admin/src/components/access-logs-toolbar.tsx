@@ -19,7 +19,7 @@ const EVENT_TYPE_OPTIONS: { value: ToolbarEventType; label: string }[] = [
   { value: "LOGOUT", label: "Logout" },
   { value: "SIGNUP", label: "Sign Up" },
   { value: "PASSWORD_CHANGED", label: "Password changed" },
-  { value: "EMAIL_CHANGED", label: "Email changed" },
+  { value: "EMAIL_CHANGED", label: "Email Verified" },
   { value: "ROLE_ADDED", label: "Role added" },
   { value: "ROLE_REMOVED", label: "Role removed" },
   { value: "ROLE_SWITCHED", label: "Role switched" },

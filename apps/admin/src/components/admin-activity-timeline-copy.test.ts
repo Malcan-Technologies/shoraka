@@ -14,9 +14,9 @@ describe("admin activity timeline signing-package copy", () => {
     expect(source).toMatch(/SIGNING_PACKAGE_VOIDED:\s*"Signing package voided"/);
   });
 
-  it("does not add SIGNING_PACKAGE_COMPLETED to the visible label map (stays hidden by design)", () => {
-    expect(source).not.toMatch(/SIGNING_PACKAGE_COMPLETED:\s*"/);
-    expect(source).toMatch(/TIMELINE_HIDDEN_EVENT_TYPES = new Set\(\["SIGNING_PACKAGE_COMPLETED"\]\)/);
+  it("shows SIGNING_PACKAGE_COMPLETED as a real timeline event", () => {
+    expect(source).toMatch(/SIGNING_PACKAGE_COMPLETED:\s*"Signing Package Completed"/);
+    expect(source).not.toContain("TIMELINE_HIDDEN_EVENT_TYPES");
   });
 
   it("keeps the canonical Acceptance Approved for Signing wording (already correct)", () => {
