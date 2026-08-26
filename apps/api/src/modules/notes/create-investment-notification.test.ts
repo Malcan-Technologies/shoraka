@@ -105,7 +105,10 @@ describe("NoteService createInvestment notification", () => {
     expect(mockCreateNoteEventRow).toHaveBeenCalledTimes(1);
     expect(mockCreateNoteEventRow).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ eventType: "INVESTMENT_COMMITTED" })
+      expect.objectContaining({
+        eventType: "INVESTMENT_COMMITTED",
+        metadata: expect.objectContaining({ investmentId: "ni-1" }),
+      })
     );
     expect(mockNotifyCommitted).toHaveBeenCalledTimes(1);
     expect(mockNotifyCommitted).toHaveBeenCalledWith(

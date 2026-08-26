@@ -79,6 +79,7 @@ export function AuditDetailDrawer({
         { label: "Email", value: actor.email },
         { label: "Organisation", value: actor.organisation },
         { label: "Actor type", value: actorTypeLabel || null },
+        { label: "Portal", value: actor.portal },
         { label: "Source", value: sourceDistinctFromActorType ? sourceLabel : null },
       ].filter((field): field is AuditDetailField => nonEmpty(field.value))
     : [];

@@ -135,8 +135,11 @@ export function accessLogToAuditDetail(
     technical: presentFields([
       { label: "Event type", value: log.event_type },
       { label: "Actor ID", value: log.user_id },
+      { label: "Portal", value: log.portal },
+      { label: "Requested role", value: pickString(log.metadata, ["requestedRole"]) },
       { label: "Source", value: log.source },
       { label: "Correlation ID", value: log.correlation_id },
+      { label: "OAuth state ID", value: pickString(log.metadata, ["stateId"]) },
       { label: "IP address", value: log.ip_address },
       { label: "Device", value: log.device_info ?? log.device_type },
       { label: "User agent", value: log.user_agent },

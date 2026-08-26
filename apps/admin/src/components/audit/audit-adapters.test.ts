@@ -1,5 +1,5 @@
 import type { LegalDocumentAuditLogListItem } from "@cashsouk/types";
-import { legalAuditToAuditDetail } from "./audit-adapters";
+import { accessLogToAuditDetail, legalAuditToAuditDetail } from "./audit-adapters";
 
 function legalRow(
   overrides: Partial<LegalDocumentAuditLogListItem> &
@@ -72,5 +72,38 @@ describe("legal document audit detail is per stored row", () => {
     const detail = legalAuditToAuditDetail(archived);
     expect(detail.eventType).toBe("LEGAL_VERSION_ARCHIVED");
     expect(detail.reason).toBe("auto_archived_on_publish");
+  });
+});
+
+describe("access log detail preserves portal and requested role", () => {
+  it("surfaces first-class portal and requestedRole without inventing activeRole", () => {
+    const detail = accessLogToAuditDetail({
+      id: "acc-1",
+      user_id: "user-1",
+      user: { first_name: "Ada", last_name: "Khan", email: "ada@example.com" },
+      event_type: "LOGIN",
+      ip_address: "1.1.1.1",
+      user_agent: "jest",
+      device_info: "desktop",
+      success: true,
+      portal: "issuer",
+      source: "USER",
+      correlation_id: "corr-1",
+      metadata: {
+        requestedRole: "ISSUER",
+        roles: ["ISSUER"],
+        portal: "issuer",
+        stateId: "state-1",
+      },
+      created_at: "2026-08-27T00:00:00.000Z",
+    });
+    expect(detail.technical).toEqual(
+      expect.arrayContaining([
+        { label: "Portal", value: "issuer" },
+        { label: "Requested role", value: "ISSUER" },
+        { label: "OAuth state ID", value: "state-1" },
+      ])
+    );
+    expect(JSON.stringify(detail.metadata)).not.toContain("activeRole");
   });
 });

@@ -671,6 +671,7 @@ router.get("/callback", async (req: Request, res: Response) => {
             adminStatus,
             wasPreviouslyAdmin,
             portal: initiatingPortal,
+            stateId: stateData.stateId,
             reason: !hasAdminRole ? "User does not have ADMIN role" : "Admin account is inactive",
           },
           context: auditContextFromRequest(req),
@@ -733,9 +734,9 @@ router.get("/callback", async (req: Request, res: Response) => {
       success: true,
       metadata: {
         requestedRole,
-        activeRole,
         roles: user.roles,
         portal,
+        stateId: stateData.stateId,
       },
       context: auditContextFromRequest(req),
     });

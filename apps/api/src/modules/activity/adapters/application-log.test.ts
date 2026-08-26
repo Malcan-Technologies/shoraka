@@ -34,6 +34,10 @@ describe("ApplicationLogAdapter", () => {
       title: "Application Rejected",
       description: "Your financing application was rejected and will not continue.",
     });
+    expect(adapter.buildPresentation("AMENDMENTS_SUBMITTED")).toEqual({
+      title: "Amendments Submitted",
+      description: "You submitted amendments to this application.",
+    });
     expect(
       adapter.buildPresentation("APPLICATION_RESUBMITTED", {
         resubmit_changes: { activity_summary: "Changes: Supporting documents" },
@@ -184,6 +188,24 @@ describe("ApplicationLogAdapter", () => {
       applicationId: "app_123",
       applicationReference: "#APP_123",
     });
+  });
+
+  it("describes AMENDMENTS_SUBMITTED as the issuer submitting amendments", () => {
+    const now = new Date();
+    const record: any = {
+      id: "log-amd",
+      user_id: "user123",
+      application_id: "app_123",
+      event_type: "AMENDMENTS_SUBMITTED",
+      metadata: { count: 2 },
+      created_at: now,
+    };
+
+    const unified = adapter.transform(record);
+
+    expect(unified.title).toBe("Amendments Submitted");
+    expect(unified.description).toBe("You submitted amendments to application #APP_123.");
+    expect(unified.description).not.toMatch(/request/i);
   });
 
   it("backfills contract references from the application when the log metadata is missing", async () => {

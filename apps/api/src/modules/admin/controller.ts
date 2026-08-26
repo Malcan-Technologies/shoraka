@@ -1033,13 +1033,14 @@ router.get(
               correlationId: log.correlation_id,
               metadata: log.metadata,
               extra: {
+                Portal: log.portal,
                 "IP Address": log.ip_address,
                 Device: log.device_type ?? log.device_info,
                 "User Agent": log.user_agent,
               },
             };
           }),
-          ["IP Address", "Device", "User Agent"]
+          ["Portal", "IP Address", "Device", "User Agent"]
         );
 
         res.setHeader("Content-Type", "text/csv; charset=utf-8");

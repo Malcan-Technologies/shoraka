@@ -249,6 +249,20 @@ describe("composeApplicationSummary", () => {
     expect(model.timeline[0]?.label).toBe("You resubmitted after changes");
     expect(model.timeline[0]?.description).toBe("Updated invoice value");
   });
+
+  it("labels AMENDMENTS_SUBMITTED as the issuer submitting amendments", () => {
+    const model = compose({
+      logs: [
+        {
+          id: "amd",
+          event_type: "AMENDMENTS_SUBMITTED",
+          remark: "2 amendment(s) sent to issuer",
+          created_at: "2026-08-09T00:00:00.000Z",
+        },
+      ],
+    });
+    expect(model.timeline[0]?.label).toBe("The issuer submitted amendments.");
+  });
 });
 
 describe("buildSafeSummaryFilename", () => {

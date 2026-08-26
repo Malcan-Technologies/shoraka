@@ -28,6 +28,7 @@ This guide explains:
 - Admin Notification Logs:
   - automated sends appear as source **System**; custom sends as **Admin**
   - Recipients = attempted users; Delivery counts = selected channels (not confirmed receipt)
+- Email links: explicit `investor` / `issuer` / `admin` metadata keep that portal URL. Missing/invalid portal uses landing `FRONTEND_URL` (landing has no `/account`). `new_product_alert` is Investor-facing in the template. Mixed bulk audiences do not invent Investor URLs.
 
 ---
 

@@ -412,7 +412,7 @@ Declared union: `EventType` in `packages/types/src/admin.ts`. Central writer:
 **WRITER:** `auth/cognito.routes.ts` (OAuth callback success; failed-admin branch)
 **TABLE / STORE:** `access_logs`
 **TARGET:** user
-**STORED EVIDENCE:** `success`, `portal` (initiating portal from OAuth state; null if unknown), `device_type`; metadata `requestedRole`, `activeRole`, `roles`, `portal`. Failure branch adds `userRoles`, `hasAdminRole`, `adminStatus`, `wasPreviouslyAdmin`, `reason`.
+**STORED EVIDENCE:** `success`, `portal` (initiating portal from OAuth state; null if unknown), `device_type`; metadata `requestedRole`, `roles`, `portal`, `stateId`. **No `activeRole` on LOGIN** — that key used to copy `requestedRole` and was not a session persona. Failure branch adds `userRoles`, `hasAdminRole`, `adminStatus`, `wasPreviouslyAdmin`, `reason`.
 **SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: Shown — Copy: `"Login"` (filter) / `"Login"` (table row). CSV / EXPORT: Included — Copy: `"LOGIN"` (raw).
 **NOTIFICATION:** NO. *(`login_new_device` exists in the registry but no device-fingerprinting code calls it — see §4.)*
 
@@ -423,7 +423,7 @@ Declared union: `EventType` in `packages/types/src/admin.ts`. Central writer:
 **ALIASES:** `USER_LOGGED_OUT` — *not real* (cutover schema) · **DO NOT CONFUSE WITH:** session expiry (not logged)
 **BUSINESS TRIGGER:** Logout route or logout service call. **ACTOR:** User (self)
 **WRITER:** `auth/cognito.routes.ts` (~994); `auth/service.ts:logout` (~489) · **TABLE:** `access_logs` · **TARGET:** user
-**STORED EVIDENCE:** `portal` from `?portal=` or Origin/Referer (null if unknown; never `user.roles[0]`); metadata `roles`, `portal`
+**STORED EVIDENCE:** `portal` from `?portal=` or Origin/Referer (null if unknown; never `user.roles[0]`). Cognito logout metadata `roles`, `portal`. Service logout metadata `activeRole` (observed `req.activeRole` or last session role) and `portal`.
 **SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: Shown — Copy: `"Logout"`. CSV: Included — Copy: `"LOGOUT"` (raw).
 **NOTIFICATION:** NO
 
@@ -434,7 +434,7 @@ Declared union: `EventType` in `packages/types/src/admin.ts`. Central writer:
 **ALIASES:** `USER_SIGNED_UP` — *not real* (cutover schema) · **DO NOT CONFUSE WITH:** `ONBOARDING_STARTED` (KYC/KYB onboarding, a completely different table and moment)
 **BUSINESS TRIGGER:** OAuth callback that inserts the CashSouk user row, when no successful SIGNUP already exists. Later authentications are `LOGIN`, including callbacks that still have `signup=true`. **ACTOR:** User (self)
 **WRITER:** `auth/cognito.routes.ts` · **TABLE:** `access_logs` · **TARGET:** user
-**STORED EVIDENCE:** `portal` from OAuth state; metadata `requestedRole`, `activeRole`, `roles`, `portal`
+**STORED EVIDENCE:** `portal` from OAuth state; metadata `requestedRole`, `roles`, `portal`, `stateId` (no fake `activeRole`)
 **SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: Shown — Copy: `"Sign Up"`. CSV: Included — Copy: `"SIGNUP"` (raw).
 **NOTIFICATION:** NO
 
@@ -847,7 +847,7 @@ renders it through its generic title-case fallback rather than a curated label.
 | `INVOICE_OFFER_EXPIRED` | `Invoice {n} Offer Expired` / `Invoice Offer Expired` | `Invoice Offer Expired` / `The invoice offer expired. A new offer can be sent from the Invoice tab.` | `Invoice offer expired` | `Invoice offer expired` | *(fallback)* |
 | `INVOICE_SIGNING_DEADLINE_EXTENDED` | `Signing Deadline Extended` | `Signing Deadline Extended` / `CashSouk extended the signing deadline so you can complete the signing package.` | `Signing deadline extended` | `Signing deadline extended` | *(fallback)* |
 | `INVOICE_WITHDRAWN` | `Invoice {n} Withdrawn` / `Invoice Withdrawn` | `Invoice Withdrawn` / `An invoice linked to this application was withdrawn.` | `Invoice withdrawn` | `Invoice withdrawn` | *(fallback)* |
-| `AMENDMENTS_SUBMITTED` | `Amendment Requested` | `CashSouk Requested an Amendment` / `CashSouk requested an amendment to application [Application Ref].` | `CashSouk Requested an Amendment` | `CashSouk Requested an Amendment` | `Amendment Requested` |
+| `AMENDMENTS_SUBMITTED` | `Amendments Submitted` | `Amendments Submitted` / `You submitted amendments to application [Application Ref].` | `Amendments Submitted` | `Amendments Submitted` | `Amendments Submitted` |
 | `SIGNING_PACKAGE_CREATED` | `Signing Package Created` | — | — | — | `Signing Package Created` |
 | `SIGNING_PACKAGE_SENT` | `Signing package sent` | `Signing package sent` / `The signing package was sent to all required signers.` | — | `Signing package sent` | `Signing package sent` |
 | `SIGNING_PACKAGE_COMPLETED` | **Hidden (intentional)** — `TIMELINE_HIDDEN_EVENT_TYPES` | — *(not in allowlist)* | — | `Signing package completed` | `Signing package completed` |
@@ -932,10 +932,12 @@ sensibly-named `INVOICE_OFFER_REJECTED`. An issuer declining a *facility* offer 
 `CONTRACT_WITHDRAWN`. Same business action, two different naming conventions. This is a historical
 artifact, not a design decision.
 
-**`AMENDMENTS_SUBMITTED` reads backwards.** The name suggests the issuer submitted amendments. It
-actually fires when an **admin sends amendment requests to the issuer**. The admin label
-(`Amendment Requested`) and all issuer copy (`CashSouk Requested an Amendment`) state the direction correctly;
-only the enum name is misleading. The issuer's *response* is `APPLICATION_RESUBMITTED`.
+**`AMENDMENTS_SUBMITTED` presentation is issuer-submitted, not CashSouk-requested.** Display title
+is **Amendments Submitted**. Activity/PDF copy must mean the issuer submitted amendments (PDF:
+"The issuer submitted amendments."). Do **not** label this event "CashSouk Requested an Amendment"
+or "Amendment Requested" — that wording belongs to the separate `application_amendments_requested`
+notification. Writer remains `submitPendingAmendments` (unchanged). The later resubmit after review
+is still `APPLICATION_RESUBMITTED`.
 
 **`SIGNING_PACKAGE_COMPLETED` is deliberately hidden from the admin timeline.** The enum's own doc
 comment says so: *"Audit-only: envelope rollup COMPLETED. UI shows CONTRACT/INVOICE_OFFER_ACCEPTED
@@ -1953,10 +1955,10 @@ correctly-named `CONTRACT_OFFER_REJECTED` exists but is dead. Admin labels delib
 "Facility Offer Rejected" for `CONTRACT_WITHDRAWN` because that is what actually happened.
 
 **CURRENT EVENT TYPE:** `AMENDMENTS_SUBMITTED`
-**OLD / LEGACY TERM:** reads as "the issuer submitted amendments"
-**RELATION:** `CONCEPTUAL_ALIAS` — it actually means "the **admin sent** amendment requests to the
-issuer". Every user-facing label states the direction correctly; only the enum name is backwards.
-The issuer's response is the separate `APPLICATION_RESUBMITTED` event.
+**DISPLAY:** Amendments Submitted — **the issuer submitted amendments**
+**RELATION:** Presentation follows the event name. Do not describe this row as CashSouk requesting
+an amendment. That copy belongs to `application_amendments_requested`. Writer remains
+`submitPendingAmendments`. The later resubmit is `APPLICATION_RESUBMITTED`.
 
 **CURRENT EVENT TYPE:** `EMAIL_CHANGED` (`security_logs`)
 **OLD / LEGACY TERM:** reads as "the user changed their email address"

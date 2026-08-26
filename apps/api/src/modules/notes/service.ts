@@ -3342,6 +3342,7 @@ export class NoteService {
         idempotencyKey: `investor-balance:commit:${investment.id}`,
       });
       await this.logEvent(tx, noteId, "INVESTMENT_COMMITTED", actor, {
+        investmentId: investment.id,
         investorOrganizationId: input.investorOrganizationId,
         amount: input.amount,
         prospectusPublicationId: publication.id,
@@ -4808,7 +4809,13 @@ export class NoteService {
       if (status === NotePaymentStatus.RECEIVED) {
         await this.postPaymentReceiptLedger(tx, payment, actor);
       }
-      await this.logEvent(tx, id, eventType, actor, json({ ...input, metadata: paymentMetadata }));
+      await this.logEvent(
+        tx,
+        id,
+        eventType,
+        actor,
+        json({ ...input, paymentId: payment.id, metadata: paymentMetadata })
+      );
       const refreshed = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
       return { updatedNote: refreshed, paymentId: payment.id };
     });
@@ -7054,6 +7061,11 @@ export class NoteService {
     if (withdrawal.note_id) {
       await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_COMPLETED", actor, {
         withdrawalId: id,
+        withdrawalReference: formatWithdrawalReference({
+          displayReference: withdrawal.display_reference,
+          id: withdrawal.id,
+        }),
+        withdrawalType: withdrawal.withdrawal_type,
         amount: toNumber(withdrawal.amount),
       });
 

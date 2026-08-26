@@ -396,7 +396,7 @@ export class AuthService {
     // Find active session
     const session = await this.repository.findActiveSession(userId);
 
-    // Use activeRole from parameter, session, or default to first role
+    // Request persona if present, else last stored session role. Never invent Investor.
     const roleForPortal = activeRole || session?.active_role || null;
     const portal = detectInitiatingPortal(req);
 
