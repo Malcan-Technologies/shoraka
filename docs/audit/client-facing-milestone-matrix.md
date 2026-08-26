@@ -1,5 +1,7 @@
 # Client-facing milestone matrix
 
+> **Superseded for client/Notion copy (2026-08-26).** Use [`final-client-facing-log-notification-matrix.md`](./final-client-facing-log-notification-matrix.md).
+
 Verified: **2026-08-26**. This table is for product/client confirmation of **what users should see**. It is not an audit-implementation spec.
 
 Only **reachable** business milestones (UI, job, or webhook in the live product). Internal forensic events are omitted.

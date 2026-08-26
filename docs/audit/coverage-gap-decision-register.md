@@ -1,5 +1,7 @@
 # Coverage gap / decision register
 
+> **Superseded for coverage decisions (2026-08-26).** Unresolved items now live in [`final-gap-decision-register.md`](./final-gap-decision-register.md). Do not reopen this review from this file.
+
 Verified: **2026-08-26** from source. Only items that affect **current reachable or system** flows, plus honest false-positive notes.
 
 Classification: `AUDIT_DEFECT` | `NOTIFICATION_GAP` | `ACTIVITY_GAP` | `COPY_ISSUE` | `PROVIDER_LIMITATION` | `PRODUCT_DECISION` | `LEGAL_DECISION` | `SAFE_TO_DEFER`

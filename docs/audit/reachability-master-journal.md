@@ -1,5 +1,7 @@
 # CashSouk reachability master journal
 
+> **Superseded for coverage decisions (2026-08-26).** Use [`final-master-audit-notification-journal.md`](./final-master-audit-notification-journal.md), [`final-client-facing-log-notification-matrix.md`](./final-client-facing-log-notification-matrix.md), [`final-gap-decision-register.md`](./final-gap-decision-register.md), and [`final-evidence-checklist.md`](./final-evidence-checklist.md). Do not reopen this review from this file.
+
 Verified: **2026-08-26** against current source. **Source wins.** Docs and enums are not proof of liveness.
 
 This journal answers: *what can actually happen today, what evidence we keep, what Admin/Issuer/Investor see, and who is notified.*
