@@ -112,7 +112,7 @@ Confirmed via exhaustive `sendTyped`/`sendTypedPlatformOnly` call-site search ac
 `INVOICE_SIGNING_DEADLINE_EXTENDED` → `invoice_signing_deadline_extended`;
 `CONTRACT_FACILITY_DISABLED` → `facility_disabled`;
 `PAYMENT_REJECTED` → `note_payment_rejected`;
-`WITHDRAWAL_COMPLETED` → `withdrawal_completed` (issuer financing disbursement only);
+`WITHDRAWAL_COMPLETED` → `withdrawal_completed` (issuer financing disbursement only) + `note_active_investor` (confirmed investors, 2026-08-26; no `ACTIVATE` / `note_active_issuer`);
 `NAME_CHECK_REJECTED` → `deposit_name_check_rejected`;
 `REFUND_INITIATED` → `deposit_refund_initiated`;
 `REFUNDED` → `deposit_refunded`.

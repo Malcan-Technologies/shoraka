@@ -151,6 +151,14 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
             : "The note is now active and servicing has started.",
         };
       case "WITHDRAWAL_COMPLETED":
+        if (metadata?.portalType === "investor") {
+          return {
+            title: "Your Investment Is Active",
+            description: noteLabel
+              ? `${this.capitalize(noteLabel)} is now active and servicing has started.`
+              : "The note is now active and servicing has started.",
+          };
+        }
         return {
           title: "Your Disbursement Is Complete",
           description: noteLabel
@@ -379,13 +387,18 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
     const searchTerm = search.toLowerCase();
 
     return eventTypes.filter((eventType) => {
-      const metadata =
+      const extra =
         eventType === "WITHDRAWAL_COMPLETED" ? { withdrawalType: WithdrawalType.ISSUER_DISBURSEMENT } : undefined;
-      const presentation = this.buildPresentation(eventType, metadata);
+      const presentations = [
+        this.buildPresentation(eventType, extra),
+        this.buildPresentation(eventType, { ...extra, portalType: "issuer" }),
+        this.buildPresentation(eventType, { ...extra, portalType: "investor" }),
+      ];
 
-      return (
-        presentation.title.toLowerCase().includes(searchTerm) ||
-        presentation.description.toLowerCase().includes(searchTerm)
+      return presentations.some(
+        (presentation) =>
+          presentation.title.toLowerCase().includes(searchTerm) ||
+          presentation.description.toLowerCase().includes(searchTerm)
       );
     });
   }

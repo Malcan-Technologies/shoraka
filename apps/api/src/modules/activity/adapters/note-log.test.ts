@@ -157,12 +157,49 @@ describe("NoteLogAdapter", () => {
     expect(records).toHaveLength(1);
     expect(records[0].id).toBe("withdrawal_1");
 
-    const transformed = adapter.transform(records[0] as any);
+    const transformed = adapter.transform(records[0] as any, { portalType: "issuer" });
     expect(transformed.title).toBe("Your Disbursement Is Complete");
     expect(transformed.description).toBe("Disbursement for note NOTE-001 has been completed.");
     expect(transformed.references).toEqual({
       noteId: "note_1",
       noteReference: "NOTE-001",
+    });
+  });
+
+  it("renders issuer-disbursement completion as investment-active copy for investors", async () => {
+    prisma.noteEvent.findMany.mockResolvedValue([
+      createRecord({
+        id: "withdrawal_1",
+        event_type: "WITHDRAWAL_COMPLETED",
+        metadata: { withdrawalId: "wd_1" },
+      }),
+    ]);
+    prisma.withdrawalInstruction.findMany.mockResolvedValue([
+      { id: "wd_1", withdrawal_type: WithdrawalType.ISSUER_DISBURSEMENT },
+    ]);
+
+    const records = await adapter.query("user_1", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(records).toHaveLength(1);
+    const transformed = adapter.transform(records[0] as any, { portalType: "investor" });
+    expect(transformed.title).toBe("Your Investment Is Active");
+    expect(transformed.description).toBe("Note NOTE-001 is now active and servicing has started.");
+  });
+
+  it("keeps issuer disbursement Activity copy on the issuer portal", () => {
+    expect(
+      adapter.buildPresentation("WITHDRAWAL_COMPLETED", {
+        noteReference: "NOTE-001",
+        portalType: "issuer",
+      })
+    ).toEqual({
+      title: "Your Disbursement Is Complete",
+      description: "Disbursement for note NOTE-001 has been completed.",
     });
   });
 

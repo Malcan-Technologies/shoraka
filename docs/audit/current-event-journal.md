@@ -8841,7 +8841,7 @@ Notification
 - Sends: YES
 - Type: `note_active_issuer + note_active_investor`
 - Title: `Your Note Is Active [note_active_issuer] | Your Investment Is Active [note_active_investor]`
-- Message: `Your note "[Note Title]" is now active. Disbursement and servicing proceeds under the agreed terms. [note_active_issuer] | Funding for "[Note Title]" is complete and the note is now active. Monitor repayments from your investments view. [note_active_investor]`
+- Message: `Your note "[Note Title]" is now active. Disbursement and servicing proceeds under the agreed terms. [note_active_issuer] | Funding for "[Note Title]" is complete and the note is now active. Servicing has started. [note_active_investor]`
 - Recipient: `issuer org members; investors on the note`
 - Channel: `platform + email per registry`
 
@@ -12437,8 +12437,8 @@ Issuer Facility / Transaction Detail
 
 Investor General Activity
 - Visible: YES
-- Title: `Your Disbursement Is Complete`
-- Description: `Disbursement for [Note Ref] / [Note Title] has been completed.`
+- Title: `Your Investment Is Active`
+- Description: `[Note Ref] / [Note Title] is now active and servicing has started.`
 
 CSV / Export
 - Included: YES
@@ -12447,11 +12447,13 @@ CSV / Export
 
 Notification
 - Sends: YES
-- Type: `withdrawal_completed`
-- Title: `Your Disbursement Is Complete`
-- Message: `The disbursement for note [Note Title] has been completed.`
-- Recipient: `issuer org members`
+- Type: `withdrawal_completed` (issuer) + `note_active_investor` (confirmed investors)
+- Title: `Your Disbursement Is Complete [withdrawal_completed] | Your Investment Is Active [note_active_investor]`
+- Message: `The disbursement for note [Note Title] has been completed. [withdrawal_completed] | Funding for "[Note Title]" is complete and the note is now active. Servicing has started. [note_active_investor]`
+- Recipient: `issuer org members` (`withdrawal_completed`); `confirmed investors on the note` (`note_active_investor`)
 - Channel: `platform only`
+
+Does not write `ACTIVATE` and does not send `note_active_issuer`. Issuer Activity/notification stay disbursement-complete copy. Investor Activity/notification use investment-active copy for the same `WITHDRAWAL_COMPLETED` row.
 
 Direct Email Outside Notification Registry
 - NO
@@ -12466,7 +12468,7 @@ Direct Email Outside Notification Registry
 Classification:
 STANDARDIZATION_RECOMMENDED
 
-Admin/CSV keep Withdrawal completed. Portal and notification use Disbursement Completed, and only for ISSUER_DISBURSEMENT.
+Admin/CSV keep Withdrawal completed. Issuer portal and `withdrawal_completed` use disbursement-complete copy. Investor Activity and `note_active_investor` use investment-active copy for the same ISSUER_DISBURSEMENT completion. Residual/investor/admin withdrawals stay silent on both portals.
 
 ### RECOMMENDED CANONICAL PRESENTATION
 

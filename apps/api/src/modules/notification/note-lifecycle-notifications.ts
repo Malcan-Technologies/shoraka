@@ -207,6 +207,38 @@ export async function notifyNoteFundingFailed(args: {
   );
 }
 
+/** Confirmed investors only — does not notify the issuer. */
+export async function notifyNoteActiveInvestors(args: {
+  notificationService: NotificationService;
+  noteId: string;
+  noteTitle: string;
+}): Promise<void> {
+  const payload: BasicNotePayload = { noteId: args.noteId, noteTitle: args.noteTitle };
+  try {
+    const results = await sendToInvestorsOnNote(
+      args.notificationService,
+      args.noteId,
+      [NoteInvestmentStatus.CONFIRMED],
+      NotificationTypeIds.NOTE_ACTIVE_INVESTOR,
+      payload,
+      `note:lifecycle:${args.noteId}:active:investor`
+    );
+    await args.notificationService.logTypedSystemBatch(
+      NotificationTypeIds.NOTE_ACTIVE_INVESTOR,
+      payload,
+      results,
+      {
+        idempotencyKey: systemNotificationLogKey(
+          NotificationTypeIds.NOTE_ACTIVE_INVESTOR,
+          `note:lifecycle:${args.noteId}:active:investor`
+        ),
+      }
+    );
+  } catch (err) {
+    logLifecycleError("active_investor", args.noteId, err);
+  }
+}
+
 export async function notifyNoteActivated(args: {
   notificationService: NotificationService;
   noteId: string;
@@ -236,29 +268,11 @@ export async function notifyNoteActivated(args: {
   } catch (err) {
     logLifecycleError("active_issuer", args.noteId, err);
   }
-  try {
-    const results = await sendToInvestorsOnNote(
-      args.notificationService,
-      args.noteId,
-      [NoteInvestmentStatus.CONFIRMED],
-      NotificationTypeIds.NOTE_ACTIVE_INVESTOR,
-      payload,
-      `note:lifecycle:${args.noteId}:active:investor`
-    );
-    await args.notificationService.logTypedSystemBatch(
-      NotificationTypeIds.NOTE_ACTIVE_INVESTOR,
-      payload,
-      results,
-      {
-        idempotencyKey: systemNotificationLogKey(
-          NotificationTypeIds.NOTE_ACTIVE_INVESTOR,
-          `note:lifecycle:${args.noteId}:active:investor`
-        ),
-      }
-    );
-  } catch (err) {
-    logLifecycleError("active_investor", args.noteId, err);
-  }
+  await notifyNoteActiveInvestors({
+    notificationService: args.notificationService,
+    noteId: args.noteId,
+    noteTitle: args.noteTitle,
+  });
 }
 
 /** Full payoff — issuer organisation only (investors use settlement posted). */

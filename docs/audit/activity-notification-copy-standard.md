@@ -209,12 +209,13 @@ normal live UI action.
 | Repayment approved / rejected | **Repayment approved / rejected** | — | — | Repayment Rejected (issuer, on reject) |
 | Settlement posted | Settlement posted | — | Settlement Posted | Settlement Posted |
 | Default | **Note Defaulted** | Your Note Is in Default | Your Investment Is in Default | Your Note Is in Default / Your Investment Is in Default |
-| Disbursement to issuer completed (`WITHDRAWAL_COMPLETED`) | **Withdrawal Completed** | **Your Disbursement Is Complete** (ISSUER_DISBURSEMENT only) | Your Disbursement Is Complete | Your Disbursement Is Complete *(ISSUER_DISBURSEMENT only)* |
+| Disbursement to issuer completed (`WITHDRAWAL_COMPLETED`) | **Withdrawal Completed** | **Your Disbursement Is Complete** (ISSUER_DISBURSEMENT only) | **Your Investment Is Active** (ISSUER_DISBURSEMENT only) | Issuer: Your Disbursement Is Complete *(ISSUER_DISBURSEMENT only)* · Investor: Your Investment Is Active (`note_active_investor`, same moment) |
 
-**DO NOT CONFUSE WITH:** `ACTIVATE` (note servicing begins — the whole note goes live) and
-`WITHDRAWAL_COMPLETED` (an issuer disbursement payout completes) are different business moments
-that happened to share identical "Note Active" copy — disbursement completing does not mean the
-note itself just activated (it may have activated earlier). Use "Payment"/"Repayment"
+**DO NOT CONFUSE WITH:** `ACTIVATE` (manual/fallback servicing start; writes `ACTIVATE`) and
+`WITHDRAWAL_COMPLETED` (issuer disbursement payout completes; this is the live path that also
+sets the note ACTIVE). They remain different audit events. Issuer copy stays disbursement-complete;
+investor copy for the same `WITHDRAWAL_COMPLETED` row is investment-active, matching `ACTIVATE`
+investor wording, without duplicating an `ACTIVATE` event. Use "Payment"/"Repayment"
 consistently as **Repayment** (the noun issuers and investors actually see in descriptions) rather
 than the more generic "Payment" that leaked into several admin-only fallback labels.
 

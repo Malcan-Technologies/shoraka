@@ -538,7 +538,7 @@ export const NOTIFICATION_TEMPLATES: {
   [NotificationTypeIds.NOTE_ACTIVE_INVESTOR]: {
     title: "Your Investment Is Active",
     message: (data) =>
-      `Funding for "${data.noteTitle}" is complete and the note is now active. Monitor repayments from your investments view.`,
+      `Funding for "${data.noteTitle}" is complete and the note is now active. Servicing has started.`,
     linkPath: (data) => `/investments/${data.noteId}`,
     portal: "investor",
   },

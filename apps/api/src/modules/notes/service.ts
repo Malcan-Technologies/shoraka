@@ -131,6 +131,7 @@ import {
   notifyNotePublished,
   notifyNoteSettlementPosted,
   notifyIssuerDisbursementCompleted,
+  notifyNoteActiveInvestors,
   isIssuerFinancingDisbursement,
   resolveNoteNotificationTitle,
 } from "../notification/note-lifecycle-notifications";
@@ -6818,6 +6819,7 @@ export class NoteService {
 
     const completedAt = new Date();
     let noteReleasedFromLegacyResidual = false;
+    let activatedViaIssuerDisbursement = false;
     const noteForCapacity = existing.note_id
       ? await prisma.note.findUnique({
           where: { id: existing.note_id },
@@ -6919,6 +6921,7 @@ export class NoteService {
               ...noteActivationUpdateData(activationFields),
             },
           });
+          activatedViaIssuerDisbursement = true;
           if (activationFields.updateMaturity && activationFields.maturityDate) {
             await syncPaymentScheduleDueDate(tx, existing.note_id, activationFields.maturityDate);
           }
@@ -7001,6 +7004,14 @@ export class NoteService {
           noteTitle: resolveNoteNotificationTitle(noteForCapacity),
           issuerOrganizationId: noteForCapacity.issuer_organization_id,
           withdrawalId: id,
+        });
+      }
+
+      if (activatedViaIssuerDisbursement && noteForCapacity) {
+        await notifyNoteActiveInvestors({
+          notificationService: this.notificationService,
+          noteId: withdrawal.note_id,
+          noteTitle: resolveNoteNotificationTitle(noteForCapacity),
         });
       }
     }

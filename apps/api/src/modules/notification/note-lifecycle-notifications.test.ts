@@ -24,6 +24,8 @@ import {
   notifyNotePaymentRejected,
   notifyIssuerDisbursementCompleted,
   isIssuerFinancingDisbursement,
+  notifyNoteActivated,
+  notifyNoteActiveInvestors,
   notifyNotePublished,
   notifyNoteSettlementPosted,
   resolveNoteNotificationTitle,
@@ -341,5 +343,108 @@ describe("notifyIssuerDisbursementCompleted", () => {
       "withdrawal:lifecycle:wd-9:issuer_disbursement_completed:user:WOWN"
     );
     expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
+    expect(sendTyped.mock.calls.every((c) => c[1] !== NotificationTypeIds.NOTE_ACTIVE_ISSUER)).toBe(
+      true
+    );
+    expect(sendTyped.mock.calls.every((c) => c[1] !== NotificationTypeIds.NOTE_ACTIVE_INVESTOR)).toBe(
+      true
+    );
+  });
+});
+
+describe("notifyNoteActiveInvestors", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.noteInvestment.findMany as jest.Mock).mockResolvedValue([
+      { investor_organization_id: "inv-org-1" },
+    ]);
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({
+      owner_user_id: "INVOWN",
+    });
+    (prisma.organizationMember.findMany as jest.Mock).mockResolvedValue([{ user_id: "IV1" }]);
+  });
+
+  it("notifies confirmed investors with note_active_investor only", async () => {
+    const notificationService = {
+      sendTyped,
+      logTypedSystemBatch,
+    } as unknown as NotificationService;
+
+    await notifyNoteActiveInvestors({
+      notificationService,
+      noteId: "note-1",
+      noteTitle: "Note One",
+    });
+
+    expect(prisma.noteInvestment.findMany).toHaveBeenCalledWith({
+      where: { note_id: "note-1", status: { in: ["CONFIRMED"] } },
+      select: { investor_organization_id: true },
+      distinct: ["investor_organization_id"],
+    });
+    expect(sendTyped).toHaveBeenCalledTimes(2);
+    expect(sendTyped.mock.calls.every((c) => c[1] === NotificationTypeIds.NOTE_ACTIVE_INVESTOR)).toBe(
+      true
+    );
+    expect(sendTyped).toHaveBeenCalledWith(
+      "INVOWN",
+      NotificationTypeIds.NOTE_ACTIVE_INVESTOR,
+      { noteId: "note-1", noteTitle: "Note One" },
+      "note:lifecycle:note-1:active:investor:investor-org:inv-org-1:user:INVOWN"
+    );
+    expect(sendTyped.mock.calls.every((c) => c[1] !== NotificationTypeIds.NOTE_ACTIVE_ISSUER)).toBe(
+      true
+    );
+    expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("notifyNoteActivated", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({ owner_user_id: "WOWN" });
+    (prisma.noteInvestment.findMany as jest.Mock).mockResolvedValue([
+      { investor_organization_id: "inv-org-1" },
+    ]);
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({
+      owner_user_id: "INVOWN",
+    });
+    (prisma.organizationMember.findMany as jest.Mock).mockImplementation(
+      async (args: {
+        where: { issuer_organization_id?: string; investor_organization_id?: string };
+      }) => {
+        if (args.where.issuer_organization_id) {
+          return [{ user_id: "UM1" }];
+        }
+        return [{ user_id: "IV1" }];
+      }
+    );
+  });
+
+  it("sends note_active_issuer to the issuer org and note_active_investor to confirmed investors", async () => {
+    const notificationService = {
+      sendTyped,
+      logTypedSystemBatch,
+    } as unknown as NotificationService;
+
+    await notifyNoteActivated({
+      notificationService,
+      noteId: "note-1",
+      issuerOrganizationId: "iss-1",
+      noteTitle: "Note One",
+    });
+
+    const issuerCalls = sendTyped.mock.calls.filter(
+      (c) => c[1] === NotificationTypeIds.NOTE_ACTIVE_ISSUER
+    );
+    const investorCalls = sendTyped.mock.calls.filter(
+      (c) => c[1] === NotificationTypeIds.NOTE_ACTIVE_INVESTOR
+    );
+    expect(issuerCalls.length).toBe(2);
+    expect(investorCalls.length).toBe(2);
+    expect(issuerCalls[0]?.[3]).toBe("note:lifecycle:note-1:active:issuer:user:WOWN");
+    expect(investorCalls[0]?.[3]).toBe(
+      "note:lifecycle:note-1:active:investor:investor-org:inv-org-1:user:INVOWN"
+    );
+    expect(logTypedSystemBatch).toHaveBeenCalledTimes(2);
   });
 });

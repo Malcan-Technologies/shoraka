@@ -103,7 +103,7 @@ copy-only in spirit but touches a visibility-coupled list, or requires populatin
 | `CLOSE_FUNDING` | Funding closed | Funding Closed | not shown | Funding closed successfully | INTENTIONALLY_DIFFERENT (notification adds detail) | NO_ACTION |
 | `FAIL_FUNDING` | ~~Funding failed~~ → **Funding unsuccessful** | Funding Unsuccessful | Funding Unsuccessful | Note funding did not complete / Commitment released | INCONSISTENT | **IMPLEMENTED** |
 | `ACTIVATE` | ~~Activate~~ (dead `NOTE_ACTIVATED` key never matched) → **Note activated** | Note Active | Note Active | Note is active / Investment is active | RAW_EVENT_NAME | **IMPLEMENTED** |
-| `WITHDRAWAL_COMPLETED` (issuer disbursement payout) | ~~Withdrawal Completed~~ (raw fallback) → **Withdrawal completed** | ~~Note Active~~ (shared case with `ACTIVATE`) → **Disbursement Completed** | — | — *(copy-review)* · **CURRENT (2026-08-25):** `withdrawal_completed` — **ISSUER_DISBURSEMENT only**; issuer org; platform only | MISLEADING — disbursement completing was mislabeled as note activation | **IMPLEMENTED** (both files; `note-log.ts`'s `getEventTypes()`/visibility arrays are separate from the presentation switch, so this was a pure text split, verified safe) |
+| `WITHDRAWAL_COMPLETED` (issuer disbursement payout) | ~~Withdrawal Completed~~ (raw fallback) → **Withdrawal completed** | ~~Note Active~~ (shared case with `ACTIVATE`) → **Your Disbursement Is Complete** | **CURRENT (2026-08-26):** Investor Activity `Your Investment Is Active` / `{note} is now active and servicing has started.` | **CURRENT (2026-08-26):** issuer `withdrawal_completed`; investor `note_active_investor` (confirmed investors, platform only). No `ACTIVATE` / `note_active_issuer` | ISSUER copy is disbursement-complete; INVESTOR copy is investment-active for the same live activation moment | **IMPLEMENTED** (2026-08-26 audience split; still one `WITHDRAWAL_COMPLETED` event) |
 | `ISSUER_PAYMENT_SUBMITTED` | ~~Issuer Payment Submitted~~ → **Repayment submitted** | Payment Submitted (description already says "repayment") | — | — | INCONSISTENT terminology | **IMPLEMENTED** |
 | `PAYMENT_RECEIVED` | ~~Payment Received~~ (dead `PAYMENT_RECORDED` key never matched) → **Repayment received** | not shown | not shown | Repayment Received | INCONSISTENT | **IMPLEMENTED** |
 | `PAYMENT_APPROVED` / `PAYMENT_REJECTED` | raw fallback → **Repayment approved / rejected** | not shown | not shown | — *(copy-review)* · **CURRENT (2026-08-25):** `PAYMENT_REJECTED` → `note_payment_rejected` (issuer org, platform only). `PAYMENT_APPROVED` still uses investor `note_payment_received` | GENERIC_FALLBACK | **IMPLEMENTED** |
@@ -230,7 +230,7 @@ notifications. This copy-review's original Notification-column "—" / "never se
 `INVOICE_SIGNING_DEADLINE_EXTENDED` → `invoice_signing_deadline_extended`;
 `CONTRACT_FACILITY_DISABLED` → `facility_disabled`;
 `PAYMENT_REJECTED` → `note_payment_rejected`;
-`WITHDRAWAL_COMPLETED` → `withdrawal_completed` (ISSUER_DISBURSEMENT only);
+`WITHDRAWAL_COMPLETED` → `withdrawal_completed` (issuer, ISSUER_DISBURSEMENT only) + `note_active_investor` (confirmed investors, same moment, 2026-08-26);
 `NAME_CHECK_REJECTED` → `deposit_name_check_rejected`;
 `REFUND_INITIATED` → `deposit_refund_initiated`;
 `REFUNDED` → `deposit_refunded`.

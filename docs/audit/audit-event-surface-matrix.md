@@ -340,7 +340,7 @@ surface can show them. All are mirrored to `note_admin_actions`.
 | `WITHDRAWAL_TRUSTEE_EMAIL_SENT` | LIVE | Withdrawal trustee instruction email delivered/redelivered | Admin | note_events | Y | — | — | — (direct SES to trustee) | Y | Distinct from `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` and issuer platform notify |
 | `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | LIVE | Instruction submitted to the trustee | Admin | note_events | Y | — | — | `withdrawal_submitted_to_trustee` | Y | Wired 2026-08-24 |
 | `WITHDRAWAL_BENEFICIARY_UPDATED` | LIVE | Beneficiary details edited on a draft | Admin | note_events | Y | — | — | — | Y | |
-| `WITHDRAWAL_COMPLETED` | LIVE | Trustee payout completed | Admin | note_events | Y | Y *(disbursements only)* | Y *(disbursements only)* | `withdrawal_completed` *(ISSUER_DISBURSEMENT only)* | Y | Notification gated by `isIssuerFinancingDisbursement`; residual/refund/investor withdrawals stay silent |
+| `WITHDRAWAL_COMPLETED` | LIVE | Trustee payout completed | Admin | note_events | Y | Y *(disbursements only)* | Y *(disbursements only)* | `withdrawal_completed` (issuer) + `note_active_investor` (confirmed investors) *(ISSUER_DISBURSEMENT only)* | Y | Issuer disbursement copy unchanged. Investor Activity/notification use investment-active copy. No `ACTIVATE` / `note_active_issuer`. Residual/refund/investor withdrawals stay silent |
 | `SHORAKA_ORDER_SUBMITTED` | LIVE | Tawarruq commodity order submitted to the provider | System | note_events | Y | — | — | — | Y | Stored name is `SHORAKA_*`; UI says "Tawarruq" |
 | `SHORAKA_CERTIFICATE_FETCHED` | LIVE | Tawarruq trade certificate retrieved | System | note_events | Y | — | — | — | Y | `actorUserId: null` — no human actor |
 
@@ -1146,10 +1146,13 @@ allowlist differs.
 | `NOTE_DEFAULT_MARKED` | LIVE | Note marked in default — `markDefault` (~5806) | Admin | `reason` | `Note Defaulted` | Issuer: `Your Note Is in Default` / Investor: `Your Investment Is in Default` / `{note} was marked in default and requires attention.` | **YES — `note_defaulted` + `note_defaulted_investor`** |
 | ~~`ISSUER_RESIDUAL_WITHDRAWAL_CREATED`~~ | ~~**DEAD**~~ | ~~No writer. Appeared only in `admin-note-events-sorting.ts:38`~~ | — | — | — | — | **REMOVED (2026-08-25)** — the array entry was deleted; nothing looked it up (no row can ever have this `event_type`), so the sort order of every real note event is unchanged. See §9 #13 |
 
-> **`ACTIVATE` has a real behavioural gap.** Completing an issuer disbursement can auto-activate the
-> note in the database, but that path writes **only** `WITHDRAWAL_COMPLETED` — it does **not** write
-> `ACTIVATE` and does **not** fire `notifyNoteActivated`. Only the manual `activate()` call produces
-> the activation event and its notifications. Documented here, not changed.
+> **`ACTIVATE` is not written on issuer disbursement completion.** Completing an issuer disbursement
+> can set the note `ACTIVE`, but that path writes **only** `WITHDRAWAL_COMPLETED`. It does **not**
+> write `ACTIVATE` and does **not** call `notifyNoteActivated` (which would also send
+> `note_active_issuer`). Issuer users keep disbursement-complete Activity/notification. Investors
+> see investment-active Activity copy for the same row and receive `note_active_investor`. The
+> manual `activate()` API still writes `ACTIVATE` and sends both `note_active_*` types; it is not
+> reachable from current Admin UI.
 
 #### 2.6.4 Prospectus events
 
@@ -1214,7 +1217,7 @@ Do not merge these three moments:
 | `WITHDRAWAL_TRUSTEE_EMAIL_SENT` | Trustee SES email delivered — `persistWithdrawalTrusteeEmailSent` via `markWithdrawalSubmitted` (auto-send, before submit tx) or `resendWithdrawalTrusteeEmail` | `withdrawalId`, `withdrawalReference` (new writes; from already-loaded `display_reference`), `messageId`, optional `resend`. Historical rows may omit `withdrawalReference`. | `Withdrawal Trustee Email Sent` / `Withdrawal Trustee Email Redelivered` | Hidden (not queried) | NO registry. Direct SES to trustee. |
 | `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | Instruction marked submitted — `markWithdrawalSubmitted` | `withdrawalId`, `withdrawalReference` | `Withdrawal Submitted to Trustee` | Hidden (not queried) | **YES — `withdrawal_submitted_to_trustee`** |
 | `WITHDRAWAL_BENEFICIARY_UPDATED` | Beneficiary edited while draft — `updateWithdrawalBeneficiary` | `withdrawalId` | `Withdrawal beneficiary updated` | Hidden (not queried) | NO |
-| `WITHDRAWAL_COMPLETED` | Trustee payout completed — `markWithdrawalCompleted` | `withdrawalId`, `amount` | `Withdrawal Completed` | **Shown when `withdrawal_type === ISSUER_DISBURSEMENT`, in both portals** (the check precedes the portal branch) — Copy: `Your Disbursement Is Complete` / `Disbursement for {note} has been completed.` Any other withdrawal type is dropped. | **YES — `withdrawal_completed`**, same `ISSUER_DISBURSEMENT` guard |
+| `WITHDRAWAL_COMPLETED` | Trustee payout completed — `markWithdrawalCompleted` | `withdrawalId`, `amount` | `Withdrawal Completed` | **Shown when `withdrawal_type === ISSUER_DISBURSEMENT`, in both portals** (the check precedes the portal branch). Issuer: `Your Disbursement Is Complete` / `Disbursement for {note} has been completed.` Investor: `Your Investment Is Active` / `{note} is now active and servicing has started.` Any other withdrawal type is dropped. | **YES — `withdrawal_completed` (issuer)** + **`note_active_investor` (confirmed investors)** when the ISSUER_DISBURSEMENT path also activates the note. No `note_active_issuer`. Residual/investor/admin-adjustment stay silent |
 
 **`WITHDRAWAL_SUBMITTED_TO_TRUSTEE` notification detail:**
 - **TYPE ID:** `withdrawal_submitted_to_trustee`
@@ -1410,7 +1413,7 @@ table.
 | `note_funding_failed_issuer` | LIVE | `Note funding did not complete` | `Funding for "{noteTitle}" did not reach the minimum threshold before the listing closed.` | Issuer org, all members | platform only | `failFunding` (~3630) — event `FAIL_FUNDING` |
 | `note_funding_failed_investor` | LIVE | `Commitment released` | `The listing for "{noteTitle}" did not complete funding. Your reserved commitment has been released back to your available balance.` | Investor orgs with commitments, all members | platform only | `failFunding` (~3630) — event `FAIL_FUNDING` |
 | `note_active_issuer` | LIVE | `Your Note Is Active` | `Your note "{noteTitle}" is now active. Disbursement and servicing proceeds under the agreed terms.` | Issuer org, all members | platform only | `activate` (~3698) — event `ACTIVATE` |
-| `note_active_investor` | LIVE | `Your Investment Is Active` | `Funding for "{noteTitle}" is complete and the note is now active. Monitor repayments from your investments view.` | Confirmed investors on the note | platform only | `activate` (~3698) — event `ACTIVATE` |
+| `note_active_investor` | LIVE | `Your Investment Is Active` | `Funding for "{noteTitle}" is complete and the note is now active. Servicing has started.` | Confirmed investors on the note | platform only | `activate` (`notifyNoteActivated`) and issuer-disbursement completion (`notifyNoteActiveInvestors` after `WITHDRAWAL_COMPLETED`). Same idempotency prefix `note:lifecycle:{noteId}:active:investor`. |
 | `note_repaid_issuer` | LIVE | `Note repaid` | `"{noteTitle}" has been fully repaid and settled. Any residual handling will follow operational workflow if applicable.` | Issuer org, all members | platform only | `postSettlement` (~5130); trustee completion (~5777) |
 | `note_payment_received` | LIVE | `Repayment Received` | `A repayment was recorded for "{noteTitle}".` | Confirmed investors on the note | platform only | `recordPayment` (~4587), `approvePayment` (~4637) |
 | `note_settlement_posted` | LIVE | `Settlement Posted` | `Settlement has been posted for "{noteTitle}".` | Investor orgs in the settlement | platform only | `postSettlement` (~5122) — event `SETTLEMENT_POSTED` |
@@ -1420,7 +1423,7 @@ table.
 | `note_defaulted_investor` | LIVE | `Your Investment Is in Default` | `"{noteTitle}" has been marked as default. This may affect recovery timelines; check your investments view for updates.` | Confirmed investors | platform only | `markDefault` (~5807) |
 | `withdrawal_submitted_to_trustee` | LIVE | `Withdrawal Submitted to Trustee` | `Withdrawal instruction {withdrawalReference} has been submitted to the trustee.` | Issuer org, all members | platform only | `markWithdrawalSubmitted` (~6274) — event `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` |
 | `note_payment_rejected` | LIVE | `Repayment Rejected` | `Your repayment for note {noteTitle} was rejected. Please review the repayment details.` | Issuer org, all members | platform only | `notes/service.ts:rejectPayment` — event `PAYMENT_REJECTED`. Idempotency includes `paymentId`. |
-| `withdrawal_completed` | LIVE | `Your Disbursement Is Complete` | `The disbursement for note {noteTitle} has been completed.` | Issuer org, all members | platform only | `notes/service.ts:markWithdrawalCompleted` — event `WITHDRAWAL_COMPLETED`, **only when `isIssuerFinancingDisbursement`**. Residual return / investor / admin-adjustment withdrawals stay silent. Idempotency includes `withdrawalId`. |
+| `withdrawal_completed` | LIVE | `Your Disbursement Is Complete` | `The disbursement for note {noteTitle} has been completed.` | Issuer org, all members | platform only | `notes/service.ts:markWithdrawalCompleted` — event `WITHDRAWAL_COMPLETED`, **only when `isIssuerFinancingDisbursement`**. Residual return / investor / admin-adjustment withdrawals stay silent. Idempotency includes `withdrawalId`. Investors are notified separately via `note_active_investor`, not this type. |
 | `deposit_name_check_rejected` | LIVE | `Deposit Verification Failed` | `Your deposit could not be verified and will be returned.` | Members of the deposit's investor organization | platform only | `payment/admin-service.ts:rejectNameCheck` — event `NAME_CHECK_REJECTED`. `GatewayPayment` has no depositor user id; ownership is `investor_organization_id`. Gated to `INVESTOR_DEPOSIT`. Idempotency per payment + type + user. |
 | `deposit_refund_initiated` | LIVE | `Refund Started` | `A refund for your deposit of RM{amount} has been initiated.` | Members of the deposit's investor organization | platform only | `refund-service.ts:initiateGatewayPaymentRefund` — event `REFUND_INITIATED`. Gated to `INVESTOR_DEPOSIT`. |
 | `deposit_refunded` | LIVE | `Refund Completed` | `Your refund of RM{amount} has been completed.` | Members of the deposit's investor organization | platform only | `refund-service.ts:completeGatewayPaymentRefund` — event `REFUNDED`, after the wallet-reversal transaction commits. Gated to `INVESTOR_DEPOSIT`. |
@@ -1680,9 +1683,9 @@ ACTIVATE
   Notification: note_active_issuer + note_active_investor
   Recipient: issuer org (all members) + confirmed investors
   Channel: platform only
-  Note: only the MANUAL activate path fires `note_active_*`. Auto-activation via
-        disbursement completion writes WITHDRAWAL_COMPLETED and now fires
-        `withdrawal_completed` (disbursement copy), not `note_active_*`.
+  Note: the MANUAL activate() API writes ACTIVATE and fires both note_active_*.
+        Issuer disbursement completion writes WITHDRAWAL_COMPLETED (not ACTIVATE),
+        keeps issuer withdrawal_completed, and sends note_active_investor only.
 
 PAYMENT_RECEIVED / PAYMENT_APPROVED
   Audit: YES
@@ -1729,10 +1732,12 @@ PAYMENT_REJECTED
 
 WITHDRAWAL_COMPLETED
   Audit: YES
-  Notification: withdrawal_completed  ← ISSUER_DISBURSEMENT only
-  Recipient: issuer org owner + ALL members
+  Notification: withdrawal_completed (issuer) + note_active_investor (confirmed investors)
+                ← ISSUER_DISBURSEMENT only; note_active_investor only when that path
+                also activates the note. Does not write ACTIVATE or send note_active_issuer.
+  Recipient: issuer org owner + ALL members; confirmed investors on the note
   Channel: platform only
-  Idempotency: includes withdrawalId
+  Idempotency: withdrawalId (issuer); note:lifecycle:{noteId}:active:investor (investors)
   Guard: isIssuerFinancingDisbursement; residual/investor/admin-adjustment stay silent
 
 NAME_CHECK_REJECTED
