@@ -160,4 +160,4 @@ Every create, update, or delete of a product writes one row to `product_logs`. T
 }
 ```
 
-Product name is not stored in metadata; the UI and exports derive it from `metadata.workflow[0].config.name` (or `config.type.name`). The first step is always the financing type and always has a name.
+Product name is not stored as a top-level metadata field. The Admin Products table, JSON export, and CSV **Product Name** column all derive it from `metadata.workflow[0].config.name` (or `config.type.name`). `PRODUCT_INACTIVATED` / `PRODUCT_REACTIVATED` do not snapshot workflow, so those rows have no name.

@@ -3,6 +3,7 @@ import { Product, Prisma } from "@prisma/client";
 import type { ProductEventType, GetProductLogsQuery, DateRangeValue } from "./schemas";
 import { normalizeAndValidateProductCode } from "../../lib/display-reference";
 import { createProductLogRow } from "./audit";
+import { buildProductLogSearchOr, findProductLogIdsMatchingName } from "./product-log-search";
 
 export interface ListProductsParams {
   page: number;
@@ -845,6 +846,8 @@ export interface CreateProductLogData {
  * Product log repository: read/write product audit logs only.
  * Product CRUD and image logic have been removed.
  */
+export class ProductLogRepository {
+  async create(data: CreateProductLogData) {
     return createProductLogRow({
       userId: data.userId,
       productId: data.productId ?? null,
@@ -860,37 +863,7 @@ export interface CreateProductLogData {
     const { page, pageSize, search, eventType, dateRange } = params;
     const skip = (page - 1) * pageSize;
 
-    const where = {} as Record<string, unknown>;
-
-    if (eventType) {
-      where.event_type = eventType;
-    }
-
-    if (dateRange !== "all") {
-      const now = new Date();
-      let startDate: Date;
-      switch (dateRange) {
-        case "24h":
-          startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case "7d":
-          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30d":
-          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-      }
-      where.created_at = { gte: startDate };
-    }
-
-    if (search) {
-      where.OR = [
-        { user: { email: { contains: search, mode: "insensitive" } } },
-        { user: { first_name: { contains: search, mode: "insensitive" } } },
-        { user: { last_name: { contains: search, mode: "insensitive" } } },
-        { product_id: { contains: search, mode: "insensitive" } },
-      ];
-    }
+    const where = await this.buildSearchWhere({ search, eventType, dateRange });
 
     const [logs, total] = await Promise.all([
       prisma.productLog.findMany({
@@ -922,7 +895,33 @@ export interface CreateProductLogData {
     eventTypes?: ProductEventType[];
     dateRange: DateRangeValue;
   }) {
-    const where = {} as Record<string, unknown>;
+    const where = await this.buildSearchWhere(params);
+
+    return prisma.productLog.findMany({
+      where,
+      orderBy: { created_at: "desc" },
+      take: 10000, // Limit export to prevent memory issues
+      include: {
+        user: {
+          select: {
+            user_id: true,
+            first_name: true,
+            last_name: true,
+            email: true,
+            roles: true,
+          },
+        },
+      },
+    });
+  }
+
+  private async buildSearchWhere(params: {
+    search?: string;
+    eventType?: ProductEventType;
+    eventTypes?: ProductEventType[];
+    dateRange: DateRangeValue;
+  }): Promise<Prisma.ProductLogWhereInput> {
+    const where: Prisma.ProductLogWhereInput = {};
 
     if (params.eventType) {
       where.event_type = params.eventType;
@@ -943,35 +942,19 @@ export interface CreateProductLogData {
         case "30d":
           startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
           break;
+        default:
+          startDate = new Date(0);
       }
       where.created_at = { gte: startDate };
     }
 
-    if (params.search) {
-      where.OR = [
-        { user: { email: { contains: params.search, mode: "insensitive" } } },
-        { user: { first_name: { contains: params.search, mode: "insensitive" } } },
-        { user: { last_name: { contains: params.search, mode: "insensitive" } } },
-        { product_id: { contains: params.search, mode: "insensitive" } },
-      ];
+    const search = params.search?.trim();
+    if (search) {
+      const nameMatchedLogIds = await findProductLogIdsMatchingName(search);
+      where.OR = buildProductLogSearchOr(search, nameMatchedLogIds);
     }
 
-    return prisma.productLog.findMany({
-      where,
-      orderBy: { created_at: "desc" },
-      take: 10000, // Limit export to prevent memory issues
-      include: {
-        user: {
-          select: {
-            user_id: true,
-            first_name: true,
-            last_name: true,
-            email: true,
-            roles: true,
-          },
-        },
-      },
-    });
+    return where;
   }
 }
 

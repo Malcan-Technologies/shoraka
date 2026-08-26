@@ -1321,7 +1321,10 @@ silent.
 (`apps/admin/src/components/audit/product-logs-panel.tsx`, permission `audit.product.view`). Its
 `PRODUCT_EVENT_TYPES` array supplies both filter values and badge labels for **all five** types;
 unknown types fall back to a plain badge. CSV export (`GET /v1/admin/product-logs/export`) uses the
-same friendly labels via `PRODUCT_EVENT_LABELS`.
+same friendly labels via `PRODUCT_EVENT_LABELS`. The CSV **Product Name** column uses the same
+workflow snapshot as the table and JSON export (`metadata.workflow[0].config.name`, then
+`config.type.name`). `PRODUCT_INACTIVATED` / `PRODUCT_REACTIVATED` have no workflow snapshot, so
+name is blank on every surface.
 
 | Event Type | Status | Trigger / writer | Business-specific evidence | Admin + CSV copy |
 |---|---|---|---|---|

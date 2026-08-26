@@ -159,7 +159,7 @@ export function ProductLogsPanel() {
       <ListToolbar
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder="Search by actor name, email, or product ID..."
+        searchPlaceholder="Search by product name, actor, email, or product ID..."
         appliedFilters={appliedFilters}
         onClearFilters={hasFilters ? handleClearFilters : undefined}
         onReload={handleReload}

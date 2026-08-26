@@ -14,6 +14,7 @@ import type {
   ExportLegalAcceptancesQuery,
   ListLegalAcceptancesQuery,
 } from "./schemas";
+import { matchingLegalDocumentTypes } from "./search-match";
 
 type AcceptanceWithRelations = {
   id: string;
@@ -169,6 +170,7 @@ function buildWhere(query: ListLegalAcceptancesQuery | ExportLegalAcceptancesQue
 
   if (query.search) {
     const search = query.search.trim();
+    const matchingTypes = matchingLegalDocumentTypes(search);
     const searchOr = [
       { id: { contains: search, mode: "insensitive" } },
       { user_email_snapshot: { contains: search, mode: "insensitive" } },
@@ -178,6 +180,14 @@ function buildWhere(query: ListLegalAcceptancesQuery | ExportLegalAcceptancesQue
       { user: { email: { contains: search, mode: "insensitive" } } },
       { user: { first_name: { contains: search, mode: "insensitive" } } },
       { user: { last_name: { contains: search, mode: "insensitive" } } },
+      {
+        version: {
+          is: {
+            legal_document: { is: { title: { contains: search, mode: "insensitive" as const } } },
+          },
+        },
+      },
+      ...(matchingTypes.length > 0 ? [{ document_type: { in: matchingTypes } }] : []),
     ];
     if (where.OR) {
       where.AND = [{ OR: where.OR }, { OR: searchOr }];

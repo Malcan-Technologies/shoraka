@@ -663,6 +663,27 @@ describe("legal acceptance audit trail", () => {
         reacceptance_required: true,
       });
     });
+
+    it("searches audit logs by visible document type label", async () => {
+      (prisma.legalDocumentAuditLog.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.legalDocumentAuditLog.count as jest.Mock).mockResolvedValue(0);
+
+      await legalDocumentAuditAdminService.list({
+        page: 1,
+        pageSize: 20,
+        search: "Terms of Use",
+      });
+
+      const where = (prisma.legalDocumentAuditLog.findMany as jest.Mock).mock.calls.at(-1)?.[0]
+        ?.where as { OR: Array<Record<string, unknown>> };
+      expect(where.OR).toEqual(
+        expect.arrayContaining([
+          { actor_name_snapshot: { contains: "Terms of Use", mode: "insensitive" } },
+          { legal_document_id: { contains: "Terms of Use", mode: "insensitive" } },
+          { document_type: { in: ["TERMS_OF_USE"] } },
+        ])
+      );
+    });
   });
 
   describe("export evidence fields", () => {
@@ -725,6 +746,39 @@ describe("legal acceptance audit trail", () => {
         organizationAccountType: "COMPANY",
         acknowledgementText: LEGAL_DOCUMENT_CHECKBOX_WORDING.TERMS_OF_USE,
       });
+    });
+
+    it("searches acceptances by organisation, document title, and document type", async () => {
+      (prisma.legalDocumentAcceptance.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.legalDocumentAcceptance.count as jest.Mock).mockResolvedValue(0);
+      (prisma.issuerOrganization.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.investorOrganization.findMany as jest.Mock).mockResolvedValue([]);
+
+      await legalDocumentAcceptanceAdminService.listAcceptances({
+        page: 1,
+        pageSize: 20,
+        sortBy: "accepted_at",
+        sortOrder: "desc",
+        search: "Terms of Use",
+      });
+
+      const where = (prisma.legalDocumentAcceptance.findMany as jest.Mock).mock.calls.at(-1)?.[0]
+        ?.where as { OR: Array<Record<string, unknown>> };
+      expect(where.OR).toEqual(
+        expect.arrayContaining([
+          { organization_name_snapshot: { contains: "Terms of Use", mode: "insensitive" } },
+          { document_type: { in: ["TERMS_OF_USE"] } },
+          {
+            version: {
+              is: {
+                legal_document: {
+                  is: { title: { contains: "Terms of Use", mode: "insensitive" } },
+                },
+              },
+            },
+          },
+        ])
+      );
     });
   });
 });

@@ -7,6 +7,7 @@ import {
   getProductLogsQuerySchema,
   exportProductLogsQuerySchema,
 } from "../schemas";
+import { productNameFromLogMetadata } from "../product-log-presentation";
 
 const router = Router();
 
@@ -91,10 +92,7 @@ router.get(
               correlation_id?: string | null;
             };
             const meta = logItem.metadata ?? {};
-            const productName =
-              (typeof meta.product_name === "string" ? meta.product_name : null) ??
-              (typeof meta.name === "string" ? meta.name : null) ??
-              "";
+            const productName = productNameFromLogMetadata(meta) ?? "";
             return {
               timestamp: logItem.created_at.toISOString(),
               event: productEventLabel(logItem.event_type),

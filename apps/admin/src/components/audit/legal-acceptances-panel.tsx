@@ -211,7 +211,7 @@ export function LegalAcceptancesPanel() {
       <ListToolbar
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder="Search by user, email, organisation, or acceptance ID..."
+        searchPlaceholder="Search by user, email, organisation, or document..."
         appliedFilters={appliedFilters}
         onClearFilters={hasActiveFilters ? clearFilters : undefined}
         onReload={handleReload}

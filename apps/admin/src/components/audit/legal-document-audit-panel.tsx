@@ -196,7 +196,7 @@ export function LegalDocumentAuditPanel() {
       <ListToolbar
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder="Search by actor, document ID, version ID, or event..."
+        searchPlaceholder="Search by actor, document type, or document ID..."
         appliedFilters={appliedFilters}
         onClearFilters={hasActiveFilters ? clearFilters : undefined}
         onReload={handleReload}

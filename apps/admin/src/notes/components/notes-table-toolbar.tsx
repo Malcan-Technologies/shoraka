@@ -39,7 +39,7 @@ export function NotesTableToolbar({
     <ListToolbar
       searchQuery={searchQuery}
       onSearchChange={onSearchChange}
-      searchPlaceholder="Search notes, reference, application, issuer, or paymaster"
+      searchPlaceholder="Search by title, reference, application, issuer, or paymaster..."
       statusFilters={statusFilters}
       onStatusFiltersChange={handleStatusFiltersChange}
       statusOptions={[
