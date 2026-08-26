@@ -11,7 +11,7 @@
   "meta": {
     "generatedFrom": "manual source inspection",
     "branch": "redo_log",
-    "verifiedOn": "2026-08-25",
+    "verifiedOn": "2026-08-26",
     "primaryDocument": "docs/audit/audit-event-surface-matrix.md",
     "statusVocabulary": [
       "LIVE",
@@ -35,8 +35,8 @@
       "NA": "no such surface exists for this domain"
     },
     "counts": {
-      "eventsDocumented": 160,
-      "live": 137,
+      "eventsDocumented": 163,
+      "live": 140,
       "notLive": 23,
       "notLiveBreakdown": {
         "unreachable": 7,
@@ -718,6 +718,31 @@
       },
       "notification": null,
       "note": "Added to SECURITY_EVENT_TYPES 2026-08-24 (was HIDDEN_NOT_QUERIED before the filter fix).",
+      "docRef": "2.2"
+    },
+    {
+      "eventType": "PLATFORM_FINANCE_SETTINGS_UPDATED",
+      "status": "LIVE",
+      "domain": "security",
+      "store": "security_logs",
+      "canonicalName": "Admin updated platform finance settings",
+      "aliases": [],
+      "doNotConfuseWith": [],
+      "actor": "Admin",
+      "target": "platform_finance_settings",
+      "writer": "apps/api/src/lib/audit/account-logs.ts:createSecurityLogRow",
+      "surfaces": {
+        "adminActivity": "SHOWN",
+        "adminDetail": "SHOWN",
+        "issuerActivity": "NA",
+        "issuerApplicationDetail": "NA",
+        "issuerFacilityDetail": "NA",
+        "investorActivity": "NA",
+        "investorDetail": "NA",
+        "csv": "INCLUDED"
+      },
+      "notification": null,
+      "note": "Added 2026-08-26. Metadata previousValues/nextValues with sensitive keys redacted. Call site notes/service.ts:updatePlatformFinanceSettings.",
       "docRef": "2.2"
     },
     {
@@ -4774,8 +4799,7 @@
       "REPAYMENT_POSTED",
       "SERVICE_FEE_CALCULATED",
       "SERVICE_FEE_APPROVED",
-      "SERVICE_FEE_POSTED",
-      "PLATFORM_FINANCE_SETTINGS_UPDATED"
+      "SERVICE_FEE_POSTED"
     ]
   }
 }

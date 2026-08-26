@@ -135,6 +135,10 @@ import {
   isIssuerFinancingDisbursement,
   resolveNoteNotificationTitle,
 } from "../notification/note-lifecycle-notifications";
+import {
+  notifyInvestorCashWithdrawalCompleted,
+  notifyInvestorCashWithdrawalSubmitted,
+} from "../notification/investor-withdrawal-notifications";
 import { notifyExcessLateChargesDue } from "../notification/excess-late-charge-notifications";
 import { notifyWithdrawalSubmittedToTrustee } from "../notification/withdrawal-notifications";
 import {
@@ -143,9 +147,15 @@ import {
 } from "./note-issuer-snapshot";
 import { noteInclude, noteRepository } from "./repository";
 import {
+  AUDIT_PORTAL,
+  AUDIT_SOURCE,
+  AUDIT_TARGET_TYPE,
   changedFieldsOf,
   createNoteAdminActionRow,
   createNoteEventRow,
+  createSecurityLogRow,
+  jsonAuditValue,
+  systemAuditContext,
 } from "../../lib/audit";
 import { resolveNoteEventTarget } from "./audit-fields";
 import {
@@ -210,6 +220,10 @@ import {
 } from "./trustee-letters/trustee-instruction-email";
 import { loadTrusteeLetterConfig } from "./trustee-letters/trustee-letter-config.loader";
 import {
+  redactSensitiveFinanceSettings,
+  snapshotPlatformFinanceSettings,
+} from "./platform-finance-settings-audit";
+import {
   buildRepaymentBorrowerEntries,
   mapDisbursementLetterData,
   mapInvestorWithdrawalLetterData,
@@ -236,6 +250,8 @@ type ActorContext = {
   ipAddress?: string;
   userAgent?: string;
   correlationId?: string;
+  /** When set (cron/sweep), forensic actor_type/source come from this context. */
+  auditContext?: import("../../lib/audit").AuditRequestContext;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -3343,11 +3359,14 @@ export class NoteService {
       updated.listing_status === NoteListingStatus.PUBLISHED
     ) {
       try {
+        const autoCloseCorrelationId = `auto-close:fully-funded:${noteId}`;
         await this.closeFunding(noteId, {
           userId: "SYS",
-          role: "ADMIN",
-          portal: "ADMIN",
-          correlationId: `auto-close:fully-funded:${noteId}`,
+          correlationId: autoCloseCorrelationId,
+          auditContext: systemAuditContext({
+            actorUserId: "SYS",
+            correlationId: autoCloseCorrelationId,
+          }),
         });
         const closed = await noteRepository.findById(noteId);
         if (closed) return mapMarketplaceNoteDetail(closed);
@@ -6275,6 +6294,9 @@ export class NoteService {
     input: z.infer<typeof updatePlatformFinanceSettingsSchema>,
     actor: ActorContext
   ) {
+    const previousRow = await prisma.platformFinanceSetting.findUnique({
+      where: { key: "DEFAULT" },
+    });
     await prisma.platformFinanceSetting.upsert({
       where: { key: "DEFAULT" },
       create: {
@@ -6400,6 +6422,27 @@ export class NoteService {
             : undefined,
         updated_by_user_id: actor.userId,
       },
+    });
+    const nextRow = await prisma.platformFinanceSetting.findUniqueOrThrow({
+      where: { key: "DEFAULT" },
+    });
+    await createSecurityLogRow({
+      userId: actor.userId,
+      eventType: "PLATFORM_FINANCE_SETTINGS_UPDATED",
+      portal: actor.portal ?? AUDIT_PORTAL.ADMIN,
+      ipAddress: actor.ipAddress,
+      userAgent: actor.userAgent,
+      correlationId: actor.correlationId,
+      source: AUDIT_SOURCE.API,
+      targetType: AUDIT_TARGET_TYPE.PLATFORM_FINANCE_SETTINGS,
+      targetId: "DEFAULT",
+      metadata: jsonAuditValue({
+        settingsKey: "DEFAULT",
+        previousValues: redactSensitiveFinanceSettings(
+          snapshotPlatformFinanceSettings(previousRow)
+        ),
+        nextValues: redactSensitiveFinanceSettings(snapshotPlatformFinanceSettings(nextRow)),
+      }) as object,
     });
     return this.getPlatformFinanceSettings();
   }
@@ -6582,6 +6625,14 @@ export class NoteService {
       });
 
       return created;
+    });
+
+    await notifyInvestorCashWithdrawalSubmitted({
+      notificationService: this.notificationService,
+      withdrawalId: withdrawal.id,
+      requestedByUserId: actor.userId,
+      amount: input.amount,
+      withdrawalType: withdrawal.withdrawal_type,
     });
 
     return this.mapWithdrawal(withdrawal);
@@ -7014,6 +7065,16 @@ export class NoteService {
           noteTitle: resolveNoteNotificationTitle(noteForCapacity),
         });
       }
+    }
+
+    if (withdrawal.withdrawal_type === WithdrawalType.INVESTOR_WITHDRAWAL) {
+      await notifyInvestorCashWithdrawalCompleted({
+        notificationService: this.notificationService,
+        withdrawalId: id,
+        requestedByUserId: existing.requested_by_user_id,
+        amount: toNumber(withdrawal.amount),
+        withdrawalType: withdrawal.withdrawal_type,
+      });
     }
     return this.mapWithdrawal(withdrawal);
   }
@@ -7472,6 +7533,7 @@ export class NoteService {
       ipAddress: actor.ipAddress,
       userAgent: actor.userAgent,
       correlationId: actor.correlationId,
+      context: actor.auditContext,
       metadata,
       targetType: target.targetType,
       targetId: target.targetId ?? noteId,
@@ -7496,6 +7558,7 @@ export class NoteService {
       userAgent: actor.userAgent,
       correlationId: actor.correlationId,
       portal: actor.portal,
+      context: actor.auditContext,
       // Historical copy of the changed-field list alongside the first-class before/after columns.
       metadata: {
         changedFields: changedFieldsOf(

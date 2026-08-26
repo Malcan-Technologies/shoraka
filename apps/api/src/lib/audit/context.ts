@@ -82,6 +82,7 @@ export const AUDIT_TARGET_TYPE = {
   WITHDRAWAL: "WITHDRAWAL",
   SHORAKA_ORDER: "SHORAKA_ORDER",
   GATEWAY_PAYMENT: "GATEWAY_PAYMENT",
+  PLATFORM_FINANCE_SETTINGS: "PLATFORM_FINANCE_SETTINGS",
 } as const;
 
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPE)[keyof typeof AUDIT_TARGET_TYPE];
@@ -210,7 +211,7 @@ export function webhookAuditContext(options?: {
   };
 }
 
-/** Cron / sweep context. */
+/** Cron / sweep context. `actorUserId` (e.g. `SYS`) is identity only — never an Admin actor_type. */
 export function systemAuditContext(options?: {
   portal?: AuditPortal | null;
   actorUserId?: string | null;
@@ -218,7 +219,7 @@ export function systemAuditContext(options?: {
   source?: Extract<AuditSource, "SYSTEM_JOB" | "INTERNAL">;
 }): AuditRequestContext {
   return {
-    actorType: options?.actorUserId ? AUDIT_ACTOR_TYPE.ADMIN : AUDIT_ACTOR_TYPE.SYSTEM,
+    actorType: AUDIT_ACTOR_TYPE.SYSTEM,
     actorUserId: options?.actorUserId ?? null,
     source: options?.source ?? AUDIT_SOURCE.SYSTEM_JOB,
     portal: options?.portal ?? null,

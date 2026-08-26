@@ -145,6 +145,11 @@ function resolveSecurityLogTarget(params: CreateSecurityLogParams): {
     return { targetType: AUDIT_TARGET_TYPE.ADMIN_INVITATION, targetId: invitationId };
   }
 
+  const settingsKey = metaString(params.metadata, "settingsKey");
+  if (settingsKey) {
+    return { targetType: AUDIT_TARGET_TYPE.PLATFORM_FINANCE_SETTINGS, targetId: settingsKey };
+  }
+
   return {
     targetType: AUDIT_TARGET_TYPE.USER,
     targetId: metaString(params.metadata, "targetUserId") ?? params.userId,

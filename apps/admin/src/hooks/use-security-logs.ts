@@ -24,6 +24,7 @@ export const SECURITY_EVENT_TYPES: SecurityEventType[] = [
   "ROLE_PERMISSIONS_UPDATED",
   "INVITATION_REVOKED",
   "PROFILE_UPDATED",
+  "PLATFORM_FINANCE_SETTINGS_UPDATED",
 ];
 
 export interface UseSecurityLogsOptions extends GetSecurityLogsParams {

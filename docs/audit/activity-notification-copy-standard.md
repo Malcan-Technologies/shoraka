@@ -186,8 +186,8 @@ historical compatibility. See `audit-event-catalog.md` §1.1–1.3.
 
 **LIVE EVENT TYPES:** `LOGIN`, `LOGOUT`, `SIGNUP`, `PASSWORD_CHANGED`, `EMAIL_CHANGED`,
 `ROLE_SWITCHED`, `PROFILE_UPDATED` (`access_logs.PROFILE_UPDATED` is **LIVE_UI_REACHABLE**).
-`security_logs.ROLE_CREATED`, `ROLE_REMOVED` (catalogue), `ROLE_PERMISSIONS_UPDATED`, and
-`INVITATION_REVOKED` are also **LIVE_UI_REACHABLE**.
+`security_logs.ROLE_CREATED`, `ROLE_REMOVED` (catalogue), `ROLE_PERMISSIONS_UPDATED`,
+`INVITATION_REVOKED`, and `PLATFORM_FINANCE_SETTINGS_UPDATED` are also **LIVE_UI_REACHABLE**.
 **UNREACHABLE_FROM_UI / API_REACHABLE:** `access_logs.ROLE_ADDED`, `access_logs.ROLE_REMOVED`.
 **UNREACHABLE_FROM_UI / ROUTE_ONLY:** `access_logs.ONBOARDING_RESET`.
 **UNREACHABLE:** `onboarding_logs.ONBOARDING_RESET`. Do not treat `access_logs.ROLE_ADDED` as a
@@ -210,6 +210,8 @@ normal live UI action.
 | Settlement posted | Settlement posted | — | Settlement Posted | Settlement Posted |
 | Default | **Note Defaulted** | Your Note Is in Default | Your Investment Is in Default | Your Note Is in Default / Your Investment Is in Default |
 | Disbursement to issuer completed (`WITHDRAWAL_COMPLETED`) | **Withdrawal Completed** | **Your Disbursement Is Complete** (ISSUER_DISBURSEMENT only) | **Your Investment Is Active** (ISSUER_DISBURSEMENT only) | Issuer: Your Disbursement Is Complete *(ISSUER_DISBURSEMENT only)* · Investor: Your Investment Is Active (`note_active_investor`, same moment) |
+| Investor cash withdrawal submitted (`INVESTOR_WITHDRAWAL`) | — (no `note_events`) | — | **Withdrawal Submitted** | `investor_withdrawal_submitted` (requesting investor, platform only) |
+| Investor cash withdrawal completed (`INVESTOR_WITHDRAWAL`) | — (no `note_events`) | — | **Withdrawal Completed** | `investor_withdrawal_completed` (requesting investor, platform only). Do not reuse `withdrawal_completed` |
 
 **DO NOT CONFUSE WITH:** `ACTIVATE` (manual/fallback servicing start; writes `ACTIVATE`) and
 `WITHDRAWAL_COMPLETED` (issuer disbursement payout completes; this is the live path that also
@@ -298,6 +300,9 @@ gateway success/capture event and **no** successful-deposit inbox notification.
   `deposit_refund_initiated`, `deposit_refunded`. Use the same core term as the matching Activity
   label where one exists (`Application Submitted`, `Signing Deadline Extended`, `Repayment rejected`,
   `Disbursement Completed`, `Refund requested`/`Refund completed`).
+- **2026-08-26 investor cash withdrawals (live, copy-governed):** `investor_withdrawal_submitted`
+  (`Withdrawal Submitted`), `investor_withdrawal_completed` (`Withdrawal Completed`). Do not reuse
+  issuer disbursement `withdrawal_completed` copy.
 - Audience framing is allowed to differ (issuer vs. investor notifications for the same event may
   use different actor framing — e.g. "Note is active" vs "Investment is active") as long as the
   underlying business fact stated is identical.

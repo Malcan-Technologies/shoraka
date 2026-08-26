@@ -78,6 +78,23 @@ describe("notification coverage templates", () => {
     expect(done.message({ amount: 1500 })).toBe("Your refund of RM1,500 has been completed.");
   });
 
+  it("renders investor cash-withdrawal copy without trustee or instruction IDs", () => {
+    const submitted = NOTIFICATION_TEMPLATES[NotificationTypeIds.INVESTOR_WITHDRAWAL_SUBMITTED];
+    expect(submitted.title).toBe("Withdrawal Submitted");
+    expect(submitted.message({ amount: 1500 })).toBe(
+      "Your withdrawal request of RM1,500 has been submitted for processing."
+    );
+    expect(submitted.portal).toBe("investor");
+    expect(submitted.message({ amount: 1500 }).toLowerCase()).not.toContain("trustee");
+
+    const completed = NOTIFICATION_TEMPLATES[NotificationTypeIds.INVESTOR_WITHDRAWAL_COMPLETED];
+    expect(completed.title).toBe("Withdrawal Completed");
+    expect(completed.message({ amount: 1500 })).toBe(
+      "Your withdrawal of RM1,500 has been completed."
+    );
+    expect(completed.portal).toBe("investor");
+  });
+
   it("renders withdrawal submitted-to-trustee copy with the display reference", () => {
     const t = NOTIFICATION_TEMPLATES[NotificationTypeIds.WITHDRAWAL_SUBMITTED_TO_TRUSTEE];
     expect(t.title).toBe("Withdrawal Submitted to Trustee");

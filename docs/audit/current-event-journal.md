@@ -3,13 +3,13 @@
 Verified: 2026-08-26 (CURRENT USER-FACING COPY includes settlement trustee technical IDs `SETTLEMENT_TRUSTEE_LETTER_GENERATED` / `_EMAIL_SENT` / `_LETTER_SUBMITTED` / `_INSTRUCTION_COMPLETED`; source still wins on any remaining discrepancy)
 
 Current audit counts:
-- documented: 162
-- live: 139
+- documented: 163
+- live: 140
 - not-live: 23
 
 Current notification counts:
-- registry: 45
-- live automatic: 39
+- registry: 51
+- live automatic: 45
 - dead: 4
 - bulk-only: 2
 
@@ -51,7 +51,7 @@ Primary classification is one of the first four. REQUIRES_DATA_CHANGE is an addi
 - Investor Deposit / Gateway / Refund (8)
 - Products (3)
 - Access (4)
-- Security (9)
+- Security (10)
 
 
 
@@ -2530,7 +2530,7 @@ Actor:
 System
 
 Trigger:
-System expiry of the facility offer deadline.
+System expiry of the facility offer deadline. Cron writes `actor_type: SYSTEM`, `source: SYSTEM_JOB`, actor `SYS`, correlation `cron:acceptance-signing-expiry`. Not a human Admin action.
 
 Stored in:
 `application_logs`
@@ -3927,7 +3927,7 @@ Actor:
 System
 
 Trigger:
-System expiry of the invoice offer deadline.
+System expiry of the invoice offer deadline. Cron writes `actor_type: SYSTEM`, `source: SYSTEM_JOB`, actor `SYS`, correlation `cron:acceptance-signing-expiry`. Not a human Admin action.
 
 Stored in:
 `application_logs`
@@ -8580,7 +8580,7 @@ Actor:
 Admin / System
 
 Trigger:
-Admin closeFunding, or system auto-close.
+Admin closeFunding, or system auto-close (`note-listing-expiry` cron / fully-funded inline close). Scheduled auto-close writes `actor_type: SYSTEM`, `source: SYSTEM_JOB`, actor `SYS`. Manual Admin close stays `ADMIN` / `API`.
 
 Stored in:
 `note_events`
@@ -8687,7 +8687,7 @@ Actor:
 Admin / System
 
 Trigger:
-Admin/system failFunding.
+Admin/system failFunding. Scheduled listing-expiry auto-fail writes `actor_type: SYSTEM`, `source: SYSTEM_JOB`, actor `SYS`. Manual Admin fail stays `ADMIN` / `API`.
 
 Stored in:
 `note_events`
@@ -12455,6 +12455,8 @@ Notification
 
 Does not write `ACTIVATE` and does not send `note_active_issuer`. Issuer Activity/notification stay disbursement-complete copy. Investor Activity/notification use investment-active copy for the same `WITHDRAWAL_COMPLETED` row.
 
+Investor cash withdrawals (`withdrawal_type: INVESTOR_WITHDRAWAL`, `note_id` null) do not write this event. They send separate platform-only types `investor_withdrawal_submitted` / `investor_withdrawal_completed` to the requesting investor. Residual/admin-adjustment stay silent.
+
 Direct Email Outside Notification Registry
 - NO
 - Purpose: `—`
@@ -12468,7 +12470,7 @@ Direct Email Outside Notification Registry
 Classification:
 STANDARDIZATION_RECOMMENDED
 
-Admin/CSV keep Withdrawal completed. Issuer portal and `withdrawal_completed` use disbursement-complete copy. Investor Activity and `note_active_investor` use investment-active copy for the same ISSUER_DISBURSEMENT completion. Residual/investor/admin withdrawals stay silent on both portals.
+Admin/CSV keep Withdrawal completed. Issuer portal and `withdrawal_completed` use disbursement-complete copy. Investor Activity and `note_active_investor` use investment-active copy for the same ISSUER_DISBURSEMENT completion. Residual/admin withdrawals stay silent on both portals. Investor cash withdrawals are notified via `investor_withdrawal_*` types, not this event.
 
 ### RECOMMENDED CANONICAL PRESENTATION
 
@@ -14990,6 +14992,114 @@ Preferred Notification Title:
 Preferred Notification Message:
 `—`
 
+## `PLATFORM_FINANCE_SETTINGS_UPDATED`
+
+Status: LIVE
+
+Module: Security
+
+Business action:
+Admin updated platform finance settings. Append-only before/after snapshot; no new table.
+
+Technical event:
+`PLATFORM_FINANCE_SETTINGS_UPDATED`
+
+Canonical business name:
+`Platform Finance Settings Updated`
+
+Actor:
+Admin
+
+Trigger:
+updatePlatformFinanceSettings.
+
+Stored in:
+`security_logs`
+
+### CURRENT USER-FACING COPY
+
+Admin Activity
+- Visible: YES
+- Title: `Platform Finance Settings Updated`
+- Description: `previousValues / nextValues (sensitive keys redacted)`
+
+Admin Detail
+- Visible: YES
+- Title: `Platform Finance Settings Updated`
+- Description: `previousValues / nextValues (sensitive keys redacted)`
+
+Issuer General Activity
+- Visible: N/A
+- Note: no such surface for this domain
+- Title: `—`
+- Description: `N/A`
+
+Issuer Application Detail
+- Visible: N/A
+- Note: no such surface for this domain
+- Title: `—`
+- Description: `N/A`
+
+Issuer Facility / Transaction Detail
+- Visible: N/A
+- Note: no such surface for this domain
+- Title: `—`
+- Description: `N/A`
+
+Investor General Activity
+- Visible: N/A
+- Note: no such surface for this domain
+- Title: `—`
+- Description: `—`
+
+CSV / Export
+- Included: YES
+- Title/Event: `PLATFORM_FINANCE_SETTINGS_UPDATED`
+- Description/Remark: `previousValues / nextValues`
+
+Notification
+- Sends: NO
+- Type: `—`
+- Title: `—`
+- Message: `—`
+- Recipient: `—`
+- Channel: `—`
+
+Direct Email Outside Notification Registry
+- NO
+- Purpose: `—`
+
+### PLACEHOLDERS USED
+
+none in current user-facing copy
+
+### CONSISTENCY REVIEW
+
+Classification:
+CONSISTENT
+
+One `security_logs` row per Admin save. Secrets/tokens/trustee emails/account numbers are redacted in metadata. Settings write itself is unchanged.
+
+### RECOMMENDED CANONICAL PRESENTATION
+
+This is a recommendation only.
+DO NOT implement.
+
+Preferred Title:
+`Platform Finance Settings Updated`
+
+Preferred Admin Description:
+`[Actor] updated platform finance settings.`
+
+Preferred User Description:
+`—`
+
+Preferred Notification Title:
+`—`
+
+Preferred Notification Message:
+`—`
+
 ## `INVITATION_REVOKED`
 
 Status: LIVE
@@ -15166,7 +15276,7 @@ These are **not** live writers. They still appear in some label maps.
 
 ### Dead / bulk-only notifications (not audit events)
 
-Registry: **45**. Live automatic: **39**. Dead: **4**. Bulk-only: **2**.
+Registry: **51**. Live automatic: **45**. Dead: **4**. Bulk-only: **2**.
 
 | Type id | Status | Notes |
 |---|---|---|
@@ -15180,6 +15290,8 @@ Registry: **45**. Live automatic: **39**. Dead: **4**. Bulk-only: **2**.
 | `investor_director_shareholder_action_required` | live automatic | Investor counterpart of the above. |
 | `acceptance_document_changes_requested` | live automatic | Fired on first acceptance-document change request; not a dedicated audit event type. |
 | `offer_expiry_reminder_24h` | live automatic | Reminder job; not a dedicated audit event type. |
+| `investor_withdrawal_submitted` | live automatic | Investor cash withdrawal created/debited. No `note_events` row (`note_id` is null). |
+| `investor_withdrawal_completed` | live automatic | Investor cash withdrawal marked COMPLETED. Not `withdrawal_completed` (issuer disbursement). |
 
 ## Admin notification / broadcast
 

@@ -103,6 +103,29 @@ describe("access and security logs preserve their legacy columns", () => {
 
     expect((created.securityLog[0] as { metadata: unknown }).metadata).toEqual(metadata);
   });
+
+  it("targets platform finance settings when settingsKey is present", async () => {
+    const { db, created } = fakeDb();
+
+    await createSecurityLogRow(
+      {
+        userId: "admin-1",
+        eventType: "PLATFORM_FINANCE_SETTINGS_UPDATED",
+        portal: "ADMIN",
+        metadata: { settingsKey: "DEFAULT", previousValues: {}, nextValues: { gracePeriodDays: 9 } },
+      },
+      db
+    );
+
+    expect(created.securityLog[0]).toMatchObject({
+      event_type: "PLATFORM_FINANCE_SETTINGS_UPDATED",
+      actor_type: AUDIT_ACTOR_TYPE.ADMIN,
+      source: AUDIT_SOURCE.API,
+      target_type: "PLATFORM_FINANCE_SETTINGS",
+      target_id: "DEFAULT",
+      portal: "ADMIN",
+    });
+  });
 });
 
 describe("onboarding log actor attribution", () => {

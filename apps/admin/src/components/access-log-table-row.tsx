@@ -49,6 +49,10 @@ export const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }>
   PASSWORD_CHANGED: { label: "Password Changed", color: "bg-rose-500" },
   EMAIL_CHANGED: { label: "Email Verified", color: "bg-cyan-500" },
   PROFILE_UPDATED: { label: "Profile Updated", color: "bg-blue-500" },
+  PLATFORM_FINANCE_SETTINGS_UPDATED: {
+    label: "Platform Finance Settings Updated",
+    color: "bg-indigo-500",
+  },
   SOPHISTICATED_STATUS_UPDATED: { label: "Sophisticated Updated", color: "bg-violet-500" },
 };
 

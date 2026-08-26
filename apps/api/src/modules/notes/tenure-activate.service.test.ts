@@ -44,12 +44,20 @@ jest.mock("../notification/note-lifecycle-notifications", () => {
   };
 });
 
+jest.mock("../notification/investor-withdrawal-notifications", () => ({
+  notifyInvestorCashWithdrawalSubmitted: jest.fn(),
+  notifyInvestorCashWithdrawalCompleted: jest.fn(),
+}));
+
 import { NoteService } from "./service";
 import {
   notifyIssuerDisbursementCompleted,
   notifyNoteActivated,
   notifyNoteActiveInvestors,
 } from "../notification/note-lifecycle-notifications";
+import {
+  notifyInvestorCashWithdrawalCompleted,
+} from "../notification/investor-withdrawal-notifications";
 
 describe("NoteService activate tenure disbursement date", () => {
   const actor = {
@@ -441,6 +449,7 @@ describe("NoteService markWithdrawalCompleted issuer disbursement notifications"
         noteTitle: "Note 1",
       })
     );
+    expect(notifyInvestorCashWithdrawalCompleted).not.toHaveBeenCalled();
   });
 
   it("does not notify investors for residual or admin withdrawals", async () => {
@@ -483,6 +492,7 @@ describe("NoteService markWithdrawalCompleted issuer disbursement notifications"
     expect(notifyNoteActiveInvestors).not.toHaveBeenCalled();
     expect(notifyIssuerDisbursementCompleted).not.toHaveBeenCalled();
     expect(notifyNoteActivated).not.toHaveBeenCalled();
+    expect(notifyInvestorCashWithdrawalCompleted).not.toHaveBeenCalled();
   });
 
   it("does not re-notify when a completed withdrawal is submitted again", async () => {
@@ -502,5 +512,67 @@ describe("NoteService markWithdrawalCompleted issuer disbursement notifications"
     expect(notifyIssuerDisbursementCompleted).not.toHaveBeenCalled();
     expect(notifyNoteActiveInvestors).not.toHaveBeenCalled();
     expect(notifyNoteActivated).not.toHaveBeenCalled();
+    expect(notifyInvestorCashWithdrawalCompleted).not.toHaveBeenCalled();
+  });
+
+  it("notifies the requesting investor once when an investor cash withdrawal completes", async () => {
+    const withdrawal = {
+      id: "w_inv",
+      note_id: null,
+      status: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
+      withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
+      amount: 1500,
+      settlement_id: null,
+      requested_by_user_id: "inv-user-1",
+    };
+    mockPrisma.withdrawalInstruction.findUnique.mockResolvedValue(withdrawal);
+    mockPrisma.note.findUnique.mockResolvedValue(null);
+    const tx = {
+      withdrawalInstruction: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          ...withdrawal,
+          status: WithdrawalStatus.COMPLETED,
+        }),
+      },
+    };
+    mockPrisma.$transaction.mockImplementation(async (cb: (client: typeof tx) => unknown) => cb(tx));
+
+    const service = new NoteService();
+    jest.spyOn(service as any, "logEvent").mockResolvedValue(undefined);
+    jest.spyOn(service as any, "mapWithdrawal").mockImplementation((row: { id: string }) => ({ id: row.id }));
+
+    await service.markWithdrawalCompleted("w_inv", actor);
+
+    expect(notifyInvestorCashWithdrawalCompleted).toHaveBeenCalledTimes(1);
+    expect(notifyInvestorCashWithdrawalCompleted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        withdrawalId: "w_inv",
+        requestedByUserId: "inv-user-1",
+        amount: 1500,
+        withdrawalType: WithdrawalType.INVESTOR_WITHDRAWAL,
+      })
+    );
+    expect(notifyIssuerDisbursementCompleted).not.toHaveBeenCalled();
+    expect(notifyNoteActiveInvestors).not.toHaveBeenCalled();
+  });
+
+  it("does not re-notify when a completed investor cash withdrawal is submitted again", async () => {
+    mockPrisma.withdrawalInstruction.findUnique.mockResolvedValue({
+      id: "w_inv",
+      note_id: null,
+      status: WithdrawalStatus.COMPLETED,
+      withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
+      amount: 1500,
+      requested_by_user_id: "inv-user-1",
+    });
+
+    const service = new NoteService();
+    await expect(service.markWithdrawalCompleted("w_inv", actor)).rejects.toMatchObject({
+      code: "WITHDRAWAL_NOT_SUBMITTED",
+      statusCode: 409,
+    });
+    expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    expect(notifyInvestorCashWithdrawalCompleted).not.toHaveBeenCalled();
   });
 });

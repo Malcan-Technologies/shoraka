@@ -157,8 +157,9 @@ in §2; notifications in §3–§6; counts, legacy names, and the reconciliation
 | `EMAIL_CHANGED` | LIVE | Email **verification** result | User | security_logs | Y | n/a | n/a | — | Y | Name is broader than the action |
 | `ROLE_CREATED` | LIVE | Admin role catalogue create | Admin | security_logs | — | n/a | n/a | — | — | Excluded from the panel query allowlist |
 | `ROLE_REMOVED` | LIVE | Admin role catalogue delete | Admin | security_logs | — | n/a | n/a | — | — | Catalogue delete, **not** user-role removal |
-| `ROLE_PERMISSIONS_UPDATED` | LIVE | Admin role permission edit | Admin | security_logs | — | n/a | n/a | — | — | Excluded from the panel query allowlist |
-| `INVITATION_REVOKED` | LIVE | Admin revokes an invitation | Admin | security_logs | — | n/a | n/a | — | — | Excluded from the panel query allowlist |
+| `ROLE_PERMISSIONS_UPDATED` | LIVE | Admin role permission edit | Admin | security_logs | Y | n/a | n/a | — | Y | Added to Security panel filter 2026-08-24 |
+| `INVITATION_REVOKED` | LIVE | Admin revokes an invitation | Admin | security_logs | Y | n/a | n/a | — | Y | Added to Security panel filter 2026-08-24 |
+| `PLATFORM_FINANCE_SETTINGS_UPDATED` | LIVE | Admin updated platform finance settings | Admin | security_logs | Y | n/a | n/a | — | Y | Append-only `previousValues` / `nextValues`; sensitive keys redacted |
 
 ### 1.3 Onboarding (`onboarding_logs`)
 
@@ -340,7 +341,7 @@ surface can show them. All are mirrored to `note_admin_actions`.
 | `WITHDRAWAL_TRUSTEE_EMAIL_SENT` | LIVE | Withdrawal trustee instruction email delivered/redelivered | Admin | note_events | Y | — | — | — (direct SES to trustee) | Y | Distinct from `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` and issuer platform notify |
 | `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | LIVE | Instruction submitted to the trustee | Admin | note_events | Y | — | — | `withdrawal_submitted_to_trustee` | Y | Wired 2026-08-24 |
 | `WITHDRAWAL_BENEFICIARY_UPDATED` | LIVE | Beneficiary details edited on a draft | Admin | note_events | Y | — | — | — | Y | |
-| `WITHDRAWAL_COMPLETED` | LIVE | Trustee payout completed | Admin | note_events | Y | Y *(disbursements only)* | Y *(disbursements only)* | `withdrawal_completed` (issuer) + `note_active_investor` (confirmed investors) *(ISSUER_DISBURSEMENT only)* | Y | Issuer disbursement copy unchanged. Investor Activity/notification use investment-active copy. No `ACTIVATE` / `note_active_issuer`. Residual/refund/investor withdrawals stay silent |
+| `WITHDRAWAL_COMPLETED` | LIVE | Trustee payout completed | Admin | note_events | Y | Y *(disbursements only)* | Y *(disbursements only)* | `withdrawal_completed` (issuer) + `note_active_investor` (confirmed investors) *(ISSUER_DISBURSEMENT only)* | Y | Issuer disbursement copy unchanged. Investor cash withdrawals (`INVESTOR_WITHDRAWAL`) use `investor_withdrawal_*` types and do not write this event. Residual/admin-adjustment stay silent |
 | `SHORAKA_ORDER_SUBMITTED` | LIVE | Tawarruq commodity order submitted to the provider | System | note_events | Y | — | — | — | Y | Stored name is `SHORAKA_*`; UI says "Tawarruq" |
 | `SHORAKA_CERTIFICATE_FETCHED` | LIVE | Tawarruq trade certificate retrieved | System | note_events | Y | — | — | — | Y | `actorUserId: null` — no human actor |
 
@@ -529,6 +530,7 @@ events have no declared type and no admin filter entry. Central writer: `createS
 | `ROLE_CREATED` | `admin/service.ts:createAdminRole` (~515) | Admin | `roleKey`, `roleName`, `badgeColor` | **Hidden (not queried)** | **Excluded** | NO |
 | `ROLE_REMOVED` | `admin/service.ts:deleteAdminRole` (~578) — **role catalogue delete** | Admin | `deletedRoleKey`, `deletedRoleName` | **Hidden (not queried)** | **Excluded** | NO |
 | `INVITATION_REVOKED` | `admin/service.ts:revokeInvitation` (~2297) | Admin | `invitationId`, `email`, `roleDescription` | **Hidden (not queried)** | **Excluded** | NO |
+| `PLATFORM_FINANCE_SETTINGS_UPDATED` | `notes/service.ts:updatePlatformFinanceSettings` | Admin | `settingsKey`, `previousValues`, `nextValues` (redacted) | Shown — `"Platform Finance Settings Updated"` | Included (raw) | NO |
 
 **Key distinctions in this domain:**
 - `PASSWORD_CHANGED` is the **only** security event with a user notification, and it is written on
@@ -884,7 +886,7 @@ device, plus the forensic set. Only business-specific evidence is listed.
 | `CONTRACT_OFFER_REJECTED` | **DEAD** | — | — | none — issuer decline writes `CONTRACT_WITHDRAWN` | — |
 | `CONTRACT_OFFER_RETRACTED` | LIVE | Admin resets the `contract_details` section away from `OFFER_SENT` | Admin | `admin/service.ts:resetSectionReviewToPending` (~9239) | `contract_id`, `contract_number` |
 | `CONTRACT_WITHDRAWN` | LIVE | **Issuer declines the facility offer** | Issuer | `applications/service.ts:respondToContractOffer` (~2839), `action !== "accept"` branch | same as accept + `rejection_reason?` |
-| `CONTRACT_OFFER_EXPIRED` | LIVE | System expiry sweep after the acceptance or signing deadline | System | `lib/jobs/acceptance-signing-expiry.ts:expireOffer` (~476) | `trigger:"{clock}_deadline_expired"`, `offer_kind:"contract"`, `contract_id`; `source: SYSTEM_JOB` |
+| `CONTRACT_OFFER_EXPIRED` | LIVE | System expiry sweep after the acceptance or signing deadline | System | `lib/jobs/acceptance-signing-expiry.ts:expireOffer` (~476) | `trigger:"{clock}_deadline_expired"`, `offer_kind:"contract"`, `contract_id`; `actor_type: SYSTEM`, `source: SYSTEM_JOB`, actor `SYS`, correlation `cron:acceptance-signing-expiry` |
 | `CONTRACT_SIGNING_DEADLINE_EXTENDED` | LIVE | Admin restamps `signing_expires_at` | Admin | `admin/service.ts:extendContractSigningDeadline` (~8371) | `contract_id`, `signing_expires_at` |
 | `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | LIVE | Revolving capacity recomputed after a draw, funding close, or repayment | Issuer / Admin / System | `refresh-contract-facility.ts:recordFacilityOccupancyAudit` (~580) | `reason`, `contract_id`, `note_id`, `invoice_id`, **`before{…}` / `after{…}` snapshots**; `remark` from `occupancyRemark()`; `source: INTERNAL` |
 | `CONTRACT_FACILITY_FEE_WAIVED` | LIVE | Admin waives the remaining facility fee | Admin | `admin/service.ts:waiveContractFacilityFee` (~5968) | `contract_id`, `waived_amount`, `paid_amount`, `total_owed`, `reason` |
@@ -895,7 +897,7 @@ device, plus the forensic set. Only business-specific evidence is listed.
 | `INVOICE_OFFER_ACCEPTED` | LIVE | Issuer accepts, or signing completes | Issuer | `applications/service.ts:respondToInvoiceOffer` (~3238) | `invoice_id`, `invoice_number`, amounts, `responded_at` |
 | `INVOICE_OFFER_REJECTED` | LIVE | **Issuer declines the invoice offer** | Issuer | same writer, `action !== "accept"` branch | as above + `rejection_reason?` |
 | `INVOICE_OFFER_RETRACTED` | LIVE | Admin resets the invoice item away from `OFFER_SENT` | Admin | `admin/service.ts:resetItemReviewToPending` (~9399) | `invoice_id`, `invoice_number` |
-| `INVOICE_OFFER_EXPIRED` | LIVE | System expiry sweep | System | `acceptance-signing-expiry.ts:expireOffer` (~476) | `trigger`, `offer_kind:"invoice"`, `invoice_id` |
+| `INVOICE_OFFER_EXPIRED` | LIVE | System expiry sweep | System | `acceptance-signing-expiry.ts:expireOffer` (~476) | `trigger`, `offer_kind:"invoice"`, `invoice_id`; `actor_type: SYSTEM`, `source: SYSTEM_JOB`, actor `SYS` |
 | `INVOICE_SIGNING_DEADLINE_EXTENDED` | LIVE | Admin restamps the invoice signing deadline | Admin | `admin/service.ts:extendInvoiceSigningDeadline` (~8901) | `invoice_id`, `signing_expires_at` |
 | `INVOICE_WITHDRAWN` | LIVE | Issuer withdraws an invoice | Issuer | `invoices/service.ts:withdrawInvoice` (~724) | `invoice_id`, `withdraw_reason`, `invoice_number?` |
 | `AMENDMENTS_SUBMITTED` | LIVE | **Admin submits a batch of amendment requests to the issuer** | Admin | `admin/service.ts:submitPendingAmendments` (~10639) **+ `application_review_events` mirror** (~10625) | `count`; remark `"{n} amendment(s) sent to issuer"` |
@@ -1217,7 +1219,7 @@ Do not merge these three moments:
 | `WITHDRAWAL_TRUSTEE_EMAIL_SENT` | Trustee SES email delivered — `persistWithdrawalTrusteeEmailSent` via `markWithdrawalSubmitted` (auto-send, before submit tx) or `resendWithdrawalTrusteeEmail` | `withdrawalId`, `withdrawalReference` (new writes; from already-loaded `display_reference`), `messageId`, optional `resend`. Historical rows may omit `withdrawalReference`. | `Withdrawal Trustee Email Sent` / `Withdrawal Trustee Email Redelivered` | Hidden (not queried) | NO registry. Direct SES to trustee. |
 | `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | Instruction marked submitted — `markWithdrawalSubmitted` | `withdrawalId`, `withdrawalReference` | `Withdrawal Submitted to Trustee` | Hidden (not queried) | **YES — `withdrawal_submitted_to_trustee`** |
 | `WITHDRAWAL_BENEFICIARY_UPDATED` | Beneficiary edited while draft — `updateWithdrawalBeneficiary` | `withdrawalId` | `Withdrawal beneficiary updated` | Hidden (not queried) | NO |
-| `WITHDRAWAL_COMPLETED` | Trustee payout completed — `markWithdrawalCompleted` | `withdrawalId`, `amount` | `Withdrawal Completed` | **Shown when `withdrawal_type === ISSUER_DISBURSEMENT`, in both portals** (the check precedes the portal branch). Issuer: `Your Disbursement Is Complete` / `Disbursement for {note} has been completed.` Investor: `Your Investment Is Active` / `{note} is now active and servicing has started.` Any other withdrawal type is dropped. | **YES — `withdrawal_completed` (issuer)** + **`note_active_investor` (confirmed investors)** when the ISSUER_DISBURSEMENT path also activates the note. No `note_active_issuer`. Residual/investor/admin-adjustment stay silent |
+| `WITHDRAWAL_COMPLETED` | Trustee payout completed — `markWithdrawalCompleted` | `withdrawalId`, `amount` | `Withdrawal Completed` | **Shown when `withdrawal_type === ISSUER_DISBURSEMENT`, in both portals** (the check precedes the portal branch). Issuer: `Your Disbursement Is Complete` / `Disbursement for {note} has been completed.` Investor: `Your Investment Is Active` / `{note} is now active and servicing has started.` Any other withdrawal type is dropped. | **YES — `withdrawal_completed` (issuer)** + **`note_active_investor` (confirmed investors)** when the ISSUER_DISBURSEMENT path also activates the note. No `note_active_issuer`. Investor cash withdrawals use `investor_withdrawal_completed`, not this type. Residual/admin-adjustment stay silent |
 
 **`WITHDRAWAL_SUBMITTED_TO_TRUSTEE` notification detail:**
 - **TYPE ID:** `withdrawal_submitted_to_trustee`
@@ -1424,6 +1426,8 @@ table.
 | `withdrawal_submitted_to_trustee` | LIVE | `Withdrawal Submitted to Trustee` | `Withdrawal instruction {withdrawalReference} has been submitted to the trustee.` | Issuer org, all members | platform only | `markWithdrawalSubmitted` (~6274) — event `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` |
 | `note_payment_rejected` | LIVE | `Repayment Rejected` | `Your repayment for note {noteTitle} was rejected. Please review the repayment details.` | Issuer org, all members | platform only | `notes/service.ts:rejectPayment` — event `PAYMENT_REJECTED`. Idempotency includes `paymentId`. |
 | `withdrawal_completed` | LIVE | `Your Disbursement Is Complete` | `The disbursement for note {noteTitle} has been completed.` | Issuer org, all members | platform only | `notes/service.ts:markWithdrawalCompleted` — event `WITHDRAWAL_COMPLETED`, **only when `isIssuerFinancingDisbursement`**. Residual return / investor / admin-adjustment withdrawals stay silent. Idempotency includes `withdrawalId`. Investors are notified separately via `note_active_investor`, not this type. |
+| `investor_withdrawal_submitted` | LIVE | `Withdrawal Submitted` | `Your withdrawal request of RM{amount} has been submitted for processing.` | Requesting investor (`requested_by_user_id`) | platform only | `notes/service.ts:createInvestorWithdrawal` after wallet debit. `INVESTOR_WITHDRAWAL` only. No `note_events`. Idempotency `withdrawal:{id}:notif:investor_withdrawal_submitted:user:{userId}`. |
+| `investor_withdrawal_completed` | LIVE | `Withdrawal Completed` | `Your withdrawal of RM{amount} has been completed.` | Requesting investor (`requested_by_user_id`) | platform only | `notes/service.ts:markWithdrawalCompleted` when type is `INVESTOR_WITHDRAWAL`. Not sent for issuer disbursement / residual / admin-adjustment. Retry 409 does not re-send. Idempotency `withdrawal:{id}:notif:investor_withdrawal_completed:user:{userId}`. |
 | `deposit_name_check_rejected` | LIVE | `Deposit Verification Failed` | `Your deposit could not be verified and will be returned.` | Members of the deposit's investor organization | platform only | `payment/admin-service.ts:rejectNameCheck` — event `NAME_CHECK_REJECTED`. `GatewayPayment` has no depositor user id; ownership is `investor_organization_id`. Gated to `INVESTOR_DEPOSIT`. Idempotency per payment + type + user. |
 | `deposit_refund_initiated` | LIVE | `Refund Started` | `A refund for your deposit of RM{amount} has been initiated.` | Members of the deposit's investor organization | platform only | `refund-service.ts:initiateGatewayPaymentRefund` — event `REFUND_INITIATED`. Gated to `INVESTOR_DEPOSIT`. |
 | `deposit_refunded` | LIVE | `Refund Completed` | `Your refund of RM{amount} has been completed.` | Members of the deposit's investor organization | platform only | `refund-service.ts:completeGatewayPaymentRefund` — event `REFUNDED`, after the wallet-reversal transaction commits. Gated to `INVESTOR_DEPOSIT`. |
@@ -1476,6 +1480,8 @@ from the other:
 | `deposit_name_check_rejected` | Deposit verification failed | Deposit Verification Failed |
 | `deposit_refund_initiated` | Deposit refund started | Refund Started |
 | `deposit_refunded` | Deposit refund completed | Refund Completed |
+| `investor_withdrawal_submitted` | Withdrawal submitted | Withdrawal Submitted |
+| `investor_withdrawal_completed` | Withdrawal completed | Withdrawal Completed |
 
 ---
 
@@ -1842,28 +1848,24 @@ A separate mechanism from the per-user registry, and easy to mistake for it.
 
 ## 7. Counts
 
-Reconciled against source on **2026-08-26** for the pre-production settlement trustee canonical rename
-(`SETTLEMENT_TRUSTEE_*` IDs only; Prisma/HTTP/JSON/email kind/S3/RBAC use settlement terminology).
-Prior store totals were reconciled **2026-08-25**.
+Reconciled against source on **2026-08-26** for scheduled-job attribution, platform finance settings history, and investor cash-withdrawal notifications. Prior store totals were reconciled **2026-08-25**.
 Where these differ from earlier documents, **these numbers supersede them** — see §9. Audit event
-live totals last changed when `WITHDRAWAL_TRUSTEE_EMAIL_SENT` and the settlement trustee email writer
-were documented after the `redo_log` rebase onto main (documented 160→162 live 137→139). The later
-`SERVICE_FEE_` → `SETTLEMENT_` writer-ID renames did not add live events. Notification totals last
-changed in the 2026-08-25 coverage pass (live automatic 30→39).
+live totals last changed when `PLATFORM_FINANCE_SETTINGS_UPDATED` was added (documented 162→163 live 139→140). Notification totals last
+changed in this same pass (registry 45→51, live automatic 39→45): +2 investor cash-withdrawal types, and source already included 4 facility-fee / excess-late-charge types that predated the previous documented 45/39.
 
 ### 7.1 Events
 
 | Store | Documented | Live | Not live | Breakdown of "not live" |
 |---|---|---|---|---|
 | `access_logs` | 14 | 4 | 10 | 6 declared-but-written-elsewhere, 1 seed-only, 3 unreachable (`ROLE_ADDED`, `ROLE_REMOVED`, `ONBOARDING_RESET` — reclassified 2026-08-25, see §9 #12) |
-| `security_logs` | 9 | 9 | 0 | — |
+| `security_logs` | 10 | 10 | 0 | — |
 | `onboarding_logs` | 27 | 21 | 6 | ~~3 seed-only~~ **2 seed-only, 1 dead** (`KYB_APPROVED` reclassified SEED_ONLY → DEAD 2026-08-25 — zero occurrences in `seed.ts`, unlike the other two; see §9 #13), 1 dev-only, 2 unreachable (`AML_APPROVED` — reclassified 2026-08-24; `ONBOARDING_RESET` — reclassified 2026-08-25, see §9 #11–#12) |
 | `application_logs` | 45 | 43 | 2 | 2 dead (`APPLICATION_APPROVED`, `CONTRACT_OFFER_REJECTED`) |
 | `note_events` | ~~43~~ ~~42~~ **44** | **44** | ~~1~~ **0** | 2026-08-26: settlement trustee family is `SETTLEMENT_TRUSTEE_*` only. Earlier post-rebase: added `WITHDRAWAL_TRUSTEE_EMAIL_SENT` and the settlement trustee email writer from main. Earlier: `ISSUER_RESIDUAL_WITHDRAWAL_CREATED` removed 2026-08-25 |
 | `legal_document_audit_logs` | 7 | 7 | 0 | — |
 | `product_logs` | 5 | 3 | 2 | 2 unreachable (writer exists, no caller) |
 | `gateway_payment_events` | 11 | 8 | 3 | 3 dead (`OVERRIDE_*`) — investigated 2026-08-25, retained: real Prisma enum, removal would require a schema migration (see §9 #13) |
-| **Total** | ~~161~~ ~~160~~ **162** | ~~137~~ **139** | ~~24~~ **23** | 2026-08-26: +2 live `note_events` trustee-email writers from main. 2026-08-25: `note_events.ISSUER_RESIDUAL_WITHDRAWAL_CREATED` removed (−1 documented, −1 not-live) |
+| **Total** | ~~161~~ ~~160~~ ~~162~~ **163** | ~~137~~ ~~139~~ **140** | ~~24~~ **23** | 2026-08-26: +1 live `security_logs.PLATFORM_FINANCE_SETTINGS_UPDATED`. Earlier 2026-08-26: +2 live `note_events` trustee-email writers from main. 2026-08-25: `note_events.ISSUER_RESIDUAL_WITHDRAWAL_CREATED` removed (−1 documented, −1 not-live) |
 
 Not counted as events above, documented separately:
 
@@ -1878,12 +1880,12 @@ Not counted as events above, documented separately:
 
 | Metric | Count |
 |---|---|
-| Registry type ids | **45** |
-| Live (≥1 hardcoded `sendTyped`/`sendTypedPlatformOnly` call site) | **39** |
+| Registry type ids | **51** |
+| Live (≥1 hardcoded `sendTyped`/`sendTypedPlatformOnly` call site) | **45** |
 | Bulk-broadcast-only | **2** (`system_announcement`, `new_product_alert`) |
 | Dead (zero send path) | **4** (`kyc_approved`, `kyc_rejected`, `login_new_device`, `application_approved`) — **DEAD_NOT_CONFIGURABLE**: hidden from Admin Notification Configuration; retained in registry/seed/history |
 | Distinct **events** that fire a registry notification | **37** |
-| Live events with **no** registry notification | **107** |
+| Live events with **no** registry notification | **108** |
 | Events that trigger a **direct email** instead | **3** (`SIGNING_PACKAGE_SENT`, `WITHDRAWAL_TRUSTEE_EMAIL_SENT`, `SETTLEMENT_TRUSTEE_EMAIL_SENT`) |
 | Direct-email paths outside the registry | **9** |
 
@@ -1929,6 +1931,10 @@ various `ADMIN_*` / `ORGANIZATION_*` security names
 **RELATION:** **`NOT_AN_ACTUAL_EVENT`** — these are indexed artifacts of an unmerged branch. They
 have never been production `event_type` values on this branch. Verify with `ls`/`cat` before acting
 on any index hit under a `*/audit/` path.
+
+**Exception (2026-08-26):** `PLATFORM_FINANCE_SETTINGS_UPDATED` is now a live `security_logs` writer
+for Admin platform-finance settings change history (`previousValues` / `nextValues`). It is no
+longer an unmerged-index artifact.
 
 Specifically: **`CONTRACT_ACCEPTANCE_SUBMITTED` is not a renamed form of
 `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED`.** It is a name from the unmerged vocabulary. Only

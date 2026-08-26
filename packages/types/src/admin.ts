@@ -307,7 +307,8 @@ export type SecurityEventType =
   | "ROLE_CREATED"
   | "ROLE_PERMISSIONS_UPDATED"
   | "INVITATION_REVOKED"
-  | "PROFILE_UPDATED";
+  | "PROFILE_UPDATED"
+  | "PLATFORM_FINANCE_SETTINGS_UPDATED";
 
 export interface SecurityLogUser {
   first_name: string;

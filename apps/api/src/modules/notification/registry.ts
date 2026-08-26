@@ -67,6 +67,8 @@ export const NotificationTypeIds = {
   DEPOSIT_NAME_CHECK_REJECTED: "deposit_name_check_rejected",
   DEPOSIT_REFUND_INITIATED: "deposit_refund_initiated",
   DEPOSIT_REFUNDED: "deposit_refunded",
+  INVESTOR_WITHDRAWAL_SUBMITTED: "investor_withdrawal_submitted",
+  INVESTOR_WITHDRAWAL_COMPLETED: "investor_withdrawal_completed",
 } as const;
 
 export type NotificationTypeId = (typeof NotificationTypeIds)[keyof typeof NotificationTypeIds];
@@ -286,6 +288,12 @@ export interface NotificationPayloads {
     amount: number;
   };
   [NotificationTypeIds.DEPOSIT_REFUNDED]: {
+    amount: number;
+  };
+  [NotificationTypeIds.INVESTOR_WITHDRAWAL_SUBMITTED]: {
+    amount: number;
+  };
+  [NotificationTypeIds.INVESTOR_WITHDRAWAL_COMPLETED]: {
     amount: number;
   };
 }
@@ -658,6 +666,19 @@ export const NOTIFICATION_TEMPLATES: {
     message: (data) => `Your refund of RM${data.amount.toLocaleString()} has been completed.`,
     linkPath: () => `/transactions`,
     portal: 'investor',
+  },
+  [NotificationTypeIds.INVESTOR_WITHDRAWAL_SUBMITTED]: {
+    title: "Withdrawal Submitted",
+    message: (data) =>
+      `Your withdrawal request of RM${data.amount.toLocaleString()} has been submitted for processing.`,
+    linkPath: () => `/transactions`,
+    portal: "investor",
+  },
+  [NotificationTypeIds.INVESTOR_WITHDRAWAL_COMPLETED]: {
+    title: "Withdrawal Completed",
+    message: (data) => `Your withdrawal of RM${data.amount.toLocaleString()} has been completed.`,
+    linkPath: () => `/transactions`,
+    portal: "investor",
   },
 };
 

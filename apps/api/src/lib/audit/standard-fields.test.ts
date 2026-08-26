@@ -97,6 +97,32 @@ describe("resolveStandardAuditFields: source and actor stay consistent", () => {
     expect(resolved.actor_type).toBe(AUDIT_ACTOR_TYPE.SYSTEM);
   });
 
+  it("keeps SYS identity on a scheduled write without treating it as Admin", () => {
+    const resolved = resolveStandardAuditFields({
+      actorUserId: "SYS",
+      context: systemAuditContext({
+        actorUserId: "SYS",
+        correlationId: "cron:note-listing-expiry",
+      }),
+    });
+
+    expect(resolved.actor_user_id).toBe("SYS");
+    expect(resolved.actor_type).toBe(AUDIT_ACTOR_TYPE.SYSTEM);
+    expect(resolved.source).toBe(AUDIT_SOURCE.SYSTEM_JOB);
+    expect(resolved.portal).toBeNull();
+    expect(resolved.correlation_id).toBe("cron:note-listing-expiry");
+  });
+
+  it("attributes a human Admin mutation as ADMIN / API", () => {
+    const resolved = resolveStandardAuditFields({
+      actorUserId: "admin-1",
+      portal: AUDIT_PORTAL.ADMIN,
+    });
+
+    expect(resolved.actor_type).toBe(AUDIT_ACTOR_TYPE.ADMIN);
+    expect(resolved.source).toBe(AUDIT_SOURCE.API);
+  });
+
   it("lets the call site override the source explicitly", () => {
     const resolved = resolveStandardAuditFields({
       context: webhookAuditContext(),

@@ -18,6 +18,7 @@ describe("SECURITY_EVENT_TYPES — security_logs filter allowlist", () => {
         "ROLE_PERMISSIONS_UPDATED",
         "INVITATION_REVOKED",
         "PROFILE_UPDATED",
+        "PLATFORM_FINANCE_SETTINGS_UPDATED",
       ])
     );
   });
