@@ -4,7 +4,6 @@ import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ListToolbar, ListToolbarFilterTrigger, type FilterChip } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -31,45 +30,22 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CubeIcon,
+  EyeIcon,
 } from "@heroicons/react/24/outline";
-import type { ProductEventType, GetProductLogsParams } from "@cashsouk/types";
+import type { ProductEventType, GetProductLogsParams, ProductLogResponse } from "@cashsouk/types";
 import { DATE_RANGES } from "@cashsouk/config";
+import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
+import { AuditEventBadge } from "@/components/audit/audit-event-badge";
+import { productLogToAuditDetail } from "@/components/audit/audit-adapters";
+import { formatAuditDateTime, formatAuditEventLabel } from "@/components/audit/audit-presentation";
 
-const PRODUCT_EVENT_TYPES: { value: ProductEventType; label: string; color: string }[] = [
-  { value: "PRODUCT_CREATED", label: "Created", color: "bg-green-500" },
-  { value: "PRODUCT_UPDATED", label: "Updated", color: "bg-blue-500" },
-  { value: "PRODUCT_DELETED", label: "Deleted", color: "bg-red-500" },
-  { value: "PRODUCT_INACTIVATED", label: "Inactivated", color: "bg-amber-500" },
-  { value: "PRODUCT_REACTIVATED", label: "Reactivated", color: "bg-emerald-500" },
+const PRODUCT_EVENT_TYPES: { value: ProductEventType; label: string }[] = [
+  { value: "PRODUCT_CREATED", label: "Product Created" },
+  { value: "PRODUCT_UPDATED", label: "Product Updated" },
+  { value: "PRODUCT_DELETED", label: "Product Deleted" },
+  { value: "PRODUCT_INACTIVATED", label: "Product Inactivated" },
+  { value: "PRODUCT_REACTIVATED", label: "Product Reactivated" },
 ];
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function getEventTypeBadge(eventType: ProductEventType) {
-  const type = PRODUCT_EVENT_TYPES.find((t) => t.value === eventType);
-  if (!type) return <Badge variant="outline">{eventType}</Badge>;
-
-  return (
-    <Badge
-      variant="outline"
-      className={`${type.color} bg-opacity-10 border-opacity-30`}
-      style={{
-        backgroundColor: `color-mix(in srgb, ${type.color.replace("bg-", "")} 10%, transparent)`,
-      }}
-    >
-      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${type.color}`} />
-      {type.label}
-    </Badge>
-  );
-}
 
 const ITEMS_PER_PAGE = 15;
 
@@ -79,6 +55,8 @@ export function ProductLogsPanel() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [eventTypeFilter, setEventTypeFilter] = React.useState<string>("all");
   const [dateRangeFilter, setDateRangeFilter] = React.useState<string>("all");
+  const [selectedLog, setSelectedLog] = React.useState<ProductLogResponse | null>(null);
+  const [detailOpen, setDetailOpen] = React.useState(false);
 
   const getExportLogs = useExportProductLogs();
 
@@ -235,6 +213,7 @@ export function ProductLogsPanel() {
               <TableHead>Product</TableHead>
               <TableHead>IP Address</TableHead>
               <TableHead>Device</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -263,10 +242,10 @@ export function ProductLogsPanel() {
               ))
             ) : logs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                  <CubeIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No product logs found</p>
-                  <p className="text-sm mt-1">Product changes will be recorded here</p>
+                <TableCell colSpan={7} className="py-12 text-center text-ui text-muted-foreground">
+                  <CubeIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
+                  <p>No logs found</p>
+                  <p className="mt-1 text-meta">Product changes will be recorded here</p>
                 </TableCell>
               </TableRow>
             ) : (
@@ -281,52 +260,68 @@ export function ProductLogsPanel() {
                   (first?.config?.type?.name as string) ||
                   "";
                 const productId = log.product_id ?? "";
+                const eventLabel =
+                  PRODUCT_EVENT_TYPES.find((type) => type.value === log.event_type)?.label ??
+                  formatAuditEventLabel(log.event_type);
 
                 return (
-                  <TableRow key={log.id}>
-                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {formatDate(log.created_at)}
+                  <TableRow
+                    key={log.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => {
+                      setSelectedLog(log);
+                      setDetailOpen(true);
+                    }}
+                  >
+                    <TableCell className="whitespace-nowrap text-ui text-muted-foreground">
+                      {formatAuditDateTime(log.created_at)}
                     </TableCell>
-                    <TableCell className="text-sm min-w-[180px] max-w-[280px]">
+                    <TableCell className="min-w-[180px] max-w-[280px] text-ui">
                       <div className="min-w-0">
                         <p
-                          className="font-medium text-sm truncate"
+                          className="truncate text-ui font-medium"
                           title={`${log.user.first_name} ${log.user.last_name}`}
                         >
                           {log.user.first_name} {log.user.last_name}
                         </p>
-                        <p
-                          className="text-xs text-muted-foreground truncate"
-                          title={log.user.email}
-                        >
+                        <p className="truncate text-meta text-muted-foreground" title={log.user.email}>
                           {log.user.email}
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell>{getEventTypeBadge(log.event_type)}</TableCell>
-                    <TableCell className="text-sm">
-                      <div className="max-w-[250px] min-w-[140px]">
-                        <p
-                          className="font-medium text-sm truncate"
-                          title={productName || undefined}
-                        >
+                    <TableCell>
+                      <AuditEventBadge eventType={log.event_type} label={eventLabel} />
+                    </TableCell>
+                    <TableCell className="text-ui">
+                      <div className="min-w-[140px] max-w-[250px]">
+                        <p className="truncate text-ui font-medium" title={productName || undefined}>
                           {productName || "—"}
                         </p>
-                        {productId && (
-                          <p
-                            className="text-xs text-muted-foreground truncate"
-                            title={productId}
-                          >
+                        {productId ? (
+                          <p className="truncate text-meta text-muted-foreground" title={productId}>
                             ID: {productId}
                           </p>
-                        )}
+                        ) : null}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {log.ip_address || "—"}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+                    <TableCell className="text-ui text-muted-foreground">{log.ip_address || "—"}</TableCell>
+                    <TableCell className="max-w-[200px] truncate text-ui text-muted-foreground">
                       {log.device_info || "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedLog(log);
+                          setDetailOpen(true);
+                        }}
+                      >
+                        <EyeIcon className="mr-1 h-4 w-4" />
+                        View
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -363,6 +358,12 @@ export function ProductLogsPanel() {
           </div>
         )}
       </div>
+
+      <AuditDetailDrawer
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        record={selectedLog ? productLogToAuditDetail(selectedLog) : null}
+      />
     </div>
   );
 }

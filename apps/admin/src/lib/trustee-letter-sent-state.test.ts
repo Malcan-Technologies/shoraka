@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 import {
   formatTrusteeInstructionEmailedAt,
   formatTrusteeInstructionEmailedCopy,
@@ -14,7 +14,7 @@ describe("trustee letter sent state", () => {
 
   it("formats a sent-at timestamp without claiming email on empty values", () => {
     const sentAt = "2026-08-24T04:30:00.000Z";
-    const formatted = format(new Date(sentAt), "dd MMM yyyy, h:mm a");
+    const formatted = formatAuditDateTime(sentAt);
     expect(formatTrusteeInstructionEmailedCopy(sentAt)).toBe(
       `Email delivered to Trustee on ${formatted}`
     );

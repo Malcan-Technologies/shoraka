@@ -94,6 +94,11 @@ export function noteEventToActivityCsvRow(event: NoteEvent): AdminActivityCsvRow
       actorRole: event.actorRole,
       correlationId: event.correlationId,
     }),
+    actorType: event.actorType ?? event.actorRole,
+    source: event.source ?? event.portal,
+    targetType: event.targetType,
+    targetReference: event.targetId ?? event.noteId,
+    correlationId: event.correlationId,
   };
 }
 

@@ -98,6 +98,14 @@ export function mapGatewayPaymentEvent(
     to_status: GatewayPaymentStatus | null;
     reason: string | null;
     created_at: Date;
+    actor_type?: string | null;
+    source?: string | null;
+    target_type?: string | null;
+    target_id?: string | null;
+    portal?: string | null;
+    correlation_id?: string | null;
+    metadata?: unknown;
+    ip_address?: string | null;
   },
   actorName: string | null = null
 ) {
@@ -110,5 +118,16 @@ export function mapGatewayPaymentEvent(
     toStatus: event.to_status,
     reason: event.reason,
     createdAt: event.created_at.toISOString(),
+    actorType: event.actor_type ?? null,
+    source: event.source ?? null,
+    targetType: event.target_type ?? null,
+    targetId: event.target_id ?? null,
+    portal: event.portal ?? null,
+    correlationId: event.correlation_id ?? null,
+    metadata:
+      event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata)
+        ? (event.metadata as Record<string, unknown>)
+        : null,
+    ipAddress: event.ip_address ?? null,
   };
 }

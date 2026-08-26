@@ -3,6 +3,7 @@ import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
 import { requirePermission } from "../../lib/auth/middleware";
+import { buildAuditCsv, humanizeAuditEventType } from "../../lib/audit-csv";
 import { UserRole } from "@prisma/client";
 import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission, type AdminRoleKey } from "@cashsouk/types";
 import {
@@ -963,7 +964,7 @@ const ACCESS_LOG_CSV_EVENT_LABELS: Record<string, string> = {
 };
 
 function formatAccessLogCsvEventType(eventType: string): string {
-  return ACCESS_LOG_CSV_EVENT_LABELS[eventType] ?? eventType;
+  return humanizeAuditEventType(eventType, ACCESS_LOG_CSV_EVENT_LABELS);
 }
 
 /**
@@ -986,34 +987,35 @@ router.get(
       const logs = await adminService.exportAccessLogs(filterParams);
 
       if (format === "csv") {
-        // Generate CSV
-        const headers = [
-          "Timestamp",
-          "User",
-          "Email",
-          "Event Type",
-          "IP Address",
-          "Device",
-          "Status",
-          "Metadata",
-        ];
-        const rows = logs.map((log) => [
-          log.created_at.toISOString(),
-          `${log.user.first_name} ${log.user.last_name}`,
-          log.user.email,
-          formatAccessLogCsvEventType(log.event_type),
-          log.ip_address || "",
-          log.device_type || "",
-          log.success ? "Success" : "Failed",
-          JSON.stringify(log.metadata || {}),
-        ]);
-
-        const csvContent = [
-          headers.join(","),
-          ...rows.map((row) =>
-            row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-          ),
-        ].join("\n");
+        const csvContent = buildAuditCsv(
+          logs.map((log) => {
+            const metadata =
+              log.metadata && typeof log.metadata === "object" && !Array.isArray(log.metadata)
+                ? (log.metadata as Record<string, unknown>)
+                : null;
+            return {
+              timestamp: log.created_at.toISOString(),
+              event: formatAccessLogCsvEventType(log.event_type),
+              eventType: log.event_type,
+              actor: `${log.user.first_name} ${log.user.last_name}`.trim(),
+              actorType: log.actor_type,
+              actorEmail: log.user.email,
+              source: log.source ?? log.portal,
+              targetType: log.target_type,
+              targetReference: log.target_id,
+              status: log.success ? "Success" : "Failed",
+              reason: typeof metadata?.reason === "string" ? metadata.reason : null,
+              correlationId: log.correlation_id,
+              metadata: log.metadata,
+              extra: {
+                "IP Address": log.ip_address,
+                Device: log.device_type ?? log.device_info,
+                "User Agent": log.user_agent,
+              },
+            };
+          }),
+          ["IP Address", "Device", "User Agent"]
+        );
 
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader(
@@ -1022,7 +1024,6 @@ router.get(
         );
         res.send(Buffer.from(csvContent, "utf-8"));
       } else {
-        // JSON format - return raw JSON array, not wrapped in API response
         const jsonData = logs.map((log) => ({
           id: log.id,
           user_id: log.user_id,
@@ -1041,6 +1042,11 @@ router.get(
           success: log.success,
           metadata: log.metadata,
           created_at: log.created_at.toISOString(),
+          actor_type: log.actor_type,
+          source: log.source,
+          target_type: log.target_type,
+          target_id: log.target_id,
+          correlation_id: log.correlation_id,
         }));
 
         res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -1432,7 +1438,7 @@ const SECURITY_LOG_CSV_EVENT_LABELS: Record<string, string> = {
 };
 
 function formatSecurityLogCsvEventType(eventType: string): string {
-  return SECURITY_LOG_CSV_EVENT_LABELS[eventType] ?? eventType;
+  return humanizeAuditEventType(eventType, SECURITY_LOG_CSV_EVENT_LABELS);
 }
 
 /**
@@ -1455,40 +1461,37 @@ router.get(
       const logs = await adminService.exportSecurityLogs(filterParams);
 
       if (format === "csv") {
-        const headers = [
-          "Timestamp",
-          "User",
-          "Email",
-          "Event Type",
-          "IP Address",
-          "Device",
-          "Metadata",
-        ];
-        const rows = logs.map(
-          (log: {
-            created_at: Date;
-            user: { first_name: string; last_name: string; email: string };
-            event_type: string;
-            ip_address: string | null;
-            device_info: string | null;
-            metadata: unknown;
-          }) => [
-              log.created_at.toISOString(),
-              `${log.user.first_name} ${log.user.last_name}`,
-              log.user.email,
-              formatSecurityLogCsvEventType(log.event_type),
-              log.ip_address || "",
-              log.device_info || "",
-              JSON.stringify(log.metadata || {}),
-            ]
+        const csvContent = buildAuditCsv(
+          logs.map((log) => {
+            const metadata =
+              log.metadata && typeof log.metadata === "object" && !Array.isArray(log.metadata)
+                ? (log.metadata as Record<string, unknown>)
+                : null;
+            const previous = metadata?.previousValues ?? metadata?.previous_values;
+            const next = metadata?.nextValues ?? metadata?.next_values;
+            return {
+              timestamp: log.created_at.toISOString(),
+              event: formatSecurityLogCsvEventType(log.event_type),
+              eventType: log.event_type,
+              actor: `${log.user.first_name} ${log.user.last_name}`.trim(),
+              actorType: log.actor_type,
+              actorEmail: log.user.email,
+              source: log.source ?? log.portal,
+              targetType: log.target_type,
+              targetReference: log.target_id,
+              reason: typeof metadata?.reason === "string" ? metadata.reason : null,
+              correlationId: log.correlation_id,
+              metadata: log.metadata,
+              extra: {
+                "IP Address": log.ip_address,
+                Device: log.device_info,
+                "Previous Values": previous ? JSON.stringify(previous) : "",
+                "New Values": next ? JSON.stringify(next) : "",
+              },
+            };
+          }),
+          ["IP Address", "Device", "Previous Values", "New Values"]
         );
-
-        const csvContent = [
-          headers.join(","),
-          ...rows.map((row: string[]) =>
-            row.map((cell: string) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-          ),
-        ].join("\n");
 
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader(
@@ -1508,6 +1511,12 @@ router.get(
             device_info: string | null;
             metadata: unknown;
             created_at: Date;
+            actor_type?: string | null;
+            source?: string | null;
+            target_type?: string | null;
+            target_id?: string | null;
+            portal?: string | null;
+            correlation_id?: string | null;
           }) => ({
             id: log.id,
             user_id: log.user_id,
@@ -1523,6 +1532,12 @@ router.get(
             device_info: log.device_info,
             metadata: log.metadata,
             created_at: log.created_at.toISOString(),
+            actor_type: log.actor_type ?? null,
+            source: log.source ?? null,
+            target_type: log.target_type ?? null,
+            target_id: log.target_id ?? null,
+            portal: log.portal ?? null,
+            correlation_id: log.correlation_id ?? null,
           })
         );
 
@@ -1595,35 +1610,35 @@ router.get(
       const logs = await adminService.exportOnboardingLogs(filterParams);
 
       if (format === "csv") {
-        const headers = [
-          "Timestamp",
-          "User",
-          "Email",
-          "Role",
-          "Event Type",
-          "Portal",
-          "IP Address",
-          "Device",
-          "Metadata",
-        ];
-        const rows = logs.map((log) => [
-          log.created_at.toISOString(),
-          `${log.user.first_name} ${log.user.last_name}`,
-          log.user.email,
-          log.role,
-          log.event_type,
-          log.portal || "",
-          log.ip_address || "",
-          log.device_type || "",
-          JSON.stringify(log.metadata || {}),
-        ]);
-
-        const csvContent = [
-          headers.join(","),
-          ...rows.map((row) =>
-            row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-          ),
-        ].join("\n");
+        const csvContent = buildAuditCsv(
+          logs.map((log) => ({
+            timestamp: log.created_at.toISOString(),
+            event: humanizeAuditEventType(log.event_type),
+            eventType: log.event_type,
+            actor: `${log.user.first_name} ${log.user.last_name}`.trim(),
+            actorType: log.actor_type ?? log.role,
+            actorEmail: log.user.email,
+            organisation: null,
+            source: log.source ?? log.portal,
+            targetType: log.target_type,
+            targetReference: log.target_id,
+            reason:
+              log.metadata && typeof log.metadata === "object" && !Array.isArray(log.metadata)
+                ? typeof (log.metadata as Record<string, unknown>).reason === "string"
+                  ? String((log.metadata as Record<string, unknown>).reason)
+                  : null
+                : null,
+            correlationId: log.correlation_id,
+            metadata: log.metadata,
+            extra: {
+              Role: log.role,
+              Portal: log.portal,
+              "IP Address": log.ip_address,
+              Device: log.device_type ?? log.device_info,
+            },
+          })),
+          ["Role", "Portal", "IP Address", "Device"]
+        );
 
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader(
@@ -1650,6 +1665,11 @@ router.get(
           device_type: log.device_type,
           metadata: log.metadata,
           created_at: log.created_at.toISOString(),
+          actor_type: log.actor_type,
+          source: log.source,
+          target_type: log.target_type,
+          target_id: log.target_id,
+          correlation_id: log.correlation_id,
         }));
 
         res.setHeader("Content-Type", "application/json; charset=utf-8");

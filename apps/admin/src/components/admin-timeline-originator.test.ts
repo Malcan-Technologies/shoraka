@@ -5,6 +5,7 @@ describe("resolveAdminTimelineOriginator", () => {
     expect(resolveAdminTimelineOriginator({ actorLabel: "System", portal: "ADMIN" })).toBe(
       "system"
     );
+    expect(resolveAdminTimelineOriginator({ actorLabel: "SYS", portal: "ADMIN" })).toBe("system");
     expect(resolveAdminTimelineOriginator({ actorLabel: null, portal: "ISSUER" })).toBe("system");
     expect(resolveAdminTimelineOriginator({})).toBe("system");
   });
@@ -25,6 +26,7 @@ describe("resolveAdminTimelineOriginator", () => {
 describe("displayAdminTimelineActorName", () => {
   it("hides System, blank, and opaque ids", () => {
     expect(displayAdminTimelineActorName("System")).toBeNull();
+    expect(displayAdminTimelineActorName("SYS")).toBeNull();
     expect(displayAdminTimelineActorName("")).toBeNull();
     expect(displayAdminTimelineActorName("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")).toBeNull();
     expect(displayAdminTimelineActorName("clabcdefghijklmnopqrstuvwx")).toBeNull();

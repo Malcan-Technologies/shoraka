@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { format, formatDistanceToNowStrict } from "date-fns";
+import { formatDistanceToNowStrict } from "date-fns";
+import { formatAuditDate } from "@/components/audit/audit-presentation";
 import {
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
@@ -52,7 +53,7 @@ const TYPE_TONE: Record<string, string> = {
 
 function formatDate(value: string | null) {
   if (!value) return "—";
-  return format(new Date(value), "dd MMM yyyy");
+  return formatAuditDate(value);
 }
 
 function formatAge(value: string | null) {

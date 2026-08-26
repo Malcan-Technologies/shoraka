@@ -63,9 +63,9 @@ describe("buildNoteActivityCsv", () => {
       }),
     ]);
     const lines = csv.split("\n");
-    expect(lines[0]).toContain("createdAt");
-    expect(lines[0]).toContain("event");
-    expect(lines[0]).toContain("actor");
+    expect(lines[0]).toContain("Timestamp");
+    expect(lines[0]).toContain("Event");
+    expect(lines[0]).toContain("Actor");
     expect(lines[1]).toContain("Note created");
     expect(lines[1]).toContain("NOTE_CREATED");
     expect(lines[1]).toContain("Issuer said ready");

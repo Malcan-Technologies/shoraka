@@ -67,6 +67,7 @@ interface AccessLogsToolbarProps {
   onRefresh?: () => void;
   isLoading?: boolean;
   allowedEventTypes?: ToolbarEventType[];
+  exportKind?: "access" | "security";
 }
 
 export function AccessLogsToolbar({
@@ -85,6 +86,7 @@ export function AccessLogsToolbar({
   onRefresh,
   isLoading = false,
   allowedEventTypes,
+  exportKind = "access",
 }: AccessLogsToolbarProps) {
   const filteredEventTypes = allowedEventTypes
     ? EVENT_TYPE_OPTIONS.filter((opt) => allowedEventTypes.includes(opt.value))
@@ -175,7 +177,7 @@ export function AccessLogsToolbar({
         </DropdownMenu>
       }
     >
-      {exportFilters ? <AccessLogsExportButton filters={exportFilters} /> : null}
+      {exportFilters ? <AccessLogsExportButton filters={exportFilters} kind={exportKind} /> : null}
     </ListToolbar>
   );
 }

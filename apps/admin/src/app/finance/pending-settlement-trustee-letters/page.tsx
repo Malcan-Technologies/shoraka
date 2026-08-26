@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { format, formatDistanceToNowStrict } from "date-fns";
+import { formatDistanceToNowStrict } from "date-fns";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 import { formatSettlementReference } from "@cashsouk/types";
 import {
   ArrowPathIcon,
@@ -27,7 +28,7 @@ import { AdminPageHeader } from "@/components/admin-page-header";
 
 function formatDate(value: string | null) {
   if (!value) return "—";
-  return format(new Date(value), "dd MMM yyyy, h:mm a");
+  return formatAuditDateTime(value);
 }
 
 function formatAge(value: string | null) {

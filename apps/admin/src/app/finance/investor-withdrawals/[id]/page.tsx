@@ -3,7 +3,7 @@
 import { StatusBadge } from "@cashsouk/ui";
 
 import * as React from "react";
-import { format } from "date-fns";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
@@ -60,7 +60,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 function formatDateTime(value: string | null) {
   if (!value) return "—";
-  return format(new Date(value), "dd MMM yyyy, h:mm a");
+  return formatAuditDateTime(value);
 }
 
 function fullAccount(accountNumber: string | undefined) {

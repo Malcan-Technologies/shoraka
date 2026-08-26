@@ -38,7 +38,7 @@ describe("extractNoteTimelineDetails", () => {
     );
 
     expect(compact).toEqual([
-      { key: "dueDate", label: "Due date", value: "09 Sep 2026" },
+      { key: "dueDate", label: "Due date", value: "9 Sep 2026" },
       { key: "overdue", label: "Overdue", value: "No" },
       { key: "daysLate", label: "Days late", value: "0" },
       { key: "checkDate", label: "Checked", value: expect.stringMatching(/12 May 2026/) },

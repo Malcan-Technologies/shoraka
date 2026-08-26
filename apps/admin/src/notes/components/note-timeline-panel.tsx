@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   ArrowDownTrayIcon,
   ClockIcon,
@@ -23,6 +24,8 @@ import {
   extractNoteTimelineDetails,
   noteDocumentFileName,
 } from "@/notes/utils/note-timeline-details";
+import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
+import { noteEventToAuditDetail } from "@/components/audit/audit-adapters";
 
 function extractS3Key(event: NoteEvent) {
   const s3Key = event.metadata?.s3Key;
@@ -42,6 +45,7 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
     useAdminS3DocumentViewDownload();
   const exportNoteEvents = useNoteEventsExport(note.id);
   const totalCount = note.events.length;
+  const [selectedEvent, setSelectedEvent] = useState<NoteEvent | null>(null);
 
   return (
     <Card className="rounded-2xl">
@@ -85,6 +89,7 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                   portal={event.portal}
                   compactDetails={compact}
                   prose={prose}
+                  onViewDetails={() => setSelectedEvent(event)}
                   footer={
                     s3Key ? (
                       <AdminTimelineDetailCard>
@@ -127,6 +132,20 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
           </AdminVerticalTimeline>
         )}
       </CardContent>
+      <AuditDetailDrawer
+        open={selectedEvent != null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedEvent(null);
+        }}
+        record={
+          selectedEvent
+            ? noteEventToAuditDetail(
+                selectedEvent,
+                formatNoteActivityEventLabel(selectedEvent.eventType, selectedEvent.metadata)
+              )
+            : null
+        }
+      />
     </Card>
   );
 }

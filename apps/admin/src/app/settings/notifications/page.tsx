@@ -29,7 +29,15 @@ import {
   SelectValue,
 } from "../../../components/ui/select";
 import { Badge } from "../../../components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  ListToolbar,
+  ListToolbarFilterTrigger,
+  type FilterChip,
+} from "@cashsouk/ui";
 import { toast } from "sonner";
 import {
   Send,
@@ -41,11 +49,9 @@ import {
   History,
   ChevronLeft,
   ChevronRight,
-  Search,
   RotateCcw,
-  Filter,
 } from "lucide-react";
-import { EyeIcon } from "@heroicons/react/24/outline";
+import { EyeIcon, ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -55,6 +61,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../../../components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,6 +91,11 @@ import {
 import { Skeleton } from "../../../components/ui/skeleton";
 import { RequirePermission } from "../../../components/require-permission";
 import { AdminPageHeader } from "../../../components/admin-page-header";
+import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
+import { notificationLogToAuditDetail } from "@/components/audit/audit-adapters";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
+import { buildAuditCsv, downloadAuditCsv } from "@/components/audit/audit-csv";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 
 const TARGET_CONFIG: Record<string, { label: string; color: string }> = {
   ALL_USERS: { label: "All Users", color: "bg-blue-500" },
@@ -84,6 +104,14 @@ const TARGET_CONFIG: Record<string, { label: string; color: string }> = {
   SPECIFIC_USERS: { label: "Specific Users", color: "bg-emerald-500" },
   GROUP: { label: "Group", color: "bg-orange-500" },
 };
+
+const LOG_TARGET_OPTIONS = [
+  { value: "ALL_USERS", label: "All Users" },
+  { value: "INVESTORS", label: "Investors" },
+  { value: "ISSUERS", label: "Issuers" },
+  { value: "SPECIFIC_USERS", label: "Specific Users" },
+  { value: "GROUP", label: "Group" },
+] as const;
 
 const COLOR_MAP: Record<string, string> = {
   "bg-blue-500": "rgb(59 130 246)",
@@ -230,6 +258,7 @@ function LogDeliveryCell({
 export default function NotificationsAdminPage() {
   const { can } = usePermissions();
   const canManage = can("notifications.manage");
+  const { getAccessToken } = useAuthToken();
   const [page, setPage] = useState(1);
   const [logSearchQuery, setLogSearchQuery] = useState<string>("");
   const [logTypeFilter, setLogTypeFilter] = useState<string>("all");
@@ -290,6 +319,7 @@ export default function NotificationsAdminPage() {
   // Log View State
   const [selectedLog, setSelectedLog] = useState<AdminNotificationLog | null>(null);
   const [isLogDetailsOpen, setIsLogDetailsOpen] = useState(false);
+  const [exportingLogs, setExportingLogs] = useState(false);
   const [isResetDefaultsOpen, setIsResetDefaultsOpen] = useState(false);
   const [isSendConfirmOpen, setIsSendConfirmOpen] = useState(false);
 
@@ -331,6 +361,109 @@ export default function NotificationsAdminPage() {
   const sendChannelLabel = [sendToPlatform ? "Platform" : null, sendToEmail ? "Email" : null]
     .filter(Boolean)
     .join(" and ");
+
+  const handleExportNotificationLogs = async () => {
+    setExportingLogs(true);
+    try {
+      const apiClient = createApiClient(undefined, getAccessToken);
+      const pageSize = 100;
+      const all: AdminNotificationLog[] = [];
+      let offset = 0;
+      while (true) {
+        const response = await apiClient.getAdminNotificationLogs({
+          limit: pageSize,
+          offset,
+          search: logSearchQuery || undefined,
+          type: logTypeFilter !== "all" ? logTypeFilter : undefined,
+          target: logTargetFilter !== "all" ? logTargetFilter : undefined,
+          source: logSourceFilter !== "all" ? logSourceFilter : undefined,
+        });
+        if ("error" in response) throw new Error(response.error.message);
+        all.push(...response.data.items);
+        if (all.length >= response.data.pagination.total || response.data.items.length === 0) break;
+        offset += pageSize;
+      }
+      const csv = buildAuditCsv(
+        all.map((log) => ({
+          timestamp: log.created_at,
+          event: log.notification_type?.name || log.notification_type_id,
+          eventType: log.notification_type_id,
+          actor: log.admin ? `${log.admin.first_name} ${log.admin.last_name}` : "System",
+          actorType: log.source === "SYSTEM" || !log.admin ? "SYSTEM" : "ADMIN",
+          actorEmail: log.admin?.email,
+          source: log.source,
+          targetType: log.target_type,
+          targetReference: log.target_group_id,
+          reason: log.message,
+          metadata: log.metadata,
+          extra: {
+            "Notification Type": log.notification_type?.name || log.notification_type_id,
+            "Platform Delivered": log.delivered_platform_count,
+            "Email Delivered": log.delivered_email_count,
+            "Idempotency Key": log.idempotency_key,
+            Title: log.title,
+          },
+        })),
+        ["Notification Type", "Platform Delivered", "Email Delivered", "Idempotency Key", "Title"]
+      );
+      downloadAuditCsv(`notification-logs-${new Date().toISOString().split("T")[0]}.csv`, csv);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to export notification logs");
+    } finally {
+      setExportingLogs(false);
+    }
+  };
+
+  const hasLogFilters =
+    Boolean(logSearchQuery) ||
+    logTypeFilter !== "all" ||
+    logTargetFilter !== "all" ||
+    logSourceFilter !== "all";
+
+  const logFilterChips: FilterChip[] = [];
+  if (logTypeFilter !== "all") {
+    logFilterChips.push({
+      id: "type",
+      label: `Type: ${types.find((type: AdminNotificationType) => type.id === logTypeFilter)?.name ?? logTypeFilter}`,
+      onRemove: () => {
+        setLogTypeFilter("all");
+        setPage(1);
+      },
+    });
+  }
+  if (logTargetFilter !== "all") {
+    logFilterChips.push({
+      id: "target",
+      label: `Audience: ${LOG_TARGET_OPTIONS.find((option) => option.value === logTargetFilter)?.label ?? logTargetFilter}`,
+      onRemove: () => {
+        setLogTargetFilter("all");
+        setPage(1);
+      },
+    });
+  }
+  if (logSourceFilter !== "all") {
+    logFilterChips.push({
+      id: "source",
+      label: `Source: ${logSourceFilter === "SYSTEM" ? "System" : "Admin"}`,
+      onRemove: () => {
+        setLogSourceFilter("all");
+        setPage(1);
+      },
+    });
+  }
+
+  const clearLogFilters = () => {
+    setLogSearchQuery("");
+    setLogTypeFilter("all");
+    setLogTargetFilter("all");
+    setLogSourceFilter("all");
+    setPage(1);
+  };
+
+  const openLogDetails = (log: AdminNotificationLog) => {
+    setSelectedLog(log);
+    setIsLogDetailsOpen(true);
+  };
 
   const handleSendNotification = (e: React.FormEvent) => {
     e.preventDefault();
@@ -977,108 +1110,92 @@ export default function NotificationsAdminPage() {
             <TabsContent value="logs" className="space-y-6">
               <p className="text-ui text-muted-foreground">
                 Each row is one send. Custom messages from Custom & Groups appear as a single Admin
-                row with the audience size — not one line per recipient.
+                row with the audience size — not one line per recipient. Delivery counts are what
+                actually happened, not the channel switches on Configuration.
               </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 min-w-[300px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search title, message, type, or admin..."
-                    value={logSearchQuery}
-                    onChange={(e) => {
-                      setLogSearchQuery(e.target.value);
-                      setPage(1);
-                    }}
-                    className="h-11 rounded-xl bg-card pl-9"
-                  />
-                </div>
-
-                <Select
-                  value={logTypeFilter}
-                  onValueChange={(value) => {
-                    setLogTypeFilter(value);
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger className="h-11 w-[180px] rounded-xl bg-card">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <Filter className="h-4 w-4 shrink-0" />
-                      <div className="truncate">
-                        <SelectValue placeholder="All Types" />
-                      </div>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    {types.map((type: AdminNotificationType) => (
-                      <SelectItem key={type.id} value={type.id}>
-                        {type.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={logTargetFilter}
-                  onValueChange={(value) => {
-                    setLogTargetFilter(value);
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger className="h-11 w-[180px] rounded-xl bg-card">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <Users className="h-4 w-4 shrink-0" />
-                      <div className="truncate">
-                        <SelectValue placeholder="All Targets" />
-                      </div>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Targets</SelectItem>
-                    <SelectItem value="ALL_USERS">All Users</SelectItem>
-                    <SelectItem value="INVESTORS">Investors</SelectItem>
-                    <SelectItem value="ISSUERS">Issuers</SelectItem>
-                    <SelectItem value="SPECIFIC_USERS">Specific Users</SelectItem>
-                    <SelectItem value="GROUP">Group</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={logSourceFilter}
-                  onValueChange={(value) => {
-                    setLogSourceFilter(value as "all" | NotificationLogSource);
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger className="h-11 w-[180px] rounded-xl bg-card" aria-label="Source">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <Filter className="h-4 w-4 shrink-0" />
-                      <div className="truncate">
-                        <SelectValue placeholder="All Sources" />
-                      </div>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Sources</SelectItem>
-                    <SelectItem value="ADMIN">Admin</SelectItem>
-                    <SelectItem value="SYSTEM">System</SelectItem>
-                  </SelectContent>
-                </Select>
-
+              <ListToolbar
+                searchValue={logSearchQuery}
+                onSearchChange={(value) => {
+                  setLogSearchQuery(value);
+                  setPage(1);
+                }}
+                searchPlaceholder="Search title, message, type, or admin..."
+                appliedFilters={logFilterChips}
+                onClearFilters={hasLogFilters ? clearLogFilters : undefined}
+                onReload={() => refetchLogs()}
+                isLoading={isLoadingLogs}
+                countLabel={`${paginationLogs?.total || 0} ${paginationLogs?.total === 1 ? "log" : "logs"}`}
+                filterGroups={
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <ListToolbarFilterTrigger
+                        label="Filters"
+                        count={
+                          [logTypeFilter !== "all", logTargetFilter !== "all", logSourceFilter !== "all"].filter(
+                            Boolean
+                          ).length
+                        }
+                      />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuLabel>Notification type</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={logTypeFilter}
+                        onValueChange={(value) => {
+                          setLogTypeFilter(value);
+                          setPage(1);
+                        }}
+                      >
+                        <DropdownMenuRadioItem value="all">All types</DropdownMenuRadioItem>
+                        {types.map((type: AdminNotificationType) => (
+                          <DropdownMenuRadioItem key={type.id} value={type.id}>
+                            {type.name}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>Audience</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={logTargetFilter}
+                        onValueChange={(value) => {
+                          setLogTargetFilter(value);
+                          setPage(1);
+                        }}
+                      >
+                        <DropdownMenuRadioItem value="all">All audiences</DropdownMenuRadioItem>
+                        {LOG_TARGET_OPTIONS.map((option) => (
+                          <DropdownMenuRadioItem key={option.value} value={option.value}>
+                            {option.label}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>Source</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={logSourceFilter}
+                        onValueChange={(value) => {
+                          setLogSourceFilter(value as "all" | NotificationLogSource);
+                          setPage(1);
+                        }}
+                      >
+                        <DropdownMenuRadioItem value="all">All sources</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="ADMIN">Admin</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="SYSTEM">System</DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                }
+              >
                 <Button
                   variant="outline"
-                  onClick={() => refetchLogs()}
-                  disabled={isLoadingLogs}
+                  onClick={() => void handleExportNotificationLogs()}
+                  disabled={exportingLogs || (paginationLogs?.total ?? 0) === 0}
                   className="h-11 gap-2 rounded-xl bg-card"
                 >
-                  <RotateCcw className={`h-4 w-4 ${isLoadingLogs ? "animate-spin" : ""}`} />
-                  Refresh
+                  <ArrowDownTrayIcon className="h-4 w-4" />
+                  {exportingLogs ? "Exporting..." : "Export CSV"}
                 </Button>
-
-                <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm font-normal">
-                  {paginationLogs?.total || 0} {paginationLogs?.total === 1 ? "log" : "logs"}
-                </Badge>
-              </div>
+              </ListToolbar>
 
               <Card className="border-none shadow-none bg-transparent">
                 <CardContent className="p-0">
@@ -1087,7 +1204,7 @@ export default function NotificationsAdminPage() {
                   ) : logs.length === 0 ? (
                     <div className="text-center py-20 text-muted-foreground bg-white border rounded-2xl">
                       <History className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                      <p className="text-lg font-medium">No notification logs found</p>
+                      <p className="text-lg font-medium">No logs found</p>
                       <p className="text-sm">
                         Try adjusting your search or send a new notification.
                       </p>
@@ -1124,10 +1241,11 @@ export default function NotificationsAdminPage() {
                             {logs.map((log: AdminNotificationLog) => (
                               <TableRow
                                 key={log.id}
-                                className="hover:bg-muted/50 transition-colors"
+                                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => openLogDetails(log)}
                               >
-                                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                                  {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}
+                                <TableCell className="whitespace-nowrap text-ui text-muted-foreground">
+                                  {formatAuditDateTime(log.created_at)}
                                 </TableCell>
                                 <TableCell>
                                   <LogSourceCell log={log} />
@@ -1195,9 +1313,9 @@ export default function NotificationsAdminPage() {
                                     size="sm"
                                     variant="ghost"
                                     className="h-8 px-2"
-                                    onClick={() => {
-                                      setSelectedLog(log);
-                                      setIsLogDetailsOpen(true);
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openLogDetails(log);
                                     }}
                                   >
                                     <EyeIcon className="h-4 w-4 mr-1" />
@@ -1339,108 +1457,11 @@ export default function NotificationsAdminPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Log Details Modal */}
-          <Dialog open={isLogDetailsOpen} onOpenChange={setIsLogDetailsOpen}>
-            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Notification Details</DialogTitle>
-                <DialogDescription>
-                  {selectedLog?.source === "ADMIN"
-                    ? "One custom send, grouped for everyone in the audience."
-                    : "Full content and metadata for this automated send."}
-                </DialogDescription>
-              </DialogHeader>
-
-              {selectedLog && (
-                <div className="space-y-6 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Timestamp
-                      </p>
-                      <p className="text-sm">{format(new Date(selectedLog.created_at), "PPP p")}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground uppercase">Source</p>
-                      <LogSourceCell log={selectedLog} />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Target Type
-                      </p>
-                      <Badge variant="secondary" className="text-meta uppercase">
-                        {selectedLog.target_type.replace("_", " ")}
-                      </Badge>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground uppercase">Type</p>
-                      <p className="text-sm font-medium">
-                        {selectedLog.notification_type?.name || selectedLog.notification_type_id}
-                      </p>
-                      {selectedLog.notification_type?.portal_targets?.length ? (
-                        <Badge variant="outline" className="text-meta mt-1">
-                          {getPortalTargetsLabel(selectedLog.notification_type.portal_targets)}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Recipients
-                      </p>
-                      <p className="text-sm font-medium">
-                        {selectedLog.recipient_count} users attempted
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        Delivery
-                      </p>
-                      <LogDeliveryCell
-                        platformCount={selectedLog.delivered_platform_count}
-                        emailCount={selectedLog.delivered_email_count}
-                      />
-                      <p className="text-meta text-muted-foreground">
-                        Selected channel deliveries, not confirmed receipt.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 border-t pt-4">
-                    <p className="text-xs font-medium text-muted-foreground uppercase">Title</p>
-                    <p className="text-sm font-semibold text-slate-900">{selectedLog.title}</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground uppercase">Message</p>
-                    <div className="rounded-xl bg-muted/50 p-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto">
-                      {selectedLog.message}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 border-t pt-4">
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground uppercase">
-                        IP Address
-                      </p>
-                      <p className="text-sm font-mono">{selectedLog.ip_address || "—"}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground uppercase">Device</p>
-                      <p className="text-sm font-medium">{selectedLog.device_info || "—"}</p>
-                      <p className="text-meta text-muted-foreground break-all leading-normal opacity-60">
-                        {selectedLog.user_agent}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsLogDetailsOpen(false)}>
-                  Close
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <AuditDetailDrawer
+            open={isLogDetailsOpen}
+            onOpenChange={setIsLogDetailsOpen}
+            record={selectedLog ? notificationLogToAuditDetail(selectedLog) : null}
+          />
 
           <AlertDialog open={isSendConfirmOpen} onOpenChange={setIsSendConfirmOpen}>
             <AlertDialogContent>

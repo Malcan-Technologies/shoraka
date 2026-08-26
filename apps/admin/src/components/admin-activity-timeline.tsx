@@ -14,7 +14,6 @@ import {
   type AdminActivityCsvRow,
 } from "@/components/admin-activity-csv";
 import {
-  AdminTimelineDetailCard,
   AdminVerticalTimeline,
   AdminVerticalTimelineItem,
   AdminVerticalTimelineSkeleton,
@@ -22,10 +21,8 @@ import {
 import { resolveAdminTimelineActorLabel } from "@/components/admin-timeline-originator";
 import { ChevronDownIcon, ClockIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
-import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
-import { formatCurrency } from "@cashsouk/config";
-import { getItemDisplayNameFromScopeKey, formatPhaseDeadlineAbsolute } from "@cashsouk/types";
+import { getItemDisplayNameFromScopeKey } from "@cashsouk/types";
 import type {
   ResubmitChangesMetadata,
   ResubmitFieldChangeItem,
@@ -37,6 +34,8 @@ import {
   useApplicationLogs,
   type ApplicationLogEntry,
 } from "@/hooks/use-application-logs";
+import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
+import { applicationLogToAuditDetail } from "@/components/audit/audit-adapters";
 
 type ActivityMetadata = {
   scope_key?: string;
@@ -251,103 +250,12 @@ function applicationLogToActivityCsvRow(
       review_cycle: log.review_cycle,
       ip_address: log.ip_address,
     }),
+    actorType: log.actor_type,
+    source: log.source ?? (typeof portalRaw === "string" ? portalRaw : null),
+    targetType: log.target_type,
+    targetReference: log.target_id ?? log.entityId,
+    correlationId: log.correlation_id,
   };
-}
-
-function ApplicationTimelineDetails({
-  eventType,
-  metadata,
-  remark,
-}: {
-  eventType: string;
-  metadata: ActivityMetadata | null;
-  remark: string | null | undefined;
-}) {
-  const showOffer =
-    eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT";
-  const showRejection =
-    (eventType === "CONTRACT_WITHDRAWN" || eventType === "INVOICE_OFFER_REJECTED") &&
-    Boolean(metadata?.rejection_reason);
-  const remarkLines = remark ? formatRemarkAsBullets(String(remark)) : [];
-
-  if (!showOffer && !showRejection && remarkLines.length === 0) return null;
-
-  return (
-    <AdminTimelineDetailCard>
-      <div className="space-y-3">
-      {showOffer && metadata && eventType === "CONTRACT_OFFER_SENT" ? (
-        <dl className="grid grid-cols-[minmax(7rem,auto)_1fr] gap-x-3 gap-y-1 text-ui">
-          {typeof metadata.offered_facility === "number" ? (
-            <>
-              <dt className="text-muted-foreground">Offered facility</dt>
-              <dd className="tabular-nums">{formatCurrency(metadata.offered_facility)}</dd>
-            </>
-          ) : null}
-          {typeof metadata.requested_facility === "number" ? (
-            <>
-              <dt className="text-muted-foreground">Requested facility</dt>
-              <dd className="tabular-nums">{formatCurrency(metadata.requested_facility)}</dd>
-            </>
-          ) : null}
-          {typeof metadata.acceptance_expires_at === "string" && metadata.acceptance_expires_at ? (
-            <>
-              <dt className="text-muted-foreground">Accept by</dt>
-              <dd className="tabular-nums">
-                {formatPhaseDeadlineAbsolute(metadata.acceptance_expires_at)}
-              </dd>
-            </>
-          ) : null}
-        </dl>
-      ) : null}
-      {showOffer && metadata && eventType === "INVOICE_OFFER_SENT" ? (
-        <dl className="grid grid-cols-[minmax(7rem,auto)_1fr] gap-x-3 gap-y-1 text-ui">
-          {typeof metadata.offered_amount === "number" ? (
-            <>
-              <dt className="text-muted-foreground">Financing amount</dt>
-              <dd className="tabular-nums">{formatCurrency(metadata.offered_amount)}</dd>
-            </>
-          ) : null}
-          {metadata.offered_ratio_percent != null ? (
-            <>
-              <dt className="text-muted-foreground">Financing ratio</dt>
-              <dd className="tabular-nums">{Number(metadata.offered_ratio_percent)}%</dd>
-            </>
-          ) : null}
-          {metadata.offered_profit_rate_percent != null ? (
-            <>
-              <dt className="text-muted-foreground">Profit rate</dt>
-              <dd className="tabular-nums">{Number(metadata.offered_profit_rate_percent)}%</dd>
-            </>
-          ) : null}
-          {typeof metadata.acceptance_expires_at === "string" && metadata.acceptance_expires_at ? (
-            <>
-              <dt className="text-muted-foreground">Accept by</dt>
-              <dd className="tabular-nums">
-                {formatPhaseDeadlineAbsolute(metadata.acceptance_expires_at)}
-              </dd>
-            </>
-          ) : null}
-        </dl>
-      ) : null}
-      {showRejection && metadata?.rejection_reason ? (
-        <div>
-          <p className="text-meta text-muted-foreground">Reason</p>
-          <p className="mt-0.5 text-ui leading-relaxed">{String(metadata.rejection_reason)}</p>
-        </div>
-      ) : null}
-      {remarkLines.length > 0 ? (
-        <div>
-          <p className="text-meta text-muted-foreground">Remark</p>
-          <ul className="mt-1 list-disc space-y-1 pl-5 text-ui leading-relaxed">
-            {remarkLines.map((line, i) => (
-              <li key={i}>{line}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      </div>
-    </AdminTimelineDetailCard>
-  );
 }
 
 export function AdminActivityTimeline({
@@ -364,7 +272,7 @@ export function AdminActivityTimeline({
     [data]
   );
 
-  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
+  const [selectedLog, setSelectedLog] = React.useState<ApplicationLogEntry | null>(null);
   const [comparisonModalOpen, setComparisonModalOpen] = React.useState(false);
   const [comparisonContext, setComparisonContext] = React.useState<{
     reviewCycle: number;
@@ -384,8 +292,6 @@ export function AdminActivityTimeline({
     () => (data ?? []).map((log) => applicationLogToActivityCsvRow(log, sectionLabelOverrides)),
     [data, sectionLabelOverrides]
   );
-
-  const toggle = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
 
   return (
     <>
@@ -460,7 +366,6 @@ export function AdminActivityTimeline({
                       actorUserId: log.actor_id,
                       portal,
                     });
-                    const remark = log.remark;
                     const entityId = log.entityId ?? undefined;
                     const resubmitChanges =
                       eventType === "APPLICATION_RESUBMITTED"
@@ -483,14 +388,6 @@ export function AdminActivityTimeline({
                           })
                         : null;
                     const description = tabsOnly ?? formatActivityText(log.activity);
-                    const canExpand = Boolean(
-                      remark ||
-                        ((eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT") &&
-                          metadata) ||
-                        ((eventType === "CONTRACT_WITHDRAWN" ||
-                          eventType === "INVOICE_OFFER_REJECTED") &&
-                          metadata?.rejection_reason)
-                    );
 
                     return (
                       <AdminVerticalTimelineItem
@@ -505,46 +402,25 @@ export function AdminActivityTimeline({
                         createdAt={log.created_at}
                         actorLabel={actorName}
                         portal={portal}
+                        onViewDetails={() => setSelectedLog(log)}
                         timestampActions={
-                          canOpenResubmitComparison || canExpand ? (
-                            <>
-                              {canOpenResubmitComparison ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setComparisonContext({
-                                      reviewCycle: reviewCycleFromLog!,
-                                      fieldChanges: Array.isArray(resubmitChanges?.field_changes)
-                                        ? (resubmitChanges!.field_changes as ResubmitFieldChangeItem[])
-                                        : undefined,
-                                    });
-                                    setComparisonModalOpen(true);
-                                  }}
-                                  className="hover:text-foreground hover:underline"
-                                >
-                                  View comparison
-                                </button>
-                              ) : null}
-                              {canExpand ? (
-                                <button
-                                  type="button"
-                                  onClick={() => toggle(log.id)}
-                                  className="hover:text-foreground hover:underline"
-                                >
-                                  {expanded[log.id] ? "Hide details" : "View details"}
-                                </button>
-                              ) : null}
-                            </>
+                          canOpenResubmitComparison ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setComparisonContext({
+                                  reviewCycle: reviewCycleFromLog!,
+                                  fieldChanges: Array.isArray(resubmitChanges?.field_changes)
+                                    ? (resubmitChanges!.field_changes as ResubmitFieldChangeItem[])
+                                    : undefined,
+                                });
+                                setComparisonModalOpen(true);
+                              }}
+                              className="hover:text-foreground hover:underline"
+                            >
+                              View comparison
+                            </button>
                           ) : undefined
-                        }
-                        footer={
-                          expanded[log.id] ? (
-                            <ApplicationTimelineDetails
-                              eventType={eventType}
-                              metadata={metadata}
-                              remark={remark}
-                            />
-                          ) : null
                         }
                       />
                     );
@@ -555,6 +431,26 @@ export function AdminActivityTimeline({
           )}
         </CardContent>
       </Card>
+      <AuditDetailDrawer
+        open={selectedLog != null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedLog(null);
+        }}
+        record={
+          selectedLog
+            ? applicationLogToAuditDetail(
+                selectedLog,
+                getEventLabel(
+                  selectedLog.event_type,
+                  selectedLog.metadata,
+                  selectedLog.entityId,
+                  sectionLabelOverrides
+                ),
+                formatActivityText(selectedLog.activity)
+              )
+            : null
+        }
+      />
       <ResubmitComparisonModal
         open={comparisonModalOpen}
         onOpenChange={(o) => {

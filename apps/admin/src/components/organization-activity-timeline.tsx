@@ -23,6 +23,8 @@ import {
   ORGANIZATION_ACTIVITY_EVENT_TYPES,
   useOrganizationLogs,
 } from "@/hooks/use-organization-logs";
+import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
+import { organizationLogToAuditDetail } from "@/components/audit/audit-adapters";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { OnboardingLogResponse } from "@cashsouk/types";
 import {
@@ -148,6 +150,13 @@ function organizationLogToActivityCsvRow(log: OnboardingLogResponse): AdminActiv
       ip_address: log.ip_address,
       device_type: log.device_type,
     }),
+    actorType: log.actor_type,
+    actorEmail: log.user.email,
+    organisation: log.organizationName,
+    source: log.source ?? log.portal,
+    targetType: log.target_type,
+    targetReference: log.target_id,
+    correlationId: log.correlation_id,
   };
 }
 
@@ -156,11 +165,13 @@ function OrganizationActivityTimelineList({
   hasNextPage,
   fetchNextPage,
   isFetchingNextPage,
+  onViewDetails,
 }: {
   logs: OnboardingLogResponse[];
   hasNextPage: boolean | undefined;
   fetchNextPage: () => void;
   isFetchingNextPage: boolean;
+  onViewDetails: (log: OnboardingLogResponse) => void;
 }) {
   return (
     <AdminVerticalTimeline
@@ -199,6 +210,7 @@ function OrganizationActivityTimelineList({
             portal={log.portal}
             bylineChips={extractOrganizationTimelineBylineChips(metadata)}
             compactDetails={extractOrganizationTimelineCompactDetails(eventType, metadata)}
+            onViewDetails={() => onViewDetails(log)}
           />
         );
       })}
@@ -226,6 +238,7 @@ export function OrganizationActivityTimeline({
     isFetchingNextPage,
   } = useOrganizationLogs(organizationId);
 
+  const [selectedLog, setSelectedLog] = React.useState<OnboardingLogResponse | null>(null);
   const logs = React.useMemo(
     () => data?.pages.flatMap((page) => page.logs) ?? [],
     [data]
@@ -301,6 +314,7 @@ export function OrganizationActivityTimeline({
                   hasNextPage={hasNextPage}
                   fetchNextPage={fetchNextPage}
                   isFetchingNextPage={isFetchingNextPage}
+                  onViewDetails={setSelectedLog}
                 />
               </div>
             ) : (
@@ -311,6 +325,7 @@ export function OrganizationActivityTimeline({
                     hasNextPage={hasNextPage}
                     fetchNextPage={fetchNextPage}
                     isFetchingNextPage={isFetchingNextPage}
+                    onViewDetails={setSelectedLog}
                   />
                 </div>
               </ScrollArea>
@@ -318,6 +333,21 @@ export function OrganizationActivityTimeline({
           </div>
         )}
       </CardContent>
+      <AuditDetailDrawer
+        open={selectedLog != null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedLog(null);
+        }}
+        record={
+          selectedLog
+            ? organizationLogToAuditDetail(
+                selectedLog,
+                getEventLabel(selectedLog.event_type),
+                buildEventDescription(selectedLog.event_type, selectedLog.metadata, selectedLog)
+              )
+            : null
+        }
+      />
     </Card>
   );
 }

@@ -580,6 +580,12 @@ export function mapNoteEventRecords(
     correlationId: event.correlation_id,
     metadata: asRecord(event.metadata),
     createdAt: event.created_at.toISOString(),
+    actorType: event.actor_type,
+    source: event.source,
+    targetType: event.target_type,
+    targetId: event.target_id,
+    ipAddress: event.ip_address,
+    userAgent: event.user_agent,
   }));
 }
 

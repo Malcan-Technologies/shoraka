@@ -577,6 +577,12 @@ export interface NoteEvent {
   correlationId: string | null;
   metadata: Record<string, unknown> | null;
   createdAt: string;
+  actorType?: string | null;
+  source?: string | null;
+  targetType?: string | null;
+  targetId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
 }
 
 export interface NoteLedgerEntry {

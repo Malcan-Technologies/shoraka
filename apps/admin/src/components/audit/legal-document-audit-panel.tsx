@@ -25,13 +25,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useExportLegalDocumentAuditLogs,
@@ -50,6 +43,10 @@ import {
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
+import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
+import { AuditEventBadge } from "@/components/audit/audit-event-badge";
+import { legalAuditToAuditDetail } from "@/components/audit/audit-adapters";
+import { formatAuditDateTime, formatAuditEventLabel } from "@/components/audit/audit-presentation";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -68,85 +65,8 @@ const ACTION_OPTIONS = [
   { value: "LEGAL_VERSION_RESTORED", label: "Version restored" },
 ] as const;
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
 function actionLabel(action: string): string {
-  return ACTION_OPTIONS.find((option) => option.value === action)?.label ?? action;
-}
-
-function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="text-sm break-all">{value ?? "—"}</p>
-    </div>
-  );
-}
-
-function AuditLogDetailSheet({
-  log,
-  open,
-  onOpenChange,
-}: {
-  log: LegalDocumentAuditLogListItem | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>Audit log details</SheetTitle>
-          <SheetDescription>Read-only admin legal-document change record.</SheetDescription>
-        </SheetHeader>
-
-        {log ? (
-          <div className="mt-6 space-y-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <DetailField label="Audit ID" value={log.id} />
-              <DetailField label="Action" value={actionLabel(log.action)} />
-              <DetailField label="Timestamp" value={formatDate(log.createdAt)} />
-              <DetailField label="Document type" value={log.documentType ?? "—"} />
-              <DetailField label="Version" value={log.versionNumber != null ? `v${log.versionNumber}` : "—"} />
-              <DetailField label="Document hash" value={log.documentHash} />
-              <DetailField label="Legal document ID" value={log.legalDocumentId} />
-              <DetailField label="Version ID" value={log.legalDocumentVersionId} />
-              <DetailField label="Actor" value={log.actorName} />
-              <DetailField label="Actor email" value={log.actorEmail} />
-              <DetailField label="Actor user ID" value={log.actorUserId} />
-              <DetailField label="IP address" value={log.ipAddress} />
-              <DetailField label="User agent" value={log.userAgent} />
-              <DetailField label="Correlation ID" value={log.correlationId} />
-              <DetailField label="Reason" value={log.reason} />
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">Before state</p>
-              <pre className="max-h-48 overflow-auto rounded-lg border bg-muted/30 p-3 text-xs">
-                {log.beforeJson ? JSON.stringify(log.beforeJson, null, 2) : "—"}
-              </pre>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">After state</p>
-              <pre className="max-h-48 overflow-auto rounded-lg border bg-muted/30 p-3 text-xs">
-                {log.afterJson ? JSON.stringify(log.afterJson, null, 2) : "—"}
-              </pre>
-            </div>
-          </div>
-        ) : null}
-      </SheetContent>
-    </Sheet>
-  );
+  return ACTION_OPTIONS.find((option) => option.value === action)?.label ?? formatAuditEventLabel(action);
 }
 
 export function LegalDocumentAuditPanel() {
@@ -384,41 +304,51 @@ export function LegalDocumentAuditPanel() {
               ))
             ) : logs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
-                  No legal document audit records found
+                <TableCell colSpan={7} className="py-12 text-center text-ui text-muted-foreground">
+                  No logs found
                 </TableCell>
               </TableRow>
             ) : (
               logs.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                    {formatDate(row.createdAt)}
+                <TableRow
+                  key={row.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => {
+                    setSelectedLog(row);
+                    setDetailOpen(true);
+                  }}
+                >
+                  <TableCell className="whitespace-nowrap text-ui text-muted-foreground">
+                    {formatAuditDateTime(row.createdAt)}
                   </TableCell>
-                  <TableCell className="text-sm">{actionLabel(row.action)}</TableCell>
-                  <TableCell className="max-w-[200px] truncate text-sm">
+                  <TableCell>
+                    <AuditEventBadge eventType={row.action} label={actionLabel(row.action)} />
+                  </TableCell>
+                  <TableCell className="max-w-[200px] truncate text-ui">
                     {row.documentType
                       ? LEGAL_DOCUMENT_TYPE_LABELS[row.documentType]
                       : (row.legalDocumentId ?? "—")}
                   </TableCell>
-                  <TableCell className="text-sm tabular-nums">
+                  <TableCell className="text-ui tabular-nums">
                     {row.versionNumber != null ? `v${row.versionNumber}` : "—"}
                   </TableCell>
-                  <TableCell className="max-w-[160px] truncate text-sm">
+                  <TableCell className="max-w-[160px] truncate text-ui">
                     {row.actorName ?? row.actorEmail ?? "—"}
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="text-ui text-muted-foreground">
                     {row.ipAddress ?? "—"}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
+                      onClick={(event) => {
+                        event.stopPropagation();
                         setSelectedLog(row);
                         setDetailOpen(true);
                       }}
                     >
-                      View details
+                      View
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -456,7 +386,11 @@ export function LegalDocumentAuditPanel() {
         ) : null}
       </div>
 
-      <AuditLogDetailSheet log={selectedLog} open={detailOpen} onOpenChange={setDetailOpen} />
+      <AuditDetailDrawer
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        record={selectedLog ? legalAuditToAuditDetail(selectedLog) : null}
+      />
     </div>
   );
 }

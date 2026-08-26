@@ -54,9 +54,9 @@ describe("buildContractActivityCsv", () => {
       }),
     ]);
     const lines = csv.split("\n");
-    expect(lines[0]).toContain("createdAt");
-    expect(lines[0]).toContain("event");
-    expect(lines[0]).toContain("actor");
+    expect(lines[0]).toContain("Timestamp");
+    expect(lines[0]).toContain("Event");
+    expect(lines[0]).toContain("Actor");
     expect(lines[1]).toContain("Facility Offer Sent");
     expect(lines[1]).toContain("CONTRACT_OFFER_SENT");
     expect(lines[1]).toContain("Facility set at 500k");

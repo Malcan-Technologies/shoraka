@@ -130,6 +130,11 @@ export interface AccessLogResponse {
   success: boolean;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  actor_type?: string | null;
+  source?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  correlation_id?: string | null;
 }
 
 export interface GetAccessLogsParams extends PaginationParams {
@@ -327,6 +332,12 @@ export interface SecurityLogResponse {
   device_info: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  actor_type?: string | null;
+  source?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  portal?: string | null;
+  correlation_id?: string | null;
 }
 
 export interface GetSecurityLogsParams extends PaginationParams {
@@ -340,6 +351,10 @@ export interface GetSecurityLogsParams extends PaginationParams {
 export interface SecurityLogsResponse {
   logs: SecurityLogResponse[];
   pagination: PaginationResponse;
+}
+
+export interface ExportSecurityLogsParams extends Omit<GetSecurityLogsParams, "page" | "pageSize"> {
+  format?: "csv" | "json";
 }
 
 // Onboarding Logs Types
@@ -383,6 +398,11 @@ export interface OnboardingLogResponse {
   created_at: string;
   organizationName?: string | null;
   organizationType?: "PERSONAL" | "COMPANY" | null;
+  actor_type?: string | null;
+  source?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  correlation_id?: string | null;
 }
 
 export interface GetOnboardingLogsParams extends PaginationParams {
@@ -970,6 +990,12 @@ export interface ProductLogResponse {
   device_info: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  actor_type?: string | null;
+  source?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  portal?: string | null;
+  correlation_id?: string | null;
 }
 
 export interface GetProductLogsParams extends PaginationParams {

@@ -1,4 +1,5 @@
 import type { LegalAcceptanceStatus } from "@cashsouk/types";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 
 export const LEGAL_ACCEPTANCE_STATUS_OPTIONS: { value: LegalAcceptanceStatus; label: string }[] = [
   { value: "NOT_OPENED", label: "Not opened" },
@@ -8,14 +9,7 @@ export const LEGAL_ACCEPTANCE_STATUS_OPTIONS: { value: LegalAcceptanceStatus; la
 
 export function formatLegalAcceptanceDate(dateStr: string | null): string {
   if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  return formatAuditDateTime(dateStr) || "—";
 }
 
 export function legalAcceptanceStatusLabel(status: LegalAcceptanceStatus): string {

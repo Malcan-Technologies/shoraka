@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@cashsouk/ui";
 import { AccessLogTableRow } from "./access-log-table-row";
-import { AccessLogDetailsDialog } from "./access-log-details-dialog";
+import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
+import { accessLogToAuditDetail } from "@/components/audit/audit-adapters";
 import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import type { AccessLogResponse } from "@cashsouk/types";
@@ -133,8 +134,8 @@ export function AccessLogsTable({
                 <TableSkeleton showRole={showRole} showOrganization={showOrganization} />
               ) : logs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={columnCount} className="text-center py-10 text-muted-foreground">
-                    No access logs found
+                  <TableCell colSpan={columnCount} className="py-10 text-center text-ui text-muted-foreground">
+                    No logs found
                   </TableCell>
                 </TableRow>
               ) : (
@@ -183,11 +184,10 @@ export function AccessLogsTable({
         )}
       </div>
 
-      <AccessLogDetailsDialog
+      <AuditDetailDrawer
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        log={selectedLog}
-        labelOverrides={labelOverrides}
+        record={selectedLog ? accessLogToAuditDetail(selectedLog, labelOverrides) : null}
       />
     </>
   );

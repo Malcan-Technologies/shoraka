@@ -1,14 +1,12 @@
 import { TableCell, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckIcon, XMarkIcon, EyeIcon } from "@heroicons/react/24/outline";
-import { format } from "date-fns";
+import { EyeIcon } from "@heroicons/react/24/outline";
 import type { AccessLogResponse, UserRole } from "@cashsouk/types";
-import { PortalBadge } from "@cashsouk/ui";
+import { PortalBadge, StatusBadge } from "@cashsouk/ui";
 import { OrganizationTypeBadge } from "@/components/organization-type-badge";
+import { AuditEventBadge } from "@/components/audit/audit-event-badge";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 
-// event_type is widened to `string`: this row renders both access_logs (EventType) and
-// security_logs (SecurityEventType) rows via the shared toolbar/table — display-only.
 interface AccessLog extends Omit<AccessLogResponse, "created_at" | "event_type"> {
   created_at: Date;
   event_type: string;
@@ -22,112 +20,43 @@ interface AccessLogTableRowProps {
   onViewDetails: () => void;
   showRole?: boolean;
   showOrganization?: boolean;
-  /** Per-domain label overrides for event types whose canonical wording differs by source table. */
   labelOverrides?: Record<string, string>;
 }
 
-// Event type configuration with dot color and readable label
 export const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
-  LOGIN: { label: "Login", color: "bg-blue-500" },
-  LOGOUT: { label: "Logout", color: "bg-gray-500" },
-  SIGNUP: { label: "Sign Up", color: "bg-green-500" },
-  ROLE_ADDED: { label: "Role Added", color: "bg-purple-500" },
-  ROLE_SWITCHED: { label: "Role Switched", color: "bg-orange-500" },
-  ONBOARDING_STARTED: { label: "Onboarding Started", color: "bg-emerald-500" },
-  ONBOARDING_RESUMED: { label: "Onboarding Resumed", color: "bg-cyan-500" },
-  ONBOARDING_CANCELLED: { label: "Onboarding Cancelled", color: "bg-gray-500" },
-  ONBOARDING_REJECTED: { label: "Onboarding Rejected", color: "bg-red-500" },
-  ONBOARDING_STATUS_UPDATED: { label: "Status Updated", color: "bg-indigo-500" },
-  FORM_FILLED: { label: "Form Filled", color: "bg-sky-500" },
-  ONBOARDING_APPROVED: { label: "Onboarding Approved", color: "bg-green-500" },
-  AML_APPROVED: { label: "AML Approved", color: "bg-lime-500" },
-  TNC_APPROVED: { label: "T&C Approved", color: "bg-emerald-500" },
-  TNC_ACCEPTED: { label: "T&C Accepted", color: "bg-emerald-500" },
-  SSM_APPROVED: { label: "SSM Approved", color: "bg-teal-500" },
-  FINAL_APPROVAL_COMPLETED: { label: "Final Approval", color: "bg-green-500" },
-  KYC_STATUS_UPDATED: { label: "KYC Updated", color: "bg-yellow-500" },
-  PASSWORD_CHANGED: { label: "Password Changed", color: "bg-rose-500" },
-  EMAIL_CHANGED: { label: "Email Verified", color: "bg-cyan-500" },
-  PROFILE_UPDATED: { label: "Profile Updated", color: "bg-blue-500" },
+  LOGIN: { label: "Login", color: "bg-status-submitted-text" },
+  LOGOUT: { label: "Logout", color: "bg-status-neutral-text" },
+  SIGNUP: { label: "Sign Up", color: "bg-status-success-text" },
+  ROLE_ADDED: { label: "Role Added", color: "bg-status-active-text" },
+  ROLE_SWITCHED: { label: "Role Switched", color: "bg-status-in-progress-text" },
+  ONBOARDING_STARTED: { label: "Onboarding Started", color: "bg-status-success-text" },
+  ONBOARDING_RESUMED: { label: "Onboarding Resumed", color: "bg-status-in-progress-text" },
+  ONBOARDING_CANCELLED: { label: "Onboarding Cancelled", color: "bg-status-neutral-text" },
+  ONBOARDING_REJECTED: { label: "Onboarding Rejected", color: "bg-status-rejected-text" },
+  ONBOARDING_STATUS_UPDATED: { label: "Status Updated", color: "bg-status-in-progress-text" },
+  FORM_FILLED: { label: "Form Filled", color: "bg-status-submitted-text" },
+  ONBOARDING_APPROVED: { label: "Onboarding Approved", color: "bg-status-success-text" },
+  AML_APPROVED: { label: "AML Approved", color: "bg-status-success-text" },
+  TNC_APPROVED: { label: "T&C Approved", color: "bg-status-success-text" },
+  TNC_ACCEPTED: { label: "T&C Accepted", color: "bg-status-success-text" },
+  SSM_APPROVED: { label: "SSM Approved", color: "bg-status-success-text" },
+  FINAL_APPROVAL_COMPLETED: { label: "Final Approval", color: "bg-status-success-text" },
+  KYC_STATUS_UPDATED: { label: "KYC Updated", color: "bg-status-action-text" },
+  PASSWORD_CHANGED: { label: "Password Changed", color: "bg-status-rejected-text" },
+  EMAIL_CHANGED: { label: "Email Verified", color: "bg-status-in-progress-text" },
+  PROFILE_UPDATED: { label: "Profile Updated", color: "bg-status-submitted-text" },
   PLATFORM_FINANCE_SETTINGS_UPDATED: {
     label: "Platform Finance Settings Updated",
-    color: "bg-indigo-500",
+    color: "bg-status-active-text",
   },
-  SOPHISTICATED_STATUS_UPDATED: { label: "Sophisticated Updated", color: "bg-violet-500" },
+  SOPHISTICATED_STATUS_UPDATED: { label: "Sophisticated Updated", color: "bg-status-active-text" },
 };
-
-// Role configuration with dot color
-const ROLE_CONFIG: Record<UserRole, { label: string; color: string }> = {
-  INVESTOR: { label: "Investor", color: "bg-blue-500" },
-  ISSUER: { label: "Issuer", color: "bg-purple-500" },
-  ADMIN: { label: "Admin", color: "bg-red-500" },
-};
-
-// Map Tailwind color class to CSS color for background
-const COLOR_MAP: Record<string, string> = {
-  "bg-blue-500": "rgb(59 130 246)",
-  "bg-gray-500": "rgb(107 114 128)",
-  "bg-green-500": "rgb(34 197 94)",
-  "bg-purple-500": "rgb(168 85 247)",
-  "bg-orange-500": "rgb(249 115 22)",
-  "bg-teal-500": "rgb(20 184 166)",
-  "bg-emerald-500": "rgb(16 185 129)",
-  "bg-cyan-500": "rgb(6 182 212)",
-  "bg-red-500": "rgb(239 68 68)",
-  "bg-indigo-500": "rgb(99 102 241)",
-  "bg-sky-500": "rgb(14 165 233)",
-  "bg-lime-500": "rgb(132 204 22)",
-  "bg-yellow-500": "rgb(234 179 8)",
-  "bg-rose-500": "rgb(244 63 94)",
-  "bg-violet-500": "rgb(139 92 246)",
-};
-
-function getEventTypeBadge(eventType: string, labelOverrides?: Record<string, string>) {
-  const config = EVENT_TYPE_CONFIG[eventType];
-  const color = config?.color || "bg-gray-500";
-  const label =
-    labelOverrides?.[eventType] ||
-    config?.label ||
-    eventType
-      .replace(/_/g, " ")
-      .toLowerCase()
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-  const cssColor = COLOR_MAP[color] || "rgb(107 114 128)";
-
-  return (
-    <Badge
-      variant="outline"
-      style={{
-        backgroundColor: `color-mix(in srgb, ${cssColor} 10%, transparent)`,
-        borderColor: `color-mix(in srgb, ${cssColor} 30%, transparent)`,
-      }}
-    >
-      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${color}`} />
-      {label}
-    </Badge>
-  );
-}
 
 function getRoleBadge(role: UserRole) {
   if (role === "INVESTOR" || role === "ISSUER") {
     return <PortalBadge portal={role === "INVESTOR" ? "investor" : "issuer"} />;
   }
-
-  const config = ROLE_CONFIG[role];
-  const cssColor = COLOR_MAP[config.color] || "rgb(107 114 128)";
-
-  return (
-    <Badge
-      variant="outline"
-      style={{
-        backgroundColor: `color-mix(in srgb, ${cssColor} 10%, transparent)`,
-        borderColor: `color-mix(in srgb, ${cssColor} 30%, transparent)`,
-      }}
-    >
-      <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${config.color}`} />
-      {config.label}
-    </Badge>
-  );
+  return <StatusBadge label="Admin" status="active" />;
 }
 
 export function AccessLogTableRow({
@@ -137,68 +66,72 @@ export function AccessLogTableRow({
   showOrganization = false,
   labelOverrides,
 }: AccessLogTableRowProps) {
+  const eventLabel = labelOverrides?.[log.event_type] ?? EVENT_TYPE_CONFIG[log.event_type]?.label;
+
   return (
-    <TableRow className="hover:bg-muted/50">
-      <TableCell className="text-sm text-muted-foreground">
-        {format(log.created_at, "MMM dd, yyyy HH:mm")}
+    <TableRow
+      className="cursor-pointer hover:bg-muted/50"
+      onClick={onViewDetails}
+    >
+      <TableCell className="whitespace-nowrap text-ui text-muted-foreground">
+        {formatAuditDateTime(log.created_at)}
       </TableCell>
       {showOrganization && (
         <>
-          <TableCell className="text-sm text-muted-foreground">
+          <TableCell className="text-ui text-muted-foreground">
             {log.organizationName || "—"}
           </TableCell>
           <TableCell>
             {log.organizationType ? (
               <OrganizationTypeBadge type={log.organizationType} />
             ) : (
-              <span className="text-sm text-muted-foreground">—</span>
+              <span className="text-ui text-muted-foreground">—</span>
             )}
           </TableCell>
         </>
       )}
       <TableCell className="min-w-[180px] max-w-[280px]">
-        <div className="flex flex-col min-w-0">
+        <div className="flex min-w-0 flex-col">
           <span
-            className="text-sm font-medium truncate"
+            className="truncate text-ui font-medium"
             title={`${log.user.first_name} ${log.user.last_name}`}
           >
             {log.user.first_name} {log.user.last_name}
           </span>
-          <span className="text-xs text-muted-foreground truncate" title={log.user.email}>
+          <span className="truncate text-meta text-muted-foreground" title={log.user.email}>
             {log.user.email}
           </span>
         </div>
       </TableCell>
-      <TableCell>{getEventTypeBadge(log.event_type, labelOverrides)}</TableCell>
+      <TableCell>
+        <AuditEventBadge
+          eventType={log.event_type}
+          label={eventLabel}
+          status={log.success ? "Success" : "Failed"}
+          overrides={labelOverrides}
+        />
+      </TableCell>
       {showRole && (
         <TableCell>
-          {log.role ? (
-            getRoleBadge(log.role)
-          ) : (
-            <span className="text-sm text-muted-foreground">—</span>
-          )}
+          {log.role ? getRoleBadge(log.role) : <span className="text-ui text-muted-foreground">—</span>}
         </TableCell>
       )}
-      <TableCell className="font-mono text-sm text-muted-foreground">
-        {log.ip_address || "—"}
-      </TableCell>
-      <TableCell className="text-sm text-muted-foreground">{log.device_info || "—"}</TableCell>
+      <TableCell className="font-mono text-ui text-muted-foreground">{log.ip_address || "—"}</TableCell>
+      <TableCell className="text-ui text-muted-foreground">{log.device_info || "—"}</TableCell>
       <TableCell>
-        {log.success ? (
-          <div className="flex items-center gap-1.5 text-green-600">
-            <CheckIcon className="h-4 w-4" />
-            <span className="text-xs font-medium">Success</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 text-red-600">
-            <XMarkIcon className="h-4 w-4" />
-            <span className="text-xs font-medium">Failed</span>
-          </div>
-        )}
+        <StatusBadge label={log.success ? "Success" : "Failed"} status={log.success ? "success" : "rejected"} />
       </TableCell>
       <TableCell>
-        <Button size="sm" variant="ghost" onClick={onViewDetails} className="h-8 px-2">
-          <EyeIcon className="h-4 w-4 mr-1" />
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={(event) => {
+            event.stopPropagation();
+            onViewDetails();
+          }}
+          className="h-8 px-2"
+        >
+          <EyeIcon className="mr-1 h-4 w-4" />
           View
         </Button>
       </TableCell>

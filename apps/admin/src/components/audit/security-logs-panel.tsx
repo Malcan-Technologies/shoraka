@@ -83,6 +83,7 @@ export function SecurityLogsPanel() {
         onRefresh={handleReload}
         isLoading={isLoading}
         allowedEventTypes={SECURITY_EVENT_TYPES}
+        exportKind="security"
         exportFilters={{
           search: searchQuery || undefined,
           eventType:

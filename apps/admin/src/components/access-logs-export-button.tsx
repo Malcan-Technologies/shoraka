@@ -14,17 +14,14 @@ import type { EventType, ExportAccessLogsParams, SecurityEventType } from "@cash
 import { toast } from "sonner";
 
 interface AccessLogsExportButtonProps {
-  // eventType/eventTypes are widened to accept SecurityEventType too: this button is shared
-  // by both the access_logs and security_logs panels via AccessLogsToolbar. The backend export
-  // query schemas accept freeform event_type strings for both tables (no enum validation), so
-  // this is a display/wiring-layer widening only, not an API contract change.
   filters: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize" | "eventType" | "eventTypes"> & {
     eventType?: EventType | SecurityEventType;
     eventTypes?: (EventType | SecurityEventType)[];
   };
+  kind?: "access" | "security";
 }
 
-export function AccessLogsExportButton({ filters }: AccessLogsExportButtonProps) {
+export function AccessLogsExportButton({ filters, kind = "access" }: AccessLogsExportButtonProps) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(undefined, getAccessToken);
   const [isExporting, setIsExporting] = React.useState(false);
@@ -39,17 +36,27 @@ export function AccessLogsExportButton({ filters }: AccessLogsExportButtonProps)
         format,
       };
 
-      const blob = await apiClient.exportAccessLogs(params);
+      const blob =
+        kind === "security"
+          ? await apiClient.exportSecurityLogs({
+              search: filters.search,
+              eventType: filters.eventType as SecurityEventType | undefined,
+              eventTypes: filters.eventTypes as SecurityEventType[] | undefined,
+              dateRange: filters.dateRange,
+              userId: filters.userId,
+              format,
+            })
+          : await apiClient.exportAccessLogs(params);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `access-logs-${new Date().toISOString().split("T")[0]}.${format}`;
+      a.download = `${kind === "security" ? "security-logs" : "access-logs"}-${new Date().toISOString().split("T")[0]}.${format}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      toast.success(`Access logs exported as ${format.toUpperCase()}`);
+      toast.success(`${kind === "security" ? "Security" : "Access"} logs exported as ${format.toUpperCase()}`);
     } catch (error) {
       toast.error("Failed to export access logs", {
         description: error instanceof Error ? error.message : "Unknown error",
