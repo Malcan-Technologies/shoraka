@@ -114,6 +114,19 @@ describe("notification coverage templates", () => {
     );
   });
 
+  it("sets an explicit investor portal on NEW_PRODUCT_ALERT and leaves password/announcement unset", () => {
+    const product = NOTIFICATION_TEMPLATES[NotificationTypeIds.NEW_PRODUCT_ALERT];
+    expect(product.portal).toBe("investor");
+    expect(
+      typeof product.linkPath === "function"
+        ? product.linkPath({ productName: "Note A", productId: "prod-1" })
+        : product.linkPath
+    ).toBe("/investments/prod-1");
+
+    expect(NOTIFICATION_TEMPLATES[NotificationTypeIds.PASSWORD_CHANGED].portal).toBeUndefined();
+    expect(NOTIFICATION_TEMPLATES[NotificationTypeIds.SYSTEM_ANNOUNCEMENT].portal).toBeUndefined();
+  });
+
   it("renders withdrawal submitted-to-trustee copy with the display reference", () => {
     const t = NOTIFICATION_TEMPLATES[NotificationTypeIds.WITHDRAWAL_SUBMITTED_TO_TRUSTEE];
     expect(t.title).toBe("Withdrawal Submitted to Trustee");

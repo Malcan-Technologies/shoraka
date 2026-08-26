@@ -372,6 +372,7 @@ export const NOTIFICATION_TEMPLATES: {
     title: "New Investment Opportunity",
     message: (data) => `A new product "${data.productName}" is now available for investment.`,
     linkPath: (data) => `/investments/${data.productId}`,
+    portal: "investor",
   },
   [NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED]: {
     title: "Amendment Requested",
