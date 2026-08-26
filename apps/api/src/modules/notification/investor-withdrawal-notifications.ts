@@ -20,11 +20,12 @@ async function notifyInvestorOwner(
 ): Promise<void> {
   if (!recipientUserId) return;
   try {
-    await notificationService.sendTypedPlatformOnly(
+    await notificationService.sendTypedAndLogSystem(
       recipientUserId,
       typeId,
       payload,
-      idempotencyKey
+      idempotencyKey,
+      { targetType: "INVESTORS" }
     );
   } catch (err) {
     logger.error({ err, withdrawalId, stage }, "Investor withdrawal notification failed");

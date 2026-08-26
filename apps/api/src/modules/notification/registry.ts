@@ -509,14 +509,14 @@ export const NOTIFICATION_TEMPLATES: {
     portal: "investor",
   },
   [NotificationTypeIds.NOTE_PUBLISHED]: {
-    title: "Note Published",
+    title: "Note published",
     message: (data) =>
       `Your note "${data.noteTitle}" has been published to the marketplace for investor funding.`,
     linkPath: (data) => `/notes/${data.noteId}`,
     portal: "issuer",
   },
   [NotificationTypeIds.NOTE_FUNDING_SUCCEEDED]: {
-    title: "Funding Closed",
+    title: "Funding closed successfully",
     message: (data) =>
       `Funding for "${data.noteTitle}" has closed — the minimum threshold was reached and commitments are locked in.`,
     linkPath: (data) => `/notes/${data.noteId}`,
@@ -537,16 +537,16 @@ export const NOTIFICATION_TEMPLATES: {
     portal: "investor",
   },
   [NotificationTypeIds.NOTE_ACTIVE_ISSUER]: {
-    title: "Your Note Is Active",
+    title: "Note is active",
     message: (data) =>
       `Your note "${data.noteTitle}" is now active. Disbursement and servicing proceeds under the agreed terms.`,
     linkPath: (data) => `/notes/${data.noteId}`,
     portal: "issuer",
   },
   [NotificationTypeIds.NOTE_ACTIVE_INVESTOR]: {
-    title: "Your Investment Is Active",
+    title: "Investment is active",
     message: (data) =>
-      `Funding for "${data.noteTitle}" is complete and the note is now active. Servicing has started.`,
+      `Funding for "${data.noteTitle}" is complete and the note is now active. Monitor repayments from your investments view.`,
     linkPath: (data) => `/investments/${data.noteId}`,
     portal: "investor",
   },

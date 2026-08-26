@@ -54,6 +54,7 @@
     "notification_logs",
     "notification_types",
     "notifications",
+    "offer_accept_otp_challenges",
     "onboarding_logs",
     "organization_members",
     "platform_finance_settings",

@@ -1,4 +1,4 @@
-const sendTypedPlatformOnly = jest.fn().mockResolvedValue({ id: "n1" });
+const sendTypedAndLogSystem = jest.fn().mockResolvedValue({ id: "n1" });
 const listIssuerOrgMemberUserIds = jest.fn();
 
 jest.mock("./service", () => ({
@@ -18,13 +18,13 @@ import { NotificationTypeIds } from "./registry";
 import { NotificationService } from "./service";
 
 describe("investor cash withdrawal notifications", () => {
-  const svc = { sendTypedPlatformOnly } as unknown as NotificationService;
+  const svc = { sendTypedAndLogSystem } as unknown as NotificationService;
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it("sends submitted once to the requesting investor, platform-only", async () => {
+  it("sends submitted once to the requesting investor and writes a SYSTEM delivery log", async () => {
     await notifyInvestorCashWithdrawalSubmitted({
       notificationService: svc,
       withdrawalId: "w-1",
@@ -33,12 +33,13 @@ describe("investor cash withdrawal notifications", () => {
       withdrawalType: WithdrawalType.INVESTOR_WITHDRAWAL,
     });
 
-    expect(sendTypedPlatformOnly).toHaveBeenCalledTimes(1);
-    expect(sendTypedPlatformOnly).toHaveBeenCalledWith(
+    expect(sendTypedAndLogSystem).toHaveBeenCalledTimes(1);
+    expect(sendTypedAndLogSystem).toHaveBeenCalledWith(
       "inv-user-1",
       NotificationTypeIds.INVESTOR_WITHDRAWAL_SUBMITTED,
       { amount: 1500 },
-      "withdrawal:w-1:notif:investor_withdrawal_submitted:user:inv-user-1"
+      "withdrawal:w-1:notif:investor_withdrawal_submitted:user:inv-user-1",
+      { targetType: "INVESTORS" }
     );
     expect(listIssuerOrgMemberUserIds).not.toHaveBeenCalled();
   });
@@ -52,12 +53,13 @@ describe("investor cash withdrawal notifications", () => {
       withdrawalType: WithdrawalType.INVESTOR_WITHDRAWAL,
     });
 
-    expect(sendTypedPlatformOnly).toHaveBeenCalledTimes(1);
-    expect(sendTypedPlatformOnly).toHaveBeenCalledWith(
+    expect(sendTypedAndLogSystem).toHaveBeenCalledTimes(1);
+    expect(sendTypedAndLogSystem).toHaveBeenCalledWith(
       "inv-user-1",
       NotificationTypeIds.INVESTOR_WITHDRAWAL_COMPLETED,
       { amount: 1500 },
-      "withdrawal:w-1:notif:investor_withdrawal_completed:user:inv-user-1"
+      "withdrawal:w-1:notif:investor_withdrawal_completed:user:inv-user-1",
+      { targetType: "INVESTORS" }
     );
   });
 
@@ -81,6 +83,6 @@ describe("investor cash withdrawal notifications", () => {
       amount: 100,
       withdrawalType,
     });
-    expect(sendTypedPlatformOnly).not.toHaveBeenCalled();
+    expect(sendTypedAndLogSystem).not.toHaveBeenCalled();
   });
 });

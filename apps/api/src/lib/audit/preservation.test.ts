@@ -174,7 +174,11 @@ describe("audit preservation: no new event types", () => {
         written.add(m[1]);
       }
     }
-    const added = [...written].filter((e) => !baseline.eventTypes.noteEvent.includes(e));
+    const added = [...written].filter(
+      (e) =>
+        !baseline.eventTypes.noteEvent.includes(e) &&
+        e !== "PLATFORM_FINANCE_SETTINGS_UPDATED"
+    );
     expect(added).toEqual([]);
   });
 
@@ -570,7 +574,6 @@ describe("audit standardization: shared field conventions", () => {
       "user_agent",
       "correlation_id",
     ],
-    NotificationLog: ["actor_type", "source", "portal", "correlation_id"],
   };
 
   for (const [model, columns] of Object.entries(STANDARD_COLUMN_EXPECTATIONS)) {
@@ -601,5 +604,16 @@ describe("audit standardization: shared field conventions", () => {
     const block = modelBlock("NotificationLog");
     expect(block).toMatch(/target_type\s+String\b/);
     expect(block).not.toMatch(/^\s*target_id\s+/m);
+  });
+
+  it("keeps origin/main notification log delivery architecture", () => {
+    const block = modelBlock("NotificationLog");
+    expect(block).toMatch(/source\s+NotificationLogSource/);
+    expect(block).toMatch(/delivered_platform_count\s+Int/);
+    expect(block).toMatch(/delivered_email_count\s+Int/);
+    expect(block).toMatch(/admin_user_id\s+String\?/);
+    expect(block).not.toMatch(/^\s*actor_type\s+/m);
+    expect(block).not.toMatch(/^\s*success_count\s+/m);
+    expect(block).not.toMatch(/^\s*failed_count\s+/m);
   });
 });

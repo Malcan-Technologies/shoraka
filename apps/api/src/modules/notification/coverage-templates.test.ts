@@ -55,9 +55,9 @@ describe("notification coverage templates", () => {
     );
 
     const investorActive = NOTIFICATION_TEMPLATES[NotificationTypeIds.NOTE_ACTIVE_INVESTOR];
-    expect(investorActive.title).toBe("Your Investment Is Active");
+    expect(investorActive.title).toBe("Investment is active");
     expect(investorActive.message({ noteId: "n1", noteTitle: "N-1" })).toBe(
-      'Funding for "N-1" is complete and the note is now active. Servicing has started.'
+      'Funding for "N-1" is complete and the note is now active. Monitor repayments from your investments view.'
     );
     expect(investorActive.portal).toBe("investor");
   });
