@@ -35,10 +35,13 @@ function baseNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     productName: null,
     issuerIndustry: null,
     sourceApplicationId: "app-1",
+    sourceApplicationDisplayReference: null,
     sourceContractId: null,
     sourceContractDisplayReference: null,
     sourceInvoiceId: null,
+    sourceInvoiceDisplayReference: null,
     issuerOrganizationId: "org-1",
+    issuerOrganizationDisplayReference: null,
     issuerName: null,
     paymasterName: null,
     riskRating: null,
@@ -513,7 +516,7 @@ describe("standalone vs contract-linked notes", () => {
     );
     expect(panelSource).toContain("resolveNoteSourceLinkage");
     expect(panelSource).toContain("linkage.isStandalone ? null : (");
-    expect(panelSource).toContain('label="Facility ID"');
+    expect(panelSource).toContain('label="Facility Reference"');
     expect(panelSource).toContain("Quick Links");
     expect(panelSource).toContain("FacilityImpact");
     expect(panelSource).toContain("note.invoiceAmount");

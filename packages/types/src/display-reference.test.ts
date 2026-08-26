@@ -3,6 +3,7 @@ import {
   formatApplicationReference,
   formatContractReference,
   formatInvoiceReference,
+  formatNamedEntityDisplay,
   formatNoteReference,
   formatOrganizationReference,
   formatSettlementReference,
@@ -89,13 +90,11 @@ describe("display-reference formatters", () => {
     ).toBe("WDL-202608-X7A");
   });
 
-  it("formats organization references", () => {
-    expect(
-      formatOrganizationReference({
-        displayReference: "ISS-202608-D7F",
-        id: "org_id",
-      })
-    ).toBe("ISS-202608-D7F");
+  it("formats named entities without appending fallback short ids", () => {
+    expect(formatNamedEntityDisplay("Toyota", "ISS-202608-DK3")).toBe("Toyota (ISS-202608-DK3)");
+    expect(formatNamedEntityDisplay("Toyota", null)).toBe("Toyota");
+    expect(formatNamedEntityDisplay(null, "ISS-202608-DK3")).toBe("ISS-202608-DK3");
+    expect(formatNamedEntityDisplay(null, "  ")).toBe("—");
   });
 
   it("formats notification refs with canonical preference", () => {

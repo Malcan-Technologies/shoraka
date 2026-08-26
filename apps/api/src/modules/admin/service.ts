@@ -6542,9 +6542,22 @@ export class AdminService {
         applicationWithIssuerExtras.contract_id
       )
     );
+    const issuerOrgWithDisplayReference =
+      applicationWithIssuerExtras.issuer_organization != null
+        ? {
+            ...applicationWithIssuerExtras.issuer_organization,
+            displayReference:
+              (
+                applicationWithIssuerExtras.issuer_organization as {
+                  display_reference?: string | null;
+                }
+              ).display_reference ?? null,
+          }
+        : applicationWithIssuerExtras.issuer_organization;
     const applicationWithDisplayReference = {
       ...applicationWithIssuerExtras,
       displayReference: applicationWithIssuerExtras.display_reference ?? null,
+      issuer_organization: issuerOrgWithDisplayReference,
       contract: contractWithDisplayReference,
       invoices: invoicesWithFacilityFeeAvailable,
     };

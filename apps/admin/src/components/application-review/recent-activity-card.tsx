@@ -18,6 +18,7 @@ export interface RecentActivityCardProps {
   }[];
   remarks: { scope_key: string; action_type: string; remark: string; created_at: string }[];
   applicationId?: string | null;
+  applicationDisplayReference?: string | null;
   /** Product id for resubmit comparison modal workflow tabs. */
   productKey?: string | null;
   /** Override section labels for timeline display (e.g. contract_details → "Customer" for invoice_only). */
@@ -31,6 +32,7 @@ export function RecentActivityCard({
   events,
   remarks,
   applicationId,
+  applicationDisplayReference,
   productKey,
   sectionLabelOverrides,
   visibleReviewSections,
@@ -70,6 +72,7 @@ export function RecentActivityCard({
     return (
       <AdminActivityTimeline
         applicationId={applicationId}
+        applicationDisplayReference={applicationDisplayReference}
         productKey={productKey}
         reviewTabSections={reviewTabSections}
         sectionLabelOverrides={sectionLabelOverrides}

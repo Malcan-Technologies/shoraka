@@ -22,7 +22,7 @@ import { resolveAdminTimelineActorLabel } from "@/components/admin-timeline-orig
 import { ChevronDownIcon, ClockIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
-import { getItemDisplayNameFromScopeKey } from "@cashsouk/types";
+import { formatApplicationReference, getItemDisplayNameFromScopeKey } from "@cashsouk/types";
 import type {
   ResubmitChangesMetadata,
   ResubmitFieldChangeItem,
@@ -66,6 +66,7 @@ function formatItemLabelFromScopeKey(scopeKey: string): string {
 
 interface AdminActivityTimelineProps {
   applicationId: string | null;
+  applicationDisplayReference?: string | null;
   /** Product id (same as route `productKey`) for workflow tabs in resubmit comparison modal. */
   productKey?: string | null;
   /** Section review statuses from application detail — same dots as main review tabs in comparison modal. */
@@ -258,6 +259,7 @@ function applicationLogToActivityCsvRow(
 
 export function AdminActivityTimeline({
   applicationId,
+  applicationDisplayReference,
   productKey,
   reviewTabSections,
   sectionLabelOverrides,
@@ -301,7 +303,10 @@ export function AdminActivityTimeline({
           }
           actions={
             <AdminActivityCsvExportButton
-              fileName={`application-${applicationId ?? "activity"}-activity.csv`}
+              fileName={`application-${formatApplicationReference({
+                displayReference: applicationDisplayReference,
+                id: applicationId,
+              }).replace(/[^A-Z0-9-]/gi, "") || "activity"}-activity.csv`}
               rows={csvRows}
             />
           }
@@ -453,6 +458,7 @@ export function AdminActivityTimeline({
           if (!o) setComparisonContext(null);
         }}
         applicationId={applicationId}
+        applicationDisplayReference={applicationDisplayReference}
         productKey={productKey ?? null}
         reviewCycle={comparisonContext?.reviewCycle ?? null}
         fieldChanges={comparisonContext?.fieldChanges}

@@ -1,5 +1,5 @@
 import { formatCurrency } from "@cashsouk/config";
-import type { NoteListItem } from "@cashsouk/types";
+import { formatNoteReference, type NoteListItem } from "@cashsouk/types";
 import { outstandingExcessLateCharges } from "@/lib/issuer-financing-actionable";
 
 export type NoteAttentionAction = {
@@ -14,7 +14,10 @@ export function getNoteAttentionAction(note: NoteListItem): NoteAttentionAction 
     return {
       headline: "Pay outstanding late charges",
       label: "Pay late charges",
-      hint: `${formatCurrency(outstanding)} in late payment charges is due on note ${note.noteReference || note.id}.`,
+      hint: `${formatCurrency(outstanding)} in late payment charges is due on note ${formatNoteReference({
+        noteReference: note.noteReference,
+        id: note.id,
+      })}.`,
     };
   }
   const status = String(note.status ?? "").toUpperCase();

@@ -36,7 +36,7 @@ import {
   useOrganizationDetail,
   useUpdateSophisticatedStatus,
 } from "@/hooks/use-organization-detail";
-import { toTitleCase, type PortalType } from "@cashsouk/types";
+import { formatOrganizationReference, toTitleCase, type PortalType } from "@cashsouk/types";
 import { format } from "date-fns";
 import {
   UserIcon,
@@ -729,7 +729,7 @@ export function OrganizationDetailDialog({
               </div>
             </DialogTitle>
             <DialogDescription className="flex items-center justify-between">
-              <span>{org ? `Organization ID: ${org.id}` : "Loading organization details..."}</span>
+              <span>{org ? `Reference: ${formatOrganizationReference({ displayReference: org.displayReference, id: org.id })}` : "Loading organization details..."}</span>
               {org?.regtankPortalUrl && (
                 <Button variant="outline" size="sm" asChild className="gap-1.5">
                   <a href={org.regtankPortalUrl} target="_blank" rel="noopener noreferrer">

@@ -1,5 +1,6 @@
 import {
   formatInvoiceReference,
+  formatNoteReference,
   getActivityStatusLabel,
   getActivityStatusToken,
   InvoiceStatus,
@@ -431,7 +432,9 @@ function derivedFromNote(
 ): FacilityTransactionRow[] {
   const rows: FacilityTransactionRow[] = [];
   const invoice = invoices.find((row) => row.id === note.sourceInvoiceId) ?? null;
-  const referenceLabel = invoice ? invoiceReference(invoice) : note.noteReference;
+  const referenceLabel = invoice
+    ? invoiceReference(invoice)
+    : formatNoteReference({ noteReference: note.noteReference, id: note.id });
   const href = invoice
     ? `/financing/invoices/${invoice.id}`
     : `/financing/notes/${note.id}`;

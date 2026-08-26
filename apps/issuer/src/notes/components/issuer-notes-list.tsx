@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import type { NoteListItem } from "@cashsouk/types";
+import { formatNoteReference, type NoteListItem } from "@cashsouk/types";
 import {
   EmptyState,
   ListToolbar,
@@ -35,13 +35,17 @@ const ISSUER_NOTES_SEARCH_PLACEHOLDER = "Search notes, reference, paymaster, or 
 
 function issuerNoteSearchHaystack(note: NoteListItem): string {
   return [
-    note.id,
     note.noteReference,
+    formatNoteReference({ noteReference: note.noteReference, id: note.id }),
     note.title,
     note.purposeOfFinancing ?? "",
     note.paymasterName ?? "",
     note.productName ?? "",
     note.productCategory ?? "",
+    note.sourceApplicationDisplayReference ?? "",
+    note.sourceInvoiceDisplayReference ?? "",
+    note.sourceContractDisplayReference ?? "",
+    note.id,
     note.sourceApplicationId,
     note.sourceInvoiceId ?? "",
     note.sourceContractId ?? "",

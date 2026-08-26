@@ -46,6 +46,8 @@ export interface UseApplicationsDataOptions {
 
 interface ApiContract {
   id?: string;
+  display_reference?: string | null;
+  displayReference?: string | null;
   status?: string;
   withdraw_reason?: string | null;
   offer_details?: { expires_at?: string | null; offered_facility?: number } | null;
@@ -481,6 +483,10 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     cardStatus,
     contractTitle,
     contractId: contractId ? String(contractId) : null,
+    contractDisplayReference:
+      (contract as ApiContract | null | undefined)?.displayReference ??
+      (contract as ApiContract | null | undefined)?.display_reference ??
+      null,
     customer,
     applicationDate: created.toISOString().slice(0, 10),
     submittedAt,

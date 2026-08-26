@@ -65,6 +65,9 @@ function PortfolioPageContent() {
   const [withdrawError, setWithdrawError] = React.useState<string | null>(null);
   const [withdrawConfirmError, setWithdrawConfirmError] = React.useState<string | null>(null);
   const [confirmedAmount, setConfirmedAmount] = React.useState(0);
+  const [withdrawalDisplayReference, setWithdrawalDisplayReference] = React.useState<string | null>(
+    null
+  );
 
   const queryClient = useQueryClient();
   const portfolioQuery = useInvestorPortfolio(orgId);
@@ -102,11 +105,12 @@ function PortfolioPageContent() {
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setWithdrawConfirmOpen(false);
       setWithdrawSuccessOpen(true);
       setWithdrawAmount("");
       setWithdrawConfirmError(null);
+      setWithdrawalDisplayReference(data.displayReference ?? null);
       void queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolioRoot });
       void queryClient.invalidateQueries({ queryKey: marketplaceKeys.investorBalanceActivityRoot });
     },
@@ -257,6 +261,7 @@ function PortfolioPageContent() {
         open={withdrawSuccessOpen}
         onOpenChange={setWithdrawSuccessOpen}
         amount={confirmedAmount}
+        displayReference={withdrawalDisplayReference}
       />
 
       <StatementDialog

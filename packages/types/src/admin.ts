@@ -1212,6 +1212,7 @@ export interface AdminContractNoteSummary {
   status: string;
   sourceApplicationId: string;
   sourceInvoiceId: string | null;
+  sourceInvoiceDisplayReference: string | null;
   /** Note target — the facility drawdown, same basis as utilized facility. */
   targetAmount: number;
   /** Marketplace fill. 0 until funding starts. */
@@ -1241,6 +1242,7 @@ export interface AdminContractDetail {
   description: string | null;
   issuerOrganizationId: string | null;
   issuerOrganizationName: string | null;
+  issuerOrganizationDisplayReference: string | null;
   requestedFacility: number;
   approvedFacility: number;
   utilizedFacility: number;

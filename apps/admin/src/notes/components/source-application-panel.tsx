@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { LinkIcon } from "@heroicons/react/24/outline";
 import type { NoteDetail } from "@cashsouk/types";
+import {
+  formatApplicationReference,
+  formatContractReference,
+  formatInvoiceReference,
+  formatNamedEntityDisplay,
+} from "@cashsouk/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FacilityImpact } from "@/components/financing/facility-impact";
 import { resolveNoteSourceLinkage } from "@/notes/utils/note-source-linkage";
@@ -70,6 +76,26 @@ export function SourceApplicationPanel({ note }: { note: NoteDetail }) {
   const organizationHref = can("organizations.view")
     ? orgHref("issuer", note.issuerOrganizationId)
     : null;
+  const applicationLabel = formatApplicationReference({
+    displayReference: note.sourceApplicationDisplayReference,
+    id: note.sourceApplicationId,
+  });
+  const invoiceLabel = note.sourceInvoiceId
+    ? formatInvoiceReference({
+        displayReference: note.sourceInvoiceDisplayReference,
+        id: note.sourceInvoiceId,
+      })
+    : null;
+  const facilityLabel = linkage.contractId
+    ? formatContractReference({
+        displayReference: note.sourceContractDisplayReference,
+        id: linkage.contractId,
+      })
+    : null;
+  const organizationLabel = formatNamedEntityDisplay(
+    note.issuerName,
+    note.issuerOrganizationDisplayReference
+  );
 
   return (
     <Card className="rounded-2xl">
@@ -80,20 +106,31 @@ export function SourceApplicationPanel({ note }: { note: NoteDetail }) {
         <CardTitle>Quick Links</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 text-ui">
-        <SourceLink label="Application ID" value={note.sourceApplicationId} href={applicationHref} />
-        <SourceLink label="Invoice ID" value={note.sourceInvoiceId} href={invoiceHref} />
+        <SourceLink
+          label="Application Reference"
+          value={note.sourceApplicationId}
+          href={applicationHref}
+          display={applicationLabel}
+        />
+        <SourceLink
+          label="Invoice Reference"
+          value={note.sourceInvoiceId}
+          href={invoiceHref}
+          display={invoiceLabel}
+        />
         {linkage.isStandalone ? null : (
           <SourceLink
-            label="Facility ID"
+            label="Facility Reference"
             value={linkage.contractId}
             href={linkage.contractHref}
+            display={facilityLabel}
           />
         )}
         <SourceLink
           label="Issuer Organization"
           value={note.issuerOrganizationId}
           href={organizationHref}
-          display={note.issuerName ? `${note.issuerName} (${note.issuerOrganizationId})` : note.issuerOrganizationId}
+          display={organizationLabel}
         />
         <FacilityImpact
           contractId={linkage.contractId}

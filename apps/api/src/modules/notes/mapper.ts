@@ -28,6 +28,99 @@ type NoteWithRelations = Prisma.NoteGetPayload<{
   include: typeof noteInclude;
 }>;
 
+type NoteSourceKeys = {
+  source_application_id: string;
+  source_contract_id: string | null;
+  source_invoice_id: string | null;
+  issuer_organization_id: string;
+};
+
+export type NoteSourceDisplayReferenceMaps = {
+  applicationById: Map<string, string | null>;
+  contractById: Map<string, string | null>;
+  invoiceById: Map<string, string | null>;
+  issuerOrgById: Map<string, string | null>;
+};
+
+export async function loadNoteSourceDisplayReferenceMaps(
+  notes: NoteSourceKeys[]
+): Promise<NoteSourceDisplayReferenceMaps> {
+  const applicationIds = [
+    ...new Set(notes.map((note) => note.source_application_id).filter((id) => Boolean(id?.trim()))),
+  ];
+  const contractIds = [
+    ...new Set(
+      notes
+        .map((note) => note.source_contract_id)
+        .filter((id): id is string => Boolean(id?.trim()))
+    ),
+  ];
+  const invoiceIds = [
+    ...new Set(
+      notes
+        .map((note) => note.source_invoice_id)
+        .filter((id): id is string => Boolean(id?.trim()))
+    ),
+  ];
+  const issuerOrgIds = [
+    ...new Set(notes.map((note) => note.issuer_organization_id).filter((id) => Boolean(id?.trim()))),
+  ];
+
+  const [applications, contracts, invoices, orgs] = await Promise.all([
+    applicationIds.length
+      ? prisma.application.findMany({
+          where: { id: { in: applicationIds } },
+          select: { id: true, display_reference: true },
+        })
+      : Promise.resolve([]),
+    contractIds.length
+      ? prisma.contract.findMany({
+          where: { id: { in: contractIds } },
+          select: { id: true, display_reference: true },
+        })
+      : Promise.resolve([]),
+    invoiceIds.length
+      ? prisma.invoice.findMany({
+          where: { id: { in: invoiceIds } },
+          select: { id: true, display_reference: true },
+        })
+      : Promise.resolve([]),
+    issuerOrgIds.length
+      ? prisma.issuerOrganization.findMany({
+          where: { id: { in: issuerOrgIds } },
+          select: { id: true, display_reference: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  return {
+    applicationById: new Map(applications.map((row) => [row.id, row.display_reference ?? null])),
+    contractById: new Map(contracts.map((row) => [row.id, row.display_reference ?? null])),
+    invoiceById: new Map(invoices.map((row) => [row.id, row.display_reference ?? null])),
+    issuerOrgById: new Map(orgs.map((row) => [row.id, row.display_reference ?? null])),
+  };
+}
+
+export function applyNoteSourceDisplayReferences<T extends ReturnType<typeof mapNoteListItem>>(
+  mapped: T,
+  note: NoteSourceKeys,
+  maps: NoteSourceDisplayReferenceMaps
+): T {
+  return {
+    ...mapped,
+    sourceApplicationDisplayReference:
+      maps.applicationById.get(note.source_application_id) ?? null,
+    sourceContractDisplayReference: note.source_contract_id
+      ? (maps.contractById.get(note.source_contract_id) ?? null)
+      : null,
+    sourceInvoiceDisplayReference: note.source_invoice_id
+      ? (maps.invoiceById.get(note.source_invoice_id) ?? null)
+      : null,
+    issuerOrganizationDisplayReference:
+      maps.issuerOrgById.get(note.issuer_organization_id) ?? null,
+  };
+}
+
 function mapProspectusSummary(note: NoteWithRelations): NoteProspectusSummary {
   const review = note.prospectus_review;
   const notePublished = note.status === "PUBLISHED";
@@ -494,10 +587,13 @@ export function mapNoteListItem(note: NoteWithRelations) {
     purposeOfContract: resolveContractPurpose(note.contract_snapshot),
     issuerIndustry: resolveIssuerIndustry(note),
     sourceApplicationId: note.source_application_id,
+    sourceApplicationDisplayReference: null,
     sourceContractId: note.source_contract_id,
     sourceContractDisplayReference: null,
     sourceInvoiceId: note.source_invoice_id,
+    sourceInvoiceDisplayReference: null,
     issuerOrganizationId: note.issuer_organization_id,
+    issuerOrganizationDisplayReference: null,
     issuerName: resolveIssuerName(note),
     paymasterName: resolvePaymasterName(note),
     riskRating: resolveRiskRating(note),
@@ -609,8 +705,9 @@ export async function mapNoteDetail(
       : new Map());
 
   const mappedEvents = includeEvents ? mapNoteEventRecords(note.events, actorNameById) : [];
+  const sourceMaps = await loadNoteSourceDisplayReferenceMaps([note]);
 
-  return {
+  return applyNoteSourceDisplayReferences({
     ...mapNoteListItem(note),
     issuerResidualPayout: resolveIssuerResidualPayoutListStatus(note, withdrawals),
     productSnapshot: asRecord(note.product_snapshot),
@@ -731,7 +828,7 @@ export async function mapNoteDetail(
     })),
     events: mappedEvents,
     withdrawals: withdrawals.map(mapWithdrawalInstruction),
-  };
+  }, note, sourceMaps);
 }
 
 export function mapMarketplaceNoteDetail(note: NoteWithRelations) {

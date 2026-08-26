@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { formatDistanceToNowStrict } from "date-fns";
 import { formatAuditDateTime } from "@/components/audit/audit-presentation";
-import { formatSettlementReference } from "@cashsouk/types";
+import { formatNoteReference, formatSettlementReference } from "@cashsouk/types";
 import {
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
@@ -158,7 +158,10 @@ export default function SettlementTrusteeLettersPage() {
                         : items.map((item) => (
                             <TableRow key={item.settlementId}>
                               <TableCell className="font-medium">
-                                {item.noteTitle ?? item.noteId}
+                                {formatNoteReference({
+                                  noteReference: item.noteReference,
+                                  id: item.noteId,
+                                })}
                               </TableCell>
                               <TableCell>{item.issuerOrganizationName ?? "—"}</TableCell>
                               <TableCell>

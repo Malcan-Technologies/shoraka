@@ -9,6 +9,7 @@ import {
   ArrowTopRightOnSquareIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
+import { formatNoteReference } from "@cashsouk/types";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -196,7 +197,10 @@ export default function PendingIssuerPayoutsPage() {
                               )}
                             >
                               <TableCell className="font-medium">
-                                {item.noteTitle ?? item.noteId}
+                                {formatNoteReference({
+                                  noteReference: item.noteReference,
+                                  id: item.noteId,
+                                })}
                               </TableCell>
                               <TableCell>
                                 <span

@@ -32,12 +32,13 @@ function extractS3Key(event: NoteEvent) {
   return typeof s3Key === "string" && s3Key.trim() ? s3Key : null;
 }
 
-function buildDownloadName(event: NoteEvent) {
-  if (event.eventType === "ARREARS_LETTER_GENERATED") return `arrears-letter-${event.noteId}.pdf`;
+function buildDownloadName(event: NoteEvent, noteReference: string) {
+  const ref = noteReference.trim() || event.noteId;
+  if (event.eventType === "ARREARS_LETTER_GENERATED") return `arrears-letter-${ref}.pdf`;
   if (event.eventType === "SETTLEMENT_TRUSTEE_LETTER_GENERATED") {
-    return `settlement-trustee-letter-${event.noteId}.pdf`;
+    return `settlement-trustee-letter-${ref}.pdf`;
   }
-  return `note-letter-${event.noteId}.pdf`;
+  return `note-letter-${ref}.pdf`;
 }
 
 export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
@@ -115,7 +116,7 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                               size="sm"
                               variant="outline"
                               className="gap-1.5"
-                              onClick={() => handleDownloadDocument(s3Key, buildDownloadName(event))}
+                              onClick={() => handleDownloadDocument(s3Key, buildDownloadName(event, note.noteReference))}
                               disabled={viewDocumentPending}
                             >
                               <ArrowDownTrayIcon className="h-4 w-4" />

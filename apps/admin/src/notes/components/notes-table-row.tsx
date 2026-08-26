@@ -12,6 +12,7 @@ import {
 import { resolveNoteTimingDisplay, type EligibleNoteInvoice, type NoteListItem } from "@cashsouk/types";
 import {
   formatInvoiceReference,
+  formatNamedEntityDisplay,
   formatProspectusListBadge,
   isNoteSettlementPosted,
   resolveSettlementTrusteeRegistryState,
@@ -317,8 +318,8 @@ function ReadyInvoiceRow({
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <div className="truncate font-medium" title={invoiceLabel}>Approved invoice ready for note</div>
-        <div className="truncate text-xs text-muted-foreground" title={invoice.issuerName ?? invoice.issuerOrganizationId}>
-          {invoice.issuerName ?? invoice.issuerOrganizationId}
+        <div className="truncate text-xs text-muted-foreground" title={invoice.issuerName ?? invoice.issuerOrganizationDisplayReference ?? invoice.issuerOrganizationId}>
+          {formatNamedEntityDisplay(invoice.issuerName, invoice.issuerOrganizationDisplayReference)}
         </div>
       </TableCell>
       <ProspectusCell />

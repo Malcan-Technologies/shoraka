@@ -58,6 +58,8 @@ import {
   REPAYMENT_RECEIPT_SOURCE_ORDER,
 } from "@/notes/lib/repayment-capacity";
 import {
+  formatApplicationReference,
+  formatInvoiceReference,
   formatIssuerFinancingTenure,
   formatIssuerMaturityCountdown,
   formatIssuerNoteMaturity,
@@ -529,6 +531,26 @@ export default function IssuerNoteDetailPage() {
     typeof invoiceNumberRaw === "string" || typeof invoiceNumberRaw === "number"
       ? String(invoiceNumberRaw).trim()
       : "";
+  const invoiceReferenceLabel = note.sourceInvoiceId
+    ? formatInvoiceReference({
+        displayReference: note.sourceInvoiceDisplayReference,
+        businessNumber: invoiceNumberLabel || null,
+        id: note.sourceInvoiceId,
+      })
+    : null;
+  const invoiceFactLabel = invoiceReferenceLabel
+    ? invoiceNumberLabel && invoiceNumberLabel !== invoiceReferenceLabel
+      ? `Invoice ${invoiceReferenceLabel} · ${invoiceNumberLabel}`
+      : `Invoice ${invoiceReferenceLabel}`
+    : invoiceNumberLabel
+      ? `Invoice: ${invoiceNumberLabel}`
+      : "Invoice";
+  const applicationFactLabel = note.sourceApplicationId
+    ? formatApplicationReference({
+        displayReference: note.sourceApplicationDisplayReference,
+        id: note.sourceApplicationId,
+      })
+    : null;
   const contractSnapshotRecord = asRecord(note.contractSnapshot);
   const contractDetailsRecord = asRecord(contractSnapshotRecord?.contract_details);
   const contractTitleRaw =
@@ -631,7 +653,7 @@ export default function IssuerNoteDetailPage() {
                     href={invoiceDetailHref}
                     className="text-primary underline-offset-4 hover:underline"
                   >
-                    {invoiceNumberLabel ? `Invoice: ${invoiceNumberLabel}` : "Invoice"}
+                    {invoiceFactLabel}
                   </Link>
                 </>
               ) : null}
@@ -642,7 +664,7 @@ export default function IssuerNoteDetailPage() {
                     href={`/applications/${note.sourceApplicationId}`}
                     className="text-primary underline-offset-4 hover:underline"
                   >
-                    Application
+                    {applicationFactLabel ?? "Application"}
                   </Link>
                 </>
               ) : null}

@@ -317,11 +317,17 @@ export interface NoteListItem extends NoteMoneySummary {
   purposeOfContract?: string | null;
   issuerIndustry: string | null;
   sourceApplicationId: string;
+  /** Canonical application reference (`APP-…`) when allocated. */
+  sourceApplicationDisplayReference: string | null;
   sourceContractId: string | null;
   /** Canonical facility reference (`CON-…`) when the note is under a master facility. */
   sourceContractDisplayReference: string | null;
   sourceInvoiceId: string | null;
+  /** Canonical invoice reference (`INV-…`) when allocated. */
+  sourceInvoiceDisplayReference: string | null;
   issuerOrganizationId: string;
+  /** Canonical issuer-org reference (`ISS-…`) when allocated. */
+  issuerOrganizationDisplayReference: string | null;
   issuerName: string | null;
   paymasterName: string | null;
   riskRating: SoukscoreRiskRating | null;
@@ -697,6 +703,7 @@ export type PendingRepaymentAction = "REVIEW" | "AWAIT_REMAINDER" | "POST_SETTLE
 export interface PendingRepaymentItem {
   paymentId: string;
   noteId: string;
+  noteReference: string | null;
   noteTitle: string | null;
   noteStatus: string | null;
   amount: number;
@@ -722,6 +729,7 @@ export interface PendingIssuerPayoutItem {
   displayReference: string | null;
   settlementId: string | null;
   noteId: string;
+  noteReference: string | null;
   noteTitle: string | null;
   noteStatus: string | null;
   issuerOrganizationId: string | null;
@@ -746,6 +754,7 @@ export interface PendingSettlementTrusteeLetterItem {
   settlementId: string;
   displayReference: string | null;
   noteId: string;
+  noteReference: string | null;
   noteTitle: string | null;
   noteStatus: string | null;
   issuerOrganizationId: string | null;
@@ -1126,6 +1135,7 @@ export interface EligibleNoteInvoice {
   contractId: string | null;
   contractDisplayReference: string | null;
   issuerOrganizationId: string;
+  issuerOrganizationDisplayReference: string | null;
   issuerName: string | null;
   paymasterName: string | null;
   invoiceNumber: string | null;

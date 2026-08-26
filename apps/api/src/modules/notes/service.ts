@@ -109,6 +109,8 @@ import {
   type StatementLedgerEntry,
 } from "./investor-balance-statement";
 import {
+  applyNoteSourceDisplayReferences,
+  loadNoteSourceDisplayReferenceMaps,
   mapLedgerEntry,
   mapMarketplaceNoteDetail,
   mapNoteDetail,
@@ -1613,24 +1615,9 @@ export class NoteService {
         resolveIssuerIndustryFromCorporateData(org.corporate_onboarding_data),
       ])
     );
-    const contractIds = [
-      ...new Set(
-        notes
-          .map((note) => note.source_contract_id)
-          .filter((id): id is string => Boolean(id?.trim()))
-      ),
-    ];
-    const contracts = contractIds.length
-      ? await prisma.contract.findMany({
-          where: { id: { in: contractIds } },
-          select: { id: true, display_reference: true },
-        })
-      : [];
-    const contractDisplayById = new Map(
-      contracts.map((contract) => [contract.id, contract.display_reference ?? null])
-    );
+    const sourceMaps = await loadNoteSourceDisplayReferenceMaps(notes);
     const mappedNotes = notes.map((note) => {
-      const mapped = mapNoteListItem(note);
+      const mapped = applyNoteSourceDisplayReferences(mapNoteListItem(note), note, sourceMaps);
       const productSnapshot = asRecord(note.product_snapshot);
       const productId =
         typeof productSnapshot?.product_id === "string" &&
@@ -1639,9 +1626,6 @@ export class NoteService {
           : null;
       return {
         ...mapped,
-        sourceContractDisplayReference: note.source_contract_id
-          ? (contractDisplayById.get(note.source_contract_id) ?? null)
-          : null,
         productCategory:
           mapped.productCategory ??
           (productId ? (productCategoryById.get(productId) ?? null) : null),
@@ -1733,6 +1717,8 @@ export class NoteService {
           contractId: invoice.contract_id ?? invoice.application.contract_id,
           contractDisplayReference: sourceContract?.display_reference ?? null,
           issuerOrganizationId: invoice.application.issuer_organization_id,
+          issuerOrganizationDisplayReference:
+            invoice.application.issuer_organization.display_reference ?? null,
           issuerName: invoice.application.issuer_organization.name,
           paymasterName: this.resolvePaymasterName(paymaster),
           invoiceNumber: typeof details.number === "string" ? details.number : null,
@@ -2006,7 +1992,7 @@ export class NoteService {
     const noteIds = Array.from(new Set(payments.map((p) => p.note_id)));
     const notes = await prisma.note.findMany({
       where: { id: { in: noteIds } },
-      select: { id: true, title: true, status: true, issuer_organization_id: true },
+      select: { id: true, title: true, status: true, note_reference: true, issuer_organization_id: true },
     });
     const issuerIds = Array.from(
       new Set(notes.map((n) => n.issuer_organization_id).filter(Boolean) as string[])
@@ -2034,6 +2020,7 @@ export class NoteService {
       return {
         paymentId: payment.id,
         noteId: payment.note_id,
+        noteReference: note?.note_reference ?? null,
         noteTitle: note?.title ?? null,
         noteStatus: note?.status ?? null,
         amount: toNumber(payment.receipt_amount),
@@ -2098,7 +2085,7 @@ export class NoteService {
     const notes = noteIds.length
       ? await prisma.note.findMany({
           where: { id: { in: noteIds } },
-          select: { id: true, title: true, status: true, issuer_organization_id: true },
+          select: { id: true, title: true, status: true, note_reference: true, issuer_organization_id: true },
         })
       : [];
     const issuerIds = Array.from(
@@ -2149,6 +2136,7 @@ export class NoteService {
         displayReference: withdrawal.display_reference ?? null,
         settlementId: withdrawal.settlement_id,
         noteId: withdrawal.note_id ?? "",
+        noteReference: note?.note_reference ?? null,
         noteTitle: note?.title ?? null,
         noteStatus: note?.status ?? null,
         issuerOrganizationId: issuer?.id ?? null,
@@ -2175,6 +2163,7 @@ export class NoteService {
           displayReference: settlement.display_reference ?? null,
           settlementId: settlement.id,
           noteId: settlement.note_id,
+          noteReference: note?.note_reference ?? null,
           noteTitle: note?.title ?? null,
           noteStatus: note?.status ?? null,
           issuerOrganizationId: issuer?.id ?? null,
@@ -2276,6 +2265,7 @@ export class NoteService {
         id: true,
         title: true,
         status: true,
+        note_reference: true,
         issuer_organization_id: true,
       },
     });
@@ -2304,6 +2294,7 @@ export class NoteService {
         settlementId: s.id,
         displayReference: s.display_reference ?? null,
         noteId: s.note_id,
+        noteReference: note?.note_reference ?? null,
         noteTitle: note?.title ?? null,
         noteStatus: note?.status ?? null,
         issuerOrganizationId: issuer?.id ?? null,
@@ -4632,9 +4623,11 @@ export class NoteService {
       withdrawalsByNoteId.set(w.note_id, list);
     }
 
+    const sourceMaps = await loadNoteSourceDisplayReferenceMaps(notes);
+
     return {
       notes: notes.map((note) => ({
-        ...mapNoteListItem(note),
+        ...applyNoteSourceDisplayReferences(mapNoteListItem(note), note, sourceMaps),
         issuerResidualPayout: resolveIssuerResidualPayoutListStatus(
           note,
           withdrawalsByNoteId.get(note.id) ?? []

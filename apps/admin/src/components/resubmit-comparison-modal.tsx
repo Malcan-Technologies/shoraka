@@ -36,6 +36,7 @@ import {
 } from "@/lib/resubmit-comparison-paths";
 import { reviewSectionHasResubmitChanges } from "@/lib/review-section-has-resubmit-changes";
 import type { ResubmitFieldChangeItem } from "@/components/application-revision-diff-panel";
+import { formatApplicationReference } from "@cashsouk/types";
 import {
   USE_MOCK_GUARANTOR_COMPARISON,
   getMockGuarantorFieldChanges,
@@ -49,6 +50,7 @@ export interface ResubmitComparisonModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   applicationId: string | null;
+  applicationDisplayReference?: string | null;
   productKey: string | null;
   reviewCycle: number | null;
   fieldChanges?: ResubmitFieldChangeItem[];
@@ -62,6 +64,7 @@ export function ResubmitComparisonModal({
   open,
   onOpenChange,
   applicationId,
+  applicationDisplayReference,
   productKey,
   reviewCycle,
   fieldChanges,
@@ -218,7 +221,12 @@ export function ResubmitComparisonModal({
         <DialogHeader className="space-y-1 shrink-0 border-b border-border/80 px-6 pb-1.5 pt-6">
           <DialogTitle className="text-dialog-title">What changed in this application</DialogTitle>
           <DialogDescription className="text-sm">
-            {applicationId ? `Application ${applicationId}` : "Application"}
+            {applicationId
+              ? `Application ${formatApplicationReference({
+                  displayReference: applicationDisplayReference,
+                  id: applicationId,
+                })}`
+              : "Application"}
           </DialogDescription>
         </DialogHeader>
 

@@ -2538,7 +2538,9 @@ export class AdminRepository {
     contractNumber: string | null;
     title: string | null;
     description: string | null;
+    issuerOrganizationId: string | null;
     issuerOrganizationName: string | null;
+    issuerOrganizationDisplayReference: string | null;
     requestedFacility: number;
     approvedFacility: number;
     utilizedFacility: number;
@@ -2567,7 +2569,6 @@ export class AdminRepository {
       requestedAmount: number;
       kind: "facility" | "invoice";
     }[];
-    issuerOrganizationId: string | null;
     notes: {
       id: string;
       noteReference: string;
@@ -2575,6 +2576,7 @@ export class AdminRepository {
       status: string;
       sourceApplicationId: string;
       sourceInvoiceId: string | null;
+      sourceInvoiceDisplayReference: string | null;
       targetAmount: number;
       fundedAmount: number;
       invoiceFaceAmount: number | null;
@@ -2607,6 +2609,7 @@ export class AdminRepository {
         issuer_organization: {
           select: {
             name: true,
+            display_reference: true,
           },
         },
         applications: {
@@ -2763,11 +2766,14 @@ export class AdminRepository {
     const sourceInvoices = sourceInvoiceIds.length
       ? await prisma.invoice.findMany({
           where: { id: { in: sourceInvoiceIds } },
-          select: { id: true, details: true },
+          select: { id: true, details: true, display_reference: true },
         })
       : [];
     const invoiceFaceById = new Map(
       sourceInvoices.map((invoice) => [invoice.id, readInvoiceFaceAmount(invoice.details)] as const)
+    );
+    const invoiceDisplayRefById = new Map(
+      sourceInvoices.map((invoice) => [invoice.id, invoice.display_reference ?? null] as const)
     );
 
     return {
@@ -2781,6 +2787,7 @@ export class AdminRepository {
       description: typeof contractDetails.description === "string" ? contractDetails.description : null,
       issuerOrganizationId: contract.issuer_organization_id,
       issuerOrganizationName: contract.issuer_organization?.name ?? null,
+      issuerOrganizationDisplayReference: contract.issuer_organization?.display_reference ?? null,
       requestedFacility: Number.isFinite(requestedFacility) ? requestedFacility : 0,
       approvedFacility:
         Number.isFinite(offeredFacility) && offeredFacility > 0
@@ -2812,6 +2819,9 @@ export class AdminRepository {
         status: note.status,
         sourceApplicationId: note.source_application_id,
         sourceInvoiceId: note.source_invoice_id,
+        sourceInvoiceDisplayReference: note.source_invoice_id
+          ? (invoiceDisplayRefById.get(note.source_invoice_id) ?? null)
+          : null,
         targetAmount: note.target_amount.toNumber(),
         fundedAmount: note.funded_amount.toNumber(),
         invoiceFaceAmount: note.source_invoice_id

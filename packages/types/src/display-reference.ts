@@ -54,6 +54,22 @@ export function formatOrganizationReference(input: CanonicalReferenceInput): str
   return trimmed(input.displayReference) ?? (input.id ? shortIdFallback(input.id) : "—");
 }
 
+/**
+ * Named-entity label: `Toyota (ISS-202608-DK3)`.
+ * Uses the canonical reference only — never a hashed short-id fallback in brackets.
+ */
+export function formatNamedEntityDisplay(
+  name: string | null | undefined,
+  canonicalReference: string | null | undefined
+): string {
+  const n = trimmed(name);
+  const r = trimmed(canonicalReference);
+  if (n && r) return `${n} (${r})`;
+  if (n) return n;
+  if (r) return r;
+  return "—";
+}
+
 /** Notification copy: canonical ref without hash; legacy short-id keeps hash prefix. */
 export function formatApplicationNotificationRef(input: CanonicalReferenceInput): string {
   const canonical = trimmed(input.displayReference);
