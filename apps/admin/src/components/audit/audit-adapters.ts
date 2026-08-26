@@ -18,6 +18,7 @@ import {
   formatAuditSourceLabel,
   formatRoleSwitchedLabel,
   presentAuditActorName,
+  productNameFromLogMetadata,
   resolveAuditActorType,
 } from "./audit-presentation";
 
@@ -45,6 +46,12 @@ function pickString(record: Record<string, unknown> | null | undefined, keys: st
     if (typeof value === "number") return String(value);
   }
   return null;
+}
+
+export function notificationRelatedReference(
+  metadata: Record<string, unknown> | null | undefined
+): string | null {
+  return pickString(metadata, ["targetId", "target_id", "noteId", "applicationId"]);
 }
 
 function metadataReason(metadata: Record<string, unknown> | null | undefined): string | null {
@@ -154,12 +161,7 @@ export function accessLogToAuditDetail(
 
 export function productLogToAuditDetail(log: ProductLogResponse & ForensicFields): AuditDetailRecord {
   const metadata = log.metadata;
-  const workflow = (metadata?.workflow as unknown[]) ?? [];
-  const first = workflow[0] as { config?: { name?: string; type?: { name?: string } } } | undefined;
-  const productName =
-    (typeof first?.config?.name === "string" ? first.config.name : null) ??
-    (typeof first?.config?.type?.name === "string" ? first.config.type.name : null) ??
-    pickString(metadata, ["product_name", "name"]);
+  const productName = productNameFromLogMetadata(metadata);
   const actorName = `${log.user.first_name} ${log.user.last_name}`.trim();
   const actorType = resolveAuditActorType({
     actorType: log.actor_type,
@@ -274,7 +276,7 @@ export function notificationLogToAuditDetail(log: AdminNotificationLog): AuditDe
       type: log.target_type,
       id: log.target_group_id,
       extra: presentFields([
-        { label: "Related reference", value: pickString(metadata, ["targetId", "target_id", "noteId", "applicationId"]) },
+        { label: "Related reference", value: notificationRelatedReference(metadata) },
       ]),
     },
     delivery: {

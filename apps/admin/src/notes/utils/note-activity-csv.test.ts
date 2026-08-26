@@ -72,6 +72,18 @@ describe("buildNoteActivityCsv", () => {
     expect(lines[1]).toContain("Ada Admin");
   });
 
+  it("puts the same amount shown in detail into the Amount column", () => {
+    const csv = buildNoteActivityCsv([
+      event({
+        eventType: "INVESTMENT_COMMITTED",
+        metadata: { amount: 25000, investmentId: "inv-1" },
+      }),
+    ]);
+    expect(csv).toContain("25000");
+    expect(csv).toContain("INVESTMENT_COMMITTED");
+    expect(csv).toContain("Investment committed");
+  });
+
   it("exports an empty table with only the header", () => {
     expect(buildNoteActivityCsv([]).split("\n")).toHaveLength(1);
   });

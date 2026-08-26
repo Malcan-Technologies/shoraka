@@ -1,3 +1,4 @@
+import { legalDocumentTypeLabel } from "@cashsouk/types";
 import { listLegalAcceptancesQuerySchema } from "./schemas";
 
 describe("legal document acceptances admin query schema", () => {
@@ -22,5 +23,13 @@ describe("legal document acceptances admin query schema", () => {
     expect(parsed.audience).toBe("ISSUER");
     expect(parsed.status).toBe("ACCEPTED");
     expect(parsed.search).toBe("acme");
+  });
+});
+
+describe("legal acceptance export document type", () => {
+  it("uses the same friendly type label as the Admin table", () => {
+    expect(legalDocumentTypeLabel("TERMS_OF_USE")).toBe("Terms of Use");
+    expect(legalDocumentTypeLabel("ISSUER_AGREEMENT")).toBe("Issuer Agreement");
+    expect(legalDocumentTypeLabel(null)).toBe("");
   });
 });

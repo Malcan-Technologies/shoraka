@@ -22,6 +22,25 @@ export function formatAuditDate(value: Date | string | null | undefined): string
   return format(date, AUDIT_DATE_FORMAT);
 }
 
+/** Same Product Audit name source as API CSV/JSON: workflow[0].config.name, then type.name. */
+export function productNameFromLogMetadata(
+  metadata: Record<string, unknown> | null | undefined
+): string | null {
+  const workflow = Array.isArray(metadata?.workflow) ? metadata.workflow : [];
+  const first = workflow[0] as
+    | { config?: { name?: unknown; type?: { name?: unknown } } }
+    | undefined;
+  const fromConfig = readProductWorkflowName(first?.config?.name);
+  if (fromConfig) return fromConfig;
+  return readProductWorkflowName(first?.config?.type?.name);
+}
+
+function readProductWorkflowName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export const LEGAL_DOCUMENT_AUDIT_ACTION_LABELS: Record<string, string> = {
   LEGAL_DOCUMENT_CREATED: "Document Created",
   LEGAL_DOCUMENT_UPDATED: "Document Updated",

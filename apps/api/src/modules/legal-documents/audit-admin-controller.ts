@@ -3,6 +3,7 @@ import { requirePermission } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { legalDocumentAuditAdminService } from "./audit-admin-service";
 import { buildAuditCsv, humanizeAuditEventType } from "../../lib/audit-csv";
+import { legalDocumentTypeLabel } from "@cashsouk/types";
 import {
   exportLegalDocumentAuditLogsQuerySchema,
   listLegalDocumentAuditLogsQuerySchema,
@@ -83,6 +84,7 @@ router.get(
               afterJson: row.afterJson,
             },
             extra: {
+              Document: legalDocumentTypeLabel(row.documentType),
               "Audit ID": row.id,
               "Legal Document Version ID": row.legalDocumentVersionId,
               "Version Number": row.versionNumber,
@@ -95,6 +97,7 @@ router.get(
             },
           })),
           [
+            "Document",
             "Audit ID",
             "Legal Document Version ID",
             "Version Number",

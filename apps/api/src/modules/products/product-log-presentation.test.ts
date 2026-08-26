@@ -1,4 +1,4 @@
-import { buildAuditCsv } from "../../lib/audit-csv";
+import { buildAuditCsv, redactAuditSecrets } from "../../lib/audit-csv";
 import { productNameFromLogMetadata } from "./product-log-presentation";
 
 function csvForLog(input: {
@@ -103,5 +103,19 @@ describe("Products Audit CSV Product Name", () => {
       expect(csv).toContain("prod_inactive");
       expect(csv).toContain("Ada Admin");
     }
+  });
+});
+
+describe("Products Audit JSON Product Name", () => {
+  it("uses the same workflow snapshot as CSV and redacts secrets", () => {
+    const metadata = {
+      workflow: [{ config: { name: "Invoice Financing" } }],
+      api_key: "should-not-export",
+    };
+    expect(productNameFromLogMetadata(metadata)).toBe("Invoice Financing");
+    expect(redactAuditSecrets(metadata)).toEqual({
+      workflow: [{ config: { name: "Invoice Financing" } }],
+      api_key: "[REDACTED]",
+    });
   });
 });

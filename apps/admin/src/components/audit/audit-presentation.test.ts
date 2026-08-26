@@ -7,6 +7,7 @@ import {
   formatRoleSwitchedLabel,
   isSystemActorToken,
   presentAuditActorName,
+  productNameFromLogMetadata,
   redactAuditSecrets,
 } from "./audit-presentation";
 import { buildAuditCsv } from "./audit-csv";
@@ -26,6 +27,20 @@ describe("audit presentation", () => {
     );
     expect(formatAuditEventLabel("LEGAL_DOCUMENT_CREATED")).toBe("Document Created");
     expect(formatAuditEventLabel("LEGAL_VERSION_FILE_REPLACED")).toBe("Version File Replaced");
+  });
+
+  it("reads Product Name from workflow snapshot and ignores dead metadata keys", () => {
+    expect(
+      productNameFromLogMetadata({ workflow: [{ config: { name: "Invoice Financing" } }] })
+    ).toBe("Invoice Financing");
+    expect(
+      productNameFromLogMetadata({
+        workflow: [{ config: { type: { name: "Receivables Financing" } } }],
+      })
+    ).toBe("Receivables Financing");
+    expect(
+      productNameFromLogMetadata({ product_name: "Legacy Name", name: "Also Legacy" })
+    ).toBeNull();
   });
 
   it("labels ROLE_SWITCHED from metadata without splitting the event id", () => {

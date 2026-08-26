@@ -1038,14 +1038,15 @@ router.get(
               correlationId: log.correlation_id,
               metadata: log.metadata,
               extra: {
+                "User ID": log.user_id,
                 Portal: log.portal,
                 "IP Address": log.ip_address,
-                Device: log.device_type ?? log.device_info,
+                Device: log.device_info,
                 "User Agent": log.user_agent,
               },
             };
           }),
-          ["Portal", "IP Address", "Device", "User Agent"]
+          ["User ID", "Portal", "IP Address", "Device", "User Agent"]
         );
 
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -1520,6 +1521,8 @@ router.get(
               correlationId: log.correlation_id,
               metadata: log.metadata,
               extra: {
+                "User ID": log.user_id,
+                Portal: log.portal,
                 "IP Address": log.ip_address,
                 Device: log.device_info,
                 "Previous Values": previous ? JSON.stringify(previous) : "",
@@ -1527,7 +1530,7 @@ router.get(
               },
             };
           }),
-          ["IP Address", "Device", "Previous Values", "New Values"]
+          ["User ID", "Portal", "IP Address", "Device", "Previous Values", "New Values"]
         );
 
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -1655,7 +1658,7 @@ router.get(
             actor: `${log.user.first_name} ${log.user.last_name}`.trim(),
             actorType: log.actor_type ?? log.role,
             actorEmail: log.user.email,
-            organisation: null,
+            organisation: log.organizationName ?? null,
             source: log.source ?? log.portal,
             targetType: log.target_type,
             targetReference: log.target_id,
@@ -1700,13 +1703,15 @@ router.get(
           user_agent: log.user_agent,
           device_info: log.device_info,
           device_type: log.device_type,
-          metadata: log.metadata,
+          metadata: redactAuditSecrets(log.metadata),
           created_at: log.created_at.toISOString(),
           actor_type: log.actor_type,
           source: log.source,
           target_type: log.target_type,
           target_id: log.target_id,
           correlation_id: log.correlation_id,
+          organization_name: log.organizationName ?? null,
+          organization_type: log.organizationType ?? null,
         }));
 
         res.setHeader("Content-Type", "application/json; charset=utf-8");

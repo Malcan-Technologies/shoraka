@@ -1,9 +1,11 @@
 # Master Event / Activity / Notification Matrix
 
-**This is the PRIMARY quick-reference for the CashSouk audit, activity, and notification system.**
-If you need to answer *"what happens for `EVENT_X`?"* — what it means, whether it is live, who writes
-it, what evidence it stores, where it appears in Admin / Issuer / Investor / CSV, what wording each
-surface uses, and whether a notification fires — start here.
+> **SUPERSEDED for current-behavior lookup (2026-08-27).**
+> The single current-behavior reference is [`current-audit-notification-catalog.md`](./current-audit-notification-catalog.md).
+> This matrix remains a **2026-08-26** snapshot. Do not treat it as live labels, counts, or notification titles.
+
+**This was the PRIMARY quick-reference for the CashSouk audit, activity, and notification system (as of 2026-08-26).**
+If you need to answer *"what happens for `EVENT_X`?"* **today** — start at [`current-audit-notification-catalog.md`](./current-audit-notification-catalog.md).
 
 **Verified against:** working tree on branch `redo_log`, 2026-08-26. User-facing copy for the 58-event wording pass matches live source after `docs/audit/final-copy-standardization-plan.md`. Where documentation and source disagreed, **source won**.
 
@@ -17,7 +19,8 @@ Five documents cover this system. They are deliberately **not** interchangeable:
 
 | Document | Responsibility | Use it when |
 |---|---|---|
-| **`audit-event-surface-matrix.md`** (this file) | **PRIMARY** quick reference: what every event does and where it appears | "What happens for `EVENT_X`?" |
+| [`current-audit-notification-catalog.md`](./current-audit-notification-catalog.md) | **CURRENT** master: live IDs, labels, metadata, UI, CSV/PDF, notifications, status | "What happens for `EVENT_X`?" **today** |
+| **`audit-event-surface-matrix.md`** (this file) | **Historical 2026-08-26 snapshot** of the former primary matrix | Comparing that snapshot only |
 | [`audit-event-catalog.md`](./audit-event-catalog.md) | Technical **writer / storage / evidence** reference, organised by module, with an evidence-sufficiency assessment per event | "Is the evidence we store for this event good enough?" |
 | [`activity-notification-copy-standard.md`](./activity-notification-copy-standard.md) | Canonical **terminology rules** — which word means which business action, and the casing rules | "What should I *call* this on a new surface?" |
 | [`activity-notification-copy-review.md`](./activity-notification-copy-review.md) | Historical **copy-consistency review** and implementation record (BEFORE/AFTER per event) | "Why does this surface word it that way, and was it reviewed?" |
@@ -397,8 +400,9 @@ Declared union: `EventType` in `packages/types/src/admin.ts`. Central writer:
   **query filter**, not a label map — anything outside it is never fetched.
 - `access-log-table-row.tsx` `EVENT_TYPE_CONFIG` is a **display-only** label map that still carries
   labels for many types the panel can never fetch.
-- CSV export (`GET /v1/admin/access-logs/export`) writes the **raw `event_type` string**, not a
-  label, and inherits the same event-type filter.
+- CSV export (`GET /v1/admin/access-logs/export`) writes a friendly **Event** label plus the raw
+  **Event Type**, with extra **User ID**, **Portal**, **IP Address**, **Device** (`device_info`,
+  matching the table), and **User Agent**. JSON keeps `user_id` and `portal` as separate fields.
 
 ---
 
@@ -514,7 +518,9 @@ events have no declared type and no admin filter entry. Central writer: `createS
 - ADMIN ACTIVITY = Audit → Security Logs (`security-logs-panel.tsx`), whose
   `SECURITY_EVENT_TYPES = ["PASSWORD_CHANGED", "EMAIL_CHANGED", "ROLE_ADDED", "ROLE_SWITCHED", "PROFILE_UPDATED"]`
   is a **query filter**.
-- CSV export (`GET /v1/admin/security-logs/export`) writes the **raw `event_type`**.
+- CSV export (`GET /v1/admin/security-logs/export`) writes a friendly **Event** label (including
+  metadata-driven `ROLE_SWITCHED` labels) plus the raw **Event Type**. **Portal** is a dedicated
+  extra column, not hidden behind Source. Extra also includes **User ID**.
 
 | Event | Trigger / writer | Actor | Business-specific evidence | Admin | CSV | Notification |
 |---|---|---|---|---|---|---|
@@ -564,7 +570,9 @@ ISSUER FACILITY DETAIL:    N/A
 INVESTOR GENERAL ACTIVITY: Same adapter, same 6 values, filtered on investor_organization_id
 INVESTOR DETAIL:           N/A
 CSV / EXPORT:              Admin org timeline CSV uses getEventLabel(); the
-                           /v1/admin/onboarding-logs/export endpoint uses the raw event_type
+                           /v1/admin/onboarding-logs/export endpoint uses the same friendly Event
+                           labels (`ONBOARDING_LOG_CSV_EVENT_LABELS`) plus raw Event Type.
+                           Organisation comes from `organizationName`.
 ```
 
 The portal allowlist is exactly six values:
@@ -1022,8 +1030,9 @@ ISSUER FACILITY DETAIL:    N/A
 INVESTOR GENERAL ACTIVITY: N/A
 INVESTOR DETAIL:           N/A — portals have legal *interaction* UI (legal-updates page,
                            use-account-documents) but no acceptance-audit viewer
-CSV / EXPORT:              Included — GET /v1/admin/legal-document-acceptances/export,
-                           a 25-column evidence export. Copy: acceptanceStatusLabel()
+CSV / EXPORT:              Included — GET /v1/admin/legal-document-acceptances/export.
+                           Status uses acceptanceStatusLabel(). Document Type uses the same
+                           friendly label as the table; Document Type ID keeps the enum.
 ```
 
 **NOTIFICATION: NO.**

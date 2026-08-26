@@ -1,5 +1,9 @@
 # Current Audit / Activity / Notification Journal
 
+> **SUPERSEDED for current-behavior lookup (2026-08-27).**
+> The single current-behavior reference is [`current-audit-notification-catalog.md`](./current-audit-notification-catalog.md).
+> This journal remains a **2026-08-26** copy/wording snapshot, including **RECOMMENDED CANONICAL PRESENTATION** (planned, not live). Do not use it as the live label/notification catalogue. Historical counts and recommended wording below are left unchanged.
+
 Verified: 2026-08-26 (CURRENT USER-FACING COPY includes settlement trustee technical IDs `SETTLEMENT_TRUSTEE_LETTER_GENERATED` / `_EMAIL_SENT` / `_LETTER_SUBMITTED` / `_INSTRUCTION_COMPLETED`; source still wins on any remaining discrepancy)
 
 Current audit counts:

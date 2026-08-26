@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
-import { notificationLogToAuditDetail } from "@/components/audit/audit-adapters";
+import { notificationLogToAuditDetail, notificationRelatedReference } from "@/components/audit/audit-adapters";
 import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 import { AuditEventBadge } from "@/components/audit/audit-event-badge";
 import { AuditLogActorCell } from "@/components/audit/audit-log-actor-cell";
@@ -113,13 +113,23 @@ export function NotificationLogsPanel() {
           metadata: log.metadata,
           extra: {
             "Notification Type": log.notification_type?.name || log.notification_type_id,
+            Audience: audienceLabel(log.target_type),
             "Platform Delivered": log.delivered_platform_count,
             "Email Delivered": log.delivered_email_count,
             "Idempotency Key": log.idempotency_key,
             Title: log.title,
+            "Related Reference": notificationRelatedReference(log.metadata),
           },
         })),
-        ["Notification Type", "Platform Delivered", "Email Delivered", "Idempotency Key", "Title"]
+        [
+          "Notification Type",
+          "Audience",
+          "Platform Delivered",
+          "Email Delivered",
+          "Idempotency Key",
+          "Title",
+          "Related Reference",
+        ]
       );
       downloadAuditCsv(`notification-logs-${new Date().toISOString().split("T")[0]}.csv`, csv);
     } catch (error) {

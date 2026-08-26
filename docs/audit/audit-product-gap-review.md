@@ -7,15 +7,16 @@
 >
 > | Question | Document |
 > |---|---|
-> | What happens for `EVENT_X`? | [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) — **primary reference** |
+> | What happens for `EVENT_X`? | [`current-audit-notification-catalog.md`](./current-audit-notification-catalog.md) — **current-behavior master** |
 > | Is the evidence we store good enough? | [`audit-event-catalog.md`](./audit-event-catalog.md) |
 > | What should I *call* this on a new surface? | [`activity-notification-copy-standard.md`](./activity-notification-copy-standard.md) |
 > | Why is it worded that way, and was it reviewed? | [`activity-notification-copy-review.md`](./activity-notification-copy-review.md) |
 >
 > **Reconciled against source 2026-08-24.** Several findings below were stale — either already fixed
 > or never accurate. Rather than deleting them, each carries a strikethrough plus a
-> **RESOLVED** / **CORRECTED** annotation so the history stays legible. Counts in §1 and §5 are
-> superseded by [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) §7.
+> **RESOLVED** / **CORRECTED** annotation so the history stays legible. **Current** event/notification
+> counts and live labels: [`current-audit-notification-catalog.md`](./current-audit-notification-catalog.md).
+> Counts in §1 and §5 of **this** file are historical.
 >
 > ⚠️ **Before acting on any finding here, re-verify against source with `rg`/`cat`.** Editor search
 > indexes on this repository return phantom files under `apps/api/src/modules/*/audit/` that do not

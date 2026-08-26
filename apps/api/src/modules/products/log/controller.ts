@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { requirePermission } from "../../../lib/auth/middleware";
 import { AppError } from "../../../lib/http/error-handler";
 import { productService } from "../service";
-import { buildAuditCsv, humanizeAuditEventType } from "../../../lib/audit-csv";
+import { buildAuditCsv, humanizeAuditEventType, redactAuditSecrets } from "../../../lib/audit-csv";
 import {
   getProductLogsQuerySchema,
   exportProductLogsQuerySchema,
@@ -144,12 +144,7 @@ router.get(
             created_at: Date;
           };
           const meta = logItem.metadata ?? {};
-          const workflow = (meta.workflow as unknown[]) ?? [];
-          const first = workflow[0] as { config?: { name?: string; type?: { name?: string } } } | undefined;
-          const productName =
-            (typeof first?.config?.name === "string" ? first.config.name : null) ??
-            (typeof first?.config?.type?.name === "string" ? first?.config?.type?.name : null) ??
-            null;
+          const productName = productNameFromLogMetadata(meta);
           return {
             id: logItem.id,
             user_id: logItem.user_id,
@@ -165,7 +160,7 @@ router.get(
             ip_address: logItem.ip_address,
             user_agent: logItem.user_agent,
             device_info: logItem.device_info,
-            metadata: logItem.metadata,
+            metadata: redactAuditSecrets(logItem.metadata),
             created_at: logItem.created_at.toISOString(),
             actor_type: (logItem as { actor_type?: string | null }).actor_type ?? null,
             source: (logItem as { source?: string | null }).source ?? null,

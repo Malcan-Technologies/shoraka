@@ -1,5 +1,10 @@
-import type { LegalDocumentAuditLogListItem } from "@cashsouk/types";
-import { accessLogToAuditDetail, legalAuditToAuditDetail } from "./audit-adapters";
+import type { LegalDocumentAuditLogListItem, ProductLogResponse } from "@cashsouk/types";
+import {
+  accessLogToAuditDetail,
+  legalAuditToAuditDetail,
+  notificationRelatedReference,
+  productLogToAuditDetail,
+} from "./audit-adapters";
 
 function legalRow(
   overrides: Partial<LegalDocumentAuditLogListItem> &
@@ -105,5 +110,39 @@ describe("access log detail preserves portal and requested role", () => {
       ])
     );
     expect(JSON.stringify(detail.metadata)).not.toContain("activeRole");
+  });
+});
+
+describe("productLogToAuditDetail Product Name", () => {
+  it("uses the workflow snapshot and does not revive dead product_name / name keys", () => {
+    const log = {
+      id: "plog-1",
+      user_id: "admin-1",
+      user: { first_name: "Ada", last_name: "Admin", email: "ada@example.com", roles: ["ADMIN"] },
+      product_id: "prod-1",
+      event_type: "PRODUCT_UPDATED",
+      ip_address: null,
+      user_agent: null,
+      device_info: null,
+      metadata: {
+        product_name: "Dead Key",
+        name: "Also Dead",
+        workflow: [{ config: { name: "Invoice Financing" } }],
+      },
+      created_at: "2026-08-27T00:00:00.000Z",
+    } as ProductLogResponse;
+    const detail = productLogToAuditDetail(log);
+    expect(detail.target?.extra).toEqual(
+      expect.arrayContaining([{ label: "Product", value: "Invoice Financing" }])
+    );
+    expect(detail.target?.extra?.some((field) => field.value === "Dead Key")).toBe(false);
+  });
+});
+
+describe("notificationRelatedReference", () => {
+  it("reads the same business link as notification detail", () => {
+    expect(notificationRelatedReference({ noteId: "note-1", applicationId: "app-1" })).toBe("note-1");
+    expect(notificationRelatedReference({ target_id: "org-1" })).toBe("org-1");
+    expect(notificationRelatedReference(null)).toBeNull();
   });
 });

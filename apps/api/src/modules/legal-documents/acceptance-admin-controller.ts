@@ -6,6 +6,7 @@ import {
   exportLegalAcceptancesQuerySchema,
   listLegalAcceptancesQuerySchema,
 } from "./schemas";
+import { legalDocumentTypeLabel } from "@cashsouk/types";
 
 const router = Router();
 
@@ -65,6 +66,7 @@ router.get(
           "Acceptance ID",
           "Document ID",
           "Document Type",
+          "Document Type ID",
           "Legal Document Version ID",
           "Version Number",
           "Document Hash",
@@ -91,6 +93,7 @@ router.get(
         const csvRows = rows.map((row) => [
           row.id,
           row.legalDocumentId ?? "",
+          legalDocumentTypeLabel(row.documentType),
           row.documentType ?? "",
           row.legalDocumentVersionId,
           row.versionNumber ?? "",

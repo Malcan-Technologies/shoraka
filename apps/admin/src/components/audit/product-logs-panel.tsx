@@ -19,7 +19,7 @@ import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
 import { AuditEventBadge } from "@/components/audit/audit-event-badge";
 import { AuditSourceBadge } from "@/components/audit/audit-source-badge";
 import { productLogToAuditDetail } from "@/components/audit/audit-adapters";
-import { formatAuditDateTime, formatAuditEventLabel } from "@/components/audit/audit-presentation";
+import { formatAuditDateTime, formatAuditEventLabel, productNameFromLogMetadata } from "@/components/audit/audit-presentation";
 import {
   AUDIT_DATE_RANGE_OPTIONS,
   AuditLogDateRangeOptions,
@@ -238,15 +238,7 @@ export function ProductLogsPanel() {
               <AuditLogEmptyRow colSpan={COLUMN_COUNT} />
             ) : (
               logs.map((log) => {
-                const metadata = log.metadata as Record<string, unknown> | null;
-                const workflow = (metadata?.workflow as unknown[]) ?? [];
-                const first = workflow[0] as
-                  | { config?: { name?: string; type?: { name?: string } } }
-                  | undefined;
-                const productName =
-                  (first?.config?.name as string) ||
-                  (first?.config?.type?.name as string) ||
-                  "";
+                const productName = productNameFromLogMetadata(log.metadata) ?? "";
                 const productId = log.product_id ?? "";
                 const eventLabel =
                   PRODUCT_EVENT_TYPES.find((type) => type.value === log.event_type)?.label ??

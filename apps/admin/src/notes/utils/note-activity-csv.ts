@@ -81,6 +81,16 @@ export function formatNoteActivityEventLabel(
   return label;
 }
 
+function noteEventAmount(metadata: Record<string, unknown> | null | undefined): string | number | null {
+  if (!metadata) return null;
+  for (const key of ["amount", "investmentAmount", "withdrawalAmount"]) {
+    const value = metadata[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
 export function noteEventToActivityCsvRow(event: NoteEvent): AdminActivityCsvRow {
   return {
     createdAt: event.createdAt,
@@ -99,6 +109,7 @@ export function noteEventToActivityCsvRow(event: NoteEvent): AdminActivityCsvRow
     targetType: event.targetType,
     targetReference: event.targetId ?? event.noteId,
     correlationId: event.correlationId,
+    amount: noteEventAmount(event.metadata),
   };
 }
 

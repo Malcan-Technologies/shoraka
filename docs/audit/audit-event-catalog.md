@@ -1,19 +1,22 @@
 # Audit Event Catalog
 
+> **SUPERSEDED for current-behavior lookup (2026-08-27).**
+> For live IDs, labels, CSV/PDF/notification mapping, and status, use [`current-audit-notification-catalog.md`](./current-audit-notification-catalog.md).
+> This file remains a technical **writer / storage / evidence** reference. Evidence assessments below are not rewritten.
+
 > **Document responsibility:** this file owns the **technical writer / storage / evidence**
 > reference, organised by module, with an evidence-sufficiency assessment per event. It answers
 > *"is the evidence we store for this event good enough?"*
 >
 > | Question | Document |
 > |---|---|
-> | What happens for `EVENT_X`? | [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) — **primary reference** |
+> | What happens for `EVENT_X`? (current labels, notifications, status) | [`current-audit-notification-catalog.md`](./current-audit-notification-catalog.md) — **current-behavior master** |
 > | What is still broken or awaiting sign-off? | [`audit-product-gap-review.md`](./audit-product-gap-review.md) |
 > | What should I *call* this on a new surface? | [`activity-notification-copy-standard.md`](./activity-notification-copy-standard.md) |
 > | Why is it worded that way, and was it reviewed? | [`activity-notification-copy-review.md`](./activity-notification-copy-review.md) |
 >
-> For the authoritative event/notification **counts** and the per-event **surface map**, use
-> [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md) §7 and §2, plus its
-> machine-readable companion [`audit-event-registry.json`](./audit-event-registry.json).
+> Historical 2026-08-26 surface snapshot (not current lookup): [`audit-event-surface-matrix.md`](./audit-event-surface-matrix.md).
+> Machine-readable companion from that snapshot: [`audit-event-registry.json`](./audit-event-registry.json).
 >
 > ⚠️ Editor search indexes on this repository return phantom files under
 > `apps/api/src/modules/*/audit/` that **do not exist on disk** and carry a different event
@@ -350,7 +353,10 @@ Canonical evidence often lives **outside** audit metadata. Retrieval paths:
 | Repayment amount on approve | `note_payments` | Note settlement/payment UI; event only has `paymentId` |
 | Access portal | `access_logs.portal` | Audit → Access (Portal column + CSV) |
 
-Access/security JSON export redacts secret-shaped metadata keys (same as CSV). Portal ≠ role. LOGIN/SIGNUP metadata has `requestedRole` / `roles` / `portal` / `stateId` — not a fake session `activeRole`.
+Access/security JSON export redacts secret-shaped metadata keys (same as CSV). Access and Security
+CSV both include a dedicated Portal column. Portal ≠ role. LOGIN/SIGNUP metadata has `requestedRole`
+/ `roles` / `portal` / `stateId` — not a fake session `activeRole`. Product JSON export uses the
+same Product Name helper as CSV and redacts metadata.
 
 ---
 
