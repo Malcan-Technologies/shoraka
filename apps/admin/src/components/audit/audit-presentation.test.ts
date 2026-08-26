@@ -18,6 +18,8 @@ describe("audit presentation", () => {
 
   it("humanizes event enums", () => {
     expect(formatAuditEventLabel("APPLICATION_RESUBMITTED")).toBe("Application Resubmitted");
+    expect(formatAuditEventLabel("AMENDMENTS_SUBMITTED")).toBe("Amendment Request Sent");
+    expect(formatAuditEventLabel("AMENDMENTS_SUBMITTED")).not.toBe("Amendments Submitted");
     expect(formatAuditEventLabel("NOTE_ARREARS")).toBe("Note Arrears");
     expect(formatAuditEventLabel("PROFILE_UPDATED", { PROFILE_UPDATED: "User Profile Updated" })).toBe(
       "User Profile Updated"

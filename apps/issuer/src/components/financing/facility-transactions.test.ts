@@ -279,6 +279,28 @@ describe("buildFacilityTransactions", () => {
     const times = rows.map((row) => (row.at ? Date.parse(row.at) : 0));
     expect(times).toEqual([...times].sort((a, b) => b - a));
   });
+
+  it("labels AMENDMENTS_SUBMITTED as CashSouk sending an amendment request", () => {
+    const rows = buildFacilityTransactions({
+      contract: contract(),
+      invoices: [],
+      logs: [log({ id: "amd", event_type: "AMENDMENTS_SUBMITTED" })],
+    });
+    const row = rows.find((r) => r.id === "log:amd");
+    expect(row?.label).toBe("Amendment Request Sent");
+    expect(row?.label).not.toMatch(/you submitted/i);
+    expect(row?.label).not.toMatch(/amendments submitted/i);
+  });
+
+  it("keeps APPLICATION_RESUBMITTED as the issuer submitting updated content", () => {
+    const rows = buildFacilityTransactions({
+      contract: contract(),
+      invoices: [],
+      logs: [log({ id: "resub", event_type: "APPLICATION_RESUBMITTED" })],
+    });
+    const row = rows.find((r) => r.id === "log:resub");
+    expect(row?.label).toBe("Facility Application Resubmitted");
+  });
 });
 
 describe("buildFacilityTransactions — signing deadline extended visibility", () => {

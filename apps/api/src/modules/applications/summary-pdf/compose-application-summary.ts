@@ -53,7 +53,7 @@ const EVENT_LABELS: Record<string, string> = {
   INVOICE_OFFER_RETRACTED: "Invoice offer was withdrawn by CashSouk",
   INVOICE_WITHDRAWN: "Invoice withdrawn",
   OFFER_EXPIRED: "An offer expired",
-  AMENDMENTS_SUBMITTED: "The issuer submitted amendments.",
+  AMENDMENTS_SUBMITTED: "Amendment Request Sent",
 };
 
 const ISSUER_VISIBLE_EVENTS = new Set(Object.keys(EVENT_LABELS));

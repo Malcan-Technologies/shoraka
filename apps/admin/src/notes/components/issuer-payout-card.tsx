@@ -696,6 +696,13 @@ export function IssuerPayoutCard({
                           valueClassName="font-medium"
                         />
                       ) : null}
+                      {tradeOrder.certificate_file_sha256 ? (
+                        <DetailRow
+                          label="Certificate hash"
+                          value={tradeOrder.certificate_file_sha256}
+                          valueClassName="font-medium break-all"
+                        />
+                      ) : null}
                       {parsed.orderDate ? (
                         <DetailRow
                           label="Order date"

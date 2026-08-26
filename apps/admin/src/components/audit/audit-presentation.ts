@@ -32,6 +32,10 @@ export const LEGAL_DOCUMENT_AUDIT_ACTION_LABELS: Record<string, string> = {
   LEGAL_VERSION_RESTORED: "Version Restored",
 };
 
+const APPLICATION_AUDIT_EVENT_LABELS: Record<string, string> = {
+  AMENDMENTS_SUBMITTED: "Amendment Request Sent",
+};
+
 export function formatAuditEventLabel(
   eventType: string,
   overrides?: Record<string, string>
@@ -40,6 +44,7 @@ export function formatAuditEventLabel(
   if (!trimmed) return "";
   if (overrides?.[trimmed]) return overrides[trimmed];
   if (LEGAL_DOCUMENT_AUDIT_ACTION_LABELS[trimmed]) return LEGAL_DOCUMENT_AUDIT_ACTION_LABELS[trimmed];
+  if (APPLICATION_AUDIT_EVENT_LABELS[trimmed]) return APPLICATION_AUDIT_EVENT_LABELS[trimmed];
   return humanizeAdminTimelineToken(trimmed);
 }
 

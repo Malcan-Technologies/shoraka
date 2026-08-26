@@ -165,7 +165,7 @@ Presentation classification legend: **CONSISTENT** · **INTENTIONALLY_DIFFERENT*
 
 - Investor portal has **zero** application-log visibility by design (`ApplicationLogAdapter.getScopedApplicationIds` returns `["__none__"]` for investor).
 - `CONTRACT_WITHDRAWN` is labeled **"Facility Offer Withdrawn"** in the admin timeline for both admin retractions and issuer rejections — **MISLEADING** (an issuer rejecting an offer is not "withdrawn").
-- `AMENDMENTS_SUBMITTED` presentation means **the issuer submitted amendments**. Display title is **Amendments Submitted**. Application summary PDF: **"The issuer submitted amendments."** Do not present this event as CashSouk requesting an amendment — that wording belongs only to the `application_amendments_requested` notification. Writer unchanged (`submitPendingAmendments`).
+- `AMENDMENTS_SUBMITTED` display is **Amendment Request Sent** (Admin/CashSouk sent the amendment batch to the issuer). Issuer Activity: "CashSouk sent an amendment request for this application." PDF/CSV use the same title. Do **not** present this as the issuer submitting amendments — that is `APPLICATION_RESUBMITTED`. Notification for the send remains `application_amendments_requested` ("Amendment Requested"). Writer unchanged (`submitPendingAmendments`).
 - Issuer timeline `EVENT_LABELS` map still references dead `OFFER_EXPIRED` / `CONTRACT_OFFER_REJECTED` instead of live `CONTRACT_OFFER_EXPIRED` / `CONTRACT_WITHDRAWN` — those milestones fall through to a generic label or are missing entirely — **VISIBILITY_MISMATCH** / **GENERIC_FALLBACK**.
 - ~~`APPLICATION_RESET_TO_UNDER_REVIEW`, offer-acceptance-submitted events, and `CONTRACT_SIGNING_DEADLINE_EXTENDED` are visible in the admin/CSV surface but hidden from the issuer Activity feed — **VISIBILITY_MISMATCH**.~~ **RESOLVED (2026-08-24)** for the offer-acceptance-submitted/resubmitted, offer-expired, and signing-deadline-extended events (both `CONTRACT_*` and `INVOICE_*`): BEFORE — `application-timeline.ts`'s `EVENT_LABELS` (per-application widget) had none of these 8 keys, so those log rows never rendered; `facility-transactions.ts` (facility widget) already had 6 of the 8 but was missing `CONTRACT_SIGNING_DEADLINE_EXTENDED` / `INVOICE_SIGNING_DEADLINE_EXTENDED`. DECISION — approved cleanup; these are already-live, meaningful issuer-facing milestones (already visible on the general Activity feed's `ApplicationLogAdapter.getEventTypes()` allowlist) and should also be visible on the specific financing/application history. AFTER — both label maps now include all 8 keys with copy matching the canonical terminology ("Facility/Invoice acceptance submitted/resubmitted", "Facility/Invoice offer expired", "Signing deadline extended"); `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` / `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING` remain intentionally absent from both issuer-facing maps (admin-only gate, unchanged). `APPLICATION_RESET_TO_UNDER_REVIEW` was already present in `application-timeline.ts`'s label map prior to this change and remains out of scope for `facility-transactions.ts` (not in the approved list).
 - CSV: `remark = log.remark ?? formatActivityText(log.activity) ?? ""`; `SIGNING_PACKAGE_COMPLETED` is hidden in the UI timeline but **is** included in CSV export.
@@ -210,7 +210,7 @@ Presentation classification legend: **CONSISTENT** · **INTENTIONALLY_DIFFERENT*
 | `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` | Auto disbursement instruction | `closeFunding` | Admin | `netDisbursement`, `fundedAmount`, `platformFee`, fees | ENOUGH |
 | `ISSUER_PAYMENT_SUBMITTED` | Issuer-submitted repayment pending review | `recordPayment` | Issuer/Admin | Payment fields including `paymentId` | ENOUGH |
 | `PAYMENT_RECEIVED` | Repayment recorded (not yet the same as approved) | `recordPayment` | Admin | Payment fields including `paymentId` | ENOUGH |
-| `PAYMENT_APPROVED` / `PAYMENT_REJECTED` | Pending payment reviewed | `approvePayment` / `rejectPayment` | Admin | `paymentId` / rejection reason | ENOUGH |
+| `PAYMENT_APPROVED` / `PAYMENT_REJECTED` | Pending payment reviewed | `approvePayment` / `rejectPayment` | Admin | Event: `paymentId` (approved) / `paymentId`+reason (rejected). Amount/date/reviewer live on `note_payments` | ENOUGH via canonical payment row; approved **event** is thin |
 | `SETTLEMENT_PREVIEWED` / `SETTLEMENT_APPROVED` / `SETTLEMENT_POSTED` | Settlement lifecycle | `previewSettlement` → `approveSettlement` → `postSettlement` | Admin | Settlement calc snapshot, waterfall amounts | ENOUGH |
 | `OVERDUE_LATE_CHARGE_CHECKED` | Overdue check run | `checkOverdueLateCharges` | Admin/Cron | `dueDate`, `overdue`, `daysLate` | ENOUGH |
 | `LATE_CHARGE_APPROVED` | Late charge approved | `approveLateCharge` | Admin | Charge breakdown | ENOUGH |
@@ -219,7 +219,7 @@ Presentation classification legend: **CONSISTENT** · **INTENTIONALLY_DIFFERENT*
 | `WITHDRAWAL_LETTER_GENERATED` / `_TRUSTEE_EMAIL_SENT` / `_SUBMITTED_TO_TRUSTEE` / `_BENEFICIARY_UPDATED` / `_COMPLETED` | Issuer withdrawal lifecycle | Admin service methods | Admin | `withdrawalId`, `withdrawalReference` (email new writes + submit), SES `messageId`, `resend`, beneficiary snapshot, amounts | ENOUGH. Email historical rows may omit `withdrawalReference`. |
 | `PROSPECTUS_REVIEW_CREATE` / `_DRAFT_UPDATE` / `_APPROVE` | Prospectus review lifecycle | `prospectus-review.service.ts` | Admin | before/after review state, frozen snapshot refs | ENOUGH |
 | `PROSPECTUS_APPROVAL_INVALIDATED_*` (×3) | Approval cleared (unpublish / source change / edit) | Same service | Admin | before/after | ENOUGH |
-| `SHORAKA_ORDER_SUBMITTED` / `SHORAKA_CERTIFICATE_FETCHED` | Tawarruq commodity trade | `shoraka-stp-service.ts` | Admin/System | `provider_order_id`, amounts, dates, certificate SHA256 | ENOUGH |
+| `SHORAKA_ORDER_SUBMITTED` / `SHORAKA_CERTIFICATE_FETCHED` | Tawarruq commodity trade | `shoraka-stp-service.ts` | Admin/System | Events: `provider_order_id`, amounts, dates; certificate **availability**. SHA-256 lives on `shoraka_trade_orders.certificate_file_sha256` (Admin Issuer Payout card + GET state), not on the note event | ENOUGH via canonical trade-order row |
 | `FACILITY_OCCUPANCY_UPDATED` | Facility capacity updated | `refresh-contract-facility.ts` | Internal | Utilized/available/repaid, `reason` | ENOUGH |
 
 ~~**Dead:** `ISSUER_RESIDUAL_WITHDRAWAL_CREATED` (referenced only in a sort-order helper, never written).~~ **REMOVED (2026-08-25 cleanup pass):** confirmed zero writers anywhere in `apps/api/src`; the sort-order helper (`admin-note-events-sorting.ts`) entry was deleted since it was never looked up (no row can have this `event_type`). No schema change (`event_type` is a plain `String`, not a DB enum) — see `audit-product-gap-review.md` §4 item 12.
@@ -312,9 +312,9 @@ Fine-grained state lives in `signing_envelopes` / `signing_documents` / `signing
 | Signed timestamp | **SUPPORTED** | `signing_assignments.signed_at` is written by `repository.ts:markAssignmentSigned` when the provider reports a signer as signed |
 | Signer identity (name/email) | **SUPPORTED** | `SigningRecipient.name`/`.email` (platform-side) and the provider's `getContractDetails` response (`realname`/`email` fields, parsed in `parseSigningCloudContractDetails`) |
 | Signed-document hash | **SUPPORTED** | `signing_documents.signed_file_sha256`, computed locally (`crypto.createHash("sha256")`) over the PDF bytes fetched from the provider — this is a hash of the final signed file, not a provider-issued certificate |
-| Signer IP address | **UNKNOWN** (provider capability) | Not present anywhere in `SigningCloudProvider`'s parsed responses (`createDocumentContract`, `startSignerSession`, `fetchSignedDocument`, `getContractDetails`) or in the webhook callback handler, which only carries a `contractnum` reference and triggers a re-query, not a payload with signer metadata. **Do not populate from the envelope-creator's request IP** — that is a different actor and would misattribute the evidence. |
-| Signer user-agent / device | **UNKNOWN** (provider capability) | Same as above — not present in any parsed provider response |
-| Certificate / audit-trail reference | **NOT_SUPPORTED** | Zero occurrences of "certificate"/"audit trail"/"completion cert" anywhere in `signing/` or `signingcloud/` modules — no such concept is implemented; whether SigningCloud's API offers one is outside this trace |
+| Signer IP address | **PROVIDER LIMITATION** | SigningCloud adapter does not parse or persist signer IP. Do not invent it from the envelope creator's request IP. |
+| Signer user-agent / device | **PROVIDER LIMITATION** | Same — not in parsed provider responses |
+| Certificate / audit-trail reference | **PROVIDER LIMITATION** | No SigningCloud completion-certificate fetch/store. Shoraka Tawarruq certificates are a different domain (`shoraka_trade_orders`). |
 
 See the final report's "MISSING_COMPLIANCE_EVIDENCE — signer IP" section for the original finding; the table above supersedes it with the full field-by-field breakdown.
 
@@ -333,6 +333,24 @@ See the gap review for full detail; summarized here for the catalog record:
 | Notice of Assignment to paymaster before disbursement | **Does not match** — no such gate exists in code |
 | Acceptance reminders at day 3 and day 6 (7-day clock) | **Does not match** — only one reminder, at day 6 |
 | Signing reminders at day 7 and day 12 (14-day clock) | **Does not match** — reminders fire at day 11 and day 13 |
+| Per-invoice Receivable Declaration | **Does not match** — declarations are application-level; invoice `details` has no per-invoice declaration field |
+| Five discrete Shariah instruments (UR → LoA → PR → Sale → Investment Note) | **Does not match** — utilisation consent text + one Shoraka `Buy & Sell` order + certificate PDF. Purchase-before-sale is provider-side, not a local five-step state machine |
+
+Canonical evidence often lives **outside** audit metadata. Retrieval paths:
+
+| Evidence | Canonical store | Ops path |
+|---|---|---|
+| Legal acceptances (version, hash, IP, identity) | `legal_document_acceptances` | Audit → Legal Acceptances (detail + CSV) |
+| Legal publish/upload | `legal_document_audit_logs` + `legal_document_versions` | Audit → Legal Documents |
+| AML clearance | `onboarding_logs` `ONBOARDING_STATUS_UPDATED` + `metadata.amlApproved` | Org Activity (not labelled "AML Approved") |
+| Final activation | `FINAL_APPROVAL_COMPLETED` + org `onboarded_at` | Org Activity; notify `onboarding_completed` |
+| Application snapshot | `application_revisions` | Application record + revision diff |
+| Signed offer PDF | `signing_documents.signed_s3_key` | Envelope download, not `offer_signing` JSON |
+| Tawarruq cert hash | `shoraka_trade_orders.certificate_file_sha256` | Admin note Issuer Payout card + GET Shoraka state |
+| Repayment amount on approve | `note_payments` | Note settlement/payment UI; event only has `paymentId` |
+| Access portal | `access_logs.portal` | Audit → Access (Portal column + CSV) |
+
+Access/security JSON export redacts secret-shaped metadata keys (same as CSV). Portal ≠ role. LOGIN/SIGNUP metadata has `requestedRole` / `roles` / `portal` / `stateId` — not a fake session `activeRole`.
 
 ---
 
@@ -352,20 +370,21 @@ See the gap review for full detail; summarized here for the catalog record:
 
 ### 5.2 Per-user `Notification` registry (45 type IDs)
 
-**Scope note:** this registry is for **per-user, per-event notifications** (in-app inbox + optional email), driven automatically by business events via `sendTyped`/`sendTypedPlatformOnly`. It is a **separate system** from `notification_logs`, which records only the admin's manual **bulk-broadcast** tool (see the final report's "Notification scope" section). `system_announcement` and `new_product_alert` are the two type IDs that bridge both worlds — see below.
+**Scope note:** per-user inbox rows are `notifications`. Admin Audit → Notifications is **`notification_logs`** (typed SYSTEM batches + Admin bulk). Recipients are chosen by call-site user ids / bulk target type — **not** by portal metadata. Portal only affects email/inbox links.
 
-**Live (39 of 45, as of 2026-08-25), grouped by domain** — full trigger/recipient/copy table lives in `audit-event-surface-matrix.md` §3.2:
+**Live typed types** fire via `sendTyped` / `sendTypedAndLogSystem` / `sendTypedToUsersSafe`. Production source does **not** call `sendTypedPlatformOnly`. Channel off is seed `enabled_email` (and user prefs).
 
-- **Auth/account:** `password_changed` (live). `login_new_device`, `kyc_approved`, `kyc_rejected` — **DEAD_NOT_CONFIGURABLE**, zero `sendTyped` call sites anywhere in `apps/api/src`.
-- **Onboarding:** `onboarding_approved` (fires only on final platform activation, not earlier admin gates), `onboarding_rejected` — both live.
-- **Application/offer:** `application_amendments_requested`, `acceptance_document_changes_requested`, `application_rejected`, `contract_offer_sent`, `invoice_offer_sent`, `offer_retracted_or_reset`, `offer_expired`, `offer_expiry_reminder_24h`, `application_resubmitted_confirmation`, `application_withdrawn_confirmation`, `application_completed`, `application_submitted_confirmation`, `contract_signing_deadline_extended`, `invoice_signing_deadline_extended`, `facility_disabled` — all live. `application_approved` — **DEAD_NOT_CONFIGURABLE** (superseded by `application_completed`).
+- **Auth/account:** `password_changed` (live). Request portal used when known; otherwise landing — never silent Investor.
+- **Onboarding:** `onboarding_completed` fires on `FINAL_APPROVAL_COMPLETED` (not the earlier `ONBOARDING_APPROVED` gate). `onboarding_rejected` live. There is no live `onboarding_approved` type id.
+- **Application/offer:** `application_amendments_requested` is the CashSouk-requested-amendment notification. Other live types: `acceptance_document_changes_requested`, `application_rejected`, `contract_offer_sent`, `invoice_offer_sent`, `offer_retracted_or_reset`, `offer_expired`, `offer_expiry_reminder_24h`, `application_resubmitted_confirmation`, `application_withdrawn_confirmation`, `application_completed`, `application_submitted_confirmation`, `contract_signing_deadline_extended`, `invoice_signing_deadline_extended`, `facility_disabled`.
+- **Admin-bulk only (no auto trigger):** `system_announcement`, `new_product_alert`. Mixed/unknown bulk email uses landing. `NEW_PRODUCT_ALERT` template portal is explicit `investor`.
 
-**`kyc_approved` / `kyc_rejected` / `login_new_device` / `application_approved` re-investigated 2026-08-25** for the dead/seed-only cleanup pass and **retained, not removed**: `notification_types` is a real DB table (`schema.prisma:1972-2078`) with `onDelete: Cascade` foreign keys from `notifications` and `user_notification_preferences` (`notification_logs`'s FK has no explicit `onDelete`, i.e. `RESTRICT`) — deleting the row (or the `seed-data.ts`/`registry.ts` entry that keeps it in sync) risks orphaning or cascade-deleting historical notification data, confirming the pre-existing reasoning in `audit-product-gap-review.md` §3. Separately noted (corrected 2026-08-25 — traced `packages/ui/src/components/notification-preferences.tsx:64-66`): none of the four show up in the end-user **Account settings** preferences page, since that page only renders `user_configurable && category === "MARKETING"` and all four are `SYSTEM`/`AUTHENTICATION`. They **did** appear as global platform/email toggles in the **Admin → Settings → Notifications → Configuration** tab (`apps/admin/src/app/settings/notifications/page.tsx:445-449`, which lists every seeded type with `category === "SYSTEM" || "AUTHENTICATION"` regardless of `user_configurable`) — a minor UX inconsistency (an admin-facing toggle for a notification that can never fire) reported 2026-08-25 in this document, then **fixed the same day**: a small client-side exclusion filter now hides these 4 type IDs from that Configuration tab's rendering only (smallest safe fix — Option A from the follow-up pass). `notification_types`/`seed-data.ts`/`registry.ts` rows are untouched (the cascade-FK/historical-data risk above still applies), and the Logs tab's type filter still lists all four for filtering historical sends. Reclassified `DEAD` → `DEAD_NOT_CONFIGURABLE`. See `audit-product-gap-review.md` §4 items 12–13.
+Historical note: `kyc_approved` / `kyc_rejected` / `login_new_device` / `application_approved` are **not** in the current `seed-data.ts` / `NotificationTypeIds` catalog. Do not treat them as live types.
+
 - **Director/shareholder:** `director_shareholder_action_required` (issuer, owner-only), `investor_director_shareholder_action_required` (investor, owner-only) — both live; narrower recipient set than application-domain notifications (owner + org admins).
 - **Note lifecycle:** `note_published`, `note_funding_succeeded`, `note_funding_failed_issuer`, `note_funding_failed_investor`, `note_active_issuer`, `note_active_investor`, `note_repaid_issuer`, `note_payment_received`, `note_settlement_posted`, `note_arrears`, `note_arrears_investor`, `note_defaulted`, `note_defaulted_investor`, `note_payment_rejected` — all live, all in-app only (email off by seed default).
 - **Trustee:** `withdrawal_submitted_to_trustee`, `withdrawal_completed` (issuer financing disbursement only; residual/investor/admin-adjustment stay silent). Confirmed investors on ISSUER_DISBURSEMENT completion also receive `note_active_investor` (note lifecycle type; 2026-08-26).
 - **Investor deposit / gateway:** `deposit_name_check_rejected`, `deposit_refund_initiated`, `deposit_refunded` — live, platform only, gated to `GatewayPaymentPurpose.INVESTOR_DEPOSIT`, recipients = members of the deposit's investor organization (`GatewayPayment` has no depositor user id).
-- **Admin-bulk bridge:** `system_announcement`, `new_product_alert` — **DEAD as automatic triggers** (no `sendTyped` call site); both are only ever delivered through the admin's manual `sendBulkNotification` path, which bypasses the registry template entirely and uses admin-supplied title/message.
 
 ### 5.3 Recipient-resolution patterns (cross-cutting)
 
@@ -382,7 +401,7 @@ These three different recipient scopes (owner-only vs owner+admins vs all-member
 ### 5.4 Channel model
 
 - `sendTyped` → platform + email, gated by `notification_types.enabled_email` and user preferences.
-- `sendTypedPlatformOnly` → email hard-disabled (`sendToEmail: false`), used for all note-lifecycle and some application notifications.
+- Production source does **not** call `sendTypedPlatformOnly`. Email-off types use seed `enabled_email: false`.
 - `sendBulkNotification` (admin tool) → explicit `sendToPlatform`/`sendToEmail` chosen per broadcast.
 - Email dispatch happens in a separate `try/catch` **after** the DB insert — not wrapped in the same transaction, so a DB-committed notification can still fail to email.
 - Email CTA / preferences URLs use `metadata.portal` only when it is `investor`, `issuer`, or `admin`. Missing/invalid portal uses landing `FRONTEND_URL` (not Investor). `NEW_PRODUCT_ALERT` templates set `portal: "investor"` explicitly. Mixed bulk audiences (`ALL_USERS` / `SPECIFIC_USERS` / `GROUP`) do not invent an Investor host.

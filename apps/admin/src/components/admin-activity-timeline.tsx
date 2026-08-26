@@ -160,7 +160,7 @@ function getEventLabel(
     SIGNING_PACKAGE_SENT: "Signing package sent",
     SIGNING_PACKAGE_COMPLETED: "Signing Package Completed",
     SIGNING_PACKAGE_VOIDED: "Signing package voided",
-    AMENDMENTS_SUBMITTED: "Amendments Submitted",
+    AMENDMENTS_SUBMITTED: "Amendment Request Sent",
     CONTRACT_FACILITY_FEE_WAIVED: "Facility Fee Waived",
     CONTRACT_FACILITY_DISABLED: "Facility Disabled",
     CONTRACT_FACILITY_ENABLED: "Facility Enabled",

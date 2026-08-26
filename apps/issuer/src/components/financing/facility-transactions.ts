@@ -49,7 +49,7 @@ const LOG_LABELS: Record<string, string> = {
   APPLICATION_REJECTED: "Facility Application Was Not Approved",
   APPLICATION_WITHDRAWN: "Facility Application Withdrawn",
   APPLICATION_COMPLETED: "Facility Application Completed",
-  AMENDMENTS_SUBMITTED: "Amendments Submitted",
+  AMENDMENTS_SUBMITTED: "Amendment Request Sent",
   CONTRACT_OFFER_SENT: "You Received a Facility Offer",
   CONTRACT_OFFER_ACCEPTANCE_SUBMITTED: "You Submitted Your Facility Offer Acceptance",
   CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED: "You Resubmitted Your Facility Offer Acceptance",

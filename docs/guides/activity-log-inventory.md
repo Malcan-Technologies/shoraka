@@ -104,7 +104,7 @@ Visible application events match the investor portal:
 - `APPLICATION_CREATED` -> `Application Started`
 - `APPLICATION_SUBMITTED` -> `Application Submitted`
 - `APPLICATION_RESUBMITTED` -> `Application Resubmitted`
-- `AMENDMENTS_SUBMITTED` -> `Amendments Submitted`
+- `AMENDMENTS_SUBMITTED` -> `Amendment Request Sent`
 - `APPLICATION_APPROVED` -> `Application Approved`
 - `APPLICATION_REJECTED` -> `Application Rejected`
 - `APPLICATION_WITHDRAWN` -> `Application Closed`

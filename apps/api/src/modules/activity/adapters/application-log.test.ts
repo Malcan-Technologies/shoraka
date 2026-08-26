@@ -35,8 +35,8 @@ describe("ApplicationLogAdapter", () => {
       description: "Your financing application was rejected and will not continue.",
     });
     expect(adapter.buildPresentation("AMENDMENTS_SUBMITTED")).toEqual({
-      title: "Amendments Submitted",
-      description: "You submitted amendments to this application.",
+      title: "Amendment Request Sent",
+      description: "CashSouk sent an amendment request for this application.",
     });
     expect(
       adapter.buildPresentation("APPLICATION_RESUBMITTED", {
@@ -190,7 +190,7 @@ describe("ApplicationLogAdapter", () => {
     });
   });
 
-  it("describes AMENDMENTS_SUBMITTED as the issuer submitting amendments", () => {
+  it("describes AMENDMENTS_SUBMITTED as CashSouk sending an amendment request", () => {
     const now = new Date();
     const record: any = {
       id: "log-amd",
@@ -203,9 +203,32 @@ describe("ApplicationLogAdapter", () => {
 
     const unified = adapter.transform(record);
 
-    expect(unified.title).toBe("Amendments Submitted");
-    expect(unified.description).toBe("You submitted amendments to application #APP_123.");
-    expect(unified.description).not.toMatch(/request/i);
+    expect(unified.title).toBe("Amendment Request Sent");
+    expect(unified.description).toBe("CashSouk sent an amendment request for application #APP_123.");
+    expect(unified.description).not.toMatch(/you submitted amendments/i);
+    expect(unified.description).not.toMatch(/issuer submitted/i);
+    expect(unified.title).not.toMatch(/amendments submitted/i);
+    expect(unified.event_type).toBe("AMENDMENTS_SUBMITTED");
+  });
+
+  it("keeps APPLICATION_RESUBMITTED as the issuer submitting updated application content", () => {
+    const now = new Date();
+    const record: any = {
+      id: "log-resub",
+      user_id: "user123",
+      application_id: "app_123",
+      event_type: "APPLICATION_RESUBMITTED",
+      metadata: {},
+      created_at: now,
+    };
+
+    const unified = adapter.transform(record);
+
+    expect(unified.event_type).toBe("APPLICATION_RESUBMITTED");
+    expect(unified.title).toBe("Application Resubmitted");
+    expect(unified.description).toBe(
+      "You resubmitted application #APP_123 after making the requested updates."
+    );
   });
 
   it("backfills contract references from the application when the log metadata is missing", async () => {

@@ -82,6 +82,32 @@ describe("buildApplicationTimeline — newly-approved issuer-visible milestones"
     }
   });
 
+  it("labels AMENDMENTS_SUBMITTED as CashSouk sending an amendment request", () => {
+    const milestones = buildApplicationTimeline(
+      [makeLog({ id: "amd", event_type: "AMENDMENTS_SUBMITTED" })],
+      makeApp()
+    );
+    expect(milestones).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "amd",
+          source: "log",
+          label: "Amendment Request Sent",
+        }),
+      ])
+    );
+    expect(milestones.find((m) => m.id === "amd")?.label).not.toMatch(/you submitted/i);
+    expect(milestones.find((m) => m.id === "amd")?.label).not.toMatch(/amendments submitted/i);
+  });
+
+  it("keeps APPLICATION_RESUBMITTED as the issuer submitting updated content", () => {
+    const milestones = buildApplicationTimeline(
+      [makeLog({ id: "resub", event_type: "APPLICATION_RESUBMITTED" })],
+      makeApp()
+    );
+    expect(milestones.find((m) => m.id === "resub")?.label).toBe("You Resubmitted This Application");
+  });
+
   it("keeps a stable mix of milestones visible together in chronological order", () => {
     const milestones = buildApplicationTimeline(
       [

@@ -250,7 +250,7 @@ describe("composeApplicationSummary", () => {
     expect(model.timeline[0]?.description).toBe("Updated invoice value");
   });
 
-  it("labels AMENDMENTS_SUBMITTED as the issuer submitting amendments", () => {
+  it("labels AMENDMENTS_SUBMITTED as an amendment request sent by CashSouk", () => {
     const model = compose({
       logs: [
         {
@@ -261,7 +261,10 @@ describe("composeApplicationSummary", () => {
         },
       ],
     });
-    expect(model.timeline[0]?.label).toBe("The issuer submitted amendments.");
+    expect(model.timeline[0]?.label).toBe("Amendment Request Sent");
+    expect(model.timeline[0]?.label).not.toMatch(/issuer submitted/i);
+    expect(model.timeline[0]?.label).not.toMatch(/you submitted/i);
+    expect(model.timeline[0]?.label).not.toMatch(/amendments submitted/i);
   });
 });
 

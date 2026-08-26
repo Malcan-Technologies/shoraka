@@ -1,6 +1,15 @@
 import { NOTIFICATION_TEMPLATES, NotificationTypeIds } from "./registry";
 
 describe("notification coverage templates", () => {
+  it("keeps application_amendments_requested as CashSouk requesting amendments", () => {
+    const t = NOTIFICATION_TEMPLATES[NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED];
+    expect(t.title).toBe("Amendment Requested");
+    expect(t.portal).toBe("issuer");
+    expect(t.message({ applicationId: "a1", displayReference: "APP-9" })).toBe(
+      "An amendment is required for application APP-9. Review the request and resubmit your application."
+    );
+  });
+
   it("renders APPLICATION_SUBMITTED_CONFIRMATION copy", () => {
     const t = NOTIFICATION_TEMPLATES[NotificationTypeIds.APPLICATION_SUBMITTED_CONFIRMATION];
     expect(t.title).toBe("Application Submitted");

@@ -41,7 +41,7 @@ const EVENT_LABELS: Record<string, string> = {
   INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing deadline extended",
   INVOICE_WITHDRAWN: "Invoice withdrawn",
   OFFER_EXPIRED: "An offer expired",
-  AMENDMENTS_SUBMITTED: "Amendments Submitted",
+  AMENDMENTS_SUBMITTED: "Amendment Request Sent",
 };
 
 /** Events useful for issuer-facing timeline (skip noisy section/item approve noise). */

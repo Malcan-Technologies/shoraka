@@ -269,7 +269,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         return applicationRef ? `${this.capitalize(applicationRef)} completed successfully.` : fallbackDescription;
       case ApplicationLogEventType.AMENDMENTS_SUBMITTED:
         return applicationRef
-          ? `You submitted amendments to ${applicationRef}.`
+          ? `CashSouk sent an amendment request for ${applicationRef}.`
           : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_OFFER_SENT:
         return applicationRef
@@ -600,8 +600,8 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         description: "An invoice linked to this application was withdrawn.",
       },
       [ApplicationLogEventType.AMENDMENTS_SUBMITTED]: {
-        title: "Amendments Submitted",
-        description: "You submitted amendments to this application.",
+        title: "Amendment Request Sent",
+        description: "CashSouk sent an amendment request for this application.",
       },
       [ApplicationLogEventType.SIGNING_PACKAGE_SENT]: {
         title: "Signing package sent",

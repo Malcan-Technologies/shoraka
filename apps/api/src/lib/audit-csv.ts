@@ -29,12 +29,12 @@ export function buildCsv(headers: string[], rows: unknown[][]): string {
     .join("\n");
 }
 
-function redactSecrets(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(redactSecrets);
+export function redactAuditSecrets(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactAuditSecrets);
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
-      out[key] = SECRET_KEY.test(key) ? "[REDACTED]" : redactSecrets(nested);
+      out[key] = SECRET_KEY.test(key) ? "[REDACTED]" : redactAuditSecrets(nested);
     }
     return out;
   }
@@ -44,7 +44,7 @@ function redactSecrets(value: unknown): unknown {
 export function serializeAuditMetadata(value: unknown): string {
   if (value == null) return "";
   try {
-    return JSON.stringify(redactSecrets(value));
+    return JSON.stringify(redactAuditSecrets(value));
   } catch {
     return String(value);
   }

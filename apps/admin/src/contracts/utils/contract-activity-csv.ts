@@ -40,7 +40,7 @@ const EVENT_LABELS: Record<string, string> = {
   SIGNING_PACKAGE_SENT: "Signing package sent",
   SIGNING_PACKAGE_COMPLETED: "Signing package completed",
   SIGNING_PACKAGE_VOIDED: "Signing package voided",
-  AMENDMENTS_SUBMITTED: "Amendments Submitted",
+  AMENDMENTS_SUBMITTED: "Amendment Request Sent",
   INVOICE_OFFER_ACCEPTED: "Invoice Offer Accepted",
   INVOICE_OFFER_REJECTED: "Invoice Offer Declined",
 };

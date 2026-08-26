@@ -19,6 +19,14 @@ describe("admin activity timeline signing-package copy", () => {
     expect(source).not.toContain("TIMELINE_HIDDEN_EVENT_TYPES");
   });
 
+  it("labels AMENDMENTS_SUBMITTED as CashSouk sending the request, not the issuer submitting", () => {
+    expect(source).toMatch(/AMENDMENTS_SUBMITTED:\s*"Amendment Request Sent"/);
+    expect(source).toMatch(/APPLICATION_RESUBMITTED:\s*"Application Resubmitted"/);
+    expect(source).not.toMatch(/AMENDMENTS_SUBMITTED:\s*"Amendments Submitted"/);
+    expect(source).not.toMatch(/You submitted amendments/i);
+    expect(source).not.toMatch(/The issuer submitted amendments/i);
+  });
+
   it("keeps the canonical Acceptance Approved for Signing wording (already correct)", () => {
     expect(source).toMatch(
       /CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING:\s*"Facility Acceptance Approved for Signing"/

@@ -3,7 +3,12 @@ import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
 import { requirePermission } from "../../lib/auth/middleware";
-import { buildAuditCsv, formatRoleSwitchedLabel, humanizeAuditEventType } from "../../lib/audit-csv";
+import {
+  buildAuditCsv,
+  formatRoleSwitchedLabel,
+  humanizeAuditEventType,
+  redactAuditSecrets,
+} from "../../lib/audit-csv";
 import { UserRole } from "@prisma/client";
 import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission, type AdminRoleKey } from "@cashsouk/types";
 import {
@@ -1066,7 +1071,7 @@ router.get(
           device_info: log.device_info,
           device_type: log.device_type,
           success: log.success,
-          metadata: log.metadata,
+          metadata: redactAuditSecrets(log.metadata),
           created_at: log.created_at.toISOString(),
           actor_type: log.actor_type,
           source: log.source,
@@ -1562,7 +1567,7 @@ router.get(
             ip_address: log.ip_address,
             user_agent: log.user_agent,
             device_info: log.device_info,
-            metadata: log.metadata,
+            metadata: redactAuditSecrets(log.metadata),
             created_at: log.created_at.toISOString(),
             actor_type: log.actor_type ?? null,
             source: log.source ?? null,

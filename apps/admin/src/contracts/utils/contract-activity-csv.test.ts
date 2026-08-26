@@ -19,6 +19,8 @@ function event(overrides: Partial<AdminContractActivityEvent> = {}): AdminContra
 describe("formatContractActivityEventLabel", () => {
   it("maps known contract events and title-cases unknown types", () => {
     expect(formatContractActivityEventLabel("CONTRACT_OFFER_SENT")).toBe("Facility Offer Sent");
+    expect(formatContractActivityEventLabel("AMENDMENTS_SUBMITTED")).toBe("Amendment Request Sent");
+    expect(formatContractActivityEventLabel("APPLICATION_RESUBMITTED")).toBe("Application Resubmitted");
     expect(formatContractActivityEventLabel("CONTRACT_OFFER_ACCEPTED")).toBe("Facility Offer Accepted");
     expect(formatContractActivityEventLabel("CUSTOM_EVENT_TYPE")).toBe("Custom Event Type");
   });

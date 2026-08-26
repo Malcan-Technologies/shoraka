@@ -847,7 +847,7 @@ renders it through its generic title-case fallback rather than a curated label.
 | `INVOICE_OFFER_EXPIRED` | `Invoice {n} Offer Expired` / `Invoice Offer Expired` | `Invoice Offer Expired` / `The invoice offer expired. A new offer can be sent from the Invoice tab.` | `Invoice offer expired` | `Invoice offer expired` | *(fallback)* |
 | `INVOICE_SIGNING_DEADLINE_EXTENDED` | `Signing Deadline Extended` | `Signing Deadline Extended` / `CashSouk extended the signing deadline so you can complete the signing package.` | `Signing deadline extended` | `Signing deadline extended` | *(fallback)* |
 | `INVOICE_WITHDRAWN` | `Invoice {n} Withdrawn` / `Invoice Withdrawn` | `Invoice Withdrawn` / `An invoice linked to this application was withdrawn.` | `Invoice withdrawn` | `Invoice withdrawn` | *(fallback)* |
-| `AMENDMENTS_SUBMITTED` | `Amendments Submitted` | `Amendments Submitted` / `You submitted amendments to application [Application Ref].` | `Amendments Submitted` | `Amendments Submitted` | `Amendments Submitted` |
+| `AMENDMENTS_SUBMITTED` | `Amendment Request Sent` | `Amendment Request Sent` / `CashSouk sent an amendment request for application [Application Ref].` | `Amendment Request Sent` | `Amendment Request Sent` | `Amendment Request Sent` |
 | `SIGNING_PACKAGE_CREATED` | `Signing Package Created` | — | — | — | `Signing Package Created` |
 | `SIGNING_PACKAGE_SENT` | `Signing package sent` | `Signing package sent` / `The signing package was sent to all required signers.` | — | `Signing package sent` | `Signing package sent` |
 | `SIGNING_PACKAGE_COMPLETED` | **Hidden (intentional)** — `TIMELINE_HIDDEN_EVENT_TYPES` | — *(not in allowlist)* | — | `Signing package completed` | `Signing package completed` |
@@ -932,12 +932,11 @@ sensibly-named `INVOICE_OFFER_REJECTED`. An issuer declining a *facility* offer 
 `CONTRACT_WITHDRAWN`. Same business action, two different naming conventions. This is a historical
 artifact, not a design decision.
 
-**`AMENDMENTS_SUBMITTED` presentation is issuer-submitted, not CashSouk-requested.** Display title
-is **Amendments Submitted**. Activity/PDF copy must mean the issuer submitted amendments (PDF:
-"The issuer submitted amendments."). Do **not** label this event "CashSouk Requested an Amendment"
-or "Amendment Requested" — that wording belongs to the separate `application_amendments_requested`
-notification. Writer remains `submitPendingAmendments` (unchanged). The later resubmit after review
-is still `APPLICATION_RESUBMITTED`.
+**`AMENDMENTS_SUBMITTED` is Admin sending the amendment batch to the issuer.** Display title is
+**Amendment Request Sent**. Issuer copy: "CashSouk sent an amendment request for this application."
+Do **not** label this event as the issuer submitting amendments — that is `APPLICATION_RESUBMITTED`.
+The inbox/email for the send is `application_amendments_requested` ("Amendment Requested"). Writer
+remains `submitPendingAmendments`. The raw event ID is unchanged.
 
 **`SIGNING_PACKAGE_COMPLETED` is deliberately hidden from the admin timeline.** The enum's own doc
 comment says so: *"Audit-only: envelope rollup COMPLETED. UI shows CONTRACT/INVOICE_OFFER_ACCEPTED
@@ -1955,10 +1954,10 @@ correctly-named `CONTRACT_OFFER_REJECTED` exists but is dead. Admin labels delib
 "Facility Offer Rejected" for `CONTRACT_WITHDRAWN` because that is what actually happened.
 
 **CURRENT EVENT TYPE:** `AMENDMENTS_SUBMITTED`
-**DISPLAY:** Amendments Submitted — **the issuer submitted amendments**
-**RELATION:** Presentation follows the event name. Do not describe this row as CashSouk requesting
-an amendment. That copy belongs to `application_amendments_requested`. Writer remains
-`submitPendingAmendments`. The later resubmit is `APPLICATION_RESUBMITTED`.
+**DISPLAY:** Amendment Request Sent — **Admin/CashSouk sent the amendment batch to the issuer**
+**RELATION:** The enum name reads as an issuer submission; presentation follows the writer, not the
+name. Issuer content resubmit is `APPLICATION_RESUBMITTED`. Inbox/email is
+`application_amendments_requested` ("Amendment Requested"). Writer remains `submitPendingAmendments`.
 
 **CURRENT EVENT TYPE:** `EMAIL_CHANGED` (`security_logs`)
 **OLD / LEGACY TERM:** reads as "the user changed their email address"
@@ -2032,7 +2031,7 @@ deletion.
 | 1 | `audit-product-gap-review.md` §4.2 | "`ONBOARDING_APPROVED` and `FINAL_APPROVAL_COMPLETED` share the identical portal title 'Onboarding Approved'" | They are **distinct**: `"Onboarding Submission Approved"` vs `"Onboarding Approved"`, with different descriptions (`organization-log.ts:216–225`) | Marked RESOLVED |
 | 2 | `audit-product-gap-review.md` §4.5 | "`CONTRACT_WITHDRAWN` is labeled 'Facility Offer Withdrawn' in the admin timeline and CSV — identical wording to `CONTRACT_OFFER_RETRACTED`" | `CONTRACT_WITHDRAWN` is labeled `"Facility Offer Rejected"` / `"Facility offer rejected"`; `CONTRACT_OFFER_RETRACTED` is `"Facility Offer Retracted"`. The confusing label now sits on the **dead** `CONTRACT_OFFER_REJECTED` | Rewritten with the current labels and reclassified |
 | 3 | `audit-product-gap-review.md` §4.5 | Parenthetical: "the issuer-facing timeline already labels this as 'Facility withdrawn'" | Issuer copy is `"You declined the facility offer"` | Corrected |
-| 4 | `audit-product-gap-review.md` §4.6 | "`AMENDMENTS_SUBMITTED` issuer-facing label reads 'You submitted requested changes'" | Both issuer surfaces read `"Changes requested"` | Marked RESOLVED |
+| 4 | `audit-product-gap-review.md` §4.6 | "`AMENDMENTS_SUBMITTED` issuer-facing label reads 'You submitted requested changes'" | Live surfaces now read **Amendment Request Sent**; issuer Activity description is "CashSouk sent an amendment request for this application." `APPLICATION_RESUBMITTED` remains the issuer content resubmit. | Marked RESOLVED; copy later corrected again so the Admin-send event is not described as issuer-submitted |
 | 5 | `audit-product-gap-review.md` §4.10 | "Product-log panel only styles CREATED/UPDATED/DELETED; INACTIVATED/REACTIVATED fall back to a raw badge" | All five have labels and colours in `product-logs-panel.tsx:39–43`. The real issue is that the two writers are **unreachable** | Marked RESOLVED and replaced with the accurate finding |
 | 6 | `audit-product-gap-review.md` §5 | "`DIRECTOR_KYC_STATUS_UPDATED` has a writer module (`director-kyc-outcomes.ts`) with zero importers" | The module **does not exist** and the string has **zero occurrences** in the repository | Reclassified `NOT_AN_ACTUAL_EVENT`; dead-event total corrected |
 | 7 | `audit-product-gap-review.md` §5 | "`BOARD_RESOLUTION_UPLOADED` / `BOARD_RESOLUTION_REMOVED` — never referenced outside `cutover.test.ts`" | `cutover.test.ts` does not exist; both strings have zero occurrences | Reclassified as unmerged-branch artifacts |
