@@ -17,7 +17,6 @@ import { User, UserRole } from "@prisma/client";
 import { formatRolesForCognito } from "../../lib/auth/cognito";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { detectInitiatingPortal } from "../../lib/role-detector";
-import { verifyCognitoAccessToken } from "../../lib/auth/cognito-jwt-verifier";
 import { Request, Response } from "express";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
@@ -178,9 +177,9 @@ export class AuthService {
    * Log when user starts onboarding(lands on onboarding page)
    */
   async startOnboarding(
-    req: Request,
+    _req: Request,
     userId: string,
-    role?: UserRole
+    _role?: UserRole
   ): Promise<{ success: boolean }> {
     // Get user to determine role if not provided
     const user = await prisma.user.findUnique({
@@ -191,7 +190,7 @@ export class AuthService {
       throw new Error("User not found");
     }
 
-    // Validate that user has first name and last name before starting onboarding
+    // Names are required before onboarding can start.
     if (
       !user.first_name ||
       !user.last_name ||
@@ -203,26 +202,6 @@ export class AuthService {
         "NAMES_REQUIRED",
         "First name and last name are required before starting onboarding. Please update your profile first."
       );
-    }
-
-    let onboardingRole = role;
-    if (!onboardingRole) {
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith("Bearer ")) {
-        try {
-          const token = authHeader.substring(7);
-          const payload = await verifyCognitoAccessToken(token);
-          // Get user from database to determine role
-          const tokenUser = await prisma.user.findUnique({
-            where: { cognito_sub: payload.sub },
-          });
-          onboardingRole = tokenUser?.roles[0] || user.roles[0] || UserRole.INVESTOR;
-        } catch {
-          onboardingRole = user.roles[0] || UserRole.INVESTOR;
-        }
-      } else {
-        onboardingRole = user.roles[0] || UserRole.INVESTOR;
-      }
     }
 
     return { success: true };
@@ -336,25 +315,10 @@ export class AuthService {
       throw new Error("User not found");
     }
 
-    // Determine the role
-    let onboardingRole = role;
+    const onboardingRole = role ?? req.activeRole ?? null;
     if (!onboardingRole) {
-      // Try to determine role from token or user
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith("Bearer ")) {
-        try {
-          const token = authHeader.substring(7);
-          const payload = await verifyCognitoAccessToken(token);
-          const tokenUser = await prisma.user.findUnique({
-            where: { cognito_sub: payload.sub },
-          });
-          onboardingRole = tokenUser?.roles[0] || user.roles[0] || UserRole.INVESTOR;
-        } catch {
-          onboardingRole = user.roles[0] || UserRole.INVESTOR;
-        }
-      } else {
-        onboardingRole = user.roles[0] || UserRole.INVESTOR;
-      }
+      logger.info({ userId }, "No onboarding role provided - skipping cancellation");
+      return { success: true, cancelled: false };
     }
 
     // Check if user has started onboarding but not completed it

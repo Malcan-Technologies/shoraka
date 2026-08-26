@@ -148,6 +148,7 @@ import type {
   InvoiceOfferAcceptSignatoriesResponse,
 } from "@cashsouk/types";
 import { parseContentDispositionFilename } from "./content-disposition-filename";
+import { detectClientPortal } from "./detect-client-portal";
 import { tokenRefreshService } from "./token-refresh-service";
 
 type OverdueLateChargeInput = {
@@ -306,6 +307,11 @@ export class ApiClient {
     // Add Authorization header with Cognito access token
     if (authToken) {
       headers["Authorization"] = `Bearer ${authToken}`;
+    }
+
+    const portal = detectClientPortal();
+    if (portal) {
+      headers["x-portal"] = portal;
     }
 
     // Make request

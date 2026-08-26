@@ -20,7 +20,7 @@ function getActor(req: Request, res: Response) {
 
   return {
     userId: req.user.user_id,
-    role: req.activeRole ?? req.user.roles[0],
+    role: req.activeRole,
     portal: "ISSUER",
     correlationId: res.locals.correlationId,
   };

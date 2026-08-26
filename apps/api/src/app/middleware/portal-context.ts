@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { PortalContext } from '../../lib/http/portal-context';
 import { PortalType } from '../../lib/http/url-utils';
+import { parseKnownPortal } from '../../lib/role-detector';
 
 /**
  * Middleware to detect the source portal from request headers and set the context.
@@ -9,18 +10,15 @@ export function portalContextMiddleware(req: Request, _res: Response, next: Next
   const origin = req.headers.origin;
   const referer = req.headers.referer;
 
-  // Custom header can be used for non-browser requests or explicit overrides
-  const explicitPortal = req.headers['x-portal'] as string;
+  const fromHeader = parseKnownPortal(req.headers['x-portal']);
 
-  let portal: PortalType | undefined;
+  let portal: PortalType | undefined = fromHeader ?? undefined;
 
-  if (explicitPortal === 'investor' || explicitPortal === 'issuer' || explicitPortal === 'admin') {
-    portal = explicitPortal as PortalType;
-  } else {
-    // Detect from origin/referer URLs
-    const urlString = origin || referer || '';
+  if (!portal) {
+    const urlString = (typeof origin === "string" ? origin : "") || (typeof referer === "string" ? referer : "");
 
-    if (urlString.includes('localhost:3002') || urlString.includes('localhost:3000') || urlString.includes('investor.')) {
+    // Landing (localhost:3000 / www) is not a portal; leave context unset.
+    if (urlString.includes('localhost:3002') || urlString.includes('investor.')) {
       portal = 'investor';
     } else if (urlString.includes('localhost:3001') || urlString.includes('issuer.')) {
       portal = 'issuer';

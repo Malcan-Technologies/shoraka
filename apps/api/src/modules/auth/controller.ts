@@ -315,7 +315,7 @@ router.post(
  */
 router.post("/logout", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await authService.logout(req, req.user!.user_id);
+    const result = await authService.logout(req, req.user!.user_id, req.activeRole);
 
     res.json({
       success: true,
