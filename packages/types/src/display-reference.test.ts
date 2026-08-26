@@ -2,6 +2,7 @@ import {
   formatApplicationNotificationRef,
   formatApplicationReference,
   formatContractReference,
+  canonicalDownloadFilenameToken,
   formatInvoiceReference,
   formatNamedEntityDisplay,
   formatNoteReference,
@@ -105,5 +106,11 @@ describe("display-reference formatters", () => {
       })
     ).toBe("APP-ARF-202608-A82");
     expect(formatApplicationNotificationRef({ id: "clabcdefghijklmnop" })).toBe("#IJKLMNOP");
+  });
+
+  it("builds filename tokens from canonical refs only", () => {
+    expect(canonicalDownloadFilenameToken("CON-ARF-202608-K71")).toBe("CON-ARF-202608-K71");
+    expect(canonicalDownloadFilenameToken(null)).toBe("letter");
+    expect(canonicalDownloadFilenameToken("  ")).toBe("letter");
   });
 });

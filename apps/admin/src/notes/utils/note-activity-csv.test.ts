@@ -1,4 +1,4 @@
-import { buildNoteActivityCsv, formatNoteActivityEventLabel } from "./note-activity-csv";
+import { buildNoteActivityCsv, formatNoteActivityEventLabel, noteEventToActivityCsvRow } from "./note-activity-csv";
 import type { NoteEvent } from "@cashsouk/types";
 
 function event(overrides: Partial<NoteEvent> = {}): NoteEvent {
@@ -158,5 +158,20 @@ describe("buildNoteActivityCsv", () => {
     expect(csv).toContain("Withdrawal Submitted to Trustee");
     expect(csv).toContain("clyk2n9x0001qwertyuiop");
     expect(csv).toContain("WDL-ARF-202608-A1Z");
+  });
+
+  it("uses the canonical withdrawal reference as the CSV target column", () => {
+    const row = noteEventToActivityCsvRow(
+      event({
+        eventType: "WITHDRAWAL_TRUSTEE_EMAIL_SENT",
+        targetId: "clyk2n9x0001qwertyuiop",
+        noteId: "note-internal",
+        metadata: {
+          withdrawalId: "clyk2n9x0001qwertyuiop",
+          withdrawalReference: "WDL-ARF-202608-A1Z",
+        },
+      })
+    );
+    expect(row.targetReference).toBe("WDL-ARF-202608-A1Z");
   });
 });

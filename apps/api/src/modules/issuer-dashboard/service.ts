@@ -580,7 +580,10 @@ export class IssuerDashboardService {
           contractId: inv.contract_id,
           invoiceForModal: jsonForModal(inv),
           invoiceStatus: inv.status,
-          invoiceNumber: (details?.number as string | undefined) ?? inv.id,
+          invoiceNumber:
+            typeof details?.number === "string" && details.number.trim()
+              ? details.number.trim()
+              : "",
           customerName: invoiceCustomerName,
           invoiceValue: invVal !== null ? invVal.toFixed(2) : null,
           financingAmount,

@@ -124,6 +124,7 @@ import {
   INVOICE_FINANCING_RATIO_CAP_MESSAGE,
   type AdditionalFeeLine,
   type InvoiceOfferFeeScheduleWriteMode,
+  canonicalDownloadFilenameToken,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { OrganizationRepository } from "../organization/repository";
@@ -6719,13 +6720,16 @@ export class AdminService {
     });
     const invoice = await prisma.invoice.findFirst({
       where: { id: invoiceId, application_id: applicationId },
-      select: { id: true },
+      select: { id: true, display_reference: true },
     });
     if (!invoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found");
     }
     const buffer = await getS3ObjectBuffer(s3Key);
-    return { buffer, filename: `signed-invoice-offer-${invoice.id}.pdf` };
+    return {
+      buffer,
+      filename: `signed-invoice-offer-${canonicalDownloadFilenameToken(invoice.display_reference)}.pdf`,
+    };
   }
 
   /**
@@ -6743,8 +6747,15 @@ export class AdminService {
       applicationId,
       contractId: application.contract_id,
     });
+    const contract = await prisma.contract.findUnique({
+      where: { id: application.contract_id },
+      select: { display_reference: true },
+    });
     const buffer = await getS3ObjectBuffer(s3Key);
-    return { buffer, filename: `signed-contract-offer-${application.contract_id}.pdf` };
+    return {
+      buffer,
+      filename: `signed-contract-offer-${canonicalDownloadFilenameToken(contract?.display_reference)}.pdf`,
+    };
   }
 
   /**
@@ -8147,7 +8158,14 @@ export class AdminService {
   }
 
   private getInvoiceReference(
-    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
+    application: {
+      invoices?: {
+        id: string;
+        details?: { number?: string | number };
+        display_reference?: string | null;
+        displayReference?: string | null;
+      }[];
+    },
     invoiceKey: string
   ) {
     const invoices = application.invoices ?? [];
@@ -8166,12 +8184,14 @@ export class AdminService {
     }
 
     const invoiceNumber = matchedInvoice.details?.number;
+    const cashSoukReference =
+      matchedInvoice.displayReference?.trim() || matchedInvoice.display_reference?.trim() || undefined;
     return {
       invoiceId: matchedInvoice.id,
       invoiceNumber:
         invoiceNumber != null && String(invoiceNumber).trim() !== ""
           ? String(invoiceNumber).trim()
-          : undefined,
+          : cashSoukReference,
     };
   }
 
@@ -8754,9 +8774,10 @@ export class AdminService {
           offer_details: Prisma.JsonValue | null;
           contract_id: string | null;
           updated_at: Date;
+          display_reference: string | null;
         }[]
       >`
-        SELECT status, details, offer_details, contract_id, updated_at
+        SELECT status, details, offer_details, contract_id, updated_at, display_reference
         FROM invoices
         WHERE id = ${invoiceId} AND application_id = ${applicationId}
         FOR UPDATE
@@ -8990,7 +9011,9 @@ export class AdminService {
       });
 
       const invoiceNumber =
-        details.number != null && details.number !== "" ? String(details.number).trim() : null;
+        details.number != null && details.number !== ""
+          ? String(details.number).trim()
+          : lockedInvoice.display_reference?.trim() || null;
       const acceptanceExpiresAt = stampOfferAcceptance
         ? (getOfferAcceptanceFromOfferDetails(offerDetails)?.acceptance_expires_at ?? null)
         : null;

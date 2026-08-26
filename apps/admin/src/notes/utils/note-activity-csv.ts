@@ -91,6 +91,22 @@ function noteEventAmount(metadata: Record<string, unknown> | null | undefined): 
   return null;
 }
 
+function noteEventCanonicalReference(event: NoteEvent): string {
+  const metadata = event.metadata;
+  if (metadata) {
+    for (const key of [
+      "withdrawalReference",
+      "settlementReference",
+      "noteReference",
+      "displayReference",
+    ]) {
+      const value = metadata[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+  return event.targetId ?? event.noteId;
+}
+
 export function noteEventToActivityCsvRow(event: NoteEvent): AdminActivityCsvRow {
   return {
     createdAt: event.createdAt,
@@ -107,7 +123,7 @@ export function noteEventToActivityCsvRow(event: NoteEvent): AdminActivityCsvRow
     actorType: event.actorType ?? event.actorRole,
     source: event.source ?? event.portal,
     targetType: event.targetType,
-    targetReference: event.targetId ?? event.noteId,
+    targetReference: noteEventCanonicalReference(event),
     correlationId: event.correlationId,
     amount: noteEventAmount(event.metadata),
   };

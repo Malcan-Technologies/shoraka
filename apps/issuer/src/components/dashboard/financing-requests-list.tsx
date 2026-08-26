@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { useOrganization } from "@cashsouk/config";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import type { Application, Invoice, InvoiceDetails } from "@cashsouk/types";
-import { InvoiceStatus } from "@cashsouk/types";
+import { formatInvoiceReference, InvoiceStatus } from "@cashsouk/types";
 
 type Status =
   | "Draft"
@@ -38,7 +38,11 @@ function useOrgInvoiceList() {
     (app.invoices ?? []).map(
       (inv): InvoiceDashboardRow => ({
         ...inv,
-        invoiceNo: inv.details?.number ?? inv.id,
+        invoiceNo: formatInvoiceReference({
+          id: inv.id,
+          displayReference: inv.displayReference,
+          businessNumber: typeof inv.details?.number === "string" ? inv.details.number : null,
+        }),
         invoiceValue: inv.details?.value ?? null,
         financingAmount:
           (inv.details as InvoiceDetails & { financing_amount?: number }).financing_amount ?? null,

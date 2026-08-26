@@ -1356,7 +1356,7 @@ export class SigningService {
         throw new AppError(400, "INVALID_STATE", "Invoice offer details are not available.");
       }
       generated = await generateInvoiceOfferLetterBuffer(
-        invoice.id,
+        invoice.display_reference,
         invoice.offer_details as Record<string, unknown>,
         signatories
       );
@@ -1371,7 +1371,7 @@ export class SigningService {
         throw new AppError(400, "INVALID_STATE", "Facility offer details are not available.");
       }
       generated = await generateContractOfferLetterBuffer(
-        contract.id,
+        contract.display_reference,
         contract.offer_details as Record<string, unknown>,
         signatories
       );

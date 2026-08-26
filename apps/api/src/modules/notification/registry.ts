@@ -1,6 +1,6 @@
 import { PortalType } from "../../lib/http/url-utils";
 import { PortalContext } from "../../lib/http/portal-context";
-import { formatApplicationNotificationRef, formatPhaseDeadlineDateDDMMYYYY } from "@cashsouk/types";
+import { formatApplicationNotificationRef, formatPhaseDeadlineDateDDMMYYYY, formatWithdrawalReference } from "@cashsouk/types";
 
 /**
  * Registry of all system notification types to ensure type safety
@@ -610,7 +610,10 @@ export const NOTIFICATION_TEMPLATES: {
   [NotificationTypeIds.WITHDRAWAL_SUBMITTED_TO_TRUSTEE]: {
     title: "Withdrawal Submitted to Trustee",
     message: (data) => {
-      const ref = data.displayReference?.trim() || data.withdrawalId;
+      const ref = formatWithdrawalReference({
+        displayReference: data.displayReference,
+        id: data.withdrawalId,
+      });
       return `Withdrawal instruction ${ref} for "${data.noteTitle}" (${data.withdrawalType}) has been submitted to the trustee.`;
     },
     linkPath: (data) =>

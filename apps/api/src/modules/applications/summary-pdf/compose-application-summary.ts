@@ -211,7 +211,7 @@ function composeFacility(app: ApplicationSummarySource): SummaryField[] {
         facility_fee_upfront_collect_amount: parseFiniteNumber(
           offer.facility_fee_upfront_collect_amount
         ),
-      } satisfies ContractOfferDetails).filter((term) => term.label !== "Our reference (contract ID)")
+      } satisfies ContractOfferDetails).filter((term) => term.label !== "CashSouk Reference")
     : [];
   return [
     ...fieldsOf(
@@ -279,7 +279,7 @@ function composeInvoiceOfferTerms(
     dto.platform_fee_rate_percent != null;
   if (!hasCommercial) return [];
   return buildInvoiceOfferLetterTerms("unused", dto).filter(
-    (term) => term.label !== "Our reference (invoice ID)"
+    (term) => term.label !== "CashSouk Reference"
   );
 }
 

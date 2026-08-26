@@ -44,6 +44,7 @@ import {
   workflowUsesOfferAcceptanceFlow,
   workflowShowsAcceptanceReviewSection,
   buildAcknowledgedTermsSnapshot,
+  canonicalDownloadFilenameToken,
 } from "@cashsouk/types";
 import { patchOfferAcceptance } from "./offer-acceptance";
 import {
@@ -3620,7 +3621,7 @@ export class ApplicationService {
 
     const contract = await prisma.contract.findUnique({
       where: { id: application.contract_id },
-      select: { status: true, offer_details: true },
+      select: { status: true, offer_details: true, display_reference: true },
     });
     if (!contract) {
       throw new AppError(404, "NOT_FOUND", "Facility not found");
@@ -3643,8 +3644,9 @@ export class ApplicationService {
       expires_at: typeof acceptanceExpiresAt === "string" ? acceptanceExpiresAt : undefined,
     };
 
-    const stream = generateContractOfferLetterStream(application.contract_id, offerDetails);
-    const filename = `contract-offer-${application.contract_id}.pdf`;
+    const cashSoukReference = contract.display_reference ?? null;
+    const stream = generateContractOfferLetterStream(cashSoukReference, offerDetails);
+    const filename = `contract-offer-${canonicalDownloadFilenameToken(cashSoukReference)}.pdf`;
     return { stream, filename };
   }
 
@@ -3671,7 +3673,7 @@ export class ApplicationService {
 
     const dbInvoice = await prisma.invoice.findFirst({
       where: { id: invoiceId, application_id: applicationId },
-      select: { status: true, offer_details: true, contract_id: true },
+      select: { status: true, offer_details: true, contract_id: true, display_reference: true },
     });
     if (!dbInvoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found");
@@ -3703,11 +3705,11 @@ export class ApplicationService {
     };
 
     const stream = generateInvoiceOfferLetterStream(
-      invoiceId,
+      dbInvoice.display_reference,
       offerDetails,
       invoiceOfferLetterKindForContract(dbInvoice.contract_id)
     );
-    const filename = `invoice-offer-${invoiceId}.pdf`;
+    const filename = `invoice-offer-${canonicalDownloadFilenameToken(dbInvoice.display_reference)}.pdf`;
     return { stream, filename };
   }
 
@@ -3812,8 +3814,15 @@ export class ApplicationService {
       applicationId,
       contractId: application.contract_id,
     });
+    const contract = await prisma.contract.findUnique({
+      where: { id: application.contract_id },
+      select: { display_reference: true },
+    });
     const buffer = await getS3ObjectBuffer(key);
-    return { buffer, filename: `signed-contract-offer-${application.contract_id}.pdf` };
+    return {
+      buffer,
+      filename: `signed-contract-offer-${canonicalDownloadFilenameToken(contract?.display_reference)}.pdf`,
+    };
   }
 
   /**
@@ -3839,8 +3848,15 @@ export class ApplicationService {
       applicationId,
       invoiceId,
     });
+    const invoice = await prisma.invoice.findFirst({
+      where: { id: invoiceId, application_id: applicationId },
+      select: { display_reference: true },
+    });
     const buffer = await getS3ObjectBuffer(key);
-    return { buffer, filename: `signed-invoice-offer-${invoiceId}.pdf` };
+    return {
+      buffer,
+      filename: `signed-invoice-offer-${canonicalDownloadFilenameToken(invoice?.display_reference)}.pdf`,
+    };
   }
 
   /**

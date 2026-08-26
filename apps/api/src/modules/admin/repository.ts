@@ -2317,6 +2317,7 @@ export class AdminRepository {
         { id: { contains: search, mode: "insensitive" } },
         { display_reference: { contains: search, mode: "insensitive" } },
         { issuer_organization: { name: { contains: search, mode: "insensitive" } } },
+        { issuer_organization: { display_reference: { contains: search, mode: "insensitive" } } },
       ];
     }
 
@@ -2473,7 +2474,9 @@ export class AdminRepository {
           },
         },
         { issuer_organization: { name: { contains: search, mode: "insensitive" } } },
+        { issuer_organization: { display_reference: { contains: search, mode: "insensitive" } } },
         { applications: { some: { id: { contains: search, mode: "insensitive" } } } },
+        { applications: { some: { display_reference: { contains: search, mode: "insensitive" } } } },
       ];
     }
 

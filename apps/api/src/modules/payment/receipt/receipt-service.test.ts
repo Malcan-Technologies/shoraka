@@ -190,6 +190,94 @@ describe("generateGatewayPaymentReceipt", () => {
     );
   });
 
+  it("stores the application canonical reference on new processing-fee receipts", async () => {
+    const db = createDbMock({
+      payment: {
+        id: "pay_1",
+        purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+        status: GatewayPaymentStatus.COMPLETED,
+        amount: { toNumber: () => 150 },
+        currency: "MYR",
+        method: "fpx",
+        payer_name: null,
+        curlec_payment_id: "pay_curlec_1",
+        curlec_order_id: "order_1",
+        updated_at: new Date("2026-08-03T02:00:00.000Z"),
+        metadata: null,
+        investor_organization: null,
+        issuer_organization: {
+          id: "issuer_1",
+          type: OrganizationType.COMPANY,
+          name: "Issuer Co",
+          registration_number: "SSM-1",
+          first_name: null,
+          middle_name: null,
+          last_name: null,
+          phone_number: "012",
+          corporate_onboarding_data: { basicInfo: { businessName: "Issuer Co" } },
+          owner: { email: "issuer@example.com", phone: "012" },
+        },
+        application: { id: "app_1", display_reference: "APP-ARF-202608-A82" },
+        contract: null,
+        note: null,
+      },
+    });
+
+    await generateGatewayPaymentReceipt("pay_1", db as never);
+    expect(renderReceiptHtmlToPdfBuffer).toHaveBeenCalledWith(
+      expect.stringContaining("APP-ARF-202608-A82")
+    );
+    expect(renderReceiptHtmlToPdfBuffer).toHaveBeenCalledWith(
+      expect.stringContaining("Application Reference")
+    );
+    expect(renderReceiptHtmlToPdfBuffer).not.toHaveBeenCalledWith(
+      expect.stringContaining("app_1")
+    );
+  });
+
+  it("prefers the issuer organization canonical reference on new registration-fee receipts", async () => {
+    const db = createDbMock({
+      payment: {
+        id: "pay_1",
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        status: GatewayPaymentStatus.COMPLETED,
+        amount: { toNumber: () => 150 },
+        currency: "MYR",
+        method: "fpx",
+        payer_name: null,
+        curlec_payment_id: "pay_curlec_1",
+        curlec_order_id: "order_1",
+        updated_at: new Date("2026-08-03T02:00:00.000Z"),
+        metadata: null,
+        investor_organization: null,
+        issuer_organization: {
+          id: "issuer_1",
+          type: OrganizationType.COMPANY,
+          name: "Issuer Co",
+          display_reference: "ISS-202608-DK3",
+          registration_number: "SSM-1",
+          first_name: null,
+          middle_name: null,
+          last_name: null,
+          phone_number: "012",
+          corporate_onboarding_data: { basicInfo: { businessName: "Issuer Co" } },
+          owner: { email: "issuer@example.com", phone: "012" },
+        },
+        application: null,
+        contract: null,
+        note: null,
+      },
+    });
+
+    await generateGatewayPaymentReceipt("pay_1", db as never);
+    expect(renderReceiptHtmlToPdfBuffer).toHaveBeenCalledWith(
+      expect.stringContaining("ISS-202608-DK3")
+    );
+    expect(renderReceiptHtmlToPdfBuffer).not.toHaveBeenCalledWith(
+      expect.stringContaining("issuer_1")
+    );
+  });
+
   it("does not regenerate when a PDF was already issued", async () => {
     const db = createDbMock({
       existingReceipt: {

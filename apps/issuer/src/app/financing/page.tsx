@@ -587,7 +587,7 @@ function IssuerFinancingPageContent() {
                   <ListToolbar
                     searchValue={contractSearch}
                     onSearchChange={setContractSearch}
-                    searchPlaceholder="Search by name or customer"
+                    searchPlaceholder="Search by CashSouk reference, name, or customer"
                     appliedFilters={contractChips}
                     onClearFilters={clearContractFilters}
                     onReload={() => {
@@ -682,7 +682,7 @@ function IssuerFinancingPageContent() {
                   <ListToolbar
                     searchValue={invoiceSearch}
                     onSearchChange={setInvoiceSearch}
-                    searchPlaceholder="Search by number or customer"
+                    searchPlaceholder="Search by CashSouk reference, number, or customer"
                     appliedFilters={invoiceChips}
                     onClearFilters={clearInvoiceFilters}
                     onReload={() => {

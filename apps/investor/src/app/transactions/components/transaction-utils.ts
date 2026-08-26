@@ -124,6 +124,10 @@ function buildActivityContext(
 
   if (entry.source === "INVESTOR_WITHDRAWAL_REQUEST") {
     const detail = investorActivityStatusDetail(entry.source, entry.related ?? null);
+    const withdrawalRef = entry.related?.displayReference?.trim();
+    if (withdrawalRef) {
+      return { kind: "text", text: detail ? `${detail} · ${withdrawalRef}` : withdrawalRef };
+    }
     return { kind: "text", text: detail ?? "Withdrawal request" };
   }
 

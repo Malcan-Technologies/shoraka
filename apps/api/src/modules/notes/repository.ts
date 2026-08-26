@@ -30,7 +30,7 @@ export const noteInclude = {
 };
 
 export class NoteRepository {
-  list(params: GetNotesQuery) {
+  async list(params: GetNotesQuery) {
     const {
       page,
       pageSize,
@@ -67,11 +67,44 @@ export class NoteRepository {
         query.toUpperCase(),
         query.replace(/\b\w/g, (char) => char.toUpperCase()),
       ])];
+      const [matchingApplications, matchingContracts, matchingInvoices] = query
+        ? await Promise.all([
+            prisma.application.findMany({
+              where: { display_reference: { contains: query, mode: "insensitive" } },
+              select: { id: true },
+              take: 100,
+            }),
+            prisma.contract.findMany({
+              where: { display_reference: { contains: query, mode: "insensitive" } },
+              select: { id: true },
+              take: 100,
+            }),
+            prisma.invoice.findMany({
+              where: { display_reference: { contains: query, mode: "insensitive" } },
+              select: { id: true },
+              take: 100,
+            }),
+          ])
+        : [[], [], []];
+      const matchingApplicationIds = matchingApplications.map((application) => application.id);
+      const matchingContractIds = matchingContracts.map((contract) => contract.id);
+      const matchingInvoiceIds = matchingInvoices.map((invoice) => invoice.id);
       and.push({
         OR: [
           { title: { contains: query, mode: "insensitive" } },
           { note_reference: { contains: query, mode: "insensitive" } },
           { source_application_id: { contains: query, mode: "insensitive" } },
+          { source_contract_id: { contains: query, mode: "insensitive" } },
+          { source_invoice_id: { contains: query, mode: "insensitive" } },
+          ...(matchingApplicationIds.length > 0
+            ? [{ source_application_id: { in: matchingApplicationIds } }]
+            : []),
+          ...(matchingContractIds.length > 0
+            ? [{ source_contract_id: { in: matchingContractIds } }]
+            : []),
+          ...(matchingInvoiceIds.length > 0
+            ? [{ source_invoice_id: { in: matchingInvoiceIds } }]
+            : []),
           ...jsonSearchVariants.map((variant) => ({
             issuer_snapshot: {
               path: ["name"],

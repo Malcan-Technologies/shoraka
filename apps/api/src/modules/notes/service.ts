@@ -719,6 +719,12 @@ function calculateProfitDays(startDate: Date | null, maturityDate: Date | null) 
   return calculateCalendarDayCount(startDate, maturityDate);
 }
 
+function asDateOrString(value: unknown): Date | string | null {
+  if (value instanceof Date) return value;
+  if (typeof value === "string" && value.trim()) return value;
+  return null;
+}
+
 function resolvePostedSettlementProfitDays(
   settlement: {
     actual_settlement_date?: Date | null;
@@ -730,9 +736,12 @@ function resolvePostedSettlementProfitDays(
 ): number | null {
   if (!settlement) return null;
   return resolveActualReturnProfitDays({
-    profitStartDate: profitStartDate ?? snapshot?.profitStartDate ?? settlement.profit_start_date,
+    profitStartDate:
+      profitStartDate ??
+      asDateOrString(snapshot?.profitStartDate) ??
+      settlement.profit_start_date,
     actualSettlementDate:
-      settlement.actual_settlement_date ?? snapshot?.actualSettlementDate ?? null,
+      settlement.actual_settlement_date ?? asDateOrString(snapshot?.actualSettlementDate),
     fallbackProfitDays:
       typeof snapshot?.profitDays === "number" ? snapshot.profitDays : settlement.profit_days,
   });
@@ -1813,7 +1822,12 @@ export class NoteService {
       const term = search.trim();
       const [matchingInvestorOrgs, matchingInvestorUsers] = await Promise.all([
         prisma.investorOrganization.findMany({
-          where: { name: { contains: term, mode: "insensitive" } },
+          where: {
+            OR: [
+              { name: { contains: term, mode: "insensitive" } },
+              { display_reference: { contains: term, mode: "insensitive" } },
+            ],
+          },
           select: { id: true },
           take: 100,
         }),
@@ -2434,6 +2448,7 @@ export class NoteService {
       issuer_organization: {
         id: string;
         name: string | null;
+        display_reference?: string | null;
         type: string;
         registration_number?: string | null;
         country?: string | null;
@@ -2444,6 +2459,7 @@ export class NoteService {
       id: string;
       application_id: string;
       contract_id: string | null;
+      display_reference?: string | null;
       details: Prisma.JsonValue;
       offer_details: Prisma.JsonValue | null;
       status: InvoiceStatus;
@@ -2537,7 +2553,13 @@ export class NoteService {
     }
 
     const invoiceNumber =
-      typeof invoiceDetails.number === "string" ? invoiceDetails.number : invoice.id.slice(-8);
+      typeof invoiceDetails.number === "string" && invoiceDetails.number.trim()
+        ? invoiceDetails.number.trim()
+        : invoice.display_reference?.trim() || "invoice";
+    const issuerLabel =
+      application.issuer_organization.name?.trim() ||
+      application.issuer_organization.display_reference?.trim() ||
+      "issuer";
 
     const note = await prisma
       .$transaction(async (tx) => {
@@ -2566,7 +2588,7 @@ export class NoteService {
             issuer_organization_id: application.issuer_organization_id,
             title:
               params.title ??
-              `Note for invoice ${invoiceNumber} - ${application.issuer_organization.name ?? application.issuer_organization.id}`,
+              `Note for invoice ${invoiceNumber} - ${issuerLabel}`,
             note_reference: canonicalReference,
             issuer_snapshot: { ...issuerSnapshot },
             paymaster_snapshot: json(sourceContract?.customer_details),
@@ -4193,6 +4215,7 @@ export class NoteService {
               created_at: true,
               status: true,
               completed_at: true,
+              display_reference: true,
             },
           })
         : Promise.resolve([]),
@@ -4226,6 +4249,7 @@ export class NoteService {
         createdAt: withdrawal.created_at,
         status: withdrawal.status,
         completedAt: withdrawal.completed_at,
+        displayReference: withdrawal.display_reference,
       })),
     });
 
@@ -4289,6 +4313,7 @@ export class NoteService {
         first_name: true,
         last_name: true,
         registration_number: true,
+        display_reference: true,
       },
     });
 
@@ -4301,7 +4326,10 @@ export class NoteService {
 
     const accountId =
       organizations.length === 1
-        ? organizations[0]?.registration_number?.trim() || organizations[0]?.id || orgIds[0]!
+        ? organizations[0]?.display_reference?.trim() ||
+          organizations[0]?.registration_number?.trim() ||
+          organizations[0]?.id ||
+          orgIds[0]!
         : orgIds.join(", ");
 
     const ledgerRows = await prisma.investorBalanceTransaction.findMany({
@@ -4324,7 +4352,7 @@ export class NoteService {
           })
         : [];
     const noteReferenceById = new Map(
-      notes.map((note) => [note.id, note.note_reference ?? note.id])
+      notes.map((note) => [note.id, note.note_reference])
     );
 
     const statementInvestmentIds = [
@@ -4361,6 +4389,7 @@ export class NoteService {
               created_at: true,
               status: true,
               completed_at: true,
+              display_reference: true,
             },
           })
         : Promise.resolve([]),
@@ -4387,6 +4416,7 @@ export class NoteService {
         createdAt: withdrawal.created_at,
         status: withdrawal.status,
         completedAt: withdrawal.completed_at,
+        displayReference: withdrawal.display_reference,
       })),
     });
 
@@ -7280,7 +7310,10 @@ export class NoteService {
 
     const { messageId } = await sendTrusteeInstructionPdfEmail({
       kind: latest.withdrawal_type as TrusteeInstructionEmailKind,
-      reference: latest.display_reference?.trim() || latest.id,
+      reference: formatWithdrawalReference({
+        displayReference: latest.display_reference,
+        id: latest.id,
+      }),
       s3Key: latest.letter_s3_key,
       config,
     });
@@ -7380,7 +7413,10 @@ export class NoteService {
 
     const { messageId } = await sendTrusteeInstructionPdfEmail({
       kind: "SETTLEMENT",
-      reference: latest.display_reference?.trim() || latest.id,
+      reference: formatSettlementReference({
+        displayReference: latest.display_reference,
+        id: latest.id,
+      }),
       s3Key,
       config,
     });

@@ -77,3 +77,16 @@ export function formatApplicationNotificationRef(input: CanonicalReferenceInput)
   if (input.id) return `#${input.id.slice(-SHORT_ID_FALLBACK_LENGTH).toUpperCase()}`;
   return "application";
 }
+
+/** Safe token for user download filenames. Never invent a canonical-looking value. */
+export function canonicalDownloadFilenameToken(
+  canonicalReference: string | null | undefined,
+  fallback = "letter"
+): string {
+  const cleaned = (canonicalReference ?? "")
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return cleaned || fallback;
+}

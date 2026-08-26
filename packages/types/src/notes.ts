@@ -1081,6 +1081,7 @@ export interface InvestorBalanceActivityRelated {
   status: string;
   /** `confirmedAt` for investments, `completedAt` for withdrawals, credit time for deposits. */
   settledAt: string | null;
+  displayReference?: string | null;
 }
 
 export interface InvestorBalanceActivityEntry {

@@ -93,8 +93,10 @@ export default function NotesPage() {
     if (!normalizedSearch) return true;
     return [
       invoice.invoiceId,
+      invoice.displayReference ?? "",
       invoice.invoiceNumber ?? "",
       invoice.issuerName ?? "",
+      invoice.issuerOrganizationDisplayReference ?? "",
       invoice.paymasterName ?? "",
     ]
       .join(" ")

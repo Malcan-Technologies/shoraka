@@ -165,7 +165,7 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
       payerEmail: org?.owner?.email ?? null,
       payerPhone: org?.phone_number ?? org?.owner?.phone ?? null,
       relatedEntityId: contract.id,
-      relatedReference: contract.display_reference?.trim() || contract.id,
+      relatedReference: contract.display_reference?.trim() || null,
       walletCredited: false,
     };
   }
@@ -190,7 +190,7 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
       payerEmail: org?.owner?.email ?? null,
       payerPhone: org?.phone_number ?? org?.owner?.phone ?? null,
       relatedEntityId: note.id,
-      relatedReference: note.note_reference?.trim() || note.id,
+      relatedReference: note.note_reference?.trim() || null,
       walletCredited: false,
     };
   }
@@ -212,8 +212,9 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
       payerEmail: org.owner?.email ?? null,
       payerPhone: org.phone_number ?? org.owner?.phone ?? null,
       relatedEntityId: org.id,
-      // Issuer org identity — not the Curlec order receipt (fee_…).
-      relatedReference: org.registration_number?.trim() || org.name?.trim() || org.id,
+      // CashSouk ISS-… when present; registration/name are business identifiers, never the org CUID.
+      relatedReference:
+        org.display_reference?.trim() || org.registration_number?.trim() || org.name?.trim() || null,
       walletCredited: false,
     };
   }
@@ -238,8 +239,7 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
     payerEmail: org?.owner?.email ?? null,
     payerPhone: org?.phone_number ?? org?.owner?.phone ?? null,
     relatedEntityId: application.id,
-    // Application id — not the Curlec order receipt (pf_…).
-    relatedReference: application.id,
+    relatedReference: application.display_reference?.trim() || null,
     walletCredited: false,
   };
 }
