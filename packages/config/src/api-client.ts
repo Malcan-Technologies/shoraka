@@ -3,7 +3,6 @@ import type {
   ApiError,
   SigningEnvelopeDto,
   ExternalSigningSessionDto,
-  RecipientBinding,
   GetUsersParams,
   UsersResponse,
   UserDetailResponse,
@@ -2403,7 +2402,7 @@ export class ApiClient {
 
   /**
    * Issuer: frozen product workflow for an application (application.product_version).
-   * Used by configure-signers / post-docs so packages do not pick up later product edits.
+   * Used by acceptance documents / authorised representatives so packages do not pick up later product edits.
    */
   async getIssuerApplicationSigningProductWorkflow(
     applicationId: string
@@ -2413,28 +2412,18 @@ export class ApiClient {
     );
   }
 
-  /** Issuer: create a draft envelope from the application's product signing template. */
-  async createIssuerSigningEnvelope(
+  /** Admin: create and send the signing package from approved authorised representatives. */
+  async sendAdminSigningPackage(
     applicationId: string,
-    input: {
-      title?: string | null;
+    input?: {
       contractId?: string | null;
       invoiceId?: string | null;
-      bindings: RecipientBinding[];
-      expiresAt?: string | null;
     }
   ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
     return this.post<SigningEnvelopeDto>(
-      `/v1/signing/applications/${applicationId}/envelopes`,
-      input
+      `/v1/admin/signing/applications/${applicationId}/envelopes/send`,
+      input ?? {}
     );
-  }
-
-  /** Issuer: send a draft envelope after post-application document gates pass. */
-  async sendIssuerSigningEnvelope(
-    envelopeId: string
-  ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
-    return this.post<SigningEnvelopeDto>(`/v1/signing/envelopes/${envelopeId}/send`, {});
   }
 
   /** Admin: void an envelope. */

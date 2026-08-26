@@ -196,7 +196,6 @@ export interface SectionContentProps {
   productWorkflow?: unknown;
   /** When false, Acceptance signing actions (void/remind) are disabled. */
   canManageSigning?: boolean;
-  productVersion?: number | null;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -243,7 +242,6 @@ export function SectionContent({
   resubmitAmendmentRemarks,
   productWorkflow,
   canManageSigning = true,
-  productVersion = null,
 }: SectionContentProps) {
   const signingApplicationId =
     (typeof liveApplicationId === "string" && liveApplicationId) ||
@@ -426,9 +424,6 @@ export function SectionContent({
       const acceptanceWorkflow = isInheritedAcceptance
         ? inherited.product_workflow ?? productWorkflow
         : productWorkflow;
-      const acceptanceProductVersion = isInheritedAcceptance
-        ? inherited.product_version ?? productVersion
-        : productVersion;
       return (
         <AcceptanceSection
           supportingDocuments={acceptanceDocuments}
@@ -465,10 +460,7 @@ export function SectionContent({
           hideSectionComments={hideSectionComments || !!sectionComparison || isInheritedAcceptance}
           applicationId={sectionComparison ? undefined : signingApplicationId}
           workflow={acceptanceWorkflow}
-          people={app.people ?? []}
           guarantors={app.application_guarantors}
-          contractId={app.contract?.id ?? null}
-          productVersion={acceptanceProductVersion}
           canManageSigning={canManageSigning && !isInheritedAcceptance}
           contractOfferDetails={app.contract?.offer_details}
           invoices={app.invoices ?? []}

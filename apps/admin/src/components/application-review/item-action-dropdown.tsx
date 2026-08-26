@@ -37,6 +37,10 @@ interface ItemActionDropdownProps {
   showReject?: boolean;
   /** When false, hides Request amendment / Request change. */
   showRequestAmendment?: boolean;
+  /** When true, Request change stays visible but cannot be used. */
+  requestAmendmentDisabled?: boolean;
+  /** Tooltip shown on the disabled Request change item. */
+  requestAmendmentDisabledReason?: string;
   /** Menu label for the amendment/change action (acceptance uses "Request change"). */
   requestAmendmentLabel?: string;
   /** When true, menu shows only "View Signed Offer" (e.g. after invoice review is finalized). */
@@ -61,6 +65,8 @@ export function ItemActionDropdown({
   showApprove = true,
   showReject = true,
   showRequestAmendment = true,
+  requestAmendmentDisabled = false,
+  requestAmendmentDisabledReason,
   requestAmendmentLabel = "Request Amendment",
   viewSignedOfferOnly = false,
   onViewSignedOffer,
@@ -70,7 +76,7 @@ export function ItemActionDropdown({
   const normalizedStatus = status.toUpperCase();
   const canApprove = showApprove && normalizedStatus !== "APPROVED";
   const canReject = showReject && normalizedStatus !== "REJECTED";
-  const canRequestAmendment =
+  const showRequestAmendmentItem =
     showRequestAmendment && normalizedStatus !== "AMENDMENT_REQUESTED";
 
   if (viewSignedOfferOnly && onViewSignedOffer) {
@@ -129,7 +135,7 @@ export function ItemActionDropdown({
     !!onViewSignedOffer ||
     canApprove ||
     canReject ||
-    canRequestAmendment ||
+    showRequestAmendmentItem ||
     showResetOption;
   if (!hasAnyMenuItem) {
     const emptyTooltip = noActionsTooltip ?? "No actions available for this item right now.";
@@ -192,15 +198,41 @@ export function ItemActionDropdown({
             Reject
           </DropdownMenuItem>
         )}
-        {canRequestAmendment && (
-          <DropdownMenuItem
-            className="rounded-lg"
-            onClick={() => onRequestAmendment(itemId)}
-          >
-            <DocumentTextIcon className="h-4 w-4 mr-2" />
-            {requestAmendmentLabel}
-          </DropdownMenuItem>
-        )}
+        {showRequestAmendmentItem ? (
+          requestAmendmentDisabled ? (
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="flex w-full cursor-not-allowed">
+                    <DropdownMenuItem
+                      disabled
+                      className="w-full rounded-lg"
+                      onSelect={(event) => event.preventDefault()}
+                    >
+                      <DocumentTextIcon className="h-4 w-4 mr-2" />
+                      {requestAmendmentLabel}
+                    </DropdownMenuItem>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="left"
+                  className="max-w-xs bg-muted text-muted-foreground"
+                >
+                  {requestAmendmentDisabledReason ??
+                    "This change is not available here."}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <DropdownMenuItem
+              className="rounded-lg"
+              onClick={() => onRequestAmendment(itemId)}
+            >
+              <DocumentTextIcon className="h-4 w-4 mr-2" />
+              {requestAmendmentLabel}
+            </DropdownMenuItem>
+          )
+        ) : null}
         {showResetOption && (
           <DropdownMenuItem
             className="rounded-lg"

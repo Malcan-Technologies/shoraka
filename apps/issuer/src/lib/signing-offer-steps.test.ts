@@ -14,61 +14,37 @@ import {
 const unlockedBase = {
   usesAcceptanceFlow: false,
   acceptanceStatus: null,
-  signersLocked: false,
+  packageSent: false,
   allDocsSigned: false,
   envelopeCompleted: false,
 } as const;
 
-const legacyShellInput = {
+const trackingShellInput = {
   usesAcceptanceFlow: false,
   hasPostDocs: false,
   acceptanceStatus: null,
 } as const;
 
 describe("getSigningOfferSteps", () => {
-  it("includes documents shell before signers when hasPostDocs is true", () => {
+  it("shows document signing then complete when there is no acceptance flow", () => {
     const steps = getSigningOfferSteps({
       hasPostDocs: true,
       postDocsReady: false,
       ...unlockedBase,
     });
-    expect(steps.map((s) => s.id)).toEqual([
-      "documents",
-      "signers",
-      "signing",
-      "complete",
-    ]);
-  });
-
-  it("omits documents when hasPostDocs is false", () => {
-    const steps = getSigningOfferSteps({
-      hasPostDocs: false,
-      postDocsReady: true,
-      ...unlockedBase,
-    });
-    expect(steps.map((s) => s.id)).toEqual(["signers", "signing", "complete"]);
+    expect(steps.map((s) => s.id)).toEqual(["signing", "complete"]);
   });
 });
 
 describe("getCurrentSigningOfferStepId", () => {
-  it("returns documents when hasPostDocs and not ready", () => {
+  it("returns signing while CashSouk has not sent the package", () => {
     expect(
       getCurrentSigningOfferStepId({
         hasPostDocs: true,
         postDocsReady: false,
         ...unlockedBase,
       })
-    ).toBe("documents");
-  });
-
-  it("returns signers when hasPostDocs is false", () => {
-    expect(
-      getCurrentSigningOfferStepId({
-        hasPostDocs: false,
-        postDocsReady: true,
-        ...unlockedBase,
-      })
-    ).toBe("signers");
+    ).toBe("signing");
   });
 });
 
@@ -128,51 +104,27 @@ describe("buildAcceptanceDocumentsStepConfig", () => {
 });
 
 describe("getSigningOfferStepIndex / compareSigningOfferStepOrder", () => {
-  it("orders documents < signers < signing < complete when hasPostDocs", () => {
-    const withDocs = { ...legacyShellInput, hasPostDocs: true };
-    expect(getSigningOfferStepIndex("documents", withDocs)).toBe(0);
-    expect(getSigningOfferStepIndex("signers", withDocs)).toBe(1);
-    expect(getSigningOfferStepIndex("signing", withDocs)).toBe(2);
-    expect(getSigningOfferStepIndex("complete", withDocs)).toBe(3);
-    expect(compareSigningOfferStepOrder("documents", "signers", withDocs)).toBeLessThan(0);
-    expect(compareSigningOfferStepOrder("signers", "signing", withDocs)).toBeLessThan(0);
-    expect(compareSigningOfferStepOrder("signing", "complete", withDocs)).toBeLessThan(0);
+  it("orders signing before complete", () => {
+    expect(getSigningOfferStepIndex("signing", trackingShellInput)).toBe(0);
+    expect(getSigningOfferStepIndex("complete", trackingShellInput)).toBe(1);
+    expect(compareSigningOfferStepOrder("signing", "complete", trackingShellInput)).toBeLessThan(0);
   });
 
-  it("returns -1 for documents when hasPostDocs is false", () => {
-    expect(getSigningOfferStepIndex("documents", legacyShellInput)).toBe(-1);
-    expect(getSigningOfferStepIndex("signers", legacyShellInput)).toBe(0);
+  it("returns -1 for removed configure-signers and upload steps", () => {
+    expect(getSigningOfferStepIndex("documents", trackingShellInput)).toBe(-1);
+    expect(getSigningOfferStepIndex("signers", trackingShellInput)).toBe(-1);
   });
 });
 
 describe("isSigningOfferStepReachable", () => {
-  const withDocs = { ...legacyShellInput, hasPostDocs: true };
-
-  it("only documents reachable when hasPostDocs and domain cursor is documents", () => {
-    expect(isSigningOfferStepReachable("documents", "documents", withDocs)).toBe(true);
-    expect(isSigningOfferStepReachable("signers", "documents", withDocs)).toBe(false);
-    expect(isSigningOfferStepReachable("signing", "documents", withDocs)).toBe(false);
-    expect(isSigningOfferStepReachable("complete", "documents", withDocs)).toBe(false);
+  it("only signing is reachable until the envelope completes", () => {
+    expect(isSigningOfferStepReachable("signing", "signing", trackingShellInput)).toBe(true);
+    expect(isSigningOfferStepReachable("complete", "signing", trackingShellInput)).toBe(false);
   });
 
-  it("documents and signers reachable when unlocked domain cursor is signers", () => {
-    expect(isSigningOfferStepReachable("documents", "signers", withDocs)).toBe(true);
-    expect(isSigningOfferStepReachable("signers", "signers", withDocs)).toBe(true);
-    expect(isSigningOfferStepReachable("signing", "signers", withDocs)).toBe(false);
-    expect(isSigningOfferStepReachable("complete", "signers", withDocs)).toBe(false);
-  });
-
-  it("documents unreachable when hasPostDocs false; signers reachable as current", () => {
-    expect(isSigningOfferStepReachable("documents", "signers", legacyShellInput)).toBe(false);
-    expect(isSigningOfferStepReachable("signers", "signers", legacyShellInput)).toBe(true);
-    expect(isSigningOfferStepReachable("signing", "signers", legacyShellInput)).toBe(false);
-  });
-
-  it("documents and signers remain reachable when domain is at signing (locked review)", () => {
-    expect(isSigningOfferStepReachable("documents", "signing", withDocs)).toBe(true);
-    expect(isSigningOfferStepReachable("signers", "signing", withDocs)).toBe(true);
-    expect(isSigningOfferStepReachable("signing", "signing", withDocs)).toBe(true);
-    expect(isSigningOfferStepReachable("complete", "signing", withDocs)).toBe(false);
+  it("signing remains reachable when domain is at complete", () => {
+    expect(isSigningOfferStepReachable("signing", "complete", trackingShellInput)).toBe(true);
+    expect(isSigningOfferStepReachable("complete", "complete", trackingShellInput)).toBe(true);
   });
 });
 
@@ -183,7 +135,7 @@ describe("getCurrentSigningOfferStepId locked package", () => {
         hasPostDocs: true,
         postDocsReady: true,
         ...unlockedBase,
-        signersLocked: true,
+        packageSent: true,
         allDocsSigned: false,
         envelopeCompleted: false,
       })
@@ -196,7 +148,7 @@ describe("getCurrentSigningOfferStepId locked package", () => {
         hasPostDocs: true,
         postDocsReady: true,
         ...unlockedBase,
-        signersLocked: true,
+        packageSent: true,
         allDocsSigned: true,
         envelopeCompleted: true,
       })
@@ -258,7 +210,7 @@ describe("acceptance flow Step 1 stepper", () => {
   };
   const cursorRest = {
     postDocsReady: false,
-    signersLocked: false,
+    packageSent: false,
     allDocsSigned: false,
     envelopeCompleted: false,
   };
@@ -383,12 +335,12 @@ describe("hasCompletedContractEnvelope", () => {
   });
 });
 
-describe("acceptance flow never falls through to Configure signers", () => {
+describe("acceptance flow never falls through to configure signers", () => {
   const acceptanceBase = {
     usesAcceptanceFlow: true,
     hasPostDocs: true,
     postDocsReady: true,
-    signersLocked: false,
+    packageSent: false,
     allDocsSigned: false,
     envelopeCompleted: false,
   };
@@ -402,14 +354,23 @@ describe("acceptance flow never falls through to Configure signers", () => {
     expect(getCurrentSigningOfferStepId(input)).toBe("awaiting_review");
   });
 
-  it("REJECTED does not expose signers (no legacy fallthrough)", () => {
+  it("APPROVED_FOR_SIGNING waits on document signing until CashSouk sends links", () => {
+    const input = {
+      ...acceptanceBase,
+      acceptanceStatus: "APPROVED_FOR_SIGNING" as const,
+    };
+    expect(getSigningOfferSteps(input).map((s) => s.id)).toEqual(["signing", "complete"]);
+    expect(getCurrentSigningOfferStepId(input)).toBe("signing");
+  });
+
+  it("REJECTED does not expose signing steps", () => {
     const input = {
       ...acceptanceBase,
       acceptanceStatus: "REJECTED" as const,
     };
     const ids = getSigningOfferSteps(input).map((s) => s.id);
     expect(ids).toEqual(["rejected"]);
-    expect(ids).not.toContain("signers");
+    expect(ids).not.toContain("signing");
     expect(getCurrentSigningOfferStepId(input)).toBe("rejected");
   });
 });

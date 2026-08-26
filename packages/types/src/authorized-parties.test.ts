@@ -9,9 +9,12 @@ import {
   groupAuthorizedPartyReadOnlyBlocks,
   guarantorBindingsFromSnapshot,
   issuerDirectorBindingsFromSnapshot,
+  loFirstCorporateAuthorizedNames,
+  loIssuerAuthorizedNames,
   matchAuthorizedPartiesToGuarantors,
   parseAuthorizedPartiesSnapshot,
   postedBindingsMatchApprovedSnapshot,
+  snapshotSignerBindings,
   resolveLiveApplicationGuarantorId,
   serializeAuthorizedPartiesSnapshot,
   stampAuthorizedPartiesSnapshot,
@@ -160,6 +163,47 @@ describe("parseAuthorizedPartiesSnapshot", () => {
       email: "ali@co.my",
       ic_number: "820508105871",
     });
+    expect(parsed?.parties[0]).toMatchObject({
+      entity_kind: "ISSUER",
+    });
+  });
+
+  it("drops leftover signing_rule and will_sign fields from older snapshots", () => {
+    const parsed = parseAuthorizedPartiesSnapshot({
+      submitted_by_user_id: "user_1",
+      submitted_at: "2026-08-21T00:00:00.000Z",
+      parties: [
+        {
+          key: "issuer",
+          entity_kind: "ISSUER",
+          signing_rule: "ANY_N",
+          mandate_n: 2,
+          representatives: [
+            {
+              name: "Ali",
+              email: "ali@co.my",
+              ic_number: "820508105871",
+              capacity: "director",
+              person_match_key: "820508105871",
+              will_sign: false,
+            },
+          ],
+        },
+      ],
+    });
+    expect(parsed?.parties[0]).toEqual({
+      key: "issuer",
+      entity_kind: "ISSUER",
+      representatives: [
+        {
+          name: "Ali",
+          email: "ali@co.my",
+          ic_number: "820508105871",
+          capacity: "director",
+          person_match_key: "820508105871",
+        },
+      ],
+    });
   });
 });
 
@@ -255,6 +299,16 @@ describe("guarantorBindingsFromSnapshot", () => {
 
   it("returns empty when there is no snapshot", () => {
     expect(guarantorBindingsFromSnapshot(null, "guarantor")).toEqual([]);
+  });
+});
+
+describe("LO names", () => {
+  it("joins all declared issuer names and the first two corporate names for the LO", () => {
+    expect(loIssuerAuthorizedNames(MIXED_SNAPSHOT)).toBe("Ali Bin Abu");
+    expect(loFirstCorporateAuthorizedNames(MIXED_SNAPSHOT)).toEqual({
+      first: "Nora",
+      second: "Farid",
+    });
   });
 });
 
@@ -537,6 +591,54 @@ describe("postedBindingsMatchApprovedSnapshot", () => {
         ],
       })
     ).toBe(false);
+  });
+});
+
+describe("snapshotSignerBindings", () => {
+  const roles = [
+    { key: "issuer_director", source_hint: "issuer_director" },
+    { key: "guarantor", source_hint: "guarantor" },
+    { key: "witness", source_hint: null },
+  ];
+
+  it("maps approved issuer directors and guarantors, ignoring extra template roles", () => {
+    const bindings = snapshotSignerBindings(MIXED_SNAPSHOT, roles);
+    expect(bindings.map((binding) => binding.role_key)).toEqual([
+      "issuer_director",
+      "guarantor",
+      "guarantor",
+      "guarantor",
+    ]);
+    expect(bindings[0]).toMatchObject({
+      role_key: "issuer_director",
+      name: "Ali Bin Abu",
+      email: "ali@co.my",
+      ic_number: "820508105871",
+    });
+    expect(bindings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role_key: "guarantor",
+          name: "Nora",
+          email: "nora@holdco.my",
+          application_guarantor_id: "g_co",
+        }),
+        expect.objectContaining({
+          role_key: "guarantor",
+          name: "Farid",
+          application_guarantor_id: "g_co",
+        }),
+        expect.objectContaining({
+          role_key: "guarantor",
+          name: "Ali Bin Abu",
+          application_guarantor_id: "g_ind",
+        }),
+      ])
+    );
+  });
+
+  it("returns an empty list when the snapshot is missing", () => {
+    expect(snapshotSignerBindings(null, roles)).toEqual([]);
   });
 });
 

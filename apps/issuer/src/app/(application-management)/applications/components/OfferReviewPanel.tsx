@@ -2,7 +2,7 @@
 
 /**
  * Offer review UI for reviewing contract or invoice offers. Issuer can download offer
- * letter, accept, decline, or step through the SigningCloud signing package.
+ * letter, accept, decline, or track the SigningCloud signing package after CashSouk sends it.
  * CashSouk brand styling per BRANDING.md. Contract end date uses contract_details.end_date.
  *
  * - mode="inline" (default): embeds on the application detail Offer tab without the outer Dialog;
@@ -50,23 +50,12 @@ import {
 import { toast } from "sonner";
 import type { NormalizedInvoice } from "../status";
 import {
-  SIGNING_PACKAGES_WORKFLOW_KEY,
-  SIGNING_TEMPLATE_WORKFLOW_KEY,
-  parseSigningPackagesConfig,
-  resolveSigningTemplateForOffer,
-  isValidSigningIcNumber,
-  roleRequiresBindingIcAtOffer,
   type ApiError,
-  type RecipientBinding,
   type SigningEnvelopeDto,
-  type SigningPackageOfferKind,
-  type SigningTemplateConfig,
-  type SigningTemplateRole,
   computeSigningEnvelopeProgress,
   getOfferAcceptanceStatusPresentation,
   offerAcceptanceAllowsSigning,
   offerAcceptanceIsStep1Editable,
-  offerAcceptanceFreezesAuthorizedParties,
   getOfferAcceptanceFromOfferDetails,
   AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
   AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID,
@@ -82,7 +71,6 @@ import {
   getOfferPhaseDeadlineDisplay,
 } from "@/lib/offer-utils";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
-import { Input } from "@/components/ui/input";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ApplicationSummaryDownloadButton } from "@/components/application-summary-download-button";
@@ -124,14 +112,10 @@ import { IndividualGuarantorRepresentativesCard } from "./individual-guarantor-r
 import { AuthorizedPartyTypeGroup } from "./authorized-party-type-group";
 import {
   areIssuerDirectorSelectionsReady,
-  isDirectorRole,
   issuerDirectorsFromOrganization,
-  resolveBindingDirectorKey,
 } from "./issuer-directors";
 import {
-  buildIssuerEnvelopeBindings,
   guarantorsFromApplication,
-  isGuarantorRole,
   nextIssuerRepMatchKeys,
 } from "./build-issuer-envelope-bindings";
 import {
@@ -224,184 +208,6 @@ function getApiErrorDetails(
   };
 }
 
-/** Resolve signing package from frozen workflow (single package; dual/legacy migrate on read). */
-function readSigningTemplateForOffer(
-  workflow: unknown,
-  kind: SigningPackageOfferKind
-): SigningTemplateConfig {
-  const steps = Array.isArray(workflow) ? workflow : [];
-  for (const step of steps) {
-    const config = (step as { config?: Record<string, unknown> } | null)?.config;
-    if (!config) continue;
-    if (
-      config[SIGNING_PACKAGES_WORKFLOW_KEY] != null ||
-      config[SIGNING_TEMPLATE_WORKFLOW_KEY] != null
-    ) {
-      return resolveSigningTemplateForOffer({
-        packages: parseSigningPackagesConfig(config),
-        kind,
-      });
-    }
-  }
-  return resolveSigningTemplateForOffer({
-    packages: parseSigningPackagesConfig(null),
-    kind,
-  });
-}
-
-function validateSignerBindings(bindings: RecipientBinding[], template: SigningTemplateConfig): string | null {
-  for (const role of template.roles) {
-    const rows = bindings.filter((binding) => binding.role_key === role.key);
-    if (rows.length < role.min_count) {
-      return `${role.label || role.key} needs at least ${role.min_count} signer(s).`;
-    }
-    if (role.max_count != null && rows.length > role.max_count) {
-      return `${role.label || role.key} allows at most ${role.max_count} signer(s).`;
-    }
-  }
-  for (const binding of bindings) {
-    if (!binding.name.trim()) return "Every signer needs a name.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(binding.email.trim())) {
-      return "Every signer needs a valid email address.";
-    }
-    const role = template.roles.find((item) => item.key === binding.role_key);
-    if (role && roleRequiresBindingIcAtOffer(role)) {
-      if (!String(binding.ic_number ?? "").trim()) {
-        return `${role.label || role.key} is missing an IC number from company records.`;
-      }
-      if (!isValidSigningIcNumber(binding.ic_number)) {
-        return `${role.label || role.key} must have a valid 12-digit IC number on file.`;
-      }
-    }
-  }
-  return null;
-}
-
-type SignerCompareRow = { role_key: string; name: string; email: string };
-
-function sortSignerCompareRows(rows: SignerCompareRow[]): SignerCompareRow[] {
-  return [...rows].sort((left, right) => {
-    const roleDiff = left.role_key.localeCompare(right.role_key);
-    if (roleDiff !== 0) return roleDiff;
-    const emailDiff = left.email.localeCompare(right.email);
-    if (emailDiff !== 0) return emailDiff;
-    return left.name.localeCompare(right.name);
-  });
-}
-
-function normalizeSignerCompareRows(bindings: RecipientBinding[]): SignerCompareRow[] {
-  return sortSignerCompareRows(
-    bindings.map((binding) => ({
-      role_key: binding.role_key,
-      name: binding.name.trim(),
-      email: binding.email.trim().toLowerCase(),
-    }))
-  );
-}
-
-function envelopeMatchesSignerBindings(
-  envelope: SigningEnvelopeDto,
-  bindings: RecipientBinding[]
-): boolean {
-  const envelopeRows = sortSignerCompareRows(
-    envelope.recipients.map((recipient) => ({
-      role_key: recipient.role_key,
-      name: recipient.name.trim(),
-      email: recipient.email.trim().toLowerCase(),
-    }))
-  );
-  const bindingRows = normalizeSignerCompareRows(bindings);
-  if (envelopeRows.length !== bindingRows.length) return false;
-  return envelopeRows.every(
-    (row, index) =>
-      row.role_key === bindingRows[index].role_key &&
-      row.name === bindingRows[index].name &&
-      row.email === bindingRows[index].email
-  );
-}
-
-type SigningDocumentGroup = {
-  key: string;
-  name: string;
-  roleKeys: string[];
-};
-
-function signingDocumentGroups(template: SigningTemplateConfig): SigningDocumentGroup[] {
-  const groups: SigningDocumentGroup[] = template.documents.map((doc) => ({
-    key: doc.key,
-    name: doc.name,
-    roleKeys: doc.signer_role_keys,
-  }));
-  // Roles with no document mapping still need a place to configure signers.
-  const covered = new Set(groups.flatMap((group) => group.roleKeys));
-  const uncovered = template.roles.filter((role) => !covered.has(role.key));
-  if (uncovered.length > 0) {
-    groups.push({
-      key: "_unassigned_roles",
-      name: "Other signers",
-      roleKeys: uncovered.map((role) => role.key),
-    });
-  }
-  return groups;
-}
-
-function roleCountSubtitle(role: SigningTemplateRole): string {
-  const parts: string[] = [];
-  if (role.min_count > 0) parts.push(`min. ${role.min_count}`);
-  if (role.max_count != null) parts.push(`max. ${role.max_count}`);
-  return parts.join(" · ");
-}
-
-type SigningConfirmSigner = {
-  name: string;
-  email: string;
-  roleLabel: string;
-};
-
-type SigningConfirmDocumentGroup = {
-  key: string;
-  name: string;
-  signers: SigningConfirmSigner[];
-};
-
-function buildSigningConfirmGroups(
-  bindings: RecipientBinding[],
-  template: SigningTemplateConfig
-): SigningConfirmDocumentGroup[] {
-  const groups = signingDocumentGroups(template).filter(
-    (group) => group.key !== "_unassigned_roles"
-  );
-  const assignedRoleKeys = new Set(bindings.map((binding) => binding.role_key));
-  const coveredRoleKeys = new Set(groups.flatMap((group) => group.roleKeys));
-  const uncoveredRoleKeys = [...assignedRoleKeys].filter((roleKey) => !coveredRoleKeys.has(roleKey));
-  if (uncoveredRoleKeys.length > 0) {
-    groups.push({
-      key: "_unassigned_roles",
-      name: "Other documents",
-      roleKeys: uncoveredRoleKeys,
-    });
-  }
-
-  return groups
-    .map((group) => {
-      const seen = new Set<string>();
-      const signers: SigningConfirmSigner[] = [];
-      for (const binding of bindings) {
-        if (!group.roleKeys.includes(binding.role_key)) continue;
-        const role = template.roles.find((item) => item.key === binding.role_key);
-        const name = binding.name.trim() || "Unnamed signer";
-        const email = binding.email.trim();
-        const roleLabel = role?.label || binding.role_key;
-        const dedupeKey = `${binding.role_key}|${name.toLowerCase()}|${email.toLowerCase()}`;
-        if (seen.has(dedupeKey)) continue;
-        seen.add(dedupeKey);
-        signers.push({ name, email, roleLabel });
-      }
-      return { key: group.key, name: group.name, signers };
-    })
-    .filter((group) => group.signers.length > 0);
-}
-
 function findActiveSigningEnvelope(
   envelopes: SigningEnvelopeDto[],
   offerType: "contract" | "invoice",
@@ -416,30 +222,6 @@ function findActiveSigningEnvelope(
       return envelope.invoice_id === invoiceId;
     }) ?? null
   );
-}
-
-function bindingsFromEnvelopeRecipients(
-  envelope: SigningEnvelopeDto,
-  template: SigningTemplateConfig
-): RecipientBinding[] {
-  const byRole = new Map<string, SigningEnvelopeDto["recipients"]>();
-  for (const recipient of envelope.recipients) {
-    const list = byRole.get(recipient.role_key) ?? [];
-    list.push(recipient);
-    byRole.set(recipient.role_key, list);
-  }
-
-  const bindings: RecipientBinding[] = [];
-  for (const role of template.roles) {
-    for (const recipient of byRole.get(role.key) ?? []) {
-      bindings.push({
-        role_key: role.key,
-        name: recipient.name,
-        email: recipient.email,
-      });
-    }
-  }
-  return bindings;
 }
 
 /** Only mounted when Review Offer is clicked. Renders once, no isOpen toggle to avoid flash. */
@@ -520,18 +302,12 @@ export function OfferReviewPanel({
     hasCompletedContractEnvelope: contractEnvelopeCompleted,
   });
   const useSigningStepper = modalMode.ui === "signing_stepper";
-  const packageKind: SigningPackageOfferKind =
-    modalMode.ui === "signing_stepper" ? modalMode.packageKind : "invoice";
-  const signingTemplate = React.useMemo(
-    () => readSigningTemplateForOffer(frozenProductWorkflow?.workflow, packageKind),
-    [frozenProductWorkflow, packageKind]
-  );
   const activeSigningEnvelope = React.useMemo(
     () =>
       findActiveSigningEnvelope(signingEnvelopes, type, contractId, envelopeTargetInvoiceId),
     [signingEnvelopes, type, contractId, envelopeTargetInvoiceId]
   );
-  const signersLocked =
+  const packageSent =
     activeSigningEnvelope != null && activeSigningEnvelope.status !== "DRAFT";
   const canRemindSigners =
     activeSigningEnvelope != null &&
@@ -688,12 +464,8 @@ export function OfferReviewPanel({
     isAcceptanceChangesRequested &&
     flaggedPartyItemIds.size > 0 &&
     flaggedAcceptanceDocCount === 0;
-  const peopleFrozen =
-    usesAcceptanceFlow &&
-    authorizedParties != null &&
-    offerAcceptanceFreezesAuthorizedParties(acceptanceStatus);
   const isStep1PartyCardReadOnly = (itemId: string) =>
-    signersLocked ||
+    packageSent ||
     !offerAcceptanceIsStep1Editable(acceptanceStatus) ||
     (isAcceptanceChangesRequested && !flaggedPartyItemIds.has(itemId));
 
@@ -725,7 +497,6 @@ export function OfferReviewPanel({
   const isLoading = shouldLoadContract ? isLoadingContract : false;
 
   const [downloading, setDownloading] = React.useState(false);
-  const [acceptSigningLoading, setAcceptSigningLoading] = React.useState(false);
   const [rejectionReason, setRejectionReason] = React.useState("");
   const [selectedDeclineReason, setSelectedDeclineReason] = React.useState("");
   const [isRejectMode, setIsRejectMode] = React.useState(false);
@@ -753,13 +524,11 @@ export function OfferReviewPanel({
     });
   }, []);
   const [isSavingPostDocs, setIsSavingPostDocs] = React.useState(false);
-  const [signerBindings, setSignerBindings] = React.useState<RecipientBinding[]>([]);
   const [issuerRepMatchKeys, setIssuerRepMatchKeys] = React.useState<string[]>([]);
   const issuerRepInitializedRef = React.useRef(false);
   const issuerRepDirtyRef = React.useRef(false);
   const [guarantorDrafts, setGuarantorDrafts] = React.useState(emptyGuarantorPartyDrafts);
   const guarantorPartiesDirtyRef = React.useRef(false);
-  const [signerConfirmOpen, setSignerConfirmOpen] = React.useState(false);
   const [acceptOfferConfirmOpen, setAcceptOfferConfirmOpen] = React.useState(false);
   const [utilisationConsentIds, setUtilisationConsentIds] = React.useState<
     UtilisationOfferConsentId[]
@@ -842,34 +611,6 @@ export function OfferReviewPanel({
     guarantorRows,
     isApplicationFetched,
     usesAcceptanceFlow,
-  ]);
-
-  React.useEffect(() => {
-    if (!useSigningStepper) {
-      setSignerBindings([]);
-      return;
-    }
-    if (isLoadingSigningEnvelopes) return;
-    if (activeSigningEnvelope) {
-      setSignerBindings(bindingsFromEnvelopeRecipients(activeSigningEnvelope, signingTemplate));
-      return;
-    }
-    setSignerBindings(
-      buildIssuerEnvelopeBindings(
-        signingTemplate,
-        directorSourceOrganization,
-        guarantorRows,
-        authorizedParties
-      )
-    );
-  }, [
-    activeSigningEnvelope,
-    authorizedParties,
-    directorSourceOrganization,
-    guarantorRows,
-    isLoadingSigningEnvelopes,
-    signingTemplate,
-    useSigningStepper,
   ]);
 
   const contractDetails = (contractRecord as { contract_details?: Record<string, unknown> } | null)?.contract_details;
@@ -1091,89 +832,13 @@ export function OfferReviewPanel({
     }
   };
 
-  const sendSigningPackage = React.useCallback(async (): Promise<void> => {
-    if (isLoadingFrozenProductWorkflow) {
-      throw new Error("Loading signing configuration. Please wait a moment.");
-    }
-
-    if (!useSigningStepper) {
-      throw new Error("Signing package is not used for this offer.");
-    }
-
-    const invoiceId = type === "invoice" ? invoice?.id : null;
-    if (type === "invoice" && !invoiceId) {
-      throw new Error("Invoice ID is missing. Please refresh and try again.");
-    }
-
-    const existingResponse = await apiClient.getSigningEnvelopes(applicationId);
-    if (!existingResponse.success) {
-      const err = getApiErrorDetails(existingResponse, "Failed to load signing package");
-      throw new Error(err.message);
-    }
-    const targetEnvelope = findActiveSigningEnvelope(
-      existingResponse.data,
-      type,
-      contractId,
-      invoiceId
-    );
-
-    let envelope = targetEnvelope;
-    if (envelope && !envelopeMatchesSignerBindings(envelope, signerBindings)) {
-      throw new Error(
-        "Signing was already started with different signers. Contact CashSouk support to reset the signing package."
-      );
-    }
-
-    if (!envelope) {
-      const createResponse = await apiClient.createIssuerSigningEnvelope(applicationId, {
-        title: type === "contract" ? "Facility offer signing package" : "Invoice offer signing package",
-        contractId: type === "contract" ? contractId ?? null : null,
-        invoiceId,
-        bindings: signerBindings,
-      });
-      if (!createResponse.success) {
-        const err = getApiErrorDetails(createResponse, "Failed to create signing package");
-        throw new Error(err.message);
-      }
-      envelope = createResponse.data;
-    }
-
-    if (envelope.status === "DRAFT") {
-      const sendResponse = await apiClient.sendIssuerSigningEnvelope(envelope.id);
-      if (!sendResponse.success) {
-        const err = getApiErrorDetails(sendResponse, "Failed to send signing package");
-        throw new Error(err.message);
-      }
-      envelope = sendResponse.data;
-    }
-
-    // Sending can move offer_acceptance.status to SIGNING_IN_PROGRESS server-side — refresh
-    // the envelope and the phase-feeding queries together.
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["signing-envelopes", applicationId] }),
-      invalidateOfferAcceptanceQueries(),
-    ]);
-    toast.success("Signing emails sent to all signers");
-  }, [
-    apiClient,
-    applicationId,
-    contractId,
-    invalidateOfferAcceptanceQueries,
-    invoice?.id,
-    isLoadingFrozenProductWorkflow,
-    queryClient,
-    signerBindings,
-    type,
-    useSigningStepper,
-  ]);
-
   /** Step 1 editable: keep acceptance uploads local until Submit (do not PATCH early). */
   const deferAcceptanceDocsUntilSubmit =
     usesAcceptanceFlow && offerAcceptanceIsStep1Editable(acceptanceStatus);
 
   const ensurePostApplicationDocumentsSaved = React.useCallback(async (): Promise<boolean> => {
-    if (signersLocked) return true;
-    // Step 3: acceptance docs were uploaded + approved in Step 1/2 — no in-modal upload to save.
+    if (packageSent) return true;
+    // After admin approval, acceptance docs are already saved — no in-modal upload to save.
     if (usesAcceptanceFlow && offerAcceptanceAllowsSigning(acceptanceStatus)) {
       return true;
     }
@@ -1228,7 +893,7 @@ export function OfferReviewPanel({
     isLoadingFrozenProductWorkflow,
     postDocsState,
     queryClient,
-    signersLocked,
+    packageSent,
     usesAcceptanceFlow,
   ]);
 
@@ -1316,53 +981,9 @@ export function OfferReviewPanel({
   React.useEffect(() => {
     if (isPhaseDeadlinePast) {
       setIsRejectMode(false);
-      setSignerConfirmOpen(false);
       setAcceptOfferConfirmOpen(false);
     }
   }, [isPhaseDeadlinePast]);
-
-  const needsSigningConfirm = useSigningStepper;
-
-  const signingConfirmGroups = React.useMemo(
-    () => buildSigningConfirmGroups(signerBindings, signingTemplate),
-    [signerBindings, signingTemplate]
-  );
-
-  const signingConfirmDescription = (
-    <div className="space-y-4 text-left">
-      <p>
-        Signing emails with secure links will be sent to the people below.
-      </p>
-      {signingConfirmGroups.length === 0 ? (
-        <p>No signers have been assigned yet.</p>
-      ) : (
-        <div className="space-y-3">
-          {signingConfirmGroups.map((group) => (
-            <div
-              key={group.key}
-              className="rounded-xl border border-border bg-muted/30 px-3 py-2.5"
-            >
-              <p className="text-sm font-semibold text-foreground">{group.name}</p>
-              <ul className="mt-2 space-y-1.5">
-                {group.signers.map((signer) => (
-                  <li
-                    key={`${group.key}-${signer.roleLabel}-${signer.email || signer.name}`}
-                    className="text-sm"
-                  >
-                    <span className="font-medium text-foreground">{signer.name}</span>
-                    <span className="text-muted-foreground"> · {signer.roleLabel}</span>
-                    {signer.email ? (
-                      <span className="block text-xs text-muted-foreground">{signer.email}</span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 
   const prepareAccept = async (): Promise<boolean> => {
     if (isPhaseDeadlinePast) {
@@ -1393,36 +1014,7 @@ export function OfferReviewPanel({
       return true;
     }
 
-    const docsReady = await ensurePostApplicationDocumentsSaved();
-    if (!docsReady) return false;
-
-    const bindingError = validateSignerBindings(signerBindings, signingTemplate);
-    if (bindingError) {
-      toast.error("Review signer details", { description: bindingError });
-      return false;
-    }
-
-    return true;
-  };
-
-  const executeAccept = async () => {
-    if (isPhaseDeadlinePast) {
-      toast.error("This offer has expired.");
-      return;
-    }
-    setAcceptSigningLoading(true);
-    try {
-      await sendSigningPackage();
-      viewStepPinnedRef.current = false;
-      setViewedStepId("signing");
-    } catch (e) {
-      const err = getApiErrorDetails(e, "Could not send signing package");
-      toast.error("Could not send signing package", {
-        description: err.message,
-      });
-    } finally {
-      setAcceptSigningLoading(false);
-    }
+    return false;
   };
 
   const handleAccept = async () => {
@@ -1436,15 +1028,7 @@ export function OfferReviewPanel({
     if (modalMode.ui === "accept_decline") {
       frozenUtilisationConsentsRef.current = [...utilisationConsentIds];
       setAcceptOfferConfirmOpen(true);
-      return;
     }
-
-    if (needsSigningConfirm) {
-      setSignerConfirmOpen(true);
-      return;
-    }
-
-    await executeAccept();
   };
 
   const handleConfirmDirectInvoiceAccept = async (input: {
@@ -1473,11 +1057,6 @@ export function OfferReviewPanel({
     frozenUtilisationConsentsRef.current = null;
     setAcceptOfferConfirmOpen(false);
     onClose?.();
-  };
-
-  const handleConfirmSignersAccept = async () => {
-    setSignerConfirmOpen(false);
-    await executeAccept();
   };
 
   const handleResendReminders = async () => {
@@ -1546,7 +1125,6 @@ export function OfferReviewPanel({
   };
 
   const isPending =
-    acceptSigningLoading ||
     isSavingPostDocs ||
     remindLoading ||
     acceptInvoice.isPending ||
@@ -1560,7 +1138,7 @@ export function OfferReviewPanel({
   const canDownload =
     type === "contract" || (type === "invoice" && !!invoice?.id);
   const isPostDocsConfigLoading = isLoadingFrozenProductWorkflow;
-  // Step 3 (acceptance flow): uploads already done in Step 1 — do not gate Confirm on the upload UI.
+  // After admin approval, uploads are already done in Step 1 — do not gate tracking on the upload UI.
   const signingPhaseSkipsUploadGate =
     usesAcceptanceFlow && offerAcceptanceAllowsSigning(acceptanceStatus);
   const postDocsReady =
@@ -1575,48 +1153,6 @@ export function OfferReviewPanel({
       (isAcceptanceChangesRequested &&
         flaggedPartyItemIds.size > 0 &&
         flaggedAcceptanceDocCount === 0));
-  const updateSignerBinding = (index: number, updates: Partial<RecipientBinding>) => {
-    setSignerBindings((prev) =>
-      prev.map((binding, i) => (i === index ? { ...binding, ...updates } : binding))
-    );
-  };
-  const removeSignerBinding = (index: number) => {
-    setSignerBindings((prev) => prev.filter((_, i) => i !== index));
-  };
-  const addSignerBinding = (role: SigningTemplateRole) => {
-    setSignerBindings((prev) => {
-      if (isDirectorRole(role) && issuerDirectors.length > 0) {
-        const usedDirectorKeys = new Set(
-          prev
-            .filter((binding) => binding.role_key === role.key)
-            .map((binding) => resolveBindingDirectorKey(issuerDirectors, binding))
-            .filter(Boolean)
-        );
-        const nextDirector = issuerDirectors.find(
-          (director) => !usedDirectorKeys.has(director.matchKey)
-        );
-        return [
-          ...prev,
-          {
-            role_key: role.key,
-            name: nextDirector?.name ?? "",
-            email: nextDirector?.email ?? "",
-            ic_number: nextDirector?.ic_number ?? null,
-          },
-        ];
-      }
-
-      return [
-        ...prev,
-        {
-          role_key: role.key,
-          name: "",
-          email: "",
-          ic_number: null,
-        },
-      ];
-    });
-  };
 
   const envelopeProgress = activeSigningEnvelope
     ? computeSigningEnvelopeProgress(activeSigningEnvelope)
@@ -1635,7 +1171,7 @@ export function OfferReviewPanel({
   const step1Cursor = {
     ...stepShellInput,
     postDocsReady,
-    signersLocked,
+    packageSent,
     allDocsSigned,
     envelopeCompleted,
     acceptanceStep1Screen,
@@ -1659,7 +1195,7 @@ export function OfferReviewPanel({
       getCurrentSigningOfferStepId({
         ...stepShellInput,
         postDocsReady,
-        signersLocked,
+        packageSent,
         allDocsSigned,
         envelopeCompleted,
         acceptanceStep1Screen,
@@ -1670,7 +1206,7 @@ export function OfferReviewPanel({
     viewedStepId,
     stepShellInput,
     postDocsReady,
-    signersLocked,
+    packageSent,
     allDocsSigned,
     envelopeCompleted,
     acceptanceStep1Screen,
@@ -1696,12 +1232,12 @@ export function OfferReviewPanel({
   const displaySigningStepId: SigningOfferStepId = isLoadingFrozenProductWorkflow
     ? usesAcceptanceFlow
       ? "representatives"
-      : "documents"
+      : "signing"
     : (viewedStepId ?? currentSigningStepId);
 
   // Keep Upload mounted (hidden) during Step 1 so local draft survives sidebar nav before Submit.
   const keepAcceptanceDocsDraftMounted =
-    deferAcceptanceDocsUntilSubmit && hasPostDocs && !signersLocked;
+    deferAcceptanceDocsUntilSubmit && hasPostDocs && !packageSent;
 
   // Close without auto-save; discard confirm when Upload has pending changes (D-11).
   const requestClose = React.useCallback(() => {
@@ -1724,7 +1260,7 @@ export function OfferReviewPanel({
   const navigateFromUploadDocuments = React.useCallback(
     async (targetStepId: SigningOfferStepId) => {
       if (targetStepId === displaySigningStepId) return;
-      if (displaySigningStepId !== "documents" || signersLocked) {
+      if (displaySigningStepId !== "documents" || packageSent) {
         viewStepPinnedRef.current =
           compareSigningOfferStepOrder(targetStepId, currentSigningStepId, stepShellInput) < 0;
         setViewedStepId(targetStepId);
@@ -1747,7 +1283,7 @@ export function OfferReviewPanel({
       deferAcceptanceDocsUntilSubmit,
       displaySigningStepId,
       ensurePostApplicationDocumentsSaved,
-      signersLocked,
+      packageSent,
       stepShellInput,
     ]
   );
@@ -1919,221 +1455,6 @@ export function OfferReviewPanel({
       invoiceOfferTerms
     );
 
-  const renderRoleSignerSection = (role: SigningTemplateRole) => {
-    const roleBindings = signerBindings
-      .map((binding, index) => ({ binding, index }))
-      .filter(({ binding }) => binding.role_key === role.key);
-    const useDirectorDropdown = isDirectorRole(role) && issuerDirectors.length > 0;
-    const usedDirectorKeys = new Set(
-      roleBindings
-        .map(({ binding }) => resolveBindingDirectorKey(issuerDirectors, binding))
-        .filter(Boolean)
-    );
-    const availableDirectors = issuerDirectors.filter(
-      (director) => !usedDirectorKeys.has(director.matchKey)
-    );
-    // Dropdown roles cannot add rows once every selectable person is already assigned.
-    const hasAvailableDropdownOptions = !useDirectorDropdown || availableDirectors.length > 0;
-    const withinMaxCount = role.max_count == null || roleBindings.length < role.max_count;
-    const partyRoleFrozen =
-      peopleFrozen && (isDirectorRole(role) || isGuarantorRole(role));
-    const signerFieldsLocked = signersLocked || partyRoleFrozen;
-    const canAdd = !signerFieldsLocked && withinMaxCount && hasAvailableDropdownOptions;
-    const countSubtitle = roleCountSubtitle(role);
-
-    return (
-      <div key={role.key} className="space-y-3 rounded-xl border border-border bg-background p-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground">{role.label || role.key}</p>
-            {countSubtitle ? (
-              <p className="text-xs text-muted-foreground">{countSubtitle}</p>
-            ) : null}
-          </div>
-          {!signerFieldsLocked ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0 rounded-xl hover:bg-muted hover:text-foreground"
-              disabled={!canAdd}
-              title={
-                !hasAvailableDropdownOptions
-                  ? "All available signers have already been assigned"
-                  : !withinMaxCount
-                    ? `Maximum of ${role.max_count} signer(s) reached`
-                    : undefined
-              }
-              onClick={() => addSignerBinding(role)}
-            >
-              Add signer
-            </Button>
-          ) : null}
-        </div>
-        {roleBindings.length === 0 ? (
-          <p className="text-sm text-destructive">Add at least one signer for this role.</p>
-        ) : (
-          <div className="space-y-3">
-            {roleBindings.map(({ binding, index }) => {
-              const selectedDirectorKey = resolveBindingDirectorKey(issuerDirectors, binding);
-              const usedDirectorKeys = new Set(
-                roleBindings
-                  .filter(({ index: rowIndex }) => rowIndex !== index)
-                  .map(({ binding: rowBinding }) =>
-                    resolveBindingDirectorKey(issuerDirectors, rowBinding)
-                  )
-                  .filter(Boolean)
-              );
-              const selectableDirectors = issuerDirectors.filter(
-                (director) =>
-                  director.matchKey === selectedDirectorKey ||
-                  !usedDirectorKeys.has(director.matchKey)
-              );
-              const emailLocked = useDirectorDropdown || signerFieldsLocked;
-              const nameFieldId = `signer-name-${role.key}-${index}`;
-              const emailFieldId = `signer-email-${role.key}-${index}`;
-
-              return (
-                <div key={`${role.key}-${index}`} className="space-y-2">
-                  <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                    <div className="space-y-1.5">
-                      <Label htmlFor={nameFieldId} className="text-xs text-muted-foreground">
-                        Full name
-                      </Label>
-                      {useDirectorDropdown ? (
-                        <Select
-                          value={selectedDirectorKey || undefined}
-                          disabled={signerFieldsLocked}
-                          onValueChange={(matchKey) => {
-                            const director = issuerDirectors.find(
-                              (item) => item.matchKey === matchKey
-                            );
-                            if (!director) return;
-                            updateSignerBinding(index, {
-                              name: director.name,
-                              email: director.email,
-                              ic_number: director.ic_number,
-                            });
-                          }}
-                        >
-                          <SelectTrigger id={nameFieldId} className="rounded-xl">
-                            <SelectValue placeholder="Select director" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {selectableDirectors.map((director) => (
-                              <SelectItem key={director.matchKey} value={director.matchKey}>
-                                {director.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Input
-                          id={nameFieldId}
-                          value={binding.name}
-                          onChange={(event) =>
-                            updateSignerBinding(index, {
-                              name: event.target.value,
-                              application_guarantor_id: null,
-                            })
-                          }
-                          placeholder="Full name"
-                          disabled={signerFieldsLocked}
-                          className="rounded-xl"
-                        />
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor={emailFieldId} className="text-xs text-muted-foreground">
-                        Email
-                      </Label>
-                      <Input
-                        id={emailFieldId}
-                        value={binding.email}
-                        onChange={(event) =>
-                          updateSignerBinding(index, {
-                            email: event.target.value,
-                            application_guarantor_id: null,
-                          })
-                        }
-                        placeholder="Email"
-                        type="email"
-                        readOnly={emailLocked}
-                        disabled={emailLocked}
-                        tabIndex={emailLocked ? -1 : undefined}
-                        className={cn("rounded-xl", emailLocked && "bg-muted select-none")}
-                      />
-                    </div>
-                    {!signerFieldsLocked ? (
-                      <div className="flex items-end pb-1">
-                        <button
-                          type="button"
-                          aria-label="Remove signer"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-transparent hover:text-destructive"
-                          onClick={() => removeSignerBinding(index)}
-                        >
-                          <XMarkIcon className="h-5 w-5" />
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const signerBindingEditor = (
-    <div className="space-y-4">
-      {(() => {
-        const renderedRoleKeys = new Set<string>();
-        return signingDocumentGroups(signingTemplate).map((group) => {
-          const roles = group.roleKeys
-            .map((roleKey) => signingTemplate.roles.find((role) => role.key === roleKey))
-            .filter((role): role is SigningTemplateRole => role != null)
-            .filter((role) => {
-              if (renderedRoleKeys.has(role.key)) return false;
-              renderedRoleKeys.add(role.key);
-              return true;
-            });
-
-          return (
-            <div
-              key={group.key}
-              className="space-y-3 rounded-xl border border-border bg-background p-4"
-            >
-              <div>
-                <p className="text-sm font-semibold text-foreground">{group.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  Assign who will sign this document
-                  {group.roleKeys.length > 0
-                    ? ` · ${group.roleKeys
-                        .map(
-                          (roleKey) =>
-                            signingTemplate.roles.find((role) => role.key === roleKey)?.label ||
-                            roleKey
-                        )
-                        .join(", ")}`
-                    : ""}
-                </p>
-              </div>
-              {roles.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Signers for this document are configured above.
-                </p>
-              ) : (
-                <div className="space-y-3">{roles.map((role) => renderRoleSignerSection(role))}</div>
-              )}
-            </div>
-          );
-        });
-      })()}
-    </div>
-  );
-
   const renderSigningStepContent = (stepId: SigningOfferStepId) => {
     if (isRejectMode) {
       return (
@@ -2248,8 +1569,9 @@ export function OfferReviewPanel({
                 Authorised representatives
               </CardTitle>
               <CardDescription>
-                Name who may represent the issuer and each company guarantor, then confirm
-                individual guarantors. CashSouk will review these lists with the Board Resolution.
+                Name who will represent the issuer and each company guarantor, then confirm
+                individual guarantors. Everyone named here must sign. CashSouk will review these
+                lists with the Board Resolution.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -2281,7 +1603,7 @@ export function OfferReviewPanel({
                 {guarantorRows.some((guarantor) => guarantor.guarantor_type === "company") ? (
                   <AuthorizedPartyTypeGroup
                     title="Corporate guarantors"
-                    description="Name the people who may represent each company. CashSouk will review this list with the Board Resolution."
+                    description="Name the people who will represent each company. Everyone named here must sign."
                   >
                     {guarantorRows
                       .filter((guarantor) => guarantor.guarantor_type === "company")
@@ -2325,7 +1647,7 @@ export function OfferReviewPanel({
                 {guarantorRows.some((guarantor) => guarantor.guarantor_type !== "company") ? (
                   <AuthorizedPartyTypeGroup
                     title="Individual guarantors"
-                    description="These people sign personally. Name and email come from the application."
+                    description="These people sign personally. Name, IC number, and email come from the application."
                   >
                     {guarantorRows
                       .filter((guarantor) => guarantor.guarantor_type !== "company")
@@ -2354,7 +1676,7 @@ export function OfferReviewPanel({
                   </AuthorizedPartyTypeGroup>
                 ) : null}
               </div>
-              {!signersLocked && !isLoadingFrozenProductWorkflow && canSubmitFromRepresentatives ? (
+              {!packageSent && !isLoadingFrozenProductWorkflow && canSubmitFromRepresentatives ? (
                 <Button
                   className="h-11 w-full rounded-xl"
                   disabled={isSubmittingAcceptance || !issuerRepsReady}
@@ -2365,7 +1687,7 @@ export function OfferReviewPanel({
                   Submit for review
                 </Button>
               ) : null}
-              {!signersLocked &&
+              {!packageSent &&
               !isLoadingFrozenProductWorkflow &&
               hasPostDocs &&
               !canSubmitFromRepresentatives ? (
@@ -2377,7 +1699,7 @@ export function OfferReviewPanel({
                   Continue
                 </Button>
               ) : null}
-              {!signersLocked &&
+              {!packageSent &&
               !isLoadingFrozenProductWorkflow &&
               !issuerRepsReady &&
               isCorporateEntitiesFetched ? (
@@ -2400,7 +1722,7 @@ export function OfferReviewPanel({
               <CardDescription>
                 {usesAcceptanceFlow
                   ? "Upload required acceptance documents (for example a Board Resolution). CashSouk must approve them before signing."
-                  : "Complete all required documents before you confirm signers. Optional documents can stay empty."}
+                  : "Upload required documents. Optional documents can stay empty."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -2413,7 +1735,7 @@ export function OfferReviewPanel({
                   partyCount={flaggedPartyItemIds.size}
                 />
               ) : null}
-              {signersLocked ? (
+              {packageSent ? (
                 <p className="text-sm text-muted-foreground">
                   {usesAcceptanceFlow
                     ? "Documents and representative lists are locked after signing emails were sent. Voiding the package does not reopen them."
@@ -2428,21 +1750,20 @@ export function OfferReviewPanel({
                   stepConfig={acceptanceDocumentsStepConfig}
                   documentStorage="acceptance_documents"
                   onDataChange={handlePostDocsDataChange}
-                  readOnly={signersLocked}
+                  readOnly={packageSent}
                   documentRowLayout="stacked"
                   isAcceptanceChangeMode={isAcceptanceChangesRequested}
                   amendmentRemarks={acceptanceChangeRemarks}
                   flaggedItems={acceptanceFlaggedItems}
                 />
               ) : null}
-              {!signersLocked && !isLoadingFrozenProductWorkflow && !postDocsReady ? (
+              {!packageSent && !isLoadingFrozenProductWorkflow && !postDocsReady ? (
                 <p className="text-sm text-muted-foreground">
                   Upload all required documents before continuing.
                 </p>
               ) : null}
-              {!signersLocked && !isLoadingFrozenProductWorkflow && postDocsReady ? (
-                usesAcceptanceFlow ? (
-                  displaySigningStepId === "documents" ? (
+              {!packageSent && !isLoadingFrozenProductWorkflow && postDocsReady ? (
+                usesAcceptanceFlow && displaySigningStepId === "documents" ? (
                     <Button
                       className="h-11 w-full rounded-xl"
                       disabled={isSubmittingAcceptance || !issuerRepsReady}
@@ -2452,21 +1773,11 @@ export function OfferReviewPanel({
                     >
                       Submit for review
                     </Button>
-                  ) : null
-                ) : (
-                  <Button
-                    className="h-11 w-full rounded-xl"
-                    onClick={() => {
-                      void navigateFromUploadDocuments("signers");
-                    }}
-                  >
-                    Continue to Configure signers
-                  </Button>
-                )
+                ) : null
               ) : null}
               {usesAcceptanceFlow &&
               displaySigningStepId === "documents" &&
-              !signersLocked &&
+              !packageSent &&
               !isLoadingFrozenProductWorkflow &&
               postDocsReady &&
               !issuerRepsReady &&
@@ -2475,48 +1786,6 @@ export function OfferReviewPanel({
                   Complete authorised representatives for the issuer and every guarantor before
                   submitting.
                 </p>
-              ) : null}
-            </CardContent>
-          </Card>
-        );
-      case "signers":
-        return (
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <UserGroupIcon className="h-5 w-5 text-primary" />
-                Configure signers
-              </CardTitle>
-              <CardDescription>
-                {usesAcceptanceFlow && authorizedParties
-                  ? "These names came from offer acceptance and cannot be changed. Voiding the package resends to the same people."
-                  : "Assign who will sign each document. Signing emails with secure links will be sent to every signer when you confirm."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {signersLocked ? (
-                <p className="text-sm text-muted-foreground">
-                  {peopleFrozen
-                    ? "Signing emails were sent. Voiding the package resends to the same people; it does not change who may sign."
-                    : "Signers are locked for review after signing emails were sent. Void the package to edit again."}
-                </p>
-              ) : null}
-              <div className="rounded-lg bg-muted/50 p-4">{signerBindingEditor}</div>
-              {!isRejectMode && !signersLocked ? (
-                <div className="space-y-2">
-                  <Button
-                    className="h-11 w-full rounded-xl"
-                    onClick={handleAccept}
-                    disabled={isPending || isPostDocsConfigLoading || !postDocsReady}
-                  >
-                    {acceptSigningLoading ? "Sending signing emails..." : "Confirm"}
-                  </Button>
-                  {hasPostDocs && !postDocsReady ? (
-                    <p className="text-sm text-muted-foreground">
-                      Upload required documents first
-                    </p>
-                  ) : null}
-                </div>
               ) : null}
             </CardContent>
           </Card>
@@ -2532,10 +1801,12 @@ export function OfferReviewPanel({
                     Document signing
                   </CardTitle>
                   <CardDescription>
-                    Signers complete signing externally via secure links. Track progress and send
-                    reminders to anyone who has not signed yet.
+                    {packageSent
+                      ? "Signers complete signing externally via secure links. Track progress and send reminders to anyone who has not signed yet."
+                      : "CashSouk will send signing links to the authorised representatives. You can track progress here once the package is sent."}
                   </CardDescription>
                 </div>
+                {packageSent ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -2551,6 +1822,7 @@ export function OfferReviewPanel({
                   />
                   Refresh
                 </Button>
+                ) : null}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -2562,7 +1834,9 @@ export function OfferReviewPanel({
                   showRemindActions={canRemindSigners}
                 />
               ) : (
-                <p className="text-sm text-muted-foreground">No signing package found.</p>
+                <p className="text-sm text-muted-foreground">
+                  Waiting for CashSouk to send signing links to the authorised representatives.
+                </p>
               )}
               {canRemindSigners ? (
                 <Button
@@ -2732,7 +2006,7 @@ export function OfferReviewPanel({
 
   const renderAcceptDeclineContent = () => {
     if (isRejectMode) {
-      return renderSigningStepContent("signers");
+      return renderSigningStepContent("signing");
     }
 
     const acceptDisabled =
@@ -2793,9 +2067,7 @@ export function OfferReviewPanel({
               Reject Offer
             </Button>
             <Button className="h-11 rounded-xl" onClick={handleAccept} disabled={acceptDisabled}>
-              {acceptSigningLoading || acceptInvoice.isPending
-                ? "Accepting..."
-                : "Accept Offer & Authorize Listing"}
+              {acceptInvoice.isPending ? "Accepting..." : "Accept Offer & Authorize Listing"}
             </Button>
           </div>
         </CardContent>
@@ -3002,16 +2274,6 @@ export function OfferReviewPanel({
 
   const confirmDialogs = (
     <>
-      <ConfirmDialog
-        open={signerConfirmOpen}
-        onOpenChange={setSignerConfirmOpen}
-        title="Confirm signers"
-        description={signingConfirmDescription}
-        confirmText="Confirm"
-        cancelText="Go back"
-        onConfirm={handleConfirmSignersAccept}
-        isLoading={acceptSigningLoading}
-      />
       <OfferAcceptOtpDialog
         key={`${applicationId}:${invoice?.id ?? "none"}`}
         open={acceptOfferConfirmOpen}

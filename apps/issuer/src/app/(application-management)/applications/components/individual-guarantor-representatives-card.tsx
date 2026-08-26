@@ -3,6 +3,7 @@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { AuthorizedRepIcField, authorizedRepRowGridReadOnlyClass } from "./authorized-rep-fields";
 
 type IndividualGuarantorRepresentativesCardProps = {
   entityId: string;
@@ -40,14 +41,14 @@ export function IndividualGuarantorRepresentativesCard({
         <div className="min-w-0">
           <p className="text-card-title text-foreground">Individual guarantors</p>
           <p className="mt-1 text-meta text-muted-foreground">
-            This person signs personally. Name and email come from the application.
+            This person signs personally. Name, IC number, and email come from the application.
           </p>
         </div>
       )}
       {highlighted ? (
         <p className="text-ui text-foreground">
           {remark?.trim() ? remark : "CashSouk asked to update this person."}{" "}
-          Name and email come from the application and cannot be changed here.
+          Name, IC number, and email come from the application and cannot be changed here.
         </p>
       ) : null}
       {!hasApplicationIdentity ? (
@@ -55,8 +56,8 @@ export function IndividualGuarantorRepresentativesCard({
           This guarantor is missing a name or 12-digit IC number on the application.
         </p>
       ) : (
-        <div className="grid gap-2 sm:grid-cols-2">
-          <div className="space-y-1.5">
+        <div className={authorizedRepRowGridReadOnlyClass}>
+          <div className="min-w-0 space-y-1.5">
             <Label htmlFor={nameFieldId} className="text-meta text-muted-foreground">
               Full name
             </Label>
@@ -69,7 +70,7 @@ export function IndividualGuarantorRepresentativesCard({
               className="rounded-xl bg-muted text-ui select-none"
             />
           </div>
-          <div className="space-y-1.5">
+          <div className="min-w-0 space-y-1.5">
             <Label htmlFor={emailFieldId} className="text-meta text-muted-foreground">
               Email
             </Label>
@@ -83,6 +84,11 @@ export function IndividualGuarantorRepresentativesCard({
               className="rounded-xl bg-muted text-ui select-none"
             />
           </div>
+          <AuthorizedRepIcField
+            id={`individual-guarantor-ic-${entityId}`}
+            value={icNumber.replace(/\D/g, "")}
+            readOnly
+          />
         </div>
       )}
     </div>

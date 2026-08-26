@@ -14,6 +14,11 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { applicationFlowAmendmentTargetSurfaceClassName } from "@/app/(application-flow)/applications/components/form-control";
 import type { IssuerDirectorOption } from "./issuer-directors";
+import {
+  AuthorizedRepIcField,
+  authorizedRepRowGridClass,
+  authorizedRepRowGridReadOnlyClass,
+} from "./authorized-rep-fields";
 
 type IssuerAuthorizedRepresentativesCardProps = {
   companyName: string;
@@ -70,8 +75,8 @@ export function IssuerAuthorizedRepresentativesCard({
         <p className="text-card-title text-foreground">Issuer company</p>
         <p className="text-ui text-muted-foreground">{companyName}</p>
         <p className="mt-1 text-meta text-muted-foreground">
-          Select the directors who may represent this company. CashSouk will review this list with
-          the Board Resolution.
+          Select the directors who will represent this company. Everyone named here must sign.
+          CashSouk will review this list with the Board Resolution.
         </p>
         {highlighted ? (
           <p className="mt-2 text-ui text-foreground">
@@ -95,57 +100,60 @@ export function IssuerAuthorizedRepresentativesCard({
             const selected = directors.find((director) => director.matchKey === selectedKey);
             const nameFieldId = `issuer-rep-name-${index}`;
             const emailFieldId = `issuer-rep-email-${index}`;
+            const icFieldId = `issuer-rep-ic-${index}`;
             return (
-              <div key={`${selectedKey || "empty"}-${index}`} className="space-y-2">
-                <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                  <div className="space-y-1.5">
-                    <Label htmlFor={nameFieldId} className="text-meta text-muted-foreground">
-                      Director
-                    </Label>
-                    <Select
-                      value={selectedKey || undefined}
-                      disabled={readOnly}
-                      onValueChange={(matchKey) => updateRow(index, matchKey)}
-                    >
-                      <SelectTrigger id={nameFieldId} className="rounded-xl text-ui">
-                        <SelectValue placeholder="Select director" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {selectable.map((director) => (
-                          <SelectItem key={director.matchKey} value={director.matchKey}>
-                            {director.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor={emailFieldId} className="text-meta text-muted-foreground">
-                      Email
-                    </Label>
-                    <Input
-                      id={emailFieldId}
-                      value={selected?.email ?? ""}
-                      readOnly
-                      disabled
-                      tabIndex={-1}
-                      className="rounded-xl bg-muted text-ui select-none"
-                    />
-                  </div>
-                  {!readOnly ? (
-                    <div className="flex items-end pb-1">
-                      <button
-                        type="button"
-                        aria-label="Remove director"
-                        disabled={rows.filter(Boolean).length <= 1 && Boolean(selectedKey)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-transparent hover:text-destructive disabled:opacity-40"
-                        onClick={() => removeRow(index)}
-                      >
-                        <XMarkIcon className="h-5 w-5" />
-                      </button>
-                    </div>
-                  ) : null}
+              <div
+                key={`${selectedKey || "empty"}-${index}`}
+                className={readOnly ? authorizedRepRowGridReadOnlyClass : authorizedRepRowGridClass}
+              >
+                <div className="min-w-0 space-y-1.5">
+                  <Label htmlFor={nameFieldId} className="text-meta text-muted-foreground">
+                    Director
+                  </Label>
+                  <Select
+                    value={selectedKey || undefined}
+                    disabled={readOnly}
+                    onValueChange={(matchKey) => updateRow(index, matchKey)}
+                  >
+                    <SelectTrigger id={nameFieldId} className="rounded-xl text-ui">
+                      <SelectValue placeholder="Select director" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectable.map((director) => (
+                        <SelectItem key={director.matchKey} value={director.matchKey}>
+                          {director.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+                <div className="min-w-0 space-y-1.5">
+                  <Label htmlFor={emailFieldId} className="text-meta text-muted-foreground">
+                    Email
+                  </Label>
+                  <Input
+                    id={emailFieldId}
+                    value={selected?.email ?? ""}
+                    readOnly
+                    disabled
+                    tabIndex={-1}
+                    className="rounded-xl bg-muted text-ui select-none"
+                  />
+                </div>
+                <AuthorizedRepIcField id={icFieldId} value={selected?.ic_number ?? ""} readOnly />
+                {!readOnly ? (
+                  <div className="flex items-end pb-1">
+                    <button
+                      type="button"
+                      aria-label="Remove director"
+                      disabled={rows.filter(Boolean).length <= 1 && Boolean(selectedKey)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-transparent hover:text-destructive disabled:opacity-40"
+                      onClick={() => removeRow(index)}
+                    >
+                      <XMarkIcon className="h-5 w-5" />
+                    </button>
+                  </div>
+                ) : null}
               </div>
             );
           })}

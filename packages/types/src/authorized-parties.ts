@@ -248,6 +248,30 @@ export function authorizedRepresentativeCapacityLabel(
   return capacity === "director" ? "Director" : "Authorised signatory";
 }
 
+export function loIssuerAuthorizedNames(
+  snapshot: AuthorizedPartiesSnapshot | null | undefined
+): string {
+  const party = getIssuerAuthorizedParty(snapshot);
+  if (!party) return "";
+  return party.representatives
+    .map((rep) => rep.name.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+export function loFirstCorporateAuthorizedNames(
+  snapshot: AuthorizedPartiesSnapshot | null | undefined
+): { first: string; second: string } {
+  if (!snapshot) return { first: "", second: "" };
+  const party = snapshot.parties.find(
+    (item): item is AuthorizedPartyCorporateGuarantor =>
+      item.entity_kind === "CORPORATE_GUARANTOR"
+  );
+  if (!party) return { first: "", second: "" };
+  const names = party.representatives.map((rep) => rep.name.trim()).filter(Boolean);
+  return { first: names[0] ?? "", second: names[1] ?? "" };
+}
+
 export type AuthorizedPartyGuarantorLookup = {
   id: string;
   /** Stable form id — survives `application_guarantors` delete+recreate. */
@@ -517,7 +541,7 @@ export function issuerDirectorBindingsFromSnapshot(
   }));
 }
 
-/** Map guarantor snapshot reps onto guarantor bindings (snapshot party order, one binding per rep). */
+/** Map guarantor snapshot reps onto guarantor bindings (one binding per named person). */
 export function guarantorBindingsFromSnapshot(
   snapshot: AuthorizedPartiesSnapshot | null | undefined,
   roleKey: string

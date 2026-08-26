@@ -45,7 +45,7 @@ export function getOfferStatus(item: {
   return isExpired ? "Offer expired" : "Offer received";
 }
 
-/** Review Offer CTA: offer received (not expired) and not waiting on admin acceptance review. */
+/** Review Offer CTA: offer received (not expired) and not waiting on CashSouk to review or send links. */
 export function shouldShowIssuerReviewOfferCta(item: {
   status?: string | null;
   offer_details?: unknown;

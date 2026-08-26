@@ -27,7 +27,7 @@ export enum ApplicationLogEventType {
   CONTRACT_OFFER_ACCEPTANCE_SUBMITTED = "CONTRACT_OFFER_ACCEPTANCE_SUBMITTED",
   /** Issuer resubmitted acceptance documents after CHANGES_REQUESTED. */
   CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED = "CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED",
-  /** Admin approved acceptance docs; signing package unlocked. */
+  /** Admin approved acceptance docs and authorised representatives; admin can send signing links. */
   CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING = "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING",
   CONTRACT_OFFER_ACCEPTED = "CONTRACT_OFFER_ACCEPTED",
   CONTRACT_OFFER_REJECTED = "CONTRACT_OFFER_REJECTED",
@@ -47,7 +47,7 @@ export enum ApplicationLogEventType {
   INVOICE_OFFER_ACCEPTANCE_SUBMITTED = "INVOICE_OFFER_ACCEPTANCE_SUBMITTED",
   /** Issuer resubmitted acceptance documents after CHANGES_REQUESTED. */
   INVOICE_OFFER_ACCEPTANCE_RESUBMITTED = "INVOICE_OFFER_ACCEPTANCE_RESUBMITTED",
-  /** Admin approved acceptance docs; signing package unlocked. */
+  /** Admin approved acceptance docs and authorised representatives; admin can send signing links. */
   INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING = "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING",
   INVOICE_OFFER_ACCEPTED = "INVOICE_OFFER_ACCEPTED",
   INVOICE_OFFER_REJECTED = "INVOICE_OFFER_REJECTED",

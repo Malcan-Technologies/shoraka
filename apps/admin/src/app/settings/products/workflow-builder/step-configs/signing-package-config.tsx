@@ -20,7 +20,6 @@ import {
   type SigningTemplateRole,
 } from "@cashsouk/types";
 import { cn } from "@/lib/utils";
-import { Input } from "../../../../../components/ui/input";
 import { Button } from "../../../../../components/ui/button";
 import { Switch } from "../../../../../components/ui/switch";
 import {
@@ -30,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../../../components/ui/select";
-import { INPUT_CLASS, SELECT_TRIGGER_CLASS, SECTION_GAP, WORKFLOW_ICON_DELETE_BUTTON_CLASS } from "../product-form-input-styles";
+import { SELECT_TRIGGER_CLASS, SECTION_GAP, WORKFLOW_ICON_DELETE_BUTTON_CLASS } from "../product-form-input-styles";
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { PhaseDeadlineConfigEditor } from "./phase-deadline-config-editor";
 
@@ -416,44 +415,6 @@ function SigningPackageSection({
                             >
                               <TrashIcon className="h-4 w-4" />
                             </Button>
-                          </div>
-                          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                            <label className="flex items-center gap-1.5">
-                              Min at offer
-                              <Input
-                                type="number"
-                                min={0}
-                                value={role.min_count}
-                                onChange={(event) =>
-                                  updateRole(document.key, role.key, {
-                                    min_count: Math.max(
-                                      0,
-                                      Number.parseInt(event.target.value, 10) || 0
-                                    ),
-                                  })
-                                }
-                                className={cn(INPUT_CLASS, "h-8 w-20")}
-                              />
-                            </label>
-                            <label className="flex items-center gap-1.5">
-                              Max at offer
-                              <Input
-                                type="number"
-                                min={1}
-                                value={role.max_count ?? ""}
-                                placeholder="No limit"
-                                onChange={(event) => {
-                                  const raw = event.target.value.trim();
-                                  updateRole(document.key, role.key, {
-                                    max_count:
-                                      raw === ""
-                                        ? null
-                                        : Math.max(1, Number.parseInt(raw, 10) || 1),
-                                  });
-                                }}
-                                className={cn(INPUT_CLASS, "h-8 w-24")}
-                              />
-                            </label>
                           </div>
                         </li>
                       ))}

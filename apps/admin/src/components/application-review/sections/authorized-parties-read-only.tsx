@@ -60,6 +60,7 @@ function PartyItemActions({
   onRequestAmendmentItem?: (itemId: string, itemType?: ReviewItemType) => void;
   onResetItemToPending?: (itemId: string, itemType?: ReviewItemType) => void;
 }) {
+  const identityLockedToBusiness = block.entity_kind === "INDIVIDUAL_GUARANTOR";
   return (
     <div className="ml-auto flex shrink-0 items-center gap-2">
       {status !== "PENDING" ? (
@@ -78,6 +79,12 @@ function PartyItemActions({
           actionLockTooltip={actionLockTooltip}
           showReject={false}
           showRequestAmendment={status === "PENDING" || status === "APPROVED"}
+          requestAmendmentDisabled={identityLockedToBusiness}
+          requestAmendmentDisabledReason={
+            identityLockedToBusiness
+              ? "To change this person, request an amendment on Business & Guarantor Details."
+              : undefined
+          }
           requestAmendmentLabel="Request change"
           onApprove={(itemId) => onApproveItem(itemId, "authorized_representatives")}
           onRequestAmendment={(itemId) =>
@@ -186,7 +193,11 @@ export function AuthorizedPartiesReadOnly({
               {group.blocks.map((block, index) => {
                 const status = statusById.get(block.review_item_id) ?? "PENDING";
                 if (block.entity_kind === "ISSUER") {
-                  return <RepresentativeLines key={block.key} block={block} />;
+                  return (
+                    <div key={block.key} className="space-y-2">
+                      <RepresentativeLines block={block} />
+                    </div>
+                  );
                 }
                 return (
                   <div
@@ -196,7 +207,9 @@ export function AuthorizedPartiesReadOnly({
                     <div className="flex min-w-0 items-start gap-3 sm:items-center">
                       <div className="min-w-0 flex-1">
                         {block.entity_kind === "CORPORATE_GUARANTOR" ? (
-                          <p className="text-ui font-medium text-foreground">{block.title}</p>
+                          <div className="space-y-1">
+                            <p className="text-ui font-medium text-foreground">{block.title}</p>
+                          </div>
                         ) : null}
                         {block.entity_kind === "INDIVIDUAL_GUARANTOR" ? (
                           <RepresentativeLines block={block} />

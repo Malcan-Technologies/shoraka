@@ -4,9 +4,9 @@ Admin sends offers for Contract and Invoice. The issuer receives them, can accep
 
 For products configured with **acceptance documents**, the issuer follows a phased flow (see [Offer acceptance & signing phases](../guides/application-flow/offer-acceptance-and-signing-phases.md)):
 
-1. **Step 1** — Upload acceptance docs configured on the product, submit.
-2. **Step 2** — Admin reviews on the **Acceptance** tab (offer status, acceptance docs, signing package progress; approve / request changes / reject).
-3. **Step 3** — Signing package (configure signers → send → track). No upload step.
+1. **Step 1** — Authorised representatives, then upload acceptance docs configured on the product, submit.
+2. **Step 2** — Admin reviews on the **Acceptance** tab (offer status, authorised representatives, acceptance docs, signing package; approve / request changes / reject).
+3. **Step 3** — Admin sends signing links from **Signing package**. Issuer tracks progress. No upload or configure-signers step.
 
 `offer_details.offer_acceptance.status` tracks the phase (Option A). Envelope create/send requires `APPROVED_FOR_SIGNING` (or later). Contract-linked invoices still Accept/Decline after the contract envelope is `COMPLETED`.
 
@@ -106,7 +106,7 @@ Signing packages are **always required** for offer types that need an envelope �
 
 **Invoice-only** offers each get their own envelope from the same product package. Different invoices on the same application may have active envelopes **in parallel** (uniqueness is per `contract_id` or per `invoice_id`, not per application). Active = `DRAFT` | `SENT` | `IN_PROGRESS`.
 
-Every signer is an external party emailed an opaque link. For envelope paths, the issuer **Review offer** modal is the signing control centre: bind signers (name, email, IC), attach **acceptance documents** (e.g. Board Resolution), send the envelope, monitor progress, and re-notify.
+Every signer is an external party emailed an opaque link. For envelope paths, CashSouk sends the package from the admin Acceptance tab after approving authorised representatives. The issuer **Review offer** modal is the tracking surface once links are sent (progress and reminders). Acceptance documents (e.g. Board Resolution) are uploaded in Step 1.
 
 **Product snapshot:** signing package documents and acceptance-document gates come from the application's frozen product version (`application.product_version` within the product `base_id` family), not the latest live catalog row. Acceptance documents are configured on the financing-type step as `acceptance_documents`. Void + recreate rebuilds from that same frozen workflow and does not pick up later product edits. Guarantor Agreement appears only when that frozen signing template includes it (no silent auto-inject). Legacy dual `{ contract, invoice }` under `signing_packages` and flat `signing_template` are migrated in-memory to a single package until the product is re-saved.
 

@@ -271,7 +271,14 @@ const issuerAuthorizedPartySchema = z.object({
   representatives: z.array(issuerAuthorizedRepresentativeSchema).min(1),
 });
 
-const guarantorAuthorizedRepresentativeSchema = z.object({
+const corporateGuarantorAuthorizedRepresentativeSchema = z.object({
+  name: z.string().trim().min(1),
+  email: signingEmailSchema,
+  ic_number: signingIcSchema,
+  capacity: z.enum(["director", "authorised_signatory"]),
+});
+
+const individualGuarantorAuthorizedRepresentativeSchema = z.object({
   name: z.string().trim().min(1),
   email: signingEmailSchema,
   ic_number: optionalSigningIcSchema,
@@ -283,7 +290,7 @@ const corporateGuarantorAuthorizedPartySchema = z.object({
   entity_kind: z.literal("CORPORATE_GUARANTOR"),
   application_guarantor_id: z.string().trim().min(1),
   client_guarantor_id: z.string().trim().min(1).optional(),
-  representatives: z.array(guarantorAuthorizedRepresentativeSchema).min(1),
+  representatives: z.array(corporateGuarantorAuthorizedRepresentativeSchema).min(1),
 });
 
 const individualGuarantorAuthorizedPartySchema = z.object({
@@ -291,7 +298,7 @@ const individualGuarantorAuthorizedPartySchema = z.object({
   entity_kind: z.literal("INDIVIDUAL_GUARANTOR"),
   application_guarantor_id: z.string().trim().min(1),
   client_guarantor_id: z.string().trim().min(1).optional(),
-  representatives: z.array(guarantorAuthorizedRepresentativeSchema).min(1).max(1),
+  representatives: z.array(individualGuarantorAuthorizedRepresentativeSchema).min(1).max(1),
 });
 
 const authorizedPartySchema = z.discriminatedUnion("entity_kind", [

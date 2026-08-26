@@ -25,7 +25,6 @@ export type SigningOfferStepId =
   | "awaiting_review"
   | "rejected"
   | "declined"
-  | "signers"
   | "signing"
   | "complete";
 
@@ -171,11 +170,6 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
     if (offerAcceptanceAllowsSigning(input.acceptanceStatus)) {
       shells.push(
         {
-          id: "signers",
-          label: "Configure signers",
-          description: "Assign who will sign each document",
-        },
-        {
           id: "signing",
           label: "Document signing",
           description: "Track signing progress across all documents",
@@ -216,20 +210,8 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
     return shells;
   }
 
-  // Legacy path: optional upload then signing in one continuous flow
-  if (input.hasPostDocs) {
-    shells.push({
-      id: "documents",
-      label: "Upload documents",
-      description: "Upload required documents before signing",
-    });
-  }
+  // Products without the acceptance flow still track the package after CashSouk sends it.
   shells.push(
-    {
-      id: "signers",
-      label: "Configure signers",
-      description: "Assign who will sign each document",
-    },
     {
       id: "signing",
       label: "Document signing",
@@ -246,7 +228,8 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
 
 export type SigningOfferStepCursorInput = SigningOfferStepShellInput & {
   postDocsReady: boolean;
-  signersLocked: boolean;
+  /** True once a live (non-draft) envelope exists. */
+  packageSent: boolean;
   allDocsSigned: boolean;
   envelopeCompleted: boolean;
   /** Step 1 sub-screen. Ignored outside the acceptance-flow editable window. */
@@ -267,25 +250,20 @@ export function getCurrentSigningOfferStepId(
       return "awaiting_review";
     }
     if (offerAcceptanceAllowsSigning(input.acceptanceStatus)) {
-      if (input.signersLocked) {
-        if (!input.allDocsSigned) return "signing";
-        if (input.envelopeCompleted) return "complete";
-        return "signing";
+      if (input.packageSent && input.allDocsSigned && input.envelopeCompleted) {
+        return "complete";
       }
-      return "signers";
+      return "signing";
     }
     if (input.acceptanceStatus === "REJECTED") return "rejected";
     if (input.acceptanceStatus === "DECLINED") return "declined";
     return "awaiting_review";
   }
 
-  if (input.signersLocked) {
-    if (!input.allDocsSigned) return "signing";
-    if (input.envelopeCompleted) return "complete";
-    return "signing";
+  if (input.packageSent && input.allDocsSigned && input.envelopeCompleted) {
+    return "complete";
   }
-  if (input.hasPostDocs && !input.postDocsReady) return "documents";
-  return "signers";
+  return "signing";
 }
 
 export function getSigningOfferSteps(input: SigningOfferStepCursorInput): SigningOfferStep[] {

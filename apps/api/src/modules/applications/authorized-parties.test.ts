@@ -292,14 +292,19 @@ describe("assertGuarantorAuthorizedPartiesValid", () => {
     );
   });
 
-  it("accepts a company representative without an IC", () => {
-    const parties = [
-      corporateParty([
-        { name: "Nora", email: "nora@holdco.my", ic_number: "", capacity: "director" },
-      ]),
-    ];
-    expect(() => assertGuarantorAuthorizedPartiesValid(parties, [COMPANY])).not.toThrow();
-    expect(parties[0]?.representatives[0]?.ic_number).toBe("");
+  it("rejects a company representative without an IC", () => {
+    expectAuthorizedPartiesInvalid(
+      () =>
+        assertGuarantorAuthorizedPartiesValid(
+          [
+            corporateParty([
+              { name: "Nora", email: "nora@holdco.my", ic_number: "", capacity: "director" },
+            ]),
+          ],
+          [COMPANY]
+        ),
+      /12-digit IC number/
+    );
   });
 
   it("rejects a company representative with a malformed IC", () => {
@@ -378,8 +383,8 @@ describe("submitOfferAcceptanceBodySchema", () => {
     ]);
   });
 
-  it("accepts a corporate representative without an IC", () => {
-    const parsed = submitOfferAcceptanceBodySchema.parse({
+  it("rejects a corporate representative without an IC", () => {
+    const result = submitOfferAcceptanceBodySchema.safeParse({
       authorized_parties: {
         parties: [
           issuerBody,
@@ -389,7 +394,7 @@ describe("submitOfferAcceptanceBodySchema", () => {
         ],
       },
     });
-    expect(parsed.authorized_parties.parties[1]?.representatives[0]?.ic_number).toBe("");
+    expect(result.success).toBe(false);
   });
 
   it("rejects an empty parties array", () => {

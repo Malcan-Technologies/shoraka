@@ -58,6 +58,13 @@ export function assertAuthorizedRepresentativeChangeRequestAllowed(
       "Representative list not found on this offer."
     );
   }
+  if (party.entity_kind === "INDIVIDUAL_GUARANTOR") {
+    throw new AppError(
+      400,
+      "INVALID_ACTION",
+      "Individual guarantor identity is changed on Business & Guarantor Details, not here."
+    );
+  }
 }
 
 /**

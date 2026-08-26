@@ -13,6 +13,11 @@ import {
   formatRmAmount,
   numberToWords,
 } from "./lo-format";
+import {
+  getOfferAcceptanceFromOfferDetails,
+  loFirstCorporateAuthorizedNames,
+  loIssuerAuthorizedNames,
+} from "@cashsouk/types";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -152,6 +157,11 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
     }
   }
 
+  const authorizedParties = getOfferAcceptanceFromOfferDetails(
+    input.contract.offer_details
+  )?.authorized_parties;
+  const corpSignatories = loFirstCorporateAuthorizedNames(authorizedParties);
+
   return {
     ...base,
     ...emptyMissing,
@@ -178,6 +188,9 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
       asString(contractDetails?.number),
     corporate_guarantor_name: corp ? asString(corp.business_name) : "",
     corporate_guarantor_ssm: corp ? asString(corp.ssm_number) : "",
+    moa_authorised_signatory_names: loIssuerAuthorizedNames(authorizedParties),
+    corporate_signatory_1_name: corpSignatories.first,
+    corporate_signatory_2_name: corpSignatories.second,
   };
 }
 

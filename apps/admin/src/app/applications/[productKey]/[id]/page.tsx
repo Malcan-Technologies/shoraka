@@ -949,11 +949,6 @@ export default function DynamicApplicationDetailPage() {
                             app={app}
                             liveApplicationId={applicationId}
                             productWorkflow={reviewProductWorkflow}
-                            productVersion={
-                              typeof (app as { product_version?: number }).product_version === "number"
-                                ? (app as { product_version: number }).product_version
-                                : null
-                            }
                             canManageSigning={canAppManage}
                             isReviewable={isReviewable}
                             approveSectionPending={approveSection.isPending}

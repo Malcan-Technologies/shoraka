@@ -196,9 +196,9 @@ function stampCorporateRepresentative(representative: AuthorizedRepresentative):
       "Each company guarantor representative must have a name and email."
     );
   }
-  if (ic && !isValidSigningIcNumber(ic)) {
+  if (!isValidSigningIcNumber(ic)) {
     throwAuthorizedPartiesInvalid(
-      "Company guarantor representative IC must be 12 digits when provided."
+      "Each company guarantor representative must have a 12-digit IC number."
     );
   }
   if (representative.capacity !== "director" && representative.capacity !== "authorised_signatory") {

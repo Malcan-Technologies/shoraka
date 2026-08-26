@@ -16,6 +16,7 @@ import { ChevronDownIcon } from "@heroicons/react/24/outline";
 import { SigningProgressMatrix } from "./signing-progress-matrix";
 import {
   useAdminSigningEnvelopes,
+  useSendAdminSigningPackage,
   useVoidSigningEnvelope,
   useRemindSigningRecipient,
 } from "@/hooks/use-signing-envelopes";
@@ -28,7 +29,6 @@ import {
   getOfferPhaseDeadlineDisplay,
   resolveSigningDeadlineFromWorkflow,
   DEFAULT_SIGNING_DEADLINE,
-  type ApplicationPersonRow,
   type SigningEnvelopeDto,
   type SigningEnvelopeStatus,
   toTitleCase,
@@ -123,11 +123,6 @@ export interface SigningEnvelopePanelProps {
   applicationId: string;
   /** Product.workflow JSON — signing deadline config. */
   workflow: unknown;
-  people: ApplicationPersonRow[];
-  guarantors: unknown;
-  contractId?: string | null;
-  invoiceId?: string | null;
-  productVersion?: number | null;
   /** Whether the admin can manage void/reminder actions for this application's signing. */
   canManage?: boolean;
   /** offer_details from the contract this application's offer belongs to (contract-based structures). */
@@ -162,12 +157,14 @@ export function SigningEnvelopePanel({
   onDownloadSignedDocument,
 }: SigningEnvelopePanelProps) {
   const { data: envelopes = [], isLoading } = useAdminSigningEnvelopes(applicationId);
+  const sendMutation = useSendAdminSigningPackage(applicationId);
   const voidMutation = useVoidSigningEnvelope(applicationId);
   const remindMutation = useRemindSigningRecipient(applicationId);
   const extendContractMutation = useExtendContractSigningDeadline();
   const extendInvoiceMutation = useExtendInvoiceSigningDeadline();
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [extendConfirmOpen, setExtendConfirmOpen] = React.useState(false);
+  const [sendConfirmOpen, setSendConfirmOpen] = React.useState(false);
 
   const { primary, history } = React.useMemo(() => splitEnvelopes(envelopes), [envelopes]);
 
@@ -253,6 +250,18 @@ export function SigningEnvelopePanel({
     }
   };
 
+  const handleSendSigningLinks = async () => {
+    try {
+      await sendMutation.mutateAsync(
+        isInvoiceOnly ? { invoiceId: invoiceIdForExtend } : {}
+      );
+      toast.success("Signing links sent to the authorised representatives");
+      setSendConfirmOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send signing links");
+    }
+  };
+
   const canRemindPrimary =
     canManage &&
     primary != null &&
@@ -262,15 +271,18 @@ export function SigningEnvelopePanel({
     if (acceptance == null) {
       return showOfferAcceptanceSummary
         ? noOfferYetHint
-        : "No signing package yet. It appears after the issuer starts signing.";
+        : "No signing package yet. Send an offer to start acceptance.";
     }
     if (signingBlocked) {
-      return "Signing package is locked until acceptance documents are approved.";
+      return "Signing package is locked until acceptance documents and authorised representatives are approved.";
     }
     if (acceptance.status === "COMPLETED") {
       return "No signing package on file for this offer.";
     }
-    return "No signing package yet. The issuer creates and sends this package from their offer flow.";
+    if (acceptance.status === "APPROVED_FOR_SIGNING") {
+      return "Acceptance is approved. Send signing links to the authorised representatives.";
+    }
+    return "No signing package yet.";
   })();
 
   const signingDeadlineDisplay =
@@ -281,6 +293,17 @@ export function SigningEnvelopePanel({
 
   const showExtendSigningCta =
     canManage && signingDeadlineDisplay?.urgency === "past";
+
+  const liveEnvelope = envelopes.find((envelope) => LIVE_STATUSES.has(envelope.status)) ?? null;
+  const signingClockPast = signingDeadlineDisplay?.urgency === "past";
+  const canSendSigningLinks =
+    canManage &&
+    acceptance?.status === "APPROVED_FOR_SIGNING" &&
+    !signingClockPast &&
+    (liveEnvelope == null || liveEnvelope.status === "DRAFT") &&
+    (!isInvoiceOnly || Boolean(invoiceIdForExtend));
+
+  const sendPending = sendMutation.isPending;
 
   const body = (
     <div className="space-y-4">
@@ -331,8 +354,42 @@ export function SigningEnvelopePanel({
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
       {!isLoading && envelopes.length === 0 && (
-        <p className="text-sm text-muted-foreground">{emptySigningMessage}</p>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">{emptySigningMessage}</p>
+          {canSendSigningLinks ? (
+            <Button
+              type="button"
+              size="sm"
+              className="rounded-lg"
+              onClick={() => setSendConfirmOpen(true)}
+              disabled={sendPending}
+            >
+              Send signing links
+            </Button>
+          ) : null}
+        </div>
       )}
+
+      {!isLoading && envelopes.length > 0 && canSendSigningLinks ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {primary?.status === "DRAFT" ? (
+            <p className="text-sm text-muted-foreground">
+              A draft package is ready. Send links to the authorised representatives.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">{emptySigningMessage}</p>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => setSendConfirmOpen(true)}
+            disabled={sendPending}
+          >
+            Send signing links
+          </Button>
+        </div>
+      ) : null}
 
       {primary ? (
         <ActiveEnvelopeCard
@@ -403,6 +460,31 @@ export function SigningEnvelopePanel({
               }}
             >
               {extendPending ? "Extending…" : "Extend deadline"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={sendConfirmOpen} onOpenChange={setSendConfirmOpen}>
+        <AlertDialogContent className="rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send signing links?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sends secure signing emails to the authorised representatives already approved
+              with this offer. They cannot be changed without requesting changes to the
+              representative lists.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={sendPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={sendPending}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleSendSigningLinks();
+              }}
+            >
+              {sendPending ? "Sending…" : "Send links"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

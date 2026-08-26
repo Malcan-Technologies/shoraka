@@ -146,6 +146,85 @@ describe("buildFacilityLoMergeData", () => {
     expect(data.sub_limit_per_invoice_rm).toBe("");
     expect(data.part_b_financing_amount_rm).toBe("");
     expect(data.payment_period_days).toBe("");
+    expect(data.moa_authorised_signatory_names).toBe("");
+    expect(data.corporate_signatory_1_name).toBe("");
+    expect(data.corporate_signatory_2_name).toBe("");
+  });
+
+  it("fills authorised signatory names from every declared person on the snapshot", () => {
+    const data = buildFacilityLoMergeData({
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        offer_details: {
+          offered_facility: 500000,
+          sent_at: "2026-07-16T02:00:00.000Z",
+          offer_acceptance: {
+            status: "APPROVED_FOR_SIGNING",
+            authorized_parties: {
+              submitted_by_user_id: "user_1",
+              submitted_at: "2026-08-21T00:00:00.000Z",
+              parties: [
+                {
+                  key: "issuer",
+                  entity_kind: "ISSUER",
+                  representatives: [
+                    {
+                      name: "Ali Bin Abu",
+                      email: "ali@co.my",
+                      ic_number: "820508105871",
+                      capacity: "director",
+                      person_match_key: "820508105871",
+                    },
+                    {
+                      name: "Siti",
+                      email: "siti@co.my",
+                      ic_number: "900101015555",
+                      capacity: "director",
+                      person_match_key: "900101015555",
+                    },
+                  ],
+                },
+                {
+                  key: "g_co",
+                  entity_kind: "CORPORATE_GUARANTOR",
+                  application_guarantor_id: "g_co",
+                  representatives: [
+                    {
+                      name: "Nora",
+                      email: "nora@holdco.my",
+                      ic_number: "880101015555",
+                      capacity: "authorised_signatory",
+                    },
+                    {
+                      name: "Farid",
+                      email: "farid@holdco.my",
+                      ic_number: "770202025555",
+                      capacity: "director",
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        contract_details: {},
+        customer_details: {},
+      },
+      issuerOrganization: {
+        id: "org_1",
+        name: "Issuer Co",
+      },
+      application: {
+        id: "app_1",
+        business_details: {
+          guarantors: [{ guarantor_type: "company", business_name: "HoldCo" }],
+        },
+      },
+    });
+    expect(data.moa_authorised_signatory_names).toBe("Ali Bin Abu, Siti");
+    expect(data.corporate_signatory_1_name).toBe("Nora");
+    expect(data.corporate_signatory_2_name).toBe("Farid");
   });
 });
 

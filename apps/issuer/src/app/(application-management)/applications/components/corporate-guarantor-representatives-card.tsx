@@ -6,7 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { applicationFlowAmendmentTargetSurfaceClassName } from "@/app/(application-flow)/applications/components/form-control";
-import { EMPTY_CORPORATE_REP, type CorporateRepDraft } from "./guarantor-authorized-parties";
+import {
+  EMPTY_CORPORATE_REP,
+  type CorporateRepDraft,
+} from "./guarantor-authorized-parties";
+import {
+  AuthorizedRepIcField,
+  authorizedRepRowGridClass,
+  authorizedRepRowGridReadOnlyClass,
+} from "./authorized-rep-fields";
 
 type CorporateGuarantorRepresentativesCardProps = {
   entityId: string;
@@ -32,8 +40,7 @@ export function CorporateGuarantorRepresentativesCard({
   const rows = representatives.length > 0 ? representatives : [{ ...EMPTY_CORPORATE_REP }];
 
   const updateRow = (index: number, patch: Partial<CorporateRepDraft>) => {
-    const next = rows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row));
-    onChange(next);
+    onChange(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
   };
 
   const removeRow = (index: number) => {
@@ -59,8 +66,8 @@ export function CorporateGuarantorRepresentativesCard({
         </p>
         {embedded ? null : (
           <p className="mt-1 text-meta text-muted-foreground">
-            Name the people who may represent this company. CashSouk will review this list with the
-            Board Resolution.
+            Name the people who will represent this company. Everyone named here must sign.
+            CashSouk will review this list with the Board Resolution.
           </p>
         )}
         {highlighted ? (
@@ -73,9 +80,13 @@ export function CorporateGuarantorRepresentativesCard({
         {rows.map((row, index) => {
           const nameFieldId = `corporate-rep-name-${entityId}-${index}`;
           const emailFieldId = `corporate-rep-email-${entityId}-${index}`;
+          const icFieldId = `corporate-rep-ic-${entityId}-${index}`;
           return (
-            <div key={`${index}`} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-              <div className="space-y-1.5">
+            <div
+              key={`${index}`}
+              className={readOnly ? authorizedRepRowGridReadOnlyClass : authorizedRepRowGridClass}
+            >
+              <div className="min-w-0 space-y-1.5">
                 <Label htmlFor={nameFieldId} className="text-meta text-muted-foreground">
                   Full name
                 </Label>
@@ -88,7 +99,7 @@ export function CorporateGuarantorRepresentativesCard({
                   className="rounded-xl text-ui"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label htmlFor={emailFieldId} className="text-meta text-muted-foreground">
                   Email
                 </Label>
@@ -102,6 +113,12 @@ export function CorporateGuarantorRepresentativesCard({
                   className="rounded-xl text-ui"
                 />
               </div>
+              <AuthorizedRepIcField
+                id={icFieldId}
+                value={row.ic_number}
+                readOnly={readOnly}
+                onChange={readOnly ? undefined : (value) => updateRow(index, { ic_number: value })}
+              />
               {!readOnly ? (
                 <div className="flex items-end pb-1">
                   <button

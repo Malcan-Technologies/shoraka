@@ -1,6 +1,7 @@
 /**
- * Signing envelope service: draft envelope from product template + issuer bindings,
- * send to all signers via email, external token session, and provider orchestration.
+ * Signing envelope service: admin creates and sends the package from approved
+ * authorised representatives, then orchestrates email links, external token sessions,
+ * and the signing provider.
  */
 import { Request } from "express";
 import {
@@ -33,7 +34,7 @@ import {
   AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
   postedBindingsMatchApprovedSnapshot,
   resolveLiveApplicationGuarantorId,
-  workflowUsesOfferAcceptanceFlow,
+  snapshotSignerBindings,
   type ExternalSigningSessionDto,
   type RecipientBinding,
   type RecipientEkycSession,
@@ -246,14 +247,11 @@ export interface CreateDraftEnvelopeInput {
   issuerUploadS3Keys?: Map<string, string>;
 }
 
-export interface CreateIssuerEnvelopeInput {
+export interface CreateAndSendAdminEnvelopeInput {
   applicationId: string;
   userId: string;
-  bindings: RecipientBinding[];
-  title?: string | null;
   contractId?: string | null;
   invoiceId?: string | null;
-  expiresAt?: Date | null;
 }
 
 export class SigningService {
@@ -347,7 +345,7 @@ export class SigningService {
     return (product.workflow as unknown[]) ?? [];
   }
 
-  /** Issuer configure-signers UI: same frozen workflow used when creating the envelope. */
+  /** Frozen product workflow for issuer Step 1 (representatives and acceptance uploads). */
   async getProductWorkflowForIssuerApplication(
     applicationId: string,
     userId: string
@@ -568,9 +566,9 @@ export class SigningService {
   }
 
   /**
-   * When the product uses phased acceptance, envelope create/send requires a fresh,
-   * well-formed offer_acceptance phase (no legacy allow) plus fully-approved acceptance docs.
-   * Re-reads the offer from the DB rather than trusting the in-memory application context.
+   * Envelope create/send requires a well-formed offer_acceptance phase plus fully-approved
+   * acceptance documents and authorised representative lists. Re-reads the offer from the DB
+   * rather than trusting the in-memory application context.
    */
   private async assertOfferAcceptanceAllowsSigning(
     application: SigningApplicationContext,
@@ -579,7 +577,6 @@ export class SigningService {
     action: "create" | "send"
   ): Promise<void> {
     const workflow = await this.getProductWorkflowForApplication(application);
-    if (!workflowUsesOfferAcceptanceFlow(workflow)) return;
 
     let offerDetails: unknown = null;
     if (contractId) {
@@ -676,7 +673,7 @@ export class SigningService {
       userId: params.userId,
       applicationId: params.applicationId,
       entityId: params.envelope.id,
-      portal: params.portal ?? ActivityPortal.ISSUER,
+      portal: params.portal ?? ActivityPortal.ADMIN,
       eventType: params.eventType,
       metadata: {
         envelope_id: params.envelope.id,
@@ -855,9 +852,8 @@ export class SigningService {
     return await mapSigningEnvelopeToDtoWithEkyc(envelope);
   }
 
-  async createIssuerEnvelope(input: CreateIssuerEnvelopeInput): Promise<SigningEnvelopeDto> {
+  async createAndSendAdminEnvelope(input: CreateAndSendAdminEnvelopeInput): Promise<SigningEnvelopeDto> {
     const application = await this.requireApplicationContext(input.applicationId);
-    await this.assertIssuerApplicationAccess(application, input.userId);
     if (!this.applicationHasOfferSent(application)) {
       throw new AppError(400, "INVALID_STATE", "An offer must be sent before creating a signing package.");
     }
@@ -882,6 +878,12 @@ export class SigningService {
         ? await this.repo.findActiveEnvelopeForInvoice(invoiceId)
         : null;
     if (activeEnvelope) {
+      if (activeEnvelope.status === "DRAFT") {
+        return this.sendEnvelope(activeEnvelope.id, {
+          userId: input.userId,
+          portal: ActivityPortal.ADMIN,
+        });
+      }
       throw new AppError(
         409,
         "SIGNING_ENVELOPE_EXISTS",
@@ -893,16 +895,6 @@ export class SigningService {
     const workflow = await this.getProductWorkflowForApplication(application);
     const packageKind: SigningPackageOfferKind = contractId ? "contract" : "invoice";
     const template = this.readSigningTemplateFromWorkflow(workflow, packageKind);
-    const bindings = await this.validateAndNormalizeIssuerBindings(
-      application,
-      template,
-      input.bindings
-    );
-    const issuerUploadS3Keys = resolveIssuerUploadS3Keys(
-      workflow,
-      application.supporting_documents,
-      template
-    );
     const offerDetails = contractId
       ? (
           await prisma.contract.findUnique({
@@ -918,15 +910,41 @@ export class SigningService {
             })
           )?.offer_details
         : null;
+    const snapshot =
+      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
+    if (!snapshot) {
+      throw new AppError(
+        400,
+        "OFFER_ACCEPTANCE_PARTIES_MISSING",
+        "Authorised representatives must be approved before sending the signing package."
+      );
+    }
+    const snapshotBindings = snapshotSignerBindings(snapshot, template.roles);
+    if (snapshotBindings.length === 0) {
+      throw new AppError(
+        400,
+        "SIGNING_BINDINGS_INVALID",
+        "Authorised representatives must be approved before sending the signing package."
+      );
+    }
+    const bindings = await this.validateAndNormalizeIssuerBindings(
+      application,
+      template,
+      snapshotBindings
+    );
     this.assertBindingsMatchApprovedSnapshot(offerDetails, template, bindings);
+    const issuerUploadS3Keys = resolveIssuerUploadS3Keys(
+      workflow,
+      application.supporting_documents,
+      template
+    );
     const signingExpiresAt =
       getOfferAcceptanceFromOfferDetails(offerDetails)?.signing_expires_at ?? null;
     const resolvedExpiresAt =
-      input.expiresAt ??
-      (typeof signingExpiresAt === "string" ? new Date(signingExpiresAt) : null);
-    return this.createDraftEnvelope({
+      typeof signingExpiresAt === "string" ? new Date(signingExpiresAt) : null;
+    const draft = await this.createDraftEnvelope({
       applicationId: input.applicationId,
-      title: input.title?.trim() || "Signing package",
+      title: contractId ? "Facility offer signing package" : "Invoice offer signing package",
       contractId,
       invoiceId,
       productVersion: application.product_version ?? null,
@@ -935,14 +953,17 @@ export class SigningService {
       createdByUserId: input.userId,
       expiresAt: resolvedExpiresAt,
       issuerUploadS3Keys,
-    }).then(async (envelope) => {
-      await this.logSigningPackageActivity({
-        userId: input.userId,
-        applicationId: input.applicationId,
-        eventType: ApplicationLogEventType.SIGNING_PACKAGE_CREATED,
-        envelope,
-      });
-      return envelope;
+    });
+    await this.logSigningPackageActivity({
+      userId: input.userId,
+      applicationId: input.applicationId,
+      eventType: ApplicationLogEventType.SIGNING_PACKAGE_CREATED,
+      envelope: draft,
+      portal: ActivityPortal.ADMIN,
+    });
+    return this.sendEnvelope(draft.id, {
+      userId: input.userId,
+      portal: ActivityPortal.ADMIN,
     });
   }
 
@@ -1244,7 +1265,10 @@ export class SigningService {
     return envelope;
   }
 
-  async sendEnvelope(id: string): Promise<SigningEnvelopeDto> {
+  async sendEnvelope(
+    id: string,
+    actor?: { userId: string; portal: ActivityPortal }
+  ): Promise<SigningEnvelopeDto> {
     const envelope = await this.requireEnvelope(id);
     if (envelope.status !== "DRAFT") {
       throw new AppError(409, "SIGNING_ENVELOPE_NOT_DRAFT", "Only draft envelopes can be sent.");
@@ -1389,12 +1413,14 @@ export class SigningService {
 
     await this.repo.markEnvelopeSent(id);
     await this.markOfferAcceptanceSigningInProgress(envelope);
-    if (envelope.created_by_user_id) {
+    const logUserId = actor?.userId ?? envelope.created_by_user_id;
+    if (logUserId) {
       await this.logSigningPackageActivity({
-        userId: envelope.created_by_user_id,
+        userId: logUserId,
         applicationId: envelope.application_id,
         eventType: ApplicationLogEventType.SIGNING_PACKAGE_SENT,
         envelope,
+        portal: actor?.portal ?? ActivityPortal.ADMIN,
       });
     }
     return this.getEnvelope(id);
@@ -1553,14 +1579,6 @@ export class SigningService {
       "SIGNING_DOCUMENT_NOT_SUPPORTED",
       `Document "${document.name}" is not supported yet.`
     );
-  }
-
-  async sendEnvelopeForIssuer(id: string, userId: string): Promise<SigningEnvelopeDto> {
-    const envelope = await this.requireEnvelope(id);
-    const application = await this.requireApplicationContext(envelope.application_id);
-    await this.assertIssuerApplicationAccess(application, userId);
-    await this.assertAcceptanceDocumentsReady(application);
-    return this.sendEnvelope(id);
   }
 
   private async assertRecipientIdentityComplete(

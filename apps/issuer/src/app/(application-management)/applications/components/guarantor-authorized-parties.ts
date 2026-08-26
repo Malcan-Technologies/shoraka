@@ -19,6 +19,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export type CorporateRepDraft = {
   name: string;
   email: string;
+  ic_number: string;
 };
 
 export type GuarantorPartyDrafts = {
@@ -29,6 +30,7 @@ export type GuarantorPartyDrafts = {
 export const EMPTY_CORPORATE_REP: CorporateRepDraft = {
   name: "",
   email: "",
+  ic_number: "",
 };
 
 export function emptyGuarantorPartyDrafts(): GuarantorPartyDrafts {
@@ -36,7 +38,7 @@ export function emptyGuarantorPartyDrafts(): GuarantorPartyDrafts {
 }
 
 export function isBlankCorporateRep(rep: CorporateRepDraft): boolean {
-  return !rep.name.trim() && !rep.email.trim();
+  return !rep.name.trim() && !rep.email.trim() && !rep.ic_number.trim();
 }
 
 function isValidPartyEmail(email: string): boolean {
@@ -44,7 +46,11 @@ function isValidPartyEmail(email: string): boolean {
 }
 
 export function isCompleteCorporateRep(rep: CorporateRepDraft): boolean {
-  return Boolean(rep.name.trim()) && isValidPartyEmail(rep.email);
+  return (
+    Boolean(rep.name.trim()) &&
+    isValidPartyEmail(rep.email) &&
+    isValidSigningIcNumber(rep.ic_number)
+  );
 }
 
 function lookupFromRow(guarantor: ApplicationGuarantorRow): AuthorizedPartyGuarantorLookup {
@@ -72,6 +78,7 @@ function repsFromParty(party: AuthorizedParty | null): CorporateRepDraft[] | nul
   return party.representatives.map((rep) => ({
     name: rep.name,
     email: rep.email,
+    ic_number: normalizeSigningIcNumber(rep.ic_number),
   }));
 }
 
@@ -81,7 +88,8 @@ function sameCorporateReps(left: CorporateRepDraft[], right: CorporateRepDraft[]
     left.every(
       (row, index) =>
         row.name === right[index]?.name &&
-        row.email === right[index]?.email
+        row.email === right[index]?.email &&
+        row.ic_number === right[index]?.ic_number
     )
   );
 }
@@ -177,7 +185,7 @@ export function buildAuthorizedPartiesSubmitPayload(input: {
         .map((rep) => ({
           name: rep.name.trim(),
           email: normalizeSigningEmail(rep.email),
-          ic_number: "",
+          ic_number: normalizeSigningIcNumber(rep.ic_number),
           capacity: "authorised_signatory" as const,
         }));
       guarantorParties.push({

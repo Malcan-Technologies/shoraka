@@ -2,8 +2,6 @@ import {
   isValidSigningIcNumber,
   normalizeSigningIcNumber,
   type ApplicationPersonRow,
-  type RecipientBinding,
-  type SigningTemplateRole,
 } from "@cashsouk/types";
 
 export type IssuerDirectorOption = {
@@ -16,10 +14,6 @@ export type IssuerDirectorOption = {
 export function directorIcFromMatchKey(matchKey: string): string | null {
   const normalized = normalizeSigningIcNumber(matchKey);
   return normalized.length === 12 ? normalized : null;
-}
-
-export function isDirectorRole(role: SigningTemplateRole): boolean {
-  return role.key === "issuer_director" || role.source_hint === "issuer_director";
 }
 
 export function dedupeIssuerDirectors(directors: IssuerDirectorOption[]): IssuerDirectorOption[] {
@@ -98,18 +92,6 @@ export function issuerDirectorsFromOrganization(activeOrganization: unknown): Is
     .filter((director) => director.name.length > 0);
 
   return dedupeIssuerDirectors(fromAml);
-}
-
-export function resolveBindingDirectorKey(
-  directors: IssuerDirectorOption[],
-  binding: RecipientBinding
-): string {
-  const name = binding.name.trim();
-  const email = binding.email.trim();
-  const exact = directors.find((director) => director.name === name && director.email === email);
-  if (exact) return exact.matchKey;
-  const byName = directors.find((director) => director.name === name);
-  return byName?.matchKey ?? "";
 }
 
 export function areIssuerDirectorSelectionsReady(

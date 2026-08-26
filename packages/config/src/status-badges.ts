@@ -219,7 +219,7 @@ export function resolveIssuerInvoiceStatusBadgeKey(
   if (upper === "OFFER_SENT" && offerAcceptanceStatus) {
     const phase = String(offerAcceptanceStatus).toUpperCase();
     // Waiting on CashSouk review, or ceremony finished while entity is still OFFER_SENT briefly.
-    if (phase === "PENDING_ADMIN_REVIEW" || phase === "COMPLETED") {
+    if (phase === "PENDING_ADMIN_REVIEW" || phase === "APPROVED_FOR_SIGNING" || phase === "COMPLETED") {
       return "under_review";
     }
   }

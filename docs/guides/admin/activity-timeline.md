@@ -174,7 +174,7 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 
 | Event Type | Source | Portal | Description |
 |------------|--------|--------|-------------|
-| `SIGNING_PACKAGE_CREATED` | signing/service | ISSUER | Issuer creates a draft signing envelope |
-| `SIGNING_PACKAGE_SENT` | signing/service | ISSUER | Signing package sent to all signers |
+| `SIGNING_PACKAGE_CREATED` | signing/service | ADMIN | Admin creates a draft signing envelope from approved authorised representatives |
+| `SIGNING_PACKAGE_SENT` | signing/service | ADMIN | Signing package sent to all signers |
 | `SIGNING_PACKAGE_COMPLETED` | signing/service | ISSUER | Envelope rollup COMPLETED (audit-only; hidden from timeline — use `CONTRACT_OFFER_ACCEPTED` / `INVOICE_OFFER_ACCEPTED`) |
 | `SIGNING_PACKAGE_VOIDED` | signing/service | ADMIN, ISSUER | Admin voids package or signer declines (rollup) |

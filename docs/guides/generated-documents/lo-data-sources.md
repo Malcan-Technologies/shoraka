@@ -16,6 +16,7 @@ Older editable discussion table: [arf-letter-of-offer-placeholder-map.md](../app
 | Facility amount | `offer_details.offered_facility` or `contract_details.approved_facility` | `formatRmAmount` — also Schedule A Part A Financing Limit + MoA |
 | Guarantors (individual) | `business_details.guarantors` | All individuals — `{#guarantors_individual}` loops (list, ack names, one sig page each) |
 | Corporate guarantor | First company guarantor | Name + SSM when present |
+| Authorised signatories | `offer_acceptance.authorized_parties` | Issuer names → `moa_authorised_signatory_names`; first corporate guarantor’s first two people → `corporate_signatory_1_name` / `_2_name` |
 | Assigned contract | `contract_details` + `customer_details` | Date, counterparty, description/number |
 | Offer validity phrase | `offer_acceptance.acceptance_expires_at` vs `sent_at` | `daysPhrase` when clocks exist |
 | Transaction docs days | `signing_expires_at` vs offer/letter date | When acceptance clocks exist |
@@ -41,8 +42,6 @@ Not merge tags:
 | `sub_limit_per_invoice_rm` | Empty |
 | `part_b_financing_amount_rm` | Empty |
 | `payment_period_days` | Empty |
-| `moa_authorised_signatory_names` | Empty |
-| Corporate signatory names | Empty |
 | Facility Type Part A/B checkboxes | Not tagged — **FLAG** |
 
 ## Wet ink (SIGNEE)

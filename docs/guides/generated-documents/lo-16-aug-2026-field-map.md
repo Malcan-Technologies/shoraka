@@ -61,9 +61,9 @@ Already shared (no separate “demo template”):
 | `assigned_contract_date` | Schedule B | `EXISTS` | `contract_details.start_date` | |
 | `assigned_contract_counterparty` | Schedule B | `EXISTS` | `customer_details.name` | |
 | `assigned_contract_description` | Schedule B | `EXISTS` | `title` / `description` / `number` | |
-| `moa_authorised_signatory_names` | MoA authorised signatory name(s) | `EMPTY` | — | **FLAG** — do not map `contact_person` until ops confirms |
+| `moa_authorised_signatory_names` | MoA authorised signatory name(s) | `EXISTS` | `authorized_parties` issuer names (comma-separated). Empty until Step 1 snapshot exists. | |
 | `corporate_guarantor_name` / `_ssm` | Corporate ack | `EXISTS` | First company guarantor | |
-| `corporate_signatory_1_name` / `_2_name` | Corporate ack signatory labels | `EMPTY` | — | **FLAG** — bind rules TBD |
+| `corporate_signatory_1_name` / `_2_name` | Corporate ack signatory labels | `EXISTS` | First corporate guarantor’s declared people (first two names). Empty until snapshot exists. | |
 
 ---
 

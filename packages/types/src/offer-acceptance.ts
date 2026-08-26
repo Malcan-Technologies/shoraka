@@ -1,6 +1,7 @@
 /**
  * Offer-acceptance phase (Option A): status lives on offer_details.offer_acceptance.
  * Step 1 is acceptance documents plus authorised representatives.
+ * Admin sends the signing package after those lists and documents are approved.
  * See docs/guides/application-flow/offer-acceptance-and-signing-phases.md
  */
 
@@ -315,19 +316,19 @@ export function withOfferAcceptance(
   return { ...offerDetails, offer_acceptance: acceptance };
 }
 
-/** Issuer UI: signing steps are visible after admin approval (including completed packages). */
+/** Issuer UI: signing progress is visible after admin approval (including completed packages). */
 export function offerAcceptanceAllowsSigning(status: OfferAcceptanceStatus | null | undefined): boolean {
   return status === "APPROVED_FOR_SIGNING" || status === "SIGNING_IN_PROGRESS" || status === "COMPLETED";
 }
 
-/** Create a draft signing package only from the approved-for-signing phase. */
+/** Admin may create the signing package only from the approved-for-signing phase. */
 export function offerAcceptanceAllowsCreateSigningPackage(
   status: OfferAcceptanceStatus | null | undefined
 ): boolean {
   return status === "APPROVED_FOR_SIGNING";
 }
 
-/** Send (or re-send after draft) while approved or already marked signing-in-progress. */
+/** Admin may send (or finish sending a draft) while approved or already marked signing-in-progress. */
 export function offerAcceptanceAllowsSendSigningPackage(
   status: OfferAcceptanceStatus | null | undefined
 ): boolean {
@@ -338,7 +339,7 @@ export function offerAcceptanceIsStep1Editable(status: OfferAcceptanceStatus | n
   return status === "PENDING_ISSUER" || status === "CHANGES_REQUESTED" || status == null;
 }
 
-/** After admin approval, Step 3 people are frozen — void does not reopen the lists. */
+/** After admin approval, authorised representatives are frozen — void does not reopen the lists. */
 export function offerAcceptanceFreezesAuthorizedParties(
   status: OfferAcceptanceStatus | null | undefined
 ): boolean {
@@ -359,7 +360,9 @@ export function offerAcceptanceIsAwaitingAdmin(status: OfferAcceptanceStatus | n
 
 /**
  * Whether the issuer Review Offer CTA should show for this acceptance phase.
- * Hidden while waiting on admin (`PENDING_ADMIN_REVIEW`); legacy offers (no status) keep the CTA.
+ * Hidden while CashSouk reviews acceptance or sends signing links (`PENDING_ADMIN_REVIEW`,
+ * `APPROVED_FOR_SIGNING`). Shown again during `SIGNING_IN_PROGRESS` so the issuer can track.
+ * Offers with no phase status keep the CTA.
  */
 export function offerAcceptanceAllowsIssuerReviewCta(
   status: OfferAcceptanceStatus | null | undefined
@@ -368,7 +371,6 @@ export function offerAcceptanceAllowsIssuerReviewCta(
   return (
     status === "PENDING_ISSUER" ||
     status === "CHANGES_REQUESTED" ||
-    status === "APPROVED_FOR_SIGNING" ||
     status === "SIGNING_IN_PROGRESS"
   );
 }

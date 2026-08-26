@@ -13,7 +13,6 @@ import {
   getOfferPhaseDeadlineDisplay,
   isOfferAcceptanceDocumentsVisibleToAdmin,
   workflowHasAcceptanceDocuments,
-  type ApplicationPersonRow,
   type ReviewItemType,
 } from "@cashsouk/types";
 import { formatCurrency } from "@cashsouk/config";
@@ -62,10 +61,7 @@ export type AcceptanceSectionProps = {
   /** Live review only — when set, show offer-acceptance + signing hub. */
   applicationId?: string;
   workflow?: unknown;
-  people?: ApplicationPersonRow[];
   guarantors?: unknown;
-  contractId?: string | null;
-  productVersion?: number | null;
   canManageSigning?: boolean;
   contractOfferDetails?: unknown;
   invoices?: { id: string; offer_details?: unknown }[];
@@ -224,10 +220,7 @@ export function AcceptanceSection({
   hideSectionComments = false,
   applicationId,
   workflow,
-  people = [],
   guarantors,
-  contractId,
-  productVersion,
   canManageSigning = true,
   contractOfferDetails,
   invoices = [],
@@ -434,10 +427,6 @@ export function AcceptanceSection({
             <SigningEnvelopePanel
               applicationId={applicationId}
               workflow={workflow}
-              people={people}
-              guarantors={guarantors}
-              contractId={contractId}
-              productVersion={productVersion}
               canManage={canManageSigning}
               offerDetails={contractOfferDetails}
               invoices={invoices}
