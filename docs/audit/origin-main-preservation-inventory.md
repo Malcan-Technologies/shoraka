@@ -107,9 +107,9 @@ count.
 
 `LOGIN`, `LOGOUT`, `SIGNUP`, `ROLE_ADDED`, `ROLE_REMOVED`, `PROFILE_UPDATED`, `ONBOARDING_RESET`
 
-Writers: `auth/cognito.routes.ts` (3 direct creates), `auth/service.ts` (`syncUser`, `logout`),
+Writers: `auth/cognito.routes.ts` (3 direct creates), `auth/service.ts` (`logout`),
 `admin/service.ts` (`updateUserRoles`, `updateUserProfile`, `resetOnboarding`) via
-`AuthRepository.createAccessLog` / `AdminRepository.createAccessLog`.
+`AuthRepository.createAccessLog` / `AdminRepository.createAccessLog`. `syncUser` does not write access logs.
 
 `DEAD_EVENT` (declared in `packages/types/src/admin.ts` `EventType`, never written):
 `ROLE_SWITCHED` (goes to `security_logs` instead), `ONBOARDING`, `USER_COMPLETED`,

@@ -133,7 +133,7 @@ in §2; notifications in §3–§6; counts, legacy names, and the reconciliation
 |---|---|---|---|---|---|---|---|---|---|---|
 | `LOGIN` | LIVE | User signed in | User | access_logs | Y | n/a | n/a | — | Y | Also written on *failed* admin-portal login (`success:false`) |
 | `LOGOUT` | LIVE | User signed out | User | access_logs | Y | n/a | n/a | — | Y | |
-| `SIGNUP` | LIVE | First OAuth signup | User | access_logs | Y | n/a | n/a | — | Y | Emitted alongside `LOGIN` |
+| `SIGNUP` | LIVE | First CashSouk user establishment | User | access_logs | Y | n/a | n/a | — | Y | Not written from `signup=true` alone |
 | `ROLE_ADDED` | **UNREACHABLE** | Fallback branch of `updateUserRoles` for any outcome that doesn't strip ADMIN — not literally "a role was added" | Admin | access_logs | Y *(filter + label; no `.tsx` caller reaches the writer)* | n/a | n/a | — | Y | Re-traced 2026-08-25 — see §2.1 detail card and §9 |
 | `ROLE_REMOVED` | **UNREACHABLE** | ADMIN role specifically stripped by `updateUserRoles` — not "any role removed" | Admin | access_logs | Y *(filter only; no curated label, no `.tsx` caller)* | n/a | n/a | — | Y | Same writer/route as `ROLE_ADDED`; re-traced 2026-08-25 |
 | `PROFILE_UPDATED` | LIVE | Admin edited a user's name/phone from the user detail page | Admin | access_logs | Y | n/a | n/a | — | Y | `useUpdateUserProfile` → `user-account-profile-panel.tsx` / org member-edit dialog |
@@ -406,13 +406,13 @@ Declared union: `EventType` in `packages/types/src/admin.ts`. Central writer:
 **STATUS:** LIVE
 **CANONICAL BUSINESS NAME:** User signed in
 **LEGACY / OLD / ALIAS NAMES:** `USER_LOGGED_IN` — *not real*, belongs to an unmerged cutover schema (see §8)
-**DO NOT CONFUSE WITH:** `SIGNUP` (first-ever login also writes both); `ROLE_SWITCHED` (changing active role mid-session)
-**BUSINESS TRIGGER:** Successful OAuth callback, or the `POST sync-user` endpoint after OAuth. A **failed** admin-portal login also writes `LOGIN` with `success:false`.
+**DO NOT CONFUSE WITH:** `SIGNUP` (first CashSouk user establishment); `ROLE_SWITCHED` (changing active role mid-session)
+**BUSINESS TRIGGER:** Successful OAuth callback after the user already exists in CashSouk. A **failed** admin-portal login also writes `LOGIN` with `success:false`. `POST /v1/auth/sync-user` does not write LOGIN.
 **ACTOR:** User (self)
-**WRITER:** `auth/cognito.routes.ts` (OAuth callback ~708; failed-admin branch ~650); `auth/service.ts:syncUser` (~105)
+**WRITER:** `auth/cognito.routes.ts` (OAuth callback success; failed-admin branch)
 **TABLE / STORE:** `access_logs`
 **TARGET:** user
-**STORED EVIDENCE:** `success`, `cognito_event`, `portal`, `device_type`; metadata `requestedRole`, `activeRole`, `roles`. Failure branch adds `userRoles`, `hasAdminRole`, `adminStatus`, `wasPreviouslyAdmin`, `reason`. Sync-user branch adds `source:"sync-user-endpoint"`.
+**STORED EVIDENCE:** `success`, `portal` (initiating portal from OAuth state; null if unknown), `device_type`; metadata `requestedRole`, `activeRole`, `roles`, `portal`. Failure branch adds `userRoles`, `hasAdminRole`, `adminStatus`, `wasPreviouslyAdmin`, `reason`.
 **SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: Shown — Copy: `"Login"` (filter) / `"Login"` (table row). CSV / EXPORT: Included — Copy: `"LOGIN"` (raw).
 **NOTIFICATION:** NO. *(`login_new_device` exists in the registry but no device-fingerprinting code calls it — see §4.)*
 
@@ -423,18 +423,18 @@ Declared union: `EventType` in `packages/types/src/admin.ts`. Central writer:
 **ALIASES:** `USER_LOGGED_OUT` — *not real* (cutover schema) · **DO NOT CONFUSE WITH:** session expiry (not logged)
 **BUSINESS TRIGGER:** Logout route or logout service call. **ACTOR:** User (self)
 **WRITER:** `auth/cognito.routes.ts` (~994); `auth/service.ts:logout` (~489) · **TABLE:** `access_logs` · **TARGET:** user
-**STORED EVIDENCE:** metadata `roles`, optional `activeRole`
+**STORED EVIDENCE:** `portal` from `?portal=` or Origin/Referer (null if unknown; never `user.roles[0]`); metadata `roles`, `portal`
 **SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: Shown — Copy: `"Logout"`. CSV: Included — Copy: `"LOGOUT"` (raw).
 **NOTIFICATION:** NO
 
 ---
 
 **EVENT TYPE:** `SIGNUP`
-**STATUS:** LIVE · **CANONICAL BUSINESS NAME:** First OAuth signup
+**STATUS:** LIVE · **CANONICAL BUSINESS NAME:** First CashSouk user establishment
 **ALIASES:** `USER_SIGNED_UP` — *not real* (cutover schema) · **DO NOT CONFUSE WITH:** `ONBOARDING_STARTED` (KYC/KYB onboarding, a completely different table and moment)
-**BUSINESS TRIGGER:** OAuth callback with `isSignup`. A `LOGIN` row is written for the same moment. **ACTOR:** User (self)
-**WRITER:** `auth/cognito.routes.ts` (~710) · **TABLE:** `access_logs` · **TARGET:** user
-**STORED EVIDENCE:** metadata `requestedRole`, `activeRole`, `roles`
+**BUSINESS TRIGGER:** OAuth callback that inserts the CashSouk user row, when no successful SIGNUP already exists. Later authentications are `LOGIN`, including callbacks that still have `signup=true`. **ACTOR:** User (self)
+**WRITER:** `auth/cognito.routes.ts` · **TABLE:** `access_logs` · **TARGET:** user
+**STORED EVIDENCE:** `portal` from OAuth state; metadata `requestedRole`, `activeRole`, `roles`, `portal`
 **SURFACES:** profile `ADMIN-FORENSIC`. ADMIN ACTIVITY: Shown — Copy: `"Sign Up"`. CSV: Included — Copy: `"SIGNUP"` (raw).
 **NOTIFICATION:** NO
 

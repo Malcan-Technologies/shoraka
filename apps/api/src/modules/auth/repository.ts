@@ -289,6 +289,18 @@ export class AuthRepository {
     });
   }
 
+  async hasSuccessfulSignup(userId: string): Promise<boolean> {
+    const existing = await prisma.accessLog.findFirst({
+      where: {
+        user_id: userId,
+        event_type: "SIGNUP",
+        success: true,
+      },
+      select: { id: true },
+    });
+    return existing !== null;
+  }
+
   /**
    * Create security log entry
    */

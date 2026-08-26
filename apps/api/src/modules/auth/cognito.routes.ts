@@ -6,7 +6,7 @@ import { verifyCognitoAccessToken } from "../../lib/auth/cognito-jwt-verifier";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { getEnv } from "../../config/env";
-import { detectRoleFromRequest, getPortalFromRole } from "../../lib/role-detector";
+import { detectInitiatingPortal, detectRoleFromRequest, parseKnownPortal } from "../../lib/role-detector";
 import { UserRole } from "@prisma/client";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AppError } from "../../lib/http/error-handler";
@@ -15,6 +15,7 @@ import {
   AdminUserGlobalSignOutCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { encryptOAuthState, decryptOAuthState, createOAuthState } from "../../lib/auth/oauth-state";
+import { classifyAccessAuthEvent } from "../../lib/auth/access-auth-audit";
 import { AuthRepository } from "./repository";
 import { AdminService } from "../admin/service";
 import { auditContextFromRequest, createAccessLogRow } from "../../lib/audit";
@@ -35,15 +36,18 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
   try {
     const detectedRole = detectRoleFromRequest(req);
     const requestedRole = detectedRole || UserRole.INVESTOR;
+    const initiatingPortal = detectInitiatingPortal(req);
 
     // Explicitly log what we're detecting
     logger.info(
       {
         correlationId,
         queryRole: req.query.role,
+        queryPortal: req.query.portal,
         detectedRole,
         requestedRole,
         requestedRoleString: requestedRole.toString(),
+        initiatingPortal,
         origin: req.get("origin"),
         referer: req.get("referer"),
         host: req.get("host"),
@@ -91,6 +95,7 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
         nonce,
         state: oauthState,
         requestedRole: requestedRole.toString().toUpperCase(),
+        portal: initiatingPortal,
         signup: signupParam,
         invitationToken,
         invitationRole,
@@ -103,6 +108,7 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
       {
         correlationId,
         requestedRole: requestedRole.toString().toUpperCase(),
+        initiatingPortal,
         isSignup: signupParam,
         method: "encrypted-state",
       },
@@ -401,6 +407,7 @@ router.get("/callback", async (req: Request, res: Response) => {
     }
 
     const isSignup = stateData.signup === true;
+    const initiatingPortal = parseKnownPortal(stateData.portal);
 
     logger.info(
       {
@@ -409,6 +416,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         requestedRole,
         requestedRoleString: requestedRole.toString(),
         isSignup,
+        initiatingPortal,
       },
       "Processing callback with requested role"
     );
@@ -650,7 +658,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         await createAccessLogRow({
           userId: user.user_id,
           eventType: "LOGIN",
-          portal: "admin",
+          portal: initiatingPortal,
           ipAddress,
           userAgent,
           deviceInfo,
@@ -662,6 +670,7 @@ router.get("/callback", async (req: Request, res: Response) => {
             hasAdminRole,
             adminStatus,
             wasPreviouslyAdmin,
+            portal: initiatingPortal,
             reason: !hasAdminRole ? "User does not have ADMIN role" : "Admin account is inactive",
           },
           context: auditContextFromRequest(req),
@@ -702,12 +711,20 @@ router.get("/callback", async (req: Request, res: Response) => {
       "Determined active role"
     );
 
-    const portal = getPortalFromRole(activeRole);
+    const portal = initiatingPortal;
+    const isNewCashSoukUser = !existingUser;
+    const hasSuccessfulSignup = isNewCashSoukUser
+      ? await authRepository.hasSuccessfulSignup(user.user_id)
+      : true;
+    const eventType = classifyAccessAuthEvent({
+      isNewCashSoukUser,
+      hasSuccessfulSignup,
+    });
 
     // Create access log
     await createAccessLogRow({
       userId: user.user_id,
-      eventType: isSignup ? "SIGNUP" : "LOGIN",
+      eventType,
       portal,
       ipAddress,
       userAgent,
@@ -718,6 +735,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         requestedRole,
         activeRole,
         roles: user.roles,
+        portal,
       },
       context: auditContextFromRequest(req),
     });
@@ -947,27 +965,8 @@ router.get("/logout", async (req: Request, res: Response) => {
   const token = tokenFromHeader || tokenFromQuery;
 
   let cognitoSub: string | undefined;
-  let portal: string | undefined;
+  const portal = detectInitiatingPortal(req);
   let userId: string | undefined;
-
-  // Try to detect portal from referer/origin if token doesn't have it
-  // This helps when logout is called without a valid token
-  const referer = req.get("referer") || req.get("origin");
-  if (referer && !portal) {
-    try {
-      const url = new URL(referer);
-      const hostname = url.hostname.toLowerCase();
-      if (hostname.includes("admin")) {
-        portal = "admin";
-      } else if (hostname.includes("investor")) {
-        portal = "investor";
-      } else if (hostname.includes("issuer")) {
-        portal = "issuer";
-      }
-    } catch {
-      // Ignore URL parsing errors
-    }
-  }
 
   if (token) {
     try {
@@ -985,16 +984,11 @@ router.get("/logout", async (req: Request, res: Response) => {
         userId = user.user_id;
         const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
 
-        // Determine portal from user's roles if not detected from referer
-        if (!portal && user.roles.length > 0) {
-          portal = getPortalFromRole(user.roles[0]);
-        }
-
         // Create access log before signing out
         await createAccessLogRow({
           userId: user.user_id,
           eventType: "LOGOUT",
-          portal: portal || null,
+          portal: portal,
           ipAddress,
           userAgent,
           deviceInfo,
@@ -1002,6 +996,7 @@ router.get("/logout", async (req: Request, res: Response) => {
           success: true,
           metadata: {
             roles: user.roles,
+            portal,
           },
           context: auditContextFromRequest(req),
         });

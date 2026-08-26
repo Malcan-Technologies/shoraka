@@ -16,7 +16,7 @@ import { AuthRepository } from "./repository";
 import { User, UserRole } from "@prisma/client";
 import { formatRolesForCognito } from "../../lib/auth/cognito";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
-import { getPortalFromRole } from "../../lib/role-detector";
+import { detectInitiatingPortal } from "../../lib/role-detector";
 import { verifyCognitoAccessToken } from "../../lib/auth/cognito-jwt-verifier";
 import { Request, Response } from "express";
 import { prisma } from "../../lib/prisma";
@@ -61,11 +61,11 @@ export class AuthService {
   }
 
   /**
-   * Sync Cognito user to database after OAuth callback
-   * Creates or updates user record and creates access log for audit trail
+   * Sync Cognito user to database after OAuth callback.
+   * Does not write LOGIN/SIGNUP — those belong on the OAuth callback only.
    */
   async syncUser(
-    req: Request,
+    _req: Request,
     data: {
       cognitoSub: string;
       email: string;
@@ -82,9 +82,6 @@ export class AuthService {
       issuer: boolean;
     };
   }> {
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-
-    // Upsert user in database
     const user = await this.repository.upsertUser({
       cognitoSub: data.cognitoSub,
       cognitoUsername: data.email, // Default to email
@@ -94,26 +91,6 @@ export class AuthService {
       lastName: data.lastName,
       phone: data.phone,
       emailVerified: data.emailVerified,
-    });
-
-    // Create access log for audit trail
-    // Note: This may create a duplicate log if called from OAuth callback route,
-    // but both logs serve different purposes:
-    // - This log: Records the sync operation (no portal context)
-    // - Callback log: Records LOGIN/SIGNUP event (with portal context)
-    // Both are needed for complete audit trail
-    await this.repository.createAccessLog({
-      userId: user.user_id,
-      eventType: "LOGIN",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      success: true,
-      metadata: {
-        roles: data.roles,
-        source: "sync-user-endpoint",
-      },
     });
 
     // Check onboarding status
@@ -457,7 +434,7 @@ export class AuthService {
 
     // Use activeRole from parameter, session, or default to first role
     const roleForPortal = activeRole || session?.active_role || null;
-    const portal = roleForPortal ? getPortalFromRole(roleForPortal) : undefined;
+    const portal = detectInitiatingPortal(req);
 
     // Check if user has started but not completed onboarding, and cancel it
     if (roleForPortal) {
@@ -489,13 +466,16 @@ export class AuthService {
     await this.repository.createAccessLog({
       userId,
       eventType: "LOGOUT",
-      portal,
+      portal: portal ?? undefined,
       ipAddress,
       userAgent,
       deviceInfo,
       deviceType,
       success: true,
-      metadata: roleForPortal ? { activeRole: roleForPortal } : undefined,
+      metadata: {
+        ...(roleForPortal ? { activeRole: roleForPortal } : {}),
+        portal,
+      },
     });
 
     // Return Cognito logout URL
