@@ -937,7 +937,7 @@ export class AuthService {
       logger.info({ email: user.email }, "Password changed successfully, revoking sessions");
 
       // Update password changed timestamp in database
-      await this.repository.updatePasswordChangedAt(userId);
+      const updatedUser = await this.repository.updatePasswordChangedAt(userId);
 
       // Revoke all sessions using non-admin GlobalSignOut
       // This invalidates all refresh tokens for the user
@@ -977,9 +977,16 @@ export class AuthService {
 
       // Send platform notification
       try {
-        await this.notificationService.sendTyped(userId, NotificationTypeIds.PASSWORD_CHANGED, {
-          changedAt: new Date(),
-        });
+        const changedAt = updatedUser.password_changed_at ?? new Date();
+        await this.notificationService.sendTypedAndLogSystem(
+          userId,
+          NotificationTypeIds.PASSWORD_CHANGED,
+          {
+            changedAt,
+          },
+          `password_changed:${userId}:${changedAt.toISOString()}`,
+          { targetType: "ALL_USERS" }
+        );
       } catch (error) {
         logger.error({ error, userId }, "Failed to send password changed notification");
       }

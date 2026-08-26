@@ -85,3 +85,12 @@ export const UpdateNotificationGroupSchema = z.object({
   description: z.string().optional(),
   userIds: z.array(z.string()).min(1).optional(),
 });
+
+export const AdminNotificationLogsQuerySchema = z.object({
+  limit: z.string().optional().transform((v) => (v ? parseInt(v, 10) : 20)),
+  offset: z.string().optional().transform((v) => (v ? parseInt(v, 10) : 0)),
+  search: z.string().optional(),
+  type: z.string().optional(),
+  target: z.string().optional(),
+  source: z.enum(['ADMIN', 'SYSTEM', 'all']).optional(),
+});

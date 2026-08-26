@@ -1577,10 +1577,11 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
             // Send platform notification
             try {
-              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
+              await this.notificationService.sendTypedAndLogSystem(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
                 onboardingType: onboarding.onboarding_type,
                 orgName: org.name || "your organization",
-              });
+                portalType: "investor",
+              }, `onboarding:${onboarding.id}:rejected`);
             } catch (notifError) {
               logger.error({ error: notifError, userId: onboarding.user_id }, "Failed to send rejection notification");
             }
@@ -1629,10 +1630,11 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
             // Send platform notification
             try {
-              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
+              await this.notificationService.sendTypedAndLogSystem(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
                 onboardingType: onboarding.onboarding_type,
                 orgName: org.name || "your organization",
-              });
+                portalType: "issuer",
+              }, `onboarding:${onboarding.id}:rejected`);
             } catch (notifError) {
               logger.error({ error: notifError, userId: onboarding.user_id }, "Failed to send rejection notification");
             }

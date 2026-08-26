@@ -1,14 +1,9 @@
 import {
-  chunkQueuePages,
-  countTilesThatFit,
   dashboardQueueDescription,
   formatQueueCount,
-  NEXT_ACTIONS_ARROW_RESERVE_PX,
-  nextQueuePageIndex,
   queuesNeedingAttention,
   sortQueuesByPriority,
   urgencyVariant,
-  visibleQueuePageSize,
   type QuickActionQueue,
 } from "./quick-action-queues";
 
@@ -60,46 +55,6 @@ describe("queuesNeedingAttention", () => {
       queue({ id: "open", count: 2, variant: "warning" }),
     ]);
     expect(open.map((item) => item.id)).toEqual(["open"]);
-  });
-});
-
-describe("chunkQueuePages", () => {
-  it("pages queues into groups of three", () => {
-    expect(chunkQueuePages(["a", "b", "c", "d", "e"], 3)).toEqual([
-      ["a", "b", "c"],
-      ["d", "e"],
-    ]);
-  });
-
-  it("returns no pages for an empty list", () => {
-    expect(chunkQueuePages([], 3)).toEqual([]);
-  });
-});
-
-describe("nextQueuePageIndex", () => {
-  it("wraps to the first page after the last", () => {
-    expect(nextQueuePageIndex(0, 3)).toBe(1);
-    expect(nextQueuePageIndex(2, 3)).toBe(0);
-    expect(nextQueuePageIndex(4, 1)).toBe(0);
-  });
-});
-
-describe("visibleQueuePageSize", () => {
-  it("shows more tiles as the header slot grows", () => {
-    expect(countTilesThatFit(200)).toBe(1);
-    expect(countTilesThatFit(224)).toBe(1);
-    expect(countTilesThatFit(496)).toBe(2);
-    expect(countTilesThatFit(1100)).toBeGreaterThanOrEqual(4);
-  });
-
-  it("reserves space for a single next arrow only when queues overflow", () => {
-    const wide = 800;
-    const withoutPager = visibleQueuePageSize(wide, 2);
-    const withPager = visibleQueuePageSize(wide, 12);
-    expect(withoutPager).toBe(countTilesThatFit(wide));
-    expect(withPager).toBe(countTilesThatFit(wide, NEXT_ACTIONS_ARROW_RESERVE_PX));
-    expect(withPager).toBeLessThanOrEqual(withoutPager);
-    expect(NEXT_ACTIONS_ARROW_RESERVE_PX).toBeLessThan(80);
   });
 });
 

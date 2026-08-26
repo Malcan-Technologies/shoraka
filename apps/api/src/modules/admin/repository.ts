@@ -46,6 +46,10 @@ import {
   readInvoiceFaceAmount,
 } from "./contract-capacity-dto";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
+import {
+  aggregateApplicationNavCounts,
+  type ApplicationNavCountItem,
+} from "./application-nav-counts";
 
 export class AdminRepository {
   private async resolveAdminRoleId(roleKey: AdminRoleKey): Promise<string> {
@@ -564,6 +568,41 @@ export class AdminRepository {
           pending: issuerCompanyTotal - issuerCompanyOnboarded,
         },
       },
+    };
+  }
+
+  /**
+   * Organization creations in the current vs previous trend window.
+   */
+  async getOrganizationPeriodCounts(days: number): Promise<{
+    current: { investor: number; issuer: number };
+    previous: { investor: number; issuer: number };
+  }> {
+    const now = new Date();
+    const currentStart = new Date();
+    currentStart.setDate(now.getDate() - days);
+    currentStart.setHours(0, 0, 0, 0);
+    const previousStart = new Date(currentStart);
+    previousStart.setDate(previousStart.getDate() - days);
+
+    const [investorCurrent, investorPrevious, issuerCurrent, issuerPrevious] = await Promise.all([
+      prisma.investorOrganization.count({
+        where: { created_at: { gte: currentStart, lt: now } },
+      }),
+      prisma.investorOrganization.count({
+        where: { created_at: { gte: previousStart, lt: currentStart } },
+      }),
+      prisma.issuerOrganization.count({
+        where: { created_at: { gte: currentStart, lt: now } },
+      }),
+      prisma.issuerOrganization.count({
+        where: { created_at: { gte: previousStart, lt: currentStart } },
+      }),
+    ]);
+
+    return {
+      current: { investor: investorCurrent, issuer: issuerCurrent },
+      previous: { investor: investorPrevious, issuer: issuerPrevious },
     };
   }
 
@@ -2128,6 +2167,117 @@ export class AdminRepository {
       distressed,
       cancelledOrFailedFunding,
     };
+  }
+
+  /**
+   * Platform book snapshot: outstanding, in funding, distressed, and notes due in 7 days.
+   */
+  async getBookMetrics(): Promise<{
+    outstanding: { amount: number; count: number };
+    inFunding: { amount: number; count: number };
+    distressed: { amount: number; count: number };
+    dueSoon: { amount: number; count: number };
+  }> {
+    const dueSoonStart = new Date();
+    dueSoonStart.setHours(0, 0, 0, 0);
+    const dueSoonEnd = new Date(dueSoonStart);
+    dueSoonEnd.setDate(dueSoonEnd.getDate() + 7);
+
+    const IN_FUNDING: NoteStatus[] = [NoteStatus.PUBLISHED, NoteStatus.FUNDING];
+    const DISTRESSED: NoteStatus[] = [NoteStatus.ARREARS, NoteStatus.DEFAULTED];
+
+    const [outstanding, inFunding, distressed, dueSoon] = await Promise.all([
+      prisma.note.aggregate({
+        where: { status: NoteStatus.ACTIVE },
+        _sum: { funded_amount: true },
+        _count: true,
+      }),
+      prisma.note.aggregate({
+        where: { status: { in: IN_FUNDING } },
+        _sum: { funded_amount: true },
+        _count: true,
+      }),
+      prisma.note.aggregate({
+        where: { status: { in: DISTRESSED } },
+        _sum: { funded_amount: true },
+        _count: true,
+      }),
+      prisma.note.aggregate({
+        where: {
+          status: NoteStatus.ACTIVE,
+          maturity_date: { gte: dueSoonStart, lt: dueSoonEnd },
+        },
+        _sum: { funded_amount: true },
+        _count: true,
+      }),
+    ]);
+
+    const toMetric = (row: {
+      _sum: { funded_amount: Prisma.Decimal | null };
+      _count: number;
+    }) => ({
+      amount: row._sum.funded_amount?.toNumber() ?? 0,
+      count: row._count,
+    });
+
+    return {
+      outstanding: toMetric(outstanding),
+      inFunding: toMetric(inFunding),
+      distressed: toMetric(distressed),
+      dueSoon: toMetric(dueSoon),
+    };
+  }
+
+  /**
+   * Per-base-product application totals for sidebar and dashboard queue badges.
+   * product_id lives on financing_type JSON, so grouping is done in SQL then mapped to base ids.
+   */
+  async getApplicationNavCounts(): Promise<ApplicationNavCountItem[]> {
+    const ACTION_REQUIRED: ApplicationStatus[] = [
+      ApplicationStatus.SUBMITTED,
+      ApplicationStatus.UNDER_REVIEW,
+      ApplicationStatus.RESUBMITTED,
+      ApplicationStatus.CONTRACT_PENDING,
+      ApplicationStatus.CONTRACT_ACCEPTED,
+      ApplicationStatus.INVOICE_ACCEPTED,
+      ApplicationStatus.SIGNING_PENDING,
+      ApplicationStatus.INVOICE_PENDING,
+    ];
+
+    const rows = await prisma.$queryRaw<
+      Array<{
+        product_id: string | null;
+        product_name: string | null;
+        status: ApplicationStatus;
+        count: number;
+      }>
+    >`
+      SELECT
+        financing_type->>'product_id' AS product_id,
+        financing_type->>'product_name' AS product_name,
+        status,
+        COUNT(*)::int AS count
+      FROM applications
+      WHERE status::text <> ${ApplicationStatus.ARCHIVED}
+      GROUP BY 1, 2, 3
+    `;
+
+    if (rows.length === 0) return [];
+
+    const productRows = await prisma.product.findMany({
+      select: { id: true, base_id: true },
+    });
+
+    return aggregateApplicationNavCounts(
+      rows.map((row) => ({
+        productId: row.product_id,
+        productName: row.product_name,
+        status: row.status,
+        count: Number(row.count),
+      })),
+      productRows,
+      ACTION_REQUIRED
+    );
   }
 
   /**

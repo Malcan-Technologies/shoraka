@@ -2,8 +2,24 @@ import { NotificationTypeIds, getNotificationContent } from "./registry";
 import {
   excessLateChargesDueIdempotencyKey,
   excessLateChargesPaidIdempotencyKey,
+  notifyExcessLateChargesDue,
   shouldNotifyExcessLateChargesDue,
 } from "./excess-late-charge-notifications";
+
+const sendTyped = jest.fn().mockResolvedValue({ id: "n1" });
+const logTypedSystemBatch = jest.fn().mockResolvedValue(undefined);
+
+jest.mock("./service", () => ({
+  NotificationService: jest.fn().mockImplementation(() => ({
+    sendTyped,
+    logTypedSystemBatch,
+  })),
+}));
+
+const mockListIssuer = jest.fn();
+jest.mock("./org-member-recipients", () => ({
+  listIssuerOrgMemberUserIds: (...args: unknown[]) => mockListIssuer(...args),
+}));
 
 describe("excess late charge notifications", () => {
   it("builds stable idempotency keys", () => {
@@ -37,5 +53,47 @@ describe("excess late charge notifications", () => {
     });
     expect(paid.title).toBe("Late payment charges received");
     expect(paid.linkPath).toBe("/financing/notes/note-1");
+  });
+});
+
+describe("notifyExcessLateChargesDue", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockListIssuer.mockResolvedValue(["user-1", "user-2"]);
+  });
+
+  it("writes one SYSTEM batch log for the issuer org", async () => {
+    await notifyExcessLateChargesDue({
+      noteId: "note-1",
+      settlementId: "set-1",
+      issuerOrganizationId: "org-1",
+      noteReference: "NOTE-1",
+      outstandingAmount: 80,
+    });
+
+    expect(sendTyped).toHaveBeenCalledTimes(2);
+    expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
+    expect(logTypedSystemBatch).toHaveBeenCalledWith(
+      NotificationTypeIds.EXCESS_LATE_CHARGES_DUE,
+      {
+        noteId: "note-1",
+        noteReference: "NOTE-1",
+        outstandingAmount: 80,
+      },
+      [{ id: "n1" }, { id: "n1" }],
+      { idempotencyKey: "system-log:excess_late_charges_due:settlement:set-1" }
+    );
+  });
+
+  it("does not send or log when outstanding is zero", async () => {
+    await notifyExcessLateChargesDue({
+      noteId: "note-1",
+      settlementId: "set-1",
+      issuerOrganizationId: "org-1",
+      noteReference: "NOTE-1",
+      outstandingAmount: 0,
+    });
+    expect(sendTyped).not.toHaveBeenCalled();
+    expect(logTypedSystemBatch).not.toHaveBeenCalled();
   });
 });

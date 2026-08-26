@@ -1,9 +1,12 @@
 import {
   Notification,
+  NotificationCategory,
+  NotificationLogSource,
   Prisma,
   NotificationType,
   NotificationPortalTarget,
 } from "@prisma/client";
+import { AppError } from "../../lib/http/error-handler";
 import { NotificationRepository } from "./repository";
 import { NotificationGroupRepository } from "./group-repository";
 import { CreateNotificationParams, NotificationFilters, PaginatedNotifications } from "./types";
@@ -15,6 +18,15 @@ import { getNotificationContent, NotificationPayloads, NotificationTypeId } from
 import { getFullUrl, PortalType } from "../../lib/http/url-utils";
 import { PortalContext } from "../../lib/http/portal-context";
 import { initialNotificationTypes } from "./seed-data";
+import {
+  isNotificationLogUniqueConflict,
+  notificationLogTargetToPortal,
+  portalToNotificationLogTarget,
+  summarizeNotificationDelivery,
+  systemNotificationLogKey,
+  type NotificationDeliveryResult,
+  type SystemDeliveryLogInput,
+} from "./delivery-log";
 
 export class NotificationService {
   private repository: NotificationRepository;
@@ -36,6 +48,13 @@ export class NotificationService {
    * Create a notification and handle delivery (platform + email)
    */
   async create(params: CreateNotificationParams): Promise<Notification | null> {
+    const { notification } = await this.createInternal(params);
+    return notification;
+  }
+
+  private async createInternal(
+    params: CreateNotificationParams
+  ): Promise<{ notification: Notification | null; replayed: boolean }> {
     const {
       userId,
       typeId,
@@ -55,7 +74,7 @@ export class NotificationService {
       const existing = await this.repository.findByIdempotencyKey(idempotencyKey);
       if (existing) {
         logger.info({ idempotencyKey, userId }, "Notification already exists (idempotency hit)");
-        return existing;
+        return { notification: existing, replayed: true };
       }
     }
 
@@ -79,15 +98,20 @@ export class NotificationService {
     const preferences = await this.repository.findUserPreferences(userId);
     const userPref = preferences.find((p) => p.notification_type_id === typeId);
 
+    // AUTHENTICATION types always deliver on both channels.
+    const forceAuthenticationDelivery = type.category === NotificationCategory.AUTHENTICATION;
+
     // Manual overrides or derived from type/preferences
-    const shouldDeliverPlatform =
-      sendToPlatform !== undefined
+    const shouldDeliverPlatform = forceAuthenticationDelivery
+      ? true
+      : sendToPlatform !== undefined
         ? sendToPlatform
         : type.enabled_platform &&
           (type.user_configurable ? (userPref?.enabled_platform ?? true) : true);
 
-    const shouldDeliverEmail =
-      sendToEmail !== undefined
+    const shouldDeliverEmail = forceAuthenticationDelivery
+      ? true
+      : sendToEmail !== undefined
         ? sendToEmail
         : type.enabled_email && (type.user_configurable ? (userPref?.enabled_email ?? true) : true);
 
@@ -97,7 +121,7 @@ export class NotificationService {
         { userId, typeId },
         "Notification skipped: both platform and email channels are disabled"
       );
-      return null;
+      return { notification: null, replayed: false };
     }
 
     // 4. Create Notification Record
@@ -147,7 +171,7 @@ export class NotificationService {
       }
     }
 
-    return notification;
+    return { notification, replayed: false };
   }
 
   /**
@@ -213,9 +237,73 @@ export class NotificationService {
     payload: NotificationPayloads[T],
     idempotencyKey?: string
   ): Promise<Notification | null> {
-    const { title, message, linkPath, portal } = getNotificationContent(typeId, payload);
+    const { notification } = await this.sendTypedInternal(userId, typeId, payload, idempotencyKey);
+    return notification;
+  }
 
-    return this.create({
+  /**
+   * Single-recipient send plus one SYSTEM delivery-history row.
+   * The notification idempotency key is required so the SYSTEM log key is stable.
+   */
+  async sendTypedAndLogSystem<T extends NotificationTypeId>(
+    userId: string,
+    typeId: T,
+    payload: NotificationPayloads[T],
+    idempotencyKey: string,
+    options?: { targetType?: string }
+  ): Promise<Notification | null> {
+    try {
+      const { notification, title, message, portal } = await this.sendTypedInternal(
+        userId,
+        typeId,
+        payload,
+        idempotencyKey
+      );
+      await this.logSystemDelivery({
+        typeId,
+        title,
+        message,
+        targetType: options?.targetType ?? portalToNotificationLogTarget(portal),
+        recipientCount: 1,
+        results: [notification],
+        idempotencyKey: systemNotificationLogKey(typeId, idempotencyKey),
+        metadata: payload as Record<string, unknown>,
+      });
+      return notification;
+    } catch (error) {
+      try {
+        const content = getNotificationContent(typeId, payload);
+        await this.logSystemDelivery({
+          typeId,
+          title: content.title,
+          message: content.message,
+          targetType: options?.targetType ?? portalToNotificationLogTarget(content.portal),
+          recipientCount: 1,
+          results: [null],
+          idempotencyKey: systemNotificationLogKey(typeId, idempotencyKey),
+          metadata: payload as Record<string, unknown>,
+        });
+      } catch {
+        // Secondary log/content failure must not hide the original send error.
+      }
+      throw error;
+    }
+  }
+
+  private async sendTypedInternal<T extends NotificationTypeId>(
+    userId: string,
+    typeId: T,
+    payload: NotificationPayloads[T],
+    idempotencyKey?: string
+  ): Promise<{
+    notification: Notification | null;
+    replayed: boolean;
+    title: string;
+    message: string;
+    portal: string | undefined;
+  }> {
+    const { title, message, linkPath, portal } = getNotificationContent(typeId, payload);
+    const { notification, replayed } = await this.createInternal({
       userId,
       typeId,
       title,
@@ -227,32 +315,67 @@ export class NotificationService {
         portal,
       },
     });
+    return { notification, replayed, title, message, portal };
   }
 
   /**
-   * Platform inbox only — email channel suppressed (for phased rollout).
+   * One SYSTEM row per logical send batch. Never throws — log failure must not
+   * fail the business operation.
    */
-  async sendTypedPlatformOnly<T extends NotificationTypeId>(
-    userId: string,
+  async logSystemDelivery(input: SystemDeliveryLogInput): Promise<void> {
+    try {
+      const { deliveredPlatformCount, deliveredEmailCount } = summarizeNotificationDelivery(
+        input.results
+      );
+      await prisma.notificationLog.create({
+        data: {
+          source: NotificationLogSource.SYSTEM,
+          target_type: input.targetType,
+          notification_type_id: input.typeId,
+          title: input.title,
+          message: input.message,
+          recipient_count: input.recipientCount,
+          delivered_platform_count: deliveredPlatformCount,
+          delivered_email_count: deliveredEmailCount,
+          idempotency_key: input.idempotencyKey,
+          metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
+        },
+      });
+    } catch (error) {
+      if (isNotificationLogUniqueConflict(error)) {
+        return;
+      }
+      logger.error(
+        { error, typeId: input.typeId, recipientCount: input.recipientCount },
+        "Failed to write system notification delivery log"
+      );
+    }
+  }
+
+  /**
+   * Shared batch logger: title/message from the typed template, counts from results.
+   */
+  async logTypedSystemBatch<T extends NotificationTypeId>(
     typeId: T,
     payload: NotificationPayloads[T],
-    idempotencyKey?: string
-  ): Promise<Notification | null> {
-    const { title, message, linkPath, portal } = getNotificationContent(typeId, payload);
-
-    return this.create({
-      userId,
+    results: NotificationDeliveryResult[],
+    options: {
+      idempotencyKey: string;
+      metadata?: Record<string, unknown>;
+      targetType?: string;
+    }
+  ): Promise<void> {
+    if (results.length === 0) return;
+    const { title, message, portal } = getNotificationContent(typeId, payload);
+    await this.logSystemDelivery({
       typeId,
       title,
       message,
-      linkPath,
-      idempotencyKey,
-      sendToPlatform: true,
-      sendToEmail: false,
-      metadata: {
-        ...(payload as Record<string, any>),
-        portal,
-      },
+      targetType: options.targetType ?? portalToNotificationLogTarget(portal),
+      recipientCount: results.length,
+      results,
+      idempotencyKey: options.idempotencyKey,
+      metadata: options.metadata ?? (payload as Record<string, unknown>),
     });
   }
 
@@ -335,11 +458,28 @@ export class NotificationService {
     id: string,
     data: Partial<NotificationType>
   ): Promise<NotificationType> {
+    const type = await this.repository.findTypeById(id);
+    if (!type) {
+      throw new AppError(404, "NOTIFICATION_TYPE_NOT_FOUND", `Notification type ${id} not found`);
+    }
+
+    if (
+      type.category === NotificationCategory.AUTHENTICATION &&
+      (data.enabled_platform === false || data.enabled_email === false)
+    ) {
+      throw new AppError(
+        400,
+        "AUTHENTICATION_NOTIFICATION_REQUIRED",
+        "Authentication notifications must keep platform and email delivery enabled"
+      );
+    }
+
     return this.repository.updateType(id, data);
   }
 
   /**
-   * Admin: Seed notification types
+   * Add any catalog types that are missing. Does not change existing toggles.
+   * Used on first send of a type so delivery is not blocked.
    */
   async seedNotificationTypes(): Promise<{ count: number; added: number }> {
     let count = 0;
@@ -351,8 +491,35 @@ export class NotificationService {
       }
       count++;
     }
-    logger.info({ count, added }, "Notification types seeded via Admin API");
+    logger.info({ count, added }, "Notification types seeded");
     return { count, added };
+  }
+
+  /**
+   * Add missing catalog types and turn Platform + Email on for every catalog type.
+   */
+  async resetNotificationTypesToDefault(): Promise<{
+    count: number;
+    added: number;
+    reset: number;
+  }> {
+    let added = 0;
+    let reset = 0;
+    for (const type of initialNotificationTypes) {
+      const created = await this.repository.createTypeIfNotExist(type);
+      if (created) {
+        added++;
+        continue;
+      }
+      await this.repository.updateType(type.id, {
+        enabled_platform: true,
+        enabled_email: true,
+      });
+      reset++;
+    }
+    const count = initialNotificationTypes.length;
+    logger.info({ count, added, reset }, "Notification types reset to default channels");
+    return { count, added, reset };
   }
 
   /**
@@ -365,11 +532,12 @@ export class NotificationService {
       search?: string;
       type?: string;
       target?: string;
+      source?: string;
     } = {}
   ) {
     const limit = filters.limit || 20;
     const offset = filters.offset || 0;
-    const { search, type, target } = filters;
+    const { search, type, target, source } = filters;
 
     const where: Prisma.NotificationLogWhereInput = {
       AND: [
@@ -379,6 +547,10 @@ export class NotificationService {
                 { admin: { first_name: { contains: search, mode: "insensitive" } } },
                 { admin: { last_name: { contains: search, mode: "insensitive" } } },
                 { admin: { email: { contains: search, mode: "insensitive" } } },
+                { title: { contains: search, mode: "insensitive" } },
+                { message: { contains: search, mode: "insensitive" } },
+                { notification_type_id: { contains: search, mode: "insensitive" } },
+                { notification_type: { name: { contains: search, mode: "insensitive" } } },
                 // Handle combined name search (e.g. "John Doe")
                 ...(search.includes(" ")
                   ? [
@@ -407,6 +579,7 @@ export class NotificationService {
           : {},
         type && type !== "all" ? { notification_type_id: type } : {},
         target && target !== "all" ? { target_type: target } : {},
+        source && source !== "all" ? { source: source as NotificationLogSource } : {},
       ],
     };
 
@@ -505,6 +678,19 @@ export class NotificationService {
       device_info?: string;
     }
   ) {
+    let type = await this.repository.findTypeById(params.typeId);
+    if (!type) {
+      await this.seedNotificationTypes();
+      type = await this.repository.findTypeById(params.typeId);
+    }
+    if (!type) {
+      throw new AppError(
+        400,
+        "NOTIFICATION_TYPE_NOT_FOUND",
+        `Notification type ${params.typeId} not found`
+      );
+    }
+
     let targetUserIds: string[] = [];
 
     if (params.targetType === "ALL_USERS") {
@@ -531,22 +717,39 @@ export class NotificationService {
       }
     }
 
+    const portal = notificationLogTargetToPortal(params.targetType);
+    const metadata = {
+      ...(params.metadata || {}),
+      ...(portal ? { portal } : {}),
+    };
+
     const results = [];
+    const deliveryResults: NotificationDeliveryResult[] = [];
     for (const userId of targetUserIds) {
       try {
         const result = await this.create({
-          ...params,
           userId,
+          typeId: params.typeId,
+          priority: params.priority,
+          title: params.title,
+          message: params.message,
+          linkPath: params.linkPath,
+          metadata,
+          sendToPlatform: params.sendToPlatform,
+          sendToEmail: params.sendToEmail,
+          expiresAt: params.expiresAt,
         });
 
         if (result) {
           results.push({ userId, success: true, id: result.id });
+          deliveryResults.push(result);
         } else {
           results.push({
             userId,
             success: false,
             error: "Notification skipped: no delivery channels enabled",
           });
+          deliveryResults.push(null);
         }
       } catch (error) {
         logger.error(
@@ -558,25 +761,39 @@ export class NotificationService {
           success: false,
           error: error instanceof Error ? error.message : "Unknown error",
         });
+        deliveryResults.push(null);
       }
     }
 
-    // Log the admin action
-    await prisma.notificationLog.create({
-      data: {
-        admin_user_id: adminUserId,
-        target_type: params.targetType,
-        target_group_id: params.groupId,
-        notification_type_id: params.typeId,
-        title: params.title,
-        message: params.message,
-        recipient_count: targetUserIds.length,
-        metadata: (params.metadata || {}) as Prisma.InputJsonValue,
-        ip_address: params.ip_address,
-        user_agent: params.user_agent,
-        device_info: params.device_info,
-      },
-    });
+    const { deliveredPlatformCount, deliveredEmailCount } =
+      summarizeNotificationDelivery(deliveryResults);
+
+    try {
+      await prisma.notificationLog.create({
+        data: {
+          admin_user_id: adminUserId,
+          source: NotificationLogSource.ADMIN,
+          target_type: params.targetType,
+          target_group_id: params.groupId,
+          notification_type_id: params.typeId,
+          title: params.title,
+          message: params.message,
+          recipient_count: targetUserIds.length,
+          delivered_platform_count: deliveredPlatformCount,
+          delivered_email_count: deliveredEmailCount,
+          idempotency_key: null,
+          metadata: metadata as Prisma.InputJsonValue,
+          ip_address: params.ip_address,
+          user_agent: params.user_agent,
+          device_info: params.device_info,
+        },
+      });
+    } catch (error) {
+      logger.error(
+        { error, adminUserId, typeId: params.typeId, recipientCount: targetUserIds.length },
+        "Failed to write admin notification delivery log"
+      );
+    }
 
     return results;
   }

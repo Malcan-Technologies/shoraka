@@ -9,10 +9,12 @@ import {
 } from "./facility-fee-notifications";
 
 const sendTyped = jest.fn().mockResolvedValue({ id: "n1" });
+const logTypedSystemBatch = jest.fn().mockResolvedValue(undefined);
 
 jest.mock("./service", () => ({
   NotificationService: jest.fn().mockImplementation(() => ({
     sendTyped,
+    logTypedSystemBatch,
   })),
 }));
 
@@ -126,6 +128,13 @@ describe("notifyFacilityFeeUpfrontPaidIfSettled", () => {
       { contractId: "con-1", upfrontAmount: 400 },
       facilityFeeUpfrontPaidIdempotencyKey("con-1", "user-2")
     );
+    expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
+    expect(logTypedSystemBatch).toHaveBeenCalledWith(
+      NotificationTypeIds.FACILITY_FEE_UPFRONT_PAID,
+      { contractId: "con-1", upfrontAmount: 400 },
+      [{ id: "n1" }, { id: "n1" }],
+      { idempotencyKey: "system-log:facility_fee_upfront_paid:contract:con-1" }
+    );
   });
 
   it("does not send while outstanding remains", async () => {
@@ -153,6 +162,17 @@ describe("notifyFacilityFeeUpfrontPaidIfSettled", () => {
     });
     sendTyped.mockRejectedValueOnce(new Error("delivery failed"));
 
-    await expect(notifyFacilityFeeUpfrontPaidIfSettled({ contractId: "con-1" })).resolves.toBeUndefined();
+    await expect(
+      notifyFacilityFeeUpfrontPaidIfSettled({ contractId: "con-1" })
+    ).resolves.toBeUndefined();
+    expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
+    expect(logTypedSystemBatch).toHaveBeenCalledWith(
+      NotificationTypeIds.FACILITY_FEE_UPFRONT_PAID,
+      expect.objectContaining({ contractId: "con-1" }),
+      [null, expect.objectContaining({ id: "n1" })],
+      expect.objectContaining({
+        idempotencyKey: expect.stringContaining("contract:con-1"),
+      })
+    );
   });
 });

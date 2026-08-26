@@ -1,13 +1,12 @@
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { listIssuerOrgMemberUserIds } from "./org-member-recipients";
+import { systemNotificationLogKey } from "./delivery-log";
 import { NotificationPayloads, NotificationTypeIds } from "./registry";
 import { NotificationService } from "./service";
+import { sendTypedToUsersSafe } from "./send-typed-safe";
 
-export function excessLateChargesDueIdempotencyKey(
-  settlementId: string,
-  userId: string
-): string {
+export function excessLateChargesDueIdempotencyKey(settlementId: string, userId: string): string {
   return `settlement:${settlementId}:notif:${NotificationTypeIds.EXCESS_LATE_CHARGES_DUE}:user:${userId}`;
 }
 
@@ -38,16 +37,19 @@ export async function notifyExcessLateChargesDue(input: {
     };
     const svc = input.notificationService ?? new NotificationService();
     const recipients = await listIssuerOrgMemberUserIds(orgId);
-    await Promise.all(
-      recipients.map((userId) =>
-        svc.sendTyped(
-          userId,
-          NotificationTypeIds.EXCESS_LATE_CHARGES_DUE,
-          payload,
-          excessLateChargesDueIdempotencyKey(input.settlementId, userId)
-        )
-      )
+    const results = await sendTypedToUsersSafe(
+      svc,
+      recipients,
+      NotificationTypeIds.EXCESS_LATE_CHARGES_DUE,
+      payload,
+      (userId) => excessLateChargesDueIdempotencyKey(input.settlementId, userId)
     );
+    await svc.logTypedSystemBatch(NotificationTypeIds.EXCESS_LATE_CHARGES_DUE, payload, results, {
+      idempotencyKey: systemNotificationLogKey(
+        NotificationTypeIds.EXCESS_LATE_CHARGES_DUE,
+        `settlement:${input.settlementId}`
+      ),
+    });
   } catch (error) {
     logger.error(
       { error, noteId: input.noteId, settlementId: input.settlementId },
@@ -85,16 +87,19 @@ export async function notifyExcessLateChargesPaidIfSettled(input: {
     };
     const svc = input.notificationService ?? new NotificationService();
     const recipients = await listIssuerOrgMemberUserIds(orgId);
-    await Promise.all(
-      recipients.map((userId) =>
-        svc.sendTyped(
-          userId,
-          NotificationTypeIds.EXCESS_LATE_CHARGES_PAID,
-          payload,
-          excessLateChargesPaidIdempotencyKey(input.noteId, userId)
-        )
-      )
+    const results = await sendTypedToUsersSafe(
+      svc,
+      recipients,
+      NotificationTypeIds.EXCESS_LATE_CHARGES_PAID,
+      payload,
+      (userId) => excessLateChargesPaidIdempotencyKey(input.noteId, userId)
     );
+    await svc.logTypedSystemBatch(NotificationTypeIds.EXCESS_LATE_CHARGES_PAID, payload, results, {
+      idempotencyKey: systemNotificationLogKey(
+        NotificationTypeIds.EXCESS_LATE_CHARGES_PAID,
+        `note:${input.noteId}`
+      ),
+    });
   } catch (error) {
     logger.error(
       { error, noteId: input.noteId },

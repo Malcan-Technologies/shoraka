@@ -10,11 +10,10 @@ import {
   DocumentCheckIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
-import { APPLICATION_ACTION_REQUIRED_STATUS_SET } from "@/applications/action-required-statuses";
 import {
-  activeProductBaseKeySet,
   activeProductPendingActionTotal,
   buildApplicationSidebarGroups,
+  firstActiveActionQueuePath,
 } from "@/applications/application-nav-groups";
 import {
   dashboardQueueDescription,
@@ -22,7 +21,7 @@ import {
   urgencyVariant,
   type QuickActionQueue,
 } from "@/components/dashboard/quick-action-queues";
-import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
+import { useApplicationNavCounts } from "@/hooks/use-application-nav-counts";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 import { useProducts } from "@/hooks/use-products";
 import {
@@ -69,8 +68,9 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
     useGatewayPaymentsExceptionCount({ enabled: canViewGatewayPayments });
   const { data: gatewayReconExceptionsData, isLoading: isGatewayReconExceptionsLoading } =
     useGatewayReconPendingCount({ enabled: canViewReconciliation });
-  const { data: applicationsForSidebar = [], isLoading: isApplicationsForSidebarLoading } =
-    useAdminApplicationsForSidebar({ enabled: canApplications });
+  const { data: navCountsData, isLoading: isNavCountsLoading } = useApplicationNavCounts({
+    enabled: canApplications,
+  });
   const { data: productsData, isLoading: isProductsLoading } = useProducts({
     page: 1,
     pageSize: 100,
@@ -80,8 +80,9 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
 
   const pendingOnboardingCount = pendingCountData?.count ?? 0;
   const applicationNavGroups = React.useMemo(
-    () => buildApplicationSidebarGroups(productsData?.products ?? [], applicationsForSidebar),
-    [productsData?.products, applicationsForSidebar]
+    () =>
+      buildApplicationSidebarGroups(productsData?.products ?? [], navCountsData?.products ?? []),
+    [productsData?.products, navCountsData?.products]
   );
   const applicationActionCount = activeProductPendingActionTotal(applicationNavGroups);
   const noteActionCount = noteActionCountData?.count ?? 0;
@@ -91,34 +92,14 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
   const pendingServiceFeeLettersCount = pendingServiceFeeLettersData?.count ?? 0;
   const gatewayPaymentExceptionsCount = gatewayPaymentExceptionsData?.count ?? 0;
   const gatewayReconExceptionsCount = gatewayReconExceptionsData?.count ?? 0;
-  const activeApplicationProductKeys = React.useMemo(
-    () => activeProductBaseKeySet(applicationNavGroups),
-    [applicationNavGroups]
-  );
-  const firstActionApplication = applicationsForSidebar.find((application) => {
-    if (!APPLICATION_ACTION_REQUIRED_STATUS_SET.has(application.status)) return false;
-    const key = application.baseProductId ?? application.productId;
-    return Boolean(key && activeApplicationProductKeys.has(key));
-  });
-  const firstApplicationQueue = applicationsForSidebar.find((application) => {
-    const key = application.baseProductId ?? application.productId;
-    return Boolean(key && activeApplicationProductKeys.has(key));
-  });
-  const firstProductQueueKey = React.useMemo(() => {
+  const firstProductQueuePath = React.useMemo(() => {
     const products = productsData?.products ?? [];
     const active = products.find((product) => (product.status ?? "ACTIVE") === "ACTIVE");
     const fallback = active ?? products[0];
-    return fallback ? (fallback.base_id ?? fallback.id) : null;
+    return fallback ? `/applications/${fallback.base_id ?? fallback.id}` : null;
   }, [productsData?.products]);
-  const applicationActionQueueKey =
-    firstActionApplication?.baseProductId ??
-    firstActionApplication?.productId ??
-    firstApplicationQueue?.baseProductId ??
-    firstApplicationQueue?.productId ??
-    firstProductQueueKey;
-  const applicationActionHref = applicationActionQueueKey
-    ? `/applications/${applicationActionQueueKey}`
-    : "/applications";
+  const applicationActionHref =
+    firstActiveActionQueuePath(applicationNavGroups) ?? firstProductQueuePath ?? "/applications";
 
   const queues = React.useMemo(() => {
     const list: QuickActionQueue[] = [];
@@ -148,7 +129,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
         href: applicationActionHref,
         icon: DocumentCheckIcon,
         variant: urgencyVariant(applicationActionCount, 5, 0),
-        isLoading: loading || isApplicationsForSidebarLoading || isProductsLoading,
+        isLoading: loading || isNavCountsLoading || isProductsLoading,
       });
     }
     if (canNotes) {
@@ -265,7 +246,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
     canViewReconciliation,
     gatewayPaymentExceptionsCount,
     gatewayReconExceptionsCount,
-    isApplicationsForSidebarLoading,
+    isNavCountsLoading,
     isGatewayPaymentExceptionsLoading,
     isGatewayReconExceptionsLoading,
     isNoteActionCountLoading,

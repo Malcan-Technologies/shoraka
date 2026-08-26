@@ -2,8 +2,10 @@ import { resolveFacilityFeeUpfront } from "@cashsouk/types";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { listIssuerOrgMemberUserIds } from "./org-member-recipients";
+import { systemNotificationLogKey } from "./delivery-log";
 import { NotificationPayloads, NotificationTypeIds } from "./registry";
 import { NotificationService } from "./service";
+import { sendTypedToUsersSafe } from "./send-typed-safe";
 
 export function facilityFeePaymentRequestedIdempotencyKey(
   contractId: string,
@@ -48,16 +50,19 @@ export async function notifyFacilityFeeUpfrontPaidIfSettled(input: {
     };
     const svc = input.notificationService ?? new NotificationService();
     const recipients = await listIssuerOrgMemberUserIds(orgId);
-    await Promise.all(
-      recipients.map((userId) =>
-        svc.sendTyped(
-          userId,
-          NotificationTypeIds.FACILITY_FEE_UPFRONT_PAID,
-          payload,
-          facilityFeeUpfrontPaidIdempotencyKey(input.contractId, userId)
-        )
-      )
+    const results = await sendTypedToUsersSafe(
+      svc,
+      recipients,
+      NotificationTypeIds.FACILITY_FEE_UPFRONT_PAID,
+      payload,
+      (userId) => facilityFeeUpfrontPaidIdempotencyKey(input.contractId, userId)
     );
+    await svc.logTypedSystemBatch(NotificationTypeIds.FACILITY_FEE_UPFRONT_PAID, payload, results, {
+      idempotencyKey: systemNotificationLogKey(
+        NotificationTypeIds.FACILITY_FEE_UPFRONT_PAID,
+        `contract:${input.contractId}`
+      ),
+    });
   } catch (error) {
     logger.error(
       { error, contractId: input.contractId },

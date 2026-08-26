@@ -204,8 +204,8 @@ Each portal layout root carries a theme class that re-scopes accent variables.
 }
 .theme-admin {
   --primary: brand red;               /* CTAs / key asserts only */
-  --accent: 220 8% 94.5%;             /* whisper-grey hover/selection */
-  --background: 220 8% 98%;           /* near-neutral cool canvas */
+  --accent: 8 14% 94.5%;              /* whisper-red hover/selection */
+  --background: 8 10% 98%;            /* near-neutral warm canvas */
   --card: 0 0% 100%;
 }
 .theme-user     { --primary: brand red; /* landing; may diverge from issuer accent treatment */ }
@@ -213,7 +213,7 @@ Each portal layout root carries a theme class that re-scopes accent variables.
 
 All three portals share the same nesting: **tinted canvas (`--background`) + pure white cards (`--card`)**. Header and sidebar sit on the tinted chrome; chip-style header controls (notifications) use `bg-card`. The organisation switcher sits in the sidebar below the logo and also uses `bg-card`. The header avatar fills its allocated space with no card chrome. Investor **does not use brand red for UI chrome** — only the logo and `destructive` / status-rejected keep warning reds.
 
-**Portal chrome rule:** Canvas, header (`bg-background`), and sidebar use **low-saturation “whisper” tints** (issuer warm red, investor cream, admin cool grey) — never strong washes. `--accent` / `--sidebar-accent` stay in the same family for hover/selection. Solid primary colours are for CTAs and asserts, not page chrome.
+**Portal chrome rule:** Canvas, header (`bg-background`), and sidebar use **low-saturation “whisper” tints** (issuer warm red, investor cream, admin whisper-red) — never strong washes. `--accent` / `--sidebar-accent` stay in the same family for hover/selection. Solid primary colours are for CTAs and asserts, not page chrome.
 
 | Class | Applied by |
 |---|---|
@@ -227,7 +227,7 @@ All three portals share the same nesting: **tinted canvas (`--background`) + pur
 <html lang="en" className="theme-issuer">
 ```
 
-Issuer is brand-forward and friendly (red asserts on CTAs; whisper-red chrome). Investor is premium and conservative (earth-brown CTAs; whisper-cream chrome). Admin is utilitarian (brand-red CTAs; whisper-grey chrome). Across all three, page chrome stays subtle; reserve saturated colour for actions, not canvas/sidebar/header.
+Issuer is brand-forward and friendly (red asserts on CTAs; whisper-red chrome). Investor is premium and conservative (earth-brown CTAs; whisper-cream chrome). Admin is utilitarian (brand-red CTAs; whisper-red chrome so white cards lift off the canvas). Across all three, page chrome stays subtle; reserve saturated colour for actions, not canvas/sidebar/header.
 
 ---
 

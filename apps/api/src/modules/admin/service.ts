@@ -50,12 +50,14 @@ import type {
 import { RegTankRepository, OnboardingApplicationRecord } from "../regtank/repository";
 import { RegTankAPIClient } from "../regtank/api-client";
 import { NotificationService } from "../notification/service";
+import { systemNotificationLogKey } from "../notification/delivery-log";
 import {
   NotificationPayloads,
   NotificationTypeId,
   NotificationTypeIds,
 } from "../notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
+import { sendTypedToUsersSafe } from "../notification/send-typed-safe";
 import { listOrganizationLinkedRecords } from "./organization-linked-records";
 import { sumApprovedFacilityAmount } from "./organization-header-metrics";
 import { updateAdminOrganizationProfile } from "./organization-admin-profile";
@@ -316,9 +318,10 @@ export class AdminService {
       );
     }
 
-    const expiredIn = typeof response.expiredIn === "number" && Number.isFinite(response.expiredIn)
-      ? response.expiredIn
-      : 86400;
+    const expiredIn =
+      typeof response.expiredIn === "number" && Number.isFinite(response.expiredIn)
+        ? response.expiredIn
+        : 86400;
 
     return {
       requestId: responseRequestId,
@@ -411,9 +414,7 @@ export class AdminService {
 
     return {
       roles: this.sortAdminRolesCatalog(
-        roles.map((role) =>
-          this.toAdminRoleConfigRecord(role, roleCounts.get(role.key) ?? 0)
-        )
+        roles.map((role) => this.toAdminRoleConfigRecord(role, roleCounts.get(role.key) ?? 0))
       ),
     };
   }
@@ -459,11 +460,7 @@ export class AdminService {
       const currentPermissions = [...role.permissions].sort();
 
       if (JSON.stringify(nextPermissions) !== JSON.stringify(currentPermissions)) {
-        throw new AppError(
-          403,
-          "FORBIDDEN",
-          "System role permissions cannot be edited"
-        );
+        throw new AppError(403, "FORBIDDEN", "System role permissions cannot be edited");
       }
     }
 
@@ -491,10 +488,7 @@ export class AdminService {
     });
 
     return {
-      role: this.toAdminRoleConfigRecord(
-        updatedRole,
-        roleCounts.get(updatedRole.key) ?? 0
-      ),
+      role: this.toAdminRoleConfigRecord(updatedRole, roleCounts.get(updatedRole.key) ?? 0),
     };
   }
 
@@ -625,7 +619,7 @@ export class AdminService {
     typeId: T,
     payload: NotificationPayloads[T],
     idempotencySuffix: string,
-    options?: { platformOnly?: boolean; ensureTypesSeeded?: boolean }
+    options?: { ensureTypesSeeded?: boolean }
   ) {
     const recipientUserIds = await getIssuerRecipientUserIdsForApplication(applicationId);
     if (recipientUserIds.length === 0) {
@@ -641,22 +635,20 @@ export class AdminService {
       await this.notificationService.seedNotificationTypes();
     }
 
-    const send = options?.platformOnly
-      ? this.notificationService.sendTypedPlatformOnly.bind(this.notificationService)
-      : this.notificationService.sendTyped.bind(this.notificationService);
-
     const enrichedPayload = await this.enrichApplicationNotificationPayload(applicationId, payload);
 
-    const results = await Promise.all(
-      recipientUserIds.map((userId) =>
-        send(
-          userId,
-          typeId,
-          enrichedPayload,
-          `app:${applicationId}:notif:${String(typeId)}:user:${userId}:${idempotencySuffix}`
-        )
-      )
+    const results = await sendTypedToUsersSafe(
+      this.notificationService,
+      recipientUserIds,
+      typeId,
+      enrichedPayload,
+      (userId) =>
+        `app:${applicationId}:notif:${String(typeId)}:user:${userId}:${idempotencySuffix}`
     );
+
+    await this.notificationService.logTypedSystemBatch(typeId, enrichedPayload, results, {
+      idempotencyKey: systemNotificationLogKey(typeId, `app:${applicationId}:${idempotencySuffix}`),
+    });
 
     logger.info(
       {
@@ -664,15 +656,15 @@ export class AdminService {
         typeId,
         recipientCount: recipientUserIds.length,
         createdCount: results.filter(Boolean).length,
-        platformOnly: options?.platformOnly === true,
       },
       "Issuer notification dispatched"
     );
   }
 
-  private ensureContractOfferActionAllowed(
-    application: { contract_id?: string | null; contract?: { status?: string | null } | null }
-  ): void {
+  private ensureContractOfferActionAllowed(application: {
+    contract_id?: string | null;
+    contract?: { status?: string | null } | null;
+  }): void {
     if (!application.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
@@ -732,10 +724,7 @@ export class AdminService {
     },
     workflow: unknown[]
   ): Promise<void> {
-    const docKeys = collectAcceptanceDocumentReviewKeys(
-      workflow,
-      application.acceptance_documents
-    );
+    const docKeys = collectAcceptanceDocumentReviewKeys(workflow, application.acceptance_documents);
     for (const itemId of docKeys) {
       await tx.applicationReviewItem.upsert({
         where: {
@@ -848,7 +837,8 @@ export class AdminService {
       application.financing_type && typeof application.financing_type === "object"
         ? (application.financing_type as Record<string, unknown>)
         : null;
-    const productId = typeof financingType?.product_id === "string" ? financingType.product_id : null;
+    const productId =
+      typeof financingType?.product_id === "string" ? financingType.product_id : null;
 
     const structureType =
       application.financing_structure && typeof application.financing_structure === "object"
@@ -990,10 +980,7 @@ export class AdminService {
       }),
       prisma.investorOrganization.findMany({
         where: {
-          OR: [
-            { owner_user_id: userId },
-            { members: { some: { user_id: userId } } },
-          ],
+          OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }],
         },
         orderBy: { updated_at: "desc" },
         select: {
@@ -1017,10 +1004,7 @@ export class AdminService {
       }),
       prisma.issuerOrganization.findMany({
         where: {
-          OR: [
-            { owner_user_id: userId },
-            { members: { some: { user_id: userId } } },
-          ],
+          OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }],
         },
         orderBy: { updated_at: "desc" },
         select: {
@@ -1071,7 +1055,7 @@ export class AdminService {
       registrationNumber: org.registration_number,
       onboardingStatus: org.onboarding_status,
       onboardedAt: org.onboarded_at?.toISOString() ?? null,
-      relationship: org.owner_user_id === userId ? "owner" as const : "member" as const,
+      relationship: org.owner_user_id === userId ? ("owner" as const) : ("member" as const),
       memberRole: org.members[0]?.role ?? null,
       memberCount: org._count.members,
       isSophisticatedInvestor: org.is_sophisticated_investor ?? false,
@@ -1495,11 +1479,13 @@ export class AdminService {
     organizations: {
       investor: {
         total: number;
+        percentageChange: number;
         personal: { total: number; onboarded: number; pending: number };
         company: { total: number; onboarded: number; pending: number };
       };
       issuer: {
         total: number;
+        percentageChange: number;
         personal: { total: number; onboarded: number; pending: number };
         company: { total: number; onboarded: number; pending: number };
       };
@@ -1535,6 +1521,12 @@ export class AdminService {
       distressed: number;
       cancelledOrFailedFunding: number;
     };
+    bookMetrics: {
+      outstanding: { amount: number; count: number };
+      inFunding: { amount: number; count: number };
+      distressed: { amount: number; count: number };
+      dueSoon: { amount: number; count: number };
+    };
   }> {
     const TREND_PERIOD_DAYS = 30;
 
@@ -1545,20 +1537,24 @@ export class AdminService {
       previousPeriodStats,
       signupTrends,
       organizationStats,
+      organizationPeriodCounts,
       onboardingOperations,
       applicationMetrics,
       contractMetrics,
       noteMetrics,
+      bookMetrics,
     ] = await Promise.all([
       this.repository.getUserStats(),
       this.repository.getCurrentPeriodStats(TREND_PERIOD_DAYS),
       this.repository.getPreviousPeriodStats(TREND_PERIOD_DAYS),
       this.repository.getSignupTrends(TREND_PERIOD_DAYS),
       this.repository.getOrganizationStats(),
+      this.repository.getOrganizationPeriodCounts(TREND_PERIOD_DAYS),
       this.repository.getOnboardingOperationsMetrics(),
       this.repository.getApplicationDashboardMetrics(),
       this.repository.getContractDashboardMetrics(),
       this.repository.getNoteDashboardMetrics(),
+      this.repository.getBookMetrics(),
     ]);
 
     // Calculate percentage changes
@@ -1604,12 +1600,32 @@ export class AdminService {
         },
       },
       signupTrends,
-      organizations: organizationStats,
+      organizations: {
+        investor: {
+          ...organizationStats.investor,
+          percentageChange: calculatePercentageChange(
+            organizationPeriodCounts.current.investor,
+            organizationPeriodCounts.previous.investor
+          ),
+        },
+        issuer: {
+          ...organizationStats.issuer,
+          percentageChange: calculatePercentageChange(
+            organizationPeriodCounts.current.issuer,
+            organizationPeriodCounts.previous.issuer
+          ),
+        },
+      },
       onboardingOperations,
       applicationMetrics,
       contractMetrics,
       noteMetrics,
+      bookMetrics,
     };
+  }
+
+  async getApplicationNavCounts() {
+    return { products: await this.repository.getApplicationNavCounts() };
   }
 
   /**
@@ -1694,10 +1710,7 @@ export class AdminService {
 
     const previousRole = admin.role_description;
 
-    if (
-      previousRole === AdminRole.SUPER_ADMIN &&
-      data.roleDescription !== AdminRole.SUPER_ADMIN
-    ) {
+    if (previousRole === AdminRole.SUPER_ADMIN && data.roleDescription !== AdminRole.SUPER_ADMIN) {
       const activeSuperAdminCount = await this.repository.countActiveSuperAdmins();
       if (activeSuperAdminCount <= 1) {
         throw new AppError(
@@ -2392,19 +2405,19 @@ export class AdminService {
     const latestOrg =
       data.portal === "investor"
         ? (
-          await prisma.investorOrganization.findMany({
-            where: { owner_user_id: userId },
-            orderBy: { updated_at: "desc" },
-            take: 1,
-          })
-        )[0]
+            await prisma.investorOrganization.findMany({
+              where: { owner_user_id: userId },
+              orderBy: { updated_at: "desc" },
+              take: 1,
+            })
+          )[0]
         : (
-          await prisma.issuerOrganization.findMany({
-            where: { owner_user_id: userId },
-            orderBy: { updated_at: "desc" },
-            take: 1,
-          })
-        )[0];
+            await prisma.issuerOrganization.findMany({
+              where: { owner_user_id: userId },
+              orderBy: { updated_at: "desc" },
+              take: 1,
+            })
+          )[0];
 
     // Create onboarding log
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
@@ -2467,24 +2480,6 @@ export class AdminService {
     portal?: "investor" | "issuer";
     type?: "PERSONAL" | "COMPANY";
     onboardingStatus?:
-    | "PENDING"
-    | "IN_PROGRESS"
-    | "PENDING_APPROVAL"
-    | "PENDING_AMENDMENT"
-    | "PENDING_AML"
-    | "PENDING_SSM_REVIEW"
-    | "PENDING_FINAL_APPROVAL"
-    | "COMPLETED"
-    | "REJECTED";
-  }): Promise<{
-    organizations: {
-      id: string;
-      displayReference: string | null;
-      portal: "investor" | "issuer";
-      type: "PERSONAL" | "COMPANY";
-      name: string | null;
-      registrationNumber: string | null;
-      onboardingStatus:
       | "PENDING"
       | "IN_PROGRESS"
       | "PENDING_APPROVAL"
@@ -2494,6 +2489,24 @@ export class AdminService {
       | "PENDING_FINAL_APPROVAL"
       | "COMPLETED"
       | "REJECTED";
+  }): Promise<{
+    organizations: {
+      id: string;
+      displayReference: string | null;
+      portal: "investor" | "issuer";
+      type: "PERSONAL" | "COMPANY";
+      name: string | null;
+      registrationNumber: string | null;
+      onboardingStatus:
+        | "PENDING"
+        | "IN_PROGRESS"
+        | "PENDING_APPROVAL"
+        | "PENDING_AMENDMENT"
+        | "PENDING_AML"
+        | "PENDING_SSM_REVIEW"
+        | "PENDING_FINAL_APPROVAL"
+        | "COMPLETED"
+        | "REJECTED";
       onboardedAt: string | null;
       owner: {
         userId: string;
@@ -2660,11 +2673,15 @@ export class AdminService {
     }
 
     let latestOrganizationCtosCompanyJson: Record<string, unknown> | null | undefined = undefined;
-    let ctosPartySupplements: Array<{ partyKey: string; onboardingJson?: unknown }> | null | undefined =
-      undefined;
+    let ctosPartySupplements:
+      | Array<{ partyKey: string; onboardingJson?: unknown }>
+      | null
+      | undefined = undefined;
     let investorLatestCtosCompanyJson: Record<string, unknown> | null | undefined = undefined;
-    let investorCtosPartySupplements: Array<{ partyKey: string; onboardingJson?: unknown }> | null | undefined =
-      undefined;
+    let investorCtosPartySupplements:
+      | Array<{ partyKey: string; onboardingJson?: unknown }>
+      | null
+      | undefined = undefined;
     let latestOrganizationCtosSubjectReports:
       | Array<{
           id: string;
@@ -2700,7 +2717,7 @@ export class AdminService {
 
     const investedAmount =
       portal === "investor"
-        ? (
+        ? ((
             await prisma.noteInvestment.aggregate({
               where: {
                 investor_organization_id: id,
@@ -2708,7 +2725,7 @@ export class AdminService {
               },
               _sum: { amount: true },
             })
-          )._sum.amount?.toNumber() ?? 0
+          )._sum.amount?.toNumber() ?? 0)
         : null;
 
     let approvedFacilityAmount: number | null = null;
@@ -2811,52 +2828,67 @@ export class AdminService {
         return {
           basicInfo: data.basicInfo
             ? {
-              tinNumber: data.basicInfo.tinNumber || data.basicInfo.tin || undefined,
-              industry: data.basicInfo.industry,
-              entityType: data.basicInfo.entityType,
-              businessName: data.basicInfo.businessName,
-              numberOfEmployees:
-                typeof data.basicInfo.numberOfEmployees === "string"
-                  ? parseInt(data.basicInfo.numberOfEmployees, 10) || undefined
-                  : data.basicInfo.numberOfEmployees,
-              ssmRegisterNumber:
-                data.basicInfo.ssmRegisterNumber ||
-                data.basicInfo.ssmRegistrationNumber ||
-                undefined,
-              annualRevenue: data.basicInfo.annualRevenue || undefined,
-              website: data.basicInfo.website || undefined,
-              phoneNumber: data.basicInfo.phoneNumber || undefined,
-            }
+                tinNumber: data.basicInfo.tinNumber || data.basicInfo.tin || undefined,
+                industry: data.basicInfo.industry,
+                entityType: data.basicInfo.entityType,
+                businessName: data.basicInfo.businessName,
+                numberOfEmployees:
+                  typeof data.basicInfo.numberOfEmployees === "string"
+                    ? parseInt(data.basicInfo.numberOfEmployees, 10) || undefined
+                    : data.basicInfo.numberOfEmployees,
+                ssmRegisterNumber:
+                  data.basicInfo.ssmRegisterNumber ||
+                  data.basicInfo.ssmRegistrationNumber ||
+                  undefined,
+                annualRevenue: data.basicInfo.annualRevenue || undefined,
+                website: data.basicInfo.website || undefined,
+                phoneNumber: data.basicInfo.phoneNumber || undefined,
+              }
             : undefined,
           addresses: data.addresses
             ? {
-              business: data.addresses.business || undefined,
-              registered: data.addresses.registered || undefined,
-            }
+                business: data.addresses.business || undefined,
+                registered: data.addresses.registered || undefined,
+              }
             : undefined,
           personInCharge: data.personInCharge
             ? {
-              name: data.personInCharge.name || undefined,
-              position: data.personInCharge.position || undefined,
-              email: data.personInCharge.email || undefined,
-              contactNumber: data.personInCharge.contactNumber || undefined,
-            }
+                name: data.personInCharge.name || undefined,
+                position: data.personInCharge.position || undefined,
+                email: data.personInCharge.email || undefined,
+                contactNumber: data.personInCharge.contactNumber || undefined,
+              }
             : undefined,
         };
       })(),
-      corporateEntities: org.type === "COMPANY" ? (org.corporate_entities as Record<string, unknown> | null) : undefined,
+      corporateEntities:
+        org.type === "COMPANY"
+          ? (org.corporate_entities as Record<string, unknown> | null)
+          : undefined,
       latestOrganizationCtosCompanyJson:
         org.type === "COMPANY" && portal === "issuer"
-          ? latestOrganizationCtosCompanyJson ?? null
+          ? (latestOrganizationCtosCompanyJson ?? null)
           : undefined,
       ctosPartySupplements:
-        org.type === "COMPANY" && portal === "issuer" ? ctosPartySupplements ?? [] : undefined,
+        org.type === "COMPANY" && portal === "issuer" ? (ctosPartySupplements ?? []) : undefined,
       latestOrganizationCtosSubjectReports:
-        org.type === "COMPANY" ? latestOrganizationCtosSubjectReports ?? [] : undefined,
-      corporateRequiredDocuments: org.type === "COMPANY" ? (org.corporate_required_documents as Record<string, unknown>[] | null) : undefined,
-      directorAmlStatus: org.type === "COMPANY" ? (org.director_aml_status as Record<string, unknown> | null) : undefined,
-      directorKycStatus: org.type === "COMPANY" ? (org.director_kyc_status as Record<string, unknown> | null) : undefined,
-      businessAmlStatus: org.type === "COMPANY" ? (org.business_aml_status as Record<string, unknown> | null) : undefined,
+        org.type === "COMPANY" ? (latestOrganizationCtosSubjectReports ?? []) : undefined,
+      corporateRequiredDocuments:
+        org.type === "COMPANY"
+          ? (org.corporate_required_documents as Record<string, unknown>[] | null)
+          : undefined,
+      directorAmlStatus:
+        org.type === "COMPANY"
+          ? (org.director_aml_status as Record<string, unknown> | null)
+          : undefined,
+      directorKycStatus:
+        org.type === "COMPANY"
+          ? (org.director_kyc_status as Record<string, unknown> | null)
+          : undefined,
+      businessAmlStatus:
+        org.type === "COMPANY"
+          ? (org.business_aml_status as Record<string, unknown> | null)
+          : undefined,
       ...(org.type === "COMPANY"
         ? (() => {
             const partyBuild = buildDirectorShareholderPeopleList({
@@ -2895,9 +2927,7 @@ export class AdminService {
       sophisticatedInvestorReason:
         portal === "investor" ? (org.sophisticated_investor_reason ?? null) : null,
       walletBalance:
-        portal === "investor"
-          ? (org.investor_balance?.available_amount?.toNumber() ?? 0)
-          : null,
+        portal === "investor" ? (org.investor_balance?.available_amount?.toNumber() ?? 0) : null,
       investedAmount,
       approvedFacilityAmount,
       activeNotesAmount,
@@ -3023,7 +3053,9 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "No RegTank onboarding found for this organization");
     }
 
-    const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(onboarding.request_id);
+    const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(
+      onboarding.request_id
+    );
     const corporateEntities = extractCorporateEntities(codDetails);
 
     if (portal === "investor") {
@@ -3220,7 +3252,9 @@ export class AdminService {
       return null;
     }
     const isInvestor = application.portal_type === "investor";
-    const orgId = isInvestor ? application.investor_organization_id : application.issuer_organization_id;
+    const orgId = isInvestor
+      ? application.investor_organization_id
+      : application.issuer_organization_id;
     if (orgId) {
       await advanceOnboardingStatusFromFlags({
         organizationId: orgId,
@@ -3375,11 +3409,7 @@ export class AdminService {
           }
           // Check if this is a COD webhook with kybRequestDto containing kybId
           const kybRequestDto = payloadObj.kybRequestDto;
-          if (
-            kybRequestDto &&
-            typeof kybRequestDto === "object" &&
-            !Array.isArray(kybRequestDto)
-          ) {
+          if (kybRequestDto && typeof kybRequestDto === "object" && !Array.isArray(kybRequestDto)) {
             const kybDto = kybRequestDto as Record<string, unknown>;
             if (kybDto.kybId && typeof kybDto.kybId === "string") {
               kybId = kybDto.kybId;
@@ -3443,27 +3473,27 @@ export class AdminService {
 
     const directorKycStatus:
       | {
-        corpIndvDirectorCount: number;
-        corpIndvShareholderCount: number;
-        corpBizShareholderCount: number;
-        directors: Array<{
-          eodRequestId: string;
-          name: string;
-          email: string;
-          role: string;
-          kycStatus:
-          | "PENDING"
-          | "LIVENESS_STARTED"
-          | "WAIT_FOR_APPROVAL"
-          | "APPROVED"
-          | "REJECTED";
-          kycId?: string;
-          lastUpdated: string;
-        }>;
-        lastSyncedAt: string;
-      }
+          corpIndvDirectorCount: number;
+          corpIndvShareholderCount: number;
+          corpBizShareholderCount: number;
+          directors: Array<{
+            eodRequestId: string;
+            name: string;
+            email: string;
+            role: string;
+            kycStatus:
+              | "PENDING"
+              | "LIVENESS_STARTED"
+              | "WAIT_FOR_APPROVAL"
+              | "APPROVED"
+              | "REJECTED";
+            kycId?: string;
+            lastUpdated: string;
+          }>;
+          lastSyncedAt: string;
+        }
       | undefined = directorKycStatusRaw
-        ? {
+      ? {
           ...(directorKycStatusRaw as {
             corpIndvDirectorCount: number;
             corpIndvShareholderCount: number;
@@ -3503,7 +3533,7 @@ export class AdminService {
               | "REJECTED",
           })),
         }
-        : undefined;
+      : undefined;
 
     // Director AML status (only for corporate onboarding)
     const directorAmlStatusRaw =
@@ -3515,32 +3545,32 @@ export class AdminService {
 
     const directorAmlStatus:
       | {
-        directors: Array<{
-          kycId: string;
-          name: string;
-          email: string;
-          role: string;
-          amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
-          amlMessageStatus: "DONE" | "PENDING" | "ERROR";
-          amlRiskScore: number | null;
-          amlRiskLevel: string | null;
-          lastUpdated: string;
-        }>;
-        businessShareholders?: Array<{
-          codRequestId: string;
-          kybId: string;
-          businessName: string;
-          sharePercentage?: number | null;
-          amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
-          amlMessageStatus: "DONE" | "PENDING" | "ERROR";
-          amlRiskScore: number | null;
-          amlRiskLevel: string | null;
-          lastUpdated: string;
-        }>;
-        lastSyncedAt: string;
-      }
+          directors: Array<{
+            kycId: string;
+            name: string;
+            email: string;
+            role: string;
+            amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+            amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+            amlRiskScore: number | null;
+            amlRiskLevel: string | null;
+            lastUpdated: string;
+          }>;
+          businessShareholders?: Array<{
+            codRequestId: string;
+            kybId: string;
+            businessName: string;
+            sharePercentage?: number | null;
+            amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+            amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+            amlRiskScore: number | null;
+            amlRiskLevel: string | null;
+            lastUpdated: string;
+          }>;
+          lastSyncedAt: string;
+        }
       | undefined = directorAmlStatusRaw
-        ? {
+      ? {
           ...(directorAmlStatusRaw as {
             directors: Array<{
               kycId: string;
@@ -3609,7 +3639,7 @@ export class AdminService {
             amlMessageStatus: b.amlMessageStatus as "DONE" | "PENDING" | "ERROR",
           })),
         }
-        : undefined;
+      : undefined;
 
     // Corporate entities (only for corporate onboarding)
     const corporateEntitiesRaw =
@@ -3621,35 +3651,38 @@ export class AdminService {
 
     const corporateEntities = corporateEntitiesRaw
       ? (corporateEntitiesRaw as {
-        directors?: Array<Record<string, unknown>>;
-        shareholders?: Array<Record<string, unknown>>;
-        corporateShareholders?: Array<Record<string, unknown>>;
-      })
+          directors?: Array<Record<string, unknown>>;
+          shareholders?: Array<Record<string, unknown>>;
+          corporateShareholders?: Array<Record<string, unknown>>;
+        })
       : undefined;
 
     // Derive organization name and SSM from top-level or corporate_onboarding_data.basicInfo
     const corporateData = org
-      ? (org as {
-          corporate_onboarding_data?: {
-            basicInfo?: {
-              businessName?: string | null;
-              ssmRegistrationNumber?: string | null;
-              ssmRegisterNumber?: string | null;
-              entityType?: string | null;
-              industry?: string | null;
+      ? (
+          org as {
+            corporate_onboarding_data?: {
+              basicInfo?: {
+                businessName?: string | null;
+                ssmRegistrationNumber?: string | null;
+                ssmRegisterNumber?: string | null;
+                entityType?: string | null;
+                industry?: string | null;
+              };
             };
-          };
-        }).corporate_onboarding_data
+          }
+        ).corporate_onboarding_data
       : undefined;
     const basicInfo = corporateData?.basicInfo;
-    const organizationName =
-      org?.name ?? basicInfo?.businessName ?? null;
+    const organizationName = org?.name ?? basicInfo?.businessName ?? null;
     const registrationNumber =
-      org?.registration_number ?? basicInfo?.ssmRegistrationNumber ?? basicInfo?.ssmRegisterNumber ?? null;
+      org?.registration_number ??
+      basicInfo?.ssmRegistrationNumber ??
+      basicInfo?.ssmRegisterNumber ??
+      null;
 
     const orgForCtos = isInvestorOrg ? investorOrg : issuerOrg;
-    const latestOrganizationCtosCompanyJson =
-      orgForCtos?.ctos_reports?.[0]?.company_json ?? null;
+    const latestOrganizationCtosCompanyJson = orgForCtos?.ctos_reports?.[0]?.company_json ?? null;
     const ctosPartySupplementsRaw = orgForCtos?.ctos_party_supplements;
     const ctosPartySupplements =
       Array.isArray(ctosPartySupplementsRaw) && ctosPartySupplementsRaw.length > 0
@@ -3667,10 +3700,12 @@ export class AdminService {
             issuerDirectorAmlStatus: directorAmlStatusRaw ?? null,
             ctosPartySupplements:
               Array.isArray(ctosPartySupplementsRaw) && ctosPartySupplementsRaw.length > 0
-                ? ctosPartySupplementsRaw.map((s: { party_key: string; onboarding_json: unknown }) => ({
-                    party_key: s.party_key,
-                    onboarding_json: s.onboarding_json ?? null,
-                  }))
+                ? ctosPartySupplementsRaw.map(
+                    (s: { party_key: string; onboarding_json: unknown }) => ({
+                      party_key: s.party_key,
+                      onboarding_json: s.onboarding_json ?? null,
+                    })
+                  )
                 : null,
             corporateEntities: corporateEntitiesRaw ?? null,
           })
@@ -3764,11 +3799,16 @@ export class AdminService {
     const isCompanyRestart = onboarding.organization_type === OrganizationType.COMPANY;
     const resolvedCompanyRestart = isCompanyRestart
       ? this.resolveCompanyRestartResponse({
-        response: regTankResponse as { requestId?: unknown; verifyLink?: unknown; expiredIn?: unknown },
-        organizationId: onboarding.investor_organization_id || onboarding.issuer_organization_id || null,
-        previousRequestId: onboarding.request_id,
-        portalType: onboarding.portal_type,
-      })
+          response: regTankResponse as {
+            requestId?: unknown;
+            verifyLink?: unknown;
+            expiredIn?: unknown;
+          },
+          organizationId:
+            onboarding.investor_organization_id || onboarding.issuer_organization_id || null,
+          previousRequestId: onboarding.request_id,
+          portalType: onboarding.portal_type,
+        })
       : null;
 
     const nextRequestId = resolvedCompanyRestart?.requestId ?? regTankResponse.requestId;
@@ -3852,7 +3892,8 @@ export class AdminService {
       userAgent,
       deviceInfo,
       deviceType,
-      organizationName: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
+      organizationName:
+        onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
       investorOrganizationId: onboarding.investor_organization_id || undefined,
       issuerOrganizationId: onboarding.issuer_organization_id || undefined,
       metadata: {
@@ -4099,7 +4140,9 @@ export class AdminService {
     // Refresh corporate entities for company organizations with latest data from RegTank
     if (isCompany && onboarding.request_id) {
       try {
-        const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(onboarding.request_id);
+        const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(
+          onboarding.request_id
+        );
         const corporateEntities = extractCorporateEntities(codDetails);
 
         if (isInvestor) {
@@ -4164,7 +4207,10 @@ export class AdminService {
         user_agent: req.headers["user-agent"] || null,
         device_info: null,
         device_type: null,
-        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
+        organization_name:
+          onboarding.investor_organization?.name ||
+          onboarding.issuer_organization?.name ||
+          undefined,
         investor_organization_id: onboarding.investor_organization_id || undefined,
         issuer_organization_id: onboarding.issuer_organization_id || undefined,
         metadata: {
@@ -4192,14 +4238,18 @@ export class AdminService {
 
     // Send notification to the user
     try {
-      await this.notificationService.sendTyped(
+      await this.notificationService.sendTypedAndLogSystem(
         onboarding.user_id,
         NotificationTypeIds.ONBOARDING_APPROVED,
         {
           onboardingType: onboarding.onboarding_type,
-          orgName: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || "your organization",
-          portalType: onboarding.portal_type as 'investor' | 'issuer',
-        }
+          orgName:
+            onboarding.investor_organization?.name ||
+            onboarding.issuer_organization?.name ||
+            "your organization",
+          portalType: onboarding.portal_type as "investor" | "issuer",
+        },
+        `onboarding:${onboardingId}:approved`
       );
     } catch (notificationError) {
       logger.error(
@@ -4336,7 +4386,10 @@ export class AdminService {
         user_agent: req.headers["user-agent"] || null,
         device_info: null,
         device_type: null,
-        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
+        organization_name:
+          onboarding.investor_organization?.name ||
+          onboarding.issuer_organization?.name ||
+          undefined,
         investor_organization_id: onboarding.investor_organization_id || undefined,
         issuer_organization_id: onboarding.issuer_organization_id || undefined,
         metadata: {
@@ -4467,7 +4520,10 @@ export class AdminService {
         user_agent: req.headers["user-agent"] || null,
         device_info: null,
         device_type: null,
-        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
+        organization_name:
+          onboarding.investor_organization?.name ||
+          onboarding.issuer_organization?.name ||
+          undefined,
         investor_organization_id: onboarding.investor_organization_id || undefined,
         issuer_organization_id: onboarding.issuer_organization_id || undefined,
         metadata: {
@@ -4599,7 +4655,10 @@ export class AdminService {
         user_agent: req.headers["user-agent"] || null,
         device_info: null,
         device_type: null,
-        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
+        organization_name:
+          onboarding.investor_organization?.name ||
+          onboarding.issuer_organization?.name ||
+          undefined,
         investor_organization_id: onboarding.investor_organization_id || undefined,
         issuer_organization_id: onboarding.issuer_organization_id || undefined,
         metadata: {
@@ -4624,7 +4683,8 @@ export class AdminService {
 
     return {
       success: true,
-      message: "Onboarding approved. Organization onboarding status was updated from current flags.",
+      message:
+        "Onboarding approved. Organization onboarding status was updated from current flags.",
     };
   }
 
@@ -4711,7 +4771,10 @@ export class AdminService {
           });
         } catch (error) {
           logger.error(
-            { error: error instanceof Error ? error.message : String(error), requestId: codRequestId },
+            {
+              error: error instanceof Error ? error.message : String(error),
+              requestId: codRequestId,
+            },
             "[Admin Refresh] Failed to persist refreshed corporate onboarding status (non-blocking)"
           );
         }
@@ -4761,7 +4824,10 @@ export class AdminService {
             });
           } catch (logError) {
             logger.error(
-              { error: logError instanceof Error ? logError.message : String(logError), organizationId: org.id },
+              {
+                error: logError instanceof Error ? logError.message : String(logError),
+                organizationId: org.id,
+              },
               "[Admin Refresh] Failed to write onboarding log (non-blocking)"
             );
           }
@@ -4775,8 +4841,14 @@ export class AdminService {
         onboardingAdvanced = changed;
 
         const afterOrg = isInvestor
-          ? await prisma.investorOrganization.findUnique({ where: { id: org.id }, select: { onboarding_status: true } })
-          : await prisma.issuerOrganization.findUnique({ where: { id: org.id }, select: { onboarding_status: true } });
+          ? await prisma.investorOrganization.findUnique({
+              where: { id: org.id },
+              select: { onboarding_status: true },
+            })
+          : await prisma.issuerOrganization.findUnique({
+              where: { id: org.id },
+              select: { onboarding_status: true },
+            });
         onboardingStatusResult = afterOrg?.onboarding_status ?? onboardingStatusResult;
       }
 
@@ -4799,17 +4871,20 @@ export class AdminService {
       };
 
       // Deduplicate by government ID → name → EOD (never email alone)
-      const directorsMap = new Map<string, {
-        eodRequestId: string; // Keep director EOD ID as primary
-        shareholderEodRequestId?: string; // Track shareholder EOD ID if different
-        name: string;
-        email: string;
-        role: string;
-        kycStatus: string;
-        kycId?: string;
-        governmentIdNumber?: string;
-        lastUpdated: string;
-      }>();
+      const directorsMap = new Map<
+        string,
+        {
+          eodRequestId: string; // Keep director EOD ID as primary
+          shareholderEodRequestId?: string; // Track shareholder EOD ID if different
+          name: string;
+          email: string;
+          role: string;
+          kycStatus: string;
+          kycId?: string;
+          governmentIdNumber?: string;
+          lastUpdated: string;
+        }
+      >();
 
       // Process individual directors
       if (codDetails.corpIndvDirectors && Array.isArray(codDetails.corpIndvDirectors)) {
@@ -4833,7 +4908,8 @@ export class AdminService {
             "";
           const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
           const governmentIdNumber =
-            extractGovernmentIdFromCorporateUserInfo(userInfo as Record<string, unknown>) || undefined;
+            extractGovernmentIdFromCorporateUserInfo(userInfo as Record<string, unknown>) ||
+            undefined;
 
           const mapKey = resolveCorporatePersonMergeKey({
             governmentIdNumber,
@@ -4904,7 +4980,8 @@ export class AdminService {
             typedFormContent.find((f) => f.fieldName === "% of Shares")?.fieldValue || "";
           const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
           const shareholderGovernmentId =
-            extractGovernmentIdFromCorporateUserInfo(userInfo as Record<string, unknown>) || undefined;
+            extractGovernmentIdFromCorporateUserInfo(userInfo as Record<string, unknown>) ||
+            undefined;
 
           const mapKey = resolveCorporatePersonMergeKey({
             governmentIdNumber: shareholderGovernmentId,
@@ -4953,7 +5030,9 @@ export class AdminService {
             // Fetch director EOD details
             if (existingDirector.eodRequestId) {
               try {
-                const directorEodDetails = await this.regTankApiClient.getEntityOnboardingDetails(existingDirector.eodRequestId);
+                const directorEodDetails = await this.regTankApiClient.getEntityOnboardingDetails(
+                  existingDirector.eodRequestId
+                );
                 directorKycId = directorEodDetails.kycRequestInfo?.kycId;
               } catch (eodError) {
                 logger.warn(
@@ -4970,7 +5049,8 @@ export class AdminService {
             // Fetch shareholder EOD details
             if (shareholderEodRequestId) {
               try {
-                const shareholderEodDetails = await this.regTankApiClient.getEntityOnboardingDetails(shareholderEodRequestId);
+                const shareholderEodDetails =
+                  await this.regTankApiClient.getEntityOnboardingDetails(shareholderEodRequestId);
                 shareholderKycId = shareholderEodDetails.kycRequestInfo?.kycId;
               } catch (eodError) {
                 logger.warn(
@@ -5005,7 +5085,8 @@ export class AdminService {
               PENDING: 1,
               REJECTED: 0,
             };
-            const currentPriority = statusPriority[existingDirector.kycStatus as keyof typeof statusPriority] || 0;
+            const currentPriority =
+              statusPriority[existingDirector.kycStatus as keyof typeof statusPriority] || 0;
             const newPriority = statusPriority[kycStatus as keyof typeof statusPriority] || 0;
             if (newPriority > currentPriority) {
               existingDirector.kycStatus = kycStatus;
@@ -5050,13 +5131,13 @@ export class AdminService {
       const extractedCorporateEntities = extractCorporateEntities(codDetails);
       const existingOrg = isInvestor
         ? await prisma.investorOrganization.findUnique({
-          where: { id: org.id },
-          select: { corporate_entities: true },
-        })
+            where: { id: org.id },
+            select: { corporate_entities: true },
+          })
         : await prisma.issuerOrganization.findUnique({
-          where: { id: org.id },
-          select: { corporate_entities: true },
-        });
+            where: { id: org.id },
+            select: { corporate_entities: true },
+          });
 
       if (existingOrg) {
         const corporateEntities = (existingOrg.corporate_entities as Record<string, unknown>) || {
@@ -5076,7 +5157,10 @@ export class AdminService {
         updated = true;
 
         // Update corporate shareholders with latest status from COD details
-        if (corporateEntities.corporateShareholders && Array.isArray(corporateEntities.corporateShareholders)) {
+        if (
+          corporateEntities.corporateShareholders &&
+          Array.isArray(corporateEntities.corporateShareholders)
+        ) {
           const codCorpShareholders = Array.isArray(codDetails.corpBizShareholders)
             ? (codDetails.corpBizShareholders as Record<string, unknown>[])
             : [];
@@ -5096,12 +5180,13 @@ export class AdminService {
 
           // Update existing corporate shareholders with latest status from COD details
           for (const codShareholder of codCorpShareholders) {
-            const codCorpReq = codShareholder.corporateOnboardingRequest as Record<string, unknown> | undefined;
+            const codCorpReq = codShareholder.corporateOnboardingRequest as
+              | Record<string, unknown>
+              | undefined;
             const codRequestId =
-              (codCorpReq?.requestId as string) ||
-              (codShareholder.requestId as string) ||
-              "";
-            const codName = (codShareholder.name as string) || (codShareholder.businessName as string) || "";
+              (codCorpReq?.requestId as string) || (codShareholder.requestId as string) || "";
+            const codName =
+              (codShareholder.name as string) || (codShareholder.businessName as string) || "";
             const key = codRequestId || codName;
 
             if (key) {
@@ -5116,20 +5201,25 @@ export class AdminService {
                 };
 
                 // Replace in array
-                const index = (corporateEntities.corporateShareholders as Record<string, unknown>[]).findIndex(
+                const index = (
+                  corporateEntities.corporateShareholders as Record<string, unknown>[]
+                ).findIndex(
                   (s: Record<string, unknown>) =>
-                    (((s.corporateOnboardingRequest as Record<string, unknown>)?.requestId as string) || (s.requestId as string) || (s.name as string) || "") === key
+                    (((s.corporateOnboardingRequest as Record<string, unknown>)
+                      ?.requestId as string) ||
+                      (s.requestId as string) ||
+                      (s.name as string) ||
+                      "") === key
                 );
                 if (index !== -1) {
-                  (corporateEntities.corporateShareholders as Record<string, unknown>[])[index] = updatedShareholder;
+                  (corporateEntities.corporateShareholders as Record<string, unknown>[])[index] =
+                    updatedShareholder;
                   updated = true;
                   logger.debug(
                     {
                       codRequestId,
                       name: codName,
-                      status:
-                        (codShareholder.status as string) ||
-                        (codCorpReq?.status as string),
+                      status: (codShareholder.status as string) || (codCorpReq?.status as string),
                     },
                     "[Admin Refresh] Updated corporate shareholder status from COD details"
                   );
@@ -5157,12 +5247,12 @@ export class AdminService {
           codDetails.corpBizShareholders.length > 0
         ) {
           // No existing corporate shareholders, but COD has them - initialize the array
-          corporateEntities.corporateShareholders = (codDetails.corpBizShareholders as Record<string, unknown>[]).map(
-            (corpShareholder: Record<string, unknown>) => ({
-              ...corpShareholder,
-              lastUpdated: new Date().toISOString(),
-            })
-          );
+          corporateEntities.corporateShareholders = (
+            codDetails.corpBizShareholders as Record<string, unknown>[]
+          ).map((corpShareholder: Record<string, unknown>) => ({
+            ...corpShareholder,
+            lastUpdated: new Date().toISOString(),
+          }));
           updated = true;
           logger.debug(
             {
@@ -5186,7 +5276,11 @@ export class AdminService {
             );
 
             const amlFetcher = new AMLFetcherService();
-            await amlFetcher.fetchAllAMLStatuses(codRequestId, org.id, onboarding.portal_type as PortalType);
+            await amlFetcher.fetchAllAMLStatuses(
+              codRequestId,
+              org.id,
+              onboarding.portal_type as PortalType
+            );
 
             logger.info(
               { codRequestId, organizationId: org.id },
@@ -5340,16 +5434,20 @@ export class AdminService {
       // Get updated director_aml_status to count directors
       const updatedOrg = isInvestor
         ? await prisma.investorOrganization.findUnique({
-          where: { id: org.id },
-          select: { director_aml_status: true },
-        })
+            where: { id: org.id },
+            select: { director_aml_status: true },
+          })
         : await prisma.issuerOrganization.findUnique({
-          where: { id: org.id },
-          select: { director_aml_status: true },
-        });
+            where: { id: org.id },
+            select: { director_aml_status: true },
+          });
 
-      const directorAmlStatus = (updatedOrg?.director_aml_status as Record<string, unknown>) || { directors: [] };
-      const directorsCount = Array.isArray(directorAmlStatus.directors) ? directorAmlStatus.directors.length : 0;
+      const directorAmlStatus = (updatedOrg?.director_aml_status as Record<string, unknown>) || {
+        directors: [],
+      };
+      const directorsCount = Array.isArray(directorAmlStatus.directors)
+        ? directorAmlStatus.directors.length
+        : 0;
 
       // Resolve the org-level AML milestone from the main company's live KYB status.
       // This is the shared helper used by webhooks — never duplicate its approval logic here.
@@ -5450,16 +5548,25 @@ export class AdminService {
 
     const readSsmApproved = async (): Promise<boolean> => {
       if (isInvestor) {
-        const row = await prisma.investorOrganization.findUnique({ where: { id: org.id }, select: { ssm_approved: true } });
+        const row = await prisma.investorOrganization.findUnique({
+          where: { id: org.id },
+          select: { ssm_approved: true },
+        });
         return Boolean(row?.ssm_approved);
       }
-      const row = await prisma.issuerOrganization.findUnique({ where: { id: org.id }, select: { ssm_checked: true } });
+      const row = await prisma.issuerOrganization.findUnique({
+        where: { id: org.id },
+        select: { ssm_checked: true },
+      });
       return Boolean(row?.ssm_checked);
     };
 
     // Terminal states: never re-query or mutate a finished/rejected organization —
     // avoids wasted RegTank calls and guarantees no regression is even possible.
-    if (org.onboarding_status === OnboardingStatus.COMPLETED || org.onboarding_status === OnboardingStatus.REJECTED) {
+    if (
+      org.onboarding_status === OnboardingStatus.COMPLETED ||
+      org.onboarding_status === OnboardingStatus.REJECTED
+    ) {
       return {
         success: true,
         message: "RegTank status is already up to date.",
@@ -5492,15 +5599,25 @@ export class AdminService {
         advanced: boolean;
       };
       try {
-        onboardingResult = await this.refreshCorporateOnboardingStatus(req, onboardingId, adminUserId);
+        onboardingResult = await this.refreshCorporateOnboardingStatus(
+          req,
+          onboardingId,
+          adminUserId
+        );
       } catch (error) {
         partialFailures.push("COD");
         warnings.push(
           `Failed to refresh RegTank corporate onboarding data: ${error instanceof Error ? error.message : String(error)}`
         );
         const fallback = isInvestor
-          ? await prisma.investorOrganization.findUnique({ where: { id: org.id }, select: { onboarding_status: true, onboarding_approved: true } })
-          : await prisma.issuerOrganization.findUnique({ where: { id: org.id }, select: { onboarding_status: true, onboarding_approved: true } });
+          ? await prisma.investorOrganization.findUnique({
+              where: { id: org.id },
+              select: { onboarding_status: true, onboarding_approved: true },
+            })
+          : await prisma.issuerOrganization.findUnique({
+              where: { id: org.id },
+              select: { onboarding_status: true, onboarding_approved: true },
+            });
         onboardingResult = {
           onboardingStatus: fallback?.onboarding_status ?? org.onboarding_status,
           onboardingApproved: Boolean(fallback?.onboarding_approved),
@@ -5510,7 +5627,12 @@ export class AdminService {
         };
       }
 
-      let amlResult: { onboardingStatus: OnboardingStatus; amlApproved: boolean; advanced: boolean; directorsUpdated: number } | null = null;
+      let amlResult: {
+        onboardingStatus: OnboardingStatus;
+        amlApproved: boolean;
+        advanced: boolean;
+        directorsUpdated: number;
+      } | null = null;
       try {
         amlResult = await this.refreshCorporateAmlStatus(req, onboardingId, adminUserId);
         refreshedSources.push("KYB", "RELATED_PARTY_AML");
@@ -5531,9 +5653,11 @@ export class AdminService {
           ? "RegTank status refreshed. Onboarding has advanced to AML Approval."
           : "RegTank screening status refreshed. Onboarding has advanced to Final Approval.";
       } else if (partialFailures.length > 0) {
-        message = "RegTank status was partially refreshed. Some related-party records could not be updated.";
+        message =
+          "RegTank status was partially refreshed. Some related-party records could not be updated.";
       } else if (finalStatus === OnboardingStatus.PENDING_SSM_REVIEW) {
-        message = "RegTank onboarding data refreshed. Complete the SSM/CTOS verification before continuing.";
+        message =
+          "RegTank onboarding data refreshed. Complete the SSM/CTOS verification before continuing.";
       } else if (finalStatus === OnboardingStatus.PENDING_AML) {
         message = "RegTank screening status refreshed. AML approval is still pending.";
       } else if (finalStatus === OnboardingStatus.PENDING_APPROVAL) {
@@ -5554,7 +5678,10 @@ export class AdminService {
         onboardingProviderStatus: onboardingResult.onboardingProviderStatus,
         amlProviderStatus: null,
         lastSyncedAt: new Date().toISOString(),
-        directorsUpdated: Math.max(onboardingResult.directorsUpdated, amlResult?.directorsUpdated ?? 0),
+        directorsUpdated: Math.max(
+          onboardingResult.directorsUpdated,
+          amlResult?.directorsUpdated ?? 0
+        ),
         refreshedSources,
         warnings,
         partialFailures,
@@ -5573,7 +5700,14 @@ export class AdminService {
    */
   private async refreshPersonalOnboardingStatus(
     onboarding: { request_id: string; reference_id: string; portal_type: string },
-    org: { id: string; name: string | null; onboarding_status: OnboardingStatus; onboarding_approved: boolean; aml_approved: boolean; kyc_id?: string | null },
+    org: {
+      id: string;
+      name: string | null;
+      onboarding_status: OnboardingStatus;
+      onboarding_approved: boolean;
+      aml_approved: boolean;
+      kyc_id?: string | null;
+    },
     isInvestor: boolean,
     adminUserId: string
   ): Promise<{
@@ -5600,7 +5734,9 @@ export class AdminService {
 
     let regtankDetails: Record<string, unknown> | null = null;
     try {
-      regtankDetails = (await this.regTankApiClient.queryOnboardingDetails(onboarding.request_id)) as Record<string, unknown>;
+      regtankDetails = (await this.regTankApiClient.queryOnboardingDetails(
+        onboarding.request_id
+      )) as Record<string, unknown>;
       refreshedSources.push("INDIVIDUAL_ONBOARDING");
     } catch (error) {
       partialFailures.push("INDIVIDUAL_ONBOARDING");
@@ -5609,7 +5745,8 @@ export class AdminService {
       );
     }
 
-    const rawStatus = typeof regtankDetails?.status === "string" ? (regtankDetails.status as string) : null;
+    const rawStatus =
+      typeof regtankDetails?.status === "string" ? (regtankDetails.status as string) : null;
     const statusUpper = rawStatus?.toUpperCase() ?? null;
 
     if (rawStatus) {
@@ -5620,7 +5757,10 @@ export class AdminService {
         });
       } catch (error) {
         logger.error(
-          { error: error instanceof Error ? error.message : String(error), requestId: onboarding.request_id },
+          {
+            error: error instanceof Error ? error.message : String(error),
+            requestId: onboarding.request_id,
+          },
           "[Admin Refresh] Failed to persist refreshed individual onboarding status (non-blocking)"
         );
       }
@@ -5647,7 +5787,9 @@ export class AdminService {
     }
 
     if (statusUpper === "LIVENESS_PASSED" || statusUpper === "WAIT_FOR_APPROVAL") {
-      const update = getIndividualWaitForApprovalUpdate({ currentOnboardingStatus: org.onboarding_status });
+      const update = getIndividualWaitForApprovalUpdate({
+        currentOnboardingStatus: org.onboarding_status,
+      });
       if (update) {
         if (isInvestor) {
           await this.organizationRepository.updateInvestorOrganizationOnboarding(
@@ -5677,17 +5819,31 @@ export class AdminService {
         );
       }
     } else if (statusUpper === "REJECTED") {
-      warnings.push("RegTank reports this onboarding as rejected. A REJECTED webhook may still be pending.");
+      warnings.push(
+        "RegTank reports this onboarding as rejected. A REJECTED webhook may still be pending."
+      );
     }
 
     const afterOnboarding = isInvestor
       ? await prisma.investorOrganization.findUnique({
           where: { id: org.id },
-          select: { onboarding_status: true, onboarding_approved: true, aml_approved: true, kyc_id: true, name: true },
+          select: {
+            onboarding_status: true,
+            onboarding_approved: true,
+            aml_approved: true,
+            kyc_id: true,
+            name: true,
+          },
         })
       : await prisma.issuerOrganization.findUnique({
           where: { id: org.id },
-          select: { onboarding_status: true, onboarding_approved: true, aml_approved: true, kyc_id: true, name: true },
+          select: {
+            onboarding_status: true,
+            onboarding_approved: true,
+            aml_approved: true,
+            kyc_id: true,
+            name: true,
+          },
         });
 
     let onboardingStatusResult = afterOnboarding?.onboarding_status ?? org.onboarding_status;
@@ -5713,7 +5869,9 @@ export class AdminService {
         onboardingStatusResult = milestone.onboardingStatus ?? onboardingStatusResult;
       } catch (error) {
         partialFailures.push("KYC");
-        warnings.push(`Failed to query RegTank individual KYC status: ${error instanceof Error ? error.message : String(error)}`);
+        warnings.push(
+          `Failed to query RegTank individual KYC status: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
     } else {
       warnings.push("No individual KYC record found yet; AML screening was not queried.");
@@ -5792,7 +5950,11 @@ export class AdminService {
       orgIds.map(async (oid) => {
         const org = await prisma.issuerOrganization.findUnique({
           where: { id: oid },
-          select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
+          select: {
+            corporate_entities: true,
+            director_kyc_status: true,
+            director_aml_status: true,
+          },
         });
         if (!org) {
           pendingByOrg.set(oid, false);
@@ -5822,7 +5984,7 @@ export class AdminService {
         return {
           ...rest,
           directorShareholderAmlPending: issuerOrganizationId
-            ? pendingByOrg.get(issuerOrganizationId) ?? false
+            ? (pendingByOrg.get(issuerOrganizationId) ?? false)
             : false,
         };
       }),
@@ -5845,7 +6007,9 @@ export class AdminService {
       contractAccepted,
       invoicePending,
     ] = await Promise.all([
-      prisma.application.count({ where: { status: { in: [...APPLICATION_ACTION_REQUIRED_STATUSES] } } }),
+      prisma.application.count({
+        where: { status: { in: [...APPLICATION_ACTION_REQUIRED_STATUSES] } },
+      }),
       prisma.application.count({ where: { status: ApplicationStatus.SUBMITTED } }),
       prisma.application.count({ where: { status: ApplicationStatus.UNDER_REVIEW } }),
       prisma.application.count({ where: { status: ApplicationStatus.RESUBMITTED } }),
@@ -5947,10 +6111,18 @@ export class AdminService {
       const details = (contract.contract_details as Record<string, unknown> | null) ?? {};
       const balance = resolveFacilityFeeBalance(details);
       if (balance.waived) {
-        throw new AppError(400, "FACILITY_FEE_ALREADY_WAIVED", "Remaining facility fee is already waived");
+        throw new AppError(
+          400,
+          "FACILITY_FEE_ALREADY_WAIVED",
+          "Remaining facility fee is already waived"
+        );
       }
       if (balance.remaining <= 0) {
-        throw new AppError(400, "NO_FACILITY_FEE_REMAINING", "There is no uncharged facility fee remaining to waive");
+        throw new AppError(
+          400,
+          "NO_FACILITY_FEE_REMAINING",
+          "There is no uncharged facility fee remaining to waive"
+        );
       }
       const nextDetails = {
         ...details,
@@ -6146,7 +6318,11 @@ export class AdminService {
         throw new AppError(400, "VALIDATION_ERROR", "Individual guarantor requires a name");
       }
       if (governmentIdNumber.length < 6) {
-        throw new AppError(400, "VALIDATION_ERROR", "Individual guarantor requires a valid IC number");
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "Individual guarantor requires a valid IC number"
+        );
       }
       if (!email) {
         throw new AppError(400, "VALIDATION_ERROR", "Guarantor requires an email");
@@ -6239,12 +6415,14 @@ export class AdminService {
         latest_organization_ctos_report_id: extras.latestOrganizationCtosReportId,
         latest_organization_ctos_fetched_at: extras.latestOrganizationCtosFetchedAt,
         latest_organization_ctos_has_report_html: extras.latestOrganizationCtosHasReportHtml,
-        latest_organization_ctos_subject_reports: extras.latestOrganizationCtosSubjectReports.map((r) => ({
-          id: r.id,
-          subject_ref: r.subject_ref,
-          fetched_at: r.fetched_at,
-          has_report_html: r.has_report_html,
-        })),
+        latest_organization_ctos_subject_reports: extras.latestOrganizationCtosSubjectReports.map(
+          (r) => ({
+            id: r.id,
+            subject_ref: r.subject_ref,
+            fetched_at: r.fetched_at,
+            has_report_html: r.has_report_html,
+          })
+        ),
         ctos_party_supplements: extras.ctosPartySupplements.map((s) => ({
           party_key: s.partyKey,
           onboarding_json: s.onboardingJson,
@@ -6273,11 +6451,7 @@ export class AdminService {
             | undefined)
         : undefined;
     if (structureType === "existing_contract") {
-      await this.ensureExistingContractAcceptanceReviewApproved(
-        repository,
-        id,
-        application
-      );
+      await this.ensureExistingContractAcceptanceReviewApproved(repository, id, application);
     } else {
       await this.ensureAcceptanceHubReviewApprovedIfOfferComplete(
         repository,
@@ -6335,10 +6509,12 @@ export class AdminService {
           })),
         }
       : null;
-    const invoicesWithDisplayReference = (applicationWithIssuerExtras.invoices ?? []).map((invoice) => ({
-      ...invoice,
-      displayReference: invoice.display_reference ?? null,
-    }));
+    const invoicesWithDisplayReference = (applicationWithIssuerExtras.invoices ?? []).map(
+      (invoice) => ({
+        ...invoice,
+        displayReference: invoice.display_reference ?? null,
+      })
+    );
     const invoicesWithFacilityFeeAvailable = attachFacilityFeeAvailableToReserve(
       invoicesWithDisplayReference,
       await loadFacilityFeeAvailableByInvoiceId(
@@ -6409,11 +6585,7 @@ export class AdminService {
     ]);
 
     if (!nextRev) {
-      throw new AppError(
-        404,
-        "NOT_FOUND",
-        "Revision snapshot not found for this review cycle"
-      );
+      throw new AppError(404, "NOT_FOUND", "Revision snapshot not found for this review cycle");
     }
     if (!prevRev) {
       throw new AppError(404, "NOT_FOUND", "Previous revision snapshot not found");
@@ -6596,7 +6768,8 @@ export class AdminService {
     if (status === ApplicationStatus.UNDER_REVIEW) {
       if (currentStatus !== ApplicationStatus.AMENDMENT_REQUESTED) {
         const correctionGuidance =
-          currentStatus === ApplicationStatus.COMPLETED || currentStatus === ApplicationStatus.REJECTED
+          currentStatus === ApplicationStatus.COMPLETED ||
+          currentStatus === ApplicationStatus.REJECTED
             ? ` ${this.getCorrectionFlowGuidance()}`
             : "";
         throw new AppError(
@@ -6825,26 +6998,38 @@ export class AdminService {
 
   private isContractTabUnlocked(
     application: { application_reviews?: { section: string; status: string }[] },
-    sectionPolicy: { visibleSections: Set<ReviewSection>; prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>> }
+    sectionPolicy: {
+      visibleSections: Set<ReviewSection>;
+      prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+    }
   ): boolean {
     const prereqs = sectionPolicy.prerequisitesBySection.contract_details;
     if (!prereqs?.length) return true;
     const relevantPrereqs = prereqs.filter((p) => sectionPolicy.visibleSections.has(p));
     if (!relevantPrereqs.length) return true;
-    const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
+    const reviews = (application.application_reviews ?? []) as {
+      section: string;
+      status: string;
+    }[];
     const sectionStatusMap = new Map(reviews.map((r) => [r.section, r.status]));
     return relevantPrereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
   }
 
   private isInvoiceTabUnlocked(
     application: { application_reviews?: { section: string; status: string }[] },
-    sectionPolicy: { visibleSections: Set<ReviewSection>; prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>> }
+    sectionPolicy: {
+      visibleSections: Set<ReviewSection>;
+      prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+    }
   ): boolean {
     const prereqs = sectionPolicy.prerequisitesBySection.invoice_details;
     if (!prereqs?.length) return true;
     const relevantPrereqs = prereqs.filter((p) => sectionPolicy.visibleSections.has(p));
     if (!relevantPrereqs.length) return true;
-    const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
+    const reviews = (application.application_reviews ?? []) as {
+      section: string;
+      status: string;
+    }[];
     const sectionStatusMap = new Map(reviews.map((r) => [r.section, r.status]));
     return relevantPrereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
   }
@@ -6961,7 +7146,10 @@ export class AdminService {
     }
   ): Promise<void> {
     const appStatus = (application.status as ApplicationStatus) ?? ApplicationStatus.UNDER_REVIEW;
-    const structure = application.financing_structure as { structure_type?: string } | null | undefined;
+    const structure = application.financing_structure as
+      | { structure_type?: string }
+      | null
+      | undefined;
     const isExistingContract = isExistingContractFinancing(structure);
     if (!this.shouldSyncAdminStageStatus(appStatus, isExistingContract)) {
       return;
@@ -7201,9 +7389,7 @@ export class AdminService {
       const name = String(record?.name ?? record?.title ?? "document");
       const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
       const idx =
-        typeof record?.workflow_document_index === "number"
-          ? record.workflow_document_index
-          : i;
+        typeof record?.workflow_document_index === "number" ? record.workflow_document_index : i;
       keys.add(`acceptance_documents:${idx}:${slug}`);
     });
     return keys;
@@ -7250,7 +7436,8 @@ export class AdminService {
           const files = Array.isArray(d?.files) ? (d.files as Array<{ file_name?: string }>) : [];
           const file = (d?.file as { file_name?: string } | undefined) ?? files[0];
           const label =
-            String(d?.title ?? file?.file_name ?? d?.name ?? "").trim() || `Document ${docIndex + 1}`;
+            String(d?.title ?? file?.file_name ?? d?.name ?? "").trim() ||
+            `Document ${docIndex + 1}`;
           const slug = label.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
           keys.add(`supporting_documents:${categoryKey}:${docIndex}:${slug}`);
         });
@@ -7304,7 +7491,9 @@ export class AdminService {
       documentRows.map((r) => ({ item_id: r.item_id, status: r.status }))
     );
 
-    const existing = application.application_reviews?.find((r) => r.section === "supporting_documents");
+    const existing = application.application_reviews?.find(
+      (r) => r.section === "supporting_documents"
+    );
     const current = existing?.status ?? "PENDING";
 
     if (target === current) {
@@ -7385,7 +7574,9 @@ export class AdminService {
       target = "PENDING";
     }
 
-    const existing = application.application_reviews?.find((r) => r.section === "acceptance_documents");
+    const existing = application.application_reviews?.find(
+      (r) => r.section === "acceptance_documents"
+    );
     const current = existing?.status ?? "PENDING";
 
     if (target === current) {
@@ -7576,10 +7767,7 @@ export class AdminService {
       };
     }
 
-    const docKeys = collectAcceptanceDocumentReviewKeys(
-      workflow,
-      application.acceptance_documents
-    );
+    const docKeys = collectAcceptanceDocumentReviewKeys(workflow, application.acceptance_documents);
     const documentRows =
       application.application_review_items?.filter((r) => r.item_type === "document") ?? [];
     const statusByKey = new Map(documentRows.map((r) => [r.item_id, r.status]));
@@ -7740,9 +7928,7 @@ export class AdminService {
     const entityApproved =
       (!isInvoiceOnly && refreshed.contract?.status === "APPROVED") ||
       (isInvoiceOnly &&
-        refreshed.invoices.some(
-          (inv) => !inv.contract_id && inv.status === "APPROVED"
-        ));
+        refreshed.invoices.some((inv) => !inv.contract_id && inv.status === "APPROVED"));
     const resolved = resolveApplicationStatusFromOfferAcceptancePhase(
       isInvoiceOnly,
       offerAcceptanceStatus,
@@ -7856,9 +8042,7 @@ export class AdminService {
     });
   }
 
-  private assertAcceptanceReviewNotInherited(application: {
-    financing_structure?: unknown;
-  }): void {
+  private assertAcceptanceReviewNotInherited(application: { financing_structure?: unknown }): void {
     const structure = application.financing_structure as { structure_type?: string } | null;
     if (structure?.structure_type === "existing_contract") {
       throw new AppError(
@@ -7987,7 +8171,13 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Facility not found");
     }
 
-    const nonEditableStatuses = ["OFFER_SENT", "OFFER_EXPIRED", "APPROVED", "REJECTED", "WITHDRAWN"] as const;
+    const nonEditableStatuses = [
+      "OFFER_SENT",
+      "OFFER_EXPIRED",
+      "APPROVED",
+      "REJECTED",
+      "WITHDRAWN",
+    ] as const;
     if (nonEditableStatuses.includes(contract.status as (typeof nonEditableStatuses)[number])) {
       throw new AppError(
         400,
@@ -7998,7 +8188,11 @@ export class AdminService {
 
     const existing = contract.customer_details;
     if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
-      throw new AppError(400, "INVALID_STATE", "Customer details are missing; cannot save confirmation");
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Customer details are missing; cannot save confirmation"
+      );
     }
 
     const merged = {
@@ -8047,7 +8241,11 @@ export class AdminService {
     }
 
     const contractId = application.contract_id;
-    await this.assertNoActiveSigningPackage(applicationId, { contractId }, "sending a new facility offer");
+    await this.assertNoActiveSigningPackage(
+      applicationId,
+      { contractId },
+      "sending a new facility offer"
+    );
 
     const workflow = await this.loadApplicationProductWorkflow(application);
     const stampOfferAcceptance = workflowUsesOfferAcceptanceFlow(workflow);
@@ -8104,7 +8302,8 @@ export class AdminService {
         );
       }
 
-      const contractDetails = (lockedContract.contract_details as Record<string, unknown> | null) ?? null;
+      const contractDetails =
+        (lockedContract.contract_details as Record<string, unknown> | null) ?? null;
       const requestedFacility = resolveRequestedFacility(contractDetails);
       if (!Number.isFinite(requestedFacility) || requestedFacility <= 0) {
         throw new AppError(400, "INVALID_STATE", "Requested facility is invalid");
@@ -8123,7 +8322,8 @@ export class AdminService {
         contractId,
       });
 
-      const previousOffer = (lockedContract.offer_details as Record<string, unknown> | null) ?? null;
+      const previousOffer =
+        (lockedContract.offer_details as Record<string, unknown> | null) ?? null;
       if (stampOfferAcceptance && lockedContract.status !== "OFFER_EXPIRED") {
         this.assertOfferAcceptanceAllowsResend(previousOffer);
       }
@@ -8438,9 +8638,9 @@ export class AdminService {
       application
     );
 
-    const invoice = (application.invoices as { id: string; details?: Record<string, unknown> }[] | undefined)?.find(
-      (row) => row.id === invoiceId
-    );
+    const invoice = (
+      application.invoices as { id: string; details?: Record<string, unknown> }[] | undefined
+    )?.find((row) => row.id === invoiceId);
     if (!invoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
     }
@@ -8453,7 +8653,11 @@ export class AdminService {
       throw new AppError(400, "INVALID_STATE", "Unable to resolve invoice scope key");
     }
     await this.ensureInvoiceOfferItemActionAllowed(applicationId, scopeKey, application);
-    await this.assertNoActiveSigningPackage(applicationId, { invoiceId }, "sending a new invoice offer");
+    await this.assertNoActiveSigningPackage(
+      applicationId,
+      { invoiceId },
+      "sending a new invoice offer"
+    );
 
     const invoiceForSend = await prisma.invoice.findUnique({
       where: { id: invoiceId, application_id: applicationId },
@@ -8556,7 +8760,9 @@ export class AdminService {
         create: { key: "DEFAULT" },
         select: { platform_fee_rate_cap_percent: true },
       });
-      const platformFeeRateCapPercent = Number(platformFinanceSettings.platform_fee_rate_cap_percent);
+      const platformFeeRateCapPercent = Number(
+        platformFinanceSettings.platform_fee_rate_cap_percent
+      );
       const platformFeeStored =
         platformFeeRatePercent != null && Number.isFinite(platformFeeRatePercent)
           ? Math.max(0, Math.round(platformFeeRatePercent * 100) / 100)
@@ -8579,12 +8785,10 @@ export class AdminService {
       }
       const writeV1Schedule = writeModeResult.mode === "v1";
       const facilityFeeCollectAmount = writeV1Schedule
-        ? (
-            feeSchedule?.facilityFeeCollectAmount != null &&
-            Number.isFinite(feeSchedule.facilityFeeCollectAmount)
-              ? Math.max(0, Math.round(feeSchedule.facilityFeeCollectAmount * 100) / 100)
-              : 0
-          )
+        ? feeSchedule?.facilityFeeCollectAmount != null &&
+          Number.isFinite(feeSchedule.facilityFeeCollectAmount)
+          ? Math.max(0, Math.round(feeSchedule.facilityFeeCollectAmount * 100) / 100)
+          : 0
         : 0;
       const additionalFees = writeV1Schedule ? (feeSchedule?.additionalFees ?? []) : [];
       const contractIdForFees = lockedInvoice.contract_id;
@@ -8734,9 +8938,7 @@ export class AdminService {
       });
 
       const invoiceNumber =
-        details.number != null && details.number !== ""
-          ? String(details.number).trim()
-          : null;
+        details.number != null && details.number !== "" ? String(details.number).trim() : null;
       const acceptanceExpiresAt = stampOfferAcceptance
         ? (getOfferAcceptanceFromOfferDetails(offerDetails)?.acceptance_expires_at ?? null)
         : null;
@@ -8754,12 +8956,9 @@ export class AdminService {
     const occupancyContractId = invoiceForSend?.contract_id ?? application.contract_id ?? null;
     const invoiceOfferMeta = occupancyContractId
       ? (
-          await applyContractCapacityChange(
-            occupancyContractId,
-            prisma,
-            sendInvoiceOfferInTx,
-            { assertWrite: true }
-          )
+          await applyContractCapacityChange(occupancyContractId, prisma, sendInvoiceOfferInTx, {
+            assertWrite: true,
+          })
         ).result
       : await prisma.$transaction(sendInvoiceOfferInTx);
 
@@ -9023,7 +9222,10 @@ export class AdminService {
       );
     }
     if (section === "contract_details" || section === "invoice_details") {
-      const structure = application.financing_structure as { structure_type?: string } | null | undefined;
+      const structure = application.financing_structure as
+        | { structure_type?: string }
+        | null
+        | undefined;
       const isInvoiceOnly = structure?.structure_type === "invoice_only";
       const contractApprovalAllowed = section === "contract_details" && isInvoiceOnly;
       if (!contractApprovalAllowed) {
@@ -9116,10 +9318,17 @@ export class AdminService {
       const docKeys = [...this.collectDocumentKeys(application.supporting_documents)];
       if (docKeys.length > 0) {
         for (const itemId of docKeys) {
-          await this.resetItemReviewToPending(applicationId, "document", itemId, reviewerUserId, logContext, {
-            skipSupportingDocumentsSectionSync: true,
-            skipItemActivityLog: true,
-          });
+          await this.resetItemReviewToPending(
+            applicationId,
+            "document",
+            itemId,
+            reviewerUserId,
+            logContext,
+            {
+              skipSupportingDocumentsSectionSync: true,
+              skipItemActivityLog: true,
+            }
+          );
         }
         let nextApp = await repository.getApplicationById(applicationId);
         if (nextApp) {
@@ -9146,11 +9355,18 @@ export class AdminService {
       ];
       if (docKeys.length > 0) {
         for (const itemId of docKeys) {
-          await this.resetItemReviewToPending(applicationId, "document", itemId, reviewerUserId, logContext, {
-            skipSupportingDocumentsSectionSync: true,
-            skipItemActivityLog: true,
-            skipOfferAcceptancePhaseSync: true,
-          });
+          await this.resetItemReviewToPending(
+            applicationId,
+            "document",
+            itemId,
+            reviewerUserId,
+            logContext,
+            {
+              skipSupportingDocumentsSectionSync: true,
+              skipItemActivityLog: true,
+              skipOfferAcceptancePhaseSync: true,
+            }
+          );
         }
         let nextApp = await repository.getApplicationById(applicationId);
         if (nextApp) {
@@ -9211,10 +9427,17 @@ export class AdminService {
             inv.id
           );
           if (!scopeKey) continue;
-          await this.resetItemReviewToPending(applicationId, "invoice", scopeKey, reviewerUserId, logContext, {
-            skipInvoiceDetailsSectionSync: true,
-            skipItemActivityLog: true,
-          });
+          await this.resetItemReviewToPending(
+            applicationId,
+            "invoice",
+            scopeKey,
+            reviewerUserId,
+            logContext,
+            {
+              skipInvoiceDetailsSectionSync: true,
+              skipItemActivityLog: true,
+            }
+          );
         }
         let nextApp = await repository.getApplicationById(applicationId);
         if (nextApp) {
@@ -9322,7 +9545,10 @@ export class AdminService {
     );
     await repository.removeDraftAmendment(applicationId, "section", section);
     if (section === "contract_details") {
-      const structure = application.financing_structure as { structure_type?: string } | null | undefined;
+      const structure = application.financing_structure as
+        | { structure_type?: string }
+        | null
+        | undefined;
       const isInvoiceOnly = structure?.structure_type === "invoice_only";
       await repository.updateApplicationStatus(
         applicationId,
@@ -9408,7 +9634,8 @@ export class AdminService {
           const updateData: Prisma.InvoiceUpdateInput = {
             status: "SUBMITTED",
           };
-          didRetractInvoiceOffer = oldStatus === "OFFER_SENT" || currentInvoice?.status === "OFFER_SENT";
+          didRetractInvoiceOffer =
+            oldStatus === "OFFER_SENT" || currentInvoice?.status === "OFFER_SENT";
           if (didRetractInvoiceOffer) {
             updateData.offer_details = Prisma.JsonNull;
           }
@@ -9492,13 +9719,12 @@ export class AdminService {
       await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
     }
 
-    logger.info({ applicationId, itemType, itemId, reviewerUserId }, "Review item reset to pending");
+    logger.info(
+      { applicationId, itemType, itemId, reviewerUserId },
+      "Review item reset to pending"
+    );
     let nextApp = await repository.getApplicationById(applicationId);
-    if (
-      itemType === "document" &&
-      nextApp &&
-      !options?.skipSupportingDocumentsSectionSync
-    ) {
+    if (itemType === "document" && nextApp && !options?.skipSupportingDocumentsSectionSync) {
       await this.syncDocumentDerivedSectionsFromItems(
         repository,
         applicationId,
@@ -9542,11 +9768,7 @@ export class AdminService {
       );
       nextApp = await repository.getApplicationById(applicationId);
     }
-    if (
-      itemType === "invoice" &&
-      nextApp &&
-      !options?.skipInvoiceDetailsSectionSync
-    ) {
+    if (itemType === "invoice" && nextApp && !options?.skipInvoiceDetailsSectionSync) {
       await this.syncInvoiceDetailsSectionFromItems(
         repository,
         applicationId,
@@ -9792,7 +10014,10 @@ export class AdminService {
 
     await repository.removeDraftAmendment(applicationId, "section", section);
 
-    logger.info({ applicationId, section, reviewerUserId }, "Amendment requested for review section");
+    logger.info(
+      { applicationId, section, reviewerUserId },
+      "Amendment requested for review section"
+    );
     return repository.getApplicationById(applicationId);
   }
 
@@ -10114,8 +10339,7 @@ export class AdminService {
         r.item_type === itemType && r.item_id === itemId
     );
     const oldStatus = existing?.status ?? "PENDING";
-    const isAcceptanceDoc =
-      itemType === "document" && isAcceptanceDocumentItemId(itemId);
+    const isAcceptanceDoc = itemType === "document" && isAcceptanceDocumentItemId(itemId);
     if (isAcceptanceDoc) {
       assertAcceptanceDocumentChangeRequestAllowed(oldStatus);
       await this.assertNoActiveSigningPackageForAcceptanceActions(
@@ -10223,9 +10447,7 @@ export class AdminService {
     }
 
     if (isAcceptanceDoc) {
-      const acceptancePhaseAfter = this.getPrimaryOfferAcceptanceStatus(
-        nextApp ?? application
-      );
+      const acceptancePhaseAfter = this.getPrimaryOfferAcceptanceStatus(nextApp ?? application);
       if (shouldNotifyAcceptanceDocumentChanges(acceptancePhaseBefore, acceptancePhaseAfter)) {
         try {
           const submittedAt =
@@ -10236,7 +10458,7 @@ export class AdminService {
             { applicationId },
             // One notify per acceptance submit cycle when first entering CHANGES_REQUESTED.
             `acceptance-changes-entered:${submittedAt}`,
-            { platformOnly: true, ensureTypesSeeded: true }
+            { ensureTypesSeeded: true }
           );
         } catch (notificationError) {
           logger.error(
@@ -10383,12 +10605,14 @@ export class AdminService {
 
     const existing =
       scope === "section"
-        ? (application.application_reviews as { section: string; status: string }[] | undefined)?.find(
-          (r) => r.section === scopeKey
-        )?.status
-        : (application.application_review_items as { item_type: string; item_id: string; status: string }[] | undefined)?.find(
-          (r) => r.item_type === itemType && r.item_id === itemId
-        )?.status;
+        ? (
+            application.application_reviews as { section: string; status: string }[] | undefined
+          )?.find((r) => r.section === scopeKey)?.status
+        : (
+            application.application_review_items as
+              | { item_type: string; item_id: string; status: string }[]
+              | undefined
+          )?.find((r) => r.item_type === itemType && r.item_id === itemId)?.status;
     const oldStatus = existing ?? "PENDING";
     if (oldStatus !== "AMENDMENT_REQUESTED") {
       await this.logReviewActivity(
@@ -10463,7 +10687,9 @@ export class AdminService {
         scope: r.scope,
         scope_key: r.scope_key,
         remark: r.remark,
-        author: r.author ? { first_name: r.author.first_name, last_name: r.author.last_name } : undefined,
+        author: r.author
+          ? { first_name: r.author.first_name, last_name: r.author.last_name }
+          : undefined,
       };
       if (r.scope === "item") {
         const { itemType, itemId } = parseItemScopeKey(r.scope_key);
@@ -10514,10 +10740,7 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
 
-    const affectedSection =
-      scope === "section"
-        ? scopeKey
-        : getSectionForScopeKey(scopeKey);
+    const affectedSection = scope === "section" ? scopeKey : getSectionForScopeKey(scopeKey);
     if (affectedSection === "contract_details") {
       this.ensureContractOfferActionAllowed(application);
     }
@@ -10550,7 +10773,9 @@ export class AdminService {
         const application = await repository.getApplicationById(applicationId);
         const invoiceId = application
           ? this.resolveInvoiceIdFromScopeKey(
-              application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+              application as {
+                invoices?: { id: string; details?: { number?: string | number } }[];
+              },
               itemId
             )
           : null;
@@ -10566,7 +10791,10 @@ export class AdminService {
           } else {
             await prisma.$transaction(persistReset);
           }
-          await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
+          await repository.updateApplicationStatus(
+            applicationId,
+            ApplicationStatus.INVOICE_PENDING
+          );
         }
       }
     }
@@ -10593,7 +10821,10 @@ export class AdminService {
             where: { id: application.contract_id },
             data: { status: "SUBMITTED" },
           });
-          const structure = application.financing_structure as { structure_type?: string } | null | undefined;
+          const structure = application.financing_structure as
+            | { structure_type?: string }
+            | null
+            | undefined;
           const isInvoiceOnly = structure?.structure_type === "invoice_only";
           await repository.updateApplicationStatus(
             applicationId,
@@ -10623,7 +10854,11 @@ export class AdminService {
    * Submit all pending amendments. Marks draft remarks as submitted and updates application status.
    * Item/section status already set when adding to pending; remarks already exist.
    */
-  async submitPendingAmendments(applicationId: string, reviewerUserId: string, logContext?: AdminLogContext) {
+  async submitPendingAmendments(
+    applicationId: string,
+    reviewerUserId: string,
+    logContext?: AdminLogContext
+  ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(
       repository,
@@ -10703,7 +10938,10 @@ export class AdminService {
       );
     }
 
-    logger.info({ applicationId, count: pending.length, reviewerUserId }, "Pending amendments submitted");
+    logger.info(
+      { applicationId, count: pending.length, reviewerUserId },
+      "Pending amendments submitted"
+    );
     return repository.getApplicationById(applicationId);
   }
 }

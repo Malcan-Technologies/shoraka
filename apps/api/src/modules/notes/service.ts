@@ -128,6 +128,7 @@ import {
   resolveNoteNotificationTitle,
 } from "../notification/note-lifecycle-notifications";
 import { notifyExcessLateChargesDue } from "../notification/excess-late-charge-notifications";
+import { notifyWithdrawalSubmittedToTrustee } from "../notification/withdrawal-notifications";
 import {
   buildNoteIssuerSnapshot,
   resolveIssuerIndustryFromCorporateData,
@@ -6698,6 +6699,17 @@ export class NoteService {
       await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_SUBMITTED_TO_TRUSTEE", actor, {
         withdrawalId: id,
       });
+    }
+    try {
+      await notifyWithdrawalSubmittedToTrustee({
+        notificationService: this.notificationService,
+        withdrawal,
+      });
+    } catch (error) {
+      logger.error(
+        { error, withdrawalId: id, noteId: withdrawal.note_id },
+        "Failed to send withdrawal submitted to trustee notification"
+      );
     }
     return this.mapWithdrawal(withdrawal);
   }

@@ -136,7 +136,9 @@ import {
 import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { NotificationService } from "../notification/service";
 import { NotificationTypeIds } from "../notification/registry";
+import { systemNotificationLogKey } from "../notification/delivery-log";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
+import { sendTypedToUsersSafe } from "../notification/send-typed-safe";
 import { parseGuarantorsFromBusinessDetails } from "../guarantors/utils";
 import { assertIssuerOrgDirectorShareholderOnboardingReady } from "./director-shareholder-onboarding-guard";
 import { buildAdminPeopleList } from "../admin/build-people-list";
@@ -357,16 +359,27 @@ export class ApplicationService {
     idempotencySuffix: string
   ) {
     const recipientUserIds = await getIssuerRecipientUserIdsForApplication(applicationId);
+    if (recipientUserIds.length === 0) {
+      return;
+    }
     const enrichedPayload = await this.enrichApplicationNotificationPayload(applicationId, payload);
-    await Promise.all(
-      recipientUserIds.map((userId) =>
-        this.notificationService.sendTyped(
-          userId,
-          typeId as never,
-          enrichedPayload as never,
-          `app:${applicationId}:notif:${typeId}:user:${userId}:${idempotencySuffix}`
-        )
-      )
+    const results = await sendTypedToUsersSafe(
+      this.notificationService,
+      recipientUserIds,
+      typeId as never,
+      enrichedPayload as never,
+      (userId) => `app:${applicationId}:notif:${typeId}:user:${userId}:${idempotencySuffix}`
+    );
+    await this.notificationService.logTypedSystemBatch(
+      typeId as never,
+      enrichedPayload as never,
+      results,
+      {
+        idempotencyKey: systemNotificationLogKey(
+          typeId,
+          `app:${applicationId}:${idempotencySuffix}`
+        ),
+      }
     );
   }
 
@@ -3278,7 +3291,9 @@ export class ApplicationService {
       }
 
       let acceptedSignatory: AcceptedOfferSignatory | undefined;
-      let utilisationConsents: ReturnType<typeof buildUtilisationOfferConsentAcknowledgement> | undefined;
+      let utilisationConsents:
+        | ReturnType<typeof buildUtilisationOfferConsentAcknowledgement>
+        | undefined;
       if (
         invoiceOfferAcceptRequiresOtp({
           action,

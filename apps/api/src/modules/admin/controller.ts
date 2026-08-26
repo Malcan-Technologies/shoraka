@@ -2390,6 +2390,24 @@ router.get(
   }
 );
 
+router.get(
+  "/applications/nav-counts",
+  requirePermission("applications.view"),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await adminService.getApplicationNavCounts();
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 /**
  * @swagger
  * /v1/admin/contracts:

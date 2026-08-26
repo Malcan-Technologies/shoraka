@@ -40,10 +40,25 @@ jest.mock("../notification/service", () => ({
   NotificationService: jest.fn().mockImplementation(() => ({})),
 }));
 
-import { NoteSettlementStatus, ServiceFeeTrusteeInstructionStatus, WithdrawalStatus, WithdrawalType } from "@prisma/client";
+jest.mock("../notification/withdrawal-notifications", () => ({
+  notifyWithdrawalSubmittedToTrustee: jest.fn().mockResolvedValue({
+    skipped: false,
+    attempted: 0,
+    delivered: 0,
+    deliveries: [],
+  }),
+}));
+
+import {
+  NoteSettlementStatus,
+  ServiceFeeTrusteeInstructionStatus,
+  WithdrawalStatus,
+  WithdrawalType,
+} from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { NoteService } from "./service";
 import { sendTrusteeInstructionPdfEmail } from "./trustee-letters/trustee-instruction-email";
+import { notifyWithdrawalSubmittedToTrustee } from "../notification/withdrawal-notifications";
 
 describe("trustee instruction submit email wiring", () => {
   const service = new NoteService();
@@ -92,12 +107,12 @@ describe("trustee instruction submit email wiring", () => {
     jest.spyOn(service, "getPlatformFinanceSettings").mockResolvedValue({
       trusteeLetterConfig: { autoSendTrusteeEmail: false },
     } as never);
-    jest.spyOn(service as unknown as { mapWithdrawal: (row: unknown) => unknown }, "mapWithdrawal").mockImplementation(
-      (row) => row
-    );
+    jest
+      .spyOn(service as unknown as { mapWithdrawal: (row: unknown) => unknown }, "mapWithdrawal")
+      .mockImplementation((row) => row);
     jest.spyOn(service, "getAdminNoteDetail").mockResolvedValue({ id: "note-1" } as never);
-    (prisma.$transaction as jest.Mock).mockImplementation(async (fn: (tx: typeof prisma) => unknown) =>
-      fn(prisma)
+    (prisma.$transaction as jest.Mock).mockImplementation(
+      async (fn: (tx: typeof prisma) => unknown) => fn(prisma)
     );
     (prisma.withdrawalInstruction.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
     (prisma.withdrawalInstruction.findUniqueOrThrow as jest.Mock).mockResolvedValue({
@@ -128,6 +143,26 @@ describe("trustee instruction submit email wiring", () => {
           where: { id: "wd-1", status: WithdrawalStatus.LETTER_GENERATED },
         })
       );
+      expect(notifyWithdrawalSubmittedToTrustee).toHaveBeenCalledWith(
+        expect.objectContaining({
+          withdrawal: expect.objectContaining({
+            id: "wd-1",
+            status: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
+          }),
+        })
+      );
+    });
+
+    it("still marks submitted when the withdrawal notification helper throws", async () => {
+      (prisma.withdrawalInstruction.findUnique as jest.Mock).mockResolvedValue(withdrawalRow);
+      (notifyWithdrawalSubmittedToTrustee as jest.Mock).mockRejectedValueOnce(
+        new Error("notification failed")
+      );
+
+      await expect(service.markWithdrawalSubmitted("wd-1", actor)).resolves.toMatchObject({
+        id: "wd-1",
+        status: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
+      });
     });
 
     it("sends the letter, persists sent-at, then marks submitted", async () => {
@@ -321,7 +356,9 @@ describe("trustee instruction submit email wiring", () => {
         trusteeLetterConfig: latestConfig,
       } as never);
       (prisma.withdrawalInstruction.findUnique as jest.Mock).mockResolvedValue(submittedSent);
-      (prisma.withdrawalInstruction.findUniqueOrThrow as jest.Mock).mockResolvedValue(submittedSent);
+      (prisma.withdrawalInstruction.findUniqueOrThrow as jest.Mock).mockResolvedValue(
+        submittedSent
+      );
 
       await service.resendWithdrawalTrusteeEmail("wd-1", actor);
 
@@ -508,7 +545,9 @@ describe("trustee instruction submit email wiring", () => {
         service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
       });
 
-      await expect(service.resendServiceFeeTrusteeEmail("note-1", "set-1", actor)).resolves.toMatchObject({
+      await expect(
+        service.resendServiceFeeTrusteeEmail("note-1", "set-1", actor)
+      ).resolves.toMatchObject({
         id: "note-1",
       });
       expect(sendTrusteeInstructionPdfEmail).toHaveBeenCalled();
@@ -520,7 +559,9 @@ describe("trustee instruction submit email wiring", () => {
         service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
         service_fee_trustee_email_sent_at: null,
       });
-      await expect(service.resendServiceFeeTrusteeEmail("note-1", "set-1", actor)).rejects.toMatchObject({
+      await expect(
+        service.resendServiceFeeTrusteeEmail("note-1", "set-1", actor)
+      ).rejects.toMatchObject({
         code: "TRUSTEE_EMAIL_NOT_SENT",
       });
 
@@ -528,7 +569,9 @@ describe("trustee instruction submit email wiring", () => {
         ...submittedSent,
         service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.PENDING_LETTER,
       });
-      await expect(service.resendServiceFeeTrusteeEmail("note-1", "set-1", actor)).rejects.toMatchObject({
+      await expect(
+        service.resendServiceFeeTrusteeEmail("note-1", "set-1", actor)
+      ).rejects.toMatchObject({
         code: "TRUSTEE_EMAIL_NOT_RESENDABLE",
       });
 
@@ -536,7 +579,9 @@ describe("trustee instruction submit email wiring", () => {
         ...submittedSent,
         service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.COMPLETED,
       });
-      await expect(service.resendServiceFeeTrusteeEmail("note-1", "set-1", actor)).rejects.toMatchObject({
+      await expect(
+        service.resendServiceFeeTrusteeEmail("note-1", "set-1", actor)
+      ).rejects.toMatchObject({
         code: "TRUSTEE_EMAIL_NOT_RESENDABLE",
       });
       expect(sendTrusteeInstructionPdfEmail).not.toHaveBeenCalled();
@@ -563,7 +608,9 @@ describe("trustee instruction submit email wiring", () => {
       (prisma.noteSettlement.findFirst as jest.Mock).mockResolvedValue(submittedSent);
       (prisma.noteSettlement.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
 
-      await expect(service.resendServiceFeeTrusteeEmail("note-1", "set-1", actor)).rejects.toMatchObject({
+      await expect(
+        service.resendServiceFeeTrusteeEmail("note-1", "set-1", actor)
+      ).rejects.toMatchObject({
         code: "TRUSTEE_EMAIL_RESEND_STATE_CHANGED",
         message: expect.stringMatching(/accepted by the mail service[\s\S]*Refresh this page/i),
       });

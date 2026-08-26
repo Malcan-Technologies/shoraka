@@ -42,6 +42,7 @@ import type {
   OnboardingApplicationResponse,
   GetAdminApplicationsParams,
   AdminApplicationActionRequiredCountResponse,
+  AdminApplicationNavCountsResponse,
   AdminApplicationsResponse,
   GetAdminContractsParams,
   AdminContractsResponse,
@@ -579,6 +580,12 @@ export class ApiClient {
     return this.get<AdminApplicationActionRequiredCountResponse>(
       "/v1/admin/applications/action-count"
     );
+  }
+
+  async getAdminApplicationNavCounts(): Promise<
+    ApiResponse<AdminApplicationNavCountsResponse> | ApiError
+  > {
+    return this.get<AdminApplicationNavCountsResponse>("/v1/admin/applications/nav-counts");
   }
 
   async getAdminContracts(
@@ -2879,6 +2886,7 @@ export class ApiClient {
     search?: string;
     type?: string;
     target?: string;
+    source?: string;
   }): Promise<
     | ApiResponse<{ items: AdminNotificationLog[]; pagination: AdminNotificationLogPagination }>
     | ApiError
@@ -2889,6 +2897,7 @@ export class ApiClient {
     if (params.search) queryParams.append("search", params.search);
     if (params.type) queryParams.append("type", params.type);
     if (params.target) queryParams.append("target", params.target);
+    if (params.source) queryParams.append("source", params.source);
 
     return this.get<{ items: AdminNotificationLog[]; pagination: AdminNotificationLogPagination }>(
       `/v1/notifications/admin/logs?${queryParams.toString()}`

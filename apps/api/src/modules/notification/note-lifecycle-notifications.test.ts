@@ -1,4 +1,5 @@
-const sendTypedPlatformOnly = jest.fn().mockResolvedValue({ id: "n1" });
+const sendTyped = jest.fn().mockResolvedValue({ id: "n1" });
+const logTypedSystemBatch = jest.fn().mockResolvedValue(undefined);
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
@@ -30,9 +31,7 @@ import { prisma } from "../../lib/prisma";
 
 describe("resolveNoteNotificationTitle", () => {
   it("uses title then reference then fallback", () => {
-    expect(resolveNoteNotificationTitle({ title: " Hello ", note_reference: "N-1" })).toBe(
-      "Hello"
-    );
+    expect(resolveNoteNotificationTitle({ title: " Hello ", note_reference: "N-1" })).toBe("Hello");
     expect(resolveNoteNotificationTitle({ title: "", note_reference: " NR " })).toBe("NR");
     expect(resolveNoteNotificationTitle({ title: null, note_reference: null })).toBe("Note");
   });
@@ -41,16 +40,19 @@ describe("resolveNoteNotificationTitle", () => {
 describe("notifyNotePublished", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({ owner_user_id: "UOWN" });
+    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({
+      owner_user_id: "UOWN",
+    });
     (prisma.organizationMember.findMany as jest.Mock).mockResolvedValue([
       { user_id: "UM1" },
       { user_id: "UM2" },
     ]);
   });
 
-  it("notifies issuer owner and all org members via platform-only channel", async () => {
+  it("notifies issuer owner and all org members via sendTyped", async () => {
     const notificationService = {
-      sendTypedPlatformOnly,
+      sendTyped,
+      logTypedSystemBatch,
     } as unknown as NotificationService;
 
     await notifyNotePublished({
@@ -68,12 +70,21 @@ describe("notifyNotePublished", () => {
       where: { issuer_organization_id: "iss-1" },
       select: { user_id: true },
     });
-    expect(sendTypedPlatformOnly).toHaveBeenCalledTimes(3);
-    expect(sendTypedPlatformOnly).toHaveBeenCalledWith(
+    expect(sendTyped).toHaveBeenCalledTimes(3);
+    expect(sendTyped).toHaveBeenCalledWith(
       "UOWN",
       NotificationTypeIds.NOTE_PUBLISHED,
       { noteId: "note-1", noteTitle: "T1" },
       "note:lifecycle:note-1:published:user:UOWN"
+    );
+    expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
+    expect(logTypedSystemBatch).toHaveBeenCalledWith(
+      NotificationTypeIds.NOTE_PUBLISHED,
+      { noteId: "note-1", noteTitle: "T1" },
+      [{ id: "n1" }, { id: "n1" }, { id: "n1" }],
+      {
+        idempotencyKey: "system-log:note_published:note:lifecycle:note-1:published",
+      }
     );
   });
 });
@@ -81,12 +92,16 @@ describe("notifyNotePublished", () => {
 describe("notifyNoteFundingFailed", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({ owner_user_id: "IOWN" });
+    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({
+      owner_user_id: "IOWN",
+    });
     (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({
       owner_user_id: "INVOWN",
     });
     (prisma.organizationMember.findMany as jest.Mock).mockImplementation(
-      async (args: { where: { issuer_organization_id?: string; investor_organization_id?: string } }) => {
+      async (args: {
+        where: { issuer_organization_id?: string; investor_organization_id?: string };
+      }) => {
         if (args.where.issuer_organization_id) {
           return [{ user_id: "IA1" }];
         }
@@ -97,7 +112,8 @@ describe("notifyNoteFundingFailed", () => {
 
   it("notifies issuer org and each failed-funding investor org", async () => {
     const notificationService = {
-      sendTypedPlatformOnly,
+      sendTyped,
+      logTypedSystemBatch,
     } as unknown as NotificationService;
 
     await notifyNoteFundingFailed({
@@ -108,27 +124,49 @@ describe("notifyNoteFundingFailed", () => {
       failedInvestorOrganizationIds: ["inv-a", "inv-b"],
     });
 
-    const issuerCalls = sendTypedPlatformOnly.mock.calls.filter(
+    const issuerCalls = sendTyped.mock.calls.filter(
       (c) => c[1] === NotificationTypeIds.NOTE_FUNDING_FAILED_ISSUER
     );
-    const investorCalls = sendTypedPlatformOnly.mock.calls.filter(
+    const investorCalls = sendTyped.mock.calls.filter(
       (c) => c[1] === NotificationTypeIds.NOTE_FUNDING_FAILED_INVESTOR
     );
     expect(issuerCalls.length).toBe(2);
     expect(investorCalls.length).toBe(4);
+    expect(logTypedSystemBatch).toHaveBeenCalledTimes(2);
+    expect(logTypedSystemBatch).toHaveBeenCalledWith(
+      NotificationTypeIds.NOTE_FUNDING_FAILED_ISSUER,
+      expect.any(Object),
+      expect.any(Array),
+      {
+        idempotencyKey:
+          "system-log:note_funding_failed_issuer:note:lifecycle:n2:funding_failed:issuer",
+      }
+    );
+    expect(logTypedSystemBatch).toHaveBeenCalledWith(
+      NotificationTypeIds.NOTE_FUNDING_FAILED_INVESTOR,
+      expect.any(Object),
+      expect.any(Array),
+      {
+        idempotencyKey:
+          "system-log:note_funding_failed_investor:note:lifecycle:n2:funding_failed:investor",
+      }
+    );
   });
 });
 
 describe("notifyNoteIssuerRepaid", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({ owner_user_id: "SOWN" });
+    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({
+      owner_user_id: "SOWN",
+    });
     (prisma.organizationMember.findMany as jest.Mock).mockResolvedValue([{ user_id: "S1" }]);
   });
 
   it("notifies issuer members only", async () => {
     const notificationService = {
-      sendTypedPlatformOnly,
+      sendTyped,
+      logTypedSystemBatch,
     } as unknown as NotificationService;
 
     await notifyNoteIssuerRepaid({
@@ -138,10 +176,19 @@ describe("notifyNoteIssuerRepaid", () => {
       noteTitle: "Tx",
     });
 
-    expect(sendTypedPlatformOnly.mock.calls.every((c) => c[1] === NotificationTypeIds.NOTE_REPAID_ISSUER)).toBe(
+    expect(sendTyped.mock.calls.every((c) => c[1] === NotificationTypeIds.NOTE_REPAID_ISSUER)).toBe(
       true
     );
-    expect(sendTypedPlatformOnly).toHaveBeenCalledTimes(2);
+    expect(sendTyped).toHaveBeenCalledTimes(2);
+    expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
+    expect(logTypedSystemBatch).toHaveBeenCalledWith(
+      NotificationTypeIds.NOTE_REPAID_ISSUER,
+      { noteId: "n-issuer-repaid", noteTitle: "Tx" },
+      [{ id: "n1" }, { id: "n1" }],
+      {
+        idempotencyKey: "system-log:note_repaid_issuer:note:lifecycle:n-issuer-repaid:repaid:issuer",
+      }
+    );
   });
 });
 
@@ -162,7 +209,8 @@ describe("notifyNotePaymentReceived", () => {
 
   it("notifies confirmed investor org members with payment-scoped idempotency", async () => {
     const notificationService = {
-      sendTypedPlatformOnly,
+      sendTyped,
+      logTypedSystemBatch,
     } as unknown as NotificationService;
 
     await notifyNotePaymentReceived({
@@ -177,13 +225,14 @@ describe("notifyNotePaymentReceived", () => {
       select: { investor_organization_id: true },
       distinct: ["investor_organization_id"],
     });
-    expect(sendTypedPlatformOnly).toHaveBeenCalledTimes(3);
-    expect(sendTypedPlatformOnly).toHaveBeenCalledWith(
+    expect(sendTyped).toHaveBeenCalledTimes(3);
+    expect(sendTyped).toHaveBeenCalledWith(
       "INVOWN",
       NotificationTypeIds.NOTE_PAYMENT_RECEIVED,
       { noteId: "note-pay", noteTitle: "Pay title" },
       "note:lifecycle:note-pay:payment_received:pay-99:investor-org:inv-org-1:user:INVOWN"
     );
+    expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -198,7 +247,8 @@ describe("notifyNoteSettlementPosted", () => {
 
   it("fans out to snapshot investor org ids with settlement-scoped idempotency", async () => {
     const notificationService = {
-      sendTypedPlatformOnly,
+      sendTyped,
+      logTypedSystemBatch,
     } as unknown as NotificationService;
 
     await notifyNoteSettlementPosted({
@@ -210,7 +260,7 @@ describe("notifyNoteSettlementPosted", () => {
     });
 
     expect(prisma.noteInvestment.findMany).not.toHaveBeenCalled();
-    const settlementCalls = sendTypedPlatformOnly.mock.calls.filter(
+    const settlementCalls = sendTyped.mock.calls.filter(
       (c) => c[1] === NotificationTypeIds.NOTE_SETTLEMENT_POSTED
     );
     expect(settlementCalls.length).toBe(4);

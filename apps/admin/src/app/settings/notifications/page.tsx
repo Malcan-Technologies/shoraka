@@ -8,6 +8,7 @@ import type {
   AdminNotificationGroup,
   AdminNotificationLog,
   AdminSeedTypesResponse,
+  NotificationLogSource,
 } from "@cashsouk/types";
 import {
   Card,
@@ -55,6 +56,16 @@ import {
   DialogTitle,
 } from "../../../components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../../components/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -89,11 +100,19 @@ function NotificationLogsTableSkeleton() {
         <TableHeader className="bg-muted/30">
           <TableRow className="hover:bg-transparent">
             <TableHead className="text-sm font-semibold">Timestamp</TableHead>
-            <TableHead className="text-sm font-semibold">Admin</TableHead>
+            <TableHead className="text-sm font-semibold">Source</TableHead>
             <TableHead className="text-sm font-semibold">Target</TableHead>
             <TableHead className="text-sm font-semibold">Type</TableHead>
             <TableHead className="text-sm font-semibold">Message</TableHead>
-            <TableHead className="text-sm font-semibold">Recipients</TableHead>
+            <TableHead className="text-sm font-semibold" title="Attempted recipients">
+              Recipients
+            </TableHead>
+            <TableHead
+              className="text-sm font-semibold"
+              title="Selected channel deliveries, not confirmed receipt"
+            >
+              Delivery
+            </TableHead>
             <TableHead className="text-sm font-semibold">IP Address</TableHead>
             <TableHead className="text-sm font-semibold">Device</TableHead>
             <TableHead className="text-sm font-semibold">Actions</TableHead>
@@ -102,15 +121,39 @@ function NotificationLogsTableSkeleton() {
         <TableBody>
           {Array.from({ length: 5 }).map((_, index) => (
             <TableRow key={index}>
-              <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-              <TableCell><Skeleton className="h-5 w-40" /></TableCell>
-              <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
-              <TableCell><Skeleton className="h-5 w-28" /></TableCell>
-              <TableCell><Skeleton className="h-5 w-56" /></TableCell>
-              <TableCell><Skeleton className="h-6 w-16 rounded-full" /></TableCell>
-              <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-              <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-              <TableCell><Skeleton className="ml-auto h-8 w-20" /></TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-32" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-40" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-6 w-24 rounded-full" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-28" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-56" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-6 w-16 rounded-full" />
+              </TableCell>
+              <TableCell>
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-24" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-32" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="ml-auto h-8 w-20" />
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -142,6 +185,48 @@ function getTargetBadge(targetType: string) {
   );
 }
 
+function LogSourceCell({ log }: { log: AdminNotificationLog }) {
+  if (log.source === "SYSTEM" || !log.admin) {
+    return (
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate text-ui font-medium">System</span>
+        <span className="truncate text-meta text-muted-foreground">Automated delivery</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col">
+      <span
+        className="truncate text-ui font-medium"
+        title={`${log.admin.first_name} ${log.admin.last_name}`}
+      >
+        {log.admin.first_name} {log.admin.last_name}
+      </span>
+      <span className="truncate text-meta text-muted-foreground">
+        Custom message · {log.admin.email}
+      </span>
+    </div>
+  );
+}
+
+function LogDeliveryCell({
+  platformCount,
+  emailCount,
+}: {
+  platformCount: number;
+  emailCount: number;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="whitespace-nowrap text-meta text-muted-foreground">
+        Platform {platformCount}
+      </span>
+      <span className="whitespace-nowrap text-meta text-muted-foreground">Email {emailCount}</span>
+    </div>
+  );
+}
+
 export default function NotificationsAdminPage() {
   const { can } = usePermissions();
   const canManage = can("notifications.manage");
@@ -149,6 +234,7 @@ export default function NotificationsAdminPage() {
   const [logSearchQuery, setLogSearchQuery] = useState<string>("");
   const [logTypeFilter, setLogTypeFilter] = useState<string>("all");
   const [logTargetFilter, setLogTargetFilter] = useState<string>("all");
+  const [logSourceFilter, setLogSourceFilter] = useState<"all" | NotificationLogSource>("all");
   const [configPortalFilter, setConfigPortalFilter] = useState<"INVESTOR" | "ISSUER" | "BOTH">(
     "ISSUER"
   );
@@ -177,6 +263,7 @@ export default function NotificationsAdminPage() {
     search: logSearchQuery || undefined,
     type: logTypeFilter !== "all" ? logTypeFilter : undefined,
     target: logTargetFilter !== "all" ? logTargetFilter : undefined,
+    source: logSourceFilter !== "all" ? logSourceFilter : undefined,
   });
   const [selectedType, setSelectedType] = useState<string>("");
   const [targetType, setTargetType] = useState<string>("ALL_USERS");
@@ -203,6 +290,8 @@ export default function NotificationsAdminPage() {
   // Log View State
   const [selectedLog, setSelectedLog] = useState<AdminNotificationLog | null>(null);
   const [isLogDetailsOpen, setIsLogDetailsOpen] = useState(false);
+  const [isResetDefaultsOpen, setIsResetDefaultsOpen] = useState(false);
+  const [isSendConfirmOpen, setIsSendConfirmOpen] = useState(false);
 
   const getPortalTargetsLabel = (targets: string[]) => {
     if (targets.includes("INVESTOR") && targets.includes("ISSUER")) return "Investor + Issuer";
@@ -222,7 +311,28 @@ export default function NotificationsAdminPage() {
     updateType({ id: typeId, data: { enabled_email: enabled } });
   };
 
-  const handleSendNotification = async (e: React.FormEvent) => {
+  const selectedTypeName =
+    types.find((type: AdminNotificationType) => type.id === selectedType)?.name || "Custom";
+  const selectedGroup = groups.find(
+    (group: AdminNotificationGroup) => group.id === selectedGroupId
+  );
+  const specificUserCount = userIds
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean).length;
+  const sendAudienceLabel =
+    targetType === "SPECIFIC_USERS"
+      ? `${specificUserCount} specific user${specificUserCount === 1 ? "" : "s"}`
+      : targetType === "GROUP"
+        ? selectedGroup
+          ? `${selectedGroup.name} (${selectedGroup.user_ids.length} users)`
+          : "Saved group"
+        : (TARGET_CONFIG[targetType]?.label ?? targetType);
+  const sendChannelLabel = [sendToPlatform ? "Platform" : null, sendToEmail ? "Email" : null]
+    .filter(Boolean)
+    .join(" and ");
+
+  const handleSendNotification = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedType || !title || !message) {
       toast.error("Please fill in all required fields");
@@ -244,6 +354,10 @@ export default function NotificationsAdminPage() {
       return;
     }
 
+    setIsSendConfirmOpen(true);
+  };
+
+  const confirmSendNotification = () => {
     const ids = userIds
       .split(",")
       .map((id) => id.trim())
@@ -284,6 +398,7 @@ export default function NotificationsAdminPage() {
             format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), "yyyy-MM-dd")
           );
           setExpirationType("presets");
+          void refetchLogs();
         },
         onError: (error: Error) => {
           toast.error(error.message || "Failed to send notifications");
@@ -352,7 +467,7 @@ export default function NotificationsAdminPage() {
 
   return (
     <RequirePermission permission="notifications.view">
-            <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full px-2 md:px-4 py-8 space-y-6">
           <AdminPageHeader
             title="Notifications"
@@ -361,838 +476,1046 @@ export default function NotificationsAdminPage() {
 
           <Tabs defaultValue="config" className="space-y-6">
             <TabsList className="grid w-full grid-cols-3 max-w-[600px]">
-          <TabsTrigger value="config" className="flex items-center gap-2">
-            <Settings2 className="h-4 w-4" />
-            Configuration
-          </TabsTrigger>
-          <TabsTrigger value="custom" className="flex items-center gap-2">
-            <Send className="h-4 w-4" />
-            Custom & Groups
-          </TabsTrigger>
-          <TabsTrigger value="logs" className="flex items-center gap-2">
-            <History className="h-4 w-4" />
-            Notification Logs
-          </TabsTrigger>
-        </TabsList>
+              <TabsTrigger value="config" className="flex items-center gap-2">
+                <Settings2 className="h-4 w-4" />
+                Configuration
+              </TabsTrigger>
+              <TabsTrigger value="custom" className="flex items-center gap-2">
+                <Send className="h-4 w-4" />
+                Custom & Groups
+              </TabsTrigger>
+              <TabsTrigger value="logs" className="flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Notification Logs
+              </TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="config" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-1">
-            {/* Notification Types Settings */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <CardTitle className="flex items-center gap-2">
-                      <Settings2 className="h-5 w-5" />
-                      System Notification Types
-                    </CardTitle>
-                    <CardDescription>
-                      Enable or disable notifications globally across the platform.
-                    </CardDescription>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => {
-                      if (confirm("This will add any missing notification types. Existing types will not be modified. Continue?")) {
-                        seedTypes(undefined, {
-                          onSuccess: (response: AdminSeedTypesResponse) => {
-                            const added = response.added || 0;
-                            if (added > 0) {
-                              toast.success(`Successfully added ${added} new notification types`);
-                            } else {
-                              toast.info("All notification types are already up to date");
-                            }
-                          },
-                          onError: (error) => toast.error(error.message || "Failed to seed types"),
-                        });
-                      }
-                    }}
-                    disabled={isSeeding || !canManage}
-                    title={!canManage ? "You do not have permission to perform this action." : undefined}
-                  >
-                    <RotateCcw className={`h-4 w-4 ${isSeeding ? "animate-spin" : ""}`} />
-                    {isSeeding ? "Seeding..." : "Add Missing Types"}
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2 pt-3">
-                  <Label className="text-xs text-muted-foreground">Portal Scope</Label>
-                  <Tabs
-                    value={configPortalFilter}
-                    onValueChange={(value) =>
-                      setConfigPortalFilter(value as "INVESTOR" | "ISSUER" | "BOTH")
-                    }
-                    className="w-auto"
-                  >
-                    <TabsList className="grid w-full grid-cols-3 max-w-[320px]">
-                      <TabsTrigger value="INVESTOR">Investor</TabsTrigger>
-                      <TabsTrigger value="ISSUER">Issuer</TabsTrigger>
-                      <TabsTrigger value="BOTH">Both</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {isLoadingTypes ? (
-                  <div className="space-y-4">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="h-12 w-full bg-muted animate-pulse rounded" />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {types
-                      .filter(
-                        (type: AdminNotificationType) =>
-                          type.category === "SYSTEM" || type.category === "AUTHENTICATION"
-                      )
-                      .filter((type: AdminNotificationType) => {
-                        const targets = type.portal_targets || [];
-                        const hasInvestor = targets.includes("INVESTOR");
-                        const hasIssuer = targets.includes("ISSUER");
-                        if (configPortalFilter === "INVESTOR") return hasInvestor && !hasIssuer;
-                        if (configPortalFilter === "ISSUER") return hasIssuer && !hasInvestor;
-                        return hasInvestor && hasIssuer;
-                      })
-                      .map((type: AdminNotificationType) => (
-                        <div
-                          key={type.id}
-                          className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
-                        >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{type.name}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">{type.description}</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-meta text-muted-foreground">Platform</span>
-                            <Switch
-                              checked={type.enabled_platform}
-                              onCheckedChange={(checked) => handleTogglePlatform(type.id, checked)}
-                              disabled={!canManage}
-                              title={!canManage ? "You do not have permission to perform this action." : undefined}
-                            />
-                          </div>
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-meta text-muted-foreground">Email</span>
-                            <Switch
-                              checked={type.enabled_email}
-                              onCheckedChange={(checked) => handleToggleEmail(type.id, checked)}
-                              disabled={!canManage}
-                              title={!canManage ? "You do not have permission to perform this action." : undefined}
-                            />
-                          </div>
-                        </div>
+            <TabsContent value="config" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-1">
+                {/* Notification Types Settings */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="flex items-center gap-2">
+                          <Settings2 className="h-5 w-5" />
+                          System Notification Types
+                        </CardTitle>
+                        <CardDescription>
+                          Enable or disable notifications globally across the platform.
+                        </CardDescription>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="custom" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2 items-start">
-            {/* Custom Notification Form */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Send className="h-5 w-5" />
-                  Send Custom Notification
-                </CardTitle>
-                <CardDescription>Send a one-time notification to specific users.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSendNotification} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="type">Notification Type</Label>
-                    <Select value={selectedType} onValueChange={setSelectedType}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => setIsResetDefaultsOpen(true)}
+                        disabled={isSeeding || !canManage}
+                        title={
+                          !canManage
+                            ? "You do not have permission to perform this action."
+                            : undefined
+                        }
+                      >
+                        <RotateCcw className={`h-4 w-4 ${isSeeding ? "animate-spin" : ""}`} />
+                        {isSeeding ? "Resetting..." : "Reset to default"}
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2 pt-3">
+                      <Label className="text-xs text-muted-foreground">Portal Scope</Label>
+                      <Tabs
+                        value={configPortalFilter}
+                        onValueChange={(value) =>
+                          setConfigPortalFilter(value as "INVESTOR" | "ISSUER" | "BOTH")
+                        }
+                        className="w-auto"
+                      >
+                        <TabsList className="grid w-full grid-cols-3 max-w-[320px]">
+                          <TabsTrigger value="INVESTOR">Investor</TabsTrigger>
+                          <TabsTrigger value="ISSUER">Issuer</TabsTrigger>
+                          <TabsTrigger value="BOTH">Both</TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoadingTypes ? (
+                      <div className="space-y-4">
+                        {[1, 2, 3].map((i) => (
+                          <div key={i} className="h-12 w-full bg-muted animate-pulse rounded" />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="divide-y">
                         {types
                           .filter(
                             (type: AdminNotificationType) =>
-                              type.category === "MARKETING" || type.category === "ANNOUNCEMENT"
+                              type.category === "SYSTEM" || type.category === "AUTHENTICATION"
                           )
-                          .filter((type: AdminNotificationType) =>
-                            selectedTargetPortal
-                              ? type.portal_targets?.includes(selectedTargetPortal)
-                              : true
-                          )
-                          .map((type: AdminNotificationType) => (
-                            <SelectItem key={type.id} value={type.id}>
-                              {type.name}
-                            </SelectItem>
+                          .filter((type: AdminNotificationType) => {
+                            const targets = type.portal_targets || [];
+                            const hasInvestor = targets.includes("INVESTOR");
+                            const hasIssuer = targets.includes("ISSUER");
+                            if (configPortalFilter === "INVESTOR") return hasInvestor && !hasIssuer;
+                            if (configPortalFilter === "ISSUER") return hasIssuer && !hasInvestor;
+                            return hasInvestor && hasIssuer;
+                          })
+                          .map((type: AdminNotificationType) => {
+                            const isAuthType = type.category === "AUTHENTICATION";
+                            const authHintId = `auth-channel-hint-${type.id}`;
+                            const permissionTitle = !canManage
+                              ? "You do not have permission to perform this action."
+                              : undefined;
+                            return (
+                              <div
+                                key={type.id}
+                                className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
+                              >
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{type.name}</span>
+                                    {isAuthType ? (
+                                      <span
+                                        id={authHintId}
+                                        className="text-meta text-muted-foreground"
+                                      >
+                                        Always on for security
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    {type.description}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  <div className="flex flex-col items-center gap-1">
+                                    <span className="text-meta text-muted-foreground">
+                                      Platform
+                                    </span>
+                                    <Switch
+                                      checked={isAuthType ? true : type.enabled_platform}
+                                      onCheckedChange={
+                                        isAuthType
+                                          ? undefined
+                                          : (checked) => handleTogglePlatform(type.id, checked)
+                                      }
+                                      disabled={isAuthType || !canManage}
+                                      aria-describedby={isAuthType ? authHintId : undefined}
+                                      title={
+                                        isAuthType ? "Always on for security" : permissionTitle
+                                      }
+                                    />
+                                  </div>
+                                  <div className="flex flex-col items-center gap-1">
+                                    <span className="text-meta text-muted-foreground">Email</span>
+                                    <Switch
+                                      checked={isAuthType ? true : type.enabled_email}
+                                      onCheckedChange={
+                                        isAuthType
+                                          ? undefined
+                                          : (checked) => handleToggleEmail(type.id, checked)
+                                      }
+                                      disabled={isAuthType || !canManage}
+                                      aria-describedby={isAuthType ? authHintId : undefined}
+                                      title={
+                                        isAuthType ? "Always on for security" : permissionTitle
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="custom" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2 items-start">
+                {/* Custom Notification Form */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Send className="h-5 w-5" />
+                      Send Custom Notification
+                    </CardTitle>
+                    <CardDescription>
+                      Send a one-time notification to specific users.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleSendNotification} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="type">Notification Type</Label>
+                        <Select value={selectedType} onValueChange={setSelectedType}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {types
+                              .filter(
+                                (type: AdminNotificationType) =>
+                                  type.category === "MARKETING" || type.category === "ANNOUNCEMENT"
+                              )
+                              .filter((type: AdminNotificationType) =>
+                                selectedTargetPortal
+                                  ? type.portal_targets?.includes(selectedTargetPortal)
+                                  : true
+                              )
+                              .map((type: AdminNotificationType) => (
+                                <SelectItem key={type.id} value={type.id}>
+                                  {type.name}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="target">Target Recipients</Label>
+                        <Select
+                          value={targetType}
+                          onValueChange={(value) => {
+                            setTargetType(value);
+                            const portal =
+                              value === "INVESTORS"
+                                ? "INVESTOR"
+                                : value === "ISSUERS"
+                                  ? "ISSUER"
+                                  : null;
+                            if (!portal || !selectedType) return;
+                            const selected = types.find(
+                              (type: AdminNotificationType) => type.id === selectedType
+                            );
+                            if (selected && !selected.portal_targets?.includes(portal)) {
+                              setSelectedType("");
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select target" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ALL_USERS">All Users</SelectItem>
+                            <SelectItem value="INVESTORS">Investors Only</SelectItem>
+                            <SelectItem value="ISSUERS">Issuers Only</SelectItem>
+                            <SelectItem value="SPECIFIC_USERS">Specific User IDs</SelectItem>
+                            <SelectItem value="GROUP">Saved Group</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {targetType === "GROUP" && (
+                        <div className="space-y-2">
+                          <Label htmlFor="groupId">Target Group</Label>
+                          <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a group" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {groups.map((group: AdminNotificationGroup) => (
+                                <SelectItem key={group.id} value={group.id}>
+                                  {group.name} ({group.user_ids.length} users)
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {targetType === "SPECIFIC_USERS" && (
+                        <div className="space-y-2">
+                          <Label htmlFor="userIds" className="flex items-center gap-2">
+                            <Users className="h-4 w-4" />
+                            User IDs (comma separated)
+                          </Label>
+                          <Input
+                            id="userIds"
+                            placeholder="USR-123, USR-456"
+                            value={userIds}
+                            onChange={(e) => setUserIds(e.target.value)}
+                          />
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label htmlFor="title">Title</Label>
+                        <Input
+                          id="title"
+                          placeholder="Important Update"
+                          value={title}
+                          onChange={(e) => setTitle(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="message">Message</Label>
+                        <Input
+                          id="message"
+                          placeholder="Enter notification message..."
+                          value={message}
+                          onChange={(e) => setMessage(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="linkPath">Redirect Link (Optional)</Label>
+                        <Input
+                          id="linkPath"
+                          placeholder="/investments or https://..."
+                          value={linkPath}
+                          onChange={(e) => setLinkPath(e.target.value)}
+                        />
+                        <p className="text-meta text-muted-foreground">
+                          The page the user will be taken to when they click the notification.
+                        </p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="retention">Expiration</Label>
+                          <div className="flex items-center gap-2 bg-muted p-1 rounded-lg">
+                            <button
+                              type="button"
+                              onClick={() => setExpirationType("presets")}
+                              className={`text-meta px-2 py-1 rounded-md transition-colors ${
+                                expirationMode === "presets"
+                                  ? "bg-white shadow-sm font-medium"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              Presets
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setExpirationType("custom")}
+                              className={`text-meta px-2 py-1 rounded-md transition-colors ${
+                                expirationMode === "custom"
+                                  ? "bg-white shadow-sm font-medium"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              Custom Date
+                            </button>
+                          </div>
+                        </div>
+
+                        {expirationMode === "presets" ? (
+                          <Select value={retentionDays} onValueChange={setRetentionDays}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select duration" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">1 Day</SelectItem>
+                              <SelectItem value="7">7 Days</SelectItem>
+                              <SelectItem value="14">14 Days</SelectItem>
+                              <SelectItem value="30">30 Days</SelectItem>
+                              <SelectItem value="90">90 Days</SelectItem>
+                              <SelectItem value="365">1 Year</SelectItem>
+                              <SelectItem value="0">Never (Manual Cleanup)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            type="date"
+                            value={customExpirationDate}
+                            onChange={(e) => setCustomExpirationDate(e.target.value)}
+                            min={format(new Date(), "yyyy-MM-dd")}
+                          />
+                        )}
+                        <p className="text-meta text-muted-foreground">
+                          {expirationMode === "presets"
+                            ? "Choose a standard retention period."
+                            : "Select a specific date for this notification to expire."}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-8 py-2 border-y">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="send-platform"
+                            checked={sendToPlatform}
+                            onCheckedChange={setSendToPlatform}
+                          />
+                          <Label htmlFor="send-platform" className="cursor-pointer">
+                            Send to Platform
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="send-email"
+                            checked={sendToEmail}
+                            onCheckedChange={setSendToEmail}
+                          />
+                          <Label htmlFor="send-email" className="cursor-pointer">
+                            Send to Email
+                          </Label>
+                        </div>
+                      </div>
+
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={isSending || !canManage}
+                        title={
+                          !canManage
+                            ? "You do not have permission to perform this action."
+                            : undefined
+                        }
+                      >
+                        {isSending ? "Sending..." : "Send Notification"}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                {/* Notification Groups Management */}
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="h-5 w-5" />
+                        Saved Notification Groups
+                      </CardTitle>
+                      <CardDescription>
+                        Create and manage reusable sets of target users.
+                      </CardDescription>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => setIsGroupModalOpen(true)}
+                      disabled={!canManage}
+                      title={
+                        !canManage
+                          ? "You do not have permission to perform this action."
+                          : undefined
+                      }
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Group
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="max-h-[600px] overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-slate-200">
+                      {isLoadingGroups ? (
+                        <div className="space-y-4">
+                          {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="h-12 w-full bg-muted animate-pulse rounded" />
                           ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="target">Target Recipients</Label>
-                    <Select value={targetType} onValueChange={setTargetType}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select target" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL_USERS">All Users</SelectItem>
-                        <SelectItem value="INVESTORS">Investors Only</SelectItem>
-                        <SelectItem value="ISSUERS">Issuers Only</SelectItem>
-                        <SelectItem value="SPECIFIC_USERS">Specific User IDs</SelectItem>
-                        <SelectItem value="GROUP">Saved Group</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {targetType === "GROUP" && (
-                    <div className="space-y-2">
-                      <Label htmlFor="groupId">Target Group</Label>
-                      <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a group" />
-                        </SelectTrigger>
-                        <SelectContent>
+                        </div>
+                      ) : groups.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                          No saved groups found. Create one to get started.
+                        </div>
+                      ) : (
+                        <div className="divide-y">
                           {groups.map((group: AdminNotificationGroup) => (
-                            <SelectItem key={group.id} value={group.id}>
-                              {group.name} ({group.user_ids.length} users)
-                            </SelectItem>
+                            <div
+                              key={group.id}
+                              className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
+                            >
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{group.name}</span>
+                                  <Badge variant="secondary" className="text-meta">
+                                    {group.user_ids.length} users
+                                  </Badge>
+                                </div>
+                                {group.description && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {group.description}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleEditGroup(group)}
+                                  disabled={!canManage}
+                                  title={
+                                    !canManage
+                                      ? "You do not have permission to perform this action."
+                                      : undefined
+                                  }
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive"
+                                  disabled={!canManage}
+                                  title={
+                                    !canManage
+                                      ? "You do not have permission to perform this action."
+                                      : undefined
+                                  }
+                                  onClick={() => {
+                                    if (confirm("Are you sure you want to delete this group?")) {
+                                      deleteGroup(group.id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
 
-                  {targetType === "SPECIFIC_USERS" && (
-                    <div className="space-y-2">
-                      <Label htmlFor="userIds" className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        User IDs (comma separated)
-                      </Label>
-                      <Input
-                        id="userIds"
-                        placeholder="USR-123, USR-456"
-                        value={userIds}
-                        onChange={(e) => setUserIds(e.target.value)}
-                      />
-                    </div>
-                  )}
+            <TabsContent value="logs" className="space-y-6">
+              <p className="text-ui text-muted-foreground">
+                Each row is one send. Custom messages from Custom & Groups appear as a single Admin
+                row with the audience size — not one line per recipient.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative flex-1 min-w-[300px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search title, message, type, or admin..."
+                    value={logSearchQuery}
+                    onChange={(e) => {
+                      setLogSearchQuery(e.target.value);
+                      setPage(1);
+                    }}
+                    className="h-11 rounded-xl bg-card pl-9"
+                  />
+                </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Title</Label>
-                    <Input
-                      id="title"
-                      placeholder="Important Update"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="message">Message</Label>
-                    <Input
-                      id="message"
-                      placeholder="Enter notification message..."
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="linkPath">Redirect Link (Optional)</Label>
-                    <Input
-                      id="linkPath"
-                      placeholder="/investments or https://..."
-                      value={linkPath}
-                      onChange={(e) => setLinkPath(e.target.value)}
-                    />
-                    <p className="text-meta text-muted-foreground">
-                      The page the user will be taken to when they click the notification.
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="retention">Expiration</Label>
-                      <div className="flex items-center gap-2 bg-muted p-1 rounded-lg">
-                        <button
-                          type="button"
-                          onClick={() => setExpirationType("presets")}
-                          className={`text-meta px-2 py-1 rounded-md transition-colors ${
-                            expirationMode === "presets"
-                              ? "bg-white shadow-sm font-medium"
-                              : "text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          Presets
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setExpirationType("custom")}
-                          className={`text-meta px-2 py-1 rounded-md transition-colors ${
-                            expirationMode === "custom"
-                              ? "bg-white shadow-sm font-medium"
-                              : "text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          Custom Date
-                        </button>
+                <Select
+                  value={logTypeFilter}
+                  onValueChange={(value) => {
+                    setLogTypeFilter(value);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-11 w-[180px] rounded-xl bg-card">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <Filter className="h-4 w-4 shrink-0" />
+                      <div className="truncate">
+                        <SelectValue placeholder="All Types" />
                       </div>
                     </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    {types.map((type: AdminNotificationType) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-                    {expirationMode === "presets" ? (
-                      <Select value={retentionDays} onValueChange={setRetentionDays}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select duration" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">1 Day</SelectItem>
-                          <SelectItem value="7">7 Days</SelectItem>
-                          <SelectItem value="14">14 Days</SelectItem>
-                          <SelectItem value="30">30 Days</SelectItem>
-                          <SelectItem value="90">90 Days</SelectItem>
-                          <SelectItem value="365">1 Year</SelectItem>
-                          <SelectItem value="0">Never (Manual Cleanup)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
-                        type="date"
-                        value={customExpirationDate}
-                        onChange={(e) => setCustomExpirationDate(e.target.value)}
-                        min={format(new Date(), "yyyy-MM-dd")}
-                      />
-                    )}
-                    <p className="text-meta text-muted-foreground">
-                      {expirationMode === "presets"
-                        ? "Choose a standard retention period."
-                        : "Select a specific date for this notification to expire."}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-8 py-2 border-y">
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id="send-platform"
-                        checked={sendToPlatform}
-                        onCheckedChange={setSendToPlatform}
-                      />
-                      <Label htmlFor="send-platform" className="cursor-pointer">
-                        Send to Platform
-                      </Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Switch id="send-email" checked={sendToEmail} onCheckedChange={setSendToEmail} />
-                      <Label htmlFor="send-email" className="cursor-pointer">
-                        Send to Email
-                      </Label>
-                    </div>
-                  </div>
-
-                  <Button type="submit" className="w-full" disabled={isSending || !canManage}
-                    title={!canManage ? "You do not have permission to perform this action." : undefined}
-                  >
-                    {isSending ? "Sending..." : "Send Notification"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-
-            {/* Notification Groups Management */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Saved Notification Groups
-                  </CardTitle>
-                  <CardDescription>
-                    Create and manage reusable sets of target users.
-                  </CardDescription>
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => setIsGroupModalOpen(true)}
-                  disabled={!canManage}
-                  title={!canManage ? "You do not have permission to perform this action." : undefined}
+                <Select
+                  value={logTargetFilter}
+                  onValueChange={(value) => {
+                    setLogTargetFilter(value);
+                    setPage(1);
+                  }}
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Group
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <div className="max-h-[600px] overflow-y-auto pr-4 scrollbar-thin scrollbar-thumb-slate-200">
-                  {isLoadingGroups ? (
-                    <div className="space-y-4">
-                      {[1, 2, 3, 4].map((i) => (
-                        <div key={i} className="h-12 w-full bg-muted animate-pulse rounded" />
-                      ))}
+                  <SelectTrigger className="h-11 w-[180px] rounded-xl bg-card">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <Users className="h-4 w-4 shrink-0" />
+                      <div className="truncate">
+                        <SelectValue placeholder="All Targets" />
+                      </div>
                     </div>
-                  ) : groups.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
-                      No saved groups found. Create one to get started.
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Targets</SelectItem>
+                    <SelectItem value="ALL_USERS">All Users</SelectItem>
+                    <SelectItem value="INVESTORS">Investors</SelectItem>
+                    <SelectItem value="ISSUERS">Issuers</SelectItem>
+                    <SelectItem value="SPECIFIC_USERS">Specific Users</SelectItem>
+                    <SelectItem value="GROUP">Group</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={logSourceFilter}
+                  onValueChange={(value) => {
+                    setLogSourceFilter(value as "all" | NotificationLogSource);
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-11 w-[180px] rounded-xl bg-card" aria-label="Source">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <Filter className="h-4 w-4 shrink-0" />
+                      <div className="truncate">
+                        <SelectValue placeholder="All Sources" />
+                      </div>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sources</SelectItem>
+                    <SelectItem value="ADMIN">Admin</SelectItem>
+                    <SelectItem value="SYSTEM">System</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  variant="outline"
+                  onClick={() => refetchLogs()}
+                  disabled={isLoadingLogs}
+                  className="h-11 gap-2 rounded-xl bg-card"
+                >
+                  <RotateCcw className={`h-4 w-4 ${isLoadingLogs ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+
+                <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm font-normal">
+                  {paginationLogs?.total || 0} {paginationLogs?.total === 1 ? "log" : "logs"}
+                </Badge>
+              </div>
+
+              <Card className="border-none shadow-none bg-transparent">
+                <CardContent className="p-0">
+                  {isLoadingLogs ? (
+                    <NotificationLogsTableSkeleton />
+                  ) : logs.length === 0 ? (
+                    <div className="text-center py-20 text-muted-foreground bg-white border rounded-2xl">
+                      <History className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                      <p className="text-lg font-medium">No notification logs found</p>
+                      <p className="text-sm">
+                        Try adjusting your search or send a new notification.
+                      </p>
                     </div>
                   ) : (
-                    <div className="divide-y">
-                      {groups.map((group: AdminNotificationGroup) => (
-                        <div
-                          key={group.id}
-                          className="flex items-center justify-between py-4 first:pt-0 last:pb-0"
-                        >
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{group.name}</span>
-                              <Badge variant="secondary" className="text-meta">
-                                {group.user_ids.length} users
-                              </Badge>
-                            </div>
-                            {group.description && (
-                              <p className="text-xs text-muted-foreground">{group.description}</p>
-                            )}
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+                        <Table>
+                          <TableHeader className="bg-muted/30">
+                            <TableRow className="hover:bg-transparent">
+                              <TableHead className="text-sm font-semibold">Timestamp</TableHead>
+                              <TableHead className="text-sm font-semibold">Source</TableHead>
+                              <TableHead className="text-sm font-semibold">Target</TableHead>
+                              <TableHead className="text-sm font-semibold">Type</TableHead>
+                              <TableHead className="text-sm font-semibold">Message</TableHead>
+                              <TableHead
+                                className="text-sm font-semibold"
+                                title="Attempted recipients"
+                              >
+                                Recipients
+                              </TableHead>
+                              <TableHead
+                                className="text-sm font-semibold"
+                                title="Selected channel deliveries, not confirmed receipt"
+                              >
+                                Delivery
+                              </TableHead>
+                              <TableHead className="text-sm font-semibold">IP Address</TableHead>
+                              <TableHead className="text-sm font-semibold">Device</TableHead>
+                              <TableHead className="text-sm font-semibold">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {logs.map((log: AdminNotificationLog) => (
+                              <TableRow
+                                key={log.id}
+                                className="hover:bg-muted/50 transition-colors"
+                              >
+                                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                                  {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}
+                                </TableCell>
+                                <TableCell>
+                                  <LogSourceCell log={log} />
+                                </TableCell>
+                                <TableCell>{getTargetBadge(log.target_type)}</TableCell>
+                                <TableCell>
+                                  <div
+                                    className="text-xs font-bold text-slate-700 whitespace-normal break-words"
+                                    title={log.notification_type?.name}
+                                  >
+                                    {log.notification_type?.name || "Custom"}
+                                  </div>
+                                  {log.notification_type?.portal_targets?.length ? (
+                                    <Badge variant="outline" className="mt-1 text-meta">
+                                      {getPortalTargetsLabel(log.notification_type.portal_targets)}
+                                    </Badge>
+                                  ) : null}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="max-w-[300px]">
+                                    <div
+                                      className="text-sm font-medium truncate mb-0.5"
+                                      title={log.title}
+                                    >
+                                      {log.title}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground line-clamp-1">
+                                      {log.message}
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <div
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-normal text-xs"
+                                    title="Attempted recipients"
+                                  >
+                                    <Users className="h-3 w-3" />
+                                    <span className="sr-only">Attempted recipients: </span>
+                                    {log.recipient_count}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <LogDeliveryCell
+                                    platformCount={log.delivered_platform_count}
+                                    emailCount={log.delivered_email_count}
+                                  />
+                                </TableCell>
+                                <TableCell className="font-mono text-sm text-muted-foreground">
+                                  {log.ip_address || "—"}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {log.device_info ? (
+                                    <span
+                                      title={log.user_agent ?? undefined}
+                                      className="line-clamp-2 leading-snug"
+                                    >
+                                      {log.device_info}
+                                    </span>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 px-2"
+                                    onClick={() => {
+                                      setSelectedLog(log);
+                                      setIsLogDetailsOpen(true);
+                                    }}
+                                  >
+                                    <EyeIcon className="h-4 w-4 mr-1" />
+                                    View
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      {/* Pagination for Logs */}
+                      {paginationLogs && paginationLogs.pages > 1 && (
+                        <div className="flex items-center justify-between border-t px-6 py-4">
+                          <div className="text-sm text-muted-foreground">
+                            Showing {Math.min((page - 1) * limit + 1, paginationLogs.total)}-
+                            {Math.min(page * limit, paginationLogs.total)} of {paginationLogs.total}
                           </div>
                           <div className="flex items-center gap-2">
                             <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleEditGroup(group)}
-                              disabled={!canManage}
-                              title={!canManage ? "You do not have permission to perform this action." : undefined}
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl h-9"
+                              onClick={() => setPage((p) => Math.max(1, p - 1))}
+                              disabled={page === 1}
                             >
-                              <Pencil className="h-4 w-4" />
+                              <ChevronLeft className="h-4 w-4 mr-1" />
+                              Previous
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive"
-                              disabled={!canManage}
-                              title={!canManage ? "You do not have permission to perform this action." : undefined}
-                              onClick={() => {
-                                if (confirm("Are you sure you want to delete this group?")) {
-                                  deleteGroup(group.id);
+                            <div className="flex items-center gap-1">
+                              {Array.from({ length: paginationLogs.pages }, (_, i) => i + 1).map(
+                                (p) => {
+                                  if (
+                                    p === 1 ||
+                                    p === paginationLogs.pages ||
+                                    (p >= page - 1 && p <= page + 1)
+                                  ) {
+                                    return (
+                                      <Button
+                                        key={p}
+                                        variant={p === page ? "default" : "outline"}
+                                        size="sm"
+                                        className="h-9 w-9 p-0 rounded-xl"
+                                        onClick={() => setPage(p)}
+                                      >
+                                        {p}
+                                      </Button>
+                                    );
+                                  }
+                                  if (p === 2 || p === paginationLogs.pages - 1) {
+                                    return (
+                                      <span key={p} className="px-1 text-muted-foreground">
+                                        ...
+                                      </span>
+                                    );
+                                  }
+                                  return null;
                                 }
-                              }}
+                              )}
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl h-9"
+                              onClick={() => setPage((p) => Math.min(paginationLogs.pages, p + 1))}
+                              disabled={page === paginationLogs.pages}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              Next
+                              <ChevronRight className="h-4 w-4 ml-1" />
                             </Button>
                           </div>
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+
+          {/* Group Management Modal */}
+          <Dialog open={isGroupModalOpen} onOpenChange={setIsGroupModalOpen}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>{editingGroupId ? "Edit Group" : "Create New Group"}</DialogTitle>
+                <DialogDescription>
+                  Define a group of users to send targeted notifications to.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateOrUpdateGroup} className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="groupName">Group Name</Label>
+                  <Input
+                    id="groupName"
+                    placeholder="e.g. VIP Investors"
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                    required
+                  />
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="logs" className="space-y-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[300px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by user name or email..."
-                value={logSearchQuery}
-                onChange={(e) => {
-                  setLogSearchQuery(e.target.value);
-                  setPage(1);
-                }}
-                className="h-11 rounded-xl bg-card pl-9"
-              />
-            </div>
-
-            <Select
-              value={logTypeFilter}
-              onValueChange={(value) => {
-                setLogTypeFilter(value);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-11 w-[180px] rounded-xl bg-card">
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <Filter className="h-4 w-4 shrink-0" />
-                  <div className="truncate">
-                    <SelectValue placeholder="All Types" />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="groupDescription">Description (Optional)</Label>
+                  <Input
+                    id="groupDescription"
+                    placeholder="Briefly describe what this group is for"
+                    value={groupDescription}
+                    onChange={(e) => setGroupDescription(e.target.value)}
+                  />
                 </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {types.map((type: AdminNotificationType) => (
-                  <SelectItem key={type.id} value={type.id}>
-                    {type.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={logTargetFilter}
-              onValueChange={(value) => {
-                setLogTargetFilter(value);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-11 w-[180px] rounded-xl bg-card">
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <Users className="h-4 w-4 shrink-0" />
-                  <div className="truncate">
-                    <SelectValue placeholder="All Targets" />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="groupUserIds">User IDs (comma separated)</Label>
+                  <Input
+                    id="groupUserIds"
+                    placeholder="USR-123, USR-456"
+                    value={groupUserIds}
+                    onChange={(e) => setGroupUserIds(e.target.value)}
+                    required
+                  />
+                  <p className="text-meta text-muted-foreground">
+                    Enter the internal user IDs of the users you want to include in this group.
+                  </p>
                 </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Targets</SelectItem>
-                <SelectItem value="ALL_USERS">All Users</SelectItem>
-                <SelectItem value="INVESTORS">Investors</SelectItem>
-                <SelectItem value="ISSUERS">Issuers</SelectItem>
-                <SelectItem value="SPECIFIC_USERS">Specific Users</SelectItem>
-                <SelectItem value="GROUP">Group</SelectItem>
-              </SelectContent>
-            </Select>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={resetGroupForm}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isCreatingGroup || !canManage}
+                    title={
+                      !canManage ? "You do not have permission to perform this action." : undefined
+                    }
+                  >
+                    {editingGroupId ? "Update Group" : "Create Group"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
 
-            <Button
-              variant="outline"
-              onClick={() => refetchLogs()}
-              disabled={isLoadingLogs}
-              className="h-11 gap-2 rounded-xl bg-card"
-            >
-              <RotateCcw className={`h-4 w-4 ${isLoadingLogs ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
+          {/* Log Details Modal */}
+          <Dialog open={isLogDetailsOpen} onOpenChange={setIsLogDetailsOpen}>
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Notification Details</DialogTitle>
+                <DialogDescription>
+                  {selectedLog?.source === "ADMIN"
+                    ? "One custom send, grouped for everyone in the audience."
+                    : "Full content and metadata for this automated send."}
+                </DialogDescription>
+              </DialogHeader>
 
-            <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm font-normal">
-              {paginationLogs?.total || 0} {paginationLogs?.total === 1 ? "log" : "logs"}
-            </Badge>
-          </div>
-
-          <Card className="border-none shadow-none bg-transparent">
-            <CardContent className="p-0">
-              {isLoadingLogs ? (
-                <NotificationLogsTableSkeleton />
-              ) : logs.length === 0 ? (
-                <div className="text-center py-20 text-muted-foreground bg-white border rounded-2xl">
-                  <History className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                  <p className="text-lg font-medium">No notification logs found</p>
-                  <p className="text-sm">Try adjusting your search or send a new notification.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-                    <Table>
-                      <TableHeader className="bg-muted/30">
-                        <TableRow className="hover:bg-transparent">
-                          <TableHead className="text-sm font-semibold">Timestamp</TableHead>
-                          <TableHead className="text-sm font-semibold">Admin</TableHead>
-                          <TableHead className="text-sm font-semibold">Target</TableHead>
-                          <TableHead className="text-sm font-semibold">Type</TableHead>
-                          <TableHead className="text-sm font-semibold">Message</TableHead>
-                          <TableHead className="text-sm font-semibold">Recipients</TableHead>
-                          <TableHead className="text-sm font-semibold">IP Address</TableHead>
-                          <TableHead className="text-sm font-semibold">Device</TableHead>
-                          <TableHead className="text-sm font-semibold">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {logs.map((log: AdminNotificationLog) => (
-                          <TableRow key={log.id} className="hover:bg-muted/50 transition-colors">
-                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                              {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-col min-w-0">
-                                <span
-                                  className="text-sm font-medium truncate"
-                                  title={`${log.admin.first_name} ${log.admin.last_name}`}
-                                >
-                                  {log.admin.first_name} {log.admin.last_name}
-                                </span>
-                                <span
-                                  className="text-xs text-muted-foreground truncate"
-                                  title={log.admin.email}
-                                >
-                                  {log.admin.email}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>{getTargetBadge(log.target_type)}</TableCell>
-                            <TableCell>
-                              <div
-                                className="text-xs font-bold text-slate-700 whitespace-normal break-words"
-                                title={log.notification_type?.name}
-                              >
-                                {log.notification_type?.name || "Custom"}
-                              </div>
-                              {log.notification_type?.portal_targets?.length ? (
-                                <Badge variant="outline" className="mt-1 text-meta">
-                                  {getPortalTargetsLabel(log.notification_type.portal_targets)}
-                                </Badge>
-                              ) : null}
-                            </TableCell>
-                            <TableCell>
-                              <div className="max-w-[300px]">
-                                <div
-                                  className="text-sm font-medium truncate mb-0.5"
-                                  title={log.title}
-                                >
-                                  {log.title}
-                                </div>
-                                <div className="text-xs text-muted-foreground line-clamp-1">
-                                  {log.message}
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-normal text-xs">
-                                <Users className="h-3 w-3" />
-                                {log.recipient_count}
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-mono text-sm text-muted-foreground">
-                              {log.ip_address || "—"}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {log.device_info ? (
-                                <span title={log.user_agent ?? undefined} className="line-clamp-2 leading-snug">
-                                  {log.device_info}
-                                </span>
-                              ) : (
-                                "—"
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 px-2"
-                                onClick={() => {
-                                  setSelectedLog(log);
-                                  setIsLogDetailsOpen(true);
-                                }}
-                              >
-                                <EyeIcon className="h-4 w-4 mr-1" />
-                                View
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  {/* Pagination for Logs */}
-                  {paginationLogs && paginationLogs.pages > 1 && (
-                    <div className="flex items-center justify-between border-t px-6 py-4">
-                      <div className="text-sm text-muted-foreground">
-                        Showing {Math.min((page - 1) * limit + 1, paginationLogs.total)}-
-                        {Math.min(page * limit, paginationLogs.total)} of {paginationLogs.total}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-xl h-9"
-                          onClick={() => setPage((p) => Math.max(1, p - 1))}
-                          disabled={page === 1}
-                        >
-                          <ChevronLeft className="h-4 w-4 mr-1" />
-                          Previous
-                        </Button>
-                        <div className="flex items-center gap-1">
-                          {Array.from({ length: paginationLogs.pages }, (_, i) => i + 1).map(
-                            (p) => {
-                              if (
-                                p === 1 ||
-                                p === paginationLogs.pages ||
-                                (p >= page - 1 && p <= page + 1)
-                              ) {
-                                return (
-                                  <Button
-                                    key={p}
-                                    variant={p === page ? "default" : "outline"}
-                                    size="sm"
-                                    className="h-9 w-9 p-0 rounded-xl"
-                                    onClick={() => setPage(p)}
-                                  >
-                                    {p}
-                                  </Button>
-                                );
-                              }
-                              if (p === 2 || p === paginationLogs.pages - 1) {
-                                return (
-                                  <span key={p} className="px-1 text-muted-foreground">
-                                    ...
-                                  </span>
-                                );
-                              }
-                              return null;
-                            }
-                          )}
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-xl h-9"
-                          onClick={() => setPage((p) => Math.min(paginationLogs.pages, p + 1))}
-                          disabled={page === paginationLogs.pages}
-                        >
-                          Next
-                          <ChevronRight className="h-4 w-4 ml-1" />
-                        </Button>
-                      </div>
+              {selectedLog && (
+                <div className="space-y-6 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase">
+                        Timestamp
+                      </p>
+                      <p className="text-sm">{format(new Date(selectedLog.created_at), "PPP p")}</p>
                     </div>
-                  )}
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase">Source</p>
+                      <LogSourceCell log={selectedLog} />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase">
+                        Target Type
+                      </p>
+                      <Badge variant="secondary" className="text-meta uppercase">
+                        {selectedLog.target_type.replace("_", " ")}
+                      </Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase">Type</p>
+                      <p className="text-sm font-medium">
+                        {selectedLog.notification_type?.name || selectedLog.notification_type_id}
+                      </p>
+                      {selectedLog.notification_type?.portal_targets?.length ? (
+                        <Badge variant="outline" className="text-meta mt-1">
+                          {getPortalTargetsLabel(selectedLog.notification_type.portal_targets)}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase">
+                        Recipients
+                      </p>
+                      <p className="text-sm font-medium">
+                        {selectedLog.recipient_count} users attempted
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase">
+                        Delivery
+                      </p>
+                      <LogDeliveryCell
+                        platformCount={selectedLog.delivered_platform_count}
+                        emailCount={selectedLog.delivered_email_count}
+                      />
+                      <p className="text-meta text-muted-foreground">
+                        Selected channel deliveries, not confirmed receipt.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 border-t pt-4">
+                    <p className="text-xs font-medium text-muted-foreground uppercase">Title</p>
+                    <p className="text-sm font-semibold text-slate-900">{selectedLog.title}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase">Message</p>
+                    <div className="rounded-xl bg-muted/50 p-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+                      {selectedLog.message}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 border-t pt-4">
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase">
+                        IP Address
+                      </p>
+                      <p className="text-sm font-mono">{selectedLog.ip_address || "—"}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase">Device</p>
+                      <p className="text-sm font-medium">{selectedLog.device_info || "—"}</p>
+                      <p className="text-meta text-muted-foreground break-all leading-normal opacity-60">
+                        {selectedLog.user_agent}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsLogDetailsOpen(false)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-      {/* Group Management Modal */}
-      <Dialog open={isGroupModalOpen} onOpenChange={setIsGroupModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>{editingGroupId ? "Edit Group" : "Create New Group"}</DialogTitle>
-            <DialogDescription>
-              Define a group of users to send targeted notifications to.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCreateOrUpdateGroup} className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="groupName">Group Name</Label>
-              <Input
-                id="groupName"
-                placeholder="e.g. VIP Investors"
-                value={groupName}
-                onChange={(e) => setGroupName(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="groupDescription">Description (Optional)</Label>
-              <Input
-                id="groupDescription"
-                placeholder="Briefly describe what this group is for"
-                value={groupDescription}
-                onChange={(e) => setGroupDescription(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="groupUserIds">User IDs (comma separated)</Label>
-              <Input
-                id="groupUserIds"
-                placeholder="USR-123, USR-456"
-                value={groupUserIds}
-                onChange={(e) => setGroupUserIds(e.target.value)}
-                required
-              />
-              <p className="text-meta text-muted-foreground">
-                Enter the internal user IDs of the users you want to include in this group.
-              </p>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={resetGroupForm}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isCreatingGroup || !canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
-              >
-                {editingGroupId ? "Update Group" : "Create Group"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Log Details Modal */}
-      <Dialog open={isLogDetailsOpen} onOpenChange={setIsLogDetailsOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Notification Details</DialogTitle>
-            <DialogDescription>
-              Full content and metadata for the sent notification.
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedLog && (
-            <div className="space-y-6 py-4">
-              <div className="grid grid-cols-2 gap-4">
+          <AlertDialog open={isSendConfirmOpen} onOpenChange={setIsSendConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Send this notification?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This sends one custom message to {sendAudienceLabel} via{" "}
+                  {sendChannelLabel || "no channel"}. Recipients cannot undo it.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-3 rounded-xl border bg-muted/40 p-4">
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Timestamp</p>
-                  <p className="text-sm">{format(new Date(selectedLog.created_at), "PPP p")}</p>
+                  <p className="text-meta uppercase text-muted-foreground">Type</p>
+                  <p className="text-ui font-medium">{selectedTypeName}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Admin</p>
-                  <p className="text-sm font-medium">
-                    {selectedLog.admin.first_name} {selectedLog.admin.last_name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{selectedLog.admin.email}</p>
+                  <p className="text-meta uppercase text-muted-foreground">Title</p>
+                  <p className="text-ui font-medium">{title}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Target Type</p>
-                  <Badge variant="secondary" className="text-meta uppercase">
-                    {selectedLog.target_type.replace("_", " ")}
-                  </Badge>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Type</p>
-                  <p className="text-sm font-medium">
-                    {selectedLog.notification_type?.name || selectedLog.notification_type_id}
-                  </p>
-                  {selectedLog.notification_type?.portal_targets?.length ? (
-                    <Badge variant="outline" className="text-meta mt-1">
-                      {getPortalTargetsLabel(selectedLog.notification_type.portal_targets)}
-                    </Badge>
-                  ) : null}
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Recipients</p>
-                  <p className="text-sm font-medium">{selectedLog.recipient_count} users</p>
+                  <p className="text-meta uppercase text-muted-foreground">Message</p>
+                  <p className="text-ui whitespace-pre-wrap line-clamp-4">{message}</p>
                 </div>
               </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isSending}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={isSending || !canManage}
+                  onClick={confirmSendNotification}
+                >
+                  {isSending ? "Sending..." : "Send notification"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
-              <div className="space-y-2 border-t pt-4">
-                <p className="text-xs font-medium text-muted-foreground uppercase">Title</p>
-                <p className="text-sm font-semibold text-slate-900">{selectedLog.title}</p>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase">Message</p>
-                <div className="rounded-xl bg-muted/50 p-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto">
-                  {selectedLog.message}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 border-t pt-4">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">IP Address</p>
-                  <p className="text-sm font-mono">{selectedLog.ip_address || "—"}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Device</p>
-                  <p className="text-sm font-medium">{selectedLog.device_info || "—"}</p>
-                  <p className="text-meta text-muted-foreground break-all leading-normal opacity-60">
-                    {selectedLog.user_agent}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsLogDetailsOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  </div>
-</RequirePermission>
+          <AlertDialog open={isResetDefaultsOpen} onOpenChange={setIsResetDefaultsOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reset notifications to default?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This turns Platform and Email back on for every notification type, and adds any
+                  types that are missing. Password-change alerts stay on and cannot be turned off.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    seedTypes(undefined, {
+                      onSuccess: (response: AdminSeedTypesResponse) => {
+                        const added = response.added || 0;
+                        const reset = response.reset || 0;
+                        if (added > 0) {
+                          toast.success(
+                            `Restored defaults and added ${added} notification type${added === 1 ? "" : "s"}.`
+                          );
+                        } else {
+                          toast.success(
+                            `Restored defaults for ${reset} notification type${reset === 1 ? "" : "s"}.`
+                          );
+                        }
+                      },
+                      onError: (error) =>
+                        toast.error(error.message || "Failed to reset notification types"),
+                    });
+                  }}
+                >
+                  Reset to default
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+    </RequirePermission>
   );
 }

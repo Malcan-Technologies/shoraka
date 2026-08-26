@@ -21,6 +21,7 @@ jest.mock("../../modules/applications/logs/service", () => ({
 jest.mock("../../modules/notification/service", () => ({
   NotificationService: jest.fn().mockImplementation(() => ({
     sendTyped: jest.fn().mockResolvedValue(undefined),
+    logTypedSystemBatch: jest.fn().mockResolvedValue(undefined),
   })),
 }));
 

@@ -38,6 +38,7 @@ jest.mock("../../auth/repository", () => ({
 jest.mock("../../notification/service", () => ({
   NotificationService: jest.fn().mockImplementation(() => ({
     sendTyped: jest.fn(),
+    sendTypedAndLogSystem: jest.fn(),
   })),
 }));
 

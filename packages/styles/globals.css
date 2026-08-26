@@ -179,7 +179,7 @@
 /* CashSouk Portal Themes
  * Surface tints keep --card pure white so content lifts off chrome.
  * Chrome (canvas/header/sidebar) stays low-saturation “whisper” tints.
- * Issuer = whisper-red; Investor = whisper-cream/earth; Admin = whisper-grey.
+ * Issuer = whisper-red; Investor = whisper-cream/earth; Admin = whisper-red (utilitarian, still near-neutral).
  */
 .theme-user {
   --primary: 359.6 95.7% 27.6%;
@@ -218,22 +218,22 @@
 }
 
 .theme-admin {
-  /* Utilitarian cool-grey — brand red asserts; chrome stays whisper-neutral */
+  /* Utilitarian whisper-red — brand red asserts; chrome stays near-neutral so white cards lift */
   --primary: 359.6 95.7% 27.6%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 220 8% 94%;
+  --secondary: 8 10% 94%;
   --secondary-foreground: 222.2 47.4% 11.2%;
-  --accent: 220 8% 94.5%;                /* whisper-grey hover fill */
+  --accent: 8 14% 94.5%;                 /* whisper-red hover fill */
   --accent-foreground: 222.2 40% 18%;
   --ring: 359.6 95.7% 42.6%;
 
   --foreground: 222.2 47.4% 11.2%;
   --muted-foreground: 215 12% 40%;
-  /* Near-neutral cool canvas — subtle grey, not a strong tint */
-  --background: 220 8% 98%;
-  --muted: 220 8% 95.5%;
-  --border: 220 6% 90%;
-  --input: 220 6% 86%;
+  /* Near-neutral warm canvas — subtle brand-red, not a strong blush */
+  --background: 8 10% 98%;
+  --muted: 8 10% 95.5%;
+  --border: 10 8% 90%;
+  --input: 10 8% 86%;
   --card: 0 0% 100%;
   --card-foreground: 222.2 47.4% 11.2%;
   --popover: 0 0% 100%;
@@ -299,14 +299,14 @@
 
 .dark.theme-admin,
 .theme-admin.dark {
-  --background: 222 8% 7.5%;
-  --muted: 220 6% 12.5%;
-  --border: 220 6% 17%;
-  --card: 222 8% 9.5%;
-  --popover: 222 8% 9.5%;
-  --accent: 220 6% 14%;
+  --background: 350 10% 7.5%;
+  --muted: 350 8% 12.5%;
+  --border: 350 8% 17%;
+  --card: 350 10% 9.5%;
+  --popover: 350 10% 9.5%;
+  --accent: 350 10% 13%;
   --accent-foreground: 210 16% 96%;
-  --secondary: 220 6% 15%;
+  --secondary: 350 8% 15%;
   --secondary-foreground: 210 16% 96%;
 }
 
