@@ -42,7 +42,7 @@ const previousRow = {
   excess_late_charge_gateway_txn_max_amount: 30000,
   offer_deadline_reminder_hour: 9,
   trustee_letter_config: {
-    trusteeEmail: "trustee@secret.example",
+    trusteeEmail: "trustee@ops.example",
     trusteeName: "Trustee Co",
   },
   platform_accounts_config: null,
@@ -124,8 +124,12 @@ describe("NoteService updatePlatformFinanceSettings audit", () => {
     });
     expect(payload.metadata.previousValues.gracePeriodDays).toBe(7);
     expect(payload.metadata.nextValues.gracePeriodDays).toBe(10);
-    expect(payload.metadata.previousValues.trusteeLetterConfig.trusteeEmail).toBe("[REDACTED]");
-    expect(payload.metadata.nextValues.trusteeLetterConfig.trusteeEmail).toBe("[REDACTED]");
-    expect(JSON.stringify(payload.metadata)).not.toContain("trustee@secret.example");
+    expect(payload.metadata.previousValues.trusteeLetterConfig.trusteeEmail).toBe(
+      "trustee@ops.example"
+    );
+    expect(payload.metadata.nextValues.trusteeLetterConfig.trusteeEmail).toBe(
+      "trustee@ops.example"
+    );
+    expect(payload.metadata.previousValues.trusteeLetterConfig.trusteeName).toBe("Trustee Co");
   });
 });

@@ -24,15 +24,16 @@ const sampleRow = {
   offer_deadline_reminder_hour: 9,
   trustee_letter_config: {
     trusteeName: "Trustee Co",
-    trusteeEmail: "trustee@secret.example",
-    trusteeCcEmails: ["cc@secret.example"],
+    trusteeEmail: "trustee@ops.example",
+    trusteeCcEmails: ["cc@ops.example"],
     autoSendTrusteeEmail: true,
+    smtpPassword: "super-secret-smtp",
   },
   platform_accounts_config: {
     platformOperating: { accountName: "Ops", accountNumber: "1234567890" },
   },
   ledger_bucket_accounts_config: {
-    INVESTOR_POOL: { accountName: "Pool", accountNumber: "999" },
+    INVESTOR_POOL: { accountName: "Pool", accountNumber: "999", apiKey: "sk-live-not-for-logs" },
   },
 };
 
@@ -41,38 +42,34 @@ describe("platform finance settings audit snapshot", () => {
     expect(snapshotPlatformFinanceSettings(null)).toEqual({});
   });
 
-  it("redacts trustee emails and account numbers without dropping operational fields", () => {
+  it("keeps operational finance and trustee config, including emails and account numbers", () => {
     const snapshot = snapshotPlatformFinanceSettings(sampleRow);
     const redacted = redactSensitiveFinanceSettings(snapshot) as Record<string, unknown>;
+    const trustee = redacted.trusteeLetterConfig as Record<string, unknown>;
+    const operating = (redacted.platformAccountsConfig as Record<string, unknown>)
+      .platformOperating as Record<string, unknown>;
+    const pool = (redacted.ledgerBucketAccountsConfig as Record<string, unknown>)
+      .INVESTOR_POOL as Record<string, unknown>;
 
     expect(redacted.gracePeriodDays).toBe(7);
     expect(redacted.offerDeadlineReminderHour).toBe(9);
-    expect((redacted.trusteeLetterConfig as Record<string, unknown>).trusteeName).toBe(
-      "Trustee Co"
-    );
-    expect((redacted.trusteeLetterConfig as Record<string, unknown>).trusteeEmail).toBe(
-      "[REDACTED]"
-    );
-    expect((redacted.trusteeLetterConfig as Record<string, unknown>).trusteeCcEmails).toBe(
-      "[REDACTED]"
-    );
-    expect(
-      (
-        (redacted.platformAccountsConfig as Record<string, unknown>).platformOperating as Record<
-          string,
-          unknown
-        >
-      ).accountNumber
-    ).toBe("[REDACTED]");
-    expect(
-      (
-        (redacted.ledgerBucketAccountsConfig as Record<string, unknown>).INVESTOR_POOL as Record<
-          string,
-          unknown
-        >
-      ).accountNumber
-    ).toBe("[REDACTED]");
-    expect(JSON.stringify(redacted)).not.toContain("trustee@secret.example");
-    expect(JSON.stringify(redacted)).not.toContain("1234567890");
+    expect(trustee.trusteeName).toBe("Trustee Co");
+    expect(trustee.trusteeEmail).toBe("trustee@ops.example");
+    expect(trustee.trusteeCcEmails).toEqual(["cc@ops.example"]);
+    expect(operating.accountNumber).toBe("1234567890");
+    expect(pool.accountNumber).toBe("999");
+  });
+
+  it("redacts only authentication secrets if they appear in nested config", () => {
+    const snapshot = snapshotPlatformFinanceSettings(sampleRow);
+    const redacted = redactSensitiveFinanceSettings(snapshot) as Record<string, unknown>;
+    const trustee = redacted.trusteeLetterConfig as Record<string, unknown>;
+    const pool = (redacted.ledgerBucketAccountsConfig as Record<string, unknown>)
+      .INVESTOR_POOL as Record<string, unknown>;
+
+    expect(trustee.smtpPassword).toBe("[REDACTED]");
+    expect(pool.apiKey).toBe("[REDACTED]");
+    expect(JSON.stringify(redacted)).not.toContain("super-secret-smtp");
+    expect(JSON.stringify(redacted)).not.toContain("sk-live-not-for-logs");
   });
 });

@@ -159,7 +159,7 @@ in §2; notifications in §3–§6; counts, legacy names, and the reconciliation
 | `ROLE_REMOVED` | LIVE | Admin role catalogue delete | Admin | security_logs | — | n/a | n/a | — | — | Catalogue delete, **not** user-role removal |
 | `ROLE_PERMISSIONS_UPDATED` | LIVE | Admin role permission edit | Admin | security_logs | Y | n/a | n/a | — | Y | Added to Security panel filter 2026-08-24 |
 | `INVITATION_REVOKED` | LIVE | Admin revokes an invitation | Admin | security_logs | Y | n/a | n/a | — | Y | Added to Security panel filter 2026-08-24 |
-| `PLATFORM_FINANCE_SETTINGS_UPDATED` | LIVE | Admin updated platform finance settings | Admin | security_logs | Y | n/a | n/a | — | Y | Append-only `previousValues` / `nextValues`; sensitive keys redacted |
+| `PLATFORM_FINANCE_SETTINGS_UPDATED` | LIVE | Admin updated platform finance settings | Admin | security_logs | Y | n/a | n/a | — | Y | Append-only `previousValues` / `nextValues`; auth secrets only redacted |
 
 ### 1.3 Onboarding (`onboarding_logs`)
 
@@ -530,7 +530,7 @@ events have no declared type and no admin filter entry. Central writer: `createS
 | `ROLE_CREATED` | `admin/service.ts:createAdminRole` (~515) | Admin | `roleKey`, `roleName`, `badgeColor` | **Hidden (not queried)** | **Excluded** | NO |
 | `ROLE_REMOVED` | `admin/service.ts:deleteAdminRole` (~578) — **role catalogue delete** | Admin | `deletedRoleKey`, `deletedRoleName` | **Hidden (not queried)** | **Excluded** | NO |
 | `INVITATION_REVOKED` | `admin/service.ts:revokeInvitation` (~2297) | Admin | `invitationId`, `email`, `roleDescription` | **Hidden (not queried)** | **Excluded** | NO |
-| `PLATFORM_FINANCE_SETTINGS_UPDATED` | `notes/service.ts:updatePlatformFinanceSettings` | Admin | `settingsKey`, `previousValues`, `nextValues` (redacted) | Shown — `"Platform Finance Settings Updated"` | Included (raw) | NO |
+| `PLATFORM_FINANCE_SETTINGS_UPDATED` | `notes/service.ts:updatePlatformFinanceSettings` | Admin | `settingsKey`, `previousValues`, `nextValues` (auth secrets only redacted) | Shown — `"Platform Finance Settings Updated"` | Included (raw) | NO |
 
 **Key distinctions in this domain:**
 - `PASSWORD_CHANGED` is the **only** security event with a user notification, and it is written on

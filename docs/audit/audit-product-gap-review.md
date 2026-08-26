@@ -120,7 +120,7 @@ Remaining intermediate-admin-gate rows (`ONBOARDING_APPROVED`, live AML, `SSM_AP
 
 **2026-08-26 coverage (approved, narrow):**
 - Scheduled jobs (`note-listing-expiry`, `acceptance-signing-expiry`, fully-funded auto-close) now write `actor_type: SYSTEM`, `source: SYSTEM_JOB` via `systemAuditContext()`. Manual Admin actions stay `ADMIN` / `API`.
-- Admin platform finance settings updates write one `security_logs.PLATFORM_FINANCE_SETTINGS_UPDATED` row with redacted `previousValues` / `nextValues`. No new table. Settings write unchanged.
+- Admin platform finance settings updates write one `security_logs.PLATFORM_FINANCE_SETTINGS_UPDATED` row with `previousValues` / `nextValues` (authentication secrets only redacted). No new table. Settings write unchanged.
 - Investor cash withdrawals (`INVESTOR_WITHDRAWAL`) send `investor_withdrawal_submitted` and `investor_withdrawal_completed` to the requesting investor, platform only. Issuer `withdrawal_completed` is unchanged. No `note_events` for investor cash withdrawals (`note_id` is null).
 
 ### 3.2a Investigated-only (2026-08-25 coverage pass — not implemented)

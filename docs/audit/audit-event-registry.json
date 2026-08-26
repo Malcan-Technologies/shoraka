@@ -742,7 +742,7 @@
         "csv": "INCLUDED"
       },
       "notification": null,
-      "note": "Added 2026-08-26. Metadata previousValues/nextValues with sensitive keys redacted. Call site notes/service.ts:updatePlatformFinanceSettings.",
+      "note": "Added 2026-08-26. Metadata previousValues/nextValues keep operational config (account numbers, trustee emails). Authentication secrets only are redacted. Call site notes/service.ts:updatePlatformFinanceSettings.",
       "docRef": "2.2"
     },
     {

@@ -1,12 +1,13 @@
 /**
  * Snapshot + redaction for platform finance settings change history.
- * Stored on security_logs as previousValues / nextValues — no secrets.
+ * Stored on security_logs as previousValues / nextValues.
+ * Operational config (account numbers, trustee emails, letter settings) is kept.
+ * Only authentication secrets are redacted.
  */
 
 const REDACTED = "[REDACTED]";
 
-const SENSITIVE_KEY_PATTERN =
-  /password|secret|token|credential|private.?key|api.?key|accountNumber|trusteeEmail|trusteeCcEmails/i;
+const AUTH_SECRET_KEY_PATTERN = /password|secret|access.?token|private.?key|api.?key/i;
 
 function toNumber(value: unknown): number {
   if (value == null) return 0;
@@ -76,7 +77,7 @@ export function redactSensitiveFinanceSettings(value: unknown): unknown {
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
-      out[key] = SENSITIVE_KEY_PATTERN.test(key)
+      out[key] = AUTH_SECRET_KEY_PATTERN.test(key)
         ? REDACTED
         : redactSensitiveFinanceSettings(nested);
     }

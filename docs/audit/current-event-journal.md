@@ -15021,12 +15021,12 @@ Stored in:
 Admin Activity
 - Visible: YES
 - Title: `Platform Finance Settings Updated`
-- Description: `previousValues / nextValues (sensitive keys redacted)`
+- Description: `previousValues / nextValues (account numbers and trustee emails kept; auth secrets redacted)`
 
 Admin Detail
 - Visible: YES
 - Title: `Platform Finance Settings Updated`
-- Description: `previousValues / nextValues (sensitive keys redacted)`
+- Description: `previousValues / nextValues (account numbers and trustee emails kept; auth secrets redacted)`
 
 Issuer General Activity
 - Visible: N/A
@@ -15078,7 +15078,7 @@ none in current user-facing copy
 Classification:
 CONSISTENT
 
-One `security_logs` row per Admin save. Secrets/tokens/trustee emails/account numbers are redacted in metadata. Settings write itself is unchanged.
+One `security_logs` row per Admin save. Operational config (account numbers, trustee emails, letter settings) is stored in full. Only authentication secrets (password, API secret, access token, private key) are redacted if present. Settings write itself is unchanged.
 
 ### RECOMMENDED CANONICAL PRESENTATION
 
