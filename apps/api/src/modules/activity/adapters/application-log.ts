@@ -23,7 +23,7 @@ const CONTRACT_EVENT_TYPES = new Set<string>([
   ApplicationLogEventType.CONTRACT_OFFER_REJECTED,
   ApplicationLogEventType.CONTRACT_OFFER_RETRACTED,
   ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED,
-  ApplicationLogEventType.CONTRACT_WITHDRAWN,
+  ApplicationLogEventType.CONTRACT_OFFER_DECLINED,
 ]);
 
 const INVOICE_EVENT_TYPES = new Set<string>([
@@ -289,7 +289,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
           : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED:
         return contractRef
-          ? `All signers completed the package for ${contractRef} and the offer is signed.`
+          ? `The facility offer for ${contractRef} was accepted.`
           : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_OFFER_REJECTED:
         return contractRef
@@ -303,7 +303,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         return contractRef
           ? `Live occupancy for ${contractRef} was updated.`
           : fallbackDescription;
-      case ApplicationLogEventType.CONTRACT_WITHDRAWN:
+      case ApplicationLogEventType.CONTRACT_OFFER_DECLINED:
         if (contractRef && applicationRef) {
           return `The offer for ${contractRef} linked to ${applicationRef} was declined and this application is now closed.`;
         }
@@ -328,7 +328,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
           : fallbackDescription;
       case ApplicationLogEventType.INVOICE_OFFER_ACCEPTED:
         return invoiceRef
-          ? `All signers completed the package for ${invoiceRef} and the offer is signed.`
+          ? `The invoice offer for ${invoiceRef} was accepted.`
           : fallbackDescription;
       case ApplicationLogEventType.INVOICE_OFFER_REJECTED:
         return invoiceRef
@@ -536,8 +536,8 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED]: {
-        title: "Facility Offer Signed",
-        description: "All signers completed the facility offer signing package.",
+        title: "Facility Offer Accepted",
+        description: "The facility offer was accepted.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_REJECTED]: {
         title: "Facility Offer Declined",
@@ -559,7 +559,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         title: "Signing Deadline Extended",
         description: "CashSouk extended the signing deadline so you can complete the signing package.",
       },
-      [ApplicationLogEventType.CONTRACT_WITHDRAWN]: {
+      [ApplicationLogEventType.CONTRACT_OFFER_DECLINED]: {
         title: "Facility Offer Declined",
         description: "The facility offer was declined and this application is now closed.",
       },
@@ -576,8 +576,8 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
       },
       [ApplicationLogEventType.INVOICE_OFFER_ACCEPTED]: {
-        title: "Invoice Offer Signed",
-        description: "All signers completed the invoice offer signing package.",
+        title: "Invoice Offer Accepted",
+        description: "The invoice offer was accepted.",
       },
       [ApplicationLogEventType.INVOICE_OFFER_REJECTED]: {
         title: "Invoice Offer Declined",
@@ -639,7 +639,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED,
       ApplicationLogEventType.CONTRACT_OFFER_EXPIRED,
       ApplicationLogEventType.CONTRACT_SIGNING_DEADLINE_EXTENDED,
-      ApplicationLogEventType.CONTRACT_WITHDRAWN,
+      ApplicationLogEventType.CONTRACT_OFFER_DECLINED,
       ApplicationLogEventType.INVOICE_OFFER_SENT,
       ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED,
       ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_RESUBMITTED,

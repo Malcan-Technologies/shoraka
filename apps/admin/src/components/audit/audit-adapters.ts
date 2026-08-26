@@ -16,6 +16,7 @@ import {
   formatAuditActorTypeLabel,
   formatAuditEventLabel,
   formatAuditSourceLabel,
+  formatRoleSwitchedLabel,
   presentAuditActorName,
   resolveAuditActorType,
 } from "./audit-presentation";
@@ -102,7 +103,10 @@ export function accessLogToAuditDetail(
   return {
     id: log.id,
     title: "Event details",
-    eventLabel: formatAuditEventLabel(log.event_type, labelOverrides),
+    eventLabel:
+      log.event_type === "ROLE_SWITCHED"
+        ? formatRoleSwitchedLabel(log.metadata)
+        : formatAuditEventLabel(log.event_type, labelOverrides),
     eventType: log.event_type,
     timestamp,
     status: log.success === false ? "Failed" : log.success === true ? "Success" : null,

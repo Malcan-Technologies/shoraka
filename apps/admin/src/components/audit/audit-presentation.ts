@@ -1,5 +1,8 @@
 import { format } from "date-fns";
+import { formatRoleSwitchedLabel } from "@cashsouk/types";
 import { humanizeAdminTimelineToken } from "@/components/admin-timeline-format";
+
+export { formatRoleSwitchedLabel };
 
 /** Canonical Admin log datetime: `26 Aug 2026, 8:45 PM`. */
 export const AUDIT_DATETIME_FORMAT = "d MMM yyyy, h:mm a";
@@ -19,6 +22,16 @@ export function formatAuditDate(value: Date | string | null | undefined): string
   return format(date, AUDIT_DATE_FORMAT);
 }
 
+export const LEGAL_DOCUMENT_AUDIT_ACTION_LABELS: Record<string, string> = {
+  LEGAL_DOCUMENT_CREATED: "Document Created",
+  LEGAL_DOCUMENT_UPDATED: "Document Updated",
+  LEGAL_VERSION_UPLOADED: "Version Uploaded",
+  LEGAL_VERSION_FILE_REPLACED: "Version File Replaced",
+  LEGAL_VERSION_PUBLISHED: "Version Published",
+  LEGAL_VERSION_ARCHIVED: "Version Archived",
+  LEGAL_VERSION_RESTORED: "Version Restored",
+};
+
 export function formatAuditEventLabel(
   eventType: string,
   overrides?: Record<string, string>
@@ -26,6 +39,7 @@ export function formatAuditEventLabel(
   const trimmed = eventType.trim();
   if (!trimmed) return "";
   if (overrides?.[trimmed]) return overrides[trimmed];
+  if (LEGAL_DOCUMENT_AUDIT_ACTION_LABELS[trimmed]) return LEGAL_DOCUMENT_AUDIT_ACTION_LABELS[trimmed];
   return humanizeAdminTimelineToken(trimmed);
 }
 

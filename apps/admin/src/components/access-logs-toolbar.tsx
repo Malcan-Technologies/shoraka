@@ -19,7 +19,7 @@ const EVENT_TYPE_OPTIONS: { value: ToolbarEventType; label: string }[] = [
   { value: "LOGOUT", label: "Logout" },
   { value: "SIGNUP", label: "Sign Up" },
   { value: "PASSWORD_CHANGED", label: "Password changed" },
-  { value: "EMAIL_CHANGED", label: "Email Verified" },
+  { value: "EMAIL_VERIFIED", label: "Email Verified" },
   { value: "ROLE_ADDED", label: "Role added" },
   { value: "ROLE_REMOVED", label: "Role removed" },
   { value: "ROLE_SWITCHED", label: "Role switched" },
@@ -87,9 +87,14 @@ export function AccessLogsToolbar({
   exportKind = "access",
   showStatusFilter = true,
 }: AccessLogsToolbarProps) {
-  const filteredEventTypes = allowedEventTypes
+  const filteredEventTypes = (allowedEventTypes
     ? EVENT_TYPE_OPTIONS.filter((opt) => allowedEventTypes.includes(opt.value))
-    : EVENT_TYPE_OPTIONS;
+    : EVENT_TYPE_OPTIONS
+  ).map((opt) =>
+    exportKind === "access" && opt.value === "PROFILE_UPDATED"
+      ? { ...opt, label: "User Profile Updated" }
+      : opt
+  );
 
   const hasFilters =
     searchQuery !== "" ||
@@ -108,7 +113,7 @@ export function AccessLogsToolbar({
     appliedFilters.push({
       id: "event",
       label: `Event: ${
-        EVENT_TYPE_OPTIONS.find((opt) => opt.value === eventTypeFilter)?.label ?? eventTypeFilter
+        filteredEventTypes.find((opt) => opt.value === eventTypeFilter)?.label ?? eventTypeFilter
       }`,
       onRemove: () => onEventTypeFilterChange("all"),
     });

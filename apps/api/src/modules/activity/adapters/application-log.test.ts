@@ -62,8 +62,8 @@ describe("ApplicationLogAdapter", () => {
       description: "All required signers completed the signing package.",
     });
     expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTED")).toEqual({
-      title: "Facility Offer Signed",
-      description: "All signers completed the facility offer signing package.",
+      title: "Facility Offer Accepted",
+      description: "The facility offer was accepted.",
     });
   });
 

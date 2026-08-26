@@ -1139,7 +1139,7 @@ export class AuthService {
       // Log successful verification (SecurityLog)
       await this.repository.createSecurityLog({
         userId,
-        eventType: "EMAIL_CHANGED",
+        eventType: "EMAIL_VERIFIED",
         ipAddress,
         userAgent,
         deviceInfo,
@@ -1159,7 +1159,7 @@ export class AuthService {
       // Log failed attempt (SecurityLog)
       await this.repository.createSecurityLog({
         userId,
-        eventType: "EMAIL_CHANGED",
+        eventType: "EMAIL_VERIFIED",
         ipAddress,
         userAgent,
         deviceInfo,

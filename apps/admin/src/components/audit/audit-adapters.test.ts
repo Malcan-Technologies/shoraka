@@ -34,6 +34,7 @@ describe("legal document audit detail is per stored row", () => {
     });
     const detail = legalAuditToAuditDetail(created);
     expect(detail.eventType).toBe("LEGAL_DOCUMENT_CREATED");
+    expect(detail.eventLabel).toBe("Document Created");
     expect(detail.target?.extra?.some((field) => field.label === "File name")).toBe(false);
     expect(detail.metadata).toEqual({
       beforeJson: null,

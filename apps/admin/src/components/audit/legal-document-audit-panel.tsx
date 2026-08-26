@@ -54,13 +54,13 @@ const LEGAL_TYPES = LEGAL_DOCUMENT_TYPES.map((value) => ({
 }));
 
 const ACTION_OPTIONS = [
-  { value: "LEGAL_DOCUMENT_CREATED", label: "Document created" },
-  { value: "LEGAL_DOCUMENT_UPDATED", label: "Document updated" },
-  { value: "LEGAL_VERSION_UPLOADED", label: "Version uploaded" },
-  { value: "LEGAL_VERSION_FILE_REPLACED", label: "Version file replaced" },
-  { value: "LEGAL_VERSION_PUBLISHED", label: "Version published" },
-  { value: "LEGAL_VERSION_ARCHIVED", label: "Version archived" },
-  { value: "LEGAL_VERSION_RESTORED", label: "Version restored" },
+  { value: "LEGAL_DOCUMENT_CREATED", label: "Document Created" },
+  { value: "LEGAL_DOCUMENT_UPDATED", label: "Document Updated" },
+  { value: "LEGAL_VERSION_UPLOADED", label: "Version Uploaded" },
+  { value: "LEGAL_VERSION_FILE_REPLACED", label: "Version File Replaced" },
+  { value: "LEGAL_VERSION_PUBLISHED", label: "Version Published" },
+  { value: "LEGAL_VERSION_ARCHIVED", label: "Version Archived" },
+  { value: "LEGAL_VERSION_RESTORED", label: "Version Restored" },
 ] as const;
 
 function actionLabel(action: string): string {

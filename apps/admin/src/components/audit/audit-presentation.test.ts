@@ -4,6 +4,7 @@ import {
   formatAuditDateTime,
   formatAuditEventLabel,
   formatAuditSourceLabel,
+  formatRoleSwitchedLabel,
   isSystemActorToken,
   presentAuditActorName,
   redactAuditSecrets,
@@ -21,6 +22,23 @@ describe("audit presentation", () => {
     expect(formatAuditEventLabel("PROFILE_UPDATED", { PROFILE_UPDATED: "User Profile Updated" })).toBe(
       "User Profile Updated"
     );
+    expect(formatAuditEventLabel("LEGAL_DOCUMENT_CREATED")).toBe("Document Created");
+    expect(formatAuditEventLabel("LEGAL_VERSION_FILE_REPLACED")).toBe("Version File Replaced");
+  });
+
+  it("labels ROLE_SWITCHED from metadata without splitting the event id", () => {
+    expect(formatRoleSwitchedLabel({ action: "DEACTIVATED" })).toBe("Admin Deactivated");
+    expect(formatRoleSwitchedLabel({ action: "DEACTIVATED_VIA_ROLE_REMOVAL" })).toBe(
+      "Admin Deactivated"
+    );
+    expect(formatRoleSwitchedLabel({ action: "REACTIVATED" })).toBe("Admin Reactivated");
+    expect(formatRoleSwitchedLabel({ action: "ACTIVATED_VIA_ROLE_ADDITION" })).toBe(
+      "Admin Reactivated"
+    );
+    expect(formatRoleSwitchedLabel({ previousRole: "OPS", newRole: "SUPER_ADMIN" })).toBe(
+      "Admin Role Changed"
+    );
+    expect(formatRoleSwitchedLabel({ newRole: "INVESTOR" })).toBe("Role Switched");
   });
 
   it("does not treat SYS as a human name", () => {

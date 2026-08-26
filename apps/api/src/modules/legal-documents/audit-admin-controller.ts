@@ -12,13 +12,13 @@ const router = Router();
 
 /** Mirrors ACTION_OPTIONS labels in apps/admin/src/components/audit/legal-document-audit-panel.tsx. */
 const AUDIT_ACTION_LABELS: Record<string, string> = {
-  LEGAL_DOCUMENT_CREATED: "Document created",
-  LEGAL_DOCUMENT_UPDATED: "Document updated",
-  LEGAL_VERSION_UPLOADED: "Version uploaded",
-  LEGAL_VERSION_FILE_REPLACED: "Version file replaced",
-  LEGAL_VERSION_PUBLISHED: "Version published",
-  LEGAL_VERSION_ARCHIVED: "Version archived",
-  LEGAL_VERSION_RESTORED: "Version restored",
+  LEGAL_DOCUMENT_CREATED: "Document Created",
+  LEGAL_DOCUMENT_UPDATED: "Document Updated",
+  LEGAL_VERSION_UPLOADED: "Version Uploaded",
+  LEGAL_VERSION_FILE_REPLACED: "Version File Replaced",
+  LEGAL_VERSION_PUBLISHED: "Version Published",
+  LEGAL_VERSION_ARCHIVED: "Version Archived",
+  LEGAL_VERSION_RESTORED: "Version Restored",
 };
 
 function auditActionLabel(action: string): string {

@@ -46,7 +46,7 @@ const EVENT_LABELS: Record<string, string> = {
   CONTRACT_OFFER_ACCEPTED: "You accepted the facility offer",
   CONTRACT_OFFER_REJECTED: "You declined the facility offer",
   CONTRACT_OFFER_RETRACTED: "Facility offer was withdrawn by CashSouk",
-  CONTRACT_WITHDRAWN: "Facility withdrawn",
+  CONTRACT_OFFER_DECLINED: "Facility offer declined",
   INVOICE_OFFER_SENT: "Invoice financing offer sent",
   INVOICE_OFFER_ACCEPTED: "You accepted an invoice offer",
   INVOICE_OFFER_REJECTED: "You declined an invoice offer",

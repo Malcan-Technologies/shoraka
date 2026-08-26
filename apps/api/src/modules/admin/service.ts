@@ -4241,7 +4241,7 @@ export class AdminService {
     try {
       await this.notificationService.sendTypedAndLogSystem(
         onboarding.user_id,
-        NotificationTypeIds.ONBOARDING_APPROVED,
+        NotificationTypeIds.ONBOARDING_COMPLETED,
         {
           onboardingType: onboarding.onboarding_type,
           orgName:

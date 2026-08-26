@@ -39,7 +39,7 @@ const EVENT_LABELS: Record<string, string> = {
   SETTLEMENT_APPROVED: "Settlement approved",
   SETTLEMENT_POSTED: "Settlement posted",
   LATE_CHARGE_APPROVED: "Late charge approved",
-  OVERDUE_LATE_CHARGE_CHECKED: "Overdue Review Completed",
+  OVERDUE_LATE_CHARGE_CHECKED: "Overdue Late Charge Checked",
   ARREARS_LETTER_GENERATED: "Arrears letter generated",
   DEFAULT_LETTER_GENERATED: "Default letter generated",
   SETTLEMENT_TRUSTEE_LETTER_GENERATED: "Settlement Trustee Letter Generated",

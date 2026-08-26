@@ -3,7 +3,7 @@ import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
 import { requirePermission } from "../../lib/auth/middleware";
-import { buildAuditCsv, humanizeAuditEventType } from "../../lib/audit-csv";
+import { buildAuditCsv, formatRoleSwitchedLabel, humanizeAuditEventType } from "../../lib/audit-csv";
 import { UserRole } from "@prisma/client";
 import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission, type AdminRoleKey } from "@cashsouk/types";
 import {
@@ -963,6 +963,31 @@ const ACCESS_LOG_CSV_EVENT_LABELS: Record<string, string> = {
   PROFILE_UPDATED: "User Profile Updated",
 };
 
+const ONBOARDING_LOG_CSV_EVENT_LABELS: Record<string, string> = {
+  ONBOARDING_STARTED: "Onboarding Started",
+  ONBOARDING_RESUMED: "Onboarding Resumed",
+  ONBOARDING_STATUS_UPDATED: "Onboarding Status Updated",
+  ONBOARDING_CANCELLED: "Onboarding Restarted",
+  ONBOARDING_REJECTED: "Onboarding Rejected",
+  COD_REJECTED: "Onboarding Rejected",
+  ONBOARDING_APPROVED: "Onboarding Approved",
+  AML_APPROVED: "AML Approved",
+  TNC_APPROVED: "T&C Approved",
+  TNC_ACCEPTED: "T&C Accepted",
+  SSM_APPROVED: "SSM Approved",
+  KYC_APPROVED: "KYC Approved",
+  FINAL_APPROVAL_COMPLETED: "Final Approval Completed",
+  SOPHISTICATED_STATUS_UPDATED: "Sophisticated Status Updated",
+  FORM_FILLED: "Form Submitted",
+  ONBOARDING_RESET: "Onboarding Reset",
+  PROFILE_UPDATED: "Organization Profile Updated",
+  USER_COMPLETED: "User Completed",
+};
+
+function formatOnboardingLogCsvEventType(eventType: string): string {
+  return humanizeAuditEventType(eventType, ONBOARDING_LOG_CSV_EVENT_LABELS);
+}
+
 function formatAccessLogCsvEventType(eventType: string): string {
   return humanizeAuditEventType(eventType, ACCESS_LOG_CSV_EVENT_LABELS);
 }
@@ -1434,10 +1459,16 @@ const SECURITY_LOG_CSV_EVENT_LABELS: Record<string, string> = {
   ROLE_ADDED: "Role Added",
   ROLE_SWITCHED: "Role Switched",
   PROFILE_UPDATED: "Profile Updated",
-  EMAIL_CHANGED: "Email Verified",
+  EMAIL_VERIFIED: "Email Verified",
 };
 
-function formatSecurityLogCsvEventType(eventType: string): string {
+function formatSecurityLogCsvEventType(
+  eventType: string,
+  metadata?: Record<string, unknown> | null
+): string {
+  if (eventType === "ROLE_SWITCHED") {
+    return formatRoleSwitchedLabel(metadata);
+  }
   return humanizeAuditEventType(eventType, SECURITY_LOG_CSV_EVENT_LABELS);
 }
 
@@ -1471,7 +1502,7 @@ router.get(
             const next = metadata?.nextValues ?? metadata?.next_values;
             return {
               timestamp: log.created_at.toISOString(),
-              event: formatSecurityLogCsvEventType(log.event_type),
+              event: formatSecurityLogCsvEventType(log.event_type, metadata),
               eventType: log.event_type,
               actor: `${log.user.first_name} ${log.user.last_name}`.trim(),
               actorType: log.actor_type,
@@ -1613,7 +1644,7 @@ router.get(
         const csvContent = buildAuditCsv(
           logs.map((log) => ({
             timestamp: log.created_at.toISOString(),
-            event: humanizeAuditEventType(log.event_type),
+            event: formatOnboardingLogCsvEventType(log.event_type),
             eventType: log.event_type,
             actor: `${log.user.first_name} ${log.user.last_name}`.trim(),
             actorType: log.actor_type ?? log.role,

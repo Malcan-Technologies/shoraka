@@ -1,3 +1,7 @@
+import { formatRoleSwitchedLabel } from "@cashsouk/types";
+
+export { formatRoleSwitchedLabel };
+
 const ACRONYMS = new Set(["AML", "KYC", "KYB", "TNC", "SSM", "PDF", "CSV", "API", "ID"]);
 
 const SECRET_KEY =

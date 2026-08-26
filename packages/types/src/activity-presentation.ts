@@ -23,6 +23,21 @@ export const ACTIVITY_STATUS_LABEL: Record<ActivityStatusToken, string> = {
   neutral: "Closed",
 };
 
+/** Metadata-driven display for a single ROLE_SWITCHED event id. Raw id stays visible/exported. */
+export function formatRoleSwitchedLabel(metadata?: Record<string, unknown> | null): string {
+  const action = metadata?.action;
+  if (action === "DEACTIVATED" || action === "DEACTIVATED_VIA_ROLE_REMOVAL") {
+    return "Admin Deactivated";
+  }
+  if (action === "REACTIVATED" || action === "ACTIVATED_VIA_ROLE_ADDITION") {
+    return "Admin Reactivated";
+  }
+  if (typeof metadata?.previousRole === "string" && typeof metadata?.newRole === "string") {
+    return "Admin Role Changed";
+  }
+  return "Role Switched";
+}
+
 const ACTIVITY_STATUS_BY_EVENT: Record<string, ActivityStatusToken> = {
   ONBOARDING_STARTED: "action",
   ONBOARDING_CANCELLED: "neutral",
@@ -47,7 +62,7 @@ const ACTIVITY_STATUS_BY_EVENT: Record<string, ActivityStatusToken> = {
   CONTRACT_OFFER_RETRACTED: "neutral",
   CONTRACT_OFFER_EXPIRED: "rejected",
   CONTRACT_SIGNING_DEADLINE_EXTENDED: "submitted",
-  CONTRACT_WITHDRAWN: "neutral",
+  CONTRACT_OFFER_DECLINED: "neutral",
   CONTRACT_FACILITY_FEE_WAIVED: "neutral",
   CONTRACT_FACILITY_DISABLED: "neutral",
   CONTRACT_FACILITY_ENABLED: "active",

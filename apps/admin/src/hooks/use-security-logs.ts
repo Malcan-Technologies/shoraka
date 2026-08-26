@@ -16,7 +16,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 // them from the default "All events" admin view.
 export const SECURITY_EVENT_TYPES: SecurityEventType[] = [
   "PASSWORD_CHANGED",
-  "EMAIL_CHANGED",
+  "EMAIL_VERIFIED",
   "ROLE_ADDED",
   "ROLE_REMOVED",
   "ROLE_SWITCHED",

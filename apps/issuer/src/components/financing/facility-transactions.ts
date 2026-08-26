@@ -53,16 +53,16 @@ const LOG_LABELS: Record<string, string> = {
   CONTRACT_OFFER_SENT: "You Received a Facility Offer",
   CONTRACT_OFFER_ACCEPTANCE_SUBMITTED: "You Submitted Your Facility Offer Acceptance",
   CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED: "You Resubmitted Your Facility Offer Acceptance",
-  CONTRACT_OFFER_ACCEPTED: "Facility Offer Signed",
+  CONTRACT_OFFER_ACCEPTED: "Facility Offer Accepted",
   CONTRACT_OFFER_REJECTED: "Facility offer declined",
   CONTRACT_OFFER_RETRACTED: "CashSouk Retracted the Facility Offer",
   CONTRACT_OFFER_EXPIRED: "Facility offer expired",
   CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing deadline extended",
-  CONTRACT_WITHDRAWN: "Facility Offer Declined",
+  CONTRACT_OFFER_DECLINED: "Facility Offer Declined",
   INVOICE_OFFER_SENT: "You Received an Invoice Offer",
   INVOICE_OFFER_ACCEPTANCE_SUBMITTED: "You Submitted Your Invoice Offer Acceptance",
   INVOICE_OFFER_ACCEPTANCE_RESUBMITTED: "You Resubmitted Your Invoice Offer Acceptance",
-  INVOICE_OFFER_ACCEPTED: "Invoice Offer Signed",
+  INVOICE_OFFER_ACCEPTED: "Invoice Offer Accepted",
   INVOICE_OFFER_REJECTED: "Invoice Offer Declined",
   INVOICE_OFFER_RETRACTED: "CashSouk Retracted the Invoice Offer",
   INVOICE_OFFER_EXPIRED: "Invoice offer expired",
@@ -230,9 +230,9 @@ function derivedFromContract(
     status === "APPROVED"
   ) {
     pushDerived(rows, {
-      id: `derived:facility-offer-signed:${contract.id}`,
+      id: `derived:facility-offer-accepted:${contract.id}`,
       at: offer.responded_at,
-      label: "Facility Offer Signed",
+      label: "Facility Offer Accepted",
       amount: parseAmount(offer.offered_facility ?? contract.approvedFacilityAmount),
       eventType: "CONTRACT_OFFER_ACCEPTED",
       statusToken: "success",
@@ -286,9 +286,9 @@ function derivedFromInvoice(
     status === InvoiceStatus.APPROVED
   ) {
     pushDerived(rows, {
-      id: `derived:invoice-offer-signed:${invoice.id}`,
+      id: `derived:invoice-offer-accepted:${invoice.id}`,
       at: offer.responded_at,
-      label: "Invoice Offer Signed",
+      label: "Invoice Offer Accepted",
       amount: parseAmount(offer.offered_amount) ?? financingAmount,
       referenceLabel,
       href,

@@ -2900,7 +2900,7 @@ export class ApplicationService {
       { assertWrite: true }
     );
 
-    const eventType = action === "accept" ? "CONTRACT_OFFER_ACCEPTED" : "CONTRACT_WITHDRAWN";
+    const eventType = action === "accept" ? "CONTRACT_OFFER_ACCEPTED" : "CONTRACT_OFFER_DECLINED";
     const contractNumber = (
       application as {
         contract?: { contract_details?: { number?: string | number } | null } | null;

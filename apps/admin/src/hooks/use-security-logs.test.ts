@@ -10,7 +10,7 @@ describe("SECURITY_EVENT_TYPES — security_logs filter allowlist", () => {
     expect(SECURITY_EVENT_TYPES).toEqual(
       expect.arrayContaining([
         "PASSWORD_CHANGED",
-        "EMAIL_CHANGED",
+        "EMAIL_VERIFIED",
         "ROLE_ADDED",
         "ROLE_REMOVED",
         "ROLE_SWITCHED",

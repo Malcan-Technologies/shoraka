@@ -24,9 +24,9 @@ export const initialNotificationTypes = [
 
   // System / Onboarding
   {
-    id: "onboarding_approved",
-    name: "Onboarding Approved",
-    description: "Sent when your onboarding application has been approved.",
+    id: "onboarding_completed",
+    name: "Onboarding Completed",
+    description: "Sent when your onboarding has been completed and you have full platform access.",
     category: NotificationCategory.SYSTEM,
     portal_targets: BOTH_PORTALS,
     default_priority: NotificationPriority.INFO,
@@ -287,7 +287,7 @@ export const initialNotificationTypes = [
   },
   {
     id: "note_funding_failed_issuer",
-    name: "Note funding failed",
+    name: "Funding Unsuccessful",
     description: "A note listing did not reach the minimum funding threshold.",
     category: NotificationCategory.SYSTEM,
     portal_targets: ISSUER_ONLY,
@@ -298,7 +298,7 @@ export const initialNotificationTypes = [
   },
   {
     id: "note_funding_failed_investor",
-    name: "Note funding failed",
+    name: "Funding Unsuccessful",
     description: "Reserved commitment released because a note did not complete funding.",
     category: NotificationCategory.SYSTEM,
     portal_targets: INVESTOR_ONLY,
@@ -342,7 +342,7 @@ export const initialNotificationTypes = [
   },
   {
     id: "note_payment_received",
-    name: "Note repayment recorded",
+    name: "Repayment Received",
     description: "A repayment was recorded on a note.",
     category: NotificationCategory.SYSTEM,
     portal_targets: INVESTOR_ONLY,

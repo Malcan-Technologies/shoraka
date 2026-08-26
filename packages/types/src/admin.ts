@@ -107,7 +107,7 @@ export type EventType =
   | "ONBOARDING_STATUS_UPDATED"
   | "PROFILE_UPDATED"
   | "PASSWORD_CHANGED"
-  | "EMAIL_CHANGED";
+  | "EMAIL_VERIFIED";
 
 export interface AccessLogUser {
   first_name: string;
@@ -305,7 +305,7 @@ export interface AcceptInvitationInput {
 // Security Logs Types
 export type SecurityEventType =
   | "PASSWORD_CHANGED"
-  | "EMAIL_CHANGED"
+  | "EMAIL_VERIFIED"
   | "ROLE_ADDED"
   | "ROLE_REMOVED"
   | "ROLE_SWITCHED"

@@ -9,7 +9,7 @@ import {
   AUDIT_ROW_CLASS,
   AUDIT_TIMESTAMP_CELL_CLASS,
 } from "@/components/audit/audit-log-shell";
-import { formatAuditDateTime } from "@/components/audit/audit-presentation";
+import { formatAuditDateTime, formatRoleSwitchedLabel } from "@/components/audit/audit-presentation";
 import type { AccessLogResponse } from "@cashsouk/types";
 
 interface AccessLog extends Omit<AccessLogResponse, "created_at" | "event_type"> {
@@ -43,7 +43,7 @@ export const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }>
   FINAL_APPROVAL_COMPLETED: { label: "Final Approval", color: "bg-status-success-text" },
   KYC_STATUS_UPDATED: { label: "KYC Updated", color: "bg-status-action-text" },
   PASSWORD_CHANGED: { label: "Password Changed", color: "bg-status-rejected-text" },
-  EMAIL_CHANGED: { label: "Email Verified", color: "bg-status-in-progress-text" },
+  EMAIL_VERIFIED: { label: "Email Verified", color: "bg-status-in-progress-text" },
   PROFILE_UPDATED: { label: "Profile Updated", color: "bg-status-submitted-text" },
   PLATFORM_FINANCE_SETTINGS_UPDATED: {
     label: "Platform Finance Settings Updated",
@@ -57,7 +57,10 @@ export function AccessLogTableRow({
   onViewDetails,
   labelOverrides,
 }: AccessLogTableRowProps) {
-  const eventLabel = labelOverrides?.[log.event_type] ?? EVENT_TYPE_CONFIG[log.event_type]?.label;
+  const eventLabel =
+    log.event_type === "ROLE_SWITCHED"
+      ? formatRoleSwitchedLabel(log.metadata)
+      : (labelOverrides?.[log.event_type] ?? EVENT_TYPE_CONFIG[log.event_type]?.label);
   const actorName = `${log.user.first_name} ${log.user.last_name}`.trim();
   const source = log.source || log.portal;
 

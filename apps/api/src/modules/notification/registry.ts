@@ -8,7 +8,7 @@ import { formatApplicationNotificationRef, formatPhaseDeadlineDateDDMMYYYY } fro
  */
 export const NotificationTypeIds = {
   // System / Onboarding
-  ONBOARDING_APPROVED: "onboarding_approved",
+  ONBOARDING_COMPLETED: "onboarding_completed",
   ONBOARDING_REJECTED: "onboarding_rejected",
 
   // Authentication
@@ -79,7 +79,7 @@ export type NotificationTypeId = (typeof NotificationTypeIds)[keyof typeof Notif
  * Define the payload data required for each notification type
  */
 export interface NotificationPayloads {
-  [NotificationTypeIds.ONBOARDING_APPROVED]: {
+  [NotificationTypeIds.ONBOARDING_COMPLETED]: {
     onboardingType: string;
     orgName: string;
     portalType: "investor" | "issuer";
@@ -343,8 +343,8 @@ function formatDateDDMMYYYY(value: string | Date): string {
 export const NOTIFICATION_TEMPLATES: {
   [T in NotificationTypeId]: NotificationTemplate<T>;
 } = {
-  [NotificationTypeIds.ONBOARDING_APPROVED]: {
-    title: "Onboarding Application Approved",
+  [NotificationTypeIds.ONBOARDING_COMPLETED]: {
+    title: "Onboarding Completed",
     message: (data) =>
       `Congratulations! Your ${data.onboardingType.toLowerCase()} onboarding for ${data.orgName} has been completed successfully. You now have full access to the platform.`,
     linkPath: () => "/",
