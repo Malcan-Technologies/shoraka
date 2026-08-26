@@ -20,9 +20,14 @@ interface AccessLogsExportButtonProps {
     eventTypes?: (EventType | SecurityEventType)[];
   };
   kind?: "access" | "security";
+  disabled?: boolean;
 }
 
-export function AccessLogsExportButton({ filters, kind = "access" }: AccessLogsExportButtonProps) {
+export function AccessLogsExportButton({
+  filters,
+  kind = "access",
+  disabled = false,
+}: AccessLogsExportButtonProps) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(undefined, getAccessToken);
   const [isExporting, setIsExporting] = React.useState(false);
@@ -70,7 +75,11 @@ export function AccessLogsExportButton({ filters, kind = "access" }: AccessLogsE
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" disabled={isExporting} className={auditExportButtonClassName()}>
+        <Button
+          variant="outline"
+          disabled={isExporting || disabled}
+          className={auditExportButtonClassName()}
+        >
           <ArrowDownTrayIcon className="h-4 w-4" />
           {isExporting ? "Exporting..." : "Export"}
         </Button>

@@ -71,4 +71,33 @@ describe("dedicated Admin log tables share one visual shell", () => {
     expect(read("legal-acceptances-panel.tsx")).toContain("AUDIT_IP_CELL_CLASS");
     expect(read("../access-logs-table.tsx")).toContain('<AuditLogHead align="right">Actions</AuditLogHead>');
   });
+
+  it("disables Export when the filtered result count is 0", () => {
+    expect(read("../access-logs-export-button.tsx")).toContain("disabled={isExporting || disabled}");
+    expect(read("../access-logs-toolbar.tsx")).toContain("disabled={filteredCount === 0}");
+    expect(read("product-logs-panel.tsx")).toContain("disabled={totalCount === 0}");
+    expect(read("legal-document-audit-panel.tsx")).toContain("disabled={exporting || totalCount === 0}");
+    expect(read("legal-acceptances-panel.tsx")).toContain("disabled={exporting || totalCount === 0}");
+    expect(read("notification-logs-panel.tsx")).toContain(
+      "disabled={exportingLogs || (paginationLogs?.total ?? 0) === 0}"
+    );
+  });
+
+  it("uses search placeholders that match searchable fields", () => {
+    expect(read("../access-logs-toolbar.tsx")).toContain(
+      'searchPlaceholder="Search by user name, email, or User ID..."'
+    );
+    expect(read("product-logs-panel.tsx")).toContain(
+      'searchPlaceholder="Search by actor name or email..."'
+    );
+    expect(read("legal-document-audit-panel.tsx")).toContain(
+      'searchPlaceholder="Search by actor, document ID, version ID, or event..."'
+    );
+    expect(read("legal-acceptances-panel.tsx")).toContain(
+      'searchPlaceholder="Search by user, email, or organisation..."'
+    );
+    expect(read("notification-logs-panel.tsx")).toContain(
+      'searchPlaceholder="Search title, message, type, or actor..."'
+    );
+  });
 });

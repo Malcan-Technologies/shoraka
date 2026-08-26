@@ -159,7 +159,7 @@ export function ProductLogsPanel() {
       <ListToolbar
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder="Search by admin name or email..."
+        searchPlaceholder="Search by actor name or email..."
         appliedFilters={appliedFilters}
         onClearFilters={hasFilters ? handleClearFilters : undefined}
         onReload={handleReload}
@@ -192,7 +192,11 @@ export function ProductLogsPanel() {
       >
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className={auditExportButtonClassName()}>
+            <Button
+              variant="outline"
+              disabled={totalCount === 0}
+              className={auditExportButtonClassName()}
+            >
               <ArrowDownTrayIcon className="h-4 w-4" />
               Export
             </Button>

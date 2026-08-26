@@ -11,6 +11,7 @@ import { adminActionRowClass } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 import {
   LEGAL_ACCEPTANCE_STATUS_OPTIONS,
+  legalAcceptanceEventLabel,
   legalAcceptanceStatusLabel,
   legalAcceptanceStatusToken,
 } from "@/lib/legal-acceptance-display";
@@ -210,7 +211,7 @@ export function LegalAcceptancesPanel() {
       <ListToolbar
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder="Search by name, email, or organization..."
+        searchPlaceholder="Search by user, email, or organisation..."
         appliedFilters={appliedFilters}
         onClearFilters={hasActiveFilters ? clearFilters : undefined}
         onReload={handleReload}
@@ -293,7 +294,7 @@ export function LegalAcceptancesPanel() {
         <Button
           variant="outline"
           onClick={() => void handleExport()}
-          disabled={exporting}
+          disabled={exporting || totalCount === 0}
           className={auditExportButtonClassName()}
         >
           <ArrowDownTrayIcon className="h-4 w-4" />
@@ -335,7 +336,8 @@ export function LegalAcceptancesPanel() {
             ) : (
               acceptances.map((row) => {
                 const timestamp = row.acceptedAt || row.openedAt || row.createdAt;
-                const eventLabel = legalAcceptanceStatusLabel(row.status);
+                const eventLabel = legalAcceptanceEventLabel(row.status);
+                const statusLabel = legalAcceptanceStatusLabel(row.status);
                 const token = legalAcceptanceStatusToken(row.status);
                 return (
                   <TableRow
@@ -372,7 +374,7 @@ export function LegalAcceptancesPanel() {
                       {row.acceptedIpAddress ?? row.openedIpAddress ?? "—"}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge label={eventLabel} status={token} />
+                      <StatusBadge label={statusLabel} status={token} />
                     </TableCell>
                     <TableCell className="text-right">
                       <AuditLogViewDetailsButton

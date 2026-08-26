@@ -193,7 +193,7 @@ export function NotificationLogsPanel() {
           setLogSearchQuery(value);
           setPage(1);
         }}
-        searchPlaceholder="Search title, message, type, or admin..."
+        searchPlaceholder="Search title, message, type, or actor..."
         appliedFilters={logFilterChips}
         onClearFilters={hasLogFilters ? clearLogFilters : undefined}
         onReload={() => refetchLogs()}

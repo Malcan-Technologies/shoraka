@@ -9,13 +9,15 @@ import {
   SheetTitle,
 } from "@cashsouk/ui";
 import { StatusBadge } from "@cashsouk/ui";
-import { AuditActorBadge } from "./audit-actor-badge";
 import { AuditBeforeAfterDiff } from "./audit-before-after-diff";
 import type { AuditDetailField, AuditDetailRecord } from "./audit-detail-model";
 import { AuditEventBadge } from "./audit-event-badge";
 import { AuditMetadataView } from "./audit-metadata-view";
-import { AuditSourceBadge } from "./audit-source-badge";
-import { formatAuditDateTime, formatAuditSourceLabel } from "./audit-presentation";
+import {
+  formatAuditActorTypeLabel,
+  formatAuditDateTime,
+  formatAuditSourceLabel,
+} from "./audit-presentation";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -67,12 +69,17 @@ export function AuditDetailDrawer({
       ].filter((field): field is AuditDetailField => nonEmpty(field.value))
     : [];
 
+  const actorTypeLabel = actor?.type ? formatAuditActorTypeLabel(String(actor.type)) : "";
+  const sourceLabel = actor?.source ? formatAuditSourceLabel(actor.source) : "";
+  const sourceDistinctFromActorType = Boolean(sourceLabel && sourceLabel !== actorTypeLabel);
+
   const actorFields = actor
     ? [
-        { label: "Actor name", value: actor.name },
-        { label: "Actor email", value: actor.email },
+        { label: "Actor", value: actor.name },
+        { label: "Email", value: actor.email },
         { label: "Organisation", value: actor.organisation },
-        { label: "Source", value: actor.source ? formatAuditSourceLabel(actor.source) : null },
+        { label: "Actor type", value: actorTypeLabel || null },
+        { label: "Source", value: sourceDistinctFromActorType ? sourceLabel : null },
       ].filter((field): field is AuditDetailField => nonEmpty(field.value))
     : [];
 
@@ -110,7 +117,6 @@ export function AuditDetailDrawer({
         { label: "Title", value: delivery.title },
         { label: "Message", value: delivery.message },
         { label: "Recipient / audience", value: delivery.audience },
-        { label: "Source", value: delivery.source },
         { label: "Platform delivered", value: delivery.platformDelivered },
         { label: "Email delivered", value: delivery.emailDelivered },
         { label: "Idempotency key", value: delivery.idempotencyKey },
@@ -158,12 +164,8 @@ export function AuditDetailDrawer({
               </Section>
             ) : null}
 
-            {actor && (actorFields.length > 0 || actor.type || actor.source) ? (
+            {actor && actorFields.length > 0 ? (
               <Section title="Actor">
-                <div className="flex flex-wrap gap-2">
-                  <AuditActorBadge type={actor.type} />
-                  <AuditSourceBadge source={actor.source} />
-                </div>
                 <FieldList fields={actorFields} />
               </Section>
             ) : null}

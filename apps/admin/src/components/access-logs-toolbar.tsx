@@ -183,7 +183,13 @@ export function AccessLogsToolbar({
         </AuditLogFilters>
       }
     >
-      {exportFilters ? <AccessLogsExportButton filters={exportFilters} kind={exportKind} /> : null}
+      {exportFilters ? (
+        <AccessLogsExportButton
+          filters={exportFilters}
+          kind={exportKind}
+          disabled={filteredCount === 0}
+        />
+      ) : null}
     </ListToolbar>
   );
 }

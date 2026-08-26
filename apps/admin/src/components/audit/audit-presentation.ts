@@ -189,8 +189,10 @@ export function formatAuditSourceLabel(source: string | null | undefined): strin
   if (!source?.trim()) return "";
   const key = source.trim().toUpperCase();
   if (key === "API") return "API";
-  if (key === "ADMIN") return "Admin";
-  if (key === "SYSTEM" || key === "SYSTEM_JOB" || key === "JOB") return "System Job";
+  if (key === "ADMIN") return "Admin Portal";
+  if (key === "SYSTEM") return "System";
+  if (key === "SYSTEM_JOB" || key === "JOB") return "System Job";
+  if (key === "INTERNAL") return "Internal";
   if (key === "PORTAL") return "Portal";
   if (key === "WEBHOOK") return "Webhook";
   return formatAuditEventLabel(source);

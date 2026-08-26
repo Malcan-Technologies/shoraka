@@ -17,6 +17,12 @@ export function legalAcceptanceStatusLabel(status: LegalAcceptanceStatus): strin
   return match?.label ?? status;
 }
 
+export function legalAcceptanceEventLabel(status: LegalAcceptanceStatus): string {
+  if (status === "ACCEPTED") return "Legal document accepted";
+  if (status === "OPENED") return "Legal document opened";
+  return "Legal document not opened";
+}
+
 export function legalAcceptanceStatusToken(status: LegalAcceptanceStatus) {
   if (status === "ACCEPTED") return "success" as const;
   if (status === "OPENED") return "action" as const;

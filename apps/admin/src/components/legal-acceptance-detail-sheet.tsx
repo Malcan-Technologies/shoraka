@@ -18,6 +18,7 @@ import { useDownloadAcceptedVersion, useLegalDocumentAcceptanceDetail } from "@/
 import { formatLegalFileSize } from "@/lib/legal-documents-admin";
 import {
   formatLegalAcceptanceDate,
+  legalAcceptanceEventLabel,
   legalAcceptanceStatusLabel,
   legalAcceptanceStatusToken,
 } from "@/lib/legal-acceptance-display";
@@ -64,9 +65,19 @@ export function LegalAcceptanceDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
         <SheetHeader>
-          <SheetTitle>Acceptance details</SheetTitle>
+          <SheetTitle>
+            {acceptance?.status === "OPENED"
+              ? "Opened details"
+              : acceptance?.status === "ACCEPTED"
+                ? "Accepted details"
+                : "Acceptance details"}
+          </SheetTitle>
           <SheetDescription>
-            Read-only evidence record for this legal document acceptance.
+            {acceptance?.status === "OPENED"
+              ? "Read-only evidence that this legal document was opened."
+              : acceptance?.status === "ACCEPTED"
+                ? "Read-only evidence that this legal document was accepted."
+                : "Read-only evidence record for this legal document acceptance."}
           </SheetDescription>
         </SheetHeader>
 
@@ -85,6 +96,10 @@ export function LegalAcceptanceDetailSheet({
             <div className="space-y-4">
               <h3 className="text-ui font-semibold">Overview</h3>
               <div className="grid gap-4 sm:grid-cols-2">
+                <DetailField
+                  label="Event"
+                  value={legalAcceptanceEventLabel(acceptance.status)}
+                />
                 <DetailField label="Acceptance ID" value={acceptance.id} />
                 <DetailField
                   label="Status"

@@ -21,7 +21,11 @@ import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
 import { AuditEventBadge } from "@/components/audit/audit-event-badge";
-import { legalAuditToAuditDetail } from "@/components/audit/audit-adapters";
+import {
+  companionInitialVersionUpload,
+  legalAuditToAuditDetail,
+  visibleLegalDocumentAuditLogs,
+} from "@/components/audit/audit-adapters";
 import { formatAuditDateTime, formatAuditEventLabel } from "@/components/audit/audit-presentation";
 import {
   AuditLogDateFields,
@@ -103,6 +107,7 @@ export function LegalDocumentAuditPanel() {
   const { data, isLoading, error } = useLegalDocumentAuditLogs(apiParams);
 
   const logs = data?.logs ?? [];
+  const visibleLogs = visibleLegalDocumentAuditLogs(logs);
   const totalCount = data?.pagination.totalCount ?? 0;
   const totalPages = data?.pagination.totalPages ?? 0;
 
@@ -196,7 +201,7 @@ export function LegalDocumentAuditPanel() {
       <ListToolbar
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
-        searchPlaceholder="Search by actor, document, or action..."
+        searchPlaceholder="Search by actor, document ID, version ID, or event..."
         appliedFilters={appliedFilters}
         onClearFilters={hasActiveFilters ? clearFilters : undefined}
         onReload={handleReload}
@@ -255,7 +260,7 @@ export function LegalDocumentAuditPanel() {
         <Button
           variant="outline"
           onClick={() => void handleExport()}
-          disabled={exporting}
+          disabled={exporting || totalCount === 0}
           className={auditExportButtonClassName()}
         >
           <ArrowDownTrayIcon className="h-4 w-4" />
@@ -289,10 +294,10 @@ export function LegalDocumentAuditPanel() {
           <TableBody>
             {isLoading ? (
               <AuditLogSkeletonRows columns={COLUMN_COUNT} />
-            ) : logs.length === 0 ? (
+            ) : visibleLogs.length === 0 ? (
               <AuditLogEmptyRow colSpan={COLUMN_COUNT} />
             ) : (
-              logs.map((row) => (
+              visibleLogs.map((row) => (
                 <TableRow key={row.id} className={AUDIT_ROW_CLASS} onClick={() => openDetails(row)}>
                   <TableCell className={AUDIT_TIMESTAMP_CELL_CLASS}>
                     {formatAuditDateTime(row.createdAt)}
@@ -328,7 +333,11 @@ export function LegalDocumentAuditPanel() {
       <AuditDetailDrawer
         open={detailOpen}
         onOpenChange={setDetailOpen}
-        record={selectedLog ? legalAuditToAuditDetail(selectedLog) : null}
+        record={
+          selectedLog
+            ? legalAuditToAuditDetail(selectedLog, companionInitialVersionUpload(selectedLog, logs))
+            : null
+        }
       />
     </div>
   );

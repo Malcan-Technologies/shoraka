@@ -3,6 +3,7 @@ import {
   diffAuditValues,
   formatAuditDateTime,
   formatAuditEventLabel,
+  formatAuditSourceLabel,
   isSystemActorToken,
   presentAuditActorName,
   redactAuditSecrets,
@@ -26,6 +27,14 @@ describe("audit presentation", () => {
     expect(isSystemActorToken("SYS")).toBe(true);
     expect(presentAuditActorName("SYS")).toBe("System");
     expect(presentAuditActorName("Ada Admin")).toBe("Ada Admin");
+  });
+
+  it("labels source as a channel, not a second actor type", () => {
+    expect(formatAuditSourceLabel("ADMIN")).toBe("Admin Portal");
+    expect(formatAuditSourceLabel("API")).toBe("API");
+    expect(formatAuditSourceLabel("SYSTEM")).toBe("System");
+    expect(formatAuditSourceLabel("SYSTEM_JOB")).toBe("System Job");
+    expect(formatAuditSourceLabel("WEBHOOK")).toBe("Webhook");
   });
 
   it("redacts secrets and keeps business evidence", () => {

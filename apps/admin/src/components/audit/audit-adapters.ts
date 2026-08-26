@@ -68,6 +68,49 @@ function metadataAmount(metadata: Record<string, unknown> | null | undefined) {
   };
 }
 
+/** Same-click legal create always writes DOCUMENT_CREATED then initial v1 VERSION_UPLOADED. */
+const INITIAL_VERSION_COMPANION_WINDOW_MS = 120_000;
+
+function auditTimestampMs(value: string): number {
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+export function isCompanionInitialVersionUpload(
+  versionRow: LegalDocumentAuditLogListItem,
+  createRow: LegalDocumentAuditLogListItem
+): boolean {
+  if (createRow.action !== "LEGAL_DOCUMENT_CREATED") return false;
+  if (versionRow.action !== "LEGAL_VERSION_UPLOADED") return false;
+  if (versionRow.versionNumber !== 1) return false;
+  if (!versionRow.legalDocumentId || versionRow.legalDocumentId !== createRow.legalDocumentId) {
+    return false;
+  }
+  return (
+    Math.abs(auditTimestampMs(versionRow.createdAt) - auditTimestampMs(createRow.createdAt)) <=
+    INITIAL_VERSION_COMPANION_WINDOW_MS
+  );
+}
+
+export function visibleLegalDocumentAuditLogs(
+  logs: LegalDocumentAuditLogListItem[]
+): LegalDocumentAuditLogListItem[] {
+  return logs.filter(
+    (row) =>
+      !logs.some(
+        (other) =>
+          other.action === "LEGAL_DOCUMENT_CREATED" && isCompanionInitialVersionUpload(row, other)
+      )
+  );
+}
+
+export function companionInitialVersionUpload(
+  created: LegalDocumentAuditLogListItem,
+  logs: LegalDocumentAuditLogListItem[]
+): LegalDocumentAuditLogListItem | undefined {
+  return logs.find((row) => isCompanionInitialVersionUpload(row, created));
+}
+
 export type AccessLikeLog = ForensicFields & {
   id: string;
   user_id: string;
@@ -197,16 +240,30 @@ export function productLogToAuditDetail(log: ProductLogResponse & ForensicFields
   };
 }
 
-export function legalAuditToAuditDetail(log: LegalDocumentAuditLogListItem): AuditDetailRecord {
+export function legalAuditToAuditDetail(
+  log: LegalDocumentAuditLogListItem,
+  initialVersion?: LegalDocumentAuditLogListItem | null
+): AuditDetailRecord {
   const actorType = resolveAuditActorType({
     actorName: log.actorName,
     actorUserId: log.actorUserId,
     portal: "ADMIN",
   });
+  const companion = log.action === "LEGAL_DOCUMENT_CREATED" ? initialVersion : null;
+  const companionAfter = companion?.afterJson ?? null;
+  const companionVersion =
+    companion?.versionNumber != null
+      ? `v${companion.versionNumber}`
+      : pickString(companionAfter, ["version"])
+        ? `v${pickString(companionAfter, ["version"])}`
+        : null;
   return {
     id: log.id,
     title: "Event details",
-    eventLabel: formatAuditEventLabel(log.action),
+    eventLabel:
+      log.action === "LEGAL_DOCUMENT_CREATED"
+        ? "Document created"
+        : formatAuditEventLabel(log.action),
     eventType: log.action,
     timestamp: log.createdAt,
     actor: {
@@ -220,11 +277,22 @@ export function legalAuditToAuditDetail(log: LegalDocumentAuditLogListItem): Aud
     target: {
       type: log.documentType,
       id: log.legalDocumentId,
-      extra: presentFields([
-        { label: "Version ID", value: log.legalDocumentVersionId },
-        { label: "Version", value: log.versionNumber != null ? `v${log.versionNumber}` : null },
-        { label: "Document hash", value: log.documentHash },
-      ]),
+      extra: companion
+        ? presentFields([
+            { label: "Initial version", value: companionVersion },
+            { label: "File name", value: pickString(companionAfter, ["file_name"]) },
+            {
+              label: "File hash",
+              value: companion.documentHash ?? pickString(companionAfter, ["file_hash"]),
+            },
+            { label: "Initial status", value: pickString(companionAfter, ["status"]) },
+            { label: "Version ID", value: companion.legalDocumentVersionId },
+          ])
+        : presentFields([
+            { label: "Version ID", value: log.legalDocumentVersionId },
+            { label: "Version", value: log.versionNumber != null ? `v${log.versionNumber}` : null },
+            { label: "Document hash", value: log.documentHash },
+          ]),
     },
     changedFields: diffAuditValues(log.beforeJson, log.afterJson),
     reason: log.reason,
@@ -234,10 +302,17 @@ export function legalAuditToAuditDetail(log: LegalDocumentAuditLogListItem): Aud
       { label: "Correlation ID", value: log.correlationId },
       { label: "IP address", value: log.ipAddress },
       { label: "User agent", value: log.userAgent },
+      { label: "Initial version event ID", value: companion?.id },
     ]),
     metadata: {
       beforeJson: log.beforeJson,
       afterJson: log.afterJson,
+      ...(companion
+        ? {
+            initialVersionEventId: companion.id,
+            initialVersionAfterJson: companion.afterJson,
+          }
+        : {}),
     },
     previousValues: log.beforeJson,
     nextValues: log.afterJson,
@@ -274,7 +349,6 @@ export function notificationLogToAuditDetail(log: AdminNotificationLog): AuditDe
       title: log.title,
       message: log.message,
       audience: log.target_type.replace(/_/g, " "),
-      source: log.source,
       platformDelivered: String(log.delivered_platform_count),
       emailDelivered: String(log.delivered_email_count),
       idempotencyKey: log.idempotency_key,
