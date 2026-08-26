@@ -310,3 +310,88 @@ describe("NotificationService.resetNotificationTypesToDefault", () => {
     expect(mockUpdateType).not.toHaveBeenCalledWith("password_changed", expect.anything());
   });
 });
+
+describe("Admin-configurable channels for investment_committed and deposit_successful", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockFindByIdempotencyKey.mockResolvedValue(null);
+    mockFindUserPreferences.mockResolvedValue([]);
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(ownerUser);
+    mockSendEmail.mockResolvedValue(undefined);
+    (prisma.notification.update as jest.Mock).mockResolvedValue({});
+  });
+
+  it.each([
+    [
+      NotificationTypeIds.INVESTMENT_COMMITTED,
+      { amount: 2500, noteId: "n1", noteTitle: "Invoice Note" },
+    ],
+    [NotificationTypeIds.DEPOSIT_SUCCESSFUL, { amount: 1500 }],
+  ] as const)("%s seed default (email off) does not send email", async (typeId, payload) => {
+    mockFindTypeById.mockResolvedValue(
+      mockTypeRow(typeId, true, false, { userConfigurable: true })
+    );
+    mockRepositoryCreate.mockResolvedValue({
+      id: "notif-1",
+      send_to_platform: true,
+      send_to_email: false,
+    });
+    const service = new NotificationService();
+    await service.sendTyped(ownerUser.user_id, typeId, payload, `${typeId}:idem`);
+
+    expect(mockRepositoryCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        send_to_platform: true,
+        send_to_email: false,
+      })
+    );
+    expect(mockSendEmail).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      NotificationTypeIds.INVESTMENT_COMMITTED,
+      { amount: 2500, noteId: "n1", noteTitle: "Invoice Note" },
+    ],
+    [NotificationTypeIds.DEPOSIT_SUCCESSFUL, { amount: 1500 }],
+  ] as const)("%s sends email when Admin enables the email channel", async (typeId, payload) => {
+    mockFindTypeById.mockResolvedValue(
+      mockTypeRow(typeId, true, true, { userConfigurable: true })
+    );
+    mockRepositoryCreate.mockResolvedValue({
+      id: "notif-1",
+      send_to_platform: true,
+      send_to_email: true,
+      title: "t",
+      message: "m",
+      link_path: "/",
+      metadata: { portal: "investor" },
+    });
+    const service = new NotificationService();
+    await service.sendTyped(ownerUser.user_id, typeId, payload, `${typeId}:email-on`);
+
+    expect(mockRepositoryCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        send_to_platform: true,
+        send_to_email: true,
+      })
+    );
+    expect(mockSendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets Admin toggle the new types via updateNotificationType", async () => {
+    const typeRow = mockTypeRow(NotificationTypeIds.INVESTMENT_COMMITTED, true, false, {
+      userConfigurable: true,
+    });
+    mockFindTypeById.mockResolvedValue(typeRow);
+    mockUpdateType.mockResolvedValue({ ...typeRow, enabled_email: true });
+    const service = new NotificationService();
+
+    await expect(
+      service.updateNotificationType(NotificationTypeIds.INVESTMENT_COMMITTED, {
+        enabled_platform: true,
+        enabled_email: true,
+      })
+    ).resolves.toEqual(expect.objectContaining({ enabled_email: true }));
+  });
+});

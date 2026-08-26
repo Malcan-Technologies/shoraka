@@ -150,7 +150,7 @@ Coverage for live customer and Admin tracing is **complete**. Remaining rows in 
 | Note | Close funding | `CLOSE_FUNDING` | LIVE_UI | ADMIN / SYSTEM | **Close Funding**; also hourly listing expiry + auto-close on full commit (SYS / SYSTEM_JOB) | `note_events` | Note Activity | YES — Funding Closed | NO | before/after | `note_funding_succeeded` — Funding Closed | issuer org members | platform | GOOD | TRACEABLE | STRONG | KEEP |
 | Note | Fail funding | `FAIL_FUNDING` | LIVE_UI | ADMIN / SYSTEM | **Mark funding unsuccessful**; also cron under-minimum | `note_events` | Note Activity | YES — Funding Unsuccessful | YES | before/after | `note_funding_failed_issuer` + `_investor` | issuer members + committed investors | platform | GOOD | TRACEABLE | STRONG | KEEP |
 | Note | Manual activate | `ACTIVATE` | LIVE_API_ONLY | ADMIN | `POST .../activate`. Hook `useActivateNote` **zero page mounts**. Live servicing start is disbursement complete | `note_events` | Would show if called | Would show | Would show | — | `note_active_issuer` + `note_active_investor` **only if this API is called** | — | platform | INTENTIONALLY_SILENT | NOT_TRACEABLE | SUFFICIENT | ADMIN_ONLY |
-| Investment | Commit | `INVESTMENT_COMMITTED` | LIVE_UI | USER | Marketplace commit | `note_events` | Note Activity | NO | YES — Investment Committed | amount, org | — | — | — | GOOD | TRACEABLE | STRONG | KEEP |
+| Investment | Commit | `INVESTMENT_COMMITTED` | LIVE_UI | USER | Marketplace commit | `note_events` | Note Activity | NO | YES — Investment Committed | amount, org | `investment_committed` — Investment Committed | committing investor | platform (email off by default; Admin-configurable) | GOOD | TRACEABLE | STRONG | KEEP |
 | Tawarruq | Submit / certificate | `SHORAKA_ORDER_SUBMITTED` / `SHORAKA_CERTIFICATE_FETCHED` | LIVE_UI | ADMIN | IssuerPayoutCard | `note_events` | Note Activity + payout card | NO | NO | order/certificate keys | — | — | — | INTENTIONALLY_SILENT | TRACEABLE | STRONG | ADMIN_ONLY |
 | Disbursement | Instruction created | `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` | LIVE_SYSTEM | SYSTEM | Side-effect of closeFunding | `note_events` | Note Activity (hidden from portals) | NO | NO | amounts/fees | — | — | — | INTENTIONALLY_SILENT | TRACEABLE | STRONG | ADMIN_ONLY |
 | Disbursement | Letter / submit / email / complete | `WITHDRAWAL_*` | LIVE_UI | ADMIN | IssuerPayoutCard (`note_id` set) | `note_events` | Note Activity + disbursement tab | NO except completed | NO except completed | withdrawalId, display ref | `withdrawal_submitted_to_trustee`; complete: `withdrawal_completed` | issuer members | platform | GOOD | TRACEABLE | STRONG | KEEP |
@@ -172,9 +172,9 @@ Coverage for live customer and Admin tracing is **complete**. Remaining rows in 
 
 | Module | Business Moment | Event ID | Status | Trigger | UI/API Reachability | Audit Table | Admin Evidence Surface | Issuer Activity | Investor Activity | Evidence Stored | Notification | Recipient | Channel | User POV | Admin Traceability | Evidence Quality | Decision |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Deposit | Happy-path capture + credit | — | LIVE_WEBHOOK | WEBHOOK | Curlec capture → `creditCompletedDeposit`. **No gateway event row** | `gateway_payments` COMPLETED + wallet + ledger | Gateway payment detail + recon | N/A | **Transactions page** (not Activity) | amount, payment id, ts | — | — | — | SUFFICIENT_VIA_STATUS_PAGE | TRACEABLE | SUFFICIENT | KEEP |
+| Deposit | Happy-path capture + credit | — | LIVE_WEBHOOK | WEBHOOK | Curlec capture → `creditCompletedDeposit`. **No gateway event row** | `gateway_payments` COMPLETED + wallet + ledger | Gateway payment detail + recon | N/A | **Transactions page** + inbox | amount, payment id, ts | `deposit_successful` — Deposit Successful | investor org members | platform (email off by default; Admin-configurable) | GOOD | TRACEABLE | SUFFICIENT | KEEP |
 | Deposit | Name check held | `NAME_CHECK` | LIVE_WEBHOOK | WEBHOOK | Capture REVIEW | `gateway_payment_events` | Gateway detail | N/A | NO | from/to status | — | — | — | INTENTIONALLY_SILENT | TRACEABLE | SUFFICIENT | ADMIN_ONLY |
-| Deposit | Name check approve | `NAME_CHECK_APPROVED` | LIVE_UI | ADMIN | Finance gateway **Approve** | events + wallet | Gateway detail | N/A | Transactions | actor Admin | — | — | — | SUFFICIENT_VIA_STATUS_PAGE | TRACEABLE | STRONG | KEEP |
+| Deposit | Name check approve | `NAME_CHECK_APPROVED` | LIVE_UI | ADMIN | Finance gateway **Approve** | events + wallet | Gateway detail | N/A | Transactions + inbox | actor Admin | `deposit_successful` — Deposit Successful | investor org members | platform (email off by default; Admin-configurable) | GOOD | TRACEABLE | STRONG | KEEP |
 | Deposit | Name check reject | `NAME_CHECK_REJECTED` | LIVE_UI | ADMIN | **Reject** → refund | events + refund | Gateway detail | N/A | Inbox | actor Admin | `deposit_name_check_rejected` — Deposit Verification Failed | investor org members | platform | GOOD | TRACEABLE | STRONG | KEEP |
 | Gateway | Amount/currency hold | `CAPTURE_MISMATCH` | LIVE_WEBHOOK | WEBHOOK | Capture / stuck poller | `gateway_payment_events` | Gateway detail | N/A | NO | reason | — | — | — | INTENTIONALLY_SILENT | TRACEABLE | SUFFICIENT | ADMIN_ONLY |
 | Gateway | Abandoned checkout | `EXPIRED` | LIVE_SYSTEM | SYSTEM | Stuck-order poller `*/15`. actorless → SYSTEM / INTERNAL. Cron corr in logs | `gateway_payment_events` | Gateway detail | N/A | Transactions status | reason text | — | — | — | SUFFICIENT_VIA_STATUS_PAGE | TRACEABLE | SUFFICIENT | KEEP |
@@ -206,14 +206,14 @@ Coverage for live customer and Admin tracing is **complete**. Remaining rows in 
 
 ## Notification registry (send proof)
 
-Source: `apps/api/src/modules/notification/registry.ts` + `sendTyped` / `sendTypedPlatformOnly` call sites.
+Source: `apps/api/src/modules/notification/registry.ts` + `sendTyped` / `sendTypedAndLogSystem` / `logTypedSystemBatch` call sites. There is no production `sendTypedPlatformOnly`.
 
 | Classification | Count | Types |
 |---|---|---|
-| LIVE_AUTOMATIC | 45 | All registry IDs except the 6 below |
+| LIVE_AUTOMATIC | 47 | All current registry IDs except the 2 bulk-only types |
 | BULK_ONLY | 2 | `system_announcement`, `new_product_alert` — templates unused; Admin types copy |
-| DEAD | 4 | `kyc_approved`, `kyc_rejected`, `login_new_device`, `application_approved` — hidden from config toggles |
-| Total | 51 | |
+| DEAD (historical DB only) | 4 | `kyc_approved`, `kyc_rejected`, `login_new_device`, `application_approved` — not in current registry; hidden from config toggles |
+| Total registry | 49 | |
 
 `note_active_issuer` is LIVE_AUTOMATIC **only if** `NotesService.activate` runs. Current disbursement UI does **not** call `activate`. Issuers get `withdrawal_completed` instead. Confirmed investors still get `note_active_investor` on disbursement complete.
 
@@ -261,10 +261,12 @@ Idempotency: note-lifecycle and money helpers use `{resource}:{id}:notif:{type}:
 | `facility_fee_upfront_paid` | Upfront facility fee paid | RM received | platform + email |
 | `excess_late_charges_due` | Outstanding late charges to pay | RM due | platform + email |
 | `excess_late_charges_paid` | Late payment charges received | RM received | platform + email |
-| `deposit_name_check_rejected` | Deposit Verification Failed | will be returned | platform |
-| `deposit_refund_initiated` | Refund Started | refund of RM initiated | platform |
-| `deposit_refunded` | Refund Completed | refund of RM completed | platform |
-| `investor_withdrawal_submitted` | Withdrawal Submitted | request of RM submitted | platform |
+| `deposit_name_check_rejected` | Deposit Verification Failed | will be returned | platform (email off by default; Admin-configurable) |
+| `deposit_refund_initiated` | Refund Started | refund of RM initiated | platform (email off by default; Admin-configurable) |
+| `deposit_refunded` | Refund Completed | refund of RM completed | platform (email off by default; Admin-configurable) |
+| `deposit_successful` | Deposit Successful | deposit of RM credited to wallet | platform (email off by default; Admin-configurable) |
+| `investment_committed` | Investment Committed | RM committed in "{noteTitle}" | platform (email off by default; Admin-configurable) |
+| `investor_withdrawal_submitted` | Withdrawal Submitted | request of RM submitted | platform (email off by default; Admin-configurable) |
 | `investor_withdrawal_completed` | Withdrawal Completed | withdrawal of RM completed | platform |
 | `note_active_issuer` | Your Note Is Active | **not sent on live disbursement UI** | platform if `activate` API used |
 

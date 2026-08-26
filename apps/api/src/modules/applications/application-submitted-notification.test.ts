@@ -26,7 +26,7 @@ jest.mock("../contracts/repository", () => ({
 jest.mock("../notification/service", () => ({
   NotificationService: jest.fn().mockImplementation(() => ({
     sendTyped: (...args: unknown[]) => mockSendTyped(...args),
-    sendTypedPlatformOnly: jest.fn(),
+    logTypedSystemBatch: jest.fn().mockResolvedValue(undefined),
   })),
 }));
 jest.mock("../notification/application-recipients", () => ({

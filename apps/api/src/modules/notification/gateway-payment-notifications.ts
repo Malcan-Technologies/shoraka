@@ -7,7 +7,7 @@ import { NotificationService } from "./service";
 import { sendTypedToUsersSafe } from "./send-typed-safe";
 
 /**
- * Investor deposit gateway-event notifications. All three fire only for
+ * Investor deposit gateway-event notifications. All four fire only for
  * GatewayPaymentPurpose.INVESTOR_DEPOSIT — onboarding-fee and processing-fee
  * gateway payments (issuer-side) never notify from here.
  *
@@ -33,7 +33,8 @@ async function sendToInvestorOrgForPayment(
   typeId:
     | typeof NotificationTypeIds.DEPOSIT_NAME_CHECK_REJECTED
     | typeof NotificationTypeIds.DEPOSIT_REFUND_INITIATED
-    | typeof NotificationTypeIds.DEPOSIT_REFUNDED,
+    | typeof NotificationTypeIds.DEPOSIT_REFUNDED
+    | typeof NotificationTypeIds.DEPOSIT_SUCCESSFUL,
   idempotencySuffix: string
 ): Promise<void> {
   if (payment.purpose !== GatewayPaymentPurpose.INVESTOR_DEPOSIT || !payment.investor_organization_id) {
@@ -88,5 +89,18 @@ export async function notifyDepositRefunded(payment: GatewayPayment): Promise<vo
     await sendToInvestorOrgForPayment(payment, NotificationTypeIds.DEPOSIT_REFUNDED, "refunded");
   } catch (err) {
     logDepositNotificationError("refunded", payment.id, err);
+  }
+}
+
+/** After an investor deposit is credited to the wallet (status → COMPLETED). */
+export async function notifyDepositSuccessful(payment: GatewayPayment): Promise<void> {
+  try {
+    await sendToInvestorOrgForPayment(
+      payment,
+      NotificationTypeIds.DEPOSIT_SUCCESSFUL,
+      "successful"
+    );
+  } catch (err) {
+    logDepositNotificationError("successful", payment.id, err);
   }
 }

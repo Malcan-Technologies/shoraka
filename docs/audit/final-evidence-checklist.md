@@ -19,10 +19,10 @@ Companions: [master journal](./final-master-audit-notification-journal.md) · [c
 - Section/item review reject and amend require a remark. Overall application Reject does not collect a reason.
 - Facility and invoice offers: send, decline, retract, expire, sign, signing-deadline extend — logged. Expiry and reminders are the hourly job, not an Admin “Expire” button.
 - Notes: publish, pause/resume, close funding, fail funding — logged. Close/fail can also run from cron as SYSTEM, not as a fake Admin click.
-- Investment commit is on investor Activity and the wallet.
+- Investment commit is on investor Activity, the wallet, and inbox (`investment_committed` — Investment Committed).
 - Issuer disbursement: submit to trustee, complete. Completing payout starts servicing. Issuer inbox: “Your Disbursement Is Complete”. Investors: “Your Investment Is Active”. There is no current Admin “Activate note” button.
 - Investor cash withdrawal: request and complete notify the requesting investor. Status is on `/transactions` and Admin finance withdrawal pages. No note Activity row (there is no note).
-- Deposits: success is on `/transactions` and Admin gateway detail. Name-check reject and deposit refunds notify the investor.
+- Deposits: success is on `/transactions`, inbox (`deposit_successful` — Deposit Successful), and Admin gateway detail. Name-check reject and deposit refunds notify the investor.
 - Repayments, settlement, arrears, default: Admin settlement panel plus note Activity. Investors are notified on recorded repayment, settlement, arrears, and default. Issuer is notified on repayment reject, arrears, default, and full note repaid.
 - Trustee letters go by direct email to the trustee (not the user inbox). Admin can see the letter/submit/complete trail on the note.
 - Scheduled listing close/fail and offer/signing-clock expiry are attributed as SYSTEM / SYSTEM_JOB / SYS.
@@ -37,9 +37,8 @@ These are the honest remaining holes — **not** delivery blockers:
 
 1. **Signing envelope expiry job** sets the envelope to EXPIRED and writes no Activity row. Admin still sees EXPIRED on the signing panel. Offer/signing **clock** expiry is a different job and **is** logged and notified.
 2. **Notification type on/off toggles** keep only last `updated_at`. No who/before/after history.
-3. **Successful deposit** has no inbox item. The investor can see the credit on `/transactions`.
-4. **Issuer is not inbox-notified** when Admin records a repayment (investors are). Issuer already submitted it and can see the note.
-5. **Overall application Reject** stores no reason because the Admin dialog never asks for one.
+3. **Issuer is not inbox-notified** when Admin records a repayment (investors are). Issuer already submitted it and can see the note.
+4. **Overall application Reject** stores no reason because the Admin dialog never asks for one.
 
 Issuer-journey PDF items (reminder days, fee-after-AML, Notice of Assignment, guarantor acknowledgement at LO, 18% cap, SC T&C gate) are **product/legal workflow** gaps, not audit-coverage gaps.
 
@@ -77,15 +76,14 @@ They use a mix of:
 - Status / detail pages
 - `/transactions`
 
-They do **not** need an Activity row for wallet deposits or investor cash withdrawals. Those live on transactions + inbox (withdrawals) or transactions only (successful deposit).
+They do **not** need an Activity row for wallet deposits or investor cash withdrawals. Those live on transactions + inbox.
 
 **Exceptions**
 
-- Successful deposit: no inbox. User must open transactions.
 - Overall application reject: no reason text.
 - Intermediate Admin gates (SSM, AML refresh, submission approved): Admin-only until “Onboarding Approved”.
 
-Can they explain a problem to support with what they see? **YES**, except they may not have a written reject reason on overall application reject, and they may not have an inbox line for a successful deposit.
+Can they explain a problem to support with what they see? **YES**, except they may not have a written reject reason on overall application reject.
 
 ---
 

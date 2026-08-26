@@ -10,7 +10,6 @@ Classification: `AUDIT_DEFECT` | `NOTIFICATION_GAP` | `ACTIVITY_GAP` | `COPY_ISS
 |---|---|---|---|---|---|---|---|
 | Signing envelope expiry has no log row | Signing | Hourly job sets envelope `EXPIRED`. Signing panel shows status. `SIGNING_PACKAGE_EXPIRED` is not a live writer. Offer/signing **clock** expiry is a different job and **is** logged + notified | An `application_logs` row with SYSTEM / SYSTEM_JOB | Forensic timeline vs operational status. Admin can already reconstruct from the envelope | Leave it. Only add a log row if compliance requires a timeline line | SAFE_TO_DEFER | Eng / product |
 | Notification type toggles have no history | Config | Admin Settings → Notifications → Configuration. Only `updated_at` | Who, when, before, after, append-only history | Cannot prove who turned a channel off | Add a `security_logs` row **only if** ops must prove notify-policy changes | CLIENT_DECISION | Ops |
-| Successful deposit has no inbox | Investor money | Wallet credits; `/transactions` shows it; no `sendTyped` on happy-path capture | Inbox line | User may not notice credit until they open transactions | Keep silent or add deposit-success notify | CLIENT_DECISION | Product |
 | Issuer not notified when Admin records a repayment | Servicing | Investors get `note_payment_received`. Issuer submitted it; they see the note. Full payoff uses `note_repaid_issuer` | Per-payment issuer inbox | Nice-to-have confirmation | Do not add unless product wants issuer/investor parity | PRODUCT_DECISION | Product |
 | Overall application reject has no reason | Application | Confirm dialog has no text field. Log and inbox have no reason | Reason text | Support cannot quote “why” | Collect a reason only if CashSouk requires it | PRODUCT_DECISION | Product / legal |
 | COD reject reason sometimes empty | Onboarding | `COD_REJECTED` + `onboarding_rejected`. Reason only if provider payload has one | Reliable reason | User/Admin may see reject without why | Store provider reason when present; do not invent | PROVIDER_LIMITATION | Eng / provider |
@@ -43,7 +42,8 @@ Classification: `AUDIT_DEFECT` | `NOTIFICATION_GAP` | `ACTIVITY_GAP` | `COPY_ISS
 | Appearance | Reality |
 |---|---|
 | Investor cash withdrawal has no `note_events` | `note_id` is null. Evidence: withdrawal instruction + wallet + inbox + `/transactions` |
-| Successful deposit has no Activity row | Investor Activity is not the wallet. Evidence: `/transactions` + Admin gateway payment |
+| Successful deposit has no Activity row | Investor Activity is not the wallet. Evidence: `/transactions` + inbox (`deposit_successful`) + Admin gateway payment |
+| Successful deposit had no inbox | Closed: webhook capture and Admin name-check approve send `deposit_successful` |
 | `ACTIVATE` missing on disbursement | Not a current Admin button. Live path: `WITHDRAWAL_COMPLETED` + investor “Your Investment Is Active” |
 | Trustee letters have no customer Activity | Admin note/settlement/withdrawal detail + (issuer disbursement) trustee-submit inbox. Trustee gets SES |
 | Finance settings “only last editor” | `security_logs.PLATFORM_FINANCE_SETTINGS_UPDATED` stores full before/after |

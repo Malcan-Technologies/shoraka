@@ -139,6 +139,7 @@ import {
   notifyInvestorCashWithdrawalCompleted,
   notifyInvestorCashWithdrawalSubmitted,
 } from "../notification/investor-withdrawal-notifications";
+import { notifyInvestmentCommitted } from "../notification/investment-notifications";
 import { notifyExcessLateChargesDue } from "../notification/excess-late-charge-notifications";
 import { notifyWithdrawalSubmittedToTrustee } from "../notification/withdrawal-notifications";
 import {
@@ -3279,7 +3280,7 @@ export class NoteService {
       maxFundedBeforeMarketplaceCommit(target, input.amount)
     );
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const { note: updated, investment } = await prisma.$transaction(async (tx) => {
       const capacityUpdate = await tx.note.updateMany({
         where: {
           id: noteId,
@@ -3346,7 +3347,20 @@ export class NoteService {
         prospectusPublicationId: publication.id,
         prospectusAcknowledgedAt: ackAt.toISOString(),
       });
-      return tx.note.findUniqueOrThrow({ where: { id: noteId }, include: noteInclude });
+      const noteRow = await tx.note.findUniqueOrThrow({
+        where: { id: noteId },
+        include: noteInclude,
+      });
+      return { note: noteRow, investment };
+    });
+
+    await notifyInvestmentCommitted({
+      notificationService: this.notificationService,
+      investmentId: investment.id,
+      recipientUserId: actor.userId,
+      amount: input.amount,
+      noteId,
+      noteTitle: resolveNoteNotificationTitle(updated),
     });
 
     const updatedFunded = toNumber(updated.funded_amount);

@@ -38,12 +38,12 @@ Internal forensic events (Admin ticks, occupancy, Shoraka certificates, trustee 
 | Note | Campaign paused / resumed | Activity: Campaign Paused / Resumed | Listing visibility | No | — | Admin note Activity | CONFIRM |
 | Note | Funding closed | Activity: Funding Closed + inbox | — | Yes — Funding Closed | Issuer org members | Admin note Activity; may be System auto-close | CONFIRM |
 | Note | Funding unsuccessful | Activity: Funding Unsuccessful + inbox | Activity: Funding Unsuccessful + inbox (commitment released) | Yes — separate issuer and investor copy | Issuer members + committed investors | Admin note Activity + wallet release | CONFIRM |
-| Investment | Commit | — | Activity: Investment Committed + wallet | No | — | Admin note Activity + wallet | CONFIRM |
+| Investment | Commit | — | Activity: Investment Committed + inbox | Yes — Investment Committed | The investor who committed | Admin note Activity + wallet + notification log | CONFIRM |
 | Disbursement | Submitted to trustee | Inbox: Withdrawal Submitted to Trustee (not Activity) | — | Yes | Issuer org members | Admin payout card + note Activity | CONFIRM |
 | Disbursement | Payout completed and servicing starts | Activity + inbox: Your Disbursement Is Complete | Activity + inbox: Your Investment Is Active | Yes | Issuer members + confirmed investors | Admin can trace withdrawal, amount, status, actor, timestamps. **Not** an “Activate” button | CONFIRM |
 | Investor cash | Withdrawal requested | — | Inbox + `/transactions` (no Activity row) | Yes — Withdrawal Submitted | Requesting investor | Admin finance withdrawal pages + wallet debit | CONFIRM |
 | Investor cash | Withdrawal completed | — | Inbox + `/transactions` | Yes — Withdrawal Completed | Requesting investor | Same | CONFIRM |
-| Deposit | Successful credit | — | `/transactions` (no inbox) | No | — | Admin gateway payment + wallet | CHANGE? notify success? |
+| Deposit | Successful credit | — | `/transactions` + inbox | Yes — Deposit Successful | Investor org members | Admin gateway payment + wallet + notification log | CONFIRM |
 | Deposit | Name check rejected | — | Inbox: Deposit Verification Failed | Yes | Investor org members | Admin gateway detail | CONFIRM |
 | Deposit | Refund started / completed | — | Inbox: Refund Started / Refund Completed | Yes | Investor org members | Admin gateway detail | CONFIRM |
 | Repayment | Issuer submitted | Activity: You Submitted a Repayment | — | No | — | Admin settlement panel | CONFIRM |

@@ -20,7 +20,10 @@ import {
   initiateInvestorDepositRefund,
   retryWalletReversalForConfirmedRefund,
 } from "./refund-service";
-import { notifyDepositNameCheckRejected } from "../notification/gateway-payment-notifications";
+import {
+  notifyDepositNameCheckRejected,
+  notifyDepositSuccessful,
+} from "../notification/gateway-payment-notifications";
 import { scheduleGatewayPaymentReceipt } from "./receipt/receipt-service";
 import { getReceiptRelatedReferenceLabel } from "./receipt/receipt-purpose";
 import { buildGatewayPaymentSearchOr } from "./gateway-payment-list-search";
@@ -450,6 +453,11 @@ export async function approveNameCheck(
   });
 
   scheduleGatewayPaymentReceipt(payment.id, db);
+
+  const completed = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
+  if (completed?.status === GatewayPaymentStatus.COMPLETED) {
+    await notifyDepositSuccessful(completed);
+  }
 
   return getGatewayPaymentDetail(gatewayPaymentId, db);
 }

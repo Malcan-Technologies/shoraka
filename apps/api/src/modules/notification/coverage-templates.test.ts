@@ -95,6 +95,25 @@ describe("notification coverage templates", () => {
     expect(completed.portal).toBe("investor");
   });
 
+  it("renders investment committed and successful deposit copy", () => {
+    const committed = NOTIFICATION_TEMPLATES[NotificationTypeIds.INVESTMENT_COMMITTED];
+    expect(committed.title).toBe("Investment Committed");
+    expect(
+      committed.message({ amount: 2500, noteId: "n1", noteTitle: "Invoice Note" })
+    ).toBe('Your investment of RM2,500 in "Invoice Note" has been successfully committed.');
+    expect(committed.portal).toBe("investor");
+
+    const deposited = NOTIFICATION_TEMPLATES[NotificationTypeIds.DEPOSIT_SUCCESSFUL];
+    expect(deposited.title).toBe("Deposit Successful");
+    expect(deposited.message({ amount: 1500 })).toBe(
+      "Your deposit of RM1,500 has been successfully credited to your wallet."
+    );
+    expect(deposited.portal).toBe("investor");
+    expect(typeof deposited.linkPath === "function" ? deposited.linkPath({ amount: 1500 }) : deposited.linkPath).toBe(
+      "/transactions"
+    );
+  });
+
   it("renders withdrawal submitted-to-trustee copy with the display reference", () => {
     const t = NOTIFICATION_TEMPLATES[NotificationTypeIds.WITHDRAWAL_SUBMITTED_TO_TRUSTEE];
     expect(t.title).toBe("Withdrawal Submitted to Trustee");

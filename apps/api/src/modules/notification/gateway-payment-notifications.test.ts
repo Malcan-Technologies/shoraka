@@ -19,6 +19,7 @@ import {
   notifyDepositNameCheckRejected,
   notifyDepositRefundInitiated,
   notifyDepositRefunded,
+  notifyDepositSuccessful,
 } from "./gateway-payment-notifications";
 
 function depositPayment(overrides: Record<string, unknown> = {}) {
@@ -84,5 +85,50 @@ describe("gateway deposit notifications", () => {
       { amount: 1500 },
       expect.stringContaining("refunded")
     );
+  });
+
+  it("sends successful deposit once to investor org members with the credited amount", async () => {
+    await notifyDepositSuccessful(depositPayment());
+
+    expect(listInvestorOrgMemberUserIds).toHaveBeenCalledWith("inv-org-1");
+    expect(sendTyped).toHaveBeenCalledTimes(2);
+    expect(sendTyped).toHaveBeenCalledWith(
+      "inv-owner",
+      NotificationTypeIds.DEPOSIT_SUCCESSFUL,
+      { amount: 1500 },
+      "gateway-payment:gp-1:notif:deposit_successful:user:inv-owner:successful"
+    );
+    expect(logTypedSystemBatch).toHaveBeenCalledTimes(1);
+    expect(logTypedSystemBatch).toHaveBeenCalledWith(
+      NotificationTypeIds.DEPOSIT_SUCCESSFUL,
+      { amount: 1500 },
+      expect.any(Array),
+      expect.objectContaining({
+        idempotencyKey: expect.stringContaining("deposit_successful"),
+      })
+    );
+    expect(sendTyped.mock.calls.every((c) => c.length === 4)).toBe(true);
+  });
+
+  it("does not duplicate successful-deposit sends on webhook replay of the same payment", async () => {
+    await notifyDepositSuccessful(depositPayment());
+    await notifyDepositSuccessful(depositPayment());
+
+    const keys = sendTyped.mock.calls.map((c) => c[3]);
+    expect(new Set(keys).size).toBe(2);
+    expect(keys.every((k: string) => k.includes("deposit_successful"))).toBe(true);
+  });
+
+  it("does not notify successful deposit for non-deposit gateway purposes", async () => {
+    await notifyDepositSuccessful(
+      depositPayment({ purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE })
+    );
+    expect(sendTyped).not.toHaveBeenCalled();
+  });
+
+  it("does not send reject or refund types from the successful-credit helper", async () => {
+    await notifyDepositSuccessful(depositPayment());
+    const typeIds = sendTyped.mock.calls.map((c) => c[1]);
+    expect(typeIds.every((id) => id === NotificationTypeIds.DEPOSIT_SUCCESSFUL)).toBe(true);
   });
 });

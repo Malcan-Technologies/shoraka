@@ -67,6 +67,8 @@ export const NotificationTypeIds = {
   DEPOSIT_NAME_CHECK_REJECTED: "deposit_name_check_rejected",
   DEPOSIT_REFUND_INITIATED: "deposit_refund_initiated",
   DEPOSIT_REFUNDED: "deposit_refunded",
+  DEPOSIT_SUCCESSFUL: "deposit_successful",
+  INVESTMENT_COMMITTED: "investment_committed",
   INVESTOR_WITHDRAWAL_SUBMITTED: "investor_withdrawal_submitted",
   INVESTOR_WITHDRAWAL_COMPLETED: "investor_withdrawal_completed",
 } as const;
@@ -289,6 +291,14 @@ export interface NotificationPayloads {
   };
   [NotificationTypeIds.DEPOSIT_REFUNDED]: {
     amount: number;
+  };
+  [NotificationTypeIds.DEPOSIT_SUCCESSFUL]: {
+    amount: number;
+  };
+  [NotificationTypeIds.INVESTMENT_COMMITTED]: {
+    amount: number;
+    noteId: string;
+    noteTitle: string;
   };
   [NotificationTypeIds.INVESTOR_WITHDRAWAL_SUBMITTED]: {
     amount: number;
@@ -666,6 +676,20 @@ export const NOTIFICATION_TEMPLATES: {
     message: (data) => `Your refund of RM${data.amount.toLocaleString()} has been completed.`,
     linkPath: () => `/transactions`,
     portal: 'investor',
+  },
+  [NotificationTypeIds.DEPOSIT_SUCCESSFUL]: {
+    title: "Deposit Successful",
+    message: (data) =>
+      `Your deposit of RM${data.amount.toLocaleString()} has been successfully credited to your wallet.`,
+    linkPath: () => `/transactions`,
+    portal: "investor",
+  },
+  [NotificationTypeIds.INVESTMENT_COMMITTED]: {
+    title: "Investment Committed",
+    message: (data) =>
+      `Your investment of RM${data.amount.toLocaleString()} in "${data.noteTitle}" has been successfully committed.`,
+    linkPath: (data) => `/investments/${data.noteId}`,
+    portal: "investor",
   },
   [NotificationTypeIds.INVESTOR_WITHDRAWAL_SUBMITTED]: {
     title: "Withdrawal Submitted",
