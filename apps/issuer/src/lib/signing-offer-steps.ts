@@ -1,6 +1,6 @@
 /**
  * Offer-acceptance phase helpers for the Review Offer modal stepper.
- * Step 1 is upload-only via product acceptance_documents.
+ * Step 1 is two screens (authorised representatives, then uploads) and one submit.
  */
 
 import type { SigningOfferStep } from "@/components/signing/signing-progress-stepper";
@@ -20,6 +20,7 @@ import {
 } from "@cashsouk/types";
 
 export type SigningOfferStepId =
+  | "representatives"
   | "documents"
   | "awaiting_review"
   | "rejected"
@@ -27,6 +28,22 @@ export type SigningOfferStepId =
   | "signers"
   | "signing"
   | "complete";
+
+/** Which Step 1 screen is the domain cursor (people first, then uploads). */
+export type AcceptanceStep1Screen = "representatives" | "documents";
+
+/** People before documents, except a docs-only change request lands on uploads. */
+export function resolveAcceptanceStep1Screen(input: {
+  hasPostDocs: boolean;
+  peopleStepConfirmed: boolean;
+  flaggedPartyCount: number;
+  flaggedDocumentCount: number;
+}): AcceptanceStep1Screen {
+  if (!input.hasPostDocs) return "representatives";
+  if (input.flaggedDocumentCount > 0 && input.flaggedPartyCount === 0) return "documents";
+  if (input.peopleStepConfirmed) return "documents";
+  return "representatives";
+}
 
 /** UI mode for ReviewOfferModal: full signing stepper vs Accept/Decline-only. */
 export type ReviewOfferModalMode =
@@ -127,6 +144,11 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
 
   if (input.usesAcceptanceFlow) {
     if (offerAcceptanceIsStep1Editable(input.acceptanceStatus)) {
+      shells.push({
+        id: "representatives",
+        label: "Authorised representatives",
+        description: "Name who may represent each company",
+      });
       if (input.hasPostDocs) {
         shells.push({
           id: "documents",
@@ -227,6 +249,8 @@ export type SigningOfferStepCursorInput = SigningOfferStepShellInput & {
   signersLocked: boolean;
   allDocsSigned: boolean;
   envelopeCompleted: boolean;
+  /** Step 1 sub-screen. Ignored outside the acceptance-flow editable window. */
+  acceptanceStep1Screen?: AcceptanceStep1Screen;
 };
 
 export function getCurrentSigningOfferStepId(
@@ -234,8 +258,10 @@ export function getCurrentSigningOfferStepId(
 ): SigningOfferStepId {
   if (input.usesAcceptanceFlow) {
     if (offerAcceptanceIsStep1Editable(input.acceptanceStatus)) {
-      if (input.hasPostDocs) return "documents";
-      return "documents";
+      if (input.acceptanceStep1Screen === "documents" && input.hasPostDocs) {
+        return "documents";
+      }
+      return "representatives";
     }
     if (offerAcceptanceIsAwaitingAdmin(input.acceptanceStatus)) {
       return "awaiting_review";

@@ -17,6 +17,7 @@ import {
 
 export type ApplicationGuarantorRow = {
   id: string;
+  client_guarantor_id?: string | null;
   guarantor_type: "individual" | "company";
   name?: string | null;
   business_name?: string | null;
@@ -38,6 +39,10 @@ export function guarantorsFromApplication(rows: unknown): ApplicationGuarantorRo
     if (!id) continue;
     result.push({
       id,
+      client_guarantor_id:
+        typeof (guarantor.client_guarantor_id ?? guarantor.clientGuarantorId) === "string"
+          ? String(guarantor.client_guarantor_id ?? guarantor.clientGuarantorId)
+          : null,
       guarantor_type: guarantor.guarantor_type === "company" ? "company" : "individual",
       name: typeof guarantor.name === "string" ? guarantor.name : null,
       business_name:

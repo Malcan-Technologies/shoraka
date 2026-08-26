@@ -11,6 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { applicationFlowAmendmentTargetSurfaceClassName } from "@/app/(application-flow)/applications/components/form-control";
 import type { IssuerDirectorOption } from "./issuer-directors";
 
 type IssuerAuthorizedRepresentativesCardProps = {
@@ -20,6 +22,8 @@ type IssuerAuthorizedRepresentativesCardProps = {
   onChange: (matchKeys: string[]) => void;
   readOnly?: boolean;
   isLoading?: boolean;
+  highlighted?: boolean;
+  remark?: string | null;
 };
 
 export function IssuerAuthorizedRepresentativesCard({
@@ -29,6 +33,8 @@ export function IssuerAuthorizedRepresentativesCard({
   onChange,
   readOnly = false,
   isLoading = false,
+  highlighted = false,
+  remark = null,
 }: IssuerAuthorizedRepresentativesCardProps) {
   const usedKeys = new Set(selectedMatchKeys.filter(Boolean));
   const availableToAdd = directors.filter((director) => !usedKeys.has(director.matchKey));
@@ -52,7 +58,14 @@ export function IssuerAuthorizedRepresentativesCard({
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-border bg-background p-3">
+    <div
+      className={cn(
+        "space-y-3 rounded-xl bg-background p-3",
+        highlighted
+          ? applicationFlowAmendmentTargetSurfaceClassName
+          : "border border-border"
+      )}
+    >
       <div className="min-w-0">
         <p className="text-card-title text-foreground">Issuer company</p>
         <p className="text-ui text-muted-foreground">{companyName}</p>
@@ -60,6 +73,11 @@ export function IssuerAuthorizedRepresentativesCard({
           Select the directors who may represent this company. CashSouk will review this list with
           the Board Resolution.
         </p>
+        {highlighted ? (
+          <p className="mt-2 text-ui text-foreground">
+            {remark?.trim() ? remark : "CashSouk requested a change to this list."}
+          </p>
+        ) : null}
       </div>
       {isLoading ? (
         <p className="text-ui text-muted-foreground">Loading directors…</p>

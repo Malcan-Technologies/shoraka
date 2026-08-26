@@ -1,10 +1,18 @@
-import { parseOfferAcceptanceDetails } from "./offer-acceptance";
+import { offerAcceptanceFreezesAuthorizedParties, parseOfferAcceptanceDetails } from "./offer-acceptance";
 import {
+  authorizedPartyListFingerprint,
   authorizedPartyReadOnlyBlocks,
+  findSubmittedPartyForSnapshotParty,
+  authorizedRepresentativeReviewItemId,
+  collectAuthorizedRepresentativeReviewKeys,
   getIssuerAuthorizedParty,
+  groupAuthorizedPartyReadOnlyBlocks,
   guarantorBindingsFromSnapshot,
   issuerDirectorBindingsFromSnapshot,
+  matchAuthorizedPartiesToGuarantors,
   parseAuthorizedPartiesSnapshot,
+  postedBindingsMatchApprovedSnapshot,
+  resolveLiveApplicationGuarantorId,
   serializeAuthorizedPartiesSnapshot,
   stampAuthorizedPartiesSnapshot,
   summarizeAuthorizedParties,
@@ -251,17 +259,298 @@ describe("guarantorBindingsFromSnapshot", () => {
 });
 
 describe("authorizedPartyReadOnlyBlocks", () => {
-  it("returns one block per entity using guarantor names for titles", () => {
+  it("returns one block per entity and groups them by party type", () => {
     const blocks = authorizedPartyReadOnlyBlocks(MIXED_SNAPSHOT, [
       { id: "g_ind", name: "Ali Bin Abu", business_name: null },
       { id: "g_co", name: null, business_name: "HoldCo Sdn Bhd" },
     ]);
     expect(blocks.map((block) => block.title)).toEqual([
-      "Issuer representatives",
+      "Issuer company",
       "Ali Bin Abu",
       "HoldCo Sdn Bhd",
     ]);
     expect(blocks[2]?.representatives).toHaveLength(2);
     expect(blocks[2]?.representatives.map((rep) => rep.name)).toEqual(["Nora", "Farid"]);
+    expect(blocks[2]?.representatives.map((rep) => rep.ic_number)).toEqual([
+      "880101015555",
+      "770202025555",
+    ]);
+    expect(blocks.map((block) => block.review_item_id)).toEqual([
+      "authorized_representatives:issuer",
+      "authorized_representatives:guarantor:g_ind",
+      "authorized_representatives:guarantor:g_co",
+    ]);
+    expect(groupAuthorizedPartyReadOnlyBlocks(blocks).map((group) => group.title)).toEqual([
+      "Issuer company",
+      "Corporate guarantors",
+      "Individual guarantors",
+    ]);
+  });
+
+  it("resolves company names when snapshot ids no longer match live Prisma rows", () => {
+    const blocks = authorizedPartyReadOnlyBlocks(MIXED_SNAPSHOT, [
+      {
+        id: "new_ind",
+        client_guarantor_id: "g_ind",
+        guarantor_type: "individual",
+        name: "Ali Bin Abu",
+        business_name: null,
+      },
+      {
+        id: "new_co",
+        client_guarantor_id: "g_co",
+        guarantor_type: "company",
+        name: null,
+        business_name: "HoldCo Sdn Bhd",
+      },
+    ]);
+    expect(blocks.find((block) => block.entity_kind === "CORPORATE_GUARANTOR")?.title).toBe(
+      "HoldCo Sdn Bhd"
+    );
+    expect(blocks.find((block) => block.entity_kind === "INDIVIDUAL_GUARANTOR")?.title).toBe(
+      "Ali Bin Abu"
+    );
+  });
+
+  it("does not pair leftover parties of the same kind when ids do not match", () => {
+    const stale: AuthorizedPartiesSnapshot = {
+      ...MIXED_SNAPSHOT,
+      parties: MIXED_SNAPSHOT.parties.map((party) =>
+        party.entity_kind === "ISSUER"
+          ? party
+          : {
+              ...party,
+              application_guarantor_id: `old_${party.application_guarantor_id}`,
+              client_guarantor_id: `old_${party.application_guarantor_id}`,
+            }
+      ),
+    };
+    const matches = matchAuthorizedPartiesToGuarantors(stale.parties, [
+      {
+        id: "new_ind",
+        client_guarantor_id: "g-individual-ahmad",
+        guarantor_type: "individual",
+        name: "Ali Bin Abu",
+      },
+      {
+        id: "new_co",
+        client_guarantor_id: "g-company-abc",
+        guarantor_type: "company",
+        business_name: "ABC Holdings Sdn Bhd",
+      },
+    ]);
+    expect(matches.size).toBe(0);
+    const blocks = authorizedPartyReadOnlyBlocks(stale, [
+      {
+        id: "new_ind",
+        client_guarantor_id: "g-individual-ahmad",
+        guarantor_type: "individual",
+        name: "Ali Bin Abu",
+      },
+      {
+        id: "new_co",
+        client_guarantor_id: "g-company-abc",
+        guarantor_type: "company",
+        business_name: "ABC Holdings Sdn Bhd",
+      },
+    ]);
+    expect(blocks.find((block) => block.entity_kind === "CORPORATE_GUARANTOR")?.title).toBe(
+      "Company guarantor"
+    );
+  });
+
+  it("pairs a submitted party onto a snapshot party after Prisma ids are rewritten", () => {
+    const snapshotParty = {
+      ...MIXED_SNAPSHOT.parties[1]!,
+      client_guarantor_id: "g-company-abc",
+    };
+    const submitted = {
+      ...snapshotParty,
+      key: "new_co",
+      application_guarantor_id: "new_co",
+      client_guarantor_id: "g-company-abc",
+    };
+    const matched = findSubmittedPartyForSnapshotParty(
+      snapshotParty,
+      [MIXED_SNAPSHOT.parties[0]!, snapshotParty],
+      [MIXED_SNAPSHOT.parties[0]!, submitted],
+      [
+        {
+          id: "new_co",
+          client_guarantor_id: "g-company-abc",
+          guarantor_type: "company",
+          business_name: "HoldCo Sdn Bhd",
+        },
+        {
+          id: "new_ind",
+          client_guarantor_id: "g-individual-ali",
+          guarantor_type: "individual",
+          name: "Ali Bin Abu",
+        },
+      ]
+    );
+    expect(matched?.application_guarantor_id).toBe("new_co");
+    expect(authorizedPartyListFingerprint(snapshotParty)).toBe(
+      authorizedPartyListFingerprint(submitted)
+    );
+  });
+});
+
+describe("authorized representative review keys", () => {
+  it("maps issuer and guarantor parties to review item ids", () => {
+    expect(collectAuthorizedRepresentativeReviewKeys(MIXED_SNAPSHOT)).toEqual([
+      "authorized_representatives:issuer",
+      "authorized_representatives:guarantor:g_co",
+      "authorized_representatives:guarantor:g_ind",
+    ]);
+    expect(authorizedRepresentativeReviewItemId(MIXED_SNAPSHOT.parties[0]!)).toBe(
+      "authorized_representatives:issuer"
+    );
+  });
+
+  it("treats representative order as irrelevant for fingerprints", () => {
+    const original = MIXED_SNAPSHOT.parties[1]!;
+    if (original.entity_kind !== "CORPORATE_GUARANTOR") throw new Error("expected corporate");
+    const reversed = {
+      ...original,
+      representatives: [...original.representatives].reverse(),
+    };
+    expect(authorizedPartyListFingerprint(original)).toBe(authorizedPartyListFingerprint(reversed));
+  });
+
+  it("resolves posted client_guarantor_id onto the live Prisma row", () => {
+    expect(
+      resolveLiveApplicationGuarantorId("g-company-abc", [
+        { id: "new_co", client_guarantor_id: "g-company-abc" },
+      ])
+    ).toBe("new_co");
+    expect(
+      resolveLiveApplicationGuarantorId("new_co", [
+        { id: "new_co", client_guarantor_id: "g-company-abc" },
+      ])
+    ).toBe("new_co");
+    expect(resolveLiveApplicationGuarantorId("missing", [{ id: "new_co" }])).toBeNull();
+  });
+});
+
+describe("postedBindingsMatchApprovedSnapshot", () => {
+  const roles = [
+    { key: "issuer_director", source_hint: "issuer_director" },
+    { key: "guarantor", source_hint: "guarantor" },
+    { key: "witness", source_hint: null },
+  ];
+
+  it("accepts posted bindings that match the snapshot (ignoring extra roles and guarantor IC)", () => {
+    expect(
+      postedBindingsMatchApprovedSnapshot({
+        snapshot: MIXED_SNAPSHOT,
+        roles,
+        posted: [
+          {
+            role_key: "issuer_director",
+            name: "Ali Bin Abu",
+            email: "ali@co.my",
+            ic_number: "820508105871",
+          },
+          {
+            role_key: "guarantor",
+            name: "Nora",
+            email: "nora@holdco.my",
+            ic_number: null,
+            application_guarantor_id: "g_co",
+          },
+          {
+            role_key: "guarantor",
+            name: "Farid",
+            email: "farid@holdco.my",
+            ic_number: null,
+            application_guarantor_id: "g_co",
+          },
+          {
+            role_key: "guarantor",
+            name: "Ali Bin Abu",
+            email: "ali@co.my",
+            ic_number: null,
+            application_guarantor_id: "g_ind",
+          },
+          {
+            role_key: "witness",
+            name: "Other",
+            email: "other@co.my",
+            ic_number: null,
+          },
+        ],
+      })
+    ).toBe(true);
+  });
+
+  it("rejects a different issuer email", () => {
+    expect(
+      postedBindingsMatchApprovedSnapshot({
+        snapshot: MIXED_SNAPSHOT,
+        roles,
+        posted: [
+          {
+            role_key: "issuer_director",
+            name: "Ali Bin Abu",
+            email: "other@co.my",
+            ic_number: "820508105871",
+          },
+          {
+            role_key: "guarantor",
+            name: "Nora",
+            email: "nora@holdco.my",
+            ic_number: null,
+            application_guarantor_id: "g_co",
+          },
+          {
+            role_key: "guarantor",
+            name: "Farid",
+            email: "farid@holdco.my",
+            ic_number: null,
+            application_guarantor_id: "g_co",
+          },
+          {
+            role_key: "guarantor",
+            name: "Ali Bin Abu",
+            email: "ali@co.my",
+            ic_number: null,
+            application_guarantor_id: "g_ind",
+          },
+        ],
+      })
+    ).toBe(false);
+  });
+
+  it("rejects extra or missing snapshot people", () => {
+    expect(
+      postedBindingsMatchApprovedSnapshot({
+        snapshot: MIXED_SNAPSHOT,
+        roles,
+        posted: [
+          {
+            role_key: "issuer_director",
+            name: "Ali Bin Abu",
+            email: "ali@co.my",
+            ic_number: "820508105871",
+          },
+        ],
+      })
+    ).toBe(false);
+  });
+});
+
+describe("offerAcceptanceFreezesAuthorizedParties", () => {
+  it("freezes people after admin approval through completion", () => {
+    expect(offerAcceptanceFreezesAuthorizedParties("APPROVED_FOR_SIGNING")).toBe(true);
+    expect(offerAcceptanceFreezesAuthorizedParties("SIGNING_IN_PROGRESS")).toBe(true);
+    expect(offerAcceptanceFreezesAuthorizedParties("COMPLETED")).toBe(true);
+  });
+
+  it("does not freeze during Step 1 or admin review", () => {
+    expect(offerAcceptanceFreezesAuthorizedParties("PENDING_ISSUER")).toBe(false);
+    expect(offerAcceptanceFreezesAuthorizedParties("PENDING_ADMIN_REVIEW")).toBe(false);
+    expect(offerAcceptanceFreezesAuthorizedParties("CHANGES_REQUESTED")).toBe(false);
+    expect(offerAcceptanceFreezesAuthorizedParties(null)).toBe(false);
   });
 });

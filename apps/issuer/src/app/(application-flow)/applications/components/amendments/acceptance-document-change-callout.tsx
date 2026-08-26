@@ -12,15 +12,37 @@ import {
 
 type AcceptanceDocumentChangesRequestedBannerProps = {
   flaggedCount: number;
+  documentCount?: number;
+  partyCount?: number;
   className?: string;
 };
 
-/** Step-level notice when admin has requested acceptance document changes (Review Offer Step 1). */
+function describeAcceptanceChangeTargets(
+  flaggedCount: number,
+  documentCount: number,
+  partyCount: number
+): string {
+  const parts: string[] = [];
+  if (documentCount > 0) {
+    parts.push(`${documentCount} ${documentCount === 1 ? "document" : "documents"}`);
+  }
+  if (partyCount > 0) {
+    parts.push(
+      `${partyCount} representative ${partyCount === 1 ? "list" : "lists"}`
+    );
+  }
+  if (parts.length > 0) return parts.join(" and ");
+  return `${flaggedCount} ${flaggedCount === 1 ? "item" : "items"}`;
+}
+
+/** Step-level notice when admin has requested acceptance document or representative-list changes. */
 export function AcceptanceDocumentChangesRequestedBanner({
   flaggedCount,
+  documentCount = 0,
+  partyCount = 0,
   className,
 }: AcceptanceDocumentChangesRequestedBannerProps) {
-  const docLabel = flaggedCount === 1 ? "document" : "documents";
+  const targets = describeAcceptanceChangeTargets(flaggedCount, documentCount, partyCount);
 
   return (
     <div
@@ -40,9 +62,14 @@ export function AcceptanceDocumentChangesRequestedBanner({
       <div className={AMENDMENT_CALLOUT_BODY}>
         <p className={cn(AMENDMENT_CALLOUT_TITLE, "text-primary")}>Changes requested</p>
         <p className={cn(AMENDMENT_CALLOUT_CONTENT, "text-foreground")}>
-          CashSouk requested updates to {flaggedCount} {docLabel} below. Replace only the
-          highlighted rows, then use <span className="font-medium">View Remarks</span> on each
-          flagged document before you submit for review.
+          CashSouk requested updates to {targets} below. Change only the highlighted items, then
+          submit for review.
+          {documentCount > 0 ? (
+            <>
+              {" "}
+              Use <span className="font-medium">View Remarks</span> on each flagged document.
+            </>
+          ) : null}
         </p>
       </div>
     </div>

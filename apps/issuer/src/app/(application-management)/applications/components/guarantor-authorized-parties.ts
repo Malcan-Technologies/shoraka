@@ -1,11 +1,12 @@
 import {
+  findAuthorizedPartyForGuarantor,
   isValidSigningIcNumber,
   normalizeSigningEmail,
   normalizeSigningIcNumber,
   type AuthorizedPartiesSubmitPayload,
   type AuthorizedParty,
   type AuthorizedPartiesSnapshot,
-  type AuthorizedRepresentativeCapacity,
+  type AuthorizedPartyGuarantorLookup,
 } from "@cashsouk/types";
 import {
   buildIssuerAuthorizedPartiesSubmitPayload,
@@ -18,8 +19,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export type CorporateRepDraft = {
   name: string;
   email: string;
-  ic_number: string;
-  capacity: AuthorizedRepresentativeCapacity;
 };
 
 export type GuarantorPartyDrafts = {
@@ -30,8 +29,6 @@ export type GuarantorPartyDrafts = {
 export const EMPTY_CORPORATE_REP: CorporateRepDraft = {
   name: "",
   email: "",
-  ic_number: "",
-  capacity: "authorised_signatory",
 };
 
 export function emptyGuarantorPartyDrafts(): GuarantorPartyDrafts {
@@ -39,11 +36,7 @@ export function emptyGuarantorPartyDrafts(): GuarantorPartyDrafts {
 }
 
 export function isBlankCorporateRep(rep: CorporateRepDraft): boolean {
-  return (
-    !rep.name.trim() &&
-    !rep.email.trim() &&
-    normalizeSigningIcNumber(rep.ic_number).length === 0
-  );
+  return !rep.name.trim() && !rep.email.trim();
 }
 
 function isValidPartyEmail(email: string): boolean {
@@ -51,41 +44,35 @@ function isValidPartyEmail(email: string): boolean {
 }
 
 export function isCompleteCorporateRep(rep: CorporateRepDraft): boolean {
-  return (
-    Boolean(rep.name.trim()) &&
-    isValidPartyEmail(rep.email) &&
-    isValidSigningIcNumber(rep.ic_number) &&
-    (rep.capacity === "director" || rep.capacity === "authorised_signatory")
-  );
+  return Boolean(rep.name.trim()) && isValidPartyEmail(rep.email);
 }
 
-function repsFromSnapshot(
+function lookupFromRow(guarantor: ApplicationGuarantorRow): AuthorizedPartyGuarantorLookup {
+  return {
+    id: guarantor.id,
+    client_guarantor_id: guarantor.client_guarantor_id ?? null,
+    guarantor_type: guarantor.guarantor_type,
+    name: guarantor.name,
+    business_name: guarantor.business_name,
+  };
+}
+
+function partyForGuarantor(
   snapshot: AuthorizedPartiesSnapshot | null | undefined,
-  guarantorId: string
-): CorporateRepDraft[] | null {
-  const party = snapshot?.parties.find(
-    (item) =>
-      item.entity_kind === "CORPORATE_GUARANTOR" && item.application_guarantor_id === guarantorId
-  );
-  if (!party || party.representatives.length === 0) return null;
+  guarantor: ApplicationGuarantorRow,
+  all: ApplicationGuarantorRow[]
+): AuthorizedParty | null {
+  return findAuthorizedPartyForGuarantor(snapshot, lookupFromRow(guarantor), all.map(lookupFromRow));
+}
+
+function repsFromParty(party: AuthorizedParty | null): CorporateRepDraft[] | null {
+  if (!party || party.entity_kind !== "CORPORATE_GUARANTOR" || party.representatives.length === 0) {
+    return null;
+  }
   return party.representatives.map((rep) => ({
     name: rep.name,
     email: rep.email,
-    ic_number: rep.ic_number,
-    capacity: rep.capacity,
   }));
-}
-
-function individualEmailFromSnapshot(
-  snapshot: AuthorizedPartiesSnapshot | null | undefined,
-  guarantorId: string
-): string | null {
-  const party = snapshot?.parties.find(
-    (item) =>
-      item.entity_kind === "INDIVIDUAL_GUARANTOR" && item.application_guarantor_id === guarantorId
-  );
-  const email = party?.representatives[0]?.email;
-  return email ? email : null;
 }
 
 function sameCorporateReps(left: CorporateRepDraft[], right: CorporateRepDraft[]): boolean {
@@ -94,9 +81,7 @@ function sameCorporateReps(left: CorporateRepDraft[], right: CorporateRepDraft[]
     left.every(
       (row, index) =>
         row.name === right[index]?.name &&
-        row.email === right[index]?.email &&
-        row.ic_number === right[index]?.ic_number &&
-        row.capacity === right[index]?.capacity
+        row.email === right[index]?.email
     )
   );
 }
@@ -137,15 +122,16 @@ export function nextGuarantorPartyDrafts(input: {
   const corporateRepsById: Record<string, CorporateRepDraft[]> = {};
   const individualEmailsById: Record<string, string> = {};
   for (const guarantor of input.guarantors) {
+    const party = partyForGuarantor(input.snapshot, guarantor, input.guarantors);
     if (guarantor.guarantor_type === "company") {
       corporateRepsById[guarantor.id] =
-        repsFromSnapshot(input.snapshot, guarantor.id) ??
+        repsFromParty(party) ??
         input.current.corporateRepsById[guarantor.id] ??
         [{ ...EMPTY_CORPORATE_REP }];
     } else {
       individualEmailsById[guarantor.id] =
-        individualEmailFromSnapshot(input.snapshot, guarantor.id) ??
-        input.current.individualEmailsById[guarantor.id] ??
+        party?.representatives[0]?.email ||
+        input.current.individualEmailsById[guarantor.id] ||
         guarantor.email;
     }
   }
@@ -191,21 +177,27 @@ export function buildAuthorizedPartiesSubmitPayload(input: {
         .map((rep) => ({
           name: rep.name.trim(),
           email: normalizeSigningEmail(rep.email),
-          ic_number: normalizeSigningIcNumber(rep.ic_number),
-          capacity: rep.capacity,
+          ic_number: "",
+          capacity: "authorised_signatory" as const,
         }));
       guarantorParties.push({
-        key: guarantor.id,
+        key: guarantor.client_guarantor_id || guarantor.id,
         entity_kind: "CORPORATE_GUARANTOR",
         application_guarantor_id: guarantor.id,
+        ...(guarantor.client_guarantor_id
+          ? { client_guarantor_id: guarantor.client_guarantor_id }
+          : {}),
         representatives,
       });
       continue;
     }
     guarantorParties.push({
-      key: guarantor.id,
+      key: guarantor.client_guarantor_id || guarantor.id,
       entity_kind: "INDIVIDUAL_GUARANTOR",
       application_guarantor_id: guarantor.id,
+      ...(guarantor.client_guarantor_id
+        ? { client_guarantor_id: guarantor.client_guarantor_id }
+        : {}),
       representatives: [
         {
           name: String(guarantor.name ?? "").trim(),

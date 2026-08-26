@@ -66,7 +66,11 @@ import {
   getOfferAcceptanceStatusPresentation,
   offerAcceptanceAllowsSigning,
   offerAcceptanceIsStep1Editable,
+  offerAcceptanceFreezesAuthorizedParties,
   getOfferAcceptanceFromOfferDetails,
+  AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+  AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID,
+  authorizedRepresentativeReviewItemIdForGuarantor,
   type Application,
 } from "@cashsouk/types";
 import {
@@ -86,6 +90,7 @@ import {
   hasCompletedContractEnvelope,
   hasAcceptanceDocuments,
   isSigningOfferStepReachable,
+  resolveAcceptanceStep1Screen,
   resolveOfferAcceptanceStatus,
   resolveReviewOfferModalMode,
   workflowUsesOfferAcceptanceFlow,
@@ -108,6 +113,7 @@ import { buildInvoiceFeeDisplay } from "@/lib/facility-fee-display";
 import { IssuerAuthorizedRepresentativesCard } from "./issuer-authorized-representatives-card";
 import { CorporateGuarantorRepresentativesCard } from "./corporate-guarantor-representatives-card";
 import { IndividualGuarantorRepresentativesCard } from "./individual-guarantor-representatives-card";
+import { AuthorizedPartyTypeGroup } from "./authorized-party-type-group";
 import {
   areIssuerDirectorSelectionsReady,
   isDirectorRole,
@@ -117,6 +123,7 @@ import {
 import {
   buildIssuerEnvelopeBindings,
   guarantorsFromApplication,
+  isGuarantorRole,
   nextIssuerRepMatchKeys,
 } from "./build-issuer-envelope-bindings";
 import {
@@ -610,6 +617,17 @@ export function OfferReviewPanel({
       }));
   }, [applicationRecord, isAcceptanceChangesRequested]);
 
+  const partyChangeRemarks = React.useMemo(() => {
+    if (!isAcceptanceChangesRequested || !applicationRecord) return [];
+    const remarks =
+      (applicationRecord as { application_review_remarks?: ReviewRemarkRow[] })
+        .application_review_remarks ?? [];
+    return remarks.filter(
+      (r) =>
+        r.scope === "item" && r.scope_key?.startsWith("authorized_representatives:") && r.remark
+    );
+  }, [applicationRecord, isAcceptanceChangesRequested]);
+
   const acceptanceFlaggedItems = React.useMemo(() => {
     if (!isAcceptanceChangesRequested || !applicationRecord) return undefined;
     const items =
@@ -629,7 +647,45 @@ export function OfferReviewPanel({
     return new Map<string, Set<string>>([["acceptance_documents", set]]);
   }, [applicationRecord, isAcceptanceChangesRequested]);
 
-  const acceptanceFlaggedCount = acceptanceFlaggedItems?.get("acceptance_documents")?.size ?? 0;
+  const flaggedPartyItemIds = React.useMemo(() => {
+    if (!isAcceptanceChangesRequested || !applicationRecord) return new Set<string>();
+    const items =
+      (applicationRecord as { application_review_items?: ReviewItemRow[] })
+        .application_review_items ?? [];
+    const ids = new Set<string>();
+    for (const item of items) {
+      if (
+        item.item_type === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE &&
+        item.status === "AMENDMENT_REQUESTED"
+      ) {
+        ids.add(item.item_id);
+      }
+    }
+    return ids;
+  }, [applicationRecord, isAcceptanceChangesRequested]);
+
+  const partyRemarkByItemId = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const remark of partyChangeRemarks) {
+      if (remark.scope_key) map.set(remark.scope_key, remark.remark ?? "");
+    }
+    return map;
+  }, [partyChangeRemarks]);
+
+  const flaggedAcceptanceDocCount =
+    acceptanceFlaggedItems?.get("acceptance_documents")?.size ?? 0;
+  const isPeopleOnlyAcceptanceResubmit =
+    isAcceptanceChangesRequested &&
+    flaggedPartyItemIds.size > 0 &&
+    flaggedAcceptanceDocCount === 0;
+  const peopleFrozen =
+    usesAcceptanceFlow &&
+    authorizedParties != null &&
+    offerAcceptanceFreezesAuthorizedParties(acceptanceStatus);
+  const isStep1PartyCardReadOnly = (itemId: string) =>
+    signersLocked ||
+    !offerAcceptanceIsStep1Editable(acceptanceStatus) ||
+    (isAcceptanceChangesRequested && !flaggedPartyItemIds.has(itemId));
 
   const phaseDeadline = React.useMemo(
     () => getOfferPhaseDeadlineDisplay(offerDetails),
@@ -700,6 +756,7 @@ export function OfferReviewPanel({
   const [isSyncingSigning, setIsSyncingSigning] = React.useState(false);
   // Viewed step stickiness (D-05–D-07): domain progress stays in currentSigningStepId.
   const [viewedStepId, setViewedStepId] = React.useState<SigningOfferStepId | null>(null);
+  const [peopleStepConfirmed, setPeopleStepConfirmed] = React.useState(false);
   /** When true, the user picked an earlier step in the sidebar — do not auto-advance the main panel. */
   const viewStepPinnedRef = React.useRef(false);
   const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
@@ -711,6 +768,17 @@ export function OfferReviewPanel({
     guarantorPartiesDirtyRef.current = false;
     setGuarantorDrafts(emptyGuarantorPartyDrafts());
   }, [applicationId]);
+
+  const prevAcceptanceStatusRef = React.useRef(acceptanceStatus);
+  React.useEffect(() => {
+    const previous = prevAcceptanceStatusRef.current;
+    prevAcceptanceStatusRef.current = acceptanceStatus;
+    if (acceptanceStatus === "CHANGES_REQUESTED" && previous !== "CHANGES_REQUESTED") {
+      issuerRepDirtyRef.current = false;
+      guarantorPartiesDirtyRef.current = false;
+      setPeopleStepConfirmed(false);
+    }
+  }, [acceptanceStatus]);
 
   const offerDetailsReady =
     type === "contract" ? !isLoadingContract : isApplicationFetched;
@@ -1107,7 +1175,7 @@ export function OfferReviewPanel({
       toast.error("This offer has expired.");
       return;
     }
-    if (hasPostDocs) {
+    if (hasPostDocs && !isPeopleOnlyAcceptanceResubmit) {
       const saved = await ensurePostApplicationDocumentsSaved();
       if (!saved) return;
     }
@@ -1148,6 +1216,7 @@ export function OfferReviewPanel({
       await invalidateOfferAcceptanceQueries();
       viewStepPinnedRef.current = false;
       setViewedStepId("awaiting_review");
+      setPeopleStepConfirmed(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not submit offer acceptance");
     } finally {
@@ -1162,11 +1231,25 @@ export function OfferReviewPanel({
     hasPostDocs,
     invalidateOfferAcceptanceQueries,
     invoice?.id,
+    isPeopleOnlyAcceptanceResubmit,
     isPhaseDeadlinePast,
     issuerDirectors,
     issuerRepMatchKeys,
     type,
   ]);
+
+  const goToDocumentsStep = React.useCallback(() => {
+    if (!areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys)) {
+      toast.error("Select at least one director to represent the issuer company.");
+      return;
+    }
+    if (!areGuarantorPartiesReady(guarantorRows, guarantorDrafts)) {
+      toast.error("Complete authorised representatives for every guarantor.");
+      return;
+    }
+    viewStepPinnedRef.current = false;
+    setPeopleStepConfirmed(true);
+  }, [guarantorDrafts, guarantorRows, issuerDirectors, issuerRepMatchKeys]);
 
   React.useEffect(() => {
     if (isPhaseDeadlinePast) {
@@ -1403,6 +1486,12 @@ export function OfferReviewPanel({
     !usesAcceptanceFlow ||
     (areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys) &&
       areGuarantorPartiesReady(guarantorRows, guarantorDrafts));
+  const canSubmitFromRepresentatives =
+    usesAcceptanceFlow &&
+    (!hasPostDocs ||
+      (isAcceptanceChangesRequested &&
+        flaggedPartyItemIds.size > 0 &&
+        flaggedAcceptanceDocCount === 0));
   const updateSignerBinding = (index: number, updates: Partial<RecipientBinding>) => {
     setSignerBindings((prev) =>
       prev.map((binding, i) => (i === index ? { ...binding, ...updates } : binding))
@@ -1454,25 +1543,28 @@ export function OfferReviewPanel({
     envelopeProgress.total_required > 0 &&
     envelopeProgress.signed === envelopeProgress.total_required;
   const envelopeCompleted = activeSigningEnvelope?.status === "COMPLETED";
-  const currentSigningStepId = getCurrentSigningOfferStepId({
+  const acceptanceStep1Screen = resolveAcceptanceStep1Screen({
+    hasPostDocs,
+    peopleStepConfirmed,
+    flaggedPartyCount: flaggedPartyItemIds.size,
+    flaggedDocumentCount: flaggedAcceptanceDocCount,
+  });
+  const step1Cursor = {
     ...stepShellInput,
     postDocsReady,
     signersLocked,
     allDocsSigned,
     envelopeCompleted,
-  });
-  const signingSteps = getSigningOfferSteps({
-    ...stepShellInput,
-    postDocsReady,
-    signersLocked,
-    allDocsSigned,
-    envelopeCompleted,
-  });
+    acceptanceStep1Screen,
+  };
+  const currentSigningStepId = getCurrentSigningOfferStepId(step1Cursor);
+  const signingSteps = getSigningOfferSteps(step1Cursor);
 
   // D-06: recompute viewed step on each open/reopen (applicationId change), never restore prior session.
   React.useEffect(() => {
     setViewedStepId(null);
     viewStepPinnedRef.current = false;
+    setPeopleStepConfirmed(false);
     postDocsSaveRef.current = undefined;
     setPostDocsState({ areAllFilesUploaded: false, hasPendingChanges: false });
   }, [applicationId]);
@@ -1487,6 +1579,7 @@ export function OfferReviewPanel({
         signersLocked,
         allDocsSigned,
         envelopeCompleted,
+        acceptanceStep1Screen,
       })
     );
   }, [
@@ -1497,6 +1590,7 @@ export function OfferReviewPanel({
     signersLocked,
     allDocsSigned,
     envelopeCompleted,
+    acceptanceStep1Screen,
   ]);
 
   // Snap viewed step when domain retreats, or auto-advance when domain moves forward (e.g. after Confirm).
@@ -1517,7 +1611,9 @@ export function OfferReviewPanel({
 
   // While frozen workflow loads, force documents shell + skeleton.
   const displaySigningStepId: SigningOfferStepId = isLoadingFrozenProductWorkflow
-    ? "documents"
+    ? usesAcceptanceFlow
+      ? "representatives"
+      : "documents"
     : (viewedStepId ?? currentSigningStepId);
 
   // Keep Upload mounted (hidden) during Step 1 so local draft survives sidebar nav before Submit.
@@ -1741,7 +1837,10 @@ export function OfferReviewPanel({
     // Dropdown roles cannot add rows once every selectable person is already assigned.
     const hasAvailableDropdownOptions = !useDirectorDropdown || availableDirectors.length > 0;
     const withinMaxCount = role.max_count == null || roleBindings.length < role.max_count;
-    const canAdd = !signersLocked && withinMaxCount && hasAvailableDropdownOptions;
+    const partyRoleFrozen =
+      peopleFrozen && (isDirectorRole(role) || isGuarantorRole(role));
+    const signerFieldsLocked = signersLocked || partyRoleFrozen;
+    const canAdd = !signerFieldsLocked && withinMaxCount && hasAvailableDropdownOptions;
     const countSubtitle = roleCountSubtitle(role);
 
     return (
@@ -1753,7 +1852,7 @@ export function OfferReviewPanel({
               <p className="text-xs text-muted-foreground">{countSubtitle}</p>
             ) : null}
           </div>
-          {!signersLocked ? (
+          {!signerFieldsLocked ? (
             <Button
               type="button"
               variant="outline"
@@ -1792,7 +1891,7 @@ export function OfferReviewPanel({
                   director.matchKey === selectedDirectorKey ||
                   !usedDirectorKeys.has(director.matchKey)
               );
-              const emailLocked = useDirectorDropdown || signersLocked;
+              const emailLocked = useDirectorDropdown || signerFieldsLocked;
               const nameFieldId = `signer-name-${role.key}-${index}`;
               const emailFieldId = `signer-email-${role.key}-${index}`;
 
@@ -1806,7 +1905,7 @@ export function OfferReviewPanel({
                       {useDirectorDropdown ? (
                         <Select
                           value={selectedDirectorKey || undefined}
-                          disabled={signersLocked}
+                          disabled={signerFieldsLocked}
                           onValueChange={(matchKey) => {
                             const director = issuerDirectors.find(
                               (item) => item.matchKey === matchKey
@@ -1841,7 +1940,7 @@ export function OfferReviewPanel({
                             })
                           }
                           placeholder="Full name"
-                          disabled={signersLocked}
+                          disabled={signerFieldsLocked}
                           className="rounded-xl"
                         />
                       )}
@@ -1867,7 +1966,7 @@ export function OfferReviewPanel({
                         className={cn("rounded-xl", emailLocked && "bg-muted select-none")}
                       />
                     </div>
-                    {!signersLocked ? (
+                    {!signerFieldsLocked ? (
                       <div className="flex items-end pb-1">
                         <button
                           type="button"
@@ -2038,6 +2137,156 @@ export function OfferReviewPanel({
           </Card>
         );
       }
+      case "representatives":
+        return (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <UserGroupIcon className="h-5 w-5 text-primary" />
+                Authorised representatives
+              </CardTitle>
+              <CardDescription>
+                Name who may represent the issuer and each company guarantor, then confirm
+                individual guarantors. CashSouk will review these lists with the Board Resolution.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isAcceptanceChangesRequested &&
+              (flaggedPartyItemIds.size > 0 || flaggedAcceptanceDocCount > 0) ? (
+                <AcceptanceDocumentChangesRequestedBanner
+                  flaggedCount={flaggedPartyItemIds.size + flaggedAcceptanceDocCount}
+                  partyCount={flaggedPartyItemIds.size}
+                  documentCount={flaggedAcceptanceDocCount}
+                />
+              ) : null}
+              <div className="space-y-3">
+                <IssuerAuthorizedRepresentativesCard
+                  companyName={activeOrganization?.name?.trim() || "Your company"}
+                  directors={issuerDirectors}
+                  selectedMatchKeys={issuerRepMatchKeys}
+                  onChange={(keys) => {
+                    issuerRepDirtyRef.current = true;
+                    setIssuerRepMatchKeys(keys);
+                  }}
+                  readOnly={isStep1PartyCardReadOnly(AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID)}
+                  highlighted={flaggedPartyItemIds.has(AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID)}
+                  remark={partyRemarkByItemId.get(AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID) ?? null}
+                  isLoading={
+                    (useSigningStepper && !isCorporateEntitiesFetched) ||
+                    (usesAcceptanceFlow && !offerDetailsReady)
+                  }
+                />
+                {guarantorRows.some((guarantor) => guarantor.guarantor_type === "company") ? (
+                  <AuthorizedPartyTypeGroup
+                    title="Corporate guarantors"
+                    description="Name the people who may represent each company. CashSouk will review this list with the Board Resolution."
+                  >
+                    {guarantorRows
+                      .filter((guarantor) => guarantor.guarantor_type === "company")
+                      .map((guarantor) => {
+                        const partyItemId = authorizedRepresentativeReviewItemIdForGuarantor(
+                          authorizedParties,
+                          guarantor,
+                          guarantorRows
+                        );
+                        return (
+                          <CorporateGuarantorRepresentativesCard
+                            key={guarantor.id}
+                            entityId={guarantor.id}
+                            companyName={
+                              guarantor.business_name?.trim() || "Company guarantor"
+                            }
+                            representatives={
+                              guarantorDrafts.corporateRepsById[guarantor.id] ?? [
+                                { ...EMPTY_CORPORATE_REP },
+                              ]
+                            }
+                            onChange={(representatives) => {
+                              guarantorPartiesDirtyRef.current = true;
+                              setGuarantorDrafts((prev) => ({
+                                ...prev,
+                                corporateRepsById: {
+                                  ...prev.corporateRepsById,
+                                  [guarantor.id]: representatives,
+                                },
+                              }));
+                            }}
+                            readOnly={isStep1PartyCardReadOnly(partyItemId)}
+                            highlighted={flaggedPartyItemIds.has(partyItemId)}
+                            remark={partyRemarkByItemId.get(partyItemId) ?? null}
+                            embedded
+                          />
+                        );
+                      })}
+                  </AuthorizedPartyTypeGroup>
+                ) : null}
+                {guarantorRows.some((guarantor) => guarantor.guarantor_type !== "company") ? (
+                  <AuthorizedPartyTypeGroup
+                    title="Individual guarantors"
+                    description="These people sign personally. Name and email come from the application."
+                  >
+                    {guarantorRows
+                      .filter((guarantor) => guarantor.guarantor_type !== "company")
+                      .map((guarantor) => {
+                        const partyItemId = authorizedRepresentativeReviewItemIdForGuarantor(
+                          authorizedParties,
+                          guarantor,
+                          guarantorRows
+                        );
+                        return (
+                          <IndividualGuarantorRepresentativesCard
+                            key={guarantor.id}
+                            entityId={guarantor.id}
+                            personName={guarantor.name?.trim() || ""}
+                            icNumber={guarantor.ic_number ?? ""}
+                            email={
+                              guarantorDrafts.individualEmailsById[guarantor.id] ??
+                              guarantor.email
+                            }
+                            highlighted={flaggedPartyItemIds.has(partyItemId)}
+                            remark={partyRemarkByItemId.get(partyItemId) ?? null}
+                            embedded
+                          />
+                        );
+                      })}
+                  </AuthorizedPartyTypeGroup>
+                ) : null}
+              </div>
+              {!signersLocked && !isLoadingFrozenProductWorkflow && canSubmitFromRepresentatives ? (
+                <Button
+                  className="h-11 w-full rounded-xl"
+                  disabled={isSubmittingAcceptance || !issuerRepsReady}
+                  onClick={() => {
+                    void submitOfferAcceptance();
+                  }}
+                >
+                  Submit for review
+                </Button>
+              ) : null}
+              {!signersLocked &&
+              !isLoadingFrozenProductWorkflow &&
+              hasPostDocs &&
+              !canSubmitFromRepresentatives ? (
+                <Button
+                  className="h-11 w-full rounded-xl"
+                  disabled={!issuerRepsReady}
+                  onClick={goToDocumentsStep}
+                >
+                  Continue
+                </Button>
+              ) : null}
+              {!signersLocked &&
+              !isLoadingFrozenProductWorkflow &&
+              !issuerRepsReady &&
+              isCorporateEntitiesFetched ? (
+                <p className="text-ui text-muted-foreground">
+                  Complete authorised representatives for the issuer and every guarantor before
+                  continuing.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+        );
       case "documents":
         return (
           <Card className="border-primary/20 bg-primary/5">
@@ -2048,88 +2297,25 @@ export function OfferReviewPanel({
               </CardTitle>
               <CardDescription>
                 {usesAcceptanceFlow
-                  ? "Name who may represent the issuer and each company guarantor, confirm individual guarantors, then upload required acceptance documents (for example a Board Resolution). CashSouk must approve them before signing."
+                  ? "Upload required acceptance documents (for example a Board Resolution). CashSouk must approve them before signing."
                   : "Complete all required documents before you confirm signers. Optional documents can stay empty."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {usesAcceptanceFlow ? (
-                <div className="space-y-3">
-                  <IssuerAuthorizedRepresentativesCard
-                    companyName={activeOrganization?.name?.trim() || "Your company"}
-                    directors={issuerDirectors}
-                    selectedMatchKeys={issuerRepMatchKeys}
-                    onChange={(keys) => {
-                      issuerRepDirtyRef.current = true;
-                      setIssuerRepMatchKeys(keys);
-                    }}
-                    readOnly={
-                      signersLocked || !offerAcceptanceIsStep1Editable(acceptanceStatus)
-                    }
-                    isLoading={
-                      (useSigningStepper && !isCorporateEntitiesFetched) ||
-                      (usesAcceptanceFlow && !offerDetailsReady)
-                    }
-                  />
-                  {guarantorRows.map((guarantor) =>
-                    guarantor.guarantor_type === "company" ? (
-                      <CorporateGuarantorRepresentativesCard
-                        key={guarantor.id}
-                        entityId={guarantor.id}
-                        companyName={guarantor.business_name?.trim() || "Company guarantor"}
-                        representatives={
-                          guarantorDrafts.corporateRepsById[guarantor.id] ?? [
-                            { ...EMPTY_CORPORATE_REP },
-                          ]
-                        }
-                        onChange={(representatives) => {
-                          guarantorPartiesDirtyRef.current = true;
-                          setGuarantorDrafts((prev) => ({
-                            ...prev,
-                            corporateRepsById: {
-                              ...prev.corporateRepsById,
-                              [guarantor.id]: representatives,
-                            },
-                          }));
-                        }}
-                        readOnly={
-                          signersLocked || !offerAcceptanceIsStep1Editable(acceptanceStatus)
-                        }
-                      />
-                    ) : (
-                      <IndividualGuarantorRepresentativesCard
-                        key={guarantor.id}
-                        entityId={guarantor.id}
-                        personName={guarantor.name?.trim() || ""}
-                        icNumber={guarantor.ic_number ?? ""}
-                        email={
-                          guarantorDrafts.individualEmailsById[guarantor.id] ?? guarantor.email
-                        }
-                        onEmailChange={(email) => {
-                          guarantorPartiesDirtyRef.current = true;
-                          setGuarantorDrafts((prev) => ({
-                            ...prev,
-                            individualEmailsById: {
-                              ...prev.individualEmailsById,
-                              [guarantor.id]: email,
-                            },
-                          }));
-                        }}
-                        readOnly={
-                          signersLocked || !offerAcceptanceIsStep1Editable(acceptanceStatus)
-                        }
-                      />
-                    )
-                  )}
-                </div>
-              ) : null}
-              {usesAcceptanceFlow && isAcceptanceChangesRequested && acceptanceFlaggedCount > 0 ? (
-                <AcceptanceDocumentChangesRequestedBanner flaggedCount={acceptanceFlaggedCount} />
+              {usesAcceptanceFlow &&
+              isAcceptanceChangesRequested &&
+              (flaggedAcceptanceDocCount > 0 || flaggedPartyItemIds.size > 0) ? (
+                <AcceptanceDocumentChangesRequestedBanner
+                  flaggedCount={flaggedAcceptanceDocCount + flaggedPartyItemIds.size}
+                  documentCount={flaggedAcceptanceDocCount}
+                  partyCount={flaggedPartyItemIds.size}
+                />
               ) : null}
               {signersLocked ? (
                 <p className="text-sm text-muted-foreground">
-                  Documents are locked for review after signing emails were sent. Void the package to
-                  edit again.
+                  {usesAcceptanceFlow
+                    ? "Documents and representative lists are locked after signing emails were sent. Voiding the package does not reopen them."
+                    : "Documents are locked for review after signing emails were sent. Void the package to edit again."}
                 </p>
               ) : null}
               {isLoadingFrozenProductWorkflow ? (
@@ -2154,15 +2340,17 @@ export function OfferReviewPanel({
               ) : null}
               {!signersLocked && !isLoadingFrozenProductWorkflow && postDocsReady ? (
                 usesAcceptanceFlow ? (
-                  <Button
-                    className="h-11 w-full rounded-xl"
-                    disabled={isSubmittingAcceptance || !issuerRepsReady}
-                    onClick={() => {
-                      void submitOfferAcceptance();
-                    }}
-                  >
-                    Submit for review
-                  </Button>
+                  displaySigningStepId === "documents" ? (
+                    <Button
+                      className="h-11 w-full rounded-xl"
+                      disabled={isSubmittingAcceptance || !issuerRepsReady}
+                      onClick={() => {
+                        void submitOfferAcceptance();
+                      }}
+                    >
+                      Submit for review
+                    </Button>
+                  ) : null
                 ) : (
                   <Button
                     className="h-11 w-full rounded-xl"
@@ -2175,6 +2363,7 @@ export function OfferReviewPanel({
                 )
               ) : null}
               {usesAcceptanceFlow &&
+              displaySigningStepId === "documents" &&
               !signersLocked &&
               !isLoadingFrozenProductWorkflow &&
               postDocsReady &&
@@ -2198,15 +2387,16 @@ export function OfferReviewPanel({
               </CardTitle>
               <CardDescription>
                 {usesAcceptanceFlow && authorizedParties
-                  ? "These names came from offer acceptance. You can still change them before sending signing emails."
+                  ? "These names came from offer acceptance and cannot be changed. Voiding the package resends to the same people."
                   : "Assign who will sign each document. Signing emails with secure links will be sent to every signer when you confirm."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {signersLocked ? (
                 <p className="text-sm text-muted-foreground">
-                  Signers are locked for review after signing emails were sent. Void the package to
-                  edit again.
+                  {peopleFrozen
+                    ? "Signing emails were sent. Voiding the package resends to the same people; it does not change who may sign."
+                    : "Signers are locked for review after signing emails were sent. Void the package to edit again."}
                 </p>
               ) : null}
               <div className="rounded-lg bg-muted/50 p-4">{signerBindingEditor}</div>

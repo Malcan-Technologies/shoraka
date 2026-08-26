@@ -1,4 +1,5 @@
 import type { UserRole } from "./index";
+import type { ReviewItemType } from "./review-scope";
 
 export interface PaginationParams {
   page: number;
@@ -1256,7 +1257,7 @@ export interface AddPendingAmendmentParams {
   scope: "section" | "item";
   scopeKey?: string;
   remark: string;
-  itemType?: "invoice" | "document";
+  itemType?: ReviewItemType;
   itemId?: string;
 }
 
@@ -1274,7 +1275,7 @@ export interface ApplicationReviewEvent {
 }
 
 export interface ReviewItemActionPayload {
-  itemType: "invoice" | "document";
+  itemType: ReviewItemType;
   itemId: string;
 }
 

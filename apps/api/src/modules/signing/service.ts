@@ -29,6 +29,10 @@ import {
   offerAcceptanceAllowsCreateSigningPackage,
   offerAcceptanceAllowsSendSigningPackage,
   collectAcceptanceDocumentReviewKeys,
+  collectAuthorizedRepresentativeReviewKeys,
+  AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+  postedBindingsMatchApprovedSnapshot,
+  resolveLiveApplicationGuarantorId,
   workflowUsesOfferAcceptanceFlow,
   type ExternalSigningSessionDto,
   type RecipientBinding,
@@ -425,7 +429,7 @@ export class SigningService {
         .filter(Boolean)
     );
     const roleByKey = new Map(template.roles.map((role) => [role.key, role]));
-    const applicationGuarantorIds = new Set(application.application_guarantors.map((g) => g.id));
+    const applicationGuarantors = application.application_guarantors;
     const normalized: RecipientBinding[] = [];
     for (const binding of bindings) {
       const role = roleByKey.get(binding.role_key);
@@ -443,15 +447,20 @@ export class SigningService {
           );
         }
       }
-      if (
-        binding.application_guarantor_id &&
-        !applicationGuarantorIds.has(binding.application_guarantor_id)
-      ) {
-        throw new AppError(
-          400,
-          "SIGNING_BINDINGS_INVALID",
-          "Selected guarantor does not belong to this application."
+      let applicationGuarantorId = binding.application_guarantor_id ?? null;
+      if (applicationGuarantorId) {
+        const liveId = resolveLiveApplicationGuarantorId(
+          applicationGuarantorId,
+          applicationGuarantors
         );
+        if (!liveId) {
+          throw new AppError(
+            400,
+            "SIGNING_BINDINGS_INVALID",
+            "Selected guarantor does not belong to this application."
+          );
+        }
+        applicationGuarantorId = liveId;
       }
       if (roleRequiresBindingIcAtOffer(role)) {
         if (!String(binding.ic_number ?? "").trim()) {
@@ -470,7 +479,7 @@ export class SigningService {
         }
         normalized.push({
           ...binding,
-          application_guarantor_id: binding.application_guarantor_id ?? null,
+          application_guarantor_id: applicationGuarantorId,
           ic_number: normalizeSigningIcNumber(binding.ic_number!),
         });
         continue;
@@ -479,7 +488,7 @@ export class SigningService {
       // Third-party roles (e.g. guarantor) always self-declare IC on the signing link.
       normalized.push({
         ...binding,
-        application_guarantor_id: binding.application_guarantor_id ?? null,
+        application_guarantor_id: applicationGuarantorId,
         ic_number: null,
       });
     }
@@ -521,6 +530,26 @@ export class SigningService {
     if (docKeys.length === 0) return [];
     const statusByKey = await this.fetchAcceptanceReviewStatusByKey(application.id, docKeys);
     return docKeys.filter((key) => statusByKey.get(key) !== "APPROVED");
+  }
+
+  private async collectUnapprovedAuthorizedRepresentativeKeys(
+    applicationId: string,
+    offerDetails: unknown
+  ): Promise<string[]> {
+    const snapshot =
+      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
+    const partyKeys = collectAuthorizedRepresentativeReviewKeys(snapshot);
+    if (partyKeys.length === 0) return [];
+    const rows = await prisma.applicationReviewItem.findMany({
+      where: {
+        application_id: applicationId,
+        item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+        item_id: { in: partyKeys },
+      },
+      select: { item_id: true, status: true },
+    });
+    const statusByKey = new Map(rows.map((row) => [row.item_id, row.status as string]));
+    return partyKeys.filter((key) => statusByKey.get(key) !== "APPROVED");
   }
 
   private async assertAcceptanceDocumentsApprovedForSigning(
@@ -593,6 +622,41 @@ export class SigningService {
     assertSigningDeadlineOpen(acceptance);
 
     await this.assertAcceptanceDocumentsApprovedForSigning(application, workflow);
+    const unapprovedParties = await this.collectUnapprovedAuthorizedRepresentativeKeys(
+      application.id,
+      offerDetails
+    );
+    if (unapprovedParties.length > 0) {
+      throw new AppError(
+        400,
+        "OFFER_ACCEPTANCE_PARTIES_NOT_APPROVED",
+        "All authorised representative lists must be approved by CashSouk before the signing package can be created or sent.",
+        { unapproved_keys: unapprovedParties }
+      );
+    }
+  }
+
+  private assertBindingsMatchApprovedSnapshot(
+    offerDetails: unknown,
+    template: SigningTemplateConfig,
+    posted: RecipientBinding[]
+  ): void {
+    const snapshot =
+      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
+    if (!snapshot) return;
+    if (
+      !postedBindingsMatchApprovedSnapshot({
+        snapshot,
+        roles: template.roles,
+        posted,
+      })
+    ) {
+      throw new AppError(
+        400,
+        "SIGNING_BINDINGS_INVALID",
+        "Signers must match the authorised representatives approved with the offer acceptance."
+      );
+    }
   }
 
   private async logSigningPackageActivity(params: {
@@ -669,8 +733,9 @@ export class SigningService {
 
   /**
    * Roll offer_acceptance back from SIGNING_IN_PROGRESS after an envelope closes without
-   * completing (void / decline). Only restores APPROVED_FOR_SIGNING when acceptance docs are
-   * still fully approved; otherwise the phase is left untouched (no unsupported transition).
+   * completing (void / decline). Only restores APPROVED_FOR_SIGNING when acceptance docs and
+   * authorised representative lists are still fully approved; otherwise the phase is left
+   * untouched (no unsupported transition). Does not clear authorized_parties.
    */
   private async rollbackOfferAcceptanceAfterEnvelopeClosed(
     envelope: Pick<SigningEnvelopeWithGraph, "application_id" | "contract_id" | "invoice_id">
@@ -698,8 +763,13 @@ export class SigningService {
 
     const application = await this.requireApplicationContext(envelope.application_id);
     const workflow = await this.getProductWorkflowForApplication(application);
-    const unapproved = await this.collectUnapprovedAcceptanceDocumentKeys(application, workflow);
-    if (unapproved.length > 0) return;
+    const unapprovedDocs = await this.collectUnapprovedAcceptanceDocumentKeys(application, workflow);
+    if (unapprovedDocs.length > 0) return;
+    const unapprovedParties = await this.collectUnapprovedAuthorizedRepresentativeKeys(
+      envelope.application_id,
+      offer
+    );
+    if (unapprovedParties.length > 0) return;
 
     const updatedOffer = patchOfferAcceptance(offer, {
       status: "APPROVED_FOR_SIGNING",
@@ -848,6 +918,7 @@ export class SigningService {
             })
           )?.offer_details
         : null;
+    this.assertBindingsMatchApprovedSnapshot(offerDetails, template, bindings);
     const signingExpiresAt =
       getOfferAcceptanceFromOfferDetails(offerDetails)?.signing_expires_at ?? null;
     const resolvedExpiresAt =
@@ -1186,6 +1257,35 @@ export class SigningService {
       envelope.contract_id ?? null,
       envelope.invoice_id ?? null,
       "send"
+    );
+    const workflow = await this.getProductWorkflowForApplication(application);
+    const packageKind: SigningPackageOfferKind = envelope.contract_id ? "contract" : "invoice";
+    const template = this.readSigningTemplateFromWorkflow(workflow, packageKind);
+    const sendOfferDetails = envelope.contract_id
+      ? (
+          await prisma.contract.findUnique({
+            where: { id: envelope.contract_id },
+            select: { offer_details: true },
+          })
+        )?.offer_details
+      : envelope.invoice_id
+        ? (
+            await prisma.invoice.findUnique({
+              where: { id: envelope.invoice_id },
+              select: { offer_details: true },
+            })
+          )?.offer_details
+        : null;
+    this.assertBindingsMatchApprovedSnapshot(
+      sendOfferDetails,
+      template,
+      envelope.recipients.map((recipient) => ({
+        role_key: recipient.role_key,
+        name: recipient.name,
+        email: recipient.email,
+        ic_number: recipient.ic_number,
+        application_guarantor_id: recipient.application_guarantor_id ?? null,
+      }))
     );
 
     for (const document of [...envelope.documents].sort((a, b) => a.order - b.order)) {

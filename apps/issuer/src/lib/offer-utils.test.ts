@@ -214,10 +214,11 @@ describe("getOfferPhaseDeadlineDisplay", () => {
 });
 
 describe("getIssuerOfferActionCta", () => {
-  it("uses Update acceptance documents for CHANGES_REQUESTED", () => {
+  it("uses Update requested changes for CHANGES_REQUESTED", () => {
     const cta = getIssuerOfferActionCta("CHANGES_REQUESTED", { scope: "contract" });
-    expect(cta.label).toBe("Update acceptance documents");
+    expect(cta.label).toBe("Update requested changes");
     expect(cta.hint).toContain("requested changes");
+    expect(cta.hint).toContain("authorised representatives");
     expect(cta.buttonVariant).toBe("makeAmendments");
     expect(cta.isAcceptanceChangesRequested).toBe(true);
   });
@@ -239,6 +240,6 @@ describe("getIssuerOfferActionCta", () => {
       { offer_acceptance: { status: "CHANGES_REQUESTED" } },
       { scope: "invoice" }
     );
-    expect(cta.label).toBe("Update acceptance documents");
+    expect(cta.label).toBe("Update requested changes");
   });
 });

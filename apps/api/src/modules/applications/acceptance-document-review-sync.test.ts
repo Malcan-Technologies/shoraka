@@ -1,31 +1,53 @@
-import { hasAnyRejectedAcceptanceDocumentItems } from "./acceptance-document-review-sync";
+import { resolveAcceptanceReviewApprovalGate } from "./acceptance-document-review-sync";
 
 describe("acceptance-document-review-sync", () => {
-  describe("hasAnyRejectedAcceptanceDocumentItems", () => {
-    it("returns true when any configured key is rejected", () => {
-      const statusByKey = new Map([
-        ["acceptance_documents:0:letter_of_offer", "APPROVED"],
-        ["acceptance_documents:1:board_resolution", "REJECTED"],
-      ]);
-      expect(
-        hasAnyRejectedAcceptanceDocumentItems(
-          ["acceptance_documents:0:letter_of_offer", "acceptance_documents:1:board_resolution"],
-          statusByKey
-        )
-      ).toBe(true);
+  describe("resolveAcceptanceReviewApprovalGate", () => {
+    const docKeys = ["acceptance_documents:0:board_resolution"];
+    const partyKeys = [
+      "authorized_representatives:issuer",
+      "authorized_representatives:guarantor:g_co",
+    ];
+
+    it("stays unapproved when docs are approved but people are pending", () => {
+      const gate = resolveAcceptanceReviewApprovalGate({
+        docKeys,
+        partyKeys,
+        statusByKey: new Map([
+          ["acceptance_documents:0:board_resolution", "APPROVED"],
+          ["authorized_representatives:issuer", "APPROVED"],
+          ["authorized_representatives:guarantor:g_co", "PENDING"],
+        ]),
+      });
+      expect(gate.allApproved).toBe(false);
+      expect(gate.hasAmendment).toBe(false);
     });
 
-    it("returns false when no keys are rejected", () => {
-      const statusByKey = new Map([
-        ["acceptance_documents:0:letter_of_offer", "PENDING"],
-        ["acceptance_documents:1:board_resolution", "APPROVED"],
-      ]);
-      expect(
-        hasAnyRejectedAcceptanceDocumentItems(
-          ["acceptance_documents:0:letter_of_offer", "acceptance_documents:1:board_resolution"],
-          statusByKey
-        )
-      ).toBe(false);
+    it("flags amendment when a party list is requested to change", () => {
+      const gate = resolveAcceptanceReviewApprovalGate({
+        docKeys,
+        partyKeys,
+        statusByKey: new Map([
+          ["acceptance_documents:0:board_resolution", "APPROVED"],
+          ["authorized_representatives:issuer", "APPROVED"],
+          ["authorized_representatives:guarantor:g_co", "AMENDMENT_REQUESTED"],
+        ]),
+      });
+      expect(gate.hasAmendment).toBe(true);
+      expect(gate.allApproved).toBe(false);
+    });
+
+    it("is fully approved only when docs and people are approved", () => {
+      const gate = resolveAcceptanceReviewApprovalGate({
+        docKeys,
+        partyKeys,
+        statusByKey: new Map([
+          ["acceptance_documents:0:board_resolution", "APPROVED"],
+          ["authorized_representatives:issuer", "APPROVED"],
+          ["authorized_representatives:guarantor:g_co", "APPROVED"],
+        ]),
+      });
+      expect(gate.allApproved).toBe(true);
+      expect(gate.hasAmendment).toBe(false);
     });
   });
 });

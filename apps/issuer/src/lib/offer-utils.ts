@@ -67,7 +67,8 @@ export type IssuerOfferActionCta = {
 
 /**
  * Card / row CTA copy for the Review Offer modal entry point.
- * CHANGES_REQUESTED keeps the same modal but labels the task as document updates.
+ * CHANGES_REQUESTED keeps the same modal but labels the task as requested document
+ * and representative-list updates.
  */
 export function getIssuerOfferActionCta(
   acceptanceStatus?: string | null,
@@ -76,8 +77,8 @@ export function getIssuerOfferActionCta(
   const phase = String(acceptanceStatus ?? "").toUpperCase();
   if (phase === "CHANGES_REQUESTED") {
     return {
-      label: "Update acceptance documents",
-      hint: "CashSouk requested changes to your acceptance documents.",
+      label: "Update requested changes",
+      hint: "CashSouk requested changes to your acceptance documents or authorised representatives.",
       buttonVariant: "makeAmendments",
       isAcceptanceChangesRequested: true,
     };

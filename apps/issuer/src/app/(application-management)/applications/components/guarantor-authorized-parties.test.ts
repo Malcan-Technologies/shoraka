@@ -89,8 +89,41 @@ describe("nextGuarantorPartyDrafts", () => {
         dirty: false,
       })
     ).toMatchObject({
-      corporateRepsById: { g_co: [nora] },
+      corporateRepsById: { g_co: [{ name: "Nora", email: "nora@holdco.my" }] },
       individualEmailsById: { g_ind: "ali.personal@co.my" },
+    });
+  });
+
+  it("hydrates corporate reps when snapshot ids are stale Prisma rows", () => {
+    const liveCompany: ApplicationGuarantorRow = {
+      ...company,
+      id: "new_co",
+      client_guarantor_id: "g-company-abc",
+    };
+    expect(
+      nextGuarantorPartyDrafts({
+        snapshot: {
+          submitted_by_user_id: "user_1",
+          submitted_at: "2026-08-21T00:00:00.000Z",
+          parties: [
+            {
+              key: "old_co",
+              entity_kind: "CORPORATE_GUARANTOR",
+              application_guarantor_id: "old_prisma_co",
+              client_guarantor_id: "g-company-abc",
+              representatives: [nora],
+            },
+          ],
+        },
+        guarantors: [liveCompany],
+        current: {
+          corporateRepsById: { new_co: [{ ...EMPTY_CORPORATE_REP }] },
+          individualEmailsById: {},
+        },
+        dirty: false,
+      })
+    ).toMatchObject({
+      corporateRepsById: { new_co: [{ name: "Nora", email: "nora@holdco.my" }] },
     });
   });
 
@@ -112,7 +145,7 @@ describe("nextGuarantorPartyDrafts", () => {
         guarantors: [company],
         current: {
           corporateRepsById: {
-            g_co: [{ name: "Edited", email: "e@x.my", ic_number: "770202025555", capacity: "director" }],
+            g_co: [{ name: "Edited", email: "e@x.my" }],
           },
           individualEmailsById: {},
         },
@@ -123,10 +156,12 @@ describe("nextGuarantorPartyDrafts", () => {
 });
 
 describe("areGuarantorPartiesReady", () => {
-  it("requires a complete corporate row and a valid individual email plus IC", () => {
+  it("requires a complete corporate name and email, and a valid individual email plus IC", () => {
     expect(
       areGuarantorPartiesReady([company, individual], {
-        corporateRepsById: { g_co: [nora] },
+        corporateRepsById: {
+          g_co: [{ name: "Nora", email: "nora@holdco.my" }],
+        },
         individualEmailsById: { g_ind: "ali@home.my" },
       })
     ).toBe(true);
@@ -157,7 +192,9 @@ describe("buildAuthorizedPartiesSubmitPayload", () => {
     ]);
     expect(payload.parties[1]).toMatchObject({
       application_guarantor_id: "g_co",
-      representatives: [nora],
+      representatives: [
+        { name: "Nora", email: "nora@holdco.my", ic_number: "", capacity: "authorised_signatory" },
+      ],
     });
     expect(payload.parties[2]).toMatchObject({
       application_guarantor_id: "g_ind",

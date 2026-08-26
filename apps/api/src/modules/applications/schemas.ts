@@ -230,6 +230,12 @@ const signingIcSchema = z
   .transform((value) => value.replace(/\D/g, ""))
   .refine((value) => value.length === 12, "IC must be 12 digits");
 
+const optionalSigningIcSchema = z
+  .string()
+  .optional()
+  .transform((value) => (typeof value === "string" ? value.replace(/\D/g, "") : ""))
+  .refine((value) => value.length === 0 || value.length === 12, "IC must be 12 digits");
+
 const issuerAuthorizedRepresentativeSchema = z.object({
   name: z.string().trim().min(1),
   email: signingEmailSchema,
@@ -247,7 +253,7 @@ const issuerAuthorizedPartySchema = z.object({
 const guarantorAuthorizedRepresentativeSchema = z.object({
   name: z.string().trim().min(1),
   email: signingEmailSchema,
-  ic_number: signingIcSchema,
+  ic_number: optionalSigningIcSchema,
   capacity: z.enum(["director", "authorised_signatory"]),
 });
 
@@ -255,6 +261,7 @@ const corporateGuarantorAuthorizedPartySchema = z.object({
   key: z.string().trim().min(1),
   entity_kind: z.literal("CORPORATE_GUARANTOR"),
   application_guarantor_id: z.string().trim().min(1),
+  client_guarantor_id: z.string().trim().min(1).optional(),
   representatives: z.array(guarantorAuthorizedRepresentativeSchema).min(1),
 });
 
@@ -262,6 +269,7 @@ const individualGuarantorAuthorizedPartySchema = z.object({
   key: z.string().trim().min(1),
   entity_kind: z.literal("INDIVIDUAL_GUARANTOR"),
   application_guarantor_id: z.string().trim().min(1),
+  client_guarantor_id: z.string().trim().min(1).optional(),
   representatives: z.array(guarantorAuthorizedRepresentativeSchema).min(1).max(1),
 });
 

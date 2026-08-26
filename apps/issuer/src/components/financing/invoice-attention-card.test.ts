@@ -38,7 +38,7 @@ describe("getInvoiceAttentionAction", () => {
     expect(action.hint).toBe("You'll review this on your application.");
   });
 
-  it("names document updates when acceptance changes are requested", () => {
+  it("names requested updates when acceptance changes are requested", () => {
     const action = getInvoiceAttentionAction(
       invoice({
         invoiceForModal: {
@@ -47,8 +47,8 @@ describe("getInvoiceAttentionAction", () => {
         },
       })
     );
-    expect(action.headline).toBe("Update your documents");
-    expect(action.label).toBe("Update acceptance documents");
+    expect(action.headline).toBe("Update requested changes");
+    expect(action.label).toBe("Update requested changes");
     expect(action.buttonVariant).toBe("outline");
   });
 

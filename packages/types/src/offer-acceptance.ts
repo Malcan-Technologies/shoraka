@@ -333,6 +333,17 @@ export function offerAcceptanceIsStep1Editable(status: OfferAcceptanceStatus | n
   return status === "PENDING_ISSUER" || status === "CHANGES_REQUESTED" || status == null;
 }
 
+/** After admin approval, Step 3 people are frozen — void does not reopen the lists. */
+export function offerAcceptanceFreezesAuthorizedParties(
+  status: OfferAcceptanceStatus | null | undefined
+): boolean {
+  return (
+    status === "APPROVED_FOR_SIGNING" ||
+    status === "SIGNING_IN_PROGRESS" ||
+    status === "COMPLETED"
+  );
+}
+
 export function offerAcceptanceIsTerminal(status: OfferAcceptanceStatus | null | undefined): boolean {
   return status === "REJECTED" || status === "DECLINED" || status === "COMPLETED";
 }

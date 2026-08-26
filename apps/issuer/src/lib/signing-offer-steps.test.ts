@@ -7,6 +7,7 @@ import {
   hasCompletedContractEnvelope,
   hasAcceptanceDocuments,
   isSigningOfferStepReachable,
+  resolveAcceptanceStep1Screen,
   resolveReviewOfferModalMode,
 } from "./signing-offer-steps";
 
@@ -203,29 +204,109 @@ describe("getCurrentSigningOfferStepId locked package", () => {
   });
 });
 
-describe("acceptance flow upload-only stepper", () => {
+describe("resolveAcceptanceStep1Screen", () => {
+  it("starts on representatives until the issuer continues", () => {
+    expect(
+      resolveAcceptanceStep1Screen({
+        hasPostDocs: true,
+        peopleStepConfirmed: false,
+        flaggedPartyCount: 0,
+        flaggedDocumentCount: 0,
+      })
+    ).toBe("representatives");
+  });
+
+  it("moves to documents after the people screen is confirmed", () => {
+    expect(
+      resolveAcceptanceStep1Screen({
+        hasPostDocs: true,
+        peopleStepConfirmed: true,
+        flaggedPartyCount: 0,
+        flaggedDocumentCount: 0,
+      })
+    ).toBe("documents");
+  });
+
+  it("lands on representatives when only a party list is flagged", () => {
+    expect(
+      resolveAcceptanceStep1Screen({
+        hasPostDocs: true,
+        peopleStepConfirmed: false,
+        flaggedPartyCount: 1,
+        flaggedDocumentCount: 0,
+      })
+    ).toBe("representatives");
+  });
+
+  it("lands on documents when only acceptance files are flagged", () => {
+    expect(
+      resolveAcceptanceStep1Screen({
+        hasPostDocs: true,
+        peopleStepConfirmed: false,
+        flaggedPartyCount: 0,
+        flaggedDocumentCount: 1,
+      })
+    ).toBe("documents");
+  });
+});
+
+describe("acceptance flow Step 1 stepper", () => {
   const acceptanceShell = {
     usesAcceptanceFlow: true,
     hasPostDocs: true,
     acceptanceStatus: "PENDING_ISSUER" as const,
   };
+  const cursorRest = {
+    postDocsReady: false,
+    signersLocked: false,
+    allDocsSigned: false,
+    envelopeCompleted: false,
+  };
 
-  it("starts at upload when acceptance documents are configured", () => {
+  it("shows representatives then documents while Step 1 is editable", () => {
     const steps = getSigningOfferSteps({
       ...acceptanceShell,
-      postDocsReady: false,
-      signersLocked: false,
-      allDocsSigned: false,
-      envelopeCompleted: false,
+      ...cursorRest,
     });
-    expect(steps.map((s) => s.id)).toEqual(["documents"]);
-    expect(getCurrentSigningOfferStepId({
+    expect(steps.map((s) => s.id)).toEqual(["representatives", "documents"]);
+    expect(
+      getCurrentSigningOfferStepId({
+        ...acceptanceShell,
+        ...cursorRest,
+      })
+    ).toBe("representatives");
+  });
+
+  it("keeps documents pending until the people screen is confirmed", () => {
+    const steps = getSigningOfferSteps({
       ...acceptanceShell,
-      postDocsReady: false,
-      signersLocked: false,
-      allDocsSigned: false,
-      envelopeCompleted: false,
-    })).toBe("documents");
+      ...cursorRest,
+      acceptanceStep1Screen: "representatives",
+    });
+    expect(steps.find((s) => s.id === "representatives")?.status).toBe("current");
+    expect(steps.find((s) => s.id === "documents")?.status).toBe("pending");
+  });
+
+  it("lands on representatives when only a party list is flagged", () => {
+    expect(
+      getCurrentSigningOfferStepId({
+        ...acceptanceShell,
+        ...cursorRest,
+        acceptanceStatus: "CHANGES_REQUESTED",
+        acceptanceStep1Screen: "representatives",
+      })
+    ).toBe("representatives");
+  });
+
+  it("lands on documents when only acceptance files are flagged", () => {
+    expect(
+      getCurrentSigningOfferStepId({
+        ...acceptanceShell,
+        ...cursorRest,
+        acceptanceStatus: "CHANGES_REQUESTED",
+        acceptanceStep1Screen: "documents",
+      })
+    ).toBe("documents");
   });
 });
 

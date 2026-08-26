@@ -292,7 +292,17 @@ describe("assertGuarantorAuthorizedPartiesValid", () => {
     );
   });
 
-  it("rejects a company representative without a 12-digit IC", () => {
+  it("accepts a company representative without an IC", () => {
+    const parties = [
+      corporateParty([
+        { name: "Nora", email: "nora@holdco.my", ic_number: "", capacity: "director" },
+      ]),
+    ];
+    expect(() => assertGuarantorAuthorizedPartiesValid(parties, [COMPANY])).not.toThrow();
+    expect(parties[0]?.representatives[0]?.ic_number).toBe("");
+  });
+
+  it("rejects a company representative with a malformed IC", () => {
     expectAuthorizedPartiesInvalid(() =>
       assertGuarantorAuthorizedPartiesValid(
         [
@@ -318,6 +328,25 @@ describe("assertGuarantorAuthorizedPartiesValid", () => {
         [COMPANY]
       )
     );
+  });
+
+  it("stamps live Prisma id and client_guarantor_id when the client posted the form id", () => {
+    const parties = [
+      {
+        key: "g-company-abc",
+        entity_kind: "CORPORATE_GUARANTOR" as const,
+        application_guarantor_id: "g-company-abc",
+        representatives: [noraRep],
+      },
+    ];
+    expect(() =>
+      assertGuarantorAuthorizedPartiesValid(parties, [
+        { ...COMPANY, id: "prisma_co", client_guarantor_id: "g-company-abc" },
+      ])
+    ).not.toThrow();
+    expect(parties[0]?.application_guarantor_id).toBe("prisma_co");
+    expect(parties[0]?.client_guarantor_id).toBe("g-company-abc");
+    expect(parties[0]?.key).toBe("g-company-abc");
   });
 });
 
@@ -347,6 +376,20 @@ describe("submitOfferAcceptanceBodySchema", () => {
       "CORPORATE_GUARANTOR",
       "INDIVIDUAL_GUARANTOR",
     ]);
+  });
+
+  it("accepts a corporate representative without an IC", () => {
+    const parsed = submitOfferAcceptanceBodySchema.parse({
+      authorized_parties: {
+        parties: [
+          issuerBody,
+          corporateParty([
+            { name: "Nora", email: "nora@holdco.my", ic_number: "", capacity: "authorised_signatory" },
+          ]),
+        ],
+      },
+    });
+    expect(parsed.authorized_parties.parties[1]?.representatives[0]?.ic_number).toBe("");
   });
 
   it("rejects an empty parties array", () => {

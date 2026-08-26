@@ -32,14 +32,20 @@ export type AuthorizedPartyIssuer = {
 export type AuthorizedPartyCorporateGuarantor = {
   key: string;
   entity_kind: "CORPORATE_GUARANTOR";
+  /** Live Prisma `application_guarantors.id` — rewritten at Step 1 submit. */
   application_guarantor_id: string;
+  /** Stable form id — used for review item keys. */
+  client_guarantor_id?: string;
   representatives: AuthorizedRepresentative[];
 };
 
 export type AuthorizedPartyIndividualGuarantor = {
   key: string;
   entity_kind: "INDIVIDUAL_GUARANTOR";
+  /** Live Prisma `application_guarantors.id` — rewritten at Step 1 submit. */
   application_guarantor_id: string;
+  /** Stable form id — used for review item keys. */
+  client_guarantor_id?: string;
   representatives: AuthorizedRepresentative[];
 };
 
@@ -125,23 +131,29 @@ function parseParty(value: unknown): AuthorizedParty | null {
   const applicationGuarantorId =
     typeof root.application_guarantor_id === "string" ? root.application_guarantor_id.trim() : "";
   if (!applicationGuarantorId) return null;
+  const clientGuarantorId =
+    typeof root.client_guarantor_id === "string" ? root.client_guarantor_id.trim() : "";
 
   if (entityKind === "CORPORATE_GUARANTOR") {
-    return {
+    const party: AuthorizedPartyCorporateGuarantor = {
       key: typeof root.key === "string" && root.key.trim() ? root.key.trim() : applicationGuarantorId,
       entity_kind: "CORPORATE_GUARANTOR",
       application_guarantor_id: applicationGuarantorId,
       representatives,
     };
+    if (clientGuarantorId) party.client_guarantor_id = clientGuarantorId;
+    return party;
   }
 
   if (entityKind === "INDIVIDUAL_GUARANTOR") {
-    return {
+    const party: AuthorizedPartyIndividualGuarantor = {
       key: typeof root.key === "string" && root.key.trim() ? root.key.trim() : applicationGuarantorId,
       entity_kind: "INDIVIDUAL_GUARANTOR",
       application_guarantor_id: applicationGuarantorId,
       representatives,
     };
+    if (clientGuarantorId) party.client_guarantor_id = clientGuarantorId;
+    return party;
   }
 
   return null;
@@ -182,19 +194,23 @@ export function serializeAuthorizedPartiesSnapshot(
         };
       }
       if (party.entity_kind === "CORPORATE_GUARANTOR") {
-        return {
+        const serialized: AuthorizedPartyCorporateGuarantor = {
           key: party.key,
           entity_kind: "CORPORATE_GUARANTOR",
           application_guarantor_id: party.application_guarantor_id,
           representatives: party.representatives.map(serializeRepresentative),
         };
+        if (party.client_guarantor_id) serialized.client_guarantor_id = party.client_guarantor_id;
+        return serialized;
       }
-      return {
+      const serialized: AuthorizedPartyIndividualGuarantor = {
         key: party.key,
         entity_kind: "INDIVIDUAL_GUARANTOR",
         application_guarantor_id: party.application_guarantor_id,
         representatives: party.representatives.map(serializeRepresentative),
       };
+      if (party.client_guarantor_id) serialized.client_guarantor_id = party.client_guarantor_id;
+      return serialized;
     }),
   };
 }
@@ -234,9 +250,103 @@ export function authorizedRepresentativeCapacityLabel(
 
 export type AuthorizedPartyGuarantorLookup = {
   id: string;
+  /** Stable form id — survives `application_guarantors` delete+recreate. */
+  client_guarantor_id?: string | null;
+  guarantor_type?: "individual" | "company" | null;
   name?: string | null;
   business_name?: string | null;
 };
+
+function rowMatchesGuarantorParty(
+  row: AuthorizedPartyGuarantorLookup,
+  party: AuthorizedPartyCorporateGuarantor | AuthorizedPartyIndividualGuarantor
+): boolean {
+  if (row.id === party.application_guarantor_id) return true;
+  if (party.client_guarantor_id && row.client_guarantor_id === party.client_guarantor_id) {
+    return true;
+  }
+  if (row.client_guarantor_id && row.client_guarantor_id === party.application_guarantor_id) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Map snapshot party keys onto current guarantor rows.
+ * Match live Prisma `id` or stable `client_guarantor_id` only — never leftover kind/order.
+ */
+export function matchAuthorizedPartiesToGuarantors(
+  parties: readonly AuthorizedParty[],
+  guarantors: readonly AuthorizedPartyGuarantorLookup[]
+): Map<string, AuthorizedPartyGuarantorLookup> {
+  const result = new Map<string, AuthorizedPartyGuarantorLookup>();
+  const used = new Set<string>();
+
+  for (const party of parties) {
+    if (!isGuarantorAuthorizedParty(party)) continue;
+    const row = guarantors.find((item) => !used.has(item.id) && rowMatchesGuarantorParty(item, party));
+    if (!row) continue;
+    result.set(party.key, row);
+    used.add(row.id);
+  }
+  return result;
+}
+
+/** Resolve a posted guarantor id (Prisma or client form id) onto the live Prisma row id. */
+export function resolveLiveApplicationGuarantorId(
+  postedId: string | null | undefined,
+  guarantors: readonly Pick<AuthorizedPartyGuarantorLookup, "id" | "client_guarantor_id">[]
+): string | null {
+  if (!postedId) return null;
+  const row = guarantors.find(
+    (item) => item.id === postedId || item.client_guarantor_id === postedId
+  );
+  return row?.id ?? null;
+}
+
+export function findAuthorizedPartyForGuarantor(
+  snapshot: AuthorizedPartiesSnapshot | null | undefined,
+  guarantor: AuthorizedPartyGuarantorLookup,
+  allGuarantors: readonly AuthorizedPartyGuarantorLookup[]
+): AuthorizedParty | null {
+  if (!snapshot) return null;
+  const matches = matchAuthorizedPartiesToGuarantors(snapshot.parties, allGuarantors);
+  for (const party of snapshot.parties) {
+    if (!isGuarantorAuthorizedParty(party)) continue;
+    if (matches.get(party.key)?.id === guarantor.id) return party;
+  }
+  return null;
+}
+
+/**
+ * Map a previously submitted party onto the same legal entity in a new payload.
+ * Prisma `application_guarantor_id` is rewritten when guarantor rows are recreated.
+ */
+export function findSubmittedPartyForSnapshotParty(
+  snapshotParty: AuthorizedParty,
+  snapshotParties: readonly AuthorizedParty[],
+  submittedParties: readonly AuthorizedParty[],
+  guarantors: readonly AuthorizedPartyGuarantorLookup[] = []
+): AuthorizedParty | null {
+  if (snapshotParty.entity_kind === "ISSUER") {
+    return submittedParties.find((party) => party.entity_kind === "ISSUER") ?? null;
+  }
+  if (guarantors.length > 0) {
+    const snapshotMatches = matchAuthorizedPartiesToGuarantors(snapshotParties, guarantors);
+    const submittedMatches = matchAuthorizedPartiesToGuarantors(submittedParties, guarantors);
+    const row = snapshotMatches.get(snapshotParty.key);
+    if (row) {
+      const submitted = submittedParties.find(
+        (party) => submittedMatches.get(party.key)?.id === row.id
+      );
+      if (submitted) return submitted;
+    }
+  }
+  const itemId = authorizedRepresentativeReviewItemId(snapshotParty);
+  return (
+    submittedParties.find((party) => authorizedRepresentativeReviewItemId(party) === itemId) ?? null
+  );
+}
 
 /** Issuer first, then guarantors in `guarantorIds` order, then any remaining snapshot guarantors. */
 export function listAuthorizedPartiesInDisplayOrder(
@@ -269,11 +379,19 @@ export function listAuthorizedPartiesInDisplayOrder(
   return [...issuer, ...ordered];
 }
 
+export function authorizedPartyGroupTitle(
+  entityKind: AuthorizedParty["entity_kind"]
+): string {
+  if (entityKind === "ISSUER") return "Issuer company";
+  if (entityKind === "CORPORATE_GUARANTOR") return "Corporate guarantors";
+  return "Individual guarantors";
+}
+
 export function authorizedPartyEntityTitle(
   party: AuthorizedParty,
   guarantor?: AuthorizedPartyGuarantorLookup | null
 ): string {
-  if (party.entity_kind === "ISSUER") return "Issuer representatives";
+  if (party.entity_kind === "ISSUER") return authorizedPartyGroupTitle("ISSUER");
   if (party.entity_kind === "CORPORATE_GUARANTOR") {
     const businessName = guarantor?.business_name?.trim();
     return businessName || "Company guarantor";
@@ -284,11 +402,13 @@ export function authorizedPartyEntityTitle(
 
 export type AuthorizedPartyReadOnlyBlock = {
   key: string;
+  review_item_id: string;
   title: string;
   entity_kind: AuthorizedParty["entity_kind"];
   representatives: Array<{
     name: string;
     email: string;
+    ic_number: string;
     capacity_label: string;
   }>;
 };
@@ -297,23 +417,53 @@ export function authorizedPartyReadOnlyBlocks(
   snapshot: AuthorizedPartiesSnapshot | null | undefined,
   guarantors: AuthorizedPartyGuarantorLookup[] = []
 ): AuthorizedPartyReadOnlyBlock[] {
-  const byId = new Map(guarantors.map((row) => [row.id, row]));
+  const matches = matchAuthorizedPartiesToGuarantors(snapshot?.parties ?? [], guarantors);
   return listAuthorizedPartiesInDisplayOrder(
     snapshot,
     guarantors.map((row) => row.id)
   ).map((party) => ({
     key: party.key,
+    review_item_id: authorizedRepresentativeReviewItemId(party),
     title: authorizedPartyEntityTitle(
       party,
-      isGuarantorAuthorizedParty(party) ? byId.get(party.application_guarantor_id) : null
+      isGuarantorAuthorizedParty(party) ? (matches.get(party.key) ?? null) : null
     ),
     entity_kind: party.entity_kind,
     representatives: party.representatives.map((rep) => ({
       name: rep.name,
       email: rep.email,
+      ic_number: rep.ic_number,
       capacity_label: authorizedRepresentativeCapacityLabel(rep.capacity),
     })),
   }));
+}
+
+export type AuthorizedPartyReadOnlyGroup = {
+  entity_kind: AuthorizedParty["entity_kind"];
+  title: string;
+  blocks: AuthorizedPartyReadOnlyBlock[];
+};
+
+const READ_ONLY_GROUP_ORDER: AuthorizedParty["entity_kind"][] = [
+  "ISSUER",
+  "CORPORATE_GUARANTOR",
+  "INDIVIDUAL_GUARANTOR",
+];
+
+export function groupAuthorizedPartyReadOnlyBlocks(
+  blocks: AuthorizedPartyReadOnlyBlock[]
+): AuthorizedPartyReadOnlyGroup[] {
+  return READ_ONLY_GROUP_ORDER.flatMap((entityKind) => {
+    const grouped = blocks.filter((block) => block.entity_kind === entityKind);
+    if (grouped.length === 0) return [];
+    return [
+      {
+        entity_kind: entityKind,
+        title: authorizedPartyGroupTitle(entityKind),
+        blocks: grouped,
+      },
+    ];
+  });
 }
 
 export function stampAuthorizedPartiesSnapshot(input: {
@@ -387,4 +537,137 @@ export function guarantorBindingsFromSnapshot(
     }
   }
   return bindings;
+}
+
+export const AUTHORIZED_REPRESENTATIVES_ITEM_TYPE = "authorized_representatives" as const;
+export const AUTHORIZED_REPRESENTATIVES_ITEM_ID_PREFIX = "authorized_representatives:" as const;
+export const AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID =
+  `${AUTHORIZED_REPRESENTATIVES_ITEM_ID_PREFIX}issuer` as const;
+
+export function authorizedRepresentativesGuarantorItemId(applicationGuarantorId: string): string {
+  return `${AUTHORIZED_REPRESENTATIVES_ITEM_ID_PREFIX}guarantor:${applicationGuarantorId}`;
+}
+
+export function isAuthorizedRepresentativesItemId(itemId: string): boolean {
+  return itemId.startsWith(AUTHORIZED_REPRESENTATIVES_ITEM_ID_PREFIX);
+}
+
+export function authorizedPartyStableGuarantorId(
+  party: AuthorizedPartyCorporateGuarantor | AuthorizedPartyIndividualGuarantor
+): string {
+  return party.client_guarantor_id || party.application_guarantor_id;
+}
+
+export function authorizedRepresentativeReviewItemId(party: AuthorizedParty): string {
+  if (party.entity_kind === "ISSUER") return AUTHORIZED_REPRESENTATIVES_ISSUER_ITEM_ID;
+  return authorizedRepresentativesGuarantorItemId(authorizedPartyStableGuarantorId(party));
+}
+
+export function authorizedRepresentativeReviewItemIdForGuarantor(
+  snapshot: AuthorizedPartiesSnapshot | null | undefined,
+  guarantor: AuthorizedPartyGuarantorLookup,
+  allGuarantors: readonly AuthorizedPartyGuarantorLookup[]
+): string {
+  const party = findAuthorizedPartyForGuarantor(snapshot, guarantor, allGuarantors);
+  if (party) return authorizedRepresentativeReviewItemId(party);
+  return authorizedRepresentativesGuarantorItemId(guarantor.client_guarantor_id || guarantor.id);
+}
+
+export function collectAuthorizedRepresentativeReviewKeys(
+  snapshot: AuthorizedPartiesSnapshot | null | undefined
+): string[] {
+  if (!snapshot) return [];
+  return snapshot.parties.map((party) => authorizedRepresentativeReviewItemId(party));
+}
+
+export function findAuthorizedPartyForReviewItemId(
+  snapshot: AuthorizedPartiesSnapshot | null | undefined,
+  itemId: string
+): AuthorizedParty | null {
+  if (!snapshot) return null;
+  return (
+    snapshot.parties.find((party) => authorizedRepresentativeReviewItemId(party) === itemId) ?? null
+  );
+}
+
+function representativeFingerprint(rep: AuthorizedRepresentative): string {
+  return [
+    rep.name.trim().toLowerCase(),
+    normalizeSigningEmail(rep.email),
+    normalizeSigningIcNumber(rep.ic_number),
+    rep.capacity,
+    rep.person_match_key ?? "",
+  ].join("|");
+}
+
+/** Who is on the list — ignores rewritten Prisma guarantor ids. */
+export function authorizedPartyListFingerprint(party: AuthorizedParty): string {
+  const reps = party.representatives.map(representativeFingerprint).sort().join(";");
+  return `${party.entity_kind}::${reps}`;
+}
+
+function isIssuerDirectorTemplateRole(role: { key: string; source_hint?: string | null }): boolean {
+  return role.key === "issuer_director" || role.source_hint === "issuer_director";
+}
+
+function isGuarantorTemplateRole(role: { key: string; source_hint?: string | null }): boolean {
+  return role.key === "guarantor" || role.source_hint === "guarantor";
+}
+
+export function snapshotSignerBindings(
+  snapshot: AuthorizedPartiesSnapshot | null | undefined,
+  roles: Array<{ key: string; source_hint?: string | null }>
+): RecipientBinding[] {
+  if (!snapshot) return [];
+  const bindings: RecipientBinding[] = [];
+  for (const role of roles) {
+    if (isIssuerDirectorTemplateRole(role)) {
+      bindings.push(...issuerDirectorBindingsFromSnapshot(snapshot, role.key));
+    } else if (isGuarantorTemplateRole(role)) {
+      bindings.push(...guarantorBindingsFromSnapshot(snapshot, role.key));
+    }
+  }
+  return bindings;
+}
+
+function bindingCompareKey(
+  binding: RecipientBinding,
+  includeIc: boolean
+): string {
+  const ic =
+    includeIc && binding.ic_number ? normalizeSigningIcNumber(binding.ic_number) : "";
+  return [
+    binding.role_key,
+    normalizeSigningEmail(binding.email),
+    binding.name.trim().toLowerCase(),
+    binding.application_guarantor_id ?? "",
+    ic,
+  ].join("|");
+}
+
+/**
+ * True when posted issuer_director / guarantor bindings match the approved snapshot.
+ * Other template roles are ignored. Guarantor IC is ignored (self-declared on the link).
+ */
+export function postedBindingsMatchApprovedSnapshot(input: {
+  snapshot: AuthorizedPartiesSnapshot | null | undefined;
+  roles: Array<{ key: string; source_hint?: string | null }>;
+  posted: RecipientBinding[];
+}): boolean {
+  if (!input.snapshot) return true;
+  const expected = snapshotSignerBindings(input.snapshot, input.roles);
+  if (expected.length === 0) return true;
+  const expectedRoleKeys = new Set(expected.map((binding) => binding.role_key));
+  const posted = input.posted.filter((binding) => expectedRoleKeys.has(binding.role_key));
+  if (expected.length !== posted.length) return false;
+  const guarantorRoleKeys = new Set(
+    input.roles.filter(isGuarantorTemplateRole).map((role) => role.key)
+  );
+  const expectedKeys = expected
+    .map((binding) => bindingCompareKey(binding, !guarantorRoleKeys.has(binding.role_key)))
+    .sort();
+  const postedKeys = posted
+    .map((binding) => bindingCompareKey(binding, !guarantorRoleKeys.has(binding.role_key)))
+    .sort();
+  return expectedKeys.every((key, index) => key === postedKeys[index]);
 }

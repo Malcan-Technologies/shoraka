@@ -152,6 +152,7 @@ export function assertIssuerAuthorizedPartiesValid(
 
 export type ApplicationGuarantorForParties = {
   id: string;
+  client_guarantor_id?: string | null;
   guarantor_type: "individual" | "company";
   name: string | null;
   email: string;
@@ -167,8 +168,11 @@ export function applicationGuarantorsForParties(value: unknown): ApplicationGuar
     const row = item as Record<string, unknown>;
     const id = typeof row.id === "string" ? row.id.trim() : "";
     if (!id) continue;
+    const clientGuarantorId =
+      typeof row.client_guarantor_id === "string" ? row.client_guarantor_id.trim() : "";
     rows.push({
       id,
+      client_guarantor_id: clientGuarantorId || null,
       guarantor_type: row.guarantor_type === "company" ? "company" : "individual",
       name: typeof row.name === "string" ? row.name : null,
       email: typeof row.email === "string" ? row.email : "",
@@ -187,19 +191,14 @@ function stampCorporateRepresentative(representative: AuthorizedRepresentative):
   const name = representative.name.trim();
   const email = normalizeSigningEmail(representative.email);
   const ic = normalizeSigningIcNumber(representative.ic_number);
-  if (!name) {
+  if (!name || !email) {
     throwAuthorizedPartiesInvalid(
-      "Each company guarantor representative must have a name, email, and 12-digit IC."
+      "Each company guarantor representative must have a name and email."
     );
   }
-  if (!email) {
+  if (ic && !isValidSigningIcNumber(ic)) {
     throwAuthorizedPartiesInvalid(
-      "Each company guarantor representative must have a name, email, and 12-digit IC."
-    );
-  }
-  if (!isValidSigningIcNumber(ic)) {
-    throwAuthorizedPartiesInvalid(
-      "Each company guarantor representative must have a 12-digit IC."
+      "Company guarantor representative IC must be 12 digits when provided."
     );
   }
   if (representative.capacity !== "director" && representative.capacity !== "authorised_signatory") {
@@ -222,11 +221,14 @@ function assertCorporateGuarantorPartyValid(party: AuthorizedPartyCorporateGuara
   const seenIcs = new Set<string>();
   for (const representative of party.representatives) {
     stampCorporateRepresentative(representative);
-    if (seenEmails.has(representative.email) || seenIcs.has(representative.ic_number)) {
+    if (seenEmails.has(representative.email)) {
+      throwAuthorizedPartiesInvalid("The same person cannot be listed twice for this company.");
+    }
+    if (representative.ic_number && seenIcs.has(representative.ic_number)) {
       throwAuthorizedPartiesInvalid("The same person cannot be listed twice for this company.");
     }
     seenEmails.add(representative.email);
-    seenIcs.add(representative.ic_number);
+    if (representative.ic_number) seenIcs.add(representative.ic_number);
   }
 }
 
@@ -260,32 +262,47 @@ export function assertGuarantorAuthorizedPartiesValid(
   guarantors: ApplicationGuarantorForParties[]
 ): void {
   const guarantorParties = parties.filter(isGuarantorAuthorizedParty);
-  const submittedIds = guarantorParties.map((party) => party.application_guarantor_id);
-  if (new Set(submittedIds).size !== submittedIds.length) {
+  const resolvedRows: ApplicationGuarantorForParties[] = [];
+  const usedRowIds = new Set<string>();
+
+  for (const party of guarantorParties) {
+    const row = guarantors.find(
+      (item) =>
+        !usedRowIds.has(item.id) &&
+        (item.id === party.application_guarantor_id ||
+          item.client_guarantor_id === party.application_guarantor_id ||
+          (party.client_guarantor_id != null &&
+            party.client_guarantor_id !== "" &&
+            item.client_guarantor_id === party.client_guarantor_id))
+    );
+    if (!row) {
+      throwAuthorizedPartiesInvalid(
+        "Authorised parties include a guarantor that is not on this application."
+      );
+    }
+    usedRowIds.add(row.id);
+    resolvedRows.push(row);
+    party.application_guarantor_id = row.id;
+    if (row.client_guarantor_id) party.client_guarantor_id = row.client_guarantor_id;
+    party.key = row.client_guarantor_id || row.id;
+  }
+
+  if (usedRowIds.size !== guarantorParties.length) {
     throwAuthorizedPartiesInvalid("Each guarantor may appear only once.");
   }
 
-  const bySubmittedId = new Map(
-    guarantorParties.map((party) => [party.application_guarantor_id, party])
-  );
-  const applicationIds = new Set(guarantors.map((row) => row.id));
-
-  for (const id of submittedIds) {
-    if (!applicationIds.has(id)) {
-      throwAuthorizedPartiesInvalid("Authorised parties include a guarantor that is not on this application.");
-    }
-  }
   for (const row of guarantors) {
-    if (!bySubmittedId.has(row.id)) {
+    if (!usedRowIds.has(row.id)) {
       throwAuthorizedPartiesInvalid(
         "Declare authorised representatives for every guarantor on this application."
       );
     }
   }
 
-  for (const row of guarantors) {
-    const party = bySubmittedId.get(row.id);
-    if (!party) continue;
+  for (let index = 0; index < guarantorParties.length; index += 1) {
+    const party = guarantorParties[index];
+    const row = resolvedRows[index];
+    if (!party || !row) continue;
     if (row.guarantor_type === "company") {
       if (party.entity_kind !== "CORPORATE_GUARANTOR") {
         throwAuthorizedPartiesInvalid("Company guarantors cannot be submitted as individuals.");

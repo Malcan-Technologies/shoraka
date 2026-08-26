@@ -140,6 +140,7 @@ import type {
   GatewayReconRunDetailDto,
   GatewayReconRunListResponse,
   AuthorizedPartiesSubmitPayload,
+  ReviewItemType,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -1460,7 +1461,7 @@ export class ApiClient {
 
   async approveReviewItem(
     applicationId: string,
-    itemType: "invoice" | "document",
+    itemType: ReviewItemType,
     itemId: string,
     remark?: string
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
@@ -1472,7 +1473,7 @@ export class ApiClient {
 
   async rejectReviewItem(
     applicationId: string,
-    itemType: "invoice" | "document",
+    itemType: ReviewItemType,
     itemId: string,
     remark: string
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
@@ -1484,7 +1485,7 @@ export class ApiClient {
 
   async requestAmendmentReviewItem(
     applicationId: string,
-    itemType: "invoice" | "document",
+    itemType: ReviewItemType,
     itemId: string,
     remark: string
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
@@ -1496,7 +1497,7 @@ export class ApiClient {
 
   async resetItemReviewToPending(
     applicationId: string,
-    itemType: "invoice" | "document",
+    itemType: ReviewItemType,
     itemId: string
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
     return this.post<AdminApplicationActionResult>(
@@ -1616,7 +1617,7 @@ export class ApiClient {
       scope: "section" | "item";
       scopeKey?: string;
       remark: string;
-      itemType?: "invoice" | "document";
+      itemType?: ReviewItemType;
       itemId?: string;
     }
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {

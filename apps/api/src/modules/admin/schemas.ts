@@ -16,6 +16,7 @@ import {
   INVOICE_OFFER_FEE_SCHEDULE_WRITE_MODES,
   isNoteMoneyAmount,
   validateAdditionalFeeLines,
+  type ReviewItemType,
 } from "@cashsouk/types";
 import { isValidPhoneNumber } from "libphonenumber-js";
 import { addressSchema, bankAccountDetailsSchema } from "../organization/schemas";
@@ -462,8 +463,23 @@ export const sectionCommentSchema = z.object({
   comment: z.string().min(1, "Comment is required"),
 });
 
+export const reviewItemTypeSchema = z.enum([
+  "invoice",
+  "document",
+  "authorized_representatives",
+  "INVOICE",
+  "DOCUMENT",
+  "AUTHORIZED_REPRESENTATIVES",
+]);
+
+export function normalizeReviewItemType(
+  value: z.infer<typeof reviewItemTypeSchema>
+): ReviewItemType {
+  return value.toLowerCase() as ReviewItemType;
+}
+
 export const reviewItemActionSchema = z.object({
-  itemType: z.enum(["invoice", "document", "INVOICE", "DOCUMENT"]),
+  itemType: reviewItemTypeSchema,
   itemId: z.string().min(1),
 });
 export const reviewItemApproveSchema = reviewItemActionSchema.extend({
@@ -557,7 +573,7 @@ export const addPendingAmendmentSchema = z
     scope: z.enum(["section", "item"]),
     scopeKey: z.string().min(1).optional(),
     remark: z.string().min(1, "Remark is required"),
-    itemType: z.enum(["invoice", "document", "INVOICE", "DOCUMENT"]).optional(),
+    itemType: reviewItemTypeSchema.optional(),
     itemId: z.string().optional(),
   })
   .refine(

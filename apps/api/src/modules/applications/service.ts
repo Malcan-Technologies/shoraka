@@ -46,6 +46,8 @@ import {
   buildAcknowledgedTermsSnapshot,
   stampAuthorizedPartiesSnapshot,
   summarizeAuthorizedParties,
+  collectAuthorizedRepresentativeReviewKeys,
+  type AuthorizedPartiesSnapshot,
   type AuthorizedPartiesSubmitPayload,
 } from "@cashsouk/types";
 import { patchOfferAcceptance } from "./offer-acceptance";
@@ -62,9 +64,17 @@ import {
   resolveAcceptanceDocumentReviewKeysToResetOnSubmit,
 } from "./acceptance-document-issuer-lock";
 import {
+  AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+  assertUnflaggedAuthorizedPartiesUnchanged,
+  authorizedRepresentativeReviewItemIdRemap,
+  collectFlaggedAuthorizedRepresentativeItemIds,
+  resolveAuthorizedRepresentativeReviewKeysToResetOnSubmit,
+} from "./authorized-representatives-review";
+import {
   applicationGuarantorsForParties,
   assertAuthorizedPartiesValid,
   loadIssuerDirectorPool,
+  type ApplicationGuarantorForParties,
 } from "./authorized-parties";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import { upsertLatestOrganizationFinancialStatementsFromApplication } from "./issuer-organization-financial-statements";
@@ -2265,6 +2275,189 @@ export class ApplicationService {
   }
 
   /**
+   * Prisma recreates `application_guarantors` on business-details save, so review
+   * item ids that embed those ids must move with the live rows.
+   */
+  private async remapAuthorizedRepresentativeReviewItemsInTx(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    previous: AuthorizedPartiesSnapshot,
+    nextParties: AuthorizedPartiesSnapshot["parties"],
+    guarantors: ApplicationGuarantorForParties[]
+  ): Promise<void> {
+    const remaps = authorizedRepresentativeReviewItemIdRemap(
+      previous,
+      nextParties,
+      guarantors
+    );
+    for (const { from, to } of remaps) {
+      const fromWhere = {
+        application_id_item_type_item_id: {
+          application_id: applicationId,
+          item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+          item_id: from,
+        },
+      } as const;
+      const toWhere = {
+        application_id_item_type_item_id: {
+          application_id: applicationId,
+          item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+          item_id: to,
+        },
+      } as const;
+      const fromRow = await tx.applicationReviewItem.findUnique({ where: fromWhere });
+      if (!fromRow) continue;
+      const toRow = await tx.applicationReviewItem.findUnique({ where: toWhere });
+      if (!toRow) {
+        await tx.applicationReviewItem.create({
+          data: {
+            application_id: applicationId,
+            item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+            item_id: to,
+            status: fromRow.status,
+            reviewer_user_id: fromRow.reviewer_user_id,
+            reviewed_at: fromRow.reviewed_at,
+          },
+        });
+      } else {
+        await tx.applicationReviewItem.update({
+          where: toWhere,
+          data: {
+            status: fromRow.status,
+            reviewer_user_id: fromRow.reviewer_user_id,
+            reviewed_at: fromRow.reviewed_at,
+          },
+        });
+        await tx.applicationReviewRemark.deleteMany({
+          where: { application_id: applicationId, scope: "item", scope_key: to },
+        });
+      }
+      await tx.applicationReviewRemark.updateMany({
+        where: { application_id: applicationId, scope: "item", scope_key: from },
+        data: { scope_key: to },
+      });
+      await tx.applicationReviewItem.delete({ where: fromWhere });
+    }
+  }
+
+  /**
+   * Reset authorised-representative review items to PENDING on (re)submit.
+   * From CHANGES_REQUESTED: only AMENDMENT_REQUESTED items (approved stay approved).
+   */
+  private async resetAuthorizedRepresentativesReviewInTx(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    snapshot: AuthorizedPartiesSnapshot | null | undefined,
+    offerAcceptanceStatus: string | null | undefined,
+    previousSnapshot?: AuthorizedPartiesSnapshot | null,
+    guarantors: ApplicationGuarantorForParties[] = [],
+    reviewItems: Array<{ item_type: string; item_id: string; status: string }> = []
+  ): Promise<void> {
+    const allPartyKeys = collectAuthorizedRepresentativeReviewKeys(snapshot);
+    if (allPartyKeys.length === 0) return;
+    if (
+      offerAcceptanceStatus === "CHANGES_REQUESTED" &&
+      previousSnapshot &&
+      snapshot &&
+      guarantors.length > 0
+    ) {
+      await this.remapAuthorizedRepresentativeReviewItemsInTx(
+        tx,
+        applicationId,
+        previousSnapshot,
+        snapshot.parties,
+        guarantors
+      );
+    }
+    const partyKeys = resolveAuthorizedRepresentativeReviewKeysToResetOnSubmit(
+      offerAcceptanceStatus,
+      allPartyKeys,
+      reviewItems,
+      previousSnapshot && snapshot
+        ? {
+            previous: previousSnapshot,
+            nextParties: snapshot.parties,
+            guarantors,
+          }
+        : undefined
+    );
+    await Promise.all(
+      partyKeys.map(async (itemId) => {
+        await tx.applicationReviewItem.upsert({
+          where: {
+            application_id_item_type_item_id: {
+              application_id: applicationId,
+              item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+              item_id: itemId,
+            },
+          },
+          create: {
+            application_id: applicationId,
+            item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+            item_id: itemId,
+            status: ReviewStepStatus.PENDING,
+            reviewer_user_id: null,
+            reviewed_at: null,
+          },
+          update: {
+            status: ReviewStepStatus.PENDING,
+            reviewer_user_id: null,
+            reviewed_at: null,
+          },
+        });
+        await tx.applicationReviewRemark.deleteMany({
+          where: {
+            application_id: applicationId,
+            scope: "item",
+            scope_key: itemId,
+          },
+        });
+      })
+    );
+  }
+
+  private async persistAuthorizedRepresentativesOnAcceptanceSubmitInTx(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    authorizedParties: AuthorizedPartiesSnapshot,
+    previousAcceptance: {
+      status?: string | null;
+      authorized_parties?: AuthorizedPartiesSnapshot | null;
+    } | null
+      | undefined,
+    guarantors: ApplicationGuarantorForParties[]
+  ): Promise<void> {
+    const previousStatus = previousAcceptance?.status ?? null;
+    const partyReviewItems =
+      previousStatus === "CHANGES_REQUESTED"
+        ? await tx.applicationReviewItem.findMany({
+            where: {
+              application_id: applicationId,
+              item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+            },
+            select: { item_type: true, item_id: true, status: true },
+          })
+        : [];
+    if (previousStatus === "CHANGES_REQUESTED") {
+      assertUnflaggedAuthorizedPartiesUnchanged(
+        previousAcceptance?.authorized_parties,
+        authorizedParties.parties,
+        collectFlaggedAuthorizedRepresentativeItemIds(partyReviewItems),
+        guarantors
+      );
+    }
+    await this.resetAuthorizedRepresentativesReviewInTx(
+      tx,
+      applicationId,
+      authorizedParties,
+      previousStatus,
+      previousAcceptance?.authorized_parties,
+      guarantors,
+      partyReviewItems
+    );
+  }
+
+  /**
    * Step 1 of offer acceptance: require acceptance uploads, issuer directors, and
    * one authorised-party list per guarantor, then move to PENDING_ADMIN_REVIEW
    * (or APPROVED_FOR_SIGNING when no acceptance docs).
@@ -2297,12 +2490,13 @@ export class ApplicationService {
     );
 
     const directorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
+    const guarantors = applicationGuarantorsForParties(
+      (application as { application_guarantors?: unknown }).application_guarantors
+    );
     assertAuthorizedPartiesValid(
       authorizedPartiesPayload.parties,
       directorPool,
-      applicationGuarantorsForParties(
-        (application as { application_guarantors?: unknown }).application_guarantors
-      )
+      guarantors
     );
 
     const now = new Date().toISOString();
@@ -2362,6 +2556,13 @@ export class ApplicationService {
         application,
         workflow,
         acceptance?.status
+      );
+      await this.persistAuthorizedRepresentativesOnAcceptanceSubmitInTx(
+        tx,
+        applicationId,
+        authorizedParties,
+        acceptance,
+        guarantors
       );
     });
 
@@ -2472,12 +2673,13 @@ export class ApplicationService {
     );
 
     const directorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
+    const guarantors = applicationGuarantorsForParties(
+      (application as { application_guarantors?: unknown }).application_guarantors
+    );
     assertAuthorizedPartiesValid(
       authorizedPartiesPayload.parties,
       directorPool,
-      applicationGuarantorsForParties(
-        (application as { application_guarantors?: unknown }).application_guarantors
-      )
+      guarantors
     );
 
     const now = new Date().toISOString();
@@ -2537,6 +2739,13 @@ export class ApplicationService {
         application,
         workflow,
         acceptance?.status
+      );
+      await this.persistAuthorizedRepresentativesOnAcceptanceSubmitInTx(
+        tx,
+        applicationId,
+        authorizedParties,
+        acceptance,
+        guarantors
       );
     });
 

@@ -221,7 +221,7 @@ export function applicationAttentionHeadline(action: ApplicationCardPrimaryActio
     case "makeAmendments":
       return "Make the requested changes";
     case "reviewOffer":
-      if (action.buttonVariant === "outline") return "Update your documents";
+      if (action.buttonVariant === "outline") return "Update requested changes";
       return "Review this offer";
     default:
       return "This needs your response";
