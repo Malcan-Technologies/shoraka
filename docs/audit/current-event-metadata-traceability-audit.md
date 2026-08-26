@@ -4,6 +4,8 @@
 
 This is the verification report only. No writers, schema, UI, or metadata were changed.
 
+**Before/after evidence** (previous vs new values on mutation events) is a separate report: `docs/audit/current-event-before-after-audit.md`.
+
 **Scope:** every production writer for the current live event set (plus extra live writers found in source that catalogues omit). Notifications are not event writers.
 
 **How to read A / B / C**

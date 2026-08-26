@@ -213,7 +213,7 @@ Portal Activity allowlist (`organization-log.ts` `getEventTypes`): `ONBOARDING_S
 | `SSM_APPROVED` | SSM Approved | not in portal allowlist | Admin SSM verify approve | Admin `approveSsmVerification` | org/SSM ids | none | LIVE_UI |
 | `TNC_APPROVED` | T&C Approved | not in portal allowlist | User accepted legal T&C in onboarding | `organization/service` accept T&C | document/version ids | none (acceptance evidence is `legal_document_acceptances`) | LIVE_UI |
 | `SOPHISTICATED_STATUS_UPDATED` | Sophisticated Status Updated | not in portal allowlist | Sophisticated investor flag | Admin | `action` granted/revoked, `newReason` | none | LIVE_UI |
-| `PROFILE_UPDATED` | Organization Profile Updated | not in portal allowlist | Admin org profile edit | Admin | `updatedFields` | none | LIVE_UI |
+| `PROFILE_UPDATED` | Organization Profile Updated | not in portal allowlist | Admin org profile edit | Admin | `updatedBy`, top-level `updatedFields`, `bankFieldsChanged`, identity `previousValues` (no `nextValues`; bank/corporate JSON not snapshotted) | none | LIVE_UI |
 | `ONBOARDING_RESET` | Onboarding Reset | — | Same unreachable reset as access; **not** in org-timeline query allowlist | Route-only | `resetBy`, `previousStatus`, `newStatus` | none | UNREACHABLE |
 | `TNC_ACCEPTED` / `KYC_APPROVED` | CSV/Admin labels exist; **not** in org query | not queried | No production writer as `event_type` (`TNC_APPROVED` and `ONBOARDING_STATUS_UPDATED` + `trigger:"KYC_APPROVED"` are live instead) | — | — | — | DEAD |
 | `USER_COMPLETED` | User Completed (CSV/Admin label) | not in org query | Replaced by `FINAL_APPROVAL_COMPLETED`. Remaining writer: `regtank/webhook-handler-dev.ts` | Dev webhook | — | none | DEV_ONLY |
