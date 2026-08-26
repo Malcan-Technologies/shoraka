@@ -288,10 +288,11 @@ Do not require `roles.manage` to navigate to or view the Permission Configuratio
 
 | | |
 |---|---|
-| View (all tabs including Configuration, Custom & Groups, Logs) | `notifications.view` |
+| View (Configuration, Custom & Groups) | `notifications.view` |
 | Mutations (Add Missing Types, toggles, Send Notification, Create/Manage Groups) | `notifications.manage` |
 | Backend | `apps/api/src/modules/notification/controller.ts` |
 | Frontend page | `apps/admin/src/app/settings/notifications/page.tsx` |
+| Delivery evidence | Audit → Notifications (`/audit?tab=notifications`), same `notifications.view` permission |
 
 Do not block any notification tab behind `notifications.manage`.
 
@@ -302,9 +303,12 @@ Do not block any notification tab behind `notifications.manage`.
 | Access Logs | `audit.access.view` |
 | Security Logs | `audit.security.view` |
 | Product Logs | `audit.product.view` |
-| Backend | `apps/api/src/modules/admin/controller.ts`, product log controller |
-| Frontend page | `apps/admin/src/app/audit/page.tsx` (tabs: Access, Security, Products) |
-| Notes | Audit pages are read-only. Search/filter/export use the same view permission. There is no Document Logs tab. |
+| Legal Documents | `document_management.view` |
+| Legal Acceptances | `document_management.view` |
+| Notifications | `notifications.view` |
+| Backend | `apps/api/src/modules/admin/controller.ts`, product log controller, legal-document controllers, notification controller |
+| Frontend page | `apps/admin/src/app/audit/page.tsx` (tabs: Access, Security, Products, Legal Documents, Legal Acceptances, Notifications) |
+| Notes | Audit pages are read-only. Search/filter/export use the same view permission as the source feature. There is no Document Logs tab. Legal Acceptances and Notification Logs are evidence views, not configuration. |
 
 ### Legal Documents
 
@@ -324,7 +328,7 @@ Do not block any notification tab behind `notifications.manage`.
 | View (list, detail, export, exact-version download) | `document_management.view` |
 | Mutations | None — records are immutable (no update/delete API) |
 | Backend | `apps/api/src/modules/legal-documents/acceptance-admin-controller.ts` |
-| Frontend page | `apps/admin/src/app/legal-document-acceptances/page.tsx` (`/legal-document-acceptances`) |
+| Frontend page | `apps/admin/src/app/audit/page.tsx` (`/audit?tab=legal-acceptances`); `/legal-document-acceptances` redirects here |
 | Shows | Accepted document type; exact version; file hash; organization; accepting user; timestamp; IP; user agent; acknowledgement wording; exact accepted PDF download |
 | Notes | Evidence comes from `LegalDocumentAcceptance` only. There is no DocumentLog / SiteDocument audit trail. |
 
@@ -443,7 +447,8 @@ Do not require any section manage permission for comments.
 
 ### Notifications page
 
-- The whole Notification Management page, including all tabs (Configuration, Custom & Groups, Logs), is visible with `notifications.view`
+- The Notification Management page (Configuration, Custom & Groups) is visible with `notifications.view`
+- Notification delivery evidence is Audit → Notifications, also `notifications.view`
 - Only mutation controls require `notifications.manage`
 - Never block entire tabs behind `notifications.manage`
 
@@ -452,7 +457,7 @@ Do not require any section manage permission for comments.
 Legal Documents and Legal Acceptances use `document_management.view` / `document_management.manage` at:
 
 - `/legal-documents`
-- `/legal-document-acceptances`
+- `/audit?tab=legal-acceptances` (`/legal-document-acceptances` redirects here)
 
 Documents inside a Note Detail page follow `notes.view` for read-only viewing, or the relevant `notes.<domain>.manage` if the document action is part of a note workflow.
 
@@ -547,15 +552,15 @@ The following permissions are **not** in this list because they have active back
 
 ### Role with `notifications.view` only
 
-- [ ] Notifications page accessible
-- [ ] All tabs (Configuration, Custom & Groups, Logs) visible
+- [ ] Settings → Notifications accessible (Configuration, Custom & Groups only)
+- [ ] Audit → Notifications visible; other Audit tabs hidden
 - [ ] Add Missing Types, toggles, Send Notification, Create Group disabled
 
 ### Role with `audit.access.view` only
 
 - [ ] Only Access Logs tab visible under Audit
 - [ ] Access Logs page loads correctly
-- [ ] Security Logs and Product Logs tabs hidden or Access Denied
+- [ ] Security, Products, Legal Documents, Legal Acceptances, and Notifications tabs hidden or Access Denied
 - [ ] No Document Logs tab exists
 
 ---

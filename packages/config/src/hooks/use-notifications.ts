@@ -131,9 +131,10 @@ export function useAdminNotifications(
     type?: string;
     target?: string;
     source?: string;
+    includeLogs?: boolean;
   } = {}
 ) {
-  const { limit = 20, offset = 0, search, type, target, source } = options;
+  const { limit = 20, offset = 0, search, type, target, source, includeLogs = true } = options;
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const apiClient = createApiClient(undefined, getAccessToken);
@@ -269,7 +270,7 @@ export function useAdminNotifications(
       if ("error" in response) throw new Error(response.error.message);
       return response.data;
     },
-    enabled: !!getAccessToken,
+    enabled: includeLogs && !!getAccessToken,
   });
 
   return {

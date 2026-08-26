@@ -1,26 +1,27 @@
 ---
 title: Audit and Activity Logs Guide
-description: Where admins can find access, security, product, organization, and application logs, plus where legal acceptance evidence lives.
+description: Where admins can find access, security, product, legal, and notification evidence.
 category: Platform Operations
 tags:
   - admin
 order: 30
-updated: 2026-08-06
+updated: 2026-08-26
 ---
 
 ## Purpose
 
-Use this guide to understand which admin log to check when investigating user access, security-sensitive account changes, product configuration changes, onboarding history, or issuer application review activity.
-
-Legal document acceptance evidence is not an Audit tab. Use Legal Acceptances for that.
+Use this guide to understand which admin log to check when investigating user access, security-sensitive account changes, product configuration, legal evidence, or notification delivery.
 
 ## Audit Pages
 
-| Log           | Admin Location        | What It Shows                                                                                                                  | Common Triggers                                                                                                                                                                           |
-| ------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Access Logs   | Audit > Access Logs   | Authentication and access events with user, portal, IP address, device, success status, and metadata.                          | Login, signup, logout, failed admin portal access, and selected admin access actions.                                                                                                     |
-| Security Logs | Audit > Security Logs | Security-sensitive account events with user, IP address, device, and metadata.                                                 | Password changes, email verification changes, role additions, role switches, and profile updates. Failed password or email verification attempts are also recorded with failure metadata. For users locked out of authenticator (2FA) recovery, see **Reset a User's Authenticator (2FA)**. |
-| Product Logs  | Audit > Product Logs  | Product lifecycle changes with product ID, admin, IP address, device, and a metadata snapshot of the product workflow/version. | Product created, updated, or deleted.                                                                                                                                                     |
+| Log | Admin Location | What It Shows | Common Triggers |
+| --- | -------------- | ------------- | --------------- |
+| Access Logs | Audit > Access | Authentication and access events with user, portal, IP address, device, success status, and metadata. | Login, signup, logout, failed admin portal access, and selected admin access actions. |
+| Security Logs | Audit > Security | Security-sensitive account events with user, IP address, device, and metadata. | Password changes, email verification changes, role additions, role switches, and profile updates. Failed password or email verification attempts are also recorded with failure metadata. For users locked out of authenticator (2FA) recovery, see **Reset a User's Authenticator (2FA)**. |
+| Product Logs | Audit > Products | Product lifecycle changes with product ID, admin, IP address, device, and a metadata snapshot of the product workflow/version. | Product created, updated, or deleted. |
+| Legal Documents | Audit > Legal Documents | Legal document version lifecycle actions (create, upload, publish, archive, restore). | Admin document management. |
+| Legal Acceptances | Audit > Legal Acceptances | Immutable acceptance evidence: document type, exact version, file hash, organization, user, timestamp, IP, user agent, acknowledgement wording, and exact-version PDF download. | A user opens or accepts a legal document. |
+| Notifications | Audit > Notifications | One row per send. Admin rows are broadcasts. System rows are automatic alerts. Includes type, audience, source, platform/email delivered counts, idempotency key, and metadata. | Custom & Groups sends and automated notification delivery. |
 
 The audit pages support search, event-type filtering, date-range filtering, and export where the page exposes it. Use the exported file when a review needs evidence outside the admin portal.
 
@@ -31,7 +32,7 @@ There is no Document Logs audit tab. SiteDocument and DocumentLog were removed.
 | Area | Admin Location | What It Shows |
 | ---- | -------------- | ------------- |
 | Legal Documents | Legal Documents (`/legal-documents`) | LegalDocument definitions and LegalDocumentVersion lifecycle (draft, published, archived), audience, onboarding/public/show-in-account visibility. |
-| Legal Acceptances | Legal Acceptances (`/legal-document-acceptances`) | Immutable acceptance evidence: document type, exact version, file hash, organization, user, timestamp, IP, user agent, acknowledgement wording, and exact-version PDF download. |
+| Legal Acceptances | Audit > Legal Acceptances (`/audit?tab=legal-acceptances`) | Immutable acceptance evidence: document type, exact version, file hash, organization, user, timestamp, IP, user agent, acknowledgement wording, and exact-version PDF download. |
 
 Permissions: `document_management.view` and `document_management.manage` (manage is for Legal Documents mutations only; acceptances are read-only).
 
@@ -66,9 +67,9 @@ If the activity timeline is unavailable, ask support to verify that the applicat
 
 ## Notification Logs
 
-Notification Management has its own logs for admin-sent custom notifications. These logs record the sending admin, recipient target, recipient count, notification type, message, IP address, and device.
+Audit → Notifications is the history of what was sent. **Admin** rows are broadcasts. **System** rows are automatic alerts. **Recipients** is how many people we tried to reach. **Delivery** is how many of those were selected for the portal or for email — it is not proof that an email was opened.
 
-Use notification logs for broadcast or one-time custom sends. Automated lifecycle notifications create user notifications, but the notification log view is for admin-initiated sends.
+Use notification logs for broadcast or one-time custom sends as well as automated delivery evidence. Configuration stays under Settings → Notifications.
 
 ## Choosing the Right Log
 
@@ -77,11 +78,11 @@ Use notification logs for broadcast or one-time custom sends. Automated lifecycl
 | Did this user sign in, sign up, log out, or fail admin access?    | Access Logs                                  |
 | Did this account have a password, email, profile, or role change? | Security Logs                                |
 | Who published or archived a legal document version?               | Legal Documents (current state) + acceptances for user evidence |
-| Did a user accept a specific legal document version?              | Legal Acceptances                            |
+| Did a user accept a specific legal document version?              | Audit > Legal Acceptances                    |
 | Who changed a product or workflow configuration?                  | Product Logs                                 |
 | What happened during this organization's onboarding?              | Organization detail > Activity               |
 | What happened during this issuer application review?              | Application detail > Recent Activity         |
-| Who sent a custom notification?                                   | Settings > Notifications > Notification Logs |
+| Who sent a custom notification?                                   | Audit > Notifications                        |
 
 ## Reading Log Metadata
 

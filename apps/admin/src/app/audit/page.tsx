@@ -6,7 +6,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import type { AdminPermission } from "@cashsouk/types";
 import { AccessLogsPanel } from "@/components/audit/access-logs-panel";
+import { LegalAcceptancesPanel } from "@/components/audit/legal-acceptances-panel";
 import { LegalDocumentAuditPanel } from "@/components/audit/legal-document-audit-panel";
+import { NotificationLogsPanel } from "@/components/audit/notification-logs-panel";
 import { ProductLogsPanel } from "@/components/audit/product-logs-panel";
 import { SecurityLogsPanel } from "@/components/audit/security-logs-panel";
 import { AccessDeniedCard } from "@/components/require-permission";
@@ -18,6 +20,8 @@ const AUDIT_TABS = [
   { id: "security", label: "Security", permission: "audit.security.view" },
   { id: "products", label: "Products", permission: "audit.product.view" },
   { id: "legal-documents", label: "Legal Documents", permission: "document_management.view" },
+  { id: "legal-acceptances", label: "Legal Acceptances", permission: "document_management.view" },
+  { id: "notifications", label: "Notifications", permission: "notifications.view" },
 ] as const satisfies ReadonlyArray<{
   id: string;
   label: string;
@@ -80,7 +84,7 @@ function AuditPageContent() {
       <div className="w-full space-y-6 px-2 py-8 md:px-4">
         <AdminPageHeader
           title="Audit"
-          description="Review access, security, product, and legal document activity across the platform."
+          description="Review access, security, product, legal, and notification evidence across the platform."
         />
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="flex h-auto w-fit max-w-full flex-wrap justify-start">
@@ -97,6 +101,8 @@ function AuditPageContent() {
               {tab.id === "security" ? <SecurityLogsPanel /> : null}
               {tab.id === "products" ? <ProductLogsPanel /> : null}
               {tab.id === "legal-documents" ? <LegalDocumentAuditPanel /> : null}
+              {tab.id === "legal-acceptances" ? <LegalAcceptancesPanel /> : null}
+              {tab.id === "notifications" ? <NotificationLogsPanel /> : null}
             </TabsContent>
           ))}
         </Tabs>

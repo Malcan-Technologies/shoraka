@@ -15,7 +15,6 @@ import {
   ClipboardDocumentListIcon,
   CheckBadgeIcon,
   DocumentCheckIcon,
-  ClipboardDocumentCheckIcon,
   ScaleIcon,
   DocumentDuplicateIcon,
   QuestionMarkCircleIcon,
@@ -292,7 +291,6 @@ const navDirectory = [
   { title: "Issuers", url: "/issuers", icon: BuildingOffice2Icon, access: "organizations" },
   { title: "Investors", url: "/investors", icon: UserGroupIcon, access: "organizations" },
   { title: "Legal Documents", url: "/legal-documents", icon: ScaleIcon, access: "documents" },
-  { title: "Legal Acceptances", url: "/legal-document-acceptances", icon: ClipboardDocumentCheckIcon, access: "documents" },
 ] as const;
 
 const navSettings = [
@@ -417,7 +415,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canViewAuditSecurity = can("audit.security.view");
   const canViewAuditProduct = can("audit.product.view");
   const canViewAnyAudit =
-    canViewAuditAccess || canViewAuditSecurity || canViewAuditProduct;
+    canViewAuditAccess ||
+    canViewAuditSecurity ||
+    canViewAuditProduct ||
+    canViewDocuments ||
+    canViewNotifications;
 
   const { data: pendingCountData } = usePendingApprovalCount({ enabled: canViewOnboarding });
   const { data: noteActionCountData } = useNoteActionRequiredCount({ enabled: canViewNotes });

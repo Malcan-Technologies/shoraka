@@ -99,6 +99,8 @@ export const PRESENTATION_FILES: string[] = [
   "apps/admin/src/components/audit/security-logs-panel.tsx",
   "apps/admin/src/components/audit/product-logs-panel.tsx",
   "apps/admin/src/components/audit/legal-document-audit-panel.tsx",
+  "apps/admin/src/components/audit/legal-acceptances-panel.tsx",
+  "apps/admin/src/components/audit/notification-logs-panel.tsx",
   "apps/admin/src/notes/utils/note-timeline-details.ts",
   "apps/admin/src/notes/utils/note-activity-csv.ts",
   "apps/admin/src/notes/components/note-timeline-panel.tsx",

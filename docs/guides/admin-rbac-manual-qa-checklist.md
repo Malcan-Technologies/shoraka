@@ -269,7 +269,7 @@ Explicit permission coverage:
 
 ### Legal Acceptances
 
-- [ ] `/legal-document-acceptances`:
+- [ ] `/legal-document-acceptances` (redirects to `/audit?tab=legal-acceptances`):
   - [ ] `document_management.view` required to list/detail/export/download
   - [ ] No update/delete actions available
   - [ ] Missing permission => not visible or Access Denied
@@ -340,6 +340,8 @@ For each test role, paste these into the browser address bar. Confirm the expect
 - [ ] `/settings/notifications`
 - [ ] `/audit/access-logs`
 - [ ] `/audit/security-logs`
+- [ ] `/audit?tab=legal-acceptances`
+- [ ] `/audit?tab=notifications`
 - [ ] `/legal-documents`
 - [ ] `/legal-document-acceptances`
 - [ ] `/finance/buckets`

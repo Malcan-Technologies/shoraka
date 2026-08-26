@@ -10,16 +10,16 @@ const TABLE_FILES = [
   "../access-log-table-row.tsx",
   "product-logs-panel.tsx",
   "legal-document-audit-panel.tsx",
-  "../../app/legal-document-acceptances/page.tsx",
-  "../../app/settings/notifications/page.tsx",
+  "legal-acceptances-panel.tsx",
+  "notification-logs-panel.tsx",
 ];
 
 const TOOLBAR_FILES = [
   "../access-logs-toolbar.tsx",
   "product-logs-panel.tsx",
   "legal-document-audit-panel.tsx",
-  "../../app/legal-document-acceptances/page.tsx",
-  "../../app/settings/notifications/page.tsx",
+  "legal-acceptances-panel.tsx",
+  "notification-logs-panel.tsx",
 ];
 
 describe("dedicated Admin log tables share one visual shell", () => {
@@ -36,8 +36,8 @@ describe("dedicated Admin log tables share one visual shell", () => {
     expect(read("product-logs-panel.tsx")).toContain("AuditLogTableShell");
     expect(read("product-logs-panel.tsx")).toContain("AuditLogViewDetailsButton");
     expect(read("legal-document-audit-panel.tsx")).toContain("AuditLogTableShell");
-    expect(read("../../app/legal-document-acceptances/page.tsx")).toContain("AuditLogTableShell");
-    expect(read("../../app/settings/notifications/page.tsx")).toContain("AuditLogTableShell");
+    expect(read("legal-acceptances-panel.tsx")).toContain("AuditLogTableShell");
+    expect(read("notification-logs-panel.tsx")).toContain("AuditLogTableShell");
   });
 
   it("exposes a single Filters control rather than multiple filter buttons", () => {
@@ -55,20 +55,20 @@ describe("dedicated Admin log tables share one visual shell", () => {
     expect(read("product-logs-panel.tsx")).toContain("<AuditLogHead>Event</AuditLogHead>");
     expect(read("product-logs-panel.tsx")).toContain("<AuditLogHead>Actor</AuditLogHead>");
     expect(read("legal-document-audit-panel.tsx")).toContain("<AuditLogHead>Actor</AuditLogHead>");
-    expect(read("../../app/legal-document-acceptances/page.tsx")).toContain(
+    expect(read("legal-acceptances-panel.tsx")).toContain(
       "<AuditLogHead>Timestamp</AuditLogHead>"
     );
-    expect(read("../../app/legal-document-acceptances/page.tsx")).not.toContain("Accepted at");
-    expect(read("../../app/legal-document-acceptances/page.tsx")).not.toContain("Accepted by");
+    expect(read("legal-acceptances-panel.tsx")).not.toContain("Accepted at");
+    expect(read("legal-acceptances-panel.tsx")).not.toContain("Accepted by");
     expect(read("../access-logs-toolbar.tsx")).toContain("AuditLogDateRangeOptions");
     expect(read("product-logs-panel.tsx")).toContain("AUDIT_LOG_PAGE_SIZE");
     expect(read("legal-document-audit-panel.tsx")).toContain("AUDIT_LOG_PAGE_SIZE");
-    expect(read("../../app/legal-document-acceptances/page.tsx")).toContain("AUDIT_LOG_PAGE_SIZE");
-    expect(read("../../app/settings/notifications/page.tsx")).toContain("AUDIT_LOG_PAGE_SIZE");
+    expect(read("legal-acceptances-panel.tsx")).toContain("AUDIT_LOG_PAGE_SIZE");
+    expect(read("notification-logs-panel.tsx")).toContain("AUDIT_LOG_PAGE_SIZE");
     expect(read("../access-log-table-row.tsx")).toContain("AUDIT_IP_CELL_CLASS");
     expect(read("product-logs-panel.tsx")).toContain("AUDIT_IP_CELL_CLASS");
     expect(read("legal-document-audit-panel.tsx")).toContain("AUDIT_IP_CELL_CLASS");
-    expect(read("../../app/legal-document-acceptances/page.tsx")).toContain("AUDIT_IP_CELL_CLASS");
+    expect(read("legal-acceptances-panel.tsx")).toContain("AUDIT_IP_CELL_CLASS");
     expect(read("../access-logs-table.tsx")).toContain('<AuditLogHead align="right">Actions</AuditLogHead>');
   });
 });
