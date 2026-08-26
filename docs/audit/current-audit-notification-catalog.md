@@ -2,6 +2,8 @@
 
 **This is the single current-behavior reference.** Source code is authoritative. Do not use this file for planned wording, recommended copy, or historical counts.
 
+Human-readable expansion of every live event and notification (one entry each): [`current-events-notifications-readable.md`](./current-events-notifications-readable.md). This file remains the technical source of truth.
+
 Verified: **2026-08-27** against the working tree (writers, adapters, Admin panels, CSV/JSON export, PDF composer, notification registry, `seed-data.ts`).
 
 | Question | This file |
@@ -30,6 +32,8 @@ Older files that previously claimed “current” lookup (`audit-event-surface-m
 | Notification types (`seed-data.ts` = `NotificationTypeIds`) | 49 | 49 | 0 | 0 |
 
 `notification_logs` rows are delivery batches (`ADMIN` / `SYSTEM`), not a second copy of the business event.
+
+The application enum table below omits live Admin writer `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` (`contract-section.tsx`). The readable expansion therefore lists **139** live event IDs. This table’s **138** is the enum-based count.
 
 ---
 
