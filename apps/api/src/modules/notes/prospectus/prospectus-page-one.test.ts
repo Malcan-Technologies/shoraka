@@ -164,7 +164,16 @@ describe("prospectus Page 1 publication rule", () => {
     ).toBe(true);
   });
 
-  it("does not treat FUNDING or missing published_at as published", () => {
+  it("keeps FUNDING with published_at frozen after funding close", () => {
+    expect(
+      isProspectusNotePublished({
+        status: NoteStatus.FUNDING,
+        published_at: new Date("2025-05-15T00:00:00.000Z"),
+      })
+    ).toBe(true);
+  });
+
+  it("does not treat missing published_at as published", () => {
     expect(
       isProspectusNotePublished({ status: NoteStatus.FUNDING, published_at: null })
     ).toBe(false);

@@ -169,6 +169,31 @@ describe("resolveNoteDetailNextAction priority", () => {
     expect(action.title).toBe("Campaign action available: Publish to Marketplace");
   });
 
+  it("does not ask for prospectus approval after funding closes", () => {
+    const action = resolveNoteDetailNextAction(
+      baseNote({
+        status: NoteStatus.FUNDING,
+        listingStatus: NoteListingStatus.CLOSED,
+        fundingStatus: NoteFundingStatus.FUNDED,
+        publishedAt: new Date().toISOString(),
+        prospectus: {
+          status: "DRAFT",
+          displayStatus: "Draft",
+          contentVersion: 1,
+          lastSavedAt: null,
+          approvedAt: null,
+          publishedAt: null,
+        },
+        withdrawals: [issuerDisbursement("DRAFT")],
+        fundedAmount: 100000,
+        fundingPercent: 100,
+      })
+    );
+    expect(action.title).not.toBe("Prospectus approval required");
+    expect(action.tabId).toBe("disbursement");
+    expect(action.tone).toBe("action");
+  });
+
   it("2. prefers Disbursement once funding is closed and the payout is incomplete", () => {
     const action = resolveNoteDetailNextAction(
       baseNote({

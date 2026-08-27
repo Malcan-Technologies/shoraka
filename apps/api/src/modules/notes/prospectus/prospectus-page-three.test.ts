@@ -218,6 +218,12 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
           published_at: null,
         })
       ).toBe(false);
+      expect(
+        isProspectusNotePublished({
+          status: NoteStatus.FUNDING,
+          published_at: new Date(),
+        })
+      ).toBe(true);
     });
   });
 

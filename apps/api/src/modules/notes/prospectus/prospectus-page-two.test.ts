@@ -169,6 +169,9 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(
         isProspectusNotePublished({ status: NoteStatus.DRAFT, published_at: new Date() })
       ).toBe(false);
+      expect(
+        isProspectusNotePublished({ status: NoteStatus.FUNDING, published_at: new Date() })
+      ).toBe(true);
     });
 
     it("selects only required Page 2 fields and not CTOS/live org", () => {

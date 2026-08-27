@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import {
   ArrowDownTrayIcon,
+  ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
   CheckCircleIcon,
   ChevronDownIcon,
@@ -104,6 +105,7 @@ import {
   canResendSettlementTrusteeEmail,
   getTrusteeResendCopy,
 } from "@/lib/trustee-letter-resend";
+import { getTrusteeRegenerateCopy } from "@/lib/trustee-letter-regenerate";
 import { getTrusteeSubmitCopy } from "@/lib/trustee-letter-submit-copy";
 import { cn } from "@/lib/utils";
 import {
@@ -540,7 +542,7 @@ export function SettlementPanel({
   const [rejectionReasons, setRejectionReasons] = React.useState<Record<string, string>>({});
   const [rejectingPaymentId, setRejectingPaymentId] = React.useState<string | null>(null);
   const [settlementTrusteeConfirm, setSettlementTrusteeConfirm] = React.useState<
-    "submit" | "resend" | "complete" | null
+    "regenerate" | "submit" | "resend" | "complete" | null
   >(null);
   const [defaultReason, setDefaultReason] = React.useState("");
   const [recordPaymentDialogOpen, setRecordPaymentDialogOpen] = React.useState(false);
@@ -1608,14 +1610,18 @@ export function SettlementPanel({
     }
   };
 
-  const handleSettlementTrusteeLetter = async () => {
+  const handleSettlementTrusteeLetter = async (mode: "generate" | "regenerate" = "generate") => {
     if (!persistedPostedSettlement) return;
     try {
       const result = await generateSettlementTrusteeLetter.mutateAsync({
         noteId: note.id,
         settlementId: persistedPostedSettlement.id,
       });
-      toast.success(`Settlement trustee letter generated: ${result.s3Key}`);
+      toast.success(
+        mode === "regenerate"
+          ? getTrusteeRegenerateCopy().success
+          : `Settlement trustee letter generated: ${result.s3Key}`
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate letter");
     }
@@ -1641,6 +1647,7 @@ export function SettlementPanel({
     "instruction"
   );
   const trusteeResendCopy = getTrusteeResendCopy();
+  const trusteeRegenerateCopy = getTrusteeRegenerateCopy();
   const canResendTrusteeEmail = canResendSettlementTrusteeEmail(
     persistedPostedSettlement?.settlementTrusteeEmailSentAt,
     settlementTrusteeStatus
@@ -1672,7 +1679,13 @@ export function SettlementPanel({
     : "settlement-trustee-instruction.pdf";
 
   const confirmSettlementTrusteeCopy =
-    settlementTrusteeConfirm === "submit"
+    settlementTrusteeConfirm === "regenerate"
+      ? {
+          title: trusteeRegenerateCopy.confirmTitle,
+          description: trusteeRegenerateCopy.description,
+          confirmLabel: trusteeRegenerateCopy.confirmLabel,
+        }
+      : settlementTrusteeConfirm === "submit"
       ? {
           title: trusteeSubmitCopy.confirmTitle,
           description: trusteeSubmitCopy.description,
@@ -1696,7 +1709,9 @@ export function SettlementPanel({
   const runSettlementTrusteeConfirm = async () => {
     if (!settlementTrusteeConfirm || !persistedPostedSettlement) return;
     try {
-      if (settlementTrusteeConfirm === "submit") {
+      if (settlementTrusteeConfirm === "regenerate") {
+        await handleSettlementTrusteeLetter("regenerate");
+      } else if (settlementTrusteeConfirm === "submit") {
         await markSettlementTrusteeSubmitted.mutateAsync({
           noteId: note.id,
           settlementId: persistedPostedSettlement.id,
@@ -2794,7 +2809,7 @@ export function SettlementPanel({
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {settlementTrusteeStatus === "LETTER_GENERATED"
-                    ? "Trustee instruction letter has been generated. Submit it to the trustee, then mark it as submitted."
+                    ? "Trustee instruction letter has been generated. Review it, or regenerate it to pick up the latest platform settings, then submit it to the trustee."
                     : settlementTrusteeStatus === "SUBMITTED_TO_TRUSTEE"
                       ? "Trustee instruction has been submitted. Mark complete once trustee confirmation is received."
                       : settlementTrusteeWorkflowComplete
@@ -2943,6 +2958,24 @@ export function SettlementPanel({
                       }
                     >
                       Generate Letter
+                    </Button>
+                  ) : null}
+                  {settlementTrusteeStatus === "LETTER_GENERATED" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => setSettlementTrusteeConfirm("regenerate")}
+                      disabled={settlementTrusteePendingAny || !canDisbursement}
+                      title={
+                        !canDisbursement
+                          ? "You do not have permission to perform this action."
+                          : undefined
+                      }
+                    >
+                      <ArrowPathIcon className="h-4 w-4" />
+                      {trusteeRegenerateCopy.button}
                     </Button>
                   ) : null}
                   {canResendTrusteeEmail ? (

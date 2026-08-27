@@ -13,6 +13,7 @@ import {
 import {
   buildProspectusHighlightRecommendations,
   isMarcSmeGrade,
+  isNoteProspectusPublished,
   normalizeProspectusWorkflowStatus,
   type ProspectusAboutInvoiceRecommendationInput,
   type ProspectusHighlightRecommendationInput,
@@ -231,8 +232,11 @@ async function logProspectusAction(
   });
 }
 
-function isNoteListed(note: { status: NoteStatus }) {
-  return note.status === NoteStatus.PUBLISHED;
+function isNoteListed(note: { status: NoteStatus; published_at: Date | null }) {
+  return isNoteProspectusPublished({
+    status: note.status,
+    publishedAt: note.published_at,
+  });
 }
 
 async function clearApprovalEligibility(

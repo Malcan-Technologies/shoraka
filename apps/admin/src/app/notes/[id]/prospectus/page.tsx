@@ -7,6 +7,7 @@ import { ArrowLeftIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import {
   isCompleteIssuerMarcAssessment,
+  isNoteProspectusPublished,
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
@@ -158,7 +159,10 @@ function ProspectusReviewPageInner() {
   }, [dirty]);
 
   const status = data?.review.status as ProspectusReviewStatus | undefined;
-  const notePublished = note?.status === "PUBLISHED";
+  const notePublished = isNoteProspectusPublished({
+    status: note?.status,
+    publishedAt: note?.publishedAt,
+  });
   const locked = notePublished;
 
   const updateDraft = (

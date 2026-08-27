@@ -6721,6 +6721,19 @@ export class NoteService {
     const withdrawal = await prisma.withdrawalInstruction.findUnique({ where: { id } });
     if (!withdrawal)
       throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal instruction not found");
+    if (
+      withdrawal.status === WithdrawalStatus.SUBMITTED_TO_TRUSTEE ||
+      withdrawal.status === WithdrawalStatus.COMPLETED ||
+      withdrawal.status === WithdrawalStatus.CANCELLED
+    ) {
+      throw new AppError(
+        409,
+        "WITHDRAWAL_LETTER_LOCKED",
+        withdrawal.status === WithdrawalStatus.CANCELLED
+          ? "This withdrawal is cancelled and the letter cannot be regenerated."
+          : "The instruction has already been submitted to the trustee and cannot be regenerated."
+      );
+    }
 
     // Issuer disbursement trustee letter must only be generated after Tawarruq Certificate is fetched/stored.
     if (withdrawal.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {

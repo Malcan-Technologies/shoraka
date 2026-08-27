@@ -2,6 +2,7 @@ import {
   countNoteInvestors,
   formatProspectusListBadge,
   getProspectusDisplayStatus,
+  isNoteProspectusPublished,
   hasSettlementTrusteeMovementFromPoolSummary,
   isMarcSmeGrade,
   parseAdditionalFeeCharges,
@@ -124,7 +125,10 @@ export function applyNoteSourceDisplayReferences<T extends ReturnType<typeof map
 
 function mapProspectusSummary(note: NoteWithRelations): NoteProspectusSummary {
   const review = note.prospectus_review;
-  const notePublished = note.status === "PUBLISHED";
+  const notePublished = isNoteProspectusPublished({
+    status: note.status,
+    publishedAt: note.published_at,
+  });
   const displayStatus = getProspectusDisplayStatus({
     reviewStatus: review?.status ?? "DRAFT",
     notePublished,
