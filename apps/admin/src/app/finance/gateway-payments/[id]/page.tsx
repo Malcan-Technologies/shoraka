@@ -877,26 +877,25 @@ export default function GatewayPaymentDetailPage() {
                               />
                               <DetailRow
                                 label={GATEWAY_PAYMENT_COPY.receipt.receiptName}
-                                value={payment.receipt.payerName || "—"}
+                                value={
+                                  payment.receipt.payerName && payment.receipt.payerUniqueId
+                                    ? `${payment.receipt.payerName} (${payment.receipt.payerUniqueId})`
+                                    : payment.receipt.payerName ||
+                                      payment.receipt.payerUniqueId ||
+                                      "—"
+                                }
                               />
-                              {payment.receipt.payerUniqueId ? (
-                                <DetailRow
-                                  label={GATEWAY_PAYMENT_COPY.receipt.receiptUniqueId}
-                                  value={payment.receipt.payerUniqueId}
-                                  mono
-                                />
-                              ) : null}
                               <DetailRow
                                 label={GATEWAY_PAYMENT_COPY.receipt.receiptCompany}
-                                value={payment.receipt.payerCompanyName || "—"}
+                                value={
+                                  payment.receipt.payerCompanyName &&
+                                  payment.receipt.payerRegistrationNumber
+                                    ? `${payment.receipt.payerCompanyName} (${payment.receipt.payerRegistrationNumber})`
+                                    : payment.receipt.payerCompanyName ||
+                                      payment.receipt.payerRegistrationNumber ||
+                                      "—"
+                                }
                               />
-                              {payment.receipt.payerRegistrationNumber ? (
-                                <DetailRow
-                                  label={GATEWAY_PAYMENT_COPY.receipt.receiptRegistrationNumber}
-                                  value={payment.receipt.payerRegistrationNumber}
-                                  mono
-                                />
-                              ) : null}
                               <DetailRow
                                 label={GATEWAY_PAYMENT_COPY.receipt.paymentDate}
                                 value={formatDate(payment.receipt.paymentDate)}

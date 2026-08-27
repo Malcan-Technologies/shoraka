@@ -185,9 +185,8 @@ describe("generateGatewayPaymentReceipt", () => {
     expect(result?.purpose_label).toBe("Issuer Registration Fee");
     expect(renderReceiptHtmlToPdfBuffer).toHaveBeenCalledTimes(1);
     const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
-    expect(html).toContain("Issuer Co");
-    expect(html).toContain("Registration No.");
-    expect(html).toContain("SSM-1");
+    expect(html).toContain("Issuer Co (SSM-1)");
+    expect(html).not.toContain("Registration No.");
     expect(html).not.toContain("Unique ID");
     expect(putS3ObjectBuffer).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -371,10 +370,9 @@ describe("generateGatewayPaymentReceipt", () => {
 
     await generateGatewayPaymentReceipt("pay_1", db as never);
     const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
-    expect(html).toContain("Onboarding Business Sdn Bhd");
+    expect(html).toContain("Onboarding Business Sdn Bhd (202201012345)");
     expect(html).not.toContain("Org Name Fallback Sdn Bhd");
-    expect(html).toContain("Registration No.");
-    expect(html).toContain("202201012345");
+    expect(html).not.toContain("Registration No.");
     expect(html).not.toContain("Unique ID");
     expect(html).not.toContain("IVT-202608-C01");
   });
@@ -452,11 +450,10 @@ describe("generateGatewayPaymentReceipt", () => {
 
     await generateGatewayPaymentReceipt("pay_1", db as never);
     const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
-    expect(html).toContain("ALI BIN ABU");
+    expect(html).toContain("ALI BIN ABU (IVT-202608-A12)");
     expect(html).not.toContain("Display Name");
     expect(html).not.toContain(">Company<");
-    expect(html).toContain("Unique ID");
-    expect(html).toContain("IVT-202608-A12");
+    expect(html).not.toContain("Unique ID");
     expect(html).not.toContain("inv_1");
     expect(html).not.toContain("Registration No.");
   });

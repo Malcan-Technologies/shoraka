@@ -49,6 +49,23 @@ function row(label: string, value: string | null | undefined): string {
   return `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`;
 }
 
+function withParenthetical(name: string | null, id: string | null): string | null {
+  const primary = name?.trim() || null;
+  const identifier = id?.trim() || null;
+  if (primary && identifier) return `${primary} (${identifier})`;
+  return primary ?? identifier;
+}
+
+function identityRow(
+  label: string,
+  primary: string | null,
+  fallbackLabel: string,
+  secondary: string | null
+): string {
+  if (!primary && secondary) return row(fallbackLabel, secondary);
+  return row(label, withParenthetical(primary, secondary));
+}
+
 function buildBrandMarkHtml(): string {
   const dataUri = getProspectusOfficialLogoDataUri();
   if (dataUri) {
@@ -72,10 +89,13 @@ export function buildPaymentReceiptHtml(data: ReceiptPdfTemplateData): string {
     .join("");
 
   const receivedFrom = [
-    row("Name", data.payerName),
-    row("Unique ID", data.payerUniqueId),
-    row("Company", data.payerCompanyName),
-    row("Registration No.", data.payerRegistrationNumber),
+    identityRow("Name", data.payerName, "Unique ID", data.payerUniqueId),
+    identityRow(
+      "Company",
+      data.payerCompanyName,
+      "Registration No.",
+      data.payerRegistrationNumber
+    ),
     row("Email", data.payerEmail),
     row("Phone", data.payerPhone),
   ].join("");
