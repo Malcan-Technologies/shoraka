@@ -723,7 +723,9 @@ function calculateProfitDays(startDate: Date | null, maturityDate: Date | null) 
 }
 
 function asDateOrString(value: unknown): Date | string | null {
-  if (value instanceof Date) return value;
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value : null;
+  }
   if (typeof value === "string" && value.trim()) return value;
   return null;
 }
@@ -738,13 +740,13 @@ function resolvePostedSettlementProfitDays(
   profitStartDate: Date | null
 ): number | null {
   if (!settlement) return null;
+  const snapshotProfitStartDate = asDateOrString(snapshot?.profitStartDate);
+  const snapshotActualSettlementDate = asDateOrString(snapshot?.actualSettlementDate);
   return resolveActualReturnProfitDays({
     profitStartDate:
-      profitStartDate ??
-      asDateOrString(snapshot?.profitStartDate) ??
-      settlement.profit_start_date,
+      profitStartDate ?? snapshotProfitStartDate ?? settlement.profit_start_date,
     actualSettlementDate:
-      settlement.actual_settlement_date ?? asDateOrString(snapshot?.actualSettlementDate),
+      settlement.actual_settlement_date ?? snapshotActualSettlementDate ?? null,
     fallbackProfitDays:
       typeof snapshot?.profitDays === "number" ? snapshot.profitDays : settlement.profit_days,
   });

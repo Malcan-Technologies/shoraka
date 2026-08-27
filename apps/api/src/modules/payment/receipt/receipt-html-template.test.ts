@@ -43,9 +43,8 @@ describe("receipt-html-template", () => {
     expect(html).not.toContain("dep_");
     expect(html).toContain("Wallet Credit Status");
     expect(html).toContain("Credited");
-    expect(html).toContain("Ali Sdn Bhd");
-    expect(html).toContain("Registration No.");
-    expect(html).toContain("123456-A");
+    expect(html).toContain("Ali Sdn Bhd (123456-A)");
+    expect(html).not.toContain("Registration No.");
     expect(html).not.toContain("Unique ID");
     expect(html).toContain("This is a computer-generated receipt");
   });
@@ -98,9 +97,8 @@ describe("receipt-html-template", () => {
     });
 
     expect(escaped).toContain("REG&lt;script&gt;");
-    expect(escaped).toContain("&lt;b&gt;Ali&lt;/b&gt;");
-    expect(escaped).toContain("IVT-&lt;script&gt;");
-    expect(escaped).toContain("Unique ID");
+    expect(escaped).toContain("&lt;b&gt;Ali&lt;/b&gt; (IVT-&lt;script&gt;)");
+    expect(escaped).not.toContain("Unique ID");
     expect(escaped).not.toContain("<script>");
   });
 
@@ -135,9 +133,8 @@ describe("receipt-html-template", () => {
       walletCreditStatus: "Credited",
     });
 
-    expect(individual).toContain("Ali Bin Abu");
-    expect(individual).toContain("Unique ID");
-    expect(individual).toContain("IVT-202608-A12");
+    expect(individual).toContain("Ali Bin Abu (IVT-202608-A12)");
+    expect(individual).not.toContain("Unique ID");
     expect(individual).not.toContain("Registration No.");
     expect(individual).not.toContain(">Company<");
   });
