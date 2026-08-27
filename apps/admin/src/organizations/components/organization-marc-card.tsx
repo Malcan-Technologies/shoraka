@@ -76,6 +76,7 @@ export function OrganizationMarcCard({
       toast.success("MARC assessment saved");
       setEditing(false);
       queryClient.invalidateQueries({ queryKey: ["admin", "organization-detail"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "issuer-marc"] });
     },
     onError: (err: Error) => toast.error(err.message),
   });

@@ -113,4 +113,25 @@ describe("prospectus working-area field ownership", () => {
     expect(missing.some((m) => m.field.includes("Invoices Paid"))).toBe(false);
     expect(missing.some((m) => m.section === "Paymaster Track Record")).toBe(false);
   });
+
+  it("does not store MARC grade, score, or PD on the prospectus draft", () => {
+    const draft: ProspectusReviewStoredContent = {
+      page1: { keyInvestorHighlights: [] },
+      page2: {
+        creditInsights: {
+          litigationCheckOptionKey: "clear",
+          ccrisStatusOptionKey: "no_record",
+        },
+        invoicePaymaster: {
+          paymasterRating: "PM1",
+          confidenceGrading: "High",
+        },
+        aboutInvoice: { items: [] },
+      },
+      page3: { investorTakeaways: {} },
+    };
+    expect(draft.page2.creditInsights).not.toHaveProperty("marcCreditGrade");
+    expect(draft.page2.creditInsights).not.toHaveProperty("marcConfidenceGrading");
+    expect(draft.page2.invoicePaymaster).not.toHaveProperty("marcPaymasterGrading");
+  });
 });

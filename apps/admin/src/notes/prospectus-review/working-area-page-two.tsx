@@ -24,6 +24,7 @@ import {
   normalizeProspectusDeedOfAssignment,
   normalizeProspectusPaymasterRating,
   resolveMarcNoteRiskPresentation,
+  type MarcAssessmentSnapshot,
   type ProspectusReviewStoredContent,
 } from "@cashsouk/types";
 import { INVOICE_WORK_FIELD_LABELS } from "@/notes/prospectus-review/labels";
@@ -35,6 +36,7 @@ import {
   countMissingForTab,
   type ProspectusCompletionOptions,
 } from "@/notes/prospectus-review/completion";
+import { ProspectusMarcAssessmentSummary } from "@/notes/prospectus-review/marc-assessment-summary";
 import {
   ProspectusEditableTextField,
   ProspectusEditableTextarea,
@@ -53,8 +55,11 @@ import {
 } from "@/notes/prospectus-review/working-area-placeholders";
 
 const ISSUER_EDITABLE_LABEL = "Company Size";
-const INVOICE_EDITABLE_LABELS = new Set([
+const INVOICE_FACTS_EXCLUDED_LABELS = new Set([
   "Deed of Assignment (DOA)",
+  "Paymaster Rating",
+  "Paymaster Grading",
+  "Confidence Grading",
 ]);
 
 const PAYMASTER_TRACK_FIELDS = [
@@ -91,6 +96,9 @@ export type WorkingAreaPageTwoProps = {
     | undefined;
   financialComparisonOpsWarning: { title: string; description: string } | null;
   noteRiskRating: unknown;
+  marcAssessment?: MarcAssessmentSnapshot | null;
+  issuerOrganizationId?: string | null;
+  marcAssessmentLoading?: boolean;
   updateDraft: (
     updater: (prev: ProspectusReviewStoredContent) => ProspectusReviewStoredContent
   ) => void;
@@ -111,6 +119,9 @@ export function WorkingAreaPageTwo({
   financialComparisonOverrides,
   financialComparisonOpsWarning,
   noteRiskRating,
+  marcAssessment = null,
+  issuerOrganizationId = null,
+  marcAssessmentLoading = false,
   updateDraft,
   completionLabel,
   completionOptions,
@@ -139,12 +150,19 @@ export function WorkingAreaPageTwo({
 
   const filteredIssuerRows = issuerProfileRows.filter((r) => r.label !== ISSUER_EDITABLE_LABEL);
   const filteredInvoiceRows = invoicePaymasterRows.filter(
-    (r) => !INVOICE_EDITABLE_LABELS.has(r.label)
+    (r) => !INVOICE_FACTS_EXCLUDED_LABELS.has(r.label)
   );
 
   const issuerMissing = countMissingForTab(draft, "issuer_paymaster", completionOptions);
   const financialMissing = countMissingForTab(draft, "financial", completionOptions);
   const creditMissing = countMissingForTab(draft, "credit_invoice", completionOptions);
+  const invoiceFactsMissing = deedOfAssignment ? 0 : 1;
+  const paymasterGradingMissing =
+    (paymasterRating ? 0 : 1) + (confidenceGrading ? 0 : 1);
+  const creditInsightsMissing =
+    (draft.page2.creditInsights.litigationCheckOptionKey ? 0 : 1) +
+    (draft.page2.creditInsights.ccrisStatusOptionKey ? 0 : 1) +
+    (completionOptions?.hasMarcAssessment === false ? 1 : 0);
 
   const updateFinancialOverride = (fyeKey: string, field: string, value: string) => {
     updateDraft((prev) => ({
@@ -236,11 +254,7 @@ export function WorkingAreaPageTwo({
             <ProspectusSectionShell
               title="Invoice & Paymaster"
               icon={DocumentTextIcon}
-              missingCount={
-                [deedOfAssignment, paymasterRating, confidenceGrading].filter(Boolean).length === 3
-                  ? 0
-                  : 3 - [deedOfAssignment, paymasterRating, confidenceGrading].filter(Boolean).length
-              }
+              missingCount={invoiceFactsMissing}
             >
               <ProspectusInfoGrid>
                 {filteredInvoiceRows.map((row) => (
@@ -270,8 +284,19 @@ export function WorkingAreaPageTwo({
                     }))
                   }
                 />
+              </ProspectusInfoGrid>
+            </ProspectusSectionShell>
+          </div>
+
+          <div data-prospectus-page-three-paymaster-grading>
+            <ProspectusSectionShell
+              title="Page 3 Paymaster Grading"
+              icon={ClipboardDocumentCheckIcon}
+              missingCount={paymasterGradingMissing}
+            >
+              <ProspectusInfoGrid columns={2}>
                 <ProspectusOptionSelect
-                  label="Paymaster Grading (Page 3)"
+                  label="Paymaster Grading"
                   value={paymasterRating}
                   disabled={disabled}
                   required
@@ -295,7 +320,7 @@ export function WorkingAreaPageTwo({
                   }
                 />
                 <ProspectusOptionSelect
-                  label="Confidence Grading (Page 3)"
+                  label="Confidence Grading"
                   value={confidenceGrading}
                   disabled={disabled}
                   required
@@ -388,42 +413,45 @@ export function WorkingAreaPageTwo({
 
       {tab === "credit_invoice" ? (
         <div className="space-y-6" role="tabpanel">
-          <ProspectusSectionShell title="Credit Insights" icon={ClipboardDocumentCheckIcon} missingCount={creditMissing}>
-            <p className="mb-3 text-sm text-muted-foreground">
-              MARC Credit Grade, Score, and Probability of Default come from the issuer organization MARC assessment.
-              Litigation Check and CCRIS Status remain officer-entered.
-            </p>
-            <ProspectusInfoGrid columns={2}>
-              {(
-                [
-                  ["litigationCheckOptionKey", "litigationCheck", "Litigation Check"],
-                  ["ccrisStatusOptionKey", "ccrisStatus", "CCRIS Status"],
-                ] as const
-              ).map(([field, catalogueKey, label]) => (
-                <ProspectusOptionSelect
-                  key={field}
-                  label={label}
-                  required
-                  disabled={disabled}
-                  incomplete={!draft.page2.creditInsights[field]}
-                  placeholder={SELECT_PLACEHOLDERS[catalogueKey]}
-                  value={draft.page2.creditInsights[field]}
-                  options={catalogues.creditInsights[catalogueKey] ?? []}
-                  onChange={(value) =>
-                    updateDraft((prev) => ({
-                      ...prev,
-                      page2: {
-                        ...prev.page2,
-                        creditInsights: {
-                          ...prev.page2.creditInsights,
-                          [field]: value,
+          <ProspectusSectionShell title="Credit Insights" icon={ClipboardDocumentCheckIcon} missingCount={creditInsightsMissing}>
+            <div className="space-y-6">
+              <ProspectusMarcAssessmentSummary
+                assessment={marcAssessment}
+                issuerOrganizationId={issuerOrganizationId}
+                loading={marcAssessmentLoading}
+              />
+              <ProspectusInfoGrid columns={2}>
+                {(
+                  [
+                    ["litigationCheckOptionKey", "litigationCheck", "Litigation Check"],
+                    ["ccrisStatusOptionKey", "ccrisStatus", "CCRIS Status"],
+                  ] as const
+                ).map(([field, catalogueKey, label]) => (
+                  <ProspectusOptionSelect
+                    key={field}
+                    label={label}
+                    required
+                    disabled={disabled}
+                    incomplete={!draft.page2.creditInsights[field]}
+                    placeholder={SELECT_PLACEHOLDERS[catalogueKey]}
+                    value={draft.page2.creditInsights[field]}
+                    options={catalogues.creditInsights[catalogueKey] ?? []}
+                    onChange={(value) =>
+                      updateDraft((prev) => ({
+                        ...prev,
+                        page2: {
+                          ...prev.page2,
+                          creditInsights: {
+                            ...prev.page2.creditInsights,
+                            [field]: value,
+                          },
                         },
-                      },
-                    }))
-                  }
-                />
-              ))}
-            </ProspectusInfoGrid>
+                      }))
+                    }
+                  />
+                ))}
+              </ProspectusInfoGrid>
+            </div>
           </ProspectusSectionShell>
 
           <div data-prospectus-about-invoice>

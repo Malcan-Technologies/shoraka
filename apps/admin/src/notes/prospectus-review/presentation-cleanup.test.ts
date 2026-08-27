@@ -19,6 +19,7 @@ const financialComparisonTable = fs.readFileSync(
   path.join(root, "financial-comparison-working-table.tsx"),
   "utf8"
 );
+const marcSummary = fs.readFileSync(path.join(root, "marc-assessment-summary.tsx"), "utf8");
 
 describe("prospectus review presentation cleanup", () => {
   it("removes local preview shortcuts and preview-only verification copy", () => {
@@ -38,6 +39,8 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).toContain("WorkingAreaPreviewApproval");
     expect(pageSource).toContain("buildPageThreeAdminOverviewRows");
     expect(pageSource).toContain("mergeOfficerOverridesIntoFinancialTable");
+    expect(pageSource).toContain("useIssuerMarcAssessment");
+    expect(pageSource).toContain("hasMarcAssessment");
   });
 
   it("Page 1 uses field-centred sections without At a Glance duplicate", () => {
@@ -60,8 +63,23 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageTwo).toContain("Company Size");
     expect(pageTwo).toContain("Invoice & Paymaster");
     expect(pageTwo).toContain("Deed of Assignment");
-    expect(pageTwo).toContain("Paymaster Grading (Page 3)");
-    expect(pageTwo).toContain("Confidence Grading (Page 3)");
+    expect(pageTwo).toContain("Page 3 Paymaster Grading");
+    expect(pageTwo).toContain('label="Paymaster Grading"');
+    expect(pageTwo).toContain('label="Confidence Grading"');
+    expect(pageTwo).toContain("data-prospectus-page-three-paymaster-grading");
+    expect(pageTwo).not.toContain("Paymaster Grading (Page 3)");
+    expect(pageTwo).not.toContain("Confidence Grading (Page 3)");
+    expect(pageTwo).not.toContain("MARC Paymaster Grading");
+    expect(pageTwo).not.toContain("MARC Confidence Grading");
+    expect(pageTwo).toContain("ProspectusMarcAssessmentSummary");
+    expect(marcSummary).toContain("MARC Credit Assessment");
+    expect(marcSummary).toContain("Manage MARC Assessment");
+    expect(marcSummary).toContain("data-prospectus-marc-assessment");
+    expect(pageTwo).toContain("Litigation Check");
+    expect(pageTwo).toContain("CCRIS Status");
+    expect(pageTwo).not.toContain(
+      "MARC Credit Grade, Score, and Probability of Default come from the issuer organization MARC assessment."
+    );
     expect(pageTwo).toContain("Paymaster Track Record");
     expect(pageTwo).toContain("optional");
     expect(pageTwo).toContain("ProspectusFinancialComparisonWorkingTable");

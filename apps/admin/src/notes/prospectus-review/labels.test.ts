@@ -10,6 +10,10 @@ import {
 } from "./labels";
 import { WORKFLOW_STATUS_BADGE } from "@/notes/utils/workflow-status-tokens";
 import {
+  MARC_ASSESSMENT_REQUIRED_MESSAGE,
+  type ProspectusReviewStoredContent,
+} from "@cashsouk/types";
+import {
   PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusCompletionChecklist,
   buildProspectusMissingRequiredFields,
@@ -28,7 +32,6 @@ import {
   PROSPECTUS_STEP_ICON_NAMES,
   PROSPECTUS_STEPS_GRID_CLASS,
 } from "./step-icons";
-import type { ProspectusReviewStoredContent } from "@cashsouk/types";
 
 describe("prospectus review admin labels", () => {
   it("formats review statuses as Draft | Approved | Published only", () => {
@@ -245,6 +248,40 @@ describe("prospectus review completion readiness", () => {
     const missing = buildProspectusMissingRequiredFields(draft);
     expect(missing).toHaveLength(0);
     expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
+  });
+
+  it("counts missing Paymaster Grading and Confidence Grading under Page 3 Paymaster Grading", () => {
+    const draft = completeOfficerDraft();
+    draft.page2.invoicePaymaster = {
+      deedOfAssignment: "Yes",
+    };
+    const missing = buildProspectusMissingRequiredFields(draft);
+    const grading = missing.filter((m) => m.section === "Page 3 Paymaster Grading");
+    expect(grading.map((m) => m.field)).toEqual(["Paymaster Grading", "Confidence Grading"]);
+    expect(grading.every((m) => m.tabId === "issuer_paymaster")).toBe(true);
+    expect(missing.some((m) => m.section === "Invoice & Paymaster" && m.field !== "Deed of Assignment")).toBe(
+      false
+    );
+  });
+
+  it("treats a missing issuer MARC assessment as one Credit Insights blocker", () => {
+    const draft = completeOfficerDraft();
+    const missing = buildProspectusMissingRequiredFields(draft, { hasMarcAssessment: false });
+    const marc = missing.filter((m) => m.field === MARC_ASSESSMENT_REQUIRED_MESSAGE);
+    expect(marc).toHaveLength(1);
+    expect(marc[0]?.section).toBe("Credit Insights");
+    expect(marc[0]?.tabId).toBe("credit_invoice");
+    expect(missing.filter((m) => /Credit Grade|Credit Score|Probability of Default/i.test(m.field))).toHaveLength(
+      0
+    );
+    expect(isProspectusDraftReadyToSubmit(draft, { hasMarcAssessment: false })).toBe(false);
+  });
+
+  it("does not count MARC as missing until the organization assessment is evaluated", () => {
+    const draft = completeOfficerDraft();
+    expect(buildProspectusMissingRequiredFields(draft)).toHaveLength(0);
+    expect(buildProspectusMissingRequiredFields(draft, { hasMarcAssessment: undefined })).toHaveLength(0);
+    expect(buildProspectusMissingRequiredFields(draft, { hasMarcAssessment: true })).toHaveLength(0);
   });
 });
 

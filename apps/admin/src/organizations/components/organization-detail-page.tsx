@@ -405,7 +405,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                           displayName={displayName}
                         />
                         {portal === "issuer" ? (
-                          <div className="mt-6">
+                          <div className="mt-6" id="marc-assessment">
                             <OrganizationMarcCard
                               org={org}
                               organizationId={organizationId}

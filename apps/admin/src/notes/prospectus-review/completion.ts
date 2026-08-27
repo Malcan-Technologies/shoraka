@@ -1,4 +1,5 @@
 import type { ProspectusWorkflowStepId } from "./labels";
+import { MARC_ASSESSMENT_REQUIRED_MESSAGE } from "@cashsouk/types";
 
 export type ProspectusCompletionItem = {
   id: string;
@@ -26,6 +27,12 @@ function hasHighlightCopy(value: { title?: string; description?: string; key?: s
 
 export type ProspectusCompletionOptions = {
   incomeStatementYears?: readonly string[];
+  /**
+   * Whether the issuer organization has a usable MARC SME assessment.
+   * Undefined = not evaluated yet (do not count as missing).
+   * False = one Credit Insights blocker: MARC assessment required.
+   */
+  hasMarcAssessment?: boolean;
 };
 
 const PAGE_THREE_OFFICER_FINANCIAL_FIELDS = [
@@ -103,12 +110,14 @@ export function buildProspectusCompletionChecklist(
   );
 
   const credit = draft.page2.creditInsights;
+  const marcComplete = options?.hasMarcAssessment !== false;
   const creditInsightsComplete =
     hasOption(credit.creditScoreOptionKey) &&
     hasOption(credit.paymentBehaviourOptionKey) &&
     hasOption(credit.creditUtilisationOptionKey) &&
     hasOption(credit.litigationCheckOptionKey) &&
-    hasOption(credit.ccrisStatusOptionKey);
+    hasOption(credit.ccrisStatusOptionKey) &&
+    marcComplete;
 
   const aboutItems = draft.page2.aboutInvoice?.items ?? [];
   const invoiceComplete =
@@ -263,17 +272,26 @@ export function buildProspectusMissingRequiredFields(
   if (!hasOption(draft.page2.invoicePaymaster?.paymasterRating)) {
     missing.push({
       pageStep: 1,
-      section: "Invoice & Paymaster",
-      field: "Paymaster Grading (Page 3)",
+      section: "Page 3 Paymaster Grading",
+      field: "Paymaster Grading",
       tabId: "issuer_paymaster",
     });
   }
   if (!hasOption(draft.page2.invoicePaymaster?.confidenceGrading)) {
     missing.push({
       pageStep: 1,
-      section: "Invoice & Paymaster",
-      field: "Confidence Grading (Page 3)",
+      section: "Page 3 Paymaster Grading",
+      field: "Confidence Grading",
       tabId: "issuer_paymaster",
+    });
+  }
+
+  if (options?.hasMarcAssessment === false) {
+    missing.push({
+      pageStep: 1,
+      section: "Credit Insights",
+      field: MARC_ASSESSMENT_REQUIRED_MESSAGE,
+      tabId: "credit_invoice",
     });
   }
 
@@ -412,8 +430,8 @@ export function countProspectusRequiredFields(
   const highlightSlots = 3;
   const page2Officer =
     1 + // company size
-    3 + // DOA, paymaster rating, confidence
-    5 + // credit insights
+    3 + // DOA, paymaster grading, confidence grading
+    3 + // MARC assessment (one org blocker) + litigation + CCRIS
     4 + // about invoice
     years.length * PAGE_TWO_OVERRIDE_FIELDS.length;
   const page3Officer =
