@@ -30,6 +30,7 @@ export const MARC_SME_BANDS = [
     rangeLabel: "SME-1 - SME-2",
     compactRangeLabel: "SME-1–2",
     label: "Very Low Risk",
+    groupedExplanation: "Very strong credit strength; minimal repayment risk.",
     color: "#69ca48",
   },
   {
@@ -38,6 +39,7 @@ export const MARC_SME_BANDS = [
     rangeLabel: "SME-3 - SME-4",
     compactRangeLabel: "SME-3–4",
     label: "Low Risk",
+    groupedExplanation: "Strong credit strength; low repayment risk.",
     color: "#8ed657",
   },
   {
@@ -46,6 +48,7 @@ export const MARC_SME_BANDS = [
     rangeLabel: "SME-5 - SME-6",
     compactRangeLabel: "SME-5–6",
     label: "Moderate Risk",
+    groupedExplanation: "Moderate credit strength; moderate repayment risk.",
     color: "#f5ca47",
   },
   {
@@ -54,6 +57,7 @@ export const MARC_SME_BANDS = [
     rangeLabel: "SME-7 - SME-8",
     compactRangeLabel: "SME-7–8",
     label: "High Risk",
+    groupedExplanation: "Weak credit strength; elevated default risk.",
     color: "#f5964f",
   },
   {
@@ -62,6 +66,7 @@ export const MARC_SME_BANDS = [
     rangeLabel: "SME-9 - SME-10",
     compactRangeLabel: "SME-9–10",
     label: "Very High Risk",
+    groupedExplanation: "Very weak credit strength; high default risk.",
     color: "#ef776c",
   },
 ] as const;
@@ -126,6 +131,58 @@ export const MARC_SCORE_DEFINITIONS: Record<
 
 export function isMarcSmeGrade(value: unknown): value is MarcSmeGrade {
   return typeof value === "string" && (MARC_SME_GRADES as readonly string[]).includes(value);
+}
+
+/** Active Note/invoice risk rating grades — MARC SME only. */
+export const NOTE_RISK_RATING_GRADES = MARC_SME_GRADES;
+export type NoteRiskRating = MarcSmeGrade;
+export const isNoteRiskRating = isMarcSmeGrade;
+
+export const MARC_ASSESSMENT_REQUIRED_MESSAGE = "MARC assessment is required.";
+export const NOTE_RISK_RATING_UNASSIGNED_MESSAGE = "Risk rating has not been assigned.";
+
+/**
+ * Saved invoice risk_rating wins. Otherwise suggest the issuer MARC grade.
+ * Never maps A–F or other legacy values into the active MARC flow.
+ */
+export function resolveDefaultInvoiceRiskRating(
+  savedRiskRating: unknown,
+  orgMarcGrade: unknown
+): MarcSmeGrade | null {
+  if (isMarcSmeGrade(savedRiskRating)) return savedRiskRating;
+  if (isMarcSmeGrade(orgMarcGrade)) return orgMarcGrade;
+  return null;
+}
+
+export type MarcNoteRiskPresentation = {
+  grade: string;
+  label: string;
+  riskProfile: string;
+  color: string;
+  textColor: "#ffffff";
+  isAvailable: boolean;
+};
+
+/** Individual Note/invoice SME display. Incomplete when no MARC SME grade is stored. */
+export function resolveMarcNoteRiskPresentation(value: unknown): MarcNoteRiskPresentation {
+  if (!isMarcSmeGrade(value)) {
+    return {
+      grade: "—",
+      label: "—",
+      riskProfile: "—",
+      color: "#d4d4d4",
+      textColor: "#ffffff",
+      isAvailable: false,
+    };
+  }
+  return {
+    grade: value,
+    label: marcGradeLabel(value),
+    riskProfile: MARC_SCORE_DEFINITIONS[value].riskProfile,
+    color: marcGradeColor(value),
+    textColor: "#ffffff",
+    isAvailable: true,
+  };
 }
 
 export function marcBandForGrade(grade: string | null | undefined) {

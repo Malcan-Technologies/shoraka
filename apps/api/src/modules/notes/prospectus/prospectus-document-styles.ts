@@ -418,6 +418,35 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 .soukscore-scale.marc-sme-scale .marc-profile{display:block;margin:0 0 4px}
 .soukscore-scale.marc-sme-scale .marc-profile:last-child{margin-bottom:0}
 .soukscore-scale.marc-sme-scale .marc-profile b{font-weight:700}
+.risk-scale.marc-scale{
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  width:100%;
+  align-items:start;
+  overflow:visible;
+}
+.risk-scale.marc-scale>div{
+  text-align:left;
+  padding:0 9px;
+  overflow:visible;
+  min-width:0;
+}
+.risk-scale.marc-scale .grade.marc{
+  width:auto;
+  min-width:61px;
+  max-width:100%;
+  height:auto;
+  min-height:22px;
+  padding:3px 5px;
+  margin:0 0 6px;
+  font-size:7px;
+  line-height:1.15;
+  letter-spacing:0;
+  white-space:nowrap;
+  overflow:visible;
+  text-overflow:clip;
+}
+.risk-scale.marc-scale strong,.risk-scale.marc-scale span{display:block;font-size:7px;text-align:left}
+.risk-scale.marc-scale strong{margin-bottom:4px;font-weight:700}
 .soukscore-missing{margin:8px 0 0;font-size:8px}
 .issuer-profile .issuer-meta-line{font-size:10px;font-weight:700;margin-bottom:6px}
 .plain th .fy-label,.report-box th .fy-label{display:block;font-weight:700}

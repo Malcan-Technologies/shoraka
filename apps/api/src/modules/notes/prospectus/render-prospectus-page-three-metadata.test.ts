@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { MARC_SME_GRADES } from "@cashsouk/types";
 import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
 import { SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE } from "./prospectus-financial-comparison-source.sample-data";
 import { buildProspectusPageThreeMetadata } from "./prospectus-page-three-metadata";
@@ -13,7 +14,7 @@ import {
 } from "./prospectus-page-three-metadata.types";
 import { buildProspectusPageThreeMetadataDocument } from "./render-prospectus-page-three-metadata";
 
-const VALID_GRADES = ["A", "B", "C", "D", "E", "F"] as const;
+const VALID_GRADES = MARC_SME_GRADES;
 
 function withSource(
   overrides: Partial<typeof SAMPLE_PROSPECTUS_PAGE_THREE_METADATA_INPUT> = {}
@@ -184,7 +185,7 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     expect(PROSPECTUS_PAGE_THREE_METADATA_AUDIT.riskRating.canvaAtoEMappingAllowed).toBe(
       false
     );
-    for (const grade of ["AAA", "AA", "BBB", "A-", "AA+"]) {
+    for (const grade of ["AAA", "AA", "BBB", "A-", "AA+", "A", "B", "C", "D", "E", "F"]) {
       expect(withSource({ selectedRiskRating: grade }).metadata.riskRating).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );

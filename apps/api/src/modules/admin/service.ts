@@ -105,7 +105,11 @@ import {
   computeHasPendingDirectorShareholder,
   filterVisiblePeopleRows,
   WithdrawReason,
-  type SoukscoreRiskRating,
+  isMarcSmeGrade,
+  MARC_ASSESSMENT_REQUIRED_MESSAGE,
+  NOTE_RISK_RATING_UNASSIGNED_MESSAGE,
+  type MarcSmeGrade,
+  type MarcAssessmentSnapshot,
   type OfferAcceptanceStatus,
   buildOriginationPhaseInput,
   canRejectApplication,
@@ -6469,6 +6473,7 @@ export class AdminService {
           party_key: s.partyKey,
           onboarding_json: s.onboardingJson,
         })),
+        marcAssessment: await getCurrentMarcAssessment(issuerOrgId),
       } as typeof issuerOrg;
     }
     const applicationWithIssuerExtras =
@@ -8713,6 +8718,20 @@ export class AdminService {
     return repository.getApplicationById(applicationId);
   }
 
+  async assertIssuerMarcReadyForInvoiceOffer(
+    issuerOrganizationId: string | null | undefined
+  ): Promise<MarcAssessmentSnapshot> {
+    const orgId = typeof issuerOrganizationId === "string" ? issuerOrganizationId.trim() : "";
+    if (!orgId) {
+      throw new AppError(400, "MARC_ASSESSMENT_REQUIRED", MARC_ASSESSMENT_REQUIRED_MESSAGE);
+    }
+    const marc = await getCurrentMarcAssessment(orgId);
+    if (!marc || !isMarcSmeGrade(marc.creditGrade)) {
+      throw new AppError(400, "MARC_ASSESSMENT_REQUIRED", MARC_ASSESSMENT_REQUIRED_MESSAGE);
+    }
+    return marc;
+  }
+
   async sendInvoiceOffer(
     applicationId: string,
     invoiceId: string,
@@ -8720,7 +8739,7 @@ export class AdminService {
     offeredRatioPercent: number | null,
     offeredProfitRatePercent: number | null,
     platformFeeRatePercent: number | null,
-    riskRating: SoukscoreRiskRating,
+    riskRating: MarcSmeGrade,
     reviewerUserId: string,
     logContext?: AdminLogContext,
     feeSchedule?: {
@@ -8758,6 +8777,15 @@ export class AdminService {
       { invoiceId },
       "sending a new invoice offer"
     );
+    const issuerOrganizationId =
+      typeof (application as { issuer_organization_id?: unknown }).issuer_organization_id ===
+      "string"
+        ? (application as { issuer_organization_id: string }).issuer_organization_id
+        : null;
+    const marc = await this.assertIssuerMarcReadyForInvoiceOffer(issuerOrganizationId);
+    if (!isMarcSmeGrade(riskRating)) {
+      throw new AppError(400, "INVALID_INPUT", NOTE_RISK_RATING_UNASSIGNED_MESSAGE);
+    }
 
     const invoiceForSend = await prisma.invoice.findUnique({
       where: { id: invoiceId, application_id: applicationId },
@@ -8947,7 +8975,10 @@ export class AdminService {
           ? previousOffer.version
           : 0;
       const now = new Date().toISOString();
-      logger.info({ applicationId, invoiceId, riskRating }, "Saving invoice offer risk rating");
+      logger.info(
+        { applicationId, invoiceId, riskRating, marcSuggestedGrade: marc.creditGrade },
+        "Saving invoice offer risk rating"
+      );
       const offerDetails: Record<string, unknown> = {
         requested_amount: requestedAmount,
         offered_amount: offeredAmount,
@@ -8957,6 +8988,7 @@ export class AdminService {
         financing_tenure_days: offeredFinancingTenureDays,
         platform_fee_rate_percent: platformFeeStored,
         risk_rating: riskRating,
+        marc_suggested_grade: marc.creditGrade,
         ...feeSchedulePatch,
         sent_at: now,
         responded_at: null,

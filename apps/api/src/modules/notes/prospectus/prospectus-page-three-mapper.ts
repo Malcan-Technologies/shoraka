@@ -144,9 +144,7 @@ export function buildProspectusPageThree(
     issuerName: issuer.name,
     issuerSector: issuer.industry,
     officerCompanySize: input.publicationContent?.issuerProfile?.companySize,
-    selectedRiskRating:
-      input.marcSnapshot?.creditGrade?.trim() ||
-      parseInvoiceSnapshotRiskRating(input.invoiceSnapshot),
+    selectedRiskRating: parseInvoiceSnapshotRiskRating(input.invoiceSnapshot),
     paymasterName: paymaster.name,
     officerPaymasterRating: input.publicationContent?.invoicePaymaster?.paymasterRating,
     officerConfidenceGrading:

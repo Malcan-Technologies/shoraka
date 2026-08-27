@@ -55,6 +55,7 @@ export type FinancialSectionAppSlice = {
       fetched_at: string;
       has_report_html: boolean;
     }> | null;
+    marcAssessment?: import("@cashsouk/types").MarcAssessmentSnapshot | null;
   } | null;
   financial_statements?: unknown;
 };

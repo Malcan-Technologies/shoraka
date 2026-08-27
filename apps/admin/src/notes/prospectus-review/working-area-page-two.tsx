@@ -19,12 +19,11 @@ import {
   PROSPECTUS_PAYMASTER_RATING_VALUES,
   CASHSCOUK_RISK_GRADE_LETTER_COLOR,
   MARC_SME_BANDS,
-  marcBandOfficialGradeProfiles,
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
   normalizeProspectusPaymasterRating,
-  resolveSoukscoreRiskRatingPresentation,
+  resolveMarcNoteRiskPresentation,
   type ProspectusReviewStoredContent,
 } from "@cashsouk/types";
 import { INVOICE_WORK_FIELD_LABELS } from "@/notes/prospectus-review/labels";
@@ -136,7 +135,7 @@ export function WorkingAreaPageTwo({
   const confidenceGrading = normalizeProspectusConfidenceGrading(
     draft.page2.invoicePaymaster?.confidenceGrading
   );
-  const risk = resolveSoukscoreRiskRatingPresentation(noteRiskRating);
+  const risk = resolveMarcNoteRiskPresentation(noteRiskRating);
 
   const filteredIssuerRows = issuerProfileRows.filter((r) => r.label !== ISSUER_EDITABLE_LABEL);
   const filteredInvoiceRows = invoicePaymasterRows.filter(
@@ -498,12 +497,7 @@ export function WorkingAreaPageTwo({
                         </td>
                         <td className="px-3 py-2">{band.label}</td>
                         <td className="px-3 py-2 text-muted-foreground">
-                          {marcBandOfficialGradeProfiles(band).map((item) => (
-                            <p key={item.grade} className="mb-1 last:mb-0">
-                              <span className="font-medium text-foreground">{item.grade}:</span>{" "}
-                              {item.riskProfile}
-                            </p>
-                          ))}
+                          {band.groupedExplanation}
                         </td>
                       </tr>
                     ))}
@@ -512,7 +506,7 @@ export function WorkingAreaPageTwo({
               </div>
               {!risk.isAvailable ? (
                 <p className="text-sm text-muted-foreground">
-                  No valid Note risk grade selected (—).
+                  Risk rating has not been assigned.
                 </p>
               ) : null}
             </div>

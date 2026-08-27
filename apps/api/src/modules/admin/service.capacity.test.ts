@@ -95,6 +95,11 @@ describe("AdminService capacity offer paths", () => {
     (service as unknown as { clearItemDraftAmendments: jest.Mock }).clearItemDraftAmendments =
       jest.fn();
     (service as unknown as { clearItemRemarks: jest.Mock }).clearItemRemarks = jest.fn();
+    (
+      service as unknown as { assertIssuerMarcReadyForInvoiceOffer: jest.Mock }
+    ).assertIssuerMarcReadyForInvoiceOffer = jest
+      .fn()
+      .mockResolvedValue({ creditGrade: "SME-3" });
   });
 
   it("send and resend invoice offers hard-block over-limit writes under the lock", async () => {
@@ -133,7 +138,7 @@ describe("AdminService capacity offer paths", () => {
       70,
       12,
       0,
-      "A",
+      "SME-3",
       "admin-1",
       undefined,
       undefined,
@@ -249,7 +254,7 @@ describe("AdminService capacity offer paths", () => {
       70,
       12,
       0,
-      "A",
+      "SME-3",
       "admin-1",
       undefined,
       undefined,

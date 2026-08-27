@@ -109,6 +109,7 @@ export type ReviewApplicationView = {
       fetched_at: string;
       has_report_html: boolean;
     }> | null;
+    marcAssessment?: import("@cashsouk/types").MarcAssessmentSnapshot | null;
   } | null;
 };
 
@@ -613,6 +614,9 @@ export function SectionContent({
           minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
           productWorkflow={productWorkflow}
           onViewSignedInvoiceOffer={onViewSignedInvoiceOffer}
+          suggestedMarcGrade={
+            app.issuer_organization?.marcAssessment?.creditGrade ?? null
+          }
           sectionComparison={
             sectionComparison
               ? (() => {

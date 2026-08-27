@@ -48,7 +48,7 @@ function note(overrides: Partial<NoteListItem> = {}): NoteListItem {
     purposeOfContract: "Repair and maintenance for 12 mining rigs",
     issuerName: "Acme Sdn Bhd",
     paymasterName: "Paymaster Co",
-    riskRating: "B",
+    riskRating: "SME-3",
     status: "FUNDING" as NoteListItem["status"],
     listingStatus: "PUBLISHED" as NoteListItem["listingStatus"],
     fundingStatus: "OPEN" as NoteListItem["fundingStatus"],

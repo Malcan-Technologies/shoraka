@@ -6,6 +6,8 @@ import {
   marcOfficialPd,
   marcOfficialRiskProfile,
   marcOfficialScoreRange,
+  resolveDefaultInvoiceRiskRating,
+  resolveMarcNoteRiskPresentation,
 } from "./marc-credit-grade";
 
 const OFFICIAL_RISK_PROFILES: Record<(typeof MARC_SME_GRADES)[number], string> = {
@@ -22,17 +24,45 @@ const OFFICIAL_RISK_PROFILES: Record<(typeof MARC_SME_GRADES)[number], string> =
 };
 
 describe("MARC SME official definitions", () => {
-  it("keeps five grouped CashSouk bands without paraphrased MARC profiles", () => {
+  it("keeps five grouped CashSouk bands with V3 grouped copy, not official dual profiles", () => {
     expect(MARC_SME_BANDS).toHaveLength(5);
-    expect(MARC_SME_BANDS.map((band) => band.compactRangeLabel)).toEqual([
-      "SME-1–2",
-      "SME-3–4",
-      "SME-5–6",
-      "SME-7–8",
-      "SME-9–10",
+    expect(MARC_SME_BANDS.map((band) => band.rangeLabel)).toEqual([
+      "SME-1 - SME-2",
+      "SME-3 - SME-4",
+      "SME-5 - SME-6",
+      "SME-7 - SME-8",
+      "SME-9 - SME-10",
     ]);
-    expect(JSON.stringify(MARC_SME_BANDS)).not.toContain("minimal repayment risk");
-    expect(JSON.stringify(MARC_SME_BANDS)).not.toContain("elevated default risk");
+    expect(MARC_SME_BANDS[0]?.groupedExplanation).toBe(
+      "Very strong credit strength; minimal repayment risk."
+    );
+    expect(MARC_SME_BANDS[4]?.groupedExplanation).toBe(
+      "Very weak credit strength; high default risk."
+    );
+  });
+
+  it("defaults invoice risk_rating from org MARC without A–F fallback", () => {
+    expect(resolveDefaultInvoiceRiskRating(null, "SME-3")).toBe("SME-3");
+    expect(resolveDefaultInvoiceRiskRating("SME-4", "SME-3")).toBe("SME-4");
+    expect(resolveDefaultInvoiceRiskRating("C", "SME-3")).toBe("SME-3");
+    expect(resolveDefaultInvoiceRiskRating("B", null)).toBeNull();
+    expect(resolveDefaultInvoiceRiskRating(null, null)).toBeNull();
+    expect(resolveDefaultInvoiceRiskRating("A", "A")).toBeNull();
+  });
+
+  it("presents official MARC copy for SME grades and an incomplete state otherwise", () => {
+    const sme4 = resolveMarcNoteRiskPresentation("SME-4");
+    expect(sme4).toMatchObject({
+      grade: "SME-4",
+      label: "Low Risk",
+      riskProfile: OFFICIAL_RISK_PROFILES["SME-4"],
+      isAvailable: true,
+    });
+    const missing = resolveMarcNoteRiskPresentation("C");
+    expect(missing.isAvailable).toBe(false);
+    expect(missing.grade).toBe("—");
+    expect(missing.riskProfile).toBe("—");
+    expect(missing.riskProfile).not.toContain("typical SME");
   });
 
   it("exposes official score range, PD, and Risk Profile for every SME grade", () => {

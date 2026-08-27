@@ -1,6 +1,6 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
-  isSoukscoreRiskRating,
+  isMarcSmeGrade,
   parseInvoiceFeeSchedule,
   resolveNoteTimingDisplay,
   type NoteDetail,
@@ -29,7 +29,7 @@ function numberOrNull(value: unknown): number | null {
 function getRiskRating(note: NoteDetail) {
   const offerDetails = asRecord(note.invoiceSnapshot?.offer_details);
   const riskRating = offerDetails?.risk_rating;
-  return isSoukscoreRiskRating(riskRating) ? riskRating : "—";
+  return isMarcSmeGrade(riskRating) ? riskRating : "—";
 }
 
 function getFacilityFeeDisplay(note: NoteDetail): string | null {

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { AdditionalFeeLine, ApiError, InvoiceOfferFeeScheduleWriteMode, SoukscoreRiskRating } from "@cashsouk/types";
+import type { AdditionalFeeLine, ApiError, InvoiceOfferFeeScheduleWriteMode, MarcSmeGrade } from "@cashsouk/types";
 import { applicationLogsKeys } from "./use-application-logs";
 import { applicationsKeys } from "@/applications/query-keys";
 import { contractsKeys } from "@/contracts/query-keys";
@@ -484,7 +484,7 @@ export function useSendInvoiceOffer() {
       offeredRatioPercent?: number | null;
       offeredProfitRatePercent?: number | null;
       platformFeeRatePercent?: number | null;
-      risk_rating: SoukscoreRiskRating;
+      risk_rating: MarcSmeGrade;
       financingTenureDays: number;
       feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode;
       facilityFeeCollectAmount?: number | null;

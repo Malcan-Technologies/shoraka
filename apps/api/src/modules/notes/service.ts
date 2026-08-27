@@ -67,7 +67,7 @@ import {
   resolveProductImageS3KeyFromWorkflow,
   isMarketplaceCatalogNote,
   isNoteFullyFunded,
-  isSoukscoreRiskRating,
+  isMarcSmeGrade,
   maxFundedBeforeMarketplaceCommit,
   meetsMinimumFunding,
   normalizeNoteCapacityAmount,
@@ -1001,7 +1001,7 @@ function resolveIssuerPaymentPurpose(input: { metadata?: Record<string, unknown>
 }
 
 function resolveRiskRating(value: unknown) {
-  return isSoukscoreRiskRating(value) ? value : null;
+  return isMarcSmeGrade(value) ? value : null;
 }
 
 function isUniqueConstraintError(error: unknown, target: string): boolean {

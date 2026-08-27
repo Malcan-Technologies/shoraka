@@ -3,7 +3,7 @@ import {
   formatProspectusListBadge,
   getProspectusDisplayStatus,
   hasSettlementTrusteeMovementFromPoolSummary,
-  isSoukscoreRiskRating,
+  isMarcSmeGrade,
   parseAdditionalFeeCharges,
   parseFacilityFeeCollectionWaiver,
   parseInvoiceFeeSchedule,
@@ -371,7 +371,7 @@ function resolveRiskRating(note: NoteWithRelations) {
     invoiceSnapshot?.offer_details as Prisma.JsonValue | null | undefined
   );
   const riskRating = offerDetails?.risk_rating;
-  return isSoukscoreRiskRating(riskRating) ? riskRating : null;
+  return isMarcSmeGrade(riskRating) ? riskRating : null;
 }
 
 function resolveIssuerName(note: NoteWithRelations): string | null {

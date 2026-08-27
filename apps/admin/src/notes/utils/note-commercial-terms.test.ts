@@ -16,7 +16,7 @@ function termNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     serviceFeeRatePercent: 15,
     tawidhRateCapPercent: 1,
     gharamahRateCapPercent: 9,
-    invoiceSnapshot: { offer_details: { risk_rating: "B" } },
+    invoiceSnapshot: { offer_details: { risk_rating: "SME-3" } },
     withdrawals: [],
     contractSnapshot: null,
     fundedAmount: 100_000,
@@ -47,7 +47,7 @@ describe("getNoteCommercialTermRows", () => {
       getNoteCommercialTermRows(termNote()).map((row) => [row.label, row.value])
     );
     expect(rows["Paymaster"]).toBe("—");
-    expect(rows["Risk rating"]).toBe("B");
+    expect(rows["Risk rating"]).toBe("SME-3");
     expect(rows["Profit rate"]).toBe("10% p.a.");
     expect(rows["Drawdown fee"]).toBe("1.5% at disbursement");
     expect(rows["Service fee"]).toBe("15% of investor profit");

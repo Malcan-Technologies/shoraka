@@ -8,7 +8,7 @@ import {
   resolveCtosTotalAssetTurnover,
   resolveCtosTotalAssets,
   resolveCtosTotalLiabilities,
-  isSoukscoreRiskRating,
+  isMarcSmeGrade,
   normalizeProspectusCompanySize,
   type NoteDetail,
   type ProspectusFrozenFinancialRaw,
@@ -175,7 +175,7 @@ export function buildPageThreeMetadataRows(
   const paymaster = asRecord(note.paymasterSnapshot);
   const invoice = asRecord(note.invoiceSnapshot);
   const offerDetails = asRecord(invoice?.offer_details);
-  const riskRating = isSoukscoreRiskRating(offerDetails?.risk_rating)
+  const riskRating = isMarcSmeGrade(offerDetails?.risk_rating)
     ? offerDetails.risk_rating
     : DATA_NOT_AVAILABLE;
   return [
@@ -223,7 +223,7 @@ export function buildPageThreeAdminOverviewRows(
         : DATA_NOT_AVAILABLE;
   const companySize =
     normalizeProspectusCompanySize(officerFields?.companySize) ?? DATA_NOT_AVAILABLE;
-  const riskRating = isSoukscoreRiskRating(offerDetails?.risk_rating)
+  const riskRating = isMarcSmeGrade(offerDetails?.risk_rating)
     ? offerDetails.risk_rating
     : DATA_NOT_AVAILABLE;
   return [

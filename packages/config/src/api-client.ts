@@ -78,7 +78,7 @@ import type {
   AdminSeedTypesResponse,
   WithdrawReason,
   AdminCtosReportListItem,
-  SoukscoreRiskRating,
+  MarcSmeGrade,
   RecipientEkycSession,
   RecipientEkycSessionStatus,
   CreateNoteFromApplicationInput,
@@ -1713,7 +1713,7 @@ export class ApiClient {
       offeredRatioPercent?: number | null;
       offeredProfitRatePercent?: number | null;
       platformFeeRatePercent?: number | null;
-      risk_rating: SoukscoreRiskRating;
+      risk_rating: MarcSmeGrade;
       financingTenureDays: number;
       feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode;
       facilityFeeCollectAmount?: number | null;

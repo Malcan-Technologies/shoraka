@@ -1,10 +1,4 @@
-import {
-  CASHSCOUK_RISK_RATING_CATALOGUE,
-  SOUKSCORE_RISK_RATING_CATALOGUE,
-  SOUKSCORE_RISK_RATING_GRADES,
-  SOUKSCORE_RISK_RATING_UNAVAILABLE,
-  resolveSoukscoreRiskRatingPresentation,
-} from "@cashsouk/types";
+import { MARC_SCORE_DEFINITIONS, MARC_SME_GRADES } from "@cashsouk/types";
 import { buildProspectusRiskAssessment } from "./prospectus-risk-assessment";
 import { SAMPLE_PROSPECTUS_RISK_ASSESSMENT_INPUT } from "./prospectus-risk-assessment.sample-data";
 import {
@@ -16,107 +10,90 @@ import {
 import { buildProspectusRiskAssessmentDocument } from "./render-prospectus-risk-assessment";
 
 describe("prospectus Risk Assessment (Page 1 DATA STAGE 3)", () => {
-  it("documents Cashsouk snapshot source and catalogue-backed label/description", () => {
+  it("documents frozen invoice MARC SME source", () => {
     expect(PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES.riskGrade.canonicalSource).toBe(
       "notes.invoice_snapshot.offer_details.risk_rating"
     );
     expect(PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES.riskGrade.surface).toBe("canva");
     expect(PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES.riskLabel.availability).toBe("static");
-    expect(PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES.riskLabel.canonicalSource).toContain(
-      "CASHSCOUK_RISK_RATING_CATALOGUE"
+    expect(PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES.riskExplanation.canonicalSource).toContain(
+      "MARC_SCORE_DEFINITIONS"
     );
     expect(PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES.riskScore.surface).toBe("audit");
-    expect(SOUKSCORE_RISK_RATING_GRADES).toEqual(["A", "B", "C", "D", "E", "F"]);
+    expect(PROSPECTUS_RATING_SCALE_STATUS).toBe("marc_sme_1_to_10");
   });
 
-  it("maps every Cashsouk grade to the shared catalogue label, description and colour", () => {
-    for (const grade of SOUKSCORE_RISK_RATING_GRADES) {
-      const entry = SOUKSCORE_RISK_RATING_CATALOGUE[grade];
+  it("maps every MARC SME grade to the official grouping label and Risk Profile", () => {
+    for (const grade of MARC_SME_GRADES) {
       const built = buildProspectusRiskAssessment({ soukscoreRiskRating: grade });
-      const resolved = resolveSoukscoreRiskRatingPresentation(grade);
       expect(built.canva.riskGrade).toBe(grade);
-      expect(built.canva.riskLabel).toBe(entry.label);
-      expect(built.canva.riskExplanation).toBe(entry.explanation);
-      expect(built.canva.riskGradeColor).toBe(CASHSCOUK_RISK_RATING_CATALOGUE[grade].color);
-      expect(resolved.label).toBe(entry.label);
-      expect(resolved.explanation).toBe(entry.explanation);
+      expect(built.canva.riskExplanation).toBe(MARC_SCORE_DEFINITIONS[grade].riskProfile);
+      expect(built.canva.marcCreditScoreDisplay).toBeNull();
+      expect(built.canva.marcProbabilityOfDefaultDisplay).toBeNull();
       expect(built.canva.riskLabel).not.toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
       expect(built.canva.riskExplanation).not.toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     }
   });
 
-  it("accepts valid Cashsouk grade B with Moderate-Low Risk catalogue copy", () => {
-    const built = buildProspectusRiskAssessment({ soukscoreRiskRating: "B" });
-    expect(built.canva.riskGrade).toBe("B");
-    expect(built.canva.riskLabel).toBe("Moderate-Low Risk");
-    expect(built.canva.riskExplanation).toBe(
-      CASHSCOUK_RISK_RATING_CATALOGUE.B.description
-    );
-    expect(built.canva.riskGradeColor).toBe("#79CF54");
+  it("accepts SME-3 with Low Risk grouping label and official profile", () => {
+    const built = buildProspectusRiskAssessment({ soukscoreRiskRating: "SME-3" });
+    expect(built.canva.riskGrade).toBe("SME-3");
+    expect(built.canva.riskLabel).toBe("Low Risk");
+    expect(built.canva.riskExplanation).toBe(MARC_SCORE_DEFINITIONS["SME-3"].riskProfile);
     expect(built.canva.ratingScaleReference).toBe(PROSPECTUS_RATING_SCALE_REFERENCE);
     expect(built.audit.isFrozen).toBe(true);
     expect(built.audit.scaleStatus).toBe(PROSPECTUS_RATING_SCALE_STATUS);
   });
 
-  it("shows — for invalid or missing grade", () => {
-    for (const bad of ["A-", null, undefined, "Low Risk", "72", "HIGH", "AAA"] as const) {
+  it("shows — for missing, letter-grade, or otherwise invalid values", () => {
+    for (const bad of ["A", "B", "C", "D", "E", "F", null, undefined, "Low Risk", "AAA"] as const) {
       const built = buildProspectusRiskAssessment({ soukscoreRiskRating: bad });
-      expect(built.canva.riskGrade).toBe(SOUKSCORE_RISK_RATING_UNAVAILABLE);
-      expect(built.canva.riskLabel).toBe(SOUKSCORE_RISK_RATING_UNAVAILABLE);
-      expect(built.canva.riskExplanation).toBe(SOUKSCORE_RISK_RATING_UNAVAILABLE);
+      expect(built.canva.riskGrade).toBe("—");
+      expect(built.canva.riskLabel).toBe("—");
+      expect(built.canva.riskExplanation).toBe("—");
       expect(built.audit.isFrozen).toBe(false);
+      expect(built.canva.riskExplanation).not.toMatch(/typical SME and transaction-level risks/i);
+      expect(built.canva.riskLabel).not.toBe("Moderate Risk");
     }
   });
 
-  it("does not invent label or explanation from financial or RegTank wording when grade is invalid", () => {
-    const built = buildProspectusRiskAssessment({ soukscoreRiskRating: "AAA" });
-    expect(built.canva.riskLabel).toBe(SOUKSCORE_RISK_RATING_UNAVAILABLE);
+  it("does not invent label or explanation from CashSouk A–F copy when MARC is missing", () => {
+    const built = buildProspectusRiskAssessment({ soukscoreRiskRating: "C" });
+    expect(built.canva.riskGrade).toBe("—");
     expect(built.canva.riskExplanation).not.toMatch(/government|paymaster|financial profile/i);
+    expect(built.canva.riskExplanation).not.toContain("typical SME and transaction-level risks");
   });
 
-  it("keeps numerical score and ownership only on audit; Canva HTML shows catalogue copy", () => {
+  it("keeps numerical score off the Note card; Canva HTML shows SME copy", () => {
     const built = buildProspectusRiskAssessment(SAMPLE_PROSPECTUS_RISK_ASSESSMENT_INPUT);
     expect(built.audit.riskScore).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(built.audit.riskAppliesTo).toContain("Invoice offer");
-    expect(built.audit.assessmentSource).toContain("Cashsouk Risk Rating");
+    expect(built.audit.assessmentSource).toContain("MARC SME");
 
     const html = buildProspectusRiskAssessmentDocument(built);
-    expect(html).toContain("Risk Rating: B");
-    expect(html).toContain("Risk label: Moderate-Low Risk");
+    expect(html).toContain("Risk Rating: SME-3");
+    expect(html).toContain("Risk label: Low Risk");
     expect(html).toContain(
-      `Risk explanation: ${CASHSCOUK_RISK_RATING_CATALOGUE.B.description}`
+      `Risk explanation: ${MARC_SCORE_DEFINITIONS["SME-3"].riskProfile}`
     );
     expect(html).toContain(`Rating scale reference: ${PROSPECTUS_RATING_SCALE_REFERENCE}`);
     expect(html).not.toContain("Risk label: —");
     expect(html).not.toContain("Risk explanation: —");
     expect(html).not.toContain("Risk score:");
-    expect(html).not.toContain("Risk applies to:");
-    expect(html).not.toContain("Assessment source:");
     expect(html).not.toContain("RegTank");
     expect(html).not.toContain("CTOS");
-    expect(html).not.toContain("A-");
+    expect(html).not.toContain("Moderate-Low Risk");
   });
 
-  it("renders the organization MARC grade and official Risk Profile, not A–F copy", () => {
+  it("does not use organization MARC score/PD on the Note risk card", () => {
     const built = buildProspectusRiskAssessment({
-      soukscoreRiskRating: "C",
-      marcGrade: "SME-4",
-      marcCreditScore: 65,
-      marcProbabilityOfDefault: 7.43,
+      soukscoreRiskRating: "SME-4",
     });
     expect(built.canva.riskGrade).toBe("SME-4");
-    expect(built.canva.riskLabel).toBe("Low Risk");
-    expect(built.canva.riskExplanation).toBe(
-      "Strong credit strength with moderate non-repayment risk"
-    );
-    expect(built.canva.marcCreditScoreDisplay).toBe("65");
-    expect(built.canva.marcProbabilityOfDefaultDisplay).toBe("7.43%");
-    expect(built.canva.riskExplanation).not.toContain("typical SME and transaction-level risks");
-    expect(built.canva.riskGrade).not.toBe("C");
-
+    expect(built.canva.marcCreditScoreDisplay).toBeNull();
+    expect(built.canva.marcProbabilityOfDefaultDisplay).toBeNull();
     const html = buildProspectusRiskAssessmentDocument(built);
     expect(html).toContain("Risk Rating: SME-4");
-    expect(html).toContain("Strong credit strength with moderate non-repayment risk");
-    expect(html).not.toContain("typical SME and transaction-level risks");
+    expect(html).not.toContain("Credit Score");
   });
 });

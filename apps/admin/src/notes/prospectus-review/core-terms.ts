@@ -8,7 +8,7 @@ import {
   formatUtcCalendarDateEnMy,
   resolveNetExpectedReturnRatePercent,
   resolveNoteTimingDisplay,
-  resolveSoukscoreRiskRatingPresentation,
+  resolveMarcNoteRiskPresentation,
   type NoteDetail,
 } from "@cashsouk/types";
 
@@ -125,7 +125,7 @@ export function buildNoteInvestmentDetailSections(
     paymaster?.entity_type ?? paymaster?.entityType ?? paymaster?.type
   );
 
-  const riskPresentation = resolveSoukscoreRiskRatingPresentation(note.riskRating);
+  const riskPresentation = resolveMarcNoteRiskPresentation(note.riskRating);
 
   return [
     {
@@ -191,7 +191,7 @@ export function buildNoteInvestmentDetailSections(
         },
         {
           label: "Risk Explanation",
-          value: riskPresentation.explanation,
+          value: riskPresentation.riskProfile,
         },
       ],
     },

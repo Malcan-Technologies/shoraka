@@ -38,6 +38,11 @@ jest.mock("../../lib/http/request-utils", () => ({
 jest.mock("../../lib/prisma", () => ({
   prisma: {
     invoice: { findUnique: jest.fn() },
+    issuerOrganizationMarcAssessment: {
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
     $transaction: jest.fn(),
   },
 }));
@@ -45,10 +50,11 @@ jest.mock("../applications/logs/service", () => ({
   logApplicationActivity: jest.fn(),
 }));
 
-import { addMytCalendarDays, mytCalendarParts } from "@cashsouk/types";
+import { addMytCalendarDays, MARC_ASSESSMENT_REQUIRED_MESSAGE, mytCalendarParts } from "@cashsouk/types";
 import { AdminService } from "./service";
 import { prisma } from "../../lib/prisma";
 import { ApplicationStatus } from "@prisma/client";
+import { AppError } from "../../lib/http/error-handler";
 
 function ymdDaysFromNow(days: number): string {
   const parts = addMytCalendarDays(mytCalendarParts(new Date()), days);
@@ -64,7 +70,7 @@ function sqlText(arg: unknown): string {
   return String(arg ?? "");
 }
 
-describe("AdminService sendInvoiceOffer financing tenure", () => {
+describe("AdminService sendInvoiceOffer MARC risk rating", () => {
   const service = new AdminService();
   const maturityDate = ymdDaysFromNow(60);
   const details = {
@@ -109,11 +115,16 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
       applicationReviewItem: { upsert: jest.fn() },
       applicationReviewEvent: { create: jest.fn() },
       application: { update: jest.fn() },
+      issuerOrganizationMarcAssessment: {
+        create: jest.fn(),
+        update: jest.fn(),
+      },
     };
   }
 
   beforeEach(() => {
     jest.clearAllMocks();
+    lastTx = null;
     (service as unknown as { sendIssuerNotification: jest.Mock }).sendIssuerNotification =
       jest.fn();
     (
@@ -127,6 +138,7 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
           id: "app-1",
           status: ApplicationStatus.INVOICE_PENDING,
           contract_id: null,
+          issuer_organization_id: "org-1",
           invoices: [{ id: "inv-1", details }],
         },
       });
@@ -140,11 +152,6 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
       service as unknown as { assertNoActiveSigningPackage: jest.Mock }
     ).assertNoActiveSigningPackage = jest.fn();
     (
-      service as unknown as { assertIssuerMarcReadyForInvoiceOffer: jest.Mock }
-    ).assertIssuerMarcReadyForInvoiceOffer = jest
-      .fn()
-      .mockResolvedValue({ creditGrade: "SME-3" });
-    (
       service as unknown as { loadApplicationProductWorkflow: jest.Mock }
     ).loadApplicationProductWorkflow = jest.fn().mockResolvedValue([]);
     (prisma.invoice.findUnique as jest.Mock).mockResolvedValue({
@@ -157,7 +164,42 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
     });
   });
 
-  it("stamps admin-adjusted financing_tenure_days on offer_details", async () => {
+  it("blocks send when the issuer organization has no MARC assessment", async () => {
+    (prisma.issuerOrganizationMarcAssessment.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await expect(
+      service.sendInvoiceOffer(
+        "app-1",
+        "inv-1",
+        40_000,
+        70,
+        12,
+        0,
+        "SME-3",
+        "admin-1",
+        undefined,
+        undefined,
+        90
+      )
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "MARC_ASSESSMENT_REQUIRED",
+      message: MARC_ASSESSMENT_REQUIRED_MESSAGE,
+    } satisfies Partial<AppError>);
+    expect(prisma.issuerOrganizationMarcAssessment.create).not.toHaveBeenCalled();
+    expect(prisma.issuerOrganizationMarcAssessment.update).not.toHaveBeenCalled();
+  });
+
+  it("saves an admin override without changing organization MARC", async () => {
+    (prisma.issuerOrganizationMarcAssessment.findFirst as jest.Mock).mockResolvedValue({
+      credit_grade: "SME-3",
+      credit_score: 70,
+      probability_of_default: 5.1,
+      report_date: new Date("2026-08-01T00:00:00.000Z"),
+      report_file_name: "marc.pdf",
+      created_at: new Date("2026-08-01T00:00:00.000Z"),
+    });
+
     await service.sendInvoiceOffer(
       "app-1",
       "inv-1",
@@ -165,67 +207,29 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
       70,
       12,
       0,
-      "SME-3",
+      "SME-4",
       "admin-1",
       undefined,
       undefined,
-      105
+      90
     );
 
     const offer = lastTx?.invoice.updateMany.mock.calls[0]?.[0]?.data?.offer_details as Record<
       string,
       unknown
     >;
-    expect(offer.financing_tenure_days).toBe(105);
+    expect(offer.risk_rating).toBe("SME-4");
+    expect(offer.marc_suggested_grade).toBe("SME-3");
+    expect(prisma.issuerOrganizationMarcAssessment.create).not.toHaveBeenCalled();
+    expect(prisma.issuerOrganizationMarcAssessment.update).not.toHaveBeenCalled();
+    expect(lastTx?.issuerOrganizationMarcAssessment.create).not.toHaveBeenCalled();
+    expect(lastTx?.issuerOrganizationMarcAssessment.update).not.toHaveBeenCalled();
   });
 
-  it("rejects an offer tenure shorter than days remaining to the due date", async () => {
-    await expect(
-      service.sendInvoiceOffer(
-        "app-1",
-        "inv-1",
-        40_000,
-        70,
-        12,
-        0,
-        "SME-3",
-        "admin-1",
-        undefined,
-        undefined,
-        30
-      )
-    ).rejects.toThrow(/at least 60 days|Financing tenure/);
-  });
-
-  it("rejects sending an offer when the invoice due date is already past", async () => {
-    const pastDue = ymdDaysFromNow(-1);
-    const pastDetails = { ...details, maturity_date: pastDue };
-    (
-      service as unknown as { prepareForReviewAction: jest.Mock }
-    ).prepareForReviewAction.mockResolvedValue({
-      repository: { getApplicationById: jest.fn().mockResolvedValue({ id: "app-1" }) },
-      application: {
-        id: "app-1",
-        status: ApplicationStatus.INVOICE_PENDING,
-        contract_id: null,
-        invoices: [{ id: "inv-1", details: pastDetails }],
-      },
-    });
-
-    await expect(
-      service.sendInvoiceOffer(
-        "app-1",
-        "inv-1",
-        40_000,
-        70,
-        12,
-        0,
-        "SME-3",
-        "admin-1",
-        undefined,
-        undefined,
-        30
-      )
-    ).rejects.toThrow("Invoice due date cannot be in the past.");
+  it("defaults a new invoice to the current organization MARC grade when nothing is saved", async () => {
+    const { resolveDefaultInvoiceRiskRating } = await import("@cashsouk/types");
+    expect(resolveDefaultInvoiceRiskRating(null, "SME-3")).toBe("SME-3");
+    expect(resolveDefaultInvoiceRiskRating("C", "SME-3")).toBe("SME-3");
+    expect(resolveDefaultInvoiceRiskRating("A", null)).toBeNull();
   });
 });

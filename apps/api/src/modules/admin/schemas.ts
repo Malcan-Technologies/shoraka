@@ -9,7 +9,7 @@ import {
 import {
   ADMIN_PERMISSIONS,
   SYSTEM_ADMIN_ROLE_KEYS,
-  SOUKSCORE_RISK_RATING_GRADES,
+  MARC_SME_GRADES,
   FACILITY_FEE_RATE_MAX_PERCENT,
   FEE_SCHEDULE_MAX_ADDITIONAL_LINES,
   FEE_SCHEDULE_MAX_NAME_LENGTH,
@@ -524,7 +524,7 @@ export const sendInvoiceOfferSchema = z
       .nullable(),
     offeredProfitRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
     platformFeeRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
-    risk_rating: z.enum(SOUKSCORE_RISK_RATING_GRADES),
+    risk_rating: z.enum(MARC_SME_GRADES),
     financingTenureDays: z.coerce
       .number({
         required_error: "Financing tenure is required.",

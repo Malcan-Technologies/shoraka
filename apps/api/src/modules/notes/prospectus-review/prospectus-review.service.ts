@@ -12,7 +12,7 @@ import {
 } from "@prisma/client";
 import {
   buildProspectusHighlightRecommendations,
-  isSoukscoreRiskRating,
+  isMarcSmeGrade,
   normalizeProspectusWorkflowStatus,
   type ProspectusAboutInvoiceRecommendationInput,
   type ProspectusHighlightRecommendationInput,
@@ -118,7 +118,7 @@ function recommendationInputFromNote(note: {
 }): ProspectusHighlightRecommendationInput {
   const invoice = asRecord(note.invoice_snapshot);
   const offer = asRecord(invoice?.offer_details);
-  const riskRating = isSoukscoreRiskRating(offer?.risk_rating) ? offer.risk_rating : null;
+  const riskRating = isMarcSmeGrade(offer?.risk_rating) ? offer.risk_rating : null;
   const profit =
     note.profit_rate_percent == null ? null : Number(note.profit_rate_percent);
   return {

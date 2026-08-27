@@ -15,7 +15,7 @@ export const SAMPLE_PROSPECTUS_PAGE_THREE_METADATA_INPUT: ProspectusPageThreeMet
     issuerName: "ABC Engineering Sdn Bhd",
     issuerSector: "Construction",
     officerCompanySize: "Medium",
-    selectedRiskRating: "AA",
+    selectedRiskRating: "SME-3",
     paymasterName: "Kementerian Kerja Raya",
     officerPaymasterRating: "PM1",
     officerConfidenceGrading: "High",

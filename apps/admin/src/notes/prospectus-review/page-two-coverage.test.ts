@@ -32,7 +32,7 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     issuerOrganizationDisplayReference: null,
     issuerName: "Secret Issuer Sdn Bhd",
     paymasterName: "Kementerian Kerja Raya",
-    riskRating: "B",
+    riskRating: "SME-3",
     status: "DRAFT",
     listingStatus: "UNPUBLISHED",
     fundingStatus: "NOT_OPEN",

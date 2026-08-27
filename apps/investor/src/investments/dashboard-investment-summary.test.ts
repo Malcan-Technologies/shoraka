@@ -23,7 +23,7 @@ function note(overrides: Partial<NoteListItem> = {}): NoteListItem {
     issuerOrganizationDisplayReference: null,
     issuerName: "Acme",
     paymasterName: null,
-    riskRating: "B",
+    riskRating: "SME-3",
     status: "ACTIVE" as NoteListItem["status"],
     listingStatus: "CLOSED" as NoteListItem["listingStatus"],
     fundingStatus: "FUNDED" as NoteListItem["fundingStatus"],

@@ -11,7 +11,7 @@ export const PROSPECTUS_HEADER_TAGLINE = "Invest in Growth. Earn with Purpose.";
  * Source: Grade and Pricing Matrix → Important Disclosure Statement.
  */
 export const PROSPECTUS_RISK_SCALE_NOTE =
-  "The Cashsouk Risk represents a relative risk classification based on information available at the time of listing. It is not a guarantee of repayment, does not represent a probability of default, and should not be relied upon as the sole basis for an investment decision.";
+  "Risk ratings are determined in accordance with the MARC report. Detailed interpretations are provided in Appendix A.";
 
 /** Body copy inside Page 2 Invest With Confidence CTA, above the button. */
 export const PROSPECTUS_INVEST_CTA_DESCRIPTION =
