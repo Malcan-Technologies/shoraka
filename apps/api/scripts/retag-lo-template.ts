@@ -1,7 +1,8 @@
 #!/usr/bin/env tsx
 /**
  * Rebuild `arf-contract-facility-lo.docx` from the 19 August 2026 clean copy:
- * rewrite placeholders to docxtemplater tags and graft branded headers/footers.
+ * rewrite placeholders to docxtemplater tags, yellow-highlight merge fields,
+ * and graft branded headers/footers.
  *
  * Usage: pnpm --filter @cashsouk/api retag-lo-template
  */
@@ -9,6 +10,7 @@
 import fs from "fs";
 import path from "path";
 import PizZip from "pizzip";
+import { highlightMergeTagsInWordXml } from "../src/modules/applications/letter-of-offer/lo-dev-merge-markup";
 
 const TEMPLATES_DIR = path.resolve(__dirname, "../src/modules/applications/templates");
 const CLEAN_COPY = path.join(TEMPLATES_DIR, "01 LO (Clean Copy) 19 August 2026.docx");
@@ -42,10 +44,11 @@ function decodeXml(text: string): string {
 
 function paragraphPlainText(pXml: string): string {
   let text = "";
-  const tRe = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
+  const tRe = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>|<w:tab\b[^/]*\/>/g;
   let match: RegExpExecArray | null;
   while ((match = tRe.exec(pXml))) {
-    text += decodeXml(match[1] ?? "");
+    if (/^<w:tab/.test(match[0])) text += "\t";
+    else text += decodeXml(match[1] ?? "");
   }
   return text;
 }
@@ -64,8 +67,18 @@ function rewriteParagraphText(pXml: string, next: string): string {
   const open = pXml.match(/^<w:p\b[^>]*>/)?.[0] ?? "<w:p>";
   const pPr = pXml.match(/<w:pPr\b[\s\S]*?<\/w:pPr>/)?.[0] ?? "";
   const rPr = firstRunRpr(pXml);
-  const space = /^\s|\s$/.test(next) ? ' xml:space="preserve"' : "";
-  return `${open}${pPr}<w:r>${rPr}<w:t${space}>${encodeXml(next)}</w:t></w:r></w:p>`;
+  const runs: string[] = [];
+  const pieces = next.split("\t");
+  pieces.forEach((piece, i) => {
+    if (piece) {
+      const space = /^\s|\s$/.test(piece) ? ' xml:space="preserve"' : "";
+      runs.push(`<w:r>${rPr}<w:t${space}>${encodeXml(piece)}</w:t></w:r>`);
+    }
+    if (i < pieces.length - 1) {
+      runs.push(`<w:r>${rPr}<w:tab/></w:r>`);
+    }
+  });
+  return `${open}${pPr}${runs.join("")}</w:p>`;
 }
 
 function makePara(
@@ -159,9 +172,13 @@ function applyPlaceholderText(text: string, insertNameIndex: { n: number }): str
     ["[INSERT ISSUER NAME]", "{issuer_name}"],
     ["[ISSUER REGISTRATION NUMBER]", "{issuer_registration_number}"],
     ["[ISSUER ADDRESS]", "{issuer_address}"],
+    ["Attention :\t[Name]", "Attention :\t{attention_name}"],
     ["Attention :[Name]", "Attention :{attention_name}"],
+    ["Issuer ID\t\t: [Insert]", "Issuer ID\t\t: {issuer_id}"],
     ["Issuer ID: [Insert]", "Issuer ID: {issuer_id}"],
+    ["Our Reference\t\t: [Insert]", "Our Reference\t\t: {our_reference}"],
     ["Our Reference: [Insert]", "Our Reference: {our_reference}"],
+    ["Date\t\t\t: [Insert]", "Date\t\t\t: {letter_date}"],
     ["Date: [Insert]", "Date: {letter_date}"],
     ["[Insert Issuer Name] (Company No. insert [insert])", "{issuer_name} (Company No. {issuer_registration_number})"],
     ["[insert authorised person name]", "{moa_authorised_signatory_names}"],
@@ -376,6 +393,7 @@ function main(): void {
   documentXml = tagCheckboxes(documentXml);
   documentXml = flattenAndReplace(documentXml);
   documentXml = rebuildAcknowledgements(documentXml);
+  documentXml = highlightMergeTagsInWordXml(documentXml);
   documentXml = graftSectPr(documentXml);
 
   const missing = requiredTagsPresent(documentXml);

@@ -327,7 +327,7 @@ export default function ContractLoDemoPage() {
           <CardTitle>Contract Letter of Offer (LO) demo</CardTitle>
           <CardDescription>
             Same Word template and merge/render path as production generate (
-            <code>arf_contract_facility_lo</code> v4 — per-guarantor acknowledgement pages). Prefill uses{" "}
+            <code>arf_contract_facility_lo</code> v5 — per-guarantor acknowledgement pages). Prefill uses{" "}
             <code>buildFacilityLoMergeData</code>; edits here only affect this download. PDF needs{" "}
             <code>GOTENBERG_URL</code>. Wet-ink only — not wired to Send Offer or SigningCloud.
           </CardDescription>

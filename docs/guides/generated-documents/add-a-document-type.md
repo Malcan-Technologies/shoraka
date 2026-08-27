@@ -23,7 +23,7 @@ Checklist for a **new** catalog entry (not changing an existing type — bump `v
 
 - `render*Docx(data)` — Docxtemplater + PizZip ([`render-facility-lo-docx.ts`](../../apps/api/src/modules/applications/letter-of-offer/render-facility-lo-docx.ts)).
 - PDF: `convertDocxToPdf` via Gotenberg ([`convert-docx-to-pdf.ts`](../../apps/api/src/modules/applications/letter-of-offer/convert-docx-to-pdf.ts)).
-- Tests: unknown tags empty; fixture render does not throw.
+- Tests: unset merge keys print `{tag}` while sources are still being wired; fixture render does not throw.
 
 ## 5. Catalog row
 

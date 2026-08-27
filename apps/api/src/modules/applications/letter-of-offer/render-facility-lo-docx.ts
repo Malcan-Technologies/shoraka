@@ -4,6 +4,10 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import type { ContractFacilityLoMergeData } from "./facility-lo-merge.types";
 import { buildFacilityLoRenderPayload } from "./facility-lo-guarantors";
+import {
+  highlightMergeTagsInWordXml,
+  replaceEmptyMergeValuesWithTags,
+} from "./lo-dev-merge-markup";
 
 const TEMPLATE_FILENAME = "arf-contract-facility-lo.docx";
 
@@ -29,12 +33,22 @@ export function renderFacilityLoDocx(data: ContractFacilityLoMergeData): Buffer 
   const templatePath = resolveFacilityLoTemplatePath();
   const content = fs.readFileSync(templatePath);
   const zip = new PizZip(content);
+  const documentXml = zip.file("word/document.xml")?.asText();
+  if (documentXml) {
+    zip.file("word/document.xml", highlightMergeTagsInWordXml(documentXml));
+  }
   const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
-    // Leave unknown tags empty rather than throwing during demo iteration
-    nullGetter: () => "",
+    // Dev: show `{tag}` when a merge key is missing instead of swallowing it.
+    nullGetter: (part: { module?: string; value?: string }) =>
+      !part.module && part.value ? `{${part.value}}` : "",
   });
-  doc.render(buildFacilityLoRenderPayload(data));
+  doc.render(
+    replaceEmptyMergeValuesWithTags(buildFacilityLoRenderPayload(data)) as Record<
+      string,
+      unknown
+    >
+  );
   return doc.getZip().generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
 }

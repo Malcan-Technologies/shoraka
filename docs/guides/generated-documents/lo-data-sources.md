@@ -1,6 +1,6 @@
 # ARF contract facility LO — data sources (working index)
 
-What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does **today** for production generate (`arf_contract_facility_lo` **v4**, per-guarantor acknowledgement pages).
+What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does **today** for production generate (`arf_contract_facility_lo` **v5**, per-guarantor acknowledgement pages).
 
 **Full verification table (use this to review):** [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md)
 
@@ -37,6 +37,8 @@ Not merge tags:
 | Electronic execution | Platform records equal written form; Utilisation Offer acceptance = Purchase Requisition and Wa'd |
 
 ## Empty until product/legal defines (EMPTY / FLAG)
+
+While templates are still in review, merge fields are yellow (same as the clean-copy placeholders) and empty values print the `{tag}` instead of a blank. Revert that markup in `lo-dev-merge-markup.ts` once sources are signed off.
 
 | Field | Status |
 |-------|--------|

@@ -18,6 +18,20 @@ function count(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
 
+/** Concatenate Word text nodes so merged values split across yellow runs still match. */
+function wordPlainText(xml: string): string {
+  let text = "";
+  const re = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(xml))) {
+    text += (match[1] ?? "")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&");
+  }
+  return text;
+}
+
 const SIG_LINE = "______________________________";
 /** Hardcoded section breaks already in the 19 Aug Word file (Schedule / MoA / annex). */
 const TEMPLATE_PAGE_BREAKS = 4;
@@ -34,6 +48,9 @@ describe("renderFacilityLoDocx", () => {
     expect(xml).toContain("{part_a_checkbox}");
     expect(xml).toContain("{#corporate_guarantor_pages}");
     expect(xml).not.toContain("RM{financing_limit_rm}");
+    expect(xml).toMatch(
+      /<w:highlight w:val="yellow"\/>\s*<\/w:rPr>\s*<w:t>\{issuer_name\}<\/w:t>/
+    );
   });
 
   it("renders a non-empty docx zip with substituted values and a Part A tick", () => {
@@ -77,11 +94,12 @@ describe("renderFacilityLoDocx", () => {
       },
     ];
     const xml = renderedXml(data);
+    const text = wordPlainText(xml);
     expect(xml).toContain("HoldCo Two Sig Sdn Bhd");
     expect(xml).toContain("Nora");
     expect(xml).toContain("Farid");
     expect(count(xml, "ACKNOWLEDGEMENT AND CONSENT BY GUARANTORS")).toBe(1);
-    expect(count(xml, "For and on behalf of HoldCo Two Sig Sdn Bhd")).toBe(1);
+    expect(count(text, "For and on behalf of HoldCo Two Sig Sdn Bhd")).toBe(1);
     expect(count(xml, SIG_LINE)).toBe(2);
     expect(count(xml, 'w:type="page"')).toBe(TEMPLATE_PAGE_BREAKS);
   });
@@ -103,8 +121,10 @@ describe("renderFacilityLoDocx", () => {
       },
     ];
     const xml = renderedXml(data);
+    const text = wordPlainText(xml);
     expect(count(xml, "ACKNOWLEDGEMENT AND CONSENT BY GUARANTORS")).toBe(1);
-    expect(count(xml, "For and on behalf of HoldCo Five Sig Sdn Bhd")).toBe(2);
+    expect(count(text, "For and on behalf of HoldCo Five Sig Sdn Bhd")).toBe(2);
+    expect(xml).toContain("HoldCo Five Sig Sdn Bhd");
     expect(count(xml, SIG_LINE)).toBe(5);
     expect(xml).toContain("Ehsan");
     expect(count(xml, 'w:type="page"')).toBe(TEMPLATE_PAGE_BREAKS + 1);
@@ -118,5 +138,26 @@ describe("renderFacilityLoDocx", () => {
     expect(xml).not.toContain("HOLDCO TWO");
     expect(xml).not.toContain("{#has_corporate_guarantor}");
     expect(xml).not.toContain("{company_name}");
+  });
+
+  it("highlights merged values in yellow like the clean-copy placeholders", () => {
+    const data = createFacilityLoFixture();
+    data.issuer_name = "YELLOW_ISSUER_NAME_XYZ";
+    const xml = renderedXml(data);
+    const run = xml.match(
+      /<w:r>[\s\S]*?YELLOW_ISSUER_NAME_XYZ[\s\S]*?<\/w:r>/
+    )?.[0];
+    expect(run).toContain('<w:highlight w:val="yellow"/>');
+  });
+
+  it("prints the merge tag when a field has no source value", () => {
+    const data = createFacilityLoFixture();
+    data.tenure_days = "";
+    data.payment_period_days = "";
+    const xml = renderedXml(data);
+    expect(xml).toContain("{tenure_days}");
+    expect(xml).toContain("{payment_period_days}");
+    const tenureRun = xml.match(/<w:r>[\s\S]*?\{tenure_days\}[\s\S]*?<\/w:r>/)?.[0];
+    expect(tenureRun).toContain('<w:highlight w:val="yellow"/>');
   });
 });

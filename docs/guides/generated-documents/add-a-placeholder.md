@@ -24,7 +24,7 @@ In the relevant `build*MergeData` (LO: [`build-facility-lo-merge-data.ts`](../..
 | **EXISTS** | Read a known column or JSON path | `contract.offer_details.offered_facility` |
 | **DERIVE** | Compute from other fields | RM format, `numberToWords`, date phrases via [`lo-format.ts`](../../apps/api/src/modules/applications/letter-of-offer/lo-format.ts) |
 | **LEGAL_DEFAULT** | Fixed constant until product config exists | Availability 30 days from fixture |
-| **EMPTY** | `""` until legal/product defines a source | `tenure_days` today |
+| **EMPTY** | `""` until legal/product defines a source (generated docs currently print `{tag}` so gaps stay visible) | `tenure_days` today |
 | **SIGNEE** | No builder entry; blank in Word | Authorised signatory wet ink lines |
 
 Do **not** invent commercial data. If legal has not signed off, use **EMPTY**.

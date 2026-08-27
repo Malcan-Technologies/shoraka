@@ -5,7 +5,7 @@ Verification map for the tagged production template:
 - Untagged source: `apps/api/src/modules/applications/templates/01 LO (Clean Copy) 19 August 2026.docx`
 - Tagged merge file: `apps/api/src/modules/applications/templates/arf-contract-facility-lo.docx`
 - Rebuild script: `apps/api/scripts/retag-lo-template.ts` (`pnpm --filter @cashsouk/api retag-lo-template`)
-- Catalog: `arf_contract_facility_lo` **version 4**
+- Catalog: `arf_contract_facility_lo` **version 5** (dev review: yellow merge fields; unset values print `{tag}`)
 - Builder: `buildFacilityLoMergeData`
 - Demo + production both call `renderFacilityLoDocx` on that same tagged file
 
