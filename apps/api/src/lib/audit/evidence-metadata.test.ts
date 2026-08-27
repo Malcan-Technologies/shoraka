@@ -120,11 +120,20 @@ describe("audit evidence: reviewer remarks reach storage", () => {
       join(API_SRC, "modules/applications/logs/repository.ts"),
       "utf8"
     );
+    const attach = readFileSync(
+      join(API_SRC, "modules/applications/logs/attach-display-references.ts"),
+      "utf8"
+    );
     expect(types).toMatch(/remark\?:/);
     expect(repository).toMatch(/remark: params\.remark/);
-    // The service must forward the whole params object rather than an explicit subset that could
-    // silently omit remark.
-    expect(service).toMatch(/createApplicationLog\(params/);
+    // Display-ref attach must spread the original params so remark and other first-class fields
+    // cannot be dropped. The service then writes that full object (`next`), falling back to
+    // `params` if the lookup fails, on the same db client the caller passed for the transaction.
+    expect(attach).toMatch(/return \{ \.\.\.params, metadata \}/);
+    expect(service).toMatch(/let next = params/);
+    expect(service).toMatch(/next = await attachApplicationLogDisplayReferences\(params, client\)/);
+    expect(service).toMatch(/next = params/);
+    expect(service).toMatch(/createApplicationLog\(next, db\)/);
   });
 
   it("keeps the reviewer remark column on the review event table", () => {
