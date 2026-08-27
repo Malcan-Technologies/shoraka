@@ -31,6 +31,8 @@
     "seed:prospectus-review": "tsx scripts/seed-prospectus-review-note.ts",
     "seed:prospectus-demo": "tsx scripts/seed-prospectus-demo.ts",
     "seed:prospectus-lifecycle": "tsx scripts/seed-prospectus-lifecycle.ts",
+    "seed:paymaster-assignment": "tsx scripts/seed-paymaster-assignment-scenarios.ts",
+    "seed-paymaster-assignment": "tsx scripts/seed-paymaster-assignment-scenarios.ts",
     "prospectus-review:product-e2e": "tsx scripts/prospectus-review-product-e2e.ts",
     "prospectus-review:http-smoke": "tsx scripts/prospectus-review-http-smoke.ts",
     "seed-late-payment": "tsx scripts/seed-late-payment.ts",
