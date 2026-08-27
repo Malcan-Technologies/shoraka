@@ -205,7 +205,6 @@ import {
 import {
   acceptanceDeadlinePatchOnChangesRequested,
   buildOfferAcceptanceOnSend,
-  signingDeadlinePatchOnApprove,
   signingDeadlinePatchOnExtend,
   SIGNING_ACTIVE,
 } from "../../lib/phase-deadlines";
@@ -7994,9 +7993,6 @@ export class AdminService {
           status: target,
           reviewed_at: now,
           reviewed_by_user_id: reviewerUserId,
-          ...(target === "APPROVED_FOR_SIGNING"
-            ? signingDeadlinePatchOnApprove(workflow, now, current)
-            : {}),
           ...(target === "CHANGES_REQUESTED"
             ? acceptanceDeadlinePatchOnChangesRequested(workflow, now, current)
             : {}),
@@ -8031,9 +8027,6 @@ export class AdminService {
         status: target,
         reviewed_at: now,
         reviewed_by_user_id: reviewerUserId,
-        ...(target === "APPROVED_FOR_SIGNING"
-          ? signingDeadlinePatchOnApprove(workflow, now, current)
-          : {}),
         ...(target === "CHANGES_REQUESTED"
           ? acceptanceDeadlinePatchOnChangesRequested(workflow, now, current)
           : {}),
@@ -8693,7 +8686,7 @@ export class AdminService {
         throw new AppError(
           400,
           "INVALID_STATE",
-          "Signing deadline can only be extended after acceptance is approved for signing"
+          "Signing deadline can only be extended after signing links have been sent"
         );
       }
       const expiresAt = current.signing_expires_at;
@@ -9244,7 +9237,7 @@ export class AdminService {
         throw new AppError(
           400,
           "INVALID_STATE",
-          "Signing deadline can only be extended after acceptance is approved for signing"
+          "Signing deadline can only be extended after signing links have been sent"
         );
       }
       const expiresAt = current.signing_expires_at;

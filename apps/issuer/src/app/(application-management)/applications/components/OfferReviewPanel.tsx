@@ -214,14 +214,23 @@ function findActiveSigningEnvelope(
   contractId: string | undefined,
   invoiceId: string | null | undefined
 ): SigningEnvelopeDto | null {
-  return (
-    envelopes.find((envelope) => {
-      // VOIDED/DECLINED/EXPIRED unlock prep; COMPLETED stays locked for review (NAV-03/NAV-04).
-      if (["VOIDED", "DECLINED", "EXPIRED"].includes(envelope.status)) return false;
-      if (offerType === "contract") return envelope.contract_id === (contractId ?? null);
-      return envelope.invoice_id === invoiceId;
-    }) ?? null
+  const open = envelopes.filter(
+    (envelope) => !["VOIDED", "DECLINED", "EXPIRED"].includes(envelope.status)
   );
+  if (offerType === "contract") {
+    if (contractId) {
+      return open.find((envelope) => envelope.contract_id === contractId) ?? null;
+    }
+    return (
+      open.find((envelope) => envelope.contract_id != null && envelope.invoice_id == null) ??
+      open[0] ??
+      null
+    );
+  }
+  if (invoiceId) {
+    return open.find((envelope) => envelope.invoice_id === invoiceId) ?? null;
+  }
+  return open.find((envelope) => envelope.invoice_id != null) ?? open[0] ?? null;
 }
 
 /** Only mounted when Review Offer is clicked. Renders once, no isOpen toggle to avoid flash. */
@@ -311,7 +320,10 @@ export function OfferReviewPanel({
     activeSigningEnvelope != null && activeSigningEnvelope.status !== "DRAFT";
   const canRemindSigners =
     activeSigningEnvelope != null &&
-    (activeSigningEnvelope.status === "SENT" || activeSigningEnvelope.status === "IN_PROGRESS");
+    (activeSigningEnvelope.status === "SENT" || activeSigningEnvelope.status === "IN_PROGRESS") &&
+    activeSigningEnvelope.recipients.some(
+      (recipient) => recipient.status !== "SIGNED" && recipient.status !== "DECLINED"
+    );
   // Always enabled (not gated on useSigningStepper): this is the polling source of truth for
   // acceptance phase — application/contract refresh on the detail policy (15s), so the modal
   // never derives phase from a stale snapshot.
@@ -1844,7 +1856,7 @@ export function OfferReviewPanel({
                   onClick={handleResendReminders}
                   disabled={isPending}
                 >
-                  {remindLoading ? "Sending reminders..." : "Resend reminders"}
+                  {remindLoading ? "Sending reminders..." : "Send reminders"}
                 </Button>
               ) : null}
             </CardContent>

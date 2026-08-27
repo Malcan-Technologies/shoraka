@@ -21,6 +21,27 @@ export type SigningEnvelopeStatus =
   | "VOIDED"
   | "EXPIRED";
 
+/**
+ * A package already exists for this offer. Admin can send links again only after
+ * it is voided (or the closed envelope is expired/declined).
+ */
+const ENVELOPE_STATUSES_BLOCKING_NEW_SEND: ReadonlySet<SigningEnvelopeStatus> = new Set([
+  "DRAFT",
+  "SENT",
+  "IN_PROGRESS",
+  "COMPLETED",
+]);
+
+export function signingEnvelopeBlocksNewSend(status: SigningEnvelopeStatus): boolean {
+  return ENVELOPE_STATUSES_BLOCKING_NEW_SEND.has(status);
+}
+
+export function hasEnvelopeBlockingNewSend(
+  envelopes: ReadonlyArray<{ status: SigningEnvelopeStatus }>
+): boolean {
+  return envelopes.some((envelope) => signingEnvelopeBlocksNewSend(envelope.status));
+}
+
 export type SigningDocumentSource =
   | "GENERATED_OFFER_LETTER"
   | "ADMIN_UPLOAD"

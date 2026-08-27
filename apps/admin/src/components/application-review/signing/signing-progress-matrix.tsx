@@ -265,7 +265,6 @@ export function SigningProgressMatrix({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-7 px-2 text-xs"
                             disabled={remindDisabled}
                             onClick={() => onRemind(recipient.id)}
                           >

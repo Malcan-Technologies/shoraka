@@ -21,6 +21,10 @@ export function formatZodMessage(zodError: ZodError): string {
   return path + (first.message || "Invalid value");
 }
 
+function isEntityParseFailed(err: Error): boolean {
+  return (err as { type?: string }).type === "entity.parse.failed";
+}
+
 export function errorHandler(
   err: Error | AppError,
   req: Request,
@@ -28,6 +32,22 @@ export function errorHandler(
   _next: NextFunction
 ): void {
   const correlationId = res.locals.correlationId || req.headers["x-correlation-id"] || "unknown";
+
+  if (isEntityParseFailed(err)) {
+    logger.warn(
+      { correlationId, path: req.path, method: req.method },
+      "JSON request body could not be parsed"
+    );
+    res.status(400).json({
+      success: false,
+      error: {
+        code: "INVALID_JSON",
+        message: "Request body must be valid JSON.",
+      },
+      correlationId,
+    });
+    return;
+  }
 
   if (err instanceof ZodError) {
     const message = formatZodMessage(err);

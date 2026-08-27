@@ -1,7 +1,7 @@
 /**
  * Admin signing envelope panel for the application review screen. Shows the active
- * package in full detail, collapses prior packages into history, and uses inline
- * Remind actions on the progress matrix (no separate Nudge footer).
+ * package in full detail, collapses prior packages into history, and exposes
+ * Send reminders for live packages (plus per-signer Remind on the progress matrix).
  *
  * When embedded in the Acceptance tab, set `showOfferAcceptanceSummary={false}` —
  * phase status lives in AcceptanceSection above this panel.
@@ -27,6 +27,7 @@ import {
   getOfferAcceptanceFromOfferDetails,
   getOfferAcceptanceStatusPresentation,
   getOfferPhaseDeadlineDisplay,
+  hasEnvelopeBlockingNewSend,
   resolveSigningDeadlineFromWorkflow,
   DEFAULT_SIGNING_DEADLINE,
   type SigningEnvelopeDto,
@@ -229,6 +230,29 @@ export function SigningEnvelopePanel({
     }
   };
 
+  const handleResendReminders = async () => {
+    if (!primary) return;
+    const unsigned = primary.recipients.filter(
+      (recipient) => recipient.status !== "SIGNED" && recipient.status !== "DECLINED"
+    );
+    if (unsigned.length === 0) {
+      toast.info("All signers have already signed.");
+      return;
+    }
+    try {
+      for (const recipient of unsigned) {
+        await remindMutation.mutateAsync({ envelopeId: primary.id, recipientId: recipient.id });
+      }
+      toast.success(
+        unsigned.length === 1
+          ? `Reminder sent to ${unsigned[0].name}`
+          : `Reminders sent to ${unsigned.length} signers`
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send reminders");
+    }
+  };
+
   const handleExtendSigningDeadline = async () => {
     try {
       if (isInvoiceOnly) {
@@ -286,7 +310,6 @@ export function SigningEnvelopePanel({
   })();
 
   const signingDeadlineDisplay =
-    acceptance?.status === "APPROVED_FOR_SIGNING" ||
     acceptance?.status === "SIGNING_IN_PROGRESS"
       ? getOfferPhaseDeadlineDisplay(acceptanceOfferDetails)
       : null;
@@ -294,13 +317,12 @@ export function SigningEnvelopePanel({
   const showExtendSigningCta =
     canManage && signingDeadlineDisplay?.urgency === "past";
 
-  const liveEnvelope = envelopes.find((envelope) => LIVE_STATUSES.has(envelope.status)) ?? null;
   const signingClockPast = signingDeadlineDisplay?.urgency === "past";
   const canSendSigningLinks =
     canManage &&
     acceptance?.status === "APPROVED_FOR_SIGNING" &&
     !signingClockPast &&
-    (liveEnvelope == null || liveEnvelope.status === "DRAFT") &&
+    !hasEnvelopeBlockingNewSend(envelopes) &&
     (!isInvoiceOnly || Boolean(invoiceIdForExtend));
 
   const sendPending = sendMutation.isPending;
@@ -372,13 +394,9 @@ export function SigningEnvelopePanel({
 
       {!isLoading && envelopes.length > 0 && canSendSigningLinks ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          {primary?.status === "DRAFT" ? (
-            <p className="text-sm text-muted-foreground">
-              A draft package is ready. Send links to the authorised representatives.
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">{emptySigningMessage}</p>
-          )}
+          <p className="text-sm text-muted-foreground">
+            Previous packages were voided. Send new signing links to the authorised representatives.
+          </p>
           <Button
             type="button"
             size="sm"
@@ -400,6 +418,16 @@ export function SigningEnvelopePanel({
           voidDisabled={voidMutation.isPending}
           onVoid={() => handleVoid(primary.id)}
           onRemind={(recipientId) => handleRemind(primary.id, recipientId)}
+          onResendReminders={canRemindPrimary ? handleResendReminders : undefined}
+          onSendDraft={
+            canManage &&
+            primary.status === "DRAFT" &&
+            acceptance?.status === "APPROVED_FOR_SIGNING" &&
+            !signingClockPast
+              ? () => setSendConfirmOpen(true)
+              : undefined
+          }
+          sendPending={sendPending}
           signedDocumentPending={signedDocumentPending}
           onViewSignedDocument={onViewSignedDocument}
           onDownloadSignedDocument={onDownloadSignedDocument}
@@ -514,6 +542,9 @@ function ActiveEnvelopeCard({
   voidDisabled,
   onVoid,
   onRemind,
+  onResendReminders,
+  onSendDraft,
+  sendPending,
   signedDocumentPending,
   onViewSignedDocument,
   onDownloadSignedDocument,
@@ -525,12 +556,18 @@ function ActiveEnvelopeCard({
   voidDisabled: boolean;
   onVoid: () => void;
   onRemind: (recipientId: string) => void;
+  onResendReminders?: () => void;
+  onSendDraft?: () => void;
+  sendPending?: boolean;
   signedDocumentPending?: boolean;
   onViewSignedDocument?: (documentId: string) => void;
   onDownloadSignedDocument?: (documentId: string, fileName?: string) => void;
 }) {
   const canVoid =
     canManage && envelope.status !== "COMPLETED" && envelope.status !== "VOIDED";
+  const unsignedCount = envelope.recipients.filter(
+    (recipient) => recipient.status !== "SIGNED" && recipient.status !== "DECLINED"
+  ).length;
 
   return (
     <div className="space-y-3 rounded-lg border p-4">
@@ -549,6 +586,25 @@ function ActiveEnvelopeCard({
         ) : null}
       </div>
 
+      {envelope.status === "DRAFT" ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">
+            This package was not sent. Send the signing links, or void it to start over.
+          </p>
+          {onSendDraft ? (
+            <Button
+              type="button"
+              size="sm"
+              className="rounded-lg"
+              onClick={onSendDraft}
+              disabled={sendPending}
+            >
+              {sendPending ? "Sending…" : "Send signing links"}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
       <SigningProgressMatrix
         envelope={envelope}
         collapseCompletedDocuments
@@ -560,6 +616,18 @@ function ActiveEnvelopeCard({
         onViewSignedDocument={onViewSignedDocument}
         onDownloadSignedDocument={onDownloadSignedDocument}
       />
+
+      {onResendReminders && unsignedCount > 0 ? (
+        <Button
+          type="button"
+          size="sm"
+          className="rounded-lg"
+          onClick={onResendReminders}
+          disabled={remindDisabled}
+        >
+          {remindDisabled ? "Sending reminders…" : "Send reminders"}
+        </Button>
+      ) : null}
     </div>
   );
 }

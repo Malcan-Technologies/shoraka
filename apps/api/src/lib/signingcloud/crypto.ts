@@ -28,7 +28,31 @@ export function decryptSigningCloudResponse<T = unknown>(
   let decrypted = decipher.update(data, "hex", "utf8");
   decrypted += decipher.final("utf8");
 
-  return JSON.parse(decrypted) as T;
+  const trimmed = decrypted.trim();
+  if (!trimmed) {
+    throw new Error("SigningCloud decrypted payload was empty");
+  }
+  try {
+    return JSON.parse(trimmed) as T;
+  } catch {
+    throw new Error("SigningCloud decrypted payload was not valid JSON");
+  }
+}
+
+/** Parse a SignServer HTTP body. Empty or non-JSON replies used to surface as "Unexpected end of JSON". */
+export function parseSigningCloudHttpBody(
+  text: string,
+  httpStatus: number
+): SigningCloudEncryptedResponse {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    throw new Error(`SigningCloud returned an empty response (HTTP ${httpStatus})`);
+  }
+  try {
+    return JSON.parse(trimmed) as SigningCloudEncryptedResponse;
+  } catch {
+    throw new Error(`SigningCloud returned a non-JSON response (HTTP ${httpStatus})`);
+  }
 }
 
 export function encryptPayload(jsonStr: string, secret: string): { data: string; mac: string } {

@@ -68,7 +68,7 @@ Entity `contract.status` / `invoice.status` stays `OFFER_SENT` until commercial 
 
 ### Deriving offer status for UI
 
-Uses the active phase deadline on `offer_acceptance` (`acceptance_expires_at` while in Step 1/admin review; `signing_expires_at` while approved for signing / signing in progress). Deadlines are **Malaysia calendar days** valid through **11:59 PM** on the last valid day; expiry is **`now >= expiresAt`** (exclusive next-midnight MYT stored as UTC). UI labels use shared formatting (`Accept by 06 Aug 2026, 11:59 PM`). See `apps/issuer/src/lib/offer-utils.ts` and `packages/types/src/deadline-config.ts`.
+Uses the active phase deadline on `offer_acceptance` (`acceptance_expires_at` while in Step 1 / issuer changes requested; `signing_expires_at` while signing is in progress after links are sent). Deadlines are **Malaysia calendar days** valid through **11:59 PM** on the last valid day; expiry is **`now >= expiresAt`** (exclusive next-midnight MYT stored as UTC). UI labels use shared formatting (`Accept by 06 Aug 2026, 11:59 PM`). See `apps/issuer/src/lib/offer-utils.ts` and `packages/types/src/deadline-config.ts`.
 
 - **"Offer received"** — Show offer badge, enable "Review offer" / Accept–Reject when the active clock has not passed.
 - **"Offer expired"** — Same label for past-deadline soft window (`OFFER_SENT` + clock past) and durable entity status `OFFER_EXPIRED`:

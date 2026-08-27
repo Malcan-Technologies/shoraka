@@ -55,7 +55,6 @@ import { patchOfferAcceptance } from "./offer-acceptance";
 import {
   assertAcceptanceDeadlineOpen,
   assertSigningDeadlineOpen,
-  signingDeadlinePatchOnApprove,
 } from "../../lib/phase-deadlines";
 import {
   assertAcceptanceDocumentIndexEditableInChangesRequested,
@@ -2585,9 +2584,6 @@ export class ApplicationService {
         submitted_at: now,
         reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
         reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,
-        ...(nextStatus === "APPROVED_FOR_SIGNING"
-          ? signingDeadlinePatchOnApprove(workflow, now, acceptance)
-          : {}),
       });
       await tx.contract.update({
         where: { id: contractId },
@@ -2768,9 +2764,6 @@ export class ApplicationService {
         submitted_at: now,
         reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
         reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,
-        ...(nextStatus === "APPROVED_FOR_SIGNING"
-          ? signingDeadlinePatchOnApprove(workflow, now, acceptance)
-          : {}),
       });
       await tx.invoice.update({
         where: { id: invoiceId },

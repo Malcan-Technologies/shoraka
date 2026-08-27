@@ -466,7 +466,7 @@ export function SigningPackageConfig({
 
       <PhaseDeadlineConfigEditor
         title="Signing deadline"
-        description="Clock starts when admin approves acceptance documents. Issuer must complete the execution pack before it lapses."
+        description="Clock starts when admin sends signing links. Signers must complete the execution pack before it lapses."
         value={deadline}
         onChange={persistDeadline}
       />

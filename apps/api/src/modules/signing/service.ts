@@ -42,9 +42,10 @@ import {
   type SigningEnvelopeDto,
   type SigningPackageOfferKind,
   type SigningTemplateConfig,
+  type OfferAcceptanceDetails,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
-import { assertSigningDeadlineOpen } from "../../lib/phase-deadlines";
+import { assertSigningDeadlineOpen, signingDeadlinePatchOnSend } from "../../lib/phase-deadlines";
 import { logger } from "../../lib/logger";
 import { sendEmail } from "../../lib/email/ses-client";
 import { getS3ObjectBuffer, putS3ObjectBuffer } from "../../lib/s3/client";
@@ -71,6 +72,7 @@ import {
   type SigningRepository,
 } from "./repository";
 import { mapSigningEnvelopeToDto, mapSigningEnvelopeToDtoWithEkyc, type SigningEnvelopeWithGraph } from "./mapper";
+import { buildDocumentProviderSigners } from "./provider-signers";
 import { SigningCloudProvider } from "./provider/signingcloud-adapter";
 import type { SigningProvider } from "./provider/adapter";
 import {
@@ -687,7 +689,8 @@ export class SigningService {
 
   /** Only APPROVED_FOR_SIGNING may advance to SIGNING_IN_PROGRESS; any other phase is a no-op. */
   private async markOfferAcceptanceSigningInProgress(
-    envelope: SigningEnvelopeWithGraph
+    envelope: SigningEnvelopeWithGraph,
+    deadlinePatch: Partial<OfferAcceptanceDetails> = {}
   ): Promise<void> {
     if (envelope.contract_id) {
       const contract = await prisma.contract.findUnique({
@@ -703,6 +706,7 @@ export class SigningService {
         data: {
           offer_details: patchOfferAcceptance(offer, {
             status: "SIGNING_IN_PROGRESS",
+            ...deadlinePatch,
           }) as Prisma.InputJsonValue,
         },
       });
@@ -722,6 +726,7 @@ export class SigningService {
         data: {
           offer_details: patchOfferAcceptance(offer, {
             status: "SIGNING_IN_PROGRESS",
+            ...deadlinePatch,
           }) as Prisma.InputJsonValue,
         },
       });
@@ -938,10 +943,6 @@ export class SigningService {
       application.supporting_documents,
       template
     );
-    const signingExpiresAt =
-      getOfferAcceptanceFromOfferDetails(offerDetails)?.signing_expires_at ?? null;
-    const resolvedExpiresAt =
-      typeof signingExpiresAt === "string" ? new Date(signingExpiresAt) : null;
     const draft = await this.createDraftEnvelope({
       applicationId: input.applicationId,
       title: contractId ? "Facility offer signing package" : "Invoice offer signing package",
@@ -951,7 +952,7 @@ export class SigningService {
       templateConfig: template,
       bindings,
       createdByUserId: input.userId,
-      expiresAt: resolvedExpiresAt,
+      expiresAt: null,
       issuerUploadS3Keys,
     });
     await this.logSigningPackageActivity({
@@ -1367,19 +1368,38 @@ export class SigningService {
 
       const pdfBuffer = await getS3ObjectBuffer(unsignedS3Key);
       const orderedAssignments = this.orderDocumentAssignments(docAssignments, recipientById);
-      const signers = orderedAssignments.map(({ assignment, recipient }) => ({
-        email: recipient.email,
-        signset:
-          signsetsByAssignmentId.get(assignment.id) ??
-          assignment.signset ??
-          undefined,
-      }));
+      const signers = buildDocumentProviderSigners(
+        orderedAssignments.map(({ assignment, recipient }) => ({
+          email: recipient.email,
+          signset: signsetsByAssignmentId.get(assignment.id) ?? assignment.signset ?? undefined,
+        }))
+      );
 
-      const { providerRef } = await this.provider.createDocumentContract({
-        pdfBuffer,
-        contractName: `${envelope.title} — ${document.name}`,
-        signers,
-      });
+      let providerRef: string;
+      try {
+        ({ providerRef } = await this.provider.createDocumentContract({
+          pdfBuffer,
+          contractName: `${envelope.title} — ${document.name}`,
+          signers,
+        }));
+      } catch (error) {
+        const providerMessage = error instanceof Error ? error.message : String(error);
+        logger.error(
+          {
+            envelopeId: envelope.id,
+            documentId: document.id,
+            assignmentCount: orderedAssignments.length,
+            signerCount: signers.length,
+            providerMessage,
+          },
+          "Signing provider failed while creating a document contract"
+        );
+        throw new AppError(
+          502,
+          "SIGNING_PROVIDER_ERROR",
+          `The signing provider rejected "${document.name}": ${providerMessage}`
+        );
+      }
       await this.repo.markDocumentSent(document.id, providerRef);
     }
 
@@ -1411,8 +1431,18 @@ export class SigningService {
       );
     }
 
-    await this.repo.markEnvelopeSent(id);
-    await this.markOfferAcceptanceSigningInProgress(envelope);
+    const nowIso = new Date().toISOString();
+    const currentAcceptance = getOfferAcceptanceFromOfferDetails(sendOfferDetails);
+    const deadlinePatch = signingDeadlinePatchOnSend(workflow, nowIso, currentAcceptance);
+    const signingExpiresAt =
+      (typeof deadlinePatch.signing_expires_at === "string" && deadlinePatch.signing_expires_at
+        ? deadlinePatch.signing_expires_at
+        : currentAcceptance?.signing_expires_at) ?? null;
+    await this.repo.markEnvelopeSent(
+      id,
+      typeof signingExpiresAt === "string" ? new Date(signingExpiresAt) : undefined
+    );
+    await this.markOfferAcceptanceSigningInProgress(envelope, deadlinePatch);
     const logUserId = actor?.userId ?? envelope.created_by_user_id;
     if (logUserId) {
       await this.logSigningPackageActivity({
@@ -1660,7 +1690,7 @@ export class SigningService {
     }
 
     let redirectUrl = input.redirectUrl ?? null;
-    let returnSessionId = input.returnSessionId;
+    const returnSessionId = input.returnSessionId;
     if (returnSessionId) {
       redirectUrl = buildSigningReturnUrl(returnSessionId);
     } else if (redirectUrl) {

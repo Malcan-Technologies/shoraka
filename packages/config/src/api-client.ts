@@ -310,11 +310,29 @@ export class ApiClient {
 
     // Make request
     // Token refresh is handled automatically by getAuthToken() if token is expired
-    const response = await fetch(url, {
-      ...options,
-      credentials: "include", // Always send cookies
-      headers,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        credentials: "include", // Always send cookies
+        headers,
+      });
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : "Network request failed";
+      const isUnreachable = /failed to fetch|networkerror|load failed|network request failed/i.test(
+        raw
+      );
+      return {
+        success: false,
+        error: {
+          code: "NETWORK_ERROR",
+          message: isUnreachable
+            ? "Could not reach the server. Check your connection and try again."
+            : raw,
+        },
+        correlationId: "",
+      } as ApiError;
+    }
 
     // If unauthorized, return error
     if (response.status === 401) {
@@ -346,10 +364,45 @@ export class ApiClient {
       return errorResponse;
     }
 
-    // Handle non-JSON responses (e.g., 204 No Content)
+    // Handle JSON responses, including empty bodies (otherwise fetch throws
+    // "Unexpected end of JSON input" when a proxy or parser returns no payload).
     const contentType = response.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
-      return response.json() as Promise<ApiResponse<T> | ApiError>;
+      let text = "";
+      if (typeof response.text === "function") {
+        text = await response.text();
+      } else {
+        text = JSON.stringify(await response.json());
+      }
+      if (!text.trim()) {
+        if (response.ok) {
+          return {
+            success: true,
+            data: {} as T,
+            correlationId: response.headers.get("x-correlation-id") || "",
+          } as ApiResponse<T>;
+        }
+        return {
+          success: false,
+          error: {
+            code: "HTTP_ERROR",
+            message: `Request failed with status ${response.status}`,
+          },
+          correlationId: response.headers.get("x-correlation-id") || "",
+        } as ApiError;
+      }
+      try {
+        return JSON.parse(text) as ApiResponse<T> | ApiError;
+      } catch {
+        return {
+          success: false,
+          error: {
+            code: "INVALID_JSON",
+            message: "The server returned an invalid response. Please try again.",
+          },
+          correlationId: response.headers.get("x-correlation-id") || "",
+        } as ApiError;
+      }
     }
 
     // For non-JSON responses, return success if status is ok
@@ -384,7 +437,7 @@ export class ApiClient {
     return this.request<T>(endpoint, {
       ...options,
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify(body ?? {}),
     });
   }
 
@@ -396,7 +449,7 @@ export class ApiClient {
     return this.request<T>(endpoint, {
       ...options,
       method: "PUT",
-      body: JSON.stringify(body),
+      body: JSON.stringify(body ?? {}),
     });
   }
 
@@ -412,7 +465,7 @@ export class ApiClient {
     return this.request<T>(endpoint, {
       ...options,
       method: "PATCH",
-      body: JSON.stringify(body),
+      body: JSON.stringify(body ?? {}),
     });
   }
 

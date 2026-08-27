@@ -85,7 +85,7 @@ export type OfferAcceptanceDetails = {
   reviewed_by_user_id?: string | null;
   /** Stamp on Send Offer from product acceptance_deadline.days. */
   acceptance_expires_at?: string | null;
-  /** Stamp when entering APPROVED_FOR_SIGNING from product signing_deadline.days. */
+  /** Stamp when admin sends signing links from product signing_deadline.days. */
   signing_expires_at?: string | null;
   /** Idempotency map: e.g. "acceptance:1" → ISO sent_at. */
   deadline_reminders_sent?: Record<string, string>;
@@ -428,10 +428,7 @@ export function resolveActiveOfferDeadlineIso(
   acceptance: OfferAcceptanceDetails | null | undefined
 ): string | null {
   if (!acceptance) return null;
-  if (
-    acceptance.status === "APPROVED_FOR_SIGNING" ||
-    acceptance.status === "SIGNING_IN_PROGRESS"
-  ) {
+  if (acceptance.status === "SIGNING_IN_PROGRESS") {
     return typeof acceptance.signing_expires_at === "string" ? acceptance.signing_expires_at : null;
   }
   // Acceptance clock pauses while CashSouk reviews (PENDING_ADMIN_REVIEW).

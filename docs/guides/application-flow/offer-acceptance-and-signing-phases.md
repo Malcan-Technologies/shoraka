@@ -11,7 +11,7 @@ Configurable on the financing-type step (product builder):
 | Clock | Config key | UI tab | Starts when | Default |
 |-------|------------|--------|-------------|---------|
 | **Acceptance** | `acceptance_deadline` | Acceptance (product builder) | Admin Send Offer; **restamped** on admin `CHANGES_REQUESTED` | 7 days |
-| **Signing** | `signing_deadline` | Signing packages | Admin BR approve → `APPROVED_FOR_SIGNING` | 14 days |
+| **Signing** | `signing_deadline` | Signing packages | Admin sends signing links → `SIGNING_IN_PROGRESS` | 14 days |
 
 Each deadline has `days` plus optional `reminders: [{ days_before_expiry }]`. Configured **days** are **Malaysia calendar days** (`Asia/Kuala_Lumpur`): an offer sent on 30 Jul with `days: 7` is valid through **6 Aug 11:59 PM** and rejected from **7 Aug 00:00 MYT** onward. The stored `*_expires_at` is the exclusive UTC boundary (`2026-08-07T00:00:00+08:00` → ISO UTC). All gates and the hourly job use **`now >= expiresAt`**. Weekends and holidays count as calendar days.
 
@@ -20,8 +20,8 @@ Runtime stamps:
 - `offer_acceptance.acceptance_expires_at` on Send Offer
 - Acceptance clock is **active** only for `PENDING_ISSUER` and `CHANGES_REQUESTED` — it **pauses** during `PENDING_ADMIN_REVIEW` (issuer already submitted; CashSouk is reviewing)
 - On admin amendment → `CHANGES_REQUESTED`: restamp `acceptance_expires_at` (fresh product window) and clear prior `acceptance:*` reminder keys
-- `offer_acceptance.signing_expires_at` when entering `APPROVED_FOR_SIGNING`
-- Envelope `expires_at` aligned to `signing_expires_at` on package create
+- `offer_acceptance.signing_expires_at` when admin **sends signing links** (`SIGNING_IN_PROGRESS`)
+- Envelope `expires_at` aligned to `signing_expires_at` when links are sent
 - After signing clock passes: admin can **Extend signing deadline** on Acceptance → Signing package (restamps `signing_expires_at`, clears `signing:*` reminders, restores `OFFER_SENT` if durable-expired). Full **Send Offer** on Contract/Invoice remains the commercial reset path.
 
 **Expiry** (API gates + hourly job; boundary `now >= expiresAt`):
@@ -167,7 +167,7 @@ Stale `offer_acknowledgements` keys on saved products are stripped on product sa
   4. **Signing package** — send links (when `APPROVED_FOR_SIGNING`) / remind / void / history; signed PDF **View / Download** inline on each package document row when `signed_s3_key` is set (including the offer letter when keyed)
 - Actions on acceptance docs **and** representative lists drive `CHANGES_REQUESTED` / `APPROVED_FOR_SIGNING` / reject-withdraw. `APPROVED_FOR_SIGNING` requires every acceptance doc key **and** every party item key `APPROVED`.
 - Guarantor identity: review item ids use stable `client_guarantor_id`. Step 1 submit rewrites snapshot `application_guarantor_id` to the live Prisma row id. Signing accepts either id and stores the live Prisma id. Matching never pairs leftover parties by kind/order.
-- Signing package create/send is an admin action on the Acceptance tab (`POST /v1/admin/signing/applications/:id/envelopes/send`). Bindings are built from the approved `authorized_parties` snapshot. The send button shows at `APPROVED_FOR_SIGNING` when there is no live envelope (or only a draft).
+- Signing package create/send is an admin action on the Acceptance tab (`POST /v1/admin/signing/applications/:id/envelopes/send`). Bindings are built from the approved `authorized_parties` snapshot. The send button shows at `APPROVED_FOR_SIGNING` when there is no draft, sent, in-progress, or completed envelope. A leftover **draft** keeps Send on that card. Voided (or expired/declined) packages unlock send again. If send fails before the package is live, the leftover draft is voided automatically.
 - Tab visibility: show Acceptance when `workflowShowsAcceptanceReviewSection` (product has `acceptance_documents` **or** a signing package with documents). Signing-only products skip the documents block and show the signing hub only.
 - Issuer with no acceptance documents still uses the same authorised-representatives submit when that flow applies; there is no issuer configure-signers path.
 - **Structure-aware tab order** (`getReviewSectionOrder`):

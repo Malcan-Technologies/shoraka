@@ -72,6 +72,9 @@ export function useSendAdminSigningPackage(applicationId: string) {
         queryKey: applicationsKeys.detail(applicationId),
       });
     },
+    onError: () => {
+      invalidateAfterSigningMutation(queryClient, applicationId);
+    },
   });
 }
 
