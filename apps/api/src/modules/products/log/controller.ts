@@ -2,12 +2,27 @@ import { Router, Request, Response, NextFunction } from "express";
 import { requirePermission } from "../../../lib/auth/middleware";
 import { AppError } from "../../../lib/http/error-handler";
 import { productService } from "../service";
+import { buildAuditCsv, humanizeAuditEventType, redactAuditSecrets } from "../../../lib/audit-csv";
 import {
   getProductLogsQuerySchema,
   exportProductLogsQuerySchema,
 } from "../schemas";
+import { productNameFromLogMetadata } from "../product-log-presentation";
 
 const router = Router();
+
+/** Mirrors PRODUCT_EVENT_TYPES labels in apps/admin/src/components/audit/product-logs-panel.tsx. */
+const PRODUCT_EVENT_LABELS: Record<string, string> = {
+  PRODUCT_CREATED: "Product Created",
+  PRODUCT_UPDATED: "Product Updated",
+  PRODUCT_DELETED: "Product Deleted",
+  PRODUCT_INACTIVATED: "Product Inactivated",
+  PRODUCT_REACTIVATED: "Product Reactivated",
+};
+
+function productEventLabel(eventType: string): string {
+  return humanizeAuditEventType(eventType, PRODUCT_EVENT_LABELS);
+}
 
 /**
  * GET /v1/admin/product-logs
@@ -59,52 +74,48 @@ router.get(
       });
 
       if (format === "csv") {
-        const headers = [
-          "Timestamp",
-          "Admin",
-          "Email",
-          "Event Type",
-          "Product Name",
-          "Product ID",
-          "IP Address",
-          "Device",
-          "Metadata",
-        ];
-        const rows = logs.map((log: unknown) => {
-          const logItem = log as {
-            created_at: Date;
-            user: { first_name: string; last_name: string; email: string };
-            event_type: string;
-            product_id: string | null;
-            ip_address: string | null;
-            device_info: string | null;
-            metadata: Record<string, unknown> | null;
-          };
-          const meta = logItem.metadata ?? {};
-          const productName =
-            (typeof meta.product_name === "string" ? meta.product_name : null) ??
-            (typeof meta.name === "string" ? meta.name : null) ??
-            "";
-          return [
-            logItem.created_at.toISOString(),
-            `${logItem.user.first_name} ${logItem.user.last_name}`,
-            logItem.user.email,
-            logItem.event_type,
-            productName,
-            logItem.product_id || "",
-            logItem.ip_address || "",
-            logItem.device_info || "",
-            JSON.stringify(logItem.metadata || {}),
-          ];
-        });
-
-        const csvContent = [
-          headers.join(","),
-          ...rows.map((row: unknown) => {
-            const rowArray = row as unknown[];
-            return rowArray.map((cell: unknown) => `"${String(cell).replace(/"/g, '""')}"`).join(",");
+        const csvContent = buildAuditCsv(
+          logs.map((log: unknown) => {
+            const logItem = log as {
+              created_at: Date;
+              user: { first_name: string; last_name: string; email: string };
+              event_type: string;
+              product_id: string | null;
+              ip_address: string | null;
+              device_info: string | null;
+              user_agent: string | null;
+              metadata: Record<string, unknown> | null;
+              actor_type?: string | null;
+              source?: string | null;
+              target_type?: string | null;
+              target_id?: string | null;
+              correlation_id?: string | null;
+            };
+            const meta = logItem.metadata ?? {};
+            const productName = productNameFromLogMetadata(meta) ?? "";
+            return {
+              timestamp: logItem.created_at.toISOString(),
+              event: productEventLabel(logItem.event_type),
+              eventType: logItem.event_type,
+              actor: `${logItem.user.first_name} ${logItem.user.last_name}`.trim(),
+              actorType: logItem.actor_type ?? "ADMIN",
+              actorEmail: logItem.user.email,
+              source: logItem.source,
+              targetType: logItem.target_type ?? "PRODUCT",
+              targetReference: logItem.target_id ?? logItem.product_id,
+              correlationId: logItem.correlation_id,
+              metadata: logItem.metadata,
+              extra: {
+                "Product Name": productName,
+                "Product ID": logItem.product_id,
+                "IP Address": logItem.ip_address,
+                Device: logItem.device_info,
+                "User Agent": logItem.user_agent,
+              },
+            };
           }),
-        ].join("\n");
+          ["Product Name", "Product ID", "IP Address", "Device", "User Agent"]
+        );
 
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
         res.setHeader(
@@ -133,12 +144,7 @@ router.get(
             created_at: Date;
           };
           const meta = logItem.metadata ?? {};
-          const workflow = (meta.workflow as unknown[]) ?? [];
-          const first = workflow[0] as { config?: { name?: string; type?: { name?: string } } } | undefined;
-          const productName =
-            (typeof first?.config?.name === "string" ? first.config.name : null) ??
-            (typeof first?.config?.type?.name === "string" ? first?.config?.type?.name : null) ??
-            null;
+          const productName = productNameFromLogMetadata(meta);
           return {
             id: logItem.id,
             user_id: logItem.user_id,
@@ -154,8 +160,13 @@ router.get(
             ip_address: logItem.ip_address,
             user_agent: logItem.user_agent,
             device_info: logItem.device_info,
-            metadata: logItem.metadata,
+            metadata: redactAuditSecrets(logItem.metadata),
             created_at: logItem.created_at.toISOString(),
+            actor_type: (logItem as { actor_type?: string | null }).actor_type ?? null,
+            source: (logItem as { source?: string | null }).source ?? null,
+            target_type: (logItem as { target_type?: string | null }).target_type ?? null,
+            target_id: (logItem as { target_id?: string | null }).target_id ?? null,
+            correlation_id: (logItem as { correlation_id?: string | null }).correlation_id ?? null,
           };
         });
 

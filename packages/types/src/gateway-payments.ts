@@ -32,6 +32,14 @@ export interface GatewayPaymentEventDto {
   toStatus: GatewayPaymentStatus | null;
   reason: string | null;
   createdAt: string;
+  actorType?: string | null;
+  source?: string | null;
+  targetType?: string | null;
+  targetId?: string | null;
+  portal?: string | null;
+  correlationId?: string | null;
+  metadata?: Record<string, unknown> | null;
+  ipAddress?: string | null;
 }
 
 export interface GatewayPaymentListItemDto {

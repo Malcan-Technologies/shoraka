@@ -28,7 +28,7 @@ export function canResendWithdrawalTrusteeEmail(
   return status === "LETTER_GENERATED" || status === "SUBMITTED_TO_TRUSTEE";
 }
 
-export function canResendServiceFeeTrusteeEmail(
+export function canResendSettlementTrusteeEmail(
   sentAt: string | null | undefined,
   trusteeStatus: string | null | undefined
 ): boolean {

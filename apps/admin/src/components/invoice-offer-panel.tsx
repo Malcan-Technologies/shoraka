@@ -15,6 +15,7 @@ import {
 import {
   FINANCING_TENURE_DAYS_OPTIONS,
   formatFinancingTenureDaysLabel,
+  formatInvoiceReference,
   getOfferPhaseDeadlineDisplay,
   isReservedCapacityInvoiceStatus,
   isSoukscoreRiskRating,
@@ -90,6 +91,7 @@ function toNumber(value: unknown): number | null {
 
 export interface InvoiceOfferPanelInvoice {
   id: string;
+  displayReference?: string | null;
   details?: unknown;
   status?: string;
   offer_details?: unknown;
@@ -150,7 +152,16 @@ export function InvoiceOfferPanel({
         due_date?: string;
       }
     | undefined;
-  const invoiceNo = details?.number ?? invoice.id;
+  const businessNumber =
+    details?.number != null && String(details.number).trim() !== ""
+      ? String(details.number).trim()
+      : null;
+  const invoiceNo =
+    businessNumber ??
+    formatInvoiceReference({
+      displayReference: invoice.displayReference,
+      id: invoice.id,
+    });
   const invoiceValue = toNumber(details?.value);
   const financingRatio = toNumber(details?.financing_ratio_percent);
   const issuerFinancingAmount = resolveRequestedInvoiceAmount(

@@ -1,6 +1,7 @@
 import type { LegalDocumentType } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import type { ListLegalDocumentAuditLogsQuery } from "./schemas";
+import { matchingLegalDocumentTypes } from "./search-match";
 
 function buildWhere(query: ListLegalDocumentAuditLogsQuery) {
   const where: Record<string, unknown> = {};
@@ -19,12 +20,14 @@ function buildWhere(query: ListLegalDocumentAuditLogsQuery) {
 
   if (query.search) {
     const search = query.search.trim();
+    const matchingTypes = matchingLegalDocumentTypes(search);
     where.OR = [
       { action: { contains: search, mode: "insensitive" } },
       { actor_email_snapshot: { contains: search, mode: "insensitive" } },
       { actor_name_snapshot: { contains: search, mode: "insensitive" } },
       { legal_document_id: { contains: search, mode: "insensitive" } },
       { legal_document_version_id: { contains: search, mode: "insensitive" } },
+      ...(matchingTypes.length > 0 ? [{ document_type: { in: matchingTypes } }] : []),
     ];
   }
 

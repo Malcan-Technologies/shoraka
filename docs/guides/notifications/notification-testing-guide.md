@@ -28,6 +28,7 @@ This guide explains:
 - Admin Notification Logs:
   - automated sends appear as source **System**; custom sends as **Admin**
   - Recipients = attempted users; Delivery counts = selected channels (not confirmed receipt)
+- Email links: explicit `investor` / `issuer` / `admin` metadata keep that portal URL. Missing/invalid portal uses landing `FRONTEND_URL` (landing has no `/account`). `new_product_alert` is Investor-facing in the template. Mixed bulk audiences do not invent Investor URLs.
 
 ---
 
@@ -38,7 +39,7 @@ This guide explains:
 | Type ID                           | Auto-triggered? | Trigger source                              | How to test                                                                                                                                            |
 | --------------------------------- | --------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `password_changed`                | Yes             | Auth service password change flow           | Change password from account settings; verify in-app and email. Both channels always fire.                                                             |
-| `onboarding_approved`             | Yes             | Admin final onboarding approval             | Complete final approval in onboarding admin flow.                                                                                                      |
+| `onboarding_completed`            | Yes             | Admin final onboarding approval             | Complete final approval in onboarding admin flow.                                                                                                      |
 | `withdrawal_submitted_to_trustee` | Yes             | Admin marks withdrawal submitted to trustee | Generate the instruction letter, then submit to trustee. Investor members get `/investments/{noteId}`; issuer members get `/financing/notes/{noteId}`. |
 | `onboarding_rejected`             | Yes             | RegTank webhook handlers                    | Use a rejected onboarding webhook payload in test env, or send manually from admin panel for smoke test.                                               |
 | `system_announcement`             | Manual          | Admin bulk notification tool                | Create and send from admin panel.                                                                                                                      |

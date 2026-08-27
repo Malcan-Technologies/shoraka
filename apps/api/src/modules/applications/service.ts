@@ -44,6 +44,7 @@ import {
   workflowUsesOfferAcceptanceFlow,
   workflowShowsAcceptanceReviewSection,
   buildAcknowledgedTermsSnapshot,
+  canonicalDownloadFilenameToken,
 } from "@cashsouk/types";
 import { patchOfferAcceptance } from "./offer-acceptance";
 import {
@@ -71,7 +72,7 @@ import {
 import { prisma } from "../../lib/prisma";
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { logApplicationActivity } from "./logs/service";
-import { ActivityPortal, ApplicationLogEventType } from "./logs/types";
+import { ActivityPortal, ApplicationLogEventType, type IssuerActivityLogContext } from "./logs/types";
 import { assertApplicationProcessingFeePaid } from "../payment/processing-fee-service";
 import {
   generateContractOfferLetterStream,
@@ -1047,8 +1048,10 @@ export class ApplicationService {
       const resubmitChanges = mergedMeta.resubmit_changes as
         | { activity_summary?: string }
         | undefined;
-      if (log.event_type === "APPLICATION_RESUBMITTED" && resubmitChanges?.activity_summary) {
-        activity = resubmitChanges.activity_summary;
+      if (log.event_type === "APPLICATION_RESUBMITTED") {
+        // Rich amendment resubmits carry a diff-derived summary; the bare status-PATCH path
+        // (no amendment metadata) still needs an accurate, non-empty description.
+        activity = resubmitChanges?.activity_summary || "Application resubmitted for review";
       }
       return {
         ...log,
@@ -1085,7 +1088,11 @@ export class ApplicationService {
    * 2. Create application revision snapshot
    * 3. Set status to RESUBMITTED
    */
-  async resubmitApplication(applicationId: string, userId: string) {
+  async resubmitApplication(
+    applicationId: string,
+    userId: string,
+    logContext?: IssuerActivityLogContext
+  ) {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
     if (!application) {
@@ -1099,7 +1106,12 @@ export class ApplicationService {
       );
     }
     await assertIssuerOrgDirectorShareholderOnboardingReady(application.issuer_organization_id);
-    const result = await amendmentResubmitApplication(applicationId, userId, this.repository);
+    const result = await amendmentResubmitApplication(
+      applicationId,
+      userId,
+      this.repository,
+      logContext
+    );
 
     try {
       await this.sendIssuerNotification(
@@ -1520,7 +1532,11 @@ export class ApplicationService {
   /**
    * Cancel an application (issuer-only). Withdraws active invoices and contract only.
    */
-  async cancelApplication(id: string, userId: string): Promise<Application> {
+  async cancelApplication(
+    id: string,
+    userId: string,
+    logContext?: IssuerActivityLogContext
+  ): Promise<Application> {
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
@@ -1703,6 +1719,7 @@ export class ApplicationService {
         eventType: "APPLICATION_WITHDRAWN",
         portal: ActivityPortal.ISSUER,
         metadata: { withdraw_reason: WithdrawReason.USER_CANCELLED },
+        ...logContext,
       });
       try {
         await this.sendIssuerNotification(
@@ -1907,7 +1924,12 @@ export class ApplicationService {
   /**
    * Update application status and perform cleanup
    */
-  async updateApplicationStatus(id: string, status: string, userId: string): Promise<Application> {
+  async updateApplicationStatus(
+    id: string,
+    status: string,
+    userId: string,
+    logContext?: IssuerActivityLogContext
+  ): Promise<Application> {
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
@@ -2022,7 +2044,7 @@ export class ApplicationService {
 
     // Resubmit flow is handled by dedicated resubmitApplication method to keep behavior deterministic.
     if (currentStatus === "AMENDMENT_REQUESTED" && status === "RESUBMITTED") {
-      const res = await this.resubmitApplication(id, userId);
+      const res = await this.resubmitApplication(id, userId, logContext);
       // return updated application
       return res as any;
     }
@@ -2160,6 +2182,21 @@ export class ApplicationService {
       if (!submitted) {
         throw new AppError(500, "INTERNAL_ERROR", "Failed to fetch updated application");
       }
+
+      try {
+        await this.sendIssuerNotification(
+          id,
+          NotificationTypeIds.APPLICATION_SUBMITTED_CONFIRMATION,
+          { applicationId: id },
+          "submitted"
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId: id },
+          "Failed to send application submitted confirmation notification"
+        );
+      }
+
       return submitted;
     }
 
@@ -2298,7 +2335,11 @@ export class ApplicationService {
    * Step 1 of offer acceptance: require acceptance uploads,
    * then move to PENDING_ADMIN_REVIEW (or APPROVED_FOR_SIGNING when no acceptance docs).
    */
-  async submitContractOfferAcceptance(applicationId: string, userId: string): Promise<Application> {
+  async submitContractOfferAcceptance(
+    applicationId: string,
+    userId: string,
+    logContext?: IssuerActivityLogContext
+  ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
     if (!application) {
@@ -2411,6 +2452,7 @@ export class ApplicationService {
           ? { requested_facility: Number(offerRecord.requested_facility) || 0 }
           : {}),
       },
+      ...logContext,
     });
 
     if (nextStatus === "APPROVED_FOR_SIGNING") {
@@ -2427,6 +2469,7 @@ export class ApplicationService {
             : {}),
           auto_approved: true,
         },
+        ...logContext,
       });
     }
 
@@ -2445,7 +2488,8 @@ export class ApplicationService {
   async submitInvoiceOfferAcceptance(
     applicationId: string,
     invoiceId: string,
-    userId: string
+    userId: string,
+    logContext?: IssuerActivityLogContext
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
@@ -2569,6 +2613,7 @@ export class ApplicationService {
           ? { requested_amount: Number(offerRecord.requested_amount) || 0 }
           : {}),
       },
+      ...logContext,
     });
 
     if (nextStatus === "APPROVED_FOR_SIGNING") {
@@ -2583,6 +2628,7 @@ export class ApplicationService {
           ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
           auto_approved: true,
         },
+        ...logContext,
       });
     }
 
@@ -2647,6 +2693,7 @@ export class ApplicationService {
     rejectionReason?: string,
     options?: {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
+      logContext?: IssuerActivityLogContext;
     }
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
@@ -2883,7 +2930,7 @@ export class ApplicationService {
       { assertWrite: true }
     );
 
-    const eventType = action === "accept" ? "CONTRACT_OFFER_ACCEPTED" : "CONTRACT_WITHDRAWN";
+    const eventType = action === "accept" ? "CONTRACT_OFFER_ACCEPTED" : "CONTRACT_OFFER_DECLINED";
     const contractNumber = (
       application as {
         contract?: { contract_details?: { number?: string | number } | null } | null;
@@ -2908,6 +2955,7 @@ export class ApplicationService {
           ? { rejection_reason: rejectionReason.trim() }
           : {}),
       },
+      ...(options?.logContext ?? {}),
     });
     if (action === "accept" && responseMeta.facilityFeeUpfrontAmount > 0) {
       try {
@@ -2933,7 +2981,7 @@ export class ApplicationService {
         await this.sendIssuerNotification(
           applicationId,
           NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION,
-          { applicationId },
+          { applicationId, withdrawalReason: "contract_offer_declined" },
           "withdrawn:contract-offer-response"
         );
       } catch (notificationError) {
@@ -2949,6 +2997,7 @@ export class ApplicationService {
         applicationId,
         eventType: "APPLICATION_COMPLETED",
         portal: ActivityPortal.ISSUER,
+        ...(options?.logContext ?? {}),
       });
       try {
         await this.sendIssuerNotification(
@@ -3191,6 +3240,7 @@ export class ApplicationService {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
       otp?: { challengeId: string; otpCode: string };
       consent_ids?: string[];
+      logContext?: IssuerActivityLogContext;
     }
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
@@ -3541,13 +3591,14 @@ export class ApplicationService {
           ? { utilisation_consents: responseMeta.utilisationConsents }
           : {}),
       },
+      ...(options?.logContext ?? {}),
     });
     if (responseMeta.appStatus === ApplicationStatus.WITHDRAWN) {
       try {
         await this.sendIssuerNotification(
           applicationId,
           NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION,
-          { applicationId },
+          { applicationId, withdrawalReason: "invoice_offer_declined", invoiceNumber },
           "withdrawn:invoice-offer-response"
         );
       } catch (notificationError) {
@@ -3563,6 +3614,7 @@ export class ApplicationService {
         applicationId,
         eventType: "APPLICATION_COMPLETED",
         portal: ActivityPortal.ISSUER,
+        ...(options?.logContext ?? {}),
       });
       try {
         await this.sendIssuerNotification(
@@ -3603,7 +3655,7 @@ export class ApplicationService {
 
     const contract = await prisma.contract.findUnique({
       where: { id: application.contract_id },
-      select: { status: true, offer_details: true },
+      select: { status: true, offer_details: true, display_reference: true },
     });
     if (!contract) {
       throw new AppError(404, "NOT_FOUND", "Facility not found");
@@ -3626,8 +3678,9 @@ export class ApplicationService {
       expires_at: typeof acceptanceExpiresAt === "string" ? acceptanceExpiresAt : undefined,
     };
 
-    const stream = generateContractOfferLetterStream(application.contract_id, offerDetails);
-    const filename = `contract-offer-${application.contract_id}.pdf`;
+    const cashSoukReference = contract.display_reference ?? null;
+    const stream = generateContractOfferLetterStream(cashSoukReference, offerDetails);
+    const filename = `contract-offer-${canonicalDownloadFilenameToken(cashSoukReference)}.pdf`;
     return { stream, filename };
   }
 
@@ -3654,7 +3707,7 @@ export class ApplicationService {
 
     const dbInvoice = await prisma.invoice.findFirst({
       where: { id: invoiceId, application_id: applicationId },
-      select: { status: true, offer_details: true, contract_id: true },
+      select: { status: true, offer_details: true, contract_id: true, display_reference: true },
     });
     if (!dbInvoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found");
@@ -3686,11 +3739,11 @@ export class ApplicationService {
     };
 
     const stream = generateInvoiceOfferLetterStream(
-      invoiceId,
+      dbInvoice.display_reference,
       offerDetails,
       invoiceOfferLetterKindForContract(dbInvoice.contract_id)
     );
-    const filename = `invoice-offer-${invoiceId}.pdf`;
+    const filename = `invoice-offer-${canonicalDownloadFilenameToken(dbInvoice.display_reference)}.pdf`;
     return { stream, filename };
   }
 
@@ -3795,8 +3848,15 @@ export class ApplicationService {
       applicationId,
       contractId: application.contract_id,
     });
+    const contract = await prisma.contract.findUnique({
+      where: { id: application.contract_id },
+      select: { display_reference: true },
+    });
     const buffer = await getS3ObjectBuffer(key);
-    return { buffer, filename: `signed-contract-offer-${application.contract_id}.pdf` };
+    return {
+      buffer,
+      filename: `signed-contract-offer-${canonicalDownloadFilenameToken(contract?.display_reference)}.pdf`,
+    };
   }
 
   /**
@@ -3822,8 +3882,15 @@ export class ApplicationService {
       applicationId,
       invoiceId,
     });
+    const invoice = await prisma.invoice.findFirst({
+      where: { id: invoiceId, application_id: applicationId },
+      select: { display_reference: true },
+    });
     const buffer = await getS3ObjectBuffer(key);
-    return { buffer, filename: `signed-invoice-offer-${invoiceId}.pdf` };
+    return {
+      buffer,
+      filename: `signed-invoice-offer-${canonicalDownloadFilenameToken(invoice?.display_reference)}.pdf`,
+    };
   }
 
   /**

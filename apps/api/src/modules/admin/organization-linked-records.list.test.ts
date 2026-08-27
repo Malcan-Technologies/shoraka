@@ -86,11 +86,37 @@ describe("listOrganizationLinkedRecords", () => {
     expect(result?.items[0]).toMatchObject({
       type: "application",
       id: "app-1",
+      displayReference: "APP-1",
+      title: "Application",
       amount: 800,
       productId: "invoice-financing",
     });
     expect(mockInvestmentFindMany).not.toHaveBeenCalled();
     expect(mockInvestmentCount).not.toHaveBeenCalled();
+  });
+
+  it("uses the product name as the application title when present", async () => {
+    mockApplicationFindMany.mockResolvedValue([
+      {
+        id: "app-2",
+        display_reference: "APP-2",
+        status: "SUBMITTED",
+        financing_type: { product_id: "prod_cuid", product_name: "Accounts Receivable Financing-i" },
+        contract_id: null,
+        updated_at: new Date("2026-01-01T00:00:00.000Z"),
+        invoices: [],
+        contract: null,
+      },
+    ]);
+
+    const result = await listOrganizationLinkedRecords("issuer", "iss-1", {
+      type: "applications",
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(result?.items[0]?.title).toBe("Accounts Receivable Financing-i");
+    expect(result?.items[0]?.title).not.toContain("prod_cuid");
   });
 
   it("rejects issuer investment requests before querying", async () => {

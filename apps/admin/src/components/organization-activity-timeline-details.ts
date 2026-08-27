@@ -58,5 +58,37 @@ export function extractOrganizationTimelineCompactDetails(
     details.push({ label: "Score", value: String(metadata.riskScore) });
   }
 
+  if (metadata.organizationReference) {
+    details.push({ label: "Organisation", value: String(metadata.organizationReference) });
+  }
+  if (metadata.memberEmail) {
+    details.push({ label: "Member", value: String(metadata.memberEmail) });
+  }
+  if (metadata.previousRole && metadata.newRole) {
+    details.push({
+      label: "Role",
+      value: `${String(metadata.previousRole)} → ${String(metadata.newRole)}`,
+    });
+  } else if (metadata.newRole) {
+    details.push({ label: "Role", value: String(metadata.newRole) });
+  } else if (metadata.previousRole) {
+    details.push({ label: "Previous role", value: String(metadata.previousRole) });
+  }
+
   return details;
+}
+
+export function organizationLogTargetReference(
+  log: {
+    target_id?: string | null;
+    metadata?: Record<string, unknown> | null;
+  }
+): string {
+  const metadata = log.metadata;
+  const organizationReference =
+    metadata && typeof metadata.organizationReference === "string"
+      ? metadata.organizationReference.trim()
+      : "";
+  if (organizationReference) return organizationReference;
+  return log.target_id ?? "";
 }

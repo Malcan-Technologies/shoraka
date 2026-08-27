@@ -15,7 +15,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { NoteDetail, WithdrawalInstruction } from "@cashsouk/types";
-import { WithdrawalType, formatWithdrawalReference } from "@cashsouk/types";
+import { WithdrawalType, formatNoteReference, formatWithdrawalReference } from "@cashsouk/types";
 import { StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { DisbursementValueDateField } from "@/notes/components/disbursement-value-date-field";
@@ -444,7 +444,13 @@ export function IssuerPayoutCard({
     }
   };
 
-  const letterDownloadFileName = `issuer-disbursement-trustee-${note.noteReference ?? note.id}-${withdrawal.id}.pdf`;
+  const letterDownloadFileName = `issuer-disbursement-trustee-${formatNoteReference({
+    noteReference: note.noteReference,
+    id: note.id,
+  }).replace(/^#/, "")}-${formatWithdrawalReference({
+    displayReference: withdrawal.displayReference,
+    id: withdrawal.id,
+  }).replace(/^#/, "")}.pdf`;
 
   const pendingAny =
     generateLetter.isPending ||
@@ -694,6 +700,13 @@ export function IssuerPayoutCard({
                           label="Order ID"
                           value={tradeOrder.provider_order_id}
                           valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {tradeOrder.certificate_file_sha256 ? (
+                        <DetailRow
+                          label="Certificate hash"
+                          value={tradeOrder.certificate_file_sha256}
+                          valueClassName="font-medium break-all"
                         />
                       ) : null}
                       {parsed.orderDate ? (
@@ -1144,7 +1157,10 @@ export function IssuerPayoutCard({
                   }
                   placeholder={
                     field === "reference_note"
-                      ? `Residual refund for note ${note.noteReference ?? note.id}`
+                      ? `Residual refund for note ${formatNoteReference({
+                          noteReference: note.noteReference,
+                          id: note.id,
+                        })}`
                       : undefined
                   }
                 />

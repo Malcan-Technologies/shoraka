@@ -28,7 +28,7 @@ A note is created from one approved invoice. If a facility has multiple approved
 - Use **Investments** to browse the investments registry — every investor commitment across all notes with its status, amount, and allocation %.
 - Use **Finance → Repayments** to see every paymaster/issuer payment that is awaiting admin review and reconciliation.
 - Use **Finance → Issuer Payouts** to see issuer disbursement withdrawals still in flight (legacy residual withdrawal rows may still appear for older notes).
-- Use **Finance → Service Fee** to see notes whose **settlement trustee instruction** still needs a PDF, trustee submission, or **instruction completed** after settlement is posted.
+- Use **Finance → Settlements** to see notes whose **settlement trustee instruction** still needs a PDF, trustee submission, or **instruction completed** after settlement is posted.
 - Use **Finance → Buckets** to view the six platform money buckets and inspect activity logs for each bucket.
 - Use the **Dashboard** next-to-do queues and Bucket Balances overview cards for an at-a-glance snapshot of what needs attention.
 - Use **Platform Finance Settings** to manage the default grace period, arrears threshold, Ta'widh cap, Gharamah cap, default listing duration, and letter templates.
@@ -267,7 +267,7 @@ After post, when the waterfall includes trustee movements (investor pool, servic
 3. **Resend Email to Trustee** remains available until the instruction is completed; it updates the delivery timestamp only.
 4. **Mark instruction completed** when the trustee confirms processing.
 
-Until instruction completed, the status badge shows **Active · servicing**, the lifecycle header **Currently Active**, and the settlement strip shows **Trustee instruction** as the current step. Use **Finance → Service Fee** for the platform-wide queue.
+Until instruction completed, the status badge shows **Active · servicing**, the lifecycle header **Currently Active**, and the settlement strip shows **Trustee instruction** as the current step. Use **Finance → Settlements** for the platform-wide queue.
 
 **Issuer refund allocation** is part of this settlement trustee instruction — not a separate Note Detail lifecycle workflow. The waterfall shows an **Issuer Refund** pool line when the amount is greater than zero.
 

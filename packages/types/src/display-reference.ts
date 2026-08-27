@@ -54,10 +54,39 @@ export function formatOrganizationReference(input: CanonicalReferenceInput): str
   return trimmed(input.displayReference) ?? (input.id ? shortIdFallback(input.id) : "—");
 }
 
+/**
+ * Named-entity label: `Toyota (ISS-202608-DK3)`.
+ * Uses the canonical reference only — never a hashed short-id fallback in brackets.
+ */
+export function formatNamedEntityDisplay(
+  name: string | null | undefined,
+  canonicalReference: string | null | undefined
+): string {
+  const n = trimmed(name);
+  const r = trimmed(canonicalReference);
+  if (n && r) return `${n} (${r})`;
+  if (n) return n;
+  if (r) return r;
+  return "—";
+}
+
 /** Notification copy: canonical ref without hash; legacy short-id keeps hash prefix. */
 export function formatApplicationNotificationRef(input: CanonicalReferenceInput): string {
   const canonical = trimmed(input.displayReference);
   if (canonical) return canonical;
   if (input.id) return `#${input.id.slice(-SHORT_ID_FALLBACK_LENGTH).toUpperCase()}`;
   return "application";
+}
+
+/** Safe token for user download filenames. Never invent a canonical-looking value. */
+export function canonicalDownloadFilenameToken(
+  canonicalReference: string | null | undefined,
+  fallback = "letter"
+): string {
+  const cleaned = (canonicalReference ?? "")
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return cleaned || fallback;
 }

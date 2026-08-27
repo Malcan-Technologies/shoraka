@@ -8,7 +8,7 @@ tags:
   - gateway
   - payments
 order: 25
-updated: 2026-08-24
+updated: 2026-08-27
 ---
 
 ## Open Gateway Payments
@@ -24,6 +24,8 @@ Use the search field at the top of the page.
 You can search by:
 
 - Gateway Payment ID
+- CashSouk application, facility, or Note reference (`APP-…`, `CON-…`, `NOTE-…`)
+- Issuer or investor organisation reference (`ISS-…`, `IVT-…`)
 - Order reference
 - Payment reference
 - Refund reference

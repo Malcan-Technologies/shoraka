@@ -1,7 +1,7 @@
 import {
   NoteSettlementStatus,
   Prisma,
-  ServiceFeeTrusteeInstructionStatus,
+  SettlementTrusteeInstructionStatus,
   WithdrawalStatus,
   WithdrawalType,
 } from "@prisma/client";
@@ -21,7 +21,7 @@ describe("resolveIssuerResidualPayoutListStatus", () => {
     investor_principal: d("0"),
     investor_profit_gross: d("0"),
     service_fee_amount: d("0"),
-    service_fee_trustee_status: null as ServiceFeeTrusteeInstructionStatus | null,
+    settlement_trustee_status: null as SettlementTrusteeInstructionStatus | null,
     investor_profit_net: d("0"),
     tawidh_amount: d("0"),
     gharamah_amount: d("0"),
@@ -63,7 +63,7 @@ describe("resolveIssuerResidualPayoutListStatus", () => {
         status: NoteSettlementStatus.POSTED,
         posted_at: new Date(),
         service_fee_amount: d("10"),
-        service_fee_trustee_status: null,
+        settlement_trustee_status: null,
       },
     ]);
     expect(resolveIssuerResidualPayoutListStatus(note, [])).toEqual({
@@ -80,7 +80,7 @@ describe("resolveIssuerResidualPayoutListStatus", () => {
         status: NoteSettlementStatus.POSTED,
         posted_at: new Date(),
         service_fee_amount: d("10"),
-        service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.COMPLETED,
+        settlement_trustee_status: SettlementTrusteeInstructionStatus.COMPLETED,
       },
     ]);
     expect(resolveIssuerResidualPayoutListStatus(note, [])).toEqual({ kind: "paid" });

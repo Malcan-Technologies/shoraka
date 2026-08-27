@@ -45,6 +45,14 @@ export const LEGAL_DOCUMENT_TYPE_LABELS: Record<LegalDocumentType, string> = {
   INVESTOR_AGREEMENT: "Investor Agreement",
 };
 
+/** Same friendly type label used by Admin Legal Documents / Acceptances tables. */
+export function legalDocumentTypeLabel(type: string | null | undefined): string {
+  if (!type) return "";
+  return type in LEGAL_DOCUMENT_TYPE_LABELS
+    ? LEGAL_DOCUMENT_TYPE_LABELS[type as LegalDocumentType]
+    : type;
+}
+
 export const LEGAL_DOCUMENT_CHECKBOX_WORDING: Record<LegalDocumentType, string> = {
   PDPA_NOTICE_AND_CONSENT:
     "I have read the privacy notice and consent to the handling of my personal data as described.",

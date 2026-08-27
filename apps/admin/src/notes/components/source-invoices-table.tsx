@@ -1,7 +1,7 @@
 import { formatCurrency } from "@cashsouk/config";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import type { EligibleNoteInvoice } from "@cashsouk/types";
-import { formatInvoiceReference, formatNoteDateEnMy } from "@cashsouk/types";
+import { formatInvoiceReference, formatNamedEntityDisplay, formatNoteDateEnMy } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { formatNoteStatus } from "@/notes/utils/format-note-status";
 import { getAdminStatusToken, adminActionRowClass } from "@/lib/admin-status-token";
@@ -111,7 +111,12 @@ export function SourceInvoicesTable({
                       </div>
                     ) : null}
                   </TableCell>
-                  <TableCell>{invoice.issuerName ?? invoice.issuerOrganizationId}</TableCell>
+                  <TableCell>
+                    {formatNamedEntityDisplay(
+                      invoice.issuerName,
+                      invoice.issuerOrganizationDisplayReference
+                    )}
+                  </TableCell>
                   <TableCell>{invoice.paymasterName ?? "-"}</TableCell>
                   <TableCell>
                     {formatCurrency(invoice.offeredAmount ?? invoice.invoiceAmount)}

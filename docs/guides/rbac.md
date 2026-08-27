@@ -31,7 +31,7 @@ The API is the real security boundary. Frontend gating is for navigation and UX 
 ### Naming conventions
 
 - Use dotted keys: `module.action` or `module.domain.action`
-- Use `service_fee` (singular), not `service_fees`
+- Use `settlements.view` for the settlement trustee queue page, not `service_fee.view`
 - Use `platform_settings` for admin platform finance settings, not `platform_settings.finance`
 - Use `document_management` for Legal Documents and Legal Acceptances admin pages
 - Use `disbursements` for issuer payouts / issuer money out
@@ -288,10 +288,11 @@ Do not require `roles.manage` to navigate to or view the Permission Configuratio
 
 | | |
 |---|---|
-| View (all tabs including Configuration, Custom & Groups, Logs) | `notifications.view` |
+| View (Configuration, Custom & Groups) | `notifications.view` |
 | Mutations (Add Missing Types, toggles, Send Notification, Create/Manage Groups) | `notifications.manage` |
 | Backend | `apps/api/src/modules/notification/controller.ts` |
 | Frontend page | `apps/admin/src/app/settings/notifications/page.tsx` |
+| Delivery evidence | Audit → Notifications (`/audit?tab=notifications`), same `notifications.view` permission |
 
 Do not block any notification tab behind `notifications.manage`.
 
@@ -302,9 +303,12 @@ Do not block any notification tab behind `notifications.manage`.
 | Access Logs | `audit.access.view` |
 | Security Logs | `audit.security.view` |
 | Product Logs | `audit.product.view` |
-| Backend | `apps/api/src/modules/admin/controller.ts`, product log controller |
-| Frontend page | `apps/admin/src/app/audit/page.tsx` (tabs: Access, Security, Products) |
-| Notes | Audit pages are read-only. Search/filter/export use the same view permission. There is no Document Logs tab. |
+| Legal Documents | `document_management.view` |
+| Legal Acceptances | `document_management.view` |
+| Notifications | `notifications.view` |
+| Backend | `apps/api/src/modules/admin/controller.ts`, product log controller, legal-document controllers, notification controller |
+| Frontend page | `apps/admin/src/app/audit/page.tsx` (tabs: Access, Security, Products, Legal Documents, Legal Acceptances, Notifications) |
+| Notes | Audit pages are read-only. Search/filter/export use the same view permission as the source feature. There is no Document Logs tab. Legal Acceptances and Notification Logs are evidence views, not configuration. |
 
 ### Legal Documents
 
@@ -324,7 +328,7 @@ Do not block any notification tab behind `notifications.manage`.
 | View (list, detail, export, exact-version download) | `document_management.view` |
 | Mutations | None — records are immutable (no update/delete API) |
 | Backend | `apps/api/src/modules/legal-documents/acceptance-admin-controller.ts` |
-| Frontend page | `apps/admin/src/app/legal-document-acceptances/page.tsx` (`/legal-document-acceptances`) |
+| Frontend page | `apps/admin/src/app/audit/page.tsx` (`/audit?tab=legal-acceptances`); `/legal-document-acceptances` redirects here |
 | Shows | Accepted document type; exact version; file hash; organization; accepting user; timestamp; IP; user agent; acknowledgement wording; exact accepted PDF download |
 | Notes | Evidence comes from `LegalDocumentAcceptance` only. There is no DocumentLog / SiteDocument audit trail. |
 
@@ -383,14 +387,14 @@ These systems and permissions no longer exist:
 | Frontend page | `apps/admin/src/app/finance/issuer-payouts/page.tsx` |
 | Notes | All withdrawal mutations use `notes.disbursement.manage`. The Issuer Payouts list page itself is read-only and requires only `disbursements.view`. |
 
-### Service Fee
+### Settlements
 
 | | |
 |---|---|
-| View | `service_fee.view` |
+| View | `settlements.view` |
 | Backend | `apps/api/src/modules/notes/controller.ts` |
-| Frontend page | `apps/admin/src/app/finance/service-fee-trustee-letters/page.tsx` |
-| Notes | Service fee workflow actions inside Note Detail use `notes.settlement.manage` |
+| Frontend page | `apps/admin/src/app/finance/pending-settlement-trustee-letters/page.tsx` |
+| Notes | Settlement trustee workflow actions inside Note Detail use `notes.settlement.manage` and `notes.disbursement.manage` |
 
 ### Product Settings
 
@@ -443,7 +447,8 @@ Do not require any section manage permission for comments.
 
 ### Notifications page
 
-- The whole Notification Management page, including all tabs (Configuration, Custom & Groups, Logs), is visible with `notifications.view`
+- The Notification Management page (Configuration, Custom & Groups) is visible with `notifications.view`
+- Notification delivery evidence is Audit → Notifications, also `notifications.view`
 - Only mutation controls require `notifications.manage`
 - Never block entire tabs behind `notifications.manage`
 
@@ -452,7 +457,7 @@ Do not require any section manage permission for comments.
 Legal Documents and Legal Acceptances use `document_management.view` / `document_management.manage` at:
 
 - `/legal-documents`
-- `/legal-document-acceptances`
+- `/audit?tab=legal-acceptances` (`/legal-document-acceptances` redirects here)
 
 Documents inside a Note Detail page follow `notes.view` for read-only viewing, or the relevant `notes.<domain>.manage` if the document action is part of a note workflow.
 
@@ -497,7 +502,7 @@ These permissions have been removed from the catalog because they have no active
 | `investments.manage` | Investment listing is read-only; no admin mutation routes |
 | `bucket_balances.manage` | View-only page; no correction/adjustment routes |
 | `repayments.manage` | Repayment actions inside Note Detail use `notes.repayment.manage` |
-| `service_fee.manage` | Service fee workflow actions inside Note Detail use `notes.settlement.manage` |
+| `service_fee.view` / `service_fee.manage` | Renamed/removed pre-production: queue access is `settlements.view`; trustee actions inside Note Detail use `notes.settlement.manage` / `notes.disbursement.manage` |
 | `disbursements.manage` | All withdrawal mutations now use `notes.disbursement.manage`; this permission was redundant |
 
 The following permissions are **not** in this list because they have active backend routes:
@@ -547,15 +552,15 @@ The following permissions are **not** in this list because they have active back
 
 ### Role with `notifications.view` only
 
-- [ ] Notifications page accessible
-- [ ] All tabs (Configuration, Custom & Groups, Logs) visible
+- [ ] Settings → Notifications accessible (Configuration, Custom & Groups only)
+- [ ] Audit → Notifications visible; other Audit tabs hidden
 - [ ] Add Missing Types, toggles, Send Notification, Create Group disabled
 
 ### Role with `audit.access.view` only
 
 - [ ] Only Access Logs tab visible under Audit
 - [ ] Access Logs page loads correctly
-- [ ] Security Logs and Product Logs tabs hidden or Access Denied
+- [ ] Security, Products, Legal Documents, Legal Acceptances, and Notifications tabs hidden or Access Denied
 - [ ] No Document Logs tab exists
 
 ---
@@ -568,7 +573,7 @@ The following permissions are **not** in this list because they have active back
 - **Do not require section manage permission for application comments** — comments use `applications.view`
 - **Do not block the Roles Permission Configuration page behind `roles.manage`** — it must be viewable with `roles.view`
 - **Do not block Notification Management tabs behind `notifications.manage`** — all tabs are viewable with `notifications.view`
-- **Do not rename `service_fee` to `service_fees`** — the catalog uses singular
+- **Do not rename `settlements.view` back to `service_fee.view`** — the settlement trustee queue is not fee-only
 - **Do not rename `platform_settings`** to `platform_settings.finance` or any variant
 - **Do not use `document_management.*`** for documents inside Notes or Application Review — use the parent module's permission
 - **Do not reintroduce SiteDocument, DocumentLog, `/documents`, or `audit.document.view`** — those systems were removed

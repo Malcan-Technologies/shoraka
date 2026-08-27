@@ -1,5 +1,6 @@
 import {
   formatInvoiceReference,
+  formatNoteReference,
   getActivityStatusLabel,
   getActivityStatusToken,
   InvoiceStatus,
@@ -42,29 +43,31 @@ export type FacilityTransactionRow = {
 };
 
 const LOG_LABELS: Record<string, string> = {
-  APPLICATION_CREATED: "Facility application started",
-  APPLICATION_SUBMITTED: "Facility application submitted",
-  APPLICATION_RESUBMITTED: "Facility application resubmitted",
+  APPLICATION_CREATED: "Facility Application Started",
+  APPLICATION_SUBMITTED: "Facility Application Submitted",
+  APPLICATION_RESUBMITTED: "Facility Application Resubmitted",
   APPLICATION_APPROVED: "Facility application approved",
-  APPLICATION_REJECTED: "Facility application was not approved",
-  APPLICATION_WITHDRAWN: "Facility application withdrawn",
-  APPLICATION_COMPLETED: "Facility application completed",
-  AMENDMENTS_SUBMITTED: "You submitted requested changes",
-  CONTRACT_OFFER_SENT: "Facility offer sent",
-  CONTRACT_OFFER_ACCEPTANCE_SUBMITTED: "Facility acceptance submitted",
-  CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED: "Facility acceptance resubmitted",
-  CONTRACT_OFFER_ACCEPTED: "Facility offer signed",
+  APPLICATION_REJECTED: "Facility Application Was Not Approved",
+  APPLICATION_WITHDRAWN: "Facility Application Withdrawn",
+  APPLICATION_COMPLETED: "Facility Application Completed",
+  AMENDMENTS_SUBMITTED: "Amendment Request Sent",
+  CONTRACT_OFFER_SENT: "You Received a Facility Offer",
+  CONTRACT_OFFER_ACCEPTANCE_SUBMITTED: "You Submitted Your Facility Offer Acceptance",
+  CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED: "You Resubmitted Your Facility Offer Acceptance",
+  CONTRACT_OFFER_ACCEPTED: "Facility Offer Accepted",
   CONTRACT_OFFER_REJECTED: "Facility offer declined",
-  CONTRACT_OFFER_RETRACTED: "Facility offer withdrawn by CashSouk",
+  CONTRACT_OFFER_RETRACTED: "CashSouk Retracted the Facility Offer",
   CONTRACT_OFFER_EXPIRED: "Facility offer expired",
-  CONTRACT_WITHDRAWN: "Facility withdrawn",
-  INVOICE_OFFER_SENT: "Invoice offer sent",
-  INVOICE_OFFER_ACCEPTANCE_SUBMITTED: "Invoice acceptance submitted",
-  INVOICE_OFFER_ACCEPTANCE_RESUBMITTED: "Invoice acceptance resubmitted",
-  INVOICE_OFFER_ACCEPTED: "Invoice offer signed",
-  INVOICE_OFFER_REJECTED: "Invoice offer declined",
-  INVOICE_OFFER_RETRACTED: "Invoice offer withdrawn by CashSouk",
+  CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing deadline extended",
+  CONTRACT_OFFER_DECLINED: "Facility Offer Declined",
+  INVOICE_OFFER_SENT: "You Received an Invoice Offer",
+  INVOICE_OFFER_ACCEPTANCE_SUBMITTED: "You Submitted Your Invoice Offer Acceptance",
+  INVOICE_OFFER_ACCEPTANCE_RESUBMITTED: "You Resubmitted Your Invoice Offer Acceptance",
+  INVOICE_OFFER_ACCEPTED: "Invoice Offer Accepted",
+  INVOICE_OFFER_REJECTED: "Invoice Offer Declined",
+  INVOICE_OFFER_RETRACTED: "CashSouk Retracted the Invoice Offer",
   INVOICE_OFFER_EXPIRED: "Invoice offer expired",
+  INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing deadline extended",
   INVOICE_WITHDRAWN: "Invoice withdrawn",
   OFFER_EXPIRED: "An offer expired",
   SIGNING_PACKAGE_SENT: "Signing package sent",
@@ -79,6 +82,7 @@ const INVOICE_LOG_TYPES = new Set([
   "INVOICE_OFFER_REJECTED",
   "INVOICE_OFFER_RETRACTED",
   "INVOICE_OFFER_EXPIRED",
+  "INVOICE_SIGNING_DEADLINE_EXTENDED",
   "INVOICE_WITHDRAWN",
 ]);
 
@@ -214,7 +218,7 @@ function derivedFromContract(
     pushDerived(rows, {
       id: `derived:facility-offer-sent:${contract.id}`,
       at: offer.sent_at,
-      label: "Facility offer sent",
+      label: "You Received a Facility Offer",
       amount: parseAmount(offer.offered_facility ?? contract.approvedFacilityAmount),
       eventType: "CONTRACT_OFFER_SENT",
       statusToken: "action",
@@ -227,9 +231,9 @@ function derivedFromContract(
     status === "APPROVED"
   ) {
     pushDerived(rows, {
-      id: `derived:facility-offer-signed:${contract.id}`,
+      id: `derived:facility-offer-accepted:${contract.id}`,
       at: offer.responded_at,
-      label: "Facility offer signed",
+      label: "Facility Offer Accepted",
       amount: parseAmount(offer.offered_facility ?? contract.approvedFacilityAmount),
       eventType: "CONTRACT_OFFER_ACCEPTED",
       statusToken: "success",
@@ -268,7 +272,7 @@ function derivedFromInvoice(
     pushDerived(rows, {
       id: `derived:invoice-offer-sent:${invoice.id}`,
       at: offer.sent_at,
-      label: "Invoice offer sent",
+      label: "You Received an Invoice Offer",
       amount: parseAmount(offer.offered_amount) ?? financingAmount,
       referenceLabel,
       href,
@@ -283,9 +287,9 @@ function derivedFromInvoice(
     status === InvoiceStatus.APPROVED
   ) {
     pushDerived(rows, {
-      id: `derived:invoice-offer-signed:${invoice.id}`,
+      id: `derived:invoice-offer-accepted:${invoice.id}`,
       at: offer.responded_at,
-      label: "Invoice offer signed",
+      label: "Invoice Offer Accepted",
       amount: parseAmount(offer.offered_amount) ?? financingAmount,
       referenceLabel,
       href,
@@ -428,7 +432,9 @@ function derivedFromNote(
 ): FacilityTransactionRow[] {
   const rows: FacilityTransactionRow[] = [];
   const invoice = invoices.find((row) => row.id === note.sourceInvoiceId) ?? null;
-  const referenceLabel = invoice ? invoiceReference(invoice) : note.noteReference;
+  const referenceLabel = invoice
+    ? invoiceReference(invoice)
+    : formatNoteReference({ noteReference: note.noteReference, id: note.id });
   const href = invoice
     ? `/financing/invoices/${invoice.id}`
     : `/financing/notes/${note.id}`;

@@ -9,6 +9,7 @@ import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
 import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
 import { prisma } from "../../../lib/prisma";
+import { webhookAuditContext } from "../../../lib/audit";
 import {
   mergeCtosPartySupplementDocument,
   normalizeRawStatus,
@@ -206,6 +207,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 organizationName: orgExists.name || undefined,
                 investorOrganizationId: organizationId,
                 issuerOrganizationId: undefined,
+                context: webhookAuditContext(),
                 metadata: {
                   organizationId,
                   requestId,
@@ -260,6 +262,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                 organizationName: orgExists.name || undefined,
                 investorOrganizationId: undefined,
                 issuerOrganizationId: organizationId,
+                context: webhookAuditContext(),
                 metadata: {
                   organizationId,
                   requestId,
@@ -363,6 +366,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
           organizationName: orgExists.name || undefined,
           investorOrganizationId: isInvestor ? organizationId : undefined,
           issuerOrganizationId: isInvestor ? undefined : organizationId,
+          context: webhookAuditContext(),
           metadata: {
             organizationId,
             requestId,

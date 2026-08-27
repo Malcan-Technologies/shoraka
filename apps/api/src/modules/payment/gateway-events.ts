@@ -1,8 +1,10 @@
+import { GatewayPaymentEventType, GatewayPaymentStatus, Prisma } from "@prisma/client";
 import {
-  GatewayPaymentEventType,
-  GatewayPaymentStatus,
-  Prisma,
-} from "@prisma/client";
+  AUDIT_TARGET_TYPE,
+  AuditRequestContext,
+  AuditSource,
+  resolveStandardAuditFields,
+} from "../../lib/audit";
 
 type RecordEventInput = {
   gatewayPaymentId: string;
@@ -12,12 +14,29 @@ type RecordEventInput = {
   toStatus?: GatewayPaymentStatus | null;
   reason?: string | null;
   metadata?: Prisma.InputJsonValue;
+
+  /**
+   * Forensic context. Admin resolution actions should pass the request context; Curlec webhook and
+   * reconciliation paths should pass `webhookAuditContext()` / `systemAuditContext()`.
+   */
+  context?: AuditRequestContext | null;
+  source?: AuditSource | null;
 };
 
 export async function recordGatewayPaymentEvent(
   tx: Prisma.TransactionClient,
   input: RecordEventInput
 ) {
+  const standard = resolveStandardAuditFields({
+    context: input.context,
+    actorUserId: input.actorUserId,
+    source: input.source,
+    targetType: AUDIT_TARGET_TYPE.GATEWAY_PAYMENT,
+    targetId: input.gatewayPaymentId,
+    // Unattended transitions (webhook capture, refund sweeps) have no actor.
+    systemWhenActorless: true,
+  });
+
   return tx.gatewayPaymentEvent.create({
     data: {
       gateway_payment_id: input.gatewayPaymentId,
@@ -27,6 +46,15 @@ export async function recordGatewayPaymentEvent(
       to_status: input.toStatus ?? null,
       reason: input.reason ?? null,
       metadata: input.metadata,
+
+      actor_type: standard.actor_type,
+      target_type: standard.target_type,
+      target_id: standard.target_id,
+      source: standard.source,
+      portal: standard.portal,
+      ip_address: standard.ip_address,
+      user_agent: standard.user_agent,
+      correlation_id: standard.correlation_id,
     },
   });
 }
@@ -70,6 +98,14 @@ export function mapGatewayPaymentEvent(
     to_status: GatewayPaymentStatus | null;
     reason: string | null;
     created_at: Date;
+    actor_type?: string | null;
+    source?: string | null;
+    target_type?: string | null;
+    target_id?: string | null;
+    portal?: string | null;
+    correlation_id?: string | null;
+    metadata?: unknown;
+    ip_address?: string | null;
   },
   actorName: string | null = null
 ) {
@@ -82,5 +118,16 @@ export function mapGatewayPaymentEvent(
     toStatus: event.to_status,
     reason: event.reason,
     createdAt: event.created_at.toISOString(),
+    actorType: event.actor_type ?? null,
+    source: event.source ?? null,
+    targetType: event.target_type ?? null,
+    targetId: event.target_id ?? null,
+    portal: event.portal ?? null,
+    correlationId: event.correlation_id ?? null,
+    metadata:
+      event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata)
+        ? (event.metadata as Record<string, unknown>)
+        : null,
+    ipAddress: event.ip_address ?? null,
   };
 }

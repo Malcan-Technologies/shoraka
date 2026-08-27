@@ -125,6 +125,38 @@ describe("buildActivityRelatedMap", () => {
       kind: "withdrawal",
       status: "DRAFT",
       settledAt: null,
+      displayReference: null,
+    });
+  });
+
+  it("includes the withdrawal canonical reference when the instruction has one", () => {
+    const related = buildActivityRelatedMap({
+      entries: [
+        entry({
+          id: "tx_wd",
+          source: "INVESTOR_WITHDRAWAL_REQUEST",
+          metadata: { withdrawalId: "wd_1" },
+        }),
+      ],
+      investments: [],
+      withdrawals: [
+        {
+          id: "wd_1",
+          investorOrganizationId: "org_1",
+          amount: 250,
+          createdAt: "2026-08-01T10:00:00.000Z",
+          status: "COMPLETED",
+          completedAt: "2026-08-03T10:00:00.000Z",
+          displayReference: "WDL-202608-X7A",
+        },
+      ],
+    });
+
+    expect(related.get("tx_wd")).toEqual({
+      kind: "withdrawal",
+      status: "COMPLETED",
+      settledAt: "2026-08-03T10:00:00.000Z",
+      displayReference: "WDL-202608-X7A",
     });
   });
 

@@ -4,17 +4,12 @@ import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AccessLogsTable } from "@/components/access-logs-table";
 import { AccessLogsToolbar } from "@/components/access-logs-toolbar";
-import { useSecurityLogs } from "@/hooks/use-security-logs";
+import { SECURITY_EVENT_TYPES, useSecurityLogs } from "@/hooks/use-security-logs";
 import { AdminQueryErrorState } from "@/components/admin-query-error-state";
+import { AUDIT_LOG_PAGE_SIZE } from "@/components/audit/audit-log-shell";
 import type { SecurityEventType, GetSecurityLogsParams } from "@cashsouk/types";
 
-const SECURITY_EVENT_TYPES: SecurityEventType[] = [
-  "PASSWORD_CHANGED",
-  "EMAIL_CHANGED",
-  "ROLE_ADDED",
-  "ROLE_SWITCHED",
-  "PROFILE_UPDATED",
-];
+export { SECURITY_EVENT_TYPES };
 
 export function SecurityLogsPanel() {
   const queryClient = useQueryClient();
@@ -23,7 +18,7 @@ export function SecurityLogsPanel() {
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [dateRangeFilter, setDateRangeFilter] = React.useState("all");
   const [currentPage, setCurrentPage] = React.useState(1);
-  const pageSize = 15;
+  const pageSize = AUDIT_LOG_PAGE_SIZE;
 
   const apiParams = React.useMemo(() => {
     const params: GetSecurityLogsParams = {
@@ -89,6 +84,7 @@ export function SecurityLogsPanel() {
         onRefresh={handleReload}
         isLoading={isLoading}
         allowedEventTypes={SECURITY_EVENT_TYPES}
+        exportKind="security"
         exportFilters={{
           search: searchQuery || undefined,
           eventType:

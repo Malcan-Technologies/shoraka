@@ -80,6 +80,29 @@ const EXTERNAL_ACCESS_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const TRUST_RETURN_SESSION_MAX_MS = 2 * 60 * 60 * 1000;
 const CLOSED_ENVELOPE_STATUSES = ["VOIDED", "DECLINED", "EXPIRED", "COMPLETED"] as const;
 
+function signingProviderReferenceMetadata(envelope: {
+  provider_ref?: unknown;
+  documents?: Array<{ provider_contract_ref?: string | null }>;
+}): Record<string, unknown> {
+  const contractRefs = (envelope.documents ?? [])
+    .map((document) => document.provider_contract_ref?.trim())
+    .filter((value): value is string => Boolean(value));
+  const envelopeRef =
+    typeof envelope.provider_ref === "string"
+      ? envelope.provider_ref.trim()
+      : envelope.provider_ref &&
+          typeof envelope.provider_ref === "object" &&
+          !Array.isArray(envelope.provider_ref) &&
+          typeof (envelope.provider_ref as { id?: unknown }).id === "string"
+        ? String((envelope.provider_ref as { id: string }).id)
+        : "";
+  const metadata: Record<string, unknown> = {};
+  if (contractRefs.length > 0) metadata.providerContractRefs = contractRefs;
+  const providerEnvelopeId = envelopeRef || (contractRefs.length === 1 ? contractRefs[0] : "");
+  if (providerEnvelopeId) metadata.providerEnvelopeId = providerEnvelopeId;
+  return metadata;
+}
+
 type RecipientSigningSessionMeta = {
   documentId: string;
   startedAt: string;
@@ -602,6 +625,8 @@ export class SigningService {
       contract_id?: string | null;
       invoice_id?: string | null;
       title?: string | null;
+      provider_ref?: unknown;
+      documents?: Array<{ provider_contract_ref?: string | null }>;
     };
     portal?: ActivityPortal;
     extraMetadata?: Record<string, unknown>;
@@ -617,6 +642,7 @@ export class SigningService {
         ...(params.envelope.contract_id ? { contract_id: params.envelope.contract_id } : {}),
         ...(params.envelope.invoice_id ? { invoice_id: params.envelope.invoice_id } : {}),
         ...(params.envelope.title?.trim() ? { envelope_title: params.envelope.title.trim() } : {}),
+        ...signingProviderReferenceMetadata(params.envelope),
         ...params.extraMetadata,
       },
     });
@@ -867,7 +893,12 @@ export class SigningService {
         userId: input.userId,
         applicationId: input.applicationId,
         eventType: ApplicationLogEventType.SIGNING_PACKAGE_CREATED,
-        envelope,
+        envelope: {
+          id: envelope.id,
+          contract_id: envelope.contract_id,
+          invoice_id: envelope.invoice_id,
+          title: envelope.title,
+        },
       });
       return envelope;
     });
@@ -1254,6 +1285,7 @@ export class SigningService {
         signers,
       });
       await this.repo.markDocumentSent(document.id, providerRef);
+      document.provider_contract_ref = providerRef;
     }
 
     const expiresAt = new Date(Date.now() + EXTERNAL_ACCESS_TOKEN_TTL_MS);
@@ -1356,7 +1388,7 @@ export class SigningService {
         throw new AppError(400, "INVALID_STATE", "Invoice offer details are not available.");
       }
       generated = await generateInvoiceOfferLetterBuffer(
-        invoice.id,
+        invoice.display_reference,
         invoice.offer_details as Record<string, unknown>,
         signatories
       );
@@ -1371,7 +1403,7 @@ export class SigningService {
         throw new AppError(400, "INVALID_STATE", "Facility offer details are not available.");
       }
       generated = await generateContractOfferLetterBuffer(
-        contract.id,
+        contract.display_reference,
         contract.offer_details as Record<string, unknown>,
         signatories
       );

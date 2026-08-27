@@ -37,12 +37,12 @@ describe("admin trustee letter auto-email UI wiring", () => {
     expect(issuerPayout).toContain("useResendWithdrawalTrusteeEmail");
     expect(issuerPayout).toContain("note.trusteeAutoSendEmailEnabled === true");
     expect(issuerPayout).toContain("TRUSTEE_EMAIL_DELIVERED_LABEL");
-    expect(settlement).toContain("serviceFeeTrusteeEmailSentAt");
+    expect(settlement).toContain("settlementTrusteeEmailSentAt");
     expect(settlement).toContain("formatTrusteeInstructionEmailedCopy");
     expect(settlement).toContain("getTrusteeSubmitCopy");
     expect(settlement).toContain("getTrusteeResendCopy");
-    expect(settlement).toContain("canResendServiceFeeTrusteeEmail");
-    expect(settlement).toContain("useResendServiceFeeTrusteeEmail");
+    expect(settlement).toContain("canResendSettlementTrusteeEmail");
+    expect(settlement).toContain("useResendSettlementTrusteeEmail");
     expect(settlement).toContain("note.trusteeAutoSendEmailEnabled === true");
     expect(settlement).toContain("TRUSTEE_EMAIL_DELIVERED_LABEL");
     expect(investorWithdrawal).toContain("trusteeEmailSentAt");

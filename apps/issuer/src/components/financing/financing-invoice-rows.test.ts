@@ -1,6 +1,10 @@
 import type { NoteListItem } from "@cashsouk/types";
 import type { IssuerDashboardInvoice } from "@/types/issuer-dashboard";
-import { buildFinancingInvoiceRows, dashboardNoteFromListItem } from "./financing-invoice-rows";
+import {
+  buildFinancingInvoiceRows,
+  dashboardNoteFromListItem,
+  financingInvoiceRowSearchHaystack,
+} from "./financing-invoice-rows";
 
 function invoice(overrides: Partial<IssuerDashboardInvoice> = {}): IssuerDashboardInvoice {
   return {
@@ -32,10 +36,13 @@ function note(overrides: Partial<NoteListItem> = {}): NoteListItem {
     productName: "Invoice financing",
     issuerIndustry: null,
     sourceApplicationId: "app_1",
+    sourceApplicationDisplayReference: null,
     sourceContractId: null,
     sourceContractDisplayReference: null,
     sourceInvoiceId: "inv_1",
+    sourceInvoiceDisplayReference: null,
     issuerOrganizationId: "org_1",
+    issuerOrganizationDisplayReference: null,
     issuerName: null,
     paymasterName: "Acme",
     riskRating: null,
@@ -98,6 +105,32 @@ describe("buildFinancingInvoiceRows", () => {
       "note_1",
       "note_fac",
     ]);
+  });
+});
+
+describe("financingInvoiceRowSearchHaystack", () => {
+  it("matches CashSouk invoice and note references", () => {
+    const invoiceHaystack = financingInvoiceRowSearchHaystack(
+      { kind: "invoice", id: "inv_1", invoice: invoice() },
+      "AR"
+    );
+    expect(invoiceHaystack).toContain("inv-1");
+    expect(invoiceHaystack).toContain("inv-100");
+
+    const noteHaystack = financingInvoiceRowSearchHaystack(
+      {
+        kind: "note",
+        id: "note_1",
+        note: note({
+          sourceApplicationDisplayReference: "APP-ARF-202608-A82",
+          sourceInvoiceDisplayReference: "INV-ARF-202608-0N5",
+        }),
+      },
+      "AR"
+    );
+    expect(noteHaystack).toContain("note-1");
+    expect(noteHaystack).toContain("app-arf-202608-a82");
+    expect(noteHaystack).toContain("inv-arf-202608-0n5");
   });
 });
 

@@ -5,6 +5,8 @@ import { logger } from "../../lib/logger";
 import { submitOrder, getOrderStatus, getCertificatePdf } from "./shoraka-stp-client";
 import type { ShorakaSubmitOrderValues } from "./shoraka-stp-types";
 import { AppError } from "../../lib/http/error-handler";
+import { AUDIT_SOURCE, createNoteEventRow } from "../../lib/audit";
+import { resolveNoteEventTarget } from "../notes/audit-fields";
 
 import type { Prisma } from "@prisma/client";
 
@@ -330,18 +332,19 @@ export class ShorakaStpService {
     eventType: string,
     metadata?: Prisma.InputJsonValue
   ) {
-    await prisma.noteEvent.create({
-      data: {
-        note_id: noteId,
-        event_type: eventType,
-        actor_user_id: null,
-        actor_role: null,
-        portal: null,
-        ip_address: null,
-        user_agent: null,
-        correlation_id: null,
-        metadata,
-      },
+    await createNoteEventRow(prisma, {
+      noteId,
+      eventType,
+      actorUserId: null,
+      actorRole: null,
+      portal: null,
+      ipAddress: null,
+      userAgent: null,
+      correlationId: null,
+      metadata,
+      // Shoraka straight-through processing runs without a human actor.
+      source: AUDIT_SOURCE.INTERNAL,
+      ...resolveNoteEventTarget(eventType, metadata),
     });
   }
 
@@ -519,6 +522,7 @@ export class ShorakaStpService {
 
       // Activity Timeline event: order successfully submitted.
       await this.logShorakaStpEvent(withdrawal.note_id ?? "unknown-note", "SHORAKA_ORDER_SUBMITTED", {
+        trade_order_id: created.id,
         provider_order_id: providerOrderId,
         order_amount: values.order_amount,
         murabaha_amount: values.murabaha_amount,
@@ -672,9 +676,12 @@ export class ShorakaStpService {
 
     // Activity Timeline event: certificate successfully fetched/stored.
     await this.logShorakaStpEvent(withdrawal.note_id ?? "unknown-note", "SHORAKA_CERTIFICATE_FETCHED", {
+      trade_order_id: tradeOrder.id,
       document_type: "Tawarruq Certificate",
       certificate_available: true,
       provider_order_id: providerOrderId,
+      certificate_file_sha256: sha256,
+      certificate_s3_key: key,
     });
 
     return (await this.getStateForWithdrawal(withdrawalInstructionId)) as ShorakaStateResponse;

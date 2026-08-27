@@ -23,9 +23,11 @@ export function isOpaqueAdminTimelineActorId(value: string): boolean {
   return /^[a-z0-9_-]{20,}$/i.test(trimmed);
 }
 
+const SYSTEM_ACTOR_RE = /^(sys|system|system job|automated|auto)$/i;
+
 export function displayAdminTimelineActorName(actorLabel?: string | null): string | null {
   const trimmed = actorLabel?.trim() ?? "";
-  if (!trimmed || trimmed.toLowerCase() === "system") return null;
+  if (!trimmed || SYSTEM_ACTOR_RE.test(trimmed)) return null;
   if (isOpaqueAdminTimelineActorId(trimmed)) return null;
   return trimmed;
 }
@@ -60,7 +62,7 @@ export function resolveAdminTimelineOriginator({
   portal?: string | null;
 }): AdminTimelineOriginator {
   const actor = actorLabel?.trim().toLowerCase() ?? "";
-  if (!actor || actor === "system") return "system";
+  if (!actor || actor === "system" || actor === "sys" || actor === "system job") return "system";
 
   const key = portal?.trim().toLowerCase() ?? "";
   if (key === "admin") return "admin";

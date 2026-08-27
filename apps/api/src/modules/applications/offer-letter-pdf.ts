@@ -360,7 +360,7 @@ function facilityFeeUpfrontTerms(total: number | undefined, offer: ContractOffer
 }
 
 export function buildContractOfferLetterTerms(
-  contractId: string,
+  cashSoukReference: string | null | undefined,
   offer: ContractOfferDetails
 ): OfferLetterTerm[] {
   const rate =
@@ -372,7 +372,7 @@ export function buildContractOfferLetterTerms(
       ? computeFacilityFeeTotalOwed(offer.offered_facility, rate)
       : undefined;
   return [
-    { label: "Our reference (contract ID)", value: contractId },
+    { label: "CashSouk Reference", value: cashSoukReference?.trim() || "—" },
     { label: "Requested facility", value: formatAmount(offer.requested_facility) },
     { label: "Proposed offered facility", value: formatAmount(offer.offered_facility) },
     { label: "Facility fee rate", value: formatPercent(rate) },
@@ -420,7 +420,7 @@ export function buildInvoiceOfferLetterDto(
 }
 
 export function buildInvoiceOfferLetterTerms(
-  invoiceId: string,
+  cashSoukReference: string | null | undefined,
   offer: InvoiceOfferDetails
 ): OfferLetterTerm[] {
   const platformFeePct =
@@ -434,7 +434,7 @@ export function buildInvoiceOfferLetterTerms(
   });
   const indicativePayable = computeIndicativeAmountPayable(offer.offered_amount, indicativeProfit);
   const base: OfferLetterTerm[] = [
-    { label: "Our reference (invoice ID)", value: invoiceId },
+    { label: "CashSouk Reference", value: cashSoukReference?.trim() || "—" },
     { label: "Requested amount", value: formatAmount(offer.requested_amount) },
     { label: "Proposed financing amount", value: formatAmount(offer.offered_amount) },
     { label: "Financing margin", value: `${offer.offered_ratio_percent ?? "—"}%` },
@@ -521,7 +521,7 @@ async function pdfBufferFromDoc(doc: PDFDoc): Promise<Buffer> {
  */
 export function buildContractOfferLetterPdf(
   doc: PDFDoc,
-  contractId: string,
+  cashSoukReference: string | null | undefined,
   offer: ContractOfferDetails,
   signatories: OfferLetterSignatory[] = [],
   layout?: SignatureLayoutContext
@@ -532,7 +532,7 @@ export function buildContractOfferLetterPdf(
     "Indicative facility offer in respect of the contract identified below"
   );
   sectionHeading(doc, "Particulars of the proposed facility");
-  for (const term of buildContractOfferLetterTerms(contractId, offer)) {
+  for (const term of buildContractOfferLetterTerms(cashSoukReference, offer)) {
     termLine(doc, term.label, term.value);
   }
   sectionHeading(doc, "General");
@@ -545,7 +545,7 @@ export function buildContractOfferLetterPdf(
  */
 export function buildInvoiceOfferLetterPdf(
   doc: PDFDoc,
-  invoiceId: string,
+  cashSoukReference: string | null | undefined,
   offer: InvoiceOfferDetails,
   signatories: OfferLetterSignatory[] = [],
   layout?: SignatureLayoutContext,
@@ -554,7 +554,7 @@ export function buildInvoiceOfferLetterPdf(
   const copy = invoiceOfferLetterPresentation(kind);
   formalOpen(doc, copy.title, copy.subtitle, copy.intro);
   sectionHeading(doc, copy.particularsSection);
-  for (const term of buildInvoiceOfferLetterTerms(invoiceId, offer)) {
+  for (const term of buildInvoiceOfferLetterTerms(cashSoukReference, offer)) {
     termLine(doc, term.label, term.value);
   }
   sectionHeading(doc, copy.termsSection);
@@ -571,7 +571,7 @@ export function buildInvoiceOfferLetterPdf(
 }
 
 export async function generateContractOfferLetterBuffer(
-  contractId: string,
+  cashSoukReference: string | null | undefined,
   offer: ContractOfferDetails,
   signatories: OfferLetterSignatory[]
 ): Promise<GeneratedOfferLetterResult> {
@@ -580,13 +580,13 @@ export async function generateContractOfferLetterBuffer(
     signsets: [],
     getPageIndex: tracked.getPageIndex,
   };
-  buildContractOfferLetterPdf(tracked.doc, contractId, offer, signatories, layout);
+  buildContractOfferLetterPdf(tracked.doc, cashSoukReference, offer, signatories, layout);
   const pdfBuffer = await pdfBufferFromDoc(tracked.doc);
   return { pdfBuffer, signsets: layout.signsets };
 }
 
 export async function generateInvoiceOfferLetterBuffer(
-  invoiceId: string,
+  cashSoukReference: string | null | undefined,
   offer: InvoiceOfferDetails,
   signatories: OfferLetterSignatory[],
   kind: InvoiceOfferLetterKind = "invoice"
@@ -596,7 +596,7 @@ export async function generateInvoiceOfferLetterBuffer(
     signsets: [],
     getPageIndex: tracked.getPageIndex,
   };
-  buildInvoiceOfferLetterPdf(tracked.doc, invoiceId, offer, signatories, layout, kind);
+  buildInvoiceOfferLetterPdf(tracked.doc, cashSoukReference, offer, signatories, layout, kind);
   const pdfBuffer = await pdfBufferFromDoc(tracked.doc);
   return { pdfBuffer, signsets: layout.signsets };
 }
@@ -638,11 +638,11 @@ export async function generateGuarantorAgreementPlaceholderBuffer(
  * Generate a contract offer letter PDF as a stream. Caller pipes to response.
  */
 export function generateContractOfferLetterStream(
-  contractId: string,
+  cashSoukReference: string | null | undefined,
   offer: ContractOfferDetails
 ): PDFDoc {
   const doc = new PDFDocument({ margin: MARGIN });
-  buildContractOfferLetterPdf(doc, contractId, offer);
+  buildContractOfferLetterPdf(doc, cashSoukReference, offer);
   doc.end();
   return doc;
 }
@@ -651,12 +651,12 @@ export function generateContractOfferLetterStream(
  * Generate an invoice offer letter PDF as a stream. Caller pipes to response.
  */
 export function generateInvoiceOfferLetterStream(
-  invoiceId: string,
+  cashSoukReference: string | null | undefined,
   offer: InvoiceOfferDetails,
   kind: InvoiceOfferLetterKind = "invoice"
 ): PDFDoc {
   const doc = new PDFDocument({ margin: MARGIN });
-  buildInvoiceOfferLetterPdf(doc, invoiceId, offer, [], undefined, kind);
+  buildInvoiceOfferLetterPdf(doc, cashSoukReference, offer, [], undefined, kind);
   doc.end();
   return doc;
 }

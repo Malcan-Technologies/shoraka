@@ -2,8 +2,14 @@ import { randomUUID } from "crypto";
 import type { Request } from "express";
 import { Prisma } from "@prisma/client";
 import type { LegalDocumentType } from "@cashsouk/types";
-import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { prisma } from "../../lib/prisma";
+import {
+  AUDIT_PORTAL,
+  AUDIT_TARGET_TYPE,
+  auditContextFromRequest,
+  loadAuditActorSnapshot,
+  resolveStandardAuditFields,
+} from "../../lib/audit";
 import type { LegalDocumentAuditAction } from "./schemas";
 
 export type RecordLegalDocumentAuditInput = {
@@ -20,19 +26,6 @@ export type RecordLegalDocumentAuditInput = {
   reason?: string | null;
 };
 
-async function loadActorSnapshot(userId: string): Promise<{
-  name: string | null;
-  email: string | null;
-}> {
-  const user = await prisma.user.findUnique({
-    where: { user_id: userId },
-    select: { email: true, first_name: true, last_name: true },
-  });
-  if (!user) return { name: null, email: null };
-  const name = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
-  return { name: name || null, email: user.email };
-}
-
 function toJsonInputValue(
   value: Record<string, unknown> | null | undefined
 ): Prisma.InputJsonValue | undefined {
@@ -46,15 +39,20 @@ function toJsonInputValue(
 export class LegalDocumentAuditLogService {
   async record(input: RecordLegalDocumentAuditInput) {
     const { req, action, actorUserId } = input;
-    const { ipAddress, userAgent } = extractRequestMetadata(req);
-    const correlationId =
-      typeof (req as Request & { res?: { locals?: { correlationId?: string } } }).res?.locals
-        ?.correlationId === "string"
-        ? (req as Request & { res?: { locals?: { correlationId?: string } } }).res!.locals!
-            .correlationId
-        : null;
+    const context = auditContextFromRequest(req, {
+      actorUserId,
+      // Legal document management is an admin-only surface.
+      portal: AUDIT_PORTAL.ADMIN,
+    });
 
-    const actor = await loadActorSnapshot(actorUserId);
+    const standard = resolveStandardAuditFields({
+      context,
+      targetType: input.legalDocumentVersionId
+        ? AUDIT_TARGET_TYPE.LEGAL_DOCUMENT_VERSION
+        : AUDIT_TARGET_TYPE.LEGAL_DOCUMENT,
+      targetId: input.legalDocumentVersionId ?? input.legalDocumentId,
+    });
+    const actor = await loadAuditActorSnapshot(actorUserId);
 
     return prisma.legalDocumentAuditLog.create({
       data: {
@@ -66,14 +64,20 @@ export class LegalDocumentAuditLogService {
         version_number: input.versionNumber ?? null,
         document_hash: input.documentHash ?? null,
         actor_user_id: actorUserId,
-        actor_name_snapshot: actor.name,
-        actor_email_snapshot: actor.email,
+        actor_name_snapshot: actor.actor_name_snapshot,
+        actor_email_snapshot: actor.actor_email_snapshot,
         before_json: toJsonInputValue(input.beforeJson),
         after_json: toJsonInputValue(input.afterJson),
         reason: input.reason ?? null,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        correlation_id: correlationId,
+        ip_address: standard.ip_address,
+        user_agent: standard.user_agent,
+        correlation_id: standard.correlation_id,
+
+        actor_type: standard.actor_type,
+        target_type: standard.target_type,
+        target_id: standard.target_id,
+        source: standard.source,
+        portal: standard.portal,
       },
     });
   }

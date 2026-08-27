@@ -67,12 +67,13 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
     return visible.length;
   }
 
-  transform(record: NoteActivityRecord): UnifiedActivity {
+  transform(record: NoteActivityRecord, context?: { portalType?: "investor" | "issuer" }): UnifiedActivity {
     const metadata = (record.metadata as Record<string, unknown> | null) ?? {};
     const presentation = this.buildPresentation(record.event_type, {
       ...metadata,
       noteReference: record.note.note_reference,
       noteTitle: record.note.title,
+      portalType: context?.portalType,
     });
 
     return {
@@ -143,16 +144,30 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
             : "The note did not meet the minimum funding threshold and committed funds were released.",
         };
       case "ACTIVATE":
-      case "WITHDRAWAL_COMPLETED":
         return {
-          title: "Note Active",
+          title: metadata?.portalType === "investor" ? "Your Investment Is Active" : "Your Note Is Active",
           description: noteLabel
             ? `${this.capitalize(noteLabel)} is now active and servicing has started.`
             : "The note is now active and servicing has started.",
         };
+      case "WITHDRAWAL_COMPLETED":
+        if (metadata?.portalType === "investor") {
+          return {
+            title: "Your Investment Is Active",
+            description: noteLabel
+              ? `${this.capitalize(noteLabel)} is now active and servicing has started.`
+              : "The note is now active and servicing has started.",
+          };
+        }
+        return {
+          title: "Your Disbursement Is Complete",
+          description: noteLabel
+            ? `Disbursement for ${noteLabel} has been completed.`
+            : "Disbursement for the note has been completed.",
+        };
       case "ISSUER_PAYMENT_SUBMITTED":
         return {
-          title: "Payment Submitted",
+          title: "You Submitted a Repayment",
           description: noteLabel
             ? `A repayment for ${noteLabel} was submitted and is awaiting review.`
             : "A repayment was submitted and is awaiting review.",
@@ -173,7 +188,7 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
         };
       case "NOTE_DEFAULT_MARKED":
         return {
-          title: "Note Defaulted",
+          title: metadata?.portalType === "investor" ? "Your Investment Is in Default" : "Your Note Is in Default",
           description: noteLabel
             ? `${this.capitalize(noteLabel)} was marked in default and requires attention.`
             : "The note was marked in default and requires attention.",
@@ -372,13 +387,18 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
     const searchTerm = search.toLowerCase();
 
     return eventTypes.filter((eventType) => {
-      const metadata =
+      const extra =
         eventType === "WITHDRAWAL_COMPLETED" ? { withdrawalType: WithdrawalType.ISSUER_DISBURSEMENT } : undefined;
-      const presentation = this.buildPresentation(eventType, metadata);
+      const presentations = [
+        this.buildPresentation(eventType, extra),
+        this.buildPresentation(eventType, { ...extra, portalType: "issuer" }),
+        this.buildPresentation(eventType, { ...extra, portalType: "investor" }),
+      ];
 
-      return (
-        presentation.title.toLowerCase().includes(searchTerm) ||
-        presentation.description.toLowerCase().includes(searchTerm)
+      return presentations.some(
+        (presentation) =>
+          presentation.title.toLowerCase().includes(searchTerm) ||
+          presentation.description.toLowerCase().includes(searchTerm)
       );
     });
   }

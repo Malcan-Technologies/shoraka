@@ -28,6 +28,7 @@ export type ActivityJoinWithdrawal = {
   createdAt: Date | string;
   status: string;
   completedAt: Date | string | null;
+  displayReference?: string | null;
 };
 
 export const IN_FLIGHT_DEPOSIT_STATUSES = [
@@ -156,6 +157,7 @@ export function buildActivityRelatedMap(input: {
         kind: "withdrawal",
         status: withdrawal?.status ?? "DRAFT",
         settledAt: isoOrNull(withdrawal?.completedAt ?? null),
+        displayReference: withdrawal?.displayReference ?? null,
       });
       continue;
     }

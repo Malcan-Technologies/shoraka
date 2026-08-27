@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Card } from "@/components/ui/card";
-import { format } from "date-fns";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 import AdminActivityTimeline from "@/components/admin-activity-timeline";
 import { formatRemarkAsBullets } from "@/lib/utils";
 
@@ -18,6 +18,7 @@ export interface RecentActivityCardProps {
   }[];
   remarks: { scope_key: string; action_type: string; remark: string; created_at: string }[];
   applicationId?: string | null;
+  applicationDisplayReference?: string | null;
   /** Product id for resubmit comparison modal workflow tabs. */
   productKey?: string | null;
   /** Override section labels for timeline display (e.g. contract_details → "Customer" for invoice_only). */
@@ -31,6 +32,7 @@ export function RecentActivityCard({
   events,
   remarks,
   applicationId,
+  applicationDisplayReference,
   productKey,
   sectionLabelOverrides,
   visibleReviewSections,
@@ -70,6 +72,7 @@ export function RecentActivityCard({
     return (
       <AdminActivityTimeline
         applicationId={applicationId}
+        applicationDisplayReference={applicationDisplayReference}
         productKey={productKey}
         reviewTabSections={reviewTabSections}
         sectionLabelOverrides={sectionLabelOverrides}
@@ -106,8 +109,8 @@ export function RecentActivityCard({
                   </ul>
                 );
               })()}
-              <div className="mt-1 text-[10px] text-muted-foreground">
-                {format(new Date(a.created_at), "dd MMM HH:mm")}
+              <div className="mt-1 text-meta text-muted-foreground">
+                {formatAuditDateTime(a.created_at)}
               </div>
             </div>
           ))}

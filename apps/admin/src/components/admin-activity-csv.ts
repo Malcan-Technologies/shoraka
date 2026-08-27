@@ -1,3 +1,12 @@
+import {
+  buildAuditCsv,
+  type AuditCsvRow,
+} from "@/components/audit/audit-csv";
+import {
+  formatAuditEventLabel,
+  presentAuditActorName,
+} from "@/components/audit/audit-presentation";
+
 export type AdminActivityCsvRow = {
   createdAt: string;
   event: string;
@@ -7,27 +16,35 @@ export type AdminActivityCsvRow = {
   portal: string;
   remark: string;
   metadata: Record<string, unknown> | null;
+  actorType?: string | null;
+  actorEmail?: string | null;
+  organisation?: string | null;
+  source?: string | null;
+  targetType?: string | null;
+  targetReference?: string | null;
+  status?: string | null;
+  amount?: string | number | null;
+  correlationId?: string | null;
+  extra?: Record<string, string | number | null | undefined>;
 };
 
 export const ADMIN_ACTIVITY_CSV_HEADERS = [
-  "createdAt",
-  "event",
-  "eventType",
-  "actor",
-  "actorUserId",
-  "portal",
-  "remark",
-  "metadata",
+  "Timestamp",
+  "Event",
+  "Event Type",
+  "Actor",
+  "Actor Type",
+  "Actor Email",
+  "Organisation",
+  "Source",
+  "Target Type",
+  "Target Reference",
+  "Status",
+  "Amount",
+  "Reason",
+  "Correlation ID",
+  "Metadata",
 ] as const;
-
-function csvCell(value: string) {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-function metadataCell(metadata: Record<string, unknown> | null) {
-  if (!metadata || Object.keys(metadata).length === 0) return "";
-  return JSON.stringify(metadata);
-}
 
 export function mergeActivityCsvMetadata(
   base: Record<string, unknown> | null | undefined,
@@ -41,20 +58,27 @@ export function mergeActivityCsvMetadata(
 }
 
 export function buildAdminActivityCsv(rows: AdminActivityCsvRow[]): string {
-  const lines = [
-    [...ADMIN_ACTIVITY_CSV_HEADERS],
-    ...rows.map((row) => [
-      row.createdAt,
-      row.event,
-      row.eventType,
-      row.actor,
-      row.actorUserId,
-      row.portal,
-      row.remark,
-      metadataCell(row.metadata),
-    ]),
-  ];
-  return lines.map((line) => line.map(csvCell).join(",")).join("\n");
+  const mapped: AuditCsvRow[] = rows.map((row) => ({
+    timestamp: row.createdAt,
+    event: row.event || formatAuditEventLabel(row.eventType),
+    eventType: row.eventType,
+    actor: presentAuditActorName(row.actor, row.actorType),
+    actorType: row.actorType ?? "",
+    actorEmail: row.actorEmail ?? "",
+    organisation: row.organisation ?? "",
+    source: row.source ?? row.portal ?? "",
+    targetType: row.targetType ?? "",
+    targetReference: row.targetReference ?? "",
+    status: row.status ?? "",
+    amount: row.amount ?? "",
+    reason: row.remark ?? "",
+    correlationId: row.correlationId ?? "",
+    metadata: mergeActivityCsvMetadata(row.metadata, {
+      actorUserId: row.actorUserId || null,
+    }),
+    extra: row.extra,
+  }));
+  return buildAuditCsv(mapped);
 }
 
 export function downloadAdminActivityCsv(fileName: string, csv: string) {

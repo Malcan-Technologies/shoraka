@@ -3,7 +3,7 @@
 import { StatusBadge } from "@cashsouk/ui";
 
 import { useState } from "react";
-import { format } from "date-fns";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { toast } from "sonner";
@@ -64,7 +64,7 @@ function runStatusToken(status: string) {
 }
 
 function formatDate(value: string) {
-  return format(new Date(value), "dd MMM yyyy, h:mm a");
+  return formatAuditDateTime(value);
 }
 
 export default function ReconciliationPage() {

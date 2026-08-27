@@ -251,7 +251,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Add a “Generate repayment waterfall letter” button on settlement panels and show/download the generated document. |
 | Ledger/accounting impact | None. |
 | Status impact | None (document generation), but likely requires gating based on `NoteSettlementStatus` (`APPROVED` vs `POSTED`). |
-| Status / your stance | Done for **service fee trustee instruction letters** (per your note + verified in code/help docs). Letter workflow exists for internal pools with events like `SERVICE_FEE_TRUSTEE_LETTER_GENERATED`, and help docs explain service fee trustee steps. Remaining: confirm whether any separate “repayment waterfall/service-fee allocation letter” (distinct from trustee instruction letters) is still missing. |
+| Status / your stance | Done for **settlement trustee instruction letters** (per your note + verified in code/help docs). Letter workflow exists for posted settlements with events like `SETTLEMENT_TRUSTEE_LETTER_GENERATED`, and help docs explain settlement trustee steps. Remaining: confirm whether any separate “repayment waterfall/service-fee allocation letter” (distinct from trustee instruction letters) is still missing. |
 | Open questions | 1) Which party needs the document: issuer, trustee, investor? 2) Is the document required before settlement is posted or after posting? |
 | Recommended implementation priority | P3 (document workflow). |
 

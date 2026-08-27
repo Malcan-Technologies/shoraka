@@ -126,6 +126,7 @@ function buildOrgNameSearchOr(term: string): Prisma.InvestorOrganizationWhereInp
       { last_name: { contains: term, mode: "insensitive" } },
       { registration_number: { contains: term, mode: "insensitive" } },
       { legal_name_on_id: { contains: term, mode: "insensitive" } },
+      { display_reference: { contains: term, mode: "insensitive" } },
       ...buildCorporateBusinessNameJsonFilters(term),
     ],
   };
@@ -139,6 +140,7 @@ function buildIssuerOrgNameSearchOr(term: string): Prisma.IssuerOrganizationWher
       { middle_name: { contains: term, mode: "insensitive" } },
       { last_name: { contains: term, mode: "insensitive" } },
       { registration_number: { contains: term, mode: "insensitive" } },
+      { display_reference: { contains: term, mode: "insensitive" } },
       ...buildCorporateBusinessNameJsonFilters(term),
     ],
   };
@@ -160,6 +162,9 @@ export function buildGatewayPaymentSearchOr(
     { settlement_id: { contains: term, mode: "insensitive" } },
     { investor_organization: buildOrgNameSearchOr(term) },
     { issuer_organization: buildIssuerOrgNameSearchOr(term) },
+    { application: { display_reference: { contains: term, mode: "insensitive" } } },
+    { contract: { display_reference: { contains: term, mode: "insensitive" } } },
+    { note: { note_reference: { contains: term, mode: "insensitive" } } },
   ];
 
   for (const purpose of matchPurposesFromSearch(term)) {

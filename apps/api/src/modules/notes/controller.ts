@@ -59,7 +59,7 @@ function getActor(req: Request, res: Response, portal: string) {
     : req.headers["user-agent"];
   return {
     userId: req.user.user_id,
-    role: req.activeRole ?? req.user.roles[0],
+    role: req.activeRole,
     portal,
     ipAddress: req.ip,
     userAgent,
@@ -180,11 +180,11 @@ adminNotesRouter.get(
 );
 
 adminNotesRouter.get(
-  "/pending-service-fee-trustee-letters",
-  requirePermission("service_fee.view"),
+  "/pending-settlement-trustee-letters",
+  requirePermission("settlements.view"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
-      send(res, await noteService.listPendingServiceFeeTrusteeLetters());
+      send(res, await noteService.listPendingSettlementTrusteeLetters());
     } catch (error) {
       next(error);
     }
@@ -586,14 +586,14 @@ adminNotesRouter.post(
 );
 
 adminNotesRouter.post(
-  "/:id/settlements/:settlementId/service-fee/generate-trustee-letter",
+  "/:id/settlements/:settlementId/settlement-trustee/generate-letter",
   requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
       send(
         res,
-        await noteService.generateServiceFeeTrusteeLetter(id, settlementId, getActor(req, res, "ADMIN"))
+        await noteService.generateSettlementTrusteeLetter(id, settlementId, getActor(req, res, "ADMIN"))
       );
     } catch (error) {
       next(error);
@@ -602,14 +602,14 @@ adminNotesRouter.post(
 );
 
 adminNotesRouter.post(
-  "/:id/settlements/:settlementId/service-fee/mark-submitted-to-trustee",
+  "/:id/settlements/:settlementId/settlement-trustee/mark-submitted-to-trustee",
   requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
       send(
         res,
-        await noteService.markServiceFeeTrusteeLetterSubmitted(
+        await noteService.markSettlementTrusteeLetterSubmitted(
           id,
           settlementId,
           getActor(req, res, "ADMIN")
@@ -622,14 +622,14 @@ adminNotesRouter.post(
 );
 
 adminNotesRouter.post(
-  "/:id/settlements/:settlementId/service-fee/resend-trustee-email",
+  "/:id/settlements/:settlementId/settlement-trustee/resend-trustee-email",
   requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
       send(
         res,
-        await noteService.resendServiceFeeTrusteeEmail(id, settlementId, getActor(req, res, "ADMIN"))
+        await noteService.resendSettlementTrusteeEmail(id, settlementId, getActor(req, res, "ADMIN"))
       );
     } catch (error) {
       next(error);
@@ -638,14 +638,14 @@ adminNotesRouter.post(
 );
 
 adminNotesRouter.post(
-  "/:id/settlements/:settlementId/service-fee/mark-completed",
+  "/:id/settlements/:settlementId/settlement-trustee/mark-completed",
   requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
       send(
         res,
-        await noteService.markServiceFeeTrusteeInstructionCompleted(
+        await noteService.markSettlementTrusteeInstructionCompleted(
           id,
           settlementId,
           getActor(req, res, "ADMIN")

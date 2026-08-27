@@ -25,6 +25,7 @@ import type {
   AcceptInvitationInput,
   GetSecurityLogsParams,
   SecurityLogsResponse,
+  ExportSecurityLogsParams,
   GetOnboardingLogsParams,
   OnboardingLogsResponse,
   OnboardingLogResponse,
@@ -102,7 +103,7 @@ import type {
   PendingIssuerPayoutsResponse,
   PendingInvestorWithdrawalsCountResponse,
   PendingRepaymentsResponse,
-  PendingServiceFeeTrusteeLettersResponse,
+  PendingSettlementTrusteeLettersResponse,
   NoteEvent,
   NoteLedgerBucketActivityResponse,
   NoteLedgerBucketBalancesResponse,
@@ -147,6 +148,7 @@ import type {
   InvoiceOfferAcceptSignatoriesResponse,
 } from "@cashsouk/types";
 import { parseContentDispositionFilename } from "./content-disposition-filename";
+import { detectClientPortal } from "./detect-client-portal";
 import { tokenRefreshService } from "./token-refresh-service";
 
 type OverdueLateChargeInput = {
@@ -305,6 +307,11 @@ export class ApiClient {
     // Add Authorization header with Cognito access token
     if (authToken) {
       headers["Authorization"] = `Bearer ${authToken}`;
+    }
+
+    const portal = detectClientPortal();
+    if (portal) {
+      headers["x-portal"] = portal;
     }
 
     // Make request
@@ -870,11 +877,11 @@ export class ApiClient {
     );
   }
 
-  async getAdminPendingServiceFeeTrusteeLetters(): Promise<
-    ApiResponse<PendingServiceFeeTrusteeLettersResponse> | ApiError
+  async getAdminPendingSettlementTrusteeLetters(): Promise<
+    ApiResponse<PendingSettlementTrusteeLettersResponse> | ApiError
   > {
-    return this.get<PendingServiceFeeTrusteeLettersResponse>(
-      "/v1/admin/notes/pending-service-fee-trustee-letters"
+    return this.get<PendingSettlementTrusteeLettersResponse>(
+      "/v1/admin/notes/pending-settlement-trustee-letters"
     );
   }
 
@@ -976,42 +983,42 @@ export class ApiClient {
     return this.post<{ s3Key: string }>(`/v1/admin/notes/${id}/default/generate-letter`, {});
   }
 
-  async generateAdminNoteServiceFeeTrusteeLetter(
+  async generateAdminNoteSettlementTrusteeLetter(
     noteId: string,
     settlementId: string
   ): Promise<ApiResponse<{ s3Key: string }> | ApiError> {
     return this.post<{ s3Key: string }>(
-      `/v1/admin/notes/${noteId}/settlements/${settlementId}/service-fee/generate-trustee-letter`,
+      `/v1/admin/notes/${noteId}/settlements/${settlementId}/settlement-trustee/generate-letter`,
       {}
     );
   }
 
-  async markAdminNoteServiceFeeTrusteeLetterSubmitted(
+  async markAdminNoteSettlementTrusteeLetterSubmitted(
     noteId: string,
     settlementId: string
   ): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(
-      `/v1/admin/notes/${noteId}/settlements/${settlementId}/service-fee/mark-submitted-to-trustee`,
+      `/v1/admin/notes/${noteId}/settlements/${settlementId}/settlement-trustee/mark-submitted-to-trustee`,
       {}
     );
   }
 
-  async resendAdminNoteServiceFeeTrusteeEmail(
+  async resendAdminNoteSettlementTrusteeEmail(
     noteId: string,
     settlementId: string
   ): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(
-      `/v1/admin/notes/${noteId}/settlements/${settlementId}/service-fee/resend-trustee-email`,
+      `/v1/admin/notes/${noteId}/settlements/${settlementId}/settlement-trustee/resend-trustee-email`,
       {}
     );
   }
 
-  async markAdminNoteServiceFeeTrusteeInstructionCompleted(
+  async markAdminNoteSettlementTrusteeInstructionCompleted(
     noteId: string,
     settlementId: string
   ): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(
-      `/v1/admin/notes/${noteId}/settlements/${settlementId}/service-fee/mark-completed`,
+      `/v1/admin/notes/${noteId}/settlements/${settlementId}/settlement-trustee/mark-completed`,
       {}
     );
   }
@@ -2074,6 +2081,40 @@ export class ApiClient {
     if (params.userId) queryParams.append("userId", params.userId);
 
     return this.get<SecurityLogsResponse>(`/v1/admin/security-logs?${queryParams.toString()}`);
+  }
+
+  async exportSecurityLogs(params: ExportSecurityLogsParams): Promise<Blob> {
+    const queryParams = new URLSearchParams();
+    if (params.search) queryParams.append("search", params.search);
+    if (params.eventType) queryParams.append("eventType", params.eventType);
+    if (params.eventTypes && params.eventTypes.length > 0) {
+      queryParams.append("eventTypes", params.eventTypes.join(","));
+    }
+    if (params.dateRange) queryParams.append("dateRange", params.dateRange);
+    if (params.userId) queryParams.append("userId", params.userId);
+    queryParams.append("format", params.format || "json");
+
+    const url = `${this.baseUrl}/v1/admin/security-logs/export?${queryParams.toString()}`;
+    const authToken = await this.getAuthToken();
+
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.statusText}`);
+    }
+
+    return response.blob();
   }
 
   // Admin - Onboarding Logs

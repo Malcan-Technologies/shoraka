@@ -776,6 +776,7 @@ export default function ApplicationDetailPage() {
                         ? application.contractId ?? undefined
                         : offerInvoice?.contractId ?? application.contractId ?? undefined
                     }
+                    contractDisplayReference={application.contractDisplayReference}
                     invoice={offerType === "invoice" ? offerInvoice : undefined}
                     requiresInvoiceSigning
                     onClose={() => {

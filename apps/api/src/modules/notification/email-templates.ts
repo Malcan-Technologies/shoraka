@@ -1,15 +1,22 @@
-import { Notification, User } from '@prisma/client';
-import { EmailOptions } from '../../lib/email/ses-client';
-import { getFullUrl, PortalType } from '../../lib/http/url-utils';
+import { Notification, User } from "@prisma/client";
+import { EmailOptions } from "../../lib/email/ses-client";
+import { getFullUrl, getLandingBaseUrl, PortalType } from "../../lib/http/url-utils";
+
+function parseEmailPortal(value: unknown): PortalType | undefined {
+  if (value === "investor" || value === "issuer" || value === "admin") return value;
+  return undefined;
+}
 
 export function buildNotificationEmail(notification: Notification, user: User): EmailOptions {
-  // Resolve portal from metadata if available, default to investor
-  const metadata = notification.metadata as any;
-  const portal: PortalType = metadata?.portal || 'investor';
-  
-  const portalUrl = notification.link_path 
-    ? getFullUrl(notification.link_path, portal)
-    : getFullUrl('/', portal);
+  const metadata = notification.metadata as { portal?: unknown } | null;
+  const portal = parseEmailPortal(metadata?.portal);
+  const landingUrl = getLandingBaseUrl();
+
+  const portalUrl = portal
+    ? getFullUrl(notification.link_path || "/", portal)
+    : landingUrl;
+  // Landing has no /account route; mixed/unknown emails stay on the landing origin.
+  const preferencesUrl = portal ? getFullUrl("/account", portal) : landingUrl;
   
   const html = `
     <!DOCTYPE html>
@@ -33,7 +40,7 @@ export function buildNotificationEmail(notification: Notification, user: User): 
           <h2>${notification.title}</h2>
         </div>
         <div class="content">
-          <p>Hello ${user.first_name || 'there'},</p>
+          <p>Hello ${user.first_name || "there"},</p>
           <p>${notification.message}</p>
           ${notification.link_path ? `
             <div style="margin-top: 25px;">
@@ -43,7 +50,7 @@ export function buildNotificationEmail(notification: Notification, user: User): 
         </div>
         <div class="footer">
           <p>You are receiving this because you have notifications enabled for your account.</p>
-          <p><a href="${getFullUrl('/account', portal)}">Manage notification preferences</a></p>
+          <p><a href="${preferencesUrl}">Manage notification preferences</a></p>
           <p>&copy; ${new Date().getFullYear()} CashSouk. All rights reserved.</p>
         </div>
       </div>
@@ -55,6 +62,6 @@ export function buildNotificationEmail(notification: Notification, user: User): 
     to: user.email,
     subject: `[CashSouk] ${notification.title}`,
     html,
-    text: `${notification.title}\n\nHello ${user.first_name || 'there'},\n\n${notification.message}\n\nView details: ${portalUrl}\n\nManage preferences: ${getFullUrl('/account', portal)}`,
+    text: `${notification.title}\n\nHello ${user.first_name || "there"},\n\n${notification.message}\n\nView details: ${portalUrl}\n\nManage preferences: ${preferencesUrl}`,
   };
 }

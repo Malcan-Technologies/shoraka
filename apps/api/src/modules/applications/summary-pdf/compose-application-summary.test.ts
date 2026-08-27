@@ -249,6 +249,23 @@ describe("composeApplicationSummary", () => {
     expect(model.timeline[0]?.label).toBe("You resubmitted after changes");
     expect(model.timeline[0]?.description).toBe("Updated invoice value");
   });
+
+  it("labels AMENDMENTS_SUBMITTED as an amendment request sent by CashSouk", () => {
+    const model = compose({
+      logs: [
+        {
+          id: "amd",
+          event_type: "AMENDMENTS_SUBMITTED",
+          remark: "2 amendment(s) sent to issuer",
+          created_at: "2026-08-09T00:00:00.000Z",
+        },
+      ],
+    });
+    expect(model.timeline[0]?.label).toBe("Amendment Request Sent");
+    expect(model.timeline[0]?.label).not.toMatch(/issuer submitted/i);
+    expect(model.timeline[0]?.label).not.toMatch(/you submitted/i);
+    expect(model.timeline[0]?.label).not.toMatch(/amendments submitted/i);
+  });
 });
 
 describe("buildSafeSummaryFilename", () => {

@@ -13,7 +13,7 @@ describe("formatAdminTimelineValue", () => {
   it("formats ISO dates, booleans, and workflow tokens", () => {
     expect(formatAdminTimelineValue("true")).toBe("Yes");
     expect(formatAdminTimelineValue("false")).toBe("No");
-    expect(formatAdminTimelineValue("2026-09-09T00:00:00.000Z")).toBe("09 Sep 2026");
+    expect(formatAdminTimelineValue("2026-09-09T00:00:00.000Z")).toBe("9 Sep 2026");
     expect(formatAdminTimelineValue("2026-05-12T14:15:42.000Z")).toMatch(/12 May 2026/);
     expect(formatAdminTimelineValue("plain text")).toBe("plain text");
     expect(formatAdminTimelineValue("APPROVED")).toBe("Approved");

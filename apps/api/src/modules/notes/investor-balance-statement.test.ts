@@ -115,6 +115,34 @@ describe("buildInvestorBalanceStatement", () => {
     });
   });
 
+  it("uses the withdrawal canonical reference when no note is linked", () => {
+    const statement = buildInvestorBalanceStatement({
+      accountName: "Demo Investor",
+      accountId: "IVT-202608-D7F",
+      periodStart: "2026-01-01",
+      periodEnd: "2026-01-31",
+      generatedAt: new Date("2026-01-31T16:00:00+08:00"),
+      entries: [
+        makeEntry({
+          id: "tx_wdl",
+          postedAt: new Date("2026-01-12T09:00:00+08:00"),
+          direction: "OUT",
+          amount: 80,
+          source: "INVESTOR_WITHDRAWAL_REQUEST",
+          related: {
+            kind: "withdrawal",
+            status: "COMPLETED",
+            settledAt: "2026-01-12T09:00:00.000Z",
+            displayReference: "WDL-202608-X7A",
+          },
+        }),
+      ],
+      noteReferenceById: new Map(),
+    });
+
+    expect(statement.rows[0]?.reference).toBe("WDL-202608-X7A");
+  });
+
   it("keeps opening and closing equal when there is no activity in the period", () => {
     const entries: StatementLedgerEntry[] = [
       makeEntry({

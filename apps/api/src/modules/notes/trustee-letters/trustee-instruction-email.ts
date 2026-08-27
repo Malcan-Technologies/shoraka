@@ -8,14 +8,14 @@ export type TrusteeInstructionEmailKind =
   | "INVESTOR_WITHDRAWAL"
   | "ISSUER_RESIDUAL_RETURN"
   | "ADMIN_ADJUSTMENT"
-  | "SERVICE_FEE";
+  | "SETTLEMENT";
 
 const PURPOSE_LABELS: Record<TrusteeInstructionEmailKind, string> = {
   ISSUER_DISBURSEMENT: "Issuer disbursement",
   INVESTOR_WITHDRAWAL: "Investor withdrawal",
   ISSUER_RESIDUAL_RETURN: "Issuer residual return",
   ADMIN_ADJUSTMENT: "Admin adjustment",
-  SERVICE_FEE: "Settlement service-fee instruction",
+  SETTLEMENT: "Settlement trustee instruction",
 };
 
 export function escapeTrusteeEmailHtml(value: string): string {

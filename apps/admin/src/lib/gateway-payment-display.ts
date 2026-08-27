@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 import { getAdminStatusToken } from "./admin-status-token";
 
 export const STATUS_LABEL: Record<string, string> = {
@@ -47,7 +47,7 @@ export function statusVariant(status: string) {
 }
 
 export function formatGatewayPaymentDate(value: string) {
-  return format(new Date(value), "dd MMM yyyy, h:mm a");
+  return formatAuditDateTime(value);
 }
 
 /** @deprecated Prefer formatGatewayPaymentDate — kept for existing imports. */

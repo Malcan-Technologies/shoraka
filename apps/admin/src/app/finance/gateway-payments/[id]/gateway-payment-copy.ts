@@ -222,7 +222,7 @@ export const EVENT_COPY: Record<string, { title: string; description: string }> 
     description: "The names were confirmed to match. The deposit was completed.",
   },
   NAME_CHECK_REJECTED: {
-    title: "Name check rejected",
+    title: "Name Check Rejected",
     description: "The names did not match. A refund was started.",
   },
   CAPTURE_MISMATCH: {
@@ -247,7 +247,7 @@ export const EVENT_COPY: Record<string, { title: string; description: string }> 
     description: "The manual status change was rejected. No change was applied.",
   },
   REFUND_INITIATED: {
-    title: "Refund requested",
+    title: "Refund Started",
     description: "A full refund was requested. Waiting for Curlec to confirm the result.",
   },
   REFUND_WALLET_REVERSAL_FAILED: {

@@ -10,6 +10,7 @@ import {
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { z } from "zod";
+import { issuerActivityFromRequest } from "../../lib/audit";
 
 function getUserId(req: Request): string {
   if (!req.user?.user_id) {
@@ -153,7 +154,12 @@ async function withdrawContract(req: Request, res: Response, next: NextFunction)
   try {
     const { id } = contractIdParamSchema.parse(req.params);
     const userId = getUserId(req);
-    const contract = await contractService.withdrawContract(id, userId);
+    const contract = await contractService.withdrawContract(
+      id,
+      userId,
+      undefined,
+      issuerActivityFromRequest(req, res)
+    );
 
     res.json({
       success: true,

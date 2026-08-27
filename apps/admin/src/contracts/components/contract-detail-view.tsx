@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { formatCurrency } from "@cashsouk/config";
-import { formatContractReference, resolveProductImageS3KeyFromWorkflow } from "@cashsouk/types";
+import { formatContractReference, formatNamedEntityDisplay, resolveProductImageS3KeyFromWorkflow } from "@cashsouk/types";
 import { useProduct } from "@/app/settings/products/hooks/use-products";
 import { productName } from "@/app/settings/products/product-utils";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
@@ -355,11 +355,17 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
                 href={orgHref("issuer", data.issuerOrganizationId)}
                 className="underline-offset-4 hover:text-foreground hover:underline"
               >
-                {data.issuerOrganizationName ?? "Unnamed organization"}
+                {formatNamedEntityDisplay(
+                  data.issuerOrganizationName,
+                  data.issuerOrganizationDisplayReference
+                )}
               </Link>
             ) : (
-              (data.issuerOrganizationName ??
-                (data.issuerOrganizationId ? "Unnamed organization" : "Unknown issuer"))
+              formatNamedEntityDisplay(
+                data.issuerOrganizationName ??
+                  (data.issuerOrganizationId ? "Unnamed organization" : "Unknown issuer"),
+                data.issuerOrganizationDisplayReference
+              )
             )}
             {headerDescription ? (
               <>

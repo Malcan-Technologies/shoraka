@@ -113,6 +113,7 @@ import {
 import { cn } from "@/lib/utils";
 import { OfferAcceptanceSubmittedSuccessView } from "@/components/onboarding-fee-return-views";
 import { InvoiceOfferTerms } from "./invoice-offer-terms";
+import { offerLetterDownloadFileName } from "./offer-letter-filename";
 import { buildInvoiceFeeDisplay } from "@/lib/facility-fee-display";
 import { resolveIssuerFacilityFeeBalance } from "@/lib/facility-enabled";
 import { FacilityFeeBalanceSummary } from "@/components/financing/facility-fee-status";
@@ -130,6 +131,8 @@ export type OfferReviewPanelProps = {
   issuerOrganizationId?: string;
   productId?: string | null;
   contractId?: string;
+  /** Persisted CON-… for download filenames. Loaded contract is the fallback. */
+  contractDisplayReference?: string | null;
   invoice?: NormalizedInvoice | null;
   /** Kept for host compatibility; the signing/accept-decline split is derived from the
    * frozen product workflow (resolveReviewOfferModalMode), not this flag. */
@@ -641,6 +644,7 @@ export function OfferReviewPanel({
   issuerOrganizationId: issuerOrganizationIdProp,
   productId: _unusedProductId,
   contractId,
+  contractDisplayReference,
   invoice,
   requiresInvoiceSigning: _unusedRequiresInvoiceSigning,
   onClose,
@@ -1108,10 +1112,18 @@ export function OfferReviewPanel({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
+      const loadedContractRef =
+        (contractRecord as { displayReference?: string | null; display_reference?: string | null } | null | undefined)
+          ?.displayReference ??
+        (contractRecord as { display_reference?: string | null } | null | undefined)?.display_reference ??
+        null;
       a.download =
         type === "contract"
-          ? `contract-offer-${contractId}.pdf`
-          : `invoice-offer-${invoice?.id ?? "letter"}.pdf`;
+          ? offerLetterDownloadFileName(
+              "contract",
+              contractDisplayReference ?? loadedContractRef
+            )
+          : offerLetterDownloadFileName("invoice", invoice?.displayReference);
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {

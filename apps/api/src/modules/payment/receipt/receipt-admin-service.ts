@@ -87,19 +87,28 @@ export async function listGatewayPaymentReceipts(
   db: PrismaClient = defaultPrisma
 ) {
   const where: Prisma.GatewayPaymentReceiptWhereInput = {};
+  const and: Prisma.GatewayPaymentReceiptWhereInput[] = [];
 
   if (query.receiptNumber) {
-    where.receipt_number = { contains: query.receiptNumber, mode: "insensitive" };
+    and.push({
+      OR: [
+        { receipt_number: { contains: query.receiptNumber, mode: "insensitive" } },
+        { related_reference: { contains: query.receiptNumber, mode: "insensitive" } },
+      ],
+    });
   }
   if (query.purpose) where.payment_purpose = query.purpose;
   if (query.status) where.status = query.status;
   if (query.payer) {
-    where.OR = [
-      { payer_name: { contains: query.payer, mode: "insensitive" } },
-      { payer_company_name: { contains: query.payer, mode: "insensitive" } },
-      { payer_email: { contains: query.payer, mode: "insensitive" } },
-    ];
+    and.push({
+      OR: [
+        { payer_name: { contains: query.payer, mode: "insensitive" } },
+        { payer_company_name: { contains: query.payer, mode: "insensitive" } },
+        { payer_email: { contains: query.payer, mode: "insensitive" } },
+      ],
+    });
   }
+  if (and.length > 0) where.AND = and;
   if (query.from || query.to) {
     where.payment_date = {
       ...(query.from ? { gte: new Date(query.from) } : {}),

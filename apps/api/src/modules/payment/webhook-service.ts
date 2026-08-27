@@ -32,6 +32,7 @@ import { createCurlecClient } from "./curlec-client";
 import { assertGatewayAccountMatch } from "./gateway-account";
 import { recordGatewayPaymentEvent } from "./gateway-events";
 import { scheduleGatewayPaymentReceipt } from "./receipt/receipt-service";
+import { notifyDepositSuccessful } from "../notification/gateway-payment-notifications";
 import { notifyFacilityFeeUpfrontPaidIfSettled } from "../notification/facility-fee-notifications";
 import { notifyExcessLateChargesPaidIfSettled } from "../notification/excess-late-charge-notifications";
 import { completeExcessLateChargePayment } from "./excess-late-charge-payment-service";
@@ -540,6 +541,7 @@ export async function processInvestorDepositCapture(
     const completed = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
     if (completed?.status === GatewayPaymentStatus.COMPLETED) {
       scheduleGatewayPaymentReceipt(completed.id, db);
+      await notifyDepositSuccessful(completed);
     }
   } else if (nameCheckResult === NameCheckResult.FAIL) {
     await db.$transaction(async (tx) => {

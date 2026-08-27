@@ -135,11 +135,11 @@ Sub-step labels:
 - “Submitted to trustee”
 - “Instruction completed”
 
-Helper text shown below the sub-stepper depends on `serviceFeeTrusteeStatus`:
-- `COMPLETED`: “Service fee trustee instruction workflow is complete…”
+Helper text shown below the sub-stepper depends on `settlementTrusteeStatus`:
+- `COMPLETED`: “Settlement trustee instruction workflow is complete…”
 - `SUBMITTED_TO_TRUSTEE`: “Mark the instruction complete…”
 - `LETTER_GENERATED`: “Submit the PDF to the trustee…”
-- default: “Generate the PDF from Trustee instruction — service fee (internal pools)…”
+- default: “Generate the PDF from settlement trustee instruction…”
 
 #### Issuer payout sub-stepper (conditional)
 Rendered when awaiting residual or awaiting disbursement:
@@ -415,47 +415,47 @@ Else if `waterfallIssuerResidual > 0.005`:
   - “Issuer residual refund: {formatCurrency(waterfallIssuerResidual)} will be returned… after Post.”
   - says trustee withdrawal letter will be auto-prepared once settlement is posted.
 
-Trustee instruction / service fee workflow (conditional, within waterfall area)
+Trustee instruction / settlement trustee workflow (conditional, within waterfall area)
 Rendered only when:
-- `persistedPostedSettlement` exists and `persistedPostedSettlement.serviceFeeAmount > 0.005`
+- `persistedPostedSettlement` exists and `hasSettlementTrusteeMovement` is true
 
 Card styling depends on:
-- `serviceFeeTrusteeNeedsPdf` (destructive border, “Action required — trustee instruction PDF not generated”)
+- `settlementTrusteeNeedsPdf` (destructive border, “Action required — trustee instruction PDF not generated”)
 - workflow completion status:
-  - `serviceFeeTrusteeWorkflowComplete` indicates “Service fee trustee instruction complete”
+  - `settlementTrusteeWorkflowComplete` indicates “Settlement trustee instruction complete”
   - otherwise “Trustee workflow in progress”
 
 Header text:
-- “Trustee instruction — service fee (internal pools)”
+- “Trustee instruction — settlement”
 
 Helper paragraph:
 - explains documents allocation of service fee from Repayment pool to Operating account for posted settlement
 - clarifies it is not a bank payout and ledger entries were created when settlement was posted.
 
 Status line:
-- “Status: {serviceFeeTrusteeStatusLabel(serviceFeeTrusteeStatus)}”
+- “Status: {settlementTrusteeStatusLabel(settlementTrusteeStatus)}”
 - optionally shows “Submitted …” and/or “Completed …” timestamps when those fields exist
 
 Buttons (right side):
 - “Generate PDF”
-  - disabled when `serviceFeeTrusteeLetterLocked || serviceFeeTrusteePendingAny`
+  - disabled when `settlementTrusteeLetterLocked || settlementTrusteePendingAny`
 - If status is `LETTER_GENERATED`:
   - “Mark submitted to trustee” (enabled only when appropriate and not pending)
 - If status is `SUBMITTED_TO_TRUSTEE`:
   - “Mark complete”
 
 Warnings:
-- If `serviceFeeTrusteeNeedsPdf`:
+- If `settlementTrusteeNeedsPdf`:
   - shows “No PDF generated… Generate before marking complete.”
 
 Generated letters list (conditional):
-- If `serviceFeeTrusteeLetters.length > 0`:
+- If `settlementTrusteeLetters.length > 0`:
   - list items show:
     - document title “Service fee pool transfer”
     - created timestamp
     - s3Key display
     - View button (DocumentTextIcon) and Download button (ArrowDownTrayIcon)
-- If there is a service fee trustee posted settlement but PDFs not generated yet:
+- If there is a settlement trustee posted settlement but PDFs not generated yet:
   - “Letter events will appear here after you generate the PDF.”
 
 If no displayedSettlement (i.e., no preview):
@@ -531,8 +531,8 @@ Default reason + action row:
      - Cancel (outline) closes
      - “Queue fees” confirm
 
-3. **Service fee trustee confirmation AlertDialog**
-   - Shown when user sets `serviceFeeTrusteeConfirm`:
+3. **Settlement trustee confirmation AlertDialog**
+   - Shown when user sets `settlementTrusteeConfirm`:
      - Title differs:
        - “Submit to trustee?”
        - “Mark instruction complete?”
@@ -928,9 +928,9 @@ Every item below must still exist in some form after the redesign:
    - Issuer residual refund:
      - residual IssuerPayoutCard or dashed “issuer residual refund will be returned after Post…” info box
 
-5. Trustee instruction / service fee workflow
-   - Card appears only when posted settlement exists and serviceFeeAmount > 0.005
-   - “Action required — trustee instruction PDF not generated” vs “Trustee workflow in progress” vs “Service fee trustee instruction complete”
+5. Trustee instruction / settlement trustee workflow
+   - Card appears when posted settlement has trustee movements
+   - “Action required — trustee instruction PDF not generated” vs “Trustee workflow in progress” vs “Settlement trustee instruction complete”
    - Generate PDF + Mark submitted to trustee + Mark complete buttons (with lock and pending disabling)
    - Status line with submitted/completed timestamps
    - PDF-required warning
@@ -965,7 +965,7 @@ Every item below must still exist in some form after the redesign:
    - displayedSettlement gating can hide the entire waterfall section; redesign must preserve “No settlement preview generated yet.”
 4. Late fees:
    - overdue vs non-overdue variants are distinct UI blocks with different copy and badges.
-5. Service fee trustee workflow:
+5. Settlement trustee workflow:
    - the card exists only for serviceFeeAmount > 0.005 and only in posted settlement contexts.
 6. Arrears/default documents:
    - generated letters list uses note.events to discover letters; view/download actions are conditional on s3Key.

@@ -13,39 +13,39 @@ type SortableAdminNoteEvent = {
  * Secondary order (only when timestamps tie): lifecycle priority.
  */
 const ADMIN_NOTE_EVENT_LIFECYCLE_PRIORITY: Record<string, number> = Object.freeze(
-  [
-    // Earliest -> Latest (priority increases)
-    "NOTE_CREATED_FROM_INVOICE",
-    "PUBLISH",
-    "INVESTMENT_COMMITTED",
-    "CLOSE_FUNDING",
-    "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED",
-    // Tawarruq actions inside the Issuer Disbursement flow (logged by Shoraka STP integration)
-    "SHORAKA_ORDER_SUBMITTED",
-    "SHORAKA_CERTIFICATE_FETCHED",
-    "WITHDRAWAL_LETTER_GENERATED",
-    "WITHDRAWAL_TRUSTEE_EMAIL_SENT",
-    "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
-    "WITHDRAWAL_COMPLETED",
-    "PAYMENT_RECEIVED",
-    "ISSUER_PAYMENT_SUBMITTED",
-    "SETTLEMENT_PREVIEWED",
-    "SETTLEMENT_APPROVED",
-    // Service fee trustee flow (actual event types in the backend end with LETTER_* and *_INSTRUCTION_COMPLETED)
-    "SERVICE_FEE_TRUSTEE_LETTER_GENERATED",
-    "SERVICE_FEE_TRUSTEE_EMAIL_SENT",
-    "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED",
-    "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED",
-    // Residual / refund withdrawal creation (actual backend event type)
-    "ISSUER_RESIDUAL_WITHDRAWAL_CREATED",
-    // Residual/refund letters reuse the normal WITHDRAWAL_* events above.
-    "ARREARS_LETTER_GENERATED",
-    "DEFAULT_LETTER_GENERATED",
-    "NOTE_DEFAULT_MARKED",
-  ].reduce<Record<string, number>>((acc, eventType, index) => {
-    acc[eventType] = index;
+  (() => {
+    const acc = [
+      // Earliest -> Latest (priority increases)
+      "NOTE_CREATED_FROM_INVOICE",
+      "PUBLISH",
+      "INVESTMENT_COMMITTED",
+      "CLOSE_FUNDING",
+      "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED",
+      // Tawarruq actions inside the Issuer Disbursement flow (logged by Shoraka STP integration)
+      "SHORAKA_ORDER_SUBMITTED",
+      "SHORAKA_CERTIFICATE_FETCHED",
+      "WITHDRAWAL_LETTER_GENERATED",
+      "WITHDRAWAL_TRUSTEE_EMAIL_SENT",
+      "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
+      "WITHDRAWAL_COMPLETED",
+      "PAYMENT_RECEIVED",
+      "ISSUER_PAYMENT_SUBMITTED",
+      "SETTLEMENT_PREVIEWED",
+      "SETTLEMENT_APPROVED",
+      "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
+      "SETTLEMENT_TRUSTEE_EMAIL_SENT",
+      "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED",
+      "SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED",
+      // Residual/refund letters reuse the normal WITHDRAWAL_* events above.
+      "ARREARS_LETTER_GENERATED",
+      "DEFAULT_LETTER_GENERATED",
+      "NOTE_DEFAULT_MARKED",
+    ].reduce<Record<string, number>>((priority, eventType, index) => {
+      priority[eventType] = index;
+      return priority;
+    }, {} as Record<string, number>);
     return acc;
-  }, {})
+  })()
 );
 
 const UNKNOWN_EVENT_PRIORITY = 999;

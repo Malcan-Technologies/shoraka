@@ -15,7 +15,6 @@ import {
   ClipboardDocumentListIcon,
   CheckBadgeIcon,
   DocumentCheckIcon,
-  ClipboardDocumentCheckIcon,
   ScaleIcon,
   DocumentDuplicateIcon,
   QuestionMarkCircleIcon,
@@ -57,7 +56,7 @@ import {
   usePendingInvestorWithdrawals,
   usePendingRepayments,
   usePendingIssuerPayouts,
-  usePendingServiceFeeTrusteeLetters,
+  usePendingSettlementTrusteeLetters,
 } from "@/notes/hooks/use-notes";
 import {
   type ApplicationNavGroup,
@@ -192,7 +191,7 @@ type BadgeKey =
   | "onboardingApproval"
   | "noteActions"
   | "pendingRepayments"
-  | "pendingServiceFeeTrusteeLetters"
+  | "pendingSettlementTrusteeLetters"
   | "pendingIssuerPayouts"
   | "pendingInvestorWithdrawals"
   | "gatewayPaymentExceptions"
@@ -239,7 +238,7 @@ const moneyMovementItems: Array<{
   title: string;
   url: string;
   badgeKey: BadgeKey;
-  permission: "repayments" | "serviceFee" | "disbursements" | "investorWithdrawals";
+  permission: "repayments" | "settlements" | "disbursements" | "investorWithdrawals";
 }> = [
   {
     title: "Repayments",
@@ -249,9 +248,9 @@ const moneyMovementItems: Array<{
   },
   {
     title: "Settlements",
-    url: "/finance/service-fee-trustee-letters",
-    badgeKey: "pendingServiceFeeTrusteeLetters",
-    permission: "serviceFee",
+    url: "/finance/pending-settlement-trustee-letters",
+    badgeKey: "pendingSettlementTrusteeLetters",
+    permission: "settlements",
   },
   {
     title: "Issuer Payouts",
@@ -292,7 +291,6 @@ const navDirectory = [
   { title: "Issuers", url: "/issuers", icon: BuildingOffice2Icon, access: "organizations" },
   { title: "Investors", url: "/investors", icon: UserGroupIcon, access: "organizations" },
   { title: "Legal Documents", url: "/legal-documents", icon: ScaleIcon, access: "documents" },
-  { title: "Legal Acceptances", url: "/legal-document-acceptances", icon: ClipboardDocumentCheckIcon, access: "documents" },
 ] as const;
 
 const navSettings = [
@@ -398,7 +396,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const canViewBucketBalances = can("bucket_balances.view");
   const canViewRepayments = can("repayments.view");
-  const canViewServiceFee = can("service_fee.view");
+  const canViewSettlements = can("settlements.view");
   const canViewDisbursements = can("disbursements.view");
   const canViewInvestorWithdrawals = can("investor_withdrawals.view");
   const canViewGatewayPayments = can("gateway_payments.view");
@@ -417,7 +415,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canViewAuditSecurity = can("audit.security.view");
   const canViewAuditProduct = can("audit.product.view");
   const canViewAnyAudit =
-    canViewAuditAccess || canViewAuditSecurity || canViewAuditProduct;
+    canViewAuditAccess ||
+    canViewAuditSecurity ||
+    canViewAuditProduct ||
+    canViewDocuments ||
+    canViewNotifications;
 
   const { data: pendingCountData } = usePendingApprovalCount({ enabled: canViewOnboarding });
   const { data: noteActionCountData } = useNoteActionRequiredCount({ enabled: canViewNotes });
@@ -434,8 +436,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: gatewayReconData } = useGatewayReconPendingCount({
     enabled: canViewReconciliation,
   });
-  const { data: pendingServiceFeeLettersData } = usePendingServiceFeeTrusteeLetters({
-    enabled: canViewServiceFee,
+  const { data: pendingSettlementTrusteeLettersData } = usePendingSettlementTrusteeLetters({
+    enabled: canViewSettlements,
   });
 
   const { data: productsData } = useProducts({
@@ -453,7 +455,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     onboardingApproval: pendingCountData?.count || 0,
     noteActions: noteActionCountData?.count || 0,
     pendingRepayments: pendingRepaymentsData?.count || 0,
-    pendingServiceFeeTrusteeLetters: pendingServiceFeeLettersData?.count || 0,
+    pendingSettlementTrusteeLetters: pendingSettlementTrusteeLettersData?.count || 0,
     pendingIssuerPayouts: pendingIssuerPayoutsData?.count || 0,
     pendingInvestorWithdrawals: pendingInvestorWithdrawalsData?.count || 0,
     gatewayPaymentExceptions: gatewayPaymentExceptionsData?.count || 0,
@@ -462,7 +464,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const permissionFlags = {
     repayments: canViewRepayments,
-    serviceFee: canViewServiceFee,
+    settlements: canViewSettlements,
     disbursements: canViewDisbursements,
     investorWithdrawals: canViewInvestorWithdrawals,
     gatewayPayments: canViewGatewayPayments,

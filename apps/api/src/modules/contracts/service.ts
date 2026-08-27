@@ -3,7 +3,7 @@ import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { AppError } from "../../lib/http/error-handler";
 import { logApplicationActivity } from "../applications/logs/service";
-import { ActivityPortal } from "../applications/logs/types";
+import { ActivityPortal, type IssuerActivityLogContext } from "../applications/logs/types";
 import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
 import {
   ApplicationStatus,
@@ -363,7 +363,12 @@ export class ContractService {
     }
   }
 
-  async withdrawContract(id: string, userId: string, reason?: WithdrawReason): Promise<Contract> {
+  async withdrawContract(
+    id: string,
+    userId: string,
+    reason?: WithdrawReason,
+    logContext?: IssuerActivityLogContext
+  ): Promise<Contract> {
     const contract = await this.verifyContractAccess(id, userId);
 
     if (contract.status === ContractStatus.APPROVED) {
@@ -458,6 +463,7 @@ export class ContractService {
         eventType: "APPLICATION_WITHDRAWN",
         portal: ActivityPortal.ISSUER,
         metadata: { withdraw_reason: finalReason },
+        ...logContext,
       });
     }
 

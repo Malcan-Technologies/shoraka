@@ -4,6 +4,8 @@
  * Event type is the single source of truth. level/target/action are deprecated.
  */
 
+import type { AuditRequestContext, AuditSource } from "../../../lib/audit";
+
 /** Canonical application log event types. Use these instead of level_target_action. */
 export enum ApplicationLogEventType {
   APPLICATION_CREATED = "APPLICATION_CREATED",
@@ -38,7 +40,7 @@ export enum ApplicationLogEventType {
   CONTRACT_OFFER_EXPIRED = "CONTRACT_OFFER_EXPIRED",
   /** Admin restamped signing_expires_at after the signing clock passed. */
   CONTRACT_SIGNING_DEADLINE_EXTENDED = "CONTRACT_SIGNING_DEADLINE_EXTENDED",
-  CONTRACT_WITHDRAWN = "CONTRACT_WITHDRAWN",
+  CONTRACT_OFFER_DECLINED = "CONTRACT_OFFER_DECLINED",
   CONTRACT_FACILITY_FEE_WAIVED = "CONTRACT_FACILITY_FEE_WAIVED",
   CONTRACT_FACILITY_DISABLED = "CONTRACT_FACILITY_DISABLED",
   CONTRACT_FACILITY_ENABLED = "CONTRACT_FACILITY_ENABLED",
@@ -60,7 +62,7 @@ export enum ApplicationLogEventType {
   AMENDMENTS_SUBMITTED = "AMENDMENTS_SUBMITTED",
   SIGNING_PACKAGE_CREATED = "SIGNING_PACKAGE_CREATED",
   SIGNING_PACKAGE_SENT = "SIGNING_PACKAGE_SENT",
-  /** Audit-only: envelope rollup COMPLETED. UI shows CONTRACT/INVOICE_OFFER_ACCEPTED instead. */
+  /** Envelope rollup COMPLETED. Distinct from CONTRACT/INVOICE_OFFER_ACCEPTED. */
   SIGNING_PACKAGE_COMPLETED = "SIGNING_PACKAGE_COMPLETED",
   SIGNING_PACKAGE_VOIDED = "SIGNING_PACKAGE_VOIDED",
 }
@@ -99,7 +101,7 @@ export enum ActivityAction {
 
 export type CreateApplicationLogParams = {
   userId: string;
-  applicationId?: string;
+  applicationId?: string | null;
   /** Required. Use ApplicationLogEventType enum. */
   eventType: ApplicationLogEventType | string;
   reviewCycle?: number;
@@ -108,8 +110,32 @@ export type CreateApplicationLogParams = {
   ipAddress?: string;
   userAgent?: string;
   deviceInfo?: string;
-  portal?: ActivityPortal;
+  portal?: ActivityPortal | null;
   /** Extra fields for review audit (scope, scope_key, old_status, new_status) */
   metadata?: Record<string, unknown>;
+  /** Human display reference (B). Never the application UUID. */
+  applicationReference?: string | null;
+  /** Facility display_reference (B). Distinct from contract_number. */
+  contractReference?: string | null;
+  /** Invoice display_reference (B). Distinct from invoice_number. */
+  invoiceReference?: string | null;
+  /** Note note_reference (B). Occupancy note-side events use this. */
+  noteReference?: string | null;
+
+  /**
+   * Optional forensic context. When supplied it fills IP / user agent / correlation id / source /
+   * actor type for call sites that do not pass them individually. Explicit per-field values above
+   * always win.
+   */
+  context?: AuditRequestContext | null;
+  /** Overrides the default `API` source (e.g. `SYSTEM_JOB` for expiry sweeps). */
+  source?: AuditSource | null;
+  /** Explicit occurred-at. Defaults to the DB `now()` default. */
+  createdAt?: Date;
 };
 
+export type IssuerActivityLogContext = {
+  context?: AuditRequestContext | null;
+  ipAddress?: string;
+  userAgent?: string;
+};

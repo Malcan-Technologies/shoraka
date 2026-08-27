@@ -35,10 +35,10 @@ export function formatAdminTimelineValue(value: string): string {
     const isDateOnly = /T00:00:00/.test(value);
     if (isDateOnly) {
       const [year, month, day] = value.slice(0, 10).split("-").map(Number);
-      return format(new Date(year, month - 1, day), "dd MMM yyyy");
+      return format(new Date(year, month - 1, day), "d MMM yyyy");
     }
 
-    return format(date, "dd MMM yyyy, h:mm a");
+    return format(date, "d MMM yyyy, h:mm a");
   }
 
   return humanizeAdminTimelineToken(value);

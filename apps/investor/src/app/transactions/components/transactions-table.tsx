@@ -245,7 +245,7 @@ export function TransactionsTable({
       <ListToolbar
         searchValue={searchValue}
         onSearchChange={onSearchChange}
-        searchPlaceholder="Search by type, status, note, or amount"
+        searchPlaceholder="Search by type, status, note, withdrawal reference, or amount"
         appliedFilters={appliedFilters}
         onClearFilters={
           hasFilters

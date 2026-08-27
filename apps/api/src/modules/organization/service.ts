@@ -38,6 +38,9 @@ import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-se
 import { sendEmail } from "../../lib/email/ses-client";
 import { sendOnboardingEmail } from "../../lib/email/ses";
 import { organizationInvitationTemplate } from "../../lib/email/templates";
+import { createOnboardingLogRow } from "../../lib/audit";
+import { buildOrganizationProfileAuditEvidence } from "../admin/organization-profile-audit";
+import { logOrganizationMembershipEvent } from "./membership-audit";
 import { randomBytes } from "crypto";
 import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
 import {
@@ -608,6 +611,29 @@ export class OrganizationService {
       });
     }
 
+    try {
+      await logOrganizationMembershipEvent({
+        eventType: "MEMBER_ADDED",
+        actorUserId: userId,
+        ownerUserId: organization.owner_user_id,
+        organizationId,
+        portalType,
+        organizationName: organization.name,
+        organizationReference: organization.display_reference,
+        memberUserId: targetUser.user_id,
+        memberEmail: targetUser.email,
+        newRole: role,
+      });
+    } catch (logError) {
+      logger.error(
+        {
+          error: logError instanceof Error ? logError.message : String(logError),
+          organizationId,
+        },
+        "Failed to write MEMBER_ADDED audit log (non-blocking)"
+      );
+    }
+
     return {
       success: true,
       member: {
@@ -673,6 +699,29 @@ export class OrganizationService {
       await this.repository.removeInvestorOrganizationMember(organizationId, targetUserId);
     } else {
       await this.repository.removeIssuerOrganizationMember(organizationId, targetUserId);
+    }
+
+    try {
+      await logOrganizationMembershipEvent({
+        eventType: "MEMBER_REMOVED",
+        actorUserId: userId,
+        ownerUserId: organization.owner_user_id,
+        organizationId,
+        portalType,
+        organizationName: organization.name,
+        organizationReference: organization.display_reference,
+        memberUserId: targetUserId,
+        memberEmail: targetMember.user?.email,
+        previousRole: targetMember.role,
+      });
+    } catch (logError) {
+      logger.error(
+        {
+          error: logError instanceof Error ? logError.message : String(logError),
+          organizationId,
+        },
+        "Failed to write MEMBER_REMOVED audit log (non-blocking)"
+      );
     }
 
     return { success: true };
@@ -752,6 +801,49 @@ export class OrganizationService {
     }
 
     logger.info({ organizationId, portalType, userId }, "Organization profile updated");
+
+    const evidence = buildOrganizationProfileAuditEvidence({
+      previous: {
+        phoneNumber: organization.phone_number,
+        address: organization.address,
+      },
+      next: {
+        phoneNumber:
+          input.phoneNumber !== undefined ? input.phoneNumber : organization.phone_number,
+        address: input.address !== undefined ? input.address : organization.address,
+      },
+      bankFieldsChanged: input.bankAccountDetails !== undefined,
+      organizationReference: organization.display_reference,
+    });
+    try {
+      await createOnboardingLogRow({
+        userId,
+        actorUserId: userId,
+        investorOrganizationId: portalType === "investor" ? organizationId : null,
+        issuerOrganizationId: portalType === "issuer" ? organizationId : null,
+        organizationName: organization.name || undefined,
+        role: portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
+        eventType: "PROFILE_UPDATED",
+        portal: portalType,
+        metadata: {
+          updatedFields: evidence.updatedFields,
+          bankFieldsChanged: evidence.bankFieldsChanged,
+          previousValues: evidence.previousValues,
+          nextValues: evidence.nextValues,
+          ...(evidence.organizationReference
+            ? { organizationReference: evidence.organizationReference }
+            : {}),
+        },
+      });
+    } catch (logError) {
+      logger.error(
+        {
+          error: logError instanceof Error ? logError.message : String(logError),
+          organizationId,
+        },
+        "Failed to write organization profile audit log (non-blocking)"
+      );
+    }
 
     return { success: true };
   }
@@ -987,6 +1079,32 @@ export class OrganizationService {
           "Failed to send invitation email - invitation URL available for manual sharing"
         );
       }
+    }
+
+    try {
+      await logOrganizationMembershipEvent({
+        eventType: "MEMBER_INVITED",
+        actorUserId: userId,
+        ownerUserId: organization.owner_user_id,
+        organizationId,
+        portalType,
+        organizationName: organization.name,
+        organizationReference: organization.display_reference,
+        memberEmail: input.email?.toLowerCase() || undefined,
+        newRole:
+          input.role === "ORGANIZATION_ADMIN"
+            ? OrganizationMemberRole.ORGANIZATION_ADMIN
+            : OrganizationMemberRole.ORGANIZATION_MEMBER,
+        invitationId: invitation.id,
+      });
+    } catch (logError) {
+      logger.error(
+        {
+          error: logError instanceof Error ? logError.message : String(logError),
+          organizationId,
+        },
+        "Failed to write MEMBER_INVITED audit log (non-blocking)"
+      );
     }
 
     return {
@@ -1504,6 +1622,30 @@ export class OrganizationService {
       { organizationId, targetUserId: input.userId, newRole },
       "Member role changed"
     );
+
+    try {
+      await logOrganizationMembershipEvent({
+        eventType: "MEMBER_ROLE_CHANGED",
+        actorUserId: userId,
+        ownerUserId: organization.owner_user_id,
+        organizationId,
+        portalType,
+        organizationName: organization.name,
+        organizationReference: organization.display_reference,
+        memberUserId: input.userId,
+        memberEmail: targetMember.user?.email,
+        previousRole: targetMember.role,
+        newRole,
+      });
+    } catch (logError) {
+      logger.error(
+        {
+          error: logError instanceof Error ? logError.message : String(logError),
+          organizationId,
+        },
+        "Failed to write MEMBER_ROLE_CHANGED audit log (non-blocking)"
+      );
+    }
 
     return { success: true };
   }

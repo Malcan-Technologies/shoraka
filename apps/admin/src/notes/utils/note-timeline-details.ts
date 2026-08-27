@@ -55,7 +55,10 @@ function pushDetail(
   rows.push({ key, label, value });
 }
 
-export function extractNoteTimelineDetails(event: NoteEvent): {
+export function extractNoteTimelineDetails(
+  event: NoteEvent,
+  noteTitle?: string | null
+): {
   compact: AdminTimelineDetail[];
   prose: AdminTimelineDetail[];
 } {
@@ -71,13 +74,28 @@ export function extractNoteTimelineDetails(event: NoteEvent): {
     return { compact, prose };
   }
 
+  if (event.eventType === "ACTIVATE") {
+    const actor = event.actorName?.trim() || "An admin";
+    const noteLabel = noteTitle?.trim() ? ` ${noteTitle.trim()}` : " the note";
+    return {
+      compact: [],
+      prose: [
+        {
+          key: "message",
+          label: "Message",
+          value: `${actor} activated${noteLabel}. Servicing has started.`,
+        },
+      ],
+    };
+  }
+
   const compact: AdminTimelineDetail[] = [];
   const prose: AdminTimelineDetail[] = [];
 
   for (const [key, raw] of Object.entries(metadata)) {
     if (HIDDEN_METADATA_KEYS.has(key)) continue;
     if (key === "resend") {
-      if (raw === true) compact.push({ key, label: "Resend", value: "Resent" });
+      if (raw === true) compact.push({ key, label: "Redelivery", value: "Redelivered" });
       continue;
     }
     const value = stringifyMetadataValue(raw);

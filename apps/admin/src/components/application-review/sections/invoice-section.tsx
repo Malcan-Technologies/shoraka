@@ -323,7 +323,7 @@ export function InvoiceSection({
               return (
                 <ReviewFieldBlock
                   key={id}
-                  title={`Invoice ${invoiceDetailString(bInv ?? aInv!, "number") !== REVIEW_EMPTY_LABEL ? invoiceDetailString(bInv ?? aInv!, "number") : id}`}
+                  title={invoiceTabLabel(bInv ?? aInv!)}
                 >
                   <div className="space-y-2">
                     <ComparisonFieldRow

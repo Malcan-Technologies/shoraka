@@ -2,15 +2,16 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { format, formatDistanceToNowStrict } from "date-fns";
-import { formatSettlementReference } from "@cashsouk/types";
+import { formatDistanceToNowStrict } from "date-fns";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
+import { formatNoteReference, formatSettlementReference } from "@cashsouk/types";
 import {
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { Skeleton } from "@cashsouk/ui";
-import type { PendingServiceFeeTrusteeLetterItem } from "@cashsouk/types";
+import type { PendingSettlementTrusteeLetterItem } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -21,13 +22,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { usePendingServiceFeeTrusteeLetters } from "@/notes/hooks/use-notes";
+import { usePendingSettlementTrusteeLetters } from "@/notes/hooks/use-notes";
 import { RequirePermission } from "@/components/require-permission";
 import { AdminPageHeader } from "@/components/admin-page-header";
 
 function formatDate(value: string | null) {
   if (!value) return "—";
-  return format(new Date(value), "dd MMM yyyy, h:mm a");
+  return formatAuditDateTime(value);
 }
 
 function formatAge(value: string | null) {
@@ -35,7 +36,7 @@ function formatAge(value: string | null) {
   return `${formatDistanceToNowStrict(new Date(value))} ago`;
 }
 
-function formatTrusteeInstructionStatus(item: PendingServiceFeeTrusteeLetterItem) {
+function formatTrusteeInstructionStatus(item: PendingSettlementTrusteeLetterItem) {
   const st = item.trusteeInstructionStatus;
   if (st === "PENDING_LETTER") return "Awaiting PDF";
   if (st === "LETTER_GENERATED") return "Letter generated";
@@ -44,15 +45,15 @@ function formatTrusteeInstructionStatus(item: PendingServiceFeeTrusteeLetterItem
   return "Awaiting PDF";
 }
 
-export default function ServiceFeeTrusteeLettersPage() {
-  const { data, isLoading, error, refetch, isFetching } = usePendingServiceFeeTrusteeLetters();
+export default function SettlementTrusteeLettersPage() {
+  const { data, isLoading, error, refetch, isFetching } = usePendingSettlementTrusteeLetters();
   const items = data?.items ?? [];
 
-  const totalFee = items.reduce((sum, item) => sum + item.serviceFeeAmount, 0);
+  const totalTrusteeAmount = items.reduce((sum, item) => sum + item.trusteeInstructionAmount, 0);
   const distinctNotes = new Set(items.map((item) => item.noteId)).size;
 
   return (
-    <RequirePermission permission="service_fee.view">
+    <RequirePermission permission="settlements.view">
       <>
             <div className="flex-1 overflow-y-auto">
         <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
@@ -98,7 +99,11 @@ export default function ServiceFeeTrusteeLettersPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="text-2xl font-semibold">
-                  {isLoading ? <Skeleton className="h-8 w-32" /> : formatCurrency(totalFee)}
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-32" />
+                  ) : (
+                    formatCurrency(totalTrusteeAmount)
+                  )}
                 </CardContent>
               </Card>
               <Card className="rounded-2xl">
@@ -153,7 +158,10 @@ export default function ServiceFeeTrusteeLettersPage() {
                         : items.map((item) => (
                             <TableRow key={item.settlementId}>
                               <TableCell className="font-medium">
-                                {item.noteTitle ?? item.noteId}
+                                {formatNoteReference({
+                                  noteReference: item.noteReference,
+                                  id: item.noteId,
+                                })}
                               </TableCell>
                               <TableCell>{item.issuerOrganizationName ?? "—"}</TableCell>
                               <TableCell>
@@ -165,7 +173,7 @@ export default function ServiceFeeTrusteeLettersPage() {
                                 </span>
                               </TableCell>
                               <TableCell className="text-right tabular-nums">
-                                {formatCurrency(item.serviceFeeAmount)}
+                                {formatCurrency(item.trusteeInstructionAmount)}
                               </TableCell>
                               <TableCell>{formatTrusteeInstructionStatus(item)}</TableCell>
                               <TableCell>{formatDate(item.settlementPostedAt)}</TableCell>

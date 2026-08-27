@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { format } from "date-fns";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 import { formatCurrency } from "@cashsouk/config";
 import { Skeleton } from "@cashsouk/ui";
 import type { NoteLedgerBucketBalance } from "@cashsouk/types";
@@ -25,7 +25,7 @@ import { LEDGER_BUCKET_META } from "@/lib/ledger-bucket-display";
 const ACTIVITY_PAGE_SIZE = 20;
 
 function formatDateTime(value: string | null) {
-  return value ? format(new Date(value), "dd MMM yyyy, h:mm a") : "No entries";
+  return value ? formatAuditDateTime(value) : "No entries";
 }
 
 function ActivityTableSkeleton() {

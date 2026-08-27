@@ -1,6 +1,7 @@
 import {
   extractOrganizationTimelineBylineChips,
   extractOrganizationTimelineCompactDetails,
+  organizationLogTargetReference,
 } from "./organization-activity-timeline-details";
 
 describe("extractOrganizationTimelineBylineChips", () => {
@@ -59,5 +60,35 @@ describe("extractOrganizationTimelineCompactDetails", () => {
       { label: "Risk", value: "LOW" },
       { label: "Score", value: "12" },
     ]);
+  });
+
+  it("surfaces MEMBER_* organisation and role details", () => {
+    expect(
+      extractOrganizationTimelineCompactDetails("MEMBER_ROLE_CHANGED", {
+        organizationReference: "ISS-202608-DK3",
+        memberEmail: "member@example.com",
+        previousRole: "ORGANIZATION_MEMBER",
+        newRole: "ORGANIZATION_ADMIN",
+      })
+    ).toEqual([
+      { label: "Organisation", value: "ISS-202608-DK3" },
+      { label: "Member", value: "member@example.com" },
+      { label: "Role", value: "ORGANIZATION_MEMBER → ORGANIZATION_ADMIN" },
+    ]);
+  });
+});
+
+describe("organizationLogTargetReference", () => {
+  it("prefers organizationReference over the org DB id", () => {
+    expect(
+      organizationLogTargetReference({
+        target_id: "org-cuid",
+        metadata: { organizationReference: "ISS-202608-DK3" },
+      })
+    ).toBe("ISS-202608-DK3");
+  });
+
+  it("falls back to target_id for historical rows without organizationReference", () => {
+    expect(organizationLogTargetReference({ target_id: "org-cuid", metadata: {} })).toBe("org-cuid");
   });
 });

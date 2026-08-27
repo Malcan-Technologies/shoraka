@@ -2,7 +2,9 @@ import {
   formatApplicationNotificationRef,
   formatApplicationReference,
   formatContractReference,
+  canonicalDownloadFilenameToken,
   formatInvoiceReference,
+  formatNamedEntityDisplay,
   formatNoteReference,
   formatOrganizationReference,
   formatSettlementReference,
@@ -89,13 +91,11 @@ describe("display-reference formatters", () => {
     ).toBe("WDL-202608-X7A");
   });
 
-  it("formats organization references", () => {
-    expect(
-      formatOrganizationReference({
-        displayReference: "ISS-202608-D7F",
-        id: "org_id",
-      })
-    ).toBe("ISS-202608-D7F");
+  it("formats named entities without appending fallback short ids", () => {
+    expect(formatNamedEntityDisplay("Toyota", "ISS-202608-DK3")).toBe("Toyota (ISS-202608-DK3)");
+    expect(formatNamedEntityDisplay("Toyota", null)).toBe("Toyota");
+    expect(formatNamedEntityDisplay(null, "ISS-202608-DK3")).toBe("ISS-202608-DK3");
+    expect(formatNamedEntityDisplay(null, "  ")).toBe("—");
   });
 
   it("formats notification refs with canonical preference", () => {
@@ -106,5 +106,11 @@ describe("display-reference formatters", () => {
       })
     ).toBe("APP-ARF-202608-A82");
     expect(formatApplicationNotificationRef({ id: "clabcdefghijklmnop" })).toBe("#IJKLMNOP");
+  });
+
+  it("builds filename tokens from canonical refs only", () => {
+    expect(canonicalDownloadFilenameToken("CON-ARF-202608-K71")).toBe("CON-ARF-202608-K71");
+    expect(canonicalDownloadFilenameToken(null)).toBe("letter");
+    expect(canonicalDownloadFilenameToken("  ")).toBe("letter");
   });
 });

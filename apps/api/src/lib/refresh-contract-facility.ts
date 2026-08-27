@@ -22,6 +22,10 @@ import {
 } from "./contract-facility";
 import { overlayFacilityFeeUpfrontDto } from "./facility-fee-upfront-guard";
 import { prisma } from "./prisma";
+import { AUDIT_SOURCE, AUDIT_TARGET_TYPE, createNoteEventRow } from "./audit";
+import { mergeDisplayReferences, snapshotBusinessReference } from "./audit/display-references";
+import { createApplicationLog } from "../modules/applications/logs/repository";
+import { ActivityPortal, ApplicationLogEventType } from "../modules/applications/logs/types";
 
 type ContractFacilityDb = PrismaClient | Prisma.TransactionClient;
 
@@ -62,6 +66,8 @@ export type ApplyContractCapacityOptions = {
 };
 
 const NOTE_CAPACITY_SELECT = {
+  id: true,
+  note_reference: true,
   source_invoice_id: true,
   status: true,
   servicing_status: true,
@@ -341,6 +347,8 @@ export type ContractCapacityReadDb = {
       select: typeof NOTE_CAPACITY_SELECT;
     }) => Promise<
       Array<{
+        id: string;
+        note_reference: string;
         source_invoice_id: string | null;
         status: string;
         servicing_status: string;
@@ -511,8 +519,12 @@ export async function loadContractCapacitySiblings(
     status: string;
     details: unknown;
     offer_details: unknown;
+    display_reference: string | null;
+    application: { id: string; display_reference: string | null } | null;
   }>;
   notes: Array<{
+    id: string;
+    note_reference: string;
     source_invoice_id: string | null;
     status: string;
     servicing_status: string;
@@ -524,7 +536,14 @@ export async function loadContractCapacitySiblings(
 }> {
   const invoices = await db.invoice.findMany({
     where: { contract_id: contractId },
-    select: { id: true, status: true, details: true, offer_details: true },
+    select: {
+      id: true,
+      status: true,
+      details: true,
+      offer_details: true,
+      display_reference: true,
+      application: { select: { id: true, display_reference: true } },
+    },
   });
   const invoiceIds = invoices.map((invoice) => invoice.id);
   const notes =
@@ -537,6 +556,87 @@ export async function loadContractCapacitySiblings(
   return { invoices, notes };
 }
 
+export type OccupancyDisplayRefs = {
+  applicationReference?: string | null;
+  contractReference?: string | null;
+  invoiceReference?: string | null;
+  noteReference?: string | null;
+};
+
+/**
+ * Resolve occupancy display refs from rows already loaded in the occupancy transaction.
+ * Never copies a canonical DB id into a *Reference field.
+ */
+export function occupancyDisplayRefsFromLoaded(input: {
+  applicationId: string | null;
+  contractId: string;
+  invoiceId?: string | null;
+  noteId?: string | null;
+  contractDisplayReference?: string | null;
+  originatingApplication?: { id: string; display_reference: string | null } | null;
+  invoice?: {
+    id: string;
+    display_reference: string | null;
+    application?: { id: string; display_reference: string | null } | null;
+  } | null;
+  note?: { id: string; note_reference: string | null } | null;
+}): OccupancyDisplayRefs {
+  const invoiceApplication =
+    input.invoice?.application?.id === input.applicationId ? input.invoice.application : null;
+  const originating =
+    input.originatingApplication?.id === input.applicationId ? input.originatingApplication : null;
+  return {
+    applicationReference: snapshotBusinessReference(
+      invoiceApplication?.display_reference ?? originating?.display_reference,
+      input.applicationId
+    ),
+    contractReference: snapshotBusinessReference(input.contractDisplayReference, input.contractId),
+    invoiceReference: snapshotBusinessReference(
+      input.invoice?.display_reference,
+      input.invoiceId
+    ),
+    noteReference: snapshotBusinessReference(input.note?.note_reference, input.noteId),
+  };
+}
+
+export function buildFacilityOccupancyAuditMetadata(input: {
+  contractId: string;
+  before: ContractCapacitySnapshot | ContractFacilitySnapshot;
+  after: ContractCapacitySnapshot | ContractFacilitySnapshot;
+  audit: FacilityOccupancyAudit;
+  displayRefs?: OccupancyDisplayRefs;
+}): Record<string, unknown> {
+  const beforeLifetime = input.before as Partial<ContractCapacitySnapshot>;
+  const afterLifetime = input.after as Partial<ContractCapacitySnapshot>;
+  return (
+    mergeDisplayReferences(
+      {
+        reason: input.audit.reason,
+        contract_id: input.contractId,
+        note_id: input.audit.noteId ?? null,
+        invoice_id: input.audit.invoiceId ?? null,
+        before: {
+          utilized_facility: input.before.utilizedFacility,
+          available_facility: input.before.availableFacility,
+          repaid_facility: input.before.repaidFacility,
+          pending_facility: input.before.pendingFacility,
+          lifetime_used: beforeLifetime.lifetimeUsed ?? null,
+          lifetime_remaining: beforeLifetime.lifetimeRemaining ?? null,
+        },
+        after: {
+          utilized_facility: input.after.utilizedFacility,
+          available_facility: input.after.availableFacility,
+          repaid_facility: input.after.repaidFacility,
+          pending_facility: input.after.pendingFacility,
+          lifetime_used: afterLifetime.lifetimeUsed ?? null,
+          lifetime_remaining: afterLifetime.lifetimeRemaining ?? null,
+        },
+      },
+      input.displayRefs ?? {}
+    ) ?? {}
+  );
+}
+
 export async function recordFacilityOccupancyAudit(
   db: ContractFacilityDb,
   input: {
@@ -545,60 +645,46 @@ export async function recordFacilityOccupancyAudit(
     before: ContractCapacitySnapshot | ContractFacilitySnapshot;
     after: ContractCapacitySnapshot | ContractFacilitySnapshot;
     audit: FacilityOccupancyAudit;
+    displayRefs?: OccupancyDisplayRefs;
   }
 ): Promise<void> {
   if (!occupancyMateriallyChanged(input.before, input.after)) return;
 
   const createdAt = input.audit.createdAt ?? new Date();
-  const beforeLifetime = input.before as Partial<ContractCapacitySnapshot>;
-  const afterLifetime = input.after as Partial<ContractCapacitySnapshot>;
-  const metadata = {
-    reason: input.audit.reason,
-    contract_id: input.contractId,
-    note_id: input.audit.noteId ?? null,
-    invoice_id: input.audit.invoiceId ?? null,
-    before: {
-      utilized_facility: input.before.utilizedFacility,
-      available_facility: input.before.availableFacility,
-      repaid_facility: input.before.repaidFacility,
-      pending_facility: input.before.pendingFacility,
-      lifetime_used: beforeLifetime.lifetimeUsed ?? null,
-      lifetime_remaining: beforeLifetime.lifetimeRemaining ?? null,
-    },
-    after: {
-      utilized_facility: input.after.utilizedFacility,
-      available_facility: input.after.availableFacility,
-      repaid_facility: input.after.repaidFacility,
-      pending_facility: input.after.pendingFacility,
-      lifetime_used: afterLifetime.lifetimeUsed ?? null,
-      lifetime_remaining: afterLifetime.lifetimeRemaining ?? null,
-    },
-  };
+  const metadata = buildFacilityOccupancyAuditMetadata(input);
 
-  await db.applicationLog.create({
-    data: {
-      user_id: input.audit.userId,
-      application_id: input.applicationId,
-      event_type: "CONTRACT_FACILITY_OCCUPANCY_UPDATED",
-      entity_id: input.contractId,
-      portal: input.audit.portal ?? null,
+  await createApplicationLog(
+    {
+      userId: input.audit.userId,
+      applicationId: input.applicationId,
+      eventType: ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED,
+      entityId: input.contractId,
+      portal: (input.audit.portal as ActivityPortal | null | undefined) ?? null,
       remark: occupancyRemark(input.audit.reason, input.after),
       metadata,
-      created_at: createdAt,
+      applicationReference: input.displayRefs?.applicationReference,
+      contractReference: input.displayRefs?.contractReference,
+      invoiceReference: input.displayRefs?.invoiceReference,
+      noteReference: input.displayRefs?.noteReference,
+      createdAt,
+      // Occupancy is recomputed as a consequence of another business write, not a direct request.
+      source: AUDIT_SOURCE.INTERNAL,
     },
-  });
+    db
+  );
 
   if (input.audit.noteId) {
-    await db.noteEvent.create({
-      data: {
-        note_id: input.audit.noteId,
-        event_type: "FACILITY_OCCUPANCY_UPDATED",
-        actor_user_id: input.audit.userId,
-        actor_role: input.audit.actorRole ?? null,
-        portal: input.audit.portal ?? null,
-        metadata,
-        created_at: createdAt,
-      },
+    await createNoteEventRow(db, {
+      noteId: input.audit.noteId,
+      eventType: "FACILITY_OCCUPANCY_UPDATED",
+      actorUserId: input.audit.userId,
+      actorRole: input.audit.actorRole ?? null,
+      portal: input.audit.portal ?? null,
+      metadata,
+      createdAt,
+      source: AUDIT_SOURCE.INTERNAL,
+      targetType: AUDIT_TARGET_TYPE.CONTRACT,
+      targetId: input.contractId,
     });
   }
 }
@@ -721,6 +807,7 @@ async function refreshContractFacilityInTx(
 
   const contract = await tx.contract.findUnique({
     where: { id: contractId },
+    include: { originating_application: { select: { id: true, display_reference: true } } },
   });
   if (!contract) return null;
 
@@ -750,12 +837,27 @@ async function refreshContractFacilityInTx(
   });
 
   if (audit) {
+    const applicationId = audit.applicationId ?? contract.originating_application_id;
+    const invoice = audit.invoiceId
+      ? invoices.find((row) => row.id === audit.invoiceId) ?? null
+      : null;
+    const note = audit.noteId ? notes.find((row) => row.id === audit.noteId) ?? null : null;
     await recordFacilityOccupancyAudit(tx, {
       contractId,
-      applicationId: audit.applicationId ?? contract.originating_application_id,
+      applicationId,
       before,
       after: snapshot,
       audit,
+      displayRefs: occupancyDisplayRefsFromLoaded({
+        applicationId,
+        contractId,
+        invoiceId: audit.invoiceId,
+        noteId: audit.noteId,
+        contractDisplayReference: contract.display_reference,
+        originatingApplication: contract.originating_application,
+        invoice,
+        note,
+      }),
     });
   }
 

@@ -20,7 +20,7 @@ describe("buildAdminActivityCsv", () => {
     ];
     const lines = buildAdminActivityCsv(rows).split("\n");
     expect(lines[0]).toBe(
-      '"createdAt","event","eventType","actor","actorUserId","portal","remark","metadata"'
+      '"Timestamp","Event","Event Type","Actor","Actor Type","Actor Email","Organisation","Source","Target Type","Target Reference","Status","Amount","Reason","Correlation ID","Metadata"'
     );
     expect(lines[1]).toContain("Overdue late charge checked");
     expect(lines[1]).toContain('""not overdue""');
