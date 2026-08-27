@@ -9,6 +9,7 @@
 import { useHeader } from "@cashsouk/ui";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type {
+  ContractFacilityLoCorporateGuarantor,
   ContractFacilityLoIndividualGuarantor,
   ContractFacilityLoMergeData,
 } from "@cashsouk/types";
@@ -39,6 +40,8 @@ const FIELD_LABELS: Partial<Record<ContractFacilityLoScalarKey, string>> = {
   max_invoice_tenure_days: "Max invoice tenure days (Schedule A)",
   sub_limit_per_invoice_rm: "Sub-limit per invoice (Part A)",
   part_b_financing_amount_rm: "Financing amount per invoice (Part B)",
+  part_a_checkbox: "Part A checkbox (☒ / ☐)",
+  part_b_checkbox: "Part B checkbox (☒ / ☐)",
   payment_period_days: "Payment period days",
   grace_period_days: "Grace period days",
   grace_period_days_words: "Grace period days (words)",
@@ -49,10 +52,6 @@ const FIELD_LABELS: Partial<Record<ContractFacilityLoScalarKey, string>> = {
   assigned_contract_counterparty: "Assigned contract counterparty",
   assigned_contract_description: "Assigned contract description",
   moa_authorised_signatory_names: "MoA authorised signatory name(s)",
-  corporate_guarantor_name: "Corporate guarantor name",
-  corporate_guarantor_ssm: "Corporate guarantor SSM",
-  corporate_signatory_1_name: "Corporate signatory 1",
-  corporate_signatory_2_name: "Corporate signatory 2",
 };
 
 const SECTIONS: Array<{ title: string; keys: ContractFacilityLoScalarKey[] }> = [
@@ -78,6 +77,8 @@ const SECTIONS: Array<{ title: string; keys: ContractFacilityLoScalarKey[] }> = 
       "max_invoice_tenure_days",
       "sub_limit_per_invoice_rm",
       "part_b_financing_amount_rm",
+      "part_a_checkbox",
+      "part_b_checkbox",
     ],
   },
   {
@@ -100,14 +101,8 @@ const SECTIONS: Array<{ title: string; keys: ContractFacilityLoScalarKey[] }> = 
     ],
   },
   {
-    title: "Memorandum / corporate acknowledgements",
-    keys: [
-      "moa_authorised_signatory_names",
-      "corporate_guarantor_name",
-      "corporate_guarantor_ssm",
-      "corporate_signatory_1_name",
-      "corporate_signatory_2_name",
-    ],
+    title: "Memorandum",
+    keys: ["moa_authorised_signatory_names"],
   },
 ];
 
@@ -130,11 +125,16 @@ function emptyMerge(): ContractFacilityLoMergeData {
       (typeof CONTRACT_FACILITY_LO_MERGE_KEYS)[number]
     >),
     guarantors_individual: [],
+    guarantors_corporate: [],
   };
 }
 
 function emptyGuarantor(): ContractFacilityLoIndividualGuarantor {
   return { name: "", nric: "", line: "" };
+}
+
+function emptyCorporate(): ContractFacilityLoCorporateGuarantor {
+  return { name: "", ssm: "", signatories: [{ name: "" }] };
 }
 
 export default function ContractLoDemoPage() {
@@ -187,6 +187,64 @@ export default function ContractLoDemoPage() {
       ...prev,
       guarantors_individual: prev.guarantors_individual.filter((_, i) => i !== index),
     }));
+  }, []);
+
+  const setCorporateField = useCallback(
+    (index: number, key: "name" | "ssm", value: string) => {
+      setForm((prev) => {
+        const next = [...prev.guarantors_corporate];
+        const current = next[index] ?? emptyCorporate();
+        next[index] = { ...current, [key]: value };
+        return { ...prev, guarantors_corporate: next };
+      });
+    },
+    []
+  );
+
+  const setCorporateSignatory = useCallback((companyIndex: number, signatoryIndex: number, value: string) => {
+    setForm((prev) => {
+      const next = [...prev.guarantors_corporate];
+      const current = next[companyIndex] ?? emptyCorporate();
+      const signatories = [...current.signatories];
+      signatories[signatoryIndex] = { name: value };
+      next[companyIndex] = { ...current, signatories };
+      return { ...prev, guarantors_corporate: next };
+    });
+  }, []);
+
+  const addCorporate = useCallback(() => {
+    setForm((prev) => ({
+      ...prev,
+      guarantors_corporate: [...prev.guarantors_corporate, emptyCorporate()],
+    }));
+  }, []);
+
+  const removeCorporate = useCallback((index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      guarantors_corporate: prev.guarantors_corporate.filter((_, i) => i !== index),
+    }));
+  }, []);
+
+  const addCorporateSignatory = useCallback((companyIndex: number) => {
+    setForm((prev) => {
+      const next = [...prev.guarantors_corporate];
+      const current = next[companyIndex] ?? emptyCorporate();
+      next[companyIndex] = { ...current, signatories: [...current.signatories, { name: "" }] };
+      return { ...prev, guarantors_corporate: next };
+    });
+  }, []);
+
+  const removeCorporateSignatory = useCallback((companyIndex: number, signatoryIndex: number) => {
+    setForm((prev) => {
+      const next = [...prev.guarantors_corporate];
+      const current = next[companyIndex] ?? emptyCorporate();
+      next[companyIndex] = {
+        ...current,
+        signatories: current.signatories.filter((_, i) => i !== signatoryIndex),
+      };
+      return { ...prev, guarantors_corporate: next };
+    });
   }, []);
 
   const loadFixture = useCallback(async () => {
@@ -269,7 +327,7 @@ export default function ContractLoDemoPage() {
           <CardTitle>Contract Letter of Offer (LO) demo</CardTitle>
           <CardDescription>
             Same Word template and merge/render path as production generate (
-            <code>arf_contract_facility_lo</code> v3 — dynamic guarantor loops). Prefill uses{" "}
+            <code>arf_contract_facility_lo</code> v4 — per-guarantor acknowledgement pages). Prefill uses{" "}
             <code>buildFacilityLoMergeData</code>; edits here only affect this download. PDF needs{" "}
             <code>GOTENBERG_URL</code>. Wet-ink only — not wired to Send Offer or SigningCloud.
           </CardDescription>
@@ -305,8 +363,7 @@ export default function ContractLoDemoPage() {
         <CardHeader>
           <CardTitle className="text-lg">Individual guarantors</CardTitle>
           <CardDescription>
-            Repeated in the finance-document list, acknowledgement name list, and one signature page
-            per guarantor.
+            Repeated in the finance-document list and one full acknowledgement page per person.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -356,6 +413,90 @@ export default function ContractLoDemoPage() {
           ))}
           <Button type="button" variant="outline" onClick={addGuarantor} disabled={busy}>
             Add guarantor
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Corporate guarantors</CardTitle>
+          <CardDescription>
+            Each company gets its own acknowledgement; more than four signatories continue on a new
+            page (two boxes per row).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          {form.guarantors_corporate.map((company, companyIndex) => (
+            <div key={companyIndex} className="grid gap-3 rounded-xl border p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">Company {companyIndex + 1}</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeCorporate(companyIndex)}
+                  disabled={busy}
+                >
+                  Remove
+                </Button>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor={`corp-name-${companyIndex}`}>Company name</Label>
+                <Input
+                  id={`corp-name-${companyIndex}`}
+                  value={company.name}
+                  onChange={(e) => setCorporateField(companyIndex, "name", e.target.value)}
+                  disabled={busy}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor={`corp-ssm-${companyIndex}`}>Registration / SSM</Label>
+                <Input
+                  id={`corp-ssm-${companyIndex}`}
+                  value={company.ssm}
+                  onChange={(e) => setCorporateField(companyIndex, "ssm", e.target.value)}
+                  disabled={busy}
+                />
+              </div>
+              {company.signatories.map((signatory, signatoryIndex) => (
+                <div key={signatoryIndex} className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <div className="grid gap-2">
+                    <Label htmlFor={`corp-sig-${companyIndex}-${signatoryIndex}`}>
+                      Signatory {signatoryIndex + 1}
+                    </Label>
+                    <Input
+                      id={`corp-sig-${companyIndex}-${signatoryIndex}`}
+                      value={signatory.name}
+                      onChange={(e) =>
+                        setCorporateSignatory(companyIndex, signatoryIndex, e.target.value)
+                      }
+                      disabled={busy}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeCorporateSignatory(companyIndex, signatoryIndex)}
+                    disabled={busy}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => addCorporateSignatory(companyIndex)}
+                disabled={busy}
+              >
+                Add signatory
+              </Button>
+            </div>
+          ))}
+          <Button type="button" variant="outline" onClick={addCorporate} disabled={busy}>
+            Add company
           </Button>
         </CardContent>
       </Card>

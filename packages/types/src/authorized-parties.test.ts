@@ -9,7 +9,7 @@ import {
   groupAuthorizedPartyReadOnlyBlocks,
   guarantorBindingsFromSnapshot,
   issuerDirectorBindingsFromSnapshot,
-  loFirstCorporateAuthorizedNames,
+  loCorporateAuthorizedNamesByParty,
   loIssuerAuthorizedNames,
   matchAuthorizedPartiesToGuarantors,
   parseAuthorizedPartiesSnapshot,
@@ -303,12 +303,16 @@ describe("guarantorBindingsFromSnapshot", () => {
 });
 
 describe("LO names", () => {
-  it("joins all declared issuer names and the first two corporate names for the LO", () => {
+  it("joins all declared issuer names and lists every corporate party's signatories", () => {
     expect(loIssuerAuthorizedNames(MIXED_SNAPSHOT)).toBe("Ali Bin Abu");
-    expect(loFirstCorporateAuthorizedNames(MIXED_SNAPSHOT)).toEqual({
-      first: "Nora",
-      second: "Farid",
-    });
+    expect(loCorporateAuthorizedNamesByParty(MIXED_SNAPSHOT)).toEqual([
+      {
+        partyKey: "g_co",
+        applicationGuarantorId: "g_co",
+        names: ["Nora", "Farid"],
+      },
+    ]);
+    expect(loCorporateAuthorizedNamesByParty(null)).toEqual([]);
   });
 });
 

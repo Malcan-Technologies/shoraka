@@ -6,6 +6,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { prisma } from "../../../lib/prisma";
 import { AppError } from "../../../lib/http/error-handler";
+import { readFinancingStructureType } from "@cashsouk/types";
 import {
   buildFacilityLoMergeData,
   normalizeContractFacilityLoMergeData,
@@ -51,10 +52,13 @@ router.get("/prefill", async (req: Request, res: Response, next: NextFunction) =
       where: { id: contractId },
       include: {
         issuer_organization: true,
-        originating_application: true,
+        originating_application: {
+          include: { application_guarantors: { orderBy: { position: "asc" as const } } },
+        },
         applications: {
           orderBy: { created_at: "desc" },
           take: 1,
+          include: { application_guarantors: { orderBy: { position: "asc" as const } } },
         },
       },
     });
@@ -97,7 +101,13 @@ router.get("/prefill", async (req: Request, res: Response, next: NextFunction) =
             id: application.id,
             company_details: application.company_details,
             business_details: application.business_details,
+            application_guarantors: (
+              application as { application_guarantors?: unknown }
+            ).application_guarantors,
           }
+        : null,
+      financingStructureType: application
+        ? readFinancingStructureType(application.financing_structure)
         : null,
       gracePeriodDaysDefault,
     });

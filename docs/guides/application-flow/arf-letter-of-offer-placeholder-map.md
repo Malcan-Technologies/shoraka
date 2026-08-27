@@ -2,8 +2,8 @@
 
 Editable fill map for the contract facility LO.
 
-**Current tagged template:** 16 August 2026 LO (`arf_contract_facility_lo` **v3**, dynamic guarantor loops).  
-**Verification / FLAG list:** [lo-16-aug-2026-field-map.md](../generated-documents/lo-16-aug-2026-field-map.md)  
+**Current tagged template:** 19 August 2026 LO (`arf_contract_facility_lo` **v4**, per-guarantor acknowledgement pages).  
+**Verification / FLAG list:** [lo-19-aug-2026-field-map.md](../generated-documents/lo-19-aug-2026-field-map.md)  
 **Working index:** [lo-data-sources.md](../generated-documents/lo-data-sources.md)
 
 **Production generate:** issuers download via the generated-document catalog (`arf_contract_facility_lo`). See [generated-documents/README.md](../generated-documents/README.md).
@@ -15,7 +15,7 @@ Demo and production share the same tagged Word file and render helpers (test on 
 | Item | Detail |
 |------|--------|
 | Tagged template | [`apps/api/src/modules/applications/templates/arf-contract-facility-lo.docx`](../../apps/api/src/modules/applications/templates/arf-contract-facility-lo.docx) |
-| Untagged source | [`apps/api/src/modules/applications/templates/01 LO (Clean Copy) 16 August 2026.docx`](../../apps/api/src/modules/applications/templates/01%20LO%20(Clean%20Copy)%2016%20August%202026.docx) |
+| Untagged source | [`apps/api/src/modules/applications/templates/01 LO (Clean Copy) 19 August 2026.docx`](../../apps/api/src/modules/applications/templates/01%20LO%20(Clean%20Copy)%2019%20August%202026.docx) |
 | Admin UI | `/demos/contract-lo` (admin app; deep-link only) |
 | API | `GET /v1/admin/demos/contract-lo/fixture`, `GET .../prefill?contractId=`, `POST .../generate?format=docx\|pdf` → `.docx` or `.pdf` |
 | Code | [`apps/api/src/modules/applications/letter-of-offer/`](../../apps/api/src/modules/applications/letter-of-offer/) |
@@ -43,7 +43,7 @@ file /tmp/lo.pdf   # should say PDF
 
 Merge tags use `{field_name}` (docxtemplater). Map keys live in `@cashsouk/types` `ContractFacilityLoMergeData`.
 
-> **Note:** Tables below were written against the July LO wording. Prefer [lo-16-aug-2026-field-map.md](../generated-documents/lo-16-aug-2026-field-map.md) for what the code does after the 16 Aug revision (margin/profit inserts removed; Schedule A caps added).
+> **Note:** Tables below were written against the July LO wording. Prefer [lo-19-aug-2026-field-map.md](../generated-documents/lo-19-aug-2026-field-map.md) for what the code does after the 19 Aug revision (facility-type ticks, per-guarantor acknowledgement pages, RM150 fee, e-execution paragraph).
 
 ---
 

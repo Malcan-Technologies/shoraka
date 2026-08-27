@@ -3,11 +3,24 @@
  * Shared by admin demo and production generate (`arf_contract_facility_lo`).
  */
 
+export const FACILITY_LO_CHECKBOX_TICKED = "☒";
+export const FACILITY_LO_CHECKBOX_UNTICKED = "☐";
+
 export type ContractFacilityLoIndividualGuarantor = {
   name: string;
   nric: string;
   /** Formatted "Name (NRIC No. …)" for finance-document lists. */
   line: string;
+};
+
+export type ContractFacilityLoCorporateSignatory = {
+  name: string;
+};
+
+export type ContractFacilityLoCorporateGuarantor = {
+  name: string;
+  ssm: string;
+  signatories: ContractFacilityLoCorporateSignatory[];
 };
 
 export type ContractFacilityLoMergeData = {
@@ -31,6 +44,11 @@ export type ContractFacilityLoMergeData = {
   part_b_financing_amount_rm: string;
   /** Individual guarantors — repeated in Word via docxtemplater loops. */
   guarantors_individual: ContractFacilityLoIndividualGuarantor[];
+  /** Corporate guarantors — one company per entry, all declared signatories. */
+  guarantors_corporate: ContractFacilityLoCorporateGuarantor[];
+  /** Schedule A Facility Type — `☒` or `☐` from financing structure. */
+  part_a_checkbox: string;
+  part_b_checkbox: string;
   payment_period_days: string;
   grace_period_days: string;
   grace_period_days_words: string;
@@ -41,10 +59,6 @@ export type ContractFacilityLoMergeData = {
   assigned_contract_counterparty: string;
   assigned_contract_description: string;
   moa_authorised_signatory_names: string;
-  corporate_guarantor_name: string;
-  corporate_guarantor_ssm: string;
-  corporate_signatory_1_name: string;
-  corporate_signatory_2_name: string;
 };
 
 /** Scalar merge keys (demo form + Zod body). Arrays are handled separately. */
@@ -62,6 +76,8 @@ export const CONTRACT_FACILITY_LO_MERGE_KEYS = [
   "max_invoice_tenure_days",
   "sub_limit_per_invoice_rm",
   "part_b_financing_amount_rm",
+  "part_a_checkbox",
+  "part_b_checkbox",
   "payment_period_days",
   "grace_period_days",
   "grace_period_days_words",
@@ -72,8 +88,4 @@ export const CONTRACT_FACILITY_LO_MERGE_KEYS = [
   "assigned_contract_counterparty",
   "assigned_contract_description",
   "moa_authorised_signatory_names",
-  "corporate_guarantor_name",
-  "corporate_guarantor_ssm",
-  "corporate_signatory_1_name",
-  "corporate_signatory_2_name",
 ] as const satisfies ReadonlyArray<keyof ContractFacilityLoMergeData>;

@@ -60,7 +60,7 @@ Demo (merge iteration only): `GET/POST /v1/admin/demos/contract-lo/*` — same t
 - New document type: [add-a-document-type.md](./add-a-document-type.md)
 - New placeholder on an existing type: [add-a-placeholder.md](./add-a-placeholder.md)
 - LO field status today: [lo-data-sources.md](./lo-data-sources.md)
-- LO 16 Aug 2026 verification map: [lo-16-aug-2026-field-map.md](./lo-16-aug-2026-field-map.md)
+- LO 19 Aug 2026 verification map: [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md)
 
 Build history (vertical slices): [implementation-slices.md](./implementation-slices.md).
 

@@ -259,17 +259,31 @@ export function loIssuerAuthorizedNames(
     .join(", ");
 }
 
-export function loFirstCorporateAuthorizedNames(
+export type LoCorporateAuthorizedPartyNames = {
+  partyKey: string;
+  applicationGuarantorId: string;
+  clientGuarantorId?: string;
+  names: string[];
+};
+
+/** Every corporate guarantor party with all declared representative names. */
+export function loCorporateAuthorizedNamesByParty(
   snapshot: AuthorizedPartiesSnapshot | null | undefined
-): { first: string; second: string } {
-  if (!snapshot) return { first: "", second: "" };
-  const party = snapshot.parties.find(
-    (item): item is AuthorizedPartyCorporateGuarantor =>
-      item.entity_kind === "CORPORATE_GUARANTOR"
-  );
-  if (!party) return { first: "", second: "" };
-  const names = party.representatives.map((rep) => rep.name.trim()).filter(Boolean);
-  return { first: names[0] ?? "", second: names[1] ?? "" };
+): LoCorporateAuthorizedPartyNames[] {
+  if (!snapshot) return [];
+  const rows: LoCorporateAuthorizedPartyNames[] = [];
+  for (const party of snapshot.parties) {
+    if (party.entity_kind !== "CORPORATE_GUARANTOR") continue;
+    const names = party.representatives.map((rep) => rep.name.trim()).filter(Boolean);
+    const row: LoCorporateAuthorizedPartyNames = {
+      partyKey: party.key,
+      applicationGuarantorId: party.application_guarantor_id,
+      names,
+    };
+    if (party.client_guarantor_id) row.clientGuarantorId = party.client_guarantor_id;
+    rows.push(row);
+  }
+  return rows;
 }
 
 export type AuthorizedPartyGuarantorLookup = {

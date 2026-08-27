@@ -1,8 +1,14 @@
 import type { ContractFacilityLoMergeData } from "./facility-lo-merge.types";
-import { CONTRACT_FACILITY_LO_MERGE_KEYS } from "./facility-lo-merge.types";
+import {
+  CONTRACT_FACILITY_LO_MERGE_KEYS,
+  FACILITY_LO_CHECKBOX_TICKED,
+  FACILITY_LO_CHECKBOX_UNTICKED,
+} from "./facility-lo-merge.types";
 import { createFacilityLoFixture } from "./facility-lo-fixture";
 import {
+  mapCorporateGuarantors,
   mapIndividualGuarantors,
+  parseCorporateGuarantorsFromMergeInput,
   parseGuarantorsFromMergeInput,
 } from "./facility-lo-guarantors";
 import {
@@ -15,8 +21,8 @@ import {
 } from "./lo-format";
 import {
   getOfferAcceptanceFromOfferDetails,
-  loFirstCorporateAuthorizedNames,
   loIssuerAuthorizedNames,
+  type FinancingStructureType,
 } from "@cashsouk/types";
 
 type JsonRecord = Record<string, unknown>;
@@ -57,6 +63,18 @@ function resolveRegisteredAddress(org: {
   return asString(org.address);
 }
 
+export function facilityLoCheckboxGlyphs(
+  structureType: FinancingStructureType | null | undefined
+): { part_a_checkbox: string; part_b_checkbox: string } {
+  if (structureType === "new_contract") {
+    return { part_a_checkbox: FACILITY_LO_CHECKBOX_TICKED, part_b_checkbox: FACILITY_LO_CHECKBOX_UNTICKED };
+  }
+  if (structureType === "invoice_only" || structureType === "existing_contract") {
+    return { part_a_checkbox: FACILITY_LO_CHECKBOX_UNTICKED, part_b_checkbox: FACILITY_LO_CHECKBOX_TICKED };
+  }
+  return { part_a_checkbox: FACILITY_LO_CHECKBOX_UNTICKED, part_b_checkbox: FACILITY_LO_CHECKBOX_UNTICKED };
+}
+
 export type BuildFacilityLoMergeInput = {
   contract: {
     id: string;
@@ -76,7 +94,9 @@ export type BuildFacilityLoMergeInput = {
     id: string;
     company_details?: unknown;
     business_details?: unknown;
+    application_guarantors?: unknown;
   } | null;
+  financingStructureType?: FinancingStructureType | null;
   /** Default grace days from platform finance settings when available. */
   gracePeriodDaysDefault?: number | null;
 };
@@ -98,11 +118,9 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
     transaction_docs_days: "",
     transaction_docs_days_words: "",
     moa_authorised_signatory_names: "",
-    corporate_guarantor_name: "",
-    corporate_guarantor_ssm: "",
-    corporate_signatory_1_name: "",
-    corporate_signatory_2_name: "",
     guarantors_individual: [],
+    guarantors_corporate: [],
+    ...facilityLoCheckboxGlyphs(input.financingStructureType),
   };
 
   const offer = asRecord(input.contract.offer_details);
@@ -121,10 +139,6 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
   const letterDate = sentAt ? formatLetterDate(sentAt) : formatLetterDate(new Date());
 
   const individuals = mapIndividualGuarantors(guarantors);
-  const companies = guarantors
-    .map((g) => asRecord(g))
-    .filter((g): g is JsonRecord => !!g && asString(g.guarantor_type) === "company");
-  const corp = companies[0];
 
   const graceDefault =
     input.gracePeriodDaysDefault != null && Number.isFinite(input.gracePeriodDaysDefault)
@@ -160,7 +174,6 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
   const authorizedParties = getOfferAcceptanceFromOfferDetails(
     input.contract.offer_details
   )?.authorized_parties;
-  const corpSignatories = loFirstCorporateAuthorizedNames(authorizedParties);
 
   return {
     ...base,
@@ -176,6 +189,11 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
     financing_limit_rm: formatRmAmount(facilityAmount ?? undefined),
     offer_validity_phrase: offerValidityPhrase,
     guarantors_individual: individuals,
+    guarantors_corporate: mapCorporateGuarantors(
+      guarantors,
+      authorizedParties,
+      input.application?.application_guarantors
+    ),
     grace_period_days: graceDefault != null ? String(graceDefault) : "",
     grace_period_days_words: graceDefault != null ? numberToWords(graceDefault) : "",
     transaction_docs_days: transactionDocsDays,
@@ -186,11 +204,7 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
       asString(contractDetails?.title) ||
       asString(contractDetails?.description) ||
       asString(contractDetails?.number),
-    corporate_guarantor_name: corp ? asString(corp.business_name) : "",
-    corporate_guarantor_ssm: corp ? asString(corp.ssm_number) : "",
     moa_authorised_signatory_names: loIssuerAuthorizedNames(authorizedParties),
-    corporate_signatory_1_name: corpSignatories.first,
-    corporate_signatory_2_name: corpSignatories.second,
   };
 }
 
@@ -209,6 +223,9 @@ export function normalizeContractFacilityLoMergeData(input: unknown): ContractFa
   }
   if (Array.isArray(src.guarantors_individual)) {
     out.guarantors_individual = parseGuarantorsFromMergeInput(src);
+  }
+  if (Array.isArray(src.guarantors_corporate)) {
+    out.guarantors_corporate = parseCorporateGuarantorsFromMergeInput(src);
   }
   return out;
 }

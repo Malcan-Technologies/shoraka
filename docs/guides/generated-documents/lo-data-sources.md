@@ -1,8 +1,8 @@
 # ARF contract facility LO — data sources (working index)
 
-What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does **today** for production generate (`arf_contract_facility_lo` **v3**, dynamic guarantor loops).
+What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does **today** for production generate (`arf_contract_facility_lo` **v4**, per-guarantor acknowledgement pages).
 
-**Full verification table (use this to review):** [lo-16-aug-2026-field-map.md](./lo-16-aug-2026-field-map.md)
+**Full verification table (use this to review):** [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md)
 
 Older editable discussion table: [arf-letter-of-offer-placeholder-map.md](../application-flow/arf-letter-of-offer-placeholder-map.md) (July wording — partially superseded).
 
@@ -14,15 +14,16 @@ Older editable discussion table: [arf-letter-of-offer-placeholder-map.md](../app
 | Letter date | `offer_details.sent_at` or today | `formatLetterDate` |
 | Attention | `application.company_details.contact_person` | Name, position |
 | Facility amount | `offer_details.offered_facility` or `contract_details.approved_facility` | `formatRmAmount` — also Schedule A Part A Financing Limit + MoA |
-| Guarantors (individual) | `business_details.guarantors` | All individuals — `{#guarantors_individual}` loops (list, ack names, one sig page each) |
-| Corporate guarantor | First company guarantor | Name + SSM when present |
-| Authorised signatories | `offer_acceptance.authorized_parties` | Issuer names → `moa_authorised_signatory_names`; first corporate guarantor’s first two people → `corporate_signatory_1_name` / `_2_name` |
+| Guarantors (individual) | `business_details.guarantors` | All individuals — `{#guarantors_individual}` loops (list + one acknowledgement page each) |
+| Corporate guarantors | Company guarantors + `authorized_parties` | `{guarantors_corporate[]}` — every company, all declared signatories; Word loop paginates four boxes per page |
+| Authorised signatories | `offer_acceptance.authorized_parties` | Issuer names → `moa_authorised_signatory_names`; corporate parties → matching company `signatories[]` |
+| Facility Type checkboxes | `financing_structure.structure_type` | Part A for `new_contract`; Part B for `invoice_only` / `existing_contract` |
 | Assigned contract | `contract_details` + `customer_details` | Date, counterparty, description/number |
 | Offer validity phrase | `offer_acceptance.acceptance_expires_at` vs `sent_at` | `daysPhrase` when clocks exist |
 | Transaction docs days | `signing_expires_at` vs offer/letter date | When acceptance clocks exist |
 | Grace period | `PlatformFinanceSetting.grace_period_days` | When settings row exists |
 
-## Hardcoded in Word (16 Aug legal text)
+## Hardcoded in Word (19 Aug legal text)
 
 Not merge tags:
 
@@ -32,6 +33,8 @@ Not merge tags:
 | Profit rate | 8%–18% p.a., set per Utilization Offer |
 | Part A availability | thirty (30) days from acceptance |
 | Withdrawal notice | twenty-one (21) days’ prior written notice |
+| Application Fee | RM150, payable on application |
+| Electronic execution | Platform records equal written form; Utilisation Offer acceptance = Purchase Requisition and Wa'd |
 
 ## Empty until product/legal defines (EMPTY / FLAG)
 
@@ -42,7 +45,6 @@ Not merge tags:
 | `sub_limit_per_invoice_rm` | Empty |
 | `part_b_financing_amount_rm` | Empty |
 | `payment_period_days` | Empty |
-| Facility Type Part A/B checkboxes | Not tagged — **FLAG** |
 
 ## Wet ink (SIGNEE)
 
@@ -55,4 +57,4 @@ Signature blocks stay blank — no merge tags for wet-ink signature strokes.
 | `GET /v1/applications/:id/generated-documents/arf_contract_facility_lo` | Production (issuer/admin) |
 | `POST /v1/admin/demos/contract-lo/generate` | Engineering demo with editable body |
 
-**Same template file and `renderFacilityLoDocx`.** Prefill uses the same builder as production. See [lo-16-aug-2026-field-map.md](./lo-16-aug-2026-field-map.md#demo--production-sync).
+**Same template file and `renderFacilityLoDocx`.** Prefill uses the same builder as production. See [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md#demo--production-sync).

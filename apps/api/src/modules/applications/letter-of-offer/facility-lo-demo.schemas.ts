@@ -14,9 +14,20 @@ const guarantorSchema = z.object({
   line: z.string().optional().default(""),
 });
 
+const corporateSignatorySchema = z.object({
+  name: z.string().optional().default(""),
+});
+
+const corporateGuarantorSchema = z.object({
+  name: z.string().optional().default(""),
+  ssm: z.string().optional().default(""),
+  signatories: z.array(corporateSignatorySchema).optional().default([]),
+});
+
 export const facilityLoMergeBodySchema = z.object({
   ...shape,
   guarantors_individual: z.array(guarantorSchema).optional(),
+  guarantors_corporate: z.array(corporateGuarantorSchema).optional(),
 });
 
 export const facilityLoPrefillQuerySchema = z.object({

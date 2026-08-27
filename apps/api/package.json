@@ -83,6 +83,7 @@
     "seed-ekyc-identity": "tsx scripts/seed-ekyc-identity.ts",
     "seed-inactive-product-apps": "tsx scripts/seed-inactive-products-with-applications.ts",
     "seed-investor-rgvyz-name-match": "tsx scripts/seed-investor-rgvyz-name-match.ts",
+    "retag-lo-template": "tsx scripts/retag-lo-template.ts",
     "clean": "rm -rf dist"
   },
   "prisma": {

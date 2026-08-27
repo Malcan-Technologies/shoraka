@@ -4,6 +4,7 @@ import {
   listGeneratedDocumentTypes,
   listGeneratedDocumentTypesForContext,
   parseGeneratedDocumentTypeKey,
+  readFinancingStructureType,
   resolveAcceptanceDocumentsFromWorkflow,
   parseSupportingDocumentRow,
   parseGuarantorAgreementRow,
@@ -302,7 +303,10 @@ export class GeneratedDocumentsService {
         id: application!.id,
         company_details: application!.company_details,
         business_details: application!.business_details,
+        application_guarantors: (application as { application_guarantors?: unknown })
+          .application_guarantors,
       },
+      financingStructureType: readFinancingStructureType(application!.financing_structure),
       gracePeriodDaysDefault,
     });
 
