@@ -108,8 +108,6 @@ export function WorkingAreaPageThree({
   const confidenceGrading = normalizeProspectusConfidenceGrading(
     draft.page2.invoicePaymaster?.confidenceGrading
   );
-  const paymasterGradingMissing =
-    (paymasterRating ? 0 : 1) + (confidenceGrading ? 0 : 1);
   const overviewFacts = overviewRows.filter(
     (row) => row.label !== "Paymaster Grading" && row.label !== "Confidence Grading"
   );
@@ -119,6 +117,11 @@ export function WorkingAreaPageThree({
   const coverageMissing = countMissingForTab(draft, "coverage", completionOptions);
   const takeawaysMissing = countMissingForTab(draft, "takeaways", completionOptions);
   const overviewMissing = countMissingForTab(draft, "overview", completionOptions);
+  const paymasterGradingMissing = countMissingForTab(
+    draft,
+    "paymaster_grading",
+    completionOptions
+  );
   const showFinancialOpsWarning =
     financialComparisonOpsWarning != null &&
     (tab === "income" || tab === "balance" || tab === "coverage");
@@ -148,6 +151,11 @@ export function WorkingAreaPageThree({
             label: "Investor Takeaways",
             missingCount: takeawaysMissing,
           },
+          {
+            id: "paymaster_grading",
+            label: "Paymaster Grading",
+            missingCount: paymasterGradingMissing,
+          },
         ]}
       />
 
@@ -157,65 +165,6 @@ export function WorkingAreaPageThree({
           description={financialComparisonOpsWarning.description}
         />
       ) : null}
-
-      <div data-prospectus-page-three-paymaster-grading>
-        <ProspectusSectionShell
-          title="Page 3 Paymaster Grading"
-          icon={ClipboardDocumentCheckIcon}
-          missingCount={paymasterGradingMissing}
-        >
-          <ProspectusInfoGrid columns={2}>
-            <ProspectusOptionSelect
-              label="Paymaster Grading"
-              value={paymasterRating}
-              disabled={disabled}
-              required
-              incomplete={!paymasterRating}
-              placeholder={SELECT_PLACEHOLDERS.paymasterRating}
-              options={PROSPECTUS_PAYMASTER_RATING_VALUES.map((value) => ({
-                key: value,
-                label: value,
-              }))}
-              onChange={(value) =>
-                updateDraft((prev) => ({
-                  ...prev,
-                  page2: {
-                    ...prev.page2,
-                    invoicePaymaster: {
-                      ...prev.page2.invoicePaymaster,
-                      paymasterRating: normalizeProspectusPaymasterRating(value),
-                    },
-                  },
-                }))
-              }
-            />
-            <ProspectusOptionSelect
-              label="Confidence Grading"
-              value={confidenceGrading}
-              disabled={disabled}
-              required
-              incomplete={!confidenceGrading}
-              placeholder={SELECT_PLACEHOLDERS.confidenceGrading}
-              options={PROSPECTUS_CONFIDENCE_GRADING_VALUES.map((value) => ({
-                key: value,
-                label: value,
-              }))}
-              onChange={(value) =>
-                updateDraft((prev) => ({
-                  ...prev,
-                  page2: {
-                    ...prev.page2,
-                    invoicePaymaster: {
-                      ...prev.page2.invoicePaymaster,
-                      confidenceGrading: normalizeProspectusConfidenceGrading(value),
-                    },
-                  },
-                }))
-              }
-            />
-          </ProspectusInfoGrid>
-        </ProspectusSectionShell>
-      </div>
 
       {tab === "overview" ? (
         <div role="tabpanel">
@@ -312,6 +261,67 @@ export function WorkingAreaPageThree({
                 />
               ))}
             </div>
+          </ProspectusSectionShell>
+        </div>
+      ) : null}
+
+      {tab === "paymaster_grading" ? (
+        <div role="tabpanel" data-prospectus-page-three-paymaster-grading>
+          <ProspectusSectionShell
+            title="Page 3 Paymaster Grading"
+            icon={ClipboardDocumentCheckIcon}
+            missingCount={paymasterGradingMissing}
+          >
+            <ProspectusInfoGrid columns={2}>
+              <ProspectusOptionSelect
+                label="Paymaster Grading"
+                value={paymasterRating}
+                disabled={disabled}
+                required
+                incomplete={!paymasterRating}
+                placeholder={SELECT_PLACEHOLDERS.paymasterRating}
+                options={PROSPECTUS_PAYMASTER_RATING_VALUES.map((value) => ({
+                  key: value,
+                  label: value,
+                }))}
+                onChange={(value) =>
+                  updateDraft((prev) => ({
+                    ...prev,
+                    page2: {
+                      ...prev.page2,
+                      invoicePaymaster: {
+                        ...prev.page2.invoicePaymaster,
+                        paymasterRating: normalizeProspectusPaymasterRating(value),
+                      },
+                    },
+                  }))
+                }
+              />
+              <ProspectusOptionSelect
+                label="Confidence Grading"
+                value={confidenceGrading}
+                disabled={disabled}
+                required
+                incomplete={!confidenceGrading}
+                placeholder={SELECT_PLACEHOLDERS.confidenceGrading}
+                options={PROSPECTUS_CONFIDENCE_GRADING_VALUES.map((value) => ({
+                  key: value,
+                  label: value,
+                }))}
+                onChange={(value) =>
+                  updateDraft((prev) => ({
+                    ...prev,
+                    page2: {
+                      ...prev.page2,
+                      invoicePaymaster: {
+                        ...prev.page2.invoicePaymaster,
+                        confidenceGrading: normalizeProspectusConfidenceGrading(value),
+                      },
+                    },
+                  }))
+                }
+              />
+            </ProspectusInfoGrid>
           </ProspectusSectionShell>
         </div>
       ) : null}

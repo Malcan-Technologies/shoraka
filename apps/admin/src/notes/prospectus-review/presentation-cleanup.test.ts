@@ -20,6 +20,7 @@ const financialComparisonTable = fs.readFileSync(
   "utf8"
 );
 const marcSummary = fs.readFileSync(path.join(root, "marc-assessment-summary.tsx"), "utf8");
+const completion = fs.readFileSync(path.join(root, "completion.ts"), "utf8");
 
 describe("prospectus review presentation cleanup", () => {
   it("removes local preview shortcuts and preview-only verification copy", () => {
@@ -132,11 +133,35 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageThree).toContain("ProspectusCoverageWorkingTable");
     expect(pageThree).toContain("Investor Takeaways");
     expect(pageThree).toContain("ProspectusInternalTabs");
+    expect(pageThree).toContain('id: "paymaster_grading"');
+    expect(pageThree).toContain('label: "Paymaster Grading"');
+    expect(pageThree).toContain('tab === "paymaster_grading"');
     expect(pageThree).toContain("Page 3 Paymaster Grading");
     expect(pageThree).toContain('label="Paymaster Grading"');
     expect(pageThree).toContain('label="Confidence Grading"');
     expect(pageThree).toContain("data-prospectus-page-three-paymaster-grading");
     expect(pageThree).toContain("page2.invoicePaymaster");
+    expect(pageThree.split("data-prospectus-page-three-paymaster-grading").length - 1).toBe(1);
+    expect(pageThree.split('label="Paymaster Grading"').length - 1).toBe(1);
+    expect(pageThree.split('label="Confidence Grading"').length - 1).toBe(1);
+    expect(pageThree.indexOf('tab === "paymaster_grading"')).toBeLessThan(
+      pageThree.indexOf("data-prospectus-page-three-paymaster-grading")
+    );
+    expect(pageThree.indexOf("data-prospectus-page-three-paymaster-grading")).toBeGreaterThan(
+      pageThree.indexOf('tab === "overview"')
+    );
+    expect(pageThree.indexOf("data-prospectus-page-three-paymaster-grading")).toBeGreaterThan(
+      pageThree.indexOf('tab === "income"')
+    );
+    expect(pageThree.indexOf("data-prospectus-page-three-paymaster-grading")).toBeGreaterThan(
+      pageThree.indexOf('tab === "balance"')
+    );
+    expect(pageThree.indexOf("data-prospectus-page-three-paymaster-grading")).toBeGreaterThan(
+      pageThree.indexOf('tab === "coverage"')
+    );
+    expect(pageThree.indexOf("data-prospectus-page-three-paymaster-grading")).toBeGreaterThan(
+      pageThree.indexOf('tab === "takeaways"')
+    );
     expect(pageThree).not.toContain("MARC Paymaster Grading");
     expect(pageThree).not.toContain("MARC Confidence Grading");
     expect(pageThree).not.toContain('label === "Sector"');
@@ -144,6 +169,16 @@ describe("prospectus review presentation cleanup", () => {
     expect(coverageTable).not.toMatch(/From Page 2[\s\S]{0,40}<\/span>/);
     expect(coverageTable).not.toContain("Trend (3-Yr)");
     expect(financialComparisonTable).toContain("ProspectusSharedFinancialWorkingTable");
+  });
+
+  it("makes Paymaster Grading required without an || true workaround", () => {
+    expect(completion).toContain('id: "page3Paymaster"');
+    expect(completion).toMatch(/id: "page3Paymaster"[\s\S]*?required: true/);
+    expect(completion).not.toContain("|| true");
+    expect(completion).toContain('tabId: "paymaster_grading"');
+    expect(completion).not.toMatch(
+      /section: "Page 3 Paymaster Grading"[\s\S]{0,80}tabId: "overview"/
+    );
   });
 
   it("Preview & Approval keeps readiness and missing fields without Completion checklist", () => {

@@ -14,7 +14,8 @@ export type PageThreeTabId =
   | "income"
   | "balance"
   | "coverage"
-  | "takeaways";
+  | "takeaways"
+  | "paymaster_grading";
 
 export type ProspectusInternalTabId = PageOneTabId | PageTwoTabId | PageThreeTabId;
 
@@ -41,7 +42,7 @@ export function resolveInternalTabForMissingSection(
     return "issuer_paymaster";
   }
   if (pageStep === 2) {
-    if (section === "Page 3 Paymaster Grading") return "overview";
+    if (section === "Page 3 Paymaster Grading") return "paymaster_grading";
     if (section === "Income Statement") return "income";
     if (section === "Balance Sheet") return "balance";
     if (section === "Coverage & Efficiency") return "coverage";

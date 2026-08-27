@@ -284,7 +284,7 @@ export function buildProspectusMissingRequiredFields(
       pageStep: 2,
       section: "Page 3 Paymaster Grading",
       field: "Paymaster Grading",
-      tabId: "overview",
+      tabId: "paymaster_grading",
     });
   }
   if (!hasOption(draft.page2.invoicePaymaster?.confidenceGrading)) {
@@ -292,7 +292,7 @@ export function buildProspectusMissingRequiredFields(
       pageStep: 2,
       section: "Page 3 Paymaster Grading",
       field: "Confidence Grading",
-      tabId: "overview",
+      tabId: "paymaster_grading",
     });
   }
 
