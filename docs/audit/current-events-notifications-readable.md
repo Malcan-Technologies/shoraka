@@ -30,22 +30,25 @@ Admin timestamps use the current Admin format, e.g. `27 Aug 2026, 10:15 AM`.
 
 ## How this relates to the technical catalogue
 
-The technical master counted **138** live IDs because `application_logs.CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` was omitted from its application enum table. Source has a live Admin writer and UI (`contract-section.tsx`). This readable file therefore listed **139** live event IDs.
+The technical master counted **138** live IDs because `application_logs.CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` was omitted from its application enum table. Source has a live Admin writer and UI (`contract-section.tsx`). After adding `MEMBER_*` and then classifying `NOTE_FACILITY_FEE_COLLECTION_WAIVED` as historical, this readable file lists **138** live event IDs.
 
-After the 2026-08-27 traceability fix pass:
+After the 2026-08-27 cleanup pass:
 
-- New live IDs: `MEMBER_ADDED`, `MEMBER_INVITED`, `MEMBER_REMOVED`, `MEMBER_ROLE_CHANGED`.
+- New live IDs: `MEMBER_ADDED`, `MEMBER_INVITED`, `MEMBER_REMOVED`, `MEMBER_ROLE_CHANGED` (Admin organisation Activity only).
+- User-portal organisation Activity remains onboarding milestones. `MEMBER_*` are **not** shown there (**INTENTIONALLY_UNCHANGED**).
 - `OVERRIDE_*` are **not live** (no writer).
 - `FORM_FILLED` does **not** store `section`.
 - Production webhook pending/in-progress/unknown statuses write `ONBOARDING_STATUS_UPDATED`, not `WEBHOOK_*`.
+- Facility-fee waive writes one live note event (`WAIVE_FACILITY_FEE_COLLECTION`). `NOTE_FACILITY_FEE_COLLECTION_WAIVED` is historical.
+- Shoraka `target_id` is the CashSouk trade-order id; `provider_order_id` stays in metadata.
 
-Live note IDs are **current writers only**, each listed separately. CSV aliases with no current writer (`NOTE_PUBLISHED`, `PAYMENT_RECORDED`, …) are in the non-live appendix, not mixed into live modules.
+Live note IDs are **current writers only**, each listed separately. CSV aliases with no current writer (`NOTE_PUBLISHED`, `PAYMENT_RECORDED`, `NOTE_FACILITY_FEE_COLLECTION_WAIVED`, …) are in the non-live appendix, not mixed into live modules.
 
 `notification_logs` rows are delivery batches, not a second copy of the business event.
 
 ## Counts (this file)
 
-- Live events expanded: 139
+- Live events expanded: 138
 - Live notification types expanded: 49
 - Duplicate (store, raw ID) pairs: none
 - Duplicate notification type IDs: none
@@ -1232,9 +1235,9 @@ No live notification types are owned by this module.
 - Title shown in Admin: Facility Occupancy Updated
 - Title shown to Issuer: Facility occupancy updated — Live facility occupancy changed after a draw, funding close, or repayment.
 - Title shown to Investor: Not shown on Investor Activity
-- Description: Revolving occupancy changed.
+- Description: Revolving occupancy changed. Display references are snapshotted from already-loaded contract/invoice/note rows (no extra lookup).
 - Who triggers it: System / occupancy refresh
-- Important metadata: draw/funding/repayment fields as supplied
+- Important metadata: occupancy `before`/`after`, `applicationReference` / `contractReference` / `invoiceReference` / `noteReference` when in scope
 - Canonical evidence: this row plus facility records
 - Where Ops sees it: Admin application timeline / Event details; facility activity where contract-scoped
 - Export: Facility CSV: Facility occupancy updated
@@ -1939,31 +1942,31 @@ No live notification types are owned by this module.
 - Title shown in Admin: Facility Fee Collection Waived
 - Title shown to Issuer: Not shown on Issuer Activity
 - Title shown to Investor: Not shown on Investor Activity
-- Description: Admin waived facility fee collection (admin-action ID). A second live row NOTE_FACILITY_FEE_COLLECTION_WAIVED is also written in the same flow.
+- Description: Admin waived facility fee collection. One `note_events` row stores before/after and the waiver reason. Historical rows may still exist as `NOTE_FACILITY_FEE_COLLECTION_WAIVED`.
 - Who triggers it: Admin
-- Important metadata: `beforeState`, `afterState`
+- Important metadata: `beforeState`, `afterState`, `reason`
 - Canonical evidence: this note_events row
 - Where Ops sees it: Admin note Activity / Event details (CSV export). Portal Activity only if listed below.
 - Export: Note Activity CSV Event uses formatNoteActivityEventLabel; Event Type is the raw ID.
 - Related notification: none
 - Example (fictional): Mock example — `27 Aug 2026, 10:15 AM` — Admin Adam Lee waived facility fee collection on NOTE-CS-2026-018 (WAIVE_FACILITY_FEE_COLLECTION).
 
-### Event — Facility fee collection waived
+### Event — Facility fee collection waived (historical)
 
 - Raw event ID: `NOTE_FACILITY_FEE_COLLECTION_WAIVED`
 - Store: `note_events`
-- Status: `LIVE_UI`
+- Status: `HISTORICAL`
 - Title shown in Admin: Facility fee collection waived
 - Title shown to Issuer: Not shown on Issuer Activity
 - Title shown to Investor: Not shown on Investor Activity
-- Description: Live logEvent ID written with reason in the same waive flow as WAIVE_FACILITY_FEE_COLLECTION. Separate raw ID.
-- Who triggers it: Admin
+- Description: Previous dual-write ID from the same waive action. Live flow now writes only `WAIVE_FACILITY_FEE_COLLECTION`. CSV still labels historical rows.
+- Who triggers it: none (no live writer)
 - Important metadata: `reason`
-- Canonical evidence: this note_events row
-- Where Ops sees it: Admin note Activity / Event details (CSV export). Portal Activity only if listed below.
+- Canonical evidence: this note_events row (historical)
+- Where Ops sees it: Admin note Activity / Event details (CSV export) if old rows exist
 - Export: Note Activity CSV Event uses formatNoteActivityEventLabel; Event Type is the raw ID.
 - Related notification: none
-- Example (fictional): Mock example — `27 Aug 2026, 10:15 AM` — Facility fee collection waived on NOTE-CS-2026-018 (NOTE_FACILITY_FEE_COLLECTION_WAIVED, reason stored).
+- Example (fictional): Mock example — historical row on NOTE-CS-2026-018 (`NOTE_FACILITY_FEE_COLLECTION_WAIVED`, reason stored).
 
 ### Event — Facility occupancy updated
 
@@ -1975,7 +1978,7 @@ No live notification types are owned by this module.
 - Title shown to Investor: Not shown on Investor Activity
 - Description: Note-side occupancy update from refresh-contract-facility (distinct from application_logs.CONTRACT_FACILITY_OCCUPANCY_UPDATED).
 - Who triggers it: System occupancy refresh
-- Important metadata: as supplied
+- Important metadata: occupancy before/after plus `applicationReference` / `contractReference` / `invoiceReference` / `noteReference` when already loaded
 - Canonical evidence: this note_events row
 - Where Ops sees it: Admin note Activity / Event details (CSV export). Portal Activity only if listed below.
 - Export: Note Activity CSV Event uses formatNoteActivityEventLabel; Event Type is the raw ID.
@@ -2656,7 +2659,7 @@ No live notification types are owned by this module.
 - Title shown to Investor: Not shown on Investor Activity
 - Description: Withdrawal letter generated.
 - Who triggers it: Admin
-- Important metadata: letter/withdrawal ids as supplied
+- Important metadata: `withdrawalId`, `withdrawalReference`, `s3Key`
 - Canonical evidence: `withdrawal_instructions` + letter file
 - Where Ops sees it: Admin note Activity / Event details (CSV export). Portal Activity only if listed below.
 - Export: Note Activity CSV Event uses formatNoteActivityEventLabel; Event Type is the raw ID.
@@ -2741,7 +2744,7 @@ No live notification types are owned by this module.
 - Title shown to Investor: Not shown on Investor Activity
 - Description: Tawarruq (Shoraka) order submitted. Raw ID stays SHORAKA_ORDER_SUBMITTED. Admin CSV rewrites Shoraka → Tawarruq.
 - Who triggers it: Shoraka STP internal (no human actor)
-- Important metadata: `provider_order_id`, `order_amount`, `murabaha_amount`, `value_date`, `order_date`
+- Important metadata: `trade_order_id` (CashSouk trade-order id / `target_id`), `provider_order_id`, `order_amount`, `murabaha_amount`, `value_date`, `order_date`
 - Canonical evidence: `shoraka_trade_orders`
 - Where Ops sees it: Admin note Activity / Event details (CSV export). Portal Activity only if listed below.
 - Export: Note Activity CSV Event uses formatNoteActivityEventLabel; Event Type is the raw ID.
@@ -2758,7 +2761,7 @@ No live notification types are owned by this module.
 - Title shown to Investor: Not shown on Investor Activity
 - Description: Tawarruq certificate fetched/stored. Raw ID SHORAKA_CERTIFICATE_FETCHED. Do not invent five Shariah artefacts.
 - Who triggers it: Shoraka STP internal
-- Important metadata: `document_type` (Tawarruq Certificate), `certificate_available`, `provider_order_id`
+- Important metadata: `trade_order_id`, `document_type` (Tawarruq Certificate), `certificate_available`, `provider_order_id`, `certificate_file_sha256`, `certificate_s3_key`
 - Canonical evidence: `shoraka_trade_orders.certificate_file_sha256`
 - Where Ops sees it: Admin note Activity / Event details (CSV export). Portal Activity only if listed below.
 - Export: Note Activity CSV Event uses formatNoteActivityEventLabel; Event Type is the raw ID.
@@ -3046,7 +3049,7 @@ No live notification types are owned by this module.
 - Title shown in Admin: Product Updated
 - Title shown to Issuer: Not shown on Issuer Activity
 - Title shown to Investor: Not shown on Investor Activity
-- Description: Product updated. Same Product Name snapshot path for table, search, CSV, JSON.
+- Description: Product updated. After snapshot plus `replaced_product_id` on versioned saves. Previous configuration remains on the prior product row (INACTIVE). Admin delete is soft. No previous blob is duplicated onto this event.
 - Who triggers it: Admin
 - Important metadata: workflow snapshot
 - Canonical evidence: this product_logs row
@@ -3417,6 +3420,7 @@ Do not mix these with live events.
 | `NOTE_FUNDING_FAILED` | `note_events` | CSV alias Funding unsuccessful | No current writer | `FAIL_FUNDING` |
 | `NOTE_ACTIVATED` | `note_events` | CSV alias Note Activated | No current writer | `ACTIVATE` |
 | `PAYMENT_RECORDED` | `note_events` | CSV alias Repayment received | No current writer | `PAYMENT_RECEIVED` |
+| `NOTE_FACILITY_FEE_COLLECTION_WAIVED` | `note_events` | Previous dual-write waive reason row | Live flow writes `WAIVE_FACILITY_FEE_COLLECTION` with reason + before/after | `WAIVE_FACILITY_FEE_COLLECTION` |
 
 ## SEED_ONLY
 

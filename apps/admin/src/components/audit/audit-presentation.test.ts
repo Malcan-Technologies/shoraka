@@ -28,6 +28,12 @@ describe("audit presentation", () => {
     );
     expect(formatAuditEventLabel("LEGAL_DOCUMENT_CREATED")).toBe("Document Created");
     expect(formatAuditEventLabel("LEGAL_VERSION_FILE_REPLACED")).toBe("Version File Replaced");
+    expect(formatAuditEventLabel("MEMBER_ADDED")).toBe("Member Added");
+    expect(formatAuditEventLabel("MEMBER_INVITED")).toBe("Member Invited");
+    expect(formatAuditEventLabel("MEMBER_REMOVED")).toBe("Member Removed");
+    expect(formatAuditEventLabel("MEMBER_ROLE_CHANGED")).toBe("Member Role Changed");
+    expect(formatAuditEventLabel("MEMBER_ADDED")).not.toBe("Role Added");
+    expect(formatAuditEventLabel("MEMBER_REMOVED")).not.toBe("Role Removed");
   });
 
   it("reads Product Name from workflow snapshot and ignores dead metadata keys", () => {

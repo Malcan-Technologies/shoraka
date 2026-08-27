@@ -6,6 +6,7 @@ import {
   legalAuditToAuditDetail,
   noteEventToAuditDetail,
   notificationRelatedReference,
+  organizationLogToAuditDetail,
   productLogToAuditDetail,
 } from "./audit-adapters";
 
@@ -263,6 +264,158 @@ describe("contract activity Event Details", () => {
       "Facility Offer Sent"
     );
     expect(historical.target?.applicationReference).toBeNull();
+  });
+});
+
+describe("occupancy Event Details display references", () => {
+  it("surfaces contract and invoice references without treating the UUID as Application Reference", () => {
+    const detail = applicationLogToAuditDetail(
+      {
+        id: "log-occ",
+        event_type: "CONTRACT_FACILITY_OCCUPANCY_UPDATED",
+        activity: "Occupancy updated",
+        actor_id: "user-1",
+        application_id: "cuid-application-uuid",
+        metadata: {
+          contract_id: "contract-cuid",
+          applicationReference: "APP-CS-2026-001",
+          contractReference: "FAC-ARF-202608-A1Z",
+          invoiceReference: "INV-ARF-202608-B2Y",
+        },
+        ip_address: null,
+        created_at: "2026-08-27T00:00:00.000Z",
+        remark: null,
+        entityId: "contract-cuid",
+        review_cycle: null,
+      },
+      "Facility Occupancy Updated"
+    );
+    expect(detail.target?.applicationReference).toBe("APP-CS-2026-001");
+    expect(detail.target?.contractReference).toBe("FAC-ARF-202608-A1Z");
+    expect(detail.target?.invoiceReference).toBe("INV-ARF-202608-B2Y");
+    expect(detail.technical).toEqual(
+      expect.arrayContaining([{ label: "Application ID", value: "cuid-application-uuid" }])
+    );
+  });
+
+  it("omits new reference labels when historical occupancy metadata has none", () => {
+    const detail = applicationLogToAuditDetail(
+      {
+        id: "log-occ-old",
+        event_type: "CONTRACT_FACILITY_OCCUPANCY_UPDATED",
+        activity: "Occupancy updated",
+        actor_id: "user-1",
+        application_id: "cuid-application-uuid",
+        metadata: { contract_id: "contract-cuid", before: { utilized_facility: 0 }, after: { utilized_facility: 1 } },
+        ip_address: null,
+        created_at: "2026-08-27T00:00:00.000Z",
+        remark: null,
+        entityId: "contract-cuid",
+        review_cycle: null,
+      },
+      "Facility Occupancy Updated"
+    );
+    expect(detail.target?.applicationReference).toBeNull();
+    expect(detail.target?.contractReference).toBeNull();
+    expect(detail.target?.invoiceReference).toBeNull();
+    expect(detail.previousValues).toEqual({ utilized_facility: 0 });
+    expect(detail.nextValues).toEqual({ utilized_facility: 1 });
+  });
+});
+
+describe("withdrawal letter and Shoraka Event Details", () => {
+  it("keeps withdrawalReference independent of later live-row changes", () => {
+    const detail = noteEventToAuditDetail(
+      {
+        id: "evt-wdl",
+        noteId: "note-1",
+        eventType: "WITHDRAWAL_LETTER_GENERATED",
+        actorUserId: "admin-1",
+        actorName: "Ada",
+        actorRole: "ADMIN",
+        portal: "ADMIN",
+        correlationId: null,
+        createdAt: "2026-08-27T00:00:00.000Z",
+        targetType: "WITHDRAWAL",
+        targetId: "wdl-internal-id",
+        metadata: {
+          withdrawalId: "wdl-internal-id",
+          withdrawalReference: "WDL-ARF-202608-A1Z",
+          s3Key: "withdrawal-letters/wdl-internal-id/trustee-WDL-ARF-202608-A1Z.pdf",
+        },
+      },
+      "Withdrawal letter generated"
+    );
+    expect(detail.target?.id).toBe("wdl-internal-id");
+    expect(detail.target?.withdrawalReference).toBe("WDL-ARF-202608-A1Z");
+  });
+
+  it("labels provider_order_id as Provider order ID, not the internal trade-order target", () => {
+    const detail = noteEventToAuditDetail(
+      {
+        id: "evt-shoraka",
+        noteId: "note-1",
+        eventType: "SHORAKA_ORDER_SUBMITTED",
+        actorUserId: null,
+        actorName: null,
+        actorRole: null,
+        portal: null,
+        correlationId: null,
+        createdAt: "2026-08-27T00:00:00.000Z",
+        targetType: "SHORAKA_ORDER",
+        targetId: "trade-order-cuid",
+        metadata: {
+          trade_order_id: "trade-order-cuid",
+          provider_order_id: "provider-order-abc",
+        },
+      },
+      "Tawarruq Order Submitted"
+    );
+    expect(detail.target?.id).toBe("trade-order-cuid");
+    expect(detail.target?.id).not.toBe("provider-order-abc");
+    expect(detail.technical).toEqual(
+      expect.arrayContaining([{ label: "Provider order ID", value: "provider-order-abc" }])
+    );
+    expect(detail.target?.extra?.some((field) => field.value === "provider-order-abc")).toBe(false);
+  });
+});
+
+describe("MEMBER_* Event Details", () => {
+  it("surfaces organisation reference and membership fields without security role labels", () => {
+    const detail = organizationLogToAuditDetail(
+      {
+        id: "log-member",
+        user_id: "member-1",
+        user: { first_name: "Ada", last_name: "Khan", email: "ada@example.com", roles: ["ISSUER"] },
+        role: "ISSUER",
+        event_type: "MEMBER_ADDED",
+        portal: "issuer",
+        ip_address: null,
+        user_agent: null,
+        device_info: null,
+        device_type: null,
+        metadata: {
+          action: "MEMBER_ADDED",
+          organizationId: "org-cuid",
+          organizationReference: "ISS-202608-DK3",
+          memberUserId: "member-1",
+          memberEmail: "member@example.com",
+          newRole: "ORGANIZATION_MEMBER",
+        },
+        created_at: "2026-08-27T00:00:00.000Z",
+        organizationName: "ABC Trading",
+      },
+      "Member Added"
+    );
+    expect(detail.eventLabel).toBe("Member Added");
+    expect(detail.eventType).toBe("MEMBER_ADDED");
+    expect(detail.target?.organizationReference).toBe("ISS-202608-DK3");
+    expect(detail.target?.extra).toEqual(
+      expect.arrayContaining([
+        { label: "Member email", value: "member@example.com" },
+        { label: "New role", value: "ORGANIZATION_MEMBER" },
+      ])
+    );
   });
 });
 

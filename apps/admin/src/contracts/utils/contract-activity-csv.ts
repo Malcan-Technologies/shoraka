@@ -58,6 +58,17 @@ export function formatContractActivityEventLabel(eventType: string) {
 export function contractEventToActivityCsvRow(
   event: AdminContractActivityEvent
 ): AdminActivityCsvRow {
+  const metadata = event.metadata;
+  const contractReference =
+    metadata && typeof metadata.contractReference === "string" && metadata.contractReference.trim()
+      ? metadata.contractReference.trim()
+      : null;
+  const applicationReference =
+    metadata &&
+    typeof metadata.applicationReference === "string" &&
+    metadata.applicationReference.trim()
+      ? metadata.applicationReference.trim()
+      : null;
   return {
     createdAt: event.createdAt,
     event: formatContractActivityEventLabel(event.eventType),
@@ -69,6 +80,8 @@ export function contractEventToActivityCsvRow(
     metadata: mergeActivityCsvMetadata(event.metadata, {
       applicationId: event.applicationId,
     }),
+    targetType: metadata && metadata.contract_id ? "CONTRACT" : undefined,
+    targetReference: contractReference ?? applicationReference ?? event.applicationId,
   };
 }
 

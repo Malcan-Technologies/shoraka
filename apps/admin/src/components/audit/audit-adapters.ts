@@ -333,6 +333,8 @@ export function noteEventToAuditDetail(
   });
   const { previous, next } = extractPreviousNext(metadata);
   const financial = metadataAmount(metadata);
+  const tradeOrderId = pickString(metadata, ["trade_order_id", "tradeOrderId"]);
+  const targetId = event.targetId ?? event.noteId;
   return {
     id: event.id,
     title: "Event details",
@@ -348,16 +350,24 @@ export function noteEventToAuditDetail(
     },
     target: {
       type: event.targetType ?? "NOTE",
-      id: event.targetId ?? event.noteId,
+      id: targetId,
       noteReference: pickNestedNoteReference(metadata),
       investmentReference: pickString(metadata, ["investmentReference", "investment_reference"]),
       withdrawalReference: pickString(metadata, ["withdrawalReference", "withdrawal_reference"]),
       paymentReference: pickString(metadata, ["paymentReference", "payment_reference"]),
+      contractReference: pickString(metadata, ["contractReference"]),
+      invoiceReference: pickString(metadata, ["invoiceReference"]),
       trusteeInstructionReference: pickString(metadata, [
         "trusteeReference",
         "trustee_reference",
         "settlementReference",
         "settlement_reference",
+      ]),
+      extra: presentFields([
+        {
+          label: "Trade order ID",
+          value: tradeOrderId && tradeOrderId !== targetId ? tradeOrderId : null,
+        },
       ]),
     },
     financial,
@@ -372,6 +382,8 @@ export function noteEventToAuditDetail(
       { label: "Correlation ID", value: event.correlationId },
       { label: "IP address", value: event.ipAddress },
       { label: "User agent", value: event.userAgent },
+      { label: "Provider order ID", value: pickString(metadata, ["provider_order_id", "providerOrderId"]) },
+      { label: "Provider envelope ID", value: pickString(metadata, ["providerEnvelopeId"]) },
     ]),
     metadata,
     previousValues: previous,
@@ -413,6 +425,8 @@ export function applicationLogToAuditDetail(
       type: log.target_type,
       id: log.target_id ?? log.entityId,
       applicationReference: pickString(metadata, ["applicationReference"]),
+      contractReference: pickString(metadata, ["contractReference"]),
+      invoiceReference: pickString(metadata, ["invoiceReference"]),
       envelopeReference: pickString(metadata, ["envelopeId", "envelope_id"]),
     },
     financial: {
@@ -435,6 +449,13 @@ export function applicationLogToAuditDetail(
       { label: "Correlation ID", value: log.correlation_id },
       { label: "IP address", value: log.ip_address },
       { label: "Review cycle", value: log.review_cycle != null ? String(log.review_cycle) : null },
+      { label: "Provider envelope ID", value: pickString(metadata, ["providerEnvelopeId"]) },
+      {
+        label: "Provider contract refs",
+        value: Array.isArray(metadata?.providerContractRefs)
+          ? metadata.providerContractRefs.filter((value) => typeof value === "string").join(", ")
+          : pickString(metadata, ["providerContractRefs"]),
+      },
     ]),
     metadata,
     previousValues: previous,
@@ -474,6 +495,14 @@ export function organizationLogToAuditDetail(
     target: {
       type: log.target_type ?? log.organizationType,
       id: log.target_id,
+      organizationReference: pickString(log.metadata, ["organizationReference"]),
+      extra: presentFields([
+        { label: "Member email", value: pickString(log.metadata, ["memberEmail"]) },
+        { label: "Member user ID", value: pickString(log.metadata, ["memberUserId"]) },
+        { label: "Previous role", value: pickString(log.metadata, ["previousRole"]) },
+        { label: "New role", value: pickString(log.metadata, ["newRole"]) },
+        { label: "Invitation ID", value: pickString(log.metadata, ["invitationId"]) },
+      ]),
     },
     changedFields: diffAuditValues(previous, next),
     reason: metadataReason(log.metadata),
@@ -519,6 +548,8 @@ export function contractEventToAuditDetail(
       type: pickString(event.metadata, ["contract_id"]) ? "CONTRACT" : "APPLICATION",
       id: pickString(event.metadata, ["contract_id"]) ?? event.applicationId,
       applicationReference: pickString(event.metadata, ["applicationReference"]),
+      contractReference: pickString(event.metadata, ["contractReference"]),
+      invoiceReference: pickString(event.metadata, ["invoiceReference"]),
     },
     financial: metadataAmount(event.metadata),
     changedFields: diffAuditValues(previous, next),

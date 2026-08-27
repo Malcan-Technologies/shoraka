@@ -4,15 +4,18 @@
 
 Human-readable expansion of every live event and notification (one entry each): [`current-events-notifications-readable.md`](./current-events-notifications-readable.md). This file remains the technical source of truth.
 
-Verified: **2026-08-27** against the working tree, then updated after the **2026-08-27 audit-traceability fix pass**. Source code is authoritative.
+Verified: **2026-08-27** against the working tree, then updated after the **2026-08-27 final cleanup pass**. Source code is authoritative.
 
 **Corrections vs the pre-fix catalogue:**
 
 - `OVERRIDE_PROPOSED` / `OVERRIDE_APPROVED` / `OVERRIDE_REJECTED` have **no live writer** (DEAD / enum+reader only). Do not treat them as LIVE_UI.
 - `FORM_FILLED` metadata is `requestId`, `status`, `substatus`, `payload` (service path) or org/status/trigger keys (individual handler). **`section` is not written.**
 - Onboarding `PROFILE_UPDATED` stores changed-field `previousValues`/`nextValues`, nested `corporateOnboardingData.*`, and `organizationReference`. Self-service org profile also writes this ID.
-- New live IDs: `MEMBER_ADDED`, `MEMBER_INVITED`, `MEMBER_REMOVED`, `MEMBER_ROLE_CHANGED`.
+- New live IDs: `MEMBER_ADDED`, `MEMBER_INVITED`, `MEMBER_REMOVED`, `MEMBER_ROLE_CHANGED` (Admin organisation Activity). User-portal Activity **does not** include them (**INTENTIONALLY_UNCHANGED**).
 - Production `handleWebhookUpdate` skips `WEBHOOK_APPROVED` when `ONBOARDING_APPROVED` already ran; pending/in-progress/unknown statuses write `ONBOARDING_STATUS_UPDATED`. `WEBHOOK_REJECTED` remains. Dev handler still uses `WEBHOOK_*`.
+- Facility-fee waive now writes **one** live `note_events` row: `WAIVE_FACILITY_FEE_COLLECTION` (`beforeState`/`afterState` + `reason`). `NOTE_FACILITY_FEE_COLLECTION_WAIVED` is **HISTORICAL**.
+- Shoraka `target_id` is the CashSouk trade-order id. `provider_order_id` remains metadata C.
+- Occupancy writers snapshot display refs from already-loaded rows.
 
 
 | Question | This file |
@@ -31,18 +34,18 @@ Older files that previously claimed “current” lookup (`audit-event-surface-m
 | `security_logs` | 10 | 10 | 0 | 0 |
 | `onboarding_logs` | 22 | 17 | 2 | 3 |
 | `application_logs` | 45 | 43 | 0 | 2 |
-| `note_events` (CSV map, aliases collapsed) | 44 | 44 | 0 | 0 |
+| `note_events` (CSV map, aliases collapsed) | 44 | 43 | 0 | 1 |
 | `legal_document_audit_logs` | 7 | 7 | 0 | 0 |
 | `legal_document_acceptances` (status IDs) | 3 | 3 | 0 | 0 |
 | `product_logs` | 5 | 3 | 2 | 0 |
 | `gateway_payment_events` | 11 | 8 | 0 | 3 |
 | `notification_logs` | batch store, not business event IDs | — | — | — |
-| **Total event IDs** | **160** | **139** | **7** | **14** |
+| **Total event IDs** | **160** | **138** | **7** | **15** |
 | Notification types (`seed-data.ts` = `NotificationTypeIds`) | 49 | 49 | 0 | 0 |
 
 `notification_logs` rows are delivery batches (`ADMIN` / `SYSTEM`), not a second copy of the business event.
 
-The application enum table below omits live Admin writer `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` (`contract-section.tsx`). Live onboarding now includes four `MEMBER_*` IDs. `OVERRIDE_*` are DEAD (no writer). This table’s live count is **139**.
+The application enum table below omits live Admin writer `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` (`contract-section.tsx`). Live onboarding includes four `MEMBER_*` IDs (Admin UI; not user-portal Activity). `OVERRIDE_*` are DEAD (no writer). `NOTE_FACILITY_FEE_COLLECTION_WAIVED` is HISTORICAL. This table’s live count is **138**.
 
 ---
 

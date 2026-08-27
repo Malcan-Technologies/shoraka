@@ -119,6 +119,8 @@ export type CreateApplicationLogParams = {
   contractReference?: string | null;
   /** Invoice display_reference (B). Distinct from invoice_number. */
   invoiceReference?: string | null;
+  /** Note note_reference (B). Occupancy note-side events use this. */
+  noteReference?: string | null;
 
   /**
    * Optional forensic context. When supplied it fills IP / user agent / correlation id / source /

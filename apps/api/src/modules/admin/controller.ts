@@ -997,6 +997,20 @@ function formatOnboardingLogCsvEventType(eventType: string): string {
   return humanizeAuditEventType(eventType, ONBOARDING_LOG_CSV_EVENT_LABELS);
 }
 
+function onboardingCsvTargetReference(log: {
+  target_id?: string | null;
+  metadata?: unknown;
+}): string | null {
+  const metadata = log.metadata;
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    const organizationReference = (metadata as Record<string, unknown>).organizationReference;
+    if (typeof organizationReference === "string" && organizationReference.trim()) {
+      return organizationReference.trim();
+    }
+  }
+  return log.target_id ?? null;
+}
+
 function formatAccessLogCsvEventType(eventType: string): string {
   return humanizeAuditEventType(eventType, ACCESS_LOG_CSV_EVENT_LABELS);
 }
@@ -1665,7 +1679,7 @@ router.get(
             organisation: log.organizationName ?? null,
             source: log.source ?? log.portal,
             targetType: log.target_type,
-            targetReference: log.target_id,
+            targetReference: onboardingCsvTargetReference(log),
             reason:
               log.metadata && typeof log.metadata === "object" && !Array.isArray(log.metadata)
                 ? typeof (log.metadata as Record<string, unknown>).reason === "string"

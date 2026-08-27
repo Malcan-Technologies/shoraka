@@ -30,7 +30,7 @@ export function resolveNoteEventTarget(
   if (eventType.startsWith("SHORAKA_")) {
     return {
       targetType: AUDIT_TARGET_TYPE.SHORAKA_ORDER,
-      targetId: metaString(metadata, "provider_order_id", "providerOrderId"),
+      targetId: metaString(metadata, "trade_order_id", "tradeOrderId"),
     };
   }
 

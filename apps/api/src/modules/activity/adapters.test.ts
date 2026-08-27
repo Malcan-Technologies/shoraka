@@ -56,5 +56,13 @@ describe("Activity Adapters", () => {
         "ONBOARDING_APPROVED",
       ]);
     });
+
+    it("intentionally omits MEMBER_* organisation membership events from user-portal Activity", () => {
+      const types = adapter.getEventTypes();
+      expect(types).not.toContain("MEMBER_ADDED");
+      expect(types).not.toContain("MEMBER_INVITED");
+      expect(types).not.toContain("MEMBER_REMOVED");
+      expect(types).not.toContain("MEMBER_ROLE_CHANGED");
+    });
   });
 });

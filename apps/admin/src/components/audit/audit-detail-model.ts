@@ -33,6 +33,9 @@ export type AuditDetailRecord = {
     gatewayReference?: string | null;
     trusteeInstructionReference?: string | null;
     envelopeReference?: string | null;
+    contractReference?: string | null;
+    invoiceReference?: string | null;
+    organizationReference?: string | null;
     extra?: AuditDetailField[];
   };
   financial?: {

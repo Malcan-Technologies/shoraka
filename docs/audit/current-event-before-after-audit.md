@@ -127,7 +127,7 @@ Bank JSON remains absent from the audit row (not leaked). Historical bank edits 
 | `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | `application_logs` | **FIXED** |
 | `CONTRACT_FACILITY_ENABLED` / `DISABLED` | `application_logs` | **FIXED** |
 | `APPLICATION_RESET_TO_UNDER_REVIEW` | `application_logs` | **FIXED** — `previous_status` + `new_status` |
-| `PRODUCT_UPDATED` | `product_logs` | **DEFERRED** — previous immutable product version already exists |
+| `PRODUCT_UPDATED` | `product_logs` | **INTENTIONALLY_UNCHANGED** — previous immutable product version already exists |
 | `APPLICATION_RESUBMITTED` (PATCH duplicate) | `application_logs` | **FIXED** — one row; amendments path still has `resubmit_changes` when applicable |
 | `ONBOARDING_STATUS_UPDATED` | `onboarding_logs` | **FIXED** where both values are known |
 
@@ -209,7 +209,7 @@ First-class `before_json` / `after_json` columns; Event Details maps them correc
 
 | Event | Class | Stored | Missing |
 |---|---|---|---|
-| `PRODUCT_UPDATED` | PARTIAL_BEFORE_AFTER | full **after** snapshot; versioning path sets `replaced_product_id` | previous snapshot on this row — **DEFERRED** (previous immutable version exists) |
+| `PRODUCT_UPDATED` | PARTIAL_BEFORE_AFTER | full **after** snapshot; versioning path sets `replaced_product_id` and marks the previous row `INACTIVE` | previous snapshot on this row — **INTENTIONALLY_UNCHANGED** (previous immutable version exists; soft delete keeps it) |
 | `PRODUCT_CREATED` / `PRODUCT_DELETED` | NOT_APPLICABLE | after/last snapshot | — |
 
 Event Details Previous/New panels are empty because the snapshot is not under `previousValues`/`nextValues`/`before`/`after`.
@@ -226,7 +226,8 @@ The identity / large-private / facility / reset / beneficiary / note-extractor /
 
 | Event | Store | Status |
 |---|---|---|
-| `PRODUCT_UPDATED` | `product_logs` | **DEFERRED** — previous immutable product version already exists |
+| `PRODUCT_UPDATED` | `product_logs` | **INTENTIONALLY_UNCHANGED** — previous immutable product version already exists |
+| Facility-fee waive | `note_events` | **FIXED** — one live row `WAIVE_FACILITY_FEE_COLLECTION` with before/after + reason |
 | Onboarding bank JSON | `onboarding_logs` | **INTENTIONALLY_UNCHANGED** — do not dump bank JSON |
 | `AMENDMENTS_SUBMITTED` | `application_logs` | **INTENTIONALLY_UNCHANGED** — remark bodies live on amendment rows |
 | `OVERRIDE_*` | `gateway_payment_events` | **INTENTIONALLY_UNCHANGED** — no live writer |

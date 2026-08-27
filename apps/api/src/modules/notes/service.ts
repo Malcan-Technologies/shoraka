@@ -160,6 +160,7 @@ import {
   jsonAuditValue,
   systemAuditContext,
 } from "../../lib/audit";
+import { snapshotBusinessReference } from "../../lib/audit/display-references";
 import { resolveNoteEventTarget } from "./audit-fields";
 import {
   allocateDisplayReference,
@@ -3462,16 +3463,14 @@ export class NoteService {
         );
       }
       const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
-      await this.logEvent(tx, id, "NOTE_FACILITY_FEE_COLLECTION_WAIVED", actor, {
-        reason: reason.trim(),
-      });
       await this.logAdminAction(
         tx,
         id,
         "WAIVE_FACILITY_FEE_COLLECTION",
         actor,
         mapNoteListItem(note),
-        mapNoteListItem(result)
+        mapNoteListItem(result),
+        { reason: reason.trim() }
       );
       return result;
     });
@@ -5945,9 +5944,14 @@ export class NoteService {
           "The instruction has already been submitted to the trustee and cannot be regenerated."
         );
       }
+      const settlementReference = snapshotBusinessReference(
+        settlement.display_reference,
+        settlement.id
+      );
       await this.logEvent(tx, noteId, "SETTLEMENT_TRUSTEE_LETTER_GENERATED", actor, {
         s3Key: key,
         settlementId: settlement.id,
+        ...(settlementReference ? { settlementReference } : {}),
       });
     });
     return { s3Key: key };
@@ -6027,8 +6031,13 @@ export class NoteService {
           "Generate the trustee instruction PDF before marking it submitted."
         );
       }
+      const settlementReference = snapshotBusinessReference(
+        settlement.display_reference,
+        settlement.id
+      );
       await this.logEvent(tx, noteId, "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED", actor, {
         settlementId,
+        ...(settlementReference ? { settlementReference } : {}),
       });
     });
 
@@ -6222,8 +6231,13 @@ export class NoteService {
         },
       });
       noteMarkedRepaid = noteUpdate.count > 0;
+      const settlementReference = snapshotBusinessReference(
+        settlement.display_reference,
+        settlement.id
+      );
       await this.logEvent(tx, noteId, "SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED", actor, {
         settlementId,
+        ...(settlementReference ? { settlementReference } : {}),
         completedAt: completedAt.toISOString(),
       });
       if (noteMarkedRepaid && noteForCapacity) {
@@ -6755,8 +6769,13 @@ export class NoteService {
       },
     });
     if (withdrawal.note_id) {
+      const withdrawalReference = snapshotBusinessReference(
+        withdrawal.display_reference,
+        withdrawal.id
+      );
       await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_LETTER_GENERATED", actor, {
         withdrawalId: id,
+        ...(withdrawalReference ? { withdrawalReference } : {}),
         s3Key: key,
       });
     }
@@ -7602,7 +7621,8 @@ export class NoteService {
     actionType: string,
     actor: ActorContext,
     beforeState?: unknown,
-    afterState?: unknown
+    afterState?: unknown,
+    extraMetadata?: Record<string, unknown>
   ) {
     await createNoteAdminActionRow(tx, {
       noteId,
@@ -7626,6 +7646,7 @@ export class NoteService {
     await this.logEvent(tx, noteId, actionType, actor, {
       beforeState,
       afterState,
+      ...(extraMetadata ?? {}),
     } as Prisma.InputJsonValue);
   }
 

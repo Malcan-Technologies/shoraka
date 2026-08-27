@@ -53,6 +53,10 @@ export const LEGAL_DOCUMENT_AUDIT_ACTION_LABELS: Record<string, string> = {
 
 const APPLICATION_AUDIT_EVENT_LABELS: Record<string, string> = {
   AMENDMENTS_SUBMITTED: "Amendment Request Sent",
+  MEMBER_ADDED: "Member Added",
+  MEMBER_INVITED: "Member Invited",
+  MEMBER_REMOVED: "Member Removed",
+  MEMBER_ROLE_CHANGED: "Member Role Changed",
 };
 
 export function formatAuditEventLabel(

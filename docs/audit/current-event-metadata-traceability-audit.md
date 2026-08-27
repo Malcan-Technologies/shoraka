@@ -1,6 +1,6 @@
 # Current live event metadata traceability audit
 
-Verified 2026-08-27 against writers, then **updated after the 2026-08-27 audit-traceability fix pass**. Source code is authoritative. Historical rows without new metadata still render safely.
+Verified 2026-08-27 against writers, then **updated after the 2026-08-27 final cleanup pass**. Source code is authoritative. Historical rows without new metadata still render safely.
 
 Companion: before/after evidence in `docs/audit/current-event-before-after-audit.md`.
 
@@ -44,20 +44,21 @@ B or C is never treated as a substitute for A.
 | 24. Trustee email settlement/withdrawal references | **FIXED** |
 | 25. Facility enabled/disabled previous/next | **FIXED** |
 | 26. `APPLICATION_RESET_TO_UNDER_REVIEW` `new_status` | **FIXED** |
-| 27. Facility-fee waive two `note_events` IDs | **DEFERRED** — same action writes `NOTE_FACILITY_FEE_COLLECTION_WAIVED` (`reason`) and admin-mirror `WAIVE_FACILITY_FEE_COLLECTION` (`beforeState`/`afterState`). Different payloads; leave both. |
+| 27. Facility-fee waive two `note_events` IDs | **FIXED** — keep `WAIVE_FACILITY_FEE_COLLECTION` with `beforeState`/`afterState` **and** `reason`. Stop writing `NOTE_FACILITY_FEE_COLLECTION_WAIVED`. Historical dual rows remain. |
 | 28. `WEBHOOK_RECEIVED` catch-all | **FIXED** in production (`ONBOARDING_STATUS_UPDATED`); **INTENTIONALLY_UNCHANGED** in `webhook-handler-dev.ts` |
-| 29. `PRODUCT_UPDATED` before snapshot | **DEFERRED** — product versioning already preserves the previous immutable version |
-| 30. Shoraka `trade_order_id` vs `provider_order_id` | **FIXED** |
-| 31. Optional org/settlement/payment display refs | **FIXED** where already available (org + trustee settlement/withdrawal). Payment business reference not invented. |
+| 29. `PRODUCT_UPDATED` before snapshot | **INTENTIONALLY_UNCHANGED** — versioning keeps the previous product row (`INACTIVE` + `replaced_product_id`); admin delete is soft (`deleted_at`). `completeCreate` in-place has no previous version row; `PRODUCT_CREATED` is the prior evidence. |
+| 30. Shoraka `trade_order_id` vs `provider_order_id` | **FIXED** — `target_id` = `shoraka_trade_orders.id`; `provider_order_id` stays in metadata (C). Raw IDs unchanged. |
+| 31. Optional org/settlement/payment display refs | **FIXED** where already available (org + trustee settlement/withdrawal + settlement letter/submit/complete). Payment business reference not invented. |
 | `OVERRIDE_*` writers | **INTENTIONALLY_UNCHANGED** — still no live writer; do not activate |
-| Occupancy snapshots using `createApplicationLog` directly | **INTENTIONALLY_UNCHANGED** — no extra lookup inside occupancy transactions |
+| Occupancy snapshots using `createApplicationLog` directly | **FIXED** — still no extra lookup; display refs come from already-loaded contract/invoice/note rows |
+| User-portal `MEMBER_*` Activity | **INTENTIONALLY_UNCHANGED** — issuer/investor Activity is onboarding milestones only; membership is Admin organisation Activity |
 
 Source disagreements vs the pre-fix reports (code wins):
 
 - Display-ref enrichment is in `logApplicationActivity`, not `createApplicationLog` (callers run inside transactions / try-catch).
 - SigningCloud C is `signing_documents.provider_contract_ref`, not envelope `provider_ref`.
 - `WEBHOOK_REJECTED` on `handleWebhookUpdate` is a distinct path from individual `ONBOARDING_REJECTED`.
-- User-portal organisation Activity allowlist was **not** expanded for `MEMBER_*` (Admin org timeline + CSV only).
+- User-portal organisation Activity allowlist remains onboarding milestones only. `MEMBER_*` are Admin organisation Activity + CSV. **INTENTIONALLY_UNCHANGED.**
 
 **Assessments** (only these values): COMPLETE · TECHNICAL_ONLY · DISPLAY_ONLY · INDIRECT_ONLY · MISSING · NOT_APPLICABLE
 
@@ -195,7 +196,7 @@ Contract B in UI is `contracts.display_reference`. Writers sometimes store `cont
 | `CONTRACT_OFFER_RETRACTED` | LIVE_UI | retract offer | Contract | yes | entity_id + meta | same | number sometimes | same | no | admin | no | no | A yes | A | same | TECHNICAL_ONLY | Same. |
 | `CONTRACT_OFFER_EXPIRED` | LIVE_SYSTEM | expiry job | Contract | yes | entity_id; meta `contract_id` | display_reference | **no number on this writer** | — | no | system | no | no | A yes; B no | A | worse than send-offer | TECHNICAL_ONLY | Snapshot display_reference. |
 | `CONTRACT_SIGNING_DEADLINE_EXTENDED` | LIVE_UI | admin restamp | Contract | yes | entity_id; meta `contract_id` | display_reference | no | — | no | admin | no | no | A yes | A | same | TECHNICAL_ONLY | Same. |
-| `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | LIVE_SYSTEM | occupancy refresh | Contract (+ optional note/invoice) | yes contract; optional `note_id`,`invoice_id` in meta | entity_id; meta; tgt CONTRACT | display refs | no | — | no | system | no | `before`/`after` occupancy | A contract yes | A | occupancy snapshot survives | TECHNICAL_ONLY | Leave occupancy snapshot. Optional display_reference. `application_id` may be null — that is current. |
+| `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | LIVE_SYSTEM | occupancy refresh | Contract (+ optional note/invoice) | yes contract; optional `note_id`,`invoice_id` in meta | entity_id; meta; tgt CONTRACT | display refs | **yes** when already loaded | meta `applicationReference` / `contractReference` / `invoiceReference` / `noteReference` | no | system | no | `before`/`after` occupancy | A contract yes; B labelled | CSV Target Reference prefers `contractReference` | occupancy snapshot + B | COMPLETE | **FIXED.** Direct `createApplicationLog`; refs from in-scope rows, no extra query. |
 | `CONTRACT_FACILITY_FEE_WAIVED` | LIVE_UI | waive fee | Contract | yes | entity_id; meta `contract_id`; `application_id` may be originating app | display_reference | no | — | no | admin | no | amounts in meta | A yes | A | yes | TECHNICAL_ONLY | Same. |
 | `CONTRACT_FACILITY_DISABLED` | LIVE_UI | disable | Contract | yes | same | display_reference | yes when lookup succeeds | meta `contractReference` | no | admin | no | `previousValues`/`nextValues` `{ enabled }` + disable reason | A yes | A | yes | COMPLETE | **FIXED.** |
 | `CONTRACT_FACILITY_ENABLED` | LIVE_UI | enable | Contract | yes | same | display_reference | yes | meta `contractReference` | no | admin | no | `previousValues`/`nextValues` `{ enabled }` | A yes | A | yes | COMPLETE | **FIXED.** |
@@ -247,9 +248,9 @@ Top-level `note_id` is always A for the note (except nested create still has `no
 | `PROSPECTUS_APPROVAL_INVALIDATED_EDIT` | LIVE_UI | edit after approve | Review | same | same | note_reference | no | — | no | admin | no | mapReview | same | note_id | yes | TECHNICAL_ONLY | Same. |
 | `PROSPECTUS_APPROVAL_INVALIDATED_SOURCE` | LIVE_UI | fingerprint drift | Review | same | same | note_reference | no | — | no | system/admin | no | mapReview | same | note_id | yes | TECHNICAL_ONLY | Same. |
 | `PROSPECTUS_APPROVAL_INVALIDATED_UNPUBLISH` | LIVE_UI | unpublish reopen | Review | same | same | note_reference | no | — | no | admin | no | mapReview + previous publication | same | note_id | yes | TECHNICAL_ONLY | Same. |
-| `WAIVE_FACILITY_FEE_COLLECTION` | LIVE_UI | admin mirror | Note | yes | col + tgt | note_reference | nested | before/after DTO | no | admin | no | DTO | A yes; B nested | note_id | yes | COMPLETE | Leave (pair with the logEvent row). |
-| `NOTE_FACILITY_FEE_COLLECTION_WAIVED` | LIVE_UI | `logEvent` same flow | Note | yes | col + tgt | note_reference | **no** | meta `{ reason }` only | no | admin | no | no | A yes; B no | note_id | reason only | TECHNICAL_ONLY | Optional `noteReference` on this row. Do not add note_id to meta. |
-| `FACILITY_OCCUPANCY_UPDATED` | LIVE_SYSTEM | occupancy refresh | Note + contract | yes both | col `note_id`; tgt **CONTRACT** / `contractId`; meta ids | note + contract display refs | no | — | no | system | no | occupancy before/after | A yes (contract tgt); B no | tgt=contract id | occupancy snapshot | TECHNICAL_ONLY | Leave occupancy. Optional display refs. Distinct from application_logs occupancy. |
+| `WAIVE_FACILITY_FEE_COLLECTION` | LIVE_UI | admin waive | Note | yes | col + tgt | note_reference | nested | before/after DTO + `reason` | no | admin | no | DTO + reason | A yes; B nested | note_id / nested B | yes | COMPLETE | **FIXED.** One `note_events` row per waive. `note_admin_actions` unchanged. |
+| `NOTE_FACILITY_FEE_COLLECTION_WAIVED` | HISTORICAL | previous dual-write | Note | yes | col + tgt | note_reference | **no** | meta `{ reason }` only | no | admin | no | no | A yes; B no | note_id | reason only | TECHNICAL_ONLY | No live writer. Keep CSV/label for old rows. |
+| `FACILITY_OCCUPANCY_UPDATED` | LIVE_SYSTEM | occupancy refresh | Note + contract | yes both | col `note_id`; tgt **CONTRACT** / `contractId`; meta ids | note + contract display refs | **yes** when loaded | meta `contractReference` / `noteReference` / `invoiceReference` / `applicationReference` | no | system | no | occupancy before/after | A yes (contract tgt); B yes | prefers contract/note B | occupancy snapshot | COMPLETE | **FIXED.** Same payload as application occupancy row. |
 | `NOTE_DEFAULT_MARKED` | LIVE_UI | mark default | Note | yes | col + tgt | note_reference | **no** | `{ reason }` | no | admin | no | no | A yes; B no | note_id | reason | TECHNICAL_ONLY | Optional snapshot `noteReference`. |
 | `ARREARS_LETTER_GENERATED` | LIVE_UI | generate letter | Letter object + note | yes note | col; tgt NOTE | note_reference | **no** | `{ s3Key }` | no | admin | no | no | A yes; B no | note_id | s3Key is file evidence | TECHNICAL_ONLY | Optional `noteReference`. s3Key is enough for the file. |
 | `DEFAULT_LETTER_GENERATED` | LIVE_UI | generate letter | same | yes | col | note_reference | no | `{ s3Key }` | no | admin | no | no | A yes; B no | note_id | same | TECHNICAL_ONLY | Same. |
@@ -279,9 +280,9 @@ Top-level `note_id` is always A for the note (except nested create still has `no
 | `SETTLEMENT_POSTED` | LIVE_UI | post | Settlement | yes | settlementId + counts | display_reference | no | — | no | admin | no | no | A yes | settlementId | A | TECHNICAL_ONLY | Same. |
 | `OVERDUE_LATE_CHARGE_CHECKED` | LIVE_UI | apply overdue | Note (check result) | note A only | col; tgt NOTE (no late-charge table id) | note_reference | no | check payload | no | admin/system | no | result fields | A note; B no | note_id | payload | TECHNICAL_ONLY | Leave payload. Optional noteReference. |
 | `LATE_CHARGE_APPROVED` | LIVE_UI | approve late charge | Note | note A | col; tgt NOTE | note_reference | no | amounts | no | admin | no | no | A note | note_id | amounts | TECHNICAL_ONLY | Same. |
-| `SETTLEMENT_TRUSTEE_LETTER_GENERATED` | LIVE_UI | generate | Settlement + letter | yes | meta `settlementId`; s3Key; tgt settlement | display_reference | no | — | no | admin | no | no | A yes; B no | settlementId | s3Key | TECHNICAL_ONLY | Optional display_reference. |
-| `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED` | LIVE_UI | mark submitted | Settlement | yes | `{ settlementId }` | display_reference | no | — | no | admin | no | no | A yes | settlementId | A | TECHNICAL_ONLY | Same. |
-| `SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED` | LIVE_UI | mark completed | Settlement | yes | settlementId + completedAt | display_reference | no | — | no | admin | no | no | A yes | settlementId | A | TECHNICAL_ONLY | Same. |
+| `SETTLEMENT_TRUSTEE_LETTER_GENERATED` | LIVE_UI | generate | Settlement + letter | yes | meta `settlementId`; s3Key; tgt settlement | display_reference | **yes** | `settlementReference` | no | admin | no | no | A yes; B yes | prefers settlementReference | s3Key | COMPLETE | **FIXED.** |
+| `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED` | LIVE_UI | mark submitted | Settlement | yes | `{ settlementId }` | display_reference | **yes** | `settlementReference` | no | admin | no | no | A yes; B yes | prefers B | A | COMPLETE | **FIXED.** |
+| `SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED` | LIVE_UI | mark completed | Settlement | yes | settlementId + completedAt | display_reference | **yes** | `settlementReference` | no | admin | no | no | A yes; B yes | prefers B | A | COMPLETE | **FIXED.** |
 | `SETTLEMENT_TRUSTEE_EMAIL_SENT` | LIVE_UI | send/resend | Settlement | yes | settlementId; optional `settlementReference`; messageId | display_reference | **sometimes** | meta `settlementReference` | no | admin | email `messageId` | no | A yes; B if key present | prefers settlementReference | C messageId | COMPLETE when reference written; else TECHNICAL_ONLY | Always pass `settlementReference` on send and resend. |
 
 ### 11. Withdrawals / Disbursement — `note_events`
@@ -290,12 +291,12 @@ Top-level `note_id` is always A for the note (except nested create still has `no
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` | LIVE_UI | closeFunding when new instruction | `WithdrawalInstruction` | yes | meta `withdrawalId`; tgt WITHDRAWAL; `note_id` column kept | `display_reference` | yes | meta `withdrawalReference` | no | admin | no | no | tgt = withdrawal id | Target Reference prefers B | yes | COMPLETE | **FIXED.** Do not copy `note_id` into metadata. |
 | `WITHDRAWAL_BENEFICIARY_UPDATED` | LIVE_UI | update beneficiary | Withdrawal | yes | `{ withdrawalId }` tgt | display_reference | yes | meta `withdrawalReference` | no | admin | no | `previousValues`/`nextValues` beneficiary snapshots | A yes; B yes | withdrawalReference | yes | COMPLETE | **FIXED.** Canonical live row can still be overwritten later. |
-| `WITHDRAWAL_LETTER_GENERATED` | LIVE_UI | generate letter | Withdrawal | yes | meta `withdrawalId`; tgt WITHDRAWAL | display_reference | **no** | s3Key | no | admin | no | no | A yes; B no | withdrawalId | A + file | TECHNICAL_ONLY | Add `withdrawalReference` (already used elsewhere). |
+| `WITHDRAWAL_LETTER_GENERATED` | LIVE_UI | generate letter | Withdrawal | yes | meta `withdrawalId`; tgt WITHDRAWAL | display_reference | **yes** | `withdrawalReference` + s3Key | no | admin | no | no | A yes; B yes | prefers B | A + file | COMPLETE | **FIXED.** Do not copy `note_id` into metadata. |
 | `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | LIVE_UI | mark submitted | Withdrawal | yes | `withdrawalId`; tgt | display_reference | yes | `withdrawalReference` | no | admin | no | no | A+B | B preferred in CSV | yes | COMPLETE | Leave unchanged. |
 | `WITHDRAWAL_COMPLETED` | LIVE_UI | complete | Withdrawal | yes | withdrawalId; tgt | display_reference | yes | withdrawalReference + type + amount | no | admin | no | no | A+B | B | yes | COMPLETE | Leave unchanged. |
 | `WITHDRAWAL_TRUSTEE_EMAIL_SENT` | LIVE_UI | send/resend | Withdrawal | yes | withdrawalId; optional reference; messageId | display_reference | optional | withdrawalReference | no | admin | messageId | no | A; B if present | B if present | C | COMPLETE when reference passed | Always include `withdrawalReference` (resend path already can). |
-| `SHORAKA_ORDER_SUBMITTED` | LIVE_SYSTEM | first STP create | `ShorakaTradeOrder` | **no cuid** | tgt = `provider_order_id` (C) | n/a | n/a | — | no | system | **yes** `provider_order_id` + amounts/dates | no | C shown as tgt id | C | C unique → join to row | INDIRECT_ONLY | Optional store `shoraka_trade_orders.id`. Do **not** treat provider id as CashSouk PK. Certificate not on this event. |
-| `SHORAKA_CERTIFICATE_FETCHED` | LIVE_SYSTEM | fetch cert | Trade order + cert file | no cuid | tgt = provider_order_id | n/a | n/a | flags only | no | system | `provider_order_id`; **not** s3 key / `provider_certificate_id` / hash | no | C | C | file evidence is on trade order row (join) | INDIRECT_ONLY | Optional snapshot `certificate_file_sha256` / s3 key. Provider order id is enough to join. |
+| `SHORAKA_ORDER_SUBMITTED` | LIVE_SYSTEM | first STP create | `ShorakaTradeOrder` | **yes** `trade_order_id` | tgt SHORAKA_ORDER = trade-order id; meta `trade_order_id` | n/a | n/a | — | no | system | **yes** `provider_order_id` + amounts/dates | no | A as tgt; C labelled Provider order ID | A as Target Reference; C in metadata | A + C | COMPLETE | **FIXED.** Do not treat provider id as CashSouk PK. Certificate not on this event. |
+| `SHORAKA_CERTIFICATE_FETCHED` | LIVE_SYSTEM | fetch cert | Trade order + cert file | yes trade-order id | tgt = trade-order id | n/a | n/a | — | no | system | `provider_order_id`; sha256; s3 key | no | A as tgt; C labelled separately | A; C in metadata | file evidence snapshotted | COMPLETE | **FIXED.** |
 
 ### 12. Legal documents — `legal_document_audit_logs`
 
@@ -359,11 +360,11 @@ P0/P2 ID-target gaps from the pre-fix audit are **FIXED**. Remaining by design:
 | `ROLE_CREATED` / `ROLE_PERMISSIONS_UPDATED` / `ROLE_REMOVED` | `security_logs` | `admin_roles.id` | `roleKey` — **INTENTIONALLY_UNCHANGED** |
 | `PLATFORM_FINANCE_SETTINGS_UPDATED` | `security_logs` | settings cuid | `settingsKey=DEFAULT` — **INTENTIONALLY_UNCHANGED** |
 
-Shoraka now stores `trade_order_id` (A) beside `provider_order_id` (C). Target resolution still uses provider_order_id — **INTENTIONALLY_UNCHANGED** (do not rename SHORAKA_*).
+Shoraka stores `trade_order_id` (A) as `target_id` and keeps `provider_order_id` (C) in metadata. Raw `SHORAKA_*` IDs are unchanged.
 
 ### 2. EVENTS MISSING DISPLAY REFERENCE (B)
 
-Live `logApplicationActivity` writers snapshot `applicationReference` / `contractReference` / `invoiceReference` when the row is available. Occupancy `createApplicationLog` paths still omit the lookup (**INTENTIONALLY_UNCHANGED**).
+Live `logApplicationActivity` writers snapshot `applicationReference` / `contractReference` / `invoiceReference` when the row is available. Occupancy `createApplicationLog` paths now snapshot the same keys from already-loaded contract/invoice/note rows (**FIXED**). No extra lookup inside the occupancy transaction.
 
 Onboarding membership and org `PROFILE_UPDATED` snapshot `organizationReference` when present.
 
@@ -386,7 +387,7 @@ Admin-mirror note events contain nested `beforeState.noteReference`; Details/CSV
 |---|---|---|
 | `SIGNING_PACKAGE_*` | SigningCloud `provider_contract_ref` | **FIXED** on SENT/COMPLETED (`providerEnvelopeId` / `providerContractRefs`). CREATED/VOIDED only when already on the envelope. |
 | `LOGIN`/`SIGNUP` | Cognito sub | no (optional; user_id is CashSouk PK) |
-| `SHORAKA_CERTIFICATE_FETCHED` | `provider_certificate_id`, s3 key, sha256 | flags only |
+| `SHORAKA_CERTIFICATE_FETCHED` | `provider_certificate_id`, s3 key, sha256 | **FIXED** — s3 key + sha256 snapshotted; provider certificate id still optional |
 | Gateway events with empty metadata | Curlec ids | parent row only (acceptable if join allowed) |
 | `ROLE_ADDED` accept invitation | `AdminInvitation.id` | token only |
 
@@ -417,13 +418,13 @@ Do **not** copy these into metadata:
 
 ### 8. EVENTS THAT SHOULD BE FIXED FIRST
 
-All P0/P1/P2 items in the implementation disposition at the top of this file are **FIXED** (or **DEFERRED** / **INTENTIONALLY_UNCHANGED** as marked). Do not re-open them without a new source finding.  
+All P0/P1/P2 items in the implementation disposition at the top of this file are **FIXED** (or **INTENTIONALLY_UNCHANGED** as marked). Do not re-open them without a new source finding.  
 
 ---
 
 ## C. Minimal recommended-fix list
 
-See the **Implementation disposition** table at the top. Pre-fix P0–P2 items are **FIXED**. P3 waive duplicate and `PRODUCT_UPDATED` before-snapshot are **DEFERRED**.
+See the **Implementation disposition** table at the top. Pre-fix P0–P2 items are **FIXED**. Facility-fee waive duplicate is **FIXED**. `PRODUCT_UPDATED` previous blob is **INTENTIONALLY_UNCHANGED**. User-portal `MEMBER_*` is **INTENTIONALLY_UNCHANGED**.
 
 ---
 
@@ -433,13 +434,14 @@ See the **Implementation disposition** table at the top. Pre-fix P0–P2 items a
 - Security `PASSWORD_CHANGED`, `EMAIL_VERIFIED`, `ROLE_ADDED`, `ROLE_SWITCHED`, `INVITATION_REVOKED`
 - Security role-catalogue and finance-settings rows
 - Legal document audit (all 7) and acceptances `OPENED` / `ACCEPTED`
-- Products `CREATED` / `DELETED`; `PRODUCT_UPDATED` before-snapshot **DEFERRED**
+- Products `CREATED` / `DELETED`; `PRODUCT_UPDATED` previous blob **INTENTIONALLY_UNCHANGED** (immutable previous version row)
 - Gateway 8 live types (`OVERRIDE_*` are not live — **do not activate**)
-- Note admin-mirrors (`UPDATE_*`, listing, publish, funding close/fail, activate, waive collection pair **DEFERRED**)
+- Note admin-mirrors (`UPDATE_*`, listing, publish, funding close/fail, activate). Waive collection is **one** live `note_events` ID (`WAIVE_FACILITY_FEE_COLLECTION`).
 - `INVESTMENT_COMMITTED`
 - `WITHDRAWAL_SUBMITTED_TO_TRUSTEE`, `WITHDRAWAL_COMPLETED`
-- Occupancy before/after snapshots (application and note)
+- Occupancy before/after snapshots (application and note); display refs now snapshotted when in scope
 - Payment `paymentId` targeting
+- User-portal organisation Activity remains onboarding milestones (**INTENTIONALLY_UNCHANGED** for `MEMBER_*`)
 
 `NOT_OPENED` is not an event.
 
@@ -455,7 +457,7 @@ See the **Implementation disposition** table at the top. Pre-fix P0–P2 items a
 | `invoice_number` vs `display_reference` | number key holds number **or** display fallback |
 | `kycRequestId` vs `kycId` | AML/KYC onboarding status |
 | `regtankRequestId` vs `requestId` | admin vs webhook |
-| `provider_order_id` as `target_id` | Shoraka (C stored in A’s slot) |
+| `provider_order_id` as `target_id` | Historical Shoraka rows only; new rows use trade-order id |
 | `envelope_id` vs SigningCloud provider ref | envelope UUID vs C |
 
 ---
@@ -464,10 +466,11 @@ See the **Implementation disposition** table at the top. Pre-fix P0–P2 items a
 
 | Set | Count |
 |---|---|
-| Live writers | previous 136 plus 4 `MEMBER_*`; production `WEBHOOK_PENDING_APPROVAL` / `WEBHOOK_IN_PROGRESS` / catch-all `WEBHOOK_RECEIVED` no longer written |
+| Live writers | **138** (previous 139 minus historical `NOTE_FACILITY_FEE_COLLECTION_WAIVED`; `MEMBER_*` remain live Admin UI) |
 | OVERRIDE_* (declared, no writer) | 3 — **not live** |
-| P0 missing A | **0** after the fix pass |
+| P0 missing A | **0** after the cleanup pass |
+| UNREACHABLE | **7** — access `ROLE_ADDED`/`ROLE_REMOVED`/`ONBOARDING_RESET`; onboarding `AML_APPROVED`/`ONBOARDING_RESET`; products `PRODUCT_INACTIVATED`/`PRODUCT_REACTIVATED` |
 
 **CODE CHANGED:** YES (writers/UI/tests; no schema)  
 **MIGRATIONS:** NO  
-**FINAL STATUS:** FIX PASS COMPLETE
+**FINAL STATUS:** CLEANUP PASS COMPLETE

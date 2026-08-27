@@ -52,4 +52,10 @@ describe("ORGANIZATION_ACTIVITY_EVENT_TYPES — dead filter cleanup", () => {
     // that may exist on old onboarding_logs rows (schema/enum untouched).
     expect(ORGANIZATION_ACTIVITY_EVENT_TYPES.length).toBeGreaterThan(0);
   });
+
+  it("includes MEMBER_* so organisation membership activity is not excluded by the Admin allowlist", () => {
+    expect(ORGANIZATION_ACTIVITY_EVENT_TYPES).toEqual(
+      expect.arrayContaining(["MEMBER_ADDED", "MEMBER_INVITED", "MEMBER_REMOVED", "MEMBER_ROLE_CHANGED"])
+    );
+  });
 });

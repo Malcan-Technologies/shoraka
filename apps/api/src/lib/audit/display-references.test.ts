@@ -26,4 +26,16 @@ describe("mergeDisplayReferences", () => {
     });
     expect(merged).not.toHaveProperty("application_id");
   });
+
+  it("adds noteReference without copying a note DB id", () => {
+    const merged = mergeDisplayReferences(
+      { note_id: "note-cuid" },
+      { noteReference: "NT-ARF-202608-K9P" }
+    );
+    expect(merged).toMatchObject({
+      note_id: "note-cuid",
+      noteReference: "NT-ARF-202608-K9P",
+    });
+    expect(snapshotBusinessReference("note-cuid", "note-cuid")).toBeUndefined();
+  });
 });

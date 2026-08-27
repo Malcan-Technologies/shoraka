@@ -22,6 +22,7 @@ export function mergeDisplayReferences(
     applicationReference?: string | null;
     contractReference?: string | null;
     invoiceReference?: string | null;
+    noteReference?: string | null;
     organizationReference?: string | null;
     withdrawalReference?: string | null;
     settlementReference?: string | null;
@@ -39,6 +40,9 @@ export function mergeDisplayReferences(
   );
   const invoiceReference = snapshotBusinessReference(
     typeof next.invoiceReference === "string" ? next.invoiceReference : refs.invoiceReference
+  );
+  const noteReference = snapshotBusinessReference(
+    typeof next.noteReference === "string" ? next.noteReference : refs.noteReference
   );
   const organizationReference = snapshotBusinessReference(
     typeof next.organizationReference === "string"
@@ -58,6 +62,7 @@ export function mergeDisplayReferences(
   if (applicationReference) next.applicationReference = applicationReference;
   if (contractReference) next.contractReference = contractReference;
   if (invoiceReference) next.invoiceReference = invoiceReference;
+  if (noteReference) next.noteReference = noteReference;
   if (organizationReference) next.organizationReference = organizationReference;
   if (withdrawalReference) next.withdrawalReference = withdrawalReference;
   if (settlementReference) next.settlementReference = settlementReference;

@@ -18,6 +18,7 @@ import {
 import {
   extractOrganizationTimelineBylineChips,
   extractOrganizationTimelineCompactDetails,
+  organizationLogTargetReference,
 } from "@/components/organization-activity-timeline-details";
 import {
   ORGANIZATION_ACTIVITY_EVENT_TYPES,
@@ -130,6 +131,23 @@ function buildEventDescription(
     case "KYC_APPROVED":
       if (metadata.isCorporateOnboarding) return "Corporate onboarding";
       return null;
+    case "MEMBER_ADDED":
+      return metadata.memberEmail
+        ? `Member added: ${String(metadata.memberEmail)}`
+        : "A member was added to the organisation.";
+    case "MEMBER_INVITED":
+      return metadata.memberEmail
+        ? `Invitation sent to ${String(metadata.memberEmail)}`
+        : "A member invitation was created.";
+    case "MEMBER_REMOVED":
+      return metadata.memberEmail
+        ? `Member removed: ${String(metadata.memberEmail)}`
+        : "A member was removed from the organisation.";
+    case "MEMBER_ROLE_CHANGED":
+      if (metadata.previousRole && metadata.newRole) {
+        return `Member role changed from ${String(metadata.previousRole)} to ${String(metadata.newRole)}.`;
+      }
+      return "A member role was changed.";
     default:
       return null;
   }
@@ -159,7 +177,7 @@ function organizationLogToActivityCsvRow(log: OnboardingLogResponse): AdminActiv
     organisation: log.organizationName,
     source: log.source ?? log.portal,
     targetType: log.target_type,
-    targetReference: log.target_id,
+    targetReference: organizationLogTargetReference(log),
     correlationId: log.correlation_id,
   };
 }

@@ -190,10 +190,56 @@ describe("audit traceability source contracts", () => {
     expect(notes).not.toMatch(/OVERRIDE_REJECTED/);
   });
 
-  it("facility-fee waive still writes both note_events IDs in the same method", () => {
+  it("facility-fee waive writes one note_events row with reason and before/after", () => {
     const src = read("modules/notes/service.ts");
-    const idx = src.indexOf("NOTE_FACILITY_FEE_COLLECTION_WAIVED");
-    const window = src.slice(idx, idx + 400);
-    expect(window).toMatch(/WAIVE_FACILITY_FEE_COLLECTION/);
+    const method = src.slice(
+      src.indexOf("async waiveFacilityFeeCollection"),
+      src.indexOf("async closeFunding")
+    );
+    expect(method).toMatch(/WAIVE_FACILITY_FEE_COLLECTION/);
+    expect(method).toMatch(/reason: reason\.trim\(\)/);
+    expect(method).not.toMatch(/NOTE_FACILITY_FEE_COLLECTION_WAIVED/);
+    const logAdmin = src.slice(
+      src.indexOf("private async logAdminAction"),
+      src.indexOf("private async getLedgerAccountId")
+    );
+    expect(logAdmin).toMatch(/extraMetadata/);
+    expect(logAdmin).toMatch(/beforeState/);
+    expect(logAdmin).toMatch(/afterState/);
+    expect(logAdmin.match(/this\.logEvent\(/g)?.length).toBe(1);
+  });
+
+  it("WITHDRAWAL_LETTER_GENERATED stores withdrawalId and withdrawalReference without note_id", () => {
+    const src = read("modules/notes/service.ts");
+    const idx = src.indexOf("WITHDRAWAL_LETTER_GENERATED");
+    const window = src.slice(idx, idx + 350);
+    expect(window).toMatch(/withdrawalId: id/);
+    expect(window).toMatch(/withdrawalReference/);
+    expect(window).toMatch(/s3Key: key/);
+    expect(window).not.toMatch(/note_id:/);
+  });
+
+  it("Shoraka target_id is the CashSouk trade-order id, not the provider order id", () => {
+    const submitted = resolveNoteEventTarget("SHORAKA_ORDER_SUBMITTED", {
+      trade_order_id: "trade-order-cuid",
+      provider_order_id: "provider-order-abc",
+    });
+    expect(submitted).toEqual({
+      targetType: AUDIT_TARGET_TYPE.SHORAKA_ORDER,
+      targetId: "trade-order-cuid",
+    });
+    const fetched = resolveNoteEventTarget("SHORAKA_CERTIFICATE_FETCHED", {
+      trade_order_id: "trade-order-cuid",
+      provider_order_id: "provider-order-abc",
+    });
+    expect(fetched.targetId).toBe("trade-order-cuid");
+    expect(fetched.targetId).not.toBe("provider-order-abc");
+  });
+
+  it("occupancy writers snapshot display refs from already-loaded rows", () => {
+    const src = read("lib/refresh-contract-facility.ts");
+    expect(src).toMatch(/occupancyDisplayRefsFromLoaded/);
+    expect(src).toMatch(/contractReference: input\.displayRefs\?\.contractReference/);
+    expect(src).toMatch(/originating_application: \{ select: \{ id: true, display_reference: true \} \}/);
   });
 });

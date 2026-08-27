@@ -100,6 +100,7 @@ function noteEventCanonicalReference(event: NoteEvent): string {
       "noteReference",
       "note_reference",
       "displayReference",
+      "contractReference",
     ]) {
       const value = metadata[key];
       if (typeof value === "string" && value.trim()) return value.trim();
@@ -114,6 +115,8 @@ function noteEventCanonicalReference(event: NoteEvent): string {
         }
       }
     }
+    const tradeOrderId = metadata.trade_order_id ?? metadata.tradeOrderId;
+    if (typeof tradeOrderId === "string" && tradeOrderId.trim()) return tradeOrderId.trim();
   }
   return event.targetId ?? event.noteId;
 }

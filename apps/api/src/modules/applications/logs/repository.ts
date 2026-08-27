@@ -48,6 +48,7 @@ export async function createApplicationLog(
     applicationReference: params.applicationReference,
     contractReference: params.contractReference,
     invoiceReference: params.invoiceReference,
+    noteReference: params.noteReference,
   });
 
   return db.applicationLog.create({

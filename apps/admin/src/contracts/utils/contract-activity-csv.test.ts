@@ -1,5 +1,9 @@
 import type { AdminContractActivityEvent } from "@cashsouk/types";
-import { buildContractActivityCsv, formatContractActivityEventLabel } from "./contract-activity-csv";
+import {
+  buildContractActivityCsv,
+  contractEventToActivityCsvRow,
+  formatContractActivityEventLabel,
+} from "./contract-activity-csv";
 
 function event(overrides: Partial<AdminContractActivityEvent> = {}): AdminContractActivityEvent {
   return {
@@ -68,5 +72,32 @@ describe("buildContractActivityCsv", () => {
 
   it("exports an empty table with only the header", () => {
     expect(buildContractActivityCsv([]).split("\n")).toHaveLength(1);
+  });
+
+  it("exports occupancy with display references and the raw event type", () => {
+    const row = contractEventToActivityCsvRow(
+      event({
+        eventType: "CONTRACT_FACILITY_OCCUPANCY_UPDATED",
+        applicationId: "app-cuid",
+        metadata: {
+          contract_id: "contract-cuid",
+          applicationReference: "APP-CS-2026-001",
+          contractReference: "FAC-ARF-202608-A1Z",
+          invoiceReference: "INV-ARF-202608-B2Y",
+          before: { utilized_facility: 0 },
+          after: { utilized_facility: 10000 },
+        },
+      })
+    );
+    expect(row.event).toBe("Facility occupancy updated");
+    expect(row.eventType).toBe("CONTRACT_FACILITY_OCCUPANCY_UPDATED");
+    expect(row.targetType).toBe("CONTRACT");
+    expect(row.targetReference).toBe("FAC-ARF-202608-A1Z");
+    expect(row.metadata).toMatchObject({
+      applicationId: "app-cuid",
+      contract_id: "contract-cuid",
+      applicationReference: "APP-CS-2026-001",
+      invoiceReference: "INV-ARF-202608-B2Y",
+    });
   });
 });

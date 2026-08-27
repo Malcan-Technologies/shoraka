@@ -185,6 +185,85 @@ describe("buildNoteActivityCsv", () => {
     expect(row.targetReference).toBe("NT-ARF-202608-K9P");
   });
 
+  it("exports WITHDRAWAL_LETTER_GENERATED with id, display reference, and raw event type", () => {
+    const row = noteEventToActivityCsvRow(
+      event({
+        eventType: "WITHDRAWAL_LETTER_GENERATED",
+        targetType: "WITHDRAWAL",
+        targetId: "wdl-internal-id",
+        metadata: {
+          withdrawalId: "wdl-internal-id",
+          withdrawalReference: "WDL-ARF-202608-A1Z",
+          s3Key: "withdrawal-letters/letter.pdf",
+        },
+      })
+    );
+    expect(row.event).toBe("Withdrawal letter generated");
+    expect(row.eventType).toBe("WITHDRAWAL_LETTER_GENERATED");
+    expect(row.targetType).toBe("WITHDRAWAL");
+    expect(row.targetReference).toBe("WDL-ARF-202608-A1Z");
+    expect(row.metadata).toMatchObject({
+      withdrawalId: "wdl-internal-id",
+      withdrawalReference: "WDL-ARF-202608-A1Z",
+      s3Key: "withdrawal-letters/letter.pdf",
+    });
+  });
+
+  it("exports Shoraka with the CashSouk trade-order id as target, keeping provider_order_id in metadata", () => {
+    const row = noteEventToActivityCsvRow(
+      event({
+        eventType: "SHORAKA_ORDER_SUBMITTED",
+        targetType: "SHORAKA_ORDER",
+        targetId: "trade-order-cuid",
+        metadata: {
+          trade_order_id: "trade-order-cuid",
+          provider_order_id: "provider-order-abc",
+        },
+      })
+    );
+    expect(row.event).toBe("Tawarruq Order Submitted");
+    expect(row.eventType).toBe("SHORAKA_ORDER_SUBMITTED");
+    expect(row.targetType).toBe("SHORAKA_ORDER");
+    expect(row.targetReference).toBe("trade-order-cuid");
+    expect(row.targetReference).not.toBe("provider-order-abc");
+    expect(row.metadata).toMatchObject({
+      trade_order_id: "trade-order-cuid",
+      provider_order_id: "provider-order-abc",
+    });
+  });
+
+  it("exports facility-fee waive with reason plus before/after on the kept event", () => {
+    const row = noteEventToActivityCsvRow(
+      event({
+        eventType: "WAIVE_FACILITY_FEE_COLLECTION",
+        metadata: {
+          reason: "Issuer requested waiver",
+          beforeState: { facilityFeeCollectionEnabled: true },
+          afterState: { facilityFeeCollectionEnabled: false },
+        },
+      })
+    );
+    expect(row.event).toBe("Facility Fee Collection Waived");
+    expect(row.eventType).toBe("WAIVE_FACILITY_FEE_COLLECTION");
+    expect(row.metadata).toMatchObject({
+      reason: "Issuer requested waiver",
+      beforeState: { facilityFeeCollectionEnabled: true },
+      afterState: { facilityFeeCollectionEnabled: false },
+    });
+  });
+
+  it("still exports historical NOTE_FACILITY_FEE_COLLECTION_WAIVED rows", () => {
+    const csv = buildNoteActivityCsv([
+      event({
+        eventType: "NOTE_FACILITY_FEE_COLLECTION_WAIVED",
+        metadata: { reason: "legacy row" },
+      }),
+    ]);
+    expect(csv).toContain("NOTE_FACILITY_FEE_COLLECTION_WAIVED");
+    expect(csv).toContain("Facility fee collection waived");
+    expect(csv).toContain("legacy row");
+  });
+
   it("uses the withdrawal reference for ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED", () => {
     const row = noteEventToActivityCsvRow(
       event({
