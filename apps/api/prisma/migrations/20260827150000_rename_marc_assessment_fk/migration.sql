@@ -1,0 +1,2 @@
+-- RenameForeignKey
+ALTER TABLE "issuer_organization_marc_assessments" RENAME CONSTRAINT "issuer_organization_marc_assessments_issuer_organization_id_fke" TO "issuer_organization_marc_assessments_issuer_organization_i_fkey";
