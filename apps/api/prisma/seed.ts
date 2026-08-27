@@ -2,6 +2,7 @@ import { PrismaClient, Prisma, UserRole, OrganizationType } from "@prisma/client
 import { AdminRole } from "@cashsouk/types";
 import { logger } from "../src/lib/logger";
 import { generateUniqueUserId } from "../src/lib/user-id-generator";
+import { buildAboutYourBusinessCod } from "../scripts/seed-application-helpers";
 
 const prisma = new PrismaClient();
 
@@ -674,6 +675,7 @@ async function main() {
             businessName: "Ray Ban Sdn Bhd",
             numberOfEmployees: 5,
           },
+          aboutYourBusiness: buildAboutYourBusinessCod(),
           addresses: {
             business: {
               line1: "rthrthr",
@@ -1288,6 +1290,7 @@ async function main() {
             numberOfEmployees: "12",
             ssmRegistrationNumber: "123412341234",
           },
+          aboutYourBusiness: buildAboutYourBusinessCod(),
           entityCriteria: {
             partnershipCriteria: null,
             pensionFundCriteria: null,

@@ -387,6 +387,12 @@ async function ensureInfrastructure(ownerUserId: string) {
       ssm_checked: true,
       corporate_onboarding_data: {
         basicInfo: { industry: "Industrial Manufacturing" },
+        aboutYourBusiness: {
+          whatDoesCompanyDo: BUSINESS_DESCRIPTION,
+          mainCustomers: "Industrial and infrastructure buyers in Malaysia.",
+          singleCustomerOver50Revenue: false,
+          accountingSoftware: "Xero",
+        },
       },
     },
     create: {
@@ -404,6 +410,12 @@ async function ensureInfrastructure(ownerUserId: string) {
       ssm_checked: true,
       corporate_onboarding_data: {
         basicInfo: { industry: "Industrial Manufacturing" },
+        aboutYourBusiness: {
+          whatDoesCompanyDo: BUSINESS_DESCRIPTION,
+          mainCustomers: "Industrial and infrastructure buyers in Malaysia.",
+          singleCustomerOver50Revenue: false,
+          accountingSoftware: "Xero",
+        },
       },
     },
   });

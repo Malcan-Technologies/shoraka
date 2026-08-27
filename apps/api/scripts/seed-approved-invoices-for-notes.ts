@@ -30,6 +30,7 @@ import {
   resolveOfferedAmount,
   resolveRequestedInvoiceAmount,
 } from "../src/lib/invoice-offer";
+import { buildAboutYourBusinessCod } from "./seed-application-helpers";
 
 const prisma = new PrismaClient();
 
@@ -254,6 +255,7 @@ async function ensureSharedSeedInfrastructure(ownerUserId: string) {
       ssm_checked: true,
       corporate_onboarding_data: {
         basicInfo: { industry: "Mining" },
+        aboutYourBusiness: buildAboutYourBusinessCod(),
       },
     },
     create: {
@@ -270,6 +272,7 @@ async function ensureSharedSeedInfrastructure(ownerUserId: string) {
       ssm_checked: true,
       corporate_onboarding_data: {
         basicInfo: { industry: "Mining" },
+        aboutYourBusiness: buildAboutYourBusinessCod(),
       },
     },
   });

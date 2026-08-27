@@ -472,6 +472,7 @@ export * from "./deadline-config";
 export * from "./invoice-offer-risk-rating";
 export * from "./activity-config";
 export * from "./activity-presentation";
+export * from "./about-your-business";
 export * from "./admin";
 export * from "./legal-documents";
 export * from "./application-steps";

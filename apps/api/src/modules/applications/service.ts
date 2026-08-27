@@ -16,6 +16,7 @@ import {
   financialStatementsV2Schema,
 } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
+import { preserveLegacyAboutYourBusinessFields } from "./preserve-about-your-business";
 import {
   Application,
   Prisma,
@@ -1205,7 +1206,11 @@ export class ApplicationService {
         throw new AppError(400, "VALIDATION_ERROR", message);
       }
       const { guarantors: _guarantors, ...businessDetailsWithoutGuarantors } = result.data;
-      dataToStore = businessDetailsWithoutGuarantors as Prisma.InputJsonValue;
+      dataToStore = preserveLegacyAboutYourBusinessFields(
+        businessDetailsWithoutGuarantors as Record<string, unknown>,
+        input.data,
+        application.business_details
+      ) as Prisma.InputJsonValue;
     }
 
     if (fieldName === "financial_statements") {

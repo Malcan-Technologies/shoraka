@@ -79,6 +79,7 @@ import {
   type OnboardingApplicationResponse,
   type OnboardingStatusEnum,
   type UserDetailResponse,
+  parseAboutYourBusiness,
 } from "@cashsouk/types";
 import {
   ADMIN_PERMISSIONS,
@@ -2723,6 +2724,12 @@ export class AdminService {
         email?: string | null;
         contact?: string | null;
       };
+      aboutYourBusiness?: {
+        whatDoesCompanyDo?: string;
+        mainCustomers?: string;
+        singleCustomerOver50Revenue?: boolean | null;
+        accountingSoftware?: string;
+      };
     };
     corporateEntities?: Record<string, unknown> | null;
     latestOrganizationCtosCompanyJson?: Record<string, unknown> | null;
@@ -2908,6 +2915,7 @@ export class AdminService {
             email?: string | null;
             contact?: string | null;
           };
+          aboutYourBusiness?: unknown;
         };
 
         return {
@@ -2969,6 +2977,7 @@ export class AdminService {
               contact: pic.contactNumber || undefined,
             };
           })(),
+          aboutYourBusiness: parseAboutYourBusiness(data.aboutYourBusiness),
         };
       })(),
       corporateEntities:

@@ -228,4 +228,25 @@ describe("buildSectionPayload", () => {
 
     expect(buildSectionPayload(org, draft, "company").corporateOnboardingData?.numberOfEmployees).toBe(12);
   });
+
+  it("sends only about-your-business fields when the about card is saved", () => {
+    const org = companyOrg();
+    const draft = buildDraft(org);
+    draft.whatDoesCompanyDo = "We manufacture equipment.";
+    draft.website = "https://should-not-send.test";
+
+    const payload = buildSectionPayload(org, draft, "about");
+
+    expect(payload).toEqual({
+      corporateOnboardingData: {
+        aboutYourBusiness: {
+          whatDoesCompanyDo: "We manufacture equipment.",
+          mainCustomers: "",
+          singleCustomerOver50Revenue: null,
+          accountingSoftware: "",
+        },
+      },
+    });
+    expect(payload.corporateOnboardingData).not.toHaveProperty("website");
+  });
 });

@@ -190,6 +190,13 @@ function isValidAddress(addr: z.infer<typeof addressSchema> | null | undefined):
   return !!(line1 && city && postalCode && state && country);
 }
 
+export const aboutYourBusinessSchema = z.object({
+  whatDoesCompanyDo: z.string().max(1000).optional().nullable(),
+  mainCustomers: z.string().max(400).optional().nullable(),
+  singleCustomerOver50Revenue: z.boolean().optional().nullable(),
+  accountingSoftware: z.string().max(200).optional().nullable(),
+});
+
 // Corporate info update schema
 export const updateCorporateInfoSchema = z
   .object({
@@ -201,6 +208,7 @@ export const updateCorporateInfoSchema = z
     ssmRegisterNumber: z.string().optional().nullable(),
     businessAddress: addressSchema.optional().nullable(),
     registeredAddress: addressSchema.optional().nullable(),
+    aboutYourBusiness: aboutYourBusinessSchema.optional().nullable(),
   })
   .refine(
     (val) => {

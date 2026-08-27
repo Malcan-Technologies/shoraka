@@ -4,6 +4,10 @@
  */
 
 import { Prisma } from "@prisma/client";
+import {
+  parseAboutYourBusinessFromBusinessDetails,
+  parseAboutYourBusinessFromCorporateData,
+} from "@cashsouk/types";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -25,12 +29,16 @@ export function resolveIssuerIndustryFromCorporateData(
   return nonEmptyTrimmed(basicInfo?.industry);
 }
 
+export function resolveBusinessDescriptionFromCorporateData(
+  data: Prisma.JsonValue | null | undefined
+): string | null {
+  return nonEmptyTrimmed(parseAboutYourBusinessFromCorporateData(data).whatDoesCompanyDo);
+}
+
 export function resolveBusinessDescriptionFromBusinessDetails(
   businessDetails: Prisma.JsonValue | null | undefined
 ): string | null {
-  const details = asRecord(businessDetails);
-  const about = asRecord(details?.about_your_business);
-  return nonEmptyTrimmed(about?.what_does_company_do);
+  return nonEmptyTrimmed(parseAboutYourBusinessFromBusinessDetails(businessDetails).whatDoesCompanyDo);
 }
 
 export interface NoteIssuerSnapshotOrganizationInput {
@@ -68,6 +76,8 @@ export function buildNoteIssuerSnapshot(input: {
     industry: resolveIssuerIndustryFromCorporateData(org.corporate_onboarding_data),
     registration_number: nonEmptyTrimmed(org.registration_number),
     country: nonEmptyTrimmed(org.country),
-    business_description: resolveBusinessDescriptionFromBusinessDetails(input.businessDetails),
+    business_description:
+      resolveBusinessDescriptionFromCorporateData(org.corporate_onboarding_data) ??
+      resolveBusinessDescriptionFromBusinessDetails(input.businessDetails),
   };
 }

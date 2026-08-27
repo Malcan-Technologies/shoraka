@@ -24,6 +24,9 @@ import {
   getFinalStatusLabel,
   getFinalStatusToken,
   isMissingGovernmentIdPerson,
+  parseAboutYourBusiness,
+  isAboutYourBusinessComplete,
+  ABOUT_YOUR_BUSINESS_LIMITS,
   resolveDirectorShareholderCtosEmptyWarning,
   UNRESOLVED_IDENTITY_RECOVERY_COPY,
   UNRESOLVED_IDENTITY_RECOVERY_TITLE,
@@ -32,6 +35,7 @@ import {
   DirectorShareholderCtosEmptyAlert,
   DirectorShareholderUnresolvedIdentitySection,
   StatusBadge,
+  YesNoRadioDisplay,
 } from "@cashsouk/ui";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
@@ -40,6 +44,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -47,7 +57,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { InformationCircleIcon, PencilIcon } from "@heroicons/react/24/outline";
+import { InformationCircleIcon, PencilIcon, EyeIcon } from "@heroicons/react/24/outline";
 import {
   Dialog,
   DialogContent,
@@ -68,6 +78,7 @@ import {
   formInputDisabledClassName,
   formLabelClassName,
   formSelectTriggerClassName,
+  formTextareaClassName,
   withFieldError,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { CompanyDetailsSkeleton } from "@/app/(application-flow)/applications/components/company-details-skeleton";
@@ -92,6 +103,10 @@ interface CompanyDetailsStepProps {
 interface FormState {
   industry: string;
   numberOfEmployees: string;
+  whatDoesCompanyDo: string;
+  mainCustomers: string;
+  singleCustomerOver50Revenue: boolean | null;
+  accountingSoftware: string;
   businessAddress: Record<string, unknown> | null;
   registeredAddress: Record<string, unknown> | null;
   bankName: string;
@@ -110,6 +125,12 @@ export function generateMockData(): Record<string, unknown> {
   return {
     industry: "Technology",
     numberOfEmployees: "10",
+    whatDoesCompanyDo:
+      "We manufacture industrial equipment and provide maintenance services for mining and construction sectors.",
+    mainCustomers:
+      "Large enterprises in oil & gas, mining, and infrastructure. Top 3 customers: Petronas, Sime Darby, Tenaga Nasional.",
+    singleCustomerOver50Revenue: false,
+    accountingSoftware: "Xero",
     businessAddress: {
       line1: "23, Jalan Kiara",
       line2: "",
@@ -185,6 +206,34 @@ const inputClassName = cn(formInputClassName, formInputDisabledClassName);
 const inputClassNameEditable = formInputClassName;
 const labelClassName = formLabelClassName;
 const labelClassNameEditable = formLabelClassName;
+const textareaClassName = cn(formTextareaClassName, "min-h-[100px] resize-y");
+const aboutRowGridClassName =
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-6 gap-y-4 mt-4 px-3 items-start";
+const investorBadgeTooltipContentClassName =
+  "max-w-xs border border-border bg-popover px-3 py-2 text-sm font-normal normal-case leading-snug text-popover-foreground shadow-md";
+
+function InvestorVisibilityBadge() {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex max-w-full shrink-0 cursor-help items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <EyeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+          <span className="truncate">Visible to investors</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={6} className={investorBadgeTooltipContentClassName}>
+        Everything you enter here will be shown to investors.
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function aboutFieldsFromProfile(corporateInfo: { aboutYourBusiness?: unknown } | null | undefined) {
+  return parseAboutYourBusiness(corporateInfo?.aboutYourBusiness);
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -288,6 +337,10 @@ export function CompanyDetailsStep({
   const [formState, setFormState] = React.useState<FormState>({
     industry: "",
     numberOfEmployees: "",
+    whatDoesCompanyDo: "",
+    mainCustomers: "",
+    singleCustomerOver50Revenue: null,
+    accountingSoftware: "",
     businessAddress: null,
     registeredAddress: null,
     bankName: "",
@@ -317,9 +370,14 @@ export function CompanyDetailsStep({
     const bankDetails = (bankAccountDetails as Record<string, unknown> | null) || null;
     const orgContact = resolveOrgContactPerson();
 
+    const about = aboutFieldsFromProfile(corporateInfo);
     const hydratedState: FormState = {
       industry: basicInfo?.industry || "",
       numberOfEmployees: (basicInfo?.numberOfEmployees?.toString() || ""),
+      whatDoesCompanyDo: about.whatDoesCompanyDo,
+      mainCustomers: about.mainCustomers,
+      singleCustomerOver50Revenue: about.singleCustomerOver50Revenue,
+      accountingSoftware: about.accountingSoftware,
       businessAddress: (businessAddress as Record<string, unknown>) || null,
       registeredAddress: (registeredAddress as Record<string, unknown>) || null,
       bankName: getBankField(bankDetails, "Bank"),
@@ -345,9 +403,14 @@ export function CompanyDetailsStep({
     const bankDetails = (bankAccountDetails as Record<string, unknown> | null) || null;
     const orgContact = resolveOrgContactPerson();
 
+    const about = aboutFieldsFromProfile(corporateInfo);
     const next: FormState = {
       industry: basicInfo?.industry || "",
       numberOfEmployees: (basicInfo?.numberOfEmployees?.toString() || ""),
+      whatDoesCompanyDo: about.whatDoesCompanyDo,
+      mainCustomers: about.mainCustomers,
+      singleCustomerOver50Revenue: about.singleCustomerOver50Revenue,
+      accountingSoftware: about.accountingSoftware,
       businessAddress: (businessAddress as Record<string, unknown>) || null,
       registeredAddress: (registeredAddress as Record<string, unknown>) || null,
       bankName: getBankField(bankDetails, "Bank"),
@@ -379,6 +442,10 @@ export function CompanyDetailsStep({
       const applied = data as Partial<{
         industry: string;
         numberOfEmployees: string;
+        whatDoesCompanyDo: string;
+        mainCustomers: string;
+        singleCustomerOver50Revenue: boolean | null;
+        accountingSoftware: string;
         businessAddress: Record<string, unknown>;
         registeredAddress: Record<string, unknown>;
         bankName: string;
@@ -393,6 +460,13 @@ export function CompanyDetailsStep({
         ...prev,
         industry: String(applied.industry ?? prev.industry ?? ""),
         numberOfEmployees: String(applied.numberOfEmployees ?? prev.numberOfEmployees ?? ""),
+        whatDoesCompanyDo: String(applied.whatDoesCompanyDo ?? prev.whatDoesCompanyDo ?? ""),
+        mainCustomers: String(applied.mainCustomers ?? prev.mainCustomers ?? ""),
+        singleCustomerOver50Revenue:
+          applied.singleCustomerOver50Revenue !== undefined
+            ? applied.singleCustomerOver50Revenue
+            : prev.singleCustomerOver50Revenue,
+        accountingSoftware: String(applied.accountingSoftware ?? prev.accountingSoftware ?? ""),
         businessAddress: (applied.businessAddress as Record<string, unknown> | null) ?? prev.businessAddress,
         registeredAddress:
           (applied.registeredAddress as Record<string, unknown> | null) ?? prev.registeredAddress,
@@ -459,6 +533,23 @@ export function CompanyDetailsStep({
     } else if (!isValidNumberOfEmployees(formState.numberOfEmployees)) {
       errors.push("Number of employees must be a positive whole number");
       fieldErrors.numberOfEmployees = "Enter a positive whole number";
+    }
+
+    if (!formState.whatDoesCompanyDo.trim()) {
+      errors.push("About your business incomplete — update your company profile");
+      fieldErrors.whatDoesCompanyDo = "Update on company profile";
+    }
+    if (!formState.mainCustomers.trim()) {
+      errors.push("About your business incomplete — update your company profile");
+      fieldErrors.mainCustomers = "Update on company profile";
+    }
+    if (formState.singleCustomerOver50Revenue === null) {
+      errors.push("About your business incomplete — update your company profile");
+      fieldErrors.singleCustomerOver50Revenue = "Update on company profile";
+    }
+    if (!formState.accountingSoftware.trim()) {
+      errors.push("About your business incomplete — update your company profile");
+      fieldErrors.accountingSoftware = "Update on company profile";
     }
 
     // Banking validation
@@ -532,6 +623,12 @@ export function CompanyDetailsStep({
       formState.contactPersonContact?.trim() &&
       formState.industry?.trim() &&
       formState.numberOfEmployees?.trim() &&
+      isAboutYourBusinessComplete({
+        whatDoesCompanyDo: formState.whatDoesCompanyDo,
+        mainCustomers: formState.mainCustomers,
+        singleCustomerOver50Revenue: formState.singleCustomerOver50Revenue,
+        accountingSoftware: formState.accountingSoftware,
+      }) &&
       formState.bankName?.trim() &&
       formState.bankAccountNumber?.trim()
     );
@@ -683,6 +780,102 @@ export function CompanyDetailsStep({
                   {fieldErrors.numberOfEmployees}
                 </p>
               )}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h3 className={cn(applicationFlowSectionTitleClassName, "shrink-0")}>About your business</h3>
+              <InvestorVisibilityBadge />
+            </div>
+            <div className={applicationFlowSectionDividerClassName} />
+          </div>
+
+          <div className={aboutRowGridClassName}>
+            <Label htmlFor="company-what-does-company-do" className={labelClassName}>
+              What does your company do?
+            </Label>
+            <div className="flex flex-col gap-1">
+              <TextareaWithCharCount
+                id="company-what-does-company-do"
+                value={formState.whatDoesCompanyDo}
+                onChange={() => undefined}
+                placeholder="Add details"
+                maxLength={ABOUT_YOUR_BUSINESS_LIMITS.whatDoesCompanyDo}
+                className={withFieldError(textareaClassName, Boolean(fieldErrors.whatDoesCompanyDo))}
+                countLabel={`${formState.whatDoesCompanyDo.length}/${ABOUT_YOUR_BUSINESS_LIMITS.whatDoesCompanyDo} characters`}
+                disabled
+              />
+              {fieldErrors.whatDoesCompanyDo ? (
+                <p className="text-xs text-destructive">
+                  {fieldErrors.whatDoesCompanyDo}.{" "}
+                  <Link href="/profile?focus=about" className="underline underline-offset-2">
+                    Open company profile
+                  </Link>
+                </p>
+              ) : null}
+            </div>
+
+            <Label htmlFor="company-main-customers" className={labelClassName}>
+              Who are your main customers?
+            </Label>
+            <div className="flex flex-col gap-1">
+              <TextareaWithCharCount
+                id="company-main-customers"
+                value={formState.mainCustomers}
+                onChange={() => undefined}
+                placeholder="Add details"
+                maxLength={ABOUT_YOUR_BUSINESS_LIMITS.mainCustomers}
+                className={withFieldError(textareaClassName, Boolean(fieldErrors.mainCustomers))}
+                countLabel={`${formState.mainCustomers.length}/${ABOUT_YOUR_BUSINESS_LIMITS.mainCustomers} characters`}
+                disabled
+              />
+              {fieldErrors.mainCustomers ? (
+                <p className="text-xs text-destructive">
+                  {fieldErrors.mainCustomers}.{" "}
+                  <Link href="/profile?focus=about" className="underline underline-offset-2">
+                    Open company profile
+                  </Link>
+                </p>
+              ) : null}
+            </div>
+
+            <div className={labelClassName}>
+              Does any single customer make up more than 50% of your revenue?
+            </div>
+            <div className="flex min-h-11 flex-col justify-center gap-1">
+              <YesNoRadioDisplay value={formState.singleCustomerOver50Revenue} />
+              {fieldErrors.singleCustomerOver50Revenue ? (
+                <p className="text-xs text-destructive">
+                  {fieldErrors.singleCustomerOver50Revenue}.{" "}
+                  <Link href="/profile?focus=about" className="underline underline-offset-2">
+                    Open company profile
+                  </Link>
+                </p>
+              ) : null}
+            </div>
+
+            <Label htmlFor="company-accounting-software" className={labelClassName}>
+              Which accounting software does the issuer use?
+            </Label>
+            <div className="flex flex-col gap-1">
+              <Input
+                id="company-accounting-software"
+                value={formState.accountingSoftware}
+                disabled
+                placeholder="e.g. QuickBooks, Xero, SAP"
+                className={withFieldError(inputClassName, Boolean(fieldErrors.accountingSoftware))}
+              />
+              {fieldErrors.accountingSoftware ? (
+                <p className="text-xs text-destructive">
+                  {fieldErrors.accountingSoftware}.{" "}
+                  <Link href="/profile?focus=about" className="underline underline-offset-2">
+                    Open company profile
+                  </Link>
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

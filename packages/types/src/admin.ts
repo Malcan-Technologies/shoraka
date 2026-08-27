@@ -683,6 +683,12 @@ export interface OrganizationDetailResponse {
       email?: string | null;
       contact?: string | null;
     };
+    aboutYourBusiness?: {
+      whatDoesCompanyDo?: string;
+      mainCustomers?: string;
+      singleCustomerOver50Revenue?: boolean | null;
+      accountingSoftware?: string;
+    };
   };
 
   // Corporate entities (directors, shareholders, corporate shareholders) — COMPANY only
@@ -775,6 +781,12 @@ export interface UpdateAdminOrganizationCorporateOnboardingInput {
     position?: string | null;
     email?: string | null;
     contactNumber?: string | null;
+  };
+  aboutYourBusiness?: {
+    whatDoesCompanyDo?: string | null;
+    mainCustomers?: string | null;
+    singleCustomerOver50Revenue?: boolean | null;
+    accountingSoftware?: string | null;
   };
 }
 

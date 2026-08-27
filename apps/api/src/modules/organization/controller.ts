@@ -18,6 +18,7 @@ import {
   PortalType,
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
+import { parseAboutYourBusiness } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { AMLSyncService } from "../regtank/aml-sync-service";
 import { buildDirectorShareholderPeopleList, buildAdminPeopleList } from "../admin/build-people-list";
@@ -511,6 +512,7 @@ async function getOrganization(
                 email?: string | null;
                 contact?: string | null;
               };
+              aboutYourBusiness?: unknown;
             };
 
             const resolvedContactPerson = (() => {
@@ -577,6 +579,9 @@ async function getOrganization(
                   }
                 : undefined,
               contactPerson: resolvedContactPerson,
+              aboutYourBusiness: parseAboutYourBusiness(
+                (data as { aboutYourBusiness?: unknown }).aboutYourBusiness
+              ),
             };
           })(),
           corporateEntities: org.corporate_entities

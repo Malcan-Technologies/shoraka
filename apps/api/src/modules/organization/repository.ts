@@ -39,6 +39,35 @@ export type UpdateOrganizationOnboardingOptions = {
   resetCompanySsmGateFromRegtankWebhook?: boolean;
 };
 
+function mergeAboutYourBusinessPatch(
+  existingData: Record<string, unknown>,
+  patch:
+    | {
+        whatDoesCompanyDo?: string | null;
+        mainCustomers?: string | null;
+        singleCustomerOver50Revenue?: boolean | null;
+        accountingSoftware?: string | null;
+      }
+    | null
+): Record<string, unknown> | null {
+  if (patch === null) return null;
+  const existing =
+    existingData.aboutYourBusiness &&
+    typeof existingData.aboutYourBusiness === "object" &&
+    !Array.isArray(existingData.aboutYourBusiness)
+      ? (existingData.aboutYourBusiness as Record<string, unknown>)
+      : {};
+  return {
+    ...existing,
+    ...(patch.whatDoesCompanyDo !== undefined && { whatDoesCompanyDo: patch.whatDoesCompanyDo ?? "" }),
+    ...(patch.mainCustomers !== undefined && { mainCustomers: patch.mainCustomers ?? "" }),
+    ...(patch.singleCustomerOver50Revenue !== undefined && {
+      singleCustomerOver50Revenue: patch.singleCustomerOver50Revenue,
+    }),
+    ...(patch.accountingSoftware !== undefined && { accountingSoftware: patch.accountingSoftware ?? "" }),
+  };
+}
+
 export class OrganizationRepository {
   /**
    * Create an investor organization
@@ -730,6 +759,12 @@ export class OrganizationRepository {
         state?: string | null;
         country?: string | null;
       } | null;
+      aboutYourBusiness?: {
+        whatDoesCompanyDo?: string | null;
+        mainCustomers?: string | null;
+        singleCustomerOver50Revenue?: boolean | null;
+        accountingSoftware?: string | null;
+      } | null;
     }
   ) {
     const corporateData = {
@@ -770,6 +805,9 @@ export class OrganizationRepository {
             ? data.registeredAddress
             : (existingAddresses.registered || existingAddresses.registeredAddress || null),
         },
+        ...(data.aboutYourBusiness !== undefined
+          ? { aboutYourBusiness: mergeAboutYourBusinessPatch(existingData, data.aboutYourBusiness) }
+          : {}),
       };
 
       return prisma.investorOrganization.update({
@@ -799,6 +837,9 @@ export class OrganizationRepository {
             ? data.registeredAddress
             : (existingAddresses.registered || existingAddresses.registeredAddress || null),
         },
+        ...(data.aboutYourBusiness !== undefined
+          ? { aboutYourBusiness: mergeAboutYourBusinessPatch(existingData, data.aboutYourBusiness) }
+          : {}),
       };
 
       return prisma.issuerOrganization.update({

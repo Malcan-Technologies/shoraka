@@ -173,7 +173,7 @@ This report is about **CashSouk as a company**. It is almost entirely absent fro
 | Country of Incorporation | 29 | Partial | `IssuerOrganization.country` is populated for personal onboarding, not company incorporation. Registered-address country exists in JSON. | Add an explicit field; default to Malaysia and confirm at review. |
 | Type of Company (6-value SC enum) | 29 | Partial | `corporate_onboarding_data.basicInfo.entityType` is free text from a RegTank picklist (e.g. "Private Limited Company (Sdn Bhd)"). | Add a mapping from RegTank values to the SC enum in the export layer. No new user input needed. |
 | E-mail Address (company-level) | 29 | Missing | Only contact-person email and the owner's account email exist. | Add to the company details step, or designate the contact-person email as the company email and document that decision. |
-| Company Activities | 30 | Partial | `Application.business_details.about_your_business.what_does_company_do` is a free-text narrative; the SC wants a short activity descriptor tied to the fundraising purpose. | Reuse the campaign sector value (see below) or add a short structured field. |
+| Company Activities | 30 | Partial | `IssuerOrganization.corporate_onboarding_data.aboutYourBusiness.whatDoesCompanyDo` is a free-text narrative (legacy copies also exist on `Application.business_details.about_your_business.what_does_company_do`); the SC wants a short activity descriptor tied to the fundraising purpose. | Reuse the campaign sector value (see below) or add a short structured field. |
 
 ### [03000] Financing Details 1 — pp. 30–33
 

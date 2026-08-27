@@ -41,6 +41,7 @@
     "check-product-code-readiness": "tsx scripts/check-product-code-readiness.ts",
     "check-display-reference-sanity": "tsx scripts/check-display-reference-sanity.ts",
     "backfill-contract-originating-application": "tsx scripts/backfill-contract-originating-application.ts",
+    "backfill-about-your-business": "tsx scripts/backfill-about-your-business.ts",
     "recompute-contract-facility": "tsx scripts/recompute-contract-facility.ts",
     "dev-simulate-gateway-settlement": "tsx scripts/dev-simulate-gateway-settlement.ts",
     "run-note-listing-expiry": "tsx scripts/run-note-listing-expiry.ts",

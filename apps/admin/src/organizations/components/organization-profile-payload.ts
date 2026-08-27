@@ -8,6 +8,7 @@ import type {
   OrganizationDetailResponse,
   UpdateAdminOrganizationProfileInput,
 } from "@cashsouk/types";
+import { parseAboutYourBusiness } from "@cashsouk/types";
 
 function asBankAccountDetails(data: unknown): BankAccountDetails | null {
   if (typeof data !== "object" || data === null) return null;
@@ -114,12 +115,24 @@ export type OrgProfileDraft = {
   picPosition: string;
   picEmail: string;
   picContactNumber: string;
+  whatDoesCompanyDo: string;
+  mainCustomers: string;
+  singleCustomerOver50Revenue: boolean | null;
+  accountingSoftware: string;
 };
 
-export type EditableSection = "company" | "addresses" | "pic" | "personal" | "contact" | "bank";
+export type EditableSection =
+  | "company"
+  | "about"
+  | "addresses"
+  | "pic"
+  | "personal"
+  | "contact"
+  | "bank";
 
 export const SECTION_LABEL: Record<EditableSection, string> = {
   company: "company information",
+  about: "about your business",
   addresses: "addresses",
   pic: "person in charge",
   personal: "personal details",
@@ -129,6 +142,7 @@ export const SECTION_LABEL: Record<EditableSection, string> = {
 
 export function buildDraft(org: OrganizationDetailResponse): OrgProfileDraft {
   const bank = asBankAccountDetails(org.bankAccountDetails);
+  const about = parseAboutYourBusiness(org.corporateOnboardingData?.aboutYourBusiness);
   return {
     name: org.name ?? "",
     phoneNumber: org.phoneNumber ?? "",
@@ -155,6 +169,10 @@ export function buildDraft(org: OrganizationDetailResponse): OrgProfileDraft {
     picPosition: org.corporateOnboardingData?.personInCharge?.position ?? "",
     picEmail: org.corporateOnboardingData?.personInCharge?.email ?? "",
     picContactNumber: org.corporateOnboardingData?.personInCharge?.contactNumber ?? "",
+    whatDoesCompanyDo: about.whatDoesCompanyDo,
+    mainCustomers: about.mainCustomers,
+    singleCustomerOver50Revenue: about.singleCustomerOver50Revenue,
+    accountingSoftware: about.accountingSoftware,
   };
 }
 
@@ -233,6 +251,28 @@ export function buildSectionPayload(
           registered: draftToAddress(draft.registeredAddress),
         },
       };
+    }
+    return payload;
+  }
+
+  if (section === "about") {
+    if (org.type === "COMPANY") {
+      const originalAbout = parseAboutYourBusiness(org.corporateOnboardingData?.aboutYourBusiness);
+      const aboutChanged =
+        draft.whatDoesCompanyDo !== originalAbout.whatDoesCompanyDo ||
+        draft.mainCustomers !== originalAbout.mainCustomers ||
+        draft.singleCustomerOver50Revenue !== originalAbout.singleCustomerOver50Revenue ||
+        draft.accountingSoftware !== originalAbout.accountingSoftware;
+      if (aboutChanged) {
+        payload.corporateOnboardingData = {
+          aboutYourBusiness: {
+            whatDoesCompanyDo: draft.whatDoesCompanyDo,
+            mainCustomers: draft.mainCustomers,
+            singleCustomerOver50Revenue: draft.singleCustomerOver50Revenue,
+            accountingSoftware: draft.accountingSoftware,
+          },
+        };
+      }
     }
     return payload;
   }

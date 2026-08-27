@@ -24,7 +24,7 @@ import {
   type ReviewItemType,
 } from "@cashsouk/types";
 import { isValidPhoneNumber } from "libphonenumber-js";
-import { addressSchema, bankAccountDetailsSchema } from "../organization/schemas";
+import { aboutYourBusinessSchema, addressSchema, bankAccountDetailsSchema } from "../organization/schemas";
 
 // Helper for parsing boolean query params (handles "true"/"false" strings properly)
 const booleanQueryParam = z
@@ -329,6 +329,7 @@ export const updateAdminOrganizationProfileSchema = z
             contactNumber: optionalPhone,
           })
           .optional(),
+        aboutYourBusiness: aboutYourBusinessSchema.optional(),
       })
       .optional(),
   })

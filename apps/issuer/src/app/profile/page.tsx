@@ -34,6 +34,7 @@ import { useOrganizationInvitations } from "../../hooks/use-organization-invitat
 import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../../components/director-shareholder-alert-card";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
+import { AboutYourBusinessCard } from "../../components/about-your-business-card";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
 import { toast } from "sonner";
@@ -531,6 +532,12 @@ export default function ProfilePage() {
             email?: string | null;
             contact?: string | null;
           };
+          aboutYourBusiness?: {
+            whatDoesCompanyDo?: string;
+            mainCustomers?: string;
+            singleCustomerOver50Revenue?: boolean | null;
+            accountingSoftware?: string;
+          };
         };
         corporateEntities?: {
           directors?: Array<Record<string, unknown>>;
@@ -553,9 +560,11 @@ export default function ProfilePage() {
   const searchParams = useSearchParams();
   const focusDirectors = searchParams.get("focus") === "directors";
   const focusContact = searchParams.get("focus") === "contact";
+  const focusAbout = searchParams.get("focus") === "about";
   const focusedPersonKey = searchParams.get("person");
   const directorsSectionRef = React.useRef<HTMLDivElement>(null);
   const contactSectionRef = React.useRef<HTMLDivElement>(null);
+  const aboutSectionRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (!focusDirectors) return;
@@ -578,6 +587,17 @@ export default function ProfilePage() {
     }, 200);
     return () => window.clearTimeout(t);
   }, [focusContact, orgData, activeOrganization?.id]);
+
+  React.useEffect(() => {
+    if (!focusAbout) return;
+    setActiveTab("profile");
+    const el = aboutSectionRef.current;
+    if (!el) return;
+    const t = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [focusAbout, orgData, activeOrganization?.id]);
 
   // Initialize form values when orgData loads
   React.useEffect(() => {
@@ -991,9 +1011,18 @@ export default function ProfilePage() {
               {/* 1. Corporate Info Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && (
                 <CorporateInfoCard
-  organizationId={activeOrganization.id}
-  canEdit={isCurrentUserAdmin}
-/>
+                  organizationId={activeOrganization.id}
+                  canEdit={isCurrentUserAdmin}
+                />
+              )}
+
+              {!isPersonal && activeOrganization?.id && (
+                <div ref={aboutSectionRef}>
+                  <AboutYourBusinessCard
+                    organizationId={activeOrganization.id}
+                    canEdit={isCurrentUserAdmin}
+                  />
+                </div>
               )}
 
               {!isPersonal && orgData?.corporateOnboardingData?.personInCharge && (

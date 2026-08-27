@@ -45,6 +45,28 @@ describe("note issuer snapshot (Note create freeze for Page 2 Stage 1)", () => {
     expect(snapshot.country).toBe("Malaysia");
   });
 
+  it("prefers COD whatDoesCompanyDo over application business_details", () => {
+    const snapshot = buildNoteIssuerSnapshot({
+      organization: {
+        id: "org-1",
+        name: "ABC Engineering Sdn Bhd",
+        type: "ISSUER",
+        registration_number: null,
+        country: null,
+        corporate_onboarding_data: {
+          basicInfo: { industry: "Construction" },
+          aboutYourBusiness: { whatDoesCompanyDo: "  Profile narrative.  " },
+        },
+      },
+      businessDetails: {
+        about_your_business: {
+          what_does_company_do: "Legacy application narrative.",
+        },
+      },
+    });
+    expect(snapshot.business_description).toBe("Profile narrative.");
+  });
+
   it("writes business_description from Application what_does_company_do", () => {
     expect(
       resolveBusinessDescriptionFromBusinessDetails({

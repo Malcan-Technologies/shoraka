@@ -5,12 +5,15 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { BANK_ACCOUNT_TYPES, MALAYSIAN_BANKS, malaysianBankLabel } from "@cashsouk/config";
 import {
+  ABOUT_YOUR_BUSINESS_LIMITS,
   type OrganizationDetailResponse,
   type PortalType,
 } from "@cashsouk/types";
+import { YesNoRadioDisplay } from "@cashsouk/ui";
 import {
   ArrowTopRightOnSquareIcon,
   BanknotesIcon,
+  BriefcaseIcon,
   BuildingOffice2Icon,
   DocumentTextIcon,
   FaceSmileIcon,
@@ -50,6 +53,7 @@ import { useUpdateOrganizationProfile } from "@/organizations/hooks/use-update-o
 import {
   EditableAddressFields,
   EditableField,
+  EditableYesNo,
   formatAddressDisplay,
   hasJsonContent,
   isUrl,
@@ -293,6 +297,70 @@ export function OrganizationProfilePanel({
                 </>
               )}
             </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {org.type === "COMPANY" ? (
+        <Card className="rounded-2xl">
+          <AdminDetailCardHeader
+            icon={BriefcaseIcon}
+            title="About Your Business"
+            description="What the company does and who it serves"
+            actions={sectionActions("about")}
+          />
+          <CardContent className="space-y-2">
+            {editingSection === "about" ? (
+              <>
+                <EditableField
+                  label="What Does Your Company Do?"
+                  value={draft.whatDoesCompanyDo}
+                  onChange={(whatDoesCompanyDo) =>
+                    setDraft((current) => ({ ...current, whatDoesCompanyDo }))
+                  }
+                  multiline
+                  maxLength={ABOUT_YOUR_BUSINESS_LIMITS.whatDoesCompanyDo}
+                />
+                <EditableField
+                  label="Who Are Your Main Customers?"
+                  value={draft.mainCustomers}
+                  onChange={(mainCustomers) => setDraft((current) => ({ ...current, mainCustomers }))}
+                  multiline
+                  maxLength={ABOUT_YOUR_BUSINESS_LIMITS.mainCustomers}
+                />
+                <EditableYesNo
+                  label="Does Any Single Customer Make Up More Than 50% of Your Revenue?"
+                  name="admin-about-single-customer"
+                  value={draft.singleCustomerOver50Revenue}
+                  onChange={(singleCustomerOver50Revenue) =>
+                    setDraft((current) => ({ ...current, singleCustomerOver50Revenue }))
+                  }
+                />
+                <EditableField
+                  label="Which Accounting Software Does the Issuer Use?"
+                  value={draft.accountingSoftware}
+                  onChange={(accountingSoftware) =>
+                    setDraft((current) => ({ ...current, accountingSoftware }))
+                  }
+                  maxLength={ABOUT_YOUR_BUSINESS_LIMITS.accountingSoftware}
+                />
+              </>
+            ) : (
+              <>
+                <ReadField label="What Does Your Company Do?" value={draft.whatDoesCompanyDo} />
+                <ReadField label="Who Are Your Main Customers?" value={draft.mainCustomers} />
+                <div className="space-y-1.5 py-2">
+                  <div className="text-meta text-muted-foreground">
+                    Does Any Single Customer Make Up More Than 50% of Your Revenue?
+                  </div>
+                  <YesNoRadioDisplay value={draft.singleCustomerOver50Revenue} />
+                </div>
+                <ReadField
+                  label="Which Accounting Software Does the Issuer Use?"
+                  value={draft.accountingSoftware}
+                />
+              </>
+            )}
           </CardContent>
         </Card>
       ) : null}

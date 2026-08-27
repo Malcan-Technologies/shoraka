@@ -178,6 +178,43 @@ export function EditableField({
   );
 }
 
+export function EditableYesNo({
+  label,
+  value,
+  onChange,
+  name,
+}: {
+  label: string;
+  value: boolean | null;
+  onChange: (value: boolean) => void;
+  name: string;
+}) {
+  return (
+    <div className="space-y-1.5 py-2">
+      <div className="text-meta text-muted-foreground">{label}</div>
+      <div className="flex h-10 items-center gap-6">
+        {(
+          [
+            [true, "Yes"],
+            [false, "No"],
+          ] as const
+        ).map(([optionValue, optionLabel]) => (
+          <label key={optionLabel} className="flex cursor-pointer items-center gap-2">
+            <input
+              type="radio"
+              name={name}
+              checked={value === optionValue}
+              onChange={() => onChange(optionValue)}
+              className="h-4 w-4 border-border text-primary focus-visible:ring-ring"
+            />
+            <span className="text-ui">{optionLabel}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function isUrl(str: string): boolean {
   try {
     const url = new URL(str);

@@ -72,6 +72,7 @@ export type ApplicationSummarySource = {
   issuer_organization?: {
     name?: string | null;
     registration_number?: string | null;
+    corporate_onboarding_data?: unknown;
   } | null;
   contract?: {
     id: string;

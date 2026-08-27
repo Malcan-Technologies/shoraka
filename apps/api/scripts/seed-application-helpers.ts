@@ -112,6 +112,22 @@ export function buildCompanyDetails(issuerOrganizationId: string): Record<string
   };
 }
 
+export function buildAboutYourBusinessCod(): {
+  whatDoesCompanyDo: string;
+  mainCustomers: string;
+  singleCustomerOver50Revenue: boolean;
+  accountingSoftware: string;
+} {
+  return {
+    whatDoesCompanyDo:
+      "We manufacture industrial equipment and provide maintenance services for mining and construction sectors.",
+    mainCustomers:
+      "Large enterprises in oil & gas, mining, and infrastructure. Top customers include major conglomerates.",
+    singleCustomerOver50Revenue: false,
+    accountingSoftware: "Xero",
+  };
+}
+
 /** business_details: about_your_business, why_raising_funds, declaration_confirmed, guarantors. */
 export function buildBusinessDetails(): Record<string, unknown> {
   return {

@@ -70,7 +70,7 @@ export const STEP_KEY_DISPLAY: Record<ApplicationStepKey, StepKeyDisplay> = {
   business_details: {
     title: "Business & Guarantor Details",
     pageTitle: "Business & Guarantor Details",
-    description: "Tell us about your business and provide at least one guarantor",
+    description: "Tell us why you are raising funds and provide at least one guarantor",
   },
   financial_statements: {
     title: "Financial Statements",
