@@ -22,8 +22,8 @@ describe("prospectus Page 2 MARC risk rating scale", () => {
     expect(html).toContain("SME-9 - SME-10");
     expect(html).not.toContain("SME-1–2");
     expect(html).not.toContain("SME-1 - S...");
-    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
-      "grid-template-columns:repeat(5,minmax(0,1fr))"
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.risk-scale\.marc-scale\{[\s\S]*grid-template-columns:repeat\(5,1fr\)/
     );
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(".risk-scale.marc-scale .grade.marc");
     expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
@@ -31,6 +31,15 @@ describe("prospectus Page 2 MARC risk rating scale", () => {
     );
     expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
       /\.risk-scale\.marc-scale \.grade\.marc\{[\s\S]*overflow:visible/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.risk-scale\.marc-scale \.grade\.marc\{[\s\S]*height:28px/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.risk-scale\.marc-scale \.grade\.marc\{[\s\S]*margin:0 auto 6px/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
+      /\.risk-scale\.marc-scale \.grade\.marc\{[\s\S]*text-overflow:ellipsis/
     );
     expect(html).toContain(PROSPECTUS_RISK_SCALE_NOTE);
   });

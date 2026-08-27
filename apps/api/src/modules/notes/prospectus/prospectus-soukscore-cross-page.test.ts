@@ -58,7 +58,7 @@ describe("prospectus MARC SME cross-page and freeze", () => {
     expect(html).toContain("risk-shield-grade");
     expect(html).toContain(".risk-panel strong{display:block;text-align:center;font-size:12px}");
     expect(html).toContain("color:#fff");
-    expect(html).toContain("--prospectus-risk-shield-grade-font-size:22px");
+    expect(html).toContain("--prospectus-risk-shield-grade-font-size:27px");
     expect(html).toContain("See rating scale on page 2");
     expect(html).not.toContain('href="#risk-scale"');
     expect(html).not.toContain("Data not available");
