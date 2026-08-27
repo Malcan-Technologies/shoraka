@@ -1541,10 +1541,12 @@ model GatewayPaymentReceipt {
   gateway_payment_id  String                      @unique
   payment_purpose     GatewayPaymentPurpose
   purpose_label       String
-  payer_name          String?
-  payer_company_name  String?
-  payer_email         String?
-  payer_phone         String?
+  payer_name                String?
+  payer_company_name        String?
+  payer_unique_id           String?
+  payer_registration_number String?
+  payer_email               String?
+  payer_phone               String?
   amount              Decimal                     @db.Decimal(18, 6)
   currency            String                      @default("MYR")
   payment_method      String?

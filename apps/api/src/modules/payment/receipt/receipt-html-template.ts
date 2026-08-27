@@ -15,6 +15,8 @@ export type ReceiptPdfTemplateData = {
   merchant: ReceiptMerchantDetails;
   payerName: string | null;
   payerCompanyName: string | null;
+  payerUniqueId: string | null;
+  payerRegistrationNumber: string | null;
   payerEmail: string | null;
   payerPhone: string | null;
   purposeLabel: string;
@@ -71,7 +73,9 @@ export function buildPaymentReceiptHtml(data: ReceiptPdfTemplateData): string {
 
   const receivedFrom = [
     row("Name", data.payerName),
+    row("Unique ID", data.payerUniqueId),
     row("Company", data.payerCompanyName),
+    row("Registration No.", data.payerRegistrationNumber),
     row("Email", data.payerEmail),
     row("Phone", data.payerPhone),
   ].join("");

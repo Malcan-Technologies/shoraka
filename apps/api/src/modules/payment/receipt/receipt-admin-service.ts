@@ -26,6 +26,8 @@ function mapReceipt(receipt: {
   purpose_label: string;
   payer_name: string | null;
   payer_company_name: string | null;
+  payer_unique_id: string | null;
+  payer_registration_number: string | null;
   payer_email: string | null;
   payer_phone: string | null;
   amount: Prisma.Decimal;
@@ -56,6 +58,8 @@ function mapReceipt(receipt: {
     purposeLabel: receipt.purpose_label,
     payerName: receipt.payer_name,
     payerCompanyName: receipt.payer_company_name,
+    payerUniqueId: receipt.payer_unique_id,
+    payerRegistrationNumber: receipt.payer_registration_number,
     payerEmail: receipt.payer_email,
     payerPhone: receipt.payer_phone,
     amount: decimalToNumber(receipt.amount),
@@ -104,6 +108,8 @@ export async function listGatewayPaymentReceipts(
       OR: [
         { payer_name: { contains: query.payer, mode: "insensitive" } },
         { payer_company_name: { contains: query.payer, mode: "insensitive" } },
+        { payer_unique_id: { contains: query.payer, mode: "insensitive" } },
+        { payer_registration_number: { contains: query.payer, mode: "insensitive" } },
         { payer_email: { contains: query.payer, mode: "insensitive" } },
       ],
     });
