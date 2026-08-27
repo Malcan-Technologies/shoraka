@@ -172,8 +172,14 @@ export function buildProspectusCompletionChecklist(
     {
       id: "financials",
       label: "Financial Review",
-      complete: financialInputComplete && page3PaymasterGradingComplete,
-      required: incomeYears.length > 0 || true,
+      complete: financialInputComplete,
+      required: incomeYears.length > 0,
+    },
+    {
+      id: "page3Paymaster",
+      label: "Page 3 Paymaster Grading",
+      complete: page3PaymasterGradingComplete,
+      required: true,
     },
     {
       id: "takeaways",
@@ -221,7 +227,10 @@ export function getProspectusStepStatuses(
   return {
     0: worstStatus(statusFor("core"), statusFor("highlights")),
     1: statusFor("credit"),
-    2: worstStatus(statusFor("financials"), statusFor("takeaways")),
+    2: worstStatus(
+      statusFor("financials"),
+      worstStatus(statusFor("takeaways"), statusFor("page3Paymaster"))
+    ),
     ...(ready ? { 3: "complete" as const } : {}),
   };
 }
@@ -272,18 +281,18 @@ export function buildProspectusMissingRequiredFields(
   }
   if (!hasOption(draft.page2.invoicePaymaster?.paymasterRating)) {
     missing.push({
-      pageStep: 1,
+      pageStep: 2,
       section: "Page 3 Paymaster Grading",
       field: "Paymaster Grading",
-      tabId: "issuer_paymaster",
+      tabId: "overview",
     });
   }
   if (!hasOption(draft.page2.invoicePaymaster?.confidenceGrading)) {
     missing.push({
-      pageStep: 1,
+      pageStep: 2,
       section: "Page 3 Paymaster Grading",
       field: "Confidence Grading",
-      tabId: "issuer_paymaster",
+      tabId: "overview",
     });
   }
 
@@ -431,12 +440,14 @@ export function countProspectusRequiredFields(
   const highlightSlots = 3;
   const page2Officer =
     1 + // company size
-    3 + // DOA, paymaster grading, confidence grading
+    1 + // DOA
     3 + // MARC assessment (one org blocker) + litigation + CCRIS
     4 + // about invoice
     years.length * PAGE_TWO_OVERRIDE_FIELDS.length;
   const page3Officer =
-    years.length * PAGE_THREE_OFFICER_FINANCIAL_FIELDS.length + 6; // takeaways
+    2 + // paymaster grading + confidence grading
+    years.length * PAGE_THREE_OFFICER_FINANCIAL_FIELDS.length +
+    6; // takeaways
   const total = highlightSlots + page2Officer + page3Officer;
   const missing = missingList.length;
   return {

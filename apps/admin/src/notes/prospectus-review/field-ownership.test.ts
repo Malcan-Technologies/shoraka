@@ -24,6 +24,9 @@ describe("prospectus working-area field ownership", () => {
     expect(
       (draft.page3 as { paymasterRating?: string }).paymasterRating
     ).toBeUndefined();
+    expect(
+      (draft.page3 as { confidenceGrading?: string }).confidenceGrading
+    ).toBeUndefined();
   });
 
   it("stores IC / DSCR / Receivables Days only under page2 financial overrides", () => {

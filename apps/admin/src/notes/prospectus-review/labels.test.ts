@@ -17,6 +17,7 @@ import {
   PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusCompletionChecklist,
   buildProspectusMissingRequiredFields,
+  countMissingForTab,
   getProspectusStepStatuses,
   isProspectusDraftReadyToSubmit,
   statusForCompletionItem,
@@ -222,6 +223,7 @@ describe("prospectus review completion readiness", () => {
       "paymaster",
       "credit",
       "financials",
+      "page3Paymaster",
       "takeaways",
     ]);
     expect(statusForCompletionItem(checklist[0]!)).toBe("complete");
@@ -250,7 +252,7 @@ describe("prospectus review completion readiness", () => {
     expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
   });
 
-  it("counts missing Paymaster Grading and Confidence Grading under Page 3 Paymaster Grading", () => {
+  it("counts missing Paymaster Grading and Confidence Grading on Page 3, not Page 2", () => {
     const draft = completeOfficerDraft();
     draft.page2.invoicePaymaster = {
       deedOfAssignment: "Yes",
@@ -258,10 +260,24 @@ describe("prospectus review completion readiness", () => {
     const missing = buildProspectusMissingRequiredFields(draft);
     const grading = missing.filter((m) => m.section === "Page 3 Paymaster Grading");
     expect(grading.map((m) => m.field)).toEqual(["Paymaster Grading", "Confidence Grading"]);
-    expect(grading.every((m) => m.tabId === "issuer_paymaster")).toBe(true);
+    expect(grading.every((m) => m.tabId === "overview")).toBe(true);
+    expect(grading.every((m) => m.pageStep === 2)).toBe(true);
+    expect(countMissingForTab(draft, "issuer_paymaster")).toBe(0);
+    expect(countMissingForTab(draft, "overview")).toBe(2);
     expect(missing.some((m) => m.section === "Invoice & Paymaster" && m.field !== "Deed of Assignment")).toBe(
       false
     );
+    expect(getProspectusStepStatuses(draft)[1]).toBe("complete");
+    expect(getProspectusStepStatuses(draft)[2]).toBe("required");
+
+    draft.page2.invoicePaymaster = {
+      deedOfAssignment: "Yes",
+      paymasterRating: "PM1",
+      confidenceGrading: "High",
+    };
+    expect(countMissingForTab(draft, "overview")).toBe(0);
+    expect(buildProspectusMissingRequiredFields(draft).filter((m) => m.pageStep === 2)).toHaveLength(0);
+    expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
   });
 
   it("treats a missing issuer MARC assessment as one Credit Insights blocker", () => {

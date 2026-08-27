@@ -63,10 +63,10 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageTwo).toContain("Company Size");
     expect(pageTwo).toContain("Invoice & Paymaster");
     expect(pageTwo).toContain("Deed of Assignment");
-    expect(pageTwo).toContain("Page 3 Paymaster Grading");
-    expect(pageTwo).toContain('label="Paymaster Grading"');
-    expect(pageTwo).toContain('label="Confidence Grading"');
-    expect(pageTwo).toContain("data-prospectus-page-three-paymaster-grading");
+    expect(pageTwo).not.toContain("Page 3 Paymaster Grading");
+    expect(pageTwo).not.toContain('label="Paymaster Grading"');
+    expect(pageTwo).not.toContain('label="Confidence Grading"');
+    expect(pageTwo).not.toContain("data-prospectus-page-three-paymaster-grading");
     expect(pageTwo).not.toContain("Paymaster Grading (Page 3)");
     expect(pageTwo).not.toContain("Confidence Grading (Page 3)");
     expect(pageTwo).not.toContain("MARC Paymaster Grading");
@@ -132,6 +132,13 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageThree).toContain("ProspectusCoverageWorkingTable");
     expect(pageThree).toContain("Investor Takeaways");
     expect(pageThree).toContain("ProspectusInternalTabs");
+    expect(pageThree).toContain("Page 3 Paymaster Grading");
+    expect(pageThree).toContain('label="Paymaster Grading"');
+    expect(pageThree).toContain('label="Confidence Grading"');
+    expect(pageThree).toContain("data-prospectus-page-three-paymaster-grading");
+    expect(pageThree).toContain("page2.invoicePaymaster");
+    expect(pageThree).not.toContain("MARC Paymaster Grading");
+    expect(pageThree).not.toContain("MARC Confidence Grading");
     expect(pageThree).not.toContain('label === "Sector"');
     expect(coverageTable).toContain('mode: "reused"');
     expect(coverageTable).not.toMatch(/From Page 2[\s\S]{0,40}<\/span>/);

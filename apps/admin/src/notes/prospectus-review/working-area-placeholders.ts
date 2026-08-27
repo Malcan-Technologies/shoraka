@@ -34,7 +34,6 @@ export function resolveInternalTabForMissingSection(
     if (
       section === "Issuer Profile" ||
       section === "Invoice & Paymaster" ||
-      section === "Page 3 Paymaster Grading" ||
       section === "Paymaster Track Record"
     ) {
       return "issuer_paymaster";
@@ -42,6 +41,7 @@ export function resolveInternalTabForMissingSection(
     return "issuer_paymaster";
   }
   if (pageStep === 2) {
+    if (section === "Page 3 Paymaster Grading") return "overview";
     if (section === "Income Statement") return "income";
     if (section === "Balance Sheet") return "balance";
     if (section === "Coverage & Efficiency") return "coverage";

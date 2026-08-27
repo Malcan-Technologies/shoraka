@@ -14,15 +14,11 @@ import { formatCurrency } from "@cashsouk/config";
 import {
   MARKETPLACE_MIN_COMMIT_MYR,
   PROSPECTUS_COMPANY_SIZE_VALUES,
-  PROSPECTUS_CONFIDENCE_GRADING_VALUES,
   PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES,
-  PROSPECTUS_PAYMASTER_RATING_VALUES,
   CASHSCOUK_RISK_GRADE_LETTER_COLOR,
   MARC_SME_BANDS,
   normalizeProspectusCompanySize,
-  normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
-  normalizeProspectusPaymasterRating,
   resolveMarcNoteRiskPresentation,
   type MarcAssessmentSnapshot,
   type ProspectusReviewStoredContent,
@@ -140,12 +136,6 @@ export function WorkingAreaPageTwo({
   const deedOfAssignment = normalizeProspectusDeedOfAssignment(
     draft.page2.invoicePaymaster?.deedOfAssignment
   );
-  const paymasterRating = normalizeProspectusPaymasterRating(
-    draft.page2.invoicePaymaster?.paymasterRating
-  );
-  const confidenceGrading = normalizeProspectusConfidenceGrading(
-    draft.page2.invoicePaymaster?.confidenceGrading
-  );
   const risk = resolveMarcNoteRiskPresentation(noteRiskRating);
 
   const filteredIssuerRows = issuerProfileRows.filter((r) => r.label !== ISSUER_EDITABLE_LABEL);
@@ -157,8 +147,6 @@ export function WorkingAreaPageTwo({
   const financialMissing = countMissingForTab(draft, "financial", completionOptions);
   const creditMissing = countMissingForTab(draft, "credit_invoice", completionOptions);
   const invoiceFactsMissing = deedOfAssignment ? 0 : 1;
-  const paymasterGradingMissing =
-    (paymasterRating ? 0 : 1) + (confidenceGrading ? 0 : 1);
   const creditInsightsMissing =
     (draft.page2.creditInsights.litigationCheckOptionKey ? 0 : 1) +
     (draft.page2.creditInsights.ccrisStatusOptionKey ? 0 : 1) +
@@ -279,65 +267,6 @@ export function WorkingAreaPageTwo({
                         invoicePaymaster: {
                           ...prev.page2.invoicePaymaster,
                           deedOfAssignment: normalizeProspectusDeedOfAssignment(value),
-                        },
-                      },
-                    }))
-                  }
-                />
-              </ProspectusInfoGrid>
-            </ProspectusSectionShell>
-          </div>
-
-          <div data-prospectus-page-three-paymaster-grading>
-            <ProspectusSectionShell
-              title="Page 3 Paymaster Grading"
-              icon={ClipboardDocumentCheckIcon}
-              missingCount={paymasterGradingMissing}
-            >
-              <ProspectusInfoGrid columns={2}>
-                <ProspectusOptionSelect
-                  label="Paymaster Grading"
-                  value={paymasterRating}
-                  disabled={disabled}
-                  required
-                  incomplete={!paymasterRating}
-                  placeholder={SELECT_PLACEHOLDERS.paymasterRating}
-                  options={PROSPECTUS_PAYMASTER_RATING_VALUES.map((value) => ({
-                    key: value,
-                    label: value,
-                  }))}
-                  onChange={(value) =>
-                    updateDraft((prev) => ({
-                      ...prev,
-                      page2: {
-                        ...prev.page2,
-                        invoicePaymaster: {
-                          ...prev.page2.invoicePaymaster,
-                          paymasterRating: normalizeProspectusPaymasterRating(value),
-                        },
-                      },
-                    }))
-                  }
-                />
-                <ProspectusOptionSelect
-                  label="Confidence Grading"
-                  value={confidenceGrading}
-                  disabled={disabled}
-                  required
-                  incomplete={!confidenceGrading}
-                  placeholder={SELECT_PLACEHOLDERS.confidenceGrading}
-                  options={PROSPECTUS_CONFIDENCE_GRADING_VALUES.map((value) => ({
-                    key: value,
-                    label: value,
-                  }))}
-                  onChange={(value) =>
-                    updateDraft((prev) => ({
-                      ...prev,
-                      page2: {
-                        ...prev.page2,
-                        invoicePaymaster: {
-                          ...prev.page2.invoicePaymaster,
-                          confidenceGrading: normalizeProspectusConfidenceGrading(value),
                         },
                       },
                     }))
