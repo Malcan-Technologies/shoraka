@@ -4,7 +4,7 @@ import * as React from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { ShieldCheckIcon } from "@heroicons/react/24/outline";
-import { MARC_SME_GRADES, type OrganizationDetailResponse, type PortalType } from "@cashsouk/types";
+import { MARC_SME_GRADES, marcOfficialRiskProfile, type OrganizationDetailResponse, type PortalType } from "@cashsouk/types";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -145,6 +145,10 @@ export function OrganizationMarcCard({
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <ReadField label="MARC credit grade" value={current?.creditGrade} />
+            <ReadField
+              label="MARC risk profile"
+              value={marcOfficialRiskProfile(current?.creditGrade)}
+            />
             <ReadField
               label="MARC credit score"
               value={current?.creditScore != null ? String(current.creditScore) : null}

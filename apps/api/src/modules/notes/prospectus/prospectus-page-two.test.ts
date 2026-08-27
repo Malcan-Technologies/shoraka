@@ -1009,6 +1009,12 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(noteIdx).toBeGreaterThan(scaleIdx);
       expect(html).toContain("page-two-financial-card");
       expect(html).toContain("page-two-insights-card");
+      expect(html).toContain('class="soukscore-scale marc-sme-scale"');
+      expect(html).toContain("SME-1–2");
+      expect(html).toContain("Extremely strong credit strength with very low non-repayment risk");
+      expect(html).toContain("Very weak credit strength with high potential to default");
+      expect(html).not.toContain("minimal repayment risk");
+      expect(html).not.toContain("ellipsis");
       for (const band of ["SME-1 - SME-2", "SME-3 - SME-4", "SME-5 - SME-6", "SME-7 - SME-8", "SME-9 - SME-10"]) {
         expect(html).toContain(`data-grade="${band}"`);
       }

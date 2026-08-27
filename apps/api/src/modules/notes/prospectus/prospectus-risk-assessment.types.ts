@@ -23,6 +23,10 @@ export interface ProspectusRiskAssessmentCanvaFacing {
   riskGradeColor: string;
   riskGradeTextColor: string;
   ratingScaleReference: string;
+  /** Organization MARC credit score when present — not the catalogue range. */
+  marcCreditScoreDisplay: string | null;
+  /** Organization MARC PD when present — not the catalogue PD. */
+  marcProbabilityOfDefaultDisplay: string | null;
 }
 
 /** Debug/audit metadata — not rendered in Canva-facing HTML. */
@@ -50,6 +54,10 @@ export interface ProspectusRiskAssessmentInput {
   soukscoreRiskRating: string | null | undefined;
   /** Organization-level MARC grade frozen at approve when present. */
   marcGrade?: string | null;
+  /** Organization-level MARC credit score from the frozen assessment. */
+  marcCreditScore?: string | number | null;
+  /** Organization-level MARC PD from the frozen assessment. */
+  marcProbabilityOfDefault?: string | number | null;
 }
 
 export interface ProspectusRiskAssessmentFieldSource {

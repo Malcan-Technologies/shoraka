@@ -191,6 +191,8 @@ export async function mapProspectusPageOneDataToInput(
     riskAssessment: {
       soukscoreRiskRating: riskRating,
       marcGrade: marcSnapshot?.creditGrade ?? null,
+      marcCreditScore: marcSnapshot?.creditScore ?? null,
+      marcProbabilityOfDefault: marcSnapshot?.probabilityOfDefault ?? null,
     },
     mainFinancialTerms: {
       targetAmount,

@@ -18,45 +18,50 @@ export const MARC_SME_GRADES = [
 
 export type MarcSmeGrade = (typeof MARC_SME_GRADES)[number];
 
+/**
+ * CashSouk visual grouping for the Page 2 scale.
+ * `label` is a CashSouk band name, not official MARC Risk Profile wording.
+ * Official grade descriptions live in {@link MARC_SCORE_DEFINITIONS}.
+ */
 export const MARC_SME_BANDS = [
   {
     key: "a",
     grades: ["SME-1", "SME-2"] as const,
     rangeLabel: "SME-1 - SME-2",
+    compactRangeLabel: "SME-1–2",
     label: "Very Low Risk",
-    explanation: "Very strong credit strength; minimal repayment risk.",
     color: "#69ca48",
   },
   {
     key: "b",
     grades: ["SME-3", "SME-4"] as const,
     rangeLabel: "SME-3 - SME-4",
+    compactRangeLabel: "SME-3–4",
     label: "Low Risk",
-    explanation: "Strong credit strength; low repayment risk.",
     color: "#8ed657",
   },
   {
     key: "c",
     grades: ["SME-5", "SME-6"] as const,
     rangeLabel: "SME-5 - SME-6",
+    compactRangeLabel: "SME-5–6",
     label: "Moderate Risk",
-    explanation: "Moderate credit strength; moderate repayment risk.",
     color: "#f5ca47",
   },
   {
     key: "d",
     grades: ["SME-7", "SME-8"] as const,
     rangeLabel: "SME-7 - SME-8",
+    compactRangeLabel: "SME-7–8",
     label: "High Risk",
-    explanation: "Weak credit strength; elevated default risk.",
     color: "#f5964f",
   },
   {
     key: "e",
     grades: ["SME-9", "SME-10"] as const,
     rangeLabel: "SME-9 - SME-10",
+    compactRangeLabel: "SME-9–10",
     label: "Very High Risk",
-    explanation: "Very weak credit strength; high default risk.",
     color: "#ef776c",
   },
 ] as const;
@@ -134,6 +139,31 @@ export function marcGradeColor(grade: string | null | undefined): string {
 
 export function marcGradeLabel(grade: string | null | undefined): string {
   return marcBandForGrade(grade)?.label ?? "";
+}
+
+export function marcOfficialScoreRange(grade: string | null | undefined): string | null {
+  if (!isMarcSmeGrade(grade)) return null;
+  return MARC_SCORE_DEFINITIONS[grade].scoreRange;
+}
+
+export function marcOfficialPd(grade: string | null | undefined): string | null {
+  if (!isMarcSmeGrade(grade)) return null;
+  return MARC_SCORE_DEFINITIONS[grade].pd;
+}
+
+/** Official MARC Risk Profile for a single SME grade. Never a CashSouk paraphrase. */
+export function marcOfficialRiskProfile(grade: string | null | undefined): string | null {
+  if (!isMarcSmeGrade(grade)) return null;
+  return MARC_SCORE_DEFINITIONS[grade].riskProfile;
+}
+
+export function marcBandOfficialGradeProfiles(
+  band: (typeof MARC_SME_BANDS)[number]
+): ReadonlyArray<{ grade: MarcSmeGrade; riskProfile: string }> {
+  return band.grades.map((grade) => ({
+    grade,
+    riskProfile: MARC_SCORE_DEFINITIONS[grade].riskProfile,
+  }));
 }
 
 export interface MarcAssessmentSnapshot {

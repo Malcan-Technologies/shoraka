@@ -558,6 +558,30 @@ describe("prospectus Page 1 assembly and HTML", () => {
     expect(html).not.toContain("Investment are subjects");
   });
 
+  it("renders MARC SME grade and official Risk Profile on the Page 1 risk card", () => {
+    const page = buildProspectusPageOne({
+      ...SAMPLE_PROSPECTUS_PAGE_ONE_INPUT,
+      riskAssessment: {
+        soukscoreRiskRating: "C",
+        marcGrade: "SME-4",
+        marcCreditScore: 65,
+        marcProbabilityOfDefault: 7.43,
+      },
+    });
+    expect(page.riskAssessment.canva.riskGrade).toBe("SME-4");
+    expect(page.riskAssessment.canva.riskExplanation).toBe(
+      "Strong credit strength with moderate non-repayment risk"
+    );
+    const html = renderProspectusPageOneHtml(page);
+    expect(html).toContain('data-grade="SME-4"');
+    expect(html).toContain("SME-4");
+    expect(html).toContain("Strong credit strength with moderate non-repayment risk");
+    expect(html).toContain("Credit Score: 65");
+    expect(html).toContain("Probability of Default: 7.43%");
+    expect(html).not.toContain("typical SME and transaction-level risks");
+    expect(html).not.toContain('data-grade="C"');
+  });
+
   it("renders Closing Date in the Page 1 hero after Listing Date and before Maturity Date", () => {
     const html = renderProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
     const listingIdx = html.indexOf("<b>Listing Date</b>");

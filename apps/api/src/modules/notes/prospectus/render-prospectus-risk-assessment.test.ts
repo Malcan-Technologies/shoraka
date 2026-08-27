@@ -96,4 +96,27 @@ describe("prospectus Risk Assessment (Page 1 DATA STAGE 3)", () => {
     expect(html).not.toContain("CTOS");
     expect(html).not.toContain("A-");
   });
+
+  it("renders the organization MARC grade and official Risk Profile, not A–F copy", () => {
+    const built = buildProspectusRiskAssessment({
+      soukscoreRiskRating: "C",
+      marcGrade: "SME-4",
+      marcCreditScore: 65,
+      marcProbabilityOfDefault: 7.43,
+    });
+    expect(built.canva.riskGrade).toBe("SME-4");
+    expect(built.canva.riskLabel).toBe("Low Risk");
+    expect(built.canva.riskExplanation).toBe(
+      "Strong credit strength with moderate non-repayment risk"
+    );
+    expect(built.canva.marcCreditScoreDisplay).toBe("65");
+    expect(built.canva.marcProbabilityOfDefaultDisplay).toBe("7.43%");
+    expect(built.canva.riskExplanation).not.toContain("typical SME and transaction-level risks");
+    expect(built.canva.riskGrade).not.toBe("C");
+
+    const html = buildProspectusRiskAssessmentDocument(built);
+    expect(html).toContain("Risk Rating: SME-4");
+    expect(html).toContain("Strong credit strength with moderate non-repayment risk");
+    expect(html).not.toContain("typical SME and transaction-level risks");
+  });
 });

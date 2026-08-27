@@ -236,11 +236,23 @@ h2{
 .risk-panel{text-align:left}.risk-panel>b{font-size:10px}
 .risk-shield{position:relative;width:var(--prospectus-risk-shield-size);height:var(--prospectus-risk-shield-height);margin:16px 0 14px;display:grid;place-items:center;border-radius:9px;overflow:hidden;background:currentColor}
 .risk-shield-asset{display:none}
-.risk-shield-grade{position:absolute;inset:0;display:grid;place-items:center;font-size:var(--prospectus-risk-shield-grade-font-size);font-weight:800;line-height:1;pointer-events:none;color:#fff}
+.risk-shield-grade{position:absolute;inset:0;display:grid;place-items:center;font-size:var(--prospectus-risk-shield-grade-font-size);font-weight:800;line-height:1;pointer-events:none;color:#fff;white-space:nowrap}
+.risk-shield[data-grade^="SME-"]{
+  width:100%;
+  max-width:140px;
+  height:36px;
+  margin:12px 0 10px;
+  overflow:visible;
+}
+.risk-shield[data-grade^="SME-"] .risk-shield-grade{
+  font-size:15px;
+  letter-spacing:-0.02em;
+}
 .risk-shield-fallback{border-radius:9px}
 /* Risk label under shield — restore origin/main / Canva size (not the enlarged 14px treatment) */
 .risk-panel strong{display:block;text-align:center;font-size:12px}
 .risk-panel .prospectus-risk-description,.prospectus-risk-description{font-size:10px;line-height:1.35;font-weight:400;margin:8px 0 10px;color:var(--prospectus-text)}
+.risk-panel .prospectus-risk-metrics{margin:0 0 8px;font-size:8px;line-height:1.35;color:var(--prospectus-muted);font-weight:400}
 .risk-panel .scale-link{font-size:8px;font-weight:800;color:var(--prospectus-burgundy);text-decoration:none;cursor:default}
 .card{border:var(--prospectus-border-width) solid var(--prospectus-border);border-radius:var(--prospectus-radius-card);overflow:hidden}
 /* Vertically stacked compound sections — one outer silhouette, no mid-seam radius */
@@ -316,17 +328,21 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 }
 .grade.marc{
   width:auto;
-  min-width:61px;
-  height:28px;
-  padding:0 5px;
+  min-width:0;
+  height:auto;
+  min-height:22px;
+  padding:3px 4px;
   border-radius:5px;
-  font-size:7px;
+  font-size:8px;
+  line-height:1.15;
   white-space:nowrap;
+  overflow:visible;
+  text-overflow:clip;
 }
 .credit-insights-note{display:block;font-size:7px;margin-top:8px;font-style:italic;line-height:1.3;color:var(--prospectus-muted)}
 .ratings div{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center;margin:5px 0;position:relative}.ratings div:before{content:"";width:17px;height:17px;background:#e3bfc0;border-radius:3px;position:absolute;left:0}.ratings span{font-weight:700;padding-left:22px}.ratings b{background:#d8d8d8;text-align:center;padding:5px;border-radius:4px;font-weight:500}.ratings .good{color:#21a43b}
 .work-list p{display:flex;align-items:flex-start;gap:10px;font-size:9px;margin-bottom:9px}.work-list .icon{flex:none;width:var(--prospectus-icon-work);height:var(--prospectus-icon-work);padding:4px;box-sizing:border-box}
-.risk-cta{display:grid;grid-template-columns:2fr 1fr;gap:9px;margin-top:var(--space-3);align-items:stretch}.risk-cta>.card,.risk-cta>.cta{padding:10px;min-height:100%}
+.risk-cta{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:9px;margin-top:var(--space-3);align-items:stretch}.risk-cta>.card,.risk-cta>.cta{padding:10px;min-height:100%;min-width:0;overflow:visible}
 
 /* Page 2 only — recover A4 height from the top issuer/invoice block (header gap unchanged) */
 .prospectus-page-two .page-two-issuer-grid{margin-top:0}
@@ -348,14 +364,60 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 .prospectus-page-two .page-two-financial-card,.prospectus-page-two .page-two-insights-card{padding-top:0}
 .prospectus-page-two .risk-cta{margin-top:5px}
 .prospectus-page-two .invest-confidence-description{margin:0 0 6px;line-height:1.25}
-.prospectus-page-two .soukscore-scale .grade-item{padding:4px 3px}
+.prospectus-page-two .soukscore-scale .grade-item{padding:5px 4px}
+.prospectus-page-two .marc-sme-scale .grade-item{padding:6px 5px}
 .prospectus-page-two .risk-scale-note{margin:4px 0 0;font-size:7px;line-height:1.2}
 .prospectus-page-two .prospectus-footer{padding-top:8px}
 .soukscore-scale,.risk-scale{display:grid;grid-template-columns:repeat(6,1fr);list-style:none;margin:0;padding:0;align-items:start}
-.soukscore-scale .grade-item,.risk-scale>div{padding:6px 4px;border-right:1px solid #c9c5c5;text-align:center}.soukscore-scale .grade-item:last-child,.risk-scale>div:last-child{border:0}
+.soukscore-scale .grade-item,.risk-scale>div{padding:6px 4px;border-right:1px solid #c9c5c5;text-align:center;min-width:0}.soukscore-scale .grade-item:last-child,.risk-scale>div:last-child{border:0}
 .soukscore-scale .grade,.grade{width:33px;height:33px;color:#fff;border-radius:6px;display:grid;place-items:center;font-size:12px;margin:0 auto 4px;background:#79cf54;font-weight:800;box-sizing:border-box}
 .soukscore-scale .grade-label{display:block;font-size:7px;font-weight:700;line-height:1.25;margin:0 0 3px}
 .soukscore-scale .grade-desc{display:block;font-size:6px;line-height:1.3;color:#555;font-weight:400}
+/* MARC Page 2 scale: five equal columns; pills must not clip SME range labels */
+.soukscore-scale.marc-sme-scale{
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  width:100%;
+  align-items:start;
+  overflow:visible;
+}
+.soukscore-scale.marc-sme-scale .grade-item{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  padding:6px 5px;
+  overflow:visible;
+}
+.soukscore-scale.marc-sme-scale .grade.marc{
+  width:auto;
+  max-width:100%;
+  min-width:0;
+  height:auto;
+  min-height:22px;
+  padding:3px 4px;
+  margin:0 auto 5px;
+  font-size:8px;
+  line-height:1.15;
+  letter-spacing:0;
+  white-space:nowrap;
+  overflow:visible;
+  text-overflow:clip;
+}
+.soukscore-scale.marc-sme-scale .grade-label{
+  font-size:8px;
+  line-height:1.2;
+  margin:0 0 5px;
+  text-align:center;
+}
+.soukscore-scale.marc-sme-scale .grade-desc{
+  font-size:6.5px;
+  line-height:1.35;
+  text-align:left;
+  overflow:visible;
+  color:#444;
+}
+.soukscore-scale.marc-sme-scale .marc-profile{display:block;margin:0 0 4px}
+.soukscore-scale.marc-sme-scale .marc-profile:last-child{margin-bottom:0}
+.soukscore-scale.marc-sme-scale .marc-profile b{font-weight:700}
 .soukscore-missing{margin:8px 0 0;font-size:8px}
 .issuer-profile .issuer-meta-line{font-size:10px;font-weight:700;margin-bottom:6px}
 .plain th .fy-label,.report-box th .fy-label{display:block;font-weight:700}

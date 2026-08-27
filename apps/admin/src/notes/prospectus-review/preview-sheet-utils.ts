@@ -36,12 +36,15 @@ export function cleanProspectusPreviewHtml(
  * Vertical scrolling stays inside the iframe document (one page or All Pages).
  *
  * Also prevents html/body from owning a fixed 210mm width — only `.page` does.
+ * `scrollbar-gutter: stable` plus the slightly wider iframe leave room for the
+ * vertical scrollbar so 210mm pages are not clipped on the right.
  */
 export function withAdminPreviewScrollLock(html: string): string {
   const lock =
     '<style data-admin-preview-scroll-lock>' +
-    "html,body{overflow-x:hidden!important;width:100%!important;min-width:0!important;max-width:none!important}" +
+    "html,body{overflow-x:hidden!important;overflow-y:auto!important;width:100%!important;min-width:0!important;max-width:none!important;scrollbar-gutter:stable}" +
     ".document{width:100%!important;min-width:0!important;max-width:none!important}" +
+    ".page{margin-left:auto!important;margin-right:auto!important}" +
     "</style>";
   if (/<\/head>/i.test(html)) {
     return html.replace(/<\/head>/i, `${lock}</head>`);
@@ -78,15 +81,15 @@ export const PREVIEW_DOCUMENT_INNER_CLASS =
   "mx-auto block h-full w-max max-w-none rounded-xl border bg-transparent shadow-none";
 
 /**
- * Exact A4-wide iframe — no `w-full` (avoids fighting min-width inside a bordered parent).
- * Document H overflow locked via {@link withAdminPreviewScrollLock}.
+ * A4-wide iframe plus room for the vertical scrollbar.
+ * Generated PDF/A4 dimensions stay 210mm — only Admin preview chrome is wider.
  */
 export const PREVIEW_IFRAME_CLASS =
-  "block h-full min-h-0 w-[210mm] min-w-[210mm] max-w-[210mm] border-0 bg-transparent";
+  "block h-full min-h-0 w-[calc(210mm+18px)] min-w-[calc(210mm+18px)] max-w-[calc(210mm+18px)] border-0 bg-transparent";
 
-/** Inline styles reinforce exact A4 width (Tailwind arbitrary mm units). */
+/** Inline styles reinforce A4 width plus scrollbar gutter (Tailwind arbitrary mm units). */
 export const PREVIEW_IFRAME_STYLE = {
-  width: "210mm",
-  minWidth: "210mm",
-  maxWidth: "210mm",
+  width: "calc(210mm + 18px)",
+  minWidth: "calc(210mm + 18px)",
+  maxWidth: "calc(210mm + 18px)",
 } as const;

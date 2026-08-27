@@ -19,6 +19,7 @@ import {
   PROSPECTUS_PAYMASTER_RATING_VALUES,
   CASHSCOUK_RISK_GRADE_LETTER_COLOR,
   MARC_SME_BANDS,
+  marcBandOfficialGradeProfiles,
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
@@ -496,7 +497,14 @@ export function WorkingAreaPageTwo({
                           </span>
                         </td>
                         <td className="px-3 py-2">{band.label}</td>
-                        <td className="px-3 py-2 text-muted-foreground">{band.explanation}</td>
+                        <td className="px-3 py-2 text-muted-foreground">
+                          {marcBandOfficialGradeProfiles(band).map((item) => (
+                            <p key={item.grade} className="mb-1 last:mb-0">
+                              <span className="font-medium text-foreground">{item.grade}:</span>{" "}
+                              {item.riskProfile}
+                            </p>
+                          ))}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

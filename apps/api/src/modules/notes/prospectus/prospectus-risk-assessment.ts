@@ -7,6 +7,7 @@ import {
   marcBandForGrade,
   marcGradeColor,
   marcGradeLabel,
+  marcOfficialRiskProfile,
   resolveSoukscoreRiskRatingPresentation,
 } from "@cashsouk/types";
 import {
@@ -17,20 +18,39 @@ import {
   type ProspectusRiskAssessmentInput,
 } from "./prospectus-risk-assessment.types";
 
+function formatMarcAssessmentScore(value: string | number | null | undefined): string | null {
+  if (value == null || value === "") return null;
+  const text = String(value).trim();
+  return text.length > 0 ? text : null;
+}
+
+function formatMarcAssessmentPd(value: string | number | null | undefined): string | null {
+  if (value == null || value === "") return null;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `${value.toFixed(2)}%`;
+  }
+  const text = String(value).trim();
+  if (!text) return null;
+  return text.endsWith("%") ? text : `${text}%`;
+}
+
 export function buildProspectusRiskAssessment(
   input: ProspectusRiskAssessmentInput
 ): ProspectusRiskAssessment {
   const marcGrade = input.marcGrade?.trim() || "";
   const marcBand = marcBandForGrade(marcGrade);
-  if (marcBand) {
+  const officialProfile = marcOfficialRiskProfile(marcGrade);
+  if (marcBand && officialProfile) {
     return {
       canva: {
         riskGrade: marcGrade,
         riskLabel: marcGradeLabel(marcGrade),
-        riskExplanation: marcBand.explanation,
+        riskExplanation: officialProfile,
         riskGradeColor: marcGradeColor(marcGrade),
         riskGradeTextColor: "#ffffff",
         ratingScaleReference: PROSPECTUS_RATING_SCALE_REFERENCE,
+        marcCreditScoreDisplay: formatMarcAssessmentScore(input.marcCreditScore),
+        marcProbabilityOfDefaultDisplay: formatMarcAssessmentPd(input.marcProbabilityOfDefault),
       },
       audit: {
         riskScore: PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -52,6 +72,8 @@ export function buildProspectusRiskAssessment(
       riskGradeColor: presentation.color,
       riskGradeTextColor: presentation.textColor,
       ratingScaleReference: PROSPECTUS_RATING_SCALE_REFERENCE,
+      marcCreditScoreDisplay: null,
+      marcProbabilityOfDefaultDisplay: null,
     },
     audit: {
       riskScore: PROSPECTUS_DATA_NOT_AVAILABLE,

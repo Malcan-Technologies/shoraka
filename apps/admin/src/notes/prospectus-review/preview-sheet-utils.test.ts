@@ -40,15 +40,15 @@ describe("prospectus preview sheet utils", () => {
     expect(PREVIEW_SHEET_BODY_CLASS).toContain("bg-muted/40");
     expect(PREVIEW_IFRAME_CLASS).toContain("h-full");
     expect(PREVIEW_IFRAME_CLASS).toContain("min-h-0");
-    expect(PREVIEW_IFRAME_CLASS).toContain("w-[210mm]");
-    expect(PREVIEW_IFRAME_CLASS).toContain("min-w-[210mm]");
-    expect(PREVIEW_IFRAME_CLASS).toContain("max-w-[210mm]");
+    expect(PREVIEW_IFRAME_CLASS).toContain("w-[calc(210mm+18px)]");
+    expect(PREVIEW_IFRAME_CLASS).toContain("min-w-[calc(210mm+18px)]");
+    expect(PREVIEW_IFRAME_CLASS).toContain("max-w-[calc(210mm+18px)]");
     expect(PREVIEW_IFRAME_CLASS).not.toContain("w-full");
     expect(PREVIEW_IFRAME_CLASS).toContain("block");
     expect(PREVIEW_IFRAME_STYLE).toEqual({
-      width: "210mm",
-      minWidth: "210mm",
-      maxWidth: "210mm",
+      width: "calc(210mm + 18px)",
+      minWidth: "calc(210mm + 18px)",
+      maxWidth: "calc(210mm + 18px)",
     });
   });
 
@@ -58,7 +58,9 @@ describe("prospectus preview sheet utils", () => {
     const locked = withAdminPreviewScrollLock(withHead);
     expect(locked).toContain("data-admin-preview-scroll-lock");
     expect(locked).toContain("overflow-x:hidden!important");
-    expect(locked).toContain("html,body{overflow-x:hidden!important;width:100%!important;min-width:0!important");
+    expect(locked).toContain("overflow-y:auto!important");
+    expect(locked).toContain("scrollbar-gutter:stable");
+    expect(locked).toContain("html,body{overflow-x:hidden!important;overflow-y:auto!important;width:100%!important;min-width:0!important");
     expect(locked).toContain(".document{width:100%!important;min-width:0!important");
     expect(locked).toContain("</head>");
     expect(locked.indexOf("data-admin-preview-scroll-lock")).toBeLessThan(

@@ -47,7 +47,7 @@ ${inner}
 function stratoHeader(): string {
   return `<header class="strato-header">
   <div class="strato-marc-logo">MARC</div>
-  <div class="strato-report-title"><div>MARC SME Credit</div><div>Methodology</div></div>
+  <div class="strato-report-title">MARC SME Credit Methodology</div>
 </header>`;
 }
 
