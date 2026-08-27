@@ -1369,6 +1369,14 @@ export class AdminService {
 
     // Create access log for admin action
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const updatedFields = Object.keys(data).filter(
+      (k) => data[k as keyof UpdateUserProfileInput] !== undefined
+    );
+    const nextValues = {
+      firstName: updatedUser.first_name,
+      lastName: updatedUser.last_name,
+      phone: updatedUser.phone,
+    };
     await this.repository.createAccessLog({
       userId: adminUserId,
       eventType: "PROFILE_UPDATED",
@@ -1381,20 +1389,19 @@ export class AdminService {
       metadata: {
         targetUserId: userId,
         targetUserEmail: user.email,
-        updatedFields: Object.keys(data).filter(
-          (k) => data[k as keyof UpdateUserProfileInput] !== undefined
-        ),
+        updatedFields,
         previousValues: {
           firstName: user.first_name,
           lastName: user.last_name,
           phone: user.phone,
         },
+        nextValues,
         nameLockedOverride: hasCompletedOnboarding && isChangingName,
       },
     });
 
-    // Create security log if admin changed name of onboarded user
-    if (hasCompletedOnboarding && isChangingName) {
+    // Security trail for any admin profile patch of an onboarded user, including phone-only edits.
+    if (hasCompletedOnboarding && updatedFields.length > 0) {
       await this.repository.createSecurityLog({
         userId: userId,
         eventType: "PROFILE_UPDATED",
@@ -1403,13 +1410,13 @@ export class AdminService {
         deviceInfo,
         metadata: {
           updatedBy: adminUserId,
-          updatedFields: Object.keys(data).filter(
-            (k) => data[k as keyof UpdateUserProfileInput] !== undefined
-          ),
+          updatedFields,
           previousValues: {
             firstName: user.first_name,
             lastName: user.last_name,
+            phone: user.phone,
           },
+          nextValues,
           adminOverride: true,
         },
       });
@@ -4805,34 +4812,6 @@ export class AdminService {
             });
           }
           onboardingApproved = true;
-
-          try {
-            await createOnboardingLogRow({
-              userId: onboarding.user_id,
-              eventType: "ONBOARDING_STATUS_UPDATED",
-              role: isInvestor ? "INVESTOR" : "ISSUER",
-              portal: onboarding.portal_type,
-              organizationName: org.name ?? undefined,
-              investorOrganizationId: isInvestor ? org.id : undefined,
-              issuerOrganizationId: isInvestor ? undefined : org.id,
-              metadata: {
-                organizationId: org.id,
-                trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH",
-                previousStatus: org.onboarding_status,
-                codStatus: codStatusRaw,
-              },
-              actorUserId: adminUserId,
-              context: auditContextFromRequest(_req),
-            });
-          } catch (logError) {
-            logger.error(
-              {
-                error: logError instanceof Error ? logError.message : String(logError),
-                organizationId: org.id,
-              },
-              "[Admin Refresh] Failed to write onboarding log (non-blocking)"
-            );
-          }
         }
 
         const { changed } = await advanceOnboardingStatusFromFlags({
@@ -4852,6 +4831,37 @@ export class AdminService {
               select: { onboarding_status: true },
             });
         onboardingStatusResult = afterOrg?.onboarding_status ?? onboardingStatusResult;
+
+        if (shouldApply) {
+          try {
+            await createOnboardingLogRow({
+              userId: onboarding.user_id,
+              eventType: "ONBOARDING_STATUS_UPDATED",
+              role: isInvestor ? "INVESTOR" : "ISSUER",
+              portal: onboarding.portal_type,
+              organizationName: org.name ?? undefined,
+              investorOrganizationId: isInvestor ? org.id : undefined,
+              issuerOrganizationId: isInvestor ? undefined : org.id,
+              metadata: {
+                organizationId: org.id,
+                trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH",
+                previousStatus: org.onboarding_status,
+                newStatus: afterOrg?.onboarding_status,
+                codStatus: codStatusRaw,
+              },
+              actorUserId: adminUserId,
+              context: auditContextFromRequest(_req),
+            });
+          } catch (logError) {
+            logger.error(
+              {
+                error: logError instanceof Error ? logError.message : String(logError),
+                organizationId: org.id,
+              },
+              "[Admin Refresh] Failed to write onboarding log (non-blocking)"
+            );
+          }
+        }
       }
 
       const mergeRoleLabels = (existingRole: string, incomingRole: string): string => {
@@ -6181,9 +6191,10 @@ export class AdminService {
           status: string;
           contract_details: Prisma.JsonValue | null;
           originating_application_id: string | null;
+          display_reference: string | null;
         }[]
       >`
-        SELECT status, contract_details, originating_application_id
+        SELECT status, contract_details, originating_application_id, display_reference
         FROM contracts
         WHERE id = ${contractId}
         FOR UPDATE
@@ -6199,6 +6210,8 @@ export class AdminService {
           originatingApplicationId: contract.originating_application_id,
           unchanged: true,
           facilityDisabledAt: null,
+          displayReference: contract.display_reference,
+          previouslyEnabled: currentlyEnabled,
         };
       }
       if (!enabled) {
@@ -6240,6 +6253,8 @@ export class AdminService {
         originatingApplicationId: contract.originating_application_id,
         unchanged: false,
         facilityDisabledAt: enabled ? null : now,
+        displayReference: contract.display_reference,
+        previouslyEnabled: currentlyEnabled,
       };
     });
 
@@ -6255,6 +6270,9 @@ export class AdminService {
         metadata: {
           contract_id: contractId,
           enabled,
+          ...(updated.displayReference ? { contractReference: updated.displayReference } : {}),
+          previousValues: { enabled: updated.previouslyEnabled },
+          nextValues: { enabled },
           ...(enabled ? {} : { reason: (reason ?? "").trim() }),
         },
         ipAddress: logContext?.ipAddress ?? undefined,
@@ -6869,7 +6887,7 @@ export class AdminService {
         applicationId: id,
         portal: ActivityPortal.ADMIN,
         eventType: "APPLICATION_RESET_TO_UNDER_REVIEW",
-        metadata: { previous_status: currentStatus },
+        metadata: { previous_status: currentStatus, new_status: "UNDER_REVIEW" },
         ipAddress: logContext?.ipAddress ?? undefined,
         userAgent: logContext?.userAgent ?? undefined,
         deviceInfo: logContext?.deviceInfo ?? undefined,
@@ -8217,7 +8235,7 @@ export class AdminService {
     const contractId = application.contract_id;
     const contract = await prisma.contract.findUnique({
       where: { id: contractId },
-      select: { customer_details: true, status: true },
+      select: { customer_details: true, status: true, display_reference: true },
     });
     if (!contract) {
       throw new AppError(404, "NOT_FOUND", "Facility not found");
@@ -8247,6 +8265,7 @@ export class AdminService {
       );
     }
 
+    const previousValue = (existing as Record<string, unknown>).is_large_private_company;
     const merged = {
       ...(existing as Record<string, unknown>),
       is_large_private_company: isLargePrivateCompany,
@@ -8260,9 +8279,17 @@ export class AdminService {
     await logApplicationActivity({
       userId: reviewerUserId,
       applicationId,
+      entityId: contractId,
       portal: ActivityPortal.ADMIN,
       eventType: "CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED",
-      metadata: { is_large_private_company: isLargePrivateCompany },
+      metadata: {
+        contract_id: contractId,
+        ...(contract.display_reference
+          ? { contractReference: contract.display_reference }
+          : {}),
+        previousValues: { is_large_private_company: previousValue ?? null },
+        nextValues: { is_large_private_company: isLargePrivateCompany },
+      },
       ipAddress: logContext?.ipAddress ?? undefined,
       userAgent: logContext?.userAgent ?? undefined,
       deviceInfo: logContext?.deviceInfo ?? undefined,

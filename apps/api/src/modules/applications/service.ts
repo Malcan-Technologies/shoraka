@@ -72,7 +72,7 @@ import {
 import { prisma } from "../../lib/prisma";
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { logApplicationActivity } from "./logs/service";
-import { ActivityPortal, ApplicationLogEventType } from "./logs/types";
+import { ActivityPortal, ApplicationLogEventType, type IssuerActivityLogContext } from "./logs/types";
 import { assertApplicationProcessingFeePaid } from "../payment/processing-fee-service";
 import {
   generateContractOfferLetterStream,
@@ -1088,7 +1088,11 @@ export class ApplicationService {
    * 2. Create application revision snapshot
    * 3. Set status to RESUBMITTED
    */
-  async resubmitApplication(applicationId: string, userId: string) {
+  async resubmitApplication(
+    applicationId: string,
+    userId: string,
+    logContext?: IssuerActivityLogContext
+  ) {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
     if (!application) {
@@ -1102,7 +1106,12 @@ export class ApplicationService {
       );
     }
     await assertIssuerOrgDirectorShareholderOnboardingReady(application.issuer_organization_id);
-    const result = await amendmentResubmitApplication(applicationId, userId, this.repository);
+    const result = await amendmentResubmitApplication(
+      applicationId,
+      userId,
+      this.repository,
+      logContext
+    );
 
     try {
       await this.sendIssuerNotification(
@@ -1523,7 +1532,11 @@ export class ApplicationService {
   /**
    * Cancel an application (issuer-only). Withdraws active invoices and contract only.
    */
-  async cancelApplication(id: string, userId: string): Promise<Application> {
+  async cancelApplication(
+    id: string,
+    userId: string,
+    logContext?: IssuerActivityLogContext
+  ): Promise<Application> {
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
@@ -1706,6 +1719,7 @@ export class ApplicationService {
         eventType: "APPLICATION_WITHDRAWN",
         portal: ActivityPortal.ISSUER,
         metadata: { withdraw_reason: WithdrawReason.USER_CANCELLED },
+        ...logContext,
       });
       try {
         await this.sendIssuerNotification(
@@ -1910,7 +1924,12 @@ export class ApplicationService {
   /**
    * Update application status and perform cleanup
    */
-  async updateApplicationStatus(id: string, status: string, userId: string): Promise<Application> {
+  async updateApplicationStatus(
+    id: string,
+    status: string,
+    userId: string,
+    logContext?: IssuerActivityLogContext
+  ): Promise<Application> {
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
@@ -2025,7 +2044,7 @@ export class ApplicationService {
 
     // Resubmit flow is handled by dedicated resubmitApplication method to keep behavior deterministic.
     if (currentStatus === "AMENDMENT_REQUESTED" && status === "RESUBMITTED") {
-      const res = await this.resubmitApplication(id, userId);
+      const res = await this.resubmitApplication(id, userId, logContext);
       // return updated application
       return res as any;
     }
@@ -2316,7 +2335,11 @@ export class ApplicationService {
    * Step 1 of offer acceptance: require acceptance uploads,
    * then move to PENDING_ADMIN_REVIEW (or APPROVED_FOR_SIGNING when no acceptance docs).
    */
-  async submitContractOfferAcceptance(applicationId: string, userId: string): Promise<Application> {
+  async submitContractOfferAcceptance(
+    applicationId: string,
+    userId: string,
+    logContext?: IssuerActivityLogContext
+  ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
     if (!application) {
@@ -2429,6 +2452,7 @@ export class ApplicationService {
           ? { requested_facility: Number(offerRecord.requested_facility) || 0 }
           : {}),
       },
+      ...logContext,
     });
 
     if (nextStatus === "APPROVED_FOR_SIGNING") {
@@ -2445,6 +2469,7 @@ export class ApplicationService {
             : {}),
           auto_approved: true,
         },
+        ...logContext,
       });
     }
 
@@ -2463,7 +2488,8 @@ export class ApplicationService {
   async submitInvoiceOfferAcceptance(
     applicationId: string,
     invoiceId: string,
-    userId: string
+    userId: string,
+    logContext?: IssuerActivityLogContext
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
@@ -2587,6 +2613,7 @@ export class ApplicationService {
           ? { requested_amount: Number(offerRecord.requested_amount) || 0 }
           : {}),
       },
+      ...logContext,
     });
 
     if (nextStatus === "APPROVED_FOR_SIGNING") {
@@ -2601,6 +2628,7 @@ export class ApplicationService {
           ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
           auto_approved: true,
         },
+        ...logContext,
       });
     }
 
@@ -2665,6 +2693,7 @@ export class ApplicationService {
     rejectionReason?: string,
     options?: {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
+      logContext?: IssuerActivityLogContext;
     }
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
@@ -2926,6 +2955,7 @@ export class ApplicationService {
           ? { rejection_reason: rejectionReason.trim() }
           : {}),
       },
+      ...(options?.logContext ?? {}),
     });
     if (action === "accept" && responseMeta.facilityFeeUpfrontAmount > 0) {
       try {
@@ -2967,6 +2997,7 @@ export class ApplicationService {
         applicationId,
         eventType: "APPLICATION_COMPLETED",
         portal: ActivityPortal.ISSUER,
+        ...(options?.logContext ?? {}),
       });
       try {
         await this.sendIssuerNotification(
@@ -3209,6 +3240,7 @@ export class ApplicationService {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
       otp?: { challengeId: string; otpCode: string };
       consent_ids?: string[];
+      logContext?: IssuerActivityLogContext;
     }
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
@@ -3559,6 +3591,7 @@ export class ApplicationService {
           ? { utilisation_consents: responseMeta.utilisationConsents }
           : {}),
       },
+      ...(options?.logContext ?? {}),
     });
     if (responseMeta.appStatus === ApplicationStatus.WITHDRAWN) {
       try {
@@ -3581,6 +3614,7 @@ export class ApplicationService {
         applicationId,
         eventType: "APPLICATION_COMPLETED",
         portal: ActivityPortal.ISSUER,
+        ...(options?.logContext ?? {}),
       });
       try {
         await this.sendIssuerNotification(

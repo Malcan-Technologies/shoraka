@@ -522,6 +522,7 @@ export class ShorakaStpService {
 
       // Activity Timeline event: order successfully submitted.
       await this.logShorakaStpEvent(withdrawal.note_id ?? "unknown-note", "SHORAKA_ORDER_SUBMITTED", {
+        trade_order_id: created.id,
         provider_order_id: providerOrderId,
         order_amount: values.order_amount,
         murabaha_amount: values.murabaha_amount,
@@ -675,9 +676,12 @@ export class ShorakaStpService {
 
     // Activity Timeline event: certificate successfully fetched/stored.
     await this.logShorakaStpEvent(withdrawal.note_id ?? "unknown-note", "SHORAKA_CERTIFICATE_FETCHED", {
+      trade_order_id: tradeOrder.id,
       document_type: "Tawarruq Certificate",
       certificate_available: true,
       provider_order_id: providerOrderId,
+      certificate_file_sha256: sha256,
+      certificate_s3_key: key,
     });
 
     return (await this.getStateForWithdrawal(withdrawalInstructionId)) as ShorakaStateResponse;

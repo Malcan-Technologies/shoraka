@@ -176,8 +176,14 @@ export function extractPreviousNext(metadata: Record<string, unknown> | null | u
       metadata.previousValues ??
       metadata.previous_values ??
       metadata.beforeJson ??
-      metadata.before,
-    next: metadata.nextValues ?? metadata.next_values ?? metadata.afterJson ?? metadata.after,
+      metadata.before ??
+      metadata.beforeState,
+    next:
+      metadata.nextValues ??
+      metadata.next_values ??
+      metadata.afterJson ??
+      metadata.after ??
+      metadata.afterState,
   };
 }
 

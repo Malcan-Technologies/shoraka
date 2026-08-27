@@ -15,6 +15,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import { resolveStandardAuditFields } from "../../../lib/audit";
+import { mergeDisplayReferences } from "../../../lib/audit/display-references";
 import { CreateApplicationLogParams } from "./types";
 import { resolveApplicationLogTarget } from "./audit-fields";
 
@@ -43,6 +44,12 @@ export async function createApplicationLog(
     targetId,
   });
 
+  const metadata = mergeDisplayReferences(params.metadata, {
+    applicationReference: params.applicationReference,
+    contractReference: params.contractReference,
+    invoiceReference: params.invoiceReference,
+  });
+
   return db.applicationLog.create({
     data: {
       user_id: params.userId,
@@ -58,9 +65,10 @@ export async function createApplicationLog(
       user_agent: standard.user_agent,
       device_info: params.deviceInfo ?? null,
       portal: params.portal ?? null,
-      // Metadata is passed through byte-for-byte. Admin timelines gate the "View details" expander
-      // on metadata being truthy and render some metadata generically, so extra keys are visible.
-      metadata: params.metadata ?? null,
+      // Metadata is passed through byte-for-byte except additive display-reference snapshots.
+      // Admin timelines gate the "View details" expander on metadata being truthy and render
+      // some metadata generically, so extra keys are visible.
+      metadata: metadata ?? null,
       ...(params.createdAt ? { created_at: params.createdAt } : {}),
 
       actor_type: standard.actor_type,

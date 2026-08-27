@@ -1,0 +1,34 @@
+CashSouk Prospectus V2 - Changes Applied
+
+Source used:
+- Updated design pages 1-3 from "CashSouk Prospectus Template (1).pdf"
+- Pages 4-6 were treated as older/alternate exported designs and were NOT used.
+
+Minimal integration changes:
+1. Page 1 risk badge: A- -> SME-3.
+2. Page 1 risk badge changed from shield shape to rounded green rectangle.
+3. Removed Maturity Date from Investment Summary only (date remains in header).
+4. Removed "(after fees*)" from the short-term return highlight.
+5. Page 2 About the Issuer is now generic and no longer shows issuer name / registration number.
+6. Page 2 removed Paymaster Rating and Confidence Grading from Invoice & Paymaster Information.
+7. Page 2 financial table now includes dates in FY column headers and units in metric names.
+8. Credit Insights changed to MARC:
+   - MARC Credit Grade: SME-4
+   - MARC Credit Score: 65
+   - Probability of Default: 3.7%
+   - Litigation Check: Clear
+   - CCRIS Status: No record
+9. Risk scale changed from A-E to MARC SME bands:
+   SME-1–2, SME-3–4, SME-5–6, SME-7–8, SME-9–10.
+10. Page 3 issuer field was removed but its empty grid slot was preserved to match the new design.
+11. Page 3 Trend column and arrows were removed.
+12. Page 3 Operating Cash Flow and Free Cash Flow rows were removed.
+
+Source inconsistency to confirm with designer:
+- Page 1 uses risk rating "SME-3".
+- Page 3 still displays risk rating "A-" in the supplied updated artwork.
+This implementation intentionally preserves that discrepancy to match the supplied UI exactly.
+
+
+V3 minor update:
+- Removed the blank white gap in the Page 3 identity strip and allowed the remaining items to expand.

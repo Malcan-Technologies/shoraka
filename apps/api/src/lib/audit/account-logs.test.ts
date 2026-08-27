@@ -1,6 +1,6 @@
 import { UserRole } from "@prisma/client";
 
-import { AUDIT_ACTOR_TYPE, AUDIT_ORGANIZATION_KIND, AUDIT_SOURCE } from "./context";
+import { AUDIT_ACTOR_TYPE, AUDIT_ORGANIZATION_KIND, AUDIT_SOURCE, webhookAuditContext } from "./context";
 import { createAccessLogRow, createOnboardingLogRow, createSecurityLogRow } from "./account-logs";
 
 /** Captures the payload a writer would persist, without touching a database. */
@@ -138,7 +138,11 @@ describe("onboarding log actor attribution", () => {
   async function actorFor(params: Parameters<typeof createOnboardingLogRow>[0]) {
     const { db, created } = fakeDb();
     await createOnboardingLogRow(params, db);
-    return created.onboardingLog[0] as { actor_user_id: string | null; actor_type: string };
+    return created.onboardingLog[0] as {
+      actor_user_id: string | null;
+      actor_type: string;
+      source: string;
+    };
   }
 
   it("uses the explicit actor when the caller supplies one", async () => {
@@ -172,6 +176,18 @@ describe("onboarding log actor attribution", () => {
     const row = await actorFor({ ...base, eventType: "ONBOARDING_STARTED" });
 
     expect(row.actor_user_id).toBe(base.userId);
+  });
+
+  it("does not attribute a webhook-generated row to the applicant", async () => {
+    const row = await actorFor({
+      ...base,
+      eventType: "ONBOARDING_APPROVED",
+      context: webhookAuditContext(),
+    });
+
+    expect(row.actor_user_id).toBeNull();
+    expect(row.actor_type).toBe(AUDIT_ACTOR_TYPE.INTEGRATION);
+    expect(row.source).toBe(AUDIT_SOURCE.WEBHOOK);
   });
 });
 

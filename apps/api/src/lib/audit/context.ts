@@ -194,6 +194,15 @@ export function auditContextFromRequest(
   };
 }
 
+export function issuerActivityFromRequest(req: Request, res?: Response) {
+  const context = auditContextFromRequest(req, { res });
+  return {
+    context,
+    ipAddress: context.ipAddress ?? undefined,
+    userAgent: context.userAgent ?? undefined,
+  };
+}
+
 /** Provider callback context: no request-bound actor, no IP worth trusting. */
 export function webhookAuditContext(options?: {
   actorUserId?: string | null;

@@ -60,6 +60,10 @@ function getEventLabel(eventType: string): string {
     FORM_FILLED: "Form Submitted",
     ONBOARDING_RESET: "Onboarding Reset",
     PROFILE_UPDATED: "Organization Profile Updated",
+    MEMBER_ADDED: "Member Added",
+    MEMBER_INVITED: "Member Invited",
+    MEMBER_REMOVED: "Member Removed",
+    MEMBER_ROLE_CHANGED: "Member Role Changed",
     USER_COMPLETED: "User Completed",
   };
   return (

@@ -195,7 +195,12 @@ describe("ApplicationService capacity reservations", () => {
 
     await service.resubmitApplication("app-1", "user-1");
 
-    expect(amendmentResubmitApplication).toHaveBeenCalledWith("app-1", "user-1", expect.anything());
+    expect(amendmentResubmitApplication).toHaveBeenCalledWith(
+      "app-1",
+      "user-1",
+      expect.anything(),
+      undefined
+    );
   });
 
   it("accept and reject facility offers refresh occupancy under the contract lock", async () => {

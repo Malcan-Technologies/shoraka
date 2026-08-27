@@ -19,7 +19,7 @@ import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-on
 import { normalizeRawStatus } from "@cashsouk/types";
 import { decideIndividualApprovedOutcome } from "./helpers/individual-onboarding-transition";
 import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
-import { auditContextFromRequest, createOnboardingLogRow } from "../../lib/audit";
+import { auditContextFromRequest, createOnboardingLogRow, webhookAuditContext } from "../../lib/audit";
 
 type StartPersonalOnboardingResult = {
   verifyLink: string;
@@ -2689,6 +2689,7 @@ export class RegTankService {
                   organizationName: org.name || undefined,
                   investorOrganizationId: organizationId,
                   issuerOrganizationId: undefined,
+                  context: webhookAuditContext(),
                   metadata: {
                     organizationId,
                     requestId,
@@ -2740,6 +2741,7 @@ export class RegTankService {
                     organizationName: org.name || undefined,
                     investorOrganizationId: organizationId,
                     issuerOrganizationId: undefined,
+                    context: webhookAuditContext(),
                     metadata: {
                       organizationId,
                       requestId,
@@ -2789,6 +2791,7 @@ export class RegTankService {
                     organizationName: org.name || undefined,
                     investorOrganizationId: organizationId,
                     issuerOrganizationId: undefined,
+                    context: webhookAuditContext(),
                     metadata: {
                       organizationId,
                       requestId,
@@ -2859,6 +2862,7 @@ export class RegTankService {
                 organizationName: org.name || undefined,
                 investorOrganizationId: undefined,
                 issuerOrganizationId: organizationId,
+                context: webhookAuditContext(),
                 metadata: {
                   organizationId,
                   requestId,
@@ -2954,15 +2958,18 @@ export class RegTankService {
       // Determine event type based on status
       // Use new specific event types for better tracking
       // Note: ONBOARDING_APPROVED is logged separately when admin approves in RegTank (see extractAndUpdateOrganizationData)
-      let eventType = "WEBHOOK_RECEIVED";
+      // Determine event type based on status.
+      // APPROVED is recorded as ONBOARDING_APPROVED by extractAndUpdateOrganizationData — do not
+      // also write WEBHOOK_APPROVED for the same business fact.
+      let eventType = "ONBOARDING_STATUS_UPDATED";
+      let skipWebhookTransportLog = false;
       if (statusUpper === "APPROVED") {
-        // Don't log ONBOARDING_APPROVED here - it's logged in extractAndUpdateOrganizationData
-        // when admin actually approves in RegTank portal
+        skipWebhookTransportLog = Boolean(organizationId);
         eventType = "WEBHOOK_APPROVED";
       } else if (statusUpper === "REJECTED") {
         eventType = "WEBHOOK_REJECTED";
       } else if (statusUpper === "WAIT_FOR_APPROVAL" || statusUpper === "PENDING_APPROVAL") {
-        eventType = "WEBHOOK_PENDING_APPROVAL";
+        eventType = "ONBOARDING_STATUS_UPDATED";
       } else if (statusUpper === "LIVENESS_PASSED") {
         eventType = "FORM_FILLED";
       } else if (
@@ -2972,9 +2979,10 @@ export class RegTankService {
       ) {
         eventType = "FORM_FILLED";
       } else if (statusUpper === "IN_PROGRESS") {
-        eventType = "WEBHOOK_IN_PROGRESS";
+        eventType = "ONBOARDING_STATUS_UPDATED";
       }
 
+      if (!skipWebhookTransportLog) {
       await this.authRepository.createOnboardingLog({
         userId: onboarding.user_id,
         role,
@@ -2983,13 +2991,22 @@ export class RegTankService {
         organizationName: org?.name || undefined,
         investorOrganizationId: (portalType === "investor" && organizationId) ? organizationId : undefined,
         issuerOrganizationId: (portalType === "issuer" && organizationId) ? organizationId : undefined,
+        context: webhookAuditContext(),
         metadata: {
           requestId,
           status: statusUpper,
           substatus: substatus || null,
           payload: payload,
+          ...(eventType === "ONBOARDING_STATUS_UPDATED"
+            ? {
+                trigger: "REGTANK_WEBHOOK",
+                previousStatus: org && "onboarding_status" in org ? org.onboarding_status : undefined,
+                newStatus: statusUpper,
+              }
+            : {}),
         },
       });
+      }
 
       logger.debug(
         {

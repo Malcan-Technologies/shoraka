@@ -1,7 +1,10 @@
 import type { LegalDocumentAuditLogListItem, ProductLogResponse } from "@cashsouk/types";
 import {
   accessLogToAuditDetail,
+  applicationLogToAuditDetail,
+  contractEventToAuditDetail,
   legalAuditToAuditDetail,
+  noteEventToAuditDetail,
   notificationRelatedReference,
   productLogToAuditDetail,
 } from "./audit-adapters";
@@ -146,3 +149,120 @@ describe("notificationRelatedReference", () => {
     expect(notificationRelatedReference(null)).toBeNull();
   });
 });
+
+describe("application Event Details keep DB id and display reference separate", () => {
+  it("never labels the application UUID as Application Reference", () => {
+    const detail = applicationLogToAuditDetail(
+      {
+        id: "log-1",
+        event_type: "APPLICATION_SUBMITTED",
+        activity: "Submitted",
+        actor_id: "user-1",
+        application_id: "cuid-application-uuid",
+        metadata: { applicationReference: "APP-CS-2026-001" },
+        ip_address: null,
+        created_at: "2026-08-27T00:00:00.000Z",
+        remark: null,
+        entityId: null,
+        review_cycle: 1,
+      },
+      "Application Submitted"
+    );
+    expect(detail.target?.applicationReference).toBe("APP-CS-2026-001");
+    expect(detail.technical).toEqual(
+      expect.arrayContaining([{ label: "Application ID", value: "cuid-application-uuid" }])
+    );
+  });
+
+  it("omits Application Reference when historical metadata has none", () => {
+    const detail = applicationLogToAuditDetail(
+      {
+        id: "log-2",
+        event_type: "APPLICATION_SUBMITTED",
+        activity: "Submitted",
+        actor_id: "user-1",
+        application_id: "cuid-application-uuid",
+        metadata: { application_id: "cuid-application-uuid" },
+        ip_address: null,
+        created_at: "2026-08-27T00:00:00.000Z",
+        remark: null,
+        entityId: null,
+        review_cycle: 1,
+      },
+      "Application Submitted"
+    );
+    expect(detail.target?.applicationReference).toBeNull();
+  });
+});
+
+describe("note Event Details nested snapshots", () => {
+  it("surfaces nested noteReference and beforeState/afterState previous/next", () => {
+    const detail = noteEventToAuditDetail(
+      {
+        id: "evt-1",
+        noteId: "note-1",
+        eventType: "CLOSE_FUNDING",
+        actorUserId: "admin-1",
+        actorName: "Ada",
+        actorRole: "ADMIN",
+        portal: "ADMIN",
+        correlationId: null,
+        createdAt: "2026-08-27T00:00:00.000Z",
+        metadata: {
+          beforeState: { noteReference: "NT-ARF-202608-K9P", status: "PUBLISHED" },
+          afterState: { noteReference: "NT-ARF-202608-K9P", status: "FUNDING" },
+        },
+      },
+      "Funding Closed"
+    );
+    expect(detail.target?.noteReference).toBe("NT-ARF-202608-K9P");
+    expect(detail.previousValues).toEqual({
+      noteReference: "NT-ARF-202608-K9P",
+      status: "PUBLISHED",
+    });
+    expect(detail.nextValues).toEqual({
+      noteReference: "NT-ARF-202608-K9P",
+      status: "FUNDING",
+    });
+  });
+});
+
+describe("contract activity Event Details", () => {
+  it("never labels the application UUID as Application Reference", () => {
+    const detail = contractEventToAuditDetail(
+      {
+        id: "evt-1",
+        eventType: "CONTRACT_OFFER_SENT",
+        createdAt: "2026-08-27T00:00:00.000Z",
+        actorUserId: "user-1",
+        actorName: "Ada",
+        portal: "ISSUER",
+        applicationId: "cuid-application-uuid",
+        remark: null,
+        metadata: { contract_id: "contract-1", applicationReference: "APP-CS-2026-001" },
+      },
+      "Facility Offer Sent"
+    );
+    expect(detail.target?.applicationReference).toBe("APP-CS-2026-001");
+    expect(detail.technical).toEqual(
+      expect.arrayContaining([{ label: "Application ID", value: "cuid-application-uuid" }])
+    );
+
+    const historical = contractEventToAuditDetail(
+      {
+        id: "evt-2",
+        eventType: "CONTRACT_OFFER_SENT",
+        createdAt: "2026-08-27T00:00:00.000Z",
+        actorUserId: "user-1",
+        actorName: "Ada",
+        portal: "ISSUER",
+        applicationId: "cuid-application-uuid",
+        remark: null,
+        metadata: { contract_id: "contract-1" },
+      },
+      "Facility Offer Sent"
+    );
+    expect(historical.target?.applicationReference).toBeNull();
+  });
+});
+

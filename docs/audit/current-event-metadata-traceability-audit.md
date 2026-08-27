@@ -1,12 +1,8 @@
 # Current live event metadata traceability audit
 
-**Read-only.** Verified 2026-08-27 against writers, Prisma log models, Admin Event Details (`audit-adapters.ts`), and CSV/JSON export. Source code wins over catalogues.
+Verified 2026-08-27 against writers, then **updated after the 2026-08-27 audit-traceability fix pass**. Source code is authoritative. Historical rows without new metadata still render safely.
 
-This is the verification report only. No writers, schema, UI, or metadata were changed.
-
-**Before/after evidence** (previous vs new values on mutation events) is a separate report: `docs/audit/current-event-before-after-audit.md`.
-
-**Scope:** every production writer for the current live event set (plus extra live writers found in source that catalogues omit). Notifications are not event writers.
+Companion: before/after evidence in `docs/audit/current-event-before-after-audit.md`.
 
 **How to read A / B / C**
 
@@ -14,11 +10,54 @@ This is the verification report only. No writers, schema, UI, or metadata were c
 |---|---|---|
 | **A** | Canonical CashSouk DB primary key | `application.id`, `note.id`, `users.user_id` |
 | **B** | Display / business reference the UI shows | `APP-CS-2026-001`, `NOTE-CS-2026-018`, org `display_reference` |
-| **C** | External / provider id | RegTank `requestId`, SigningCloud `provider_ref`, Curlec payment id, Shoraka `provider_order_id` |
+| **C** | External / provider id | RegTank `requestId`, SigningCloud `provider_contract_ref`, Curlec payment id, Shoraka `provider_order_id` |
 
 B or C is never treated as a substitute for A.
 
 **User PK special case:** `users.user_id` is a 5-letter code that is both A and the Admin “User ID”. There is no separate cuid for users.
+
+## Implementation disposition (2026-08-27)
+
+| Finding | Status |
+|---|---|
+| 1. `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` target + `withdrawalReference` | **FIXED** |
+| 2. `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` contract target + previous/next | **FIXED** |
+| 3. Snapshot `applicationReference` on live application writers | **FIXED** (`logApplicationActivity` lookup; `createApplicationLog` stays query-free) |
+| 4. Snapshot `contractReference` (not `contract_number`) | **FIXED** |
+| 5. Snapshot `invoiceReference` (not `invoice_number`) | **FIXED** |
+| 6. Event Details: Application ID vs Application Reference | **FIXED** |
+| 7–9. Access / Security `PROFILE_UPDATED` previous + next (incl. phone-only admin) | **FIXED** |
+| 10. Admin org `PROFILE_UPDATED` nested fields + nextValues + `organizationReference` | **FIXED** |
+| 11. Self-service org `PROFILE_UPDATED` | **FIXED** |
+| 12. Organisation membership add/invite/remove/role-change | **FIXED** — new IDs `MEMBER_ADDED`, `MEMBER_INVITED`, `MEMBER_REMOVED`, `MEMBER_ROLE_CHANGED` |
+| 13. `WITHDRAWAL_BENEFICIARY_UPDATED` previous/next + reference | **FIXED** |
+| 14. Signing provider reference on SENT/COMPLETED (CREATED/VOIDED when present) | **FIXED** — `providerEnvelopeId` / `providerContractRefs` from `signing_documents.provider_contract_ref` (envelope `provider_ref` is unused JSON) |
+| 15. Webhook source/actor | **FIXED** (`webhookAuditContext()`; applicant is subject, not actor) |
+| 16. `ONBOARDING_STATUS_UPDATED` previous/new when both known | **FIXED** |
+| 17. `WEBHOOK_APPROVED` vs `ONBOARDING_APPROVED` duplicate | **FIXED** — skip `WEBHOOK_APPROVED` when org approval already writes `ONBOARDING_APPROVED` |
+| 18. Remaining `WEBHOOK_*` | **FIXED** — production catch-all / pending / in-progress now `ONBOARDING_STATUS_UPDATED`; keep `WEBHOOK_REJECTED` on `handleWebhookUpdate` REJECTED (not the same chain as individual `ONBOARDING_REJECTED`). `WEBHOOK_APPROVED` only when there is no organisation. Dev handler still uses `WEBHOOK_*`. |
+| 19. Duplicate `APPLICATION_RESUBMITTED` on PATCH `/status` | **FIXED** |
+| 20. Issuer HTTP log context | **FIXED** |
+| 21. Event Details `beforeState`/`afterState` | **FIXED** |
+| 22. Nested `noteReference` in Details/CSV | **FIXED** |
+| 23. `NOTE_CREATED_FROM_INVOICE` `target_id` | **FIXED** |
+| 24. Trustee email settlement/withdrawal references | **FIXED** |
+| 25. Facility enabled/disabled previous/next | **FIXED** |
+| 26. `APPLICATION_RESET_TO_UNDER_REVIEW` `new_status` | **FIXED** |
+| 27. Facility-fee waive two `note_events` IDs | **DEFERRED** — same action writes `NOTE_FACILITY_FEE_COLLECTION_WAIVED` (`reason`) and admin-mirror `WAIVE_FACILITY_FEE_COLLECTION` (`beforeState`/`afterState`). Different payloads; leave both. |
+| 28. `WEBHOOK_RECEIVED` catch-all | **FIXED** in production (`ONBOARDING_STATUS_UPDATED`); **INTENTIONALLY_UNCHANGED** in `webhook-handler-dev.ts` |
+| 29. `PRODUCT_UPDATED` before snapshot | **DEFERRED** — product versioning already preserves the previous immutable version |
+| 30. Shoraka `trade_order_id` vs `provider_order_id` | **FIXED** |
+| 31. Optional org/settlement/payment display refs | **FIXED** where already available (org + trustee settlement/withdrawal). Payment business reference not invented. |
+| `OVERRIDE_*` writers | **INTENTIONALLY_UNCHANGED** — still no live writer; do not activate |
+| Occupancy snapshots using `createApplicationLog` directly | **INTENTIONALLY_UNCHANGED** — no extra lookup inside occupancy transactions |
+
+Source disagreements vs the pre-fix reports (code wins):
+
+- Display-ref enrichment is in `logApplicationActivity`, not `createApplicationLog` (callers run inside transactions / try-catch).
+- SigningCloud C is `signing_documents.provider_contract_ref`, not envelope `provider_ref`.
+- `WEBHOOK_REJECTED` on `handleWebhookUpdate` is a distinct path from individual `ONBOARDING_REJECTED`.
+- User-portal organisation Activity allowlist was **not** expanded for `MEMBER_*` (Admin org timeline + CSV only).
 
 **Assessments** (only these values): COMPLETE · TECHNICAL_ONLY · DISPLAY_ONLY · INDIRECT_ONLY · MISSING · NOT_APPLICABLE
 
@@ -48,11 +87,11 @@ Live join vs snapshot: if a display value is only available by reading the curre
 
 **Event Details gaps that apply to many rows**
 
-- Application details do **not** label `application_id`. `applicationReference` is filled from metadata keys `applicationReference` or `application_id` (would mislabel a DB id as a display ref). Almost no writer sets those keys, so the display ref is blank even on the application page.
+- Application details label **Application ID** from `application_id` and **Application reference** from `metadata.applicationReference` only. Historical rows without the snapshot omit the reference (never the UUID).
 - Application details `target.id` = `target_id` ?? `entity_id` (contract/invoice/envelope/section — not always the application).
-- Note details `noteReference` only reads **top-level** metadata `noteReference` / `note_reference`. Nested `beforeState.noteReference` is ignored.
-- Contract activity details set `applicationReference: event.applicationId` — that is A, mislabeled as B.
-- Onboarding details `target.id` = org UUID. Org `display_reference` is not shown. Name is the actor organisation field (snapshot).
+- Note details `noteReference` reads top-level then nested `beforeState` / `afterState`.
+- Contract activity details do **not** set `applicationReference = applicationId`. Application ID is a technical field.
+- Onboarding details `target.id` = org UUID. Org `display_reference` is shown when snapshotted as `organizationReference`. Name is the actor organisation field (snapshot).
 
 ---
 
@@ -62,7 +101,7 @@ Live join vs snapshot: if a display value is only available by reading the curre
 |---|---|
 | Live count 138 / 139 including 11 gateway events | `OVERRIDE_PROPOSED` / `OVERRIDE_APPROVED` / `OVERRIDE_REJECTED` have **no writer**. `getOpenOverrideProposal` only reads. **8** live gateway types. |
 | `FORM_FILLED` metadata is `section` | Live `handleWebhookUpdate` metadata is `requestId`, `status`, `substatus`, `payload`. Individual handler uses org/status/trigger keys. **`section` is not written.** |
-| 13 onboarding live IDs | Same 13 remain live. Additional **live** writers exist: `WEBHOOK_APPROVED`, `WEBHOOK_REJECTED`, `WEBHOOK_PENDING_APPROVAL`, `WEBHOOK_IN_PROGRESS` in `regtank/service.ts` `handleWebhookUpdate`. Not in the 139 catalogue. Audited below as extra. |
+| 13 onboarding live IDs | Same 13 remain live, plus **new** `MEMBER_ADDED` / `MEMBER_INVITED` / `MEMBER_REMOVED` / `MEMBER_ROLE_CHANGED`. Production `handleWebhookUpdate` no longer writes `WEBHOOK_PENDING_APPROVAL` / `WEBHOOK_IN_PROGRESS` / catch-all `WEBHOOK_RECEIVED` (those are `ONBOARDING_STATUS_UPDATED`). `WEBHOOK_REJECTED` remains. `WEBHOOK_APPROVED` only when there is no organisation. Dev handler still uses `WEBHOOK_*`. |
 | `origin-main-preservation-inventory.md` | Historical (`28ae5c58`). Forensic columns now exist (`target_id`, etc.). Do not use it as current metadata. |
 
 ---
@@ -78,7 +117,7 @@ Abbreviations in tables: **col** = top-level column; **tgt** = `target_id`; **me
 | `LOGIN` | LIVE_UI | Cognito callback / failed admin gate | User | yes | col `user_id`; tgt | user_id (=PK); email | user_id yes; email **join** | col; export joins `user` | no | `user_id` | `stateId` (OAuth), not Cognito sub | no | yes / user_id | yes / User ID col; email join | yes / user_id + joined user | Delete cascades log. Email at export is live. | COMPLETE | Leave unchanged. Do not copy `user_id` into metadata. |
 | `SIGNUP` | LIVE_UI | Same callback, first establishment | User | yes | same | same | same | same | no | `user_id` | `stateId` | no | yes | yes | yes | same | COMPLETE | Leave unchanged. |
 | `LOGOUT` | LIVE_UI | Cognito logout + `AuthService.logout` | User | yes | same | same | same | same | no | `user_id` | no | no | yes | yes | yes | same | COMPLETE | Leave unchanged. Two writers; metadata keys differ (`roles` vs optional `activeRole`). |
-| `PROFILE_UPDATED` | LIVE_UI | Admin `updateUserProfile` | Subject user | yes | meta `targetUserId`; tgt (not actor col) | user_id + email | yes | `targetUserId`, `targetUserEmail` | no | col `user_id` = admin | no | `previousValues` only | yes / yes | yes / yes | yes / yes | Email snapshotted | COMPLETE | Leave. Actor vs subject already split. |
+| `PROFILE_UPDATED` | LIVE_UI | Admin `updateUserProfile` | Subject user | yes | meta `targetUserId`; tgt (not actor col) | user_id + email | yes | `targetUserId`, `targetUserEmail` | no | col `user_id` = admin | no | `previousValues` + `nextValues` `{ firstName, lastName, phone }` | yes / yes | yes / yes | yes / yes | Email snapshotted | COMPLETE | **FIXED.** Actor vs subject already split. |
 
 ### 2. Security / Roles — `security_logs`
 
@@ -92,7 +131,7 @@ Abbreviations in tables: **col** = top-level column; **tgt** = `target_id`; **me
 | `ROLE_PERMISSIONS_UPDATED` | LIVE_UI | `updateAdminRolePermissions` | `AdminRoleConfig` | no cuid | tgt = `roleKey` | key | yes | meta | no | actor | no | previous/next permissions + badge | key not cuid | key | metadata | yes | INDIRECT_ONLY | Leave (same as ROLE_CREATED). |
 | `ROLE_REMOVED` | LIVE_UI | `deleteAdminRole` | deleted role | no cuid | tgt = `deletedRoleKey` | key + name | yes | meta | no | deleter | no | no | key | key | metadata | name+key survive delete | INDIRECT_ONLY | Leave. Cuid of a deleted row is low value. |
 | `INVITATION_REVOKED` | LIVE_UI | `revokeInvitation` | `AdminInvitation` | yes | meta `invitationId`; tgt | email (no display_reference) | yes | meta `email` | no | revoker | no | no | yes | yes | yes | email snapshot | COMPLETE | Leave unchanged. |
-| `PROFILE_UPDATED` | LIVE_UI | self or admin override | User | yes | col + tgt | user_id | yes | col | no | subject | no | `previousValues` | yes | yes | yes | yes | COMPLETE | Leave. Distinct store from access `PROFILE_UPDATED`. |
+| `PROFILE_UPDATED` | LIVE_UI | self or admin override (phone-only included) | User | yes | col + tgt | user_id | yes | col | no | subject | no | `previousValues` + `nextValues`; admin sets `adminOverride` | yes | yes | yes | yes | COMPLETE | **FIXED.** Distinct store from access `PROFILE_UPDATED`. |
 | `PLATFORM_FINANCE_SETTINGS_UPDATED` | LIVE_UI | finance settings save | `PlatformFinanceSetting` | no cuid | tgt = `settingsKey` (`DEFAULT`) | key | yes | meta | no | actor | no | previousValues/nextValues | key | key | metadata | full value snapshot | INDIRECT_ONLY | Leave. Singleton key is the operational identity. |
 
 ### 3. Onboarding — `onboarding_logs`
@@ -111,32 +150,35 @@ JSON export does **not** include the org UUID columns (only `target_id` + name).
 | `ONBOARDING_APPROVED` | LIVE_UI / LIVE_WEBHOOK | admin submission approve + webhook | Org | yes | org cols | same | name yes | name | yes | `approvedBy` when id-shaped | `regtankRequestId` or `requestId` | previous/new on webhook | A yes; B name | same | same | yes | TECHNICAL_ONLY | Leave. Not final approval. |
 | `FINAL_APPROVAL_COMPLETED` | LIVE_UI | `completeFinalApproval` | Org | yes | org cols | same | name yes | name | yes | admin `actor_user_id` | `regtankRequestId` | no | A yes; B name | same | same | yes | TECHNICAL_ONLY | Leave. |
 | `ONBOARDING_STATUS_UPDATED` | LIVE_UI / LIVE_WEBHOOK | many (portal access, COD, KYC, AML milestone) | Org | yes | org cols | same | name yes | name | yes | varies | KYC: `kycRequestId`,`onboardingRequestId`; KYB: `kybRequestId`; live KYC: **`kycId`**; COD: `codRequestId` / `requestId` | previous/new often | A yes; B name | same | same | C usually yes | TECHNICAL_ONLY | Leave trigger/status. Optional display_reference. Do not invent AML_APPROVED. Flag: KYC uses both `kycRequestId` and `kycId`. |
-| `FORM_FILLED` | LIVE_WEBHOOK | RegTank status / individual liveness | Org + request | yes (org cols on both paths) | org cols; webhook meta **has no organizationId** (ids are columns only) | same | name yes | name | yes | subject | `requestId`; payload blob on service path | status/substatus | A via tgt; B name | same | same | payload may be large | TECHNICAL_ONLY | Do **not** add a `section` key (catalogues invented it). Optional: copy `organizationId` into metadata for payload-only readers. Org UUID is already a column. |
+| `FORM_FILLED` | LIVE_WEBHOOK | RegTank LIVENESS_PASSED / FORM_FILLING / PROCESSING / ID_UPLOADED | Org + request | yes (org cols on both paths) | org cols; webhook meta **has no organizationId** (ids are columns only) | same | name yes | name | yes | INTEGRATION / WEBHOOK | `requestId`; payload blob on service path | status/substatus | A via tgt; B name | same | same | payload may be large | TECHNICAL_ONLY | Do **not** add a `section` key (catalogues invented it). |
 | `SSM_APPROVED` | LIVE_UI | `approveSsmVerification` | Org | yes | org cols; meta `organizationId` | same | name yes | name | yes | `approvedBy` | `regtankRequestId` | no | A yes; B name | same | same | yes | TECHNICAL_ONLY | Leave. |
 | `TNC_APPROVED` | LIVE_UI | `acceptTnc` | Org + legal docs | yes | org cols; meta `organizationId` | same | name yes; also meta `organizationName` | name | yes | subject | no (legal ids in `legalDocumentsRequired`) | no | A yes; B name | same | same | yes | TECHNICAL_ONLY | Leave. Canonical accept evidence is `legal_document_acceptances`. |
 | `SOPHISTICATED_STATUS_UPDATED` | LIVE_UI | admin or auto-grant | Investor org | yes | `investor_organization_id`; meta `organizationId` | same | name yes | name | yes | `updatedBy` | no | previous/new status+reason | A yes; B name | same | same | yes | TECHNICAL_ONLY | Leave. |
-| `PROFILE_UPDATED` | LIVE_UI | admin org profile | Org | yes | org cols | same | name yes (may be the **new** name) | name col | yes | admin `actor_user_id` | no | `previousValues` name/phone/address | A yes; B name | same | same | previous name snapshotted | TECHNICAL_ONLY | Leave. display_reference still not stored. |
+| `PROFILE_UPDATED` | LIVE_UI | admin **and** self-service org profile | Org | yes | org cols | same | name yes; `organizationReference` when present | name col + meta | yes | actor_user_id = caller | no | changed-field `previousValues`/`nextValues`; nested `corporateOnboardingData.*` | A yes; B name + optional display ref | same | same | previous+next snapshotted | COMPLETE | **FIXED.** Bank JSON still not dumped. |
+| `MEMBER_ADDED` / `MEMBER_INVITED` / `MEMBER_REMOVED` / `MEMBER_ROLE_CHANGED` | LIVE_UI | organisation membership | Org + member | yes | org cols | display_reference | yes when present | `organizationReference` | yes | actor_user_id = caller | no | action, memberUserId/email, previous/new role | A yes; B optional | same | same | yes | COMPLETE | **FIXED.** New IDs. Do not reuse security `ROLE_ADDED`/`ROLE_REMOVED`. |
 
-**Extra live writers (not in 139 catalogue)** — same store, same A/B pattern as `FORM_FILLED` service path (`requestId`,`status`,`substatus`,`payload`): `WEBHOOK_APPROVED`, `WEBHOOK_REJECTED`, `WEBHOOK_PENDING_APPROVAL`, `WEBHOOK_IN_PROGRESS`. Assessment: TECHNICAL_ONLY.
+**Extra live writers** — `WEBHOOK_REJECTED` still written on `handleWebhookUpdate` REJECTED. `WEBHOOK_APPROVED` only when `organizationId` is absent. Production pending/in-progress/unknown statuses write `ONBOARDING_STATUS_UPDATED` (`trigger: REGTANK_WEBHOOK`). Dev `webhook-handler-dev.ts` still maps `WEBHOOK_*`.
 
 ### 4. Applications — `application_logs`
 
-**No writer snapshots `applications.display_reference`.** Admin lists use that as B. Timeline CSV Target Reference is a **DB id**. Event Details do not show `application_id` as a labelled field.
+Live writers that go through `logApplicationActivity` snapshot `applicationReference` = `applications.display_reference` when the row is available. `createApplicationLog` itself stays query-free. Occupancy writers that call `createApplicationLog` directly do **not** auto-attach.
+
+Admin lists use `display_reference` as B. Timeline CSV Target Reference is still a **DB id** unless a display ref is in metadata.
 
 Review events: A for the application is `application_id`; section/item identity is `scope_key` / `entity_id` (not a table PK for sections).
 
 | Raw ID | Status | Trigger | Canonical | A stored | A where | B available | B stored | B where | Org ID | Actor | C | before/after | Details A/B | CSV A/B | JSON | Survive | Assessment | Recommendation |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `APPLICATION_CREATED` | LIVE_UI | create draft | Application | yes | col `application_id`; tgt | `display_reference` | **no** | — | no | issuer `user_id` | no | no | A only as tgt if APPLICATION; **B no** | A as Target Reference; **B no** | none | B needs live join; rename breaks Ops reading the log alone | TECHNICAL_ONLY | Snapshot `display_reference` into metadata once (not a new column). Do not copy `application_id` into metadata. |
-| `APPLICATION_SUBMITTED` | LIVE_UI | first submit | Application | yes | col | display_reference | no | — | no | issuer | no | no | same | same | none | same | TECHNICAL_ONLY | Same snapshot. |
-| `APPLICATION_RESUBMITTED` | LIVE_UI | issuer resubmit (controller + amendments service) | Application | yes | col | display_reference | no | — | no | issuer | no | optional `resubmit_changes` | same | same | none | same | TECHNICAL_ONLY | Same. Amendments path metadata has remarks, not refs. |
-| `AMENDMENTS_SUBMITTED` | LIVE_UI | Admin send amendment batch | Application | yes | col | display_reference | no | — | no | admin | no | no (count only) | same | same | none | same | TECHNICAL_ONLY | Same. |
-| `APPLICATION_REJECTED` | LIVE_UI | reject | Application | yes | col | display_reference | no | — | no | admin | no | no | same | same | none | same | TECHNICAL_ONLY | Same. |
-| `APPLICATION_WITHDRAWN` | LIVE_UI | cancel / contract withdraw / invoice cascade | Application | yes | col | display_reference | no | — | no | issuer | no | no | same | same | none | same | TECHNICAL_ONLY | Same. |
-| `APPLICATION_COMPLETED` | LIVE_UI | offer accept completes app | Application | yes | col | display_reference | no | — | no | issuer | no | no | same | same | none | same | TECHNICAL_ONLY | Same. |
-| `APPLICATION_RESET_TO_UNDER_REVIEW` | LIVE_UI | admin status | Application | yes | col | display_reference | no | — | no | admin | no | `previous_status` | same | same | none | same | TECHNICAL_ONLY | Same. |
-| `SECTION_REVIEWED_*` (4 IDs) | LIVE_UI / LIVE_SYSTEM | `logReviewActivity` + CTOS reset for PENDING | Application section | yes app col; section key in meta `scope_key` | col + meta; tgt = scope_key | display_reference | no | — | no | reviewer / `system` | no | old_status/new_status | tgt=scope_key; B no; **application_id hidden in details** | tgt=scope_key | none | section key is stable; app B live | TECHNICAL_ONLY | Snapshot app display_reference. Details should label `application_id` (already a column). |
-| `ITEM_REVIEWED_*` (4 IDs) | LIVE_UI | `logReviewActivity` item | Review item | yes app col; `entity_id`=`scope_key` | col + entity_id | display_reference | no | — | no | reviewer | no | old/new status | tgt=item key; B no | tgt=entity_id | none | same | TECHNICAL_ONLY | Same. |
+| `APPLICATION_CREATED` | LIVE_UI | create draft | Application | yes | col `application_id`; tgt | `display_reference` | **yes** via `logApplicationActivity` | meta `applicationReference` | no | issuer `user_id` | no | no | A labelled separately; B from snapshot | A as Target Reference; B in metadata | none | B snapshotted when lookup succeeds | COMPLETE | **FIXED.** Do not copy `application_id` into metadata. |
+| `APPLICATION_SUBMITTED` | LIVE_UI | first submit | Application | yes | col | display_reference | yes (same) | meta | no | issuer | no | no | same | same | none | same | COMPLETE | **FIXED.** |
+| `APPLICATION_RESUBMITTED` | LIVE_UI | issuer `POST /resubmit` **or** PATCH `/status` (one writer) | Application | yes | col | display_reference | yes | meta | no | issuer | no | optional `resubmit_changes` | same | same | none | same | COMPLETE | **FIXED.** Controller no longer logs a second empty row. |
+| `AMENDMENTS_SUBMITTED` | LIVE_UI | Admin send amendment batch | Application | yes | col | display_reference | yes | meta | no | admin | no | no (count only) | same | same | none | same | COMPLETE | **FIXED.** |
+| `APPLICATION_REJECTED` | LIVE_UI | reject | Application | yes | col | display_reference | yes | meta | no | admin | no | no | same | same | none | same | COMPLETE | **FIXED.** |
+| `APPLICATION_WITHDRAWN` | LIVE_UI | cancel / contract withdraw / invoice cascade | Application | yes | col | display_reference | yes | meta | no | issuer | no | no | same | same | none | same | COMPLETE | **FIXED.** HTTP context passed when available. |
+| `APPLICATION_COMPLETED` | LIVE_UI | offer accept completes app | Application | yes | col | display_reference | yes | meta | no | issuer | no | no | same | same | none | same | COMPLETE | **FIXED.** |
+| `APPLICATION_RESET_TO_UNDER_REVIEW` | LIVE_UI | admin status | Application | yes | col | display_reference | yes | meta | no | admin | no | `previous_status` + `new_status: UNDER_REVIEW` | same | same | none | same | COMPLETE | **FIXED.** |
+| `SECTION_REVIEWED_*` (4 IDs) | LIVE_UI / LIVE_SYSTEM | `logReviewActivity` + CTOS reset for PENDING | Application section | yes app col; section key in meta `scope_key` | col + meta; tgt = scope_key | display_reference | yes on app | meta `applicationReference` | no | reviewer / `system` | no | old_status/new_status | tgt=scope_key; app B snapshotted | tgt=scope_key | none | section key is stable | COMPLETE | **FIXED.** |
+| `ITEM_REVIEWED_*` (4 IDs) | LIVE_UI | `logReviewActivity` item | Review item | yes app col; `entity_id`=`scope_key` | col + entity_id | display_reference | yes on app | meta | no | reviewer | no | old/new status | tgt=item key | tgt=entity_id | none | same | COMPLETE | **FIXED.** |
 
 ### 5. Facility / Contract — `application_logs`
 
@@ -155,9 +197,9 @@ Contract B in UI is `contracts.display_reference`. Writers sometimes store `cont
 | `CONTRACT_SIGNING_DEADLINE_EXTENDED` | LIVE_UI | admin restamp | Contract | yes | entity_id; meta `contract_id` | display_reference | no | — | no | admin | no | no | A yes | A | same | TECHNICAL_ONLY | Same. |
 | `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | LIVE_SYSTEM | occupancy refresh | Contract (+ optional note/invoice) | yes contract; optional `note_id`,`invoice_id` in meta | entity_id; meta; tgt CONTRACT | display refs | no | — | no | system | no | `before`/`after` occupancy | A contract yes | A | occupancy snapshot survives | TECHNICAL_ONLY | Leave occupancy snapshot. Optional display_reference. `application_id` may be null — that is current. |
 | `CONTRACT_FACILITY_FEE_WAIVED` | LIVE_UI | waive fee | Contract | yes | entity_id; meta `contract_id`; `application_id` may be originating app | display_reference | no | — | no | admin | no | amounts in meta | A yes | A | yes | TECHNICAL_ONLY | Same. |
-| `CONTRACT_FACILITY_DISABLED` | LIVE_UI | disable | Contract | yes | same | display_reference | no | — | no | admin | no | `enabled`,`reason` | A yes | A | yes | TECHNICAL_ONLY | Same. |
-| `CONTRACT_FACILITY_ENABLED` | LIVE_UI | enable | Contract | yes | same | display_reference | no | — | no | admin | no | `enabled` | A yes | A | yes | TECHNICAL_ONLY | Same. |
-| `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | LIVE_UI | `patchContractCustomerLargePrivateCompany` | Contract (flag on customer) | **application only** | col `application_id`; **no `entity_id`; no `contract_id`**; tgt falls back to **application id** | display_reference | no | — | no | admin | no | `is_large_private_company` only | tgt is app id, labeled CONTRACT | tgt=app id | **wrong entity on tgt** | MISSING (contract A) | **Fix first:** set `entity_id`/`metadata.contract_id` to the contract PK. Do not use application id as contract target. |
+| `CONTRACT_FACILITY_DISABLED` | LIVE_UI | disable | Contract | yes | same | display_reference | yes when lookup succeeds | meta `contractReference` | no | admin | no | `previousValues`/`nextValues` `{ enabled }` + disable reason | A yes | A | yes | COMPLETE | **FIXED.** |
+| `CONTRACT_FACILITY_ENABLED` | LIVE_UI | enable | Contract | yes | same | display_reference | yes | meta `contractReference` | no | admin | no | `previousValues`/`nextValues` `{ enabled }` | A yes | A | yes | COMPLETE | **FIXED.** |
+| `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | LIVE_UI | `patchContractCustomerLargePrivateCompany` | Contract | **contract.id** | `entity_id`; meta `contract_id`; tgt CONTRACT; `application_id` column preserved | display_reference | yes when present | meta `contractReference` | no | admin | no | `previousValues`/`nextValues` `{ is_large_private_company }` | tgt = contract id | tgt = contract id | yes | COMPLETE | **FIXED.** Do not use application id as contract target. |
 
 ### 6. Invoice offer — `application_logs`
 
@@ -189,11 +231,11 @@ Invoice UI B is `invoices.display_reference`. Metadata `invoice_number` is `deta
 
 Top-level `note_id` is always A for the note (except nested create still has `note_id` on the row). **Do not copy `note_id` into metadata** when the column exists.
 
-`mapNoteListItem` includes `noteReference`. Admin-action **mirrors** store that inside `beforeState`/`afterState`. Event Details and CSV **do not read nested** `noteReference`.
+`mapNoteListItem` includes `noteReference`. Admin-action **mirrors** store that inside `beforeState`/`afterState`. Event Details and CSV now read nested `noteReference`.
 
 | Raw ID | Status | Trigger | Canonical | A stored | A where | B available | B stored | B where | Org ID | Actor | C | before/after | Details A/B | CSV A/B | Survive | Assessment | Recommendation |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `NOTE_CREATED_FROM_INVOICE` | LIVE_UI | `createFromInvoiceSource` nested create | Note | yes | col `note_id` only; **forensic tgt/actor/source null** | `note_reference` | **no** | — | no | not on forensic cols | no | no (admin sibling CREATE_FROM_INVOICE has after_state status/invoiceId) | tgt empty; B no; meta has `applicationId`,`invoiceId` (A of others) | falls back to `noteId` | note_id survives; B live join | TECHNICAL_ONLY | Use `createNoteEventRow` so tgt=`note_id`. Optional snapshot `noteReference`. Keep invoice/application ids in meta (those are not the note column). |
+| `NOTE_CREATED_FROM_INVOICE` | LIVE_UI | `createFromInvoiceSource` via `logEvent` | Note | yes | col `note_id`; tgt NOTE = `note_id` | `note_reference` | optional `noteReference` | meta | no | actor forensic cols | no | no (admin sibling CREATE_FROM_INVOICE has after_state) | tgt = note id; optional B | note_id / snapshot | yes | COMPLETE | **FIXED.** Do not duplicate `note_id` into metadata. |
 | `UPDATE_DRAFT` | LIVE_UI | `logAdminAction` mirror | Note | yes | col + tgt NOTE | note_reference | nested | `beforeState.noteReference` | no | admin | no | full list-item DTO | A yes; **B hidden** (nested) | Target Reference = note_id (nested B ignored) | nested B survives | COMPLETE | Leave storage. Optional Details/CSV read nested `noteReference` — UI-only, no writer change required for evidence. |
 | `UPDATE_FEATURED_SETTINGS` | LIVE_UI | same | Note | yes | col + tgt | note_reference | nested | same | no | admin | no | DTO | A yes; B hidden | note_id | yes | COMPLETE | Same. |
 | `UNPUBLISH` | LIVE_UI | same | Note | yes | col + tgt | note_reference | nested | same | no | admin | no | DTO | A yes; B hidden | note_id | yes | COMPLETE | Same. |
@@ -246,10 +288,10 @@ Top-level `note_id` is always A for the note (except nested create still has `no
 
 | Raw ID | Status | Trigger | Canonical | A stored | A where | B available | B stored | B where | Org ID | Actor | C | Details A/B | CSV | Survive | Assessment | Recommendation |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` | LIVE_UI | closeFunding when new instruction | `WithdrawalInstruction` | **no withdrawal id** | tgt intended WITHDRAWAL but **falls back to noteId**; meta is fee amounts only | `display_reference` | **no** | — | no | admin | no | no | tgt is **note id** | Target Reference = note_id | **cannot identify the withdrawal from the event** | MISSING | **Fix first:** `withdrawalId` + `withdrawalReference` (same keys as later withdrawal events). |
+| `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` | LIVE_UI | closeFunding when new instruction | `WithdrawalInstruction` | yes | meta `withdrawalId`; tgt WITHDRAWAL; `note_id` column kept | `display_reference` | yes | meta `withdrawalReference` | no | admin | no | no | tgt = withdrawal id | Target Reference prefers B | yes | COMPLETE | **FIXED.** Do not copy `note_id` into metadata. |
+| `WITHDRAWAL_BENEFICIARY_UPDATED` | LIVE_UI | update beneficiary | Withdrawal | yes | `{ withdrawalId }` tgt | display_reference | yes | meta `withdrawalReference` | no | admin | no | `previousValues`/`nextValues` beneficiary snapshots | A yes; B yes | withdrawalReference | yes | COMPLETE | **FIXED.** Canonical live row can still be overwritten later. |
 | `WITHDRAWAL_LETTER_GENERATED` | LIVE_UI | generate letter | Withdrawal | yes | meta `withdrawalId`; tgt WITHDRAWAL | display_reference | **no** | s3Key | no | admin | no | no | A yes; B no | withdrawalId | A + file | TECHNICAL_ONLY | Add `withdrawalReference` (already used elsewhere). |
 | `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | LIVE_UI | mark submitted | Withdrawal | yes | `withdrawalId`; tgt | display_reference | yes | `withdrawalReference` | no | admin | no | no | A+B | B preferred in CSV | yes | COMPLETE | Leave unchanged. |
-| `WITHDRAWAL_BENEFICIARY_UPDATED` | LIVE_UI | update beneficiary | Withdrawal | yes | `{ withdrawalId }` tgt | display_reference | no | — | no | admin | no | **not in event** (canonical JSON on instruction row) | A yes; B no | withdrawalId | A only | TECHNICAL_ONLY | Optional reference. Canonical beneficiary is `withdrawal_instructions.beneficiary_snapshot`. |
 | `WITHDRAWAL_COMPLETED` | LIVE_UI | complete | Withdrawal | yes | withdrawalId; tgt | display_reference | yes | withdrawalReference + type + amount | no | admin | no | no | A+B | B | yes | COMPLETE | Leave unchanged. |
 | `WITHDRAWAL_TRUSTEE_EMAIL_SENT` | LIVE_UI | send/resend | Withdrawal | yes | withdrawalId; optional reference; messageId | display_reference | optional | withdrawalReference | no | admin | messageId | no | A; B if present | B if present | C | COMPLETE when reference passed | Always include `withdrawalReference` (resend path already can). |
 | `SHORAKA_ORDER_SUBMITTED` | LIVE_SYSTEM | first STP create | `ShorakaTradeOrder` | **no cuid** | tgt = `provider_order_id` (C) | n/a | n/a | — | no | system | **yes** `provider_order_id` + amounts/dates | no | C shown as tgt id | C | C unique → join to row | INDIRECT_ONLY | Optional store `shoraka_trade_orders.id`. Do **not** treat provider id as CashSouk PK. Certificate not on this event. |
@@ -310,26 +352,22 @@ Top-level `note_id` is always A for the note (except nested create still has `no
 
 ### 1. EVENTS MISSING REAL DB ID (A)
 
+P0/P2 ID-target gaps from the pre-fix audit are **FIXED**. Remaining by design:
+
 | Raw ID | Store | What’s missing | What is stored instead |
 |---|---|---|---|
-| `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | `application_logs` | `contracts.id` | `application_id` used as `target_id` |
-| `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` | `note_events` | `withdrawal_instructions.id` | note_id fallback |
-| `ROLE_CREATED` / `ROLE_PERMISSIONS_UPDATED` / `ROLE_REMOVED` | `security_logs` | `admin_roles.id` | `roleKey` |
-| `PLATFORM_FINANCE_SETTINGS_UPDATED` | `security_logs` | settings cuid | `settingsKey=DEFAULT` |
-| `SHORAKA_ORDER_SUBMITTED` / `SHORAKA_CERTIFICATE_FETCHED` | `note_events` | `shoraka_trade_orders.id` | `provider_order_id` as tgt |
-| `NOTE_CREATED_FROM_INVOICE` | `note_events` | forensic `target_id` (note_id column **is** set) | tgt null |
+| `ROLE_CREATED` / `ROLE_PERMISSIONS_UPDATED` / `ROLE_REMOVED` | `security_logs` | `admin_roles.id` | `roleKey` — **INTENTIONALLY_UNCHANGED** |
+| `PLATFORM_FINANCE_SETTINGS_UPDATED` | `security_logs` | settings cuid | `settingsKey=DEFAULT` — **INTENTIONALLY_UNCHANGED** |
+
+Shoraka now stores `trade_order_id` (A) beside `provider_order_id` (C). Target resolution still uses provider_order_id — **INTENTIONALLY_UNCHANGED** (do not rename SHORAKA_*).
 
 ### 2. EVENTS MISSING DISPLAY REFERENCE (B)
 
-Where the canonical table **has** a UI display ref that is **not** snapshotted:
+Live `logApplicationActivity` writers snapshot `applicationReference` / `contractReference` / `invoiceReference` when the row is available. Occupancy `createApplicationLog` paths still omit the lookup (**INTENTIONALLY_UNCHANGED**).
 
-- All `APPLICATION_*`, review, most `CONTRACT_*`, most `INVOICE_*` (`applications` / `contracts` / `invoices`.`display_reference`)
-- All onboarding live IDs (`organizations.display_reference`; **name is snapshotted**)
-- Note events that are not admin-mirrors and not withdrawal submit/complete: letters, default, fee-waive `logEvent`, occupancy, create-from-invoice, most settlements, payment approve/reject
-- `WITHDRAWAL_LETTER_GENERATED`, `WITHDRAWAL_BENEFICIARY_UPDATED`
-- Signing: no envelope display_reference column (title optional only)
+Onboarding membership and org `PROFILE_UPDATED` snapshot `organizationReference` when present.
 
-Admin-mirror note events **do** contain nested `beforeState.noteReference` but Details/CSV do not surface it.
+Admin-mirror note events contain nested `beforeState.noteReference`; Details/CSV now surface it (**FIXED**).
 
 ### 3. EVENTS USING LIVE JOIN INSTEAD OF SNAPSHOT
 
@@ -346,7 +384,7 @@ Admin-mirror note events **do** contain nested `beforeState.noteReference` but D
 
 | Raw ID | Expected C | Stored? |
 |---|---|---|
-| `SIGNING_PACKAGE_*` | SigningCloud `provider_ref` / `provider_contract_ref` | no |
+| `SIGNING_PACKAGE_*` | SigningCloud `provider_contract_ref` | **FIXED** on SENT/COMPLETED (`providerEnvelopeId` / `providerContractRefs`). CREATED/VOIDED only when already on the envelope. |
 | `LOGIN`/`SIGNUP` | Cognito sub | no (optional; user_id is CashSouk PK) |
 | `SHORAKA_CERTIFICATE_FETCHED` | `provider_certificate_id`, s3 key, sha256 | flags only |
 | Gateway events with empty metadata | Curlec ids | parent row only (acceptable if join allowed) |
@@ -357,8 +395,6 @@ Admin-mirror note events **do** contain nested `beforeState.noteReference` but D
 - Prospectus `afterState.id` (review id) without saying “prospectus review”
 - Generic `id` inside `mapNoteListItem` nested DTO (that is the note id, duplicating `note_id`)
 - `notificationRelatedReference` keys `targetId` / `noteId` / `applicationId` untyped
-- Contract activity details: `applicationReference: applicationId` (A labeled as B)
-- Application details: `application_id` metadata key would be shown as “application reference”
 
 No live writer was found that stores a bare metadata key exactly named `id` as the only identifier except nested DTOs.
 
@@ -381,41 +417,26 @@ Do **not** copy these into metadata:
 
 ### 8. EVENTS THAT SHOULD BE FIXED FIRST
 
-1. `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` — missing withdrawal A and B  
-2. `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` — contract A missing; tgt wrongly application  
-3. Snapshot `display_reference` on **application** (and contract/invoice) writes — Ops evidence gap on every application timeline CSV  
-4. `SIGNING_PACKAGE_SENT` / `COMPLETED` — snapshot provider envelope id  
-5. Always set `settlementReference` / `withdrawalReference` on trustee email events  
-6. `NOTE_CREATED_FROM_INVOICE` — use standard writer so `target_id` is set  
+All P0/P1/P2 items in the implementation disposition at the top of this file are **FIXED** (or **DEFERRED** / **INTENTIONALLY_UNCHANGED** as marked). Do not re-open them without a new source finding.  
 
 ---
 
 ## C. Minimal recommended-fix list
 
-| Priority | Change | Why | What not to do |
-|---|---|---|---|
-| P0 | Withdrawal create: add `withdrawalId` + `withdrawalReference` | Event cannot identify the instruction | Don’t add note_id to metadata |
-| P0 | Large-private update: set `entity_id` + `metadata.contract_id` | tgt is the wrong entity | Don’t add application_id to metadata |
-| P1 | Snapshot `display_reference` (app/contract/invoice) on existing writers | CSV/Details have only UUIDs | Don’t add a new DB column |
-| P1 | Signing: snapshot `provider_ref` on SENT/COMPLETED | C is join-only | Don’t duplicate `envelope_id` |
-| P2 | Org onboarding: snapshot `display_reference` next to name | UI reference code not in log | Don’t add a third org UUID copy |
-| P2 | Note Details/CSV: read nested `beforeState.noteReference` | B already stored, not shown | No writer change |
-| P2 | Application Details: label `application_id` separately from display ref | Details hide A and invent B from the wrong key | Don’t set `applicationReference` = application UUID |
-| P3 | Shoraka: optional `tradeOrderId` (cuid) + cert hash on fetch | C used as tgt | Don’t rename SHORAKA_* ids |
-| P3 | Settlement/payment approve rows: optional display/reference copy | A-only today | Don’t duplicate paymentId |
+See the **Implementation disposition** table at the top. Pre-fix P0–P2 items are **FIXED**. P3 waive duplicate and `PRODUCT_UPDATED` before-snapshot are **DEFERRED**.
 
 ---
 
 ## D. Leave unchanged
 
-- Access `LOGIN`, `SIGNUP`, `LOGOUT`, `PROFILE_UPDATED`
-- Security `PASSWORD_CHANGED`, `EMAIL_VERIFIED`, `ROLE_ADDED`, `ROLE_SWITCHED`, `INVITATION_REVOKED`, `PROFILE_UPDATED`
-- Security role-catalogue and finance-settings rows **unless** product requires cuid-after-rename (roleKey / DEFAULT is enough today)
+- Access `LOGIN`, `SIGNUP`, `LOGOUT` (profile writer **was** updated for `nextValues` only)
+- Security `PASSWORD_CHANGED`, `EMAIL_VERIFIED`, `ROLE_ADDED`, `ROLE_SWITCHED`, `INVITATION_REVOKED`
+- Security role-catalogue and finance-settings rows
 - Legal document audit (all 7) and acceptances `OPENED` / `ACCEPTED`
-- Products `CREATED` / `UPDATED` / `DELETED`
-- Gateway 8 live types (`OVERRIDE_*` are not live)
-- Note admin-mirrors (`UPDATE_*`, listing, publish, funding close/fail, activate, waive collection admin id)
-- `INVESTMENT_COMMITTED` (no investment display ref on the table)
+- Products `CREATED` / `DELETED`; `PRODUCT_UPDATED` before-snapshot **DEFERRED**
+- Gateway 8 live types (`OVERRIDE_*` are not live — **do not activate**)
+- Note admin-mirrors (`UPDATE_*`, listing, publish, funding close/fail, activate, waive collection pair **DEFERRED**)
+- `INVESTMENT_COMMITTED`
 - `WITHDRAWAL_SUBMITTED_TO_TRUSTEE`, `WITHDRAWAL_COMPLETED`
 - Occupancy before/after snapshots (application and note)
 - Payment `paymentId` targeting
@@ -443,12 +464,10 @@ Do **not** copy these into metadata:
 
 | Set | Count |
 |---|---|
-| Live writers in this audit (catalogue 139 minus 3 OVERRIDE plus 2 acceptance writers, minus NOT_OPENED) | 4+10+13+45+44+7+2+3+8 = **136** |
-| Extra live onboarding webhook IDs not in 139 catalogue | 4 |
+| Live writers | previous 136 plus 4 `MEMBER_*`; production `WEBHOOK_PENDING_APPROVAL` / `WEBHOOK_IN_PROGRESS` / catch-all `WEBHOOK_RECEIVED` no longer written |
 | OVERRIDE_* (declared, no writer) | 3 — **not live** |
-| COMPLETE (including nested-B note mirrors and user_id-as-A+B) | see tables |
-| P0 missing A | 2 |
+| P0 missing A | **0** after the fix pass |
 
-**CODE CHANGED:** NO  
+**CODE CHANGED:** YES (writers/UI/tests; no schema)  
 **MIGRATIONS:** NO  
-**FINAL STATUS:** VERIFICATION COMPLETE
+**FINAL STATUS:** FIX PASS COMPLETE

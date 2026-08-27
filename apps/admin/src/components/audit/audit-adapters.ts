@@ -48,6 +48,17 @@ function pickString(record: Record<string, unknown> | null | undefined, keys: st
   return null;
 }
 
+function pickNestedNoteReference(metadata: Record<string, unknown> | null | undefined): string | null {
+  const direct = pickString(metadata, ["noteReference", "note_reference"]);
+  if (direct) return direct;
+  const before = asRecord(metadata?.beforeState);
+  const after = asRecord(metadata?.afterState);
+  return (
+    pickString(before, ["noteReference", "note_reference"]) ??
+    pickString(after, ["noteReference", "note_reference"])
+  );
+}
+
 export function notificationRelatedReference(
   metadata: Record<string, unknown> | null | undefined
 ): string | null {
@@ -338,7 +349,7 @@ export function noteEventToAuditDetail(
     target: {
       type: event.targetType ?? "NOTE",
       id: event.targetId ?? event.noteId,
-      noteReference: pickString(metadata, ["noteReference", "note_reference"]),
+      noteReference: pickNestedNoteReference(metadata),
       investmentReference: pickString(metadata, ["investmentReference", "investment_reference"]),
       withdrawalReference: pickString(metadata, ["withdrawalReference", "withdrawal_reference"]),
       paymentReference: pickString(metadata, ["paymentReference", "payment_reference"]),
@@ -401,7 +412,7 @@ export function applicationLogToAuditDetail(
     target: {
       type: log.target_type,
       id: log.target_id ?? log.entityId,
-      applicationReference: pickString(metadata, ["applicationReference", "application_id"]),
+      applicationReference: pickString(metadata, ["applicationReference"]),
       envelopeReference: pickString(metadata, ["envelopeId", "envelope_id"]),
     },
     financial: {
@@ -418,6 +429,7 @@ export function applicationLogToAuditDetail(
     remark: log.remark,
     technical: presentFields([
       { label: "Event type", value: log.event_type },
+      { label: "Application ID", value: log.application_id },
       { label: "Actor ID", value: log.actor_id },
       { label: "Source", value: log.source },
       { label: "Correlation ID", value: log.correlation_id },
@@ -504,15 +516,16 @@ export function contractEventToAuditDetail(
       portal: event.portal,
     },
     target: {
-      type: "APPLICATION",
-      id: event.applicationId,
-      applicationReference: event.applicationId,
+      type: pickString(event.metadata, ["contract_id"]) ? "CONTRACT" : "APPLICATION",
+      id: pickString(event.metadata, ["contract_id"]) ?? event.applicationId,
+      applicationReference: pickString(event.metadata, ["applicationReference"]),
     },
     financial: metadataAmount(event.metadata),
     changedFields: diffAuditValues(previous, next),
     reason: event.remark,
     technical: presentFields([
       { label: "Event type", value: event.eventType },
+      { label: "Application ID", value: event.applicationId },
       { label: "Actor ID", value: event.actorUserId },
       { label: "Source", value: event.portal },
     ]),

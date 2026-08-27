@@ -30,7 +30,14 @@ Admin timestamps use the current Admin format, e.g. `27 Aug 2026, 10:15 AM`.
 
 ## How this relates to the technical catalogue
 
-The technical master counted **138** live IDs because `application_logs.CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` was omitted from its application enum table. Source has a live Admin writer and UI (`contract-section.tsx`). This readable file therefore lists **139** live event IDs.
+The technical master counted **138** live IDs because `application_logs.CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` was omitted from its application enum table. Source has a live Admin writer and UI (`contract-section.tsx`). This readable file therefore listed **139** live event IDs.
+
+After the 2026-08-27 traceability fix pass:
+
+- New live IDs: `MEMBER_ADDED`, `MEMBER_INVITED`, `MEMBER_REMOVED`, `MEMBER_ROLE_CHANGED`.
+- `OVERRIDE_*` are **not live** (no writer).
+- `FORM_FILLED` does **not** store `section`.
+- Production webhook pending/in-progress/unknown statuses write `ONBOARDING_STATUS_UPDATED`, not `WEBHOOK_*`.
 
 Live note IDs are **current writers only**, each listed separately. CSV aliases with no current writer (`NOTE_PUBLISHED`, `PAYMENT_RECORDED`, …) are in the non-live appendix, not mixed into live modules.
 
@@ -108,7 +115,7 @@ Live note IDs are **current writers only**, each listed separately. CSV aliases 
 - Title shown to Investor: Not shown on Investor Activity
 - Description: Admin edits another user’s name/phone. Access table override uses User Profile Updated (not Security’s Profile Updated).
 - Who triggers it: Admin Adam Lee via updateUserProfile
-- Important metadata: `targetUserId`, `updatedFields`, `previousValues`, `nameLockedOverride`
+- Important metadata: `targetUserId`, `updatedFields`, `previousValues`, `nextValues`, `nameLockedOverride`
 - Canonical evidence: this access_logs row
 - Where Ops sees it: Admin Audit → Access
 - Export: CSV Event `User Profile Updated`
@@ -267,9 +274,9 @@ No live notification types are owned by this module.
 - Title shown in Admin: Profile Updated
 - Title shown to Issuer: Not shown on Issuer Activity
 - Title shown to Investor: Not shown on Investor Activity
-- Description: Self-service or admin-override profile edit. Security table says Profile Updated (Access uses User Profile Updated for a different writer).
+- Description: Self-service or admin-override profile edit. Security table says Profile Updated (Access uses User Profile Updated for a different writer). Admin phone-only edits of onboarded users also write this row with `adminOverride: true`.
 - Who triggers it: User or admin profile
-- Important metadata: `updatedFields`, `previousValues`, `adminOverride?`
+- Important metadata: `updatedFields`, `previousValues`, `nextValues`, `adminOverride?`
 - Canonical evidence: this security_logs row
 - Where Ops sees it: Admin Audit → Security
 - Export: CSV Event `Profile Updated`
@@ -459,9 +466,9 @@ No live notification types are owned by this module.
 - Title shown in Admin: Form Submitted
 - Title shown to Issuer: Not shown on Issuer Activity
 - Title shown to Investor: Not shown on Investor Activity
-- Description: Form section submitted (RegTank / individual handler). Do not expand FORM_FILLED metadata beyond what writers store.
+- Description: Form liveness / form-filling / processing / ID uploaded from RegTank. Do not invent a `section` key — writers store request/status/payload (service) or org/status/trigger keys (individual handler).
 - Who triggers it: LIVE_WEBHOOK / RegTank service
-- Important metadata: `section` (observed; do not invent extra keys)
+- Important metadata: `requestId`, `status`, `substatus`, `payload` (service path)
 - Canonical evidence: this onboarding_logs row
 - Where Ops sees it: Admin organisation Activity
 - Export: CSV Event `Form Submitted`
@@ -527,14 +534,82 @@ No live notification types are owned by this module.
 - Title shown in Admin: Organization Profile Updated
 - Title shown to Issuer: Not shown on Issuer Activity
 - Title shown to Investor: Not shown on Investor Activity
-- Description: Admin organisation profile edit.
-- Who triggers it: Admin
-- Important metadata: `updatedFields`
+- Description: Admin or self-service organisation profile edit. Same raw ID. Nested corporate field names are stored when they change. Bank JSON is not dumped.
+- Who triggers it: Admin or organisation owner/admin
+- Important metadata: `updatedFields`, `previousValues`, `nextValues`, `bankFieldsChanged`, `organizationReference?`, `updatedBy?`
 - Canonical evidence: this onboarding_logs row
 - Where Ops sees it: Admin organisation Activity
 - Export: CSV Event `Organization Profile Updated`
 - Related notification: none
 - Example (fictional): Mock example — `27 Aug 2026, 10:15 AM` — Admin Adam Lee updated the organisation profile for ABC Trading Sdn Bhd.
+
+### Event — Member Added
+
+- Raw event ID: `MEMBER_ADDED`
+- Store: `onboarding_logs`
+- Status: `LIVE_UI`
+- Title shown in Admin: Member Added
+- Title shown to Issuer: Not shown on Issuer Activity
+- Title shown to Investor: Not shown on Investor Activity
+- Description: A user was added to the organisation. Not security `ROLE_ADDED`.
+- Who triggers it: Organisation owner or organisation admin
+- Important metadata: `organizationId`, `organizationReference?`, `memberUserId`, `memberEmail?`, `newRole`
+- Canonical evidence: this onboarding_logs row
+- Where Ops sees it: Admin organisation Activity
+- Export: CSV Event `Member Added`
+- Related notification: none
+- Example (fictional): Mock example — `27 Aug 2026, 10:15 AM` — Nur Aisyah added a member to ABC Trading Sdn Bhd.
+
+### Event — Member Invited
+
+- Raw event ID: `MEMBER_INVITED`
+- Store: `onboarding_logs`
+- Status: `LIVE_UI`
+- Title shown in Admin: Member Invited
+- Title shown to Issuer: Not shown on Issuer Activity
+- Title shown to Investor: Not shown on Investor Activity
+- Description: An organisation invitation was created.
+- Who triggers it: Organisation owner or organisation admin
+- Important metadata: `organizationId`, `memberEmail`, `newRole`, `invitationId`
+- Canonical evidence: this onboarding_logs row
+- Where Ops sees it: Admin organisation Activity
+- Export: CSV Event `Member Invited`
+- Related notification: none
+- Example (fictional): Mock example — `27 Aug 2026, 10:15 AM` — Nur Aisyah invited a member to ABC Trading Sdn Bhd.
+
+### Event — Member Removed
+
+- Raw event ID: `MEMBER_REMOVED`
+- Store: `onboarding_logs`
+- Status: `LIVE_UI`
+- Title shown in Admin: Member Removed
+- Title shown to Issuer: Not shown on Issuer Activity
+- Title shown to Investor: Not shown on Investor Activity
+- Description: A member was removed from the organisation. Not security `ROLE_REMOVED`.
+- Who triggers it: Organisation owner or organisation admin
+- Important metadata: `organizationId`, `memberUserId`, `previousRole`
+- Canonical evidence: this onboarding_logs row
+- Where Ops sees it: Admin organisation Activity
+- Export: CSV Event `Member Removed`
+- Related notification: none
+- Example (fictional): Mock example — `27 Aug 2026, 10:15 AM` — Nur Aisyah removed a member from ABC Trading Sdn Bhd.
+
+### Event — Member Role Changed
+
+- Raw event ID: `MEMBER_ROLE_CHANGED`
+- Store: `onboarding_logs`
+- Status: `LIVE_UI`
+- Title shown in Admin: Member Role Changed
+- Title shown to Issuer: Not shown on Issuer Activity
+- Title shown to Investor: Not shown on Investor Activity
+- Description: An organisation member’s role changed.
+- Who triggers it: Organisation owner or organisation admin
+- Important metadata: `organizationId`, `memberUserId`, `previousRole`, `newRole`
+- Canonical evidence: this onboarding_logs row
+- Where Ops sees it: Admin organisation Activity
+- Export: CSV Event `Member Role Changed`
+- Related notification: none
+- Example (fictional): Mock example — `27 Aug 2026, 10:15 AM` — Nur Aisyah changed a member’s role in ABC Trading Sdn Bhd.
 
 ## Notifications
 
@@ -2564,7 +2639,7 @@ No live notification types are owned by this module.
 - Title shown to Investor: Not shown on Investor Activity
 - Description: Issuer disbursement withdrawal instruction created.
 - Who triggers it: Admin
-- Important metadata: withdrawal ids as supplied
+- Important metadata: `withdrawalId`, `withdrawalReference`, fee/net amounts
 - Canonical evidence: `withdrawal_instructions` (no duplicate required)
 - Where Ops sees it: Admin note Activity / Event details (CSV export). Portal Activity only if listed below.
 - Export: Note Activity CSV Event uses formatNoteActivityEventLabel; Event Type is the raw ID.
@@ -3108,11 +3183,11 @@ No live notification types are owned by this module.
 
 - Raw event ID: `OVERRIDE_PROPOSED`
 - Store: `gateway_payment_events`
-- Status: `LIVE_UI`
+- Status: `DEAD`
 - Title shown in Admin: Status change proposed
 - Title shown to Issuer: Not shown on Issuer Activity
 - Title shown to Investor: Not shown on Investor Activity
-- Description: A manual status change was requested and needs another reviewer’s approval.
+- Description: Enum + `getOpenOverrideProposal` reader only. **No live writer.** Do not activate.
 - Who triggers it: Admin
 - Important metadata: from/to status
 - Canonical evidence: `gateway_payments`
@@ -3125,11 +3200,11 @@ No live notification types are owned by this module.
 
 - Raw event ID: `OVERRIDE_APPROVED`
 - Store: `gateway_payment_events`
-- Status: `LIVE_UI`
+- Status: `DEAD`
 - Title shown in Admin: Status change approved
 - Title shown to Issuer: Not shown on Issuer Activity
 - Title shown to Investor: Not shown on Investor Activity
-- Description: The manual status change was approved.
+- Description: **No live writer.** Do not activate.
 - Who triggers it: Admin
 - Important metadata: from/to status
 - Canonical evidence: `gateway_payments`
@@ -3142,11 +3217,11 @@ No live notification types are owned by this module.
 
 - Raw event ID: `OVERRIDE_REJECTED`
 - Store: `gateway_payment_events`
-- Status: `LIVE_UI`
+- Status: `DEAD`
 - Title shown in Admin: Status change rejected
 - Title shown to Issuer: Not shown on Issuer Activity
 - Title shown to Investor: Not shown on Investor Activity
-- Description: The manual status change was rejected. No change was applied.
+- Description: **No live writer.** Do not activate.
 - Who triggers it: Admin
 - Important metadata: reason
 - Canonical evidence: `gateway_payments`

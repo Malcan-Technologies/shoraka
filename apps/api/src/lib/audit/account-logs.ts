@@ -14,6 +14,7 @@
 import { Prisma, UserRole } from "@prisma/client";
 import { prisma } from "../prisma";
 import {
+  AUDIT_ACTOR_TYPE,
   AUDIT_ORGANIZATION_KIND,
   AUDIT_TARGET_TYPE,
   AuditOrganizationKind,
@@ -238,6 +239,12 @@ const USER_ID_SHAPE =
  */
 function resolveOnboardingActorUserId(params: CreateOnboardingLogParams): string | null {
   if (params.actorUserId) return params.actorUserId;
+  if (
+    params.context?.actorType === AUDIT_ACTOR_TYPE.INTEGRATION ||
+    params.context?.actorType === AUDIT_ACTOR_TYPE.SYSTEM
+  ) {
+    return params.context.actorUserId;
+  }
   if (params.context?.actorUserId) return params.context.actorUserId;
 
   const hint = metaString(

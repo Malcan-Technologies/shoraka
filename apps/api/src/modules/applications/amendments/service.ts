@@ -16,7 +16,7 @@ import { summarizeResubmitSnapshotDiff } from "../../application-revision-diff";
 import { Prisma } from "@prisma/client";
 import { upsertLatestOrganizationFinancialStatementsFromApplication } from "../issuer-organization-financial-statements";
 import { createApplicationLog } from "../logs/repository";
-import { ActivityPortal, ApplicationLogEventType } from "../logs/types";
+import { ActivityPortal, ApplicationLogEventType, type IssuerActivityLogContext } from "../logs/types";
 
 export interface AmendmentAllowedSections {
   allowedSections: Set<string>;
@@ -107,7 +107,8 @@ export async function acknowledgeWorkflow(
 export async function resubmitApplication(
   applicationId: string,
   userId: string,
-  repository: ApplicationRepository
+  repository: ApplicationRepository,
+  logContext?: IssuerActivityLogContext
 ) {
   const application = await repository.findById(applicationId);
   if (!application) {
@@ -304,6 +305,8 @@ export async function resubmitApplication(
     portal: ActivityPortal.ISSUER,
     metadata: logMetadata,
     createdAt: new Date(),
+    applicationReference: (application as { display_reference?: string | null }).display_reference,
+    ...logContext,
   });
 
   const updatedApplication = await repository.findById(applicationId);

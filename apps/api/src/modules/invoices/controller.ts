@@ -11,6 +11,7 @@ import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { z } from "zod";
 import { WithdrawReason } from "@cashsouk/types";
+import { issuerActivityFromRequest } from "../../lib/audit";
 
 function getUserId(req: Request): string {
   if (!req.user?.user_id) {
@@ -148,7 +149,12 @@ async function withdrawInvoice(req: Request, res: Response, next: NextFunction) 
     const body = withdrawInvoiceSchema.parse(req.body);
     const userId = getUserId(req);
     const reason = body.reason === "USER_CANCELLED" ? WithdrawReason.USER_CANCELLED : undefined;
-    const invoice = await invoiceService.withdrawInvoice(id, userId, reason);
+    const invoice = await invoiceService.withdrawInvoice(
+      id,
+      userId,
+      reason,
+      issuerActivityFromRequest(req, res)
+    );
 
     res.json({
       success: true,

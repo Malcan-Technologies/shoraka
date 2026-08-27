@@ -32,6 +32,10 @@ describe("ORGANIZATION_ACTIVITY_EVENT_TYPES — dead filter cleanup", () => {
         "TNC_APPROVED",
         "SSM_APPROVED",
         "PROFILE_UPDATED",
+        "MEMBER_ADDED",
+        "MEMBER_INVITED",
+        "MEMBER_REMOVED",
+        "MEMBER_ROLE_CHANGED",
       ])
     );
   });

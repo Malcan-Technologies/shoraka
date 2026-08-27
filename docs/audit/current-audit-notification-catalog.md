@@ -4,7 +4,16 @@
 
 Human-readable expansion of every live event and notification (one entry each): [`current-events-notifications-readable.md`](./current-events-notifications-readable.md). This file remains the technical source of truth.
 
-Verified: **2026-08-27** against the working tree (writers, adapters, Admin panels, CSV/JSON export, PDF composer, notification registry, `seed-data.ts`).
+Verified: **2026-08-27** against the working tree, then updated after the **2026-08-27 audit-traceability fix pass**. Source code is authoritative.
+
+**Corrections vs the pre-fix catalogue:**
+
+- `OVERRIDE_PROPOSED` / `OVERRIDE_APPROVED` / `OVERRIDE_REJECTED` have **no live writer** (DEAD / enum+reader only). Do not treat them as LIVE_UI.
+- `FORM_FILLED` metadata is `requestId`, `status`, `substatus`, `payload` (service path) or org/status/trigger keys (individual handler). **`section` is not written.**
+- Onboarding `PROFILE_UPDATED` stores changed-field `previousValues`/`nextValues`, nested `corporateOnboardingData.*`, and `organizationReference`. Self-service org profile also writes this ID.
+- New live IDs: `MEMBER_ADDED`, `MEMBER_INVITED`, `MEMBER_REMOVED`, `MEMBER_ROLE_CHANGED`.
+- Production `handleWebhookUpdate` skips `WEBHOOK_APPROVED` when `ONBOARDING_APPROVED` already ran; pending/in-progress/unknown statuses write `ONBOARDING_STATUS_UPDATED`. `WEBHOOK_REJECTED` remains. Dev handler still uses `WEBHOOK_*`.
+
 
 | Question | This file |
 |---|---|
@@ -20,20 +29,20 @@ Older files that previously claimed “current” lookup (`audit-event-surface-m
 |---|---:|---:|---:|---:|
 | `access_logs` | 13 | 4 | 3 | 6 |
 | `security_logs` | 10 | 10 | 0 | 0 |
-| `onboarding_logs` | 18 | 13 | 2 | 3 |
+| `onboarding_logs` | 22 | 17 | 2 | 3 |
 | `application_logs` | 45 | 43 | 0 | 2 |
 | `note_events` (CSV map, aliases collapsed) | 44 | 44 | 0 | 0 |
 | `legal_document_audit_logs` | 7 | 7 | 0 | 0 |
 | `legal_document_acceptances` (status IDs) | 3 | 3 | 0 | 0 |
 | `product_logs` | 5 | 3 | 2 | 0 |
-| `gateway_payment_events` | 11 | 11 | 0 | 0 |
+| `gateway_payment_events` | 11 | 8 | 0 | 3 |
 | `notification_logs` | batch store, not business event IDs | — | — | — |
-| **Total event IDs** | **156** | **138** | **7** | **11** |
+| **Total event IDs** | **160** | **139** | **7** | **14** |
 | Notification types (`seed-data.ts` = `NotificationTypeIds`) | 49 | 49 | 0 | 0 |
 
 `notification_logs` rows are delivery batches (`ADMIN` / `SYSTEM`), not a second copy of the business event.
 
-The application enum table below omits live Admin writer `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` (`contract-section.tsx`). The readable expansion therefore lists **139** live event IDs. This table’s **138** is the enum-based count.
+The application enum table below omits live Admin writer `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` (`contract-section.tsx`). Live onboarding now includes four `MEMBER_*` IDs. `OVERRIDE_*` are DEAD (no writer). This table’s live count is **139**.
 
 ---
 
@@ -162,7 +171,7 @@ Metadata keys below are **observed in writers**, not theoretical.
 | `LOGIN` | Login / Login | Later Cognito auth, or failed admin access | OAuth callback / failed admin gate; User | `requestedRole`, `roles`, `portal`, `stateId`; fail path also `userRoles`, `hasAdminRole`, `adminStatus`, `wasPreviouslyAdmin`, `reason` | this row | Access table/detail | CSV Event+Type; JSON `event_type` | none | LIVE_UI |
 | `SIGNUP` | Sign Up / Sign Up | First CashSouk user establishment | Same OAuth callback when new user and no successful SIGNUP | same success metadata as LOGIN | this row | Access | CSV+JSON | none | LIVE_UI |
 | `LOGOUT` | Logout / Logout | Logout | Cognito logout + `auth/service` logout; User | Cognito path: `roles`, `portal`. Service logout may include session `activeRole` (observed `req.activeRole`, not invented on LOGIN) | this row | Access | CSV+JSON | none | LIVE_UI |
-| `PROFILE_UPDATED` | User Profile Updated / User Profile Updated | Admin edits another user’s name/phone | Admin `updateUserProfile` | `targetUserId`, `updatedFields`, `previousValues`, `nameLockedOverride` | this row | Access | CSV+JSON | none | LIVE_UI |
+| `PROFILE_UPDATED` | User Profile Updated / User Profile Updated | Admin edits another user’s name/phone | Admin `updateUserProfile` | `targetUserId`, `updatedFields`, `previousValues`, `nextValues`, `nameLockedOverride` | this row | Access | CSV+JSON | none | LIVE_UI |
 | `ROLE_ADDED` | Role Added | Fallback of `updateUserRoles` when ADMIN is not being stripped — **not** “a role was added” | Route `PATCH /users/:id/roles`; hook exists; **no `.tsx` caller** | `targetUserId`, `targetUserEmail`, `newRoles`, `previousRoles`, `adminRoleRemoved` | this row if invoked | Access filter can show stored rows | CSV+JSON | none | UNREACHABLE |
 | `ROLE_REMOVED` | Role Removed | `updateUserRoles` only when ADMIN was present and is now absent | Same as ROLE_ADDED | same | this row if invoked | Access | CSV+JSON | none | UNREACHABLE |
 | `ONBOARDING_RESET` | Onboarding Reset (humanize) | Temporary reset of onboarded flag | `POST /users/:id/reset-onboarding`; no SDK/UI | `targetUserId`, `portal` | this row if invoked | Access allowlist | CSV+JSON | none | UNREACHABLE |
@@ -187,7 +196,7 @@ Metadata keys below are **observed in writers**, not theoretical.
 | `ROLE_PERMISSIONS_UPDATED` | Role Permissions Updated | Admin role permission edit | Admin settings | `roleKey`, `previousPermissions`, `nextPermissions` | this row | Security | none | LIVE_UI |
 | `ROLE_REMOVED` | Role Removed | **Admin role catalogue delete**, not a user’s portal role | Admin settings | `deletedRoleKey`, `deletedRoleName` | this row | Security | none | LIVE_UI |
 | `INVITATION_REVOKED` | Invitation Revoked | Admin revokes invitation | Settings → Roles (`useRevokeInvitation`) | `invitationId`, `email`, `roleDescription` | this row | Security | none | LIVE_UI |
-| `PROFILE_UPDATED` | Profile Updated | Self-service or admin-override profile edit | User/admin profile | `updatedFields`, `previousValues`, `adminOverride?` | this row | Security | none | LIVE_UI |
+| `PROFILE_UPDATED` | Profile Updated | Self-service or admin-override profile edit | User/admin profile | `updatedFields`, `previousValues`, `nextValues`, `adminOverride?` | this row | Security | none | LIVE_UI |
 | `PLATFORM_FINANCE_SETTINGS_UPDATED` | Platform Finance Settings Updated | Admin finance settings save | Admin notes finance settings | before/after in metadata | this row | Security | none | LIVE_UI |
 
 ---
@@ -208,12 +217,16 @@ Portal Activity allowlist (`organization-log.ts` `getEventTypes`): `ONBOARDING_S
 | `ONBOARDING_APPROVED` | Onboarding Approved | **Onboarding Submission Approved** / we'll notify when fully complete | Intermediate submission approval | Admin/webhook | status/trigger | **not** `onboarding_completed` | LIVE_UI / LIVE_WEBHOOK |
 | `FINAL_APPROVAL_COMPLETED` | Final Approval Completed | **Onboarding Approved** / no further action needed | Full platform access | Admin final approve | org/status | **`onboarding_completed`** title `Onboarding Completed` | LIVE_UI |
 | `ONBOARDING_STATUS_UPDATED` | Onboarding Status Updated | not in portal allowlist | Generic status/trigger | Webhooks + Admin portal-access toggle | `trigger` (e.g. `KYC_APPROVED`), `previousStatus`, `newStatus` | none (do not treat as AML/KYC event ID) | LIVE_UI / LIVE_WEBHOOK |
-| `FORM_FILLED` | Form Submitted | not in portal allowlist | Form section submitted | LIVE_WEBHOOK / RegTank service | `section` (do not expand FORM_FILLED metadata here) | none | LIVE_WEBHOOK |
+| `FORM_FILLED` | Form Submitted | not in portal allowlist | RegTank liveness / form-filling / processing / ID uploaded | LIVE_WEBHOOK / RegTank service | `requestId`, `status`, `substatus`, `payload` (not `section`) | none | LIVE_WEBHOOK |
 | `AML_APPROVED` | AML Approved | not in portal allowlist | Dedicated event ID for manual Admin AML override | Writer `admin/service.ts`; hook `useApproveAmlScreening`; **no `.tsx` caller** (`use-onboarding-applications.aml-unreachable.test.ts`). Live AML progression is `ONBOARDING_STATUS_UPDATED` (do not invent an `AML_APPROVED` row from that) | screening/org ids if invoked | none | UNREACHABLE |
 | `SSM_APPROVED` | SSM Approved | not in portal allowlist | Admin SSM verify approve | Admin `approveSsmVerification` | org/SSM ids | none | LIVE_UI |
 | `TNC_APPROVED` | T&C Approved | not in portal allowlist | User accepted legal T&C in onboarding | `organization/service` accept T&C | document/version ids | none (acceptance evidence is `legal_document_acceptances`) | LIVE_UI |
 | `SOPHISTICATED_STATUS_UPDATED` | Sophisticated Status Updated | not in portal allowlist | Sophisticated investor flag | Admin | `action` granted/revoked, `newReason` | none | LIVE_UI |
-| `PROFILE_UPDATED` | Organization Profile Updated | not in portal allowlist | Admin org profile edit | Admin | `updatedBy`, top-level `updatedFields`, `bankFieldsChanged`, identity `previousValues` (no `nextValues`; bank/corporate JSON not snapshotted) | none | LIVE_UI |
+| `PROFILE_UPDATED` | Organization Profile Updated | not in portal allowlist | Admin **or** self-service org profile edit | Admin / org member | `updatedBy?`, changed-field `updatedFields`, `bankFieldsChanged`, `previousValues`, `nextValues`, `organizationReference?` | none | LIVE_UI |
+| `MEMBER_ADDED` | Member Added | not in portal allowlist | Member added to organisation | Org admin/owner | `organizationId`, `organizationReference?`, `memberUserId`, `memberEmail?`, `newRole` | none | LIVE_UI |
+| `MEMBER_INVITED` | Member Invited | not in portal allowlist | Invitation created | Org admin/owner | `organizationId`, `memberEmail`, `newRole`, `invitationId` | none | LIVE_UI |
+| `MEMBER_REMOVED` | Member Removed | not in portal allowlist | Member removed | Org admin/owner | `organizationId`, `memberUserId`, `previousRole` | none | LIVE_UI |
+| `MEMBER_ROLE_CHANGED` | Member Role Changed | not in portal allowlist | Member role changed | Org admin/owner | `organizationId`, `memberUserId`, `previousRole`, `newRole` | none | LIVE_UI |
 | `ONBOARDING_RESET` | Onboarding Reset | — | Same unreachable reset as access; **not** in org-timeline query allowlist | Route-only | `resetBy`, `previousStatus`, `newStatus` | none | UNREACHABLE |
 | `TNC_ACCEPTED` / `KYC_APPROVED` | CSV/Admin labels exist; **not** in org query | not queried | No production writer as `event_type` (`TNC_APPROVED` and `ONBOARDING_STATUS_UPDATED` + `trigger:"KYC_APPROVED"` are live instead) | — | — | — | DEAD |
 | `USER_COMPLETED` | User Completed (CSV/Admin label) | not in org query | Replaced by `FINAL_APPROVAL_COMPLETED`. Remaining writer: `regtank/webhook-handler-dev.ts` | Dev webhook | — | none | DEV_ONLY |
@@ -360,9 +373,9 @@ Canonical payment row: `gateway_payments` (reference, org, purpose, amount, stat
 | `NAME_CHECK_REJECTED` | Name Check Rejected | Names did not match; refund started | `deposit_name_check_rejected` title `Deposit Verification Failed` | LIVE_UI |
 | `CAPTURE_MISMATCH` | Payment mismatch found / Amount mismatch found / Currency mismatch found | Amount or currency mismatch | none | LIVE_SYSTEM |
 | `EXPIRED` | Payment expired | Link timed out | none | LIVE_SYSTEM |
-| `OVERRIDE_PROPOSED` | Status change proposed | Dual-control override | none | LIVE_UI |
-| `OVERRIDE_APPROVED` | Status change approved | Override applied | none | LIVE_UI |
-| `OVERRIDE_REJECTED` | Status change rejected | Override refused | none | LIVE_UI |
+| `OVERRIDE_PROPOSED` | Status change proposed | Dual-control override | none | DEAD (enum + `getOpenOverrideProposal` reader only; **no writer**) |
+| `OVERRIDE_APPROVED` | Status change approved | Override applied | none | DEAD |
+| `OVERRIDE_REJECTED` | Status change rejected | Override refused | none | DEAD |
 | `REFUND_INITIATED` | Refund Started | Refund requested | `deposit_refund_initiated` title `Refund Started` | LIVE_UI / LIVE_SYSTEM |
 | `REFUNDED` | Refund completed | Refund confirmed | `deposit_refunded` title `Refund Completed` | LIVE_SYSTEM |
 | `REFUND_WALLET_REVERSAL_FAILED` | Wallet balance could not be updated | Refund done; wallet not fully reversed | none | LIVE_SYSTEM |

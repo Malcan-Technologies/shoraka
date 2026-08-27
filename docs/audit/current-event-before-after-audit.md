@@ -1,10 +1,12 @@
 # Current live event BEFORE / AFTER evidence audit
 
-**Read-only.** Verified 2026-08-27 against writers (not catalogues). No application code, schema, UI, or database was changed.
+Verified 2026-08-27 against writers, then **updated after the 2026-08-27 audit-traceability fix pass**. Source code is authoritative.
 
 Companion: identifier/traceability audit in `docs/audit/current-event-metadata-traceability-audit.md`.
 
 `updatedFields` alone is **not** treated as sufficient evidence.
+
+Disposition of before/after findings: `FIXED` / `DEFERRED` / `INTENTIONALLY_UNCHANGED` — see the table in the traceability audit. This file records the **current** metadata shape after that pass.
 
 ---
 
@@ -20,7 +22,7 @@ Companion: identifier/traceability audit in `docs/audit/current-event-metadata-t
 
 **Snapshot vs live:** a value is snapshotted only if it is written onto the log row (column or metadata) at insert time. Admin Event Details / CSV that join the current user, organisation, note, or application row are **live**.
 
-**UI extractor:** `extractPreviousNext` in `apps/admin/src/components/audit/audit-presentation.ts` only reads `previousValues` / `previous_values` / `beforeJson` / `before` and `nextValues` / `next_values` / `afterJson` / `after`. It does **not** read `beforeState` / `afterState`. Dedicated “Previous values” / “New values” panels therefore miss note admin-mirrors even when the row stores a full pair. Raw metadata is still shown in Event Details.
+**UI extractor:** `extractPreviousNext` in `apps/admin/src/components/audit/audit-presentation.ts` reads previous as `previousValues` / `previous_values` / `beforeJson` / `before` / `beforeState` and next as `nextValues` / `next_values` / `afterJson` / `after` / `afterState`. Historical rows without those keys leave the panels blank.
 
 **CSV secrets:** `redactAuditSecrets` redacts keys matching password / secret / token / api key / credential. It does **not** redact bank account numbers, names, phones, or addresses.
 
@@ -44,17 +46,14 @@ Catalogue claims that do **not** match source are called out. Source wins.
 | `previousValues` | yes — `{ firstName, lastName, phone }` from the **pre-update** user row |
 | `nameLockedOverride` | yes — true when the subject has completed onboarding **and** a name field is in the patch |
 
-**Not stored:** `nextValues` / new name or phone. `previousValues` is a **full identity snapshot** of those three fields, not a diff of only the changed keys.
+**Not stored:** entire User object. `previousValues` is a **full identity snapshot** of those three fields, not a diff of only the changed keys. `nextValues` is the same three fields from the **post-update** user row.
 
-**Classification:** `PARTIAL_BEFORE_AFTER`.
+**Classification:** `FULL_BEFORE_AFTER` for the three identity fields.
 
 - Which fields changed: yes (`updatedFields`).
 - Previous values: yes (all three identity fields, including ones that did not change).
-- New values: **no**.
-- Full before/after object: no.
-- Snapshotted at write: yes for previous identity + email.
-- UI: Event Details can show Previous values; New values panel is empty. Reconstructing the new name/phone requires the live `users` row (or a later event’s `previousValues`).
-- Sensitive: passwords are not in this event. Phone is stored in previous snapshot (expected).
+- New values: **yes** (`nextValues`).
+- Snapshotted at write: yes.
 
 Actor column `user_id` is the **admin**. Subject is `targetUserId`.
 
@@ -72,85 +71,65 @@ Two writers.
 |---|---|
 | `updatedFields` | yes |
 | `previousValues` | yes — `{ firstName, lastName, phone }` from the pre-update user |
+| `nextValues` | yes — same three keys from the post-update user |
 | `adminOverride` | **not set** |
 
-No `nextValues`. Same PARTIAL shape as access.
+**FIXED.** Classification: `FULL_BEFORE_AFTER` for those three fields.
 
-#### 2b. Admin override — same `updateUserProfile`, **conditional**
+#### 2b. Admin override — same `updateUserProfile`
 
-Written **only if** the subject has completed onboarding **and** a name field is in the patch.
+Written for **any** admin profile patch of an onboarded user when `updatedFields.length > 0`, including phone-only edits. One security row per patch.
 
 **Metadata:**
 
 | Key | Stored |
 |---|---|
 | `updatedBy` | admin user id |
-| `updatedFields` | yes (same key list as the access row, may include `phone`) |
-| `previousValues` | `{ firstName, lastName }` only — **phone omitted** |
+| `updatedFields` | yes |
+| `previousValues` | `{ firstName, lastName, phone }` |
+| `nextValues` | `{ firstName, lastName, phone }` from the post-update user |
 | `adminOverride` | `true` |
 
 `user_id` on this row is the **subject**, not the admin.
 
-A phone-only admin edit of an onboarded user produces the access row, **not** this security row.
-
-**Classification (both security writers):** `PARTIAL_BEFORE_AFTER`.
+**FIXED.** Classification: `FULL_BEFORE_AFTER` for those three fields.
 
 ---
 
 ### 3. `onboarding_logs.PROFILE_UPDATED`
 
-**Writer:** `updateAdminOrganizationProfile` (`apps/api/src/modules/admin/organization-admin-profile.ts`).
+**Writers:** `updateAdminOrganizationProfile` and self-service `OrganizationService.updateOrganizationProfile`.
 
-The current catalogue line that lists only `updatedFields` is **wrong**.
-
-**Actual metadata:**
+**Actual metadata (FIXED):**
 
 | Key | Stored |
 |---|---|
-| `updatedBy` | admin user id |
-| `updatedFields` | **top-level input keys only** (`Object.keys(input)` that are defined). Nested corporate field names are **not** expanded. A corporate patch appears as the single name `corporateOnboardingData`. |
-| `bankFieldsChanged` | boolean — true if `bankAccountDetails` was in the input |
-| `previousValues` | `{ name, phoneNumber, address, firstName, lastName, middleName }` from the organisation **before** the update |
+| `updatedBy` | admin user id (admin path only) |
+| `updatedFields` | **changed fields only**, including nested `corporateOnboardingData.website` etc. |
+| `bankFieldsChanged` | boolean — true if bank details were in the input; bank JSON is **not** dumped |
+| `previousValues` / `nextValues` | only fields that actually changed |
+| `organizationReference` | org `display_reference` when present |
 
-**Patchable fields that are not in `previousValues`:** `bankAccountDetails`, `corporateOnboardingData` (website, industry, entity type, employees, revenue, TIN, business name, addresses, person-in-charge).
+Self-service actor is the caller (`actor_user_id` = userId). Same event ID; no duplicate type.
 
-**Not stored anywhere on the row:** `nextValues`, after object, previous or new bank JSON, previous or new corporate JSON.
-
-**Row column:** `organization_name` is `input.name ?? org.name` — already the **new** name when name was patched.
-
-**Answers (onboarding specifically):**
-
-| Question | Answer |
-|---|---|
-| Does it preserve `previousValues` anywhere? | **Yes**, but only the six identity fields above. Not bank. Not corporate. |
-| Does it preserve `newValues` anywhere? | **No.** |
-| Does it preserve a before/after object? | **No.** |
-| Can Ops reconstruct exactly what the organisation profile looked like before the edit? | **No.** Identity six fields yes; bank and corporate JSON no. |
-| Can Ops reconstruct exactly what changed without querying the current organisation row? | **No.** Field names (top-level) yes; old identity values yes; new values no; bank/corporate neither side. |
-| Evidence gap class | **PARTIAL_BEFORE_AFTER** for identity fields. **LIVE_STATE_ONLY** for bank and corporate. Overall: **PARTIAL_BEFORE_AFTER** with a LIVE subset. |
-
-Bank details are correctly **absent** from the audit JSON today (not leaked). That is also why historical bank edits cannot be reconstructed from the log.
+Bank JSON remains absent from the audit row (not leaked). Historical bank edits still cannot be reconstructed from the log — **INTENTIONALLY_UNCHANGED** (do not dump bank JSON).
 
 ---
 
-## Cross-cutting: same problem as onboarding `PROFILE_UPDATED`
+## Cross-cutting: previous + next after the fix pass
 
-These mutation events also fail “previous **and** new on the row”:
-
-| Event | Store | Gap pattern |
+| Event | Store | Status |
 |---|---|---|
-| `PROFILE_UPDATED` | `access_logs` | previous identity, no next |
-| `PROFILE_UPDATED` | `security_logs` | previous identity, no next (admin override also drops phone from previous) |
-| `PROFILE_UPDATED` | `onboarding_logs` | previous identity only; bank/corporate neither side; no next |
-| `WITHDRAWAL_BENEFICIARY_UPDATED` | `note_events` | id only; current `beneficiary_snapshot` overwritten |
-| `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | `application_logs` | new flag only; no previous |
-| `CONTRACT_FACILITY_ENABLED` / `DISABLED` | `application_logs` | new `enabled` (+ disable reason); previous not stored |
-| `APPLICATION_RESET_TO_UNDER_REVIEW` | `application_logs` | `previous_status` only |
-| `PRODUCT_UPDATED` | `product_logs` | full **after** workflow snapshot; no previous blob on this row |
-| `APPLICATION_RESUBMITTED` (bare PATCH) | `application_logs` | no `resubmit_changes` |
-| `ONBOARDING_STATUS_UPDATED` (some writers) | `onboarding_logs` | `previousStatus` without `newStatus` (e.g. admin COD refresh) |
-
-No live writer is **FIELD_NAMES_ONLY** as its whole-event class. Onboarding `updatedFields` is field-names-only for nested corporate/bank, but identity `previousValues` still exist on the same row.
+| `PROFILE_UPDATED` | `access_logs` | **FIXED** — previous + next identity |
+| `PROFILE_UPDATED` | `security_logs` | **FIXED** — previous + next; admin includes phone; phone-only writes the security row |
+| `PROFILE_UPDATED` | `onboarding_logs` | **FIXED** — changed-field previous + next; nested corporate names; self-service writer added |
+| `WITHDRAWAL_BENEFICIARY_UPDATED` | `note_events` | **FIXED** — previous + next beneficiary snapshots |
+| `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | `application_logs` | **FIXED** |
+| `CONTRACT_FACILITY_ENABLED` / `DISABLED` | `application_logs` | **FIXED** |
+| `APPLICATION_RESET_TO_UNDER_REVIEW` | `application_logs` | **FIXED** — `previous_status` + `new_status` |
+| `PRODUCT_UPDATED` | `product_logs` | **DEFERRED** — previous immutable product version already exists |
+| `APPLICATION_RESUBMITTED` (PATCH duplicate) | `application_logs` | **FIXED** — one row; amendments path still has `resubmit_changes` when applicable |
+| `ONBOARDING_STATUS_UPDATED` | `onboarding_logs` | **FIXED** where both values are known |
 
 ---
 
@@ -162,15 +141,15 @@ Creates, logins, offers sent, letters generated, payments captured, and similar 
 
 | Event | Class | Stored | Missing | Snapshot? | UI |
 |---|---|---|---|---|---|
-| `PROFILE_UPDATED` | PARTIAL_BEFORE_AFTER | `updatedFields`, `previousValues` (name/phone), override flag | new values | yes (previous) | Previous panel only; new from live user |
+| `PROFILE_UPDATED` | FULL_BEFORE_AFTER | `updatedFields`, `previousValues` + `nextValues` (name/phone), override flag | entire User object | yes | Previous and New panels |
 | `LOGIN` / `SIGNUP` / `LOGOUT` | NOT_APPLICABLE | — | — | — | — |
 
 ### Security — `security_logs`
 
 | Event | Class | Stored | Missing | Snapshot? | Sensitive |
 |---|---|---|---|---|---|
-| `PROFILE_UPDATED` (self) | PARTIAL_BEFORE_AFTER | `updatedFields`, `previousValues` incl. phone | new values; no `adminOverride` | yes | phone in previous |
-| `PROFILE_UPDATED` (admin override) | PARTIAL_BEFORE_AFTER | `updatedFields`, `previousValues` first/last, `adminOverride` | new values; previous phone | yes | — |
+| `PROFILE_UPDATED` (self) | FULL_BEFORE_AFTER | `updatedFields`, previous + next name/phone | entire User object | yes | phone snapshotted |
+| `PROFILE_UPDATED` (admin override) | FULL_BEFORE_AFTER | `updatedFields`, previous + next first/last/phone, `adminOverride` | entire User object | yes | phone-only edits write this row |
 | `PLATFORM_FINANCE_SETTINGS_UPDATED` | FULL_BEFORE_AFTER | redacted full `previousValues` + `nextValues` snapshots | secrets (intentional) | yes | `redactSensitiveFinanceSettings` redacts password/secret/token/apiKey keys; **account numbers and trustee emails are kept** |
 | `ROLE_PERMISSIONS_UPDATED` | FULL_BEFORE_AFTER | `previousPermissions` / `nextPermissions`, badge colors | — | yes | — |
 | `ROLE_SWITCHED` | FULL_BEFORE_AFTER | `previousRole`/`newRole` or `previousStatus`/`newStatus` (+ roles when deactivating via role removal) | — | yes | — |
@@ -182,9 +161,9 @@ Creates, logins, offers sent, letters generated, payments captured, and similar 
 
 | Event | Class | Stored | Missing |
 |---|---|---|---|
-| `PROFILE_UPDATED` | PARTIAL + LIVE subset | identity `previousValues`, top-level `updatedFields`, `bankFieldsChanged` | next values; bank/corporate before **and** after |
+| `PROFILE_UPDATED` | FULL_BEFORE_AFTER (changed fields) | nested `updatedFields`, `previousValues`/`nextValues`, `bankFieldsChanged`, `organizationReference` | entire org / bank JSON dump (intentional) |
 | `SOPHISTICATED_STATUS_UPDATED` | FULL_BEFORE_AFTER | `previousStatus`/`newStatus`, `previousReason`/`newReason` | full org object (not required) |
-| `ONBOARDING_STATUS_UPDATED` | FULL_BEFORE_AFTER **or** PARTIAL | typically `previousStatus` + `newStatus` + `trigger` | some writers omit `newStatus` |
+| `ONBOARDING_STATUS_UPDATED` | FULL_BEFORE_AFTER when both known | `previousStatus` + `newStatus` + `trigger` | not invented when a writer does not have both |
 | `FORM_FILLED` | NOT_APPLICABLE (as org-profile edit) | provider `requestId`/`status`/`payload` snapshot | not a CashSouk field diff |
 | Start / resume / cancel / reject / approve / SSM / T&C | NOT_APPLICABLE | status breadcrumbs | — |
 
@@ -193,26 +172,26 @@ Creates, logins, offers sent, letters generated, payments captured, and similar 
 | Event | Class | Stored | Missing |
 |---|---|---|---|
 | `APPLICATION_RESUBMITTED` (amendments path) | FULL_BEFORE_AFTER (field grain) | `resubmit_changes.field_changes[]` with `previous_value` + `next_value` (truncated ~5k chars; guarantor leaves rolled up) | full application JSON on the **log** (canonical snapshot is `application_revisions.snapshot`) |
-| `APPLICATION_RESUBMITTED` (bare status PATCH) | LIVE_STATE_ONLY | event type only / no `resubmit_changes` | what changed |
+| `APPLICATION_RESUBMITTED` (PATCH `/status`) | same as `POST /resubmit` | service writer only (no empty controller duplicate) | — |
+| `APPLICATION_RESET_TO_UNDER_REVIEW` | FULL_BEFORE_AFTER | `previous_status` + `new_status: UNDER_REVIEW` | — |
+| `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | FULL_BEFORE_AFTER | `previousValues`/`nextValues` `{ is_large_private_company }`; contract target | — |
+| `CONTRACT_FACILITY_ENABLED` / `DISABLED` | FULL_BEFORE_AFTER | `previousValues`/`nextValues` `{ enabled }` (+ disable reason) | — |
 | `AMENDMENTS_SUBMITTED` | NOT_APPLICABLE (as content edit) | `{ count }` | remark bodies live on amendment rows, not this event |
-| `APPLICATION_RESET_TO_UNDER_REVIEW` | PARTIAL_BEFORE_AFTER | `previous_status` | new status (implied UNDER_REVIEW) |
 | `SECTION_REVIEWED_*` / `ITEM_REVIEWED_*` | FULL_BEFORE_AFTER | `old_status` / `new_status` + scope | section payload |
 | `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | FULL_BEFORE_AFTER | structured `before` / `after` occupancy amounts | full contract JSON |
-| `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | PARTIAL_BEFORE_AFTER | new `is_large_private_company` | previous flag; `contract_id` (see traceability P0) |
-| `CONTRACT_FACILITY_ENABLED` / `DISABLED` | PARTIAL_BEFORE_AFTER | `enabled` (+ `reason` on disable) | explicit previous; invertible because writer no-ops if unchanged |
 | Other application/contract/invoice lifecycle | NOT_APPLICABLE | — | — |
 
 ### Notes — `note_events` (+ `note_admin_actions` for admin-mirrors)
 
 | Event | Class | Stored | UI |
 |---|---|---|---|
-| `UPDATE_DRAFT` | FULL_BEFORE_AFTER | `beforeState`/`afterState` = `mapNoteListItem` DTOs; `changedFields` on admin_actions | extractor **misses** `beforeState`/`afterState`; raw metadata has them; admin_actions has first-class columns |
-| `UPDATE_FEATURED_SETTINGS` | FULL_BEFORE_AFTER | same DTO pair | same UI miss |
-| `PUBLISH` / `UNPUBLISH` / `PAUSE_LISTING` / `RESUME_LISTING` / `CLOSE_FUNDING` / `FAIL_FUNDING` / `ACTIVATE` / `WAIVE_FACILITY_FEE_COLLECTION` | FULL_BEFORE_AFTER | same DTO pair | same UI miss |
-| `PROSPECTUS_REVIEW_DRAFT_UPDATE` / `PROSPECTUS_REVIEW_APPROVE` / `PROSPECTUS_APPROVAL_INVALIDATED_*` | FULL_BEFORE_AFTER | prospectus `mapReview` before/after | same UI miss |
+| `UPDATE_DRAFT` | FULL_BEFORE_AFTER | `beforeState`/`afterState` = `mapNoteListItem` DTOs; `changedFields` on admin_actions | extractor reads `beforeState`/`afterState` |
+| `UPDATE_FEATURED_SETTINGS` | FULL_BEFORE_AFTER | same DTO pair | same |
+| `PUBLISH` / `UNPUBLISH` / `PAUSE_LISTING` / `RESUME_LISTING` / `CLOSE_FUNDING` / `FAIL_FUNDING` / `ACTIVATE` / `WAIVE_FACILITY_FEE_COLLECTION` | FULL_BEFORE_AFTER | same DTO pair | same |
+| `PROSPECTUS_REVIEW_DRAFT_UPDATE` / `PROSPECTUS_REVIEW_APPROVE` / `PROSPECTUS_APPROVAL_INVALIDATED_*` | FULL_BEFORE_AFTER | prospectus `mapReview` before/after | same |
 | `PROSPECTUS_REVIEW_CREATE` | NOT_APPLICABLE | after only (create) | — |
 | `FACILITY_OCCUPANCY_UPDATED` | FULL_BEFORE_AFTER | same `before`/`after` occupancy object as the application twin | extractor **does** pick `before`/`after` |
-| `WITHDRAWAL_BENEFICIARY_UPDATED` | LIVE_STATE_ONLY | `{ withdrawalId }` | live `withdrawal_instructions.beneficiary_snapshot`; previous overwritten |
+| `WITHDRAWAL_BENEFICIARY_UPDATED` | FULL_BEFORE_AFTER | `previousValues`/`nextValues` beneficiary snapshots + `withdrawalReference` | live row can still change later |
 | Payment / settlement / letter / withdrawal submit-complete | NOT_APPLICABLE | ids / reasons; canonical amounts on payment/instruction rows | — |
 
 ### Legal — `legal_document_audit_logs`
@@ -230,7 +209,7 @@ First-class `before_json` / `after_json` columns; Event Details maps them correc
 
 | Event | Class | Stored | Missing |
 |---|---|---|---|
-| `PRODUCT_UPDATED` | PARTIAL_BEFORE_AFTER | full **after** snapshot: workflow, rates, listing days, code, version, timestamps. Versioning path also sets `replaced_product_id` | previous snapshot **on this row**. Previous version row / earlier log can recover it if those still exist |
+| `PRODUCT_UPDATED` | PARTIAL_BEFORE_AFTER | full **after** snapshot; versioning path sets `replaced_product_id` | previous snapshot on this row — **DEFERRED** (previous immutable version exists) |
 | `PRODUCT_CREATED` / `PRODUCT_DELETED` | NOT_APPLICABLE | after/last snapshot | — |
 
 Event Details Previous/New panels are empty because the snapshot is not under `previousValues`/`nextValues`/`before`/`after`.
@@ -243,30 +222,22 @@ Capture, name-check, refund, expiry: **NOT_APPLICABLE** as field edits of a sett
 
 ## BEFORE/AFTER GAPS
 
-| Event | Store | What is currently stored | What is missing | Risk | Minimal recommended fix |
-|---|---|---|---|---|---|
-| `PROFILE_UPDATED` | `onboarding_logs` | `updatedBy`, top-level `updatedFields`, `bankFieldsChanged`, identity `previousValues` only | `nextValues`; previous **and** new `bankAccountDetails`; previous **and** new `corporateOnboardingData`; expanded nested field names | Ops cannot reconstruct a historical org profile or a bank/corporate edit. Later live row overwrites the only remaining copy. Catalogue currently understates this. | Snapshot redacted `previousValues` + `nextValues` for identity **and** bank/corporate (mask account numbers). Expand `updatedFields` to nested paths. Keep secrets out. |
-| `PROFILE_UPDATED` | `access_logs` | `updatedFields` + full previous name/phone (+ email, override flag) | `nextValues` / new name and phone | After a later edit, the new values from **this** edit are gone unless inferred from the next row’s previous snapshot | Add `nextValues: { firstName, lastName, phone }` from the post-update row (same three keys). |
-| `PROFILE_UPDATED` | `security_logs` (self) | `updatedFields` + previous name/phone | `nextValues` | Same as access | Same `nextValues` triple. |
-| `PROFILE_UPDATED` | `security_logs` (admin override) | `updatedFields` + previous first/last, `adminOverride` | `nextValues`; previous **phone** even when phone is in `updatedFields`; row skipped on phone-only edits | Name-override trail is incomplete; phone-only admin edits have no security row | Always write the security row for any admin profile patch; store previous+next for first/last/phone. |
-| `WITHDRAWAL_BENEFICIARY_UPDATED` | `note_events` | `withdrawalId` | previous and new `beneficiary_snapshot` | Draft beneficiary history is unrecoverable; current instruction row is live-only | Snapshot redacted before/after beneficiary (mask account number, keep bank name + last4). |
-| `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | `application_logs` | new `is_large_private_company` | previous flag; contract id on the row (separate P0) | Cannot prove the prior classification without assuming invertibility | Store `previous` + `next` booleans; set `entity_id` / `contract_id`. |
-| `CONTRACT_FACILITY_ENABLED` / `DISABLED` | `application_logs` | new `enabled` (+ disable reason) | explicit previous enabled + prior reason timestamps | Weaker than occupancy; invertibility is an assumption | Add `previous.enabled` (and previous reason/at on re-enable). |
-| `APPLICATION_RESET_TO_UNDER_REVIEW` | `application_logs` | `previous_status` | `new_status` | Low — new status is implied | Add `new_status: "UNDER_REVIEW"`. |
-| `PRODUCT_UPDATED` | `product_logs` | full after workflow snapshot; optional `replaced_product_id` | previous workflow/rates on **this** row | If the replaced product row is later deleted, previous config is gone | Copy the pre-update snapshot as `before` (or `previousValues`) next to the existing after blob. |
-| `APPLICATION_RESUBMITTED` (bare) | `application_logs` | no field diff | `resubmit_changes` | Cannot tell what the issuer changed | Do not use the bare path for content edits; or attach the same revision diff as the amendments path. |
-| `ONBOARDING_STATUS_UPDATED` (COD refresh writer) | `onboarding_logs` | `previousStatus`, `codStatus`, `trigger` | `newStatus` | Status after refresh is live-joined | Always persist `newStatus` from the post-update org row. |
-| Note admin-mirrors (`UPDATE_DRAFT`, featured, listing, funding, prospectus draft/approve/invalidate) | `note_events` | **FULL** `beforeState`/`afterState` on the row | Dedicated Previous/New **panels** (extractor gap, not storage) | Ops may think evidence is missing; it is in raw metadata / `note_admin_actions` | Teach `extractPreviousNext` to read `beforeState`/`afterState`. No writer change required. |
-| `AMENDMENTS_SUBMITTED` | `application_logs` | `{ count }` | remark text / which sections | Content of the request is on amendment tables, not the event | Optional: copy section keys + remark text into metadata. Not a profile-edit gap. |
+The identity / large-private / facility / reset / beneficiary / note-extractor / PATCH-resubmit / onboarding-status gaps listed in the pre-fix audit are **FIXED**. Remaining:
+
+| Event | Store | Status |
+|---|---|---|
+| `PRODUCT_UPDATED` | `product_logs` | **DEFERRED** — previous immutable product version already exists |
+| Onboarding bank JSON | `onboarding_logs` | **INTENTIONALLY_UNCHANGED** — do not dump bank JSON |
+| `AMENDMENTS_SUBMITTED` | `application_logs` | **INTENTIONALLY_UNCHANGED** — remark bodies live on amendment rows |
+| `OVERRIDE_*` | `gateway_payment_events` | **INTENTIONALLY_UNCHANGED** — no live writer |
 
 **Not a gap (do not “fix” by logging secrets):**
 
 - `PASSWORD_CHANGED` — no password values (correct).
 - Finance settings — auth secrets redacted; operational account numbers intentionally retained.
-- Onboarding bank JSON — currently excluded (good for leak risk; bad for reconstruction). The fix is a **redacted** snapshot, not raw account numbers.
 
 ---
 
 ## Code changed
 
-**NO** (documentation only).
+**YES** (writers/UI/tests in the 2026-08-27 fix pass). **NO** schema/migrations.

@@ -1,6 +1,7 @@
 import {
   compactAuditMetadata,
   diffAuditValues,
+  extractPreviousNext,
   formatAuditDateTime,
   formatAuditEventLabel,
   formatAuditSourceLabel,
@@ -98,6 +99,32 @@ describe("audit presentation", () => {
   it("serializes metadata without secrets", () => {
     expect(compactAuditMetadata({ token: "x", noteId: "n-1" })).toContain("n-1");
     expect(compactAuditMetadata({ access_token: "x" })).toContain("[REDACTED]");
+  });
+
+  it("reads note beforeState/afterState into previous/next panels", () => {
+    expect(
+      extractPreviousNext({
+        beforeState: { noteReference: "NT-1", status: "DRAFT" },
+        afterState: { noteReference: "NT-1", status: "PUBLISHED" },
+      })
+    ).toEqual({
+      previous: { noteReference: "NT-1", status: "DRAFT" },
+      next: { noteReference: "NT-1", status: "PUBLISHED" },
+    });
+  });
+
+  it("prefers previousValues over beforeState and leaves historical rows without either blank", () => {
+    expect(
+      extractPreviousNext({
+        previousValues: { enabled: true },
+        beforeState: { enabled: false },
+        nextValues: { enabled: false },
+      })
+    ).toEqual({ previous: { enabled: true }, next: { enabled: false } });
+    expect(extractPreviousNext({ remark: "none" })).toEqual({
+      previous: undefined,
+      next: undefined,
+    });
   });
 });
 

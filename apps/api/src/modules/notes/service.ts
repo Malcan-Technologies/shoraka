@@ -2632,18 +2632,6 @@ export class NoteService {
             ),
             tenure_days: tenureDays,
             maturity_date: null,
-            events: {
-              create: {
-                event_type: "NOTE_CREATED_FROM_INVOICE",
-                actor_user_id: actor.userId,
-                actor_role: actor.role,
-                portal: actor.portal ?? "ADMIN",
-                ip_address: actor.ipAddress,
-                user_agent: actor.userAgent,
-                correlation_id: actor.correlationId,
-                metadata: { applicationId: application.id, invoiceId: invoice.id },
-              },
-            },
             admin_actions: {
               create: {
                 action_type: "CREATE_FROM_INVOICE",
@@ -2656,6 +2644,12 @@ export class NoteService {
             },
           },
           include: noteInclude,
+        });
+
+        await this.logEvent(tx, created.id, "NOTE_CREATED_FROM_INVOICE", actor, {
+          applicationId: application.id,
+          invoiceId: invoice.id,
+          ...(canonicalReference ? { noteReference: canonicalReference } : {}),
         });
 
         await tx.notePaymentSchedule.create({
@@ -3659,7 +3653,7 @@ export class NoteService {
           },
         });
         if (!existingDisbursement) {
-          await this.createWithdrawalInstructionWithDisplayReference(tx, {
+          const withdrawal = await this.createWithdrawalInstructionWithDisplayReference(tx, {
             note_id: id,
             issuer_organization_id: result.issuer_organization_id,
             requested_by_user_id: actor.userId,
@@ -3685,6 +3679,10 @@ export class NoteService {
             } as Prisma.InputJsonValue,
           });
           await this.logEvent(tx, id, "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED", actor, {
+            withdrawalId: withdrawal.id,
+            ...(withdrawal.display_reference
+              ? { withdrawalReference: withdrawal.display_reference }
+              : {}),
             netDisbursement,
             fundedAmount,
             platformFee,
@@ -6890,9 +6888,18 @@ export class NoteService {
       },
     });
     if (updated.note_id) {
+      const previousSnapshot =
+        existing.beneficiary_snapshot &&
+        typeof existing.beneficiary_snapshot === "object" &&
+        !Array.isArray(existing.beneficiary_snapshot)
+          ? existing.beneficiary_snapshot
+          : existing.beneficiary_snapshot ?? null;
       await this.logEvent(prisma, updated.note_id, "WITHDRAWAL_BENEFICIARY_UPDATED", actor, {
         withdrawalId: id,
-      });
+        ...(updated.display_reference ? { withdrawalReference: updated.display_reference } : {}),
+        previousValues: previousSnapshot,
+        nextValues: beneficiarySnapshot,
+      } as Prisma.InputJsonValue);
     }
     return this.mapWithdrawal(updated);
   }
@@ -7323,10 +7330,7 @@ export class NoteService {
       actor,
       messageId,
       mode,
-      formatWithdrawalReference({
-        displayReference: latest.display_reference,
-        id: latest.id,
-      })
+      latest.display_reference ?? undefined
     );
   }
 
@@ -7426,10 +7430,7 @@ export class NoteService {
       actor,
       messageId,
       mode,
-      formatSettlementReference({
-        displayReference: latest.display_reference,
-        id: latest.id,
-      })
+      latest.display_reference ?? undefined
     );
   }
 

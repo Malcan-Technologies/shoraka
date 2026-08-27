@@ -986,6 +986,10 @@ const ONBOARDING_LOG_CSV_EVENT_LABELS: Record<string, string> = {
   FORM_FILLED: "Form Submitted",
   ONBOARDING_RESET: "Onboarding Reset",
   PROFILE_UPDATED: "Organization Profile Updated",
+  MEMBER_ADDED: "Member Added",
+  MEMBER_INVITED: "Member Invited",
+  MEMBER_REMOVED: "Member Removed",
+  MEMBER_ROLE_CHANGED: "Member Role Changed",
   USER_COMPLETED: "User Completed",
 };
 

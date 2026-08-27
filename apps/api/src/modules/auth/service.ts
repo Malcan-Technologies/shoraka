@@ -817,6 +817,11 @@ export class AuthService {
           lastName: currentUser.last_name,
           phone: currentUser.phone,
         },
+        nextValues: {
+          firstName: updatedUser.first_name,
+          lastName: updatedUser.last_name,
+          phone: updatedUser.phone,
+        },
       },
     });
 

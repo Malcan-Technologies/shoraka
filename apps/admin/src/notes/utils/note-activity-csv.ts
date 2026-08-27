@@ -98,10 +98,21 @@ function noteEventCanonicalReference(event: NoteEvent): string {
       "withdrawalReference",
       "settlementReference",
       "noteReference",
+      "note_reference",
       "displayReference",
     ]) {
       const value = metadata[key];
       if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    const nestedStates = [metadata.beforeState, metadata.afterState];
+    for (const state of nestedStates) {
+      if (state && typeof state === "object" && !Array.isArray(state)) {
+        const record = state as Record<string, unknown>;
+        for (const key of ["noteReference", "note_reference"]) {
+          const value = record[key];
+          if (typeof value === "string" && value.trim()) return value.trim();
+        }
+      }
     }
   }
   return event.targetId ?? event.noteId;

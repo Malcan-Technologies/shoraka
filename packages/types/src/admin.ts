@@ -374,7 +374,11 @@ export type OnboardingEventType =
   | "SSM_APPROVED"
   | "TNC_ACCEPTED"
   | "KYC_APPROVED"
-  | "PROFILE_UPDATED";
+  | "PROFILE_UPDATED"
+  | "MEMBER_ADDED"
+  | "MEMBER_INVITED"
+  | "MEMBER_REMOVED"
+  | "MEMBER_ROLE_CHANGED";
 
 export interface OnboardingLogUser {
   first_name: string;

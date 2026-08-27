@@ -456,6 +456,8 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                   onboardingRequestId: onboarding.request_id,
                   note: "KYC_APPROVED webhook stored kyc_response; onboarding_status and aml_approved unchanged",
                   trigger: "KYC_APPROVED",
+                  previousStatus: org.onboarding_status,
+                  newStatus: org.onboarding_status,
                 },
                 context: webhookAuditContext(),
               });
@@ -524,6 +526,8 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                   onboardingRequestId: onboarding.request_id,
                   note: "KYC_APPROVED webhook stored kyc_response; onboarding_status and aml_approved unchanged",
                   trigger: "KYC_APPROVED",
+                  previousStatus: org.onboarding_status,
+                  newStatus: org.onboarding_status,
                 },
                 context: webhookAuditContext(),
               });

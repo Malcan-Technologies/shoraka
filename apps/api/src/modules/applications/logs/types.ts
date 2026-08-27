@@ -113,6 +113,12 @@ export type CreateApplicationLogParams = {
   portal?: ActivityPortal | null;
   /** Extra fields for review audit (scope, scope_key, old_status, new_status) */
   metadata?: Record<string, unknown>;
+  /** Human display reference (B). Never the application UUID. */
+  applicationReference?: string | null;
+  /** Facility display_reference (B). Distinct from contract_number. */
+  contractReference?: string | null;
+  /** Invoice display_reference (B). Distinct from invoice_number. */
+  invoiceReference?: string | null;
 
   /**
    * Optional forensic context. When supplied it fills IP / user agent / correlation id / source /
@@ -124,4 +130,10 @@ export type CreateApplicationLogParams = {
   source?: AuditSource | null;
   /** Explicit occurred-at. Defaults to the DB `now()` default. */
   createdAt?: Date;
+};
+
+export type IssuerActivityLogContext = {
+  context?: AuditRequestContext | null;
+  ipAddress?: string;
+  userAgent?: string;
 };

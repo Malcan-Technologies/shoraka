@@ -174,4 +174,29 @@ describe("buildNoteActivityCsv", () => {
     );
     expect(row.targetReference).toBe("WDL-ARF-202608-A1Z");
   });
+
+  it("uses a nested historical noteReference for CSV when top-level is absent", () => {
+    const row = noteEventToActivityCsvRow(
+      event({
+        eventType: "NOTE_PUBLISHED",
+        metadata: { afterState: { noteReference: "NT-ARF-202608-K9P" } },
+      })
+    );
+    expect(row.targetReference).toBe("NT-ARF-202608-K9P");
+  });
+
+  it("uses the withdrawal reference for ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED", () => {
+    const row = noteEventToActivityCsvRow(
+      event({
+        eventType: "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED",
+        noteId: "note-internal",
+        targetId: "wdl-internal-id",
+        metadata: {
+          withdrawalId: "wdl-internal-id",
+          withdrawalReference: "WDL-ARF-202608-A1Z",
+        },
+      })
+    );
+    expect(row.targetReference).toBe("WDL-ARF-202608-A1Z");
+  });
 });
