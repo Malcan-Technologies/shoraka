@@ -8,6 +8,7 @@ import {
   formatRoleSwitchedLabel,
   isSystemActorToken,
   presentAuditActorName,
+  presentMarcAssessmentAuditValues,
   productNameFromLogMetadata,
   redactAuditSecrets,
 } from "./audit-presentation";
@@ -32,6 +33,7 @@ describe("audit presentation", () => {
     expect(formatAuditEventLabel("MEMBER_INVITED")).toBe("Member Invited");
     expect(formatAuditEventLabel("MEMBER_REMOVED")).toBe("Member Removed");
     expect(formatAuditEventLabel("MEMBER_ROLE_CHANGED")).toBe("Member Role Changed");
+    expect(formatAuditEventLabel("MARC_ASSESSMENT_SAVED")).toBe("MARC Assessment Saved");
     expect(formatAuditEventLabel("MEMBER_ADDED")).not.toBe("Role Added");
     expect(formatAuditEventLabel("MEMBER_REMOVED")).not.toBe("Role Removed");
   });
@@ -132,6 +134,25 @@ describe("audit presentation", () => {
       next: undefined,
     });
   });
+
+  it("formats MARC previous/next values with business labels", () => {
+    expect(
+      presentMarcAssessmentAuditValues({
+        creditGrade: "SME-3",
+        creditScore: 78.2,
+        probabilityOfDefault: 1.8,
+        reportFileName: "MARC_Report_Aug.pdf",
+        reportDate: "2026-08-25",
+      })
+    ).toEqual({
+      "Credit Grade": "SME-3",
+      "Credit Score": "78.2",
+      "Probability of Default": "1.80%",
+      Report: "MARC_Report_Aug.pdf",
+      "Report Date": "25 Aug 2026",
+    });
+    expect(presentMarcAssessmentAuditValues(null)).toBeNull();
+  });
 });
 
 describe("buildAuditCsv", () => {
@@ -155,5 +176,30 @@ describe("buildAuditCsv", () => {
     expect(lines[0]).toContain("Correlation ID");
     expect(lines[1]).toContain("Overdue Late Charge Checked");
     expect(lines[1]).toContain('""not overdue""');
+  });
+
+  it("exports MARC Assessment Saved with the raw event ID and previous/next metadata", () => {
+    const csv = buildAuditCsv([
+      {
+        timestamp: "2026-08-25T10:15:00.000Z",
+        event: "MARC Assessment Saved",
+        eventType: "MARC_ASSESSMENT_SAVED",
+        actor: "Adam Lee",
+        actorType: "ADMIN",
+        organisation: "ABC Trading",
+        source: "API",
+        targetType: "ORGANIZATION",
+        targetReference: "ISS-202608-DK3",
+        metadata: {
+          previousValues: { creditGrade: "SME-4", creditScore: 65 },
+          nextValues: { creditGrade: "SME-3", creditScore: 74 },
+        },
+      },
+    ]);
+    expect(csv).toContain("MARC Assessment Saved");
+    expect(csv).toContain("MARC_ASSESSMENT_SAVED");
+    expect(csv).toContain("ISS-202608-DK3");
+    expect(csv).toContain("SME-4");
+    expect(csv).toContain("SME-3");
   });
 });

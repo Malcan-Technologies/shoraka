@@ -264,7 +264,7 @@ Investor submits withdrawal (Investor portal)
   → WithdrawalInstruction DRAFT created
 Admin views list / opens detail
   → DRAFT: edit beneficiary, generate letter
-  → LETTER_GENERATED: download, submit to trustee
+  → LETTER_GENERATED: download, regenerate (latest platform settings), submit to trustee
   → SUBMITTED_TO_TRUSTEE: download, mark completed
   → COMPLETED: download only
 ```
@@ -290,7 +290,7 @@ Admin views list / opens detail
 | Status | Actions (requires `investor_withdrawals.manage`) |
 |--------|--------------------------------------------------|
 | DRAFT | Edit beneficiary, Generate letter |
-| LETTER_GENERATED | Download letter, Submit to trustee |
+| LETTER_GENERATED | Download letter, Regenerate letter (latest platform settings), Submit to trustee |
 | SUBMITTED_TO_TRUSTEE | Download letter, Mark completed |
 | COMPLETED | Download letter |
 | CANCELLED | No processing actions |

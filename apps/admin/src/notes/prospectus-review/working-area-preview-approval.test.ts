@@ -159,6 +159,8 @@ describe("Preview & Approval page simplification", () => {
     expect(previewPage).toContain('"page1"');
     expect(previewPage).toContain('"page2"');
     expect(previewPage).toContain('"page3"');
+    expect(previewPage).toContain('"page4"');
+    expect(previewPage).toContain('"page5"');
     expect(previewPage).toContain('"allPages"');
   });
 });

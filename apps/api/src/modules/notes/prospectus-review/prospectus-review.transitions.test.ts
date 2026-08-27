@@ -323,6 +323,20 @@ describe("prospectus workflow transitions", () => {
     await expect(service.assertPublishAllowed("note-1")).rejects.toBeInstanceOf(AppError);
   });
 
+  it("locks saveDraft after funding close so the freeze is not reopened", async () => {
+    mockNoteFindUnique.mockResolvedValue({
+      status: NoteStatus.FUNDING,
+      published_at: new Date("2026-08-24T00:00:00.000Z"),
+    });
+    await expect(
+      service.saveDraft("note-1", { draftContent: completeDraft() }, actor)
+    ).rejects.toMatchObject({
+      code: "PROSPECTUS_PUBLISHED_LOCKED",
+      statusCode: 409,
+    });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
   it("assertPublishAllowed rejects leftover PUBLISHED freeze (unpublish requires re-approve)", async () => {
     mockNoteFindUnique.mockResolvedValue({
       id: "note-1",

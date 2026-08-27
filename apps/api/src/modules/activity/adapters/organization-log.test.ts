@@ -16,10 +16,11 @@ describe("OrganizationLogAdapter", () => {
     expect(adapter.getEventTypes()).toContain("COD_REJECTED");
   });
 
-  it("does not treat organisation membership changes as user-portal onboarding milestones", () => {
+  it("does not treat organisation membership or MARC assessment changes as user-portal onboarding milestones", () => {
     expect(adapter.getEventTypes()).not.toEqual(
       expect.arrayContaining(["MEMBER_ADDED", "MEMBER_INVITED", "MEMBER_REMOVED", "MEMBER_ROLE_CHANGED"])
     );
+    expect(adapter.getEventTypes()).not.toContain("MARC_ASSESSMENT_SAVED");
   });
 
   it("uses the canonical onboarding-rejection copy for COD_REJECTED, without raw webhook/provider details", () => {

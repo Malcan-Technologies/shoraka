@@ -44,7 +44,7 @@ export interface ProspectusPageThreeMetadataAudit {
   };
   riskRating: {
     source: "notes.invoice_snapshot.offer_details.risk_rating";
-    validator: "isSoukscoreRiskRating";
+    validator: "isMarcSmeGrade";
     canvaAtoEMappingAllowed: false;
   };
   paymaster: {
@@ -97,7 +97,7 @@ export const PROSPECTUS_PAGE_THREE_METADATA_AUDIT: ProspectusPageThreeMetadataAu
   },
   riskRating: {
     source: "notes.invoice_snapshot.offer_details.risk_rating",
-    validator: "isSoukscoreRiskRating",
+    validator: "isMarcSmeGrade",
     canvaAtoEMappingAllowed: false,
   },
   paymaster: {

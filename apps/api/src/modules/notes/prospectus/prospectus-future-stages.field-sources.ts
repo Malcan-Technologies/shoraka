@@ -68,8 +68,8 @@
  * - Does not load investor commitments, transactions, documents, live Product, or live Application
  *
  * Publication-state rule (isProspectusNotePublished):
- * - status === PUBLISHED AND published_at != null
- * - Same rule NoteService.publish establishes when freezing prospectus_snapshot
+ * - published_at != null AND status !== DRAFT
+ * - Same freeze NoteService.publish establishes; funding close / servicing keep it
  *
  * Snapshot preference:
  * - Stage 1 description: notes.product_snapshot.description (no live Product fallback)
@@ -346,7 +346,7 @@
  * - No CTOS; no live organization fields; no live invoice/paymaster fallbacks
  *
  * Publication rule (same as Page 1):
- * status === PUBLISHED && published_at != null
+ * published_at != null && status !== DRAFT
  *
  * Page 2 snapshot shape (notes.prospectus_snapshot.page_2):
  * {

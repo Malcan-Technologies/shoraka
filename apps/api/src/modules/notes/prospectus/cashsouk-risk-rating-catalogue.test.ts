@@ -95,11 +95,10 @@ describe("Cashsouk risk rating catalogue", () => {
     }
   });
 
-  it("renders Page 1 selected grade colour and Page 2 full A–F colours", () => {
+  it("keeps the historical A–F catalogue for old records without using it on Page 1", () => {
     const page1 = buildProspectusRiskAssessment({ soukscoreRiskRating: "C" });
-    expect(page1.canva.riskGrade).toBe("C");
-    expect(page1.canva.riskGradeColor).toBe("#FFCF45");
-    expect(page1.canva.riskLabel).toBe("Moderate Risk");
+    expect(page1.canva.riskGrade).toBe("—");
+    expect(page1.canva.riskLabel).not.toBe("Moderate Risk");
 
     const scale = buildProspectusSoukscoreRatingScale({ selectedRiskRating: "C" });
     expect(scale.grades.map((g) => g.grade)).toEqual(["A", "B", "C", "D", "E", "F"]);
@@ -119,8 +118,6 @@ describe("Cashsouk risk rating catalogue", () => {
     expect(html).not.toContain('data-grade="BBB"');
     expect((html.match(/risk-scale-note/g) ?? []).length).toBe(1);
     expect(html).toContain(PROSPECTUS_RISK_SCALE_NOTE);
-    expect(PROSPECTUS_RISK_SCALE_NOTE).toContain(
-      "relative risk classification based on information available at the time of listing"
-    );
+    expect(PROSPECTUS_RISK_SCALE_NOTE).toContain("Appendix A");
   });
 });

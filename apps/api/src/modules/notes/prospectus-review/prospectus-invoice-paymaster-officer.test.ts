@@ -75,14 +75,14 @@ describe("prospectus officer Invoice & Paymaster fields", () => {
       approvalErrors.some(
         (e) =>
           e.path === "page2.invoicePaymaster.paymasterRating" &&
-          e.message === "Paymaster Rating is required before approving the Prospectus."
+          e.message === "Paymaster Grading is required for Page 3 before approving the Prospectus."
       )
     ).toBe(true);
     expect(
       approvalErrors.some(
         (e) =>
           e.path === "page2.invoicePaymaster.confidenceGrading" &&
-          e.message === "Confidence Grading is required before approving the Prospectus."
+          e.message === "Confidence Grading is required for Page 3 before approving the Prospectus."
       )
     ).toBe(true);
   });

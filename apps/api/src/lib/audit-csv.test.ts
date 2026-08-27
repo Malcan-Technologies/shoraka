@@ -1,4 +1,4 @@
-import { redactAuditSecrets, serializeAuditMetadata } from "./audit-csv";
+import { humanizeAuditEventType, redactAuditSecrets, serializeAuditMetadata } from "./audit-csv";
 
 describe("redactAuditSecrets", () => {
   it("redacts secret-shaped keys and leaves business evidence", () => {
@@ -21,5 +21,16 @@ describe("redactAuditSecrets", () => {
     expect(serializeAuditMetadata({ refresh_token: "abc", reason: "ok" })).toBe(
       JSON.stringify({ refresh_token: "[REDACTED]", reason: "ok" })
     );
+  });
+});
+
+describe("humanizeAuditEventType", () => {
+  it("keeps MARC as an acronym for MARC_ASSESSMENT_SAVED", () => {
+    expect(humanizeAuditEventType("MARC_ASSESSMENT_SAVED")).toBe("MARC Assessment Saved");
+    expect(
+      humanizeAuditEventType("MARC_ASSESSMENT_SAVED", {
+        MARC_ASSESSMENT_SAVED: "MARC Assessment Saved",
+      })
+    ).toBe("MARC Assessment Saved");
   });
 });

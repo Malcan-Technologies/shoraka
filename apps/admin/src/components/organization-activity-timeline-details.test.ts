@@ -76,6 +76,19 @@ describe("extractOrganizationTimelineCompactDetails", () => {
       { label: "Role", value: "ORGANIZATION_MEMBER → ORGANIZATION_ADMIN" },
     ]);
   });
+
+  it("surfaces MARC credit-grade change without the organization DB id", () => {
+    expect(
+      extractOrganizationTimelineCompactDetails("MARC_ASSESSMENT_SAVED", {
+        organizationReference: "ISS-202608-DK3",
+        previousValues: { creditGrade: "SME-4" },
+        nextValues: { creditGrade: "SME-3" },
+      })
+    ).toEqual([
+      { label: "Organisation", value: "ISS-202608-DK3" },
+      { label: "Credit grade", value: "SME-4 → SME-3" },
+    ]);
+  });
 });
 
 describe("organizationLogTargetReference", () => {

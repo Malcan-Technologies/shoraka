@@ -101,6 +101,8 @@ export interface GatewayPaymentReceiptSummaryDto {
   currency: string;
   payerName: string | null;
   payerCompanyName: string | null;
+  payerUniqueId: string | null;
+  payerRegistrationNumber: string | null;
   curlecPaymentId: string | null;
   curlecOrderId: string | null;
 }

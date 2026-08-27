@@ -18,6 +18,7 @@ import {
   formatAuditSourceLabel,
   formatRoleSwitchedLabel,
   presentAuditActorName,
+  presentMarcAssessmentAuditValues,
   productNameFromLogMetadata,
   resolveAuditActorType,
 } from "./audit-presentation";
@@ -475,7 +476,15 @@ export function organizationLogToAuditDetail(
     actorName,
     actorUserId: log.user_id,
   });
-  const { previous, next } = extractPreviousNext(log.metadata);
+  const { previous: rawPrevious, next: rawNext } = extractPreviousNext(log.metadata);
+  const previous =
+    log.event_type === "MARC_ASSESSMENT_SAVED"
+      ? (presentMarcAssessmentAuditValues(rawPrevious) ?? rawPrevious)
+      : rawPrevious;
+  const next =
+    log.event_type === "MARC_ASSESSMENT_SAVED"
+      ? (presentMarcAssessmentAuditValues(rawNext) ?? rawNext)
+      : rawNext;
   return {
     id: log.id,
     title: "Event details",
@@ -514,6 +523,12 @@ export function organizationLogToAuditDetail(
       { label: "IP address", value: log.ip_address },
       { label: "Device", value: log.device_info ?? log.device_type },
       { label: "User agent", value: log.user_agent },
+      ...(log.event_type === "MARC_ASSESSMENT_SAVED"
+        ? [
+            { label: "Organization DB ID", value: log.target_id },
+            { label: "Report S3 key", value: pickString(log.metadata, ["reportS3Key"]) },
+          ]
+        : []),
     ]),
     metadata: log.metadata,
     previousValues: previous,

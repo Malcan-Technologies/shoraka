@@ -378,7 +378,8 @@ export type OnboardingEventType =
   | "MEMBER_ADDED"
   | "MEMBER_INVITED"
   | "MEMBER_REMOVED"
-  | "MEMBER_ROLE_CHANGED";
+  | "MEMBER_ROLE_CHANGED"
+  | "MARC_ASSESSMENT_SAVED";
 
 export interface OnboardingLogUser {
   first_name: string;
@@ -662,6 +663,9 @@ export interface OrganizationDetailResponse {
 
   // Sum of funded amounts on ACTIVE notes (issuer portal only)
   activeNotesAmount: number | null;
+
+  /** Latest organization-level MARC assessment (issuer only). */
+  marcAssessment?: import("./marc-credit-grade").MarcAssessmentSnapshot | null;
 
   // RegTank portal link (for viewing in RegTank admin)
   regtankPortalUrl: string | null;

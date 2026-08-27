@@ -293,6 +293,8 @@ export async function getGatewayPaymentDetail(
           currency: payment.receipt.currency,
           payerName: payment.receipt.payer_name,
           payerCompanyName: payment.receipt.payer_company_name,
+          payerUniqueId: payment.receipt.payer_unique_id,
+          payerRegistrationNumber: payment.receipt.payer_registration_number,
           curlecPaymentId: payment.receipt.curlec_payment_id,
           curlecOrderId: payment.receipt.curlec_order_id,
         }

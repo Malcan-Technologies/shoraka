@@ -30,12 +30,13 @@ Admin timestamps use the current Admin format, e.g. `27 Aug 2026, 10:15 AM`.
 
 ## How this relates to the technical catalogue
 
-The technical master counted **138** live IDs because `application_logs.CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` was omitted from its application enum table. Source has a live Admin writer and UI (`contract-section.tsx`). After adding `MEMBER_*` and then classifying `NOTE_FACILITY_FEE_COLLECTION_WAIVED` as historical, this readable file lists **138** live event IDs.
+The technical master counted **139** live IDs because `application_logs.CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` was omitted from its application enum table. Source has a live Admin writer and UI (`contract-section.tsx`). After adding `MEMBER_*`, `MARC_ASSESSMENT_SAVED`, and classifying `NOTE_FACILITY_FEE_COLLECTION_WAIVED` as historical, this readable file lists **139** live event IDs.
 
 After the 2026-08-27 cleanup pass:
 
 - New live IDs: `MEMBER_ADDED`, `MEMBER_INVITED`, `MEMBER_REMOVED`, `MEMBER_ROLE_CHANGED` (Admin organisation Activity only).
-- User-portal organisation Activity remains onboarding milestones. `MEMBER_*` are **not** shown there (**INTENTIONALLY_UNCHANGED**).
+- `MARC_ASSESSMENT_SAVED` is Admin organisation Activity only (issuer MARC assessment save). No notification. Not shown on issuer/investor Activity.
+- User-portal organisation Activity remains onboarding milestones. `MEMBER_*` and `MARC_ASSESSMENT_SAVED` are **not** shown there (**INTENTIONALLY_UNCHANGED**).
 - `OVERRIDE_*` are **not live** (no writer).
 - `FORM_FILLED` does **not** store `section`.
 - Production webhook pending/in-progress/unknown statuses write `ONBOARDING_STATUS_UPDATED`, not `WEBHOOK_*`.
@@ -613,6 +614,23 @@ No live notification types are owned by this module.
 - Export: CSV Event `Member Role Changed`
 - Related notification: none
 - Example (fictional): Mock example — `27 Aug 2026, 10:15 AM` — Nur Aisyah changed a member’s role in ABC Trading Sdn Bhd.
+
+### Event — MARC Assessment Saved
+
+- Raw event ID: `MARC_ASSESSMENT_SAVED`
+- Store: `onboarding_logs`
+- Status: `LIVE_UI`
+- Title shown in Admin: MARC Assessment Saved
+- Title shown to Issuer: Not shown on Issuer Activity
+- Title shown to Investor: Not shown on Investor Activity
+- Description: An Admin recorded a new MARC SME credit assessment for this issuer organisation. Append-only: each save inserts a new assessment row. Distinct from prospectus approval, which freezes MARC into the approved snapshot.
+- Who triggers it: Admin (issuer Organization → MARC Credit Assessment)
+- Important metadata: `updatedBy`, `organizationId`, `organizationReference?`, `updatedFields`, `previousValues` (null on first save), `nextValues` (`creditGrade`, `creditScore`, `probabilityOfDefault`, `reportFileName`, `reportDate`), `reportS3Key?`
+- Canonical evidence: this onboarding_logs row (assessment history also exists in `issuer_organization_marc_assessments`)
+- Where Ops sees it: Admin organisation Activity
+- Export: CSV Event `MARC Assessment Saved` (Event Type remains `MARC_ASSESSMENT_SAVED`)
+- Related notification: none
+- Example (fictional): Mock example — `27 Aug 2026, 10:15 AM` — Admin Adam Lee saved a MARC assessment for ABC Trading Sdn Bhd (SME-4 → SME-3).
 
 ## Notifications
 

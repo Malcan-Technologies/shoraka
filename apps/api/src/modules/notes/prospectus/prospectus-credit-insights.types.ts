@@ -129,6 +129,9 @@ export interface ProspectusCreditInsights {
   creditScore: string;
   paymentBehaviour: string;
   creditUtilisation: string;
+  marcCreditGrade: string;
+  marcCreditScore: string;
+  probabilityOfDefault: string;
   litigationCheck: string;
   ccrisStatus: string;
   /** Static Canva supporting sentence under the five rows. */
@@ -156,6 +159,11 @@ export interface ProspectusCreditInsightsInput {
       string
     >
   >;
+  marcSnapshot?: {
+    creditGrade?: string | null;
+    creditScore?: string | number | null;
+    probabilityOfDefault?: string | number | null;
+  } | null;
   creditContext?: unknown;
   /** Observational CTOS/FICO-like score — must not become Credit Score. */
   ctosScore?: number | null;

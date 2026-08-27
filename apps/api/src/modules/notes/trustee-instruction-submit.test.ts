@@ -328,6 +328,20 @@ describe("trustee instruction submit email wiring", () => {
         })
       );
     });
+
+    it("rejects regeneration after the instruction is submitted to the trustee", async () => {
+      (prisma.noteSettlement.findFirst as jest.Mock).mockResolvedValue({
+        ...settlementRow,
+        settlement_trustee_status: SettlementTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+      });
+
+      await expect(
+        service.generateSettlementTrusteeLetter("note-1", "set-1", actor)
+      ).rejects.toMatchObject({
+        code: "SETTLEMENT_TRUSTEE_LETTER_LOCKED",
+        statusCode: 409,
+      });
+    });
   });
 
   describe("markSettlementTrusteeLetterSubmitted", () => {

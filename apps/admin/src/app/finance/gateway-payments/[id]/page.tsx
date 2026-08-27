@@ -879,10 +879,24 @@ export default function GatewayPaymentDetailPage() {
                                 label={GATEWAY_PAYMENT_COPY.receipt.receiptName}
                                 value={payment.receipt.payerName || "—"}
                               />
+                              {payment.receipt.payerUniqueId ? (
+                                <DetailRow
+                                  label={GATEWAY_PAYMENT_COPY.receipt.receiptUniqueId}
+                                  value={payment.receipt.payerUniqueId}
+                                  mono
+                                />
+                              ) : null}
                               <DetailRow
                                 label={GATEWAY_PAYMENT_COPY.receipt.receiptCompany}
                                 value={payment.receipt.payerCompanyName || "—"}
                               />
+                              {payment.receipt.payerRegistrationNumber ? (
+                                <DetailRow
+                                  label={GATEWAY_PAYMENT_COPY.receipt.receiptRegistrationNumber}
+                                  value={payment.receipt.payerRegistrationNumber}
+                                  mono
+                                />
+                              ) : null}
                               <DetailRow
                                 label={GATEWAY_PAYMENT_COPY.receipt.paymentDate}
                                 value={formatDate(payment.receipt.paymentDate)}

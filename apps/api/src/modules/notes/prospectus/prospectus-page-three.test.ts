@@ -43,7 +43,7 @@ function baseNote(
       industry: "Construction",
     },
     invoice_snapshot: {
-      offer_details: { risk_rating: "B" },
+      offer_details: { risk_rating: "SME-3" },
     },
     paymaster_snapshot: {
       name: "Kementerian Kerja Raya",
@@ -218,6 +218,12 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
           published_at: null,
         })
       ).toBe(false);
+      expect(
+        isProspectusNotePublished({
+          status: NoteStatus.FUNDING,
+          published_at: new Date(),
+        })
+      ).toBe(true);
     });
   });
 
@@ -330,7 +336,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         isPublished: true,
         financialMode: "frozen_publication_snapshot",
         issuerSnapshot: { name: "Old Issuer", industry: "Construction" },
-        invoiceSnapshot: { offer_details: { risk_rating: "A" } },
+        invoiceSnapshot: { offer_details: { risk_rating: "SME-3" } },
         paymasterSnapshot: { name: "Old Paymaster" },
         liveFinancialStatements: null,
           liveCtosFinancials: null,
@@ -382,7 +388,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       );
       expect(page.metadata.metadata).not.toHaveProperty("issuer");
       expect(page.metadata.metadata.sector).toBe("Construction | Medium");
-      expect(page.metadata.metadata.riskRating).toBe("B");
+      expect(page.metadata.metadata.riskRating).toBe("SME-3");
       expect(page.metadata.metadata.paymaster).toBe("Kementerian Kerja Raya");
       expect(page.metadata.metadata.paymasterGrading).toBe("PM1");
       expect(page.metadata.metadata.confidenceGrading).toBe("High");
@@ -515,7 +521,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(SAMPLE_PROSPECTUS_PAGE_THREE).not.toHaveProperty("footer");
     });
 
-    it("assembles one A4 Page 3 in reference order with Stage 5 Trend column only", () => {
+    it("assembles one A4 Page 3 without a Trend column", () => {
       const html = renderProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
       expect(html).toContain('data-page="prospectus-page-three"');
       expect(html.match(/data-page="prospectus-page-three"/g)).toHaveLength(1);
@@ -572,9 +578,9 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         "Additional financial view for investors seeking deeper issuer analysis"
       );
       expect(html).toContain('data-page-subtitle="true"');
-      expect(html).toContain("Trend (3-Yr)");
+      expect(html).not.toContain("Trend (3-Yr)");
       expect(html).not.toContain("FINANCIAL TRENDS");
-      expect((html.match(/class="trend-cell/g) ?? []).length).toBe(10);
+      expect(html).not.toContain("class=\"trend-cell");
       expect(html).not.toMatch(/[↑↓]/);
       expect(html).toContain("comparison-grid");
       expect(html).not.toContain("comparison-row-top");
@@ -622,7 +628,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       const balanceChunk = html.slice(balanceIdx, coverageIdx);
       expect(incomeChunk).not.toContain("Trend (3-Yr)");
       expect(balanceChunk).not.toContain("Trend (3-Yr)");
-      expect(html.slice(coverageIdx)).toContain("Trend (3-Yr)");
+      expect(html.slice(coverageIdx)).not.toContain("Trend (3-Yr)");
     });
   });
 });

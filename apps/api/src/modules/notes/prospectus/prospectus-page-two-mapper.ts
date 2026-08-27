@@ -50,6 +50,7 @@ export type ProspectusPageTwoBuilderInput = {
   liveCtosFinancials: unknown | null;
   /** Parsed frozen Stage 4 — only when published + valid. */
   frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null;
+  marcSnapshot?: import("@cashsouk/types").MarcAssessmentSnapshot | null;
   /**
    * Preview/development publication placeholders only.
    * Prisma Note mapping must leave this undefined.
@@ -181,6 +182,7 @@ export function mapProspectusPageTwoDataToInput(
     liveFinancialStatements,
     liveCtosFinancials,
     frozenFinancialComparison,
+    marcSnapshot: data.marcSnapshot ?? null,
     /** Published Notes: frozen officer content only — never mutable draft / placeholders. */
     publicationContent: isPublished
       ? publicationContentFromFrozenSnapshot(note.prospectus_snapshot)
@@ -221,6 +223,7 @@ export function buildProspectusPageTwo(
     financialComparisonMetrics,
     creditInsights: buildProspectusCreditInsights({
       creditInsightSelections: input.publicationContent?.creditInsightSelections,
+      marcSnapshot: input.marcSnapshot,
     }),
     invoiceWorkNarrative: buildProspectusInvoiceWorkNarrative({
       invoiceWorkStatements: input.publicationContent?.invoiceWorkStatements,

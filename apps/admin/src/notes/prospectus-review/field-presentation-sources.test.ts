@@ -34,8 +34,7 @@ describe("prospectus field presentation — hidden sources", () => {
     expect(pageTwo).not.toContain("Scale Version");
     expect(pageTwo).not.toContain("soukscore-scale.v1");
     expect(pageTwo).toContain("data-prospectus-risk-rating-scale");
-    expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_GRADES");
-    expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_CATALOGUE");
+    expect(pageTwo).toContain("MARC_SME_BANDS");
     expect(pageTwo).toContain("Risk Rating Scale");
     expect(pageTwo).not.toContain("Full A–F Cashsouk scale for reference.");
     expect(pageTwo).toContain("Risk Level");

@@ -78,7 +78,7 @@ import type {
   AdminSeedTypesResponse,
   WithdrawReason,
   AdminCtosReportListItem,
-  SoukscoreRiskRating,
+  MarcSmeGrade,
   RecipientEkycSession,
   RecipientEkycSessionStatus,
   CreateNoteFromApplicationInput,
@@ -146,6 +146,11 @@ import type {
   InvoiceOfferAcceptInput,
   InvoiceOfferAcceptOtpRequestResponse,
   InvoiceOfferAcceptSignatoriesResponse,
+  IssuerPaymasterOption,
+  MarcAssessmentSnapshot,
+  PaymasterAssignmentNotice,
+  PaymasterDetail,
+  PaymasterListItem,
 } from "@cashsouk/types";
 import { parseContentDispositionFilename } from "./content-disposition-filename";
 import { detectClientPortal } from "./detect-client-portal";
@@ -656,6 +661,141 @@ export class ApiClient {
 
   async getAdminNoteDetail(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.get<NoteDetail>(`/v1/admin/notes/${id}`);
+  }
+
+  async getIssuerPaymasters(
+    organizationId: string
+  ): Promise<ApiResponse<{ paymasters: IssuerPaymasterOption[] }> | ApiError> {
+    return this.get(`/v1/issuer/paymasters?organizationId=${encodeURIComponent(organizationId)}`);
+  }
+
+  async listAdminPaymasters(
+    params: {
+      q?: string;
+      mismatchPending?: boolean;
+      page?: number;
+      pageSize?: number;
+    } = {}
+  ): Promise<
+    ApiResponse<{
+      items: PaymasterListItem[];
+      total: number;
+      page: number;
+      pageSize: number;
+    }> | ApiError
+  > {
+    const query = new URLSearchParams();
+    if (params.q) query.set("q", params.q);
+    if (params.mismatchPending) query.set("mismatchPending", "true");
+    query.set("page", String(params.page ?? 1));
+    query.set("pageSize", String(params.pageSize ?? 20));
+    return this.get(`/v1/admin/paymasters?${query.toString()}`);
+  }
+
+  async getAdminPaymasterDetail(id: string): Promise<ApiResponse<PaymasterDetail> | ApiError> {
+    return this.get(`/v1/admin/paymasters/${id}`);
+  }
+
+  async resolveAdminPaymasterMismatch(
+    paymasterId: string,
+    mismatchId: string
+  ): Promise<ApiResponse<PaymasterDetail> | ApiError> {
+    return this.post(`/v1/admin/paymasters/${paymasterId}/mismatches/${mismatchId}/resolve`, {
+      keepExisting: true,
+    });
+  }
+
+  async getIssuerMarcAssessment(
+    issuerOrganizationId: string
+  ): Promise<ApiResponse<{ current: MarcAssessmentSnapshot | null }> | ApiError> {
+    return this.get(`/v1/admin/organizations/issuer/${issuerOrganizationId}/marc`);
+  }
+
+  async createIssuerMarcAssessment(
+    issuerOrganizationId: string,
+    data: {
+      creditGrade?: string;
+      creditScore?: number | null;
+      probabilityOfDefault?: number | null;
+      reportDate?: string | null;
+      reportS3Key?: string | null;
+      reportFileName?: string | null;
+    }
+  ): Promise<ApiResponse<MarcAssessmentSnapshot> | ApiError> {
+    return this.post(`/v1/admin/organizations/issuer/${issuerOrganizationId}/marc`, data);
+  }
+
+  async requestIssuerMarcReportUploadUrl(
+    issuerOrganizationId: string,
+    data: { fileName: string; contentType: string; fileSize: number }
+  ): Promise<
+    ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number; fileName: string }> | ApiError
+  > {
+    return this.post(
+      `/v1/admin/organizations/issuer/${issuerOrganizationId}/marc/upload-url`,
+      data
+    );
+  }
+
+  async getNoteAssignmentNotice(
+    noteId: string
+  ): Promise<ApiResponse<{ notice: PaymasterAssignmentNotice | null }> | ApiError> {
+    return this.get(`/v1/admin/notes/${noteId}/assignment-notice`);
+  }
+
+  async generateNoteAssignmentNotice(
+    noteId: string
+  ): Promise<ApiResponse<PaymasterAssignmentNotice> | ApiError> {
+    return this.post(`/v1/admin/notes/${noteId}/assignment-notice/generate`, {});
+  }
+
+  async markNoteAssignmentNoticeSent(
+    noteId: string
+  ): Promise<ApiResponse<PaymasterAssignmentNotice> | ApiError> {
+    return this.post(`/v1/admin/notes/${noteId}/assignment-notice/mark-sent`, {});
+  }
+
+  async requestNoteAssignmentNoticeUploadUrl(
+    noteId: string,
+    data: {
+      kind: "notice" | "acknowledgement";
+      fileName: string;
+      contentType: string;
+      fileSize: number;
+    }
+  ): Promise<
+    | ApiResponse<{
+        uploadUrl: string;
+        key: string;
+        s3Key: string;
+        fileName: string;
+        expiresIn: number;
+      }>
+    | ApiError
+  > {
+    return this.post(`/v1/admin/notes/${noteId}/assignment-notice/upload-url`, data);
+  }
+
+  async attachNoteAssignmentNoticeFile(
+    noteId: string,
+    data: { kind: "notice" | "acknowledgement"; s3Key: string; fileName: string }
+  ): Promise<ApiResponse<PaymasterAssignmentNotice> | ApiError> {
+    return this.post(`/v1/admin/notes/${noteId}/assignment-notice/attach`, data);
+  }
+
+  async confirmNoteAssignmentNoticeAcknowledgement(
+    noteId: string
+  ): Promise<ApiResponse<PaymasterAssignmentNotice> | ApiError> {
+    return this.post(`/v1/admin/notes/${noteId}/assignment-notice/confirm-acknowledgement`, {});
+  }
+
+  async downloadNoteAssignmentNotice(
+    noteId: string,
+    kind: "notice" | "acknowledgement"
+  ): Promise<ApiResponse<{ downloadUrl: string; expiresIn: number }> | ApiError> {
+    return this.get(
+      `/v1/admin/notes/${noteId}/assignment-notice/download?kind=${encodeURIComponent(kind)}`
+    );
   }
 
   async getAdminNoteSourceInvoices(): Promise<
@@ -1585,7 +1725,7 @@ export class ApiClient {
       offeredRatioPercent?: number | null;
       offeredProfitRatePercent?: number | null;
       platformFeeRatePercent?: number | null;
-      risk_rating: SoukscoreRiskRating;
+      risk_rating: MarcSmeGrade;
       financingTenureDays: number;
       feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode;
       facilityFeeCollectAmount?: number | null;
@@ -2984,6 +3124,7 @@ export class ApiClient {
     data: {
       contract_details?: ContractDetails | null;
       customer_details?: CustomerDetails;
+      selectedPaymasterId?: string | null;
       status?: string;
     }
   ): Promise<ApiResponse<Contract> | ApiError> {

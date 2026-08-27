@@ -141,6 +141,11 @@ describe("AdminService sendInvoiceOffer financing ratio cap", () => {
       service as unknown as { assertNoActiveSigningPackage: jest.Mock }
     ).assertNoActiveSigningPackage = jest.fn();
     (
+      service as unknown as { assertIssuerMarcReadyForInvoiceOffer: jest.Mock }
+    ).assertIssuerMarcReadyForInvoiceOffer = jest
+      .fn()
+      .mockResolvedValue({ creditGrade: "SME-3" });
+    (
       service as unknown as { loadApplicationProductWorkflow: jest.Mock }
     ).loadApplicationProductWorkflow = jest.fn().mockResolvedValue([]);
     (prisma.invoice.findUnique as jest.Mock).mockResolvedValue({
@@ -160,7 +165,7 @@ describe("AdminService sendInvoiceOffer financing ratio cap", () => {
       offeredRatioPercent,
       12,
       0,
-      "A",
+      "SME-3",
       "admin-1",
       undefined,
       undefined,

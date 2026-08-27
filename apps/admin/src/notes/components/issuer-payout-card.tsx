@@ -15,7 +15,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { NoteDetail, WithdrawalInstruction } from "@cashsouk/types";
-import { WithdrawalType, formatNoteReference, formatWithdrawalReference } from "@cashsouk/types";
+import { WithdrawalType, formatNoteReference, formatWithdrawalReference, PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE } from "@cashsouk/types";
 import { StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { DisbursementValueDateField } from "@/notes/components/disbursement-value-date-field";
@@ -67,6 +67,7 @@ import {
   canResendWithdrawalTrusteeEmail,
   getTrusteeResendCopy,
 } from "@/lib/trustee-letter-resend";
+import { getTrusteeRegenerateCopy } from "@/lib/trustee-letter-regenerate";
 import { getTrusteeSubmitCopy } from "@/lib/trustee-letter-submit-copy";
 import {
   BeneficiaryDetailsBlock,
@@ -133,7 +134,7 @@ function withdrawalTrusteeDescription(
   kind: IssuerPayoutKind
 ): string {
   if (status === "LETTER_GENERATED") {
-    return "Trustee instruction letter has been generated. Submit it to the trustee, then mark it as submitted.";
+    return "Trustee instruction letter has been generated. Review it, or regenerate it to pick up the latest platform settings, then submit it to the trustee.";
   }
   if (status === "SUBMITTED_TO_TRUSTEE") {
     return kind === "DISBURSEMENT"
@@ -299,6 +300,8 @@ export function IssuerPayoutCard({
       ) : (
         "Tawarruq Certificate must be fetched before marking issuer disbursement as completed."
       )
+    ) : shouldGateMarkDisbursed && note.paymasterAcknowledgementSatisfied !== true ? (
+      PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE
     ) : null;
 
   const generateLetterDisabledBecauseShoraka =
@@ -317,10 +320,15 @@ export function IssuerPayoutCard({
       ) : (
         "Tawarruq Certificate must be fetched before generating the trustee letter."
       )
+    ) : shouldGateMarkDisbursed && note.paymasterAcknowledgementSatisfied !== true ? (
+      PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE
     ) : null;
 
+  const paymasterAckMissing =
+    shouldGateMarkDisbursed && note.paymasterAcknowledgementSatisfied !== true;
+
   const [confirmAction, setConfirmAction] = React.useState<
-    "generate" | "submit" | "resend" | "complete" | null
+    "generate" | "regenerate" | "submit" | "resend" | "complete" | null
   >(null);
   const [beneficiaryDialogOpen, setBeneficiaryDialogOpen] = React.useState(false);
   const [beneficiaryDraft, setBeneficiaryDraft] = React.useState<BeneficiaryFields>(() =>
@@ -340,6 +348,7 @@ export function IssuerPayoutCard({
   const status = withdrawal.status;
   const trusteeSubmitCopy = getTrusteeSubmitCopy(note.trusteeAutoSendEmailEnabled === true);
   const trusteeResendCopy = getTrusteeResendCopy();
+  const trusteeRegenerateCopy = getTrusteeRegenerateCopy();
   const canResendTrusteeEmail = canResendWithdrawalTrusteeEmail(
     withdrawal.trusteeEmailSentAt,
     status
@@ -386,7 +395,7 @@ export function IssuerPayoutCard({
   const confirmRun = async () => {
     if (!confirmAction) return;
     try {
-      if (confirmAction === "generate") {
+      if (confirmAction === "generate" || confirmAction === "regenerate") {
         if (!beneficiaryComplete) {
           toast.error(
             "Add at least the issuer bank name and account number before generating the letter."
@@ -398,7 +407,11 @@ export function IssuerPayoutCard({
           return;
         }
         await generateLetter.mutateAsync(withdrawal.id);
-        toast.success("Trustee letter generated");
+        toast.success(
+          confirmAction === "regenerate"
+            ? trusteeRegenerateCopy.success
+            : "Trustee letter generated"
+        );
       } else if (confirmAction === "submit") {
         await markSubmitted.mutateAsync(withdrawal.id);
         toast.success(trusteeSubmitCopy.success);
@@ -468,6 +481,12 @@ export function IssuerPayoutCard({
           )} to the issuer. The withdrawal will move to "Letter generated". You can re-edit beneficiary details only while it is still in Draft.`,
           confirmLabel: "Generate Letter",
         }
+      : confirmAction === "regenerate"
+        ? {
+            title: trusteeRegenerateCopy.confirmTitle,
+            description: trusteeRegenerateCopy.description,
+            confirmLabel: trusteeRegenerateCopy.confirmLabel,
+          }
       : confirmAction === "submit"
         ? {
             title: trusteeSubmitCopy.confirmTitle,
@@ -928,6 +947,9 @@ export function IssuerPayoutCard({
         {status === "DRAFT" && generateLetterHelperText ? (
           <p className="mt-2 text-xs text-muted-foreground">{generateLetterHelperText}</p>
         ) : null}
+        {status === "LETTER_GENERATED" && paymasterAckMissing ? (
+          <p className="mt-2 text-xs text-muted-foreground">{PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE}</p>
+        ) : null}
         {status === "SUBMITTED_TO_TRUSTEE" && markDisbursedHelperText ? (
           <p className="mt-2 text-xs text-muted-foreground">{markDisbursedHelperText}</p>
         ) : null}
@@ -1020,13 +1042,36 @@ export function IssuerPayoutCard({
               variant={status === "DRAFT" && !generateLetterDisabledBecauseShoraka ? "default" : "outline"}
               onClick={() => guardedAction(() => setConfirmAction("generate"))}
               disabled={
-                pendingAny || !beneficiaryComplete || generateLetterDisabledBecauseShoraka || !canManage
+                pendingAny ||
+                !beneficiaryComplete ||
+                generateLetterDisabledBecauseShoraka ||
+                paymasterAckMissing ||
+                !canManage
               }
               title={!canManage ? "You do not have permission to perform this action." : undefined}
               className="gap-1.5"
             >
               <DocumentTextIcon className="h-4 w-4" />
               Generate Letter
+            </Button>
+          ) : null}
+          {status === "LETTER_GENERATED" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => guardedAction(() => setConfirmAction("regenerate"))}
+              disabled={
+                pendingAny ||
+                !beneficiaryComplete ||
+                generateLetterDisabledBecauseShoraka ||
+                paymasterAckMissing ||
+                !canManage
+              }
+              title={!canManage ? "You do not have permission to perform this action." : undefined}
+              className="gap-1.5"
+            >
+              <ArrowPathIcon className="h-4 w-4" />
+              {trusteeRegenerateCopy.button}
             </Button>
           ) : null}
           {canResendTrusteeEmail ? (
@@ -1046,7 +1091,7 @@ export function IssuerPayoutCard({
             <Button
               size="sm"
               onClick={() => guardedAction(() => setConfirmAction("submit"))}
-              disabled={pendingAny || !canManage}
+              disabled={pendingAny || paymasterAckMissing || !canManage}
               title={!canManage ? "You do not have permission to perform this action." : undefined}
               className="gap-1.5"
             >
@@ -1066,7 +1111,12 @@ export function IssuerPayoutCard({
                   setConfirmAction("complete");
                 })
               }
-              disabled={pendingAny || markDisbursedDisabledBecauseShoraka || !canManage}
+              disabled={
+                pendingAny ||
+                markDisbursedDisabledBecauseShoraka ||
+                paymasterAckMissing ||
+                !canManage
+              }
               title={!canManage ? "You do not have permission to perform this action." : undefined}
               className="gap-1.5"
             >

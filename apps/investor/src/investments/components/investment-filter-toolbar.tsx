@@ -2,7 +2,7 @@
 
 import {
   MARKETPLACE_TENURE_FILTER_LABELS,
-  SOUKSCORE_RISK_RATING_GRADES,
+  MARC_SME_GRADES,
   marketplaceTenureFilterLabel,
 } from "@cashsouk/types";
 import { ListToolbarFilterTrigger } from "@cashsouk/ui";
@@ -130,7 +130,7 @@ export function InvestmentFilterToolbar({
               onValueChange={(risk) => onChange({ ...filters, risk })}
             >
               <DropdownMenuRadioItem value="all">All risk scores</DropdownMenuRadioItem>
-              {SOUKSCORE_RISK_RATING_GRADES.map((grade) => (
+              {MARC_SME_GRADES.map((grade) => (
                 <DropdownMenuRadioItem key={grade} value={grade}>
                   {grade}
                 </DropdownMenuRadioItem>

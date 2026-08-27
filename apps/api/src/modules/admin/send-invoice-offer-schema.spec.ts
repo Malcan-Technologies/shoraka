@@ -14,28 +14,36 @@ describe("sendInvoiceOfferSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("fails when risk_rating is a legacy AAA–BB grade or otherwise outside A–F", () => {
-    for (const risk_rating of ["AAA", "AA", "BBB", "BB", "A-", "G", "Low Risk"]) {
+  it("fails when risk_rating is a letter grade or otherwise outside SME-1–10", () => {
+    for (const risk_rating of ["A", "B", "C", "D", "E", "F", "AAA", "AA", "SME-11", "Low Risk"]) {
       const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating });
       expect(parsed.success).toBe(false);
     }
   });
 
-  it.each(["A", "B", "C", "D", "E", "F"] as const)(
-    "passes with risk_rating %s",
-    (risk_rating) => {
-      const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating });
-      expect(parsed.success).toBe(true);
-      if (parsed.success) {
-        expect(parsed.data.risk_rating).toBe(risk_rating);
-      }
+  it.each([
+    "SME-1",
+    "SME-2",
+    "SME-3",
+    "SME-4",
+    "SME-5",
+    "SME-6",
+    "SME-7",
+    "SME-8",
+    "SME-9",
+    "SME-10",
+  ] as const)("passes with risk_rating %s", (risk_rating) => {
+    const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.risk_rating).toBe(risk_rating);
     }
-  );
+  });
 
   it("allows platformFeeRatePercent above the default cap for service-level validation", () => {
     const parsed = sendInvoiceOfferSchema.safeParse({
       ...base,
-      risk_rating: "A",
+      risk_rating: "SME-3",
       platformFeeRatePercent: 3.01,
     });
     expect(parsed.success).toBe(true);
@@ -44,7 +52,7 @@ describe("sendInvoiceOfferSchema", () => {
   it("passes with platformFeeRatePercent at cap", () => {
     const parsed = sendInvoiceOfferSchema.safeParse({
       ...base,
-      risk_rating: "A",
+      risk_rating: "SME-3",
       platformFeeRatePercent: 3,
     });
     expect(parsed.success).toBe(true);
@@ -57,7 +65,7 @@ describe("sendInvoiceOfferSchema fee schedule", () => {
     offeredRatioPercent: 70,
     offeredProfitRatePercent: 12,
     financingTenureDays: 90,
-    risk_rating: "A",
+    risk_rating: "SME-3",
   };
 
   it("defaults collect amount and additional fees", () => {

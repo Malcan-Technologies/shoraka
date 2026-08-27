@@ -88,6 +88,16 @@ describe("audit traceability source contracts", () => {
     expect(read("modules/organization/service.ts")).toMatch(/MEMBER_ROLE_CHANGED/);
   });
 
+  it("MARC_ASSESSMENT_SAVED writes organisation previous/next evidence in the same transaction", () => {
+    const src = read("modules/paymaster/service.ts");
+    expect(src).toMatch(/MARC_ASSESSMENT_SAVED/);
+    expect(src).toMatch(/createOnboardingLogRow/);
+    expect(src).toMatch(/\$transaction/);
+    expect(read("modules/paymaster/marc-assessment-audit.ts")).toMatch(/nextValues/);
+    expect(read("modules/paymaster/marc-assessment-audit.ts")).toMatch(/previousValues/);
+    expect(read("modules/paymaster/controller.ts")).toMatch(/auditContextFromRequest\(req, \{ res \}\)/);
+  });
+
   it("signing SENT/COMPLETED snapshot a provider reference when available", () => {
     const src = read("modules/signing/service.ts");
     expect(src).toMatch(/providerEnvelopeId/);

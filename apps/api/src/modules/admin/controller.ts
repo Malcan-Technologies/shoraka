@@ -77,6 +77,7 @@ import {
   getCtosReportByAdminOrg,
 } from "../ctos/ctos-report-service";
 import { renderCtosHtmlToPdfBuffer } from "../ctos/render-ctos-html-to-pdf";
+import { handleCreateIssuerMarc, handleGetIssuerMarc, handleIssuerMarcUploadUrl } from "../paymaster/controller";
 
 const router = Router();
 const adminService = new AdminService();
@@ -683,6 +684,24 @@ router.get(
 );
 
 router.get(
+  "/organizations/issuer/:id/marc",
+  requirePermission("organizations.view"),
+  handleGetIssuerMarc
+);
+
+router.post(
+  "/organizations/issuer/:id/marc/upload-url",
+  requirePermission("organizations.manage"),
+  handleIssuerMarcUploadUrl
+);
+
+router.post(
+  "/organizations/issuer/:id/marc",
+  requirePermission("organizations.manage"),
+  handleCreateIssuerMarc
+);
+
+router.get(
   "/organizations/:portal/:id/linked-records",
   requirePermission("organizations.view"),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -990,6 +1009,7 @@ const ONBOARDING_LOG_CSV_EVENT_LABELS: Record<string, string> = {
   MEMBER_INVITED: "Member Invited",
   MEMBER_REMOVED: "Member Removed",
   MEMBER_ROLE_CHANGED: "Member Role Changed",
+  MARC_ASSESSMENT_SAVED: "MARC Assessment Saved",
   USER_COMPLETED: "User Completed",
 };
 

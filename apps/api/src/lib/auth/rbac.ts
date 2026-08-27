@@ -149,6 +149,30 @@ async function stripRemovedDocumentAuditPermission(prisma: PrismaClient): Promis
   }
 }
 
+async function backfillPaymasterPermissions(prisma: PrismaClient): Promise<void> {
+  const roles = await prisma.adminRoleConfig.findMany({
+    select: { id: true, permissions: true },
+  });
+
+  for (const role of roles) {
+    const nextPermissions = new Set(role.permissions ?? []);
+    let changed = false;
+    if (nextPermissions.has("organizations.view") && !nextPermissions.has("paymasters.view")) {
+      nextPermissions.add("paymasters.view");
+      changed = true;
+    }
+    if (nextPermissions.has("organizations.manage") && !nextPermissions.has("paymasters.manage")) {
+      nextPermissions.add("paymasters.manage");
+      changed = true;
+    }
+    if (!changed) continue;
+    await prisma.adminRoleConfig.update({
+      where: { id: role.id },
+      data: { permissions: Array.from(nextPermissions) },
+    });
+  }
+}
+
 export async function ensureAdminRoleCatalog(prisma: PrismaClient): Promise<void> {
   if (!syncPromise) {
     syncPromise = (async () => {
@@ -156,6 +180,7 @@ export async function ensureAdminRoleCatalog(prisma: PrismaClient): Promise<void
       await stripRemovedDocumentAuditPermission(prisma);
       await backfillInvestorWithdrawalPermissions(prisma);
       await backfillGatewayReconciliationPermissions(prisma);
+      await backfillPaymasterPermissions(prisma);
     })().finally(() => {
       syncPromise = null;
     });

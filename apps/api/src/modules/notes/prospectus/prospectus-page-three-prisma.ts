@@ -6,6 +6,7 @@
 import { NoteStatus, type PrismaClient } from "@prisma/client";
 import { AppError } from "../../../lib/http/error-handler";
 import { isProspectusNotePublished } from "./prospectus-page-one-prisma";
+import { resolveMarcSnapshotForProspectus } from "./prospectus-marc-snapshot";
 
 export { isProspectusNotePublished };
 
@@ -45,6 +46,7 @@ export type ProspectusPageThreeLoadedData = {
    * Same source as Admin Financial Statements / Page 2 Stage 4.
    */
   liveCtosFinancials: unknown | null;
+  marcSnapshot?: import("@cashsouk/types").MarcAssessmentSnapshot | null;
 };
 
 export async function loadProspectusPageThreeNote(
@@ -73,13 +75,14 @@ export async function loadProspectusPageThreeData(
 ): Promise<ProspectusPageThreeLoadedData> {
   const note = await loadProspectusPageThreeNote(db, noteId);
   const published = isProspectusNotePublished(note);
+  const marcSnapshot = await resolveMarcSnapshotForProspectus(note);
 
   if (published) {
-    return { note, liveFinancialStatements: null, liveCtosFinancials: null };
+    return { note, liveFinancialStatements: null, liveCtosFinancials: null, marcSnapshot };
   }
 
   if (!note.source_application_id) {
-    return { note, liveFinancialStatements: null, liveCtosFinancials: null };
+    return { note, liveFinancialStatements: null, liveCtosFinancials: null, marcSnapshot };
   }
 
   const [application, ctosReport] = await Promise.all([
@@ -101,5 +104,6 @@ export async function loadProspectusPageThreeData(
     note,
     liveFinancialStatements: application?.financial_statements ?? null,
     liveCtosFinancials: ctosReport?.financials_json ?? null,
+    marcSnapshot,
   };
 }

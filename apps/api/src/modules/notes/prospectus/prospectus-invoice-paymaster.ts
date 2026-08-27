@@ -80,7 +80,5 @@ export function toAdminInvoicePaymasterRows(
     { label: "Paymaster", value: section.paymasterName },
     { label: "Nature of Paymaster", value: section.paymasterNature },
     { label: "Deed of Assignment (DOA)", value: section.deedOfAssignment },
-    { label: "Paymaster Rating", value: section.paymasterRating },
-    { label: "Confidence Grading", value: section.confidenceGrading },
   ];
 }

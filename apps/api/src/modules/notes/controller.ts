@@ -11,6 +11,7 @@ import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
 import { noteService } from "./service";
 import { shorakaStpService } from "../shoraka-stp/shoraka-stp-service";
+import { registerNoteAssignmentNoticeRoutes } from "../paymaster/controller";
 import {
   applicationIdParamSchema,
   bucketAccountParamSchema,
@@ -103,6 +104,7 @@ export const issuerNotesRouter = Router();
 export const investorNotesRouter = Router();
 
 adminNotesRouter.use(requireRole(UserRole.ADMIN));
+registerNoteAssignmentNoticeRoutes(adminNotesRouter);
 
 adminNotesRouter.get(
   "/",

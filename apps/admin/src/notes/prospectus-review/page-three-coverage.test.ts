@@ -21,7 +21,6 @@ import {
   buildPageThreeMetadataRows,
   buildPageThreeOverviewRows,
   computePageThreeTotalLiabilities,
-  PAGE_THREE_RENDERED_TREND_METRICS,
   pageThreeHidesIssuerIdentity,
   selectPageThreeYears,
 } from "./page-three-coverage";
@@ -44,7 +43,7 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     issuerOrganizationDisplayReference: null,
     issuerName: "Secret Issuer Sdn Bhd",
     paymasterName: "Kementerian Kerja Raya",
-    riskRating: "B",
+    riskRating: "SME-3",
     status: "DRAFT",
     listingStatus: "UNPUBLISHED",
     fundingStatus: "NOT_OPEN",
@@ -89,7 +88,7 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     },
     contractSnapshot: null,
     invoiceSnapshot: {
-      offer_details: { risk_rating: "B" },
+      offer_details: { risk_rating: "SME-3" },
     },
     serviceFeeCustomerScope: null,
     gracePeriodDays: 0,
@@ -177,7 +176,7 @@ describe("page three coverage verification", () => {
       "Confidence Grading",
     ]);
     expect(rows.find((r) => r.label === "Sector")?.value).toBe("Construction | Medium");
-    expect(rows.find((r) => r.label === "Risk Rating")?.value).toBe("B");
+    expect(rows.find((r) => r.label === "Risk Rating")?.value).toBe("SME-3");
     expect(rows.find((r) => r.label === "Paymaster")?.value).toBe("Kementerian Kerja Raya");
     expect(rows.find((r) => r.label === "Paymaster Grading")?.value).toBe("PM2");
     expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe("Medium");
@@ -345,13 +344,21 @@ describe("page three coverage verification", () => {
         },
       }
     );
-    expect(table.rows.map((r) => r.metric)).toEqual([...PAGE_THREE_RENDERED_TREND_METRICS]);
-    expect(table.rows).toHaveLength(10);
-    expect(table.rows.every((r) => r.trend === "—")).toBe(true);
+    expect(table.rows.map((r) => r.metric)).toEqual([
+      "Interest Coverage",
+      "DSCR",
+      "Debt / Equity",
+      "Return on Equity",
+      "Return on Assets",
+      "Receivables Days",
+      "Payables Days",
+      "Asset Turnover",
+    ]);
+    expect(table.rows).toHaveLength(8);
+    expect(table.rows.every((r) => r.trend == null)).toBe(true);
     const fy2024 = 2;
-    expect(table.rows.find((r) => r.metric === "Operating Cash Flow")?.values[fy2024]).toBe(
-      "1.4"
-    );
+    expect(table.rows.find((r) => r.metric === "Operating Cash Flow")).toBeUndefined();
+    expect(table.rows.find((r) => r.metric === "Free Cash Flow")).toBeUndefined();
     expect(table.rows.find((r) => r.metric === "Interest Coverage")?.values[fy2024]).toBe(
       "12.1x"
     );
@@ -415,7 +422,7 @@ describe("page three coverage verification", () => {
     const rows = buildBalanceSheetResolvedRows({ ...yearRaw }, { quickRatio: 1.25 });
     expect(rows.find((r) => r.label === "Total Liabilities")?.value).toContain("250,000");
     expect(buildIncomeStatementResolvedRows({ ...yearRaw }, undefined)).toHaveLength(7);
-    expect(buildCoverageResolvedRows({ ...yearRaw }, undefined)).toHaveLength(10);
+    expect(buildCoverageResolvedRows({ ...yearRaw }, undefined)).toHaveLength(8);
   });
 
   it("uses direct CTOS return_on_equity only for ROE (no PAT/networth fallback)", () => {

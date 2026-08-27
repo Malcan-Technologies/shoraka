@@ -24,7 +24,7 @@ export const SAMPLE_PROSPECTUS_PAGE_ONE_INPUT: ProspectusPageOneBuilderInput = {
     paymasterEntityType: "Federal Government Agency",
   },
   riskAssessment: {
-    soukscoreRiskRating: "A",
+    soukscoreRiskRating: "SME-3",
   },
   mainFinancialTerms: {
     targetAmount: 500_000,

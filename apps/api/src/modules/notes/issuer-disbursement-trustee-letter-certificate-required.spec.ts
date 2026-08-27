@@ -125,5 +125,52 @@ describe("Tawarruq certificate guard (generate-issuer-disbursement trustee lette
 
     expect(prisma.withdrawalInstruction.update).toHaveBeenCalled();
   });
+
+  it("allows regeneration while the letter is still pending trustee submission", async () => {
+    (prisma.withdrawalInstruction.findUnique as jest.Mock).mockResolvedValue({
+      id: "withdrawal-4",
+      status: WithdrawalStatus.LETTER_GENERATED,
+      withdrawal_type: WithdrawalType.ISSUER_RESIDUAL_RETURN,
+      note_id: null,
+      amount: 50,
+      currency: "MYR",
+      beneficiary_snapshot: {},
+      metadata: {},
+      display_reference: "WD-4",
+      gross_funded_amount: null,
+      platform_fee_amount: null,
+      net_issuer_disbursement: null,
+      letter_s3_key: "withdrawal-letters/withdrawal-4/old.pdf",
+    });
+
+    (prisma.withdrawalInstruction.update as jest.Mock).mockResolvedValue({
+      id: "withdrawal-4",
+    });
+
+    await expect(noteService.generateWithdrawalLetter("withdrawal-4", actor)).resolves.toMatchObject({
+      id: "withdrawal-4",
+    });
+
+    expect(prisma.withdrawalInstruction.update).toHaveBeenCalled();
+  });
+
+  it("rejects regeneration after the letter is submitted to the trustee", async () => {
+    (prisma.withdrawalInstruction.findUnique as jest.Mock).mockResolvedValue({
+      id: "withdrawal-5",
+      status: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
+      withdrawal_type: WithdrawalType.ISSUER_RESIDUAL_RETURN,
+      note_id: null,
+      amount: 50,
+      currency: "MYR",
+      beneficiary_snapshot: {},
+    });
+
+    await expect(noteService.generateWithdrawalLetter("withdrawal-5", actor)).rejects.toMatchObject({
+      code: "WITHDRAWAL_LETTER_LOCKED",
+      statusCode: 409,
+    });
+
+    expect(prisma.withdrawalInstruction.update).not.toHaveBeenCalled();
+  });
 });
 

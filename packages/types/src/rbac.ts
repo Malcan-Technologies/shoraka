@@ -38,6 +38,10 @@ export const ADMIN_PERMISSIONS = [
   "organizations.view",
   "organizations.manage",
 
+  // Paymaster master (legal customer / obligor)
+  "paymasters.view",
+  "paymasters.manage",
+
   // Roles / Permission Configuration
   "roles.view",
   "roles.manage",
@@ -237,6 +241,12 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
     label: "Issuers & Investors",
     description: "View and manage issuer and investor records and related statuses.",
     permissions: pickPermissions("organizations.view", "organizations.manage"),
+  },
+  {
+    key: "paymasters",
+    label: "Paymasters",
+    description: "View and review reusable Paymaster (customer/obligor) records and mismatch flags.",
+    permissions: pickPermissions("paymasters.view", "paymasters.manage"),
   },
   {
     key: "audit",

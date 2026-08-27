@@ -9,14 +9,12 @@ import { buildProspectusHeaderHtml } from "./prospectus-header.html";
 import { escapeHtml } from "./prospectus-html";
 import { renderProspectusHeroicon } from "./prospectus-icons";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
-import type { ProspectusPageThreeCoverageEfficiencyRowKey } from "./prospectus-page-three-coverage-efficiency.types";
 import { PROSPECTUS_PAGE_THREE_METADATA_LABELS } from "./prospectus-page-three-metadata.types";
 import type { ProspectusPageThree } from "./prospectus-page-three.types";
 import {
   PROSPECTUS_PAGE_THREE_HEIGHT_MM,
   PROSPECTUS_PAGE_THREE_WIDTH_MM,
 } from "./prospectus-page-three.types";
-import type { ProspectusPageThreeTrendItem } from "./prospectus-page-three-trends.types";
 
 function yearHeaderCells(
   years: Array<{ yearLabel: string; financialYearEndLabel: string }>
@@ -56,49 +54,6 @@ function metricBodyRows(
       return `<tr><td>${escapeHtml(row.label)}</td>${cells}</tr>`;
     })
     .join("\n");
-}
-
-/**
- * Trend cell: Heroicons when an approved direction exists.
- * Colour encodes favourable / unfavourable / context-dependent — never reverse the arrow.
- */
-function renderTrendCell(item: ProspectusPageThreeTrendItem | undefined): string {
-  if (!item?.approved) {
-    return `<td class="trend-cell">${escapeHtml(PROSPECTUS_DATA_NOT_AVAILABLE)}</td>`;
-  }
-
-  const iconName =
-    item.direction === "up"
-      ? "trend-up"
-      : item.direction === "down"
-        ? "trend-down"
-        : item.direction === "neutral"
-          ? "trend-neutral"
-          : null;
-  if (!iconName) {
-    return `<td class="trend-cell">${escapeHtml(PROSPECTUS_DATA_NOT_AVAILABLE)}</td>`;
-  }
-
-  const toneClass =
-    item.interpretation === "favourable"
-      ? "trend-favourable"
-      : item.interpretation === "unfavourable"
-        ? "trend-unfavourable"
-        : "trend-muted";
-
-  const icon = renderProspectusHeroicon(iconName, {
-    className: "trend-icon",
-    title: item.accessibleLabel,
-  });
-
-  return `<td class="trend-cell ${toneClass}" data-trend-direction="${escapeHtml(
-    item.direction
-  )}" data-trend-consistency="${escapeHtml(
-    item.consistency
-  )}" data-trend-interpretation="${escapeHtml(item.interpretation)}">
-  ${icon}
-  <span class="sr-only">${escapeHtml(item.accessibleLabel)}</span>
-</td>`;
 }
 
 function takeawayIcon(key: string): string {
@@ -222,34 +177,25 @@ ${metricBodyRows(balanceSheet.years, balanceSheet.rows)}
 
 function renderCoverage(page: ProspectusPageThree): string {
   const coverage = page.coverageEfficiency;
-  const trendByKey = new Map(
-    page.trends.trends.map((item) => [item.metricKey, item] as const)
+  const visibleRows = coverage.rows.filter(
+    (row) => row.key !== "operating_cash_flow" && row.key !== "free_cash_flow"
   );
 
   const yearHeaders = yearHeaderCells(coverage.years);
   const bodyRows =
     coverage.years.length === 0
-      ? coverage.rows
-          .map((row) => {
-            const trendItem = trendByKey.get(
-              row.key as ProspectusPageThreeCoverageEfficiencyRowKey
-            );
-            return `<tr><td>${escapeHtml(row.label)}</td><td>${escapeHtml(
-              PROSPECTUS_DATA_NOT_AVAILABLE
-            )}</td>${renderTrendCell(trendItem)}</tr>`;
-          })
+      ? visibleRows
+          .map(
+            (row) =>
+              `<tr><td>${escapeHtml(row.label)}</td><td>${escapeHtml(
+                PROSPECTUS_DATA_NOT_AVAILABLE
+              )}</td></tr>`
+          )
           .join("\n")
-      : coverage.rows
+      : visibleRows
           .map((row) => {
-            const cells = row.values
-              .map((value) => `<td>${escapeHtml(value)}</td>`)
-              .join("");
-            const trendItem = trendByKey.get(
-              row.key as ProspectusPageThreeCoverageEfficiencyRowKey
-            );
-            return `<tr><td>${escapeHtml(row.label)}</td>${cells}${renderTrendCell(
-              trendItem
-            )}</tr>`;
+            const cells = row.values.map((value) => `<td>${escapeHtml(value)}</td>`).join("");
+            return `<tr><td>${escapeHtml(row.label)}</td>${cells}</tr>`;
           })
           .join("\n");
 
@@ -260,7 +206,6 @@ function renderCoverage(page: ProspectusPageThree): string {
       <tr>
         <th>Financial Metrics</th>
         ${yearHeaders}
-        <th>Trend (3-Yr)</th>
       </tr>
     </thead>
     <tbody>

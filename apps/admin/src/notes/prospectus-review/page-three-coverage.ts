@@ -8,7 +8,7 @@ import {
   resolveCtosTotalAssetTurnover,
   resolveCtosTotalAssets,
   resolveCtosTotalLiabilities,
-  isSoukscoreRiskRating,
+  isMarcSmeGrade,
   normalizeProspectusCompanySize,
   type NoteDetail,
   type ProspectusFrozenFinancialRaw,
@@ -82,18 +82,6 @@ function formatDays(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return DATA_NOT_AVAILABLE;
   if (Number.isInteger(value)) return String(value);
   return value.toFixed(2).replace(/\.?0+$/, "");
-}
-
-function formatMyrMillions(value: number | null): string {
-  if (value == null || !Number.isFinite(value)) return DATA_NOT_AVAILABLE;
-  if (value === 0) return "0";
-  const millions = value / 1_000_000;
-  const oneDp = millions.toFixed(1);
-  const trimmedOne = oneDp.replace(/\.0$/, "");
-  if (Number(trimmedOne) !== 0) return trimmedOne;
-  const precise = millions.toFixed(10).replace(/\.?0+$/, "");
-  if (precise !== "" && Number(precise) !== 0) return precise;
-  return millions < 0 ? ">-0.000001" : "<0.000001";
 }
 
 function manualDisplay(
@@ -187,7 +175,7 @@ export function buildPageThreeMetadataRows(
   const paymaster = asRecord(note.paymasterSnapshot);
   const invoice = asRecord(note.invoiceSnapshot);
   const offerDetails = asRecord(invoice?.offer_details);
-  const riskRating = isSoukscoreRiskRating(offerDetails?.risk_rating)
+  const riskRating = isMarcSmeGrade(offerDetails?.risk_rating)
     ? offerDetails.risk_rating
     : DATA_NOT_AVAILABLE;
   return [
@@ -235,7 +223,7 @@ export function buildPageThreeAdminOverviewRows(
         : DATA_NOT_AVAILABLE;
   const companySize =
     normalizeProspectusCompanySize(officerFields?.companySize) ?? DATA_NOT_AVAILABLE;
-  const riskRating = isSoukscoreRiskRating(offerDetails?.risk_rating)
+  const riskRating = isMarcSmeGrade(offerDetails?.risk_rating)
     ? offerDetails.risk_rating
     : DATA_NOT_AVAILABLE;
   return [
@@ -325,14 +313,6 @@ export function buildCoverageResolvedRows(
   const dscr = parseNumber(page2Override?.dscr);
   const receivablesDays = parseNumber(page2Override?.receivablesDays);
   return [
-    {
-      label: "Operating Cash Flow",
-      value: formatMyrMillions(parseNumber(manual?.operatingCashFlow)),
-    },
-    {
-      label: "Free Cash Flow",
-      value: formatMyrMillions(parseNumber(manual?.freeCashFlow)),
-    },
     { label: "Interest Coverage", value: formatMultiple(interestCoverage) },
     { label: "DSCR", value: formatMultiple(dscr) },
     {
@@ -459,19 +439,9 @@ export function buildPageThreeCoverageTable(
     manualYears,
     (yearRaw, manual, year) =>
       buildCoverageResolvedRows(yearRaw, manual, page2OverrideForYear(page2Overrides, year)),
-    true
+    false
   );
-  return {
-    ...table,
-    rows: table.rows.map((row) => ({
-      ...row,
-      trend: PAGE_THREE_RENDERED_TREND_METRICS.includes(
-        row.metric as (typeof PAGE_THREE_RENDERED_TREND_METRICS)[number]
-      )
-        ? DATA_NOT_AVAILABLE
-        : undefined,
-    })),
-  };
+  return table;
 }
 
 export function pageThreeHidesIssuerIdentity(rows: CoreTermRow[]): boolean {

@@ -1,4 +1,4 @@
-import type { SoukscoreRiskRating } from "./invoice-offer-risk-rating";
+import type { MarcSmeGrade } from "./marc-credit-grade";
 import type { FacilityFeeCollectionWaiver, InvoiceFeeSchedule } from "./fee-schedule";
 import type { ProfitWindowClassification } from "./tenure-profit";
 import type { ExcessLateChargesDto } from "./excess-late-charges";
@@ -330,7 +330,7 @@ export interface NoteListItem extends NoteMoneySummary {
   issuerOrganizationDisplayReference: string | null;
   issuerName: string | null;
   paymasterName: string | null;
-  riskRating: SoukscoreRiskRating | null;
+  riskRating: MarcSmeGrade | null;
   status: NoteStatus;
   listingStatus: NoteListingStatus;
   fundingStatus: NoteFundingStatus;
@@ -381,6 +381,9 @@ export interface NoteDetail extends NoteListItem {
   prospectusSnapshot: Record<string, unknown> | null;
   issuerSnapshot: Record<string, unknown>;
   paymasterSnapshot: Record<string, unknown> | null;
+  paymasterId?: string | null;
+  assignmentNotice?: import("./paymaster").PaymasterAssignmentNotice | null;
+  paymasterAcknowledgementSatisfied?: boolean;
   contractSnapshot: Record<string, unknown> | null;
   invoiceSnapshot: Record<string, unknown> | null;
   feeSchedule?: InvoiceFeeSchedule | null;
@@ -1143,7 +1146,7 @@ export interface EligibleNoteInvoice {
   invoiceAmount: number;
   offeredAmount: number | null;
   profitRatePercent: number | null;
-  riskRating: SoukscoreRiskRating | null;
+  riskRating: MarcSmeGrade | null;
   maturityDate: string | null;
   invoiceStatus: string;
   applicationStatus: string;

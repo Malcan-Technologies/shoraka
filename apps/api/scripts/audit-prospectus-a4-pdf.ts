@@ -9,6 +9,7 @@ import { mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { chromium } from "playwright";
 import { combineProspectusPagesHtml } from "../src/modules/notes/prospectus/combine-prospectus-pages-html";
+import { buildProspectusPageFourHtml, buildProspectusPageFiveHtml } from "../src/modules/notes/prospectus/prospectus-marc-appendix.html";
 import { buildProspectusPageOneHtml } from "../src/modules/notes/prospectus/prospectus-page-one.html";
 import { SAMPLE_PROSPECTUS_PAGE_ONE } from "../src/modules/notes/prospectus/prospectus-page-one.sample-data";
 import { buildProspectusPageThreeHtml } from "../src/modules/notes/prospectus/prospectus-page-three.html";
@@ -31,7 +32,13 @@ async function main() {
   const page1 = buildProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
   const page2 = buildProspectusPageTwoHtml(SAMPLE_PROSPECTUS_PAGE_TWO);
   const page3 = buildProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
-  const documentHtml = combineProspectusPagesHtml({ page1, page2, page3 });
+  const documentHtml = combineProspectusPagesHtml({
+    page1,
+    page2,
+    page3,
+    page4: buildProspectusPageFourHtml(),
+    page5: buildProspectusPageFiveHtml(),
+  });
 
   writeFileSync(join(OUT_DIR, "document.html"), documentHtml, "utf8");
 
@@ -106,7 +113,7 @@ async function main() {
   }
 
   const pdf = await renderProspectusHtmlToPdfBuffer(documentHtml);
-  const pdfPath = join(OUT_DIR, "prospectus-3-pages.pdf");
+  const pdfPath = join(OUT_DIR, "prospectus-5-pages.pdf");
   writeFileSync(pdfPath, pdf);
   const pageCount = countPdfPages(pdf);
   const pdfLatin = pdf.toString("latin1");

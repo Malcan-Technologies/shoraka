@@ -198,8 +198,8 @@ describe("prospectus Page 2 Invoice & Paymaster Information (DATA STAGE 2)", () 
     expect(html).toContain("Deed of Assignment (DOA)");
     expect(html).not.toContain("Nature of Paymaster:");
     expect(html).not.toContain("Deed of Assignment (DOA):");
-    expect(html).toContain("Paymaster Rating:");
-    expect(html).toContain("Confidence Grading:");
+    expect(html).not.toContain("Paymaster Rating:");
+    expect(html).not.toContain("Confidence Grading:");
 
     expect(html).toContain("RM 625,000.00");
     expect(html).toContain("1 August 2025");

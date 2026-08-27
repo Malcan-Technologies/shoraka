@@ -12,7 +12,8 @@ import {
 } from "@prisma/client";
 import {
   buildProspectusHighlightRecommendations,
-  isSoukscoreRiskRating,
+  isMarcSmeGrade,
+  isNoteProspectusPublished,
   normalizeProspectusWorkflowStatus,
   type ProspectusAboutInvoiceRecommendationInput,
   type ProspectusHighlightRecommendationInput,
@@ -49,6 +50,7 @@ import {
 } from "../prospectus/prospectus-page-two-mapper";
 import { loadProspectusPageTwoData } from "../prospectus/prospectus-page-two-prisma";
 import { buildProspectusPageThreeHtml } from "../prospectus/prospectus-page-three.html";
+import { buildProspectusPageFourHtml, buildProspectusPageFiveHtml } from "../prospectus/prospectus-marc-appendix.html";
 import {
   buildProspectusPageThree,
   mapProspectusPageThreeDataToInput,
@@ -117,7 +119,7 @@ function recommendationInputFromNote(note: {
 }): ProspectusHighlightRecommendationInput {
   const invoice = asRecord(note.invoice_snapshot);
   const offer = asRecord(invoice?.offer_details);
-  const riskRating = isSoukscoreRiskRating(offer?.risk_rating) ? offer.risk_rating : null;
+  const riskRating = isMarcSmeGrade(offer?.risk_rating) ? offer.risk_rating : null;
   const profit =
     note.profit_rate_percent == null ? null : Number(note.profit_rate_percent);
   return {
@@ -230,8 +232,11 @@ async function logProspectusAction(
   });
 }
 
-function isNoteListed(note: { status: NoteStatus }) {
-  return note.status === NoteStatus.PUBLISHED;
+function isNoteListed(note: { status: NoteStatus; published_at: Date | null }) {
+  return isNoteProspectusPublished({
+    status: note.status,
+    publishedAt: note.published_at,
+  });
 }
 
 async function clearApprovalEligibility(
@@ -818,6 +823,8 @@ export class ProspectusReviewService {
       page1: buildProspectusPageOneHtml(page1),
       page2: buildProspectusPageTwoHtml(page2),
       page3: buildProspectusPageThreeHtml(page3),
+      page4: buildProspectusPageFourHtml(),
+      page5: buildProspectusPageFiveHtml(),
     });
 
     // PDF from exact frozen HTML — before APPROVED status; publish never regenerates.
@@ -1010,6 +1017,8 @@ export class ProspectusReviewService {
     const page1Html = buildProspectusPageOneHtml(page1);
     const page2Html = buildProspectusPageTwoHtml(page2);
     const page3Html = buildProspectusPageThreeHtml(page3);
+    const page4Html = buildProspectusPageFourHtml();
+    const page5Html = buildProspectusPageFiveHtml();
 
     return {
       status: meta.status,
@@ -1019,10 +1028,14 @@ export class ProspectusReviewService {
         page1: `${banner}${page1Html}`,
         page2: `${banner}${page2Html}`,
         page3: `${banner}${page3Html}`,
+        page4: `${banner}${page4Html}`,
+        page5: `${banner}${page5Html}`,
         allPages: combineProspectusPagesHtml({
           page1: page1Html,
           page2: page2Html,
           page3: page3Html,
+          page4: page4Html,
+          page5: page5Html,
         }),
       },
     };

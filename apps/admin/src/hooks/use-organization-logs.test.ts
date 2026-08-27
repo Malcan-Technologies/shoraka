@@ -36,6 +36,7 @@ describe("ORGANIZATION_ACTIVITY_EVENT_TYPES — dead filter cleanup", () => {
         "MEMBER_INVITED",
         "MEMBER_REMOVED",
         "MEMBER_ROLE_CHANGED",
+        "MARC_ASSESSMENT_SAVED",
       ])
     );
   });
@@ -57,5 +58,9 @@ describe("ORGANIZATION_ACTIVITY_EVENT_TYPES — dead filter cleanup", () => {
     expect(ORGANIZATION_ACTIVITY_EVENT_TYPES).toEqual(
       expect.arrayContaining(["MEMBER_ADDED", "MEMBER_INVITED", "MEMBER_REMOVED", "MEMBER_ROLE_CHANGED"])
     );
+  });
+
+  it("includes MARC_ASSESSMENT_SAVED so issuer MARC saves appear on Admin Organization Activity", () => {
+    expect(ORGANIZATION_ACTIVITY_EVENT_TYPES).toContain("MARC_ASSESSMENT_SAVED");
   });
 });

@@ -64,6 +64,8 @@ function createDbMock(overrides?: {
     purpose_label: "Issuer Registration Fee",
     payer_name: null,
     payer_company_name: "Issuer Co",
+    payer_unique_id: null,
+    payer_registration_number: "SSM-1",
     payer_email: "issuer@example.com",
     payer_phone: "012",
     amount: { toNumber: () => 150 },
@@ -182,6 +184,11 @@ describe("generateGatewayPaymentReceipt", () => {
     expect(result?.status).toBe(GatewayPaymentReceiptStatus.GENERATED);
     expect(result?.purpose_label).toBe("Issuer Registration Fee");
     expect(renderReceiptHtmlToPdfBuffer).toHaveBeenCalledTimes(1);
+    const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
+    expect(html).toContain("Issuer Co");
+    expect(html).toContain("Registration No.");
+    expect(html).toContain("SSM-1");
+    expect(html).not.toContain("Unique ID");
     expect(putS3ObjectBuffer).toHaveBeenCalledWith(
       expect.objectContaining({
         key: "receipts/2026/08/RCP-20260803-001.pdf",
@@ -347,7 +354,8 @@ describe("generateGatewayPaymentReceipt", () => {
           id: "inv_1",
           type: OrganizationType.COMPANY,
           name: "Org Name Fallback Sdn Bhd",
-          registration_number: null,
+          display_reference: "IVT-202608-C01",
+          registration_number: "202201012345",
           first_name: null,
           middle_name: null,
           last_name: null,
@@ -365,6 +373,10 @@ describe("generateGatewayPaymentReceipt", () => {
     const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
     expect(html).toContain("Onboarding Business Sdn Bhd");
     expect(html).not.toContain("Org Name Fallback Sdn Bhd");
+    expect(html).toContain("Registration No.");
+    expect(html).toContain("202201012345");
+    expect(html).not.toContain("Unique ID");
+    expect(html).not.toContain("IVT-202608-C01");
   });
 
   it("does not use org.name for receipt company when businessName is missing", async () => {
@@ -425,6 +437,7 @@ describe("generateGatewayPaymentReceipt", () => {
           id: "inv_1",
           type: OrganizationType.PERSONAL,
           name: "Display Name",
+          display_reference: "IVT-202608-A12",
           registration_number: null,
           first_name: "Ali",
           middle_name: null,
@@ -442,6 +455,10 @@ describe("generateGatewayPaymentReceipt", () => {
     expect(html).toContain("ALI BIN ABU");
     expect(html).not.toContain("Display Name");
     expect(html).not.toContain(">Company<");
+    expect(html).toContain("Unique ID");
+    expect(html).toContain("IVT-202608-A12");
+    expect(html).not.toContain("inv_1");
+    expect(html).not.toContain("Registration No.");
   });
 
   it("allows first PDF generation for a refunded receipt that never got a PDF", async () => {

@@ -1,4 +1,4 @@
-import type { NoteDetail } from "@cashsouk/types";
+import { isNoteProspectusPublished, type NoteDetail } from "@cashsouk/types";
 import type { WorkflowStatusTone } from "@/notes/utils/workflow-status-tokens";
 
 export type ProspectusNoteDetailPhase = "draft" | "approved" | "published";
@@ -24,7 +24,10 @@ export type ProspectusStatusCardModel = {
 
 /** Pure UI model for Admin Note Detail prospectus next-action card. */
 export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusCardModel {
-  const notePublished = note.status === "PUBLISHED";
+  const notePublished = isNoteProspectusPublished({
+    status: note.status,
+    publishedAt: note.publishedAt,
+  });
   const workflow = note.prospectus?.status;
   const display = note.prospectus?.displayStatus;
 

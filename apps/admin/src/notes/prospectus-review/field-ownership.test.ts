@@ -24,6 +24,9 @@ describe("prospectus working-area field ownership", () => {
     expect(
       (draft.page3 as { paymasterRating?: string }).paymasterRating
     ).toBeUndefined();
+    expect(
+      (draft.page3 as { confidenceGrading?: string }).confidenceGrading
+    ).toBeUndefined();
   });
 
   it("stores IC / DSCR / Receivables Days only under page2 financial overrides", () => {
@@ -112,5 +115,26 @@ describe("prospectus working-area field ownership", () => {
     const missing = buildProspectusMissingRequiredFields(draft);
     expect(missing.some((m) => m.field.includes("Invoices Paid"))).toBe(false);
     expect(missing.some((m) => m.section === "Paymaster Track Record")).toBe(false);
+  });
+
+  it("does not store MARC grade, score, or PD on the prospectus draft", () => {
+    const draft: ProspectusReviewStoredContent = {
+      page1: { keyInvestorHighlights: [] },
+      page2: {
+        creditInsights: {
+          litigationCheckOptionKey: "clear",
+          ccrisStatusOptionKey: "no_record",
+        },
+        invoicePaymaster: {
+          paymasterRating: "PM1",
+          confidenceGrading: "High",
+        },
+        aboutInvoice: { items: [] },
+      },
+      page3: { investorTakeaways: {} },
+    };
+    expect(draft.page2.creditInsights).not.toHaveProperty("marcCreditGrade");
+    expect(draft.page2.creditInsights).not.toHaveProperty("marcConfidenceGrading");
+    expect(draft.page2.invoicePaymaster).not.toHaveProperty("marcPaymasterGrading");
   });
 });

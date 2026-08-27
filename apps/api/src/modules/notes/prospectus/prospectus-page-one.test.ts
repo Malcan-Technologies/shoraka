@@ -32,6 +32,10 @@ import { renderProspectusPageOneHtml } from "./render-prospectus-page-one";
 jest.mock("./prospectus-track-record-query", () => ({
   buildProspectusPage1TrackRecordSnapshot: jest.fn(),
 }));
+jest.mock("./prospectus-marc-snapshot", () => ({
+  resolveMarcSnapshotForProspectus: jest.fn().mockResolvedValue(null),
+  frozenMarcFromProspectusSnapshot: jest.fn().mockReturnValue(null),
+}));
 
 import { buildProspectusPage1TrackRecordSnapshot } from "./prospectus-track-record-query";
 
@@ -60,7 +64,7 @@ function baseNote(
       description: "Frozen product description",
     },
     invoice_snapshot: {
-      offer_details: { risk_rating: "B" },
+      offer_details: { risk_rating: "SME-3" },
     },
     paymaster_snapshot: {
       name: "KKR",
@@ -160,7 +164,16 @@ describe("prospectus Page 1 publication rule", () => {
     ).toBe(true);
   });
 
-  it("does not treat FUNDING or missing published_at as published", () => {
+  it("keeps FUNDING with published_at frozen after funding close", () => {
+    expect(
+      isProspectusNotePublished({
+        status: NoteStatus.FUNDING,
+        published_at: new Date("2025-05-15T00:00:00.000Z"),
+      })
+    ).toBe(true);
+  });
+
+  it("does not treat missing published_at as published", () => {
     expect(
       isProspectusNotePublished({ status: NoteStatus.FUNDING, published_at: null })
     ).toBe(false);
@@ -222,23 +235,25 @@ describe("prospectus Page 1 mapper (Stages 1–6)", () => {
     expect(page.paymasterHighlight.paymasterName).toBe("KKR");
   });
 
-  it("maps valid Cashsouk grade with catalogue copy; unavailable for invalid", async () => {
+  it("maps valid MARC SME grade with official profile; unavailable for letter grades", async () => {
     const valid = await mapProspectusPageOneFromNote(baseNote());
-    expect(valid.riskAssessment.canva.riskGrade).toBe("B");
-    expect(valid.riskAssessment.canva.riskLabel).toBe("Moderate-Low Risk");
-    expect(valid.riskAssessment.canva.riskExplanation).toContain(
-      "generally favourable risk characteristics"
+    expect(valid.riskAssessment.canva.riskGrade).toBe("SME-3");
+    expect(valid.riskAssessment.canva.riskLabel).toBe("Low Risk");
+    expect(valid.riskAssessment.canva.riskExplanation).toBe(
+      "Strong credit strength with low non-repayment risk"
     );
-    expect(valid.riskAssessment.canva.riskGradeColor).toBe("#79CF54");
 
     const invalid = await mapProspectusPageOneFromNote(
       baseNote({
-        invoice_snapshot: { offer_details: { risk_rating: "AAA" } },
+        invoice_snapshot: { offer_details: { risk_rating: "B" } },
       })
     );
     expect(invalid.riskAssessment.canva.riskGrade).toBe("—");
     expect(invalid.riskAssessment.canva.riskLabel).toBe("—");
     expect(invalid.riskAssessment.canva.riskExplanation).toBe("—");
+    expect(invalid.riskAssessment.canva.riskExplanation).not.toContain(
+      "generally favourable risk characteristics"
+    );
   });
 
   it("maps target amount, profit rate, and platform minimum", async () => {
@@ -554,6 +569,31 @@ describe("prospectus Page 1 assembly and HTML", () => {
     expect(html).not.toContain("Investment are subjects");
   });
 
+  it("renders MARC SME grade and official Risk Profile on the Page 1 risk card", () => {
+    const page = buildProspectusPageOne({
+      ...SAMPLE_PROSPECTUS_PAGE_ONE_INPUT,
+      riskAssessment: {
+        soukscoreRiskRating: "SME-4",
+      },
+    });
+    expect(page.riskAssessment.canva.riskGrade).toBe("SME-4");
+    expect(page.riskAssessment.canva.riskLabel).toBe("Low Risk");
+    expect(page.riskAssessment.canva.riskExplanation).toBe(
+      "Strong credit strength with moderate non-repayment risk"
+    );
+    expect(page.riskAssessment.canva.marcCreditScoreDisplay).toBeNull();
+    expect(page.riskAssessment.canva.marcProbabilityOfDefaultDisplay).toBeNull();
+    const html = renderProspectusPageOneHtml(page);
+    expect(html).toContain('data-grade="SME-4"');
+    expect(html).toContain("SME-4");
+    expect(html).toContain("Strong credit strength with moderate non-repayment risk");
+    expect(html).not.toContain("Credit Score:");
+    expect(html).not.toContain("Probability of Default:");
+    expect(html).not.toContain("typical SME and transaction-level risks");
+    expect(html).not.toContain('data-grade="C"');
+    expect(html).not.toContain('data-grade="A"');
+  });
+
   it("renders Closing Date in the Page 1 hero after Listing Date and before Maturity Date", () => {
     const html = renderProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
     const listingIdx = html.indexOf("<b>Listing Date</b>");
@@ -645,7 +685,7 @@ describe("prospectus Page 1 builder input money edge cases", () => {
         paymasterName: "P",
         paymasterEntityType: "T",
       },
-      riskAssessment: { soukscoreRiskRating: "A" },
+      riskAssessment: { soukscoreRiskRating: "SME-3" },
       mainFinancialTerms: { targetAmount: 3_500_000, profitRatePercent: 10 },
       timingPurpose: {
         listingOpensAt: "2025-01-01T00:00:00.000Z",

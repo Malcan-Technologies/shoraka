@@ -11,6 +11,7 @@ import {
   UsersIcon,
   UserGroupIcon,
   BuildingOffice2Icon,
+  IdentificationIcon,
   ArrowTrendingUpIcon,
   ClipboardDocumentListIcon,
   CheckBadgeIcon,
@@ -289,6 +290,7 @@ const gatewayItems: Array<{
 const navDirectory = [
   { title: "User Accounts", url: "/accounts", icon: UsersIcon, access: "users" },
   { title: "Issuers", url: "/issuers", icon: BuildingOffice2Icon, access: "organizations" },
+  { title: "Paymasters", url: "/paymasters", icon: IdentificationIcon, access: "paymasters" },
   { title: "Investors", url: "/investors", icon: UserGroupIcon, access: "organizations" },
   { title: "Legal Documents", url: "/legal-documents", icon: ScaleIcon, access: "documents" },
 ] as const;
@@ -404,6 +406,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const canViewUsers = can("users.view");
   const canViewOrganizations = can("organizations.view");
+  const canViewPaymasters = can("paymasters.view");
   const canViewDocuments = can("document_management.view");
 
   const canViewNotifications = can("notifications.view");
@@ -515,7 +518,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     moneyMovementNav.some((item) => item.canShow) ||
     gatewayNav.some((item) => item.canShow);
 
-  const hasVisibleDirectoryNav = canViewUsers || canViewOrganizations || canViewDocuments;
+  const hasVisibleDirectoryNav =
+    canViewUsers || canViewOrganizations || canViewPaymasters || canViewDocuments;
 
   const settingsItems = navSettings.filter((item) => {
     if (item.url === "/settings/roles") return canViewRoles;
@@ -760,6 +764,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   const canShow =
                     (item.access === "users" && canViewUsers) ||
                     (item.access === "organizations" && canViewOrganizations) ||
+                    (item.access === "paymasters" && canViewPaymasters) ||
                     (item.access === "documents" && canViewDocuments);
                   if (!canShow) return null;
                   const Icon = item.icon;

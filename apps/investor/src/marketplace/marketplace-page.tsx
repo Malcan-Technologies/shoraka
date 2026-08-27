@@ -16,7 +16,7 @@ import {
   useHeader,
 } from "@cashsouk/ui";
 import {
-  SOUKSCORE_RISK_RATING_GRADES,
+  MARC_SME_GRADES,
   isNoteMoneyAmount,
   type MarketplaceListingFilter,
 } from "@cashsouk/types";
@@ -90,7 +90,7 @@ function filtersFromSearchParams(params: URLSearchParams): MarketplaceNoteFilter
         : "all",
     risk:
       riskParam &&
-      SOUKSCORE_RISK_RATING_GRADES.includes(riskParam as (typeof SOUKSCORE_RISK_RATING_GRADES)[number])
+      MARC_SME_GRADES.includes(riskParam as (typeof MARC_SME_GRADES)[number])
         ? riskParam
         : "all",
     profit: profitParam && ["low", "mid", "high"].includes(profitParam) ? profitParam : "all",

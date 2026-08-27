@@ -415,6 +415,9 @@ model IssuerOrganization {
   ctos_reports                 CtosReport[]
   ctos_party_supplements       CtosPartySupplement[]
   signingcloud_ekyc_sessions   SigningCloudEkyc[]
+  paymaster_links              IssuerPaymasterLink[]
+  marc_assessments             IssuerOrganizationMarcAssessment[]
+  assignment_notices           PaymasterAssignmentNotice[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
@@ -682,9 +685,13 @@ model Contract {
   signing_envelopes           SigningEnvelope[]
   gateway_payments            GatewayPayment[]
   offer_accept_otp_challenges OfferAcceptOtpChallenge[]
+  paymaster_id               String?
+  paymaster                  Paymaster?         @relation(fields: [paymaster_id], references: [id], onDelete: SetNull)
+  assignment_notices         PaymasterAssignmentNotice[]
 
   @@index([originating_application_id])
   @@index([display_reference])
+  @@index([paymaster_id])
   @@map("contracts")
 }
 
@@ -703,6 +710,7 @@ model Invoice {
   contract                      Contract?                 @relation(fields: [contract_id], references: [id])
   signing_envelopes             SigningEnvelope[]
   offer_accept_otp_challenges   OfferAcceptOtpChallenge[]
+  assignment_notices            PaymasterAssignmentNotice[]
 
   @@index([contract_id])
   @@index([application_id])
@@ -895,6 +903,7 @@ model Note {
   purpose_snapshot                Json?
   prospectus_snapshot             Json?
   issuer_snapshot                 Json
+  paymaster_id                    String?
   paymaster_snapshot              Json?
   contract_snapshot               Json?
   invoice_snapshot                Json?
@@ -940,10 +949,13 @@ model Note {
   prospectus_review               NoteProspectusReview?
   prospectus_publications         NoteProspectusPublication[]
   gateway_payments                GatewayPayment[]
+  paymaster                       Paymaster?                  @relation(fields: [paymaster_id], references: [id], onDelete: SetNull)
+  assignment_notices              PaymasterAssignmentNotice[]
 
   @@index([source_application_id])
   @@index([source_contract_id])
   @@index([issuer_organization_id])
+  @@index([paymaster_id])
   @@index([status])
   @@index([listing_status])
   @@index([funding_status])
@@ -1014,6 +1026,130 @@ model NoteProspectusPublication {
   @@index([published_at])
   @@index([pdf_storage_key])
   @@map("note_prospectus_publications")
+}
+
+/// Reusable legal customer / obligor. Not exclusive to one issuer.
+model Paymaster {
+  id                   String                    @id @default(cuid())
+  legal_name           String
+  registration_number  String
+  registration_country String                    @default("MY")
+  entity_type          String
+  mismatch_pending     Boolean                   @default(false)
+  source               String                    @default("ISSUER_APPLICATION")
+  created_at           DateTime                  @default(now())
+  updated_at           DateTime                  @updatedAt
+  issuer_links         IssuerPaymasterLink[]
+  contracts            Contract[]
+  notes                Note[]
+  mismatches           PaymasterMismatch[]
+  assignment_notices   PaymasterAssignmentNotice[]
+
+  @@unique([registration_number])
+  @@index([legal_name])
+  @@index([mismatch_pending])
+  @@map("paymasters")
+}
+
+/// Issuer–paymaster relationship. Related-party is stored here, not on Paymaster.
+model IssuerPaymasterLink {
+  id                     String             @id @default(cuid())
+  issuer_organization_id String
+  paymaster_id           String
+  is_related_party       Boolean?
+  last_used_at           DateTime           @default(now())
+  created_at             DateTime           @default(now())
+  updated_at             DateTime           @updatedAt
+  issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  paymaster              Paymaster          @relation(fields: [paymaster_id], references: [id], onDelete: Cascade)
+
+  @@unique([issuer_organization_id, paymaster_id])
+  @@index([paymaster_id])
+  @@index([issuer_organization_id, last_used_at])
+  @@map("issuer_paymaster_links")
+}
+
+model PaymasterMismatch {
+  id                     String                   @id @default(cuid())
+  paymaster_id           String
+  application_id         String?
+  contract_id            String?
+  submitted_legal_name   String
+  submitted_entity_type  String
+  submitted_country      String
+  existing_legal_name    String
+  existing_entity_type   String
+  existing_country       String
+  status                 PaymasterMismatchStatus  @default(PENDING)
+  resolved_at            DateTime?
+  resolved_by_user_id    String?                  @db.VarChar(5)
+  created_at             DateTime                 @default(now())
+  paymaster              Paymaster                @relation(fields: [paymaster_id], references: [id], onDelete: Cascade)
+
+  @@index([paymaster_id, status])
+  @@index([application_id])
+  @@map("paymaster_mismatches")
+}
+
+/// Organization-level MARC assessment. Latest row is current. Historical rows stay for audit.
+model IssuerOrganizationMarcAssessment {
+  id                     String             @id @default(cuid())
+  issuer_organization_id String
+  credit_grade           String
+  credit_score           Decimal?           @db.Decimal(7, 2)
+  probability_of_default Decimal?           @db.Decimal(7, 4)
+  report_s3_key          String?
+  report_file_name       String?
+  report_date            DateTime?
+  created_by_user_id     String             @db.VarChar(5)
+  created_at             DateTime           @default(now())
+  issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+
+  @@index([issuer_organization_id, created_at(sort: Desc)], map: "marc_assessments_org_created_idx")
+  @@map("issuer_organization_marc_assessments")
+}
+
+/// Notice of Assignment + written paymaster acknowledgement. Owned by invoice (fresh per invoice) with optional contract/note links.
+model PaymasterAssignmentNotice {
+  id                                  String                            @id @default(cuid())
+  paymaster_id                        String
+  issuer_organization_id              String
+  contract_id                         String?
+  invoice_id                          String?
+  note_id                             String?
+  status                              PaymasterAssignmentNoticeStatus   @default(GENERATED)
+  version                             Int                               @default(1)
+  notice_s3_key                       String?
+  notice_file_name                    String?
+  notice_sha256                       String?
+  generated_at                        DateTime?
+  generated_by_user_id                String?                           @db.VarChar(5)
+  sent_at                             DateTime?
+  sent_by_user_id                     String?                           @db.VarChar(5)
+  acknowledgement_s3_key              String?
+  acknowledgement_file_name           String?
+  acknowledgement_uploaded_at         DateTime?
+  acknowledgement_uploaded_by_user_id String?                           @db.VarChar(5)
+  acknowledged_at                     DateTime?
+  acknowledged_by_user_id             String?                           @db.VarChar(5)
+  generation_error                    String?
+  template_pending                    Boolean                           @default(true)
+  metadata                            Json?
+  created_at                          DateTime                          @default(now())
+  updated_at                          DateTime                          @updatedAt
+  paymaster                           Paymaster                         @relation(fields: [paymaster_id], references: [id], onDelete: Restrict)
+  issuer_organization                 IssuerOrganization                @relation(fields: [issuer_organization_id], references: [id], onDelete: Restrict)
+  contract                            Contract?                         @relation(fields: [contract_id], references: [id], onDelete: SetNull)
+  invoice                             Invoice?                          @relation(fields: [invoice_id], references: [id], onDelete: SetNull)
+  note                                Note?                             @relation(fields: [note_id], references: [id], onDelete: SetNull)
+
+  @@index([paymaster_id])
+  @@index([issuer_organization_id])
+  @@index([contract_id])
+  @@index([invoice_id])
+  @@index([note_id])
+  @@index([status])
+  @@map("paymaster_assignment_notices")
 }
 
 model NoteListing {
@@ -1405,10 +1541,12 @@ model GatewayPaymentReceipt {
   gateway_payment_id  String                      @unique
   payment_purpose     GatewayPaymentPurpose
   purpose_label       String
-  payer_name          String?
-  payer_company_name  String?
-  payer_email         String?
-  payer_phone         String?
+  payer_name                String?
+  payer_company_name        String?
+  payer_unique_id           String?
+  payer_registration_number String?
+  payer_email               String?
+  payer_phone               String?
   amount              Decimal                     @db.Decimal(18, 6)
   currency            String                      @default("MYR")
   payment_method      String?
@@ -2643,4 +2781,17 @@ enum NotificationPortalTarget {
 enum NotificationLogSource {
   ADMIN
   SYSTEM
+}
+
+enum PaymasterMismatchStatus {
+  PENDING
+  RESOLVED
+}
+
+enum PaymasterAssignmentNoticeStatus {
+  GENERATED
+  SENT
+  ACKNOWLEDGEMENT_UPLOADED
+  ACKNOWLEDGED
+  FAILED
 }
