@@ -57,6 +57,7 @@ const APPLICATION_AUDIT_EVENT_LABELS: Record<string, string> = {
   MEMBER_INVITED: "Member Invited",
   MEMBER_REMOVED: "Member Removed",
   MEMBER_ROLE_CHANGED: "Member Role Changed",
+  MARC_ASSESSMENT_SAVED: "MARC Assessment Saved",
 };
 
 export function formatAuditEventLabel(
@@ -133,6 +134,40 @@ export function formatAuditScalar(value: unknown): string {
     return value;
   }
   return compactAuditMetadata(value);
+}
+
+const MARC_ASSESSMENT_AUDIT_FIELD_LABELS: Record<string, string> = {
+  creditGrade: "Credit Grade",
+  creditScore: "Credit Score",
+  probabilityOfDefault: "Probability of Default",
+  reportFileName: "Report",
+  reportDate: "Report Date",
+};
+
+function formatMarcAssessmentAuditField(field: string, value: unknown): string {
+  if (value == null || value === "") return "—";
+  if (field === "probabilityOfDefault") {
+    const n = Number(value);
+    if (Number.isFinite(n)) return `${n.toFixed(2)}%`;
+    const text = String(value).trim();
+    return text.endsWith("%") ? text : `${text}%`;
+  }
+  if (field === "reportDate") {
+    return formatAuditScalar(String(value)) || String(value);
+  }
+  return formatAuditScalar(value) || "—";
+}
+
+/** Business-friendly previous/next display for MARC_ASSESSMENT_SAVED Event Details. */
+export function presentMarcAssessmentAuditValues(value: unknown): Record<string, string> | null {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const [field, label] of Object.entries(MARC_ASSESSMENT_AUDIT_FIELD_LABELS)) {
+    if (!(field in record)) continue;
+    out[label] = formatMarcAssessmentAuditField(field, record[field]);
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 export type AuditChangedField = { field: string; before: string; after: string };

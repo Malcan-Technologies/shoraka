@@ -2,6 +2,7 @@ import { NextFunction, Request, Response, Router } from "express";
 import { UserRole } from "@prisma/client";
 import { z } from "zod";
 import { requireAuth, requirePermission, requireRole } from "../../lib/auth/middleware";
+import { auditContextFromRequest } from "../../lib/audit";
 import { AppError } from "../../lib/http/error-handler";
 import { OrganizationRepository } from "../organization/repository";
 import {
@@ -158,6 +159,7 @@ export async function handleCreateIssuerMarc(req: Request, res: Response, next: 
         reportDate: body.reportDate,
         reportS3Key: body.reportS3Key,
         reportFileName: body.reportFileName,
+        context: auditContextFromRequest(req, { res }),
       }),
       201
     );

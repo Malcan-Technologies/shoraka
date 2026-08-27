@@ -12,6 +12,7 @@ Verified: **2026-08-27** against the working tree, then updated after the **2026
 - `FORM_FILLED` metadata is `requestId`, `status`, `substatus`, `payload` (service path) or org/status/trigger keys (individual handler). **`section` is not written.**
 - Onboarding `PROFILE_UPDATED` stores changed-field `previousValues`/`nextValues`, nested `corporateOnboardingData.*`, and `organizationReference`. Self-service org profile also writes this ID.
 - New live IDs: `MEMBER_ADDED`, `MEMBER_INVITED`, `MEMBER_REMOVED`, `MEMBER_ROLE_CHANGED` (Admin organisation Activity). User-portal Activity **does not** include them (**INTENTIONALLY_UNCHANGED**).
+- `MARC_ASSESSMENT_SAVED` is a live Admin organisation Activity event (`onboarding_logs`) written when an Admin saves an issuer MARC assessment. Notification: none. User-portal Activity **does not** include it.
 - Production `handleWebhookUpdate` skips `WEBHOOK_APPROVED` when `ONBOARDING_APPROVED` already ran; pending/in-progress/unknown statuses write `ONBOARDING_STATUS_UPDATED`. `WEBHOOK_REJECTED` remains. Dev handler still uses `WEBHOOK_*`.
 - Facility-fee waive now writes **one** live `note_events` row: `WAIVE_FACILITY_FEE_COLLECTION` (`beforeState`/`afterState` + `reason`). `NOTE_FACILITY_FEE_COLLECTION_WAIVED` is **HISTORICAL**.
 - Shoraka `target_id` is the CashSouk trade-order id. `provider_order_id` remains metadata C.
@@ -32,7 +33,7 @@ Older files that previously claimed “current” lookup (`audit-event-surface-m
 |---|---:|---:|---:|---:|
 | `access_logs` | 13 | 4 | 3 | 6 |
 | `security_logs` | 10 | 10 | 0 | 0 |
-| `onboarding_logs` | 22 | 17 | 2 | 3 |
+| `onboarding_logs` | 23 | 18 | 2 | 3 |
 | `application_logs` | 45 | 43 | 0 | 2 |
 | `note_events` (CSV map, aliases collapsed) | 44 | 43 | 0 | 1 |
 | `legal_document_audit_logs` | 7 | 7 | 0 | 0 |
@@ -40,12 +41,12 @@ Older files that previously claimed “current” lookup (`audit-event-surface-m
 | `product_logs` | 5 | 3 | 2 | 0 |
 | `gateway_payment_events` | 11 | 8 | 0 | 3 |
 | `notification_logs` | batch store, not business event IDs | — | — | — |
-| **Total event IDs** | **160** | **138** | **7** | **15** |
+| **Total event IDs** | **161** | **139** | **7** | **15** |
 | Notification types (`seed-data.ts` = `NotificationTypeIds`) | 49 | 49 | 0 | 0 |
 
 `notification_logs` rows are delivery batches (`ADMIN` / `SYSTEM`), not a second copy of the business event.
 
-The application enum table below omits live Admin writer `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` (`contract-section.tsx`). Live onboarding includes four `MEMBER_*` IDs (Admin UI; not user-portal Activity). `OVERRIDE_*` are DEAD (no writer). `NOTE_FACILITY_FEE_COLLECTION_WAIVED` is HISTORICAL. This table’s live count is **138**.
+The application enum table below omits live Admin writer `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` (`contract-section.tsx`). Live onboarding includes four `MEMBER_*` IDs (Admin UI; not user-portal Activity) plus `MARC_ASSESSMENT_SAVED` (Admin UI; not user-portal Activity). `OVERRIDE_*` are DEAD (no writer). `NOTE_FACILITY_FEE_COLLECTION_WAIVED` is HISTORICAL. This table’s live count is **139**.
 
 ---
 
@@ -230,6 +231,7 @@ Portal Activity allowlist (`organization-log.ts` `getEventTypes`): `ONBOARDING_S
 | `MEMBER_INVITED` | Member Invited | not in portal allowlist | Invitation created | Org admin/owner | `organizationId`, `memberEmail`, `newRole`, `invitationId` | none | LIVE_UI |
 | `MEMBER_REMOVED` | Member Removed | not in portal allowlist | Member removed | Org admin/owner | `organizationId`, `memberUserId`, `previousRole` | none | LIVE_UI |
 | `MEMBER_ROLE_CHANGED` | Member Role Changed | not in portal allowlist | Member role changed | Org admin/owner | `organizationId`, `memberUserId`, `previousRole`, `newRole` | none | LIVE_UI |
+| `MARC_ASSESSMENT_SAVED` | MARC Assessment Saved | not in portal allowlist | Admin recorded a new issuer MARC SME credit assessment (append-only) | Admin Organization MARC card | `updatedBy`, `organizationId`, `organizationReference?`, `updatedFields`, `previousValues` (null on first), `nextValues`, `reportS3Key?` | none | LIVE_UI |
 | `ONBOARDING_RESET` | Onboarding Reset | — | Same unreachable reset as access; **not** in org-timeline query allowlist | Route-only | `resetBy`, `previousStatus`, `newStatus` | none | UNREACHABLE |
 | `TNC_ACCEPTED` / `KYC_APPROVED` | CSV/Admin labels exist; **not** in org query | not queried | No production writer as `event_type` (`TNC_APPROVED` and `ONBOARDING_STATUS_UPDATED` + `trigger:"KYC_APPROVED"` are live instead) | — | — | — | DEAD |
 | `USER_COMPLETED` | User Completed (CSV/Admin label) | not in org query | Replaced by `FINAL_APPROVAL_COMPLETED`. Remaining writer: `regtank/webhook-handler-dev.ts` | Dev webhook | — | none | DEV_ONLY |

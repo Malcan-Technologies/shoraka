@@ -1009,6 +1009,7 @@ const ONBOARDING_LOG_CSV_EVENT_LABELS: Record<string, string> = {
   MEMBER_INVITED: "Member Invited",
   MEMBER_REMOVED: "Member Removed",
   MEMBER_ROLE_CHANGED: "Member Role Changed",
+  MARC_ASSESSMENT_SAVED: "MARC Assessment Saved",
   USER_COMPLETED: "User Completed",
 };
 

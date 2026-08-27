@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { UserRole, type Prisma } from "@prisma/client";
 import {
   MARC_ASSESSMENT_REQUIRED_MESSAGE,
   MARC_CREDIT_SCORE_RANGE_MESSAGE,
@@ -17,8 +17,18 @@ import {
   type PaymasterListItem,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
+import {
+  createOnboardingLogRow,
+  type AuditRequestContext,
+} from "../../lib/audit";
+import { snapshotBusinessReference } from "../../lib/audit/display-references";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
+import {
+  MARC_ASSESSMENT_SAVED,
+  buildMarcAssessmentAuditMetadata,
+  marcAssessmentAuditValues,
+} from "./marc-assessment-audit";
 import { generatePresignedUploadUrl, validateDocument } from "../../lib/s3/client";
 import {
   describePaymasterMismatch,
@@ -587,6 +597,7 @@ export async function createMarcAssessment(params: {
   reportDate?: string | null;
   reportS3Key?: string | null;
   reportFileName?: string | null;
+  context?: AuditRequestContext | null;
 }): Promise<MarcAssessmentSnapshot> {
   const score = parseMarcCreditScore(params.creditScore);
   if (!score.ok) {
@@ -614,19 +625,68 @@ export async function createMarcAssessment(params: {
     throw new AppError(400, "VALIDATION_ERROR", MARC_REPORT_DATE_REQUIRED_MESSAGE);
   }
 
-  const created = await prisma.issuerOrganizationMarcAssessment.create({
-    data: {
-      issuer_organization_id: params.issuerOrganizationId,
-      credit_grade: derivedGrade,
-      credit_score: score.value,
-      probability_of_default: pd.value,
-      report_date: reportDate,
-      report_s3_key: reportS3Key || null,
-      report_file_name: reportFileName || null,
-      created_by_user_id: params.actorUserId,
-    },
+  return prisma.$transaction(async (tx) => {
+    const org = await tx.issuerOrganization.findUnique({
+      where: { id: params.issuerOrganizationId },
+      select: { id: true, owner_user_id: true, name: true, display_reference: true },
+    });
+    if (!org) {
+      throw new AppError(404, "NOT_FOUND", "Issuer organization not found");
+    }
+
+    const previousRow = await tx.issuerOrganizationMarcAssessment.findFirst({
+      where: { issuer_organization_id: params.issuerOrganizationId },
+      orderBy: { created_at: "desc" },
+    });
+    const previous = marcAssessmentAuditValues(
+      previousRow ? mapMarcAssessmentRow(previousRow) : null
+    );
+
+    const created = await tx.issuerOrganizationMarcAssessment.create({
+      data: {
+        issuer_organization_id: params.issuerOrganizationId,
+        credit_grade: derivedGrade,
+        credit_score: score.value,
+        probability_of_default: pd.value,
+        report_date: reportDate,
+        report_s3_key: reportS3Key || null,
+        report_file_name: reportFileName || null,
+        created_by_user_id: params.actorUserId,
+      },
+    });
+    const saved = mapMarcAssessmentRow(created);
+    const next = marcAssessmentAuditValues(saved);
+    if (!next) {
+      throw new AppError(500, "INTERNAL_ERROR", "MARC assessment could not be recorded");
+    }
+
+    await createOnboardingLogRow(
+      {
+        userId: org.owner_user_id,
+        actorUserId: params.actorUserId,
+        role: UserRole.ISSUER,
+        eventType: MARC_ASSESSMENT_SAVED,
+        portal: "issuer",
+        issuerOrganizationId: org.id,
+        organizationName: org.name ?? undefined,
+        ipAddress: params.context?.ipAddress,
+        userAgent: params.context?.userAgent,
+        correlationId: params.context?.correlationId,
+        context: params.context,
+        metadata: buildMarcAssessmentAuditMetadata({
+          organizationId: org.id,
+          organizationReference: snapshotBusinessReference(org.display_reference, org.id),
+          actorUserId: params.actorUserId,
+          previous,
+          next,
+          reportS3Key: saved.reportS3Key,
+        }),
+      },
+      tx
+    );
+
+    return saved;
   });
-  return mapMarcAssessmentRow(created);
 }
 
 export function mapAssignmentNotice(

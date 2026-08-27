@@ -2,7 +2,7 @@ import { formatRoleSwitchedLabel } from "@cashsouk/types";
 
 export { formatRoleSwitchedLabel };
 
-const ACRONYMS = new Set(["AML", "KYC", "KYB", "TNC", "SSM", "PDF", "CSV", "API", "ID"]);
+const ACRONYMS = new Set(["AML", "KYC", "KYB", "TNC", "SSM", "PDF", "CSV", "API", "ID", "MARC"]);
 
 const SECRET_KEY =
   /^(.*[_-]?)?(password|secret|access_?token|refresh_?token|id_token|private_?key|api_?key|authorization|credential|session_token)([_-].*)?$/i;

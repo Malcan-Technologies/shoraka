@@ -65,6 +65,7 @@ function getEventLabel(eventType: string): string {
     MEMBER_INVITED: "Member Invited",
     MEMBER_REMOVED: "Member Removed",
     MEMBER_ROLE_CHANGED: "Member Role Changed",
+    MARC_ASSESSMENT_SAVED: "MARC Assessment Saved",
     USER_COMPLETED: "User Completed",
   };
   return (
@@ -148,6 +149,14 @@ function buildEventDescription(
         return `Member role changed from ${String(metadata.previousRole)} to ${String(metadata.newRole)}.`;
       }
       return "A member role was changed.";
+    case "MARC_ASSESSMENT_SAVED": {
+      const next =
+        metadata.nextValues && typeof metadata.nextValues === "object" && !Array.isArray(metadata.nextValues)
+          ? (metadata.nextValues as Record<string, unknown>)
+          : null;
+      const grade = typeof next?.creditGrade === "string" ? next.creditGrade : null;
+      return grade ? `MARC assessment saved (${grade}).` : "MARC assessment saved.";
+    }
     default:
       return null;
   }

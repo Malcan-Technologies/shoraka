@@ -7,7 +7,7 @@ export type AdminTimelineDetail = {
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2})/;
-const ACRONYMS = new Set(["AML", "KYC", "KYB", "TNC", "SSM", "PDF", "CSV", "API", "ID"]);
+const ACRONYMS = new Set(["AML", "KYC", "KYB", "TNC", "SSM", "PDF", "CSV", "API", "ID", "MARC"]);
 
 export function humanizeAdminTimelineToken(value: string): string {
   const trimmed = value.trim();

@@ -419,3 +419,85 @@ describe("MEMBER_* Event Details", () => {
   });
 });
 
+describe("MARC_ASSESSMENT_SAVED Event Details", () => {
+  it("shows organisation reference and friendly previous/next MARC values", () => {
+    const detail = organizationLogToAuditDetail(
+      {
+        id: "log-marc",
+        user_id: "owner-1",
+        user: { first_name: "Ada", last_name: "Khan", email: "ada@example.com", roles: ["ISSUER"] },
+        role: "ISSUER",
+        event_type: "MARC_ASSESSMENT_SAVED",
+        portal: "issuer",
+        ip_address: "1.1.1.1",
+        user_agent: "Mozilla",
+        device_info: null,
+        device_type: null,
+        actor_type: "ADMIN",
+        source: "API",
+        target_type: "ORGANIZATION",
+        target_id: "org-cuid",
+        correlation_id: "corr-1",
+        metadata: {
+          updatedBy: "admin-1",
+          organizationId: "org-cuid",
+          organizationReference: "ISS-202608-DK3",
+          updatedFields: ["creditGrade", "creditScore", "probabilityOfDefault", "reportFileName", "reportDate"],
+          previousValues: {
+            creditGrade: "SME-4",
+            creditScore: 72.5,
+            probabilityOfDefault: 2.3,
+            reportFileName: "MARC_Report_July.pdf",
+            reportDate: "2026-07-31",
+          },
+          nextValues: {
+            creditGrade: "SME-3",
+            creditScore: 78.2,
+            probabilityOfDefault: 1.8,
+            reportFileName: "MARC_Report_Aug.pdf",
+            reportDate: "2026-08-25",
+          },
+          reportS3Key: "marc-reports/org-cuid/august.pdf",
+        },
+        created_at: "2026-08-27T00:00:00.000Z",
+        organizationName: "ABC Trading",
+      },
+      "MARC Assessment Saved"
+    );
+    expect(detail.eventLabel).toBe("MARC Assessment Saved");
+    expect(detail.eventType).toBe("MARC_ASSESSMENT_SAVED");
+    expect(detail.target?.organizationReference).toBe("ISS-202608-DK3");
+    expect(detail.target?.id).toBe("org-cuid");
+    expect(detail.previousValues).toEqual({
+      "Credit Grade": "SME-4",
+      "Credit Score": "72.5",
+      "Probability of Default": "2.30%",
+      Report: "MARC_Report_July.pdf",
+      "Report Date": "31 Jul 2026",
+    });
+    expect(detail.nextValues).toEqual({
+      "Credit Grade": "SME-3",
+      "Credit Score": "78.2",
+      "Probability of Default": "1.80%",
+      Report: "MARC_Report_Aug.pdf",
+      "Report Date": "25 Aug 2026",
+    });
+    expect(detail.changedFields).toEqual(
+      expect.arrayContaining([
+        { field: "Credit Grade", before: "SME-4", after: "SME-3" },
+        { field: "Credit Score", before: "72.5", after: "78.2" },
+      ])
+    );
+    expect(detail.technical).toEqual(
+      expect.arrayContaining([
+        { label: "Event type", value: "MARC_ASSESSMENT_SAVED" },
+        { label: "Organization DB ID", value: "org-cuid" },
+        { label: "Report S3 key", value: "marc-reports/org-cuid/august.pdf" },
+        { label: "Source", value: "API" },
+        { label: "IP address", value: "1.1.1.1" },
+        { label: "Correlation ID", value: "corr-1" },
+      ])
+    );
+  });
+});
+

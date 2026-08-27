@@ -75,6 +75,26 @@ export function extractOrganizationTimelineCompactDetails(
     details.push({ label: "Previous role", value: String(metadata.previousRole) });
   }
 
+  if (_eventType === "MARC_ASSESSMENT_SAVED") {
+    const previous =
+      metadata.previousValues &&
+      typeof metadata.previousValues === "object" &&
+      !Array.isArray(metadata.previousValues)
+        ? (metadata.previousValues as Record<string, unknown>)
+        : null;
+    const next =
+      metadata.nextValues && typeof metadata.nextValues === "object" && !Array.isArray(metadata.nextValues)
+        ? (metadata.nextValues as Record<string, unknown>)
+        : null;
+    const previousGrade = previous && typeof previous.creditGrade === "string" ? previous.creditGrade : null;
+    const nextGrade = next && typeof next.creditGrade === "string" ? next.creditGrade : null;
+    if (previousGrade && nextGrade) {
+      details.push({ label: "Credit grade", value: `${previousGrade} → ${nextGrade}` });
+    } else if (nextGrade) {
+      details.push({ label: "Credit grade", value: nextGrade });
+    }
+  }
+
   return details;
 }
 

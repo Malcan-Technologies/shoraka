@@ -378,7 +378,8 @@ export type OnboardingEventType =
   | "MEMBER_ADDED"
   | "MEMBER_INVITED"
   | "MEMBER_REMOVED"
-  | "MEMBER_ROLE_CHANGED";
+  | "MEMBER_ROLE_CHANGED"
+  | "MARC_ASSESSMENT_SAVED";
 
 export interface OnboardingLogUser {
   first_name: string;
