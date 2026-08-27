@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import {
   MARC_ASSESSMENT_REQUIRED_MESSAGE,
-  isMarcSmeGrade,
+  isCompleteIssuerMarcAssessment,
   type MarcAssessmentSnapshot,
 } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,7 @@ function formatMarcPd(value: string | number | null | undefined): string {
 export function hasUsableMarcAssessment(
   assessment: MarcAssessmentSnapshot | null | undefined
 ): boolean {
-  return isMarcSmeGrade(assessment?.creditGrade);
+  return isCompleteIssuerMarcAssessment(assessment);
 }
 
 export function ProspectusMarcAssessmentSummary({

@@ -1,7 +1,15 @@
 import type { Prisma } from "@prisma/client";
 import {
+  MARC_ASSESSMENT_REQUIRED_MESSAGE,
+  MARC_CREDIT_SCORE_RANGE_MESSAGE,
+  MARC_REPORT_DATE_REQUIRED_MESSAGE,
+  MARC_REPORT_REQUIRED_MESSAGE,
   PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_CODE,
   PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE,
+  isCompleteIssuerMarcAssessment,
+  marcSmeGradeFromCreditScore,
+  parseMarcCreditScore,
+  parseMarcProbabilityOfDefault,
   type IssuerPaymasterOption,
   type MarcAssessmentSnapshot,
   type PaymasterAssignmentNotice as PaymasterAssignmentNoticeDto,
@@ -11,6 +19,7 @@ import {
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
+import { generatePresignedUploadUrl, validateDocument } from "../../lib/s3/client";
 import {
   describePaymasterMismatch,
   parseSubmittedIdentity,
@@ -501,6 +510,26 @@ export async function resolvePaymasterMismatch(params: {
   });
 }
 
+function mapMarcAssessmentRow(row: {
+  credit_grade: string;
+  credit_score: { toString(): string } | number | null;
+  probability_of_default: { toString(): string } | number | null;
+  report_date: Date | null;
+  report_file_name: string | null;
+  report_s3_key?: string | null;
+  created_at: Date;
+}): MarcAssessmentSnapshot {
+  return {
+    creditGrade: row.credit_grade,
+    creditScore: decimalToNumber(row.credit_score),
+    probabilityOfDefault: decimalToNumber(row.probability_of_default),
+    reportDate: row.report_date?.toISOString() ?? null,
+    reportFileName: row.report_file_name,
+    reportS3Key: row.report_s3_key ?? null,
+    assessedAt: row.created_at.toISOString(),
+  };
+}
+
 export async function getCurrentMarcAssessment(
   issuerOrganizationId: string
 ): Promise<MarcAssessmentSnapshot | null> {
@@ -509,46 +538,95 @@ export async function getCurrentMarcAssessment(
     orderBy: { created_at: "desc" },
   });
   if (!latest) return null;
-  return {
-    creditGrade: latest.credit_grade,
-    creditScore: decimalToNumber(latest.credit_score),
-    probabilityOfDefault: decimalToNumber(latest.probability_of_default),
-    reportDate: latest.report_date?.toISOString() ?? null,
-    reportFileName: latest.report_file_name,
-    assessedAt: latest.created_at.toISOString(),
-  };
+  return mapMarcAssessmentRow(latest);
+}
+
+export function assertIssuerMarcAssessmentComplete(
+  marc: MarcAssessmentSnapshot | null | undefined
+): MarcAssessmentSnapshot {
+  if (!marc || !isCompleteIssuerMarcAssessment(marc)) {
+    throw new AppError(400, "MARC_ASSESSMENT_REQUIRED", MARC_ASSESSMENT_REQUIRED_MESSAGE);
+  }
+  return marc;
+}
+
+export async function requestIssuerMarcReportUploadUrl(params: {
+  issuerOrganizationId: string;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+}): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number; fileName: string }> {
+  const org = await prisma.issuerOrganization.findUnique({
+    where: { id: params.issuerOrganizationId },
+    select: { id: true },
+  });
+  if (!org) {
+    throw new AppError(404, "NOT_FOUND", "Issuer organization not found");
+  }
+  const validation = validateDocument({
+    contentType: params.contentType,
+    fileSize: params.fileSize,
+  });
+  if (!validation.valid) {
+    throw new AppError(400, "INVALID_DOCUMENT", validation.error ?? MARC_REPORT_REQUIRED_MESSAGE);
+  }
+  const safeName = params.fileName.replace(/[^a-zA-Z0-9._-]+/g, "_");
+  const key = `marc-reports/${params.issuerOrganizationId}/${Date.now()}-${safeName}`;
+  const uploaded = await generatePresignedUploadUrl({
+    key,
+    contentType: params.contentType,
+  });
+  return { uploadUrl: uploaded.uploadUrl, s3Key: uploaded.key, expiresIn: uploaded.expiresIn, fileName: params.fileName };
 }
 
 export async function createMarcAssessment(params: {
   issuerOrganizationId: string;
   actorUserId: string;
-  creditGrade: string;
-  creditScore?: number | null;
-  probabilityOfDefault?: number | null;
+  creditScore?: unknown;
+  probabilityOfDefault?: unknown;
   reportDate?: string | null;
   reportS3Key?: string | null;
   reportFileName?: string | null;
 }): Promise<MarcAssessmentSnapshot> {
+  const score = parseMarcCreditScore(params.creditScore);
+  if (!score.ok) {
+    throw new AppError(400, "VALIDATION_ERROR", score.message);
+  }
+  const derivedGrade = marcSmeGradeFromCreditScore(score.value);
+  if (!derivedGrade) {
+    throw new AppError(400, "VALIDATION_ERROR", MARC_CREDIT_SCORE_RANGE_MESSAGE);
+  }
+  const pd = parseMarcProbabilityOfDefault(params.probabilityOfDefault);
+  if (!pd.ok) {
+    throw new AppError(400, "VALIDATION_ERROR", pd.message);
+  }
+  const reportFileName = params.reportFileName?.trim() || "";
+  const reportS3Key = params.reportS3Key?.trim() || "";
+  if (!reportFileName && !reportS3Key) {
+    throw new AppError(400, "VALIDATION_ERROR", MARC_REPORT_REQUIRED_MESSAGE);
+  }
+  const reportDateRaw = params.reportDate?.trim() || "";
+  if (!reportDateRaw) {
+    throw new AppError(400, "VALIDATION_ERROR", MARC_REPORT_DATE_REQUIRED_MESSAGE);
+  }
+  const reportDate = new Date(reportDateRaw);
+  if (Number.isNaN(reportDate.getTime())) {
+    throw new AppError(400, "VALIDATION_ERROR", MARC_REPORT_DATE_REQUIRED_MESSAGE);
+  }
+
   const created = await prisma.issuerOrganizationMarcAssessment.create({
     data: {
       issuer_organization_id: params.issuerOrganizationId,
-      credit_grade: params.creditGrade.trim(),
-      credit_score: params.creditScore ?? null,
-      probability_of_default: params.probabilityOfDefault ?? null,
-      report_date: params.reportDate ? new Date(params.reportDate) : null,
-      report_s3_key: params.reportS3Key ?? null,
-      report_file_name: params.reportFileName ?? null,
+      credit_grade: derivedGrade,
+      credit_score: score.value,
+      probability_of_default: pd.value,
+      report_date: reportDate,
+      report_s3_key: reportS3Key || null,
+      report_file_name: reportFileName || null,
       created_by_user_id: params.actorUserId,
     },
   });
-  return {
-    creditGrade: created.credit_grade,
-    creditScore: decimalToNumber(created.credit_score),
-    probabilityOfDefault: decimalToNumber(created.probability_of_default),
-    reportDate: created.report_date?.toISOString() ?? null,
-    reportFileName: created.report_file_name,
-    assessedAt: created.created_at.toISOString(),
-  };
+  return mapMarcAssessmentRow(created);
 }
 
 export function mapAssignmentNotice(

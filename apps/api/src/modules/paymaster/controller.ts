@@ -8,6 +8,7 @@ import {
   assignmentNoticeUploadUrlSchema,
   listPaymastersQuerySchema,
   marcAssessmentSchema,
+  marcUploadUrlSchema,
   paymasterIdParamSchema,
   resolveMismatchSchema,
 } from "./schemas";
@@ -17,6 +18,7 @@ import {
   getCurrentMarcAssessment,
   listAdminPaymasters,
   listIssuerPaymasters,
+  requestIssuerMarcReportUploadUrl,
   resolvePaymasterMismatch,
 } from "./service";
 import {
@@ -151,7 +153,6 @@ export async function handleCreateIssuerMarc(req: Request, res: Response, next: 
       await createMarcAssessment({
         issuerOrganizationId,
         actorUserId: getUserId(req),
-        creditGrade: body.creditGrade,
         creditScore: body.creditScore,
         probabilityOfDefault: body.probabilityOfDefault,
         reportDate: body.reportDate,
@@ -159,6 +160,24 @@ export async function handleCreateIssuerMarc(req: Request, res: Response, next: 
         reportFileName: body.reportFileName,
       }),
       201
+    );
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function handleIssuerMarcUploadUrl(req: Request, res: Response, next: NextFunction) {
+  try {
+    const issuerOrganizationId = String(req.params.id);
+    const body = marcUploadUrlSchema.parse(req.body);
+    send(
+      res,
+      await requestIssuerMarcReportUploadUrl({
+        issuerOrganizationId,
+        fileName: body.fileName,
+        contentType: body.contentType,
+        fileSize: body.fileSize,
+      })
     );
   } catch (error) {
     next(error);

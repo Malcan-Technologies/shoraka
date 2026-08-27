@@ -126,7 +126,8 @@ export function buildProspectusCompletionChecklist(
 
   const issuerPaymasterOfficerComplete =
     hasOption(draft.page2.issuerProfile?.companySize) &&
-    hasOption(draft.page2.invoicePaymaster?.deedOfAssignment) &&
+    hasOption(draft.page2.invoicePaymaster?.deedOfAssignment);
+  const page3PaymasterGradingComplete =
     hasOption(draft.page2.invoicePaymaster?.paymasterRating) &&
     hasOption(draft.page2.invoicePaymaster?.confidenceGrading);
 
@@ -171,8 +172,8 @@ export function buildProspectusCompletionChecklist(
     {
       id: "financials",
       label: "Financial Review",
-      complete: financialInputComplete,
-      required: incomeYears.length > 0,
+      complete: financialInputComplete && page3PaymasterGradingComplete,
+      required: incomeYears.length > 0 || true,
     },
     {
       id: "takeaways",

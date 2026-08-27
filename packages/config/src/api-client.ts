@@ -714,7 +714,7 @@ export class ApiClient {
   async createIssuerMarcAssessment(
     issuerOrganizationId: string,
     data: {
-      creditGrade: string;
+      creditGrade?: string;
       creditScore?: number | null;
       probabilityOfDefault?: number | null;
       reportDate?: string | null;
@@ -723,6 +723,18 @@ export class ApiClient {
     }
   ): Promise<ApiResponse<MarcAssessmentSnapshot> | ApiError> {
     return this.post(`/v1/admin/organizations/issuer/${issuerOrganizationId}/marc`, data);
+  }
+
+  async requestIssuerMarcReportUploadUrl(
+    issuerOrganizationId: string,
+    data: { fileName: string; contentType: string; fileSize: number }
+  ): Promise<
+    ApiResponse<{ uploadUrl: string; s3Key: string; expiresIn: number; fileName: string }> | ApiError
+  > {
+    return this.post(
+      `/v1/admin/organizations/issuer/${issuerOrganizationId}/marc/upload-url`,
+      data
+    );
   }
 
   async getNoteAssignmentNotice(

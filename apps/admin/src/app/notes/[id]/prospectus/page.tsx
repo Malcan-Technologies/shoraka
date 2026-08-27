@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeftIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import {
-  isMarcSmeGrade,
+  isCompleteIssuerMarcAssessment,
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
@@ -378,7 +378,7 @@ function ProspectusReviewPageInner() {
         ? false
         : marcLoadError || !marcFetched
           ? undefined
-          : isMarcSmeGrade(marcAssessment?.creditGrade),
+          : isCompleteIssuerMarcAssessment(marcAssessment ?? null),
   };
   const stepStatuses = getProspectusStepStatuses(draft, completionOptions);
   const manualYears = draft.page3.manualFinancialInputs?.years;

@@ -131,7 +131,7 @@ import {
   canonicalDownloadFilenameToken,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
-import { getCurrentMarcAssessment } from "../paymaster/service";
+import { assertIssuerMarcAssessmentComplete, getCurrentMarcAssessment } from "../paymaster/service";
 import { OrganizationRepository } from "../organization/repository";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import {
@@ -8726,10 +8726,7 @@ export class AdminService {
       throw new AppError(400, "MARC_ASSESSMENT_REQUIRED", MARC_ASSESSMENT_REQUIRED_MESSAGE);
     }
     const marc = await getCurrentMarcAssessment(orgId);
-    if (!marc || !isMarcSmeGrade(marc.creditGrade)) {
-      throw new AppError(400, "MARC_ASSESSMENT_REQUIRED", MARC_ASSESSMENT_REQUIRED_MESSAGE);
-    }
-    return marc;
+    return assertIssuerMarcAssessmentComplete(marc);
   }
 
   async sendInvoiceOffer(

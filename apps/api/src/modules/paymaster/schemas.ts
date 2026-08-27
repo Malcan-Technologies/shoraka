@@ -20,10 +20,10 @@ export const resolveMismatchSchema = z.object({
 });
 
 export const marcAssessmentSchema = z.object({
-  creditGrade: z.string().min(1),
-  creditScore: z.number().min(0).max(100).nullable().optional(),
-  probabilityOfDefault: z.number().min(0).max(100).nullable().optional(),
-  reportDate: z.string().datetime().nullable().optional(),
+  creditGrade: z.string().optional(),
+  creditScore: z.unknown().optional(),
+  probabilityOfDefault: z.unknown().optional(),
+  reportDate: z.string().nullable().optional(),
   reportS3Key: z.string().nullable().optional(),
   reportFileName: z.string().nullable().optional(),
 });

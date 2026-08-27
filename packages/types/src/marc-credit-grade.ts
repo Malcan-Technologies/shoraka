@@ -139,6 +139,14 @@ export type NoteRiskRating = MarcSmeGrade;
 export const isNoteRiskRating = isMarcSmeGrade;
 
 export const MARC_ASSESSMENT_REQUIRED_MESSAGE = "MARC assessment is required.";
+export const MARC_CREDIT_SCORE_REQUIRED_MESSAGE = "Credit Score is required.";
+export const MARC_CREDIT_SCORE_RANGE_MESSAGE = "Credit Score must be between 0 and 100.";
+export const MARC_PD_REQUIRED_MESSAGE = "Probability of Default is required.";
+export const MARC_PD_RANGE_MESSAGE = "Probability of Default must be between 0% and 100%.";
+export const MARC_REPORT_REQUIRED_MESSAGE = "MARC report is required.";
+export const MARC_REPORT_DATE_REQUIRED_MESSAGE = "Report Date is required.";
+export const MARC_CREDIT_GRADE_FROM_SCORE_HELP =
+  "Automatically determined from the MARC Credit Score.";
 export const NOTE_RISK_RATING_UNASSIGNED_MESSAGE = "Risk rating has not been assigned.";
 
 /**
@@ -229,5 +237,104 @@ export interface MarcAssessmentSnapshot {
   probabilityOfDefault: string | number | null;
   reportDate: string | null;
   reportFileName: string | null;
+  reportS3Key?: string | null;
   assessedAt: string | null;
+}
+
+function numericFromUnknown(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (typeof value === "object" && "toString" in value) {
+    const n = Number(String(value));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function roundToDecimals(value: number, decimals: number): number {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+export type MarcParseResult =
+  | { ok: true; value: number }
+  | { ok: false; message: string };
+
+/** Credit score storage matches Decimal(7, 2): 0–100, two decimal places. */
+export function parseMarcCreditScore(value: unknown): MarcParseResult {
+  if (value == null || (typeof value === "string" && value.trim() === "")) {
+    return { ok: false, message: MARC_CREDIT_SCORE_REQUIRED_MESSAGE };
+  }
+  const n = numericFromUnknown(value);
+  if (n == null) return { ok: false, message: MARC_CREDIT_SCORE_RANGE_MESSAGE };
+  if (n < 0 || n > 100) return { ok: false, message: MARC_CREDIT_SCORE_RANGE_MESSAGE };
+  return { ok: true, value: roundToDecimals(n, 2) };
+}
+
+/**
+ * PD is stored as a percentage (1.13 = 1.13%), matching Decimal(7, 4).
+ * Not a 0–1 fraction and not auto-filled from the SME methodology table.
+ */
+export function parseMarcProbabilityOfDefault(value: unknown): MarcParseResult {
+  if (value == null || (typeof value === "string" && value.trim() === "")) {
+    return { ok: false, message: MARC_PD_REQUIRED_MESSAGE };
+  }
+  const n = numericFromUnknown(value);
+  if (n == null) return { ok: false, message: MARC_PD_RANGE_MESSAGE };
+  if (n < 0 || n > 100) return { ok: false, message: MARC_PD_RANGE_MESSAGE };
+  return { ok: true, value: roundToDecimals(n, 4) };
+}
+
+export function parseOfficialMarcScoreRange(range: string): { min: number; max: number } | null {
+  const match = /^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/.exec(range.trim());
+  if (!match) return null;
+  return { min: Number(match[1]), max: Number(match[2]) };
+}
+
+/**
+ * Official MARC score → SME grade using {@link MARC_SCORE_DEFINITIONS} ranges.
+ * Inclusive on both bounds (90 → SME-1, 89.99 → SME-2).
+ */
+export function marcSmeGradeFromCreditScore(score: unknown): MarcSmeGrade | null {
+  const parsed = parseMarcCreditScore(score);
+  if (!parsed.ok) return null;
+  const rounded = parsed.value;
+  for (const grade of MARC_SME_GRADES) {
+    const bounds = parseOfficialMarcScoreRange(MARC_SCORE_DEFINITIONS[grade].scoreRange);
+    if (!bounds) continue;
+    if (rounded + Number.EPSILON >= bounds.min && rounded - Number.EPSILON <= bounds.max) {
+      return grade;
+    }
+  }
+  return null;
+}
+
+function hasMarcReport(assessment: MarcAssessmentSnapshot): boolean {
+  const fileName =
+    typeof assessment.reportFileName === "string" ? assessment.reportFileName.trim() : "";
+  const s3Key = typeof assessment.reportS3Key === "string" ? assessment.reportS3Key.trim() : "";
+  return Boolean(fileName || s3Key);
+}
+
+function hasMarcReportDate(value: string | null | undefined): boolean {
+  if (!value || !value.trim()) return false;
+  return !Number.isNaN(new Date(value).getTime());
+}
+
+/** Organization MARC is complete when score, derived-capable grade, PD, report, and date exist. */
+export function isCompleteIssuerMarcAssessment(
+  assessment: MarcAssessmentSnapshot | null | undefined
+): boolean {
+  if (!assessment) return false;
+  if (!isMarcSmeGrade(assessment.creditGrade)) return false;
+  if (!parseMarcCreditScore(assessment.creditScore).ok) return false;
+  if (!parseMarcProbabilityOfDefault(assessment.probabilityOfDefault).ok) return false;
+  if (!hasMarcReport(assessment)) return false;
+  return hasMarcReportDate(assessment.reportDate);
 }

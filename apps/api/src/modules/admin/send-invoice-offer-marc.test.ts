@@ -190,6 +190,38 @@ describe("AdminService sendInvoiceOffer MARC risk rating", () => {
     expect(prisma.issuerOrganizationMarcAssessment.update).not.toHaveBeenCalled();
   });
 
+  it("blocks send when the issuer MARC assessment is incomplete", async () => {
+    (prisma.issuerOrganizationMarcAssessment.findFirst as jest.Mock).mockResolvedValue({
+      credit_grade: "SME-3",
+      credit_score: null,
+      probability_of_default: null,
+      report_date: null,
+      report_file_name: null,
+      report_s3_key: null,
+      created_at: new Date("2026-08-01T00:00:00.000Z"),
+    });
+
+    await expect(
+      service.sendInvoiceOffer(
+        "app-1",
+        "inv-1",
+        40_000,
+        70,
+        12,
+        0,
+        "SME-3",
+        "admin-1",
+        undefined,
+        undefined,
+        90
+      )
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "MARC_ASSESSMENT_REQUIRED",
+      message: MARC_ASSESSMENT_REQUIRED_MESSAGE,
+    } satisfies Partial<AppError>);
+  });
+
   it("saves an admin override without changing organization MARC", async () => {
     (prisma.issuerOrganizationMarcAssessment.findFirst as jest.Mock).mockResolvedValue({
       credit_grade: "SME-3",

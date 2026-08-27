@@ -15,7 +15,7 @@ describe("Prospectus MARC assessment summary", () => {
     expect(isMarcSmeGrade("A")).toBe(false);
     expect(isMarcSmeGrade(null)).toBe(false);
     expect(source).toContain("hasUsableMarcAssessment");
-    expect(source).toContain("isMarcSmeGrade(assessment?.creditGrade)");
+    expect(source).toContain("isCompleteIssuerMarcAssessment");
   });
 
   it("renders a read-only org MARC summary with a manage action, not officer inputs", () => {

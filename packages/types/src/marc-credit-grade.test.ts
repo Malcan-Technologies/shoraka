@@ -1,13 +1,23 @@
 import {
+  MARC_CREDIT_SCORE_RANGE_MESSAGE,
+  MARC_CREDIT_SCORE_REQUIRED_MESSAGE,
+  MARC_PD_RANGE_MESSAGE,
+  MARC_PD_REQUIRED_MESSAGE,
   MARC_SCORE_DEFINITIONS,
   MARC_SME_BANDS,
   MARC_SME_GRADES,
+  isCompleteIssuerMarcAssessment,
   marcBandOfficialGradeProfiles,
   marcOfficialPd,
   marcOfficialRiskProfile,
   marcOfficialScoreRange,
+  marcSmeGradeFromCreditScore,
+  parseMarcCreditScore,
+  parseMarcProbabilityOfDefault,
   resolveDefaultInvoiceRiskRating,
   resolveMarcNoteRiskPresentation,
+  type MarcAssessmentSnapshot,
+  type MarcSmeGrade,
 } from "./marc-credit-grade";
 
 const OFFICIAL_RISK_PROFILES: Record<(typeof MARC_SME_GRADES)[number], string> = {
@@ -98,6 +108,110 @@ describe("MARC SME official definitions", () => {
       expect(marcOfficialScoreRange(grade)).toBe(MARC_SCORE_DEFINITIONS[grade].scoreRange);
       expect(marcOfficialPd(grade)).toBe(MARC_SCORE_DEFINITIONS[grade].pd);
     }
+  });
+
+  it("derives SME grade from official score ranges without A–F fallback", () => {
+    const examples: Array<[number, MarcSmeGrade]> = [
+      [95, "SME-1"],
+      [85, "SME-2"],
+      [74, "SME-3"],
+      [65, "SME-4"],
+      [55, "SME-5"],
+      [45, "SME-6"],
+      [35, "SME-7"],
+      [25, "SME-8"],
+      [15, "SME-9"],
+      [5, "SME-10"],
+      [90, "SME-1"],
+      [89.99, "SME-2"],
+      [80, "SME-2"],
+      [79.99, "SME-3"],
+      [70, "SME-3"],
+      [69.99, "SME-4"],
+      [60, "SME-4"],
+      [59.99, "SME-5"],
+      [50, "SME-5"],
+      [49.99, "SME-6"],
+      [40, "SME-6"],
+      [39.99, "SME-7"],
+      [30, "SME-7"],
+      [29.99, "SME-8"],
+      [20, "SME-8"],
+      [19.99, "SME-9"],
+      [10, "SME-9"],
+      [9.99, "SME-10"],
+      [0, "SME-10"],
+      [100, "SME-1"],
+      [89.5, "SME-2"],
+      [7.5, "SME-10"],
+    ];
+    for (const [score, grade] of examples) {
+      expect(marcSmeGradeFromCreditScore(score)).toBe(grade);
+    }
+    expect(marcSmeGradeFromCreditScore(-0.01)).toBeNull();
+    expect(marcSmeGradeFromCreditScore(100.01)).toBeNull();
+    expect(marcSmeGradeFromCreditScore("abc")).toBeNull();
+    expect(marcSmeGradeFromCreditScore("A")).toBeNull();
+    expect(marcSmeGradeFromCreditScore("B")).toBeNull();
+    expect(parseMarcCreditScore("")).toEqual({
+      ok: false,
+      message: MARC_CREDIT_SCORE_REQUIRED_MESSAGE,
+    });
+    expect(parseMarcCreditScore(-1)).toEqual({
+      ok: false,
+      message: MARC_CREDIT_SCORE_RANGE_MESSAGE,
+    });
+    expect(parseMarcCreditScore(101)).toEqual({
+      ok: false,
+      message: MARC_CREDIT_SCORE_RANGE_MESSAGE,
+    });
+  });
+
+  it("parses PD as a percentage and does not treat score as PD", () => {
+    expect(parseMarcProbabilityOfDefault("")).toEqual({
+      ok: false,
+      message: MARC_PD_REQUIRED_MESSAGE,
+    });
+    expect(parseMarcProbabilityOfDefault(-0.1)).toEqual({
+      ok: false,
+      message: MARC_PD_RANGE_MESSAGE,
+    });
+    expect(parseMarcProbabilityOfDefault(100.1)).toEqual({
+      ok: false,
+      message: MARC_PD_RANGE_MESSAGE,
+    });
+    expect(parseMarcProbabilityOfDefault(1.13)).toEqual({ ok: true, value: 1.13 });
+    expect(parseMarcProbabilityOfDefault(3.7)).toEqual({ ok: true, value: 3.7 });
+    expect(parseMarcProbabilityOfDefault(7.43)).toEqual({ ok: true, value: 7.43 });
+    expect(marcOfficialPd("SME-3")).toBe("1.13%");
+    expect(parseMarcProbabilityOfDefault(3.7).ok && parseMarcProbabilityOfDefault(3.7).value).not.toBe(
+      1.13
+    );
+  });
+
+  it("requires score, grade, PD, report, and date for a complete organization MARC", () => {
+    const complete: MarcAssessmentSnapshot = {
+      creditGrade: "SME-3",
+      creditScore: 74,
+      probabilityOfDefault: 1.13,
+      reportDate: "2026-09-19T00:00:00.000Z",
+      reportFileName: "strato.pdf",
+      reportS3Key: "marc/org/strato.pdf",
+      assessedAt: "2026-09-20T00:00:00.000Z",
+    };
+    expect(isCompleteIssuerMarcAssessment(complete)).toBe(true);
+    expect(isCompleteIssuerMarcAssessment({ ...complete, reportS3Key: null })).toBe(true);
+    expect(isCompleteIssuerMarcAssessment({ ...complete, creditGrade: "A" })).toBe(false);
+    expect(isCompleteIssuerMarcAssessment({ ...complete, creditScore: null })).toBe(false);
+    expect(isCompleteIssuerMarcAssessment({ ...complete, probabilityOfDefault: null })).toBe(false);
+    expect(
+      isCompleteIssuerMarcAssessment({
+        ...complete,
+        reportFileName: null,
+        reportS3Key: null,
+      })
+    ).toBe(false);
+    expect(isCompleteIssuerMarcAssessment({ ...complete, reportDate: null })).toBe(false);
   });
 
   it("returns both official profiles for a grouped band", () => {
