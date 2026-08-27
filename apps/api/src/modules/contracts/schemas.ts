@@ -46,6 +46,7 @@ export const createContractSchema = z.object({
 export const updateContractSchema = z.object({
   contract_details: contractDetailsSchema.nullable().optional(),
   customer_details: customerDetailsSchema.optional(),
+  selectedPaymasterId: z.string().cuid().nullable().optional(),
   status: z.enum(["DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "AMENDMENT_REQUESTED"]).optional(),
 });
 

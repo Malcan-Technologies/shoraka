@@ -18,8 +18,7 @@ import {
   PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES,
   PROSPECTUS_PAYMASTER_RATING_VALUES,
   CASHSCOUK_RISK_GRADE_LETTER_COLOR,
-  SOUKSCORE_RISK_RATING_CATALOGUE,
-  SOUKSCORE_RISK_RATING_GRADES,
+  MARC_SME_BANDS,
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
@@ -56,8 +55,6 @@ import {
 const ISSUER_EDITABLE_LABEL = "Company Size";
 const INVOICE_EDITABLE_LABELS = new Set([
   "Deed of Assignment (DOA)",
-  "Paymaster Rating",
-  "Confidence Grading",
 ]);
 
 const PAYMASTER_TRACK_FIELDS = [
@@ -274,7 +271,7 @@ export function WorkingAreaPageTwo({
                   }
                 />
                 <ProspectusOptionSelect
-                  label="Paymaster Rating"
+                  label="Paymaster Grading (Page 3)"
                   value={paymasterRating}
                   disabled={disabled}
                   required
@@ -298,7 +295,7 @@ export function WorkingAreaPageTwo({
                   }
                 />
                 <ProspectusOptionSelect
-                  label="Confidence Grading"
+                  label="Confidence Grading (Page 3)"
                   value={confidenceGrading}
                   disabled={disabled}
                   required
@@ -392,12 +389,13 @@ export function WorkingAreaPageTwo({
       {tab === "credit_invoice" ? (
         <div className="space-y-6" role="tabpanel">
           <ProspectusSectionShell title="Credit Insights" icon={ClipboardDocumentCheckIcon} missingCount={creditMissing}>
+            <p className="mb-3 text-sm text-muted-foreground">
+              MARC Credit Grade, Score, and Probability of Default come from the issuer organization MARC assessment.
+              Litigation Check and CCRIS Status remain officer-entered.
+            </p>
             <ProspectusInfoGrid columns={2}>
               {(
                 [
-                  ["creditScoreOptionKey", "creditScore", "Credit Score"],
-                  ["paymentBehaviourOptionKey", "paymentBehaviour", "Payment Behaviour"],
-                  ["creditUtilisationOptionKey", "creditUtilisation", "Credit Utilisation"],
                   ["litigationCheckOptionKey", "litigationCheck", "Litigation Check"],
                   ["ccrisStatusOptionKey", "ccrisStatus", "CCRIS Status"],
                 ] as const
@@ -482,30 +480,25 @@ export function WorkingAreaPageTwo({
                     </tr>
                   </thead>
                   <tbody>
-                    {SOUKSCORE_RISK_RATING_GRADES.map((grade) => {
-                      const entry = SOUKSCORE_RISK_RATING_CATALOGUE[grade];
-                      return (
-                        <tr key={grade} className="border-b last:border-0">
-                          <td className="px-3 py-2 font-semibold tabular-nums">
-                            <span
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-xs font-extrabold"
-                              style={{
-                                backgroundColor: entry.color,
-                                color: CASHSCOUK_RISK_GRADE_LETTER_COLOR,
-                              }}
-                              data-grade-color={entry.color}
-                              data-grade-letter-color={CASHSCOUK_RISK_GRADE_LETTER_COLOR}
-                            >
-                              {entry.grade}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2">{entry.label}</td>
-                          <td className="px-3 py-2 text-muted-foreground">
-                            {entry.description}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {MARC_SME_BANDS.map((band) => (
+                      <tr key={band.key} className="border-b last:border-0">
+                        <td className="px-3 py-2 font-semibold tabular-nums">
+                          <span
+                            className="inline-flex min-w-[5.5rem] items-center justify-center rounded-md px-2 py-1 text-xs font-extrabold"
+                            style={{
+                              backgroundColor: band.color,
+                              color: CASHSCOUK_RISK_GRADE_LETTER_COLOR,
+                            }}
+                            data-grade-color={band.color}
+                            data-grade-letter-color={CASHSCOUK_RISK_GRADE_LETTER_COLOR}
+                          >
+                            {band.rangeLabel}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">{band.label}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{band.explanation}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

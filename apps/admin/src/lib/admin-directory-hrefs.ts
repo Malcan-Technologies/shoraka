@@ -11,3 +11,7 @@ export function orgListHref(portal: PortalType): string {
 export function orgHref(portal: PortalType, id: string): string {
   return `${orgListHref(portal)}/${encodeURIComponent(id)}`;
 }
+
+export function paymasterHref(id: string): string {
+  return `/paymasters/${encodeURIComponent(id)}`;
+}

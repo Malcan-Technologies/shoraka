@@ -32,6 +32,10 @@ import { renderProspectusPageOneHtml } from "./render-prospectus-page-one";
 jest.mock("./prospectus-track-record-query", () => ({
   buildProspectusPage1TrackRecordSnapshot: jest.fn(),
 }));
+jest.mock("./prospectus-marc-snapshot", () => ({
+  resolveMarcSnapshotForProspectus: jest.fn().mockResolvedValue(null),
+  frozenMarcFromProspectusSnapshot: jest.fn().mockReturnValue(null),
+}));
 
 import { buildProspectusPage1TrackRecordSnapshot } from "./prospectus-track-record-query";
 

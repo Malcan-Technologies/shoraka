@@ -200,7 +200,6 @@ describe("note & investment details coverage", () => {
       "Profit Rate (p.a.)",
       "Expected Return (p.a.)",
       "Tenure",
-      "Maturity Date",
       "Purpose of Financing",
       "Payment Basis",
       "Shariah Principle",
@@ -257,7 +256,6 @@ describe("note & investment details coverage", () => {
       "Profit Rate (p.a.)",
       "Expected Return (p.a.)",
       "Tenure",
-      "Maturity Date",
       "Purpose of Financing",
       "Payment Basis",
       "Shariah Principle",
@@ -422,7 +420,7 @@ describe("note & investment details coverage", () => {
   });
 });
 
-describe("Investment Summary Tenure and Maturity Date", () => {
+describe("Investment Summary Tenure (Maturity Date remains under Dates & Paymaster)", () => {
   function sectionRows(note: NoteDetail, id: string) {
     return buildNoteInvestmentDetailSections(note).find((s) => s.id === id)!.rows;
   }
@@ -431,14 +429,13 @@ describe("Investment Summary Tenure and Maturity Date", () => {
     return rows.find((r) => r.label === label)?.value;
   }
 
-  it("includes Tenure and Maturity Date in the approved Investment Summary order", () => {
+  it("includes Tenure in the approved Investment Summary order without Maturity Date", () => {
     expect(sectionRows(sampleNote(), "investment-terms").map((r) => r.label)).toEqual([
       "Financing Amount",
       "Minimum Investment",
       "Profit Rate (p.a.)",
       "Expected Return (p.a.)",
       "Tenure",
-      "Maturity Date",
       "Purpose of Financing",
       "Payment Basis",
       "Shariah Principle",
@@ -459,12 +456,12 @@ describe("Investment Summary Tenure and Maturity Date", () => {
     expect(value(dates, "Maturity Date")).toBeTruthy();
   });
 
-  it("matches Tenure and Maturity Date between Dates & Paymaster and Investment Summary", () => {
+  it("keeps Tenure in Investment Summary without duplicating Maturity Date", () => {
     const note = sampleNote();
     const dates = sectionRows(note, "dates-paymaster");
     const summary = sectionRows(note, "investment-terms");
     expect(value(summary, "Tenure")).toBe(value(dates, "Tenure"));
-    expect(value(summary, "Maturity Date")).toBe(value(dates, "Maturity Date"));
+    expect(value(summary, "Maturity Date")).toBeUndefined();
   });
 
   it("uses calculateCalendarDayCount and formatUtcCalendarDateEnMy without a second tenure formula", () => {
@@ -489,7 +486,7 @@ describe("Investment Summary Tenure and Maturity Date", () => {
       "investment-terms"
     );
     expect(value(summary, "Tenure")).toBe("120 days");
-    expect(value(summary, "Maturity Date")).toBe("12 September 2025");
+    expect(value(summary, "Maturity Date")).toBeUndefined();
 
     const source = fs.readFileSync(path.join(__dirname, "core-terms.ts"), "utf8");
     expect(source).toContain("calculateCalendarDayCount");
@@ -499,7 +496,7 @@ describe("Investment Summary Tenure and Maturity Date", () => {
     expect(source).not.toMatch(/daysLeft|investorDays|differenceInCalendarDays/);
   });
 
-  it("shows — for missing Tenure and Maturity Date in Investment Summary", () => {
+  it("shows — for missing Tenure in Investment Summary", () => {
     const base = sampleNote();
     const summary = sectionRows(
       sampleNote({
@@ -512,7 +509,7 @@ describe("Investment Summary Tenure and Maturity Date", () => {
       "investment-terms"
     );
     expect(value(summary, "Tenure")).toBe("—");
-    expect(value(summary, "Maturity Date")).toBe("—");
+    expect(value(summary, "Maturity Date")).toBeUndefined();
   });
 
   it("uses stored tenure and from-disbursement copy for new notes before activation", () => {

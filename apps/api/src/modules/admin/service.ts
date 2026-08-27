@@ -127,6 +127,7 @@ import {
   canonicalDownloadFilenameToken,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
+import { getCurrentMarcAssessment } from "../paymaster/service";
 import { OrganizationRepository } from "../organization/repository";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import {
@@ -2615,6 +2616,7 @@ export class AdminService {
     investedAmount: number | null;
     approvedFacilityAmount: number | null;
     activeNotesAmount: number | null;
+    marcAssessment: import("@cashsouk/types").MarcAssessmentSnapshot | null;
     regtankPortalUrl: string | null;
     regtankRequestId: string | null;
     codRequestId: string | null;
@@ -2941,6 +2943,8 @@ export class AdminService {
       investedAmount,
       approvedFacilityAmount,
       activeNotesAmount,
+      marcAssessment:
+        portal === "issuer" ? await getCurrentMarcAssessment(org.id) : null,
       // Build RegTank portal URL from latest onboarding record
       regtankRequestId: org.regtank_onboarding?.[0]?.request_id ?? null,
       codRequestId,

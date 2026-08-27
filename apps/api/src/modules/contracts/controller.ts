@@ -65,11 +65,14 @@ async function updateContract(req: Request, res: Response, next: NextFunction) {
     const { id } = contractIdParamSchema.parse(req.params);
     const input = updateContractSchema.parse(req.body);
     const userId = getUserId(req);
+    const { selectedPaymasterId, ...rest } = input;
     const data: Prisma.ContractUpdateInput = {
-      ...input,
-      contract_details: input.contract_details === null ? Prisma.JsonNull : input.contract_details,
+      ...rest,
+      contract_details: rest.contract_details === null ? Prisma.JsonNull : rest.contract_details,
     };
-    const contract = await contractService.updateContract(id, data, userId);
+    const contract = await contractService.updateContract(id, data, userId, {
+      selectedPaymasterId: selectedPaymasterId ?? null,
+    });
 
     res.json({
       success: true,

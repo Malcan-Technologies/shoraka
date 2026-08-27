@@ -48,6 +48,8 @@ export interface ProspectusRiskAssessmentInput {
    * Allowed: A | B | C | D | E | F (isCashsoukRiskGrade)
    */
   soukscoreRiskRating: string | null | undefined;
+  /** Organization-level MARC grade frozen at approve when present. */
+  marcGrade?: string | null;
 }
 
 export interface ProspectusRiskAssessmentFieldSource {

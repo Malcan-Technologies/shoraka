@@ -36,8 +36,6 @@ const PAGE_THREE_OFFICER_FINANCIAL_FIELDS = [
   "tradeReceivables",
   "totalEquity",
   "quickRatio",
-  "operatingCashFlow",
-  "freeCashFlow",
   "payablesDays",
 ] as const;
 
@@ -266,7 +264,7 @@ export function buildProspectusMissingRequiredFields(
     missing.push({
       pageStep: 1,
       section: "Invoice & Paymaster",
-      field: "Paymaster Rating",
+      field: "Paymaster Grading (Page 3)",
       tabId: "issuer_paymaster",
     });
   }
@@ -274,15 +272,12 @@ export function buildProspectusMissingRequiredFields(
     missing.push({
       pageStep: 1,
       section: "Invoice & Paymaster",
-      field: "Confidence Grading",
+      field: "Confidence Grading (Page 3)",
       tabId: "issuer_paymaster",
     });
   }
 
   const creditLabels: Array<[keyof typeof draft.page2.creditInsights, string]> = [
-    ["creditScoreOptionKey", "Credit Score"],
-    ["paymentBehaviourOptionKey", "Payment Behaviour"],
-    ["creditUtilisationOptionKey", "Credit Utilisation"],
     ["litigationCheckOptionKey", "Litigation Check"],
     ["ccrisStatusOptionKey", "CCRIS Status"],
   ];
@@ -325,8 +320,6 @@ export function buildProspectusMissingRequiredFields(
     tradeReceivables: "Trade Receivables",
     totalEquity: "Total Equity",
     quickRatio: "Quick Ratio",
-    operatingCashFlow: "Operating Cash Flow",
-    freeCashFlow: "Free Cash Flow",
     payablesDays: "Payables Days",
   };
 

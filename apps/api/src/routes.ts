@@ -37,6 +37,10 @@ import {
   withdrawalsRouter,
 } from "./modules/notes/controller";
 import { issuerDashboardRouter } from "./modules/issuer-dashboard/controller";
+import {
+  adminPaymasterRouter,
+  createIssuerPaymasterRouter,
+} from "./modules/paymaster/controller";
 import { ekycRouter } from "./modules/ekyc/controller";
 import { investorDepositsRouter } from "./modules/payment/deposit-controller";
 import { issuerOnboardingFeeRouter } from "./modules/payment/onboarding-fee-controller";
@@ -141,6 +145,7 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin", devAuthBypass, requireRole(UserRole.ADMIN), adminRouter);
     v1Router.use("/admin/signing", devAuthBypass, requireRole(UserRole.ADMIN), createSigningAdminRouter());
     v1Router.use("/admin/notes", devAuthBypass, adminNotesRouter);
+    v1Router.use("/admin/paymasters", devAuthBypass, requireRole(UserRole.ADMIN), adminPaymasterRouter);
     v1Router.use("/admin/investments", devAuthBypass, adminInvestmentsRouter);
     v1Router.use("/admin/platform-finance-settings", devAuthBypass, platformFinanceSettingsRouter);
     v1Router.use("/admin/withdrawals", devAuthBypass, withdrawalsRouter);
@@ -154,6 +159,7 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin", requireAuth, requireRole(UserRole.ADMIN), adminRouter);
     v1Router.use("/admin/signing", requireAuth, requireRole(UserRole.ADMIN), createSigningAdminRouter());
     v1Router.use("/admin/notes", requireAuth, adminNotesRouter);
+    v1Router.use("/admin/paymasters", requireAuth, requireRole(UserRole.ADMIN), adminPaymasterRouter);
     v1Router.use("/admin/investments", requireAuth, adminInvestmentsRouter);
     v1Router.use("/admin/platform-finance-settings", requireAuth, platformFinanceSettingsRouter);
     v1Router.use("/admin/withdrawals", requireAuth, withdrawalsRouter);
@@ -171,6 +177,7 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/issuer/onboarding-fee", devAuthBypass, issuerOnboardingFeeRouter);
     v1Router.use("/investor", devAuthBypass, investorNotesRouter);
     v1Router.use("/issuer/dashboard", devAuthBypass, issuerDashboardRouter);
+    v1Router.use("/issuer/paymasters", devAuthBypass, createIssuerPaymasterRouter());
     v1Router.use("/issuer", devAuthBypass, issuerNotesRouter);
   } else {
     v1Router.use("/marketplace", requireAuth, marketplaceRouter);
@@ -178,6 +185,7 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/issuer/onboarding-fee", requireAuth, issuerOnboardingFeeRouter);
     v1Router.use("/investor", requireAuth, investorNotesRouter);
     v1Router.use("/issuer/dashboard", requireAuth, issuerDashboardRouter);
+    v1Router.use("/issuer/paymasters", createIssuerPaymasterRouter());
     v1Router.use("/issuer", requireAuth, issuerNotesRouter);
   }
 

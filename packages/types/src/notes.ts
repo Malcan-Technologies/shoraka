@@ -381,6 +381,9 @@ export interface NoteDetail extends NoteListItem {
   prospectusSnapshot: Record<string, unknown> | null;
   issuerSnapshot: Record<string, unknown>;
   paymasterSnapshot: Record<string, unknown> | null;
+  paymasterId?: string | null;
+  assignmentNotice?: import("./paymaster").PaymasterAssignmentNotice | null;
+  paymasterAcknowledgementSatisfied?: boolean;
   contractSnapshot: Record<string, unknown> | null;
   invoiceSnapshot: Record<string, unknown> | null;
   feeSchedule?: InvoiceFeeSchedule | null;

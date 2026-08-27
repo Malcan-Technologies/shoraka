@@ -4,7 +4,6 @@
  */
 
 import { PROSPECTUS_SHARIAH_BADGE_DISPLAY_SIZE_PX } from "./prospectus-shariah-badge";
-import { PROSPECTUS_RISK_SHIELD_GRADE_FONT_SIZE_PX } from "./prospectus-risk-shield";
 
 /** Fixed A4 geometry — never shrink with viewport. */
 export const PROSPECTUS_A4_WIDTH_MM = 210;
@@ -121,8 +120,9 @@ export const PROSPECTUS_DOCUMENT_CSS = `
   --prospectus-tagline-baseline-offset:${PROSPECTUS_TAGLINE_BASELINE_OFFSET_PX}px;
   --prospectus-footer-icon-gap:6px;
   --prospectus-shariah-badge-size:${PROSPECTUS_SHARIAH_BADGE_SIZE_PX}px;
-  --prospectus-risk-shield-size:72px;
-  --prospectus-risk-shield-grade-font-size:${PROSPECTUS_RISK_SHIELD_GRADE_FONT_SIZE_PX}px;
+  --prospectus-risk-shield-size:130px;
+  --prospectus-risk-shield-height:42px;
+  --prospectus-risk-shield-grade-font-size:22px;
   --prospectus-section-title-font-size:${PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX}px;
   --prospectus-section-title-margin-bottom:${PROSPECTUS_SECTION_TITLE_MARGIN_BOTTOM_PX}px;
   --prospectus-page-title-font-size:${PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX}px;
@@ -234,11 +234,10 @@ h2{
 /* Four timeline rows in the middle hero column — slightly tighter than generic meta-row */
 .key-dates .meta-row{margin-bottom:12px}.key-dates .meta-row:last-child{margin-bottom:0}
 .risk-panel{text-align:left}.risk-panel>b{font-size:10px}
-.risk-shield{position:relative;width:var(--prospectus-risk-shield-size);height:var(--prospectus-risk-shield-size);margin:8px auto 2px;display:grid;place-items:center}
-.risk-shield-asset{width:100%;height:100%;object-fit:contain;display:block}
-/* Grade letter size from Canva reference (.shield font-size:30px); centred via absolute inset + grid */
+.risk-shield{position:relative;width:var(--prospectus-risk-shield-size);height:var(--prospectus-risk-shield-height);margin:16px 0 14px;display:grid;place-items:center;border-radius:9px;overflow:hidden;background:currentColor}
+.risk-shield-asset{display:none}
 .risk-shield-grade{position:absolute;inset:0;display:grid;place-items:center;font-size:var(--prospectus-risk-shield-grade-font-size);font-weight:800;line-height:1;pointer-events:none;color:#fff}
-.risk-shield-fallback{border-radius:8px}
+.risk-shield-fallback{border-radius:9px}
 /* Risk label under shield — restore origin/main / Canva size (not the enlarged 14px treatment) */
 .risk-panel strong{display:block;text-align:center;font-size:12px}
 .risk-panel .prospectus-risk-description,.prospectus-risk-description{font-size:10px;line-height:1.35;font-weight:400;margin:8px 0 10px;color:var(--prospectus-text)}
@@ -315,7 +314,15 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
   align-items:stretch;
   flex-shrink:0;
 }
-.page-two-risk-cta{flex-shrink:0}
+.grade.marc{
+  width:auto;
+  min-width:61px;
+  height:28px;
+  padding:0 5px;
+  border-radius:5px;
+  font-size:7px;
+  white-space:nowrap;
+}
 .credit-insights-note{display:block;font-size:7px;margin-top:8px;font-style:italic;line-height:1.3;color:var(--prospectus-muted)}
 .ratings div{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center;margin:5px 0;position:relative}.ratings div:before{content:"";width:17px;height:17px;background:#e3bfc0;border-radius:3px;position:absolute;left:0}.ratings span{font-weight:700;padding-left:22px}.ratings b{background:#d8d8d8;text-align:center;padding:5px;border-radius:4px;font-weight:500}.ratings .good{color:#21a43b}
 .work-list p{display:flex;align-items:flex-start;gap:10px;font-size:9px;margin-bottom:9px}.work-list .icon{flex:none;width:var(--prospectus-icon-work);height:var(--prospectus-icon-work);padding:4px;box-sizing:border-box}

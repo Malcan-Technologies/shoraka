@@ -49,6 +49,7 @@ import {
 } from "../prospectus/prospectus-page-two-mapper";
 import { loadProspectusPageTwoData } from "../prospectus/prospectus-page-two-prisma";
 import { buildProspectusPageThreeHtml } from "../prospectus/prospectus-page-three.html";
+import { buildProspectusPageFourHtml, buildProspectusPageFiveHtml } from "../prospectus/prospectus-marc-appendix.html";
 import {
   buildProspectusPageThree,
   mapProspectusPageThreeDataToInput,
@@ -818,6 +819,8 @@ export class ProspectusReviewService {
       page1: buildProspectusPageOneHtml(page1),
       page2: buildProspectusPageTwoHtml(page2),
       page3: buildProspectusPageThreeHtml(page3),
+      page4: buildProspectusPageFourHtml(),
+      page5: buildProspectusPageFiveHtml(),
     });
 
     // PDF from exact frozen HTML — before APPROVED status; publish never regenerates.
@@ -1010,6 +1013,8 @@ export class ProspectusReviewService {
     const page1Html = buildProspectusPageOneHtml(page1);
     const page2Html = buildProspectusPageTwoHtml(page2);
     const page3Html = buildProspectusPageThreeHtml(page3);
+    const page4Html = buildProspectusPageFourHtml();
+    const page5Html = buildProspectusPageFiveHtml();
 
     return {
       status: meta.status,
@@ -1019,10 +1024,14 @@ export class ProspectusReviewService {
         page1: `${banner}${page1Html}`,
         page2: `${banner}${page2Html}`,
         page3: `${banner}${page3Html}`,
+        page4: `${banner}${page4Html}`,
+        page5: `${banner}${page5Html}`,
         allPages: combineProspectusPagesHtml({
           page1: page1Html,
           page2: page2Html,
           page3: page3Html,
+          page4: page4Html,
+          page5: page5Html,
         }),
       },
     };

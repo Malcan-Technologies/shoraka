@@ -2,6 +2,8 @@ export type ProspectusPreviewPages = {
   page1: string;
   page2: string;
   page3: string;
+  page4?: string;
+  page5?: string;
   allPages: string;
 };
 
@@ -21,6 +23,8 @@ export function cleanProspectusPreviewHtml(
     page1: stripPreviewBanner(html.page1),
     page2: stripPreviewBanner(html.page2),
     page3: stripPreviewBanner(html.page3),
+    page4: html.page4 ? stripPreviewBanner(html.page4) : undefined,
+    page5: html.page5 ? stripPreviewBanner(html.page5) : undefined,
     allPages: stripPreviewBanner(html.allPages),
   };
 }

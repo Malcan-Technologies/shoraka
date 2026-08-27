@@ -17,7 +17,7 @@ import {
   PROSPECTUS_PAGE_TWO_HEIGHT_MM,
   PROSPECTUS_PAGE_TWO_WIDTH_MM,
 } from "./prospectus-page-two.types";
-import { buildProspectusSoukscoreRatingScaleSectionHtml } from "./prospectus-soukscore-rating-scale.html";
+import { buildProspectusMarcRatingScaleSectionHtml } from "./prospectus-soukscore-rating-scale.html";
 
 function renderFinancialTable(page: ProspectusPageTwo): string {
   const data = page.financialComparisonMetrics;
@@ -155,8 +155,6 @@ ${PROSPECTUS_DOCUMENT_CSS}
           <div class="page-two-invoice-row"><dt>${renderProspectusHeroicon("paymaster-name", { className: "icon page-two-invoice-icon" })}Paymaster</dt><dd>${escapeHtml(s2.paymasterName)}</dd></div>
           <div class="page-two-invoice-row"><dt>${renderProspectusHeroicon("paymaster-type", { className: "icon page-two-invoice-icon" })}Nature of Paymaster</dt><dd>${escapeHtml(s2.paymasterNature)}</dd></div>
           <div class="page-two-invoice-row"><dt>${renderProspectusHeroicon("assignment", { className: "icon page-two-invoice-icon" })}Deed of Assignment (DOA)</dt><dd>${escapeHtml(s2.deedOfAssignment)}</dd></div>
-          <div class="page-two-invoice-row"><dt>${renderProspectusHeroicon("rating", { className: "icon page-two-invoice-icon" })}Paymaster Rating</dt><dd>${escapeHtml(s2.paymasterRating)}</dd></div>
-          <div class="page-two-invoice-row"><dt>${renderProspectusHeroicon("confidence", { className: "icon page-two-invoice-icon" })}Confidence Grading</dt><dd>${escapeHtml(s2.confidenceGrading)}</dd></div>
         </dl>
       </section>
     </div>
@@ -179,9 +177,9 @@ ${PROSPECTUS_DOCUMENT_CSS}
       <div data-stage="5">
         <h2>${escapeHtml(s5.sectionHeading)}</h2>
         <div class="ratings">
-          ${ratingRow("Credit Score", s5.creditScore)}
-          ${ratingRow("Payment Behaviour", s5.paymentBehaviour)}
-          ${ratingRow("Credit Utilisation", s5.creditUtilisation)}
+          ${ratingRow("MARC Credit Grade", s5.marcCreditGrade)}
+          ${ratingRow("MARC Credit Score", s5.marcCreditScore)}
+          ${ratingRow("Probability of Default", s5.probabilityOfDefault)}
           ${ratingRow("Litigation Check", s5.litigationCheck)}
           ${ratingRow("CCRIS Status", s5.ccrisStatus)}
         </div>
@@ -197,7 +195,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
 
     <div class="risk-cta page-two-risk-cta" id="risk-scale">
       <section class="card">
-        ${buildProspectusSoukscoreRatingScaleSectionHtml(page.soukscoreRatingScale)}
+        ${buildProspectusMarcRatingScaleSectionHtml()}
       </section>
       <aside class="cta">
         ${buildProspectusInvestmentCtaHtml(page.investmentCta)}

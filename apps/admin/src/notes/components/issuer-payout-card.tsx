@@ -15,7 +15,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { NoteDetail, WithdrawalInstruction } from "@cashsouk/types";
-import { WithdrawalType, formatNoteReference, formatWithdrawalReference } from "@cashsouk/types";
+import { WithdrawalType, formatNoteReference, formatWithdrawalReference, PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE } from "@cashsouk/types";
 import { StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { DisbursementValueDateField } from "@/notes/components/disbursement-value-date-field";
@@ -299,6 +299,8 @@ export function IssuerPayoutCard({
       ) : (
         "Tawarruq Certificate must be fetched before marking issuer disbursement as completed."
       )
+    ) : shouldGateMarkDisbursed && note.paymasterAcknowledgementSatisfied !== true ? (
+      PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE
     ) : null;
 
   const generateLetterDisabledBecauseShoraka =
@@ -317,7 +319,12 @@ export function IssuerPayoutCard({
       ) : (
         "Tawarruq Certificate must be fetched before generating the trustee letter."
       )
+    ) : shouldGateMarkDisbursed && note.paymasterAcknowledgementSatisfied !== true ? (
+      PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE
     ) : null;
+
+  const paymasterAckMissing =
+    shouldGateMarkDisbursed && note.paymasterAcknowledgementSatisfied !== true;
 
   const [confirmAction, setConfirmAction] = React.useState<
     "generate" | "submit" | "resend" | "complete" | null
@@ -928,6 +935,9 @@ export function IssuerPayoutCard({
         {status === "DRAFT" && generateLetterHelperText ? (
           <p className="mt-2 text-xs text-muted-foreground">{generateLetterHelperText}</p>
         ) : null}
+        {status === "LETTER_GENERATED" && paymasterAckMissing ? (
+          <p className="mt-2 text-xs text-muted-foreground">{PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE}</p>
+        ) : null}
         {status === "SUBMITTED_TO_TRUSTEE" && markDisbursedHelperText ? (
           <p className="mt-2 text-xs text-muted-foreground">{markDisbursedHelperText}</p>
         ) : null}
@@ -1020,7 +1030,11 @@ export function IssuerPayoutCard({
               variant={status === "DRAFT" && !generateLetterDisabledBecauseShoraka ? "default" : "outline"}
               onClick={() => guardedAction(() => setConfirmAction("generate"))}
               disabled={
-                pendingAny || !beneficiaryComplete || generateLetterDisabledBecauseShoraka || !canManage
+                pendingAny ||
+                !beneficiaryComplete ||
+                generateLetterDisabledBecauseShoraka ||
+                paymasterAckMissing ||
+                !canManage
               }
               title={!canManage ? "You do not have permission to perform this action." : undefined}
               className="gap-1.5"
@@ -1046,7 +1060,7 @@ export function IssuerPayoutCard({
             <Button
               size="sm"
               onClick={() => guardedAction(() => setConfirmAction("submit"))}
-              disabled={pendingAny || !canManage}
+              disabled={pendingAny || paymasterAckMissing || !canManage}
               title={!canManage ? "You do not have permission to perform this action." : undefined}
               className="gap-1.5"
             >
@@ -1066,7 +1080,12 @@ export function IssuerPayoutCard({
                   setConfirmAction("complete");
                 })
               }
-              disabled={pendingAny || markDisbursedDisabledBecauseShoraka || !canManage}
+              disabled={
+                pendingAny ||
+                markDisbursedDisabledBecauseShoraka ||
+                paymasterAckMissing ||
+                !canManage
+              }
               title={!canManage ? "You do not have permission to perform this action." : undefined}
               className="gap-1.5"
             >

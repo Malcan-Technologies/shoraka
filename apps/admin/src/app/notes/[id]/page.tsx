@@ -57,6 +57,7 @@ import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
 import { IssuerPayoutCard } from "@/notes/components/issuer-payout-card";
+import { PaymasterAssignmentCard } from "@/notes/components/paymaster-assignment-card";
 import { NoteWorkflowTabHeader } from "@/notes/components/note-workflow-tab-header";
 import {
   AdminDetailTabPanel,
@@ -576,6 +577,10 @@ export default function NoteDetailPage() {
                             description="Manage Tawarruq execution, trustee submission, and issuer payout before servicing begins."
                           />
                           <CardContent className="space-y-6 pt-0">
+                            <PaymasterAssignmentCard
+                              note={note}
+                              canManage={canDisbursement}
+                            />
                             {disbursementWithdrawal &&
                             disbursementWithdrawal.status !== "CANCELLED" ? (
                               <IssuerPayoutCard

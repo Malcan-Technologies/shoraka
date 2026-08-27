@@ -18,7 +18,6 @@ import { buildProspectusRiskAssessment } from "./prospectus-risk-assessment";
 import { buildProspectusPageThreeMetadata } from "./prospectus-page-three-metadata";
 import { SAMPLE_PROSPECTUS_PAGE_THREE_METADATA_INPUT } from "./prospectus-page-three-metadata.sample-data";
 import { buildProspectusSoukscoreRatingScale } from "./prospectus-soukscore-rating-scale";
-import { PROSPECTUS_RISK_SHIELD_GRADE_FONT_SIZE_PX } from "./prospectus-risk-shield";
 
 describe("prospectus SoukScore cross-page and freeze", () => {
   it("uses the same grade on Page 1 card, Page 2 scale, and Page 3 metadata", () => {
@@ -56,14 +55,14 @@ describe("prospectus SoukScore cross-page and freeze", () => {
     expect(html).not.toContain(
       ".risk-panel strong{display:block;text-align:center;font-size:14px;font-weight:800"
     );
-    // Grade letter inside shield: Canva reference 30px (was 22px).
-    expect(html).toContain("--prospectus-risk-shield-grade-font-size:30px");
+    expect(html).toContain("color:#fff");
+    expect(html).toContain("--prospectus-risk-shield-grade-font-size:22px");
     expect(html).toContain(
       "font-size:var(--prospectus-risk-shield-grade-font-size);font-weight:800"
     );
-    expect(html).toContain("color:#fff");
-    expect(html).toContain("--prospectus-risk-shield-size:72px");
-    expect(html).toContain("border:1.5px solid var(--red)");
+    expect(html).toContain("--prospectus-risk-shield-size:130px");
+    expect(html).toContain("--prospectus-risk-shield-height:42px");
+    expect(html).toContain("border-radius:9px");
     // Grade colour is injected into the shield SVG fill (base64 data URI).
     expect(
       Buffer.from(
@@ -103,10 +102,9 @@ describe("prospectus SoukScore cross-page and freeze", () => {
       expect(html).toContain(`>${grade}</span>`);
       expect(html).toContain('class="risk-shield-grade"');
       expect(html).toContain("color:#FFFFFF");
-      expect(PROSPECTUS_RISK_SHIELD_GRADE_FONT_SIZE_PX).toBe(30);
-      expect(html).toContain("--prospectus-risk-shield-grade-font-size:30px");
+      expect(html).toContain("--prospectus-risk-shield-grade-font-size:22px");
       expect(html).toContain("place-items:center");
-      expect(html).toContain("--prospectus-risk-shield-size:72px");
+      expect(html).toContain("--prospectus-risk-shield-size:130px");
       expect(html).toContain(
         ".risk-panel strong{display:block;text-align:center;font-size:12px}"
       );

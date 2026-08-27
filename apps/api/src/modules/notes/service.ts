@@ -26,6 +26,8 @@ import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
+import { buildPaymasterSnapshot } from "../paymaster/snapshot";
+import { assertPaymasterAcknowledgementForDisbursement } from "../paymaster/service";
 import {
   assertInvoiceFeeScheduleChargeable,
   settleCloseFundingFacilityFees,
@@ -2471,6 +2473,7 @@ export class NoteService {
       contract_details: Prisma.JsonValue | null;
       offer_details: Prisma.JsonValue | null;
       customer_details: Prisma.JsonValue | null;
+      paymaster_id?: string | null;
     } | null;
     title?: string;
     actor: ActorContext;
@@ -2562,6 +2565,25 @@ export class NoteService {
       application.issuer_organization.display_reference?.trim() ||
       "issuer";
 
+    const customerDetails = asRecord(sourceContract?.customer_details);
+    const linkedPaymasterId =
+      sourceContract?.paymaster_id ??
+      (typeof customerDetails?.paymaster_id === "string" ? customerDetails.paymaster_id : null);
+    const linkedPaymaster = linkedPaymasterId
+      ? await prisma.paymaster.findUnique({ where: { id: linkedPaymasterId } })
+      : null;
+    const paymasterSnapshot = linkedPaymaster
+      ? buildPaymasterSnapshot({
+          paymaster: linkedPaymaster,
+          isRelatedParty: Boolean(customerDetails?.is_related_party),
+          isLargePrivateCompany:
+            typeof customerDetails?.is_large_private_company === "boolean"
+              ? customerDetails.is_large_private_company
+              : undefined,
+          document: customerDetails?.document,
+        })
+      : customerDetails;
+
     const note = await prisma
       .$transaction(async (tx) => {
         await assertSourceFacilityEnabled(tx, sourceContract?.id ?? invoice.contract_id);
@@ -2592,7 +2614,8 @@ export class NoteService {
               `Note for invoice ${invoiceNumber} - ${issuerLabel}`,
             note_reference: canonicalReference,
             issuer_snapshot: { ...issuerSnapshot },
-            paymaster_snapshot: json(sourceContract?.customer_details),
+            paymaster_id: linkedPaymaster?.id ?? linkedPaymasterId ?? undefined,
+            paymaster_snapshot: json(paymasterSnapshot),
             product_snapshot: json({
               ...(financingType ?? {}),
               product_id: productId,
@@ -6701,6 +6724,9 @@ export class NoteService {
 
     // Issuer disbursement trustee letter must only be generated after Tawarruq Certificate is fetched/stored.
     if (withdrawal.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {
+      if (withdrawal.note_id) {
+        await assertPaymasterAcknowledgementForDisbursement(withdrawal.note_id);
+      }
       const shorakaTradeOrder = await prisma.shorakaTradeOrder.findUnique({
         where: { withdrawal_instruction_id: id },
         select: { certificate_s3_key: true },
@@ -6791,6 +6817,9 @@ export class NoteService {
         "WITHDRAWAL_LETTER_REQUIRED",
         "Withdrawal can be submitted to trustee only after its instruction letter is generated"
       );
+    }
+    if (existing.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT && existing.note_id) {
+      await assertPaymasterAcknowledgementForDisbursement(existing.note_id);
     }
     if (!existing.letter_s3_key) {
       throw new AppError(
@@ -6969,6 +6998,9 @@ export class NoteService {
         await lockContractRow(tx, noteForCapacity.source_contract_id);
       }
       if (existing.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {
+        if (existing.note_id) {
+          await assertPaymasterAcknowledgementForDisbursement(existing.note_id);
+        }
         const shorakaTradeOrder = await tx.shorakaTradeOrder.findUnique({
           where: { withdrawal_instruction_id: id },
           select: { certificate_s3_key: true },

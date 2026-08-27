@@ -122,13 +122,10 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     }
   });
 
-  it("Trend column keeps — when no approved direction exists", () => {
+  it("does not render a Trend column", () => {
     const html = buildProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
-    expect(html).toContain("Trend (3-Yr)");
-    expect((html.match(/class="trend-cell/g) ?? []).length).toBe(10);
-    expect(html).not.toMatch(/[↑↓]/);
-    // Heroicons when approved; DNA — when three values unavailable
-    expect(html).toMatch(/data-prospectus-icon="trend-|—/);
+    expect(html).not.toContain("Trend (3-Yr)");
+    expect(html).not.toContain("class=\"trend-cell");
   });
 
   it("shared header uses official logo asset path and static tagline", () => {
@@ -391,7 +388,7 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     expect(PROSPECTUS_DOCUMENT_CSS).not.toContain("page-footer-group");
   });
 
-  it("Page 2 top issuer/invoice block is not a card and shows all seven invoice rows", () => {
+  it("Page 2 top issuer/invoice block is not a card and omits Page 2 rating/confidence", () => {
     const html = buildProspectusPageTwoHtml(SAMPLE_PROSPECTUS_PAGE_TWO);
     const bodyStart = html.indexOf("<body>");
     expect(bodyStart).toBeGreaterThan(-1);
@@ -407,8 +404,8 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     const topBlock = body.slice(issuerOpen, financialOpen);
     expect(topBlock).not.toMatch(/\bcard\b/);
     expect(topBlock).not.toContain("connected-card");
-    expect(topBlock).toContain("Paymaster Rating");
-    expect(topBlock).toContain("Confidence Grading");
+    expect(topBlock).not.toContain("Paymaster Rating");
+    expect(topBlock).not.toContain("Confidence Grading");
     expect(topBlock).toContain("Invoice Amount");
     expect(topBlock).toContain("Invoice Due Date");
     expect(topBlock).toContain("Paymaster");
@@ -447,7 +444,7 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
       /\.page-two-issuer-grid\{[^}]*height:\s*[1-9]/
     );
     expect(body).toContain("page-two-invoice-list");
-    expect((body.match(/page-two-invoice-row/g) ?? []).length).toBe(7);
+    expect((body.match(/page-two-invoice-row/g) ?? []).length).toBe(5);
     expect(body).toContain("prospectus-footer");
     expect(body.indexOf("prospectus-footer")).toBeGreaterThan(financialOpen);
     // Content flow must not clip via overflow:hidden on the top wrapper

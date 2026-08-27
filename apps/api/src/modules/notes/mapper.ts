@@ -23,6 +23,7 @@ import { sortAdminNoteEvents } from "./admin-note-events-sorting";
 import { noteInclude } from "./repository";
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { prisma } from "../../lib/prisma";
+import { getLatestAssignmentNoticeForNote, mapAssignmentNotice } from "../paymaster/service";
 
 type NoteWithRelations = Prisma.NoteGetPayload<{
   include: typeof noteInclude;
@@ -707,6 +708,7 @@ export async function mapNoteDetail(
   const mappedEvents = includeEvents ? mapNoteEventRecords(note.events, actorNameById) : [];
   const sourceMaps = await loadNoteSourceDisplayReferenceMaps([note]);
 
+  const latestNotice = await getLatestAssignmentNoticeForNote(note.id);
   return applyNoteSourceDisplayReferences({
     ...mapNoteListItem(note),
     issuerResidualPayout: resolveIssuerResidualPayoutListStatus(note, withdrawals),
@@ -715,6 +717,9 @@ export async function mapNoteDetail(
     prospectusSnapshot: asRecord(note.prospectus_snapshot),
     issuerSnapshot: asRecord(note.issuer_snapshot) ?? {},
     paymasterSnapshot: asRecord(note.paymaster_snapshot),
+    paymasterId: note.paymaster_id ?? null,
+    assignmentNotice: latestNotice ? mapAssignmentNotice(latestNotice) : null,
+    paymasterAcknowledgementSatisfied: latestNotice?.status === "ACKNOWLEDGED",
     contractSnapshot: asRecord(note.contract_snapshot),
     invoiceSnapshot: asRecord(note.invoice_snapshot),
     feeSchedule: parseInvoiceFeeSchedule(asRecord(note.invoice_snapshot)?.offer_details),

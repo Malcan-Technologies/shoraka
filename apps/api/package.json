@@ -37,6 +37,7 @@
     "run-acceptance-signing-expiry": "tsx scripts/run-acceptance-signing-expiry.ts",
     "backfill-offer-application-statuses": "tsx scripts/backfill-offer-application-statuses.ts",
     "backfill-product-codes": "tsx scripts/backfill-product-codes.ts",
+    "backfill-paymasters": "tsx scripts/backfill-paymasters.ts",
     "audit-product-families": "tsx scripts/audit-product-families.ts",
     "check-product-code-readiness": "tsx scripts/check-product-code-readiness.ts",
     "check-display-reference-sanity": "tsx scripts/check-display-reference-sanity.ts",

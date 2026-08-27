@@ -95,17 +95,21 @@ describe("prospectus preview sheet utils", () => {
     expect(cleanProspectusPreviewHtml(payload)).toEqual(cleaned);
   });
 
-  it("exposes Page 1–3 and All Pages tabs without Previous/Next navigation", () => {
+  it("exposes Page 1–5 and All Pages tabs without Previous/Next navigation", () => {
     expect(PROSPECTUS_PREVIEW_TABS).toEqual([
       "page1",
       "page2",
       "page3",
+      "page4",
+      "page5",
       "allPages",
     ]);
     expect(PROSPECTUS_PREVIEW_TAB_LABELS).toEqual({
       page1: "Page 1",
       page2: "Page 2",
       page3: "Page 3",
+      page4: "Page 4",
+      page5: "Page 5",
       allPages: "All Pages",
     });
     expect(prospectusPreviewIframeTitle("page1")).toBe(

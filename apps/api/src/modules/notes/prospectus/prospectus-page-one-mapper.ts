@@ -35,6 +35,7 @@ import {
   type ProspectusPageOneNoteRecord,
 } from "./prospectus-page-one-prisma";
 import { publicationContentFromFrozenSnapshot } from "../prospectus-review/prospectus-frozen-publication";
+import { resolveMarcSnapshotForProspectus } from "./prospectus-marc-snapshot";
 import type {
   ProspectusPageOne,
   ProspectusPageOneTrackRecordMode,
@@ -155,6 +156,7 @@ export async function mapProspectusPageOneDataToInput(
   const paymaster = parsePaymasterSnapshot(note.paymaster_snapshot);
   const purpose = parsePurposeSnapshot(note.purpose_snapshot);
   const riskRating = parseInvoiceSnapshotRiskRating(note.invoice_snapshot);
+  const marcSnapshot = await resolveMarcSnapshotForProspectus(note);
 
   const listingOpensAt = note.listing?.opens_at ?? null;
   const listingClosesAt = note.listing?.closes_at ?? null;
@@ -188,6 +190,7 @@ export async function mapProspectusPageOneDataToInput(
     },
     riskAssessment: {
       soukscoreRiskRating: riskRating,
+      marcGrade: marcSnapshot?.creditGrade ?? null,
     },
     mainFinancialTerms: {
       targetAmount,

@@ -3,7 +3,12 @@
  * WHY: Canva shows SoukScore grade + catalogue label/explanation; no separate storage
  */
 
-import { resolveSoukscoreRiskRatingPresentation } from "@cashsouk/types";
+import {
+  marcBandForGrade,
+  marcGradeColor,
+  marcGradeLabel,
+  resolveSoukscoreRiskRatingPresentation,
+} from "@cashsouk/types";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_RATING_SCALE_REFERENCE,
@@ -15,6 +20,28 @@ import {
 export function buildProspectusRiskAssessment(
   input: ProspectusRiskAssessmentInput
 ): ProspectusRiskAssessment {
+  const marcGrade = input.marcGrade?.trim() || "";
+  const marcBand = marcBandForGrade(marcGrade);
+  if (marcBand) {
+    return {
+      canva: {
+        riskGrade: marcGrade,
+        riskLabel: marcGradeLabel(marcGrade),
+        riskExplanation: marcBand.explanation,
+        riskGradeColor: marcGradeColor(marcGrade),
+        riskGradeTextColor: "#ffffff",
+        ratingScaleReference: PROSPECTUS_RATING_SCALE_REFERENCE,
+      },
+      audit: {
+        riskScore: PROSPECTUS_DATA_NOT_AVAILABLE,
+        riskAppliesTo: "Issuer organization MARC assessment, frozen at Prospectus approve",
+        assessmentSource: "Admin-entered organization MARC assessment",
+        isFrozen: true,
+        scaleStatus: PROSPECTUS_RATING_SCALE_STATUS,
+      },
+    };
+  }
+
   const presentation = resolveSoukscoreRiskRatingPresentation(input.soukscoreRiskRating);
 
   return {

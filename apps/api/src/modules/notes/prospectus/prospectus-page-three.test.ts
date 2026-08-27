@@ -515,7 +515,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(SAMPLE_PROSPECTUS_PAGE_THREE).not.toHaveProperty("footer");
     });
 
-    it("assembles one A4 Page 3 in reference order with Stage 5 Trend column only", () => {
+    it("assembles one A4 Page 3 without a Trend column", () => {
       const html = renderProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
       expect(html).toContain('data-page="prospectus-page-three"');
       expect(html.match(/data-page="prospectus-page-three"/g)).toHaveLength(1);
@@ -572,9 +572,9 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         "Additional financial view for investors seeking deeper issuer analysis"
       );
       expect(html).toContain('data-page-subtitle="true"');
-      expect(html).toContain("Trend (3-Yr)");
+      expect(html).not.toContain("Trend (3-Yr)");
       expect(html).not.toContain("FINANCIAL TRENDS");
-      expect((html.match(/class="trend-cell/g) ?? []).length).toBe(10);
+      expect(html).not.toContain("class=\"trend-cell");
       expect(html).not.toMatch(/[↑↓]/);
       expect(html).toContain("comparison-grid");
       expect(html).not.toContain("comparison-row-top");
@@ -622,7 +622,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       const balanceChunk = html.slice(balanceIdx, coverageIdx);
       expect(incomeChunk).not.toContain("Trend (3-Yr)");
       expect(balanceChunk).not.toContain("Trend (3-Yr)");
-      expect(html.slice(coverageIdx)).toContain("Trend (3-Yr)");
+      expect(html.slice(coverageIdx)).not.toContain("Trend (3-Yr)");
     });
   });
 });

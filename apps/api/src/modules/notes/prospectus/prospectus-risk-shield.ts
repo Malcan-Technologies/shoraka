@@ -76,7 +76,7 @@ export function buildProspectusRiskShieldHtml(
     const dataUri = `data:image/svg+xml;base64,${Buffer.from(coloured, "utf8").toString("base64")}`;
     return `<div class="risk-shield" data-grade="${escapeHtmlAttribute(
       grade
-    )}" style="color:${escapeHtmlAttribute(gradeTextColor)}">
+    )}" style="background:${escapeHtmlAttribute(color)};color:${escapeHtmlAttribute(gradeTextColor)}">
   <img class="risk-shield-asset" src="${dataUri}" alt="" width="${w}" height="${h}" />
   <span class="risk-shield-grade">${escapeHtml(grade)}</span>
 </div>`;

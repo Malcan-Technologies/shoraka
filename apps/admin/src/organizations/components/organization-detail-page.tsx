@@ -34,6 +34,7 @@ import {
 } from "@/components/admin-detail";
 import { OrganizationActivityTimeline } from "@/components/organization-activity-timeline";
 import { OrganizationIssuerCtosReportsCard } from "@/components/organization-issuer-ctos-reports-card";
+import { OrganizationMarcCard } from "@/organizations/components/organization-marc-card";
 import { OrganizationTypeBadge } from "@/components/organization-type-badge";
 import { RequirePermission } from "@/components/require-permission";
 import {
@@ -403,6 +404,15 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                           organizationId={organizationId}
                           displayName={displayName}
                         />
+                        {portal === "issuer" ? (
+                          <div className="mt-6">
+                            <OrganizationMarcCard
+                              org={org}
+                              organizationId={organizationId}
+                              portal={portal}
+                            />
+                          </div>
+                        ) : null}
                       </AdminDetailTabPanel>
                       {canShowPeopleTab ? (
                         <AdminDetailTabPanel value="people" preserveMount>

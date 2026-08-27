@@ -71,7 +71,7 @@ describe("prospectus Heroicons", () => {
     expect(page1).toContain("data:image/svg+xml;base64,");
   });
 
-  it("Page 2 invoice rows use seven distinct semantic icon keys", () => {
+  it("Page 2 invoice rows use five distinct semantic icon keys", () => {
     const html = buildProspectusPageTwoHtml(SAMPLE_PROSPECTUS_PAGE_TWO);
     const keys = [
       "invoice-amount",
@@ -79,12 +79,12 @@ describe("prospectus Heroicons", () => {
       "paymaster-name",
       "paymaster-type",
       "assignment",
-      "rating",
-      "confidence",
     ];
     for (const key of keys) {
       expect(html).toContain(`data-prospectus-icon="${key}"`);
     }
+    expect(html).not.toContain('data-prospectus-icon="rating"');
+    expect(html).not.toContain('data-prospectus-icon="confidence"');
   });
 
   it("Page 3 metadata uses five semantic Heroicons", () => {

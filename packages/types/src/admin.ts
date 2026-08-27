@@ -663,6 +663,9 @@ export interface OrganizationDetailResponse {
   // Sum of funded amounts on ACTIVE notes (issuer portal only)
   activeNotesAmount: number | null;
 
+  /** Latest organization-level MARC assessment (issuer only). */
+  marcAssessment?: import("./marc-credit-grade").MarcAssessmentSnapshot | null;
+
   // RegTank portal link (for viewing in RegTank admin)
   regtankPortalUrl: string | null;
   regtankRequestId: string | null;
