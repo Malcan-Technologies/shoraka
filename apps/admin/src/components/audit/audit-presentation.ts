@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { formatRoleSwitchedLabel } from "@cashsouk/types";
+import { formatForensicAuditSourceLabel, formatRoleSwitchedLabel } from "@cashsouk/types";
 import { humanizeAdminTimelineToken } from "@/components/admin-timeline-format";
 
 export { formatRoleSwitchedLabel };
@@ -271,13 +271,18 @@ export function formatAuditActorTypeLabel(type: string): string {
 export function formatAuditSourceLabel(source: string | null | undefined): string {
   if (!source?.trim()) return "";
   const key = source.trim().toUpperCase();
-  if (key === "API") return "API";
   if (key === "ADMIN") return "Admin Portal";
   if (key === "SYSTEM") return "System";
-  if (key === "SYSTEM_JOB" || key === "JOB") return "System Job";
-  if (key === "INTERNAL") return "Internal";
-  if (key === "PORTAL") return "Portal";
-  if (key === "WEBHOOK") return "Webhook";
+  if (
+    key === "API" ||
+    key === "PORTAL" ||
+    key === "WEBHOOK" ||
+    key === "SYSTEM_JOB" ||
+    key === "JOB" ||
+    key === "INTERNAL"
+  ) {
+    return formatForensicAuditSourceLabel(source);
+  }
   return formatAuditEventLabel(source);
 }
 

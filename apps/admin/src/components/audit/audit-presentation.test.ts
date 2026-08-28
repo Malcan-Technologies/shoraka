@@ -73,12 +73,16 @@ describe("audit presentation", () => {
     expect(presentAuditActorName("Ada Admin")).toBe("Ada Admin");
   });
 
-  it("labels source as a channel, not a second actor type", () => {
-    expect(formatAuditSourceLabel("ADMIN")).toBe("Admin Portal");
-    expect(formatAuditSourceLabel("API")).toBe("API");
-    expect(formatAuditSourceLabel("SYSTEM")).toBe("System");
-    expect(formatAuditSourceLabel("SYSTEM_JOB")).toBe("System Job");
+  it("labels forensic source as a channel, not a second actor type", () => {
+    expect(formatAuditSourceLabel("API")).toBe("Portal");
+    expect(formatAuditSourceLabel("PORTAL")).toBe("Portal");
     expect(formatAuditSourceLabel("WEBHOOK")).toBe("Webhook");
+    expect(formatAuditSourceLabel("SYSTEM_JOB")).toBe("System job");
+    expect(formatAuditSourceLabel("INTERNAL")).toBe("Internal process");
+    expect(formatAuditSourceLabel(null)).toBe("");
+    expect(formatAuditSourceLabel("")).toBe("");
+    expect(formatAuditSourceLabel("ADMIN")).toBe("Admin Portal");
+    expect(formatAuditSourceLabel("SYSTEM")).toBe("System");
   });
 
   it("redacts secrets and keeps business evidence", () => {
@@ -199,7 +203,61 @@ describe("buildAuditCsv", () => {
     expect(csv).toContain("MARC Assessment Saved");
     expect(csv).toContain("MARC_ASSESSMENT_SAVED");
     expect(csv).toContain("ISS-202608-DK3");
+    expect(csv).toContain("Portal");
+    expect(csv).not.toContain('"API"');
     expect(csv).toContain("SME-4");
     expect(csv).toContain("SME-3");
+  });
+
+  it("maps forensic source for Operations and leaves unrelated source values unchanged", () => {
+    const csv = buildAuditCsv([
+      { timestamp: "2026-08-25T10:15:00.000Z", event: "Login", eventType: "LOGIN", source: "API" },
+      {
+        timestamp: "2026-08-25T10:16:00.000Z",
+        event: "Fee Paid",
+        eventType: "ONBOARDING_FEE_PAID",
+        source: "WEBHOOK",
+      },
+      {
+        timestamp: "2026-08-25T10:17:00.000Z",
+        event: "Offer Expired",
+        eventType: "CONTRACT_OFFER_EXPIRED",
+        source: "SYSTEM_JOB",
+      },
+      {
+        timestamp: "2026-08-25T10:18:00.000Z",
+        event: "Occupancy Updated",
+        eventType: "FACILITY_OCCUPANCY_UPDATED",
+        source: "INTERNAL",
+      },
+      {
+        timestamp: "2026-08-25T10:19:00.000Z",
+        event: "Broadcast",
+        eventType: "CUSTOM",
+        source: "ADMIN",
+      },
+      {
+        timestamp: "2026-08-25T10:20:00.000Z",
+        event: "System send",
+        eventType: "CUSTOM",
+        source: "SYSTEM",
+      },
+      {
+        timestamp: "2026-08-25T10:21:00.000Z",
+        event: "Repayment received",
+        eventType: "PAYMENT_RECORDED",
+        source: "PAYMASTER",
+      },
+      { timestamp: "2026-08-25T10:22:00.000Z", event: "Login", eventType: "LOGIN", source: null },
+    ]);
+    expect(csv).toContain("Portal");
+    expect(csv).toContain("Webhook");
+    expect(csv).toContain("System job");
+    expect(csv).toContain("Internal process");
+    expect(csv).toContain('"ADMIN"');
+    expect(csv).toContain('"SYSTEM"');
+    expect(csv).toContain('"PAYMASTER"');
+    expect(csv).not.toContain('"API"');
+    expect(csv).not.toContain("SYSTEM_JOB");
   });
 });

@@ -1,4 +1,4 @@
-import { formatRoleSwitchedLabel } from "@cashsouk/types";
+import { formatForensicAuditSourceLabel, formatRoleSwitchedLabel } from "@cashsouk/types";
 
 export { formatRoleSwitchedLabel };
 
@@ -109,7 +109,7 @@ export function buildAuditCsv(rows: AuditCsvCoreRow[], extraHeaders: string[] = 
     row.actorType ?? "",
     row.actorEmail ?? "",
     row.organisation ?? "",
-    row.source ?? "",
+    formatForensicAuditSourceLabel(row.source),
     row.targetType ?? "",
     row.targetReference ?? "",
     row.status ?? "",

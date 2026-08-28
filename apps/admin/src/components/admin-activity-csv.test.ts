@@ -5,6 +5,27 @@ import {
 } from "./admin-activity-csv";
 
 describe("buildAdminActivityCsv", () => {
+  it("maps forensic source API to Portal without changing portal or actor", () => {
+    const csv = buildAdminActivityCsv([
+      {
+        createdAt: "2026-08-25T10:15:00.000Z",
+        event: "Application Submitted",
+        eventType: "APPLICATION_SUBMITTED",
+        actor: "Jane Admin",
+        actorUserId: "user-1",
+        actorType: "ADMIN",
+        portal: "ADMIN",
+        remark: "",
+        metadata: null,
+        source: "API",
+      },
+    ]);
+    expect(csv).toContain("Portal");
+    expect(csv).toContain("Jane Admin");
+    expect(csv).toContain("ADMIN");
+    expect(csv).not.toContain('"API"');
+  });
+
   it("writes a stable header and quoted cells", () => {
     const rows: AdminActivityCsvRow[] = [
       {

@@ -5,8 +5,8 @@ import { formatAuditSourceLabel } from "./audit-presentation";
 
 function sourceToken(source: string): StatusToken {
   const key = source.trim().toUpperCase();
-  if (key === "ADMIN" || key === "PORTAL") return "active";
-  if (key === "SYSTEM" || key === "SYSTEM_JOB" || key === "JOB") return "neutral";
+  if (key === "ADMIN" || key === "PORTAL" || key === "API") return "active";
+  if (key === "SYSTEM" || key === "SYSTEM_JOB" || key === "JOB" || key === "INTERNAL") return "neutral";
   if (key === "WEBHOOK") return "in-progress";
   return "submitted";
 }

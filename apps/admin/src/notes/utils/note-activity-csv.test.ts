@@ -71,6 +71,18 @@ describe("formatNoteActivityEventLabel", () => {
 });
 
 describe("buildNoteActivityCsv", () => {
+  it("maps forensic source API to Portal in the exported CSV", () => {
+    const csv = buildNoteActivityCsv([
+      event({
+        eventType: "NOTE_PUBLISHED",
+        source: "API",
+        portal: "ADMIN",
+      }),
+    ]);
+    expect(csv).toContain("Portal");
+    expect(csv).not.toContain('"API"');
+  });
+
   it("quotes cells and serialises metadata", () => {
     const csv = buildNoteActivityCsv([
       event({

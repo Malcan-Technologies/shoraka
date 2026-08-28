@@ -1,4 +1,9 @@
-import { humanizeAuditEventType, redactAuditSecrets, serializeAuditMetadata } from "./audit-csv";
+import {
+  buildAuditCsv,
+  humanizeAuditEventType,
+  redactAuditSecrets,
+  serializeAuditMetadata,
+} from "./audit-csv";
 
 describe("redactAuditSecrets", () => {
   it("redacts secret-shaped keys and leaves business evidence", () => {
@@ -32,5 +37,27 @@ describe("humanizeAuditEventType", () => {
         MARC_ASSESSMENT_SAVED: "MARC Assessment Saved",
       })
     ).toBe("MARC Assessment Saved");
+  });
+});
+
+describe("buildAuditCsv forensic source labels", () => {
+  it("maps API to Portal and leaves notification ADMIN unchanged", () => {
+    const csv = buildAuditCsv([
+      {
+        timestamp: "2026-08-25T10:15:00.000Z",
+        event: "Login",
+        eventType: "LOGIN",
+        source: "API",
+      },
+      {
+        timestamp: "2026-08-25T10:16:00.000Z",
+        event: "Broadcast",
+        eventType: "CUSTOM",
+        source: "ADMIN",
+      },
+    ]);
+    expect(csv).toContain("Portal");
+    expect(csv).toContain("ADMIN");
+    expect(csv).not.toContain('"API"');
   });
 });

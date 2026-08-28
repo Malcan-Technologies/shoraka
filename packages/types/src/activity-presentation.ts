@@ -23,6 +23,22 @@ export const ACTIVITY_STATUS_LABEL: Record<ActivityStatusToken, string> = {
   neutral: "Closed",
 };
 
+/**
+ * Operations-facing labels for forensic audit `source` (channel of generation).
+ *
+ * Does not map NotificationLog.source, NotePayment.source, ledger sources, or similar fields.
+ * Unknown values are returned unchanged so ADMIN/SYSTEM/PAYMASTER stay as stored.
+ */
+export function formatForensicAuditSourceLabel(source: string | null | undefined): string {
+  if (!source?.trim()) return "";
+  const key = source.trim().toUpperCase();
+  if (key === "API" || key === "PORTAL") return "Portal";
+  if (key === "WEBHOOK") return "Webhook";
+  if (key === "SYSTEM_JOB" || key === "JOB") return "System job";
+  if (key === "INTERNAL") return "Internal process";
+  return source.trim();
+}
+
 /** Metadata-driven display for a single ROLE_SWITCHED event id. Raw id stays visible/exported. */
 export function formatRoleSwitchedLabel(metadata?: Record<string, unknown> | null): string {
   const action = metadata?.action;
