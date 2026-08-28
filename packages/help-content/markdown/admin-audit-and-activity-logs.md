@@ -1115,7 +1115,7 @@ System event: `SIGNING_PACKAGE_VOIDED`
 
 ## Notes & Investments
 
-Note lifecycle, prospectus, funding, investment and Tawarruq history.
+Note lifecycle, prospectus, funding, investment, Tawarruq and Paymaster history.
 
 **Where Operations checks:** Admin → Notes → Activity
 
@@ -1453,6 +1453,86 @@ None
 
 System event: `SHORAKA_CERTIFICATE_FETCHED`
 
+**Paymaster Notice Generated**
+
+Meaning:
+A Notice of Assignment was generated for the note.
+
+Where to find:
+Admin → Notes → Activity
+
+Visible to:
+Admin
+
+Notification:
+None
+
+System event: `PAYMASTER_NOTICE_GENERATED`
+
+**Paymaster Notice Sent**
+
+Meaning:
+The Notice of Assignment was marked as sent.
+
+Where to find:
+Admin → Notes → Activity
+
+Visible to:
+Admin
+
+Notification:
+None
+
+System event: `PAYMASTER_NOTICE_SENT`
+
+**Paymaster Notice Uploaded**
+
+Meaning:
+A Notice of Assignment file was uploaded.
+
+Where to find:
+Admin → Notes → Activity
+
+Visible to:
+Admin
+
+Notification:
+None
+
+System event: `PAYMASTER_NOTICE_UPLOADED`
+
+**Paymaster Acknowledgement Uploaded**
+
+Meaning:
+The paymaster acknowledgement file was uploaded.
+
+Where to find:
+Admin → Notes → Activity
+
+Visible to:
+Admin
+
+Notification:
+None
+
+System event: `PAYMASTER_ACKNOWLEDGEMENT_UPLOADED`
+
+**Paymaster Acknowledgement Confirmed**
+
+Meaning:
+The paymaster acknowledgement was confirmed.
+
+Where to find:
+Admin → Notes → Activity
+
+Visible to:
+Admin
+
+Notification:
+None
+
+System event: `PAYMASTER_ACKNOWLEDGEMENT_CONFIRMED`
+
 **Note Defaulted**
 
 Meaning:
@@ -1667,6 +1747,27 @@ Notification:
 None
 
 System event: `REFUND_WALLET_REVERSAL_FAILED`
+
+### Receipt evidence
+
+Where Operations checks:
+Admin → Finance → Gateway Payments → payment detail
+
+Receipt information may include:
+
+- Receipt status
+  - Being prepared
+  - Ready
+  - Could not be prepared
+  - Refunded
+- Receipt number
+- Receipt name
+- Receipt company
+- Payment date
+- Related reference
+- View PDF
+- Download PDF
+- Retry receipt generation
 
 ---
 
@@ -2236,7 +2337,7 @@ Visible to:
 Admin
 
 Notification:
-New Investment Opportunity (investors)
+None
 
 System event: `PRODUCT_CREATED`
 
@@ -3114,6 +3215,7 @@ Operations can use these prefixes when searching or communicating about a record
 | Security logs | Admin → Audit → Security |
 | Product logs | Admin → Audit → Products |
 | Payments | Admin → Finance → Gateway Payments |
+| Receipts | Admin → Finance → Gateway Payments → payment detail |
 | Notification delivery | Admin → Audit → Notifications |
 | Notification settings | Admin → Settings → Notifications |
 | Issuer / Investor activity | Issuer → Activity, Investor → Activity |
