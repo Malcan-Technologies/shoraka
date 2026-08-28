@@ -101,7 +101,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   hasInvoiceFormRowChanged,
+  invoiceRowHasRequiredFields,
   isInvoiceFormRowEmpty,
+  isInvoiceFormRowPartial,
+  isInvoiceStepContinueReady,
 } from "@/app/(application-flow)/applications/lib/invoice-form-row";
 
 const valueClassName = "text-ui leading-7 text-foreground font-medium";
@@ -607,44 +610,10 @@ export default function InvoiceDetailsStep({
   };
 
   const isRowEmpty = (inv: LocalInvoice) => isInvoiceFormRowEmpty(inv);
-
-  const isRowPartial = (inv: LocalInvoice) => {
-    if (isRowEmpty(inv)) return false;
-    /**
-     * CHECK PARTIAL DATA
-     *
-     * 0 is considered valid user input, not empty
-     * A row is partial if some fields are filled but not all 4
-     */
-    const hasNumber = Boolean(String(inv.number).trim());
-    const hasValue = inv.value !== ""; // 0 is valid, empty string is not
-    const hasDate = Boolean(String(inv.maturity_date).trim());
-    const hasTenure = inv.financing_tenure_days != null;
-    const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
-    const filledCount = [hasNumber, hasValue, hasDate, hasTenure, hasDocument].filter(Boolean).length;
-    return filledCount > 0 && filledCount < 5;
-  };
-
-
-  const validateRow = (inv: LocalInvoice) => {
-    if (isRowEmpty(inv)) return true;
-    /**
-     * VALIDATE COMPLETE ROW
-     *
-     * All required fields must be filled:
-     * - number: non-empty string
-     * - value: non-empty (0 is valid, empty string is not)
-     * - maturity_date: non-empty string
-     * - financing_tenure_days: published option
-     * - document: file attached
-     */
-    const hasNumber = Boolean(String(inv.number).trim());
-    const hasValue = inv.value !== ""; // 0 is valid, empty string is not
-    const hasDate = Boolean(String(inv.maturity_date).trim());
-    const hasTenure = inv.financing_tenure_days != null;
-    const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
-    return hasNumber && hasValue && hasDate && hasTenure && hasDocument;
-  };
+  const isRowPartial = (inv: LocalInvoice) =>
+    isInvoiceFormRowPartial(inv, Boolean(selectedFiles[inv.id]));
+  const validateRow = (inv: LocalInvoice) =>
+    isRowEmpty(inv) || invoiceRowHasRequiredFields(inv, Boolean(selectedFiles[inv.id]));
 
   const hasDuplicateInvoiceNumbers = () => {
     const numbers = invoices
@@ -824,6 +793,12 @@ export default function InvoiceDetailsStep({
       })
     : null;
   const requiresFacilityFeePayment = existingFacilityGate?.requiresFacilityFeePayment === true;
+  const fieldsReady = isInvoiceStepContinueReady({
+    invoices,
+    hasPendingFile: (id) => Boolean(selectedFiles[id]),
+    requiresInvoice: isInvoiceOnly || isExistingContract,
+    requiresFacilityFeePayment,
+  });
 
   /** Applications allow at most one invoice; legacy files may still have more. */
   const maxInvoicesReached = invoices.length >= 1;
@@ -947,7 +922,6 @@ export default function InvoiceDetailsStep({
 
   const fieldErrorsByInvoiceId = React.useMemo(() => {
     const map: Record<string, InvoiceFieldErrors> = {};
-    if (!hasSubmitted) return map;
     for (const inv of invoices) {
       if (isRowEmpty(inv)) continue;
       const errors: InvoiceFieldErrors = {};
@@ -956,7 +930,8 @@ export default function InvoiceDetailsStep({
       const hasDate = Boolean(String(inv.maturity_date).trim());
       const hasTenure = inv.financing_tenure_days != null;
       const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
-      if (isRowPartial(inv)) {
+      const looksFilled = hasNumber && hasValue && hasDate;
+      if (isRowPartial(inv) && (hasSubmitted || looksFilled)) {
         if (!hasNumber) errors.number = "Invoice number is required";
         if (!hasValue) errors.value = "Invoice value is required";
         if (!hasDate) errors.maturity_date = "Maturity date is required";
@@ -966,22 +941,28 @@ export default function InvoiceDetailsStep({
       if (hasNumber && isDuplicateNumber(inv)) {
         errors.number = "This invoice number is already used on this facility";
       }
-      const constraintError = validateInvoiceConstraints(inv, productConfig);
+      const constraintError =
+        hasSubmitted || (hasDate && hasTenure)
+          ? validateInvoiceConstraints(inv, productConfig)
+          : "";
       if (constraintError) {
-        if (
-          constraintError.includes("Invalid date") ||
-          constraintError.includes("past") ||
-          constraintError.includes("month") ||
-          constraintError.includes("contract start")
-        ) {
+        if (constraintError.includes("more than")) {
           errors.maturity_date = constraintError;
         } else if (constraintError.includes("Financing tenure")) {
           errors.financing_tenure_days = constraintError;
+        } else if (
+          constraintError.includes("Invalid date") ||
+          constraintError.includes("past") ||
+          constraintError.includes("month") ||
+          constraintError.includes("contract start") ||
+          constraintError.includes("due date")
+        ) {
+          errors.maturity_date = constraintError;
         } else if (constraintError.includes("Financing amount")) {
           errors.financing_amount = constraintError;
         }
       }
-      if (productConfig && !isRowEmpty(inv)) {
+      if (productConfig && (hasSubmitted || looksFilled)) {
         const { min: minR, max: maxR } = resolveInvoiceFinancingRatioBounds(
           productConfig.min_financing_ratio_percent,
           productConfig.max_financing_ratio_percent
@@ -1280,10 +1261,28 @@ export default function InvoiceDetailsStep({
     Object.keys(selectedFiles).length > 0 ||
     Object.keys(deletedInvoices).length > 0;
 
+  const saveFunctionRef = React.useRef(saveFunction);
+  saveFunctionRef.current = saveFunction;
+
   React.useEffect(() => {
-    const isValid = shouldRunValidation
-      ? !hasPartialRows && !validationError && !requiresFacilityFeePayment
-      : !requiresFacilityFeePayment;
+    setInvoices((prev) => {
+      let changed = false;
+      const next = prev.map((inv) => {
+        const clamped = clampedRoundedFinancingRatio(
+          inv.financing_ratio_percent,
+          displayMinRatio,
+          displayMaxRatio
+        );
+        if (inv.financing_ratio_percent === clamped) return inv;
+        changed = true;
+        return { ...inv, financing_ratio_percent: clamped };
+      });
+      return changed ? next : prev;
+    });
+  }, [displayMinRatio, displayMaxRatio, invoices]);
+
+  React.useLayoutEffect(() => {
+    const isValid = shouldRunValidation ? fieldsReady : !requiresFacilityFeePayment;
     onDataChange?.({
       invoices,
       totalFinancingAmount,
@@ -1291,10 +1290,23 @@ export default function InvoiceDetailsStep({
       validationError,
       hasPendingChanges: hasUnsavedChanges,
       isUploading: false,
-      saveFunction,
+      saveFunction: () => saveFunctionRef.current(),
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [invoices, totalFinancingAmount, hasPendingFiles, allRowsValid, hasPartialRows, validationError, isInvoiceOnly, isExistingContract, requiresFacilityFeePayment]);
+  }, [
+    invoices,
+    totalFinancingAmount,
+    hasPendingFiles,
+    allRowsValid,
+    hasPartialRows,
+    fieldsReady,
+    shouldRunValidation,
+    validationError,
+    isInvoiceOnly,
+    isExistingContract,
+    requiresFacilityFeePayment,
+    hasUnsavedChanges,
+    onDataChange,
+  ]);
 
   React.useEffect(() => {
     if (!application) return;
@@ -1701,7 +1713,13 @@ export default function InvoiceDetailsStep({
             </Tabs>
           ) : null}
 
-          {hasSubmitted && validationError ? (
+          {validationError &&
+          invoices.some(
+            (inv) =>
+              Boolean(String(inv.maturity_date).trim()) &&
+              inv.financing_tenure_days != null &&
+              Boolean(validateInvoiceConstraints(inv, productConfig))
+          ) ? (
             <div className="mx-3 bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
               <XMarkIcon className="h-5 w-5" />
               {validationError}

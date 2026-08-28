@@ -2,7 +2,7 @@
 
 This guide lists all validations applied in the Invoice Details step (`apps/issuer/src/app/(application-flow)/applications/steps/invoice-details-step.tsx`).
 
-The step is a stacked form (same shell as Facility Details), not a spreadsheet. Field errors show only after Save and Continue.
+The step is a stacked form (same shell as Facility Details), not a spreadsheet. Save and Continue is enabled when required fields are present. Date, tenure, amount, and ratio constraints still run on save, and they also show inline once those fields are filled.
 
 ---
 
@@ -75,6 +75,8 @@ Maturity date must be parseable (e.g. ISO or `d/M/yyyy`). Invalid formats (e.g. 
 ### 5. Past maturity date
 
 Maturity date must be today or a future date. Overdue invoices cannot be financed.
+
+The due date must also be within **180 days** of today. Financing tenure cannot cover a longer gap. The field shows a helper and an error if a farther date is entered.
 
 ### 6. Contract date window
 
