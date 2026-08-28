@@ -2,7 +2,7 @@
 
 Editable fill map for the contract facility LO.
 
-**Current tagged template:** 19 August 2026 LO (`arf_contract_facility_lo` **v5**, per-guarantor acknowledgement pages).  
+**Current tagged template:** 19 August 2026 LO (`arf_contract_facility_lo` **v8**, per-guarantor acknowledgement pages).  
 **Verification / FLAG list:** [lo-19-aug-2026-field-map.md](../generated-documents/lo-19-aug-2026-field-map.md)  
 **Working index:** [lo-data-sources.md](../generated-documents/lo-data-sources.md)
 
@@ -151,7 +151,7 @@ For each row:
 
 | ID  | Template location | Placeholder                         | Recommended fill       | Platform source                                                                                                             | Status   | Your decision | Notes                                                             |
 | --- | ----------------- | ----------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------- | ------------- | ----------------------------------------------------------------- |
-| G1  | Guarantor line 1  | `[INSERT NAME] (NRIC No. [INSERT])` | Individual guarantor 1 | `business_details.guarantors[]` where `guarantor_type === "individual"` → `name`, `ic_number` (also `ApplicationGuarantor`) | `EXISTS` | Agreed        | Template shows 3 slots; fill N individuals and hide/remove extras |
+| G1  | Guarantor line 1  | `[INSERT NAME] (NRIC No. [INSERT])` | Individual guarantor 1 | `business_details.guarantors[]` where `guarantor_type === "individual"` → `name`, `ic_number` (also `ApplicationGuarantor`) | `EXISTS` | Agreed        | Lower-roman `i. ii. iii.`; empty slots print the placeholder, yellow-highlighted |
 | G2  | Guarantor line 2  | same                                | Individual guarantor 2 | same                                                                                                                        | `EXISTS` | Agreed        |                                                                   |
 | G3  | Guarantor line 3  | same                                | Individual guarantor 3 | same                                                                                                                        | `EXISTS` | Agreed        | If >3, extend list or confirm legal max                           |
 

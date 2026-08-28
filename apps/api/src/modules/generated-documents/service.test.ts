@@ -96,7 +96,32 @@ describe("GeneratedDocumentsService.generateDocument", () => {
       id: "contract_1",
       issuer_organization_id: "org_1",
       contract_details: { approved_facility: 100000 },
-      offer_details: { offered_facility: 100000, sent_at: "2026-08-01T00:00:00.000Z" },
+      offer_details: {
+        offered_facility: 100000,
+        sent_at: "2026-08-01T00:00:00.000Z",
+        offer_acceptance: {
+          status: "PENDING_ISSUER",
+          authorized_parties_draft: {
+            submitted_by_user_id: "user_issuer_1",
+            submitted_at: "2026-08-01T01:00:00.000Z",
+            parties: [
+              {
+                key: "issuer",
+                entity_kind: "ISSUER",
+                representatives: [
+                  {
+                    name: "Ali",
+                    email: "ali@co.my",
+                    ic_number: "820508105871",
+                    capacity: "director",
+                    person_match_key: "820508105871",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
       customer_details: {},
     },
   };
@@ -230,5 +255,50 @@ describe("GeneratedDocumentsService.generateDocument", () => {
 
     expect(result.buffer.toString()).toBe("%PDF-mock");
     expect(organizationRepository.getOrganizationMember).not.toHaveBeenCalled();
+  });
+
+  it("rejects when authorised representatives have not been saved", async () => {
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      contract: {
+        ...baseApplication.contract,
+        offer_details: {
+          offered_facility: 100000,
+          sent_at: "2026-08-01T00:00:00.000Z",
+        },
+      },
+    } as never);
+
+    await expect(
+      service.generateDocument({
+        applicationId,
+        typeKey: "arf_contract_facility_lo",
+        format: "pdf",
+        userId,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "GENERATED_DOCUMENT_DATA_INCOMPLETE",
+    });
+  });
+
+  it("rejects when the frozen product has no invoice sub-limit", async () => {
+    jest.spyOn(buildMerge, "buildFacilityLoMergeData").mockReturnValue({
+      ...createFacilityLoFixture(),
+      sub_limit_per_invoice_rm: "",
+      part_b_financing_amount_rm: "",
+    });
+
+    await expect(
+      service.generateDocument({
+        applicationId,
+        typeKey: "arf_contract_facility_lo",
+        format: "pdf",
+        userId,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "GENERATED_DOCUMENT_DATA_INCOMPLETE",
+    });
   });
 });

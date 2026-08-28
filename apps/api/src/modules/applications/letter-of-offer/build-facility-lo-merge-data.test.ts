@@ -20,6 +20,7 @@ import {
   FACILITY_LO_CHECKBOX_UNTICKED,
 } from "./facility-lo-merge.types";
 import type { AuthorizedPartiesSnapshot } from "@cashsouk/types";
+import { FINANCING_TENURE_MAX_DAYS } from "@cashsouk/types";
 
 describe("lo-format", () => {
   it("converts small numbers to words", () => {
@@ -68,7 +69,7 @@ describe("facilityLoCheckboxGlyphs", () => {
 });
 
 describe("facility-lo guarantors", () => {
-  it("maps all individual guarantors from application JSON", () => {
+  it("maps all individual guarantors from ordered application_guarantors", () => {
     const rows = mapIndividualGuarantors([
       { guarantor_type: "individual", name: "Ali", ic_number: "900101145678" },
       { guarantor_type: "individual", name: "Siti", ic_number: "880202085432" },
@@ -89,7 +90,7 @@ describe("facility-lo guarantors", () => {
     });
     expect(rows).toHaveLength(2);
     expect(rows[0]?.nric).toBe("900101145678");
-    expect(rows[1]?.line).toBe("Siti");
+    expect(rows[1]?.line).toBe("Siti (NRIC No. [INSERT])");
   });
 
   it("parses guarantors_corporate from demo POST bodies", () => {
@@ -99,7 +100,7 @@ describe("facility-lo guarantors", () => {
       ],
     });
     expect(rows).toEqual([
-      { name: "HoldCo", ssm: "999999-X", signatories: [{ name: "Nora" }] },
+      { name: "HoldCo", ssm: "999999-X", signatories: [{ name: "Nora", nric: "", capacity: "" }] },
     ]);
   });
 
@@ -126,14 +127,40 @@ describe("facility-lo guarantors", () => {
     expect(payload.has_corporate_guarantor).toBe(false);
   });
 
-  it("formats guarantor lines without NRIC", () => {
-    expect(formatIndividualGuarantorLine("Ali", "")).toBe("Ali");
+  it("keeps NRIC placeholder when NRIC is missing", () => {
+    expect(formatIndividualGuarantorLine("Ali", "")).toBe("Ali (NRIC No. [INSERT])");
+    expect(formatIndividualGuarantorLine("", "")).toBe("[INSERT NAME] (NRIC No. [INSERT])");
+  });
+
+  it("prints a visible placeholder line when Finance Documents has no guarantors", () => {
+    const fixture = createFacilityLoFixture();
+    fixture.guarantors_individual = [];
+    fixture.guarantors_corporate = [];
+    fixture.finance_documents_guarantors = [];
+    const payload = buildFacilityLoRenderPayload(fixture);
+    expect(payload.finance_documents_guarantors).toEqual([
+      { line: "[INSERT NAME] (NRIC No. [INSERT])", representatives: [] },
+    ]);
+  });
+
+  it("prints {tag} for empty scalar merge fields", () => {
+    const fixture = createFacilityLoFixture();
+    fixture.grace_period_days = "";
+    fixture.attention_name = "";
+    const payload = buildFacilityLoRenderPayload(fixture);
+    expect(payload.grace_period_days).toBe("{grace_period_days}");
+    expect(payload.attention_name).toBe("{attention_name}");
+    expect(payload.issuer_name).toBe(fixture.issuer_name);
   });
 });
 
 describe("buildCorporateGuarantorPages", () => {
   function pagesFor(count: number) {
-    const names = Array.from({ length: count }, (_, i) => ({ name: `S${i + 1}` }));
+    const names = Array.from({ length: count }, (_, i) => ({
+      name: `S${i + 1}`,
+      nric: "",
+      capacity: "",
+    }));
     return buildCorporateGuarantorPages([{ name: "HoldCo", ssm: "1", signatories: names }]);
   }
 
@@ -141,13 +168,13 @@ describe("buildCorporateGuarantorPages", () => {
     const pages = pagesFor(1);
     expect(pages).toHaveLength(1);
     expect(pages[0]?.is_first_page).toBe(true);
-    expect(pages[0]?.signatory_rows).toEqual([{ left: "S1", right: "", show_right: false }]);
+    expect(pages[0]?.signatory_rows).toEqual([{ left_name: "S1", right_name: "", show_right: false }]);
   });
 
   it("pairs 2 signatories onto one row", () => {
     const pages = pagesFor(2);
     expect(pages).toHaveLength(1);
-    expect(pages[0]?.signatory_rows).toEqual([{ left: "S1", right: "S2", show_right: true }]);
+    expect(pages[0]?.signatory_rows).toEqual([{ left_name: "S1", right_name: "S2", show_right: true }]);
   });
 
   it("fits 4 signatories on one page", () => {
@@ -162,20 +189,24 @@ describe("buildCorporateGuarantorPages", () => {
     expect(pages[0]?.is_first_page).toBe(true);
     expect(pages[0]?.signatory_rows).toHaveLength(2);
     expect(pages[1]?.is_first_page).toBe(false);
-    expect(pages[1]?.signatory_rows).toEqual([{ left: "S5", right: "", show_right: false }]);
+    expect(pages[1]?.signatory_rows).toEqual([{ left_name: "S5", right_name: "", show_right: false }]);
   });
 
   it("splits 9 signatories into three pages", () => {
     const pages = pagesFor(9);
     expect(pages).toHaveLength(3);
-    expect(pages[2]?.signatory_rows).toEqual([{ left: "S9", right: "", show_right: false }]);
+    expect(pages[2]?.signatory_rows).toEqual([{ left_name: "S9", right_name: "", show_right: false }]);
   });
 
   it("keeps a blank box when a company has zero signatories", () => {
     const pages = buildCorporateGuarantorPages([{ name: "HoldCo", ssm: "1", signatories: [] }]);
     expect(pages).toHaveLength(1);
-    expect(pages[0]?.signatory_rows).toEqual([{ left: "", right: "", show_right: false }]);
-    expect(pairSignatoryRows([])).toEqual([{ left: "", right: "", show_right: false }]);
+    expect(pages[0]?.signatory_rows).toEqual([
+      { left_name: "[INSERT NAME]", right_name: "", show_right: false },
+    ]);
+    expect(pairSignatoryRows([])).toEqual([
+      { left_name: "[INSERT NAME]", right_name: "", show_right: false },
+    ]);
   });
 });
 
@@ -232,12 +263,15 @@ describe("mapCorporateGuarantors", () => {
       {
         name: "HoldCo",
         ssm: "999999-X",
-        signatories: [{ name: "Nora" }, { name: "Farid" }],
+        signatories: [
+          { name: "Nora", nric: "880101015555", capacity: "authorised_signatory" },
+          { name: "Farid", nric: "770202025555", capacity: "director" },
+        ],
       },
       {
         name: "TwoCo",
         ssm: "888888-U",
-        signatories: [{ name: "Aini" }],
+        signatories: [{ name: "Aini", nric: "660101015555", capacity: "director" }],
       },
     ]);
   });
@@ -282,21 +316,21 @@ describe("buildFacilityLoMergeData", () => {
         company_details: {
           contact_person: { name: "Contact", position: "CEO" },
         },
-        business_details: {
-          guarantors: [
-            {
-              guarantor_type: "individual",
-              name: "Ali",
-              ic_number: "900101145678",
-            },
-            {
-              guarantor_type: "company",
-              id: "g_co",
-              business_name: "HoldCo",
-              ssm_number: "999999-X",
-            },
-          ],
-        },
+        business_details: {},
+        application_guarantors: [
+          {
+            id: "g_ind",
+            guarantor_type: "individual",
+            name: "Ali",
+            ic_number: "900101145678",
+          },
+          {
+            id: "g_co",
+            guarantor_type: "company",
+            business_name: "HoldCo",
+            ssm_number: "999999-X",
+          },
+        ],
       },
       financingStructureType: "new_contract",
       gracePeriodDaysDefault: 7,
@@ -322,12 +356,17 @@ describe("buildFacilityLoMergeData", () => {
     expect(data.assigned_contract_description).toBe("Supply Agreement");
     expect(data.grace_period_days).toBe("7");
     expect(data.grace_period_days_words).toBe("seven");
-    expect(data.tenure_days).toBe("");
-    expect(data.max_invoice_tenure_days).toBe("");
+    expect(data.tenure_days).toBe(String(FINANCING_TENURE_MAX_DAYS));
+    expect(data.max_invoice_tenure_days).toBe(String(FINANCING_TENURE_MAX_DAYS));
+    expect(data.payment_period_days).toBe(String(FINANCING_TENURE_MAX_DAYS));
+    expect(data.transaction_docs_days).toBe("14");
+    expect(data.transaction_docs_days_words).toBe("fourteen");
     expect(data.sub_limit_per_invoice_rm).toBe("");
     expect(data.part_b_financing_amount_rm).toBe("");
-    expect(data.payment_period_days).toBe("");
-    expect(data.moa_authorised_signatory_names).toBe("");
+    expect(data.finance_documents_guarantors).toEqual([
+      { line: "Ali (NRIC No. 900101145678)", representatives: [] },
+      { line: "HoldCo (Registration No. 999999-X)", representatives: [] },
+    ]);
   });
 
   it("fills authorised signatory names from every declared person on the snapshot", () => {
@@ -409,26 +448,26 @@ describe("buildFacilityLoMergeData", () => {
       },
       application: {
         id: "app_1",
-        business_details: {
-          guarantors: [
-            { guarantor_type: "company", id: "g_co", business_name: "HoldCo", ssm_number: "999999-X" },
-            { guarantor_type: "company", id: "g_co2", business_name: "TwoCo", ssm_number: "888888-U" },
-          ],
-        },
+        application_guarantors: [
+          { id: "g_co", guarantor_type: "company", business_name: "HoldCo", ssm_number: "999999-X" },
+          { id: "g_co2", guarantor_type: "company", business_name: "TwoCo", ssm_number: "888888-U" },
+        ],
       },
       financingStructureType: "invoice_only",
     });
-    expect(data.moa_authorised_signatory_names).toBe("Ali Bin Abu, Siti");
     expect(data.guarantors_corporate).toEqual([
       {
         name: "HoldCo",
         ssm: "999999-X",
-        signatories: [{ name: "Nora" }, { name: "Farid" }],
+        signatories: [
+          { name: "Nora", nric: "880101015555", capacity: "authorised_signatory" },
+          { name: "Farid", nric: "770202025555", capacity: "director" },
+        ],
       },
       {
         name: "TwoCo",
         ssm: "888888-U",
-        signatories: [{ name: "Aini" }],
+        signatories: [{ name: "Aini", nric: "660101015555", capacity: "director" }],
       },
     ]);
     expect(data.part_a_checkbox).toBe(FACILITY_LO_CHECKBOX_UNTICKED);
@@ -448,6 +487,110 @@ describe("buildFacilityLoMergeData", () => {
     });
     expect(data.part_a_checkbox).toBe(FACILITY_LO_CHECKBOX_UNTICKED);
     expect(data.part_b_checkbox).toBe(FACILITY_LO_CHECKBOX_UNTICKED);
+  });
+
+  it("falls back to COD ssmRegistrationNumber then ssmRegisterNumber", () => {
+    const toyota = buildFacilityLoMergeData({
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        offer_details: { offered_facility: 1, sent_at: "2026-07-16T02:00:00.000Z" },
+        contract_details: {},
+        customer_details: {},
+      },
+      issuerOrganization: {
+        id: "org_1",
+        name: "Toyota Legacy",
+        registration_number: "",
+        corporate_onboarding_data: {
+          basicInfo: { ssmRegistrationNumber: "123412341234" },
+        },
+      },
+    });
+    expect(toyota.issuer_registration_number).toBe("123412341234");
+
+    const alias = buildFacilityLoMergeData({
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        offer_details: { offered_facility: 1, sent_at: "2026-07-16T02:00:00.000Z" },
+        contract_details: {},
+        customer_details: {},
+      },
+      issuerOrganization: {
+        id: "org_1",
+        name: "Alias Co",
+        corporate_onboarding_data: {
+          basicInfo: { ssmRegisterNumber: "555555555555" },
+        },
+      },
+    });
+    expect(alias.issuer_registration_number).toBe("555555555555");
+  });
+
+  it("reads signing_deadline.days and invoice sub-limit from the frozen product workflow", () => {
+    const data = buildFacilityLoMergeData({
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        offer_details: {
+          offered_facility: 500000,
+          sent_at: "2026-07-16T16:00:00.000Z",
+          offer_acceptance: {
+            status: "PENDING_ISSUER",
+            acceptance_expires_at: "2026-07-23T16:00:00.000Z",
+          },
+        },
+        contract_details: {},
+        customer_details: {},
+      },
+      issuerOrganization: { id: "org_1", name: "Issuer Co", registration_number: "123456-A" },
+      productWorkflow: [
+        {
+          id: "financing_type",
+          config: { signing_deadline: { days: 14, reminders: [] } },
+        },
+        {
+          id: "invoice_details",
+          config: { sub_limit_per_invoice_rm: 250000 },
+        },
+      ],
+    });
+    expect(data.transaction_docs_days).toBe("14");
+    expect(data.transaction_docs_days_words).toBe("fourteen");
+    expect(data.sub_limit_per_invoice_rm).toBe("RM 250,000.00");
+    expect(data.part_b_financing_amount_rm).toBe("RM 250,000.00");
+    expect(data.offer_validity_phrase).toBe("seven (7) days");
+  });
+
+  it("matches corporate representatives from the authorised-parties draft", () => {
+    const data = buildFacilityLoMergeData({
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        offer_details: {
+          offered_facility: 1,
+          sent_at: "2026-07-16T02:00:00.000Z",
+          offer_acceptance: {
+            status: "PENDING_ISSUER",
+            authorized_parties_draft: TWO_CORP_SNAPSHOT,
+          },
+        },
+        contract_details: {},
+        customer_details: {},
+      },
+      issuerOrganization: { id: "org_1", name: "Issuer Co" },
+      application: {
+        id: "app_1",
+        application_guarantors: [
+          { id: "g_co", guarantor_type: "company", business_name: "HoldCo", ssm_number: "999999-X" },
+        ],
+      },
+    });
+    expect(data.guarantors_corporate[0]?.signatories).toEqual([
+      { name: "Nora", nric: "880101015555", capacity: "authorised_signatory" },
+      { name: "Farid", nric: "770202025555", capacity: "director" },
+    ]);
   });
 });
 
@@ -474,7 +617,7 @@ describe("normalizeContractFacilityLoMergeData", () => {
       { name: "Only One", nric: "123", line: "Only One (NRIC No. 123)" },
     ]);
     expect(normalized.guarantors_corporate).toEqual([
-      { name: "Only Co", ssm: "1", signatories: [{ name: "Pat" }] },
+      { name: "Only Co", ssm: "1", signatories: [{ name: "Pat", nric: "", capacity: "" }] },
     ]);
   });
 });

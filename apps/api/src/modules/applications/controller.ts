@@ -444,6 +444,25 @@ export function createApplicationRouter(): Router {
     }
   );
   router.post(
+    "/:id/offers/contracts/acceptance/authorized-parties-draft",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const { authorized_parties } = submitOfferAcceptanceBodySchema.parse(req.body ?? {});
+        const userId = getUserId(req);
+        const data = await applicationService.saveContractAuthorizedPartiesDraft(
+          id,
+          userId,
+          authorized_parties
+        );
+        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.post(
     "/:id/offers/contracts/acceptance",
     requireAuth,
     async (req, res, next) => {

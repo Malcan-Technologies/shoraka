@@ -1,8 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Rebuild `arf-contract-facility-lo.docx` from the 19 August 2026 clean copy:
- * rewrite placeholders to docxtemplater tags, yellow-highlight merge fields,
- * and graft branded headers/footers.
+ * rewrite placeholders to docxtemplater tags and graft branded headers/footers.
  *
  * Usage: pnpm --filter @cashsouk/api retag-lo-template
  */
@@ -10,7 +9,6 @@
 import fs from "fs";
 import path from "path";
 import PizZip from "pizzip";
-import { highlightMergeTagsInWordXml } from "../src/modules/applications/letter-of-offer/lo-dev-merge-markup";
 
 const TEMPLATES_DIR = path.resolve(__dirname, "../src/modules/applications/templates");
 const CLEAN_COPY = path.join(TEMPLATES_DIR, "01 LO (Clean Copy) 19 August 2026.docx");
@@ -21,10 +19,10 @@ const AVOIDANCE =
   "For the avoidance of doubt, the obligations and liabilities of the Guarantors under this Letter of Offer shall be further set out in a Guarantee Agreement to be executed by the Guarantors in favour of Shoraka Suyula Platform Sdn. Bhd. (Reg. No : 202101033028 (1433328-H)). The Guarantors expressly acknowledge and agree that the execution of such Guarantee Agreement shall constitute a condition precedent to the disbursement of the Facility and that the detailed terms, covenants and undertakings therein shall prevail and be binding upon the Guarantors in addition to the provisions of this Letter of Offer.";
 
 const BEING_INDIVIDUAL =
-  "being the Guarantors in respect of the Facility by SHORAKA SUYULA PLATFORM SDN BHD (Reg. No : 202101033028 (1433328-H)) to {issuer_name} hereby agree to the terms and conditions stated in this Letter of Offer dated _______________.";
+  "being the Guarantors in respect of the Facility by SHORAKA SUYULA PLATFORM SDN BHD (Reg. No : 202101033028 (1433328-H)) to {issuer_name} hereby agree to the terms and conditions stated in this Letter of Offer dated {letter_date}.";
 
 const BEING_CORPORATE =
-  "We, {company_name} (Registration No. {company_ssm}) being the Guarantor in respect of the Facility by SHORAKA SUYULA PLATFORM SDN BHD (Reg. No : 202101033028 (1433328-H)) to {issuer_name} hereby agree to the terms and conditions stated in this Letter of Offer dated _______________.";
+  "We, {company_name} (Registration No. {company_ssm}) being the Guarantor in respect of the Facility by SHORAKA SUYULA PLATFORM SDN BHD (Reg. No : 202101033028 (1433328-H)) to {issuer_name} hereby agree to the terms and conditions stated in this Letter of Offer dated {letter_date}.";
 
 function encodeXml(text: string): string {
   return text
@@ -53,14 +51,58 @@ function paragraphPlainText(pXml: string): string {
   return text;
 }
 
+function stripHighlightFromRpr(rPr: string): string {
+  return rPr
+    .replace(/<w:highlight\b[^/]*\/>/g, "")
+    .replace(/<w:highlight\b[\s\S]*?<\/w:highlight>/g, "");
+}
+
+function rprWithYellow(rPr: string): string {
+  const base = stripHighlightFromRpr(rPr) || "<w:rPr></w:rPr>";
+  if (base.includes("</w:rPr>")) {
+    return base.replace("</w:rPr>", '<w:highlight w:val="yellow"/></w:rPr>');
+  }
+  return `<w:rPr><w:highlight w:val="yellow"/></w:rPr>`;
+}
+
+/** True for `{issuer_name}`-style value tags; false for `{#loop}`, `{/loop}`, `{@raw}`. */
+function isValueMergeTagText(text: string): boolean {
+  return /^\{[A-Za-z][A-Za-z0-9_]*\}$/.test(text.trim());
+}
+
+function textRun(text: string, rPr: string): string {
+  if (!text) return "";
+  const space = /^\s|\s$/.test(text) ? ' xml:space="preserve"' : "";
+  return `<w:r>${rPr}<w:t${space}>${encodeXml(text)}</w:t></w:r>`;
+}
+
+/** Split legal text and `{value}` tags so only merge values are yellow. */
+function runsFromTemplatedText(text: string, baseRpr: string): string {
+  const plain = stripHighlightFromRpr(baseRpr);
+  const yellow = rprWithYellow(baseRpr);
+  const re = /\{[A-Za-z][A-Za-z0-9_]*\}/g;
+  const runs: string[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text))) {
+    if (match.index > last) {
+      runs.push(textRun(text.slice(last, match.index), plain));
+    }
+    runs.push(textRun(match[0], yellow));
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) {
+    runs.push(textRun(text.slice(last), plain));
+  }
+  return runs.join("");
+}
+
 function firstRunRpr(pXml: string): string {
   const run = pXml.match(/<w:r\b[\s\S]*?<\/w:r>/);
   if (!run) return `<w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>`;
   const rPr = run[0].match(/<w:rPr\b[\s\S]*?<\/w:rPr>/);
   if (!rPr) return "";
-  return rPr[0]
-    .replace(/<w:highlight\b[^/]*\/>/g, "")
-    .replace(/<w:highlight\b[\s\S]*?<\/w:highlight>/g, "");
+  return stripHighlightFromRpr(rPr[0]);
 }
 
 function rewriteParagraphText(pXml: string, next: string): string {
@@ -70,10 +112,7 @@ function rewriteParagraphText(pXml: string, next: string): string {
   const runs: string[] = [];
   const pieces = next.split("\t");
   pieces.forEach((piece, i) => {
-    if (piece) {
-      const space = /^\s|\s$/.test(piece) ? ' xml:space="preserve"' : "";
-      runs.push(`<w:r>${rPr}<w:t${space}>${encodeXml(piece)}</w:t></w:r>`);
-    }
+    if (piece) runs.push(runsFromTemplatedText(piece, rPr));
     if (i < pieces.length - 1) {
       runs.push(`<w:r>${rPr}<w:tab/></w:r>`);
     }
@@ -89,14 +128,35 @@ function makePara(
   const rPr = opts?.heading
     ? `<w:rPr><w:b/><w:bCs/><w:sz w:val="20"/><w:szCs w:val="20"/><w:u w:val="single"/></w:rPr>`
     : `<w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>`;
-  const space = /^\s|\s$/.test(text) ? ' xml:space="preserve"' : "";
-  return `<w:p><w:pPr><w:spacing w:line="360" w:lineRule="auto"/><w:jc w:val="${jc}"/>${rPr}</w:pPr><w:r>${rPr}<w:t${space}>${encodeXml(text)}</w:t></w:r></w:p>`;
+  return `<w:p><w:pPr><w:spacing w:line="360" w:lineRule="auto"/><w:jc w:val="${jc}"/>${rPr}</w:pPr>${runsFromTemplatedText(text, rPr)}</w:p>`;
+}
+
+function listItemPara(text: string): string {
+  const rPr = `<w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>`;
+  // numId 4 = lower-roman i. ii. iii. (clean copy guarantor slots). Not numId 3 (parent a b c).
+  const pPr = `<w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="4"/></w:numPr><w:spacing w:line="360" w:lineRule="auto"/><w:ind w:left="885" w:hanging="141"/><w:jc w:val="both"/>${rPr}</w:pPr>`;
+  return `<w:p>${pPr}${runsFromTemplatedText(text, rPr)}</w:p>`;
+}
+
+function nestedRepPara(text: string): string {
+  const rPr = `<w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>`;
+  // ilvl 1 of numId 4 = a. b. c. nested under roman i. ii. iii.
+  const pPr = `<w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="1"/><w:numId w:val="4"/></w:numPr><w:spacing w:line="360" w:lineRule="auto"/><w:ind w:left="1900" w:hanging="360"/><w:jc w:val="both"/>${rPr}</w:pPr>`;
+  return `<w:p>${pPr}${runsFromTemplatedText(text, rPr)}</w:p>`;
+}
+
+function emptyParas(count: number): string {
+  return Array.from({ length: count }, () => makePara("")).join("");
+}
+
+function pageBreakPara(): string {
+  return `<w:p><w:pPr><w:spacing w:line="360" w:lineRule="auto"/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>`;
 }
 
 function signatureBoxParas(nameTag: string): string {
   return [
-    makePara(nameTag),
     makePara("______________________________"),
+    makePara(nameTag),
     makePara("NRIC :"),
     makePara("Designation :"),
   ].join("");
@@ -109,8 +169,8 @@ function corporateSignatoryTable(): string {
     `<w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="0" w:type="auto"/><w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr>`,
     `<w:tblGrid><w:gridCol w:w="4513"/><w:gridCol w:w="4513"/></w:tblGrid>`,
     `<w:tr>`,
-    `<w:tc>${tcPr}${makePara("{#signatory_rows}")}${signatureBoxParas("{left}")}</w:tc>`,
-    `<w:tc>${tcPr}${makePara("{#show_right}")}${signatureBoxParas("{right}")}${makePara("{/show_right}")}${makePara("{/signatory_rows}")}</w:tc>`,
+    `<w:tc>${tcPr}${makePara("{#signatory_rows}")}${signatureBoxParas("{left_name}")}</w:tc>`,
+    `<w:tc>${tcPr}${makePara("{#show_right}")}${signatureBoxParas("{right_name}")}${makePara("{/show_right}")}${makePara("{/signatory_rows}")}</w:tc>`,
     `</w:tr>`,
     `</w:tbl>`,
   ].join("");
@@ -127,7 +187,7 @@ function acknowledgementXml(): string {
     makePara(BEING_INDIVIDUAL),
     makePara(AVOIDANCE),
     makePara("Date: ______________________"),
-    makePara(""),
+    emptyParas(2),
     ...[signatureBoxParas("{name}")],
     makePara("{@page_break}"),
     makePara("{/guarantors_individual}"),
@@ -140,13 +200,26 @@ function acknowledgementXml(): string {
     makePara(AVOIDANCE),
     makePara("Date: ______________________"),
     makePara("{/is_first_page}"),
+    emptyParas(1),
     makePara("For and on behalf of {company_name}"),
-    makePara(""),
+    makePara("{company_ssm}"),
+    emptyParas(4),
     corporateSignatoryTable(),
     makePara("{@page_break}"),
     makePara("{/corporate_guarantor_pages}"),
     makePara("{/has_corporate_guarantor}"),
-    makePara(""),
+    pageBreakPara(),
+  ].join("");
+}
+
+function financeDocumentsLoopXml(): string {
+  return [
+    makePara("{#finance_documents_guarantors}"),
+    listItemPara("{line}"),
+    makePara("{#representatives}"),
+    nestedRepPara("{rep_line}"),
+    makePara("{/representatives}"),
+    makePara("{/finance_documents_guarantors}"),
   ].join("");
 }
 
@@ -159,15 +232,8 @@ function tagCheckboxes(xml: string): string {
   });
 }
 
-function applyPlaceholderText(text: string, insertNameIndex: { n: number }): string {
+function applyPlaceholderText(text: string): string {
   const trimmed = text.trim();
-  if (trimmed === "[INSERT NAME] (NRIC No. [INSERT])") {
-    insertNameIndex.n += 1;
-    if (insertNameIndex.n === 1) return "{#guarantors_individual}";
-    if (insertNameIndex.n === 2) return "{line}";
-    if (insertNameIndex.n === 3) return "{/guarantors_individual}";
-  }
-
   const replacements: Array<[string, string]> = [
     ["[INSERT ISSUER NAME]", "{issuer_name}"],
     ["[ISSUER REGISTRATION NUMBER]", "{issuer_registration_number}"],
@@ -181,7 +247,10 @@ function applyPlaceholderText(text: string, insertNameIndex: { n: number }): str
     ["Date\t\t\t: [Insert]", "Date\t\t\t: {letter_date}"],
     ["Date: [Insert]", "Date: {letter_date}"],
     ["[Insert Issuer Name] (Company No. insert [insert])", "{issuer_name} (Company No. {issuer_registration_number})"],
-    ["[insert authorised person name]", "{moa_authorised_signatory_names}"],
+    [
+      "Name of Authorised Signatory (ies): [insert authorised person name]",
+      "Name of Authorised Signatory (ies):",
+    ],
     ["[insert – up to RM5,000,000]", "{financing_limit_rm}"],
     [
       "Up to [insert – up to RM1,000,000] per invoice, and not exceeding",
@@ -193,6 +262,10 @@ function applyPlaceholderText(text: string, insertNameIndex: { n: number }): str
     ],
     ["[insert – up to 180]", "{max_invoice_tenure_days}"],
     ["Up to [insert] days", "Up to {tenure_days} days"],
+    [
+      "This offer shall lapse automatically after seven (7) days from the date of this Facility Offer",
+      "This offer shall lapse automatically after {offer_validity_phrase} from the date of this Facility Offer",
+    ],
     [
       "within seven (7) days from the date of this letter",
       "within {offer_validity_phrase} from the date of this letter",
@@ -230,11 +303,10 @@ function applyPlaceholderText(text: string, insertNameIndex: { n: number }): str
 }
 
 function flattenAndReplace(xml: string): string {
-  const insertNameIndex = { n: 0 };
   return xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, (pXml) => {
     const text = paragraphPlainText(pXml);
     if (!text) return pXml;
-    const next = applyPlaceholderText(text, insertNameIndex);
+    const next = applyPlaceholderText(text);
     if (next === text) return pXml;
     return rewriteParagraphText(pXml, next);
   });
@@ -246,6 +318,40 @@ function paragraphStartContaining(xml: string, needle: string): number {
   const start = Math.max(xml.lastIndexOf("<w:p ", idx), xml.lastIndexOf("<w:p>", idx));
   if (start < 0) throw new Error(`Could not find paragraph start for ${JSON.stringify(needle)}`);
   return start;
+}
+
+function paragraphEndAfter(xml: string, start: number): number {
+  const end = xml.indexOf("</w:p>", start);
+  if (end < 0) throw new Error("Unclosed paragraph while rebuilding Finance Documents list");
+  return end + "</w:p>".length;
+}
+
+function rebuildFinanceDocumentsList(xml: string): string {
+  const first = paragraphStartContaining(xml, "[INSERT NAME] (NRIC No. [INSERT])");
+  let cursor = first;
+  let lastEnd = paragraphEndAfter(xml, cursor);
+  let count = 1;
+  while (count < 3) {
+    const nextStart = xml.indexOf("<w:p", lastEnd);
+    if (nextStart < 0) break;
+    const nextEnd = paragraphEndAfter(xml, nextStart);
+    const para = xml.slice(nextStart, nextEnd);
+    if (paragraphPlainText(para).includes("[INSERT NAME] (NRIC No. [INSERT])")) {
+      lastEnd = nextEnd;
+      count += 1;
+      cursor = nextStart;
+      continue;
+    }
+    if (paragraphPlainText(para).trim() === "") {
+      lastEnd = nextEnd;
+      continue;
+    }
+    break;
+  }
+  if (count < 3) {
+    throw new Error(`Expected three Finance Documents [INSERT NAME] lines, found ${count}`);
+  }
+  return xml.slice(0, first) + financeDocumentsLoopXml() + xml.slice(lastEnd);
 }
 
 function rebuildAcknowledgements(xml: string): string {
@@ -325,6 +431,48 @@ const BRANDED_PARTS = [
   "word/_rels/header2.xml.rels",
 ] as const;
 
+function stripYellowHighlights(xml: string): string {
+  return xml
+    .replace(/<w:highlight\b[^/]*\/>/g, "")
+    .replace(/<w:highlight\b[\s\S]*?<\/w:highlight>/g, "");
+}
+
+function runPlainText(runXml: string): string {
+  let text = "";
+  const tRe = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
+  let match: RegExpExecArray | null;
+  while ((match = tRe.exec(runXml))) {
+    text += decodeXml(match[1] ?? "");
+  }
+  return text;
+}
+
+/** Ensure every run whose text is a value merge tag is yellow-highlighted. */
+function ensureYellowOnValueTagRuns(xml: string): string {
+  return xml.replace(/<w:r\b[\s\S]*?<\/w:r>/g, (run) => {
+    if (!isValueMergeTagText(runPlainText(run))) return run;
+    if (run.includes('w:val="yellow"')) return run;
+    if (run.includes("<w:rPr>")) {
+      return run.replace(/<\/w:rPr>/, '<w:highlight w:val="yellow"/></w:rPr>');
+    }
+    return run.replace(/(<w:r\b[^>]*>)/, `$1<w:rPr><w:highlight w:val="yellow"/></w:rPr>`);
+  });
+}
+
+function valueTagsMissingHighlight(xml: string): string[] {
+  const missing: string[] = [];
+  const runRe = /<w:r\b[\s\S]*?<\/w:r>/g;
+  let match: RegExpExecArray | null;
+  while ((match = runRe.exec(xml))) {
+    const run = match[0];
+    const text = runPlainText(run).trim();
+    if (isValueMergeTagText(text) && !run.includes('w:val="yellow"')) {
+      missing.push(text);
+    }
+  }
+  return missing;
+}
+
 function leftoverPlaceholders(xml: string): string[] {
   const text = paragraphPlainText(`<w:p>${xml}</w:p>`) || xml.replace(/<[^>]+>/g, "");
   const found: string[] = [];
@@ -360,17 +508,18 @@ function requiredTagsPresent(xml: string): string[] {
     "{assigned_contract_date}",
     "{assigned_contract_counterparty}",
     "{assigned_contract_description}",
-    "{moa_authorised_signatory_names}",
-    "{#guarantors_individual}",
+    "{#finance_documents_guarantors}",
     "{line}",
-    "{/guarantors_individual}",
+    "{rep_line}",
+    "{/finance_documents_guarantors}",
+    "{#guarantors_individual}",
     "{#corporate_guarantor_pages}",
     "{#is_first_page}",
     "{company_name}",
     "{company_ssm}",
     "{#signatory_rows}",
-    "{left}",
-    "{right}",
+    "{left_name}",
+    "{right_name}",
     "{@page_break}",
   ];
   return required.filter((tag) => !xml.includes(tag));
@@ -390,10 +539,12 @@ function main(): void {
   let documentXml = cleanZip.file("word/document.xml")?.asText();
   if (!documentXml) throw new Error("Clean copy is missing word/document.xml");
 
+  documentXml = stripYellowHighlights(documentXml);
   documentXml = tagCheckboxes(documentXml);
+  documentXml = rebuildFinanceDocumentsList(documentXml);
   documentXml = flattenAndReplace(documentXml);
   documentXml = rebuildAcknowledgements(documentXml);
-  documentXml = highlightMergeTagsInWordXml(documentXml);
+  documentXml = ensureYellowOnValueTagRuns(documentXml);
   documentXml = graftSectPr(documentXml);
 
   const missing = requiredTagsPresent(documentXml);
@@ -402,6 +553,16 @@ function main(): void {
   }
   if (documentXml.includes("RM{financing_limit_rm}")) {
     throw new Error("MoA still prefixes financing_limit_rm with a literal RM");
+  }
+  if (documentXml.includes("{moa_authorised_signatory_names}")) {
+    throw new Error("MoA still contains a signatory merge tag");
+  }
+  if (!documentXml.includes('w:val="yellow"')) {
+    throw new Error("Tagged document has no yellow highlighting on merge tags");
+  }
+  const unhighlighted = valueTagsMissingHighlight(documentXml);
+  if (unhighlighted.length > 0) {
+    throw new Error(`Value merge tags missing yellow highlight: ${unhighlighted.join(", ")}`);
   }
   const leftovers = leftoverPlaceholders(documentXml);
   if (leftovers.length > 0) {

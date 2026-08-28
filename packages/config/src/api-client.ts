@@ -2878,6 +2878,16 @@ export class ApiClient {
     );
   }
 
+  async saveContractAuthorizedPartiesDraft(
+    applicationId: string,
+    body: { authorized_parties: AuthorizedPartiesSubmitPayload }
+  ): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(
+      `/v1/applications/${applicationId}/offers/contracts/acceptance/authorized-parties-draft`,
+      body
+    );
+  }
+
   async submitContractOfferAcceptance(
     applicationId: string,
     body: { authorized_parties: AuthorizedPartiesSubmitPayload }

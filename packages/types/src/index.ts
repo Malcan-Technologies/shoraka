@@ -504,6 +504,7 @@ export * from "./regtank-iso3166-countries";
 export * from "./notes";
 export * from "./financing-tenure";
 export * from "./invoice-financing-ratio";
+export * from "./invoice-details-config";
 export * from "./disbursement-value-date";
 export * from "./actual-settlement-date";
 export * from "./tenure-profit";

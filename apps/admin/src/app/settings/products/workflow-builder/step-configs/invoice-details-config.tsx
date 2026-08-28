@@ -16,6 +16,7 @@ import { MoneyInput } from "@cashsouk/ui";
 export interface InvoiceDetailsConfigShape {
   min_invoice_value?: string | null;
   max_invoice_value?: string | null;
+  sub_limit_per_invoice_rm?: string | null;
   min_financing_ratio_percent?: number | null;
   max_financing_ratio_percent?: number | null;
   /** Minimum whole months from today to maturity while completing the application (issuer invoice step). */
@@ -45,6 +46,13 @@ function getConfig(
         ? c.max_invoice_value
         : typeof c?.max_invoice_value === "number"
           ? formatMoney(c.max_invoice_value)
+          : null,
+
+    sub_limit_per_invoice_rm:
+      typeof c?.sub_limit_per_invoice_rm === "string"
+        ? c.sub_limit_per_invoice_rm
+        : typeof c?.sub_limit_per_invoice_rm === "number"
+          ? formatMoney(c.sub_limit_per_invoice_rm)
           : null,
 
     min_financing_ratio_percent:
@@ -135,6 +143,25 @@ export function InvoiceDetailsConfig({
         />
         <p className="text-xs text-muted-foreground">
           Leave blank for no maximum limit.
+        </p>
+      </div>
+
+      <div className={cn("grid min-w-0", FIELD_GAP)}>
+        <Label className="text-sm font-medium">
+          Sub-limit per invoice (RM)
+        </Label>
+        <MoneyInput
+          value={current.sub_limit_per_invoice_rm ?? ""}
+          onValueChange={(v) =>
+            update({ sub_limit_per_invoice_rm: v || null })
+          }
+          placeholder="Required when the product generates a Letter of Offer"
+          maxIntDigits={12}
+          allowEmpty
+          inputClassName={INPUT_CLASS}
+        />
+        <p className="text-xs text-muted-foreground">
+          Ceiling printed on the Letter of Offer (Schedule A). Required for ARF facility LO products.
         </p>
       </div>
 

@@ -1,4 +1,4 @@
-import { offerAcceptanceFreezesAuthorizedParties, parseOfferAcceptanceDetails } from "./offer-acceptance";
+import { getLoAuthorizedPartiesFromAcceptance, offerAcceptanceFreezesAuthorizedParties, parseOfferAcceptanceDetails } from "./offer-acceptance";
 import {
   authorizedPartyListFingerprint,
   authorizedPartyReadOnlyBlocks,
@@ -10,6 +10,7 @@ import {
   guarantorBindingsFromSnapshot,
   issuerDirectorBindingsFromSnapshot,
   loCorporateAuthorizedNamesByParty,
+  loCorporateAuthorizedRepresentativesByParty,
   loIssuerAuthorizedNames,
   matchAuthorizedPartiesToGuarantors,
   parseAuthorizedPartiesSnapshot,
@@ -251,6 +252,15 @@ describe("parseOfferAcceptanceDetails authorized_parties", () => {
     });
     expect(parsed?.authorized_parties).toEqual(ISSUER_SNAPSHOT);
   });
+
+  it("keeps an authorised-parties draft separately from the submitted snapshot", () => {
+    const parsed = parseOfferAcceptanceDetails({
+      status: "PENDING_ISSUER",
+      authorized_parties_draft: ISSUER_SNAPSHOT,
+    });
+    expect(parsed?.authorized_parties_draft).toEqual(ISSUER_SNAPSHOT);
+    expect(parsed?.authorized_parties).toBeUndefined();
+  });
 });
 
 describe("issuerDirectorBindingsFromSnapshot", () => {
@@ -313,6 +323,42 @@ describe("LO names", () => {
       },
     ]);
     expect(loCorporateAuthorizedNamesByParty(null)).toEqual([]);
+  });
+
+  it("keeps corporate representative NRIC and capacity for LO merge", () => {
+    expect(loCorporateAuthorizedRepresentativesByParty(MIXED_SNAPSHOT)).toEqual([
+      {
+        partyKey: "g_co",
+        applicationGuarantorId: "g_co",
+        representatives: [
+          { name: "Nora", nric: "880101015555", capacity: "authorised_signatory" },
+          { name: "Farid", nric: "770202025555", capacity: "director" },
+        ],
+      },
+    ]);
+  });
+
+  it("uses the saved draft while Step 1 is editable, else the submitted snapshot", () => {
+    const draftOnly = parseOfferAcceptanceDetails({
+      status: "PENDING_ISSUER",
+      authorized_parties_draft: ISSUER_SNAPSHOT,
+    });
+    expect(getLoAuthorizedPartiesFromAcceptance(draftOnly)).toEqual(ISSUER_SNAPSHOT);
+
+    const editableWithBoth = parseOfferAcceptanceDetails({
+      status: "CHANGES_REQUESTED",
+      authorized_parties: MIXED_SNAPSHOT,
+      authorized_parties_draft: ISSUER_SNAPSHOT,
+    });
+    expect(getLoAuthorizedPartiesFromAcceptance(editableWithBoth)).toEqual(ISSUER_SNAPSHOT);
+
+    const submitted = parseOfferAcceptanceDetails({
+      status: "PENDING_ADMIN_REVIEW",
+      authorized_parties: MIXED_SNAPSHOT,
+      authorized_parties_draft: ISSUER_SNAPSHOT,
+    });
+    expect(getLoAuthorizedPartiesFromAcceptance(submitted)).toEqual(MIXED_SNAPSHOT);
+    expect(getLoAuthorizedPartiesFromAcceptance(null)).toBeNull();
   });
 });
 

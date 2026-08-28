@@ -69,6 +69,24 @@ router.get("/prefill", async (req: Request, res: Response, next: NextFunction) =
     const application =
       contract.originating_application ?? contract.applications[0] ?? null;
 
+    let productWorkflow: unknown[] | undefined;
+    if (application) {
+      const productId = (application.financing_type as { product_id?: string } | null | undefined)
+        ?.product_id;
+      const productVersion = (application as { product_version?: number | null }).product_version;
+      if (productId && typeof productVersion === "number") {
+        const product = await prisma.product.findFirst({
+          where: {
+            version: productVersion,
+            status: { not: "DELETED" },
+            OR: [{ id: productId }, { base_id: productId }],
+          },
+          orderBy: { created_at: "desc" },
+        });
+        if (product) productWorkflow = (product.workflow as unknown[]) ?? [];
+      }
+    }
+
     let gracePeriodDaysDefault: number | null = null;
     try {
       const settings = await prisma.platformFinanceSetting.findFirst({
@@ -110,6 +128,7 @@ router.get("/prefill", async (req: Request, res: Response, next: NextFunction) =
         ? readFinancingStructureType(application.financing_structure)
         : null,
       gracePeriodDaysDefault,
+      productWorkflow,
     });
 
     res.json({

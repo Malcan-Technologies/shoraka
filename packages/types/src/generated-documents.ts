@@ -35,7 +35,7 @@ export const GENERATED_DOCUMENT_TYPES: Record<
 > = {
   arf_contract_facility_lo: {
     key: "arf_contract_facility_lo",
-    version: 5,
+    version: 8,
     label: "ARF contract facility Letter of Offer (LO)",
     description:
       "Contract facility Letter of Offer filled from application, contract, and offer data.",

@@ -1,8 +1,8 @@
 # ARF contract facility LO — data sources (working index)
 
-What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does **today** for production generate (`arf_contract_facility_lo` **v5**, per-guarantor acknowledgement pages).
+What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does for production generate (`arf_contract_facility_lo` **v8**, per-guarantor acknowledgement pages).
 
-**Full verification table (use this to review):** [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md)
+**Full verification table:** [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md)
 
 Older editable discussion table: [arf-letter-of-offer-placeholder-map.md](../application-flow/arf-letter-of-offer-placeholder-map.md) (July wording — partially superseded).
 
@@ -10,17 +10,18 @@ Older editable discussion table: [arf-letter-of-offer-placeholder-map.md](../app
 
 | Area | Source | Notes |
 |------|--------|--------|
-| Issuer identity | `issuer_organization` + onboarding address | Name, SSM, registered address |
-| Letter date | `offer_details.sent_at` or today | `formatLetterDate` |
+| Issuer identity | `issuer_organization.registration_number`, then COD `basicInfo.ssmRegistrationNumber` / `ssmRegisterNumber` | Name, SSM, registered address |
+| Letter date | `offer_details.sent_at` | Required — generation fails if missing |
 | Attention | `application.company_details.contact_person` | Name, position |
 | Facility amount | `offer_details.offered_facility` or `contract_details.approved_facility` | `formatRmAmount` — also Schedule A Part A Financing Limit + MoA |
-| Guarantors (individual) | `business_details.guarantors` | All individuals — `{#guarantors_individual}` loops (list + one acknowledgement page each) |
-| Corporate guarantors | Company guarantors + `authorized_parties` | `{guarantors_corporate[]}` — every company, all declared signatories; Word loop paginates four boxes per page |
-| Authorised signatories | `offer_acceptance.authorized_parties` | Issuer names → `moa_authorised_signatory_names`; corporate parties → matching company `signatories[]` |
+| Guarantors | Ordered live `application_guarantors` | Individuals and companies. Finance Documents uses `{#finance_documents_guarantors}` with nested `{rep_line}` for corporate authorised representatives (`a. b. c.` under roman `i. ii. iii.`). Missing identity parts print `[INSERT NAME]` / `[INSERT]`. An empty list prints one placeholder line. |
+| Corporate signatories | `offer_acceptance.authorized_parties` or `authorized_parties_draft` | Name, NRIC, and capacity. While Step 1 is editable the saved draft is used; after submit the canonical snapshot is. Draft must be saved before LO download |
+| Tenure / payment / max invoice tenure | `FINANCING_TENURE_MAX_DAYS` (180) | Same value in all three merge fields |
+| Invoice sub-limit | Frozen product `invoice_details.sub_limit_per_invoice_rm` | Also fills `part_b_financing_amount_rm`. Generation fails if unset |
 | Facility Type checkboxes | `financing_structure.structure_type` | Part A for `new_contract`; Part B for `invoice_only` / `existing_contract` |
 | Assigned contract | `contract_details` + `customer_details` | Date, counterparty, description/number |
-| Offer validity phrase | `offer_acceptance.acceptance_expires_at` vs `sent_at` | `daysPhrase` when clocks exist |
-| Transaction docs days | `signing_expires_at` vs offer/letter date | When acceptance clocks exist |
+| Offer validity phrase | `acceptance_expires_at` vs `sent_at` | Used in **both** acceptance/lapse clauses |
+| Transaction docs days | Frozen product `signing_deadline.days` (default 14) | Not timestamp subtraction |
 | Grace period | `PlatformFinanceSetting.grace_period_days` | When settings row exists |
 
 ## Hardcoded in Word (19 Aug legal text)
@@ -36,27 +37,25 @@ Not merge tags:
 | Application Fee | RM150, payable on application |
 | Electronic execution | Platform records equal written form; Utilisation Offer acceptance = Purchase Requisition and Wa'd |
 
-## Empty until product/legal defines (EMPTY / FLAG)
+## MoA authorised signatory
 
-While templates are still in review, merge fields are yellow (same as the clean-copy placeholders) and empty values print the `{tag}` instead of a blank. Revert that markup in `lo-dev-merge-markup.ts` once sources are signed off.
-
-| Field | Status |
-|-------|--------|
-| `tenure_days` | Empty |
-| `max_invoice_tenure_days` | Empty (Schedule A “up to N”) |
-| `sub_limit_per_invoice_rm` | Empty |
-| `part_b_financing_amount_rm` | Empty |
-| `payment_period_days` | Empty |
+Left blank for wet-ink / issuer completion. Not merge data.
 
 ## Wet ink (SIGNEE)
 
-Signature blocks stay blank — no merge tags for wet-ink signature strokes.
+Signature blocks stay blank except printed names. Corporate boxes: signature line first, name underneath. `NRIC :` / `Designation :` remain blank.
 
 ## Production vs demo
 
 | Path | Use |
 |------|-----|
-| `GET /v1/applications/:id/generated-documents/arf_contract_facility_lo` | Production (issuer/admin) |
+| `GET /v1/applications/:id/generated-documents/arf_contract_facility_lo` | Production (issuer/admin). Fails closed if required data is missing. |
 | `POST /v1/admin/demos/contract-lo/generate` | Engineering demo with editable body |
 
 **Same template file and `renderFacilityLoDocx`.** Prefill uses the same builder as production. See [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md#demo--production-sync).
+
+## Legacy product backfill
+
+`pnpm --filter @cashsouk/api backfill-invoice-sub-limit -- --base-id <id> --version <n> --amount <rm> --apply`
+
+Dry-run by default. Does not infer from `max_invoice_value`.

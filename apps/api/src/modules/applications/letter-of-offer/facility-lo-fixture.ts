@@ -35,17 +35,47 @@ export function createFacilityLoFixture(): ContractFacilityLoMergeData {
       {
         name: "HOLDCO ONE SDN. BHD.",
         ssm: "123456-A",
-        signatories: [{ name: "Nora Abdullah" }, { name: "Farid Hassan" }],
+        signatories: [
+          { name: "Nora Abdullah", nric: "880101015555", capacity: "authorised_signatory" },
+          { name: "Farid Hassan", nric: "770202025555", capacity: "director" },
+        ],
       },
       {
         name: "HOLDCO TWO SDN. BHD.",
         ssm: "654321-U",
         signatories: [
-          { name: "Aini Rahman" },
-          { name: "Bala Krishnan" },
-          { name: "Chen Wei" },
-          { name: "Devi Nair" },
-          { name: "Ehsan Malik" },
+          { name: "Aini Rahman", nric: "660101015555", capacity: "director" },
+          { name: "Bala Krishnan", nric: "550202025555", capacity: "director" },
+          { name: "Chen Wei", nric: "440303035555", capacity: "authorised_signatory" },
+          { name: "Devi Nair", nric: "330404045555", capacity: "director" },
+          { name: "Ehsan Malik", nric: "220505055555", capacity: "authorised_signatory" },
+        ],
+      },
+    ],
+    finance_documents_guarantors: [
+      {
+        line: "Ali Bin Abu (NRIC No. 900101145678)",
+        representatives: [],
+      },
+      {
+        line: "Siti Binti Ahmad (NRIC No. 880202085432)",
+        representatives: [],
+      },
+      {
+        line: "HOLDCO ONE SDN. BHD. (Registration No. 123456-A)",
+        representatives: [
+          { rep_line: "Nora Abdullah (NRIC No. 880101015555)" },
+          { rep_line: "Farid Hassan (NRIC No. 770202025555)" },
+        ],
+      },
+      {
+        line: "HOLDCO TWO SDN. BHD. (Registration No. 654321-U)",
+        representatives: [
+          { rep_line: "Aini Rahman (NRIC No. 660101015555)" },
+          { rep_line: "Bala Krishnan (NRIC No. 550202025555)" },
+          { rep_line: "Chen Wei (NRIC No. 440303035555)" },
+          { rep_line: "Devi Nair (NRIC No. 330404045555)" },
+          { rep_line: "Ehsan Malik (NRIC No. 220505055555)" },
         ],
       },
     ],
@@ -58,6 +88,5 @@ export function createFacilityLoFixture(): ContractFacilityLoMergeData {
     assigned_contract_date: "1 January 2026",
     assigned_contract_counterparty: "DEMO BUYER SDN. BHD.",
     assigned_contract_description: "supply of goods under Purchase Order PO-2026-001",
-    moa_authorised_signatory_names: "Jane Doe",
   };
 }

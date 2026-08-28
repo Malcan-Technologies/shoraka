@@ -7,6 +7,7 @@ import {
   getOfferAcceptanceFromOfferDetails,
   parseOfferAcceptanceDetails,
   withOfferAcceptance,
+  type AuthorizedPartiesSnapshot,
   type OfferAcceptanceDetails,
   type OfferAcceptanceStatus,
 } from "@cashsouk/types";
@@ -61,14 +62,23 @@ export function ensureOfferAcceptanceOnSend(
 
 export function patchOfferAcceptance(
   offerDetails: Record<string, unknown>,
-  patch: Partial<OfferAcceptanceDetails> & { status: OfferAcceptanceStatus }
+  patch: Omit<Partial<OfferAcceptanceDetails>, "authorized_parties_draft"> & {
+    status: OfferAcceptanceStatus;
+    authorized_parties_draft?: AuthorizedPartiesSnapshot | null;
+  }
 ): Record<string, unknown> {
   const current =
     parseOfferAcceptanceDetails(offerDetails.offer_acceptance) ?? createInitialOfferAcceptanceDetails();
   if (patch.status !== current.status) {
     assertCanTransitionOfferAcceptance(current.status, patch.status);
   }
-  return withOfferAcceptance(offerDetails, { ...current, ...patch });
+  const { authorized_parties_draft: draftPatch, ...rest } = patch;
+  const merged: OfferAcceptanceDetails = { ...current, ...rest };
+  if ("authorized_parties_draft" in patch) {
+    if (draftPatch) merged.authorized_parties_draft = draftPatch;
+    else delete merged.authorized_parties_draft;
+  }
+  return withOfferAcceptance(offerDetails, merged);
 }
 
 /**

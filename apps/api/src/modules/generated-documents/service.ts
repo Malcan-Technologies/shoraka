@@ -1,6 +1,8 @@
 import crypto from "crypto";
 import {
   getGeneratedDocumentType,
+  getLoAuthorizedPartiesFromAcceptance,
+  getOfferAcceptanceFromOfferDetails,
   listGeneratedDocumentTypes,
   listGeneratedDocumentTypesForContext,
   parseGeneratedDocumentTypeKey,
@@ -21,6 +23,7 @@ import { ApplicationRepository } from "../applications/repository";
 import { ProductRepository } from "../products/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { buildFacilityLoMergeData } from "../applications/letter-of-offer/build-facility-lo-merge-data";
+import { assertFacilityLoMergeReady } from "../applications/letter-of-offer/assert-facility-lo-ready";
 import {
   readFacilityLoTemplateBytes,
   renderFacilityLoDocx,
@@ -239,7 +242,7 @@ export class GeneratedDocumentsService {
 
     switch (typeKey) {
       case "arf_contract_facility_lo":
-        return this.generateArfContractFacilityLo(application, typeDef, input.format);
+        return this.generateArfContractFacilityLo(application, typeDef, input.format, workflow);
       default:
         throw new AppError(400, "VALIDATION_ERROR", "Unsupported generated document type.");
     }
@@ -248,7 +251,8 @@ export class GeneratedDocumentsService {
   private async generateArfContractFacilityLo(
     application: Awaited<ReturnType<ApplicationRepository["findById"]>>,
     typeDef: GeneratedDocumentTypeDefinition,
-    format: GeneratedDocumentFormat
+    format: GeneratedDocumentFormat,
+    productWorkflow: unknown[]
   ): Promise<GeneratedDocumentResult> {
     const contract = (application as { contract?: Record<string, unknown> | null }).contract;
     if (!contract) {
@@ -308,6 +312,24 @@ export class GeneratedDocumentsService {
       },
       financingStructureType: readFinancingStructureType(application!.financing_structure),
       gracePeriodDaysDefault,
+      productWorkflow,
+    });
+
+    const offerRecord = contract.offer_details;
+    const sentAt =
+      offerRecord && typeof offerRecord === "object" && !Array.isArray(offerRecord)
+        ? typeof (offerRecord as { sent_at?: unknown }).sent_at === "string"
+          ? (offerRecord as { sent_at: string }).sent_at.trim()
+          : ""
+        : "";
+    const liveGuarantors = (application as { application_guarantors?: unknown }).application_guarantors;
+    assertFacilityLoMergeReady({
+      mergeData,
+      sentAt,
+      authorizedParties: getLoAuthorizedPartiesFromAcceptance(
+        getOfferAcceptanceFromOfferDetails(contract.offer_details)
+      ),
+      liveGuarantorCount: Array.isArray(liveGuarantors) ? liveGuarantors.length : 0,
     });
 
     const templateBytes = readFacilityLoTemplateBytes();

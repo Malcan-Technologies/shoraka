@@ -15,12 +15,20 @@ export type ContractFacilityLoIndividualGuarantor = {
 
 export type ContractFacilityLoCorporateSignatory = {
   name: string;
+  nric: string;
+  capacity: string;
 };
 
 export type ContractFacilityLoCorporateGuarantor = {
   name: string;
   ssm: string;
   signatories: ContractFacilityLoCorporateSignatory[];
+};
+
+/** Finance Documents list: individuals and companies in application_guarantors order. */
+export type ContractFacilityLoFinanceDocumentParty = {
+  line: string;
+  representatives: Array<{ rep_line: string }>;
 };
 
 export type ContractFacilityLoMergeData = {
@@ -46,6 +54,8 @@ export type ContractFacilityLoMergeData = {
   guarantors_individual: ContractFacilityLoIndividualGuarantor[];
   /** Corporate guarantors — one company per entry, all declared signatories. */
   guarantors_corporate: ContractFacilityLoCorporateGuarantor[];
+  /** Unified Finance Documents list (individual + corporate, live row order). */
+  finance_documents_guarantors: ContractFacilityLoFinanceDocumentParty[];
   /** Schedule A Facility Type — `☒` or `☐` from financing structure. */
   part_a_checkbox: string;
   part_b_checkbox: string;
@@ -58,7 +68,6 @@ export type ContractFacilityLoMergeData = {
   assigned_contract_date: string;
   assigned_contract_counterparty: string;
   assigned_contract_description: string;
-  moa_authorised_signatory_names: string;
 };
 
 /** Scalar merge keys (demo form + Zod body). Arrays are handled separately. */
@@ -87,5 +96,4 @@ export const CONTRACT_FACILITY_LO_MERGE_KEYS = [
   "assigned_contract_date",
   "assigned_contract_counterparty",
   "assigned_contract_description",
-  "moa_authorised_signatory_names",
 ] as const satisfies ReadonlyArray<keyof ContractFacilityLoMergeData>;

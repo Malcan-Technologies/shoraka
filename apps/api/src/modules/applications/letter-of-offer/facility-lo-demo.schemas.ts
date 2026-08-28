@@ -16,6 +16,8 @@ const guarantorSchema = z.object({
 
 const corporateSignatorySchema = z.object({
   name: z.string().optional().default(""),
+  nric: z.string().optional().default(""),
+  capacity: z.string().optional().default(""),
 });
 
 const corporateGuarantorSchema = z.object({
@@ -24,10 +26,19 @@ const corporateGuarantorSchema = z.object({
   signatories: z.array(corporateSignatorySchema).optional().default([]),
 });
 
+const financeDocumentPartySchema = z.object({
+  line: z.string().optional().default(""),
+  representatives: z
+    .array(z.object({ rep_line: z.string().optional().default("") }))
+    .optional()
+    .default([]),
+});
+
 export const facilityLoMergeBodySchema = z.object({
   ...shape,
   guarantors_individual: z.array(guarantorSchema).optional(),
   guarantors_corporate: z.array(corporateGuarantorSchema).optional(),
+  finance_documents_guarantors: z.array(financeDocumentPartySchema).optional(),
 });
 
 export const facilityLoPrefillQuerySchema = z.object({

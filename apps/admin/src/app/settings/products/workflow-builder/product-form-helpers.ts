@@ -14,7 +14,9 @@ import {
   DEFAULT_MAX_INVOICE_FINANCING_RATIO_PERCENT,
   DEFAULT_MIN_INVOICE_FINANCING_RATIO_PERCENT,
   MAX_INVOICE_FINANCING_RATIO_PERCENT,
+  parsePositiveRmAmount,
   validateSigningTemplateConfig,
+  workflowAcceptanceDocumentsIncludeGeneratedType,
 } from "@cashsouk/types";
 import { isDeclarationHtmlEmpty } from "@cashsouk/ui/declaration-rich-text";
 import { parseMoney } from "@cashsouk/ui";
@@ -55,6 +57,7 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
       const minRaw = config.min_invoice_value;
       const maxRaw = config.max_invoice_value;
+      const subLimitRaw = config.sub_limit_per_invoice_rm;
       const minRatioRaw = config.min_financing_ratio_percent;
       const maxRatioRaw = config.max_financing_ratio_percent;
 
@@ -95,6 +98,13 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
             ? maxRaw
             : typeof maxRaw === "string" && maxRaw.trim() !== ""
               ? parseMoney(maxRaw)
+              : null,
+
+        sub_limit_per_invoice_rm:
+          typeof subLimitRaw === "number"
+            ? subLimitRaw
+            : typeof subLimitRaw === "string" && subLimitRaw.trim() !== ""
+              ? parseMoney(subLimitRaw)
               : null,
 
         /** Default 60–80 when blank. */
@@ -167,11 +177,13 @@ export function normalizeWorkflow(workflow: Step[]): Step[] {
     const config = ((step as Step).config ?? {}) as {
       min_invoice_value?: string | number | null;
       max_invoice_value?: string | number | null;
+      sub_limit_per_invoice_rm?: string | number | null;
     } & Record<string, unknown>;
 
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
       const minRaw = config.min_invoice_value;
       const maxRaw = config.max_invoice_value;
+      const subLimitRaw = config.sub_limit_per_invoice_rm;
 
       return {
         ...step,
@@ -181,6 +193,8 @@ export function normalizeWorkflow(workflow: Step[]): Step[] {
             minRaw == null || minRaw === "" ? null : parseMoney(minRaw),
           max_invoice_value:
             maxRaw == null || maxRaw === "" ? null : parseMoney(maxRaw),
+          sub_limit_per_invoice_rm:
+            subLimitRaw == null || subLimitRaw === "" ? null : parseMoney(subLimitRaw),
         },
       };
     }
@@ -301,6 +315,7 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
       const minRaw = config.min_invoice_value;
       const maxRaw = config.max_invoice_value;
+      const subLimitRaw = config.sub_limit_per_invoice_rm;
       const minRatioRaw = config.min_financing_ratio_percent;
       const maxRatioRaw = config.max_financing_ratio_percent;
 
@@ -317,6 +332,24 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
         maxValue = maxRaw;
       } else if (typeof maxRaw === "string" && maxRaw.trim() !== "") {
         maxValue = parseMoney(maxRaw);
+      }
+
+      const subLimitValue = parsePositiveRmAmount(
+        typeof subLimitRaw === "number" || typeof subLimitRaw === "string" ? subLimitRaw : null
+      );
+      if (
+        subLimitRaw != null &&
+        subLimitRaw !== "" &&
+        subLimitValue == null
+      ) {
+        errors.push(`${stepLabel}: sub-limit per invoice must be a positive amount`);
+        stepIdsWithErrors.add(stepId);
+      }
+      if (workflowAcceptanceDocumentsIncludeGeneratedType(steps, "arf_contract_facility_lo")) {
+        if (subLimitValue == null) {
+          errors.push(`${stepLabel}: sub-limit per invoice is required for the Letter of Offer`);
+          stepIdsWithErrors.add(stepId);
+        }
       }
 
       if (minValue != null && minValue < 0) {

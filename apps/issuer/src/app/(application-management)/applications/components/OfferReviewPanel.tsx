@@ -289,6 +289,7 @@ export function OfferReviewPanel({
     [frozenProductWorkflow]
   );
   const [isSubmittingAcceptance, setIsSubmittingAcceptance] = React.useState(false);
+  const [isSavingPartyDraft, setIsSavingPartyDraft] = React.useState(false);
   const invoiceContractId =
     type === "invoice" ? (invoice?.contractId ?? contractId ?? null) : null;
   const envelopeTargetInvoiceId = type === "invoice" ? invoice?.id : null;
@@ -394,10 +395,14 @@ export function OfferReviewPanel({
         (invoice as { offer_details?: Record<string, unknown> } | undefined)?.offer_details);
   const od = offerDetails as Record<string, unknown> | null | undefined;
   const acceptanceStatus = resolveOfferAcceptanceStatus(offerDetails);
-  const authorizedParties = React.useMemo(
-    () => getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null,
-    [offerDetails]
-  );
+  const authorizedParties = React.useMemo(() => {
+    const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
+    if (!acceptance) return null;
+    if (offerAcceptanceIsStep1Editable(acceptance.status)) {
+      return acceptance.authorized_parties_draft ?? acceptance.authorized_parties ?? null;
+    }
+    return acceptance.authorized_parties ?? acceptance.authorized_parties_draft ?? null;
+  }, [offerDetails]);
   const isAcceptanceChangesRequested = acceptanceStatus === "CHANGES_REQUESTED";
 
   type ReviewItemRow = { item_type: string; item_id: string; status: string };
@@ -989,7 +994,7 @@ export function OfferReviewPanel({
     type,
   ]);
 
-  const goToDocumentsStep = React.useCallback(() => {
+  const goToDocumentsStep = React.useCallback(async () => {
     if (!areIssuerDirectorSelectionsReady(issuerDirectors, issuerRepMatchKeys)) {
       toast.error("Select at least one director to represent the issuer company.");
       return;
@@ -998,9 +1003,48 @@ export function OfferReviewPanel({
       toast.error("Complete authorised representatives for every guarantor.");
       return;
     }
+    if (type === "contract") {
+      const authorizedPartiesPayload = buildAuthorizedPartiesSubmitPayload({
+        directors: issuerDirectors,
+        selectedMatchKeys: issuerRepMatchKeys,
+        guarantors: guarantorRows,
+        drafts: guarantorDrafts,
+      });
+      setIsSavingPartyDraft(true);
+      try {
+        const response = await apiClient.saveContractAuthorizedPartiesDraft(applicationId, {
+          authorized_parties: authorizedPartiesPayload,
+        });
+        if (!response?.success) {
+          const err = getApiErrorDetails(
+            response ?? { success: false },
+            "Could not save authorised representatives"
+          );
+          toast.error(err.message);
+          return;
+        }
+        await invalidateOfferAcceptanceQueries();
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Could not save authorised representatives"
+        );
+        return;
+      } finally {
+        setIsSavingPartyDraft(false);
+      }
+    }
     viewStepPinnedRef.current = false;
     setPeopleStepConfirmed(true);
-  }, [guarantorDrafts, guarantorRows, issuerDirectors, issuerRepMatchKeys]);
+  }, [
+    apiClient,
+    applicationId,
+    guarantorDrafts,
+    guarantorRows,
+    invalidateOfferAcceptanceQueries,
+    issuerDirectors,
+    issuerRepMatchKeys,
+    type,
+  ]);
 
   React.useEffect(() => {
     if (isPhaseDeadlinePast) {
@@ -1717,8 +1761,10 @@ export function OfferReviewPanel({
               !canSubmitFromRepresentatives ? (
                 <Button
                   className="h-11 w-full rounded-xl"
-                  disabled={!issuerRepsReady}
-                  onClick={goToDocumentsStep}
+                  disabled={isSubmittingAcceptance || isSavingPartyDraft || !issuerRepsReady}
+                  onClick={() => {
+                    void goToDocumentsStep();
+                  }}
                 >
                   Continue
                 </Button>

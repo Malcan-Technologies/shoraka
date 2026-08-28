@@ -80,6 +80,11 @@ export type OfferAcceptanceDetails = {
   acknowledged_terms?: OfferAcknowledgedTermsSnapshot;
   /** Issuer and guarantor authorised representatives declared at Step 1. */
   authorized_parties?: AuthorizedPartiesSnapshot;
+  /**
+   * Contract-LO only: in-progress representatives saved before Documents / LO download.
+   * Cleared when Step 1 submit promotes the payload to `authorized_parties`.
+   */
+  authorized_parties_draft?: AuthorizedPartiesSnapshot;
   submitted_at?: string | null;
   reviewed_at?: string | null;
   reviewed_by_user_id?: string | null;
@@ -107,6 +112,7 @@ export function parseOfferAcceptanceDetails(value: unknown): OfferAcceptanceDeta
   if (!isOfferAcceptanceStatus(root.status)) return null;
   const acknowledgedTerms = parseAcknowledgedTermsSnapshot(root.acknowledged_terms);
   const authorizedParties = parseAuthorizedPartiesSnapshot(root.authorized_parties);
+  const authorizedPartiesDraft = parseAuthorizedPartiesSnapshot(root.authorized_parties_draft);
   const remindersSent = asRecord(root.deadline_reminders_sent);
   const deadlineRemindersSent: Record<string, string> | undefined = remindersSent
     ? Object.fromEntries(
@@ -119,6 +125,7 @@ export function parseOfferAcceptanceDetails(value: unknown): OfferAcceptanceDeta
     status: root.status,
     ...(acknowledgedTerms ? { acknowledged_terms: acknowledgedTerms } : {}),
     ...(authorizedParties ? { authorized_parties: authorizedParties } : {}),
+    ...(authorizedPartiesDraft ? { authorized_parties_draft: authorizedPartiesDraft } : {}),
     submitted_at: typeof root.submitted_at === "string" ? root.submitted_at : root.submitted_at === null ? null : undefined,
     reviewed_at: typeof root.reviewed_at === "string" ? root.reviewed_at : root.reviewed_at === null ? null : undefined,
     reviewed_by_user_id:
@@ -295,6 +302,20 @@ export function getOfferAcceptanceFromOfferDetails(
   const root = asRecord(offerDetails);
   if (!root) return null;
   return parseOfferAcceptanceDetails(root.offer_acceptance);
+}
+
+/**
+ * Parties used to fill the Letter of Offer.
+ * While Step 1 is editable, the saved draft is latest; after submit, the canonical snapshot is.
+ */
+export function getLoAuthorizedPartiesFromAcceptance(
+  acceptance: OfferAcceptanceDetails | null | undefined
+): AuthorizedPartiesSnapshot | null {
+  if (!acceptance) return null;
+  if (offerAcceptanceIsStep1Editable(acceptance.status)) {
+    return acceptance.authorized_parties_draft ?? acceptance.authorized_parties ?? null;
+  }
+  return acceptance.authorized_parties ?? acceptance.authorized_parties_draft ?? null;
 }
 
 export function createInitialOfferAcceptanceDetails(

@@ -25,6 +25,14 @@ There is **no generated-document instance table**. The uploaded file after downl
 
 An application keeps its frozen product version even if the live catalog product is updated.
 
+## Merge tags (all generated Word types)
+
+- Empty / missing data prints the merge tag or legal placeholder — never a blank slot. Required commercial fields still fail generate (`GENERATED_DOCUMENT_DATA_INCOMPLETE`).
+- Every **value** merge (filled or not) is yellow-highlighted in Word. Loop/raw tags are not.
+- LO Finance Documents guarantor entities use lower-roman `i. ii. iii.`; company representatives nest as `a. b. c.` (not the parent `(a) (b) (c)` list).
+
+Details: [add-a-placeholder.md](./add-a-placeholder.md).
+
 ## Operator flow (production)
 
 1. Admin → product workflow → Acceptance document row → Template source **Generated** → pick type (e.g. ARF contract facility LO) → save/publish.

@@ -4,6 +4,7 @@
  */
 
 import { getStepKeyFromStepId } from "./application-steps";
+import type { GeneratedDocumentTypeKey } from "./generated-documents";
 import {
   parseWorkflowDocumentRow,
   resolveWorkflowDocumentAllowedTypes,
@@ -80,6 +81,15 @@ export function resolveAcceptanceDocumentsFromWorkflow(
 
 export function workflowHasAcceptanceDocuments(workflow: unknown): boolean {
   return resolveAcceptanceDocumentsFromWorkflow(workflow).length > 0;
+}
+
+export function workflowAcceptanceDocumentsIncludeGeneratedType(
+  workflow: unknown,
+  typeKey: GeneratedDocumentTypeKey
+): boolean {
+  return resolveAcceptanceDocumentsFromWorkflow(workflow).some(
+    (row) => row.generated_document_type === typeKey
+  );
 }
 
 export function workflowHasRequiredAcceptanceDocuments(workflow: unknown): boolean {

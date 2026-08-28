@@ -6,9 +6,12 @@ import {
 } from "./facility-lo-merge.types";
 import { createFacilityLoFixture } from "./facility-lo-fixture";
 import {
+  deriveFinanceDocumentsGuarantors,
   mapCorporateGuarantors,
+  mapFinanceDocumentsGuarantors,
   mapIndividualGuarantors,
   parseCorporateGuarantorsFromMergeInput,
+  parseFinanceDocumentsFromMergeInput,
   parseGuarantorsFromMergeInput,
 } from "./facility-lo-guarantors";
 import {
@@ -20,8 +23,12 @@ import {
   numberToWords,
 } from "./lo-format";
 import {
+  DEFAULT_SIGNING_DEADLINE,
+  FINANCING_TENURE_MAX_DAYS,
+  getLoAuthorizedPartiesFromAcceptance,
   getOfferAcceptanceFromOfferDetails,
-  loIssuerAuthorizedNames,
+  readInvoiceSubLimitPerInvoiceRmFromWorkflow,
+  resolveSigningDeadlineFromWorkflow,
   type FinancingStructureType,
 } from "@cashsouk/types";
 
@@ -63,6 +70,22 @@ function resolveRegisteredAddress(org: {
   return asString(org.address);
 }
 
+/** Org column first, then COD basicInfo SSM aliases (Toyota legacy shape included). */
+export function resolveIssuerRegistrationNumber(org: {
+  registration_number?: string | null;
+  corporate_onboarding_data?: unknown;
+}): string {
+  const fromOrg = asString(org.registration_number);
+  if (fromOrg) return fromOrg;
+  const cod = asRecord(org.corporate_onboarding_data);
+  const basic = asRecord(cod?.basicInfo) ?? asRecord(cod?.basic_info);
+  return (
+    asString(basic?.ssmRegistrationNumber) ||
+    asString(basic?.ssmRegisterNumber) ||
+    asString(basic?.ssm_registration_number)
+  );
+}
+
 export function facilityLoCheckboxGlyphs(
   structureType: FinancingStructureType | null | undefined
 ): { part_a_checkbox: string; part_b_checkbox: string } {
@@ -99,27 +122,27 @@ export type BuildFacilityLoMergeInput = {
   financingStructureType?: FinancingStructureType | null;
   /** Default grace days from platform finance settings when available. */
   gracePeriodDaysDefault?: number | null;
+  /** Frozen product workflow for the application's product_version. */
+  productWorkflow?: unknown;
 };
 
-/**
- * Prefill merge data from platform entities. MISSING commercial terms stay empty
- * (or fixture defaults only where the map agreed a fixed legal constant).
- */
 export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): ContractFacilityLoMergeData {
   const base = createFacilityLoFixture();
+  const tenureDays = String(FINANCING_TENURE_MAX_DAYS);
   const emptyMissing: Partial<ContractFacilityLoMergeData> = {
-    tenure_days: "",
-    max_invoice_tenure_days: "",
+    tenure_days: tenureDays,
+    max_invoice_tenure_days: tenureDays,
     sub_limit_per_invoice_rm: "",
     part_b_financing_amount_rm: "",
-    payment_period_days: "",
+    payment_period_days: tenureDays,
     grace_period_days: "",
     grace_period_days_words: "",
     transaction_docs_days: "",
     transaction_docs_days_words: "",
-    moa_authorised_signatory_names: "",
+    offer_validity_phrase: "",
     guarantors_individual: [],
     guarantors_corporate: [],
+    finance_documents_guarantors: [],
     ...facilityLoCheckboxGlyphs(input.financingStructureType),
   };
 
@@ -128,26 +151,22 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
   const customer = asRecord(input.contract.customer_details);
   const company = asRecord(input.application?.company_details);
   const contact = asRecord(company?.contact_person);
-  const business = asRecord(input.application?.business_details);
-  const guarantors = Array.isArray(business?.guarantors) ? business.guarantors : [];
 
   const offeredFacility = asNumber(offer?.offered_facility);
   const approvedFacility = asNumber(contractDetails?.approved_facility);
   const facilityAmount = offeredFacility ?? approvedFacility;
 
   const sentAt = asString(offer?.sent_at);
-  const letterDate = sentAt ? formatLetterDate(sentAt) : formatLetterDate(new Date());
-
-  const individuals = mapIndividualGuarantors(guarantors);
+  const letterDate = sentAt ? formatLetterDate(sentAt) : "";
 
   const graceDefault =
     input.gracePeriodDaysDefault != null && Number.isFinite(input.gracePeriodDaysDefault)
       ? Math.floor(input.gracePeriodDaysDefault)
       : null;
 
-  const acceptance = asRecord(offer?.offer_acceptance);
+  const acceptance = getOfferAcceptanceFromOfferDetails(input.contract.offer_details);
   const acceptanceExpires = asString(acceptance?.acceptance_expires_at);
-  let offerValidityPhrase = base.offer_validity_phrase;
+  let offerValidityPhrase = "";
   if (acceptanceExpires && sentAt) {
     const start = new Date(sentAt).getTime();
     const end = new Date(acceptanceExpires).getTime();
@@ -157,23 +176,19 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
     }
   }
 
-  const signingExpires = asString(acceptance?.signing_expires_at);
-  let transactionDocsDays = "";
-  let transactionDocsWords = "";
-  if (signingExpires && (sentAt || acceptanceExpires)) {
-    const startMs = new Date(sentAt || letterDate).getTime();
-    const endMs = new Date(signingExpires).getTime();
-    const start = Number.isFinite(startMs) ? startMs : Date.now();
-    if (Number.isFinite(endMs) && endMs >= start) {
-      const days = Math.max(1, Math.round((endMs - start) / (24 * 60 * 60 * 1000)));
-      transactionDocsDays = String(days);
-      transactionDocsWords = numberToWords(days);
-    }
-  }
+  const signingDays =
+    resolveSigningDeadlineFromWorkflow(input.productWorkflow)?.days ?? DEFAULT_SIGNING_DEADLINE.days;
+  const transactionDocsDays = String(signingDays);
+  const transactionDocsWords = numberToWords(signingDays);
 
-  const authorizedParties = getOfferAcceptanceFromOfferDetails(
-    input.contract.offer_details
-  )?.authorized_parties;
+  const subLimitRm = readInvoiceSubLimitPerInvoiceRmFromWorkflow(input.productWorkflow);
+  const subLimitFormatted = formatRmAmount(subLimitRm ?? undefined);
+
+  const authorizedParties = getLoAuthorizedPartiesFromAcceptance(acceptance);
+  const liveGuarantors = input.application?.application_guarantors;
+  const individuals = mapIndividualGuarantors(liveGuarantors);
+  const corporates = mapCorporateGuarantors(liveGuarantors, authorizedParties);
+  const financeDocuments = mapFinanceDocumentsGuarantors(liveGuarantors, authorizedParties);
 
   return {
     ...base,
@@ -182,18 +197,17 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
     our_reference: input.contract.id,
     letter_date: letterDate,
     issuer_name: asString(input.issuerOrganization.name),
-    issuer_registration_number: asString(input.issuerOrganization.registration_number),
+    issuer_registration_number: resolveIssuerRegistrationNumber(input.issuerOrganization),
     issuer_address: resolveRegisteredAddress(input.issuerOrganization),
     attention_name: asString(contact?.name),
     attention_position: asString(contact?.position),
     financing_limit_rm: formatRmAmount(facilityAmount ?? undefined),
+    sub_limit_per_invoice_rm: subLimitFormatted,
+    part_b_financing_amount_rm: subLimitFormatted,
     offer_validity_phrase: offerValidityPhrase,
     guarantors_individual: individuals,
-    guarantors_corporate: mapCorporateGuarantors(
-      guarantors,
-      authorizedParties,
-      input.application?.application_guarantors
-    ),
+    guarantors_corporate: corporates,
+    finance_documents_guarantors: financeDocuments,
     grace_period_days: graceDefault != null ? String(graceDefault) : "",
     grace_period_days_words: graceDefault != null ? numberToWords(graceDefault) : "",
     transaction_docs_days: transactionDocsDays,
@@ -204,7 +218,6 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
       asString(contractDetails?.title) ||
       asString(contractDetails?.description) ||
       asString(contractDetails?.number),
-    moa_authorised_signatory_names: loIssuerAuthorizedNames(authorizedParties),
   };
 }
 
@@ -226,6 +239,11 @@ export function normalizeContractFacilityLoMergeData(input: unknown): ContractFa
   }
   if (Array.isArray(src.guarantors_corporate)) {
     out.guarantors_corporate = parseCorporateGuarantorsFromMergeInput(src);
+  }
+  if (Array.isArray(src.finance_documents_guarantors)) {
+    out.finance_documents_guarantors = parseFinanceDocumentsFromMergeInput(src);
+  } else {
+    out.finance_documents_guarantors = deriveFinanceDocumentsGuarantors(out);
   }
   return out;
 }

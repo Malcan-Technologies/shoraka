@@ -51,7 +51,6 @@ const FIELD_LABELS: Partial<Record<ContractFacilityLoScalarKey, string>> = {
   assigned_contract_date: "Assigned contract date",
   assigned_contract_counterparty: "Assigned contract counterparty",
   assigned_contract_description: "Assigned contract description",
-  moa_authorised_signatory_names: "MoA authorised signatory name(s)",
 };
 
 const SECTIONS: Array<{ title: string; keys: ContractFacilityLoScalarKey[] }> = [
@@ -100,10 +99,6 @@ const SECTIONS: Array<{ title: string; keys: ContractFacilityLoScalarKey[] }> = 
       "assigned_contract_description",
     ],
   },
-  {
-    title: "Memorandum",
-    keys: ["moa_authorised_signatory_names"],
-  },
 ];
 
 const LONG_FIELDS = new Set<ContractFacilityLoScalarKey>([
@@ -126,6 +121,7 @@ function emptyMerge(): ContractFacilityLoMergeData {
     >),
     guarantors_individual: [],
     guarantors_corporate: [],
+    finance_documents_guarantors: [],
   };
 }
 
@@ -134,7 +130,7 @@ function emptyGuarantor(): ContractFacilityLoIndividualGuarantor {
 }
 
 function emptyCorporate(): ContractFacilityLoCorporateGuarantor {
-  return { name: "", ssm: "", signatories: [{ name: "" }] };
+  return { name: "", ssm: "", signatories: [{ name: "", nric: "", capacity: "" }] };
 }
 
 export default function ContractLoDemoPage() {
@@ -206,7 +202,7 @@ export default function ContractLoDemoPage() {
       const next = [...prev.guarantors_corporate];
       const current = next[companyIndex] ?? emptyCorporate();
       const signatories = [...current.signatories];
-      signatories[signatoryIndex] = { name: value };
+      signatories[signatoryIndex] = { name: value, nric: "", capacity: "" };
       next[companyIndex] = { ...current, signatories };
       return { ...prev, guarantors_corporate: next };
     });
@@ -230,7 +226,7 @@ export default function ContractLoDemoPage() {
     setForm((prev) => {
       const next = [...prev.guarantors_corporate];
       const current = next[companyIndex] ?? emptyCorporate();
-      next[companyIndex] = { ...current, signatories: [...current.signatories, { name: "" }] };
+      next[companyIndex] = { ...current, signatories: [...current.signatories, { name: "", nric: "", capacity: "" }] };
       return { ...prev, guarantors_corporate: next };
     });
   }, []);

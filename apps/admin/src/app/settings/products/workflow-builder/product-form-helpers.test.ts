@@ -15,5 +15,7 @@ describe("product form financing ratio cap", () => {
     expect(helpers).not.toContain("cannot exceed 100");
     expect(configUi).toContain("max={MAX_INVOICE_FINANCING_RATIO_PERCENT}");
     expect(configUi).toContain("Maximum {MAX_INVOICE_FINANCING_RATIO_PERCENT}%");
+    expect(helpers).toContain("sub_limit_per_invoice_rm");
+    expect(configUi).toContain("Sub-limit per invoice (RM)");
   });
 });

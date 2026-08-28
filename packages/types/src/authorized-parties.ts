@@ -270,15 +270,46 @@ export type LoCorporateAuthorizedPartyNames = {
 export function loCorporateAuthorizedNamesByParty(
   snapshot: AuthorizedPartiesSnapshot | null | undefined
 ): LoCorporateAuthorizedPartyNames[] {
+  return loCorporateAuthorizedRepresentativesByParty(snapshot).map((row) => ({
+    partyKey: row.partyKey,
+    applicationGuarantorId: row.applicationGuarantorId,
+    ...(row.clientGuarantorId ? { clientGuarantorId: row.clientGuarantorId } : {}),
+    names: row.representatives.map((rep) => rep.name),
+  }));
+}
+
+export type LoCorporateAuthorizedRepresentative = {
+  name: string;
+  nric: string;
+  capacity: AuthorizedRepresentativeCapacity;
+};
+
+export type LoCorporateAuthorizedPartyRepresentatives = {
+  partyKey: string;
+  applicationGuarantorId: string;
+  clientGuarantorId?: string;
+  representatives: LoCorporateAuthorizedRepresentative[];
+};
+
+/** Corporate guarantor parties with name, NRIC, and capacity for LO merge. */
+export function loCorporateAuthorizedRepresentativesByParty(
+  snapshot: AuthorizedPartiesSnapshot | null | undefined
+): LoCorporateAuthorizedPartyRepresentatives[] {
   if (!snapshot) return [];
-  const rows: LoCorporateAuthorizedPartyNames[] = [];
+  const rows: LoCorporateAuthorizedPartyRepresentatives[] = [];
   for (const party of snapshot.parties) {
     if (party.entity_kind !== "CORPORATE_GUARANTOR") continue;
-    const names = party.representatives.map((rep) => rep.name.trim()).filter(Boolean);
-    const row: LoCorporateAuthorizedPartyNames = {
+    const representatives = party.representatives
+      .map((rep) => ({
+        name: rep.name.trim(),
+        nric: rep.ic_number.trim(),
+        capacity: rep.capacity,
+      }))
+      .filter((rep) => rep.name.length > 0);
+    const row: LoCorporateAuthorizedPartyRepresentatives = {
       partyKey: party.key,
       applicationGuarantorId: party.application_guarantor_id,
-      names,
+      representatives,
     };
     if (party.client_guarantor_id) row.clientGuarantorId = party.client_guarantor_id;
     rows.push(row);

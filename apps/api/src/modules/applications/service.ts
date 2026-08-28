@@ -2537,6 +2537,95 @@ export class ApplicationService {
   }
 
   /**
+   * Persist authorised-representative drafts on a contract offer without changing
+   * acceptance status. Required before Letter of Offer download.
+   */
+  async saveContractAuthorizedPartiesDraft(
+    applicationId: string,
+    userId: string,
+    authorizedPartiesPayload: AuthorizedPartiesSubmitPayload
+  ): Promise<Application> {
+    await this.verifyApplicationAccess(applicationId, userId);
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    if (!application.contract_id) {
+      throw new AppError(400, "INVALID_STATE", "Application has no facility");
+    }
+    const workflow = await this.getProductWorkflowForApplication(application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "This product does not use the offer acceptance flow."
+      );
+    }
+
+    const directorPool = await loadIssuerDirectorPool(application.issuer_organization_id);
+    const guarantors = applicationGuarantorsForParties(
+      (application as { application_guarantors?: unknown }).application_guarantors
+    );
+    assertAuthorizedPartiesValid(authorizedPartiesPayload.parties, directorPool, guarantors);
+
+    const now = new Date().toISOString();
+    const draft = stampAuthorizedPartiesSnapshot({
+      parties: authorizedPartiesPayload.parties,
+      submittedByUserId: userId,
+      submittedAt: now,
+    });
+    const contractId = application.contract_id;
+
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<
+        { status: string; offer_details: Prisma.JsonValue | null }[]
+      >`SELECT status, offer_details FROM contracts WHERE id = ${contractId} FOR UPDATE`;
+      const contract = locked[0];
+      if (!contract || contract.status !== "OFFER_SENT") {
+        throw new AppError(400, "INVALID_STATE", "No pending facility offer to update");
+      }
+      const offer = (contract.offer_details as Record<string, unknown> | null) ?? null;
+      if (!offer) {
+        throw new AppError(400, "INVALID_STATE", "Facility has no offer details");
+      }
+      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
+      if (!offerAcceptanceIsStep1Editable(acceptance?.status)) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Offer acceptance has already been submitted or is not editable."
+        );
+      }
+      assertAcceptanceDeadlineOpen(acceptance);
+      if (acceptance?.status === "CHANGES_REQUESTED") {
+        const partyReviewItems = await tx.applicationReviewItem.findMany({
+          where: {
+            application_id: applicationId,
+            item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+          },
+          select: { item_type: true, item_id: true, status: true },
+        });
+        assertUnflaggedAuthorizedPartiesUnchanged(
+          acceptance.authorized_parties,
+          draft.parties,
+          collectFlaggedAuthorizedRepresentativeItemIds(partyReviewItems),
+          guarantors
+        );
+      }
+      const updatedOffer = patchOfferAcceptance(offer, {
+        status: acceptance?.status ?? "PENDING_ISSUER",
+        authorized_parties_draft: draft,
+      });
+      await tx.contract.update({
+        where: { id: contractId },
+        data: { offer_details: updatedOffer as Prisma.InputJsonValue },
+      });
+    });
+
+    return this.repository.findById(applicationId) as Promise<Application>;
+  }
+
+  /**
    * Step 1 of offer acceptance: require acceptance uploads, issuer directors, and
    * one authorised-party list per guarantor, then move to PENDING_ADMIN_REVIEW
    * (or APPROVED_FOR_SIGNING when no acceptance docs).
@@ -2619,6 +2708,7 @@ export class ApplicationService {
           productVersion,
         }),
         authorized_parties: authorizedParties,
+        authorized_parties_draft: null,
         submitted_at: now,
         reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
         reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,
