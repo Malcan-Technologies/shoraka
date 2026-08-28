@@ -361,6 +361,7 @@ export interface ExportSecurityLogsParams extends Omit<GetSecurityLogsParams, "p
 // Onboarding Logs Types
 export type OnboardingEventType =
   | "ONBOARDING_STARTED"
+  | "ONBOARDING_FEE_PAID"
   | "ONBOARDING_RESUMED"
   | "ONBOARDING_CANCELLED"
   | "ONBOARDING_STATUS_UPDATED"

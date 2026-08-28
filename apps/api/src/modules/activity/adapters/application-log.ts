@@ -245,6 +245,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         return applicationRef
           ? `You created ${applicationRef} and can continue it before submitting.`
           : fallbackDescription;
+      case ApplicationLogEventType.APPLICATION_PROCESSING_FEE_PAID:
+        return applicationRef
+          ? `The application processing fee for ${applicationRef} was paid successfully.`
+          : fallbackDescription;
       case ApplicationLogEventType.APPLICATION_SUBMITTED:
         return applicationRef
           ? `${this.capitalize(applicationRef)} was submitted and is now under review.`
@@ -499,6 +503,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         title: "Application Started",
         description: "You created a financing application and can continue it before submitting.",
       },
+      [ApplicationLogEventType.APPLICATION_PROCESSING_FEE_PAID]: {
+        title: "Application Processing Fee Paid",
+        description: "The application processing fee was paid successfully.",
+      },
       [ApplicationLogEventType.APPLICATION_SUBMITTED]: {
         title: "Application Submitted",
         description: "Your financing application was submitted and is now under review.",
@@ -624,6 +632,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
   getEventTypes(): string[] {
     return [
       ApplicationLogEventType.APPLICATION_CREATED,
+      ApplicationLogEventType.APPLICATION_PROCESSING_FEE_PAID,
       ApplicationLogEventType.APPLICATION_SUBMITTED,
       ApplicationLogEventType.APPLICATION_RESUBMITTED,
       ApplicationLogEventType.APPLICATION_APPROVED,

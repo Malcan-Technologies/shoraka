@@ -6817,6 +6817,7 @@ export class NoteService {
       await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_LETTER_GENERATED", actor, {
         withdrawalId: id,
         ...(withdrawalReference ? { withdrawalReference } : {}),
+        withdrawalType: withdrawal.withdrawal_type,
         s3Key: key,
       });
     }
@@ -6875,6 +6876,7 @@ export class NoteService {
       await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_SUBMITTED_TO_TRUSTEE", actor, {
         withdrawalId: id,
         withdrawalReference,
+        withdrawalType: withdrawal.withdrawal_type,
       });
     }
     try {

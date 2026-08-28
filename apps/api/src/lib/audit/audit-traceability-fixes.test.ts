@@ -225,6 +225,7 @@ describe("audit traceability source contracts", () => {
     const window = src.slice(idx, idx + 350);
     expect(window).toMatch(/withdrawalId: id/);
     expect(window).toMatch(/withdrawalReference/);
+    expect(window).toMatch(/withdrawalType: withdrawal\.withdrawal_type/);
     expect(window).toMatch(/s3Key: key/);
     expect(window).not.toMatch(/note_id:/);
   });

@@ -26,6 +26,10 @@ describe("ApplicationLogAdapter", () => {
       title: "Application Started",
       description: "You created a financing application and can continue it before submitting.",
     });
+    expect(adapter.buildPresentation("APPLICATION_PROCESSING_FEE_PAID")).toEqual({
+      title: "Application Processing Fee Paid",
+      description: "The application processing fee was paid successfully.",
+    });
     expect(adapter.buildPresentation("APPLICATION_SUBMITTED")).toEqual({
       title: "Application Submitted",
       description: "Your financing application was submitted and is now under review.",
@@ -360,6 +364,7 @@ describe("ApplicationLogAdapter", () => {
 
   it("only exposes high-signal application events", () => {
     expect(adapter.getEventTypes()).toContain("APPLICATION_APPROVED");
+    expect(adapter.getEventTypes()).toContain("APPLICATION_PROCESSING_FEE_PAID");
     expect(adapter.getEventTypes()).toContain("AMENDMENTS_SUBMITTED");
     expect(adapter.getEventTypes()).not.toContain("SECTION_REVIEWED_APPROVED");
     expect(adapter.getEventTypes()).not.toContain("ITEM_REVIEWED_REJECTED");

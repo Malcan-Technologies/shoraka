@@ -60,6 +60,12 @@ const EVENT_LABELS: Record<string, string> = {
   SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate Retrieved",
 };
 
+const RESIDUAL_RETURN_EVENT_LABELS: Record<string, string> = {
+  WITHDRAWAL_LETTER_GENERATED: "Residual Return Letter Generated",
+  WITHDRAWAL_SUBMITTED_TO_TRUSTEE: "Residual Return Submitted to Trustee",
+  WITHDRAWAL_COMPLETED: "Residual Return Completed",
+};
+
 export function formatNoteActivityEventLabel(
   eventType: string,
   metadata?: Record<string, unknown> | null
@@ -69,6 +75,12 @@ export function formatNoteActivityEventLabel(
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
   let label = EVENT_LABELS[eventType] ?? fallback;
+  if (
+    metadata?.withdrawalType === "ISSUER_RESIDUAL_RETURN" &&
+    RESIDUAL_RETURN_EVENT_LABELS[eventType]
+  ) {
+    label = RESIDUAL_RETURN_EVENT_LABELS[eventType];
+  }
   if (metadata?.resend === true) {
     if (eventType === "WITHDRAWAL_TRUSTEE_EMAIL_SENT") {
       label = "Withdrawal Trustee Email Redelivered";

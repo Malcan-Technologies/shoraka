@@ -17,6 +17,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 // already surface it; only this org-detail-scoped query excluded it.
 const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
   "ONBOARDING_STARTED",
+  "ONBOARDING_FEE_PAID",
   "ONBOARDING_RESUMED",
   "ONBOARDING_STATUS_UPDATED",
   "ONBOARDING_CANCELLED",

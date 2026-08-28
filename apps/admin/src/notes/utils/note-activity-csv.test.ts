@@ -44,6 +44,22 @@ describe("formatNoteActivityEventLabel", () => {
     expect(formatNoteActivityEventLabel("SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED")).toBe(
       "Settlement Trustee Instruction Completed"
     );
+    expect(
+      formatNoteActivityEventLabel("WITHDRAWAL_LETTER_GENERATED", {
+        withdrawalType: "ISSUER_RESIDUAL_RETURN",
+      })
+    ).toBe("Residual Return Letter Generated");
+    expect(
+      formatNoteActivityEventLabel("WITHDRAWAL_SUBMITTED_TO_TRUSTEE", {
+        withdrawalType: "ISSUER_RESIDUAL_RETURN",
+      })
+    ).toBe("Residual Return Submitted to Trustee");
+    expect(
+      formatNoteActivityEventLabel("WITHDRAWAL_COMPLETED", {
+        withdrawalType: "ISSUER_RESIDUAL_RETURN",
+      })
+    ).toBe("Residual Return Completed");
+    expect(formatNoteActivityEventLabel("WITHDRAWAL_COMPLETED")).toBe("Withdrawal Completed");
     expect(formatNoteActivityEventLabel("CUSTOM_EVENT_TYPE")).toBe("Custom Event Type");
     expect(
       formatNoteActivityEventLabel("WITHDRAWAL_TRUSTEE_EMAIL_SENT", { resend: true })
@@ -207,6 +223,21 @@ describe("buildNoteActivityCsv", () => {
       withdrawalReference: "WDL-ARF-202608-A1Z",
       s3Key: "withdrawal-letters/letter.pdf",
     });
+  });
+
+  it("labels residual-return withdrawal events in CSV without changing the stored event type", () => {
+    const row = noteEventToActivityCsvRow(
+      event({
+        eventType: "WITHDRAWAL_COMPLETED",
+        metadata: {
+          withdrawalId: "wdl-residual",
+          withdrawalReference: "WDL-ARF-202608-R1Z",
+          withdrawalType: "ISSUER_RESIDUAL_RETURN",
+        },
+      })
+    );
+    expect(row.event).toBe("Residual Return Completed");
+    expect(row.eventType).toBe("WITHDRAWAL_COMPLETED");
   });
 
   it("exports Shoraka with the CashSouk trade-order id as target, keeping provider_order_id in metadata", () => {

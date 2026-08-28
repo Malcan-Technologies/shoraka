@@ -198,6 +198,11 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
           title: "Onboarding Started",
           description: "Your organization onboarding has started and you can continue it at any time.",
         };
+      case "ONBOARDING_FEE_PAID":
+        return {
+          title: "Onboarding Fee Paid",
+          description: "The issuer registration fee was paid successfully.",
+        };
       case "ONBOARDING_CANCELLED":
         // The stored event_type name is historical/forensic (an admin restart cancels the
         // previous RegTank request and issues a new one) — the portal-facing copy describes
@@ -241,6 +246,7 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
   getEventTypes(): string[] {
     return [
       "ONBOARDING_STARTED",
+      "ONBOARDING_FEE_PAID",
       "ONBOARDING_CANCELLED",
       "ONBOARDING_REJECTED",
       "COD_REJECTED",

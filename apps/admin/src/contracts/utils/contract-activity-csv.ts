@@ -7,6 +7,7 @@ import {
 
 const EVENT_LABELS: Record<string, string> = {
   APPLICATION_CREATED: "Application Created",
+  APPLICATION_PROCESSING_FEE_PAID: "Application Processing Fee Paid",
   APPLICATION_SUBMITTED: "Application Submitted",
   APPLICATION_RESUBMITTED: "Application Resubmitted",
   APPLICATION_APPROVED: "Application approved",

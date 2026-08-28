@@ -9,6 +9,7 @@ import type { AuditRequestContext, AuditSource } from "../../../lib/audit";
 /** Canonical application log event types. Use these instead of level_target_action. */
 export enum ApplicationLogEventType {
   APPLICATION_CREATED = "APPLICATION_CREATED",
+  APPLICATION_PROCESSING_FEE_PAID = "APPLICATION_PROCESSING_FEE_PAID",
   APPLICATION_SUBMITTED = "APPLICATION_SUBMITTED",
   APPLICATION_RESUBMITTED = "APPLICATION_RESUBMITTED",
   APPLICATION_APPROVED = "APPLICATION_APPROVED",

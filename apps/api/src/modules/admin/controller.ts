@@ -994,6 +994,7 @@ const ACCESS_LOG_CSV_EVENT_LABELS: Record<string, string> = {
 
 const ONBOARDING_LOG_CSV_EVENT_LABELS: Record<string, string> = {
   ONBOARDING_STARTED: "Onboarding Started",
+  ONBOARDING_FEE_PAID: "Onboarding Fee Paid",
   ONBOARDING_RESUMED: "Onboarding Resumed",
   ONBOARDING_STATUS_UPDATED: "Onboarding Status Updated",
   ONBOARDING_CANCELLED: "Onboarding Restarted",

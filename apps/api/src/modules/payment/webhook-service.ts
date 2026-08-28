@@ -9,6 +9,7 @@ import {
   OrganizationType,
   Prisma,
   PrismaClient,
+  UserRole,
 } from "@prisma/client";
 import { ZodError } from "zod";
 import { getCurlecConfig } from "../../config/curlec";
@@ -21,6 +22,9 @@ import {
   roundNoteMoney,
 } from "@cashsouk/types";
 import { lockContractRow } from "../../lib/refresh-contract-facility";
+import { AUDIT_PORTAL, createOnboardingLogRow, webhookAuditContext } from "../../lib/audit";
+import { createApplicationLog } from "../applications/logs/repository";
+import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
 import { postLedgerEntry } from "../notes/ledger";
 import {
   creditCompletedDeposit,
@@ -812,6 +816,9 @@ export async function processOnboardingFeeCapture(
   assertGatewayAccountMatch(routeGatewayAccount, payment.gatewayAccount, "onboarding-fee-capture");
 
   if (isCaptureSkippableStatus(payment.status)) {
+    if (payment.status === GatewayPaymentStatus.COMPLETED) {
+      await ensureOnboardingFeePaidActivity(db, payment);
+    }
     await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
     return;
   }
@@ -932,6 +939,9 @@ export async function processProcessingFeeCapture(
   assertGatewayAccountMatch(routeGatewayAccount, payment.gatewayAccount, "processing-fee-capture");
 
   if (isCaptureSkippableStatus(payment.status)) {
+    if (payment.status === GatewayPaymentStatus.COMPLETED) {
+      await ensureApplicationProcessingFeePaidActivity(db, payment);
+    }
     await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
     return;
   }
@@ -1472,6 +1482,11 @@ async function completeOnboardingFeePayment(
     where: { id: gatewayPayment.id },
     data: { status: GatewayPaymentStatus.COMPLETED },
   });
+
+  await ensureOnboardingFeePaidActivity(tx, {
+    ...gatewayPayment,
+    status: GatewayPaymentStatus.COMPLETED,
+  });
 }
 
 async function completeProcessingFeePayment(
@@ -1510,6 +1525,130 @@ async function completeProcessingFeePayment(
     where: { id: gatewayPayment.id },
     data: { status: GatewayPaymentStatus.COMPLETED },
   });
+
+  await ensureApplicationProcessingFeePaidActivity(tx, {
+    ...gatewayPayment,
+    status: GatewayPaymentStatus.COMPLETED,
+  });
+}
+
+function gatewayPaymentActorUserId(payment: GatewayPayment): string | null {
+  const metadata = payment.metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const actorUserId = (metadata as Record<string, unknown>).actorUserId;
+  return typeof actorUserId === "string" && actorUserId.length > 0 ? actorUserId : null;
+}
+
+function hasGatewayPaymentId(
+  metadata: Prisma.JsonValue | null,
+  gatewayPaymentId: string
+): boolean {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
+  return (metadata as Record<string, unknown>).gatewayPaymentId === gatewayPaymentId;
+}
+
+async function ensureOnboardingFeePaidActivity(
+  db: Prisma.TransactionClient | PrismaClient,
+  payment: GatewayPayment
+) {
+  const orgId = payment.issuer_organization_id;
+  if (!orgId) return;
+
+  try {
+    const existing = await db.onboardingLog.findMany({
+      where: {
+        event_type: "ONBOARDING_FEE_PAID",
+        issuer_organization_id: orgId,
+      },
+      select: { metadata: true },
+    });
+    if (existing.some((row) => hasGatewayPaymentId(row.metadata, payment.id))) return;
+
+    const org = await db.issuerOrganization.findUnique({
+      where: { id: orgId },
+      select: { owner_user_id: true, name: true },
+    });
+    if (!org) return;
+
+    const actorUserId = gatewayPaymentActorUserId(payment);
+    await createOnboardingLogRow(
+      {
+        userId: actorUserId ?? org.owner_user_id,
+        role: UserRole.ISSUER,
+        eventType: "ONBOARDING_FEE_PAID",
+        portal: "issuer",
+        issuerOrganizationId: orgId,
+        organizationName: org.name,
+        metadata: {
+          gatewayPaymentId: payment.id,
+          amount: payment.amount.toNumber(),
+          currency: payment.currency,
+        },
+        context: webhookAuditContext({
+          actorUserId,
+          portal: AUDIT_PORTAL.ISSUER,
+        }),
+      },
+      db
+    );
+  } catch (error) {
+    logger.error(
+      { err: error, gatewayPaymentId: payment.id, issuerOrganizationId: orgId },
+      "Failed to write ONBOARDING_FEE_PAID activity"
+    );
+  }
+}
+
+async function ensureApplicationProcessingFeePaidActivity(
+  db: Prisma.TransactionClient | PrismaClient,
+  payment: GatewayPayment
+) {
+  const applicationId = payment.application_id;
+  if (!applicationId) return;
+
+  try {
+    const existing = await db.applicationLog.findMany({
+      where: {
+        event_type: ApplicationLogEventType.APPLICATION_PROCESSING_FEE_PAID,
+        application_id: applicationId,
+      },
+      select: { metadata: true },
+    });
+    if (existing.some((row) => hasGatewayPaymentId(row.metadata, payment.id))) return;
+
+    const application = await db.application.findUnique({
+      where: { id: applicationId },
+      select: {
+        issuer_organization: { select: { owner_user_id: true } },
+      },
+    });
+    if (!application) return;
+
+    const actorUserId = gatewayPaymentActorUserId(payment);
+    await createApplicationLog(
+      {
+        userId: actorUserId ?? application.issuer_organization.owner_user_id,
+        applicationId,
+        eventType: ApplicationLogEventType.APPLICATION_PROCESSING_FEE_PAID,
+        portal: ActivityPortal.ISSUER,
+        metadata: {
+          gatewayPaymentId: payment.id,
+          amount: payment.amount.toNumber(),
+          currency: payment.currency,
+        },
+        context: webhookAuditContext({
+          actorUserId,
+          portal: AUDIT_PORTAL.ISSUER,
+        }),
+      },
+      db
+    );
+  } catch (error) {
+    logger.error(
+      { err: error, gatewayPaymentId: payment.id, applicationId },
+      "Failed to write APPLICATION_PROCESSING_FEE_PAID activity"
+    );
+  }
 }
 
 function readCaptureMismatchType(metadata: Prisma.JsonValue | null): string | null {

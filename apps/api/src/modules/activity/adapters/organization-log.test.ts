@@ -14,6 +14,7 @@ describe("OrganizationLogAdapter", () => {
     // an ONBOARDING_REJECTED notification for this outcome, so their own Activity history must
     // retain the milestone too.
     expect(adapter.getEventTypes()).toContain("COD_REJECTED");
+    expect(adapter.getEventTypes()).toContain("ONBOARDING_FEE_PAID");
   });
 
   it("does not treat organisation membership or MARC assessment changes as user-portal onboarding milestones", () => {

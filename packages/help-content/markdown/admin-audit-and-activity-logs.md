@@ -46,6 +46,24 @@ Organisation onboarding history.
 
 Issuer and Investor also see a shorter milestone list on **Activity**.
 
+**Onboarding Fee Paid**
+
+Meaning:
+The issuer registration/onboarding fee was paid successfully.
+
+Where to find:
+Admin → Issuers → Activity
+Issuer → Activity
+Admin → Finance → Gateway Payments (Issuer Registration Fee)
+
+Visible to:
+Admin, Issuer
+
+Notification:
+None
+
+System event: `ONBOARDING_FEE_PAID`
+
 **Onboarding Started**
 
 Meaning:
@@ -355,6 +373,24 @@ Notification:
 None
 
 System event: `APPLICATION_CREATED`
+
+**Application Processing Fee Paid**
+
+Meaning:
+The application processing fee was paid successfully.
+
+Where to find:
+Admin → Applications → Activity Timeline
+Issuer → Activity
+Admin → Finance → Gateway Payments (Application Processing Fee)
+
+Visible to:
+Admin, Issuer
+
+Notification:
+None
+
+System event: `APPLICATION_PROCESSING_FEE_PAID`
 
 **Application Submitted**
 
@@ -2018,6 +2054,8 @@ System event: `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED`
 Meaning:
 A trustee withdrawal letter was generated.
 
+If the instruction is a residual return, Admin Note Activity and CSV show this as Residual Return Letter Generated. The stored event stays `WITHDRAWAL_LETTER_GENERATED`.
+
 Where to find:
 Admin → Notes → Activity
 
@@ -2050,6 +2088,8 @@ System event: `WITHDRAWAL_BENEFICIARY_UPDATED`
 Meaning:
 The withdrawal instruction was submitted to the trustee.
 
+If the instruction is a residual return, Admin Note Activity and CSV show this as Residual Return Submitted to Trustee. The stored event stays `WITHDRAWAL_SUBMITTED_TO_TRUSTEE`. Residual return completions stay Admin-only on Activity.
+
 Where to find:
 Admin → Notes → Activity
 
@@ -2081,6 +2121,8 @@ System event: `WITHDRAWAL_TRUSTEE_EMAIL_SENT`
 
 Meaning:
 The withdrawal or disbursement was completed.
+
+If the instruction is a residual return, Admin Note Activity and CSV show this as Residual Return Completed. The stored event stays `WITHDRAWAL_COMPLETED`. Issuer and Investor Activity still show this milestone only for issuer disbursement.
 
 Where to find:
 Admin → Notes → Activity
