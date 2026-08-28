@@ -329,10 +329,6 @@ None
 
 System event: `MARC_ASSESSMENT_SAVED`
 
-Issuer registration fee payments are recorded under [Payments](#payments), not as a separate onboarding activity item.
-
-Director or shareholder follow-up is sent as a notification. See [Notifications](#notifications).
-
 ---
 
 ## Applications
@@ -735,7 +731,7 @@ Admin, Issuer
 Notification:
 Facility Offer Declined
 
-System event: `CONTRACT_OFFER_DECLINED` (older rows may show `CONTRACT_OFFER_REJECTED` as Facility Offer Withdrawn)
+System event: `CONTRACT_OFFER_DECLINED`
 
 **Facility Offer Retracted**
 
@@ -1115,8 +1111,6 @@ None
 
 System event: `SIGNING_PACKAGE_VOIDED`
 
-Offer expiry reminders are sent as notifications, not as signing activity rows. See [Notifications](#notifications).
-
 ---
 
 ## Notes & Investments
@@ -1142,7 +1136,7 @@ Admin, Issuer
 Notification:
 None
 
-System event: `NOTE_CREATED_FROM_INVOICE` (older rows may show `NOTE_CREATED`)
+System event: `NOTE_CREATED_FROM_INVOICE`
 
 **Draft Updated**
 
@@ -1158,7 +1152,7 @@ Admin
 Notification:
 None
 
-System event: `UPDATE_DRAFT` (older rows may show `NOTE_DRAFT_UPDATED`)
+System event: `UPDATE_DRAFT`
 
 **Featured Settings Updated**
 
@@ -1287,7 +1281,7 @@ Admin, Issuer
 Notification:
 Note published
 
-System event: `PUBLISH` (older rows may show `NOTE_PUBLISHED`)
+System event: `PUBLISH`
 
 **Unpublished from Marketplace**
 
@@ -1303,7 +1297,7 @@ Admin
 Notification:
 None
 
-System event: `UNPUBLISH` (older rows may show `NOTE_UNPUBLISHED`)
+System event: `UNPUBLISH`
 
 **Campaign Paused**
 
@@ -1371,7 +1365,7 @@ Admin, Issuer
 Notification:
 Funding closed successfully
 
-System event: `CLOSE_FUNDING` (older rows may show `NOTE_FUNDING_CLOSED`)
+System event: `CLOSE_FUNDING`
 
 **Funding Unsuccessful**
 
@@ -1390,7 +1384,7 @@ Notification:
 Note funding did not complete (issuer)
 Commitment released (investor)
 
-System event: `FAIL_FUNDING` (older rows may show `NOTE_FUNDING_FAILED`)
+System event: `FAIL_FUNDING`
 
 **Facility Fee Collection Waived**
 
@@ -1406,7 +1400,7 @@ Admin
 Notification:
 None
 
-System event: `WAIVE_FACILITY_FEE_COLLECTION` (older rows may show `NOTE_FACILITY_FEE_COLLECTION_WAIVED`)
+System event: `WAIVE_FACILITY_FEE_COLLECTION`
 
 **Note Activated**
 
@@ -1425,7 +1419,7 @@ Notification:
 Note is active (issuer)
 Investment is active (investor)
 
-System event: `ACTIVATE` (older rows may show `NOTE_ACTIVATED`)
+System event: `ACTIVATE`
 
 **Tawarruq Order Submitted**
 
@@ -1490,8 +1484,7 @@ Visible to:
 Admin
 
 Notification:
-Note in arrears (issuer)
-Note in Arrears (investor)
+None
 
 System event: `ARREARS_LETTER_GENERATED`
 
@@ -1507,11 +1500,9 @@ Visible to:
 Admin
 
 Notification:
-None from this letter itself. Default notifications are sent when the note is marked in default.
+None
 
 System event: `DEFAULT_LETTER_GENERATED`
-
-Note repaid is sent as a notification when the note is fully repaid. See [Notifications](#notifications).
 
 ---
 
@@ -1677,8 +1668,6 @@ None
 
 System event: `REFUND_WALLET_REVERSAL_FAILED`
 
-Upfront facility fee paid and late payment charges received are sent as notifications when those payments complete. See [Notifications](#notifications).
-
 ---
 
 ## Repayments & Settlement
@@ -1720,7 +1709,7 @@ Admin
 Notification:
 Repayment Received (investor)
 
-System event: `PAYMENT_RECEIVED` (older rows may show `PAYMENT_RECORDED`)
+System event: `PAYMENT_RECEIVED`
 
 **Repayment Approved**
 
@@ -1926,7 +1915,7 @@ System event: `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED`
 **Withdrawal Letter Generated**
 
 Meaning:
-A trustee withdrawal letter was generated. Residual returns use this same activity.
+A trustee withdrawal letter was generated.
 
 Where to find:
 Admin → Notes → Activity
@@ -2005,13 +1994,6 @@ Your Disbursement Is Complete (issuer disbursement, platform only)
 Withdrawal Completed (investor cash withdrawal, platform only)
 
 System event: `WITHDRAWAL_COMPLETED`
-
-Investor cash withdrawals also notify:
-
-- Withdrawal Submitted (investor, platform only) when the request is submitted
-- Withdrawal Completed (investor, platform only) when it is completed
-
-Those investor cash-withdrawal notifications are not separate Activity rows. Check Admin → Finance → Investor Withdrawals for the request itself.
 
 ---
 
@@ -2254,7 +2236,7 @@ Visible to:
 Admin
 
 Notification:
-New Investment Opportunity (investors, when a new product alert is sent)
+New Investment Opportunity (investors)
 
 System event: `PRODUCT_CREATED`
 
@@ -2330,7 +2312,7 @@ Admin
 Notification:
 None
 
-System event: `LOGIN` (failed)
+System event: `LOGIN`
 
 **Sign Up**
 
@@ -2486,7 +2468,7 @@ System event: `ROLE_PERMISSIONS_UPDATED`
 **Role Removed**
 
 Meaning:
-An admin role was deleted from the role catalogue.
+An admin role was deleted.
 
 Where to find:
 Admin → Audit → Security
@@ -2777,10 +2759,6 @@ Platform + Email
 
 Triggered when:
 The upfront facility fee has been paid in full.
-
-### Signing
-
-Signing links are sent separately from these notifications. There is no separate “signing reminder” notification type. Offer expiry reminders cover approaching signing deadlines.
 
 ### Notes
 
@@ -3119,8 +3097,6 @@ Operations can use these prefixes when searching or communicating about a record
 | ISS | Issuer Organisation |
 | IVT | Investor Organisation |
 | RCP | Receipt |
-
-Do not introduce any other reference format.
 
 ---
 
