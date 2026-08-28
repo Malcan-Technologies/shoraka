@@ -492,6 +492,7 @@ describeIntegration("application processing fee (M9)", () => {
     });
     expect(feePaidLogs).toHaveLength(1);
     expect(feePaidLogs[0]?.metadata).toMatchObject({ gatewayPaymentId: payment.id });
+    expect(feePaidLogs[0]?.source).toBe("WEBHOOK");
   });
 
   it("recovers a valid late capture after local EXPIRED exactly once", async () => {

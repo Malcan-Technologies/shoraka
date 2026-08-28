@@ -10,6 +10,7 @@ import {
 } from "@prisma/client";
 import { getCurlecConfig } from "../../config/curlec";
 import { AppError } from "../../lib/http/error-handler";
+import type { AuditRequestContext } from "../../lib/audit";
 import { logger } from "../../lib/logger";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { debitInvestorBalanceForGatewayRefund, blockInvestorBalanceForGatewayRefundHold, releaseInvestorBalanceGatewayRefundHold } from "../notes/investor-balance";
@@ -112,6 +113,7 @@ export type InitiateGatewayRefundInput = {
   claimFromCreated?: boolean;
   /** Integer sen to refund. For amount mismatch must be the captured amount. */
   amountSen?: number;
+  context?: AuditRequestContext | null;
 };
 
 /**
@@ -287,6 +289,7 @@ export async function initiateGatewayPaymentRefund(
       gatewayPaymentId: payment.id,
       type: GatewayPaymentEventType.REFUND_INITIATED,
       actorUserId: input.actorUserId,
+      context: input.context,
       fromStatus: current.status,
       toStatus: GatewayPaymentStatus.REFUND_INITIATED,
       reason: notes,
@@ -337,6 +340,7 @@ async function holdForWalletReversalFailure(
     errorMessage: string;
     errorCode?: string;
     gatewayAccount: GatewayPayment["gatewayAccount"];
+    context?: AuditRequestContext | null;
   }
 ): Promise<void> {
   await db.$transaction(async (tx) => {
@@ -372,6 +376,7 @@ async function holdForWalletReversalFailure(
         gatewayPaymentId: paymentId,
         type: GatewayPaymentEventType.REFUNDED,
         actorUserId: input.actorUserId,
+        context: input.context,
         fromStatus: current.status,
         toStatus: GatewayPaymentStatus.REFUNDED,
         reason: "Wallet reversal already present — completed after prior failure path",
@@ -438,6 +443,7 @@ async function holdForWalletReversalFailure(
           gatewayPaymentId: paymentId,
           type: GatewayPaymentEventType.REFUND_WALLET_REVERSAL_FAILED,
           actorUserId: input.actorUserId,
+          context: input.context,
           fromStatus: current.status,
           toStatus:
             current.status === GatewayPaymentStatus.REFUND_INITIATED
@@ -491,6 +497,7 @@ async function holdForWalletReversalFailure(
       gatewayPaymentId: paymentId,
       type: GatewayPaymentEventType.REFUND_WALLET_REVERSAL_FAILED,
       actorUserId: input.actorUserId,
+      context: input.context,
       fromStatus: current.status,
       toStatus: GatewayPaymentStatus.HELD,
       reason: marker.error,
@@ -760,6 +767,7 @@ async function adoptExternalCurlecRefundFromCompleted(
     refundId: string;
     detectedOnEvent: "refund.created" | "refund.processed";
     actorUserId?: string;
+    context?: AuditRequestContext | null;
   },
   db: PrismaClient
 ): Promise<GatewayPayment> {
@@ -815,6 +823,7 @@ async function adoptExternalCurlecRefundFromCompleted(
           gatewayPaymentId: current.id,
           type: GatewayPaymentEventType.REFUND_INITIATED,
           actorUserId: input.actorUserId,
+          context: input.context,
           fromStatus: GatewayPaymentStatus.COMPLETED,
           toStatus: GatewayPaymentStatus.REFUND_INITIATED,
           reason: "Wallet funds blocked after external Curlec refund detected",
@@ -878,6 +887,7 @@ async function adoptExternalCurlecRefundFromCompleted(
       gatewayPaymentId: current.id,
       type: GatewayPaymentEventType.REFUND_INITIATED,
       actorUserId: input.actorUserId,
+      context: input.context,
       fromStatus: GatewayPaymentStatus.COMPLETED,
       toStatus: GatewayPaymentStatus.REFUND_INITIATED,
       reason: "External Curlec refund detected on completed payment",
@@ -897,7 +907,7 @@ async function adoptExternalCurlecRefundFromCompleted(
 
 export async function completeGatewayPaymentRefund(
   payment: GatewayPayment,
-  input: { refundId?: string; actorUserId?: string },
+  input: { refundId?: string; actorUserId?: string; context?: AuditRequestContext | null },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
   if (payment.status === GatewayPaymentStatus.REFUNDED) {
@@ -914,6 +924,7 @@ export async function completeGatewayPaymentRefund(
         refundId: input.refundId,
         detectedOnEvent: "refund.processed",
         actorUserId: input.actorUserId,
+        context: input.context,
       },
       db
     );
@@ -965,6 +976,7 @@ export async function completeGatewayPaymentRefund(
         gatewayPaymentId: working.id,
         type: GatewayPaymentEventType.REFUNDED,
         actorUserId: input.actorUserId,
+        context: input.context,
         fromStatus: current.status,
         toStatus: GatewayPaymentStatus.REFUNDED,
         metadata: {
@@ -1030,6 +1042,7 @@ export async function completeGatewayPaymentRefund(
       errorMessage,
       errorCode,
       gatewayAccount: working.gatewayAccount,
+      context: input.context,
     });
   }
 }
@@ -1037,7 +1050,7 @@ export async function completeGatewayPaymentRefund(
 /** @deprecated Prefer completeGatewayPaymentRefund */
 export async function completeInvestorDepositRefund(
   payment: GatewayPayment,
-  input: { refundId?: string; actorUserId?: string },
+  input: { refundId?: string; actorUserId?: string; context?: AuditRequestContext | null },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
   return completeGatewayPaymentRefund(payment, input, db);
@@ -1049,7 +1062,11 @@ export async function completeInvestorDepositRefund(
  */
 export async function retryWalletReversalForConfirmedRefund(
   payment: GatewayPayment,
-  input: { actorUserId?: string; source?: "admin" | "automatic" },
+  input: {
+    actorUserId?: string;
+    source?: "admin" | "automatic";
+    context?: AuditRequestContext | null;
+  },
   db: PrismaClient = defaultPrisma
 ): Promise<GatewayPaymentStatus> {
   if (payment.status === GatewayPaymentStatus.REFUNDED) {
@@ -1110,6 +1127,7 @@ export async function retryWalletReversalForConfirmedRefund(
       gatewayPaymentId: payment.id,
       type: GatewayPaymentEventType.REFUND_WALLET_REVERSAL_FAILED,
       actorUserId: input.actorUserId,
+      context: input.context,
       fromStatus: GatewayPaymentStatus.HELD,
       toStatus: GatewayPaymentStatus.HELD,
       reason:
@@ -1128,7 +1146,7 @@ export async function retryWalletReversalForConfirmedRefund(
 
   await completeGatewayPaymentRefund(
     payment,
-    { refundId, actorUserId: input.actorUserId },
+    { refundId, actorUserId: input.actorUserId, context: input.context },
     db
   );
 
@@ -1143,7 +1161,8 @@ export async function retryWalletReversalForConfirmedRefund(
  */
 export async function recoverFailedWalletReversals(
   db: PrismaClient = defaultPrisma,
-  limit = 50
+  limit = 50,
+  context?: AuditRequestContext | null
 ): Promise<{
   scanned: number;
   recovered: number;
@@ -1178,7 +1197,7 @@ export async function recoverFailedWalletReversals(
 
       const status = await retryWalletReversalForConfirmedRefund(
         payment,
-        { source: "automatic" },
+        { source: "automatic", context },
         db
       );
       if (status === GatewayPaymentStatus.REFUNDED) {
@@ -1204,7 +1223,7 @@ export async function recoverFailedWalletReversals(
 
 export async function failGatewayPaymentRefund(
   payment: GatewayPayment,
-  input: { refundId?: string; errorMessage?: string },
+  input: { refundId?: string; errorMessage?: string; context?: AuditRequestContext | null },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
   if (payment.status === GatewayPaymentStatus.REFUNDED) {
@@ -1238,6 +1257,7 @@ export async function failGatewayPaymentRefund(
       await recordGatewayPaymentEvent(tx, {
         gatewayPaymentId: payment.id,
         type: GatewayPaymentEventType.REFUND_WALLET_REVERSAL_FAILED,
+        context: input.context,
         fromStatus: GatewayPaymentStatus.COMPLETED,
         toStatus: GatewayPaymentStatus.COMPLETED,
         reason: "External Curlec refund failed — completed payment unchanged",
@@ -1326,6 +1346,7 @@ export async function failGatewayPaymentRefund(
       await recordGatewayPaymentEvent(tx, {
         gatewayPaymentId: payment.id,
         type: GatewayPaymentEventType.REFUND_INITIATED,
+        context: input.context,
         fromStatus: GatewayPaymentStatus.REFUND_INITIATED,
         toStatus: GatewayPaymentStatus.COMPLETED,
         reason: "External Curlec refund failed — restored completed payment and released holds",
@@ -1360,7 +1381,7 @@ export async function failGatewayPaymentRefund(
 /** @deprecated Prefer failGatewayPaymentRefund */
 export async function failInvestorDepositRefund(
   payment: GatewayPayment,
-  input: { refundId?: string; errorMessage?: string },
+  input: { refundId?: string; errorMessage?: string; context?: AuditRequestContext | null },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
   return failGatewayPaymentRefund(payment, input, db);
@@ -1389,7 +1410,7 @@ function normalizeCurlecRefundStatus(
  */
 export async function adoptGatewayRefundCreated(
   payment: GatewayPayment,
-  input: { refundId: string },
+  input: { refundId: string; context?: AuditRequestContext | null },
   db: PrismaClient = defaultPrisma
 ): Promise<GatewayPaymentStatus> {
   if (payment.status === GatewayPaymentStatus.REFUNDED) {
@@ -1410,7 +1431,7 @@ export async function adoptGatewayRefundCreated(
   if (payment.status === GatewayPaymentStatus.COMPLETED) {
     const adopted = await adoptExternalCurlecRefundFromCompleted(
       payment,
-      { refundId: input.refundId, detectedOnEvent: "refund.created" },
+      { refundId: input.refundId, detectedOnEvent: "refund.created", context: input.context },
       db
     );
     return adopted.status;
@@ -1470,6 +1491,7 @@ export async function adoptGatewayRefundCreated(
     await recordGatewayPaymentEvent(tx, {
       gatewayPaymentId: payment.id,
       type: GatewayPaymentEventType.REFUND_INITIATED,
+      context: input.context,
       fromStatus: GatewayPaymentStatus.HELD,
       toStatus: GatewayPaymentStatus.REFUND_INITIATED,
       reason: "Curlec refund.created recovered pending refund",
@@ -1537,7 +1559,8 @@ function describeHeldKind(metadata: Record<string, unknown>): string {
  */
 export async function reconcilePendingGatewayRefunds(
   db: PrismaClient = defaultPrisma,
-  limit = 50
+  limit = 50,
+  context?: AuditRequestContext | null
 ): Promise<{
   scanned: number;
   refunded: number;
@@ -1582,7 +1605,7 @@ export async function reconcilePendingGatewayRefunds(
       const remoteStatus = normalizeCurlecRefundStatus(remote.status);
 
       if (remoteStatus === "processed") {
-        await completeGatewayPaymentRefund(payment, { refundId }, db);
+        await completeGatewayPaymentRefund(payment, { refundId, context }, db);
         refunded += 1;
         continue;
       }
@@ -1590,7 +1613,7 @@ export async function reconcilePendingGatewayRefunds(
       if (remoteStatus === "failed") {
         await failGatewayPaymentRefund(
           payment,
-          { refundId, errorMessage: "Curlec refund status is failed" },
+          { refundId, errorMessage: "Curlec refund status is failed", context },
           db
         );
         held += 1;

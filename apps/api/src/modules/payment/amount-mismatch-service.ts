@@ -6,6 +6,7 @@ import {
   PrismaClient,
 } from "@prisma/client";
 import { logger } from "../../lib/logger";
+import type { AuditRequestContext } from "../../lib/audit";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { recordGatewayPaymentEvent } from "./gateway-events";
 import { initiateGatewayPaymentRefund } from "./refund-service";
@@ -18,6 +19,7 @@ export type AmountMismatchInput = {
   actorUserId?: string;
   /** When set, claim CREATED/EXPIRED → PAID before refund (fee late-capture paths). */
   claimCapture?: boolean;
+  context?: AuditRequestContext | null;
 };
 
 function asObjectMetadata(metadata: GatewayPayment["metadata"]): Record<string, unknown> {
@@ -148,6 +150,7 @@ export async function handleGatewayPaymentAmountMismatch(
         gatewayPaymentId: latest.id,
         type: GatewayPaymentEventType.CAPTURE_MISMATCH,
         actorUserId: input.actorUserId,
+        context: input.context,
         fromStatus,
         toStatus: fromStatus,
         reason: `Amount mismatch detected: expected ${input.expectedSen} sen, captured ${input.actualSen} sen`,
@@ -195,6 +198,7 @@ export async function handleGatewayPaymentAmountMismatch(
       actorUserId: input.actorUserId,
       amountSen: input.actualSen,
       adminReason: `Automatic full refund of captured amount (${input.actualSen} sen) after amount mismatch`,
+      context: input.context,
     },
     db
   );
@@ -219,7 +223,8 @@ export async function handleGatewayPaymentAmountMismatch(
  */
 export async function recoverHeldAmountMismatchRefunds(
   db: PrismaClient = defaultPrisma,
-  limit = 50
+  limit = 50,
+  context?: AuditRequestContext | null
 ): Promise<{ scanned: number; recovered: number; errors: Array<{ id: string; error: string }> }> {
   const held = await db.gatewayPayment.findMany({
     where: {
@@ -268,6 +273,7 @@ export async function recoverHeldAmountMismatchRefunds(
           expectedSen: mismatch.expectedSen,
           actualSen: mismatch.actualSen,
           curlecPaymentId,
+          context,
         },
         db
       );

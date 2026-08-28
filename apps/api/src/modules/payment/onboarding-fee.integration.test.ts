@@ -682,6 +682,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     });
     expect(forThisPayment).toHaveLength(1);
     expect(forThisPayment[0]?.metadata).toMatchObject({ gatewayPaymentId: payment.id });
+    expect(forThisPayment[0]?.source).toBe("WEBHOOK");
   });
 
   it("recovers a valid late capture after local EXPIRED exactly once", async () => {

@@ -203,6 +203,27 @@ export function issuerActivityFromRequest(req: Request, res?: Response) {
   };
 }
 
+/** Authenticated portal/API request constructed outside Express (e.g. checkout status sync). */
+export function apiAuditContext(options?: {
+  actorUserId?: string | null;
+  actorType?: AuditActorType;
+  portal?: AuditPortal | null;
+  correlationId?: string | null;
+}): AuditRequestContext {
+  const actorUserId = options?.actorUserId ?? null;
+  return {
+    actorType:
+      options?.actorType ??
+      (actorUserId ? AUDIT_ACTOR_TYPE.USER : AUDIT_ACTOR_TYPE.SYSTEM),
+    actorUserId,
+    source: AUDIT_SOURCE.API,
+    portal: options?.portal ?? null,
+    ipAddress: null,
+    userAgent: null,
+    correlationId: options?.correlationId ?? null,
+  };
+}
+
 /** Provider callback context: no request-bound actor, no IP worth trusting. */
 export function webhookAuditContext(options?: {
   actorUserId?: string | null;

@@ -6,6 +6,7 @@ import {
 } from "@prisma/client";
 import { prisma as defaultPrisma } from "../prisma";
 import { logger } from "../logger";
+import { systemAuditContext } from "../audit";
 import { recordGatewayPaymentEvent } from "../../modules/payment/gateway-events";
 import { assertTransition } from "../../modules/payment/state";
 import { syncGatewayPaymentFromCurlec } from "../../modules/payment/webhook-service";
@@ -29,10 +30,11 @@ export type StaleGatewayPaymentOutcome = "recovered" | "expired" | "unchanged";
 
 export async function processStaleGatewayPayment(
   payment: GatewayPayment,
-  db: PrismaClient = defaultPrisma
+  db: PrismaClient = defaultPrisma,
+  context = systemAuditContext({ correlationId: CRON_CORRELATION_ID })
 ): Promise<StaleGatewayPaymentOutcome> {
   const beforeStatus = payment.status;
-  const synced = await syncGatewayPaymentFromCurlec(payment, db);
+  const synced = await syncGatewayPaymentFromCurlec(payment, db, context);
 
   if (synced.status !== GatewayPaymentStatus.CREATED) {
     logger.info(
@@ -67,6 +69,7 @@ export async function processStaleGatewayPayment(
       fromStatus: GatewayPaymentStatus.CREATED,
       toStatus: GatewayPaymentStatus.EXPIRED,
       reason: `Abandoned checkout — no Curlec capture after ${STALE_CREATED_MINUTES} minutes`,
+      context,
     });
     expired = true;
   });
@@ -90,6 +93,7 @@ export async function processStaleGatewayPayment(
 export async function runGatewayStuckOrderPollerJob(
   db: PrismaClient = defaultPrisma
 ): Promise<GatewayStuckOrderPollerResult> {
+  const pollerContext = systemAuditContext({ correlationId: CRON_CORRELATION_ID });
   const result: GatewayStuckOrderPollerResult = {
     scanned: 0,
     recovered: 0,
@@ -112,7 +116,7 @@ export async function runGatewayStuckOrderPollerJob(
 
   for (const payment of stalePayments) {
     try {
-      const outcome = await processStaleGatewayPayment(payment, db);
+      const outcome = await processStaleGatewayPayment(payment, db, pollerContext);
       if (outcome === "recovered") {
         result.recovered += 1;
       } else if (outcome === "expired") {
@@ -135,7 +139,7 @@ export async function runGatewayStuckOrderPollerJob(
   }
 
   try {
-    const mismatchRecovery = await recoverHeldAmountMismatchRefunds(db, 50);
+    const mismatchRecovery = await recoverHeldAmountMismatchRefunds(db, 50, pollerContext);
     result.scanned += mismatchRecovery.scanned;
     result.recovered += mismatchRecovery.recovered;
     for (const err of mismatchRecovery.errors) {
@@ -152,7 +156,7 @@ export async function runGatewayStuckOrderPollerJob(
   }
 
   try {
-    const refundRecon = await reconcilePendingGatewayRefunds(db, 50);
+    const refundRecon = await reconcilePendingGatewayRefunds(db, 50, pollerContext);
     result.scanned += refundRecon.scanned;
     result.recovered += refundRecon.refunded;
     for (const err of refundRecon.errors) {
@@ -182,7 +186,7 @@ export async function runGatewayStuckOrderPollerJob(
   }
 
   try {
-    const walletRecovery = await recoverFailedWalletReversals(db, 50);
+    const walletRecovery = await recoverFailedWalletReversals(db, 50, pollerContext);
     result.scanned += walletRecovery.scanned;
     result.recovered += walletRecovery.recovered;
     for (const err of walletRecovery.errors) {

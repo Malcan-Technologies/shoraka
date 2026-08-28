@@ -13,6 +13,7 @@ import {
   PrismaClient,
 } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
+import type { AuditRequestContext } from "../../lib/audit";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { creditInvestorBalance } from "../notes/investor-balance";
 import { postLedgerEntry } from "../notes/ledger";
@@ -358,7 +359,11 @@ export async function pendNameCheckReview(
   tx: Prisma.TransactionClient,
   gatewayPayment: GatewayPayment,
   nameCheckResult: NameCheckResult,
-  opts?: { score?: number; matchedVariant?: string | null }
+  opts?: {
+    score?: number;
+    matchedVariant?: string | null;
+    context?: AuditRequestContext | null;
+  }
 ) {
   assertTransition(gatewayPayment.status, GatewayPaymentStatus.NAME_CHECK_PENDING);
 
@@ -379,6 +384,7 @@ export async function pendNameCheckReview(
   await recordGatewayPaymentEvent(tx, {
     gatewayPaymentId: gatewayPayment.id,
     type: GatewayPaymentEventType.NAME_CHECK,
+    context: opts?.context,
     fromStatus: gatewayPayment.status,
     toStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
     reason,

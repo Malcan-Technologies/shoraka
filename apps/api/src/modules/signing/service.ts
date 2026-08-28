@@ -66,6 +66,8 @@ import {
 import { applicationService } from "../applications/service";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
+import type { AuditRequestContext } from "../../lib/audit";
+import { webhookAuditContext } from "../../lib/audit";
 import {
   signingRepository,
   type SigningApplicationContext,
@@ -695,6 +697,7 @@ export class SigningService {
     };
     portal?: ActivityPortal;
     extraMetadata?: Record<string, unknown>;
+    context?: AuditRequestContext | null;
   }): Promise<void> {
     await logApplicationActivity({
       userId: params.userId,
@@ -710,6 +713,7 @@ export class SigningService {
         ...signingProviderReferenceMetadata(params.envelope),
         ...params.extraMetadata,
       },
+      context: params.context,
     });
   }
 
@@ -1945,7 +1949,10 @@ export class SigningService {
    * Pull live per-signer status from the provider (SigningCloud Get Document Detail)
    * and update assignments by email. Fetches signed PDFs when a document is complete.
    */
-  async syncEnvelopeFromProvider(envelopeId: string): Promise<void> {
+  async syncEnvelopeFromProvider(
+    envelopeId: string,
+    options?: { context?: AuditRequestContext | null }
+  ): Promise<void> {
     let envelope = await this.requireEnvelope(envelopeId);
     let assignmentsChanged = false;
     let detailAttempts = 0;
@@ -2017,7 +2024,7 @@ export class SigningService {
     }
 
     if (assignmentsChanged) {
-      await this.rollupEnvelope(envelopeId);
+      await this.rollupEnvelope(envelopeId, options);
       envelope = await this.requireEnvelope(envelopeId);
     }
 
@@ -2081,7 +2088,9 @@ export class SigningService {
       return { skipped: true };
     }
 
-    await this.syncEnvelopeFromProvider(envelope.id);
+    await this.syncEnvelopeFromProvider(envelope.id, {
+      context: webhookAuditContext({ actorUserId: envelope.created_by_user_id }),
+    });
     logger.info(
       { envelopeId: envelope.id, providerContractRef },
       "Signing envelope synced via provider callback"
@@ -2089,7 +2098,10 @@ export class SigningService {
     return { skipped: false };
   }
 
-  private async rollupEnvelope(envelopeId: string): Promise<void> {
+  private async rollupEnvelope(
+    envelopeId: string,
+    options?: { context?: AuditRequestContext | null }
+  ): Promise<void> {
     const envelope = await this.requireEnvelope(envelopeId);
     const assignmentInputs: AssignmentStatusInput[] = envelope.assignments.map((a) => ({
       status: a.status,
@@ -2139,6 +2151,7 @@ export class SigningService {
             applicationId: envelope.application_id,
             eventType: ApplicationLogEventType.SIGNING_PACKAGE_COMPLETED,
             envelope,
+            context: options?.context,
           });
         }
         await this.finalizeCompletedEnvelopeOffer(envelope);
@@ -2150,6 +2163,7 @@ export class SigningService {
             eventType: ApplicationLogEventType.SIGNING_PACKAGE_VOIDED,
             envelope,
             extraMetadata: { void_reason: "declined" },
+            context: options?.context,
           });
         }
         await this.rollbackOfferAcceptanceAfterEnvelopeClosed(envelope);

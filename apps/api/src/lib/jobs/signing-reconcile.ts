@@ -4,6 +4,7 @@
 import { prisma } from "../prisma";
 import { Prisma } from "@prisma/client";
 import { logger } from "../logger";
+import { systemAuditContext } from "../audit";
 import { signingService } from "../../modules/signing/service";
 
 export type SigningReconcileResult = {
@@ -47,9 +48,11 @@ export async function runSigningReconcileJob(): Promise<SigningReconcileResult> 
     select: { id: true },
   });
 
+  const jobContext = systemAuditContext({ correlationId: "cron:signing-reconcile" });
+
   for (const row of completedWithoutPdf) {
     try {
-      await signingService.syncEnvelopeFromProvider(row.id);
+      await signingService.syncEnvelopeFromProvider(row.id, { context: jobContext });
       result.syncedEnvelopeIds.push(row.id);
     } catch (err) {
       result.errors.push(
@@ -73,7 +76,9 @@ export async function runSigningReconcileJob(): Promise<SigningReconcileResult> 
     if (now - startedAtMs <= TRUST_RETURN_SESSION_MAX_MS) continue;
 
     try {
-      await signingService.syncEnvelopeFromProvider(recipient.envelope_id);
+      await signingService.syncEnvelopeFromProvider(recipient.envelope_id, {
+        context: jobContext,
+      });
       result.staleTrustReturnRecipientIds.push(recipient.id);
     } catch (err) {
       result.errors.push(

@@ -294,6 +294,12 @@ describeIntegration("gateway reconciliation (M10)", () => {
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
     expect(updated.status).toBe(GatewayPaymentStatus.EXPIRED);
+
+    const events = await prisma.gatewayPaymentEvent.findMany({
+      where: { gateway_payment_id: payment.id, type: "EXPIRED" },
+    });
+    expect(events).toHaveLength(1);
+    expect(events[0]?.source).toBe("SYSTEM_JOB");
   });
 
   it("poller recovers captured payments instead of expiring", async () => {
