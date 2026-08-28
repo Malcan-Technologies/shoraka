@@ -4,7 +4,10 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { SECTION_GAP } from "../product-form-input-styles";
 import {
-  parseWorkflowDocumentRowFromUnknown,
+  parseGuarantorAgreementRow,
+  serializeGuarantorAgreementRow,
+} from "@cashsouk/types";
+import {
   validateOptionalWorkflowDocumentTemplateFile,
   WorkflowDocumentRowEditor,
   type WorkflowDocumentRowShape,
@@ -21,7 +24,7 @@ function readGuarantorAgreementRow(config: unknown): WorkflowDocumentRowShape {
   const c = config as Record<string, unknown> | undefined;
   const row = c?.guarantor_agreement;
   if (row && typeof row === "object") {
-    const parsed = parseWorkflowDocumentRowFromUnknown(row);
+    const parsed = parseGuarantorAgreementRow(row);
     return {
       ...DEFAULT_GUARANTOR_AGREEMENT_ROW,
       ...parsed,
@@ -50,23 +53,6 @@ function readGuarantorAgreementRow(config: unknown): WorkflowDocumentRowShape {
   }
 
   return { ...DEFAULT_GUARANTOR_AGREEMENT_ROW };
-}
-
-function serializeGuarantorAgreementRow(row: WorkflowDocumentRowShape): Record<string, unknown> {
-  const payload: Record<string, unknown> = {
-    name: row.name.trim() || DEFAULT_GUARANTOR_AGREEMENT_ROW.name,
-    allow_multiple: row.allow_multiple === true,
-    allowed_types: row.allowed_types?.length ? row.allowed_types : ["pdf"],
-    required: row.required !== false,
-  };
-  if (row.template?.s3_key?.trim()) {
-    payload.template = {
-      s3_key: row.template.s3_key.trim(),
-      file_name: row.template.file_name || "template.pdf",
-      ...(typeof row.template.file_size === "number" ? { file_size: row.template.file_size } : {}),
-    };
-  }
-  return payload;
 }
 
 export interface BusinessDetailsConfigProps {
@@ -116,8 +102,7 @@ export function BusinessDetailsConfig({
     if (!file) return;
     if (!validateOptionalWorkflowDocumentTemplateFile(file)) return;
     onPendingTemplateChange?.("guarantor_agreement", 0, file);
-    // Keep row settings in step config so Save merges template onto the full row shape.
-    persist(row);
+    persist({ ...row, generated_document_type: undefined });
   };
 
   const onTemplateRemove = () => {
@@ -125,7 +110,7 @@ export function BusinessDetailsConfig({
       clearParentPending();
       return;
     }
-    updateRow({ template: undefined });
+    updateRow({ template: undefined, generated_document_type: undefined });
   };
 
   return (
@@ -134,6 +119,7 @@ export function BusinessDetailsConfig({
         <WorkflowDocumentRowEditor
           item={row}
           index={0}
+          generatedDocumentContext="guarantor_agreement"
           pendingFile={effectivePendingFile}
           onUpdate={updateRow}
           onTemplateSelect={onTemplateSelect}

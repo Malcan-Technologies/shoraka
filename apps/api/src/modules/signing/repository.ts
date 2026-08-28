@@ -331,11 +331,15 @@ export class SigningRepository {
     });
   }
 
-  async markEnvelopeSent(envelopeId: string): Promise<void> {
+  async markEnvelopeSent(envelopeId: string, expiresAt?: Date | null): Promise<void> {
     await prisma.$transaction([
       prisma.signingEnvelope.update({
         where: { id: envelopeId },
-        data: { status: "SENT", sent_at: new Date() },
+        data: {
+          status: "SENT",
+          sent_at: new Date(),
+          ...(expiresAt ? { expires_at: expiresAt } : {}),
+        },
       }),
       prisma.signingRecipient.updateMany({
         where: { envelope_id: envelopeId, status: "PENDING" },

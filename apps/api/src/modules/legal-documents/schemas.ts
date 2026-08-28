@@ -8,11 +8,13 @@ export const legalDocumentTypes = [
   "INVESTOR_WARNING_STATEMENT",
   "ISSUER_AGREEMENT",
   "INVESTOR_AGREEMENT",
+  "GUARANTOR_WARNING_STATEMENT",
 ] as const;
 
 export type LegalDocumentTypeValue = (typeof legalDocumentTypes)[number];
 
-export const legalDocumentAudiences = ["PUBLIC", "ISSUER", "INVESTOR", "BOTH"] as const;
+export const legalDocumentAudiences = ["PUBLIC", "ISSUER", "INVESTOR", "BOTH", "GUARANTOR"] as const;
+export type LegalDocumentAudienceValue = (typeof legalDocumentAudiences)[number];
 export const legalAcceptanceAudiences = ["ISSUER", "INVESTOR"] as const;
 export const legalDocumentVersionStatuses = ["DRAFT", "PUBLISHED", "ARCHIVED"] as const;
 

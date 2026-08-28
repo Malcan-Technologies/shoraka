@@ -265,6 +265,10 @@
         {
           "name": "CURLEC_INVESTOR_POOL_WEBHOOK_SECRET",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CURLEC_INVESTOR_POOL_WEBHOOK_SECRET::"
+        },
+        {
+          "name": "GOTENBERG_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:GOTENBERG_URL::"
         }
       ]
     }

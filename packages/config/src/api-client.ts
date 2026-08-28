@@ -3,7 +3,6 @@ import type {
   ApiError,
   SigningEnvelopeDto,
   ExternalSigningSessionDto,
-  RecipientBinding,
   GetUsersParams,
   UsersResponse,
   UserDetailResponse,
@@ -143,6 +142,8 @@ import type {
   GatewayReconRunStatus,
   GatewayReconRunDetailDto,
   GatewayReconRunListResponse,
+  AuthorizedPartiesSubmitPayload,
+  ReviewItemType,
   InvoiceOfferAcceptInput,
   InvoiceOfferAcceptOtpRequestResponse,
   InvoiceOfferAcceptSignatoriesResponse,
@@ -321,11 +322,29 @@ export class ApiClient {
 
     // Make request
     // Token refresh is handled automatically by getAuthToken() if token is expired
-    const response = await fetch(url, {
-      ...options,
-      credentials: "include", // Always send cookies
-      headers,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        credentials: "include", // Always send cookies
+        headers,
+      });
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : "Network request failed";
+      const isUnreachable = /failed to fetch|networkerror|load failed|network request failed/i.test(
+        raw
+      );
+      return {
+        success: false,
+        error: {
+          code: "NETWORK_ERROR",
+          message: isUnreachable
+            ? "Could not reach the server. Check your connection and try again."
+            : raw,
+        },
+        correlationId: "",
+      } as ApiError;
+    }
 
     // If unauthorized, return error
     if (response.status === 401) {
@@ -357,10 +376,45 @@ export class ApiClient {
       return errorResponse;
     }
 
-    // Handle non-JSON responses (e.g., 204 No Content)
+    // Handle JSON responses, including empty bodies (otherwise fetch throws
+    // "Unexpected end of JSON input" when a proxy or parser returns no payload).
     const contentType = response.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
-      return response.json() as Promise<ApiResponse<T> | ApiError>;
+      let text = "";
+      if (typeof response.text === "function") {
+        text = await response.text();
+      } else {
+        text = JSON.stringify(await response.json());
+      }
+      if (!text.trim()) {
+        if (response.ok) {
+          return {
+            success: true,
+            data: {} as T,
+            correlationId: response.headers.get("x-correlation-id") || "",
+          } as ApiResponse<T>;
+        }
+        return {
+          success: false,
+          error: {
+            code: "HTTP_ERROR",
+            message: `Request failed with status ${response.status}`,
+          },
+          correlationId: response.headers.get("x-correlation-id") || "",
+        } as ApiError;
+      }
+      try {
+        return JSON.parse(text) as ApiResponse<T> | ApiError;
+      } catch {
+        return {
+          success: false,
+          error: {
+            code: "INVALID_JSON",
+            message: "The server returned an invalid response. Please try again.",
+          },
+          correlationId: response.headers.get("x-correlation-id") || "",
+        } as ApiError;
+      }
     }
 
     // For non-JSON responses, return success if status is ok
@@ -395,7 +449,7 @@ export class ApiClient {
     return this.request<T>(endpoint, {
       ...options,
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify(body ?? {}),
     });
   }
 
@@ -407,7 +461,7 @@ export class ApiClient {
     return this.request<T>(endpoint, {
       ...options,
       method: "PUT",
-      body: JSON.stringify(body),
+      body: JSON.stringify(body ?? {}),
     });
   }
 
@@ -423,7 +477,7 @@ export class ApiClient {
     return this.request<T>(endpoint, {
       ...options,
       method: "PATCH",
-      body: JSON.stringify(body),
+      body: JSON.stringify(body ?? {}),
     });
   }
 
@@ -1637,7 +1691,7 @@ export class ApiClient {
 
   async approveReviewItem(
     applicationId: string,
-    itemType: "invoice" | "document",
+    itemType: ReviewItemType,
     itemId: string,
     remark?: string
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
@@ -1649,7 +1703,7 @@ export class ApiClient {
 
   async rejectReviewItem(
     applicationId: string,
-    itemType: "invoice" | "document",
+    itemType: ReviewItemType,
     itemId: string,
     remark: string
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
@@ -1661,7 +1715,7 @@ export class ApiClient {
 
   async requestAmendmentReviewItem(
     applicationId: string,
-    itemType: "invoice" | "document",
+    itemType: ReviewItemType,
     itemId: string,
     remark: string
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
@@ -1673,7 +1727,7 @@ export class ApiClient {
 
   async resetItemReviewToPending(
     applicationId: string,
-    itemType: "invoice" | "document",
+    itemType: ReviewItemType,
     itemId: string
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
     return this.post<AdminApplicationActionResult>(
@@ -1797,7 +1851,7 @@ export class ApiClient {
       scope: "section" | "item";
       scopeKey?: string;
       remark: string;
-      itemType?: "invoice" | "document";
+      itemType?: ReviewItemType;
       itemId?: string;
     }
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
@@ -2582,7 +2636,7 @@ export class ApiClient {
 
   /**
    * Issuer: frozen product workflow for an application (application.product_version).
-   * Used by configure-signers / post-docs so packages do not pick up later product edits.
+   * Used by acceptance documents / authorised representatives so packages do not pick up later product edits.
    */
   async getIssuerApplicationSigningProductWorkflow(
     applicationId: string
@@ -2592,28 +2646,18 @@ export class ApiClient {
     );
   }
 
-  /** Issuer: create a draft envelope from the application's product signing template. */
-  async createIssuerSigningEnvelope(
+  /** Admin: create and send the signing package from approved authorised representatives. */
+  async sendAdminSigningPackage(
     applicationId: string,
-    input: {
-      title?: string | null;
+    input?: {
       contractId?: string | null;
       invoiceId?: string | null;
-      bindings: RecipientBinding[];
-      expiresAt?: string | null;
     }
   ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
     return this.post<SigningEnvelopeDto>(
-      `/v1/signing/applications/${applicationId}/envelopes`,
-      input
+      `/v1/admin/signing/applications/${applicationId}/envelopes/send`,
+      input ?? {}
     );
-  }
-
-  /** Issuer: send a draft envelope after post-application document gates pass. */
-  async sendIssuerSigningEnvelope(
-    envelopeId: string
-  ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
-    return this.post<SigningEnvelopeDto>(`/v1/signing/envelopes/${envelopeId}/send`, {});
   }
 
   /** Admin: void an envelope. */
@@ -2757,6 +2801,26 @@ export class ApiClient {
     );
   }
 
+  /** External no-auth guarantor: open the published warning PDF (records OPENED). */
+  async openExternalSigningWarning(
+    accessToken: string
+  ): Promise<ApiResponse<{ viewUrl: string; expiresIn: number }> | ApiError> {
+    return this.post<{ viewUrl: string; expiresIn: number }>(
+      `/v1/signing/external/${accessToken}/warning/open`,
+      {}
+    );
+  }
+
+  /** External no-auth guarantor: accept the warning after opening it. */
+  async acceptExternalSigningWarning(
+    accessToken: string
+  ): Promise<ApiResponse<ExternalSigningSessionDto> | ApiError> {
+    return this.post<ExternalSigningSessionDto>(
+      `/v1/signing/external/${accessToken}/warning/accept`,
+      {}
+    );
+  }
+
   /** External no-auth recipient: confirm signing after SigningCloud return (no token in URL). */
   async confirmSigningReturnSession(
     returnSessionId: string
@@ -2814,12 +2878,23 @@ export class ApiClient {
     );
   }
 
+  async saveContractAuthorizedPartiesDraft(
+    applicationId: string,
+    body: { authorized_parties: AuthorizedPartiesSubmitPayload }
+  ): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(
+      `/v1/applications/${applicationId}/offers/contracts/acceptance/authorized-parties-draft`,
+      body
+    );
+  }
+
   async submitContractOfferAcceptance(
-    applicationId: string
+    applicationId: string,
+    body: { authorized_parties: AuthorizedPartiesSubmitPayload }
   ): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(
       `/v1/applications/${applicationId}/offers/contracts/acceptance`,
-      {}
+      body
     );
   }
 
@@ -2886,11 +2961,12 @@ export class ApiClient {
 
   async submitInvoiceOfferAcceptance(
     applicationId: string,
-    invoiceId: string
+    invoiceId: string,
+    body: { authorized_parties: AuthorizedPartiesSubmitPayload }
   ): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(
       `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/acceptance`,
-      {}
+      body
     );
   }
 
@@ -3616,6 +3692,48 @@ export class ApiClient {
     return this.delete<{ message: string }>(`/v1/contracts/${id}/document`, {
       body: JSON.stringify({ s3Key }),
     });
+  }
+
+  /** DEMO: default ARF contract LO merge fixture */
+  async getFacilityLoDemoFixture(): Promise<
+    ApiResponse<import("@cashsouk/types").ContractFacilityLoMergeData> | ApiError
+  > {
+    return this.get<import("@cashsouk/types").ContractFacilityLoMergeData>(
+      "/v1/admin/demos/contract-lo/fixture"
+    );
+  }
+
+  /** DEMO: prefill LO merge fields from a contract id */
+  async getFacilityLoDemoPrefill(
+    contractId: string
+  ): Promise<ApiResponse<import("@cashsouk/types").ContractFacilityLoMergeData> | ApiError> {
+    const q = new URLSearchParams({ contractId });
+    return this.get<import("@cashsouk/types").ContractFacilityLoMergeData>(
+      `/v1/admin/demos/contract-lo/prefill?${q.toString()}`
+    );
+  }
+
+  /** DEMO: generate filled ARF LO .docx or .pdf (wet-ink; no SigningCloud) */
+  async generateFacilityLoDemoDocx(
+    data: import("@cashsouk/types").ContractFacilityLoMergeData,
+    options?: { format?: "docx" | "pdf" }
+  ): Promise<Blob> {
+    const format = options?.format ?? "docx";
+    const url = `${this.baseUrl}/v1/admin/demos/contract-lo/generate?format=${format}`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = { "Content-Type": "application/json" };
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    return response.blob();
   }
 }
 

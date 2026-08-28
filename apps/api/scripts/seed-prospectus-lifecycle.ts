@@ -411,7 +411,15 @@ async function upsertBaseNote(input: {
       aml_approved: true,
       tnc_accepted: true,
       ssm_checked: true,
-      corporate_onboarding_data: { basicInfo: { industry: "Construction" } },
+      corporate_onboarding_data: {
+        basicInfo: { industry: "Construction" },
+        aboutYourBusiness: {
+          whatDoesCompanyDo: "Lifecycle seed issuer for Prospectus UAT.",
+          mainCustomers: "Infrastructure buyers.",
+          singleCustomerOver50Revenue: false,
+          accountingSoftware: "Xero",
+        },
+      },
     },
     create: {
       id: issuerOrgId,
@@ -426,7 +434,15 @@ async function upsertBaseNote(input: {
       aml_approved: true,
       tnc_accepted: true,
       ssm_checked: true,
-      corporate_onboarding_data: { basicInfo: { industry: "Construction" } },
+      corporate_onboarding_data: {
+        basicInfo: { industry: "Construction" },
+        aboutYourBusiness: {
+          whatDoesCompanyDo: "Lifecycle seed issuer for Prospectus UAT.",
+          mainCustomers: "Infrastructure buyers.",
+          singleCustomerOver50Revenue: false,
+          accountingSoftware: "Xero",
+        },
+      },
     },
   });
 

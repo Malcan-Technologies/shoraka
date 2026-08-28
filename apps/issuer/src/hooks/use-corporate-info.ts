@@ -42,6 +42,24 @@ export function useCorporateInfo(organizationId: string | undefined) {
             business?: Address;
             registered?: Address;
           };
+          contactPerson?: {
+            name?: string | null;
+            position?: string | null;
+            email?: string | null;
+            contact?: string | null;
+          };
+          personInCharge?: {
+            name?: string | null;
+            position?: string | null;
+            email?: string | null;
+            contactNumber?: string | null;
+          };
+          aboutYourBusiness?: {
+            whatDoesCompanyDo?: string;
+            mainCustomers?: string;
+            singleCustomerOver50Revenue?: boolean | null;
+            accountingSoftware?: string;
+          };
         };
         bankAccountDetails?: unknown;
       }>(`/v1/organizations/issuer/${organizationId}`);
@@ -66,6 +84,12 @@ export function useCorporateInfo(organizationId: string | undefined) {
       ssmRegisterNumber?: string | null;
       businessAddress?: Address | null;
       registeredAddress?: Address | null;
+      aboutYourBusiness?: {
+        whatDoesCompanyDo?: string | null;
+        mainCustomers?: string | null;
+        singleCustomerOver50Revenue?: boolean | null;
+        accountingSoftware?: string | null;
+      } | null;
     }) => {
       if (!organizationId) throw new Error("No organization selected");
       const result = await apiClient.patch(

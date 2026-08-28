@@ -14,15 +14,15 @@ describe("offerAcceptanceAllowsIssuerReviewCta", () => {
     expect(offerAcceptanceAllowsIssuerReviewCta(undefined)).toBe(true);
   });
 
-  it("shows CTA for Step 1 and Step 3 statuses", () => {
+  it("shows CTA for Step 1 and while signing is in progress", () => {
     expect(offerAcceptanceAllowsIssuerReviewCta("PENDING_ISSUER")).toBe(true);
     expect(offerAcceptanceAllowsIssuerReviewCta("CHANGES_REQUESTED")).toBe(true);
-    expect(offerAcceptanceAllowsIssuerReviewCta("APPROVED_FOR_SIGNING")).toBe(true);
     expect(offerAcceptanceAllowsIssuerReviewCta("SIGNING_IN_PROGRESS")).toBe(true);
   });
 
   it("hides CTA while waiting on admin or after reject/complete", () => {
     expect(offerAcceptanceAllowsIssuerReviewCta("PENDING_ADMIN_REVIEW")).toBe(false);
+    expect(offerAcceptanceAllowsIssuerReviewCta("APPROVED_FOR_SIGNING")).toBe(false);
     expect(offerAcceptanceAllowsIssuerReviewCta("REJECTED")).toBe(false);
     expect(offerAcceptanceAllowsIssuerReviewCta("COMPLETED")).toBe(false);
   });
@@ -56,7 +56,7 @@ describe("shouldShowIssuerReviewOfferCta", () => {
     ).toBe(false);
   });
 
-  it("is true for PENDING_ISSUER and APPROVED_FOR_SIGNING", () => {
+  it("is true for PENDING_ISSUER and SIGNING_IN_PROGRESS", () => {
     expect(
       shouldShowIssuerReviewOfferCta({
         status: "OFFER_SENT",
@@ -73,12 +73,26 @@ describe("shouldShowIssuerReviewOfferCta", () => {
         status: "OFFER_SENT",
         offer_details: {
           offer_acceptance: {
-            status: "APPROVED_FOR_SIGNING",
+            status: "SIGNING_IN_PROGRESS",
             signing_expires_at: "2099-01-01T00:00:00.000Z",
           },
         },
       })
     ).toBe(true);
+  });
+
+  it("is false while APPROVED_FOR_SIGNING (waiting on CashSouk to send links)", () => {
+    expect(
+      shouldShowIssuerReviewOfferCta({
+        status: "OFFER_SENT",
+        offer_details: {
+          offer_acceptance: {
+            status: "APPROVED_FOR_SIGNING",
+            signing_expires_at: "2099-01-01T00:00:00.000Z",
+          },
+        },
+      })
+    ).toBe(false);
   });
 
   it("getOfferStatus still reports Offer received while CTA is hidden", () => {
@@ -214,10 +228,11 @@ describe("getOfferPhaseDeadlineDisplay", () => {
 });
 
 describe("getIssuerOfferActionCta", () => {
-  it("uses Update acceptance documents for CHANGES_REQUESTED", () => {
+  it("uses Update requested changes for CHANGES_REQUESTED", () => {
     const cta = getIssuerOfferActionCta("CHANGES_REQUESTED", { scope: "contract" });
-    expect(cta.label).toBe("Update acceptance documents");
+    expect(cta.label).toBe("Update requested changes");
     expect(cta.hint).toContain("requested changes");
+    expect(cta.hint).toContain("authorised representatives");
     expect(cta.buttonVariant).toBe("makeAmendments");
     expect(cta.isAcceptanceChangesRequested).toBe(true);
   });
@@ -239,6 +254,6 @@ describe("getIssuerOfferActionCta", () => {
       { offer_acceptance: { status: "CHANGES_REQUESTED" } },
       { scope: "invoice" }
     );
-    expect(cta.label).toBe("Update acceptance documents");
+    expect(cta.label).toBe("Update requested changes");
   });
 });

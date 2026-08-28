@@ -15,6 +15,7 @@ import type {
   SigningKycStatus,
 } from "@cashsouk/types";
 import { resolveSigningKycStatusMap } from "../ekyc/service";
+import { legalExternalAcceptanceService } from "../legal-documents/external-acceptance-service";
 
 export type SigningEnvelopeWithGraph = SigningEnvelope & {
   documents: SigningDocument[];
@@ -52,7 +53,8 @@ function readEmailDeliveryStatus(metadata: unknown): "sent" | "failed" | null {
 
 function mapRecipient(
   recipient: SigningRecipient,
-  kycStatus: SigningKycStatus = "PENDING"
+  kycStatus: SigningKycStatus = "PENDING",
+  warningAcceptedAt: string | null = null
 ): SigningRecipientDto {
   return {
     id: recipient.id,
@@ -65,6 +67,7 @@ function mapRecipient(
     kyc_status: kycStatus,
     completed_at: recipient.completed_at ? recipient.completed_at.toISOString() : null,
     email_delivery_status: readEmailDeliveryStatus(recipient.metadata),
+    warning_accepted_at: recipient.role_key === "guarantor" ? warningAcceptedAt : null,
   };
 }
 
@@ -102,7 +105,12 @@ export function mapSigningEnvelopeToDto(envelope: SigningEnvelopeWithGraph): Sig
 export async function mapSigningEnvelopeToDtoWithEkyc(
   envelope: SigningEnvelopeWithGraph
 ): Promise<SigningEnvelopeDto> {
-  const kycMap = await resolveSigningKycStatusMap(envelope.recipients);
+  const [kycMap, warningAcceptedAt] = await Promise.all([
+    resolveSigningKycStatusMap(envelope.recipients),
+    legalExternalAcceptanceService.acceptedAtBySigningRecipientIds(
+      envelope.recipients.filter((r) => r.role_key === "guarantor").map((r) => r.id)
+    ),
+  ]);
   return {
     id: envelope.id,
     application_id: envelope.application_id,
@@ -116,7 +124,13 @@ export async function mapSigningEnvelopeToDtoWithEkyc(
     documents: [...envelope.documents].sort((a, b) => a.order - b.order).map(mapDocument),
     recipients: [...envelope.recipients]
       .sort((a, b) => a.routing_order - b.routing_order)
-      .map((recipient) => mapRecipient(recipient, kycMap.get(recipient.id) ?? "PENDING")),
+      .map((recipient) =>
+        mapRecipient(
+          recipient,
+          kycMap.get(recipient.id) ?? "PENDING",
+          warningAcceptedAt.get(recipient.id) ?? null
+        )
+      ),
     assignments: envelope.assignments.map(mapAssignment),
   };
 }

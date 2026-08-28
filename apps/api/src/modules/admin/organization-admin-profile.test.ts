@@ -44,6 +44,25 @@ describe("mergeCorporateOnboardingData", () => {
     expect(basicInfo.tinNumber).toBe("C123");
     expect((merged.addresses as Record<string, unknown>).business).toEqual({ city: "KL" });
   });
+
+  it("merges aboutYourBusiness without dropping existing narrative fields", () => {
+    const merged = mergeCorporateOnboardingData(
+      {
+        aboutYourBusiness: {
+          whatDoesCompanyDo: "Makes parts",
+          mainCustomers: "Miners",
+          singleCustomerOver50Revenue: false,
+          accountingSoftware: "Xero",
+        },
+      },
+      { aboutYourBusiness: { accountingSoftware: "SAP" } }
+    );
+    const about = merged.aboutYourBusiness as Record<string, unknown>;
+    expect(about.whatDoesCompanyDo).toBe("Makes parts");
+    expect(about.mainCustomers).toBe("Miners");
+    expect(about.singleCustomerOver50Revenue).toBe(false);
+    expect(about.accountingSoftware).toBe("SAP");
+  });
 });
 
 describe("summarizeProfilePatch", () => {

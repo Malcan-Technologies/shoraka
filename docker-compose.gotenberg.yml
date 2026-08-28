@@ -1,0 +1,19 @@
+# Local-only: Gotenberg PDF conversion API for LOO demo / experiments.
+# (Gotenberg uses LibreOffice internally for Office→PDF.)
+#
+#   docker compose -f docker-compose.gotenberg.yml up -d
+#   export GOTENBERG_URL=http://127.0.0.1:3100
+#
+# Port 3100 avoids clashing with landing (3000) / portals.
+
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    ports:
+      - "3100:3000"
+    command:
+      - "gotenberg"
+      - "--api-timeout=120s"
+      - "--libreoffice-restart-after=10"
+    # Optional: uncomment if you only need Office→PDF (lighter)
+    # - "--chromium-disable-routes"

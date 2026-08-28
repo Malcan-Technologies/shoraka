@@ -2,7 +2,7 @@
  * Legal document types and acceptance DTOs (LegalDocument / LegalDocumentVersion).
  */
 
-export type LegalDocumentAudience = "PUBLIC" | "ISSUER" | "INVESTOR" | "BOTH";
+export type LegalDocumentAudience = "PUBLIC" | "ISSUER" | "INVESTOR" | "BOTH" | "GUARANTOR";
 export type LegalDocumentVersionStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export type LegalAcceptanceAudience = "ISSUER" | "INVESTOR";
 export type LegalAcceptanceStatus = "NOT_OPENED" | "OPENED" | "ACCEPTED";
@@ -17,7 +17,11 @@ export type LegalDocumentType =
   | "ISSUER_WARNING_STATEMENT"
   | "INVESTOR_WARNING_STATEMENT"
   | "ISSUER_AGREEMENT"
-  | "INVESTOR_AGREEMENT";
+  | "INVESTOR_AGREEMENT"
+  | "GUARANTOR_WARNING_STATEMENT";
+
+export type LegalExternalAcceptanceSource = "SIGNING_RECIPIENT";
+export type LegalExternalAcceptanceStatus = "OPENED" | "ACCEPTED";
 
 /** @deprecated Use LegalDocumentType */
 export type OnboardingLegalDocumentType = LegalDocumentType;
@@ -30,6 +34,7 @@ export const LEGAL_DOCUMENT_TYPES: LegalDocumentType[] = [
   "INVESTOR_WARNING_STATEMENT",
   "ISSUER_AGREEMENT",
   "INVESTOR_AGREEMENT",
+  "GUARANTOR_WARNING_STATEMENT",
 ];
 
 /** @deprecated Use LEGAL_DOCUMENT_TYPES */
@@ -43,6 +48,7 @@ export const LEGAL_DOCUMENT_TYPE_LABELS: Record<LegalDocumentType, string> = {
   INVESTOR_WARNING_STATEMENT: "Investor Warning Statement",
   ISSUER_AGREEMENT: "Issuer Agreement",
   INVESTOR_AGREEMENT: "Investor Agreement",
+  GUARANTOR_WARNING_STATEMENT: "Guarantor Warning Statement",
 };
 
 /** Same friendly type label used by Admin Legal Documents / Acceptances tables. */
@@ -63,6 +69,7 @@ export const LEGAL_DOCUMENT_CHECKBOX_WORDING: Record<LegalDocumentType, string> 
   INVESTOR_WARNING_STATEMENT: "I have read and understood this warning statement.",
   ISSUER_AGREEMENT: "I have read and agree to this agreement.",
   INVESTOR_AGREEMENT: "I have read and agree to this agreement.",
+  GUARANTOR_WARNING_STATEMENT: "I have read and understood this warning statement.",
 };
 
 /** Default audience when admin creates a legal document definition. */
@@ -74,6 +81,7 @@ export const LEGAL_DOCUMENT_DEFAULT_AUDIENCE: Record<LegalDocumentType, LegalDoc
   ISSUER_AGREEMENT: "ISSUER",
   INVESTOR_WARNING_STATEMENT: "INVESTOR",
   INVESTOR_AGREEMENT: "INVESTOR",
+  GUARANTOR_WARNING_STATEMENT: "GUARANTOR",
 };
 
 /** Shared + issuer docs for issuer onboarding. */
@@ -92,6 +100,11 @@ export const INVESTOR_REQUIRED_LEGAL_TYPES: LegalDocumentType[] = [
   "RISK_STATEMENT",
   "INVESTOR_WARNING_STATEMENT",
   "INVESTOR_AGREEMENT",
+];
+
+/** Signing-link disclosure for guarantors — not part of portal onboarding. */
+export const GUARANTOR_REQUIRED_LEGAL_TYPES: LegalDocumentType[] = [
+  "GUARANTOR_WARNING_STATEMENT",
 ];
 
 export const PUBLIC_FOOTER_LEGAL_TYPES: LegalDocumentType[] = [
@@ -113,6 +126,7 @@ export const LEGAL_DOCUMENT_TYPE_SLUGS: Record<LegalDocumentType, string> = {
   ISSUER_AGREEMENT: "issuer-agreement",
   INVESTOR_WARNING_STATEMENT: "investor-warning-statement",
   INVESTOR_AGREEMENT: "investor-agreement",
+  GUARANTOR_WARNING_STATEMENT: "guarantor-warning-statement",
 };
 
 export const LEGAL_DOCUMENT_PUBLIC_GROUPS = {
@@ -145,6 +159,13 @@ export function getRequiredLegalTypesForAudience(
   audience: LegalAcceptanceAudience
 ): LegalDocumentType[] {
   return audience === "ISSUER" ? ISSUER_REQUIRED_LEGAL_TYPES : INVESTOR_REQUIRED_LEGAL_TYPES;
+}
+
+/** Onboarding defaults: true only for types issuers or investors must accept. */
+export function legalDocumentDefaultRequiredForOnboarding(type: LegalDocumentType): boolean {
+  return (
+    ISSUER_REQUIRED_LEGAL_TYPES.includes(type) || INVESTOR_REQUIRED_LEGAL_TYPES.includes(type)
+  );
 }
 
 export interface LegalDocumentDefinitionResponse {

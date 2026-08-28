@@ -365,11 +365,11 @@ describe("applicationAttentionHeadline", () => {
       applicationAttentionHeadline({
         ...base,
         kind: "reviewOffer",
-        label: "Update acceptance documents",
+        label: "Update requested changes",
         buttonVariant: "outline",
         offerScope: "invoice",
       })
-    ).toBe("Update your documents");
+    ).toBe("Update requested changes");
     expect(
       applicationAttentionHeadline({
         ...base,

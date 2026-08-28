@@ -2,7 +2,9 @@ import {
   getRequiredLegalTypesForAudience,
   ISSUER_REQUIRED_LEGAL_TYPES,
   INVESTOR_REQUIRED_LEGAL_TYPES,
+  PUBLIC_FOOTER_LEGAL_TYPES,
   isLegalDocumentType,
+  legalDocumentDefaultRequiredForOnboarding,
 } from "@cashsouk/types";
 
 describe("legal document type helpers", () => {
@@ -16,6 +18,14 @@ describe("legal document type helpers", () => {
     const types = getRequiredLegalTypesForAudience("INVESTOR");
     expect(types).toEqual(INVESTOR_REQUIRED_LEGAL_TYPES);
     expect(types).not.toContain("ISSUER_AGREEMENT");
+  });
+
+  it("does not require the guarantor warning during issuer or investor onboarding", () => {
+    expect(ISSUER_REQUIRED_LEGAL_TYPES).not.toContain("GUARANTOR_WARNING_STATEMENT");
+    expect(INVESTOR_REQUIRED_LEGAL_TYPES).not.toContain("GUARANTOR_WARNING_STATEMENT");
+    expect(PUBLIC_FOOTER_LEGAL_TYPES).not.toContain("GUARANTOR_WARNING_STATEMENT");
+    expect(legalDocumentDefaultRequiredForOnboarding("GUARANTOR_WARNING_STATEMENT")).toBe(false);
+    expect(isLegalDocumentType("GUARANTOR_WARNING_STATEMENT")).toBe(true);
   });
 
   it("uses TERMS_OF_USE and PDPA_NOTICE_AND_CONSENT type names", () => {

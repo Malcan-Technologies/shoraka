@@ -152,8 +152,8 @@ Typical step sequence:
 - `financing_structure` - `new_contract`, `existing_contract`, or `invoice_only`.
 - `contract_details` - contract and paymaster/customer data for new contract flows.
 - `invoice_details` - invoice rows, invoice documents, requested financing amount/ratio, maturity data.
-- `company_details` - issuer company profile data.
-- `business_details` - operational, repayment, and business-risk data.
+- `company_details` - live issuer company profile data (including About your business).
+- `business_details` - fundraising purpose, repayment risk, and guarantors.
 - `financial_statements` - financial statement upload and CTOS/financial validation context.
 - `supporting_documents` - configured document uploads.
 - `declarations` - final issuer declarations and submission.

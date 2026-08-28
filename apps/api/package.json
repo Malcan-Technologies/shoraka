@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "pnpm --filter @cashsouk/types build && prisma generate && tsc && cp -r src/modules/ctos/xslt dist/modules/ctos/",
+    "build": "pnpm --filter @cashsouk/types build && prisma generate && tsc && cp -r src/modules/ctos/xslt dist/modules/ctos/ && mkdir -p dist/modules/applications/templates && cp -r src/modules/applications/templates/. dist/modules/applications/templates/",
     "start": "node dist/index.js",
     "typecheck": "prisma generate && tsc --noEmit",
     "lint": "eslint src",
@@ -44,6 +44,7 @@
     "check-product-code-readiness": "tsx scripts/check-product-code-readiness.ts",
     "check-display-reference-sanity": "tsx scripts/check-display-reference-sanity.ts",
     "backfill-contract-originating-application": "tsx scripts/backfill-contract-originating-application.ts",
+    "backfill-about-your-business": "tsx scripts/backfill-about-your-business.ts",
     "recompute-contract-facility": "tsx scripts/recompute-contract-facility.ts",
     "dev-simulate-gateway-settlement": "tsx scripts/dev-simulate-gateway-settlement.ts",
     "run-note-listing-expiry": "tsx scripts/run-note-listing-expiry.ts",
@@ -85,6 +86,8 @@
     "seed-ekyc-identity": "tsx scripts/seed-ekyc-identity.ts",
     "seed-inactive-product-apps": "tsx scripts/seed-inactive-products-with-applications.ts",
     "seed-investor-rgvyz-name-match": "tsx scripts/seed-investor-rgvyz-name-match.ts",
+    "retag-lo-template": "tsx scripts/retag-lo-template.ts",
+    "backfill-invoice-sub-limit": "tsx scripts/backfill-invoice-sub-limit.ts",
     "clean": "rm -rf dist"
   },
   "prisma": {
@@ -105,6 +108,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
+    "docxtemplater": "^3.69.3",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
@@ -120,6 +124,7 @@
     "pino": "^8.17.2",
     "pino-http": "^8.6.1",
     "pino-pretty": "^10.3.1",
+    "pizzip": "^3.2.0",
     "playwright": "^1.62.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

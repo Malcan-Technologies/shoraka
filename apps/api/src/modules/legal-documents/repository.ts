@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import type {
   CreateLegalDocumentInput,
   ListLegalDocumentsQuery,
+  LegalDocumentAudienceValue,
   LegalDocumentTypeValue,
   UpdateLegalDocumentInput,
   UpdateVersionInput,
@@ -13,7 +14,7 @@ export type LegalDocumentRow = {
   type: LegalDocumentTypeValue;
   title: string;
   description: string | null;
-  audience: "PUBLIC" | "ISSUER" | "INVESTOR" | "BOTH";
+  audience: LegalDocumentAudienceValue;
   required_for_onboarding: boolean;
   public_visibility: boolean;
   show_in_account: boolean;
@@ -334,6 +335,17 @@ export class LegalDocumentRepository {
     })) as VersionWithDocument | null;
   }
 
+  async findPublishedByType(type: LegalDocumentTypeValue) {
+    return (await prisma.legalDocumentVersion.findFirst({
+      where: {
+        status: "PUBLISHED",
+        legal_document: { type },
+      },
+      include: { legal_document: true },
+      orderBy: { version: "desc" },
+    })) as VersionWithDocument | null;
+  }
+
   async findAllPublishedByDocumentId(legalDocumentId: string, excludeVersionId?: string) {
     return prisma.legalDocumentVersion.findMany({
       where: {
@@ -363,7 +375,7 @@ export class LegalDocumentRepository {
 
   async findPublishedByTypeAndAudiences(
     type: LegalDocumentTypeValue,
-    audiences: Array<"PUBLIC" | "ISSUER" | "INVESTOR" | "BOTH">
+    audiences: LegalDocumentAudienceValue[]
   ) {
     return (await prisma.legalDocumentVersion.findFirst({
       where: {
@@ -381,7 +393,7 @@ export class LegalDocumentRepository {
 
   async findPublishedReacceptanceByTypeAndAudiences(
     type: LegalDocumentTypeValue,
-    audiences: Array<"PUBLIC" | "ISSUER" | "INVESTOR" | "BOTH">
+    audiences: LegalDocumentAudienceValue[]
   ) {
     return (await prisma.legalDocumentVersion.findFirst({
       where: {
@@ -427,7 +439,7 @@ export class LegalDocumentRepository {
 
   /** Published versions flagged for Profile → Documents for the given audiences. */
   async findAccountPublishedVersions(
-    audiences: Array<"PUBLIC" | "ISSUER" | "INVESTOR" | "BOTH">
+    audiences: LegalDocumentAudienceValue[]
   ) {
     return (await prisma.legalDocumentVersion.findMany({
       where: {

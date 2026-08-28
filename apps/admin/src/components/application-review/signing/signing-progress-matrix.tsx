@@ -250,6 +250,9 @@ export function SigningProgressMatrix({
                         <p className="text-xs text-muted-foreground">
                           {recipientLabel(recipient, duplicateNames)}
                         </p>
+                        {recipient.warning_accepted_at ? (
+                          <p className="text-xs text-muted-foreground">Warning accepted</p>
+                        ) : null}
                       </div>
 
                       <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-2">
@@ -262,7 +265,6 @@ export function SigningProgressMatrix({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-7 px-2 text-xs"
                             disabled={remindDisabled}
                             onClick={() => onRemind(recipient.id)}
                           >

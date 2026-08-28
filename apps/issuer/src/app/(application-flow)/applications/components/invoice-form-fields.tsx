@@ -24,7 +24,10 @@ import { MoneyInput, Slider } from "@cashsouk/ui";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   FINANCING_TENURE_DAYS_OPTIONS,
+  FINANCING_TENURE_MAX_DAYS,
   formatFinancingTenureDaysLabel,
+  malaysiaCalendarDaysRemaining,
+  validateFinancingTenureAgainstDueDate,
   type WithdrawReason,
 } from "@cashsouk/types";
 import {
@@ -64,7 +67,7 @@ const sectionGridClassName =
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
-  return <p className="text-xs text-destructive">{message}</p>;
+  return <p className="text-ui text-destructive">{message}</p>;
 }
 
 function LabelWithTooltip({
@@ -168,6 +171,31 @@ export function InvoiceFormFields({
       : Math.min(maxRatio, Math.max(minRatio, Math.round(invoice.financing_ratio_percent)));
   const invoiceValue = parseMoney(invoice.value);
   const financingAmount = invoiceValue * (ratioNum / 100);
+  const daysUntilDue = invoice.maturity_date
+    ? malaysiaCalendarDaysRemaining(new Date(), invoice.maturity_date)
+    : null;
+  const dueDateCheck = invoice.maturity_date
+    ? validateFinancingTenureAgainstDueDate({
+        tenureDays: invoice.financing_tenure_days ?? FINANCING_TENURE_MAX_DAYS,
+        maturityDate: invoice.maturity_date,
+      })
+    : null;
+  const dueDateTooFarMessage =
+    dueDateCheck && !dueDateCheck.ok && dueDateCheck.message.includes("more than")
+      ? dueDateCheck.message
+      : undefined;
+  const tenureCoverageMessage =
+    invoice.financing_tenure_days != null &&
+    dueDateCheck &&
+    !dueDateCheck.ok &&
+    dueDateCheck.message.includes("must be at least")
+      ? dueDateCheck.message
+      : undefined;
+  const maturityError = dueDateTooFarMessage || fieldErrors?.maturity_date;
+  const tenureError = tenureCoverageMessage || fieldErrors?.financing_tenure_days;
+  const canFilterTenureByDueDate =
+    daysUntilDue != null && daysUntilDue >= 0 && daysUntilDue <= FINANCING_TENURE_MAX_DAYS;
+
   const uploadedFile = invoice.document?.file_name
     ? {
         s3_key: invoice.document.s3_key ?? "",
@@ -210,11 +238,14 @@ export function InvoiceFormFields({
             value={invoice.maturity_date || ""}
             onChange={(v) => onMaturityDateChange?.(v)}
             disabled={!isEditable}
-            isInvalid={Boolean(fieldErrors?.maturity_date)}
+            isInvalid={Boolean(maturityError)}
             placeholder="Enter date"
             className={inputClassName}
           />
-          <FieldError message={fieldErrors?.maturity_date} />
+          <p className="text-meta text-muted-foreground">
+            Must be within {FINANCING_TENURE_MAX_DAYS} days from today.
+          </p>
+          <FieldError message={maturityError} />
         </div>
 
         <LabelWithTooltip
@@ -237,20 +268,26 @@ export function InvoiceFormFields({
               aria-label="Financing tenure"
               className={withFieldError(
                 cn(formSelectTriggerClassName, !isEditable && formInputDisabledClassName),
-                Boolean(fieldErrors?.financing_tenure_days)
+                Boolean(tenureError)
               )}
             >
               <SelectValue placeholder="Select tenure" />
             </SelectTrigger>
             <SelectContent className="max-h-[240px]">
               {FINANCING_TENURE_DAYS_OPTIONS.map((days) => (
-                <SelectItem key={days} value={String(days)}>
+                <SelectItem
+                  key={days}
+                  value={String(days)}
+                  disabled={
+                    daysUntilDue != null && canFilterTenureByDueDate && days < daysUntilDue
+                  }
+                >
                   {formatFinancingTenureDaysLabel(days)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <FieldError message={fieldErrors?.financing_tenure_days} />
+          <FieldError message={tenureError} />
         </div>
 
         <LabelWithTooltip label="Invoice value" />

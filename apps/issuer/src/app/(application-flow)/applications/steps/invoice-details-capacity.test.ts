@@ -26,6 +26,12 @@ describe("issuer invoice details capacity copy", () => {
     expect(source).not.toContain("max_financing_ratio_percent ?? 80");
   });
 
+  it("enables Save and Continue from required fields, not constraint validationError", () => {
+    expect(source).toContain("isInvoiceStepContinueReady");
+    expect(source).toContain("const isValid = shouldRunValidation ? fieldsReady : !requiresFacilityFeePayment");
+    expect(source).not.toContain("!hasPartialRows && !validationError && !requiresFacilityFeePayment");
+  });
+
   it("uses draft saveable warnings and reserved hard errors on the dual-limit preview", () => {
     expect(source).toContain('dualLimitOverageCopy(dualLimitPreview, "draft")');
     expect(source).toContain('dualLimitOverageCopy(dualLimitPreview, "reserved")');

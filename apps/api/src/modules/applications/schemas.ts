@@ -237,3 +237,110 @@ export const acceptInvoiceOfferBodySchema = z.object({
 export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;
 export type UpdateApplicationStepInput = z.infer<typeof updateApplicationStepSchema>;
 export type BusinessDetailsData = z.infer<typeof businessDetailsDataSchema>;
+
+const signingEmailSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .transform((value) => value.toLowerCase())
+  .refine((value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value), "Valid email required");
+
+const signingIcSchema = z
+  .string()
+  .min(1)
+  .transform((value) => value.replace(/\D/g, ""))
+  .refine((value) => value.length === 12, "IC must be 12 digits");
+
+const optionalSigningIcSchema = z
+  .string()
+  .optional()
+  .transform((value) => (typeof value === "string" ? value.replace(/\D/g, "") : ""))
+  .refine((value) => value.length === 0 || value.length === 12, "IC must be 12 digits");
+
+const issuerAuthorizedRepresentativeSchema = z.object({
+  name: z.string().trim().min(1),
+  email: signingEmailSchema,
+  ic_number: signingIcSchema,
+  capacity: z.literal("director"),
+  person_match_key: z.string().trim().min(1),
+});
+
+const issuerAuthorizedPartySchema = z.object({
+  key: z.literal("issuer"),
+  entity_kind: z.literal("ISSUER"),
+  representatives: z.array(issuerAuthorizedRepresentativeSchema).min(1),
+});
+
+const corporateGuarantorAuthorizedRepresentativeSchema = z.object({
+  name: z.string().trim().min(1),
+  email: signingEmailSchema,
+  ic_number: signingIcSchema,
+  capacity: z.enum(["director", "authorised_signatory"]),
+});
+
+const individualGuarantorAuthorizedRepresentativeSchema = z.object({
+  name: z.string().trim().min(1),
+  email: signingEmailSchema,
+  ic_number: optionalSigningIcSchema,
+  capacity: z.enum(["director", "authorised_signatory"]),
+});
+
+const corporateGuarantorAuthorizedPartySchema = z.object({
+  key: z.string().trim().min(1),
+  entity_kind: z.literal("CORPORATE_GUARANTOR"),
+  application_guarantor_id: z.string().trim().min(1),
+  client_guarantor_id: z.string().trim().min(1).optional(),
+  representatives: z.array(corporateGuarantorAuthorizedRepresentativeSchema).min(1),
+});
+
+const individualGuarantorAuthorizedPartySchema = z.object({
+  key: z.string().trim().min(1),
+  entity_kind: z.literal("INDIVIDUAL_GUARANTOR"),
+  application_guarantor_id: z.string().trim().min(1),
+  client_guarantor_id: z.string().trim().min(1).optional(),
+  representatives: z.array(individualGuarantorAuthorizedRepresentativeSchema).min(1).max(1),
+});
+
+const authorizedPartySchema = z.discriminatedUnion("entity_kind", [
+  issuerAuthorizedPartySchema,
+  corporateGuarantorAuthorizedPartySchema,
+  individualGuarantorAuthorizedPartySchema,
+]);
+
+const authorizedPartiesSubmitSchema = z.object({
+  parties: z
+    .array(authorizedPartySchema)
+    .min(1)
+    .superRefine((parties, ctx) => {
+      const issuerCount = parties.filter((party) => party.entity_kind === "ISSUER").length;
+      if (issuerCount !== 1) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Exactly one issuer party is required",
+        });
+      }
+      const keys = parties.map((party) => party.key);
+      if (new Set(keys).size !== keys.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Party keys must be unique",
+        });
+      }
+      const guarantorIds = parties
+        .filter((party) => party.entity_kind !== "ISSUER")
+        .map((party) => party.application_guarantor_id);
+      if (new Set(guarantorIds).size !== guarantorIds.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Each guarantor may appear only once",
+        });
+      }
+    }),
+});
+
+/** Step 1 acceptance POST — issuer plus one party per application guarantor. */
+export const submitOfferAcceptanceBodySchema = z.object({
+  authorized_parties: authorizedPartiesSubmitSchema,
+});
+
+export type SubmitOfferAcceptanceBody = z.infer<typeof submitOfferAcceptanceBodySchema>;

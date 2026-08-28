@@ -56,6 +56,26 @@ The app first asks the API for an upload URL, then uploads the file, then saves 
 
 ---
 
+## Generated document templates (acceptance / supporting / guarantor rows)
+
+On document rows in **Acceptance** (financing type step), **Supporting Documents**, and **Guarantor agreement** (business details), you can set **Template source**:
+
+| Source | Meaning |
+|--------|---------|
+| **None** | No template for issuers |
+| **Upload** | Static PDF/Excel you attach (same as before) |
+| **Generated** | Platform fills a catalog document when the issuer clicks **Download template** |
+
+Generated is only shown when the engineering catalog has types for that context (today: **ARF contract facility Letter of Offer (LO)** on acceptance rows).
+
+- Generated rows are **PDF + single file** only.
+- Upload and Generated are mutually exclusive.
+- Issuers download a filled PDF after the offer is sent; they still **upload the completed signed copy** — generate does not replace that upload.
+
+Engineering guide: **docs/guides/generated-documents/README.md**.
+
+---
+
 ## API (for developers)
 
 - List: `GET /v1/products?page=1&pageSize=10&search=...`

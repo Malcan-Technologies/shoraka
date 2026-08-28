@@ -47,4 +47,19 @@ describe("issuer application workflow copy", () => {
     expect(source).toContain("Open Organisation");
     expect(source).toContain("showTechnicalIds={false}");
   });
+
+  it("about-your-business lives on the company step, not the business step", () => {
+    const company = fs.readFileSync(
+      path.join(FLOW_ROOT, "steps/company-details-step.tsx"),
+      "utf8"
+    );
+    const business = fs.readFileSync(
+      path.join(FLOW_ROOT, "steps/business-details-step.tsx"),
+      "utf8"
+    );
+    expect(company).toContain("About your business");
+    expect(company).toContain('href="/profile?focus=about"');
+    expect(business).not.toContain("What does your company do?");
+    expect(business).not.toContain("about_your_business");
+  });
 });

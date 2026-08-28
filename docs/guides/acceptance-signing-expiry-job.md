@@ -11,7 +11,7 @@ Product `days` are **Malaysia calendar days** ending at **11:59 PM** on the last
 
 Reminders fire at the platform **offer deadline reminder hour** (default **09:00** MYT), configured under **Settings → Platform Finance → Offer Deadlines**. Offset `days_before_expiry: 1` sends on the calendar day before the deadline; `0` sends on the deadline date. The job loads the hour once per run; idempotency keys in `deadline_reminders_sent` prevent duplicate sends.
 
-Exact-time API gates (`assertAcceptanceDeadlineOpen` / `assertSigningDeadlineOpen`) block issuer actions as soon as the **active** clock passes; the job then persists the durable status. The acceptance clock is inactive during `PENDING_ADMIN_REVIEW` (paused while CashSouk reviews); it restarts with a fresh stamp when admin moves the phase to `CHANGES_REQUESTED`.
+Exact-time API gates (`assertAcceptanceDeadlineOpen` / `assertSigningDeadlineOpen`) block issuer actions as soon as the **active** clock passes; the job then persists the durable status. The acceptance clock is inactive during `PENDING_ADMIN_REVIEW` (paused while CashSouk reviews); it restarts with a fresh stamp when admin moves the phase to `CHANGES_REQUESTED`. The signing clock is inactive until admin **sends signing links** (`SIGNING_IN_PROGRESS`); waiting at `APPROVED_FOR_SIGNING` does not count down.
 
 When the **signing** clock has passed, admin can **Extend signing deadline** from Acceptance → Signing package (`POST …/extend-signing-deadline`). That restamps `signing_expires_at` and, if the entity was durable `OFFER_EXPIRED`, restores `OFFER_SENT` without resetting acceptance docs. Full **Send Offer** remains available for a commercial reset.
 

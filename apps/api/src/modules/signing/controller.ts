@@ -9,7 +9,7 @@ import { AppError } from "../../lib/http/error-handler";
 import { signingService } from "./service";
 import { ActivityPortal } from "../applications/logs/types";
 import {
-  createIssuerEnvelopeSchema,
+  sendAdminSigningPackageSchema,
   voidEnvelopeSchema,
   startExternalSigningSchema,
   confirmExternalSignedSchema,
@@ -41,27 +41,16 @@ function ok(res: Response, data: unknown, status = 200): void {
   });
 }
 
-async function createIssuerEnvelope(req: Request, res: Response, next: NextFunction) {
+async function sendAdminSigningPackage(req: Request, res: Response, next: NextFunction) {
   try {
-    const body = createIssuerEnvelopeSchema.parse(req.body);
-    const envelope = await signingService.createIssuerEnvelope({
+    const body = sendAdminSigningPackageSchema.parse(req.body ?? {});
+    const envelope = await signingService.createAndSendAdminEnvelope({
       applicationId: req.params.applicationId,
-      title: body.title,
+      userId: getUserId(req),
       contractId: body.contractId ?? null,
       invoiceId: body.invoiceId ?? null,
-      bindings: body.bindings,
-      userId: getUserId(req),
-      expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
     });
-    ok(res, envelope, 201);
-  } catch (e) {
-    next(e);
-  }
-}
-
-async function sendEnvelope(req: Request, res: Response, next: NextFunction) {
-  try {
-    ok(res, await signingService.sendEnvelopeForIssuer(req.params.id, getUserId(req)));
+    ok(res, envelope);
   } catch (e) {
     next(e);
   }
@@ -199,6 +188,22 @@ async function startExternalSigning(req: Request, res: Response, next: NextFunct
   }
 }
 
+async function openExternalWarning(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(res, await signingService.openExternalWarning(req.params.accessToken, req));
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function acceptExternalWarning(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(res, await signingService.acceptExternalWarning(req.params.accessToken, req));
+  } catch (e) {
+    next(e);
+  }
+}
+
 async function confirmSigningReturn(req: Request, res: Response, next: NextFunction) {
   try {
     ok(res, await signingService.confirmRecipientSignedForReturnSession(req.params.returnSessionId));
@@ -289,6 +294,7 @@ async function getIssuerSignedDocument(req: Request, res: Response, next: NextFu
 
 export function createSigningAdminRouter(): Router {
   const router = Router();
+  router.post("/applications/:applicationId/envelopes/send", sendAdminSigningPackage);
   router.post("/envelopes/:id/void", voidEnvelope);
   router.post("/envelopes/:id/recipients/:recipientId/remind", remindRecipient);
   router.get("/envelopes/:id", async (req, res, next) => {
@@ -320,11 +326,12 @@ export function createSigningRouter(): Router {
   router.post("/external/:accessToken/verify", verifyExternalAccessCode);
   router.post("/external/:accessToken/reset-access", resetExternalAccessGate);
   router.post("/external/:accessToken/ekyc/session", createExternalEkycSession);
+  router.post("/external/:accessToken/warning/open", openExternalWarning);
+  router.post("/external/:accessToken/warning/accept", acceptExternalWarning);
   router.post("/external/:accessToken/start-signing", startExternalSigning);
   router.post("/external/:accessToken/confirm-signed", confirmExternalSigned);
   router.post("/external/:accessToken/sync-from-provider", syncExternalFromProvider);
   router.post("/return/:returnSessionId/confirm", externalSigningRateLimiter, confirmSigningReturn);
-  router.post("/applications/:applicationId/envelopes", requireAuth, createIssuerEnvelope);
   router.get(
     "/applications/:applicationId/product-workflow",
     requireAuth,
@@ -332,7 +339,6 @@ export function createSigningRouter(): Router {
   );
   router.get("/envelopes/:id", requireAuth, getEnvelope);
   router.get("/applications/:applicationId/envelopes", requireAuth, listEnvelopes);
-  router.post("/envelopes/:id/send", requireAuth, sendEnvelope);
   router.post("/envelopes/:id/sync-from-provider", requireAuth, syncEnvelopeFromProvider);
   router.post(
     "/envelopes/:id/recipients/:recipientId/remind",

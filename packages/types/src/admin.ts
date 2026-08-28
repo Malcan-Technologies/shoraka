@@ -1,4 +1,5 @@
 import type { UserRole } from "./index";
+import type { ReviewItemType } from "./review-scope";
 
 export interface PaginationParams {
   page: number;
@@ -709,6 +710,19 @@ export interface OrganizationDetailResponse {
       email?: string | null;
       contactNumber?: string | null;
     };
+    /** Editable org contact for applications; seeded from personInCharge at COD */
+    contactPerson?: {
+      name?: string | null;
+      position?: string | null;
+      email?: string | null;
+      contact?: string | null;
+    };
+    aboutYourBusiness?: {
+      whatDoesCompanyDo?: string;
+      mainCustomers?: string;
+      singleCustomerOver50Revenue?: boolean | null;
+      accountingSoftware?: string;
+    };
   };
 
   // Corporate entities (directors, shareholders, corporate shareholders) — COMPANY only
@@ -801,6 +815,12 @@ export interface UpdateAdminOrganizationCorporateOnboardingInput {
     position?: string | null;
     email?: string | null;
     contactNumber?: string | null;
+  };
+  aboutYourBusiness?: {
+    whatDoesCompanyDo?: string | null;
+    mainCustomers?: string | null;
+    singleCustomerOver50Revenue?: boolean | null;
+    accountingSoftware?: string | null;
   };
 }
 
@@ -1327,7 +1347,7 @@ export interface AddPendingAmendmentParams {
   scope: "section" | "item";
   scopeKey?: string;
   remark: string;
-  itemType?: "invoice" | "document";
+  itemType?: ReviewItemType;
   itemId?: string;
 }
 
@@ -1345,7 +1365,7 @@ export interface ApplicationReviewEvent {
 }
 
 export interface ReviewItemActionPayload {
-  itemType: "invoice" | "document";
+  itemType: ReviewItemType;
   itemId: string;
 }
 

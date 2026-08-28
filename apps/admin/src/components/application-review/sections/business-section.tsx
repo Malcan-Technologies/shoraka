@@ -469,11 +469,6 @@ interface RelationalGuarantorEntry {
 
 /** Normalized view model for Business Details review. Supports snake_case and camelCase from API/DB. */
 interface BusinessDetailsView {
-  about: {
-    whatDoesCompanyDo: string;
-    mainCustomers: string;
-    singleCustomerOver50Revenue: boolean | null;
-  };
   whyRaisingFunds: {
     financingFor: string;
     howFundsUsed: string;
@@ -484,7 +479,6 @@ interface BusinessDetailsView {
     platformName: string;
     amountRaised: number | null;
     sameInvoiceUsed: boolean | null;
-    accountingSoftware: string;
     supportingDocuments: Array<{ s3Key: string; fileName: string; fileSize?: number }>;
   };
   declarationConfirmed: boolean;
@@ -991,7 +985,6 @@ function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScree
 export function parseBusinessDetails(raw: unknown, relationalGuarantors?: GuarantorReviewRow[]): BusinessDetailsView | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
-  const a = (r.about_your_business ?? r.aboutYourBusiness) as Record<string, unknown> | undefined;
   const w = (r.why_raising_funds ?? r.whyRaisingFunds) as Record<string, unknown> | undefined;
 
   const bool = (v: unknown): boolean | null => {
@@ -1029,11 +1022,6 @@ export function parseBusinessDetails(raw: unknown, relationalGuarantors?: Guaran
   };
 
   return {
-    about: {
-      whatDoesCompanyDo: str(a?.what_does_company_do ?? a?.whatDoesCompanyDo) || REVIEW_EMPTY_LABEL,
-      mainCustomers: str(a?.main_customers ?? a?.mainCustomers) || REVIEW_EMPTY_LABEL,
-      singleCustomerOver50Revenue: bool(a?.single_customer_over_50_revenue ?? a?.singleCustomerOver50Revenue),
-    },
     whyRaisingFunds: {
       financingFor: str(w?.financing_for ?? w?.financingFor) || REVIEW_EMPTY_LABEL,
       howFundsUsed: str(w?.how_funds_used ?? w?.howFundsUsed) || REVIEW_EMPTY_LABEL,
@@ -1044,7 +1032,6 @@ export function parseBusinessDetails(raw: unknown, relationalGuarantors?: Guaran
       platformName: str(w?.platform_name ?? w?.platformName) || REVIEW_EMPTY_LABEL,
       amountRaised: num(w?.amount_raised ?? w?.amountRaised),
       sameInvoiceUsed: bool(w?.same_invoice_used ?? w?.sameInvoiceUsed),
-      accountingSoftware: str(w?.accounting_software ?? w?.accountingSoftware) || REVIEW_EMPTY_LABEL,
       supportingDocuments,
     },
     declarationConfirmed: Boolean(r.declaration_confirmed ?? r.declarationConfirmed),
@@ -1917,38 +1904,7 @@ export function BusinessSection({
           section={section}
           isReviewable={false}
         >
-          <ReviewFieldBlock title="About Your Business">
-          <div className="space-y-2">
-            <ComparisonFieldRow
-              label="What Does Your Company Do?"
-              before={b.about.whatDoesCompanyDo}
-              after={a.about.whatDoesCompanyDo}
-              changed={isPathChanged("business_details")}
-              multiline
-            />
-            <ComparisonFieldRow
-              label="Who Are Your Main Customers?"
-              before={b.about.mainCustomers}
-              after={a.about.mainCustomers}
-              changed={isPathChanged("business_details")}
-              multiline
-            />
-            <ComparisonYesNoRadioRow
-              label="Does Any Single Customer Make Up More Than 50% of Your Revenue?"
-              beforeValue={vb?.about.singleCustomerOver50Revenue ?? null}
-              afterValue={va?.about.singleCustomerOver50Revenue ?? null}
-              changed={isPathChanged("business_details")}
-            />
-            <ComparisonFieldRow
-              label="Which Accounting Software Does the Issuer Use?"
-              before={b.whyRaisingFunds.accountingSoftware}
-              after={a.whyRaisingFunds.accountingSoftware}
-              changed={isPathChanged("business_details")}
-            />
-          </div>
-        </ReviewFieldBlock>
-
-        <ReviewFieldBlock title="Why Are You Raising Funds?">
+          <ReviewFieldBlock title="Why Are You Raising Funds?">
           <div className="space-y-2">
             <ComparisonFieldRow
               label="What Is This Financing For?"
@@ -2087,23 +2043,6 @@ export function BusinessSection({
       >
       {view ? (
         <>
-          <ReviewFieldBlock title="About Your Business">
-            <div className={reviewRowGridClass}>
-              <Label className={reviewLabelClass}>What Does Your Company Do?</Label>
-              <ReviewValue value={view.about.whatDoesCompanyDo} multiline />
-              <Label className={reviewLabelClass}>Who Are Your Main Customers?</Label>
-              <ReviewValue value={view.about.mainCustomers} multiline />
-              <Label className={reviewLabelClass}>
-                Does Any Single Customer Make Up More Than 50% of Your Revenue?
-              </Label>
-              <span className={yesNoScaleWrapper}>
-                <YesNoRadioDisplay value={view.about.singleCustomerOver50Revenue} />
-              </span>
-              <Label className={reviewLabelClass}>Which Accounting Software Does the Issuer Use?</Label>
-              <ReviewValue value={view.whyRaisingFunds.accountingSoftware} />
-            </div>
-          </ReviewFieldBlock>
-
           <ReviewFieldBlock title="Why Are You Raising Funds?">
             <div className={reviewRowGridClass}>
               <Label className={reviewLabelClass}>What Is This Financing For?</Label>

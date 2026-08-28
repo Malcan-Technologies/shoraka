@@ -77,7 +77,7 @@ import { toast } from "sonner";
 /**
  * BUSINESS DETAILS STEP
  *
- * Form for about your business, why raising funds, and a declaration.
+ * Form for why raising funds, guarantors, and a declaration.
  * Data is persisted to application.business_details JSON column.
  *
  * Data Flow:
@@ -96,18 +96,11 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const GUARANTOR_EMAIL_STRICT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_GUARANTOR_RELATIONSHIP_OTHER = 500;
 
-/** “What does your company do?” and “Business plan” share the longer limit; other business textareas use the shorter limit. */
-const MAX_CHARS_WHAT_COMPANY_DO = 1000;
+/** Business plan uses the longer limit; other fundraising textareas use the shorter limit. */
 const MAX_CHARS_BUSINESS_PLAN = 1000;
 const MAX_CHARS_OTHER_BUSINESS_TEXTAREA = 400;
 
 type YesNo = "yes" | "no";
-
-interface AboutYourBusiness {
-  whatDoesCompanyDo: string;
-  mainCustomers: string;
-  singleCustomerOver50Revenue: YesNo | "";
-}
 
 interface WhyRaisingFunds {
   financingFor: string;
@@ -119,7 +112,6 @@ interface WhyRaisingFunds {
   platformName: string;
   amountRaised: string;
   sameInvoiceUsed: YesNo | "";
-  accountingSoftware: string;
   supportingDocuments: Array<{
     file_name: string;
     file_size: number;
@@ -205,7 +197,6 @@ function emptyCompanyGuarantor(): GuarantorCompanyRow {
 }
 
 interface BusinessDetailsPayload {
-  aboutYourBusiness: AboutYourBusiness;
   whyRaisingFunds: WhyRaisingFunds;
   declarationConfirmed: boolean;
   guarantors: GuarantorFormRow[];
@@ -213,11 +204,6 @@ interface BusinessDetailsPayload {
 
 /** API/DB shape: snake_case keys; yes/no fields stored as boolean */
 interface BusinessDetailsSnake {
-  about_your_business?: {
-    what_does_company_do?: string;
-    main_customers?: string;
-    single_customer_over_50_revenue?: boolean;
-  };
   why_raising_funds?: {
     financing_for?: string;
     how_funds_used?: string;
@@ -228,7 +214,6 @@ interface BusinessDetailsSnake {
     platform_name?: string | null;
     amount_raised?: number | null;
     same_invoice_used?: boolean | null;
-    accounting_software?: string;
     supporting_documents?: Array<{
       file_name: string;
       file_size: number;
@@ -503,11 +488,6 @@ function guarantorsFromRelationalRows(rows: unknown): GuarantorFormRow[] {
 
 function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
   const basePayload: BusinessDetailsSnake = {
-    about_your_business: {
-      what_does_company_do: p.aboutYourBusiness.whatDoesCompanyDo ?? "",
-      main_customers: p.aboutYourBusiness.mainCustomers ?? "",
-      single_customer_over_50_revenue: yesNoToBoolean(p.aboutYourBusiness.singleCustomerOver50Revenue),
-    },
     why_raising_funds: {
       financing_for: p.whyRaisingFunds.financingFor ?? "",
       how_funds_used: p.whyRaisingFunds.howFundsUsed ?? "",
@@ -515,7 +495,6 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
       risks_delay_repayment: p.whyRaisingFunds.risksDelayRepayment ?? "",
       backup_plan: p.whyRaisingFunds.backupPlan ?? "",
       raising_on_other_p2p: yesNoToBoolean(p.whyRaisingFunds.raisingOnOtherP2P),
-      accounting_software: p.whyRaisingFunds.accountingSoftware ?? "",
       supporting_documents: (p.whyRaisingFunds.supportingDocuments ?? [])
         .filter((d) => typeof d.s3_key === "string" && d.s3_key.trim() !== "")
         .map((d) => ({
@@ -575,7 +554,6 @@ function fromSnakeSaved(
   relationalGuarantors?: unknown
 ): BusinessDetailsPayload {
   const raw = saved as Record<string, unknown>;
-  const a = (raw?.about_your_business ?? raw?.aboutYourBusiness) as Record<string, unknown> | undefined;
   const w = (raw?.why_raising_funds ?? raw?.whyRaisingFunds) as Record<string, unknown> | undefined;
   const relational = guarantorsFromRelationalRows(relationalGuarantors ?? []);
   const jsonGuarantors = parseGuarantorsFromRaw(raw?.guarantors);
@@ -583,14 +561,6 @@ function fromSnakeSaved(
   const supportingRaw = w?.supporting_documents ?? w?.supportingDocuments;
   const amountRaw = w?.amount_raised ?? w?.amountRaised;
   return {
-    aboutYourBusiness: {
-      whatDoesCompanyDo:
-        coerceSavedString(a?.what_does_company_do) || coerceSavedString(a?.whatDoesCompanyDo),
-      mainCustomers: coerceSavedString(a?.main_customers) || coerceSavedString(a?.mainCustomers),
-      singleCustomerOver50Revenue: booleanToYesNoUnknown(
-        a?.single_customer_over_50_revenue ?? a?.singleCustomerOver50Revenue
-      ),
-    },
     whyRaisingFunds: {
       financingFor: coerceSavedString(w?.financing_for) || coerceSavedString(w?.financingFor),
       howFundsUsed: coerceSavedString(w?.how_funds_used) || coerceSavedString(w?.howFundsUsed),
@@ -609,8 +579,6 @@ function fromSnakeSaved(
             )
           : "",
       sameInvoiceUsed: booleanToYesNoUnknown(w?.same_invoice_used ?? w?.sameInvoiceUsed),
-      accountingSoftware:
-        coerceSavedString(w?.accounting_software) || coerceSavedString(w?.accountingSoftware),
       supportingDocuments: Array.isArray(supportingRaw)
         ? supportingRaw.map((doc: unknown) => {
             const d = doc as Record<string, unknown>;
@@ -699,12 +667,6 @@ export function generateMockData(): Record<string, unknown> {
   return generateBusinessDetailsData();
 }
 
-const defaultAbout: AboutYourBusiness = {
-  whatDoesCompanyDo: "",
-  mainCustomers: "",
-  singleCustomerOver50Revenue: "",
-};
-
 const defaultWhy: WhyRaisingFunds = {
   financingFor: "",
   howFundsUsed: "",
@@ -715,7 +677,6 @@ const defaultWhy: WhyRaisingFunds = {
   platformName: "",
   amountRaised: "",
   sameInvoiceUsed: "",
-  accountingSoftware: "",
   supportingDocuments: [],
 };
 
@@ -1509,7 +1470,6 @@ export function BusinessDetailsStep({
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const devTools = useDevTools();
 
-  const [aboutYourBusiness, setAboutYourBusiness] = React.useState<AboutYourBusiness>(defaultAbout);
   const [whyRaisingFunds, setWhyRaisingFunds] = React.useState<WhyRaisingFunds>(defaultWhy);
   const [declarationConfirmed, setDeclarationConfirmed] = React.useState(false);
   const [guarantors, setGuarantors] = React.useState<GuarantorFormRow[]>([emptyIndividualGuarantor()]);
@@ -1570,7 +1530,6 @@ export function BusinessDetailsStep({
 
   const evaluateBusinessDetails = React.useCallback(
     (mode: "presence" | "strict") => {
-      const { whatDoesCompanyDo, mainCustomers, singleCustomerOver50Revenue } = aboutYourBusiness;
       const {
         financingFor,
         howFundsUsed,
@@ -1581,20 +1540,15 @@ export function BusinessDetailsStep({
         platformName,
         amountRaised,
         sameInvoiceUsed,
-        accountingSoftware,
       } = whyRaisingFunds;
 
       if (
-        !whatDoesCompanyDo.trim() ||
-        !mainCustomers.trim() ||
-        !singleCustomerOver50Revenue.trim() ||
         !financingFor.trim() ||
         !howFundsUsed.trim() ||
         !businessPlan.trim() ||
         !risksDelayRepayment.trim() ||
         !backupPlan.trim() ||
         !raisingOnOtherP2P.trim() ||
-        !accountingSoftware.trim() ||
         !declarationConfirmed
       ) {
         return false;
@@ -1662,7 +1616,6 @@ export function BusinessDetailsStep({
       return true;
     },
     [
-      aboutYourBusiness,
       whyRaisingFunds,
       declarationConfirmed,
       guarantors,
@@ -1785,7 +1738,6 @@ export function BusinessDetailsStep({
         : undefined;
     const relational = (application as { application_guarantors?: unknown[] }).application_guarantors;
     const initial = fromSnakeSaved(saved, relational);
-    setAboutYourBusiness(initial.aboutYourBusiness);
     setWhyRaisingFunds({
       ...initial.whyRaisingFunds,
       amountRaised: initial.whyRaisingFunds.amountRaised,
@@ -1820,7 +1772,6 @@ export function BusinessDetailsStep({
         : (devTools?.autoFillDataMap?.["business_details"] as Record<string, unknown> | undefined);
     if (!data || Object.keys(data).length === 0) return;
     const initial = fromSnakeSaved(data);
-    setAboutYourBusiness(initial.aboutYourBusiness);
     setWhyRaisingFunds(initial.whyRaisingFunds);
     setDeclarationConfirmed(initial.declarationConfirmed);
     setGuarantors(initial.guarantors);
@@ -1837,12 +1788,11 @@ export function BusinessDetailsStep({
 
   const payload: BusinessDetailsPayload = React.useMemo(
     () => ({
-      aboutYourBusiness,
       whyRaisingFunds,
       declarationConfirmed,
       guarantors,
     }),
-    [aboutYourBusiness, whyRaisingFunds, declarationConfirmed, guarantors]
+    [whyRaisingFunds, declarationConfirmed, guarantors]
   );
 
   const snakePayload = React.useMemo(() => toSnakePayload(payload), [payload]);
@@ -2110,7 +2060,6 @@ export function BusinessDetailsStep({
     setInitialWhySupportingDocuments(nextWhyRaisingFunds.supportingDocuments);
 
     const nextPayload = toSnakePayload({
-      aboutYourBusiness,
       whyRaisingFunds: nextWhyRaisingFunds,
       declarationConfirmed,
       guarantors: guarantorsIn,
@@ -2125,7 +2074,6 @@ export function BusinessDetailsStep({
       pendingSupportingDocuments,
       whyRaisingFunds,
       initialWhySupportingDocuments,
-      aboutYourBusiness,
       declarationConfirmed,
     ]
   );
@@ -2173,7 +2121,6 @@ export function BusinessDetailsStep({
         }
         if (hadGuarantorWork) {
           const nextPayload = toSnakePayload({
-            aboutYourBusiness,
             whyRaisingFunds,
             declarationConfirmed,
             guarantors: nextGuarantors,
@@ -2195,7 +2142,6 @@ export function BusinessDetailsStep({
     hasRemovedSupportingDocuments,
     pendingGuarantorAgreements,
     hasRemovedGuarantorAgreements,
-    aboutYourBusiness,
     declarationConfirmed,
     getAccessToken,
     guarantors,
@@ -2316,88 +2262,6 @@ export function BusinessDetailsStep({
   return (
     <>
       <div className={formOuterClassName}>
-        {/* ===================== ABOUT YOUR BUSINESS ===================== */}
-        <section className={`${sectionWrapperClassName} space-y-5`}>
-        <div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h3 className={cn(applicationFlowSectionTitleClassName, "shrink-0")}>About your business</h3>
-            <InvestorVisibilityBadge />
-          </div>
-          <div className={applicationFlowSectionDividerClassName} />
-        </div>
-
-        <div className={rowGridClassName}>
-          <Label htmlFor="what-does-company-do" className={labelTextareaClassName}>
-            What does your company do?
-          </Label>
-          <TextareaWithCharCount
-            id="what-does-company-do"
-            value={aboutYourBusiness.whatDoesCompanyDo}
-            onChange={(e) =>
-              setAboutYourBusiness((prev) => ({
-                ...prev,
-                whatDoesCompanyDo: e.target.value.slice(0, MAX_CHARS_WHAT_COMPANY_DO),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={MAX_CHARS_WHAT_COMPANY_DO}
-            className={textareaClassName}
-            countLabel={`${aboutYourBusiness.whatDoesCompanyDo.length}/${MAX_CHARS_WHAT_COMPANY_DO} characters`}
-            disabled={fieldsLocked}
-          />
-
-          <Label htmlFor="main-customers" className={labelTextareaClassName}>
-            Who are your main customers?
-          </Label>
-          <TextareaWithCharCount
-            id="main-customers"
-            value={aboutYourBusiness.mainCustomers}
-            onChange={(e) =>
-              setAboutYourBusiness((prev) => ({
-                ...prev,
-                mainCustomers: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
-            className={textareaClassName}
-            countLabel={`${aboutYourBusiness.mainCustomers.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
-            disabled={fieldsLocked}
-          />
-
-          <Label className={labelInputClassName}>
-            Does any single customer make up more than 50% of your revenue?
-          </Label>
-          <div className={applicationFlowRadioRowControlClassName}>
-            <YesNoRadioGroup
-              name="singleCustomerOver50Revenue"
-              value={aboutYourBusiness.singleCustomerOver50Revenue}
-              onValueChange={(v) =>
-                setAboutYourBusiness((prev) => ({ ...prev, singleCustomerOver50Revenue: v }))
-              }
-              disabled={fieldsLocked}
-            />
-          </div>
-
-          <Label htmlFor="accounting-software" className={labelInputClassName}>
-            Which accounting software does the issuer use?
-          </Label>
-          <Input
-            id="accounting-software"
-            value={whyRaisingFunds.accountingSoftware}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                accountingSoftware: e.target.value,
-              }))
-            }
-            placeholder="e.g. QuickBooks, Xero, SAP"
-            className={cn(inputClassName, fieldsLocked && formInputDisabledClassName)}
-            disabled={fieldsLocked}
-          />
-        </div>
-      </section>
-
       {/* ===================== WHY ARE YOU RAISING FUNDS ===================== */}
       <section className={`${sectionWrapperClassName} space-y-5`}>
         <div>

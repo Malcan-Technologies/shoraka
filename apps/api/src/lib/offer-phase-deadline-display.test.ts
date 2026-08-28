@@ -43,7 +43,20 @@ describe("getOfferPhaseDeadlineDisplay (shared)", () => {
     expect(display?.isPast).toBe(false);
   });
 
-  it("shows Complete signing by after BR approve", () => {
+  it("shows Complete signing by after signing links are sent", () => {
+    const display = getOfferPhaseDeadlineDisplay(
+      {
+        offer_acceptance: {
+          status: "SIGNING_IN_PROGRESS",
+          signing_expires_at: computePhaseDeadlineExpiresAt("2026-07-22T06:00:00.000Z", 14),
+        },
+      },
+      now
+    );
+    expect(display?.label).toBe("Complete signing by");
+  });
+
+  it("hides the signing deadline while waiting for CashSouk to send links", () => {
     const display = getOfferPhaseDeadlineDisplay(
       {
         offer_acceptance: {
@@ -53,7 +66,7 @@ describe("getOfferPhaseDeadlineDisplay (shared)", () => {
       },
       now
     );
-    expect(display?.label).toBe("Complete signing by");
+    expect(display).toBeNull();
   });
 
   it("shows Expired when past", () => {

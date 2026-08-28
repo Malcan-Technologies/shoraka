@@ -63,7 +63,8 @@ import { sumApprovedFacilityAmount } from "./organization-header-metrics";
 import { updateAdminOrganizationProfile } from "./organization-admin-profile";
 import {
   assertAcceptanceDocumentChangeRequestAllowed,
-  isAcceptanceDocumentItemId,
+  assertAuthorizedRepresentativeChangeRequestAllowed,
+  isAcceptanceHubReviewItem,
   isAcceptanceDocumentsAmendmentQueueScope,
   shouldNotifyAcceptanceDocumentChanges,
 } from "./acceptance-document-change";
@@ -78,6 +79,7 @@ import {
   type OnboardingApplicationResponse,
   type OnboardingStatusEnum,
   type UserDetailResponse,
+  parseAboutYourBusiness,
 } from "@cashsouk/types";
 import {
   ADMIN_PERMISSIONS,
@@ -91,6 +93,8 @@ import {
   getStepKeyFromStepId,
   workflowHasAcceptanceDocuments,
   collectAcceptanceDocumentReviewKeys,
+  collectAuthorizedRepresentativeReviewKeys,
+  AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
   getOfferAcceptanceFromOfferDetails,
   isOfferAcceptanceResendBlocked,
   isPhaseDeadlineExpired,
@@ -104,7 +108,6 @@ import {
   canManageDirectorShareholder,
   computeHasPendingDirectorShareholder,
   filterVisiblePeopleRows,
-  WithdrawReason,
   isMarcSmeGrade,
   MARC_ASSESSMENT_REQUIRED_MESSAGE,
   NOTE_RISK_RATING_UNASSIGNED_MESSAGE,
@@ -128,6 +131,7 @@ import {
   INVOICE_FINANCING_RATIO_CAP_MESSAGE,
   type AdditionalFeeLine,
   type InvoiceOfferFeeScheduleWriteMode,
+  type ReviewItemType,
   canonicalDownloadFilenameToken,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
@@ -151,12 +155,37 @@ import { notifyIssuerDirectorShareholderActionRequired } from "../notification/d
 import { logApplicationActivity } from "../applications/logs/service";
 import { createApplicationReviewEventRow } from "../applications/logs/review-events";
 import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
+import { resolveAcceptanceReviewApprovalGate } from "../applications/acceptance-document-review-sync";
 
 export interface AdminLogContext {
   ipAddress?: string | null;
   userAgent?: string | null;
   deviceInfo?: string | null;
 }
+
+type OfferAcceptancePhaseSyncApplication = {
+  financing_type?: unknown;
+  product_version?: number | null;
+  supporting_documents?: unknown;
+  acceptance_documents?: unknown;
+  financing_structure?: unknown;
+  contract?: {
+    id: string;
+    status: string;
+    offer_details?: unknown;
+  } | null;
+  invoices?: Array<{
+    id: string;
+    status: string;
+    contract_id?: string | null;
+    offer_details?: unknown;
+  }>;
+  application_review_items?: Array<{
+    item_type: string;
+    item_id: string;
+    status: string;
+  }>;
+};
 import { ProductRepository } from "../products/repository";
 import {
   resolveContractValue,
@@ -183,7 +212,6 @@ import {
 import {
   acceptanceDeadlinePatchOnChangesRequested,
   buildOfferAcceptanceOnSend,
-  signingDeadlinePatchOnApprove,
   signingDeadlinePatchOnExtend,
   SIGNING_ACTIVE,
 } from "../../lib/phase-deadlines";
@@ -729,6 +757,9 @@ export class AdminService {
     applicationId: string,
     application: {
       acceptance_documents?: unknown;
+      financing_structure?: unknown;
+      contract?: { offer_details?: unknown } | null;
+      invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
     },
     workflow: unknown[]
   ): Promise<void> {
@@ -757,7 +788,49 @@ export class AdminService {
         },
       });
     }
-    if (docKeys.length === 0 && !workflowHasAcceptanceDocuments(workflow)) {
+    const partyKeys = collectAuthorizedRepresentativeReviewKeys(
+      this.getPrimaryOfferAcceptance(application)?.authorized_parties
+    );
+    await tx.applicationReviewItem.updateMany({
+      where: {
+        application_id: applicationId,
+        item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+      },
+      data: {
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+    });
+    for (const itemId of partyKeys) {
+      await tx.applicationReviewItem.upsert({
+        where: {
+          application_id_item_type_item_id: {
+            application_id: applicationId,
+            item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+            item_id: itemId,
+          },
+        },
+        create: {
+          application_id: applicationId,
+          item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+          item_id: itemId,
+          status: ReviewStepStatus.PENDING,
+          reviewer_user_id: null,
+          reviewed_at: null,
+        },
+        update: {
+          status: ReviewStepStatus.PENDING,
+          reviewer_user_id: null,
+          reviewed_at: null,
+        },
+      });
+    }
+    if (
+      docKeys.length === 0 &&
+      partyKeys.length === 0 &&
+      !workflowHasAcceptanceDocuments(workflow)
+    ) {
       return;
     }
     await tx.applicationReview.upsert({
@@ -2660,6 +2733,18 @@ export class AdminService {
         email?: string | null;
         contactNumber?: string | null;
       };
+      contactPerson?: {
+        name?: string | null;
+        position?: string | null;
+        email?: string | null;
+        contact?: string | null;
+      };
+      aboutYourBusiness?: {
+        whatDoesCompanyDo?: string;
+        mainCustomers?: string;
+        singleCustomerOver50Revenue?: boolean | null;
+        accountingSoftware?: string;
+      };
     };
     corporateEntities?: Record<string, unknown> | null;
     latestOrganizationCtosCompanyJson?: Record<string, unknown> | null;
@@ -2839,6 +2924,13 @@ export class AdminService {
             email?: string | null;
             contactNumber?: string | null;
           };
+          contactPerson?: {
+            name?: string | null;
+            position?: string | null;
+            email?: string | null;
+            contact?: string | null;
+          };
+          aboutYourBusiness?: unknown;
         };
 
         return {
@@ -2875,6 +2967,32 @@ export class AdminService {
                 contactNumber: data.personInCharge.contactNumber || undefined,
               }
             : undefined,
+          contactPerson: (() => {
+            const existing = data.contactPerson;
+            const hasExisting = !!(
+              existing?.name?.trim() ||
+              existing?.email?.trim() ||
+              existing?.position?.trim() ||
+              existing?.contact?.trim()
+            );
+            if (hasExisting && existing) {
+              return {
+                name: existing.name || undefined,
+                position: existing.position || undefined,
+                email: existing.email || undefined,
+                contact: existing.contact || undefined,
+              };
+            }
+            const pic = data.personInCharge;
+            if (!pic) return undefined;
+            return {
+              name: pic.name || undefined,
+              position: pic.position || undefined,
+              email: pic.email || undefined,
+              contact: pic.contactNumber || undefined,
+            };
+          })(),
+          aboutYourBusiness: parseAboutYourBusiness(data.aboutYourBusiness),
         };
       })(),
       corporateEntities:
@@ -7520,15 +7638,34 @@ export class AdminService {
    * Validate that a review item exists in the application
    */
   private validateReviewItemExists(
-    application: { invoices?: { id: string }[]; supporting_documents?: unknown },
-    itemType: "invoice" | "document",
+    application: {
+      invoices?: { id: string; contract_id?: string | null; offer_details?: unknown }[];
+      supporting_documents?: unknown;
+      acceptance_documents?: unknown;
+      financing_structure?: unknown;
+      contract?: { offer_details?: unknown } | null;
+    },
+    itemType: ReviewItemType,
     itemId: string
   ): void {
     if (itemType === "invoice") {
       this.validateInvoiceExists(application as { invoices: { id: string }[] }, itemId);
-    } else {
-      this.validateDocumentExists(application as { supporting_documents?: unknown }, itemId);
+      return;
     }
+    if (itemType === "authorized_representatives") {
+      const keys = collectAuthorizedRepresentativeReviewKeys(
+        this.getPrimaryOfferAcceptance(application)?.authorized_parties
+      );
+      if (!keys.includes(itemId)) {
+        throw new AppError(
+          400,
+          "INVALID_ITEM",
+          `Representative list ${itemId} not found in this application`
+        );
+      }
+      return;
+    }
+    this.validateDocumentExists(application as { supporting_documents?: unknown }, itemId);
   }
 
   /**
@@ -7595,15 +7732,16 @@ export class AdminService {
   }
 
   /**
-   * Updates acceptance_documents section row from per-document item rows (same rules as Documents).
-   * When a primary offer_acceptance ceremony is in progress, do not finalize the section to
-   * APPROVED until signing / offer accept sets offer_acceptance to COMPLETED.
+   * Updates acceptance_documents section row from per-document and representative-list
+   * item rows. When a primary offer_acceptance ceremony is in progress, do not finalize
+   * the section to APPROVED until signing / offer accept sets offer_acceptance to COMPLETED.
    */
   private async syncAcceptanceDocumentsSectionFromItems(
     repository: AdminRepository,
     applicationId: string,
     application: {
       acceptance_documents?: unknown;
+      financing_structure?: unknown;
       application_reviews?: { section: string; status: string }[];
       application_review_items?: { item_type: string; item_id: string; status: string }[];
       contract?: { offer_details?: unknown } | null;
@@ -7613,19 +7751,23 @@ export class AdminService {
     logContext?: AdminLogContext
   ): Promise<void> {
     const docs = application.acceptance_documents;
-    if (!docs || typeof docs !== "object") {
-      return;
-    }
-    const docKeys = [...this.collectAcceptanceDocumentKeys(docs)];
-    if (docKeys.length === 0) {
+    const docKeys =
+      docs && typeof docs === "object" ? [...this.collectAcceptanceDocumentKeys(docs)] : [];
+    const partyKeys = collectAuthorizedRepresentativeReviewKeys(
+      this.getPrimaryOfferAcceptance(application)?.authorized_parties
+    );
+    if (docKeys.length === 0 && partyKeys.length === 0) {
       return;
     }
 
-    const documentRows =
-      application.application_review_items?.filter((r) => r.item_type === "document") ?? [];
+    const reviewRows =
+      application.application_review_items?.filter(
+        (r) =>
+          r.item_type === "document" || r.item_type === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE
+      ) ?? [];
     let target = computeSupportingDocumentsSectionStatus(
-      docKeys,
-      documentRows.map((r) => ({ item_id: r.item_id, status: r.status }))
+      [...docKeys, ...partyKeys],
+      reviewRows.map((r) => ({ item_id: r.item_id, status: r.status }))
     );
 
     const primaryAcceptance =
@@ -7728,6 +7870,21 @@ export class AdminService {
     return (product?.workflow as unknown[]) ?? [];
   }
 
+  private async reloadAndSyncOfferAcceptancePhase(
+    repository: AdminRepository,
+    applicationId: string,
+    nextApp: Awaited<ReturnType<AdminRepository["getApplicationById"]>>,
+    reviewerUserId: string
+  ): Promise<Awaited<ReturnType<AdminRepository["getApplicationById"]>>> {
+    if (!nextApp) return nextApp;
+    await this.syncOfferAcceptancePhaseFromAcceptanceDocs(
+      applicationId,
+      nextApp as OfferAcceptancePhaseSyncApplication,
+      reviewerUserId
+    );
+    return repository.getApplicationById(applicationId);
+  }
+
   /** Primary offer (contract, else standalone invoice) acceptance phase status. */
   private getPrimaryOfferAcceptanceStatus(application: {
     financing_structure?: unknown;
@@ -7766,7 +7923,7 @@ export class AdminService {
   }
 
   /**
-   * Keep offer_acceptance.status aligned with acceptance-doc review items.
+   * Keep offer_acceptance.status aligned with acceptance-doc and people review items.
    * - Amendment → CHANGES_REQUESTED (only after Step 1 was submitted); restamps acceptance clock
    * - Clearing all amendment flags rolls CHANGES_REQUESTED → PENDING_ADMIN_REVIEW
    * - All approved → APPROVED_FOR_SIGNING (only from PENDING_ADMIN_REVIEW / already approved)
@@ -7775,24 +7932,7 @@ export class AdminService {
    */
   private async syncOfferAcceptancePhaseFromAcceptanceDocs(
     applicationId: string,
-    application: {
-      financing_type?: unknown;
-      product_version?: number | null;
-      supporting_documents?: unknown;
-      acceptance_documents?: unknown;
-      contract?: {
-        id: string;
-        status: string;
-        offer_details?: unknown;
-      } | null;
-      invoices?: Array<{
-        id: string;
-        status: string;
-        contract_id?: string | null;
-        offer_details?: unknown;
-      }>;
-      application_review_items?: Array<{ item_type: string; item_id: string; status: string }>;
-    },
+    application: OfferAcceptancePhaseSyncApplication,
     reviewerUserId: string
   ): Promise<void> {
     const workflow = await this.loadApplicationProductWorkflow(application);
@@ -7837,14 +7977,28 @@ export class AdminService {
       };
     }
 
-    const docKeys = collectAcceptanceDocumentReviewKeys(workflow, application.acceptance_documents);
-    const documentRows =
-      application.application_review_items?.filter((r) => r.item_type === "document") ?? [];
-    const statusByKey = new Map(documentRows.map((r) => [r.item_id, r.status]));
-
-    const hasAmendment = docKeys.some((key) => statusByKey.get(key) === "AMENDMENT_REQUESTED");
-    const allApproved =
-      docKeys.length > 0 && docKeys.every((key) => statusByKey.get(key) === "APPROVED");
+    const docKeys = collectAcceptanceDocumentReviewKeys(
+      workflow,
+      application.acceptance_documents
+    );
+    const partyKeys = collectAuthorizedRepresentativeReviewKeys(
+      this.getPrimaryOfferAcceptance(application)?.authorized_parties
+    );
+    const reviewRows = application.application_review_items ?? [];
+    const statusByKey = new Map(
+      reviewRows
+        .filter(
+          (row) =>
+            row.item_type === "document" ||
+            row.item_type === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE
+        )
+        .map((row) => [row.item_id, row.status])
+    );
+    const { hasAmendment, allApproved } = resolveAcceptanceReviewApprovalGate({
+      docKeys,
+      partyKeys,
+      statusByKey,
+    });
 
     const now = new Date().toISOString();
 
@@ -7893,7 +8047,7 @@ export class AdminService {
         return null;
       }
 
-      if (current.status === "APPROVED_FOR_SIGNING" && docKeys.length > 0) {
+      if (current.status === "APPROVED_FOR_SIGNING" && (docKeys.length > 0 || partyKeys.length > 0)) {
         return "PENDING_ADMIN_REVIEW";
       }
       return null;
@@ -7909,9 +8063,6 @@ export class AdminService {
           status: target,
           reviewed_at: now,
           reviewed_by_user_id: reviewerUserId,
-          ...(target === "APPROVED_FOR_SIGNING"
-            ? signingDeadlinePatchOnApprove(workflow, now, current)
-            : {}),
           ...(target === "CHANGES_REQUESTED"
             ? acceptanceDeadlinePatchOnChangesRequested(workflow, now, current)
             : {}),
@@ -7946,9 +8097,6 @@ export class AdminService {
         status: target,
         reviewed_at: now,
         reviewed_by_user_id: reviewerUserId,
-        ...(target === "APPROVED_FOR_SIGNING"
-          ? signingDeadlinePatchOnApprove(workflow, now, current)
-          : {}),
         ...(target === "CHANGES_REQUESTED"
           ? acceptanceDeadlinePatchOnChangesRequested(workflow, now, current)
           : {}),
@@ -8629,7 +8777,7 @@ export class AdminService {
         throw new AppError(
           400,
           "INVALID_STATE",
-          "Signing deadline can only be extended after acceptance is approved for signing"
+          "Signing deadline can only be extended after signing links have been sent"
         );
       }
       const expiresAt = current.signing_expires_at;
@@ -9224,7 +9372,7 @@ export class AdminService {
         throw new AppError(
           400,
           "INVALID_STATE",
-          "Signing deadline can only be extended after acceptance is approved for signing"
+          "Signing deadline can only be extended after signing links have been sent"
         );
       }
       const expiresAt = current.signing_expires_at;
@@ -9316,7 +9464,7 @@ export class AdminService {
   private async clearItemDraftAmendments(
     repository: AdminRepository,
     applicationId: string,
-    _itemType: "invoice" | "document",
+    _itemType: ReviewItemType,
     itemId: string
   ): Promise<void> {
     const scopeKeys = new Set<string>([itemId]);
@@ -9334,7 +9482,7 @@ export class AdminService {
   private async clearItemRemarks(
     repository: AdminRepository,
     applicationId: string,
-    _itemType: "invoice" | "document",
+    _itemType: ReviewItemType,
     itemId: string
   ): Promise<void> {
     const scopeKeys = new Set<string>([itemId]);
@@ -9371,7 +9519,7 @@ export class AdminService {
         "INVALID_ACTION",
         section === "supporting_documents"
           ? "Documents section status is derived from per-document reviews; approve each document instead"
-          : "Acceptance section status is derived from per-document reviews; approve each document instead"
+          : "Acceptance section status is derived from per-document and representative-list reviews; approve each item instead"
       );
     }
     if (section === "contract_details" || section === "invoice_details") {
@@ -9506,11 +9654,28 @@ export class AdminService {
           (application as { acceptance_documents?: unknown }).acceptance_documents
         ),
       ];
-      if (docKeys.length > 0) {
+      const partyKeys = collectAuthorizedRepresentativeReviewKeys(
+        this.getPrimaryOfferAcceptance(application)?.authorized_parties
+      );
+      if (docKeys.length > 0 || partyKeys.length > 0) {
         for (const itemId of docKeys) {
           await this.resetItemReviewToPending(
             applicationId,
             "document",
+            itemId,
+            reviewerUserId,
+            logContext,
+            {
+              skipSupportingDocumentsSectionSync: true,
+              skipItemActivityLog: true,
+              skipOfferAcceptancePhaseSync: true,
+            }
+          );
+        }
+        for (const itemId of partyKeys) {
+          await this.resetItemReviewToPending(
+            applicationId,
+            AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
             itemId,
             reviewerUserId,
             logContext,
@@ -9537,33 +9702,12 @@ export class AdminService {
             logContext
           );
           nextApp = await repository.getApplicationById(applicationId);
-          await this.syncOfferAcceptancePhaseFromAcceptanceDocs(
+          nextApp = await this.reloadAndSyncOfferAcceptancePhase(
+            repository,
             applicationId,
-            nextApp as {
-              financing_type?: unknown;
-              product_version?: number | null;
-              supporting_documents?: unknown;
-              acceptance_documents?: unknown;
-              contract?: {
-                id: string;
-                status: string;
-                offer_details?: unknown;
-              } | null;
-              invoices?: Array<{
-                id: string;
-                status: string;
-                contract_id?: string | null;
-                offer_details?: unknown;
-              }>;
-              application_review_items?: Array<{
-                item_type: string;
-                item_id: string;
-                status: string;
-              }>;
-            },
+            nextApp,
             reviewerUserId
           );
-          nextApp = await repository.getApplicationById(applicationId);
         }
         await repository.removeDraftAmendment(applicationId, "section", section);
         logger.info({ applicationId, section, reviewerUserId }, "Review section reset to pending");
@@ -9720,7 +9864,7 @@ export class AdminService {
    */
   async resetItemReviewToPending(
     applicationId: string,
-    itemType: "invoice" | "document",
+    itemType: ReviewItemType,
     itemId: string,
     reviewerUserId: string,
     logContext?: AdminLogContext,
@@ -9743,7 +9887,8 @@ export class AdminService {
     if (itemType === "invoice") {
       await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
     }
-    if (itemType === "document" && itemId.startsWith("acceptance_documents:")) {
+    if (isAcceptanceHubReviewItem(itemType, itemId)) {
+      this.assertAcceptanceReviewNotInherited(application);
       await this.assertNoActiveSigningPackageForAcceptanceActions(
         applicationId,
         application,
@@ -9877,7 +10022,11 @@ export class AdminService {
       "Review item reset to pending"
     );
     let nextApp = await repository.getApplicationById(applicationId);
-    if (itemType === "document" && nextApp && !options?.skipSupportingDocumentsSectionSync) {
+    if (
+      (itemType === "document" || itemType === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE) &&
+      nextApp &&
+      !options?.skipSupportingDocumentsSectionSync
+    ) {
       await this.syncDocumentDerivedSectionsFromItems(
         repository,
         applicationId,
@@ -9888,38 +10037,16 @@ export class AdminService {
       nextApp = await repository.getApplicationById(applicationId);
     }
     if (
-      itemType === "document" &&
-      itemId.startsWith("acceptance_documents:") &&
+      isAcceptanceHubReviewItem(itemType, itemId) &&
       nextApp &&
       !options?.skipOfferAcceptancePhaseSync
     ) {
-      await this.syncOfferAcceptancePhaseFromAcceptanceDocs(
+      nextApp = await this.reloadAndSyncOfferAcceptancePhase(
+        repository,
         applicationId,
-        nextApp as {
-          financing_type?: unknown;
-          product_version?: number | null;
-          supporting_documents?: unknown;
-          acceptance_documents?: unknown;
-          contract?: {
-            id: string;
-            status: string;
-            offer_details?: unknown;
-          } | null;
-          invoices?: Array<{
-            id: string;
-            status: string;
-            contract_id?: string | null;
-            offer_details?: unknown;
-          }>;
-          application_review_items?: Array<{
-            item_type: string;
-            item_id: string;
-            status: string;
-          }>;
-        },
+        nextApp,
         reviewerUserId
       );
-      nextApp = await repository.getApplicationById(applicationId);
     }
     if (itemType === "invoice" && nextApp && !options?.skipInvoiceDetailsSectionSync) {
       await this.syncInvoiceDetailsSectionFromItems(
@@ -10201,7 +10328,7 @@ export class AdminService {
    */
   async approveReviewItem(
     applicationId: string,
-    itemType: "invoice" | "document",
+    itemType: ReviewItemType,
     itemId: string,
     reviewerUserId: string,
     remark?: string | null,
@@ -10209,7 +10336,7 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
-    if (itemType === "document" && itemId.startsWith("acceptance_documents:")) {
+    if (isAcceptanceHubReviewItem(itemType, itemId)) {
       this.assertAcceptanceReviewNotInherited(application);
     }
     await this.ensureUnderReview(
@@ -10225,7 +10352,7 @@ export class AdminService {
         "Invoice approvals must be finalized by issuer offer response"
       );
     }
-    if (itemId.startsWith("acceptance_documents:")) {
+    if (isAcceptanceHubReviewItem(itemType, itemId)) {
       await this.assertNoActiveSigningPackageForAcceptanceActions(
         applicationId,
         application,
@@ -10270,7 +10397,10 @@ export class AdminService {
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
 
     let nextApp = await repository.getApplicationById(applicationId);
-    if (itemType === "document" && nextApp) {
+    if (
+      (itemType === "document" || itemType === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE) &&
+      nextApp
+    ) {
       await this.syncDocumentDerivedSectionsFromItems(
         repository,
         applicationId,
@@ -10279,35 +10409,14 @@ export class AdminService {
         logContext
       );
       nextApp = await repository.getApplicationById(applicationId);
-      if (itemId.startsWith("acceptance_documents:") && nextApp) {
-        await this.syncOfferAcceptancePhaseFromAcceptanceDocs(
-          applicationId,
-          nextApp as {
-            financing_type?: unknown;
-            product_version?: number | null;
-            supporting_documents?: unknown;
-            acceptance_documents?: unknown;
-            contract?: {
-              id: string;
-              status: string;
-              offer_details?: unknown;
-            } | null;
-            invoices?: Array<{
-              id: string;
-              status: string;
-              contract_id?: string | null;
-              offer_details?: unknown;
-            }>;
-            application_review_items?: Array<{
-              item_type: string;
-              item_id: string;
-              status: string;
-            }>;
-          },
-          reviewerUserId
-        );
-        nextApp = await repository.getApplicationById(applicationId);
-      }
+    }
+    if (isAcceptanceHubReviewItem(itemType, itemId) && nextApp) {
+      nextApp = await this.reloadAndSyncOfferAcceptancePhase(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId
+      );
     }
     if (nextApp) {
       await this.syncAdminStageStatus(repository, applicationId, nextApp);
@@ -10321,7 +10430,7 @@ export class AdminService {
    */
   async rejectReviewItem(
     applicationId: string,
-    itemType: "invoice" | "document",
+    itemType: ReviewItemType,
     itemId: string,
     remark: string,
     reviewerUserId: string,
@@ -10338,7 +10447,8 @@ export class AdminService {
     if (itemType === "invoice") {
       await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
     }
-    if (itemType === "document" && itemId.startsWith("acceptance_documents:")) {
+    if (isAcceptanceHubReviewItem(itemType, itemId)) {
+      this.assertAcceptanceReviewNotInherited(application);
       await this.assertNoActiveSigningPackageForAcceptanceActions(
         applicationId,
         application,
@@ -10411,7 +10521,10 @@ export class AdminService {
     }
 
     let nextApp = await repository.getApplicationById(applicationId);
-    if (itemType === "document" && nextApp) {
+    if (
+      (itemType === "document" || itemType === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE) &&
+      nextApp
+    ) {
       await this.syncDocumentDerivedSectionsFromItems(
         repository,
         applicationId,
@@ -10420,37 +10533,14 @@ export class AdminService {
         logContext
       );
       nextApp = await repository.getApplicationById(applicationId);
-      if (itemId.startsWith("acceptance_documents:") && nextApp) {
-        await this.syncOfferAcceptancePhaseFromAcceptanceDocs(
-          applicationId,
-          nextApp as {
-            financing_type?: unknown;
-            product_version?: number | null;
-            supporting_documents?: unknown;
-            acceptance_documents?: unknown;
-            contract?: {
-              id: string;
-              status: string;
-              withdraw_reason?: WithdrawReason | null;
-              offer_details?: unknown;
-            } | null;
-            invoices?: Array<{
-              id: string;
-              status: string;
-              contract_id?: string | null;
-              withdraw_reason?: WithdrawReason | null;
-              offer_details?: unknown;
-            }>;
-            application_review_items?: Array<{
-              item_type: string;
-              item_id: string;
-              status: string;
-            }>;
-          },
-          reviewerUserId
-        );
-        nextApp = await repository.getApplicationById(applicationId);
-      }
+    }
+    if (isAcceptanceHubReviewItem(itemType, itemId) && nextApp) {
+      nextApp = await this.reloadAndSyncOfferAcceptancePhase(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId
+      );
     }
     if (itemType === "invoice" && nextApp) {
       await this.syncInvoiceDetailsSectionFromItems(
@@ -10470,7 +10560,7 @@ export class AdminService {
    */
   async requestAmendmentReviewItem(
     applicationId: string,
-    itemType: "invoice" | "document",
+    itemType: ReviewItemType,
     itemId: string,
     remark: string,
     reviewerUserId: string,
@@ -10492,9 +10582,16 @@ export class AdminService {
         r.item_type === itemType && r.item_id === itemId
     );
     const oldStatus = existing?.status ?? "PENDING";
-    const isAcceptanceDoc = itemType === "document" && isAcceptanceDocumentItemId(itemId);
-    if (isAcceptanceDoc) {
+    const isAcceptanceHubItem = isAcceptanceHubReviewItem(itemType, itemId);
+    if (isAcceptanceHubItem) {
+      this.assertAcceptanceReviewNotInherited(application);
       assertAcceptanceDocumentChangeRequestAllowed(oldStatus);
+      if (itemType === "authorized_representatives") {
+        assertAuthorizedRepresentativeChangeRequestAllowed(
+          this.getPrimaryOfferAcceptance(application)?.authorized_parties,
+          itemId
+        );
+      }
       await this.assertNoActiveSigningPackageForAcceptanceActions(
         applicationId,
         application,
@@ -10520,7 +10617,7 @@ export class AdminService {
       remark,
       reviewerUserId
     );
-    if (isAcceptanceDoc) {
+    if (isAcceptanceHubItem) {
       await repository.markReviewRemarkSubmitted(applicationId, "item", itemId);
     }
     await this.logReviewActivity(
@@ -10555,11 +10652,14 @@ export class AdminService {
     }
 
     let nextApp = await repository.getApplicationById(applicationId);
-    const acceptancePhaseBefore = isAcceptanceDoc
+    const acceptancePhaseBefore = isAcceptanceHubItem
       ? this.getPrimaryOfferAcceptanceStatus(application)
       : null;
 
-    if (itemType === "document" && nextApp) {
+    if (
+      (itemType === "document" || itemType === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE) &&
+      nextApp
+    ) {
       await this.syncDocumentDerivedSectionsFromItems(
         repository,
         applicationId,
@@ -10568,39 +10668,20 @@ export class AdminService {
         logContext
       );
       nextApp = await repository.getApplicationById(applicationId);
-      if (isAcceptanceDoc && nextApp) {
-        await this.syncOfferAcceptancePhaseFromAcceptanceDocs(
-          applicationId,
-          nextApp as {
-            financing_type?: unknown;
-            product_version?: number | null;
-            supporting_documents?: unknown;
-            acceptance_documents?: unknown;
-            contract?: {
-              id: string;
-              status: string;
-              offer_details?: unknown;
-            } | null;
-            invoices?: Array<{
-              id: string;
-              status: string;
-              contract_id?: string | null;
-              offer_details?: unknown;
-            }>;
-            application_review_items?: Array<{
-              item_type: string;
-              item_id: string;
-              status: string;
-            }>;
-          },
-          reviewerUserId
-        );
-        nextApp = await repository.getApplicationById(applicationId);
-      }
+    }
+    if (isAcceptanceHubItem && nextApp) {
+      nextApp = await this.reloadAndSyncOfferAcceptancePhase(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId
+      );
     }
 
-    if (isAcceptanceDoc) {
-      const acceptancePhaseAfter = this.getPrimaryOfferAcceptanceStatus(nextApp ?? application);
+    if (isAcceptanceHubItem) {
+      const acceptancePhaseAfter = this.getPrimaryOfferAcceptanceStatus(
+        nextApp ?? application
+      );
       if (shouldNotifyAcceptanceDocumentChanges(acceptancePhaseBefore, acceptancePhaseAfter)) {
         try {
           const submittedAt =
@@ -10655,7 +10736,7 @@ export class AdminService {
     scopeKey: string,
     remark: string,
     reviewerUserId: string,
-    itemType?: "invoice" | "document",
+    itemType?: ReviewItemType,
     itemId?: string,
     logContext?: AdminLogContext
   ) {

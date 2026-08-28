@@ -13,7 +13,7 @@ import {
   getOfferPhaseDeadlineDisplay,
   isOfferAcceptanceDocumentsVisibleToAdmin,
   workflowHasAcceptanceDocuments,
-  type ApplicationPersonRow,
+  type ReviewItemType,
 } from "@cashsouk/types";
 import { formatCurrency } from "@cashsouk/config";
 import { StatusBadge } from "@cashsouk/ui";
@@ -35,6 +35,7 @@ import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { reviewCardTitleClass } from "../review-section-styles";
 import { useAdminSignedSigningDocument } from "@/hooks/use-admin-signed-signing-document";
 import { cn } from "@/lib/utils";
+import { AuthorizedPartiesReadOnly } from "./authorized-parties-read-only";
 
 export type AcceptanceSectionProps = {
   supportingDocuments: unknown;
@@ -50,20 +51,17 @@ export type AcceptanceSectionProps = {
     files: { s3Key: string; fileName: string; category: string; field: string }[]
   ) => Promise<void> | void;
   isDownloadAllPending?: boolean;
-  onApproveItem: (itemId: string) => Promise<void>;
-  onRejectItem: (itemId: string) => void;
-  onRequestAmendmentItem: (itemId: string) => void;
-  onResetItemToPending?: (itemId: string) => void;
+  onApproveItem: (itemId: string, itemType?: ReviewItemType) => Promise<void>;
+  onRejectItem: (itemId: string, itemType?: ReviewItemType) => void;
+  onRequestAmendmentItem: (itemId: string, itemType?: ReviewItemType) => void;
+  onResetItemToPending?: (itemId: string, itemType?: ReviewItemType) => void;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
   hideSectionComments?: boolean;
   /** Live review only — when set, show offer-acceptance + signing hub. */
   applicationId?: string;
   workflow?: unknown;
-  people?: ApplicationPersonRow[];
   guarantors?: unknown;
-  contractId?: string | null;
-  productVersion?: number | null;
   canManageSigning?: boolean;
   contractOfferDetails?: unknown;
   invoices?: { id: string; offer_details?: unknown }[];
@@ -121,11 +119,29 @@ function OfferAcceptanceBlock({
   offerDetails,
   structureType,
   documentsSlot,
+  guarantors,
+  reviewItems,
+  isReviewable,
+  approvePending,
+  isActionLocked,
+  actionLockTooltip,
+  onApproveItem,
+  onRequestAmendmentItem,
+  onResetItemToPending,
 }: {
   offerDetails: unknown;
   structureType?: string | null;
   /** Acceptance documents list rendered inside this same package card. */
   documentsSlot?: React.ReactNode;
+  guarantors?: unknown;
+  reviewItems?: { item_type: string; item_id: string; status: string }[];
+  isReviewable?: boolean;
+  approvePending?: boolean;
+  isActionLocked?: boolean;
+  actionLockTooltip?: string;
+  onApproveItem?: (itemId: string, itemType?: ReviewItemType) => Promise<void>;
+  onRequestAmendmentItem?: (itemId: string, itemType?: ReviewItemType) => void;
+  onResetItemToPending?: (itemId: string, itemType?: ReviewItemType) => void;
 }) {
   const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
   const isInvoiceOnly = structureType === "invoice_only";
@@ -153,6 +169,21 @@ function OfferAcceptanceBlock({
         >
           {deadlineDisplay.summary}
         </p>
+      ) : null}
+
+      {isOfferAcceptanceDocumentsVisibleToAdmin(acceptance) ? (
+        <AuthorizedPartiesReadOnly
+          offerDetails={offerDetails}
+          guarantors={guarantors}
+          reviewItems={reviewItems}
+          isReviewable={isReviewable}
+          approvePending={approvePending}
+          isActionLocked={isActionLocked}
+          actionLockTooltip={actionLockTooltip}
+          onApproveItem={onApproveItem}
+          onRequestAmendmentItem={onRequestAmendmentItem}
+          onResetItemToPending={onResetItemToPending}
+        />
       ) : null}
 
       {documentsSlot ? (
@@ -189,10 +220,7 @@ export function AcceptanceSection({
   hideSectionComments = false,
   applicationId,
   workflow,
-  people = [],
   guarantors,
-  contractId,
-  productVersion,
   canManageSigning = true,
   contractOfferDetails,
   invoices = [],
@@ -360,6 +388,15 @@ export function AcceptanceSection({
                   offerDetails={acceptanceOfferDetails}
                   structureType={structureType}
                   documentsSlot={showAcceptanceDocuments ? documentsList : undefined}
+                  guarantors={guarantors}
+                  reviewItems={reviewItems}
+                  isReviewable={isReviewable}
+                  approvePending={approvePending}
+                  isActionLocked={isActionLocked}
+                  actionLockTooltip={actionLockTooltip}
+                  onApproveItem={onApproveItem}
+                  onRequestAmendmentItem={onRequestAmendmentItem}
+                  onResetItemToPending={onResetItemToPending}
                 />
               </ReviewFieldBlock>
             );
@@ -390,10 +427,6 @@ export function AcceptanceSection({
             <SigningEnvelopePanel
               applicationId={applicationId}
               workflow={workflow}
-              people={people}
-              guarantors={guarantors}
-              contractId={contractId}
-              productVersion={productVersion}
               canManage={canManageSigning}
               offerDetails={contractOfferDetails}
               invoices={invoices}

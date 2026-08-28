@@ -13,7 +13,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useOrganization, createApiClient, useAuthToken, MALAYSIAN_BANKS, type OrganizationMember } from "@cashsouk/config";
+import { createApiClient, useAuthToken, useOrganization, MALAYSIAN_BANKS } from "@cashsouk/config";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
@@ -23,6 +24,9 @@ import {
   getFinalStatusLabel,
   getFinalStatusToken,
   isMissingGovernmentIdPerson,
+  parseAboutYourBusiness,
+  isAboutYourBusinessComplete,
+  ABOUT_YOUR_BUSINESS_LIMITS,
   resolveDirectorShareholderCtosEmptyWarning,
   UNRESOLVED_IDENTITY_RECOVERY_COPY,
   UNRESOLVED_IDENTITY_RECOVERY_TITLE,
@@ -31,6 +35,7 @@ import {
   DirectorShareholderCtosEmptyAlert,
   DirectorShareholderUnresolvedIdentitySection,
   StatusBadge,
+  YesNoRadioDisplay,
 } from "@cashsouk/ui";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
@@ -39,6 +44,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -46,7 +57,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PencilIcon } from "@heroicons/react/24/outline";
+import { InformationCircleIcon, PencilIcon, EyeIcon } from "@heroicons/react/24/outline";
 import {
   Dialog,
   DialogContent,
@@ -56,7 +67,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { cn } from "@/lib/utils";
@@ -68,10 +78,18 @@ import {
   formInputDisabledClassName,
   formLabelClassName,
   formSelectTriggerClassName,
+  formTextareaClassName,
   withFieldError,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { CompanyDetailsSkeleton } from "@/app/(application-flow)/applications/components/company-details-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import {
+  AMENDMENT_CALLOUT_BODY,
+  AMENDMENT_CALLOUT_CONTENT,
+  AMENDMENT_CALLOUT_ICON_WRAP,
+  AMENDMENT_CALLOUT_ROOT,
+  AMENDMENT_CALLOUT_TITLE,
+} from "@/app/(application-flow)/applications/components/amendments/amendment-callout-styles";
 
 interface CompanyDetailsStepProps {
   applicationId: string;
@@ -85,6 +103,10 @@ interface CompanyDetailsStepProps {
 interface FormState {
   industry: string;
   numberOfEmployees: string;
+  whatDoesCompanyDo: string;
+  mainCustomers: string;
+  singleCustomerOver50Revenue: boolean | null;
+  accountingSoftware: string;
   businessAddress: Record<string, unknown> | null;
   registeredAddress: Record<string, unknown> | null;
   bankName: string;
@@ -103,6 +125,12 @@ export function generateMockData(): Record<string, unknown> {
   return {
     industry: "Technology",
     numberOfEmployees: "10",
+    whatDoesCompanyDo:
+      "We manufacture industrial equipment and provide maintenance services for mining and construction sectors.",
+    mainCustomers:
+      "Large enterprises in oil & gas, mining, and infrastructure. Top 3 customers: Petronas, Sime Darby, Tenaga Nasional.",
+    singleCustomerOver50Revenue: false,
+    accountingSoftware: "Xero",
     businessAddress: {
       line1: "23, Jalan Kiara",
       line2: "",
@@ -178,43 +206,51 @@ const inputClassName = cn(formInputClassName, formInputDisabledClassName);
 const inputClassNameEditable = formInputClassName;
 const labelClassName = formLabelClassName;
 const labelClassNameEditable = formLabelClassName;
+const textareaClassName = cn(formTextareaClassName, "min-h-[100px] resize-y");
+const aboutRowGridClassName =
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-6 gap-y-4 mt-4 px-3 items-start";
+const investorBadgeTooltipContentClassName =
+  "max-w-xs border border-border bg-popover px-3 py-2 text-sm font-normal normal-case leading-snug text-popover-foreground shadow-md";
+
+function InvestorVisibilityBadge() {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex max-w-full shrink-0 cursor-help items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <EyeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+          <span className="truncate">Visible to investors</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={6} className={investorBadgeTooltipContentClassName}>
+        Everything you enter here will be shown to investors.
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function aboutFieldsFromProfile(corporateInfo: { aboutYourBusiness?: unknown } | null | undefined) {
+  return parseAboutYourBusiness(corporateInfo?.aboutYourBusiness);
+}
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export function CompanyDetailsStep({
   applicationId,
   onDataChange,
-  readOnly = false,
 }: CompanyDetailsStepProps) {
   const { activeOrganization } = useOrganization();
   const organizationId = activeOrganization?.id;
   const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
 
   const devTools = useDevTools();
 
-  const apiClient = React.useMemo(
-    () => createApiClient(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", getAccessToken),
-    [getAccessToken]
-  );
-
-  // Fetch current user to derive organization edit permission
-  const { data: currentUser } = useQuery({
-    queryKey: ["current-user"],
-    queryFn: async () => {
-      const result = await apiClient.get<{ userId: string }>("/v1/auth/me");
-      if (!result.success) throw new Error(result.error.message);
-      return result.data;
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const canEditOrganization = React.useMemo(() => {
-    if (!activeOrganization || !currentUser) return false;
-    if (activeOrganization.isOwner) return true;
-    const currentUserMember = activeOrganization.members?.find((m: OrganizationMember) => m.id === currentUser.userId);
-    return currentUserMember?.role === "ORGANIZATION_ADMIN";
-  }, [activeOrganization, currentUser]);
-
-  const effectiveCanEdit = readOnly ? false : canEditOrganization;
+  // Company details are view-only; updates happen on the organisation profile
+  const effectiveCanEdit = false;
 
   /* ================================================================
      DATA LOADING HOOKS
@@ -270,6 +306,30 @@ export function CompanyDetailsStep({
     [entitiesData?.directorShareholderListSource, entitiesData?.ctosDirectorShareholderWarning]
   );
 
+  const resolveOrgContactPerson = React.useCallback(() => {
+    const contact = corporateInfo?.contactPerson;
+    if (
+      contact?.name?.trim() ||
+      contact?.email?.trim() ||
+      contact?.position?.trim() ||
+      contact?.contact?.trim()
+    ) {
+      return {
+        name: contact.name || "",
+        email: contact.email || "",
+        position: contact.position || "",
+        contact: contact.contact || "",
+      };
+    }
+    const pic = corporateInfo?.personInCharge;
+    return {
+      name: pic?.name || "",
+      email: pic?.email || "",
+      position: pic?.position || "",
+      contact: pic?.contactNumber || "",
+    };
+  }, [corporateInfo]);
+
   /* ================================================================
      LOCAL FORM STATE - Single source of truth
      ================================================================ */
@@ -277,6 +337,10 @@ export function CompanyDetailsStep({
   const [formState, setFormState] = React.useState<FormState>({
     industry: "",
     numberOfEmployees: "",
+    whatDoesCompanyDo: "",
+    mainCustomers: "",
+    singleCustomerOver50Revenue: null,
+    accountingSoftware: "",
     businessAddress: null,
     registeredAddress: null,
     bankName: "",
@@ -289,56 +353,83 @@ export function CompanyDetailsStep({
 
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const [isEditAddressOpen, setIsEditAddressOpen] = React.useState(false);
-
-  /* ================================================================
-     INITIAL STATE TRACKING - For change detection
-     ================================================================ */
-
-  const initialStateRef = React.useRef<FormState | null>(null);
+  const [hasHydrated, setHasHydrated] = React.useState(false);
 
   /* ================================================================
      DETERMINISTIC HYDRATION - Run once after all data loads
      ================================================================ */
 
-  const hasHydratedRef = React.useRef(false);
-
   React.useEffect(() => {
-    if (hasHydratedRef.current) return;
+    if (hasHydrated) return;
     if (!application || !organizationId) return;
     if (isLoadingData) return;
 
-    // Hydrate from all sources
-    const savedContactPerson = (application?.company_details as Record<string, unknown> | undefined)?.contact_person as Record<string, unknown> | undefined;
     const basicInfo = corporateInfo?.basicInfo;
     const businessAddress = corporateInfo?.addresses?.business;
     const registeredAddress = corporateInfo?.addresses?.registered;
     const bankDetails = (bankAccountDetails as Record<string, unknown> | null) || null;
+    const orgContact = resolveOrgContactPerson();
 
+    const about = aboutFieldsFromProfile(corporateInfo);
     const hydratedState: FormState = {
       industry: basicInfo?.industry || "",
       numberOfEmployees: (basicInfo?.numberOfEmployees?.toString() || ""),
+      whatDoesCompanyDo: about.whatDoesCompanyDo,
+      mainCustomers: about.mainCustomers,
+      singleCustomerOver50Revenue: about.singleCustomerOver50Revenue,
+      accountingSoftware: about.accountingSoftware,
       businessAddress: (businessAddress as Record<string, unknown>) || null,
       registeredAddress: (registeredAddress as Record<string, unknown>) || null,
       bankName: getBankField(bankDetails, "Bank"),
       bankAccountNumber: getBankField(bankDetails, "Bank account number"),
-      contactPersonName: (savedContactPerson?.name as string) || "",
-      contactPersonEmail: (savedContactPerson?.email as string) || "",
-      contactPersonPosition: (savedContactPerson?.position as string) || "",
-      contactPersonContact: (savedContactPerson?.contact as string) || "",
+      contactPersonName: orgContact.name,
+      contactPersonEmail: orgContact.email,
+      contactPersonPosition: orgContact.position,
+      contactPersonContact: orgContact.contact,
     };
 
     setFormState(hydratedState);
-    initialStateRef.current = hydratedState;
+    setHasHydrated(true);
+  }, [application, organizationId, isLoadingData, corporateInfo, bankAccountDetails, resolveOrgContactPerson, hasHydrated]);
 
-    hasHydratedRef.current = true;
-  }, [application, organizationId, isLoadingData, corporateInfo, bankAccountDetails]);
+  // Keep display in sync with live organisation profile (step is read-only)
+  React.useEffect(() => {
+    if (!hasHydrated) return;
+    if (isLoadingData) return;
+
+    const basicInfo = corporateInfo?.basicInfo;
+    const businessAddress = corporateInfo?.addresses?.business;
+    const registeredAddress = corporateInfo?.addresses?.registered;
+    const bankDetails = (bankAccountDetails as Record<string, unknown> | null) || null;
+    const orgContact = resolveOrgContactPerson();
+
+    const about = aboutFieldsFromProfile(corporateInfo);
+    const next: FormState = {
+      industry: basicInfo?.industry || "",
+      numberOfEmployees: (basicInfo?.numberOfEmployees?.toString() || ""),
+      whatDoesCompanyDo: about.whatDoesCompanyDo,
+      mainCustomers: about.mainCustomers,
+      singleCustomerOver50Revenue: about.singleCustomerOver50Revenue,
+      accountingSoftware: about.accountingSoftware,
+      businessAddress: (businessAddress as Record<string, unknown>) || null,
+      registeredAddress: (registeredAddress as Record<string, unknown>) || null,
+      bankName: getBankField(bankDetails, "Bank"),
+      bankAccountNumber: getBankField(bankDetails, "Bank account number"),
+      contactPersonName: orgContact.name,
+      contactPersonEmail: orgContact.email,
+      contactPersonPosition: orgContact.position,
+      contactPersonContact: orgContact.contact,
+    };
+
+    setFormState(next);
+  }, [corporateInfo, bankAccountDetails, isLoadingData, resolveOrgContactPerson, hasHydrated]);
 
   /* ================================================================
      DEV TOOLS AUTO FILL (company_details)
      ================================================================ */
   React.useEffect(() => {
     if (!devTools) return;
-    if (!hasHydratedRef.current) return;
+    if (!hasHydrated) return;
 
     const usingSingleAutoFill = devTools?.autoFillData?.stepKey === "company_details";
     const data = usingSingleAutoFill
@@ -351,6 +442,10 @@ export function CompanyDetailsStep({
       const applied = data as Partial<{
         industry: string;
         numberOfEmployees: string;
+        whatDoesCompanyDo: string;
+        mainCustomers: string;
+        singleCustomerOver50Revenue: boolean | null;
+        accountingSoftware: string;
         businessAddress: Record<string, unknown>;
         registeredAddress: Record<string, unknown>;
         bankName: string;
@@ -365,6 +460,13 @@ export function CompanyDetailsStep({
         ...prev,
         industry: String(applied.industry ?? prev.industry ?? ""),
         numberOfEmployees: String(applied.numberOfEmployees ?? prev.numberOfEmployees ?? ""),
+        whatDoesCompanyDo: String(applied.whatDoesCompanyDo ?? prev.whatDoesCompanyDo ?? ""),
+        mainCustomers: String(applied.mainCustomers ?? prev.mainCustomers ?? ""),
+        singleCustomerOver50Revenue:
+          applied.singleCustomerOver50Revenue !== undefined
+            ? applied.singleCustomerOver50Revenue
+            : prev.singleCustomerOver50Revenue,
+        accountingSoftware: String(applied.accountingSoftware ?? prev.accountingSoftware ?? ""),
         businessAddress: (applied.businessAddress as Record<string, unknown> | null) ?? prev.businessAddress,
         registeredAddress:
           (applied.registeredAddress as Record<string, unknown> | null) ?? prev.registeredAddress,
@@ -382,7 +484,7 @@ export function CompanyDetailsStep({
     // - "Fill Entire Application" uses `autoFillDataMap`
     if (usingSingleAutoFill) devTools.clearAutoFill();
     else devTools.clearAutoFillForStep("company_details");
-  }, [devTools?.autoFillData, devTools?.autoFillDataMap, devTools]);
+  }, [devTools?.autoFillData, devTools?.autoFillDataMap, devTools, hasHydrated]);
 
   /* ================================================================
      VALIDATION - Pure function, no side effects
@@ -392,22 +494,22 @@ export function CompanyDetailsStep({
     const errors: string[] = [];
     const fieldErrors: Record<string, string> = {};
 
-    // Contact person validation
+    // Contact person validation (sourced from organisation profile)
     if (!formState.contactPersonName?.trim()) {
-      errors.push("Applicant name is required");
-      fieldErrors.contactPersonName = "Required";
+      errors.push("Contact details incomplete — update your company profile");
+      fieldErrors.contactPersonName = "Update on company profile";
     }
     if (!formState.contactPersonEmail?.trim()) {
-      errors.push("Applicant email is required");
-      fieldErrors.contactPersonEmail = "Required";
+      errors.push("Contact details incomplete — update your company profile");
+      fieldErrors.contactPersonEmail = "Update on company profile";
     }
     if (!formState.contactPersonPosition?.trim()) {
-      errors.push("Applicant position is required");
-      fieldErrors.contactPersonPosition = "Required";
+      errors.push("Contact details incomplete — update your company profile");
+      fieldErrors.contactPersonPosition = "Update on company profile";
     }
     if (!formState.contactPersonContact?.trim()) {
-      errors.push("Applicant contact is required");
-      fieldErrors.contactPersonContact = "Required";
+      errors.push("Contact details incomplete — update your company profile");
+      fieldErrors.contactPersonContact = "Update on company profile";
     }
 
     // Address validation
@@ -431,6 +533,23 @@ export function CompanyDetailsStep({
     } else if (!isValidNumberOfEmployees(formState.numberOfEmployees)) {
       errors.push("Number of employees must be a positive whole number");
       fieldErrors.numberOfEmployees = "Enter a positive whole number";
+    }
+
+    if (!formState.whatDoesCompanyDo.trim()) {
+      errors.push("About your business incomplete — update your company profile");
+      fieldErrors.whatDoesCompanyDo = "Update on company profile";
+    }
+    if (!formState.mainCustomers.trim()) {
+      errors.push("About your business incomplete — update your company profile");
+      fieldErrors.mainCustomers = "Update on company profile";
+    }
+    if (formState.singleCustomerOver50Revenue === null) {
+      errors.push("About your business incomplete — update your company profile");
+      fieldErrors.singleCustomerOver50Revenue = "Update on company profile";
+    }
+    if (!formState.accountingSoftware.trim()) {
+      errors.push("About your business incomplete — update your company profile");
+      fieldErrors.accountingSoftware = "Update on company profile";
     }
 
     // Banking validation
@@ -470,97 +589,24 @@ export function CompanyDetailsStep({
     setFieldErrors(nextFieldErrors);
 
     if (errors.length > 0) {
-      toast.error("Please fix the highlighted fields");
+      toast.error("Please update incomplete company details on your profile");
       throw new Error("VALIDATION_COMPANY_REQUIRED_FIELDS");
     }
 
     if (!organizationId) throw new Error("Organization ID required");
 
-    try {
-      const updates: Record<string, unknown> = {};
+    setFieldErrors({});
 
-      if (formState.industry) updates.industry = formState.industry;
-      if (formState.numberOfEmployees) {
-        updates.numberOfEmployees = Number.parseInt(
-          formState.numberOfEmployees,
-          10
-        );
-      }
-
-      updates.businessAddress = formState.businessAddress;
-      updates.registeredAddress = formState.registeredAddress;
-
-      // ONLY PATCH IF ADMIN / OWNER
-      if (effectiveCanEdit) {
-        // PATCH corporate info
-        if (Object.keys(updates).length > 0) {
-          const result = await apiClient.patch(
-            `/v1/organizations/issuer/${organizationId}/corporate-info`,
-            updates
-          );
-          if (!result.success) throw new Error(result.error.message);
-        }
-
-        // PATCH banking
-        const bankAccountDetailsPayload = {
-          content: [
-            {
-              cn: false,
-              fieldName: "Bank",
-              fieldType: "picklist",
-              fieldValue: formState.bankName ?? "",
-            },
-            {
-              cn: false,
-              fieldName: "Bank account number",
-              fieldType: "number",
-              fieldValue: formState.bankAccountNumber ?? "",
-            },
-          ],
-          displayArea: "Operational Information",
-        };
-
-        const result = await apiClient.patch(
-          `/v1/organizations/issuer/${organizationId}`,
-          {
-            bankAccountDetails: bankAccountDetailsPayload,
-          }
-        );
-
-        if (!result.success) throw new Error(result.error.message);
-
-        // Invalidate ONLY if patch happened
-        queryClient.invalidateQueries({
-          queryKey: ["corporate-info", organizationId],
-        });
-        queryClient.invalidateQueries({
-          queryKey: ["organization-detail", organizationId],
-        });
-      }
-
-      setFieldErrors({});
-
-      // Always return contact person (application-level)
-      return {
-        contact_person: {
-          name: formState.contactPersonName.trim(),
-          email: formState.contactPersonEmail.trim(),
-          position: formState.contactPersonPosition.trim(),
-          contact: formState.contactPersonContact.trim(),
-        },
-      };
-    } catch (error) {
-      toast.error("Something went wrong. Please try again.");
-      throw error;
-    }
-  }, [
-    formState,
-    organizationId,
-    apiClient,
-    queryClient,
-    validateAll,
-    effectiveCanEdit,
-  ]);
+    // Snapshot contact person from live org profile onto the application
+    return {
+      contact_person: {
+        name: formState.contactPersonName.trim(),
+        email: formState.contactPersonEmail.trim(),
+        position: formState.contactPersonPosition.trim(),
+        contact: formState.contactPersonContact.trim(),
+      },
+    };
+  }, [formState, organizationId, validateAll]);
 
   /* ================================================================
      VALIDITY CHECK - Compute from current state
@@ -577,19 +623,22 @@ export function CompanyDetailsStep({
       formState.contactPersonContact?.trim() &&
       formState.industry?.trim() &&
       formState.numberOfEmployees?.trim() &&
+      isAboutYourBusinessComplete({
+        whatDoesCompanyDo: formState.whatDoesCompanyDo,
+        mainCustomers: formState.mainCustomers,
+        singleCustomerOver50Revenue: formState.singleCustomerOver50Revenue,
+        accountingSoftware: formState.accountingSoftware,
+      }) &&
       formState.bankName?.trim() &&
       formState.bankAccountNumber?.trim()
     );
   }, [formState]);
 
   /* ================================================================
-     CHANGE DETECTION - Real pending changes logic
+     CHANGE DETECTION - Step is read-only (profile is source of truth)
      ================================================================ */
 
-  const hasPendingChanges = React.useMemo(() => {
-    if (!initialStateRef.current) return false;
-    return JSON.stringify(formState) !== JSON.stringify(initialStateRef.current);
-  }, [formState]);
+  const hasPendingChanges = false;
 
   /* ================================================================
      NOTIFY PARENT - One effect, stable dependencies
@@ -615,7 +664,7 @@ export function CompanyDetailsStep({
      RENDER
      ================================================================ */
 
-  if (isLoadingData || !hasHydratedRef.current || devTools?.showSkeletonDebug) {
+  if (isLoadingData || !hasHydrated || devTools?.showSkeletonDebug) {
     return <CompanyDetailsSkeleton />;
   }
 
@@ -639,6 +688,30 @@ export function CompanyDetailsStep({
   return (
     <>
       <div className={applicationFlowStepOuterClassName}>
+        <div
+          className={`${AMENDMENT_CALLOUT_ROOT} border-status-neutral-text/30 bg-status-neutral-bg text-foreground`}
+          role="status"
+        >
+          <div
+            className={`${AMENDMENT_CALLOUT_ICON_WRAP} border-status-neutral-text/30 bg-status-neutral-bg`}
+            aria-hidden
+          >
+            <InformationCircleIcon className="h-5 w-5 text-status-neutral-text" />
+          </div>
+          <div className={AMENDMENT_CALLOUT_BODY}>
+            <p className={`${AMENDMENT_CALLOUT_TITLE} text-foreground`}>
+              Company details are view-only
+            </p>
+            <p className={`${AMENDMENT_CALLOUT_CONTENT} text-muted-foreground`}>
+              These details come from your company profile. If anything needs to be updated, please edit your{" "}
+              <Link href="/profile?focus=contact" className="font-medium text-foreground underline underline-offset-2">
+                company profile
+              </Link>{" "}
+              and return here.
+            </p>
+          </div>
+        </div>
+
         {/* Company Info Section */}
         <div className="space-y-3">
           <div>
@@ -707,6 +780,102 @@ export function CompanyDetailsStep({
                   {fieldErrors.numberOfEmployees}
                 </p>
               )}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h3 className={cn(applicationFlowSectionTitleClassName, "shrink-0")}>About your business</h3>
+              <InvestorVisibilityBadge />
+            </div>
+            <div className={applicationFlowSectionDividerClassName} />
+          </div>
+
+          <div className={aboutRowGridClassName}>
+            <Label htmlFor="company-what-does-company-do" className={labelClassName}>
+              What does your company do?
+            </Label>
+            <div className="flex flex-col gap-1">
+              <TextareaWithCharCount
+                id="company-what-does-company-do"
+                value={formState.whatDoesCompanyDo}
+                onChange={() => undefined}
+                placeholder="Add details"
+                maxLength={ABOUT_YOUR_BUSINESS_LIMITS.whatDoesCompanyDo}
+                className={withFieldError(textareaClassName, Boolean(fieldErrors.whatDoesCompanyDo))}
+                countLabel={`${formState.whatDoesCompanyDo.length}/${ABOUT_YOUR_BUSINESS_LIMITS.whatDoesCompanyDo} characters`}
+                disabled
+              />
+              {fieldErrors.whatDoesCompanyDo ? (
+                <p className="text-xs text-destructive">
+                  {fieldErrors.whatDoesCompanyDo}.{" "}
+                  <Link href="/profile?focus=about" className="underline underline-offset-2">
+                    Open company profile
+                  </Link>
+                </p>
+              ) : null}
+            </div>
+
+            <Label htmlFor="company-main-customers" className={labelClassName}>
+              Who are your main customers?
+            </Label>
+            <div className="flex flex-col gap-1">
+              <TextareaWithCharCount
+                id="company-main-customers"
+                value={formState.mainCustomers}
+                onChange={() => undefined}
+                placeholder="Add details"
+                maxLength={ABOUT_YOUR_BUSINESS_LIMITS.mainCustomers}
+                className={withFieldError(textareaClassName, Boolean(fieldErrors.mainCustomers))}
+                countLabel={`${formState.mainCustomers.length}/${ABOUT_YOUR_BUSINESS_LIMITS.mainCustomers} characters`}
+                disabled
+              />
+              {fieldErrors.mainCustomers ? (
+                <p className="text-xs text-destructive">
+                  {fieldErrors.mainCustomers}.{" "}
+                  <Link href="/profile?focus=about" className="underline underline-offset-2">
+                    Open company profile
+                  </Link>
+                </p>
+              ) : null}
+            </div>
+
+            <div className={labelClassName}>
+              Does any single customer make up more than 50% of your revenue?
+            </div>
+            <div className="flex min-h-11 flex-col justify-center gap-1">
+              <YesNoRadioDisplay value={formState.singleCustomerOver50Revenue} />
+              {fieldErrors.singleCustomerOver50Revenue ? (
+                <p className="text-xs text-destructive">
+                  {fieldErrors.singleCustomerOver50Revenue}.{" "}
+                  <Link href="/profile?focus=about" className="underline underline-offset-2">
+                    Open company profile
+                  </Link>
+                </p>
+              ) : null}
+            </div>
+
+            <Label htmlFor="company-accounting-software" className={labelClassName}>
+              Which accounting software does the issuer use?
+            </Label>
+            <div className="flex flex-col gap-1">
+              <Input
+                id="company-accounting-software"
+                value={formState.accountingSoftware}
+                disabled
+                placeholder="e.g. QuickBooks, Xero, SAP"
+                className={withFieldError(inputClassName, Boolean(fieldErrors.accountingSoftware))}
+              />
+              {fieldErrors.accountingSoftware ? (
+                <p className="text-xs text-destructive">
+                  {fieldErrors.accountingSoftware}.{" "}
+                  <Link href="/profile?focus=about" className="underline underline-offset-2">
+                    Open company profile
+                  </Link>
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

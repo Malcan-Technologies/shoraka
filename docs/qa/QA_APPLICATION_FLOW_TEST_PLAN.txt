@@ -87,7 +87,7 @@ SECTION 3 — ISSUER: WIZARD (STEPS, SAVE, RESUME)
 3.2 Per-step save
 [ ] Each step Save persists PATCH to correct JSON column; last_completed_step advances correctly.
 [ ] financing_structure: existing_contract links approved contract; new_contract creates/links; invoice_only clears contract linkage on drafts as designed.
-[ ] company_details: contact_person and fields persist on application (not only org).
+[ ] company_details: view-only; contact_person snapshotted from org Contact details (seeded from RegTank personInCharge); edits via company profile only.
 [ ] business_details, financial_statements, declarations: validation errors show inline; fixable fields work.
 [ ] supporting_documents: required slots match product config; cannot continue until satisfied.
 [ ] supporting_documents: upload does not persist until Save and Continue (if that is current behavior).

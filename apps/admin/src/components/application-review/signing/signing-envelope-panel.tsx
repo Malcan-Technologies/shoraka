@@ -1,7 +1,7 @@
 /**
  * Admin signing envelope panel for the application review screen. Shows the active
- * package in full detail, collapses prior packages into history, and uses inline
- * Remind actions on the progress matrix (no separate Nudge footer).
+ * package in full detail, collapses prior packages into history, and exposes
+ * Send reminders for live packages (plus per-signer Remind on the progress matrix).
  *
  * When embedded in the Acceptance tab, set `showOfferAcceptanceSummary={false}` —
  * phase status lives in AcceptanceSection above this panel.
@@ -16,6 +16,7 @@ import { ChevronDownIcon } from "@heroicons/react/24/outline";
 import { SigningProgressMatrix } from "./signing-progress-matrix";
 import {
   useAdminSigningEnvelopes,
+  useSendAdminSigningPackage,
   useVoidSigningEnvelope,
   useRemindSigningRecipient,
 } from "@/hooks/use-signing-envelopes";
@@ -26,9 +27,9 @@ import {
   getOfferAcceptanceFromOfferDetails,
   getOfferAcceptanceStatusPresentation,
   getOfferPhaseDeadlineDisplay,
+  hasEnvelopeBlockingNewSend,
   resolveSigningDeadlineFromWorkflow,
   DEFAULT_SIGNING_DEADLINE,
-  type ApplicationPersonRow,
   type SigningEnvelopeDto,
   type SigningEnvelopeStatus,
   toTitleCase,
@@ -123,11 +124,6 @@ export interface SigningEnvelopePanelProps {
   applicationId: string;
   /** Product.workflow JSON — signing deadline config. */
   workflow: unknown;
-  people: ApplicationPersonRow[];
-  guarantors: unknown;
-  contractId?: string | null;
-  invoiceId?: string | null;
-  productVersion?: number | null;
   /** Whether the admin can manage void/reminder actions for this application's signing. */
   canManage?: boolean;
   /** offer_details from the contract this application's offer belongs to (contract-based structures). */
@@ -162,12 +158,14 @@ export function SigningEnvelopePanel({
   onDownloadSignedDocument,
 }: SigningEnvelopePanelProps) {
   const { data: envelopes = [], isLoading } = useAdminSigningEnvelopes(applicationId);
+  const sendMutation = useSendAdminSigningPackage(applicationId);
   const voidMutation = useVoidSigningEnvelope(applicationId);
   const remindMutation = useRemindSigningRecipient(applicationId);
   const extendContractMutation = useExtendContractSigningDeadline();
   const extendInvoiceMutation = useExtendInvoiceSigningDeadline();
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [extendConfirmOpen, setExtendConfirmOpen] = React.useState(false);
+  const [sendConfirmOpen, setSendConfirmOpen] = React.useState(false);
 
   const { primary, history } = React.useMemo(() => splitEnvelopes(envelopes), [envelopes]);
 
@@ -232,6 +230,29 @@ export function SigningEnvelopePanel({
     }
   };
 
+  const handleResendReminders = async () => {
+    if (!primary) return;
+    const unsigned = primary.recipients.filter(
+      (recipient) => recipient.status !== "SIGNED" && recipient.status !== "DECLINED"
+    );
+    if (unsigned.length === 0) {
+      toast.info("All signers have already signed.");
+      return;
+    }
+    try {
+      for (const recipient of unsigned) {
+        await remindMutation.mutateAsync({ envelopeId: primary.id, recipientId: recipient.id });
+      }
+      toast.success(
+        unsigned.length === 1
+          ? `Reminder sent to ${unsigned[0].name}`
+          : `Reminders sent to ${unsigned.length} signers`
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send reminders");
+    }
+  };
+
   const handleExtendSigningDeadline = async () => {
     try {
       if (isInvoiceOnly) {
@@ -253,6 +274,18 @@ export function SigningEnvelopePanel({
     }
   };
 
+  const handleSendSigningLinks = async () => {
+    try {
+      await sendMutation.mutateAsync(
+        isInvoiceOnly ? { invoiceId: invoiceIdForExtend } : {}
+      );
+      toast.success("Signing links sent to the authorised representatives");
+      setSendConfirmOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send signing links");
+    }
+  };
+
   const canRemindPrimary =
     canManage &&
     primary != null &&
@@ -262,25 +295,37 @@ export function SigningEnvelopePanel({
     if (acceptance == null) {
       return showOfferAcceptanceSummary
         ? noOfferYetHint
-        : "No signing package yet. It appears after the issuer starts signing.";
+        : "No signing package yet. Send an offer to start acceptance.";
     }
     if (signingBlocked) {
-      return "Signing package is locked until acceptance documents are approved.";
+      return "Signing package is locked until acceptance documents and authorised representatives are approved.";
     }
     if (acceptance.status === "COMPLETED") {
       return "No signing package on file for this offer.";
     }
-    return "No signing package yet. The issuer creates and sends this package from their offer flow.";
+    if (acceptance.status === "APPROVED_FOR_SIGNING") {
+      return "Acceptance is approved. Send signing links to the authorised representatives.";
+    }
+    return "No signing package yet.";
   })();
 
   const signingDeadlineDisplay =
-    acceptance?.status === "APPROVED_FOR_SIGNING" ||
     acceptance?.status === "SIGNING_IN_PROGRESS"
       ? getOfferPhaseDeadlineDisplay(acceptanceOfferDetails)
       : null;
 
   const showExtendSigningCta =
     canManage && signingDeadlineDisplay?.urgency === "past";
+
+  const signingClockPast = signingDeadlineDisplay?.urgency === "past";
+  const canSendSigningLinks =
+    canManage &&
+    acceptance?.status === "APPROVED_FOR_SIGNING" &&
+    !signingClockPast &&
+    !hasEnvelopeBlockingNewSend(envelopes) &&
+    (!isInvoiceOnly || Boolean(invoiceIdForExtend));
+
+  const sendPending = sendMutation.isPending;
 
   const body = (
     <div className="space-y-4">
@@ -331,8 +376,38 @@ export function SigningEnvelopePanel({
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
       {!isLoading && envelopes.length === 0 && (
-        <p className="text-sm text-muted-foreground">{emptySigningMessage}</p>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">{emptySigningMessage}</p>
+          {canSendSigningLinks ? (
+            <Button
+              type="button"
+              size="sm"
+              className="rounded-lg"
+              onClick={() => setSendConfirmOpen(true)}
+              disabled={sendPending}
+            >
+              Send signing links
+            </Button>
+          ) : null}
+        </div>
       )}
+
+      {!isLoading && envelopes.length > 0 && canSendSigningLinks ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">
+            Previous packages were voided. Send new signing links to the authorised representatives.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => setSendConfirmOpen(true)}
+            disabled={sendPending}
+          >
+            Send signing links
+          </Button>
+        </div>
+      ) : null}
 
       {primary ? (
         <ActiveEnvelopeCard
@@ -343,6 +418,16 @@ export function SigningEnvelopePanel({
           voidDisabled={voidMutation.isPending}
           onVoid={() => handleVoid(primary.id)}
           onRemind={(recipientId) => handleRemind(primary.id, recipientId)}
+          onResendReminders={canRemindPrimary ? handleResendReminders : undefined}
+          onSendDraft={
+            canManage &&
+            primary.status === "DRAFT" &&
+            acceptance?.status === "APPROVED_FOR_SIGNING" &&
+            !signingClockPast
+              ? () => setSendConfirmOpen(true)
+              : undefined
+          }
+          sendPending={sendPending}
           signedDocumentPending={signedDocumentPending}
           onViewSignedDocument={onViewSignedDocument}
           onDownloadSignedDocument={onDownloadSignedDocument}
@@ -407,6 +492,31 @@ export function SigningEnvelopePanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={sendConfirmOpen} onOpenChange={setSendConfirmOpen}>
+        <AlertDialogContent className="rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send signing links?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sends secure signing emails to the authorised representatives already approved
+              with this offer. They cannot be changed without requesting changes to the
+              representative lists.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={sendPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={sendPending}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleSendSigningLinks();
+              }}
+            >
+              {sendPending ? "Sending…" : "Send links"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 
@@ -432,6 +542,9 @@ function ActiveEnvelopeCard({
   voidDisabled,
   onVoid,
   onRemind,
+  onResendReminders,
+  onSendDraft,
+  sendPending,
   signedDocumentPending,
   onViewSignedDocument,
   onDownloadSignedDocument,
@@ -443,12 +556,18 @@ function ActiveEnvelopeCard({
   voidDisabled: boolean;
   onVoid: () => void;
   onRemind: (recipientId: string) => void;
+  onResendReminders?: () => void;
+  onSendDraft?: () => void;
+  sendPending?: boolean;
   signedDocumentPending?: boolean;
   onViewSignedDocument?: (documentId: string) => void;
   onDownloadSignedDocument?: (documentId: string, fileName?: string) => void;
 }) {
   const canVoid =
     canManage && envelope.status !== "COMPLETED" && envelope.status !== "VOIDED";
+  const unsignedCount = envelope.recipients.filter(
+    (recipient) => recipient.status !== "SIGNED" && recipient.status !== "DECLINED"
+  ).length;
 
   return (
     <div className="space-y-3 rounded-lg border p-4">
@@ -467,6 +586,25 @@ function ActiveEnvelopeCard({
         ) : null}
       </div>
 
+      {envelope.status === "DRAFT" ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">
+            This package was not sent. Send the signing links, or void it to start over.
+          </p>
+          {onSendDraft ? (
+            <Button
+              type="button"
+              size="sm"
+              className="rounded-lg"
+              onClick={onSendDraft}
+              disabled={sendPending}
+            >
+              {sendPending ? "Sending…" : "Send signing links"}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
       <SigningProgressMatrix
         envelope={envelope}
         collapseCompletedDocuments
@@ -478,6 +616,18 @@ function ActiveEnvelopeCard({
         onViewSignedDocument={onViewSignedDocument}
         onDownloadSignedDocument={onDownloadSignedDocument}
       />
+
+      {onResendReminders && unsignedCount > 0 ? (
+        <Button
+          type="button"
+          size="sm"
+          className="rounded-lg"
+          onClick={onResendReminders}
+          disabled={remindDisabled}
+        >
+          {remindDisabled ? "Sending reminders…" : "Send reminders"}
+        </Button>
+      ) : null}
     </div>
   );
 }

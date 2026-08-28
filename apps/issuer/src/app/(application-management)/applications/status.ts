@@ -400,12 +400,11 @@ export function getCardStatus(input: {
 
   /** Offer Waiting: contract or any invoice has OFFER_SENT. */
   if (contractOfferSent || anyInvoiceOfferSent) {
-    // Issuer still owns Step 1 (upload/amend) and Step 3 (signing package) — keep Offer Received
-    // so these cards sort above Under Review in the list.
+    // Issuer owns Step 1 (upload/amend) and tracking while signing is in progress.
+    // APPROVED_FOR_SIGNING waits on CashSouk to send links — treat like Under Review.
     const issuerMustActOnOffer =
       acceptanceStatus === "PENDING_ISSUER" ||
       acceptanceStatus === "CHANGES_REQUESTED" ||
-      acceptanceStatus === "APPROVED_FOR_SIGNING" ||
       acceptanceStatus === "SIGNING_IN_PROGRESS";
     const showReviewOffer =
       (contractOfferSent || anyInvoiceOfferSent) &&
@@ -423,6 +422,7 @@ export function getCardStatus(input: {
 
     const awaitingAdminOrDone =
       acceptanceStatus === "PENDING_ADMIN_REVIEW" ||
+      acceptanceStatus === "APPROVED_FOR_SIGNING" ||
       acceptanceStatus === "COMPLETED" ||
       app === "CONTRACT_ACCEPTED" ||
       app === "INVOICE_ACCEPTED";

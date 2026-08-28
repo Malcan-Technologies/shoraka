@@ -80,6 +80,7 @@ import {
   resolveOriginationPhase,
   resolveInvoiceFinancingRatioBounds,
   type ApplicationPersonRow,
+  type ReviewItemType,
 } from "@cashsouk/types";
 import { orgHref } from "@/lib/admin-directory-hrefs";
 import { ApplicationDetailHero } from "@/applications/application-detail-hero";
@@ -221,11 +222,11 @@ export default function DynamicApplicationDetailPage() {
     | {
         open: boolean;
         action: "reject" | "amend";
-        itemType: "invoice" | "document";
+        itemType: ReviewItemType;
         itemId: string;
       }
     | { open: boolean; action: "approve"; section: ReviewSectionId }
-    | { open: boolean; action: "approve"; itemType: "invoice" | "document"; itemId: string }
+    | { open: boolean; action: "approve"; itemType: ReviewItemType; itemId: string }
   >({ open: false, action: "reject", section: "financial" });
 
   const REVIEWABLE_STATUSES = [
@@ -746,7 +747,10 @@ export default function DynamicApplicationDetailPage() {
         }
       } else if (d.action === "reject") {
         await handleRejectItem(remark);
-      } else if (d.itemId.startsWith("acceptance_documents:")) {
+      } else if (
+        d.itemId.startsWith("acceptance_documents:") ||
+        d.itemId.startsWith("authorized_representatives:")
+      ) {
         await handleRequestAcceptanceDocumentChange(remark);
       } else {
         await handleAddPendingAmendmentItem(remark);
@@ -760,7 +764,11 @@ export default function DynamicApplicationDetailPage() {
     !!noteDialog &&
     "itemType" in noteDialog &&
     noteDialog.action === "amend" &&
-    noteDialog.itemId.startsWith("acceptance_documents:");
+    (noteDialog.itemId.startsWith("acceptance_documents:") ||
+      noteDialog.itemId.startsWith("authorized_representatives:"));
+  const noteDialogIsPartyListChange =
+    noteDialogIsAcceptanceChange &&
+    noteDialog.itemId.startsWith("authorized_representatives:");
   const sectionLabel = noteDialogIsSection
     ? noteDialog.section === "contract_details" && isInvoiceOnly
       ? "Customer"
@@ -782,7 +790,9 @@ export default function DynamicApplicationDetailPage() {
   const noteDialogDescription = noteDialogIsApprove
     ? "Add an optional remark to record your review decision."
     : noteDialogIsAcceptanceChange
-      ? "The issuer will be notified to update this acceptance document. A remark is required and will be shown to them."
+      ? noteDialogIsPartyListChange
+        ? "The issuer will be notified to update this representative list. A remark is required and will be shown to them."
+        : "The issuer will be notified to update this acceptance document. A remark is required and will be shown to them."
       : noteDialogIsSection
         ? noteDialog.action === "reject"
           ? "This will reject the section. A remark is required."
@@ -966,11 +976,6 @@ export default function DynamicApplicationDetailPage() {
                             app={app}
                             liveApplicationId={applicationId}
                             productWorkflow={reviewProductWorkflow}
-                            productVersion={
-                              typeof (app as { product_version?: number }).product_version === "number"
-                                ? (app as { product_version: number }).product_version
-                                : null
-                            }
                             canManageSigning={canAppManage}
                             isReviewable={isReviewable}
                             approveSectionPending={approveSection.isPending}

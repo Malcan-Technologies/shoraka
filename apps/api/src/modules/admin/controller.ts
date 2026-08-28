@@ -1,4 +1,8 @@
 import { Router, Request, Response, NextFunction } from "express";
+import {
+  createAdminGeneratedDocumentApplicationRouter,
+  createGeneratedDocumentCatalogRouter,
+} from "../generated-documents/controller";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
@@ -49,6 +53,7 @@ import {
   reviewItemApproveSchema,
   reviewItemRejectSchema,
   reviewItemRequestAmendmentSchema,
+  normalizeReviewItemType,
   sendContractOfferSchema,
   patchContractCustomerLargePrivateSchema,
   sendInvoiceOfferSchema,
@@ -2697,6 +2702,18 @@ router.get(
   }
 );
 
+router.use(
+  "/generated-document-types",
+  requirePermission("applications.view"),
+  createGeneratedDocumentCatalogRouter()
+);
+
+router.use(
+  "/applications/:id/generated-documents",
+  requirePermission("applications.view"),
+  createAdminGeneratedDocumentApplicationRouter()
+);
+
 /**
  * POST /v1/admin/applications/:applicationId/guarantors/:clientGuarantorId/start-aml
  * Starts RegTank Acuris KYC (individual) or KYB (company) screening — POST /v3/kyc/input and /v3/kyb/input.
@@ -3360,7 +3377,7 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = reviewItemApproveSchema.parse(req.body);
-      const itemType = validated.itemType.toLowerCase() as "invoice" | "document";
+      const itemType = normalizeReviewItemType(validated.itemType);
       const logCtx = extractRequestMetadata(req);
       const result = await adminService.approveReviewItem(
         id,
@@ -3390,7 +3407,7 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = reviewItemRejectSchema.parse(req.body);
-      const itemType = validated.itemType.toLowerCase() as "invoice" | "document";
+      const itemType = normalizeReviewItemType(validated.itemType);
       const logCtx = extractRequestMetadata(req);
       const result = await adminService.rejectReviewItem(
         id,
@@ -3420,7 +3437,7 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = reviewItemRequestAmendmentSchema.parse(req.body);
-      const itemType = validated.itemType.toLowerCase() as "invoice" | "document";
+      const itemType = normalizeReviewItemType(validated.itemType);
       const logCtx = extractRequestMetadata(req);
       const result = await adminService.requestAmendmentReviewItem(
         id,
@@ -3450,7 +3467,7 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = reviewItemActionSchema.parse(req.body);
-      const itemType = validated.itemType.toLowerCase() as "invoice" | "document";
+      const itemType = normalizeReviewItemType(validated.itemType);
       const logCtx = extractRequestMetadata(req);
       const result = await adminService.resetItemReviewToPending(
         id,
@@ -3666,7 +3683,7 @@ router.post(
           : String(validated.itemId ?? "");
       const itemType =
         validated.itemType != null
-          ? (validated.itemType.toLowerCase() as "invoice" | "document")
+          ? normalizeReviewItemType(validated.itemType)
           : undefined;
       const logCtx = extractRequestMetadata(req);
       const result = await adminService.addPendingAmendment(

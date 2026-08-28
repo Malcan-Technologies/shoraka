@@ -275,7 +275,7 @@ describe("runAcceptanceSigningExpiryJob", () => {
     const signingOffer = {
       ...offerDetails,
       offer_acceptance: {
-        status: "APPROVED_FOR_SIGNING",
+        status: "SIGNING_IN_PROGRESS",
         acceptance_expires_at: "2099-01-01T00:00:00.000Z",
         signing_expires_at: pastIso,
       },
@@ -309,5 +309,40 @@ describe("runAcceptanceSigningExpiryJob", () => {
       where: { id: { in: ["env-1"] } },
       data: { status: "EXPIRED" },
     });
+  });
+
+  it("does not expire the signing clock while waiting for admin to send links", async () => {
+    const waitingOffer = {
+      ...offerDetails,
+      offer_acceptance: {
+        status: "APPROVED_FOR_SIGNING",
+        acceptance_expires_at: "2099-01-01T00:00:00.000Z",
+        signing_expires_at: pastIso,
+      },
+    };
+    (prisma.$queryRaw as jest.Mock)
+      .mockReset()
+      .mockResolvedValueOnce([
+        {
+          id: "contract-wait",
+          offer_details: waitingOffer,
+          application_id: "app-wait",
+          product_id: "prod-1",
+          product_version: 1,
+          financing_structure: { structure_type: "new_contract" },
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    (prisma.contract.findUnique as jest.Mock).mockResolvedValue({
+      offer_details: waitingOffer,
+      status: "OFFER_SENT",
+    });
+
+    const result = await runAcceptanceSigningExpiryJob();
+
+    expect(result.contractsExpired).toEqual([]);
+    expect(tx.contract.update).not.toHaveBeenCalled();
   });
 });

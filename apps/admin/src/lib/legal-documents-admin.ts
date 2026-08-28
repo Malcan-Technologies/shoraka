@@ -9,6 +9,7 @@ import {
   LEGAL_DOCUMENT_DEFAULT_AUDIENCE,
   LEGAL_DOCUMENT_TYPE_LABELS,
   LEGAL_DOCUMENT_TYPES,
+  legalDocumentDefaultRequiredForOnboarding,
 } from "@cashsouk/types";
 
 export const MAX_LEGAL_PDF_BYTES = 10 * 1024 * 1024;
@@ -18,6 +19,7 @@ export const LEGAL_AUDIENCE_LABELS: Record<LegalDocumentAudience, string> = {
   BOTH: "Issuer & Investor",
   ISSUER: "Issuer",
   INVESTOR: "Investor",
+  GUARANTOR: "Guarantor",
   PUBLIC: "Public",
 };
 
@@ -26,6 +28,7 @@ export const OPERATIONAL_AUDIENCES: LegalDocumentAudience[] = [
   "BOTH",
   "ISSUER",
   "INVESTOR",
+  "GUARANTOR",
 ];
 
 export const LEGAL_STATUS_LABELS: Record<LegalDocumentVersionStatus, string> = {
@@ -331,7 +334,7 @@ export function createFormDefaultsForAvailableTypes(
   return {
     type,
     audience: LEGAL_DOCUMENT_DEFAULT_AUDIENCE[type],
-    requiredForOnboarding: true,
+    requiredForOnboarding: legalDocumentDefaultRequiredForOnboarding(type),
     publicVisibility: false,
     showInAccount: false,
     file: null,

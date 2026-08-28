@@ -9,6 +9,7 @@ import {
   createApplicationSchema,
   updateApplicationStepSchema,
   applicationIdParamSchema,
+  submitOfferAcceptanceBodySchema,
   invoiceOfferParamsSchema,
   requestInvoiceOfferAcceptOtpBodySchema,
   acceptInvoiceOfferBodySchema,
@@ -20,6 +21,9 @@ import { z } from "zod";
 import { logApplicationActivity } from "./logs/service";
 import { ActivityPortal } from "./logs/types";
 import { readSigningCloudConfigFromEnv } from "../signingcloud/signingcloud-api";
+import {
+  createGeneratedDocumentApplicationRouter,
+} from "../generated-documents/controller";
 import { issuerActivityFromRequest } from "../../lib/audit";
 
 /**
@@ -440,15 +444,36 @@ export function createApplicationRouter(): Router {
     }
   );
   router.post(
+    "/:id/offers/contracts/acceptance/authorized-parties-draft",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const { authorized_parties } = submitOfferAcceptanceBodySchema.parse(req.body ?? {});
+        const userId = getUserId(req);
+        const data = await applicationService.saveContractAuthorizedPartiesDraft(
+          id,
+          userId,
+          authorized_parties
+        );
+        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.post(
     "/:id/offers/contracts/acceptance",
     requireAuth,
     async (req, res, next) => {
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
+        const { authorized_parties } = submitOfferAcceptanceBodySchema.parse(req.body ?? {});
         const userId = getUserId(req);
         const data = await applicationService.submitContractOfferAcceptance(
           id,
           userId,
+          authorized_parties,
           issuerActivityFromRequest(req, res)
         );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
@@ -553,11 +578,13 @@ export function createApplicationRouter(): Router {
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
         const invoiceId = z.string().cuid().parse(req.params.invoiceId);
+        const { authorized_parties } = submitOfferAcceptanceBodySchema.parse(req.body ?? {});
         const userId = getUserId(req);
         const data = await applicationService.submitInvoiceOfferAcceptance(
           id,
           invoiceId,
           userId,
+          authorized_parties,
           issuerActivityFromRequest(req, res)
         );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
@@ -635,6 +662,11 @@ export function createApplicationRouter(): Router {
         next(e);
       }
     }
+  );
+  router.use(
+    "/:id/generated-documents",
+    requireAuth,
+    createGeneratedDocumentApplicationRouter()
   );
   router.get("/:id/summary-pdf", requireAuth, getApplicationSummaryPdf);
   router.delete("/:id/document", requireAuth, deleteDocument);

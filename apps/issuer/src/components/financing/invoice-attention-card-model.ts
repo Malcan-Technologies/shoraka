@@ -23,7 +23,7 @@ export function getInvoiceAttentionAction(row: IssuerDashboardInvoice): InvoiceA
     return {
       headline:
         cta.buttonVariant === "makeAmendments"
-          ? "Update your documents"
+          ? "Update requested changes"
           : "Review this offer",
       href: financingOfferHref(row.applicationId, row.id),
       label: cta.buttonVariant === "makeAmendments" ? cta.label : "Review offer",

@@ -11,7 +11,7 @@ import {
   assertSigningDeadlineOpen,
   acceptanceDeadlinePatchOnChangesRequested,
   buildOfferAcceptanceOnSend,
-  signingDeadlinePatchOnApprove,
+  signingDeadlinePatchOnSend,
   signingDeadlinePatchOnExtend,
 } from "./phase-deadlines";
 import { AppError } from "./http/error-handler";
@@ -76,16 +76,24 @@ describe("phase deadline stamps and gates", () => {
     expect(acceptance.acceptance_expires_at).toBe("2026-01-08T16:00:00.000Z");
   });
 
-  it("stamps signing_expires_at on approve once", () => {
-    const first = signingDeadlinePatchOnApprove(workflow, "2026-01-10T00:00:00.000Z", {
-      status: "PENDING_ADMIN_REVIEW",
+  it("stamps signing_expires_at on send once while the window is live", () => {
+    const first = signingDeadlinePatchOnSend(workflow, "2026-01-10T00:00:00.000Z", {
+      status: "APPROVED_FOR_SIGNING",
     });
     expect(first.signing_expires_at).toBe("2026-01-24T16:00:00.000Z");
-    const second = signingDeadlinePatchOnApprove(workflow, "2026-01-11T00:00:00.000Z", {
-      status: "APPROVED_FOR_SIGNING",
+    const second = signingDeadlinePatchOnSend(workflow, "2026-01-11T00:00:00.000Z", {
+      status: "SIGNING_IN_PROGRESS",
       signing_expires_at: "2026-01-24T16:00:00.000Z",
     });
     expect(second).toEqual({});
+  });
+
+  it("restamps signing_expires_at on send when the previous window already expired", () => {
+    const patch = signingDeadlinePatchOnSend(workflow, "2026-01-20T00:00:00.000Z", {
+      status: "APPROVED_FOR_SIGNING",
+      signing_expires_at: "2026-01-10T00:00:00.000Z",
+    });
+    expect(patch.signing_expires_at).toBe("2026-02-03T16:00:00.000Z");
   });
 
   it("restamps acceptance_expires_at on changes requested and clears acceptance reminders", () => {
@@ -132,7 +140,7 @@ describe("phase deadline stamps and gates", () => {
 
     expect(() =>
       assertSigningDeadlineOpen({
-        status: "APPROVED_FOR_SIGNING",
+        status: "SIGNING_IN_PROGRESS",
         signing_expires_at: "2000-01-01T00:00:00.000Z",
       })
     ).toThrow(AppError);
@@ -163,6 +171,15 @@ describe("phase deadline stamps and gates", () => {
       assertAcceptanceDeadlineOpen({
         status: "PENDING_ADMIN_REVIEW",
         acceptance_expires_at: "2000-01-01T00:00:00.000Z",
+      })
+    ).not.toThrow();
+  });
+
+  it("does not gate signing clock while waiting to send links", () => {
+    expect(() =>
+      assertSigningDeadlineOpen({
+        status: "APPROVED_FOR_SIGNING",
+        signing_expires_at: "2000-01-01T00:00:00.000Z",
       })
     ).not.toThrow();
   });

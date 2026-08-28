@@ -28,6 +28,7 @@ Feature guides for the issuer application wizard:
 - **[Issuer Applications Dashboard](./guides/application-management/issuer-applications-dashboard.md)** - User flow, statuses, document download, invoice lock
 - **[Amendment Flow](./guides/application-flow/amendment-flow.md)** - Amendment flow debugging (remarks, resubmit, stepper, tab locking)
 - **[Financial Statements Step](./guides/application-flow/financial-statements-step.md)** - Application step architecture and data flow
+- **[ARF-i Letter of Offer placeholder map](./guides/application-flow/arf-letter-of-offer-placeholder-map.md)** - Contract-facility LO fill map vs platform data (not invoice offers)
 
 ### 📋 Application Lifecycle & Logging
 

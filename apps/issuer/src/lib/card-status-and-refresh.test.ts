@@ -9,7 +9,7 @@ jest.mock("@cashsouk/config", () => ({
     const upper = String(status ?? "").toUpperCase();
     if (upper === "OFFER_SENT" && offerAcceptanceStatus) {
       const phase = String(offerAcceptanceStatus).toUpperCase();
-      if (phase === "PENDING_ADMIN_REVIEW" || phase === "COMPLETED") {
+      if (phase === "PENDING_ADMIN_REVIEW" || phase === "APPROVED_FOR_SIGNING" || phase === "COMPLETED") {
         return "under_review";
       }
     }
@@ -48,16 +48,16 @@ describe("getCardStatus offer awaiting review", () => {
     expect(result.showReviewOffer).toBe(true);
   });
 
-  it("shows Offer Received + Review Offer during SIGNING_PENDING (Step 3)", () => {
+  it("shows Under Review while waiting for CashSouk to send signing links", () => {
     const result = getCardStatus({
       applicationStatus: "SIGNING_PENDING",
       contractStatus: "OFFER_SENT",
       invoiceStatuses: [],
       offerAcceptanceStatus: "APPROVED_FOR_SIGNING",
     });
-    expect(result.badgeKey).toBe("offer_sent");
-    expect(result.displayLabel).toBe("Offer Received");
-    expect(result.showReviewOffer).toBe(true);
+    expect(result.badgeKey).toBe("under_review");
+    expect(result.displayLabel).toBe("Under Review");
+    expect(result.showReviewOffer).toBe(false);
   });
 
   it("shows Offer Received + Review Offer during SIGNING_IN_PROGRESS", () => {

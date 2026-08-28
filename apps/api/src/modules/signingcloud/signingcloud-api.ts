@@ -8,10 +8,56 @@ import {
   decryptSigningCloudResponse,
   encryptPayload,
   assertSigningCloudSuccess,
+  parseSigningCloudHttpBody,
   type SigningCloudEncryptedResponse,
 } from "../../lib/signingcloud/crypto";
 import { logger } from "../../lib/logger";
 import { validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
+
+const SIGNINGCLOUD_HTTP_TIMEOUT_MS = 25_000;
+
+async function signingCloudFetch(url: string, init?: RequestInit): Promise<globalThis.Response> {
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: init?.signal ?? AbortSignal.timeout(SIGNINGCLOUD_HTTP_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      throw new Error(`SigningCloud request timed out after ${SIGNINGCLOUD_HTTP_TIMEOUT_MS / 1000}s`);
+    }
+    const raw = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not reach SigningCloud: ${raw}`);
+  }
+}
+
+async function readSigningCloudEncryptedResponse(
+  res: globalThis.Response
+): Promise<SigningCloudEncryptedResponse> {
+  const text = await res.text();
+  if (!text.trim()) {
+    logger.error(
+      {
+        url: res.url,
+        httpStatus: res.status,
+        contentType: res.headers.get("content-type"),
+        bodyLength: text.length,
+      },
+      "SigningCloud HTTP body was empty"
+    );
+  } else if (res.status >= 400) {
+    logger.error(
+      {
+        url: res.url,
+        httpStatus: res.status,
+        contentType: res.headers.get("content-type"),
+        bodyPreview: text.trim().slice(0, 180),
+      },
+      "SigningCloud HTTP error"
+    );
+  }
+  return parseSigningCloudHttpBody(text, res.status);
+}
 
 const PDF_PAGE_HEIGHT_PT = 841.89;
 
@@ -109,11 +155,11 @@ export async function uploadPdfToSigningCloudMultiSigner(params: {
   formData.append("mac", mac);
   formData.append("uploadFile", new Blob([pdfBuffer], { type: "application/pdf" }), "document.pdf");
 
-  const res = await fetch(`${cfg.baseUrl}/signserver/v1/contract/file2`, {
+  const res = await signingCloudFetch(`${cfg.baseUrl}/signserver/v1/contract/file2`, {
     method: "POST",
     body: formData,
   });
-  const body = (await res.json()) as SigningCloudEncryptedResponse & Record<string, unknown>;
+  const body = await readSigningCloudEncryptedResponse(res);
   assertSigningCloudSuccess(body);
   const decrypted = decryptSigningCloudResponse<Record<string, unknown>>(body, cfg.apiSecret);
   const contractnum =
@@ -153,8 +199,8 @@ const signingCloudAccessTokenInFlight = new Map<string, Promise<string>>();
 
 async function fetchSigningCloudAccessTokenFromApi(cfg: SigningCloudEnvConfig): Promise<string> {
   const url = `${cfg.baseUrl}/signserver/v1/accesstoken?client_id=${encodeURIComponent(cfg.apiKey)}`;
-  const res = await fetch(url);
-  const body = (await res.json()) as SigningCloudEncryptedResponse;
+  const res = await signingCloudFetch(url);
+  const body = await readSigningCloudEncryptedResponse(res);
   assertSigningCloudSuccess(body);
   const decrypted = decryptSigningCloudResponse<{ at?: string }>(body, cfg.apiSecret);
   const at = decrypted.at;
@@ -234,11 +280,11 @@ export async function uploadPdfToSigningCloud(params: {
   formData.append("mac", mac);
   formData.append("uploadFile", new Blob([pdfBuffer], { type: "application/pdf" }), "offer-letter.pdf");
 
-  const res = await fetch(`${cfg.baseUrl}/signserver/v1/contract/file2`, {
+  const res = await signingCloudFetch(`${cfg.baseUrl}/signserver/v1/contract/file2`, {
     method: "POST",
     body: formData,
   });
-  const body = (await res.json()) as SigningCloudEncryptedResponse & Record<string, unknown>;
+  const body = await readSigningCloudEncryptedResponse(res);
   assertSigningCloudSuccess(body);
   const decrypted = decryptSigningCloudResponse<Record<string, unknown>>(body, cfg.apiSecret);
   const contractnum =
@@ -290,12 +336,12 @@ export async function startManualSigning(params: {
     mac,
   });
 
-  const res = await fetch(`${cfg.baseUrl}/signserver/v1/contract/signature/manual`, {
+  const res = await signingCloudFetch(`${cfg.baseUrl}/signserver/v1/contract/signature/manual`, {
     method: "POST",
     body: formBody.toString(),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
-  const body = (await res.json()) as SigningCloudEncryptedResponse;
+  const body = await readSigningCloudEncryptedResponse(res);
   assertSigningCloudSuccess(body);
   return decryptSigningCloudResponse<Record<string, unknown>>(body, cfg.apiSecret);
 }
@@ -334,8 +380,8 @@ export async function getContractDetailsData(params: {
   const { cfg, accessToken, contractnum } = params;
   const { data, mac } = encryptPayload(JSON.stringify({ contractnum }), cfg.apiSecret);
   const qs = new URLSearchParams({ accesstoken: accessToken, data, mac });
-  const res = await fetch(`${cfg.baseUrl}/signserver/v1/contract/details/data?${qs.toString()}`);
-  const body = (await res.json()) as SigningCloudEncryptedResponse;
+  const res = await signingCloudFetch(`${cfg.baseUrl}/signserver/v1/contract/details/data?${qs.toString()}`);
+  const body = await readSigningCloudEncryptedResponse(res);
   assertSigningCloudSuccess(body);
   return decryptSigningCloudResponse<Record<string, unknown>>(body, cfg.apiSecret);
 }
@@ -355,8 +401,8 @@ export async function getContractFileData(params: {
     cfg.apiSecret
   );
   const qs = new URLSearchParams({ accesstoken: accessToken, data, mac });
-  const res = await fetch(`${cfg.baseUrl}/signserver/v1/contract/file?${qs.toString()}`);
-  const body = (await res.json()) as SigningCloudEncryptedResponse;
+  const res = await signingCloudFetch(`${cfg.baseUrl}/signserver/v1/contract/file?${qs.toString()}`);
+  const body = await readSigningCloudEncryptedResponse(res);
   assertSigningCloudSuccess(body);
   return decryptSigningCloudResponse<Record<string, unknown>>(body, cfg.apiSecret);
 }

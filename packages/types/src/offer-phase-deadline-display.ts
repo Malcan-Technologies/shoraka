@@ -56,7 +56,7 @@ export type AcceptanceDeadlinePreview = {
 };
 
 export function phaseDeadlineLabel(status: OfferAcceptanceStatus | string | null | undefined): string {
-  if (status === "APPROVED_FOR_SIGNING" || status === "SIGNING_IN_PROGRESS") {
+  if (status === "SIGNING_IN_PROGRESS") {
     return "Complete signing by";
   }
   return "Accept by";

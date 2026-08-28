@@ -252,7 +252,15 @@ async function ensureIssuerAndProduct(ownerUserId: string) {
       aml_approved: true,
       tnc_accepted: true,
       ssm_checked: true,
-      corporate_onboarding_data: { basicInfo: { industry: "Trading" } },
+      corporate_onboarding_data: {
+        basicInfo: { industry: "Trading" },
+        aboutYourBusiness: {
+          whatDoesCompanyDo: "Wholesale trade and distribution for Malaysian retailers.",
+          mainCustomers: "Retail chains and industrial buyers.",
+          singleCustomerOver50Revenue: false,
+          accountingSoftware: "Xero",
+        },
+      },
     },
     create: {
       id: ISSUER_ORG_ID,
@@ -267,7 +275,15 @@ async function ensureIssuerAndProduct(ownerUserId: string) {
       aml_approved: true,
       tnc_accepted: true,
       ssm_checked: true,
-      corporate_onboarding_data: { basicInfo: { industry: "Trading" } },
+      corporate_onboarding_data: {
+        basicInfo: { industry: "Trading" },
+        aboutYourBusiness: {
+          whatDoesCompanyDo: "Wholesale trade and distribution for Malaysian retailers.",
+          mainCustomers: "Retail chains and industrial buyers.",
+          singleCustomerOver50Revenue: false,
+          accountingSoftware: "Xero",
+        },
+      },
     },
   });
 

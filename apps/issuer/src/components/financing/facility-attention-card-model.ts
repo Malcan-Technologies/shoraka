@@ -26,7 +26,7 @@ export function getFacilityAttentionAction(row: IssuerDashboardContract): Facili
     return {
       headline:
         cta.buttonVariant === "makeAmendments"
-          ? "Update your documents"
+          ? "Update requested changes"
           : "Review this offer",
       href: financingOfferHref(row.applicationId),
       label: cta.buttonVariant === "makeAmendments" ? cta.label : "Review offer",

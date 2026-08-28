@@ -1,6 +1,6 @@
 /**
  * Offer-acceptance phase helpers for the Review Offer modal stepper.
- * Step 1 is upload-only via product acceptance_documents.
+ * Step 1 is two screens (authorised representatives, then uploads) and one submit.
  */
 
 import type { SigningOfferStep } from "@/components/signing/signing-progress-stepper";
@@ -20,13 +20,29 @@ import {
 } from "@cashsouk/types";
 
 export type SigningOfferStepId =
+  | "representatives"
   | "documents"
   | "awaiting_review"
   | "rejected"
   | "declined"
-  | "signers"
   | "signing"
   | "complete";
+
+/** Which Step 1 screen is the domain cursor (people first, then uploads). */
+export type AcceptanceStep1Screen = "representatives" | "documents";
+
+/** People before documents, except a docs-only change request lands on uploads. */
+export function resolveAcceptanceStep1Screen(input: {
+  hasPostDocs: boolean;
+  peopleStepConfirmed: boolean;
+  flaggedPartyCount: number;
+  flaggedDocumentCount: number;
+}): AcceptanceStep1Screen {
+  if (!input.hasPostDocs) return "representatives";
+  if (input.flaggedDocumentCount > 0 && input.flaggedPartyCount === 0) return "documents";
+  if (input.peopleStepConfirmed) return "documents";
+  return "representatives";
+}
 
 /** UI mode for ReviewOfferModal: full signing stepper vs Accept/Decline-only. */
 export type ReviewOfferModalMode =
@@ -99,6 +115,9 @@ export function buildAcceptanceDocumentsStepConfig(
         allow_multiple: row.allow_multiple,
         allowed_types: row.allowed_types,
         ...(row.template ? { template: row.template } : {}),
+        ...(row.generated_document_type
+          ? { generated_document_type: row.generated_document_type }
+          : {}),
       })),
     },
   };
@@ -124,6 +143,11 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
 
   if (input.usesAcceptanceFlow) {
     if (offerAcceptanceIsStep1Editable(input.acceptanceStatus)) {
+      shells.push({
+        id: "representatives",
+        label: "Authorised representatives",
+        description: "Name who may represent each company",
+      });
       if (input.hasPostDocs) {
         shells.push({
           id: "documents",
@@ -145,11 +169,6 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
 
     if (offerAcceptanceAllowsSigning(input.acceptanceStatus)) {
       shells.push(
-        {
-          id: "signers",
-          label: "Configure signers",
-          description: "Assign who will sign each document",
-        },
         {
           id: "signing",
           label: "Document signing",
@@ -191,20 +210,8 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
     return shells;
   }
 
-  // Legacy path: optional upload then signing in one continuous flow
-  if (input.hasPostDocs) {
-    shells.push({
-      id: "documents",
-      label: "Upload documents",
-      description: "Upload required documents before signing",
-    });
-  }
+  // Products without the acceptance flow still track the package after CashSouk sends it.
   shells.push(
-    {
-      id: "signers",
-      label: "Configure signers",
-      description: "Assign who will sign each document",
-    },
     {
       id: "signing",
       label: "Document signing",
@@ -221,9 +228,12 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
 
 export type SigningOfferStepCursorInput = SigningOfferStepShellInput & {
   postDocsReady: boolean;
-  signersLocked: boolean;
+  /** True once a live (non-draft) envelope exists. */
+  packageSent: boolean;
   allDocsSigned: boolean;
   envelopeCompleted: boolean;
+  /** Step 1 sub-screen. Ignored outside the acceptance-flow editable window. */
+  acceptanceStep1Screen?: AcceptanceStep1Screen;
 };
 
 export function getCurrentSigningOfferStepId(
@@ -231,32 +241,29 @@ export function getCurrentSigningOfferStepId(
 ): SigningOfferStepId {
   if (input.usesAcceptanceFlow) {
     if (offerAcceptanceIsStep1Editable(input.acceptanceStatus)) {
-      if (input.hasPostDocs) return "documents";
-      return "documents";
+      if (input.acceptanceStep1Screen === "documents" && input.hasPostDocs) {
+        return "documents";
+      }
+      return "representatives";
     }
     if (offerAcceptanceIsAwaitingAdmin(input.acceptanceStatus)) {
       return "awaiting_review";
     }
     if (offerAcceptanceAllowsSigning(input.acceptanceStatus)) {
-      if (input.signersLocked) {
-        if (!input.allDocsSigned) return "signing";
-        if (input.envelopeCompleted) return "complete";
-        return "signing";
+      if (input.packageSent && input.allDocsSigned && input.envelopeCompleted) {
+        return "complete";
       }
-      return "signers";
+      return "signing";
     }
     if (input.acceptanceStatus === "REJECTED") return "rejected";
     if (input.acceptanceStatus === "DECLINED") return "declined";
     return "awaiting_review";
   }
 
-  if (input.signersLocked) {
-    if (!input.allDocsSigned) return "signing";
-    if (input.envelopeCompleted) return "complete";
-    return "signing";
+  if (input.packageSent && input.allDocsSigned && input.envelopeCompleted) {
+    return "complete";
   }
-  if (input.hasPostDocs && !input.postDocsReady) return "documents";
-  return "signers";
+  return "signing";
 }
 
 export function getSigningOfferSteps(input: SigningOfferStepCursorInput): SigningOfferStep[] {

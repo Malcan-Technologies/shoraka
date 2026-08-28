@@ -4,9 +4,9 @@ Admin sends offers for Contract and Invoice. The issuer receives them, can accep
 
 For products configured with **acceptance documents**, the issuer follows a phased flow (see [Offer acceptance & signing phases](../guides/application-flow/offer-acceptance-and-signing-phases.md)):
 
-1. **Step 1** — Upload acceptance docs configured on the product, submit.
-2. **Step 2** — Admin reviews on the **Acceptance** tab (offer status, acceptance docs, signing package progress; approve / request changes / reject).
-3. **Step 3** — Signing package (configure signers → send → track). No upload step.
+1. **Step 1** — Authorised representatives, then upload acceptance docs configured on the product, submit.
+2. **Step 2** — Admin reviews on the **Acceptance** tab (offer status, authorised representatives, acceptance docs, signing package; approve / request changes / reject).
+3. **Step 3** — Admin sends signing links from **Signing package**. Issuer tracks progress. No upload or configure-signers step.
 
 `offer_details.offer_acceptance.status` tracks the phase (Option A). Envelope create/send requires `APPROVED_FOR_SIGNING` (or later). Contract-linked invoices still Accept/Decline after the contract envelope is `COMPLETED`.
 
@@ -68,7 +68,7 @@ Entity `contract.status` / `invoice.status` stays `OFFER_SENT` until commercial 
 
 ### Deriving offer status for UI
 
-Uses the active phase deadline on `offer_acceptance` (`acceptance_expires_at` while in Step 1/admin review; `signing_expires_at` while approved for signing / signing in progress). Deadlines are **Malaysia calendar days** valid through **11:59 PM** on the last valid day; expiry is **`now >= expiresAt`** (exclusive next-midnight MYT stored as UTC). UI labels use shared formatting (`Accept by 06 Aug 2026, 11:59 PM`). See `apps/issuer/src/lib/offer-utils.ts` and `packages/types/src/deadline-config.ts`.
+Uses the active phase deadline on `offer_acceptance` (`acceptance_expires_at` while in Step 1 / issuer changes requested; `signing_expires_at` while signing is in progress after links are sent). Deadlines are **Malaysia calendar days** valid through **11:59 PM** on the last valid day; expiry is **`now >= expiresAt`** (exclusive next-midnight MYT stored as UTC). UI labels use shared formatting (`Accept by 06 Aug 2026, 11:59 PM`). See `apps/issuer/src/lib/offer-utils.ts` and `packages/types/src/deadline-config.ts`.
 
 - **"Offer received"** — Show offer badge, enable "Review offer" / Accept–Reject when the active clock has not passed.
 - **"Offer expired"** — Same label for past-deadline soft window (`OFFER_SENT` + clock past) and durable entity status `OFFER_EXPIRED`:
@@ -106,7 +106,7 @@ Signing packages are **always required** for offer types that need an envelope �
 
 **Invoice-only** offers each get their own envelope from the same product package. Different invoices on the same application may have active envelopes **in parallel** (uniqueness is per `contract_id` or per `invoice_id`, not per application). Active = `DRAFT` | `SENT` | `IN_PROGRESS`.
 
-Every signer is an external party emailed an opaque link. For envelope paths, the issuer **Review offer** modal is the signing control centre: bind signers (name, email, IC), attach **acceptance documents** (e.g. Board Resolution), send the envelope, monitor progress, and re-notify.
+Every signer is an external party emailed an opaque link. For envelope paths, CashSouk sends the package from the admin Acceptance tab after approving authorised representatives. The issuer **Review offer** modal is the tracking surface once links are sent (progress and reminders). Acceptance documents (e.g. Board Resolution) are uploaded in Step 1.
 
 **Product snapshot:** signing package documents and acceptance-document gates come from the application's frozen product version (`application.product_version` within the product `base_id` family), not the latest live catalog row. Acceptance documents are configured on the financing-type step as `acceptance_documents`. Void + recreate rebuilds from that same frozen workflow and does not pick up later product edits. Guarantor Agreement appears only when that frozen signing template includes it (no silent auto-inject). Legacy dual `{ contract, invoice }` under `signing_packages` and flat `signing_template` are migrated in-memory to a single package until the product is re-saved.
 
@@ -114,12 +114,13 @@ Signers complete the flow at `/signing/external/[token]`:
 
 1. IC access code (directors: must match IC bound at send; guarantors: self-declare on the link)
 2. Per-recipient MyKad eKYC when the role requires it
-3. SigningCloud signing for assigned documents (API attaches `callUrl` from `API_PUBLIC_URL` or `API_URL`)
-4. On browser return (`backUrl`): page calls `POST /v1/signing/external/:token/confirm-signed` → API syncs from SigningCloud **Get Document Detail**, then trusts the return for that recipient if Detail still shows them pending
-5. On normal revisit of the signing link: page calls `POST /v1/signing/external/:token/sync-from-provider` (Detail sync without trust-return)
-6. Issuer **Refresh** calls `POST /v1/signing/envelopes/:id/sync-from-provider` (same Detail sync) before refetching envelopes
-7. SigningCloud webhook (when it arrives) runs the same Detail sync path (stores signed PDF when the document is complete)
-8. Continue if more docs remain for that recipient; envelope COMPLETED / VOIDED / DECLINED / EXPIRED → closed package page
+3. **Guarantors only:** review the published Guarantor Warning Statement PDF and accept it (open-before-accept, same checklist pattern as onboarding). Evidence is stored on `LegalExternalAcceptance` (`source_type = SIGNING_RECIPIENT`), not on org-owner `LegalDocumentAcceptance`. Until legal publishes that PDF in Admin → Legal Documents (`audience: GUARANTOR`, `required_for_onboarding: false`), the signing page shows an empty state and `start-signing` returns `LEGAL_DOCUMENT_UNAVAILABLE`.
+4. SigningCloud signing for assigned documents (API attaches `callUrl` from `API_PUBLIC_URL` or `API_URL`)
+5. On browser return (`backUrl`): page calls `POST /v1/signing/external/:token/confirm-signed` → API syncs from SigningCloud **Get Document Detail**, then trusts the return for that recipient if Detail still shows them pending
+6. On normal revisit of the signing link: page calls `POST /v1/signing/external/:token/sync-from-provider` (Detail sync without trust-return)
+7. Issuer **Refresh** calls `POST /v1/signing/envelopes/:id/sync-from-provider` (same Detail sync) before refetching envelopes
+8. SigningCloud webhook (when it arrives) runs the same Detail sync path (stores signed PDF when the document is complete)
+9. Continue if more docs remain for that recipient; envelope COMPLETED / VOIDED / DECLINED / EXPIRED → closed package page
 
 **Status source of truth:** our DB **assignment** statuses (not document status). Document stays `PENDING` until every required signer on that document is `SIGNED`. Updated from SigningCloud Detail (`signstate`: 0 pending / 1 signed / 2 rejected) on return, revisit, Refresh, and webhook. Webhook alone is not required for progress.
 

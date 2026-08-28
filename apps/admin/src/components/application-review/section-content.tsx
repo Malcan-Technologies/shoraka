@@ -22,6 +22,15 @@ import type { ReviewTabDescriptor } from "./review-registry";
 import { isSignedContractOfferLetterAvailable } from "./offer-signing-availability";
 import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 import type { SendInvoiceOfferUiPayload } from "@/components/utilisation-fee-lines";
+import { parseItemScopeKey, type ReviewItemType } from "@cashsouk/types";
+
+function acceptanceHubItemType(itemId: string, itemType?: ReviewItemType): ReviewItemType {
+  if (itemType === "authorized_representatives" || itemType === "document" || itemType === "invoice") {
+    return itemType;
+  }
+  const parsed = parseItemScopeKey(itemId).itemType;
+  return parsed === "authorized_representatives" ? "authorized_representatives" : "document";
+}
 
 export interface SectionCommentRecord {
   id: string;
@@ -147,10 +156,10 @@ export interface SectionContentProps {
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
   onDownloadAllDocuments: (files: { s3Key: string; fileName: string; category: string; field: string }[]) => Promise<void> | void;
   downloadAllDocumentsPending?: boolean;
-  onApproveItem: (itemId: string, itemType: "invoice" | "document") => Promise<void>;
-  onRejectItem: (itemId: string, itemType: "invoice" | "document") => void;
-  onRequestAmendmentItem: (itemId: string, itemType: "invoice" | "document") => void;
-  onResetItemToPending?: (itemId: string, itemType: "invoice" | "document") => void;
+  onApproveItem: (itemId: string, itemType: ReviewItemType) => Promise<void>;
+  onRejectItem: (itemId: string, itemType: ReviewItemType) => void;
+  onRequestAmendmentItem: (itemId: string, itemType: ReviewItemType) => void;
+  onResetItemToPending?: (itemId: string, itemType: ReviewItemType) => void;
   onSendContractOffer?: (payload: {
     offeredFacility: number;
     facilityFeeRatePercent: number | null;
@@ -188,7 +197,6 @@ export interface SectionContentProps {
   productWorkflow?: unknown;
   /** When false, Acceptance signing actions (void/remind) are disabled. */
   canManageSigning?: boolean;
-  productVersion?: number | null;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -235,7 +243,6 @@ export function SectionContent({
   resubmitAmendmentRemarks,
   productWorkflow,
   canManageSigning = true,
-  productVersion = null,
 }: SectionContentProps) {
   const signingApplicationId =
     (typeof liveApplicationId === "string" && liveApplicationId) ||
@@ -418,9 +425,6 @@ export function SectionContent({
       const acceptanceWorkflow = isInheritedAcceptance
         ? inherited.product_workflow ?? productWorkflow
         : productWorkflow;
-      const acceptanceProductVersion = isInheritedAcceptance
-        ? inherited.product_version ?? productVersion
-        : productVersion;
       return (
         <AcceptanceSection
           supportingDocuments={acceptanceDocuments}
@@ -438,12 +442,14 @@ export function SectionContent({
           onDownloadDocument={onDownloadDocument}
           onDownloadAllDocuments={onDownloadAllDocuments}
           isDownloadAllPending={downloadAllDocumentsPending}
-          onApproveItem={(id) => onApproveItem(id, "document")}
-          onRejectItem={(id) => onRejectItem(id, "document")}
-          onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "document")}
+          onApproveItem={(id, itemType) => onApproveItem(id, acceptanceHubItemType(id, itemType))}
+          onRejectItem={(id, itemType) => onRejectItem(id, acceptanceHubItemType(id, itemType))}
+          onRequestAmendmentItem={(id, itemType) =>
+            onRequestAmendmentItem(id, acceptanceHubItemType(id, itemType))
+          }
           onResetItemToPending={
             onResetItemToPending && !isInheritedAcceptance
-              ? (id) => onResetItemToPending(id, "document")
+              ? (id, itemType) => onResetItemToPending(id, acceptanceHubItemType(id, itemType))
               : undefined
           }
           comments={sectionComments}
@@ -455,10 +461,7 @@ export function SectionContent({
           hideSectionComments={hideSectionComments || !!sectionComparison || isInheritedAcceptance}
           applicationId={sectionComparison ? undefined : signingApplicationId}
           workflow={acceptanceWorkflow}
-          people={app.people ?? []}
           guarantors={app.application_guarantors}
-          contractId={app.contract?.id ?? null}
-          productVersion={acceptanceProductVersion}
           canManageSigning={canManageSigning && !isInheritedAcceptance}
           contractOfferDetails={app.contract?.offer_details}
           invoices={app.invoices ?? []}

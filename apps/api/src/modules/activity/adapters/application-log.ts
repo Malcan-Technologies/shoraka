@@ -285,7 +285,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
           : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING:
         return contractRef
-          ? `Acceptance for ${contractRef} was approved. You can configure and send the signing package.`
+          ? `Acceptance for ${contractRef} was approved. CashSouk will send signing links to the authorised representatives.`
           : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED:
         return contractRef
@@ -324,7 +324,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
           : fallbackDescription;
       case ApplicationLogEventType.INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING:
         return invoiceRef
-          ? `Acceptance for ${invoiceRef} was approved. You can configure and send the signing package.`
+          ? `Acceptance for ${invoiceRef} was approved. CashSouk will send signing links to the authorised representatives.`
           : fallbackDescription;
       case ApplicationLogEventType.INVOICE_OFFER_ACCEPTED:
         return invoiceRef

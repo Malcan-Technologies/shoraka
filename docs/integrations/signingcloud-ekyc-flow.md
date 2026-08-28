@@ -37,6 +37,10 @@ sequenceDiagram
     Signer->>API: POST /ekyc/complete
     API->>DB: status verified
   end
+  opt guarantor
+    Signer->>API: POST warning/open
+    Signer->>API: POST warning/accept
+  end
   Signer->>API: POST start-signing
 ```
 
@@ -60,6 +64,8 @@ sequenceDiagram
 
 - `GET /v1/signing/external/:token` — `kyc_status` resolved from `signingcloud_ekyc` by recipient email
 - `POST /v1/signing/external/:token/ekyc/session` — creates/refreshes shared row
+- `POST /v1/signing/external/:token/warning/open` — guarantors; records `LegalExternalAcceptance` OPENED and returns a presigned PDF view URL
+- `POST /v1/signing/external/:token/warning/accept` — guarantors; requires OPENED, then ACCEPTED. `start-signing` is blocked until this succeeds.
 
 ### eKYC callbacks (no auth)
 
@@ -85,4 +91,5 @@ Runs `20260707170000_restore_shared_signingcloud_ekyc` (recreates/alters `signin
 | eKYC service | `apps/api/src/modules/ekyc/service.ts` |
 | Status resolver | `resolveSigningKycStatus`, `resolveSigningKycStatusMap` |
 | Signing gate | `apps/api/src/modules/signing/service.ts` (`assertRecipientCanSign`) |
+| Guarantor warning | `apps/api/src/modules/legal-documents/external-acceptance-service.ts` |
 | Mobile capture | `apps/issuer/public/ekyc/capture.html` |

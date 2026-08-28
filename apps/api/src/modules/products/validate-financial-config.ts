@@ -16,7 +16,10 @@ import {
   getStepKeyFromStepId,
   MAX_INVOICE_FINANCING_RATIO_PERCENT,
   parsePhaseDeadlineConfig,
+  parsePositiveRmAmount,
   parseSigningPackagesConfig,
+  readInvoiceSubLimitPerInvoiceRmFromWorkflow,
+  workflowAcceptanceDocumentsIncludeGeneratedType,
   workflowUsesOfferAcceptanceFlow,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
@@ -158,6 +161,15 @@ export function validateWorkflowFinancialConfig(workflow: unknown[]): void {
   }
   if (minRatio != null && maxRatio != null && minRatio > maxRatio) {
     throw new AppError(400, "VALIDATION_ERROR", "Invalid financing ratio configuration");
+  }
+
+  const subLimit = parsePositiveRmAmount(config.sub_limit_per_invoice_rm);
+  if (
+    config.sub_limit_per_invoice_rm != null &&
+    config.sub_limit_per_invoice_rm !== "" &&
+    subLimit == null
+  ) {
+    throw new AppError(400, "VALIDATION_ERROR", "Invoice sub-limit must be a positive RM amount");
   }
 
   const parseMonth = (v: unknown): number | null => {
@@ -353,10 +365,24 @@ export function validateFinancialConfig(params: {
   if (params.workflow && params.workflow.length > 0) {
     validateMandatoryWorkflowStepSet(params.workflow);
     validateWorkflowFinancialConfig(params.workflow);
+    validateInvoiceSubLimitForGeneratedLo(params.workflow);
     validateSupportingDocumentsConfig(params.workflow);
     validateAcceptanceDocumentsConfig(params.workflow);
     validatePhaseDeadlineConfigs(params.workflow);
     validateBusinessDetailsGuarantorAgreement(params.workflow);
+  }
+}
+
+function validateInvoiceSubLimitForGeneratedLo(workflow: unknown[]): void {
+  if (!workflowAcceptanceDocumentsIncludeGeneratedType(workflow, "arf_contract_facility_lo")) {
+    return;
+  }
+  if (readInvoiceSubLimitPerInvoiceRmFromWorkflow(workflow) == null) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Invoice sub-limit per invoice is required when this product generates a Letter of Offer."
+    );
   }
 }
 

@@ -14,6 +14,7 @@ export type { LegalDocumentsReviewMode } from "./legal-documents-review-copy";
 export {
   LegalDocumentChecklistShell,
   LegalDocumentChecklistRows,
+  LegalDocumentChecklistEmpty,
   legalChecklistStatusLabel,
 } from "./legal-document-checklist";
 export type {

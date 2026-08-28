@@ -21,6 +21,27 @@ export type SigningEnvelopeStatus =
   | "VOIDED"
   | "EXPIRED";
 
+/**
+ * A package already exists for this offer. Admin can send links again only after
+ * it is voided (or the closed envelope is expired/declined).
+ */
+const ENVELOPE_STATUSES_BLOCKING_NEW_SEND: ReadonlySet<SigningEnvelopeStatus> = new Set([
+  "DRAFT",
+  "SENT",
+  "IN_PROGRESS",
+  "COMPLETED",
+]);
+
+export function signingEnvelopeBlocksNewSend(status: SigningEnvelopeStatus): boolean {
+  return ENVELOPE_STATUSES_BLOCKING_NEW_SEND.has(status);
+}
+
+export function hasEnvelopeBlockingNewSend(
+  envelopes: ReadonlyArray<{ status: SigningEnvelopeStatus }>
+): boolean {
+  return envelopes.some((envelope) => signingEnvelopeBlocksNewSend(envelope.status));
+}
+
 export type SigningDocumentSource =
   | "GENERATED_OFFER_LETTER"
   | "ADMIN_UPLOAD"
@@ -55,10 +76,6 @@ export interface SigningRoleDefinition {
   label: string;
   /** Default KYC requirement for this role. */
   kyc_required: boolean;
-  /** Default min recipients at offer bind time. */
-  min_count: number;
-  /** Default max recipients (null = unbounded). */
-  max_count: number | null;
 }
 
 /** Extensible registry of predefined signer roles. Add entries here to support new roles. */
@@ -67,15 +84,11 @@ export const SIGNING_ROLE_REGISTRY: readonly SigningRoleDefinition[] = [
     key: "issuer_director",
     label: "Issuer director",
     kyc_required: true,
-    min_count: 1,
-    max_count: null,
   },
   {
     key: "guarantor",
     label: "Guarantor",
     kyc_required: true,
-    min_count: 1,
-    max_count: null,
   },
 ] as const;
 
@@ -139,10 +152,6 @@ export interface SigningTemplateRole {
   /** Display order for roles in admin UI (does not gate signing). */
   routing_order: number;
   kyc_required: boolean;
-  /** Minimum number of people that must be bound to this role at send time. */
-  min_count: number;
-  /** Maximum number of people (null = unbounded, e.g. multiple guarantors). */
-  max_count: number | null;
 }
 
 export interface SigningTemplateDocument {
@@ -255,11 +264,6 @@ function parseTemplateRole(raw: unknown, index: number): SigningTemplateRole {
     source_hint: legacyHint ? (legacyHint as SigningRoleSourceHint) : undefined,
     routing_order: asInt(r.routing_order, index),
     kyc_required: r.kyc_required !== false,
-    min_count: Math.max(0, asInt(r.min_count, registry?.min_count ?? 1)),
-    max_count:
-      r.max_count === null || r.max_count === undefined
-        ? (registry?.max_count ?? null)
-        : Math.max(1, asInt(r.max_count, 1)),
   };
 }
 
@@ -508,11 +512,6 @@ export function parseSigningTemplateDocumentCategoryKey(
   return null;
 }
 
-function mergeRoleMaxCount(a: number | null, b: number | null): number | null {
-  if (a == null || b == null) return null;
-  return Math.max(a, b);
-}
-
 /** Normalize legacy duplicate role keys so documents and roles stay in sync. */
 export function sanitizeSigningTemplateConfig(config: SigningTemplateConfig): SigningTemplateConfig {
   const remapRoleKeys = (keys: string[]): SigningRoleKey[] => [
@@ -553,8 +552,6 @@ export function sanitizeSigningTemplateConfig(config: SigningTemplateConfig): Si
     }
     mergedRoles.set(canonical, {
       ...existing,
-      min_count: Math.max(existing.min_count, role.min_count),
-      max_count: mergeRoleMaxCount(existing.max_count, role.max_count),
       kyc_required: existing.kyc_required && role.kyc_required !== false,
     });
   }
@@ -598,9 +595,6 @@ export function validateSigningTemplateConfig(config: SigningTemplateConfig): st
     if (!role.label.trim()) errors.push("Signing: every signer role needs a label.");
     if (roleKeys.has(role.key)) errors.push(`Signing: duplicate role key "${role.key}".`);
     roleKeys.add(role.key);
-    if (role.max_count != null && role.max_count < role.min_count) {
-      errors.push(`Signing: role "${role.label || role.key}" max count is below its min count.`);
-    }
   }
 
   const docKeys = new Set<string>();
@@ -640,8 +634,6 @@ export function createDefaultRoleFromRegistry(
     label: def.label,
     routing_order: roleIndex,
     kyc_required: def.kyc_required,
-    min_count: def.min_count,
-    max_count: def.max_count,
   };
 }
 
@@ -723,7 +715,6 @@ export function validateRecipientBindings(
   bindings: RecipientBinding[]
 ): string[] {
   const errors: string[] = [];
-  const byRole = new Map<string, RecipientBinding[]>();
   const roleByKey = new Map(template.roles.map((r) => [r.key, r]));
 
   for (const b of bindings) {
@@ -742,24 +733,6 @@ export function validateRecipientBindings(
       } else if (!isValidSigningIcNumber(b.ic_number)) {
         errors.push(`Recipient for "${role.label || role.key}" must have a valid 12-digit IC number.`);
       }
-    }
-    // Non-director roles self-declare IC on the signing link; ignore any IC sent at bind time.
-    const list = byRole.get(b.role_key) ?? [];
-    list.push(b);
-    byRole.set(b.role_key, list);
-  }
-
-  for (const role of template.roles) {
-    const count = byRole.get(role.key)?.length ?? 0;
-    if (count < role.min_count) {
-      errors.push(
-        `Role "${role.label || role.key}" needs at least ${role.min_count} recipient(s); got ${count}.`
-      );
-    }
-    if (role.max_count != null && count > role.max_count) {
-      errors.push(
-        `Role "${role.label || role.key}" allows at most ${role.max_count} recipient(s); got ${count}.`
-      );
     }
   }
 
@@ -874,6 +847,8 @@ export interface SigningRecipientDto {
   completed_at: string | null;
   /** Present for issuer/admin views after send — tracks invitation email delivery. */
   email_delivery_status?: "sent" | "failed" | null;
+  /** Guarantors only: when they accepted the current published warning statement. */
+  warning_accepted_at?: string | null;
 }
 
 export interface SigningEnvelopeDto {
@@ -891,6 +866,16 @@ export interface SigningEnvelopeDto {
   assignments: SigningAssignmentDto[];
 }
 
+export type ExternalSigningWarningStatus = "not_opened" | "opened" | "accepted";
+
+export interface ExternalSigningWarningDto {
+  required: boolean;
+  status: ExternalSigningWarningStatus;
+  legal_document_version_id: string | null;
+  title: string;
+  checkbox_wording: string;
+}
+
 export interface ExternalSigningSessionDto {
   envelope: SigningEnvelopeDto;
   recipient_id: string;
@@ -901,6 +886,8 @@ export interface ExternalSigningSessionDto {
   kyc_status: SigningKycStatus;
   /** True when the envelope is COMPLETED / VOIDED / DECLINED / EXPIRED (read-only terminal). */
   package_closed?: boolean;
+  /** Guarantors only. Null for directors. */
+  warning?: ExternalSigningWarningDto | null;
 }
 
 export interface VerifyExternalAccessCodeInput {

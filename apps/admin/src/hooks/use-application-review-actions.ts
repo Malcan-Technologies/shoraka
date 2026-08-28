@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { AdditionalFeeLine, ApiError, InvoiceOfferFeeScheduleWriteMode, MarcSmeGrade } from "@cashsouk/types";
+import type { AdditionalFeeLine, ApiError, InvoiceOfferFeeScheduleWriteMode, MarcSmeGrade, ReviewItemType } from "@cashsouk/types";
 import { applicationLogsKeys } from "./use-application-logs";
 import { applicationsKeys } from "@/applications/query-keys";
 import { contractsKeys } from "@/contracts/query-keys";
@@ -210,7 +210,7 @@ export function useApproveReviewItem() {
       remark,
     }: {
       applicationId: string;
-      itemType: "invoice" | "document";
+      itemType: ReviewItemType;
       itemId: string;
       remark?: string;
     }) => {
@@ -249,7 +249,7 @@ export function useRejectReviewItem() {
       remark,
     }: {
       applicationId: string;
-      itemType: "invoice" | "document";
+      itemType: ReviewItemType;
       itemId: string;
       remark: string;
     }) => {
@@ -282,7 +282,7 @@ export function useResetItemReviewToPending() {
       itemId,
     }: {
       applicationId: string;
-      itemType: "invoice" | "document";
+      itemType: ReviewItemType;
       itemId: string;
     }) => {
       const response = await apiClient.resetItemReviewToPending(
@@ -317,7 +317,7 @@ export function useRequestAmendmentReviewItem() {
       remark,
     }: {
       applicationId: string;
-      itemType: "invoice" | "document";
+      itemType: ReviewItemType;
       itemId: string;
       remark: string;
     }) => {
@@ -584,7 +584,7 @@ export function useAddPendingAmendment() {
       scope: "section" | "item";
       scopeKey?: string;
       remark: string;
-      itemType?: "invoice" | "document";
+      itemType?: ReviewItemType;
       itemId?: string;
     }) => {
       const response = await apiClient.addPendingAmendment(applicationId, {

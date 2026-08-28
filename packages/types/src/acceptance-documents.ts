@@ -4,18 +4,18 @@
  */
 
 import { getStepKeyFromStepId } from "./application-steps";
+import type { GeneratedDocumentTypeKey } from "./generated-documents";
+import {
+  parseWorkflowDocumentRow,
+  resolveWorkflowDocumentAllowedTypes,
+  resolveWorkflowDocumentRowRequired,
+  serializeWorkflowDocumentRow,
+  type WorkflowDocumentRow,
+} from "./workflow-document-row";
 
 export const ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY = "acceptance_documents";
 
-export type AcceptanceDocumentRow = {
-  name: string;
-  /** Omitted or true → required */
-  required?: boolean;
-  allow_multiple?: boolean;
-  /** One of ["pdf"] | ["excel"]; omitted → pdf at runtime */
-  allowed_types?: string[];
-  template?: { s3_key: string; file_name: string; file_size?: number };
-};
+export type AcceptanceDocumentRow = WorkflowDocumentRow;
 
 export type AcceptanceDocumentFile = {
   file_name: string;
@@ -48,46 +48,15 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 export function resolveAcceptanceDocumentRowRequired(row: { required?: boolean }): boolean {
-  return row.required !== false;
+  return resolveWorkflowDocumentRowRequired(row);
 }
 
-export function resolveAcceptanceDocumentAllowedTypes(row: {
-  allowed_types?: unknown;
-}): string[] {
-  const raw = row.allowed_types;
-  if (!Array.isArray(raw) || raw.length === 0) return ["pdf"];
-  const filtered = raw
-    .filter((x): x is string => typeof x === "string")
-    .filter((t) => t === "pdf" || t === "excel");
-  if (filtered.length === 0) return ["pdf"];
-  return filtered[0] === "excel" ? ["excel"] : ["pdf"];
+export function resolveAcceptanceDocumentAllowedTypes(row: { allowed_types?: unknown }): string[] {
+  return resolveWorkflowDocumentAllowedTypes(row);
 }
 
 function parseAcceptanceDocumentRow(raw: unknown, index: number): ResolvedAcceptanceDocument {
-  const row = asRecord(raw) ?? {};
-  const template = asRecord(row.template);
-  const fileName =
-    (typeof template?.file_name === "string" && template.file_name) ||
-    (typeof template?.filename === "string" && template.filename) ||
-    "";
-  const name = typeof row.name === "string" ? row.name : "";
-  const allowed = resolveAcceptanceDocumentAllowedTypes(row);
-  return {
-    index,
-    name,
-    required: typeof row.required === "boolean" ? row.required : undefined,
-    allow_multiple: row.allow_multiple === true,
-    allowed_types: allowed,
-    ...(template?.s3_key != null && typeof template.s3_key === "string"
-      ? {
-          template: {
-            s3_key: template.s3_key,
-            file_name: fileName,
-            ...(typeof template.file_size === "number" ? { file_size: template.file_size } : {}),
-          },
-        }
-      : {}),
-  };
+  return { index, ...parseWorkflowDocumentRow(raw) };
 }
 
 function findFinancingTypeConfig(workflow: unknown): Record<string, unknown> | null {
@@ -112,6 +81,15 @@ export function resolveAcceptanceDocumentsFromWorkflow(
 
 export function workflowHasAcceptanceDocuments(workflow: unknown): boolean {
   return resolveAcceptanceDocumentsFromWorkflow(workflow).length > 0;
+}
+
+export function workflowAcceptanceDocumentsIncludeGeneratedType(
+  workflow: unknown,
+  typeKey: GeneratedDocumentTypeKey
+): boolean {
+  return resolveAcceptanceDocumentsFromWorkflow(workflow).some(
+    (row) => row.generated_document_type === typeKey
+  );
 }
 
 export function workflowHasRequiredAcceptanceDocuments(workflow: unknown): boolean {
@@ -259,7 +237,7 @@ export function writeAcceptanceDocumentsConfig(
 ): Record<string, unknown> {
   return {
     ...financingTypeConfig,
-    [ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY]: documents,
+    [ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY]: documents.map((doc) => serializeWorkflowDocumentRow(doc)),
   };
 }
 
@@ -269,10 +247,5 @@ export function parseAcceptanceDocumentsConfig(
   const config = asRecord(financingTypeConfig);
   const list = config?.[ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY];
   if (!Array.isArray(list)) return [];
-  return list.map((row, index) => {
-    const parsed = parseAcceptanceDocumentRow(row, index);
-    const { index: _i, ...rest } = parsed;
-    void _i;
-    return rest;
-  });
+  return list.map((row) => parseWorkflowDocumentRow(row));
 }

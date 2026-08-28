@@ -1,7 +1,9 @@
 /**
- * Signing envelope service: draft envelope from product template + issuer bindings,
- * send to all signers via email, external token session, and provider orchestration.
+ * Signing envelope service: admin creates and sends the package from approved
+ * authorised representatives, then orchestrates email links, external token sessions,
+ * and the signing provider.
  */
+import { Request } from "express";
 import {
   SIGNING_TEMPLATE_WORKFLOW_KEY,
   SIGNING_PACKAGES_WORKFLOW_KEY,
@@ -28,7 +30,11 @@ import {
   offerAcceptanceAllowsCreateSigningPackage,
   offerAcceptanceAllowsSendSigningPackage,
   collectAcceptanceDocumentReviewKeys,
-  workflowUsesOfferAcceptanceFlow,
+  collectAuthorizedRepresentativeReviewKeys,
+  AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+  postedBindingsMatchApprovedSnapshot,
+  resolveLiveApplicationGuarantorId,
+  snapshotSignerBindings,
   type ExternalSigningSessionDto,
   type RecipientBinding,
   type RecipientEkycSession,
@@ -36,9 +42,10 @@ import {
   type SigningEnvelopeDto,
   type SigningPackageOfferKind,
   type SigningTemplateConfig,
+  type OfferAcceptanceDetails,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
-import { assertSigningDeadlineOpen } from "../../lib/phase-deadlines";
+import { assertSigningDeadlineOpen, signingDeadlinePatchOnSend } from "../../lib/phase-deadlines";
 import { logger } from "../../lib/logger";
 import { sendEmail } from "../../lib/email/ses-client";
 import { getS3ObjectBuffer, putS3ObjectBuffer } from "../../lib/s3/client";
@@ -65,6 +72,7 @@ import {
   type SigningRepository,
 } from "./repository";
 import { mapSigningEnvelopeToDto, mapSigningEnvelopeToDtoWithEkyc, type SigningEnvelopeWithGraph } from "./mapper";
+import { buildDocumentProviderSigners } from "./provider-signers";
 import { SigningCloudProvider } from "./provider/signingcloud-adapter";
 import type { SigningProvider } from "./provider/adapter";
 import {
@@ -74,6 +82,7 @@ import {
 } from "../ekyc/service";
 import { generateSigningAccessToken } from "./token";
 import { buildSigningReturnUrl, validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
+import { legalExternalAcceptanceService } from "../legal-documents/external-acceptance-service";
 
 const EXTERNAL_ACCESS_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 /** Trust-return from SigningCloud backUrl is only valid shortly after start-signing. */
@@ -263,14 +272,11 @@ export interface CreateDraftEnvelopeInput {
   issuerUploadS3Keys?: Map<string, string>;
 }
 
-export interface CreateIssuerEnvelopeInput {
+export interface CreateAndSendAdminEnvelopeInput {
   applicationId: string;
   userId: string;
-  bindings: RecipientBinding[];
-  title?: string | null;
   contractId?: string | null;
   invoiceId?: string | null;
-  expiresAt?: Date | null;
 }
 
 export class SigningService {
@@ -364,7 +370,7 @@ export class SigningService {
     return (product.workflow as unknown[]) ?? [];
   }
 
-  /** Issuer configure-signers UI: same frozen workflow used when creating the envelope. */
+  /** Frozen product workflow for issuer Step 1 (representatives and acceptance uploads). */
   async getProductWorkflowForIssuerApplication(
     applicationId: string,
     userId: string
@@ -446,7 +452,7 @@ export class SigningService {
         .filter(Boolean)
     );
     const roleByKey = new Map(template.roles.map((role) => [role.key, role]));
-    const applicationGuarantorIds = new Set(application.application_guarantors.map((g) => g.id));
+    const applicationGuarantors = application.application_guarantors;
     const normalized: RecipientBinding[] = [];
     for (const binding of bindings) {
       const role = roleByKey.get(binding.role_key);
@@ -464,15 +470,20 @@ export class SigningService {
           );
         }
       }
-      if (
-        binding.application_guarantor_id &&
-        !applicationGuarantorIds.has(binding.application_guarantor_id)
-      ) {
-        throw new AppError(
-          400,
-          "SIGNING_BINDINGS_INVALID",
-          "Selected guarantor does not belong to this application."
+      let applicationGuarantorId = binding.application_guarantor_id ?? null;
+      if (applicationGuarantorId) {
+        const liveId = resolveLiveApplicationGuarantorId(
+          applicationGuarantorId,
+          applicationGuarantors
         );
+        if (!liveId) {
+          throw new AppError(
+            400,
+            "SIGNING_BINDINGS_INVALID",
+            "Selected guarantor does not belong to this application."
+          );
+        }
+        applicationGuarantorId = liveId;
       }
       if (roleRequiresBindingIcAtOffer(role)) {
         if (!String(binding.ic_number ?? "").trim()) {
@@ -491,7 +502,7 @@ export class SigningService {
         }
         normalized.push({
           ...binding,
-          application_guarantor_id: binding.application_guarantor_id ?? null,
+          application_guarantor_id: applicationGuarantorId,
           ic_number: normalizeSigningIcNumber(binding.ic_number!),
         });
         continue;
@@ -500,7 +511,7 @@ export class SigningService {
       // Third-party roles (e.g. guarantor) always self-declare IC on the signing link.
       normalized.push({
         ...binding,
-        application_guarantor_id: binding.application_guarantor_id ?? null,
+        application_guarantor_id: applicationGuarantorId,
         ic_number: null,
       });
     }
@@ -544,6 +555,26 @@ export class SigningService {
     return docKeys.filter((key) => statusByKey.get(key) !== "APPROVED");
   }
 
+  private async collectUnapprovedAuthorizedRepresentativeKeys(
+    applicationId: string,
+    offerDetails: unknown
+  ): Promise<string[]> {
+    const snapshot =
+      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
+    const partyKeys = collectAuthorizedRepresentativeReviewKeys(snapshot);
+    if (partyKeys.length === 0) return [];
+    const rows = await prisma.applicationReviewItem.findMany({
+      where: {
+        application_id: applicationId,
+        item_type: AUTHORIZED_REPRESENTATIVES_ITEM_TYPE,
+        item_id: { in: partyKeys },
+      },
+      select: { item_id: true, status: true },
+    });
+    const statusByKey = new Map(rows.map((row) => [row.item_id, row.status as string]));
+    return partyKeys.filter((key) => statusByKey.get(key) !== "APPROVED");
+  }
+
   private async assertAcceptanceDocumentsApprovedForSigning(
     application: SigningApplicationContext,
     workflow: unknown[]
@@ -560,9 +591,9 @@ export class SigningService {
   }
 
   /**
-   * When the product uses phased acceptance, envelope create/send requires a fresh,
-   * well-formed offer_acceptance phase (no legacy allow) plus fully-approved acceptance docs.
-   * Re-reads the offer from the DB rather than trusting the in-memory application context.
+   * Envelope create/send requires a well-formed offer_acceptance phase plus fully-approved
+   * acceptance documents and authorised representative lists. Re-reads the offer from the DB
+   * rather than trusting the in-memory application context.
    */
   private async assertOfferAcceptanceAllowsSigning(
     application: SigningApplicationContext,
@@ -571,7 +602,6 @@ export class SigningService {
     action: "create" | "send"
   ): Promise<void> {
     const workflow = await this.getProductWorkflowForApplication(application);
-    if (!workflowUsesOfferAcceptanceFlow(workflow)) return;
 
     let offerDetails: unknown = null;
     if (contractId) {
@@ -614,6 +644,41 @@ export class SigningService {
     assertSigningDeadlineOpen(acceptance);
 
     await this.assertAcceptanceDocumentsApprovedForSigning(application, workflow);
+    const unapprovedParties = await this.collectUnapprovedAuthorizedRepresentativeKeys(
+      application.id,
+      offerDetails
+    );
+    if (unapprovedParties.length > 0) {
+      throw new AppError(
+        400,
+        "OFFER_ACCEPTANCE_PARTIES_NOT_APPROVED",
+        "All authorised representative lists must be approved by CashSouk before the signing package can be created or sent.",
+        { unapproved_keys: unapprovedParties }
+      );
+    }
+  }
+
+  private assertBindingsMatchApprovedSnapshot(
+    offerDetails: unknown,
+    template: SigningTemplateConfig,
+    posted: RecipientBinding[]
+  ): void {
+    const snapshot =
+      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
+    if (!snapshot) return;
+    if (
+      !postedBindingsMatchApprovedSnapshot({
+        snapshot,
+        roles: template.roles,
+        posted,
+      })
+    ) {
+      throw new AppError(
+        400,
+        "SIGNING_BINDINGS_INVALID",
+        "Signers must match the authorised representatives approved with the offer acceptance."
+      );
+    }
   }
 
   private async logSigningPackageActivity(params: {
@@ -635,7 +700,7 @@ export class SigningService {
       userId: params.userId,
       applicationId: params.applicationId,
       entityId: params.envelope.id,
-      portal: params.portal ?? ActivityPortal.ISSUER,
+      portal: params.portal ?? ActivityPortal.ADMIN,
       eventType: params.eventType,
       metadata: {
         envelope_id: params.envelope.id,
@@ -650,7 +715,8 @@ export class SigningService {
 
   /** Only APPROVED_FOR_SIGNING may advance to SIGNING_IN_PROGRESS; any other phase is a no-op. */
   private async markOfferAcceptanceSigningInProgress(
-    envelope: SigningEnvelopeWithGraph
+    envelope: SigningEnvelopeWithGraph,
+    deadlinePatch: Partial<OfferAcceptanceDetails> = {}
   ): Promise<void> {
     if (envelope.contract_id) {
       const contract = await prisma.contract.findUnique({
@@ -666,6 +732,7 @@ export class SigningService {
         data: {
           offer_details: patchOfferAcceptance(offer, {
             status: "SIGNING_IN_PROGRESS",
+            ...deadlinePatch,
           }) as Prisma.InputJsonValue,
         },
       });
@@ -685,6 +752,7 @@ export class SigningService {
         data: {
           offer_details: patchOfferAcceptance(offer, {
             status: "SIGNING_IN_PROGRESS",
+            ...deadlinePatch,
           }) as Prisma.InputJsonValue,
         },
       });
@@ -693,8 +761,9 @@ export class SigningService {
 
   /**
    * Roll offer_acceptance back from SIGNING_IN_PROGRESS after an envelope closes without
-   * completing (void / decline). Only restores APPROVED_FOR_SIGNING when acceptance docs are
-   * still fully approved; otherwise the phase is left untouched (no unsupported transition).
+   * completing (void / decline). Only restores APPROVED_FOR_SIGNING when acceptance docs and
+   * authorised representative lists are still fully approved; otherwise the phase is left
+   * untouched (no unsupported transition). Does not clear authorized_parties.
    */
   private async rollbackOfferAcceptanceAfterEnvelopeClosed(
     envelope: Pick<SigningEnvelopeWithGraph, "application_id" | "contract_id" | "invoice_id">
@@ -722,8 +791,13 @@ export class SigningService {
 
     const application = await this.requireApplicationContext(envelope.application_id);
     const workflow = await this.getProductWorkflowForApplication(application);
-    const unapproved = await this.collectUnapprovedAcceptanceDocumentKeys(application, workflow);
-    if (unapproved.length > 0) return;
+    const unapprovedDocs = await this.collectUnapprovedAcceptanceDocumentKeys(application, workflow);
+    if (unapprovedDocs.length > 0) return;
+    const unapprovedParties = await this.collectUnapprovedAuthorizedRepresentativeKeys(
+      envelope.application_id,
+      offer
+    );
+    if (unapprovedParties.length > 0) return;
 
     const updatedOffer = patchOfferAcceptance(offer, {
       status: "APPROVED_FOR_SIGNING",
@@ -809,9 +883,8 @@ export class SigningService {
     return await mapSigningEnvelopeToDtoWithEkyc(envelope);
   }
 
-  async createIssuerEnvelope(input: CreateIssuerEnvelopeInput): Promise<SigningEnvelopeDto> {
+  async createAndSendAdminEnvelope(input: CreateAndSendAdminEnvelopeInput): Promise<SigningEnvelopeDto> {
     const application = await this.requireApplicationContext(input.applicationId);
-    await this.assertIssuerApplicationAccess(application, input.userId);
     if (!this.applicationHasOfferSent(application)) {
       throw new AppError(400, "INVALID_STATE", "An offer must be sent before creating a signing package.");
     }
@@ -836,6 +909,12 @@ export class SigningService {
         ? await this.repo.findActiveEnvelopeForInvoice(invoiceId)
         : null;
     if (activeEnvelope) {
+      if (activeEnvelope.status === "DRAFT") {
+        return this.sendEnvelope(activeEnvelope.id, {
+          userId: input.userId,
+          portal: ActivityPortal.ADMIN,
+        });
+      }
       throw new AppError(
         409,
         "SIGNING_ENVELOPE_EXISTS",
@@ -847,16 +926,6 @@ export class SigningService {
     const workflow = await this.getProductWorkflowForApplication(application);
     const packageKind: SigningPackageOfferKind = contractId ? "contract" : "invoice";
     const template = this.readSigningTemplateFromWorkflow(workflow, packageKind);
-    const bindings = await this.validateAndNormalizeIssuerBindings(
-      application,
-      template,
-      input.bindings
-    );
-    const issuerUploadS3Keys = resolveIssuerUploadS3Keys(
-      workflow,
-      application.supporting_documents,
-      template
-    );
     const offerDetails = contractId
       ? (
           await prisma.contract.findUnique({
@@ -872,35 +941,61 @@ export class SigningService {
             })
           )?.offer_details
         : null;
-    const signingExpiresAt =
-      getOfferAcceptanceFromOfferDetails(offerDetails)?.signing_expires_at ?? null;
-    const resolvedExpiresAt =
-      input.expiresAt ??
-      (typeof signingExpiresAt === "string" ? new Date(signingExpiresAt) : null);
-    return this.createDraftEnvelope({
+    const snapshot =
+      getOfferAcceptanceFromOfferDetails(offerDetails)?.authorized_parties ?? null;
+    if (!snapshot) {
+      throw new AppError(
+        400,
+        "OFFER_ACCEPTANCE_PARTIES_MISSING",
+        "Authorised representatives must be approved before sending the signing package."
+      );
+    }
+    const snapshotBindings = snapshotSignerBindings(snapshot, template.roles);
+    if (snapshotBindings.length === 0) {
+      throw new AppError(
+        400,
+        "SIGNING_BINDINGS_INVALID",
+        "Authorised representatives must be approved before sending the signing package."
+      );
+    }
+    const bindings = await this.validateAndNormalizeIssuerBindings(
+      application,
+      template,
+      snapshotBindings
+    );
+    this.assertBindingsMatchApprovedSnapshot(offerDetails, template, bindings);
+    const issuerUploadS3Keys = resolveIssuerUploadS3Keys(
+      workflow,
+      application.supporting_documents,
+      template
+    );
+    const draft = await this.createDraftEnvelope({
       applicationId: input.applicationId,
-      title: input.title?.trim() || "Signing package",
+      title: contractId ? "Facility offer signing package" : "Invoice offer signing package",
       contractId,
       invoiceId,
       productVersion: application.product_version ?? null,
       templateConfig: template,
       bindings,
       createdByUserId: input.userId,
-      expiresAt: resolvedExpiresAt,
+      expiresAt: null,
       issuerUploadS3Keys,
-    }).then(async (envelope) => {
-      await this.logSigningPackageActivity({
-        userId: input.userId,
-        applicationId: input.applicationId,
-        eventType: ApplicationLogEventType.SIGNING_PACKAGE_CREATED,
-        envelope: {
-          id: envelope.id,
-          contract_id: envelope.contract_id,
-          invoice_id: envelope.invoice_id,
-          title: envelope.title,
-        },
-      });
-      return envelope;
+    });
+    await this.logSigningPackageActivity({
+      userId: input.userId,
+      applicationId: input.applicationId,
+      eventType: ApplicationLogEventType.SIGNING_PACKAGE_CREATED,
+      envelope: {
+        id: draft.id,
+        contract_id: draft.contract_id,
+        invoice_id: draft.invoice_id,
+        title: draft.title,
+      },
+      portal: ActivityPortal.ADMIN,
+    });
+    return this.sendEnvelope(draft.id, {
+      userId: input.userId,
+      portal: ActivityPortal.ADMIN,
     });
   }
 
@@ -1058,6 +1153,7 @@ export class SigningService {
       kyc_required: recipient.kyc_required,
       kyc_status,
       package_closed: packageClosed,
+      warning: await legalExternalAcceptanceService.getWarningForSigningRecipient(recipient),
     };
   }
 
@@ -1201,7 +1297,10 @@ export class SigningService {
     return envelope;
   }
 
-  async sendEnvelope(id: string): Promise<SigningEnvelopeDto> {
+  async sendEnvelope(
+    id: string,
+    actor?: { userId: string; portal: ActivityPortal }
+  ): Promise<SigningEnvelopeDto> {
     const envelope = await this.requireEnvelope(id);
     if (envelope.status !== "DRAFT") {
       throw new AppError(409, "SIGNING_ENVELOPE_NOT_DRAFT", "Only draft envelopes can be sent.");
@@ -1214,6 +1313,35 @@ export class SigningService {
       envelope.contract_id ?? null,
       envelope.invoice_id ?? null,
       "send"
+    );
+    const workflow = await this.getProductWorkflowForApplication(application);
+    const packageKind: SigningPackageOfferKind = envelope.contract_id ? "contract" : "invoice";
+    const template = this.readSigningTemplateFromWorkflow(workflow, packageKind);
+    const sendOfferDetails = envelope.contract_id
+      ? (
+          await prisma.contract.findUnique({
+            where: { id: envelope.contract_id },
+            select: { offer_details: true },
+          })
+        )?.offer_details
+      : envelope.invoice_id
+        ? (
+            await prisma.invoice.findUnique({
+              where: { id: envelope.invoice_id },
+              select: { offer_details: true },
+            })
+          )?.offer_details
+        : null;
+    this.assertBindingsMatchApprovedSnapshot(
+      sendOfferDetails,
+      template,
+      envelope.recipients.map((recipient) => ({
+        role_key: recipient.role_key,
+        name: recipient.name,
+        email: recipient.email,
+        ic_number: recipient.ic_number,
+        application_guarantor_id: recipient.application_guarantor_id ?? null,
+      }))
     );
 
     for (const document of [...envelope.documents].sort((a, b) => a.order - b.order)) {
@@ -1271,19 +1399,38 @@ export class SigningService {
 
       const pdfBuffer = await getS3ObjectBuffer(unsignedS3Key);
       const orderedAssignments = this.orderDocumentAssignments(docAssignments, recipientById);
-      const signers = orderedAssignments.map(({ assignment, recipient }) => ({
-        email: recipient.email,
-        signset:
-          signsetsByAssignmentId.get(assignment.id) ??
-          assignment.signset ??
-          undefined,
-      }));
+      const signers = buildDocumentProviderSigners(
+        orderedAssignments.map(({ assignment, recipient }) => ({
+          email: recipient.email,
+          signset: signsetsByAssignmentId.get(assignment.id) ?? assignment.signset ?? undefined,
+        }))
+      );
 
-      const { providerRef } = await this.provider.createDocumentContract({
-        pdfBuffer,
-        contractName: `${envelope.title} — ${document.name}`,
-        signers,
-      });
+      let providerRef: string;
+      try {
+        ({ providerRef } = await this.provider.createDocumentContract({
+          pdfBuffer,
+          contractName: `${envelope.title} — ${document.name}`,
+          signers,
+        }));
+      } catch (error) {
+        const providerMessage = error instanceof Error ? error.message : String(error);
+        logger.error(
+          {
+            envelopeId: envelope.id,
+            documentId: document.id,
+            assignmentCount: orderedAssignments.length,
+            signerCount: signers.length,
+            providerMessage,
+          },
+          "Signing provider failed while creating a document contract"
+        );
+        throw new AppError(
+          502,
+          "SIGNING_PROVIDER_ERROR",
+          `The signing provider rejected "${document.name}": ${providerMessage}`
+        );
+      }
       await this.repo.markDocumentSent(document.id, providerRef);
       document.provider_contract_ref = providerRef;
     }
@@ -1316,14 +1463,26 @@ export class SigningService {
       );
     }
 
-    await this.repo.markEnvelopeSent(id);
-    await this.markOfferAcceptanceSigningInProgress(envelope);
-    if (envelope.created_by_user_id) {
+    const nowIso = new Date().toISOString();
+    const currentAcceptance = getOfferAcceptanceFromOfferDetails(sendOfferDetails);
+    const deadlinePatch = signingDeadlinePatchOnSend(workflow, nowIso, currentAcceptance);
+    const signingExpiresAt =
+      (typeof deadlinePatch.signing_expires_at === "string" && deadlinePatch.signing_expires_at
+        ? deadlinePatch.signing_expires_at
+        : currentAcceptance?.signing_expires_at) ?? null;
+    await this.repo.markEnvelopeSent(
+      id,
+      typeof signingExpiresAt === "string" ? new Date(signingExpiresAt) : undefined
+    );
+    await this.markOfferAcceptanceSigningInProgress(envelope, deadlinePatch);
+    const logUserId = actor?.userId ?? envelope.created_by_user_id;
+    if (logUserId) {
       await this.logSigningPackageActivity({
-        userId: envelope.created_by_user_id,
+        userId: logUserId,
         applicationId: envelope.application_id,
         eventType: ApplicationLogEventType.SIGNING_PACKAGE_SENT,
         envelope,
+        portal: actor?.portal ?? ActivityPortal.ADMIN,
       });
     }
     return this.getEnvelope(id);
@@ -1484,15 +1643,7 @@ export class SigningService {
     );
   }
 
-  async sendEnvelopeForIssuer(id: string, userId: string): Promise<SigningEnvelopeDto> {
-    const envelope = await this.requireEnvelope(id);
-    const application = await this.requireApplicationContext(envelope.application_id);
-    await this.assertIssuerApplicationAccess(application, userId);
-    await this.assertAcceptanceDocumentsReady(application);
-    return this.sendEnvelope(id);
-  }
-
-  private async assertRecipientCanSign(
+  private async assertRecipientIdentityComplete(
     recipient: SigningEnvelopeWithGraph["recipients"][number]
   ): Promise<void> {
     if (!recipient.access_code_verified_at) {
@@ -1506,6 +1657,28 @@ export class SigningService {
     if (kycStatus === "PENDING" || kycStatus === "FAILED") {
       throw new AppError(403, "EKYC_REQUIRED", "Complete identity verification before signing.");
     }
+  }
+
+  private async assertRecipientCanSign(
+    recipient: SigningEnvelopeWithGraph["recipients"][number]
+  ): Promise<void> {
+    await this.assertRecipientIdentityComplete(recipient);
+    await legalExternalAcceptanceService.assertSigningRecipientAccepted(recipient);
+  }
+
+  async openExternalWarning(accessToken: string, req: Request) {
+    const { recipient } = await this.requireExternalTokenSession(accessToken);
+    await this.assertRecipientIdentityComplete(recipient);
+    return legalExternalAcceptanceService.recordOpenedForSigningRecipient(req, recipient);
+  }
+
+  async acceptExternalWarning(accessToken: string, req: Request): Promise<ExternalSigningSessionDto> {
+    const { envelope, recipient } = await this.requireExternalTokenSession(accessToken);
+    await this.assertRecipientIdentityComplete(recipient);
+    await legalExternalAcceptanceService.recordAcceptedForSigningRecipient(req, recipient);
+    const refreshed = await this.requireEnvelope(envelope.id);
+    const updatedRecipient = refreshed.recipients.find((item) => item.id === recipient.id)!;
+    return this.mapExternalSession(refreshed, updatedRecipient);
   }
 
   async startRecipientSigning(input: {
@@ -1549,7 +1722,7 @@ export class SigningService {
     }
 
     let redirectUrl = input.redirectUrl ?? null;
-    let returnSessionId = input.returnSessionId;
+    const returnSessionId = input.returnSessionId;
     if (returnSessionId) {
       redirectUrl = buildSigningReturnUrl(returnSessionId);
     } else if (redirectUrl) {

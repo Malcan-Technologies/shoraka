@@ -1,11 +1,13 @@
 "use client";
 
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@cashsouk/ui";
+import { Skeleton, YesNoRadioDisplay } from "@cashsouk/ui";
+import { parseAboutYourBusiness } from "@cashsouk/types";
 import { BuildingOffice2Icon } from "@heroicons/react/24/outline";
 import { useOrganizationDetail } from "@/hooks/use-organization-detail";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
+import { ReviewValue } from "../review-value";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import {
   reviewLabelClass,
@@ -16,7 +18,7 @@ import {
   formatReviewValue,
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
-import { ComparisonFieldRow } from "../comparison-field-row";
+import { ComparisonFieldRow, ComparisonYesNoRadioRow } from "../comparison-field-row";
 
 function formatAddress(addr: Record<string, unknown> | null | undefined): string {
   if (!addr || typeof addr !== "object") return REVIEW_EMPTY_LABEL;
@@ -109,12 +111,23 @@ function companyDisplayFromSnapshot(app: CompanySectionProps["app"]) {
     formatReviewValue(basicInfo?.numberOfEmployees ?? basicInfo?.number_of_employees, {
       emptyLabel: emptyDash,
     }) || REVIEW_EMPTY_LABEL;
+  const about = parseAboutYourBusiness(cod?.aboutYourBusiness ?? cod?.about_your_business);
+  const whatDoesCompanyDo =
+    formatReviewValue(about.whatDoesCompanyDo, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
+  const mainCustomers =
+    formatReviewValue(about.mainCustomers, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
+  const accountingSoftware =
+    formatReviewValue(about.accountingSoftware, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
   return {
     companyName,
     entityType,
     ssmNo,
     industry,
     numberOfEmployees,
+    whatDoesCompanyDo,
+    mainCustomers,
+    singleCustomerOver50Revenue: about.singleCustomerOver50Revenue,
+    accountingSoftware,
     businessAddress: formatAddress(businessAddress),
     registeredAddress: formatAddress(registeredAddress),
     bankName: bankName || REVIEW_EMPTY_LABEL,
@@ -192,6 +205,36 @@ export function CompanySection({
               label="Number of Employees"
               before={b.numberOfEmployees}
               after={a.numberOfEmployees}
+              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
+            />
+          </div>
+        </ReviewFieldBlock>
+        <ReviewFieldBlock title="About Your Business">
+          <div className="space-y-2">
+            <ComparisonFieldRow
+              label="What Does Your Company Do?"
+              before={b.whatDoesCompanyDo}
+              after={a.whatDoesCompanyDo}
+              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
+              multiline
+            />
+            <ComparisonFieldRow
+              label="Who Are Your Main Customers?"
+              before={b.mainCustomers}
+              after={a.mainCustomers}
+              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
+              multiline
+            />
+            <ComparisonYesNoRadioRow
+              label="Does Any Single Customer Make Up More Than 50% of Your Revenue?"
+              beforeValue={b.singleCustomerOver50Revenue}
+              afterValue={a.singleCustomerOver50Revenue}
+              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
+            />
+            <ComparisonFieldRow
+              label="Which Accounting Software Does the Issuer Use?"
+              before={b.accountingSoftware}
+              after={a.accountingSoftware}
               changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
             />
           </div>
@@ -292,6 +335,13 @@ export function CompanySection({
   const ssmNo = formatReviewValue(basicInfo?.ssmRegisterNumber, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
   const industry = formatReviewValue(basicInfo?.industry, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
   const numberOfEmployees = formatReviewValue(basicInfo?.numberOfEmployees, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
+  const about = parseAboutYourBusiness(org?.corporateOnboardingData?.aboutYourBusiness);
+  const whatDoesCompanyDo =
+    formatReviewValue(about.whatDoesCompanyDo, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
+  const mainCustomers =
+    formatReviewValue(about.mainCustomers, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
+  const accountingSoftware =
+    formatReviewValue(about.accountingSoftware, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
 
   if (organizationId && isLoadingOrg) {
     return (
@@ -343,6 +393,21 @@ export function CompanySection({
           <div className={reviewValueClass}>{industry}</div>
           <Label className={reviewLabelClass}>Number of Employees</Label>
           <div className={reviewValueClass}>{numberOfEmployees}</div>
+        </div>
+      </ReviewFieldBlock>
+
+      <ReviewFieldBlock title="About Your Business">
+        <div className={reviewRowGridClass}>
+          <Label className={reviewLabelClass}>What Does Your Company Do?</Label>
+          <ReviewValue value={whatDoesCompanyDo} multiline />
+          <Label className={reviewLabelClass}>Who Are Your Main Customers?</Label>
+          <ReviewValue value={mainCustomers} multiline />
+          <Label className={reviewLabelClass}>
+            Does Any Single Customer Make Up More Than 50% of Your Revenue?
+          </Label>
+          <YesNoRadioDisplay value={about.singleCustomerOver50Revenue} />
+          <Label className={reviewLabelClass}>Which Accounting Software Does the Issuer Use?</Label>
+          <ReviewValue value={accountingSoftware} />
         </div>
       </ReviewFieldBlock>
 

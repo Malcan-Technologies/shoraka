@@ -1,6 +1,7 @@
 /**
  * Offer-acceptance phase (Option A): status lives on offer_details.offer_acceptance.
- * Step 1 is upload-only via product acceptance_documents.
+ * Step 1 is acceptance documents plus authorised representatives.
+ * Admin sends the signing package after those lists and documents are approved.
  * See docs/guides/application-flow/offer-acceptance-and-signing-phases.md
  */
 
@@ -20,6 +21,10 @@ import {
   SIGNING_DEADLINE_WORKFLOW_KEY,
   type PhaseDeadlineConfig,
 } from "./deadline-config";
+import {
+  parseAuthorizedPartiesSnapshot,
+  type AuthorizedPartiesSnapshot,
+} from "./authorized-parties";
 
 export {
   ACCEPTANCE_DEADLINE_WORKFLOW_KEY,
@@ -73,12 +78,19 @@ export type OfferAcceptanceDetails = {
   status: OfferAcceptanceStatus;
   /** Set on Step 1 submit; proves which commercial numbers were acknowledged. */
   acknowledged_terms?: OfferAcknowledgedTermsSnapshot;
+  /** Issuer and guarantor authorised representatives declared at Step 1. */
+  authorized_parties?: AuthorizedPartiesSnapshot;
+  /**
+   * Contract-LO only: in-progress representatives saved before Documents / LO download.
+   * Cleared when Step 1 submit promotes the payload to `authorized_parties`.
+   */
+  authorized_parties_draft?: AuthorizedPartiesSnapshot;
   submitted_at?: string | null;
   reviewed_at?: string | null;
   reviewed_by_user_id?: string | null;
   /** Stamp on Send Offer from product acceptance_deadline.days. */
   acceptance_expires_at?: string | null;
-  /** Stamp when entering APPROVED_FOR_SIGNING from product signing_deadline.days. */
+  /** Stamp when admin sends signing links from product signing_deadline.days. */
   signing_expires_at?: string | null;
   /** Idempotency map: e.g. "acceptance:1" → ISO sent_at. */
   deadline_reminders_sent?: Record<string, string>;
@@ -99,6 +111,8 @@ export function parseOfferAcceptanceDetails(value: unknown): OfferAcceptanceDeta
   if (!root) return null;
   if (!isOfferAcceptanceStatus(root.status)) return null;
   const acknowledgedTerms = parseAcknowledgedTermsSnapshot(root.acknowledged_terms);
+  const authorizedParties = parseAuthorizedPartiesSnapshot(root.authorized_parties);
+  const authorizedPartiesDraft = parseAuthorizedPartiesSnapshot(root.authorized_parties_draft);
   const remindersSent = asRecord(root.deadline_reminders_sent);
   const deadlineRemindersSent: Record<string, string> | undefined = remindersSent
     ? Object.fromEntries(
@@ -110,6 +124,8 @@ export function parseOfferAcceptanceDetails(value: unknown): OfferAcceptanceDeta
   return {
     status: root.status,
     ...(acknowledgedTerms ? { acknowledged_terms: acknowledgedTerms } : {}),
+    ...(authorizedParties ? { authorized_parties: authorizedParties } : {}),
+    ...(authorizedPartiesDraft ? { authorized_parties_draft: authorizedPartiesDraft } : {}),
     submitted_at: typeof root.submitted_at === "string" ? root.submitted_at : root.submitted_at === null ? null : undefined,
     reviewed_at: typeof root.reviewed_at === "string" ? root.reviewed_at : root.reviewed_at === null ? null : undefined,
     reviewed_by_user_id:
@@ -288,6 +304,20 @@ export function getOfferAcceptanceFromOfferDetails(
   return parseOfferAcceptanceDetails(root.offer_acceptance);
 }
 
+/**
+ * Parties used to fill the Letter of Offer.
+ * While Step 1 is editable, the saved draft is latest; after submit, the canonical snapshot is.
+ */
+export function getLoAuthorizedPartiesFromAcceptance(
+  acceptance: OfferAcceptanceDetails | null | undefined
+): AuthorizedPartiesSnapshot | null {
+  if (!acceptance) return null;
+  if (offerAcceptanceIsStep1Editable(acceptance.status)) {
+    return acceptance.authorized_parties_draft ?? acceptance.authorized_parties ?? null;
+  }
+  return acceptance.authorized_parties ?? acceptance.authorized_parties_draft ?? null;
+}
+
 export function createInitialOfferAcceptanceDetails(
   overrides?: Partial<Pick<OfferAcceptanceDetails, "acceptance_expires_at">>
 ): OfferAcceptanceDetails {
@@ -307,19 +337,19 @@ export function withOfferAcceptance(
   return { ...offerDetails, offer_acceptance: acceptance };
 }
 
-/** Issuer UI: signing steps are visible after admin approval (including completed packages). */
+/** Issuer UI: signing progress is visible after admin approval (including completed packages). */
 export function offerAcceptanceAllowsSigning(status: OfferAcceptanceStatus | null | undefined): boolean {
   return status === "APPROVED_FOR_SIGNING" || status === "SIGNING_IN_PROGRESS" || status === "COMPLETED";
 }
 
-/** Create a draft signing package only from the approved-for-signing phase. */
+/** Admin may create the signing package only from the approved-for-signing phase. */
 export function offerAcceptanceAllowsCreateSigningPackage(
   status: OfferAcceptanceStatus | null | undefined
 ): boolean {
   return status === "APPROVED_FOR_SIGNING";
 }
 
-/** Send (or re-send after draft) while approved or already marked signing-in-progress. */
+/** Admin may send (or finish sending a draft) while approved or already marked signing-in-progress. */
 export function offerAcceptanceAllowsSendSigningPackage(
   status: OfferAcceptanceStatus | null | undefined
 ): boolean {
@@ -328,6 +358,17 @@ export function offerAcceptanceAllowsSendSigningPackage(
 
 export function offerAcceptanceIsStep1Editable(status: OfferAcceptanceStatus | null | undefined): boolean {
   return status === "PENDING_ISSUER" || status === "CHANGES_REQUESTED" || status == null;
+}
+
+/** After admin approval, authorised representatives are frozen — void does not reopen the lists. */
+export function offerAcceptanceFreezesAuthorizedParties(
+  status: OfferAcceptanceStatus | null | undefined
+): boolean {
+  return (
+    status === "APPROVED_FOR_SIGNING" ||
+    status === "SIGNING_IN_PROGRESS" ||
+    status === "COMPLETED"
+  );
 }
 
 export function offerAcceptanceIsTerminal(status: OfferAcceptanceStatus | null | undefined): boolean {
@@ -340,7 +381,9 @@ export function offerAcceptanceIsAwaitingAdmin(status: OfferAcceptanceStatus | n
 
 /**
  * Whether the issuer Review Offer CTA should show for this acceptance phase.
- * Hidden while waiting on admin (`PENDING_ADMIN_REVIEW`); legacy offers (no status) keep the CTA.
+ * Hidden while CashSouk reviews acceptance or sends signing links (`PENDING_ADMIN_REVIEW`,
+ * `APPROVED_FOR_SIGNING`). Shown again during `SIGNING_IN_PROGRESS` so the issuer can track.
+ * Offers with no phase status keep the CTA.
  */
 export function offerAcceptanceAllowsIssuerReviewCta(
   status: OfferAcceptanceStatus | null | undefined
@@ -349,7 +392,6 @@ export function offerAcceptanceAllowsIssuerReviewCta(
   return (
     status === "PENDING_ISSUER" ||
     status === "CHANGES_REQUESTED" ||
-    status === "APPROVED_FOR_SIGNING" ||
     status === "SIGNING_IN_PROGRESS"
   );
 }
@@ -407,10 +449,7 @@ export function resolveActiveOfferDeadlineIso(
   acceptance: OfferAcceptanceDetails | null | undefined
 ): string | null {
   if (!acceptance) return null;
-  if (
-    acceptance.status === "APPROVED_FOR_SIGNING" ||
-    acceptance.status === "SIGNING_IN_PROGRESS"
-  ) {
+  if (acceptance.status === "SIGNING_IN_PROGRESS") {
     return typeof acceptance.signing_expires_at === "string" ? acceptance.signing_expires_at : null;
   }
   // Acceptance clock pauses while CashSouk reviews (PENDING_ADMIN_REVIEW).

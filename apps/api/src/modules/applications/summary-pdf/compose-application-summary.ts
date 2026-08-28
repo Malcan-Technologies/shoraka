@@ -1,6 +1,8 @@
 import {
   getItemDisplayNameFromScopeKey,
   getOfferAcceptanceFromOfferDetails,
+  parseAboutYourBusinessFromBusinessDetails,
+  parseAboutYourBusinessFromCorporateData,
   parseFiniteNumber,
   readFinancingStructureType,
 } from "@cashsouk/types";
@@ -230,9 +232,12 @@ function composeCompany(app: ApplicationSummarySource): SummaryField[] {
   const company = asRecord(app.company_details);
   const contact = asRecord(company?.contact_person);
   const customer = asRecord(app.contract?.customer_details);
+  const aboutFromCod = parseAboutYourBusinessFromCorporateData(
+    (org as { corporate_onboarding_data?: unknown } | null | undefined)?.corporate_onboarding_data
+  );
+  const aboutFromApp = parseAboutYourBusinessFromBusinessDetails(app.business_details);
   const business = asRecord(app.business_details);
-  const about = asRecord(business?.about_your_business);
-  const why = asRecord(business?.why_raising_funds);
+  const why = asRecord(business?.why_raising_funds ?? business?.whyRaisingFunds);
   return fieldsOf(
     field("Company name", readString(org?.name) ?? readString(company?.company_name)),
     field("Company registration", readString(org?.registration_number)),
@@ -241,8 +246,11 @@ function composeCompany(app: ApplicationSummarySource): SummaryField[] {
     field("Contact email", readString(contact?.email)),
     field("Customer name", readString(customer?.customer_name) ?? readString(customer?.name)),
     field("Customer registration", readString(customer?.ssm_number)),
-    field("What the company does", readString(about?.what_does_company_do)),
-    field("Main customers", readString(about?.main_customers)),
+    field(
+      "What the company does",
+      readString(aboutFromCod.whatDoesCompanyDo) ?? readString(aboutFromApp.whatDoesCompanyDo)
+    ),
+    field("Main customers", readString(aboutFromCod.mainCustomers) ?? readString(aboutFromApp.mainCustomers)),
     field("Financing purpose", readString(why?.financing_for)),
     field("How funds will be used", readString(why?.how_funds_used))
   );

@@ -1,12 +1,18 @@
 /**
  * Admin data hooks for multi-party signing envelopes: list per application plus
- * void / remind mutations. Mirrors the review-actions hook pattern.
+ * send / void / remind mutations. Mirrors the review-actions hook pattern.
  */
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, getLiveSigningEnvelopeRefetchInterval, useAuthToken } from "@cashsouk/config";
 import type { SigningEnvelopeDto } from "@cashsouk/types";
+import { applicationsKeys } from "@/applications/query-keys";
+import { applicationLogsKeys } from "./use-application-logs";
+import {
+  invalidateAdminApplicationDetailQueries,
+  invalidateAdminApplicationNavQueries,
+} from "@/lib/admin-application-nav-cache";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -15,6 +21,19 @@ export const signingKeys = {
   byApplication: (applicationId: string) =>
     [...signingKeys.all, "application", applicationId] as const,
 };
+
+function invalidateAfterSigningMutation(
+  queryClient: ReturnType<typeof useQueryClient>,
+  applicationId: string
+) {
+  invalidateAdminApplicationNavQueries(queryClient);
+  invalidateAdminApplicationDetailQueries(queryClient, applicationId, {
+    includeActionCount: true,
+  });
+  void queryClient.invalidateQueries({ queryKey: applicationLogsKeys.list(applicationId) });
+  void queryClient.invalidateQueries({ queryKey: signingKeys.byApplication(applicationId) });
+  void queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationId) });
+}
 
 export function useAdminSigningEnvelopes(applicationId: string) {
   const { getAccessToken } = useAuthToken();
@@ -33,6 +52,32 @@ export function useAdminSigningEnvelopes(applicationId: string) {
   });
 }
 
+export function useSendAdminSigningPackage(applicationId: string) {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async (vars?: {
+      contractId?: string | null;
+      invoiceId?: string | null;
+    }): Promise<SigningEnvelopeDto> => {
+      const response = await apiClient.sendAdminSigningPackage(applicationId, vars);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: async () => {
+      invalidateAfterSigningMutation(queryClient, applicationId);
+      await queryClient.refetchQueries({
+        queryKey: applicationsKeys.detail(applicationId),
+      });
+    },
+    onError: () => {
+      invalidateAfterSigningMutation(queryClient, applicationId);
+    },
+  });
+}
+
 export function useVoidSigningEnvelope(applicationId: string) {
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
@@ -45,7 +90,7 @@ export function useVoidSigningEnvelope(applicationId: string) {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: signingKeys.byApplication(applicationId) });
+      invalidateAfterSigningMutation(queryClient, applicationId);
     },
   });
 }

@@ -4,21 +4,9 @@
 import { z } from "zod";
 import { validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
 
-const recipientBindingSchema = z.object({
-  role_key: z.string().min(1),
-  name: z.string().min(1),
-  email: z.string().email(),
-  application_guarantor_id: z.string().nullish(),
-  /** Required for issuer directors; omitted for third-party roles (self-declare on the link). */
-  ic_number: z.string().nullish(),
-});
-
-export const createIssuerEnvelopeSchema = z.object({
-  title: z.string().min(1).max(200).nullish(),
+export const sendAdminSigningPackageSchema = z.object({
   contractId: z.string().min(1).nullish(),
   invoiceId: z.string().min(1).nullish(),
-  bindings: z.array(recipientBindingSchema).min(1),
-  expiresAt: z.string().datetime().nullish(),
 });
 
 export const voidEnvelopeSchema = z.object({
@@ -50,4 +38,4 @@ export const recipientEkycSessionSchema = z.object({
   force: z.boolean().optional(),
 });
 
-export type CreateIssuerEnvelopeBody = z.infer<typeof createIssuerEnvelopeSchema>;
+export type SendAdminSigningPackageBody = z.infer<typeof sendAdminSigningPackageSchema>;

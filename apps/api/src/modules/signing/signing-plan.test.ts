@@ -38,8 +38,6 @@ const TEMPLATE: SigningTemplateConfig = {
       source_hint: "issuer_director",
       routing_order: 0,
       kyc_required: true,
-      min_count: 1,
-      max_count: 1,
     },
     {
       key: "guarantor",
@@ -47,8 +45,6 @@ const TEMPLATE: SigningTemplateConfig = {
       source_hint: "guarantor",
       routing_order: 1,
       kyc_required: true,
-      min_count: 1,
-      max_count: null,
     },
   ],
   documents: [
@@ -102,6 +98,24 @@ describe("parseSigningTemplateConfig", () => {
     });
     expect(cfg.documents.map((d) => d.key)).toEqual(["a", "b"]);
     expect(cfg.roles[0].kyc_required).toBe(true);
+  });
+
+  it("drops leftover min_count and max_count from older templates", () => {
+    const cfg = parseSigningTemplateConfig({
+      enabled: true,
+      roles: [{ key: "issuer_director", label: "Director", min_count: 2, max_count: 2 }],
+      documents: [
+        {
+          key: "offer_letter",
+          name: "Offer letter",
+          source: "GENERATED_OFFER_LETTER",
+          order: 0,
+          signer_role_keys: ["issuer_director"],
+        },
+      ],
+    });
+    expect(cfg.roles[0]).not.toHaveProperty("min_count");
+    expect(cfg.roles[0]).not.toHaveProperty("max_count");
   });
 
   it("keeps offer-letter-only templates without auto-injecting guarantor agreement", () => {
@@ -503,8 +517,8 @@ describe("validateSigningTemplateConfig", () => {
     const parsed = parseSigningTemplateConfig({
       enabled: true,
       roles: [
-        { key: "issuer_director", label: "Director", min_count: 1, max_count: null },
-        { key: "guarantor", label: "Guarantor", min_count: 1, max_count: null },
+        { key: "issuer_director", label: "Director" },
+        { key: "guarantor", label: "Guarantor" },
       ],
       documents: [
         {
@@ -542,7 +556,7 @@ describe("validateSigningTemplateConfig", () => {
 });
 
 describe("validateRecipientBindings", () => {
-  it("passes when counts and contacts are satisfied", () => {
+  it("passes when contacts are valid", () => {
     const bindings: RecipientBinding[] = [
       { role_key: "issuer_director", name: "Ali", email: "ali@co.my", ic_number: SAMPLE_IC },
       { role_key: "guarantor", name: "Siti", email: "siti@ext.my" },
@@ -560,25 +574,22 @@ describe("validateRecipientBindings", () => {
     expect(errors.filter((e) => e.toLowerCase().includes("guarantor")).length).toBe(0);
   });
 
-  it("flags missing required role and bad email", () => {
+  it("flags a bad email", () => {
     const bindings: RecipientBinding[] = [
       { role_key: "issuer_director", name: "Ali", email: "not-an-email", ic_number: SAMPLE_IC },
     ];
     const errors = validateRecipientBindings(TEMPLATE, bindings);
     expect(errors.some((e) => e.includes("invalid email"))).toBe(true);
-    expect(errors.some((e) => e.includes("Guarantor"))).toBe(true);
   });
 
-  it("allows multiple guarantors (max_count null) but caps single-signer roles", () => {
+  it("allows any number of people on a role", () => {
     const bindings: RecipientBinding[] = [
       { role_key: "issuer_director", name: "A", email: "a@co.my", ic_number: "820508105871" },
       { role_key: "issuer_director", name: "B", email: "b@co.my", ic_number: "820508105872" },
       { role_key: "guarantor", name: "G1", email: "g1@x.my", ic_number: "900101015432" },
       { role_key: "guarantor", name: "G2", email: "g2@x.my", ic_number: "900101015433" },
     ];
-    const errors = validateRecipientBindings(TEMPLATE, bindings);
-    expect(errors.some((e) => e.includes("Borrower Director") && e.includes("at most 1"))).toBe(true);
-    expect(errors.some((e) => e.includes("Guarantor") && e.includes("at most"))).toBe(false);
+    expect(validateRecipientBindings(TEMPLATE, bindings)).toEqual([]);
   });
 });
 
@@ -611,6 +622,33 @@ describe("buildEnvelopePlanFromTemplate", () => {
     const guaranteeAssignees = plan.assignments.filter((a) => a.document_ref === "guarantee");
     expect(guaranteeAssignees).toHaveLength(3);
     expect(new Set(plan.recipients.map((r) => r.ref)).size).toBe(3);
+  });
+
+  it("keeps two corporate representatives as two recipients sharing an application_guarantor_id", () => {
+    const bindings: RecipientBinding[] = [
+      { role_key: "issuer_director", name: "Ali", email: "ali@co.my", ic_number: SAMPLE_IC },
+      {
+        role_key: "guarantor",
+        name: "Nora",
+        email: "nora@holdco.my",
+        application_guarantor_id: "g_co",
+        ic_number: "880101015555",
+      },
+      {
+        role_key: "guarantor",
+        name: "Farid",
+        email: "farid@holdco.my",
+        application_guarantor_id: "g_co",
+        ic_number: "770202025555",
+      },
+    ];
+    const plan = buildEnvelopePlanFromTemplate(TEMPLATE, bindings);
+    const guarantors = plan.recipients.filter((recipient) => recipient.role_key === "guarantor");
+    expect(guarantors.map((recipient) => recipient.name)).toEqual(["Nora", "Farid"]);
+    expect(guarantors.every((recipient) => recipient.application_guarantor_id === "g_co")).toBe(true);
+    expect(guarantors.some((recipient) => recipient.name.toLowerCase().includes("holdco"))).toBe(
+      false
+    );
   });
 });
 

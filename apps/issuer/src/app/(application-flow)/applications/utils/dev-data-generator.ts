@@ -180,11 +180,6 @@ export function generateContractDetailsData(): Record<string, unknown> {
 /** Business details step. Snake_case to match stored format. P2P fields null when raising_on_other_p2p is false. */
 export function generateBusinessDetailsData(): Record<string, unknown> {
   return {
-    about_your_business: {
-      what_does_company_do: "We manufacture industrial equipment and provide maintenance services for mining and construction sectors.",
-      main_customers: "Large enterprises in oil & gas, mining, and infrastructure. Top 3 customers: Petronas, Sime Darby, Tenaga Nasional.",
-      single_customer_over_50_revenue: false,
-    },
     why_raising_funds: {
       financing_for: "Working capital to fulfill a new contract with a major client. Need to purchase raw materials and hire additional staff.",
       how_funds_used: "60% for inventory, 25% for payroll, 15% for equipment maintenance.",
@@ -195,7 +190,6 @@ export function generateBusinessDetailsData(): Record<string, unknown> {
       platform_name: null,
       amount_raised: null,
       same_invoice_used: null,
-      accounting_software: "Xero",
     },
     declaration_confirmed: true,
     guarantors: [
@@ -231,6 +225,12 @@ export function generateAllDataForSteps(options?: {
     company_details: {
       industry: "Technology",
       numberOfEmployees: "10",
+      whatDoesCompanyDo:
+        "We manufacture industrial equipment and provide maintenance services for mining and construction sectors.",
+      mainCustomers:
+        "Large enterprises in oil & gas, mining, and infrastructure. Top customers include major conglomerates.",
+      singleCustomerOver50Revenue: false,
+      accountingSoftware: "Xero",
       businessAddress: {
         line1: "23, Jalan Kiara",
         line2: "",

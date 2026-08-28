@@ -138,28 +138,36 @@ export function LegalDocumentChecklistRows({
   disabled,
   onOpen,
   onCheckedChange,
+  compact = false,
 }: {
   rows: LegalChecklistDocRow[];
   disabled?: boolean;
   onOpen: (id: string) => void;
   onCheckedChange: (id: string, checked: boolean) => void;
+  /** Stack title + review button; skip shell padding. For narrow cards (e.g. signing). */
+  compact?: boolean;
 }) {
   return (
-    <ul className="divide-y divide-border">
+    <ul className={compact ? undefined : "divide-y divide-border"}>
       {rows.map((row) => {
         const checkboxId = `legal-checklist-${row.id}`;
         const helper = legalChecklistStatusLabel(row.status);
         return (
-          <li key={row.id} className="px-6 py-5 md:px-8">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <li key={row.id} className={compact ? undefined : "px-6 py-5 md:px-8"}>
+            <div
+              className={cn(
+                "flex flex-col gap-3",
+                !compact && "sm:flex-row sm:items-start sm:justify-between"
+              )}
+            >
               <div className="min-w-0">
                 <h3 className="text-body font-semibold text-foreground">{row.title}</h3>
               </div>
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="shrink-0"
+                size={compact ? "default" : "sm"}
+                className={cn("shrink-0 gap-2", compact && "h-11 w-full rounded-xl")}
                 disabled={row.opening || disabled}
                 onClick={() => onOpen(row.id)}
               >

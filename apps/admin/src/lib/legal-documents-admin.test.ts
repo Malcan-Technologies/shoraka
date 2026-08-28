@@ -63,9 +63,11 @@ describe("legal-documents-admin helpers", () => {
     expect(audienceLabel("ISSUER")).toBe("Issuer");
     expect(audienceLabel("INVESTOR")).toBe("Investor");
     expect(audienceLabel("PUBLIC")).toBe("Public");
+    expect(audienceLabel("GUARANTOR")).toBe("Guarantor");
     expect(websiteVisibilityLabel(true)).toBe("Public");
     expect(websiteVisibilityLabel(false)).toBe("Private");
     expect(OPERATIONAL_AUDIENCES).not.toContain("PUBLIC");
+    expect(OPERATIONAL_AUDIENCES).toContain("GUARANTOR");
     expect(statusLabel("DRAFT")).toBe("Draft");
   });
 
@@ -505,6 +507,12 @@ describe("legal-documents-admin helpers", () => {
       "TERMS_OF_USE"
     );
     expect(EXISTING_LEGAL_TYPE_CREATE_MESSAGE).toContain("Upload a new version");
+  });
+
+  it("defaults guarantor warning to guarantor audience and not required for onboarding", () => {
+    const defaults = createFormDefaultsForAvailableTypes(["GUARANTOR_WARNING_STATEMENT"]);
+    expect(defaults?.audience).toBe("GUARANTOR");
+    expect(defaults?.requiredForOnboarding).toBe(false);
   });
 
   it("shows No published version after only active published is gone", () => {

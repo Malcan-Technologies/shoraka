@@ -35,7 +35,7 @@ export interface ProspectusIssuerProfileAudit {
   };
   businessDescription: {
     source: "notes.issuer_snapshot.business_description";
-    originalSource: "applications.business_details.about_your_business.what_does_company_do";
+    originalSource: "issuer_organizations.corporate_onboarding_data.aboutYourBusiness.whatDoesCompanyDo";
     isFrozen: true;
     liveFallbackAllowed: false;
     issuerNamePrefixStripped: true;
@@ -70,7 +70,7 @@ export const PROSPECTUS_ISSUER_PROFILE_AUDIT: ProspectusIssuerProfileAudit = {
   },
   businessDescription: {
     source: "notes.issuer_snapshot.business_description",
-    originalSource: "applications.business_details.about_your_business.what_does_company_do",
+    originalSource: "issuer_organizations.corporate_onboarding_data.aboutYourBusiness.whatDoesCompanyDo",
     isFrozen: true,
     liveFallbackAllowed: false,
     issuerNamePrefixStripped: true,
@@ -186,7 +186,7 @@ export const PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES: Record<
     availability: "stored",
     surface: "canva",
     possibleAlternatives:
-      "live what_does_company_do; product_snapshot.description; purpose — not used",
+      "legacy applications.business_details.about_your_business.what_does_company_do; product_snapshot.description; purpose — not used",
     notes:
       "Frozen description; leading issuer company name stripped when present. Name/reg never rendered.",
   },

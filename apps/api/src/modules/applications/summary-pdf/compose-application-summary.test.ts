@@ -250,6 +250,49 @@ describe("composeApplicationSummary", () => {
     expect(model.timeline[0]?.description).toBe("Updated invoice value");
   });
 
+  it("prefers company-profile about fields over application business_details", () => {
+    const model = composeApplicationSummary({
+      application: baseApplication({
+        issuer_organization: {
+          name: "Issuer Sdn Bhd",
+          registration_number: "202001234567",
+          corporate_onboarding_data: {
+            aboutYourBusiness: {
+              whatDoesCompanyDo: "Profile description",
+              mainCustomers: "Profile customers",
+            },
+          },
+        },
+      }),
+      logs: [],
+      authorNames: new Map(),
+      generatedAt: new Date("2026-08-24T08:31:00.000Z"),
+    });
+    expect(model.companyFields.find((f) => f.label === "What the company does")?.value).toBe(
+      "Profile description"
+    );
+    expect(model.companyFields.find((f) => f.label === "Main customers")?.value).toBe("Profile customers");
+  });
+
+  it("falls back to application business_details when the company profile is empty", () => {
+    const model = composeApplicationSummary({
+      application: baseApplication({
+        issuer_organization: {
+          name: "Issuer Sdn Bhd",
+          registration_number: "202001234567",
+          corporate_onboarding_data: { basicInfo: { industry: "Wholesale" } },
+        },
+      }),
+      logs: [],
+      authorNames: new Map(),
+      generatedAt: new Date("2026-08-24T08:31:00.000Z"),
+    });
+    expect(model.companyFields.find((f) => f.label === "What the company does")?.value).toBe(
+      "Wholesale trade"
+    );
+    expect(model.companyFields.find((f) => f.label === "Main customers")?.value).toBe("Retail chains");
+  });
+
   it("labels AMENDMENTS_SUBMITTED as an amendment request sent by CashSouk", () => {
     const model = compose({
       logs: [

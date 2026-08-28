@@ -22,10 +22,8 @@ const ACCEPTANCE_ACTIVE: ReadonlySet<OfferAcceptanceStatus> = new Set([
   "CHANGES_REQUESTED",
 ]);
 
-const SIGNING_ACTIVE: ReadonlySet<OfferAcceptanceStatus> = new Set([
-  "APPROVED_FOR_SIGNING",
-  "SIGNING_IN_PROGRESS",
-]);
+/** Signing clock runs only after links are sent, not while waiting to send. */
+const SIGNING_ACTIVE: ReadonlySet<OfferAcceptanceStatus> = new Set(["SIGNING_IN_PROGRESS"]);
 
 export function buildOfferAcceptanceOnSend(
   workflow: unknown,
@@ -37,13 +35,21 @@ export function buildOfferAcceptanceOnSend(
   });
 }
 
-/** Fields to merge when entering APPROVED_FOR_SIGNING (preserves existing signing_expires_at). */
-export function signingDeadlinePatchOnApprove(
+/**
+ * Fields to merge when signing links are sent.
+ * Keeps a live stamp (void + resend in-window); stamps a fresh window if missing or already expired.
+ */
+export function signingDeadlinePatchOnSend(
   workflow: unknown,
   nowIso: string,
   current: OfferAcceptanceDetails | null | undefined
 ): Partial<OfferAcceptanceDetails> {
-  if (typeof current?.signing_expires_at === "string" && current.signing_expires_at) {
+  const existing = current?.signing_expires_at;
+  if (
+    typeof existing === "string" &&
+    existing &&
+    !isPhaseDeadlineExpired(existing, new Date(nowIso))
+  ) {
     return {};
   }
   const deadline = resolveSigningDeadlineFromWorkflow(workflow) ?? DEFAULT_SIGNING_DEADLINE;

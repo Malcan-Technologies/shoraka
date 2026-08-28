@@ -49,6 +49,7 @@ import { facilityFeePaymentRouter } from "./modules/payment/facility-fee-control
 import { excessLateChargePaymentRouter } from "./modules/payment/excess-late-charge-controller";
 import { gatewayPaymentsAdminRouter } from "./modules/payment/admin-controller";
 import { gatewayReconAdminRouter } from "./modules/payment/recon-controller";
+import { facilityLoDemoRouter } from "./modules/applications/letter-of-offer/facility-lo-demo.controller";
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
   if (process.env.NODE_ENV !== "production") {
@@ -155,6 +156,13 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/legal-document-acceptances", devAuthBypass, requireRole(UserRole.ADMIN), legalDocumentAcceptanceAdminRouter);
     v1Router.use("/admin/legal-document-audit-logs", devAuthBypass, requireRole(UserRole.ADMIN), legalDocumentAuditAdminRouter);
     v1Router.use("/admin/product-logs", devAuthBypass, requireRole(UserRole.ADMIN), productLogRouter);
+    // DEMO: ARF contract LO merge (wet-ink docx) — not production Send Offer
+    v1Router.use(
+      "/admin/demos/contract-lo",
+      devAuthBypass,
+      requireRole(UserRole.ADMIN),
+      facilityLoDemoRouter
+    );
   } else {
     v1Router.use("/admin", requireAuth, requireRole(UserRole.ADMIN), adminRouter);
     v1Router.use("/admin/signing", requireAuth, requireRole(UserRole.ADMIN), createSigningAdminRouter());
@@ -169,6 +177,12 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/legal-document-acceptances", requireAuth, requireRole(UserRole.ADMIN), legalDocumentAcceptanceAdminRouter);
     v1Router.use("/admin/legal-document-audit-logs", requireAuth, requireRole(UserRole.ADMIN), legalDocumentAuditAdminRouter);
     v1Router.use("/admin/product-logs", requireAuth, requireRole(UserRole.ADMIN), productLogRouter);
+    v1Router.use(
+      "/admin/demos/contract-lo",
+      requireAuth,
+      requireRole(UserRole.ADMIN),
+      facilityLoDemoRouter
+    );
   }
 
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {

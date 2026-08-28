@@ -72,20 +72,8 @@ describe("SigningController", () => {
       expect(res.status).toBe(401);
     });
 
-    it("POST /envelopes/:id/send returns 401 without auth", async () => {
-      const res = await request(issuerApp).post("/v1/signing/envelopes/env-1/send");
-      expect(res.status).toBe(401);
-    });
-
     it("GET /applications/:applicationId/envelopes returns 401 without auth", async () => {
       const res = await request(issuerApp).get("/v1/signing/applications/app-1/envelopes");
-      expect(res.status).toBe(401);
-    });
-
-    it("POST /applications/:applicationId/envelopes returns 401 without auth", async () => {
-      const res = await request(issuerApp)
-        .post("/v1/signing/applications/app-1/envelopes")
-        .send({ bindings: [{ role_key: "director", name: "A", email: "a@b.c" }] });
       expect(res.status).toBe(401);
     });
 
@@ -121,17 +109,31 @@ describe("SigningController", () => {
       expect(res.status).toBe(200);
       expect(signingService.getEnvelopeForIssuer).toHaveBeenCalledWith("env-1", "user-1");
     });
+
+    it("does not expose issuer create or send envelope routes", async () => {
+      const create = await request(issuerApp)
+        .post("/v1/signing/applications/app-1/envelopes")
+        .set(auth)
+        .send({ bindings: [] });
+      expect(create.status).toBe(404);
+
+      const send = await request(issuerApp)
+        .post("/v1/signing/envelopes/env-1/send")
+        .set(auth)
+        .send({});
+      expect(send.status).toBe(404);
+    });
   });
 
   describe("external routes are unauthenticated", () => {
-    it("GET /external/:token does not require auth", async () => {
-      (signingService.getEnvelopeForExternalToken as jest.Mock).mockResolvedValue({
-        recipient_id: "r1",
-        access_verified: false,
+    it("POST /external/:token/warning/open does not require auth", async () => {
+      (signingService.openExternalWarning as jest.Mock).mockResolvedValue({
+        viewUrl: "https://example.com/view.pdf",
+        expiresIn: 60,
       });
-      const res = await request(issuerApp).get("/v1/signing/external/token-abc");
+      const res = await request(issuerApp).post("/v1/signing/external/token-abc/warning/open");
       expect(res.status).toBe(200);
-      expect(signingService.getEnvelopeForExternalToken).toHaveBeenCalledWith("token-abc");
+      expect(signingService.openExternalWarning).toHaveBeenCalled();
     });
 
     it("POST /return/:returnSessionId/confirm does not require auth", async () => {
@@ -168,6 +170,37 @@ describe("SigningController", () => {
         null,
         expect.objectContaining({ userId: "user-1" })
       );
+    });
+
+    it("POST /applications/:applicationId/envelopes/send creates and sends from approved parties", async () => {
+      const authedAdmin = express();
+      authedAdmin.use(express.json());
+      authedAdmin.use((req: Request, _res: Response, next: NextFunction) => {
+        req.user = { ...mockUser, roles: [UserRole.ADMIN] };
+        next();
+      });
+      authedAdmin.use("/v1/admin/signing", createSigningAdminRouter());
+      authedAdmin.use((err: Error & { statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+        res.status(err.statusCode || 500).json({
+          success: false,
+          error: { message: err.message },
+        });
+      });
+
+      (signingService.createAndSendAdminEnvelope as jest.Mock).mockResolvedValue({
+        id: "env-1",
+        status: "SENT",
+      });
+      const res = await request(authedAdmin)
+        .post("/v1/admin/signing/applications/app-1/envelopes/send")
+        .send({});
+      expect(res.status).toBe(200);
+      expect(signingService.createAndSendAdminEnvelope).toHaveBeenCalledWith({
+        applicationId: "app-1",
+        userId: "user-1",
+        contractId: null,
+        invoiceId: null,
+      });
     });
   });
 });

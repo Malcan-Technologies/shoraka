@@ -177,6 +177,9 @@ export function SigningProgressMatrix({
                           <p className="text-xs text-muted-foreground">
                             {recipientLabel(recipient, duplicateNames)}
                           </p>
+                          {recipient.warning_accepted_at ? (
+                            <p className="text-xs text-muted-foreground">Warning accepted</p>
+                          ) : null}
                         </div>
 
                         <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">

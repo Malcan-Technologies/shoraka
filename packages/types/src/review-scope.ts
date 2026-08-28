@@ -25,6 +25,10 @@ export const REVIEW_SECTION_ORDER = [
 
 export type ReviewSection = (typeof REVIEW_SECTION_ORDER)[number];
 
+/** `application_review_items.item_type` values used by admin item actions. */
+export const REVIEW_ITEM_TYPES = ["invoice", "document", "authorized_representatives"] as const;
+export type ReviewItemType = (typeof REVIEW_ITEM_TYPES)[number];
+
 /**
  * Invoice-only order: Invoice before Acceptance so Send Offer → close primary offer
  * stays left-to-right (Customer → Invoice → Acceptance).
@@ -149,7 +153,10 @@ export function getSectionForScopeKey(scopeKey: string): ReviewSection {
   if (scopeKey.startsWith("supporting_documents:")) {
     return "supporting_documents";
   }
-  if (scopeKey.startsWith("acceptance_documents:")) {
+  if (
+    scopeKey.startsWith("acceptance_documents:") ||
+    scopeKey.startsWith("authorized_representatives:")
+  ) {
     return "acceptance_documents";
   }
   if (scopeKey.startsWith("invoice_details:")) {
@@ -175,7 +182,7 @@ export function getSectionForPendingAmendment(
 
 /**
  * Split item scope_key into itemType and itemId.
- * The full string is itemId; itemType is "document" or "invoice" respectively.
+ * The full string is itemId; itemType is document, invoice, or authorized_representatives.
  */
 export function parseItemScopeKey(scopeKey: string): {
   itemType: string;
@@ -186,6 +193,9 @@ export function parseItemScopeKey(scopeKey: string): {
   }
   if (scopeKey.startsWith("acceptance_documents:")) {
     return { itemType: "document", itemId: scopeKey };
+  }
+  if (scopeKey.startsWith("authorized_representatives:")) {
+    return { itemType: "authorized_representatives", itemId: scopeKey };
   }
   if (scopeKey.startsWith("invoice_details:")) {
     return { itemType: "invoice", itemId: scopeKey };
@@ -257,6 +267,12 @@ export function getItemDisplayNameFromScopeKey(scopeKey: string): string {
   }
   if (scopeKey.startsWith("acceptance_documents:")) {
     if (lastPart) return toDisplayName(lastPart);
+  }
+  if (scopeKey === "authorized_representatives:issuer") {
+    return "Issuer company";
+  }
+  if (scopeKey.startsWith("authorized_representatives:guarantor:")) {
+    return "Guarantor representatives";
   }
   return "Item";
 }

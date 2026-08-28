@@ -79,6 +79,9 @@ describe("legal documents review modes and copy", () => {
     expect(legalDocumentCheckboxWording("INVESTOR_AGREEMENT")).toBe(
       "I have read and agree to this agreement."
     );
+    expect(legalDocumentCheckboxWording("GUARANTOR_WARNING_STATEMENT")).toBe(
+      "I have read and understood this warning statement."
+    );
     expect(LEGAL_DOCUMENT_CHECKBOX_WORDING.RISK_STATEMENT).toBe(
       legalDocumentCheckboxWording("RISK_STATEMENT")
     );

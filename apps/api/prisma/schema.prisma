@@ -1940,6 +1940,7 @@ model LegalDocumentVersion {
   updated_at            DateTime                   @updatedAt
   legal_document        LegalDocument              @relation(fields: [legal_document_id], references: [id], onDelete: Cascade)
   acceptances           LegalDocumentAcceptance[]
+  external_acceptances  LegalExternalAcceptance[]
 
   @@unique([legal_document_id, version])
   @@index([legal_document_id, status])
@@ -1997,6 +1998,42 @@ model LegalDocumentAcceptance {
   @@index([accepted_at])
   @@index([audience_role])
   @@map("legal_document_acceptances")
+}
+
+/// Unauthenticated party open/accept of a published legal PDF (e.g. guarantor on a signing link).
+/// Identified by snapshots plus a generic source pointer — not a User or organization.
+model LegalExternalAcceptance {
+  id                        String                         @id @default(cuid())
+  legal_document_version_id String
+  legal_document_id         String?
+  document_type             LegalDocumentType?
+  version_number            Int?
+  document_hash             String?
+  party_name                String
+  party_email               String
+  party_ic_number           String?
+  source_type               LegalExternalAcceptanceSource
+  source_id                 String
+  status                    LegalExternalAcceptanceStatus  @default(OPENED)
+  opened_at                 DateTime?
+  opened_ip_address         String?
+  opened_user_agent         String?
+  opened_device_info        String?
+  accepted_at               DateTime?
+  accepted_ip_address       String?
+  accepted_user_agent       String?
+  accepted_device_info      String?
+  acknowledgement_text      String?
+  created_at                DateTime                       @default(now())
+  updated_at                DateTime                       @updatedAt
+  version                   LegalDocumentVersion           @relation(fields: [legal_document_version_id], references: [id], onDelete: Restrict)
+
+  @@unique([source_type, source_id, legal_document_version_id], map: "legal_ext_accept_source_version_uidx")
+  @@index([source_type, source_id], map: "legal_ext_accept_source_idx")
+  @@index([legal_document_version_id])
+  @@index([document_type])
+  @@index([accepted_at])
+  @@map("legal_external_acceptances")
 }
 
 /// Immutable admin audit trail for legal document definition/version changes.
@@ -2586,6 +2623,7 @@ enum LegalDocumentType {
   INVESTOR_WARNING_STATEMENT
   ISSUER_AGREEMENT
   INVESTOR_AGREEMENT
+  GUARANTOR_WARNING_STATEMENT
 }
 
 enum LegalDocumentAudience {
@@ -2593,6 +2631,7 @@ enum LegalDocumentAudience {
   ISSUER
   INVESTOR
   BOTH
+  GUARANTOR
 }
 
 enum LegalDocumentVersionStatus {
@@ -2608,6 +2647,15 @@ enum LegalAcceptanceAudience {
 
 enum LegalAcceptanceStatus {
   NOT_OPENED
+  OPENED
+  ACCEPTED
+}
+
+enum LegalExternalAcceptanceSource {
+  SIGNING_RECIPIENT
+}
+
+enum LegalExternalAcceptanceStatus {
   OPENED
   ACCEPTED
 }

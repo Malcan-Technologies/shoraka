@@ -88,6 +88,26 @@ export const bankAccountDetailsSchema = z
     }
   );
 
+const contactPersonSchema = z.object({
+  name: z.string().max(255).optional().nullable(),
+  position: z.string().max(255).optional().nullable(),
+  email: z
+    .string()
+    .max(255)
+    .optional()
+    .nullable()
+    .refine((val) => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), {
+      message: "Invalid email",
+    }),
+  contact: z
+    .string()
+    .refine((val) => !val || isValidPhoneNumber(val), {
+      message: "Invalid phone number format",
+    })
+    .optional()
+    .nullable(),
+});
+
 // Update organization profile schema (for editable fields only)
 export const updateOrganizationProfileSchema = z.object({
   phoneNumber: z
@@ -99,6 +119,7 @@ export const updateOrganizationProfileSchema = z.object({
     .nullable(),
   address: z.string().max(500).optional().nullable(),
   bankAccountDetails: bankAccountDetailsSchema.optional().nullable(),
+  contactPerson: contactPersonSchema.optional().nullable(),
 });
 
 // Invite member schema (email is optional for link-based invitations)
@@ -169,6 +190,13 @@ function isValidAddress(addr: z.infer<typeof addressSchema> | null | undefined):
   return !!(line1 && city && postalCode && state && country);
 }
 
+export const aboutYourBusinessSchema = z.object({
+  whatDoesCompanyDo: z.string().max(1000).optional().nullable(),
+  mainCustomers: z.string().max(400).optional().nullable(),
+  singleCustomerOver50Revenue: z.boolean().optional().nullable(),
+  accountingSoftware: z.string().max(200).optional().nullable(),
+});
+
 // Corporate info update schema
 export const updateCorporateInfoSchema = z
   .object({
@@ -180,6 +208,7 @@ export const updateCorporateInfoSchema = z
     ssmRegisterNumber: z.string().optional().nullable(),
     businessAddress: addressSchema.optional().nullable(),
     registeredAddress: addressSchema.optional().nullable(),
+    aboutYourBusiness: aboutYourBusinessSchema.optional().nullable(),
   })
   .refine(
     (val) => {

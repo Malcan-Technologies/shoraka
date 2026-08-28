@@ -1,4 +1,5 @@
 import type { UpdateAdminOrganizationProfileInput } from "@cashsouk/types";
+import { parseAboutYourBusiness, serializeAboutYourBusiness } from "@cashsouk/types";
 import { UserRole } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
@@ -45,6 +46,33 @@ export function mergeCorporateOnboardingData(
       pic.contactNumber = patch.personInCharge.contactNumber;
     }
     current.personInCharge = pic;
+  }
+
+  if (patch.aboutYourBusiness !== undefined) {
+    if (patch.aboutYourBusiness === null) {
+      current.aboutYourBusiness = undefined;
+    } else {
+      const existingAbout = parseAboutYourBusiness(current.aboutYourBusiness);
+      const merged = {
+        whatDoesCompanyDo:
+          patch.aboutYourBusiness.whatDoesCompanyDo !== undefined
+            ? (patch.aboutYourBusiness.whatDoesCompanyDo ?? "")
+            : existingAbout.whatDoesCompanyDo,
+        mainCustomers:
+          patch.aboutYourBusiness.mainCustomers !== undefined
+            ? (patch.aboutYourBusiness.mainCustomers ?? "")
+            : existingAbout.mainCustomers,
+        singleCustomerOver50Revenue:
+          patch.aboutYourBusiness.singleCustomerOver50Revenue !== undefined
+            ? patch.aboutYourBusiness.singleCustomerOver50Revenue
+            : existingAbout.singleCustomerOver50Revenue,
+        accountingSoftware:
+          patch.aboutYourBusiness.accountingSoftware !== undefined
+            ? (patch.aboutYourBusiness.accountingSoftware ?? "")
+            : existingAbout.accountingSoftware,
+      };
+      current.aboutYourBusiness = serializeAboutYourBusiness(merged);
+    }
   }
 
   return current;
