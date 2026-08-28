@@ -74,6 +74,31 @@ function mapSignState(value: unknown): ProviderSignerStatus {
   return "PENDING";
 }
 
+function readViewedAt(obj: Record<string, unknown>): Date | null {
+  const raw = readFirstString(obj, [
+    "viewtime",
+    "viewTime",
+    "viewedat",
+    "viewedAt",
+    "opentime",
+    "openTime",
+    "lastviewtime",
+    "lastViewTime",
+  ]);
+  if (raw) {
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  for (const key of ["viewtime", "viewTime", "viewedat", "viewedAt", "opentime", "openTime"]) {
+    const value = obj[key];
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue;
+    const ms = value < 1e12 ? value * 1000 : value;
+    const parsed = new Date(ms);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return null;
+}
+
 function readFirstString(obj: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
     const v = obj[key];
@@ -136,10 +161,12 @@ export function parseSigningCloudContractDetails(
     if (!emailRaw) continue;
     const email = normalizeSigningEmail(emailRaw);
     const name = readFirstString(item, ["realname", "realName", "name", "Name"]);
+    const viewedAt = readViewedAt(item);
     signers.push({
       email,
       status: mapSignState(readSignStateRaw(item)),
       name,
+      ...(viewedAt ? { viewedAt } : {}),
     });
   }
 

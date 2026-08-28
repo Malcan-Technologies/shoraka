@@ -256,4 +256,28 @@ describe("onboarding log organization context", () => {
       source: AUDIT_SOURCE.WEBHOOK,
     });
   });
+
+  it("strips raw webhook payloads and IC from onboarding metadata", async () => {
+    const { db, created } = fakeDb();
+
+    await createOnboardingLogRow(
+      {
+        userId: "u",
+        role: UserRole.INVESTOR,
+        eventType: "ONBOARDING_STATUS_UPDATED",
+        metadata: {
+          requestId: "COD001",
+          status: "URL_GENERATED",
+          payload: { nric: "900101015432" },
+          ic_number: "900101015432",
+        },
+      },
+      db
+    );
+
+    expect((created.onboardingLog[0] as { metadata: unknown }).metadata).toEqual({
+      requestId: "COD001",
+      status: "URL_GENERATED",
+    });
+  });
 });

@@ -7,6 +7,7 @@ import {
   ActivityCategory,
   buildDateFilter,
 } from "./base";
+import { userVisibleOrganizationEventTypes } from "../../../lib/audit/visibility-matrix";
 
 export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
   public readonly name = "OrganizationLogAdapter";
@@ -244,14 +245,6 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
   }
 
   getEventTypes(): string[] {
-    return [
-      "ONBOARDING_STARTED",
-      "ONBOARDING_FEE_PAID",
-      "ONBOARDING_CANCELLED",
-      "ONBOARDING_REJECTED",
-      "COD_REJECTED",
-      "FINAL_APPROVAL_COMPLETED",
-      "ONBOARDING_APPROVED",
-    ];
+    return userVisibleOrganizationEventTypes();
   }
 }

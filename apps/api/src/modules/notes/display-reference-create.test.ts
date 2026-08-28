@@ -15,6 +15,9 @@ const mockTx: any = {
   notePaymentSchedule: {
     create: jest.fn(),
   },
+  noteEvent: {
+    create: jest.fn().mockResolvedValue({}),
+  },
   displayReferenceAllocation: {
     create: jest.fn(),
     findUnique: jest.fn(),
@@ -69,6 +72,8 @@ describe("NoteService createFromInvoiceSource display reference", () => {
     mockTx.note.update.mockReset();
     mockTx.note.findUniqueOrThrow.mockReset();
     mockTx.notePaymentSchedule.create.mockReset();
+    mockTx.noteEvent.create.mockReset();
+    mockTx.noteEvent.create.mockResolvedValue({});
     mockTx.displayReferenceAllocation.create.mockReset();
     mockTx.displayReferenceAllocation.findUnique.mockReset();
 

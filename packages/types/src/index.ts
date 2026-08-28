@@ -544,6 +544,7 @@ export * from "./guarantors";
 export * from "./company-name-normalization";
 export * from "./gateway-payments";
 export * from "./gateway-recon";
+export * from "./ops-alerts";
 export * from "./marc-credit-grade";
 export * from "./paymaster";
 export {

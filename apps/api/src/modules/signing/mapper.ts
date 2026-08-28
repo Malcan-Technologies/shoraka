@@ -66,6 +66,7 @@ function mapRecipient(
     status: recipient.status,
     kyc_status: kycStatus,
     completed_at: recipient.completed_at ? recipient.completed_at.toISOString() : null,
+    viewed_at: recipient.viewed_at ? recipient.viewed_at.toISOString() : null,
     email_delivery_status: readEmailDeliveryStatus(recipient.metadata),
     warning_accepted_at: recipient.role_key === "guarantor" ? warningAcceptedAt : null,
   };

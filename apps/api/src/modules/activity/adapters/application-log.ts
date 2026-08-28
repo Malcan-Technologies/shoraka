@@ -13,6 +13,7 @@ import {
 import type { ActivityReferences } from "@cashsouk/types";
 import { formatApplicationReference } from "@cashsouk/types";
 import { ApplicationLogEventType } from "../../applications/logs/types";
+import { userVisibleApplicationEventTypes } from "../../../lib/audit/visibility-matrix";
 
 const CONTRACT_EVENT_TYPES = new Set<string>([
   ApplicationLogEventType.CONTRACT_OFFER_SENT,
@@ -24,6 +25,8 @@ const CONTRACT_EVENT_TYPES = new Set<string>([
   ApplicationLogEventType.CONTRACT_OFFER_RETRACTED,
   ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED,
   ApplicationLogEventType.CONTRACT_OFFER_DECLINED,
+  ApplicationLogEventType.CONTRACT_FACILITY_FEE_WAIVED,
+  ApplicationLogEventType.FACILITY_FEE_PAID,
 ]);
 
 const INVOICE_EVENT_TYPES = new Set<string>([
@@ -41,6 +44,8 @@ const SIGNING_PACKAGE_EVENT_TYPES = new Set<string>([
   ApplicationLogEventType.SIGNING_PACKAGE_CREATED,
   ApplicationLogEventType.SIGNING_PACKAGE_SENT,
   ApplicationLogEventType.SIGNING_PACKAGE_COMPLETED,
+  ApplicationLogEventType.SIGNING_PACKAGE_DECLINED,
+  ApplicationLogEventType.SIGNING_PACKAGE_EXPIRED,
   ApplicationLogEventType.SIGNING_PACKAGE_VOIDED,
 ]);
 
@@ -249,6 +254,12 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         return applicationRef
           ? `The application processing fee for ${applicationRef} was paid successfully.`
           : fallbackDescription;
+      case ApplicationLogEventType.FACILITY_FEE_PAID:
+        return contractRef
+          ? `A facility fee payment for ${contractRef} was received.`
+          : applicationRef
+            ? `A facility fee payment for ${applicationRef} was received.`
+            : fallbackDescription;
       case ApplicationLogEventType.APPLICATION_SUBMITTED:
         return applicationRef
           ? `${this.capitalize(applicationRef)} was submitted and is now under review.`
@@ -356,6 +367,14 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       case ApplicationLogEventType.SIGNING_PACKAGE_COMPLETED:
         return applicationRef
           ? `All signers completed the signing package for ${applicationRef}.`
+          : fallbackDescription;
+      case ApplicationLogEventType.SIGNING_PACKAGE_DECLINED:
+        return applicationRef
+          ? `A signer declined the signing package for ${applicationRef}.`
+          : fallbackDescription;
+      case ApplicationLogEventType.SIGNING_PACKAGE_EXPIRED:
+        return applicationRef
+          ? `The signing package for ${applicationRef} expired before all signatures were collected.`
           : fallbackDescription;
       default:
         return fallbackDescription;
@@ -507,6 +526,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         title: "Application Processing Fee Paid",
         description: "The application processing fee was paid successfully.",
       },
+      [ApplicationLogEventType.FACILITY_FEE_PAID]: {
+        title: "Facility fee paid",
+        description: "A facility fee payment was received.",
+      },
       [ApplicationLogEventType.APPLICATION_SUBMITTED]: {
         title: "Application Submitted",
         description: "Your financing application was submitted and is now under review.",
@@ -619,6 +642,14 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         title: "Signing package completed",
         description: "All required signers completed the signing package.",
       },
+      [ApplicationLogEventType.SIGNING_PACKAGE_DECLINED]: {
+        title: "Signing package declined",
+        description: "A required signer declined the signing package.",
+      },
+      [ApplicationLogEventType.SIGNING_PACKAGE_EXPIRED]: {
+        title: "Signing package expired",
+        description: "The signing package expired before all required signatures were collected.",
+      },
     };
 
     return (
@@ -630,36 +661,6 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
   }
 
   getEventTypes(): string[] {
-    return [
-      ApplicationLogEventType.APPLICATION_CREATED,
-      ApplicationLogEventType.APPLICATION_PROCESSING_FEE_PAID,
-      ApplicationLogEventType.APPLICATION_SUBMITTED,
-      ApplicationLogEventType.APPLICATION_RESUBMITTED,
-      ApplicationLogEventType.APPLICATION_APPROVED,
-      ApplicationLogEventType.APPLICATION_REJECTED,
-      ApplicationLogEventType.APPLICATION_WITHDRAWN,
-      ApplicationLogEventType.APPLICATION_COMPLETED,
-      ApplicationLogEventType.CONTRACT_OFFER_SENT,
-      ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED,
-      ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED,
-      ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED,
-      ApplicationLogEventType.CONTRACT_OFFER_REJECTED,
-      ApplicationLogEventType.CONTRACT_OFFER_RETRACTED,
-      ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED,
-      ApplicationLogEventType.CONTRACT_OFFER_EXPIRED,
-      ApplicationLogEventType.CONTRACT_SIGNING_DEADLINE_EXTENDED,
-      ApplicationLogEventType.CONTRACT_OFFER_DECLINED,
-      ApplicationLogEventType.INVOICE_OFFER_SENT,
-      ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED,
-      ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_RESUBMITTED,
-      ApplicationLogEventType.INVOICE_OFFER_ACCEPTED,
-      ApplicationLogEventType.INVOICE_OFFER_REJECTED,
-      ApplicationLogEventType.INVOICE_OFFER_RETRACTED,
-      ApplicationLogEventType.INVOICE_OFFER_EXPIRED,
-      ApplicationLogEventType.INVOICE_SIGNING_DEADLINE_EXTENDED,
-      ApplicationLogEventType.INVOICE_WITHDRAWN,
-      ApplicationLogEventType.SIGNING_PACKAGE_SENT,
-      ApplicationLogEventType.AMENDMENTS_SUBMITTED,
-    ];
+    return userVisibleApplicationEventTypes();
   }
 }

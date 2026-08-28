@@ -417,10 +417,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canViewAuditAccess = can("audit.access.view");
   const canViewAuditSecurity = can("audit.security.view");
   const canViewAuditProduct = can("audit.product.view");
+  const canViewOpsAlerts = can("ops.alerts.view");
   const canViewAnyAudit =
     canViewAuditAccess ||
     canViewAuditSecurity ||
     canViewAuditProduct ||
+    canViewOpsAlerts ||
     canViewDocuments ||
     canViewNotifications;
 

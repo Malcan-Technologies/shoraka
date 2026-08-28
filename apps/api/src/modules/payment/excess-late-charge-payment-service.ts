@@ -16,12 +16,14 @@ import {
   roundNoteMoney,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
+import type { AuditRequestContext } from "../../lib/audit";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { creditInvestorBalance } from "../notes/investor-balance";
 import { postLedgerEntry } from "../notes/ledger";
 import { buildSettlementAllocations } from "../notes/calculators";
 import type { ActorContext } from "./deposit-service";
 import { createGatewayOrder, mapGatewayPaymentResponse } from "./gateway-order-service";
+import { recordGatewayPaymentCompletedIfAbsent } from "./gateway-events";
 import { assertTransition } from "./state";
 import {
   allocateExcessLateChargePayment,
@@ -311,7 +313,8 @@ export async function getExcessLateChargePayment(
 
 export async function completeExcessLateChargePayment(
   tx: Prisma.TransactionClient,
-  gatewayPayment: GatewayPayment
+  gatewayPayment: GatewayPayment,
+  context?: AuditRequestContext | null
 ) {
   if (!gatewayPayment.note_id) {
     throw new AppError(500, "GATEWAY_PAYMENT_INVALID", "Late charge payment is missing note");
@@ -496,6 +499,12 @@ export async function completeExcessLateChargePayment(
       status: GatewayPaymentStatus.COMPLETED,
       settlement_id: settlement.id,
     },
+  });
+
+  await recordGatewayPaymentCompletedIfAbsent(tx, {
+    gatewayPaymentId: gatewayPayment.id,
+    fromStatus: gatewayPayment.status,
+    context,
   });
 
   return {

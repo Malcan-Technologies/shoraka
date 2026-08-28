@@ -17,10 +17,11 @@ describe("Phase 2 forensic source: production writers", () => {
     expect(src).toMatch(/function resolveCurlecCaptureAuditContext/);
   });
 
-  it("SigningCloud callback syncs with webhookAuditContext even when a creator user id exists", () => {
+  it("SigningCloud callback uses webhook context without attributing the envelope creator", () => {
     const src = read("modules/signing/service.ts");
     const apply = src.slice(src.indexOf("async applyProviderContractSigned"));
-    expect(apply).toMatch(/webhookAuditContext\(\{\s*actorUserId: envelope\.created_by_user_id/);
+    expect(apply).toMatch(/webhookAuditContext\(\)/);
+    expect(apply).not.toMatch(/webhookAuditContext\(\{\s*actorUserId:/);
     expect(apply).toMatch(/syncEnvelopeFromProvider\(envelope\.id,\s*\{\s*context:/);
   });
 
@@ -49,6 +50,16 @@ describe("Phase 2 forensic source: production writers", () => {
     expect(src).toMatch(/recoverFailedWalletReversals\(db, 50, pollerContext\)/);
   });
 
+  it("COD URL_GENERATED amendment logs previous/new status with webhook context", () => {
+    const src = read("modules/regtank/webhooks/cod-handler.ts");
+    const block = src.slice(src.indexOf('statusUpper === "URL_GENERATED"'));
+    expect(block).toMatch(/eventType:\s*"ONBOARDING_STATUS_UPDATED"/);
+    expect(block).toMatch(/trigger:\s*"COD_URL_GENERATED"/);
+    expect(block).toMatch(/previousStatus/);
+    expect(block).toMatch(/newStatus/);
+    expect(block).toMatch(/context:\s*webhookAuditContext\(\)/);
+  });
+
   it("RegTank webhook handlers still pass webhookAuditContext", () => {
     expect(read("modules/regtank/service.ts")).toMatch(/context: webhookAuditContext\(\)/);
     expect(read("modules/regtank/webhooks/kyc-handler.ts")).toMatch(/context: webhookAuditContext\(\)/);
@@ -56,6 +67,31 @@ describe("Phase 2 forensic source: production writers", () => {
     expect(read("modules/regtank/webhooks/individual-onboarding-handler.ts")).toMatch(
       /context: webhookAuditContext\(\)/
     );
+    expect(read("modules/regtank/webhooks/eod-handler.ts")).toMatch(/context: webhookAuditContext\(\)/);
+    expect(read("modules/regtank/webhooks/eod-handler.ts")).not.toMatch(/portal:\s*portalType/);
+  });
+
+  it("CTOS financial reset does not use a sentinel user id", () => {
+    const src = read("modules/ctos/ctos-report-service.ts");
+    expect(src).not.toMatch(/userId:\s*"system"/);
+    expect(src).toMatch(/userId:\s*null/);
+    expect(src).toMatch(/internalAuditContext\(\)/);
+    expect(src).toMatch(/source:\s*AUDIT_SOURCE\.INTERNAL/);
+  });
+
+  it("admin onboarding cancel/reset attributes the Admin actor on the Admin portal", () => {
+    const src = read("modules/admin/service.ts");
+    expect(src).toMatch(/eventType:\s*"ONBOARDING_RESET"/);
+    expect(src).toMatch(/eventType:\s*"ONBOARDING_CANCELLED"/);
+    expect(src).toMatch(/portal:\s*AUDIT_PORTAL\.ADMIN/);
+    expect(src).toMatch(/source:\s*AUDIT_SOURCE\.API/);
+    expect(src).toMatch(/actorUserId:\s*adminUserId/);
+  });
+
+  it("signing envelope expiry job uses systemAuditContext", () => {
+    const src = read("lib/jobs/signing-envelope-expiry.ts");
+    expect(src).toMatch(/systemAuditContext\(\{\s*correlationId: EXPIRY_CORRELATION_ID/);
+    expect(src).toMatch(/signingService\.expireEnvelope\(envelope\.id,\s*\{\s*context/);
   });
 
   it("scheduled expiry jobs remain SYSTEM_JOB", () => {

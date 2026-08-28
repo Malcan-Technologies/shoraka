@@ -17,6 +17,7 @@ import {
   isEodParentFamilyMatch,
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
+import { webhookAuditContext } from "../../../lib/audit";
 
 type DirectorKycJsonRow = {
   eodRequestId: string;
@@ -275,51 +276,38 @@ export class EODWebhookHandler extends BaseWebhookHandler {
     const portalType = onboarding.portal_type as PortalType;
     const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
 
-    try {
-      const eventType = statusUpper === "APPROVED" ? "EOD_APPROVED" : statusUpper === "REJECTED" ? "EOD_REJECTED" : "EOD_WEBHOOK";
+    const eventType = statusUpper === "APPROVED" ? "EOD_APPROVED" : statusUpper === "REJECTED" ? "EOD_REJECTED" : "EOD_WEBHOOK";
 
-      await this.authRepository.createOnboardingLog({
+    await this.authRepository.createOnboardingLog({
+      userId: onboarding.user_id,
+      role,
+      eventType,
+      organizationName: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
+      investorOrganizationId: onboarding.investor_organization_id || undefined,
+      issuerOrganizationId: onboarding.issuer_organization_id || undefined,
+      metadata: {
+        eodRequestId,
+        codRequestId: onboarding.request_id,
+        status: statusUpper,
+        confidence,
+        kycId,
+        organizationId: organizationId || null,
+        onboardingType: onboarding.onboarding_type,
+      },
+      context: webhookAuditContext(),
+    });
+
+    logger.debug(
+      {
+        eodRequestId,
+        codRequestId: onboarding.request_id,
         userId: onboarding.user_id,
         role,
         eventType,
-        portal: portalType,
-        organizationName: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-        investorOrganizationId: onboarding.investor_organization_id || undefined,
-        issuerOrganizationId: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          eodRequestId,
-          codRequestId: onboarding.request_id,
-          status: statusUpper,
-          confidence,
-          kycId,
-          organizationId: organizationId || null,
-          onboardingType: onboarding.onboarding_type,
-        },
-      });
-
-      logger.debug(
-        {
-          eodRequestId,
-          codRequestId: onboarding.request_id,
-          userId: onboarding.user_id,
-          role,
-          eventType,
-          portalType,
-        },
-        "[EOD Webhook] Created EOD onboarding log entry"
-      );
-    } catch (logError) {
-      // Log error but don't fail the webhook processing
-      logger.error(
-        {
-          error: logError instanceof Error ? logError.message : String(logError),
-          eodRequestId,
-          codRequestId: onboarding.request_id,
-          userId: onboarding.user_id,
-        },
-        "[EOD Webhook] Failed to create EOD onboarding log entry (non-blocking)"
-      );
-    }
+        portalType,
+      },
+      "[EOD Webhook] Created EOD onboarding log entry"
+    );
 
     // Update director KYC status in parent organization's director_kyc_status JSON field
     if (organizationId) {

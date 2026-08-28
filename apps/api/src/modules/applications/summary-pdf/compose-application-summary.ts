@@ -34,6 +34,7 @@ const DISCLAIMER =
 const EVENT_LABELS: Record<string, string> = {
   APPLICATION_CREATED: "Application started",
   APPLICATION_PROCESSING_FEE_PAID: "Application processing fee paid",
+  FACILITY_FEE_PAID: "Facility fee paid",
   APPLICATION_SUBMITTED: "You submitted this application",
   APPLICATION_RESUBMITTED: "You resubmitted after changes",
   APPLICATION_APPROVED: "Application approved",

@@ -130,6 +130,7 @@ function getEventLabel(
   const baseLabels: Record<string, string> = {
     APPLICATION_CREATED: "Application Created",
     APPLICATION_PROCESSING_FEE_PAID: "Application Processing Fee Paid",
+    FACILITY_FEE_PAID: "Facility Fee Paid",
     APPLICATION_SUBMITTED: "Application Submitted",
     APPLICATION_RESUBMITTED: "Application Resubmitted",
     APPLICATION_APPROVED: "Application Approved",
@@ -161,6 +162,8 @@ function getEventLabel(
     SIGNING_PACKAGE_CREATED: "Signing Package Created",
     SIGNING_PACKAGE_SENT: "Signing package sent",
     SIGNING_PACKAGE_COMPLETED: "Signing Package Completed",
+    SIGNING_PACKAGE_DECLINED: "Signing package declined",
+    SIGNING_PACKAGE_EXPIRED: "Signing package expired",
     SIGNING_PACKAGE_VOIDED: "Signing package voided",
     AMENDMENTS_SUBMITTED: "Amendment Request Sent",
     CONTRACT_FACILITY_FEE_WAIVED: "Facility Fee Waived",

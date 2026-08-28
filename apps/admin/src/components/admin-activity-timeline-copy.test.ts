@@ -12,6 +12,8 @@ describe("admin activity timeline signing-package copy", () => {
     expect(source).toMatch(/SIGNING_PACKAGE_CREATED:\s*"Signing Package Created"/);
     expect(source).toMatch(/SIGNING_PACKAGE_SENT:\s*"Signing package sent"/);
     expect(source).toMatch(/SIGNING_PACKAGE_VOIDED:\s*"Signing package voided"/);
+    expect(source).toMatch(/SIGNING_PACKAGE_DECLINED:\s*"Signing package declined"/);
+    expect(source).toMatch(/SIGNING_PACKAGE_EXPIRED:\s*"Signing package expired"/);
   });
 
   it("shows SIGNING_PACKAGE_COMPLETED as a real timeline event", () => {

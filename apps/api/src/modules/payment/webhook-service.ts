@@ -6,6 +6,8 @@ import {
   GatewayPaymentStatus,
   NameCheckResult,
   NoteLedgerDirection,
+  OpsAlertSeverity,
+  OpsAlertType,
   OrganizationType,
   Prisma,
   PrismaClient,
@@ -33,9 +35,10 @@ import {
   resolveInvestorExpectedNameVariants,
 } from "./deposit-service";
 import { verifyCurlecWebhookSignature } from "./curlec-signature";
+import { raiseOpsAlert } from "../ops-alerts/service";
 import { createCurlecClient } from "./curlec-client";
 import { assertGatewayAccountMatch } from "./gateway-account";
-import { recordGatewayPaymentEvent } from "./gateway-events";
+import { recordGatewayPaymentEvent, recordGatewayPaymentCompletedIfAbsent } from "./gateway-events";
 import { scheduleGatewayPaymentReceipt } from "./receipt/receipt-service";
 import { notifyDepositSuccessful } from "../notification/gateway-payment-notifications";
 import { notifyFacilityFeeUpfrontPaidIfSettled } from "../notification/facility-fee-notifications";
@@ -280,13 +283,9 @@ function resolveCurlecCaptureAuditContext(input: {
   return input.context ?? webhookAuditContext({ correlationId: input.eventId });
 }
 
-function overlayFeePaidAuditContext(
-  context: AuditRequestContext,
-  actorUserId: string | null
-): AuditRequestContext {
+function overlayFeePaidAuditContext(context: AuditRequestContext): AuditRequestContext {
   return {
     ...context,
-    actorUserId: context.actorUserId ?? actorUserId,
     portal: context.portal ?? AUDIT_PORTAL.ISSUER,
   };
 }
@@ -564,7 +563,10 @@ export async function processInvestorDepositCapture(
       }
 
       const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-      await creditCompletedDeposit(tx, current, { nameCheckResult: NameCheckResult.PASS });
+      await creditCompletedDeposit(tx, current, {
+        nameCheckResult: NameCheckResult.PASS,
+        context: auditContext,
+      });
     });
 
     const completed = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
@@ -648,6 +650,15 @@ export async function processStoredCurlecWebhook(
   } catch (error) {
     if (error instanceof ZodError) {
       await markWebhookProcessed(db, eventId, "Invalid stored payload", routeGatewayAccount);
+      await raiseOpsAlert({
+        type: OpsAlertType.WEBHOOK_FAILURE,
+        severity: OpsAlertSeverity.HIGH,
+        dedupeKey: `webhook-failure:${eventId}`,
+        title: "Curlec webhook payload failed validation",
+        summary: "Stored webhook event could not be parsed",
+        entityType: "gateway_webhook_event",
+        entityId: eventId,
+      });
       return;
     }
     throw error;
@@ -1172,7 +1183,7 @@ export async function processFacilityFeeCapture(
     }
 
     const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    await completeFacilityFeePayment(tx, current);
+    await completeFacilityFeePayment(tx, current, auditContext);
   });
 
   const completedFacility = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
@@ -1324,7 +1335,7 @@ export async function processExcessLateChargeCapture(
     }
 
     const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    const result = await completeExcessLateChargePayment(tx, current);
+    const result = await completeExcessLateChargePayment(tx, current, auditContext);
     if (result.heldForOverCredit) {
       heldForOverCredit = true;
       await applyGatewayPaymentCaptureHold(tx, current, {
@@ -1447,6 +1458,15 @@ export async function syncGatewayPaymentFromCurlec(
       },
       "Curlec order payments sync failed"
     );
+    await raiseOpsAlert({
+      type: OpsAlertType.PROVIDER_FAILURE,
+      severity: OpsAlertSeverity.MEDIUM,
+      dedupeKey: `provider-failure:curlec-order:${payment.id}`,
+      title: "Curlec order payment sync failed",
+      summary: error instanceof Error ? error.message : String(error),
+      entityType: "gateway_payment",
+      entityId: payment.id,
+    });
     return payment;
   }
 
@@ -1531,6 +1551,12 @@ async function completeOnboardingFeePayment(
     data: { status: GatewayPaymentStatus.COMPLETED },
   });
 
+  await recordGatewayPaymentCompletedIfAbsent(tx, {
+    gatewayPaymentId: gatewayPayment.id,
+    fromStatus: gatewayPayment.status,
+    context,
+  });
+
   await ensureOnboardingFeePaidActivity(
     tx,
     {
@@ -1579,6 +1605,12 @@ async function completeProcessingFeePayment(
     data: { status: GatewayPaymentStatus.COMPLETED },
   });
 
+  await recordGatewayPaymentCompletedIfAbsent(tx, {
+    gatewayPaymentId: gatewayPayment.id,
+    fromStatus: gatewayPayment.status,
+    context,
+  });
+
   await ensureApplicationProcessingFeePaidActivity(
     tx,
     {
@@ -1612,50 +1644,48 @@ async function ensureOnboardingFeePaidActivity(
   const orgId = payment.issuer_organization_id;
   if (!orgId) return;
 
-  try {
-    const existing = await db.onboardingLog.findMany({
-      where: {
-        event_type: "ONBOARDING_FEE_PAID",
-        issuer_organization_id: orgId,
-      },
-      select: { metadata: true },
-    });
-    if (existing.some((row) => hasGatewayPaymentId(row.metadata, payment.id))) return;
+  const existing = await db.onboardingLog.findMany({
+    where: {
+      event_type: "ONBOARDING_FEE_PAID",
+      issuer_organization_id: orgId,
+    },
+    select: { metadata: true },
+  });
+  if (existing.some((row) => hasGatewayPaymentId(row.metadata, payment.id))) return;
 
-    const org = await db.issuerOrganization.findUnique({
-      where: { id: orgId },
-      select: { owner_user_id: true, name: true },
-    });
-    if (!org) return;
-
-    const actorUserId = gatewayPaymentActorUserId(payment);
-    const auditContext = overlayFeePaidAuditContext(
-      context ?? webhookAuditContext({ actorUserId, portal: AUDIT_PORTAL.ISSUER }),
-      actorUserId
-    );
-    await createOnboardingLogRow(
-      {
-        userId: actorUserId ?? org.owner_user_id,
-        role: UserRole.ISSUER,
-        eventType: "ONBOARDING_FEE_PAID",
-        portal: "issuer",
-        issuerOrganizationId: orgId,
-        organizationName: org.name,
-        metadata: {
-          gatewayPaymentId: payment.id,
-          amount: payment.amount.toNumber(),
-          currency: payment.currency,
-        },
-        context: auditContext,
-      },
-      db
-    );
-  } catch (error) {
-    logger.error(
-      { err: error, gatewayPaymentId: payment.id, issuerOrganizationId: orgId },
-      "Failed to write ONBOARDING_FEE_PAID activity"
+  const org = await db.issuerOrganization.findUnique({
+    where: { id: orgId },
+    select: { owner_user_id: true, name: true },
+  });
+  if (!org) {
+    throw new AppError(
+      500,
+      "GATEWAY_PAYMENT_INVALID",
+      "Issuer organization not found for onboarding fee"
     );
   }
+
+  const actorUserId = gatewayPaymentActorUserId(payment);
+  await createOnboardingLogRow(
+    {
+      userId: actorUserId ?? org.owner_user_id,
+      role: UserRole.ISSUER,
+      eventType: "ONBOARDING_FEE_PAID",
+      portal: "issuer",
+      issuerOrganizationId: orgId,
+      organizationName: org.name,
+      metadata: {
+        gatewayPaymentId: payment.id,
+        amount: payment.amount.toNumber(),
+        currency: payment.currency,
+        ...(actorUserId ? { initiatedByUserId: actorUserId } : {}),
+      },
+      context: overlayFeePaidAuditContext(
+        context ?? webhookAuditContext({ portal: AUDIT_PORTAL.ISSUER })
+      ),
+    },
+    db
+  );
 }
 
 async function ensureApplicationProcessingFeePaidActivity(
@@ -1666,50 +1696,102 @@ async function ensureApplicationProcessingFeePaidActivity(
   const applicationId = payment.application_id;
   if (!applicationId) return;
 
-  try {
-    const existing = await db.applicationLog.findMany({
-      where: {
-        event_type: ApplicationLogEventType.APPLICATION_PROCESSING_FEE_PAID,
-        application_id: applicationId,
-      },
-      select: { metadata: true },
-    });
-    if (existing.some((row) => hasGatewayPaymentId(row.metadata, payment.id))) return;
+  const existing = await db.applicationLog.findMany({
+    where: {
+      event_type: ApplicationLogEventType.APPLICATION_PROCESSING_FEE_PAID,
+      application_id: applicationId,
+    },
+    select: { metadata: true },
+  });
+  if (existing.some((row) => hasGatewayPaymentId(row.metadata, payment.id))) return;
 
-    const application = await db.application.findUnique({
-      where: { id: applicationId },
-      select: {
-        issuer_organization: { select: { owner_user_id: true } },
-      },
-    });
-    if (!application) return;
-
-    const actorUserId = gatewayPaymentActorUserId(payment);
-    const auditContext = overlayFeePaidAuditContext(
-      context ?? webhookAuditContext({ actorUserId, portal: AUDIT_PORTAL.ISSUER }),
-      actorUserId
-    );
-    await createApplicationLog(
-      {
-        userId: actorUserId ?? application.issuer_organization.owner_user_id,
-        applicationId,
-        eventType: ApplicationLogEventType.APPLICATION_PROCESSING_FEE_PAID,
-        portal: ActivityPortal.ISSUER,
-        metadata: {
-          gatewayPaymentId: payment.id,
-          amount: payment.amount.toNumber(),
-          currency: payment.currency,
-        },
-        context: auditContext,
-      },
-      db
-    );
-  } catch (error) {
-    logger.error(
-      { err: error, gatewayPaymentId: payment.id, applicationId },
-      "Failed to write APPLICATION_PROCESSING_FEE_PAID activity"
+  const application = await db.application.findUnique({
+    where: { id: applicationId },
+    select: {
+      issuer_organization: { select: { owner_user_id: true } },
+    },
+  });
+  if (!application) {
+    throw new AppError(
+      500,
+      "GATEWAY_PAYMENT_INVALID",
+      "Application not found for processing fee"
     );
   }
+
+  const actorUserId = gatewayPaymentActorUserId(payment);
+  await createApplicationLog(
+    {
+      userId: null,
+      applicationId,
+      eventType: ApplicationLogEventType.APPLICATION_PROCESSING_FEE_PAID,
+      portal: ActivityPortal.ISSUER,
+      metadata: {
+        gatewayPaymentId: payment.id,
+        amount: payment.amount.toNumber(),
+        currency: payment.currency,
+        organizationOwnerUserId: application.issuer_organization.owner_user_id,
+        ...(actorUserId ? { initiatedByUserId: actorUserId } : {}),
+      },
+      context: overlayFeePaidAuditContext(
+        context ?? webhookAuditContext({ portal: AUDIT_PORTAL.ISSUER })
+      ),
+    },
+    db
+  );
+}
+
+async function ensureFacilityFeePaidActivity(
+  db: Prisma.TransactionClient | PrismaClient,
+  payment: GatewayPayment,
+  context?: AuditRequestContext | null
+) {
+  const contractId = payment.contract_id;
+  if (!contractId) return;
+
+  const existing = await db.applicationLog.findMany({
+    where: {
+      event_type: ApplicationLogEventType.FACILITY_FEE_PAID,
+      entity_id: contractId,
+    },
+    select: { metadata: true },
+  });
+  if (existing.some((row) => hasGatewayPaymentId(row.metadata, payment.id))) return;
+
+  const contract = await db.contract.findUnique({
+    where: { id: contractId },
+    select: {
+      originating_application_id: true,
+      issuer_organization: { select: { owner_user_id: true } },
+    },
+  });
+  if (!contract) {
+    throw new AppError(500, "GATEWAY_PAYMENT_INVALID", "Facility not found for facility fee");
+  }
+
+  const applicationId = payment.application_id ?? contract.originating_application_id ?? null;
+  const actorUserId = gatewayPaymentActorUserId(payment);
+  await createApplicationLog(
+    {
+      userId: null,
+      applicationId,
+      entityId: contractId,
+      eventType: ApplicationLogEventType.FACILITY_FEE_PAID,
+      portal: ActivityPortal.ISSUER,
+      metadata: {
+        gatewayPaymentId: payment.id,
+        contract_id: contractId,
+        amount: payment.amount.toNumber(),
+        currency: payment.currency,
+        organizationOwnerUserId: contract.issuer_organization.owner_user_id,
+        ...(actorUserId ? { initiatedByUserId: actorUserId } : {}),
+      },
+      context: overlayFeePaidAuditContext(
+        context ?? webhookAuditContext({ portal: AUDIT_PORTAL.ISSUER })
+      ),
+    },
+    db
+  );
 }
 
 function readCaptureMismatchType(metadata: Prisma.JsonValue | null): string | null {
@@ -1722,7 +1804,8 @@ function readCaptureMismatchType(metadata: Prisma.JsonValue | null): string | nu
 
 async function completeFacilityFeePayment(
   tx: Prisma.TransactionClient,
-  gatewayPayment: GatewayPayment
+  gatewayPayment: GatewayPayment,
+  context?: AuditRequestContext | null
 ) {
   if (!gatewayPayment.contract_id) {
     throw new AppError(500, "GATEWAY_PAYMENT_INVALID", "Facility fee is missing contract");
@@ -1789,6 +1872,14 @@ async function completeFacilityFeePayment(
     where: { id: gatewayPayment.id },
     data: { status: GatewayPaymentStatus.COMPLETED },
   });
+
+  await recordGatewayPaymentCompletedIfAbsent(tx, {
+    gatewayPaymentId: gatewayPayment.id,
+    fromStatus: gatewayPayment.status,
+    context,
+  });
+
+  await ensureFacilityFeePaidActivity(tx, gatewayPayment, context);
 }
 
 /**

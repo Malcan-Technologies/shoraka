@@ -2,6 +2,8 @@ import {
   GatewayPayment,
   GatewayPaymentEventType,
   GatewayPaymentStatus,
+  OpsAlertSeverity,
+  OpsAlertType,
   PrismaClient,
 } from "@prisma/client";
 import { prisma as defaultPrisma } from "../prisma";
@@ -15,6 +17,7 @@ import {
   reconcilePendingGatewayRefunds,
   recoverFailedWalletReversals,
 } from "../../modules/payment/refund-service";
+import { raiseOpsAlert } from "../../modules/ops-alerts/service";
 
 const STALE_CREATED_MINUTES = 60;
 const CRON_CORRELATION_ID = "cron:gateway-stuck-order-poller";
@@ -125,6 +128,16 @@ export async function runGatewayStuckOrderPollerJob(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       result.errors.push({ gatewayPaymentId: payment.id, error: message });
+      await raiseOpsAlert({
+        type: OpsAlertType.STUCK_PAYMENT,
+        severity: OpsAlertSeverity.HIGH,
+        dedupeKey: `stuck-payment:${payment.id}`,
+        title: "Stuck gateway payment failed to recover",
+        summary: message,
+        entityType: "gateway_payment",
+        entityId: payment.id,
+        details: { gatewayAccount: payment.gatewayAccount, curlecOrderId: payment.curlec_order_id },
+      });
       logger.error(
         {
           gatewayPaymentId: payment.id,
@@ -144,6 +157,15 @@ export async function runGatewayStuckOrderPollerJob(
     result.recovered += mismatchRecovery.recovered;
     for (const err of mismatchRecovery.errors) {
       result.errors.push({ gatewayPaymentId: err.id, error: err.error });
+      await raiseOpsAlert({
+        type: OpsAlertType.GATEWAY_LEDGER_MISMATCH,
+        severity: OpsAlertSeverity.HIGH,
+        dedupeKey: `gateway-ledger-mismatch:${err.id}`,
+        title: "Gateway/ledger mismatch refund recovery failed",
+        summary: err.error,
+        entityType: "gateway_payment",
+        entityId: err.id,
+      });
     }
   } catch (error) {
     logger.error(

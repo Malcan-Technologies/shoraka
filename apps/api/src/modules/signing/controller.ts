@@ -8,6 +8,7 @@ import { externalSigningRateLimiter } from "../../lib/http/rate-limit";
 import { AppError } from "../../lib/http/error-handler";
 import { signingService } from "./service";
 import { ActivityPortal } from "../applications/logs/types";
+import { AUDIT_PORTAL, auditContextFromRequest } from "../../lib/audit";
 import {
   sendAdminSigningPackageSchema,
   voidEnvelopeSchema,
@@ -49,6 +50,7 @@ async function sendAdminSigningPackage(req: Request, res: Response, next: NextFu
       userId: getUserId(req),
       contractId: body.contractId ?? null,
       invoiceId: body.invoiceId ?? null,
+      context: auditContextFromRequest(req, { res, portal: AUDIT_PORTAL.ADMIN }),
     });
     ok(res, envelope);
   } catch (e) {

@@ -8,7 +8,7 @@ tags:
   - audit
   - notifications
 order: 30
-updated: 2026-08-28
+updated: 2026-08-29
 ---
 
 CashSouk records important actions across the platform.
@@ -32,6 +32,7 @@ Internal IDs may also be shown on some screens for investigation.
 - [Withdrawals & Trustee](#withdrawals--trustee)
 - [Legal Documents](#legal-documents)
 - [Legal Acceptances](#legal-acceptances)
+- [Ops Alerts](#ops-alerts)
 - [Products](#products)
 - [Access & Security](#access--security)
 - [Notifications](#notifications)
@@ -3253,6 +3254,8 @@ Operations can use these prefixes when searching or communicating about a record
 | Note activity | Admin → Notes → Activity |
 | Legal documents | Admin → Audit → Legal Documents |
 | Legal acceptances | Admin → Audit → Legal Acceptances |
+| External acceptances | Admin → Audit → External Acceptances |
+| Ops alerts | Admin → Audit → Ops Alerts |
 | Access logs | Admin → Audit → Access |
 | Security logs | Admin → Audit → Security |
 | Product logs | Admin → Audit → Products |
@@ -3262,3 +3265,42 @@ Operations can use these prefixes when searching or communicating about a record
 | Notification settings | Admin → Settings → Notifications |
 | Issuer / Investor activity | Issuer → Activity, Investor → Activity |
 | User notifications | Issuer → Notifications, Investor → Notifications |
+
+---
+
+## Legal Acceptances (external)
+
+Unauthenticated parties (for example guarantors on a signing link) accept published legal PDFs here.
+
+**Where Operations checks:** Admin → Audit → External Acceptances
+
+This is legal evidence, not an Activity row. Rows keep party name/email/role snapshots plus envelope, application and organisation linkage. Deleting a signing envelope does not cascade-delete this evidence.
+
+---
+
+## Ops Alerts
+
+First-class operations alerts (not user notification types).
+
+**Where Operations checks:** Admin → Audit → Ops Alerts
+
+Statuses: OPEN → ACKNOWLEDGED → RESOLVED / CLOSED.
+
+Types include stuck payment, recon mismatch, receipt failure, webhook failure, signing expiry, provider failure, repeated job failure, missing legal evidence, and gateway/ledger mismatch.
+
+Alerts dedupe by key. Replay increments occurrence count instead of creating a duplicate notification.
+
+---
+
+## Historical aliases
+
+These event types may still appear on old rows. They are not current writers:
+
+- `APPLICATION_APPROVED` — historical application milestone; current approval path uses other events
+- `CONTRACT_OFFER_REJECTED` — historical; current decline is `CONTRACT_OFFER_DECLINED`
+- `TNC_ACCEPTED` / `KYC_APPROVED` / `USER_COMPLETED` — seed/CSV leftovers; live writers are `TNC_APPROVED` and `ONBOARDING_STATUS_UPDATED`
+- `PRODUCT_INACTIVATED` / `PRODUCT_REACTIVATED` — unmounted helpers; versioning writes `PRODUCT_UPDATED`
+- `OVERRIDE_*` gateway events — no live writer
+- `SETTLEMENT_PREVIEWED` — no longer written on preview
+- Dev-only `WEBHOOK_*` types from the RegTank dev handler
+

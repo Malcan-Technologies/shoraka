@@ -30,6 +30,10 @@ describe("ApplicationLogAdapter", () => {
       title: "Application Processing Fee Paid",
       description: "The application processing fee was paid successfully.",
     });
+    expect(adapter.buildPresentation("FACILITY_FEE_PAID")).toEqual({
+      title: "Facility fee paid",
+      description: "A facility fee payment was received.",
+    });
     expect(adapter.buildPresentation("APPLICATION_SUBMITTED")).toEqual({
       title: "Application Submitted",
       description: "Your financing application was submitted and is now under review.",
@@ -69,6 +73,14 @@ describe("ApplicationLogAdapter", () => {
       title: "Signing package completed",
       description: "All required signers completed the signing package.",
     });
+    expect(adapter.buildPresentation("SIGNING_PACKAGE_DECLINED")).toEqual({
+      title: "Signing package declined",
+      description: "A required signer declined the signing package.",
+    });
+    expect(adapter.buildPresentation("SIGNING_PACKAGE_EXPIRED")).toEqual({
+      title: "Signing package expired",
+      description: "The signing package expired before all required signatures were collected.",
+    });
     expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTED")).toEqual({
       title: "Facility Offer Accepted",
       description: "The facility offer was accepted.",
@@ -83,6 +95,8 @@ describe("ApplicationLogAdapter", () => {
         "CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED",
         "INVOICE_OFFER_ACCEPTANCE_SUBMITTED",
         "INVOICE_OFFER_ACCEPTANCE_RESUBMITTED",
+        "APPLICATION_PROCESSING_FEE_PAID",
+        "FACILITY_FEE_PAID",
         "SIGNING_PACKAGE_SENT",
         "CONTRACT_OFFER_ACCEPTED",
         "INVOICE_OFFER_ACCEPTED",
@@ -94,6 +108,8 @@ describe("ApplicationLogAdapter", () => {
         "SIGNING_PACKAGE_CREATED",
         "SIGNING_PACKAGE_COMPLETED",
         "SIGNING_PACKAGE_VOIDED",
+        "SIGNING_PACKAGE_DECLINED",
+        "SIGNING_PACKAGE_EXPIRED",
       ])
     );
   });
@@ -366,6 +382,11 @@ describe("ApplicationLogAdapter", () => {
     expect(adapter.getEventTypes()).toContain("APPLICATION_APPROVED");
     expect(adapter.getEventTypes()).toContain("APPLICATION_PROCESSING_FEE_PAID");
     expect(adapter.getEventTypes()).toContain("AMENDMENTS_SUBMITTED");
+    expect(adapter.getEventTypes()).toContain("SIGNING_PACKAGE_COMPLETED");
+    expect(adapter.getEventTypes()).toContain("SIGNING_PACKAGE_DECLINED");
+    expect(adapter.getEventTypes()).toContain("SIGNING_PACKAGE_EXPIRED");
+    expect(adapter.getEventTypes()).not.toContain("SIGNING_PACKAGE_CREATED");
+    expect(adapter.getEventTypes()).not.toContain("SIGNING_PACKAGE_VOIDED");
     expect(adapter.getEventTypes()).not.toContain("SECTION_REVIEWED_APPROVED");
     expect(adapter.getEventTypes()).not.toContain("ITEM_REVIEWED_REJECTED");
   });

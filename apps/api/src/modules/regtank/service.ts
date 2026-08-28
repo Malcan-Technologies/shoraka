@@ -2996,7 +2996,9 @@ export class RegTankService {
           requestId,
           status: statusUpper,
           substatus: substatus || null,
-          payload: payload,
+          ...(typeof payload === "object" && payload && "reasonCode" in payload
+            ? { reasonCode: (payload as { reasonCode?: unknown }).reasonCode ?? null }
+            : {}),
           ...(eventType === "ONBOARDING_STATUS_UPDATED"
             ? {
                 trigger: "REGTANK_WEBHOOK",

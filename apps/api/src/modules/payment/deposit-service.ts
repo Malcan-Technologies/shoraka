@@ -19,7 +19,7 @@ import { creditInvestorBalance } from "../notes/investor-balance";
 import { postLedgerEntry } from "../notes/ledger";
 import { CreateInvestorDepositInput } from "./deposit-schemas";
 import { createGatewayOrder, mapGatewayPaymentResponse } from "./gateway-order-service";
-import { recordGatewayPaymentEvent } from "./gateway-events";
+import { recordGatewayPaymentEvent, recordGatewayPaymentCompletedIfAbsent } from "./gateway-events";
 import { assertTransition } from "./state";
 
 export type ActorContext = {
@@ -296,7 +296,11 @@ export function resolveInvestorExpectedName(org: InvestorOrganization): string |
 export async function creditCompletedDeposit(
   tx: Prisma.TransactionClient,
   gatewayPayment: GatewayPayment,
-  opts?: { nameCheckResult?: NameCheckResult; actorUserId?: string }
+  opts?: {
+    nameCheckResult?: NameCheckResult;
+    actorUserId?: string;
+    context?: AuditRequestContext | null;
+  }
 ) {
   assertTransition(gatewayPayment.status, GatewayPaymentStatus.COMPLETED);
 
@@ -352,6 +356,13 @@ export async function creditCompletedDeposit(
       name_check_at: new Date(),
       ...(opts?.actorUserId ? { name_checked_by_user_id: opts.actorUserId } : {}),
     },
+  });
+
+  await recordGatewayPaymentCompletedIfAbsent(tx, {
+    gatewayPaymentId: gatewayPayment.id,
+    fromStatus: gatewayPayment.status,
+    actorUserId: opts?.actorUserId ?? null,
+    context: opts?.context,
   });
 }
 

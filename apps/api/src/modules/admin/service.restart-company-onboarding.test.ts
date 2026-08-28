@@ -52,6 +52,7 @@ jest.mock("../../lib/http/request-utils", () => ({
     deviceInfo: "test",
     deviceType: "desktop",
   }),
+  getClientIp: () => "127.0.0.1",
 }));
 
 jest.mock("../../lib/prisma", () => ({
@@ -121,6 +122,20 @@ describe("AdminService.restartOnboarding company persistence", () => {
       })
     );
     expect(result.newRequestId).toBe("COD0002");
+    expect(mockAdminCreateOnboardingLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "ONBOARDING_CANCELLED",
+        portal: "admin",
+        actorUserId: "admin-1",
+        userId: "USR01",
+        context: expect.objectContaining({
+          portal: "ADMIN",
+          source: "API",
+          actorType: "ADMIN",
+          actorUserId: "admin-1",
+        }),
+      })
+    );
   });
 
   it("issuer company restart cancels old COD row and creates a new COD row", async () => {

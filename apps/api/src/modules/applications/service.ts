@@ -3031,14 +3031,18 @@ export class ApplicationService {
   async respondToContractOffer(
     applicationId: string,
     action: "accept" | "reject",
-    userId: string,
+    userId: string | null,
     rejectionReason?: string,
     options?: {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
       logContext?: IssuerActivityLogContext;
     }
   ): Promise<Application> {
-    await this.verifyApplicationAccess(applicationId, userId);
+    if (userId) {
+      await this.verifyApplicationAccess(applicationId, userId);
+    } else if (!options?.signingCompletion) {
+      throw new AppError(401, "UNAUTHORIZED", "Actor required to respond to this offer.");
+    }
 
     const application = await this.repository.findById(applicationId);
     if (!application) {
@@ -3576,7 +3580,7 @@ export class ApplicationService {
     applicationId: string,
     invoiceId: string,
     action: "accept" | "reject",
-    userId: string,
+    userId: string | null,
     rejectionReason?: string,
     options?: {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
@@ -3585,7 +3589,11 @@ export class ApplicationService {
       logContext?: IssuerActivityLogContext;
     }
   ): Promise<Application> {
-    await this.verifyApplicationAccess(applicationId, userId);
+    if (userId) {
+      await this.verifyApplicationAccess(applicationId, userId);
+    } else if (!options?.signingCompletion) {
+      throw new AppError(401, "UNAUTHORIZED", "Actor required to respond to this offer.");
+    }
 
     const application = await this.repository.findById(applicationId);
     if (!application) {
@@ -4122,7 +4130,7 @@ export class ApplicationService {
     applicationId: string;
     contractId?: string | null;
     invoiceId?: string | null;
-    initiatedByUserId: string;
+    initiatedByUserId: string | null;
     signedOfferLetterS3Key: string;
     signedFileSha256: string;
   }): Promise<{ skipped: boolean }> {

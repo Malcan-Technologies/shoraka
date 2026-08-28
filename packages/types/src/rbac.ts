@@ -54,6 +54,8 @@ export const ADMIN_PERMISSIONS = [
   "audit.access.view",
   "audit.security.view",
   "audit.product.view",
+  "ops.alerts.view",
+  "ops.alerts.manage",
 
   // Legal Documents / Legal Acceptances
   "document_management.view",
@@ -255,7 +257,9 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
     permissions: pickPermissions(
       "audit.access.view",
       "audit.security.view",
-      "audit.product.view"
+      "audit.product.view",
+      "ops.alerts.view",
+      "ops.alerts.manage"
     ),
   },
   {

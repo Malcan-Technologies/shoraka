@@ -5021,7 +5021,7 @@ export class NoteService {
   async previewSettlement(
     id: string,
     input: z.infer<typeof settlementPreviewSchema>,
-    actor: ActorContext
+    _actor: ActorContext
   ) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
@@ -5259,10 +5259,6 @@ export class NoteService {
           preview_snapshot: snapshot,
         },
       });
-    });
-    await this.logEvent(prisma, id, "SETTLEMENT_PREVIEWED", actor, {
-      settlementId: settlement.id,
-      ...snapshot,
     });
     return { settlementId: settlement.id, ...snapshot };
   }
@@ -5710,6 +5706,7 @@ export class NoteService {
   ) {
     const result = await this.checkOverdueLateCharge(id, input);
     let enteredArrears = false;
+    let servicingChanged = false;
     if (result.overdue && result.dueDate) {
       const note = await noteRepository.findById(id);
       if (note) {
@@ -5728,10 +5725,13 @@ export class NoteService {
             arrears_started_at: isArrears && !note.arrears_started_at ? new Date() : undefined,
           });
           enteredArrears = isArrears;
+          servicingChanged = true;
         }
       }
     }
-    await this.logEvent(prisma, id, "OVERDUE_LATE_CHARGE_CHECKED", actor, result);
+    if (servicingChanged) {
+      await this.logEvent(prisma, id, "OVERDUE_LATE_CHARGE_CHECKED", actor, result);
+    }
     if (enteredArrears) {
       const refreshed = await noteRepository.findById(id);
       if (refreshed) {

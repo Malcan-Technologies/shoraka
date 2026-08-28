@@ -2,6 +2,8 @@ import {
   CurlecGatewayAccount,
   GatewayReconExceptionType,
   GatewayReconRunStatus,
+  OpsAlertSeverity,
+  OpsAlertType,
   PrismaClient,
 } from "@prisma/client";
 import { getCurlecGatewayAccountConfigStatus } from "../../config/curlec";
@@ -12,6 +14,7 @@ import { AppError } from "../http/error-handler";
 import { logger } from "../logger";
 import { prisma as defaultPrisma } from "../prisma";
 import { withAdvisoryLock } from "./with-advisory-lock";
+import { raiseOpsAlert } from "../../modules/ops-alerts/service";
 
 const CRON_CORRELATION_ID = "cron:gateway-settlement-recon";
 const RECON_PAGE_SIZE = 100;
@@ -216,6 +219,16 @@ async function runGatewaySettlementReconForAccount(
           },
         });
         exceptionsCount += 1;
+        await raiseOpsAlert({
+          type: OpsAlertType.RECON_MISMATCH,
+          severity: OpsAlertSeverity.HIGH,
+          dedupeKey: `recon-mismatch:${run.id}:${curlecPaymentId}`,
+          title: "Settlement recon orphan Curlec payment",
+          summary: `Curlec payment ${curlecPaymentId} has no matching gateway payment`,
+          entityType: "gateway_recon_run",
+          entityId: run.id,
+          details: { curlecPaymentId, gatewayAccount },
+        });
         continue;
       }
 
@@ -236,6 +249,16 @@ async function runGatewaySettlementReconForAccount(
           },
         });
         exceptionsCount += 1;
+        await raiseOpsAlert({
+          type: OpsAlertType.RECON_MISMATCH,
+          severity: OpsAlertSeverity.HIGH,
+          dedupeKey: `recon-mismatch:${run.id}:${gatewayPayment.id}`,
+          title: "Settlement recon amount mismatch",
+          summary: `Expected ${expectedSen} sen, Curlec reported ${curlecAmountSen} sen`,
+          entityType: "gateway_payment",
+          entityId: gatewayPayment.id,
+          details: { curlecPaymentId, gatewayAccount },
+        });
         continue;
       }
 
@@ -302,6 +325,16 @@ async function runGatewaySettlementReconForAccount(
       },
       "Gateway settlement recon failed"
     );
+    await raiseOpsAlert({
+      type: OpsAlertType.RECON_MISMATCH,
+      severity: OpsAlertSeverity.CRITICAL,
+      dedupeKey: `recon-run-failed:${run.id}`,
+      title: "Settlement recon run failed",
+      summary: message,
+      entityType: "gateway_recon_run",
+      entityId: run.id,
+      details: { gatewayAccount },
+    });
     throw error;
   }
 

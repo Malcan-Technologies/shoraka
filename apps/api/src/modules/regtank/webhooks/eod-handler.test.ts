@@ -66,6 +66,15 @@ function cancelledParentCod(eodRequestId: string) {
   };
 }
 
+function liveParentCod(eodRequestId: string) {
+  return {
+    ...cancelledParentCod(eodRequestId),
+    status: "IN_PROGRESS",
+    investor_organization: { id: "org-1", name: "Live Corp", type: OrganizationType.COMPANY },
+    issuer_organization: null,
+  };
+}
+
 describe("EODWebhookHandler", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -85,5 +94,33 @@ describe("EODWebhookHandler", () => {
     expect(mockAppendWebhookPayload).toHaveBeenCalledWith("COD001", expect.objectContaining({ requestId: "EOD001" }));
     expect(mockCreateOnboardingLog).not.toHaveBeenCalled();
     expect(mockFindInvestorOrganizationById).not.toHaveBeenCalled();
+  });
+
+  it("records EOD activity as a webhook integration, not as the applicant", async () => {
+    mockRegTankOnboardingFindMany.mockResolvedValue([liveParentCod("EOD002")]);
+    mockFindInvestorOrganizationById.mockResolvedValue(null);
+    mockCreateOnboardingLog.mockResolvedValue({});
+    const handler = new EODWebhookHandler();
+
+    await (handler as any).handle({
+      requestId: "EOD002",
+      status: "PENDING",
+      confidence: 0.4,
+      kycId: "kyc-1",
+    });
+
+    expect(mockCreateOnboardingLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        eventType: "EOD_WEBHOOK",
+        context: expect.objectContaining({
+          source: "WEBHOOK",
+          actorType: "INTEGRATION",
+          actorUserId: null,
+          portal: null,
+        }),
+      })
+    );
+    expect(mockCreateOnboardingLog.mock.calls[0][0].portal).toBeUndefined();
   });
 });

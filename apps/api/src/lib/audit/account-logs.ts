@@ -23,6 +23,7 @@ import {
   AuditTargetType,
 } from "./context";
 import { resolveStandardAuditFields } from "./standard-fields";
+import { sanitizeAuditMetadataRecord } from "./sanitize-metadata";
 
 type AccountAuditDb = Prisma.TransactionClient | typeof prisma;
 
@@ -306,7 +307,9 @@ export async function createOnboardingLogRow(
       organization_name: params.organizationName ?? undefined,
       investor_organization_id: params.investorOrganizationId ?? undefined,
       issuer_organization_id: params.issuerOrganizationId ?? undefined,
-      metadata: (params.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
+      metadata: (sanitizeAuditMetadataRecord(params.metadata) ?? undefined) as
+        | Prisma.InputJsonValue
+        | undefined,
 
       actor_type: standard.actor_type,
       actor_user_id: actorUserId,

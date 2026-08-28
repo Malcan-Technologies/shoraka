@@ -2744,7 +2744,7 @@ export class AdminRepository {
       ...new Set(
         activityLogs
           .map((log) => log.user_id)
-          .filter((actorId): actorId is string => Boolean(actorId) && !userIds.includes(actorId))
+          .filter((actorId): actorId is string => actorId != null && !userIds.includes(actorId))
       ),
     ];
     const extraActors = activityActorIds.length

@@ -22,6 +22,20 @@ describe("redactAuditSecrets", () => {
     });
   });
 
+  it("redacts IC and raw payload keys in CSV metadata", () => {
+    expect(
+      redactAuditSecrets({
+        requestId: "COD001",
+        ic_number: "900101015432",
+        payload: { directors: [] },
+      })
+    ).toEqual({
+      requestId: "COD001",
+      ic_number: "[REDACTED]",
+      payload: "[REDACTED]",
+    });
+  });
+
   it("serializes redacted metadata for CSV", () => {
     expect(serializeAuditMetadata({ refresh_token: "abc", reason: "ok" })).toBe(
       JSON.stringify({ refresh_token: "[REDACTED]", reason: "ok" })

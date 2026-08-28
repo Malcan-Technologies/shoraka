@@ -10,6 +10,8 @@ import type { AuditRequestContext, AuditSource } from "../../../lib/audit";
 export enum ApplicationLogEventType {
   APPLICATION_CREATED = "APPLICATION_CREATED",
   APPLICATION_PROCESSING_FEE_PAID = "APPLICATION_PROCESSING_FEE_PAID",
+  /** Facility fee capture credited to the contract. Distinct from CONTRACT_FACILITY_FEE_WAIVED. */
+  FACILITY_FEE_PAID = "FACILITY_FEE_PAID",
   APPLICATION_SUBMITTED = "APPLICATION_SUBMITTED",
   APPLICATION_RESUBMITTED = "APPLICATION_RESUBMITTED",
   APPLICATION_APPROVED = "APPLICATION_APPROVED",
@@ -65,6 +67,10 @@ export enum ApplicationLogEventType {
   SIGNING_PACKAGE_SENT = "SIGNING_PACKAGE_SENT",
   /** Envelope rollup COMPLETED. Distinct from CONTRACT/INVOICE_OFFER_ACCEPTED. */
   SIGNING_PACKAGE_COMPLETED = "SIGNING_PACKAGE_COMPLETED",
+  /** Signer declined; distinct from an admin/system void. */
+  SIGNING_PACKAGE_DECLINED = "SIGNING_PACKAGE_DECLINED",
+  /** Envelope expires_at elapsed while still active. */
+  SIGNING_PACKAGE_EXPIRED = "SIGNING_PACKAGE_EXPIRED",
   SIGNING_PACKAGE_VOIDED = "SIGNING_PACKAGE_VOIDED",
 }
 
@@ -101,7 +107,8 @@ export enum ActivityAction {
 }
 
 export type CreateApplicationLogParams = {
-  userId: string;
+  /** Acting user when a human performed the change. Null for system/provider-derived rows. */
+  userId: string | null;
   applicationId?: string | null;
   /** Required. Use ApplicationLogEventType enum. */
   eventType: ApplicationLogEventType | string;

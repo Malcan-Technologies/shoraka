@@ -10,6 +10,7 @@ import { PortalType } from "./types";
 import { AuthRepository } from "../auth/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { normalizeRawStatus } from "@cashsouk/types";
+import { webhookAuditContext } from "../../lib/audit";
 
 /**
  * RegTank Dev Webhook Handler
@@ -557,12 +558,12 @@ export class RegTankDevWebhookHandler {
         organizationName: org?.name || undefined,
         investorOrganizationId: (portalType === "investor" && organizationId) ? organizationId : undefined,
         issuerOrganizationId: (portalType === "issuer" && organizationId) ? organizationId : undefined,
+        context: webhookAuditContext(),
         metadata: {
           requestId,
           status: statusUpper,
           substatus: substatus || null,
-          payload: payload,
-          database: "dev", // Indicate this came from dev webhook handler
+          database: "dev",
         },
       });
 

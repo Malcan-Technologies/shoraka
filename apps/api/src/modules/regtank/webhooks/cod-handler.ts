@@ -29,7 +29,7 @@ import {
   isCodWebhookFamilyMatch,
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
-import { webhookAuditContext } from "../../../lib/audit";
+import { createOnboardingLogRow, webhookAuditContext } from "../../../lib/audit";
 
 const COD_EXACT_LOOKUP_MAX_ATTEMPTS = 3;
 const COD_EXACT_LOOKUP_DELAY_MS = 75;
@@ -870,11 +870,11 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           portalType === "investor"
             ? await prisma.investorOrganization.findUnique({
                 where: { id: organizationId },
-                select: { id: true, onboarding_status: true, type: true, ssm_approved: true },
+                select: { id: true, name: true, onboarding_status: true, type: true, ssm_approved: true },
               })
             : await prisma.issuerOrganization.findUnique({
                 where: { id: organizationId },
-                select: { id: true, onboarding_status: true, type: true, ssm_checked: true },
+                select: { id: true, name: true, onboarding_status: true, type: true, ssm_checked: true },
               });
 
         if (!org) return;
@@ -904,25 +904,53 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             : { ssm_checked: update.reset.ssm_checked ?? false }),
         } as Record<string, unknown>;
 
-        if (portalType === "investor") {
-          await prisma.investorOrganization.update({
-            where: { id: organizationId },
-            data: resetData as Prisma.InvestorOrganizationUpdateInput,
-          });
-        } else {
-          await prisma.issuerOrganization.update({
-            where: { id: organizationId },
-            data: resetData as Prisma.IssuerOrganizationUpdateInput,
-          });
-        }
+        const previousStatus = org.onboarding_status;
+        const newStatus = update.nextStatus;
+        const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+
+        await prisma.$transaction(async (tx) => {
+          if (portalType === "investor") {
+            await tx.investorOrganization.update({
+              where: { id: organizationId },
+              data: resetData as Prisma.InvestorOrganizationUpdateInput,
+            });
+          } else {
+            await tx.issuerOrganization.update({
+              where: { id: organizationId },
+              data: resetData as Prisma.IssuerOrganizationUpdateInput,
+            });
+          }
+
+          await createOnboardingLogRow(
+            {
+              userId: onboarding.user_id,
+              context: webhookAuditContext(),
+              role,
+              eventType: "ONBOARDING_STATUS_UPDATED",
+              portal: portalType,
+              organizationName: org.name || undefined,
+              investorOrganizationId: portalType === "investor" ? organizationId : undefined,
+              issuerOrganizationId: portalType === "issuer" ? organizationId : undefined,
+              metadata: {
+                organizationId,
+                requestId,
+                providerStatus: statusUpper,
+                previousStatus,
+                newStatus,
+                trigger: "COD_URL_GENERATED",
+              },
+            },
+            tx
+          );
+        });
 
         logger.info(
           {
             requestId,
             organizationId,
             portalType,
-            previousOnboardingStatus: org.onboarding_status,
-            newOnboardingStatus: OnboardingStatus.PENDING_AMENDMENT,
+            previousOnboardingStatus: previousStatus,
+            newOnboardingStatus: newStatus,
           },
           "[COD Webhook] URL_GENERATED triggered PENDING_AMENDMENT"
         );

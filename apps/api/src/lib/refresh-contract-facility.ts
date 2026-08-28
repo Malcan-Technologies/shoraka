@@ -36,7 +36,7 @@ export type FacilityOccupancyReason =
   | "NOTE_REPAID";
 
 export type FacilityOccupancyAudit = {
-  userId: string;
+  userId: string | null;
   applicationId?: string | null;
   portal?: string | null;
   reason: FacilityOccupancyReason;

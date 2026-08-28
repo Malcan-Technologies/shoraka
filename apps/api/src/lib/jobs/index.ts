@@ -10,6 +10,7 @@ import { runGatewayStuckOrderPollerJob } from "./gateway-stuck-order-poller";
 import { runGatewaySettlementReconForConfiguredAccounts } from "./gateway-settlement-recon";
 import { runGatewayReceiptRetryJob } from "./gateway-receipt-retry";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
+import { raiseJobFailureAlert } from "../../modules/ops-alerts/service";
 
 const notificationService = new NotificationService();
 
@@ -36,6 +37,7 @@ export function initJobs() {
       await runCtosKybRetryJob();
     } catch (error) {
       logger.error({ error }, "Failed to run CTOS KYB retry job");
+      await raiseJobFailureAlert("ctos-kyb-retry", error);
     }
   });
 
@@ -78,6 +80,7 @@ export function initJobs() {
         }
       } catch (error) {
         logger.error({ error }, "Failed to run signing envelope expiry job");
+        await raiseJobFailureAlert("signing-envelope-expiry", error);
       }
     });
   });
@@ -115,6 +118,7 @@ export function initJobs() {
         await runGatewayStuckOrderPollerJob();
       } catch (error) {
         logger.error({ error }, "Failed to run gateway stuck-order poller");
+        await raiseJobFailureAlert("gateway-stuck-order-poller", error);
       }
     });
   });
@@ -126,6 +130,7 @@ export function initJobs() {
         await runGatewayReceiptRetryJob();
       } catch (error) {
         logger.error({ error }, "Failed to run gateway receipt retry job");
+        await raiseJobFailureAlert("gateway-receipt-retry", error);
       }
     });
   });
@@ -136,6 +141,7 @@ export function initJobs() {
       await runGatewaySettlementReconForConfiguredAccounts();
     } catch (error) {
       logger.error({ error }, "Failed to run gateway settlement recon job");
+      await raiseJobFailureAlert("gateway-settlement-recon", error);
     }
   });
 
@@ -146,6 +152,7 @@ export function initJobs() {
         await runSigningReconcileJob();
       } catch (error) {
         logger.error({ error }, "Failed to run signing reconcile job");
+        await raiseJobFailureAlert("signing-reconcile", error);
       }
     });
   });

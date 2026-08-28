@@ -224,7 +224,12 @@ import {
 } from "../applications/offer-application-status";
 import { loadInheritedAcceptanceForExistingContract } from "../../lib/contract-originating-application";
 import { signingService } from "../signing/service";
-import { auditContextFromRequest, createOnboardingLogRow } from "../../lib/audit";
+import {
+  AUDIT_PORTAL,
+  AUDIT_SOURCE,
+  auditContextFromRequest,
+  createOnboardingLogRow,
+} from "../../lib/audit";
 
 const APPLICATION_ACTION_REQUIRED_STATUSES = [
   ApplicationStatus.SUBMITTED,
@@ -2509,11 +2514,16 @@ export class AdminService {
 
     // Create onboarding log
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const adminContext = auditContextFromRequest(req, {
+      portal: AUDIT_PORTAL.ADMIN,
+      actorUserId: adminUserId,
+      source: AUDIT_SOURCE.API,
+    });
     await this.repository.createOnboardingLog({
       userId: userId,
       role: data.portal === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
       eventType: "ONBOARDING_RESET",
-      portal: data.portal,
+      portal: "admin",
       ipAddress,
       userAgent,
       deviceInfo,
@@ -2521,11 +2531,15 @@ export class AdminService {
       organizationName: latestOrg?.name || undefined,
       investorOrganizationId: data.portal === "investor" ? latestOrg?.id : undefined,
       issuerOrganizationId: data.portal === "issuer" ? latestOrg?.id : undefined,
+      actorUserId: adminUserId,
+      context: adminContext,
       metadata: {
         resetBy: adminUserId,
         previousStatus: true,
         newStatus: false,
         adminAction: true,
+        targetUserId: userId,
+        subjectPortal: data.portal,
       },
     });
 
@@ -2539,6 +2553,7 @@ export class AdminService {
       deviceInfo,
       deviceType,
       success: true,
+      context: adminContext,
       metadata: {
         targetUserId: userId,
         targetUserEmail: user.email,
@@ -4022,7 +4037,7 @@ export class AdminService {
       userId: onboarding.user_id,
       role,
       eventType: "ONBOARDING_CANCELLED",
-      portal: onboarding.portal_type,
+      portal: "admin",
       ipAddress,
       userAgent,
       deviceInfo,
@@ -4031,6 +4046,12 @@ export class AdminService {
         onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
       investorOrganizationId: onboarding.investor_organization_id || undefined,
       issuerOrganizationId: onboarding.issuer_organization_id || undefined,
+      actorUserId: adminUserId,
+      context: auditContextFromRequest(req, {
+        portal: AUDIT_PORTAL.ADMIN,
+        actorUserId: adminUserId,
+        source: AUDIT_SOURCE.API,
+      }),
       metadata: {
         cancelledOnboardingId: onboardingId,
         cancelledRequestId: onboarding.request_id,
@@ -4040,6 +4061,7 @@ export class AdminService {
         reason: "Restart requested by admin",
         organizationType: onboarding.organization_type,
         organizationId,
+        subjectPortal: onboarding.portal_type,
       },
     });
 

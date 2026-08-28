@@ -48,6 +48,12 @@ describe("formatContractActivityEventLabel", () => {
     expect(formatContractActivityEventLabel("SIGNING_PACKAGE_VOIDED")).toBe(
       "Signing package voided"
     );
+    expect(formatContractActivityEventLabel("SIGNING_PACKAGE_DECLINED")).toBe(
+      "Signing package declined"
+    );
+    expect(formatContractActivityEventLabel("SIGNING_PACKAGE_EXPIRED")).toBe(
+      "Signing package expired"
+    );
   });
 });
 
