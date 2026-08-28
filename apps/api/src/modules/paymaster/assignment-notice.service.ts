@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Prisma } from "@prisma/client";
+import { AUDIT_PORTAL, AUDIT_SOURCE, createNoteEventRow } from "../../lib/audit";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
@@ -24,16 +24,14 @@ async function logNoteEvent(
   actor: Actor,
   metadata: Record<string, unknown>
 ) {
-  await prisma.noteEvent.create({
-    data: {
-      note_id: noteId,
-      event_type: eventType,
-      actor_user_id: actor.userId,
-      actor_role: actor.role ?? "ADMIN",
-      actor_type: "ADMIN",
-      source: "ADMIN",
-      metadata: metadata as Prisma.InputJsonValue,
-    },
+  await createNoteEventRow(prisma, {
+    noteId,
+    eventType,
+    actorUserId: actor.userId,
+    actorRole: actor.role ?? "ADMIN",
+    portal: AUDIT_PORTAL.ADMIN,
+    source: AUDIT_SOURCE.API,
+    metadata,
   });
 }
 
