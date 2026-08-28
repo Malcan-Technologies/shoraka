@@ -29,6 +29,7 @@ import {
   isCodWebhookFamilyMatch,
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
+import { webhookAuditContext } from "../../../lib/audit";
 
 const COD_EXACT_LOOKUP_MAX_ATTEMPTS = 3;
 const COD_EXACT_LOOKUP_DELAY_MS = 75;
@@ -725,6 +726,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             try {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
+                context: webhookAuditContext(),
                 role: UserRole.INVESTOR,
                 eventType: "ONBOARDING_STATUS_UPDATED",
                 portal: portalType,
@@ -807,6 +809,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             try {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
+                context: webhookAuditContext(),
                 role: UserRole.ISSUER,
                 eventType: "ONBOARDING_STATUS_UPDATED",
                 portal: portalType,
@@ -1482,6 +1485,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             try {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
+                context: webhookAuditContext(),
                 role: portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
                 eventType: "ONBOARDING_STATUS_UPDATED",
                 portal: portalType,
@@ -1555,6 +1559,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             try {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
+                context: webhookAuditContext(),
                 role: UserRole.INVESTOR,
                 eventType: "COD_REJECTED",
                 portal: portalType,
@@ -1608,6 +1613,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             try {
               await this.authRepository.createOnboardingLog({
                 userId: onboarding.user_id,
+                context: webhookAuditContext(),
                 role: UserRole.ISSUER,
                 eventType: "COD_REJECTED",
                 portal: portalType,

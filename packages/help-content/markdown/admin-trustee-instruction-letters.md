@@ -8,7 +8,7 @@ tags:
   - trustee
   - finance
 order: 22
-updated: 2026-08-24
+updated: 2026-08-27
 ---
 
 ## What these letters are
@@ -40,15 +40,16 @@ The **Activity timeline** on the right records when letters were generated and l
 1. Complete **Tawarruq transaction / certificate** steps when shown on the card. Callbacks may update Tawarruq order status, but the certificate step completes only after **Fetch Tawarruq Certificate** stores the PDF (use **Query Status**, fetch, or reload on an open page).
 2. Confirm **beneficiary details** are complete (snapshotted onto the letter).
 3. **Generate** the trustee letter (PDF).
-4. Click **Email to Trustee** when auto-send is on, or **Mark submitted to trustee** when it is off.
-5. Use **Resend Email to Trustee** if needed until you mark disbursed. It updates the delivery timestamp only.
-6. Mark **disbursed / complete** when the trustee confirms payout. This moves the note to **Active** and starts servicing.
+4. If Platform Finance settings (Trustee Letter details or Money Flow Accounts) change after generate, **Regenerate Letter** before submit so the PDF picks up the latest settings. Regeneration is blocked after the letter is submitted to the trustee.
+5. Click **Email to Trustee** when auto-send is on, or **Mark submitted to trustee** when it is off.
+6. Use **Resend Email to Trustee** if needed until you mark disbursed. It updates the delivery timestamp only.
+7. Mark **disbursed / complete** when the trustee confirms payout. This moves the note to **Active** and starts servicing.
 
 ## Settlement trustee instruction (after settlement post)
 
 **When:** Only **after settlement is posted**, when the posted waterfall includes amounts that require trustee instruction (investor pool movements, service fee, Ta'widh/Gharamah account allocations, and/or **issuer refund allocation**).
 
-**Where:** **Servicing & Settlement** tab → settlement waterfall area → **Trustee submission** block. Use **Finance → Service Fee** for the platform-wide queue.
+**Where:** **Servicing & Settlement** tab → settlement waterfall area → **Trustee submission** block. Use **Finance → Settlements** for the platform-wide queue.
 
 **What it documents:** The trustee instruction for all posted pool movements from the repayment waterfall — including service fee to Operating account and issuer refund allocation when applicable. Ledger credits/debits were created at post; the PDF is the instruction and audit record for the trustee.
 
@@ -56,9 +57,10 @@ The **Activity timeline** on the right records when letters were generated and l
 
 1. **Settlement posted** — automatic when you post the waterfall.
 2. **Generate** the settlement trustee instruction PDF (required before submit).
-3. Click **Email to Trustee** when auto-send is on, or **Mark submitted to trustee** when it is off.
-4. Use **Resend Email to Trustee** if needed until you mark the instruction completed. It updates the delivery timestamp only.
-5. Mark **instruction completed** when the trustee confirms processing. Until then, the status badge shows **Active · servicing** and the settlement strip shows **Trustee instruction** as the current step.
+3. If Platform Finance settings change after generate, **Regenerate Letter** before submit so the PDF picks up the latest Trustee Letter and Money Flow Account details. Regeneration is blocked after submit.
+4. Click **Email to Trustee** when auto-send is on, or **Mark submitted to trustee** when it is off.
+5. Use **Resend Email to Trustee** if needed until you mark the instruction completed. It updates the delivery timestamp only.
+6. Mark **instruction completed** when the trustee confirms processing. Until then, the status badge shows **Active · servicing** and the settlement strip shows **Trustee instruction** as the current step.
 
 **Issuer refund allocation** is included in this instruction when the waterfall has a positive issuer refund amount. It is **not** a separate Note Detail card or lifecycle workflow.
 
@@ -72,7 +74,7 @@ Generate **Arrears Letter** or **Default Letter** as appropriate. Review before 
 
 ## Investor and other withdrawals
 
-Investor withdrawal instructions and certain **admin adjustment** withdrawals follow the same pattern elsewhere in the admin portal (finance queues or withdrawal detail): draft → PDF → submitted → completed. Generate the letter **before** marking submitted unless policy says otherwise.
+Investor withdrawal instructions and certain **admin adjustment** withdrawals follow the same pattern elsewhere in the admin portal (finance queues or withdrawal detail): draft → PDF → submitted → completed. Generate the letter **before** marking submitted unless policy says otherwise. While the letter is pending trustee submission, **Regenerate Letter** reloads the latest platform settings into a new PDF.
 
 ## Quick reference
 

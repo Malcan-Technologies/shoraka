@@ -12,13 +12,20 @@ import {
 } from "@prisma/client";
 import {
   buildProspectusHighlightRecommendations,
-  isSoukscoreRiskRating,
+  isMarcSmeGrade,
+  isNoteProspectusPublished,
   normalizeProspectusWorkflowStatus,
   type ProspectusAboutInvoiceRecommendationInput,
   type ProspectusHighlightRecommendationInput,
 } from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
 import { prisma } from "../../../lib/prisma";
+import {
+  AUDIT_TARGET_TYPE,
+  changedFieldsOf,
+  createNoteAdminActionRow,
+  createNoteEventRow,
+} from "../../../lib/audit";
 import { toAdminIssuerTrackRecordRows } from "../prospectus/prospectus-issuer-track-record";
 import { toAdminHistoricalNoteTable } from "../prospectus/prospectus-historical-note-table";
 import { toAdminIssuerProfileRows } from "../prospectus/prospectus-issuer-profile";
@@ -43,6 +50,7 @@ import {
 } from "../prospectus/prospectus-page-two-mapper";
 import { loadProspectusPageTwoData } from "../prospectus/prospectus-page-two-prisma";
 import { buildProspectusPageThreeHtml } from "../prospectus/prospectus-page-three.html";
+import { buildProspectusPageFourHtml, buildProspectusPageFiveHtml } from "../prospectus/prospectus-marc-appendix.html";
 import {
   buildProspectusPageThree,
   mapProspectusPageThreeDataToInput,
@@ -111,7 +119,7 @@ function recommendationInputFromNote(note: {
 }): ProspectusHighlightRecommendationInput {
   const invoice = asRecord(note.invoice_snapshot);
   const offer = asRecord(invoice?.offer_details);
-  const riskRating = isSoukscoreRiskRating(offer?.risk_rating) ? offer.risk_rating : null;
+  const riskRating = isMarcSmeGrade(offer?.risk_rating) ? offer.risk_rating : null;
   const profit =
     note.profit_rate_percent == null ? null : Number(note.profit_rate_percent);
   return {
@@ -190,35 +198,45 @@ async function logProspectusAction(
   beforeState?: Prisma.InputJsonValue,
   afterState?: Prisma.InputJsonValue
 ) {
-  await tx.noteAdminAction.create({
-    data: {
-      note_id: noteId,
-      action_type: actionType,
-      actor_user_id: actor.userId,
-      before_state: beforeState,
-      after_state: afterState,
-      ip_address: actor.ipAddress,
-      user_agent: actor.userAgent,
-      correlation_id: actor.correlationId,
+  await createNoteAdminActionRow(tx, {
+    noteId,
+    actionType,
+    actorUserId: actor.userId,
+    beforeState,
+    afterState,
+    ipAddress: actor.ipAddress,
+    userAgent: actor.userAgent,
+    correlationId: actor.correlationId,
+    portal: actor.portal,
+    targetType: AUDIT_TARGET_TYPE.NOTE_PROSPECTUS,
+    targetId: noteId,
+    metadata: {
+      changedFields: changedFieldsOf(
+        beforeState as Record<string, unknown> | null,
+        afterState as Record<string, unknown> | null
+      ),
     },
   });
-  await tx.noteEvent.create({
-    data: {
-      note_id: noteId,
-      event_type: actionType,
-      actor_user_id: actor.userId,
-      actor_role: actor.role,
-      portal: actor.portal,
-      ip_address: actor.ipAddress,
-      user_agent: actor.userAgent,
-      correlation_id: actor.correlationId,
-      metadata: { beforeState, afterState },
-    },
+  await createNoteEventRow(tx, {
+    noteId,
+    eventType: actionType,
+    actorUserId: actor.userId,
+    actorRole: actor.role,
+    portal: actor.portal,
+    ipAddress: actor.ipAddress,
+    userAgent: actor.userAgent,
+    correlationId: actor.correlationId,
+    metadata: { beforeState, afterState },
+    targetType: AUDIT_TARGET_TYPE.NOTE_PROSPECTUS,
+    targetId: noteId,
   });
 }
 
-function isNoteListed(note: { status: NoteStatus }) {
-  return note.status === NoteStatus.PUBLISHED;
+function isNoteListed(note: { status: NoteStatus; published_at: Date | null }) {
+  return isNoteProspectusPublished({
+    status: note.status,
+    publishedAt: note.published_at,
+  });
 }
 
 async function clearApprovalEligibility(
@@ -805,6 +823,8 @@ export class ProspectusReviewService {
       page1: buildProspectusPageOneHtml(page1),
       page2: buildProspectusPageTwoHtml(page2),
       page3: buildProspectusPageThreeHtml(page3),
+      page4: buildProspectusPageFourHtml(),
+      page5: buildProspectusPageFiveHtml(),
     });
 
     // PDF from exact frozen HTML — before APPROVED status; publish never regenerates.
@@ -997,6 +1017,8 @@ export class ProspectusReviewService {
     const page1Html = buildProspectusPageOneHtml(page1);
     const page2Html = buildProspectusPageTwoHtml(page2);
     const page3Html = buildProspectusPageThreeHtml(page3);
+    const page4Html = buildProspectusPageFourHtml();
+    const page5Html = buildProspectusPageFiveHtml();
 
     return {
       status: meta.status,
@@ -1006,10 +1028,14 @@ export class ProspectusReviewService {
         page1: `${banner}${page1Html}`,
         page2: `${banner}${page2Html}`,
         page3: `${banner}${page3Html}`,
+        page4: `${banner}${page4Html}`,
+        page5: `${banner}${page5Html}`,
         allPages: combineProspectusPagesHtml({
           page1: page1Html,
           page2: page2Html,
           page3: page3Html,
+          page4: page4Html,
+          page5: page5Html,
         }),
       },
     };

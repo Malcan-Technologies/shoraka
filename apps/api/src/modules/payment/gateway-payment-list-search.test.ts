@@ -170,6 +170,13 @@ describe("gateway-payment-list-search", () => {
       expect(or.some((clause) => "issuer_organization" in clause)).toBe(true);
     });
 
+    it("includes CashSouk application, facility, and note references", () => {
+      const or = buildGatewayPaymentSearchOr("APP-ARF-202608-A82");
+      expect(or.some((clause) => "application" in clause)).toBe(true);
+      expect(or.some((clause) => "contract" in clause)).toBe(true);
+      expect(or.some((clause) => "note" in clause)).toBe(true);
+    });
+
     it("adds exact amount clause for numeric search", () => {
       const or = buildGatewayPaymentSearchOr("RM 100.00");
       expect(or.some((clause) => "amount" in clause)).toBe(true);

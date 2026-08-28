@@ -9,6 +9,8 @@ export interface OAuthState {
   nonce: string;
   state: string; // The original OAuth state for CSRF protection
   requestedRole: string;
+  /** Initiating CashSouk portal. Null when it cannot be proven (never defaulted to investor). */
+  portal: string | null;
   signup?: boolean;
   invitationToken?: string; // Admin invitation token
   invitationRole?: string; // Admin invitation role

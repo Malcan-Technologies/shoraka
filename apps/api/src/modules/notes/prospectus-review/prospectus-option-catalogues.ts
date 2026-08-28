@@ -355,8 +355,6 @@ export type ProspectusBalanceSheetOfficerFieldKey =
 
 /** Page 3 Coverage officer-only fields (IC / DSCR / Receivables reuse Page 2; Debt/Equity, ROA, AT are CTOS). */
 export const PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS = [
-  "operatingCashFlow",
-  "freeCashFlow",
   "payablesDays",
 ] as const;
 

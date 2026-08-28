@@ -34,6 +34,10 @@ describe("ApplicationLogAdapter", () => {
       title: "Application Rejected",
       description: "Your financing application was rejected and will not continue.",
     });
+    expect(adapter.buildPresentation("AMENDMENTS_SUBMITTED")).toEqual({
+      title: "Amendment Request Sent",
+      description: "CashSouk sent an amendment request for this application.",
+    });
     expect(
       adapter.buildPresentation("APPLICATION_RESUBMITTED", {
         resubmit_changes: { activity_summary: "Changes: Supporting documents" },
@@ -46,24 +50,24 @@ describe("ApplicationLogAdapter", () => {
 
   it("builds presentation for offer acceptance and signing package events", () => {
     expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTANCE_SUBMITTED")).toEqual({
-      title: "Facility Acceptance Submitted",
+      title: "You Submitted Your Facility Offer Acceptance",
       description: "You submitted offer acceptance documents for CashSouk review.",
     });
     expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED")).toEqual({
-      title: "Facility Acceptance Resubmitted",
+      title: "You Resubmitted Your Facility Offer Acceptance",
       description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
     });
     expect(adapter.buildPresentation("SIGNING_PACKAGE_SENT")).toEqual({
-      title: "Signing Package Sent",
+      title: "Signing package sent",
       description: "The signing package was sent to all required signers.",
     });
     expect(adapter.buildPresentation("SIGNING_PACKAGE_COMPLETED")).toEqual({
-      title: "Signing Package Completed",
+      title: "Signing package completed",
       description: "All required signers completed the signing package.",
     });
     expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTED")).toEqual({
-      title: "Facility Offer Signed",
-      description: "All signers completed the facility offer signing package.",
+      title: "Facility Offer Accepted",
+      description: "The facility offer was accepted.",
     });
   });
 
@@ -130,7 +134,7 @@ describe("ApplicationLogAdapter", () => {
     const unified = adapter.transform(record);
 
     expect(unified.description).toBe(
-      "An invoice offer for invoice INV-001 is ready for your review and response."
+      "You received an invoice offer for invoice INV-001. Review and respond."
     );
     expect(unified.references).toEqual({
       applicationId: "app_123",
@@ -157,7 +161,7 @@ describe("ApplicationLogAdapter", () => {
     const unified = adapter.transform(record);
 
     expect(unified.description).toBe(
-      "An invoice offer for invoice INV-001 is ready for your review and response."
+      "You received an invoice offer for invoice INV-001. Review and respond."
     );
     expect(unified.references).toEqual({
       applicationId: "app_123",
@@ -184,6 +188,47 @@ describe("ApplicationLogAdapter", () => {
       applicationId: "app_123",
       applicationReference: "#APP_123",
     });
+  });
+
+  it("describes AMENDMENTS_SUBMITTED as CashSouk sending an amendment request", () => {
+    const now = new Date();
+    const record: any = {
+      id: "log-amd",
+      user_id: "user123",
+      application_id: "app_123",
+      event_type: "AMENDMENTS_SUBMITTED",
+      metadata: { count: 2 },
+      created_at: now,
+    };
+
+    const unified = adapter.transform(record);
+
+    expect(unified.title).toBe("Amendment Request Sent");
+    expect(unified.description).toBe("CashSouk sent an amendment request for application #APP_123.");
+    expect(unified.description).not.toMatch(/you submitted amendments/i);
+    expect(unified.description).not.toMatch(/issuer submitted/i);
+    expect(unified.title).not.toMatch(/amendments submitted/i);
+    expect(unified.event_type).toBe("AMENDMENTS_SUBMITTED");
+  });
+
+  it("keeps APPLICATION_RESUBMITTED as the issuer submitting updated application content", () => {
+    const now = new Date();
+    const record: any = {
+      id: "log-resub",
+      user_id: "user123",
+      application_id: "app_123",
+      event_type: "APPLICATION_RESUBMITTED",
+      metadata: {},
+      created_at: now,
+    };
+
+    const unified = adapter.transform(record);
+
+    expect(unified.event_type).toBe("APPLICATION_RESUBMITTED");
+    expect(unified.title).toBe("Application Resubmitted");
+    expect(unified.description).toBe(
+      "You resubmitted application #APP_123 after making the requested updates."
+    );
   });
 
   it("backfills contract references from the application when the log metadata is missing", async () => {
@@ -217,7 +262,7 @@ describe("ApplicationLogAdapter", () => {
     const unified = adapter.transform(record as any);
 
     expect(unified.description).toBe(
-      "A facility offer for facility CT-2026-001 is ready for your review and response."
+      "You received a facility offer for application #RAPP_123. Review and respond."
     );
     expect(unified.references).toEqual({
       applicationId: "issuerapp_123",

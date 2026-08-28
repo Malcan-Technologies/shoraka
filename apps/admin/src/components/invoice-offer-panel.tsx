@@ -15,16 +15,19 @@ import {
 import {
   FINANCING_TENURE_DAYS_OPTIONS,
   formatFinancingTenureDaysLabel,
+  formatInvoiceReference,
   getOfferPhaseDeadlineDisplay,
   isReservedCapacityInvoiceStatus,
-  isSoukscoreRiskRating,
+  isMarcSmeGrade,
   isValidFinancingTenureDays,
+  MARC_ASSESSMENT_REQUIRED_MESSAGE,
+  MARC_SME_GRADES,
   parseFinancingTenureDays,
   previewAcceptanceDeadlineFromWorkflow,
+  resolveDefaultInvoiceRiskRating,
   resolveFinancingTenureDays,
-  SOUKSCORE_RISK_RATING_GRADES,
   validateFinancingTenureAgainstDueDate,
-  type SoukscoreRiskRating,
+  type MarcSmeGrade,
 } from "@cashsouk/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { applicationsKeys } from "@/applications/query-keys";
@@ -75,6 +78,9 @@ const PROFIT_RATE_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 const OFFER_CONTROL_WIDTH_CLASS =
   "h-9 w-full min-w-[5.5rem] max-w-[7rem] rounded-xl border-border bg-background text-ui";
 
+const RISK_RATING_CONTROL_WIDTH_CLASS =
+  "h-9 w-full min-w-[6.5rem] max-w-[8.5rem] rounded-xl border-border bg-background text-ui";
+
 const TENURE_CONTROL_WIDTH_CLASS =
   "h-9 w-full min-w-[7rem] max-w-[9.5rem] rounded-xl border-border bg-background text-ui";
 
@@ -90,6 +96,7 @@ function toNumber(value: unknown): number | null {
 
 export interface InvoiceOfferPanelInvoice {
   id: string;
+  displayReference?: string | null;
   details?: unknown;
   status?: string;
   offer_details?: unknown;
@@ -116,6 +123,7 @@ export interface InvoiceOfferPanelProps {
   remainingAllocation?: number;
   facilityOverLimit?: boolean;
   scopeKey: string;
+  suggestedMarcGrade?: string | null;
 }
 
 export function InvoiceOfferPanel({
@@ -136,6 +144,7 @@ export function InvoiceOfferPanel({
   remainingAllocation,
   facilityOverLimit,
   scopeKey,
+  suggestedMarcGrade = null,
 }: InvoiceOfferPanelProps) {
   const queryClient = useQueryClient();
   const facilityFeeRemaining = resolveInvoiceOfferFacilityFeeRemaining(invoice);
@@ -150,7 +159,16 @@ export function InvoiceOfferPanel({
         due_date?: string;
       }
     | undefined;
-  const invoiceNo = details?.number ?? invoice.id;
+  const businessNumber =
+    details?.number != null && String(details.number).trim() !== ""
+      ? String(details.number).trim()
+      : null;
+  const invoiceNo =
+    businessNumber ??
+    formatInvoiceReference({
+      displayReference: invoice.displayReference,
+      id: invoice.id,
+    });
   const invoiceValue = toNumber(details?.value);
   const financingRatio = toNumber(details?.financing_ratio_percent);
   const issuerFinancingAmount = resolveRequestedInvoiceAmount(
@@ -203,9 +221,9 @@ export function InvoiceOfferPanel({
 
   const initialRisk = React.useMemo(() => {
     const raw = (invoice.offer_details as Record<string, unknown> | null)?.risk_rating;
-    return isSoukscoreRiskRating(raw) ? raw : null;
-  }, [invoice.offer_details]);
-  const [riskRating, setRiskRating] = React.useState<SoukscoreRiskRating | null>(initialRisk);
+    return resolveDefaultInvoiceRiskRating(raw, suggestedMarcGrade);
+  }, [invoice.offer_details, suggestedMarcGrade]);
+  const [riskRating, setRiskRating] = React.useState<MarcSmeGrade | null>(initialRisk);
   React.useEffect(() => {
     setRiskRating(initialRisk);
   }, [initialRisk]);
@@ -248,7 +266,7 @@ export function InvoiceOfferPanel({
     facilityFeeCollectAmount: number;
     additionalFees: SendInvoiceOfferUiPayload["additionalFees"];
     invoiceValue: number | null;
-    risk_rating: SoukscoreRiskRating;
+    risk_rating: MarcSmeGrade;
     financingTenureDays: number;
     offerFingerprint: string;
   } | null>(null);
@@ -396,6 +414,10 @@ export function InvoiceOfferPanel({
 
   const handleConfirmInvoiceOffer = React.useCallback(async () => {
     if (!onSendInvoiceOffer || !invoiceOfferConfirm || !invoiceOfferConfirmGuard) return;
+    if (!isMarcSmeGrade(suggestedMarcGrade)) {
+      alert(MARC_ASSESSMENT_REQUIRED_MESSAGE);
+      return;
+    }
     if (!invoiceOfferConfirm.risk_rating) {
       alert("Please select a risk rating before sending the offer.");
       return;
@@ -436,29 +458,55 @@ export function InvoiceOfferPanel({
           <div className={reviewValueClass}>
             {(() => {
               const raw = (invoice.offer_details as Record<string, unknown> | null)?.risk_rating;
+              if (isMarcSmeGrade(raw)) return raw;
               if (typeof raw === "string" && raw.trim()) return raw.trim();
               return riskRating ?? REVIEW_EMPTY_LABEL;
             })()}
           </div>
         ) : (
-          <Select
-            value={riskRating ?? undefined}
-            onValueChange={(value) => {
-              if (isSoukscoreRiskRating(value)) setRiskRating(value);
-            }}
-            disabled={controlsDisabled}
-          >
-            <SelectTrigger aria-label="Risk rating" className={OFFER_CONTROL_WIDTH_CLASS}>
-              <SelectValue placeholder="Grade" />
-            </SelectTrigger>
-            <SelectContent>
-              {SOUKSCORE_RISK_RATING_GRADES.map((grade) => (
-                <SelectItem key={grade} value={grade}>
-                  {grade}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-1">
+            <Select
+              value={riskRating ?? undefined}
+              onValueChange={(value) => {
+                if (isMarcSmeGrade(value)) setRiskRating(value);
+              }}
+              disabled={controlsDisabled}
+            >
+              <SelectTrigger aria-label="Risk rating" className={RISK_RATING_CONTROL_WIDTH_CLASS}>
+                <SelectValue placeholder="Grade" />
+              </SelectTrigger>
+              <SelectContent>
+                {MARC_SME_GRADES.map((grade) => (
+                  <SelectItem key={grade} value={grade}>
+                    {grade}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isMarcSmeGrade(suggestedMarcGrade) ? (
+              <p className="text-meta text-muted-foreground">
+                {riskRating && riskRating !== suggestedMarcGrade
+                  ? "Adjusted from the issuer's MARC grade."
+                  : `Suggested from MARC assessment: ${suggestedMarcGrade}`}
+              </p>
+            ) : (
+              <p className="text-meta text-muted-foreground">{MARC_ASSESSMENT_REQUIRED_MESSAGE}</p>
+            )}
+            {isMarcSmeGrade(suggestedMarcGrade) &&
+            riskRating &&
+            riskRating !== suggestedMarcGrade ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-auto px-0 text-ui"
+                onClick={() => setRiskRating(suggestedMarcGrade)}
+                disabled={controlsDisabled}
+              >
+                Reset to MARC grade
+              </Button>
+            ) : null}
+          </div>
         )}
 
         <Label className={reviewLabelClass}>Profit rate</Label>
@@ -724,6 +772,10 @@ export function InvoiceOfferPanel({
                 return;
               }
               const rr = riskRating;
+              if (!isMarcSmeGrade(suggestedMarcGrade)) {
+                alert(MARC_ASSESSMENT_REQUIRED_MESSAGE);
+                return;
+              }
               if (!rr) {
                 alert("Please select a risk rating before sending the offer.");
                 return;

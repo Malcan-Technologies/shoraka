@@ -69,6 +69,9 @@ import {
 import {
   computeHasPendingDirectorShareholder,
   formatApplicationReference,
+  formatContractReference,
+  formatNamedEntityDisplay,
+  formatNoteReference,
   getSectionForScopeKey,
   getOfferAcceptanceFromOfferDetails,
   buildOriginationPhaseInput,
@@ -248,6 +251,30 @@ export default function DynamicApplicationDetailPage() {
     (app as { contract_id?: string | null } | null)?.contract_id ??
     (app?.contract as { id?: string | null } | null)?.id ??
     null;
+  const issuerOrganizationDisplayReference =
+    (
+      app?.issuer_organization as
+        | { displayReference?: string | null; display_reference?: string | null }
+        | undefined
+    )?.displayReference ??
+    (
+      app?.issuer_organization as { display_reference?: string | null } | undefined
+    )?.display_reference ??
+    null;
+  const issuerOrganizationLabel = formatNamedEntityDisplay(
+    app?.issuer_organization?.name,
+    issuerOrganizationDisplayReference
+  );
+  const contractDisplayReference =
+    (app?.contract as { displayReference?: string | null } | null | undefined)?.displayReference ??
+    (app?.contract as { display_reference?: string | null } | null | undefined)?.display_reference ??
+    null;
+  const facilityReferenceLabel = applicationContractId
+    ? formatContractReference({
+        displayReference: contractDisplayReference,
+        id: applicationContractId,
+      })
+    : null;
   const linkedNotes =
     (app as {
       linked_notes?: Array<{
@@ -1135,29 +1162,29 @@ export default function DynamicApplicationDetailPage() {
                             ? orgHref("issuer", app.issuer_organization_id)
                             : null
                         }
-                        display={
-                          app.issuer_organization.name
-                            ? `${app.issuer_organization.name} (${app.issuer_organization_id})`
-                            : app.issuer_organization_id
-                        }
+                        display={issuerOrganizationLabel}
                       />
                       <RelatedRecordLink
-                        label="Facility ID"
+                        label="Facility Reference"
                         value={applicationContractId}
                         href={applicationContractId ? `/contracts/${encodeURIComponent(applicationContractId)}` : null}
+                        display={facilityReferenceLabel}
                       />
                       {linkedNotes.length > 0 ? (
                         linkedNotes.map((note) => (
                           <RelatedRecordLink
                             key={note.id}
-                            label="Note ID"
+                            label="Note Reference"
                             value={note.id}
                             href={`/notes/${encodeURIComponent(note.id)}`}
-                            display={`${note.note_reference} (${note.id})`}
+                            display={formatNoteReference({
+                              noteReference: note.note_reference,
+                              id: note.id,
+                            })}
                           />
                         ))
                       ) : (
-                        <RelatedRecordLink label="Note ID" value={null} />
+                        <RelatedRecordLink label="Note Reference" value={null} />
                       )}
                     </CardContent>
                   </Card>
@@ -1184,6 +1211,9 @@ export default function DynamicApplicationDetailPage() {
                       }[]) ?? []
                     }
                     applicationId={applicationId}
+                    applicationDisplayReference={
+                      (app as { displayReference?: string | null }).displayReference
+                    }
                     productKey={productKey}
                     sectionLabelOverrides={isInvoiceOnly ? { contract_details: "Customer" } : undefined}
                     visibleReviewSections={app.visible_review_sections}

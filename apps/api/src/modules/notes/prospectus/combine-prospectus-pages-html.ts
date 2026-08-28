@@ -5,11 +5,14 @@
  */
 
 import { PROSPECTUS_DOCUMENT_CSS } from "./prospectus-document-styles";
+import { PROSPECTUS_STRATO_CSS } from "./prospectus-strato-styles";
 
 export type ProspectusPageHtmlBundle = {
   page1: string;
   page2: string;
   page3: string;
+  page4?: string;
+  page5?: string;
 };
 
 /**
@@ -64,11 +67,14 @@ export function extractProspectusPageSection(html: string): string {
  * Shared CSS is applied once; page content sections are copied unchanged.
  */
 export function combineProspectusPagesHtml(html: ProspectusPageHtmlBundle): string {
-  const pages = [
+  const extracted = [
     extractProspectusPageSection(html.page1),
     extractProspectusPageSection(html.page2),
     extractProspectusPageSection(html.page3),
-  ].join("\n");
+  ];
+  if (html.page4) extracted.push(extractProspectusPageSection(html.page4));
+  if (html.page5) extracted.push(extractProspectusPageSection(html.page5));
+  const pages = extracted.join("\n");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -77,6 +83,7 @@ export function combineProspectusPagesHtml(html: ProspectusPageHtmlBundle): stri
   <title>Prospectus</title>
   <style>
 ${PROSPECTUS_DOCUMENT_CSS}
+${PROSPECTUS_STRATO_CSS}
   </style>
 </head>
 <body>

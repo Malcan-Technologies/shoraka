@@ -24,10 +24,26 @@ import { renderReceiptHtmlToPdfBuffer } from "./render-receipt-html-to-pdf";
 
 const MALAYSIA_TZ = "Asia/Kuala_Lumpur";
 
+function trimOrNull(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+type OrgForReceiptPayer = {
+  type: OrganizationType;
+  display_reference?: string | null;
+  registration_number?: string | null;
+  first_name?: string | null;
+  middle_name?: string | null;
+  last_name?: string | null;
+  phone_number?: string | null;
+  corporate_onboarding_data?: unknown;
+  owner?: { email?: string | null; phone?: string | null } | null;
+};
+
 function buildCompanyName(org: {
   type: OrganizationType;
-  name: string | null;
-  corporate_onboarding_data: unknown;
+  corporate_onboarding_data?: unknown;
 }): string | null {
   if (org.type !== OrganizationType.COMPANY) return null;
   const data = org.corporate_onboarding_data;
@@ -37,6 +53,46 @@ function buildCompanyName(org: {
     if (businessName) return businessName;
   }
   return null;
+}
+
+function buildPersonName(org: OrgForReceiptPayer | null | undefined): string {
+  if (!org) return "";
+  return [org.first_name, org.middle_name, org.last_name]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function buildPayerIdentity(org: OrgForReceiptPayer | null | undefined): {
+  payerUniqueId: string | null;
+  payerRegistrationNumber: string | null;
+  payerCompanyName: string | null;
+} {
+  if (!org) {
+    return { payerUniqueId: null, payerRegistrationNumber: null, payerCompanyName: null };
+  }
+  if (org.type === OrganizationType.COMPANY) {
+    return {
+      payerUniqueId: null,
+      payerRegistrationNumber: trimOrNull(org.registration_number),
+      payerCompanyName: buildCompanyName(org),
+    };
+  }
+  return {
+    payerUniqueId: trimOrNull(org.display_reference),
+    payerRegistrationNumber: null,
+    payerCompanyName: null,
+  };
+}
+
+function buildPayerContact(org: OrgForReceiptPayer | null | undefined): {
+  payerEmail: string | null;
+  payerPhone: string | null;
+} {
+  return {
+    payerEmail: org?.owner?.email ?? null,
+    payerPhone: org?.phone_number ?? org?.owner?.phone ?? null,
+  };
 }
 
 function formatMalaysiaDateTime(value: Date): string {
@@ -118,6 +174,8 @@ type PaymentForReceipt = Prisma.GatewayPaymentGetPayload<{
 function resolvePayerSnapshot(payment: PaymentForReceipt): {
   payerName: string | null;
   payerCompanyName: string | null;
+  payerUniqueId: string | null;
+  payerRegistrationNumber: string | null;
   payerEmail: string | null;
   payerPhone: string | null;
   relatedEntityId: string;
@@ -129,16 +187,16 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
     if (!org) {
       throw new Error("Investor deposit receipt is missing investor organization");
     }
-    const companyName = buildCompanyName(org);
+    const identity = buildPayerIdentity(org);
+    const contact = buildPayerContact(org);
     const personName = resolveInvestorExpectedName(org);
 
     // Do not surface Curlec order receipt strings (dep_…). Gateway refs on the PDF are
     // Curlec Order ID / Curlec Payment ID only. COMPLETED means wallet already credited.
     return {
       payerName: payment.payer_name ?? personName,
-      payerCompanyName: companyName,
-      payerEmail: org.owner?.email ?? null,
-      payerPhone: org.phone_number ?? org.owner?.phone ?? null,
+      ...identity,
+      ...contact,
       relatedEntityId: org.id,
       relatedReference: null,
       walletCredited: payment.status === GatewayPaymentStatus.COMPLETED,
@@ -151,21 +209,15 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
     if (!contract) {
       throw new Error("Facility fee receipt is missing contract");
     }
-    const companyName = org ? buildCompanyName(org) : null;
-    const personName = org
-      ? [org.first_name, org.middle_name, org.last_name]
-          .map((p) => p?.trim())
-          .filter(Boolean)
-          .join(" ")
-      : "";
+    const identity = buildPayerIdentity(org);
+    const contact = buildPayerContact(org);
 
     return {
-      payerName: personName || payment.payer_name,
-      payerCompanyName: companyName,
-      payerEmail: org?.owner?.email ?? null,
-      payerPhone: org?.phone_number ?? org?.owner?.phone ?? null,
+      payerName: buildPersonName(org) || payment.payer_name,
+      ...identity,
+      ...contact,
       relatedEntityId: contract.id,
-      relatedReference: contract.display_reference?.trim() || contract.id,
+      relatedReference: contract.display_reference?.trim() || null,
       walletCredited: false,
     };
   }
@@ -176,21 +228,15 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
     if (!note) {
       throw new Error("Late charge receipt is missing note");
     }
-    const companyName = org ? buildCompanyName(org) : null;
-    const personName = org
-      ? [org.first_name, org.middle_name, org.last_name]
-          .map((p) => p?.trim())
-          .filter(Boolean)
-          .join(" ")
-      : "";
+    const identity = buildPayerIdentity(org);
+    const contact = buildPayerContact(org);
 
     return {
-      payerName: personName || payment.payer_name,
-      payerCompanyName: companyName,
-      payerEmail: org?.owner?.email ?? null,
-      payerPhone: org?.phone_number ?? org?.owner?.phone ?? null,
+      payerName: buildPersonName(org) || payment.payer_name,
+      ...identity,
+      ...contact,
       relatedEntityId: note.id,
-      relatedReference: note.note_reference?.trim() || note.id,
+      relatedReference: note.note_reference?.trim() || null,
       walletCredited: false,
     };
   }
@@ -200,20 +246,17 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
     if (!org) {
       throw new Error("Issuer fee receipt is missing issuer organization");
     }
-    const companyName = buildCompanyName(org);
-    const personName = [org.first_name, org.middle_name, org.last_name]
-      .map((p) => p?.trim())
-      .filter(Boolean)
-      .join(" ");
+    const identity = buildPayerIdentity(org);
+    const contact = buildPayerContact(org);
 
     return {
-      payerName: personName || payment.payer_name,
-      payerCompanyName: companyName,
-      payerEmail: org.owner?.email ?? null,
-      payerPhone: org.phone_number ?? org.owner?.phone ?? null,
+      payerName: buildPersonName(org) || payment.payer_name,
+      ...identity,
+      ...contact,
       relatedEntityId: org.id,
-      // Issuer org identity — not the Curlec order receipt (fee_…).
-      relatedReference: org.registration_number?.trim() || org.name?.trim() || org.id,
+      // CashSouk ISS-… when present; registration/name are business identifiers, never the org CUID.
+      relatedReference:
+        org.display_reference?.trim() || org.registration_number?.trim() || org.name?.trim() || null,
       walletCredited: false,
     };
   }
@@ -224,22 +267,15 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
     throw new Error("Processing fee receipt is missing application");
   }
 
-  const companyName = org ? buildCompanyName(org) : null;
-  const personName = org
-    ? [org.first_name, org.middle_name, org.last_name]
-        .map((p) => p?.trim())
-        .filter(Boolean)
-        .join(" ")
-    : "";
+  const identity = buildPayerIdentity(org);
+  const contact = buildPayerContact(org);
 
   return {
-    payerName: personName || payment.payer_name,
-    payerCompanyName: companyName,
-    payerEmail: org?.owner?.email ?? null,
-    payerPhone: org?.phone_number ?? org?.owner?.phone ?? null,
+    payerName: buildPersonName(org) || payment.payer_name,
+    ...identity,
+    ...contact,
     relatedEntityId: application.id,
-    // Application id — not the Curlec order receipt (pf_…).
-    relatedReference: application.id,
+    relatedReference: application.display_reference?.trim() || null,
     walletCredited: false,
   };
 }
@@ -331,6 +367,8 @@ async function createPendingReceiptRow(
           purpose_label: purposeLabel,
           payer_name: snapshot.payerName,
           payer_company_name: snapshot.payerCompanyName,
+          payer_unique_id: snapshot.payerUniqueId,
+          payer_registration_number: snapshot.payerRegistrationNumber,
           payer_email: snapshot.payerEmail,
           payer_phone: snapshot.payerPhone,
           amount: payment.amount,
@@ -424,6 +462,8 @@ async function generatePdfForExistingReceipt(
       merchant: resolvedMerchant,
       payerName: receipt.payer_name,
       payerCompanyName: receipt.payer_company_name,
+      payerUniqueId: receipt.payer_unique_id,
+      payerRegistrationNumber: receipt.payer_registration_number,
       payerEmail: receipt.payer_email,
       payerPhone: receipt.payer_phone,
       purposeLabel: receipt.purpose_label,

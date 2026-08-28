@@ -23,13 +23,16 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     productName: null,
     issuerIndustry: "Construction",
     sourceApplicationId: "app-1",
+    sourceApplicationDisplayReference: null,
     sourceContractId: null,
     sourceContractDisplayReference: null,
     sourceInvoiceId: null,
+    sourceInvoiceDisplayReference: null,
     issuerOrganizationId: "org-1",
+    issuerOrganizationDisplayReference: null,
     issuerName: "Secret Issuer Sdn Bhd",
     paymasterName: "Kementerian Kerja Raya",
-    riskRating: "B",
+    riskRating: "SME-3",
     status: "DRAFT",
     listingStatus: "UNPUBLISHED",
     fundingStatus: "NOT_OPEN",
@@ -103,8 +106,6 @@ describe("page two coverage verification", () => {
       "Paymaster",
       "Nature of Paymaster",
       "Deed of Assignment (DOA)",
-      "Paymaster Rating",
-      "Confidence Grading",
     ]);
     expect(rows.find((r) => r.label === "Invoice Amount")?.value).toContain("625,000");
     expect(rows.find((r) => r.label === "Invoice Amount")?.value).not.toContain("999");
@@ -115,8 +116,8 @@ describe("page two coverage verification", () => {
     expect(rows.find((r) => r.label === "Deed of Assignment (DOA)")?.value).toBe(
       "—"
     );
-    expect(rows.find((r) => r.label === "Paymaster Rating")?.value).toBe("—");
-    expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe("—");
+    expect(rows.find((r) => r.label === "Paymaster Rating")).toBeUndefined();
+    expect(rows.find((r) => r.label === "Confidence Grading")).toBeUndefined();
     expect(rows.find((r) => r.label === "Invoice Due Date")?.value).toBe("22 November 2026");
     expect(rows.find((r) => r.label === "Invoice Due Date")?.value).not.toBe(
       "31 December 2026"

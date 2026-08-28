@@ -7,8 +7,12 @@ import {
 
 const EVENT_LABELS: Record<string, string> = {
   NOTE_CREATED: "Note created",
+  NOTE_CREATED_FROM_INVOICE: "Note created",
   NOTE_DRAFT_UPDATED: "Draft updated",
-  NOTE_PUBLISHED: "Published to marketplace",
+  UPDATE_DRAFT: "Draft updated",
+  UPDATE_FEATURED_SETTINGS: "Featured settings updated",
+  NOTE_PUBLISHED: "Note Published",
+  PUBLISH: "Note Published",
   NOTE_UNPUBLISHED: "Unpublished from marketplace",
   PAUSE_LISTING: "Campaign paused",
   RESUME_LISTING: "Campaign resumed",
@@ -19,27 +23,41 @@ const EVENT_LABELS: Record<string, string> = {
   PROSPECTUS_APPROVAL_INVALIDATED_EDIT: "Prospectus approval cleared after edit",
   PROSPECTUS_APPROVAL_INVALIDATED_SOURCE: "Prospectus approval cleared after source change",
   PROSPECTUS_APPROVAL_INVALIDATED_UNPUBLISH: "Prospectus approval cleared after unpublish",
-  NOTE_FUNDING_CLOSED: "Funding closed",
-  CLOSE_FUNDING: "Funding closed",
-  NOTE_FUNDING_FAILED: "Funding failed",
-  FAIL_FUNDING: "Funding failed",
-  NOTE_ACTIVATED: "Note activated",
-  PAYMENT_RECORDED: "Payment recorded",
+  INVESTMENT_COMMITTED: "Investment committed",
+  NOTE_FUNDING_CLOSED: "Funding Closed",
+  CLOSE_FUNDING: "Funding Closed",
+  NOTE_FUNDING_FAILED: "Funding unsuccessful",
+  FAIL_FUNDING: "Funding unsuccessful",
+  NOTE_ACTIVATED: "Note Activated",
+  ACTIVATE: "Note Activated",
+  ISSUER_PAYMENT_SUBMITTED: "Repayment Submitted",
+  PAYMENT_RECORDED: "Repayment received",
+  PAYMENT_RECEIVED: "Repayment received",
+  PAYMENT_APPROVED: "Repayment approved",
+  PAYMENT_REJECTED: "Repayment Rejected",
   SETTLEMENT_PREVIEWED: "Settlement previewed",
   SETTLEMENT_APPROVED: "Settlement approved",
   SETTLEMENT_POSTED: "Settlement posted",
   LATE_CHARGE_APPROVED: "Late charge approved",
-  OVERDUE_LATE_CHARGE_CHECKED: "Overdue late charge checked",
+  OVERDUE_LATE_CHARGE_CHECKED: "Overdue Late Charge Checked",
   ARREARS_LETTER_GENERATED: "Arrears letter generated",
   DEFAULT_LETTER_GENERATED: "Default letter generated",
-  SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Settlement trustee letter generated",
-  SERVICE_FEE_TRUSTEE_EMAIL_SENT: "Settlement email delivered to Trustee",
-  SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Settlement trustee letter submitted",
-  SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement trustee instruction completed",
-  WITHDRAWAL_TRUSTEE_EMAIL_SENT: "Withdrawal email delivered to Trustee",
-  NOTE_DEFAULT_MARKED: "Default marked",
-  SHORAKA_ORDER_SUBMITTED: "Tawarruq order submitted",
-  SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate fetched",
+  SETTLEMENT_TRUSTEE_LETTER_GENERATED: "Settlement Trustee Letter Generated",
+  SETTLEMENT_TRUSTEE_EMAIL_SENT: "Settlement Trustee Email Sent",
+  SETTLEMENT_TRUSTEE_LETTER_SUBMITTED: "Settlement Trustee Letter Submitted",
+  SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement Trustee Instruction Completed",
+  WITHDRAWAL_TRUSTEE_EMAIL_SENT: "Withdrawal Trustee Email Sent",
+  NOTE_DEFAULT_MARKED: "Note Defaulted",
+  WAIVE_FACILITY_FEE_COLLECTION: "Facility Fee Collection Waived",
+  NOTE_FACILITY_FEE_COLLECTION_WAIVED: "Facility fee collection waived",
+  ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED: "Disbursement instruction created",
+  WITHDRAWAL_LETTER_GENERATED: "Withdrawal letter generated",
+  WITHDRAWAL_SUBMITTED_TO_TRUSTEE: "Withdrawal Submitted to Trustee",
+  WITHDRAWAL_BENEFICIARY_UPDATED: "Withdrawal beneficiary updated",
+  WITHDRAWAL_COMPLETED: "Withdrawal Completed",
+  FACILITY_OCCUPANCY_UPDATED: "Facility occupancy updated",
+  SHORAKA_ORDER_SUBMITTED: "Tawarruq Order Submitted",
+  SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate Retrieved",
 };
 
 export function formatNoteActivityEventLabel(
@@ -53,14 +71,54 @@ export function formatNoteActivityEventLabel(
   let label = EVENT_LABELS[eventType] ?? fallback;
   if (metadata?.resend === true) {
     if (eventType === "WITHDRAWAL_TRUSTEE_EMAIL_SENT") {
-      label = "Withdrawal email redelivered to Trustee";
-    } else if (eventType === "SERVICE_FEE_TRUSTEE_EMAIL_SENT") {
-      label = "Settlement email redelivered to Trustee";
+      label = "Withdrawal Trustee Email Redelivered";
+    } else if (eventType === "SETTLEMENT_TRUSTEE_EMAIL_SENT") {
+      label = "Settlement Trustee Email Redelivered";
     }
   }
   label = label.replace(/\bShoraka\s+Stp\b/g, "Tawarruq Transaction");
   label = label.replace(/\bShoraka\b/g, "Tawarruq");
   return label;
+}
+
+function noteEventAmount(metadata: Record<string, unknown> | null | undefined): string | number | null {
+  if (!metadata) return null;
+  for (const key of ["amount", "investmentAmount", "withdrawalAmount"]) {
+    const value = metadata[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function noteEventCanonicalReference(event: NoteEvent): string {
+  const metadata = event.metadata;
+  if (metadata) {
+    for (const key of [
+      "withdrawalReference",
+      "settlementReference",
+      "noteReference",
+      "note_reference",
+      "displayReference",
+      "contractReference",
+    ]) {
+      const value = metadata[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    const nestedStates = [metadata.beforeState, metadata.afterState];
+    for (const state of nestedStates) {
+      if (state && typeof state === "object" && !Array.isArray(state)) {
+        const record = state as Record<string, unknown>;
+        for (const key of ["noteReference", "note_reference"]) {
+          const value = record[key];
+          if (typeof value === "string" && value.trim()) return value.trim();
+        }
+      }
+    }
+    const tradeOrderId = metadata.trade_order_id ?? metadata.tradeOrderId;
+    if (typeof tradeOrderId === "string" && tradeOrderId.trim()) return tradeOrderId.trim();
+  }
+  return event.targetId ?? event.noteId;
 }
 
 export function noteEventToActivityCsvRow(event: NoteEvent): AdminActivityCsvRow {
@@ -76,6 +134,12 @@ export function noteEventToActivityCsvRow(event: NoteEvent): AdminActivityCsvRow
       actorRole: event.actorRole,
       correlationId: event.correlationId,
     }),
+    actorType: event.actorType ?? event.actorRole,
+    source: event.source ?? event.portal,
+    targetType: event.targetType,
+    targetReference: noteEventCanonicalReference(event),
+    correlationId: event.correlationId,
+    amount: noteEventAmount(event.metadata),
   };
 }
 

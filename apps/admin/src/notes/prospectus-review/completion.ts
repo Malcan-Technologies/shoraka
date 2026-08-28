@@ -1,4 +1,5 @@
 import type { ProspectusWorkflowStepId } from "./labels";
+import { MARC_ASSESSMENT_REQUIRED_MESSAGE } from "@cashsouk/types";
 
 export type ProspectusCompletionItem = {
   id: string;
@@ -26,6 +27,12 @@ function hasHighlightCopy(value: { title?: string; description?: string; key?: s
 
 export type ProspectusCompletionOptions = {
   incomeStatementYears?: readonly string[];
+  /**
+   * Whether the issuer organization has a usable MARC SME assessment.
+   * Undefined = not evaluated yet (do not count as missing).
+   * False = one Credit Insights blocker: MARC assessment required.
+   */
+  hasMarcAssessment?: boolean;
 };
 
 const PAGE_THREE_OFFICER_FINANCIAL_FIELDS = [
@@ -36,8 +43,6 @@ const PAGE_THREE_OFFICER_FINANCIAL_FIELDS = [
   "tradeReceivables",
   "totalEquity",
   "quickRatio",
-  "operatingCashFlow",
-  "freeCashFlow",
   "payablesDays",
 ] as const;
 
@@ -105,12 +110,14 @@ export function buildProspectusCompletionChecklist(
   );
 
   const credit = draft.page2.creditInsights;
+  const marcComplete = options?.hasMarcAssessment !== false;
   const creditInsightsComplete =
     hasOption(credit.creditScoreOptionKey) &&
     hasOption(credit.paymentBehaviourOptionKey) &&
     hasOption(credit.creditUtilisationOptionKey) &&
     hasOption(credit.litigationCheckOptionKey) &&
-    hasOption(credit.ccrisStatusOptionKey);
+    hasOption(credit.ccrisStatusOptionKey) &&
+    marcComplete;
 
   const aboutItems = draft.page2.aboutInvoice?.items ?? [];
   const invoiceComplete =
@@ -119,7 +126,8 @@ export function buildProspectusCompletionChecklist(
 
   const issuerPaymasterOfficerComplete =
     hasOption(draft.page2.issuerProfile?.companySize) &&
-    hasOption(draft.page2.invoicePaymaster?.deedOfAssignment) &&
+    hasOption(draft.page2.invoicePaymaster?.deedOfAssignment);
+  const page3PaymasterGradingComplete =
     hasOption(draft.page2.invoicePaymaster?.paymasterRating) &&
     hasOption(draft.page2.invoicePaymaster?.confidenceGrading);
 
@@ -168,6 +176,12 @@ export function buildProspectusCompletionChecklist(
       required: incomeYears.length > 0,
     },
     {
+      id: "page3Paymaster",
+      label: "Page 3 Paymaster Grading",
+      complete: page3PaymasterGradingComplete,
+      required: true,
+    },
+    {
       id: "takeaways",
       label: "Investor Takeaways",
       complete: takeawaysComplete,
@@ -213,7 +227,10 @@ export function getProspectusStepStatuses(
   return {
     0: worstStatus(statusFor("core"), statusFor("highlights")),
     1: statusFor("credit"),
-    2: worstStatus(statusFor("financials"), statusFor("takeaways")),
+    2: worstStatus(
+      statusFor("financials"),
+      worstStatus(statusFor("takeaways"), statusFor("page3Paymaster"))
+    ),
     ...(ready ? { 3: "complete" as const } : {}),
   };
 }
@@ -264,25 +281,31 @@ export function buildProspectusMissingRequiredFields(
   }
   if (!hasOption(draft.page2.invoicePaymaster?.paymasterRating)) {
     missing.push({
-      pageStep: 1,
-      section: "Invoice & Paymaster",
-      field: "Paymaster Rating",
-      tabId: "issuer_paymaster",
+      pageStep: 2,
+      section: "Page 3 Paymaster Grading",
+      field: "Paymaster Grading",
+      tabId: "paymaster_grading",
     });
   }
   if (!hasOption(draft.page2.invoicePaymaster?.confidenceGrading)) {
     missing.push({
-      pageStep: 1,
-      section: "Invoice & Paymaster",
+      pageStep: 2,
+      section: "Page 3 Paymaster Grading",
       field: "Confidence Grading",
-      tabId: "issuer_paymaster",
+      tabId: "paymaster_grading",
+    });
+  }
+
+  if (options?.hasMarcAssessment === false) {
+    missing.push({
+      pageStep: 1,
+      section: "Credit Insights",
+      field: MARC_ASSESSMENT_REQUIRED_MESSAGE,
+      tabId: "credit_invoice",
     });
   }
 
   const creditLabels: Array<[keyof typeof draft.page2.creditInsights, string]> = [
-    ["creditScoreOptionKey", "Credit Score"],
-    ["paymentBehaviourOptionKey", "Payment Behaviour"],
-    ["creditUtilisationOptionKey", "Credit Utilisation"],
     ["litigationCheckOptionKey", "Litigation Check"],
     ["ccrisStatusOptionKey", "CCRIS Status"],
   ];
@@ -325,8 +348,6 @@ export function buildProspectusMissingRequiredFields(
     tradeReceivables: "Trade Receivables",
     totalEquity: "Total Equity",
     quickRatio: "Quick Ratio",
-    operatingCashFlow: "Operating Cash Flow",
-    freeCashFlow: "Free Cash Flow",
     payablesDays: "Payables Days",
   };
 
@@ -419,12 +440,14 @@ export function countProspectusRequiredFields(
   const highlightSlots = 3;
   const page2Officer =
     1 + // company size
-    3 + // DOA, paymaster rating, confidence
-    5 + // credit insights
+    1 + // DOA
+    3 + // MARC assessment (one org blocker) + litigation + CCRIS
     4 + // about invoice
     years.length * PAGE_TWO_OVERRIDE_FIELDS.length;
   const page3Officer =
-    years.length * PAGE_THREE_OFFICER_FINANCIAL_FIELDS.length + 6; // takeaways
+    2 + // paymaster grading + confidence grading
+    years.length * PAGE_THREE_OFFICER_FINANCIAL_FIELDS.length +
+    6; // takeaways
   const total = highlightSlots + page2Officer + page3Officer;
   const missing = missingList.length;
   return {

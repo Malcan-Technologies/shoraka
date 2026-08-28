@@ -1,8 +1,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { formatCurrency } from "@cashsouk/config";
+import { formatInvoiceReference, type AdminContractNoteSummary } from "@cashsouk/types";
 import { StatusBadge } from "@cashsouk/ui";
-import type { AdminContractNoteSummary } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -44,6 +44,12 @@ export function ContractNotesTable({ notes }: { notes: AdminContractNoteSummary[
       <TableBody>
         {notes.map((note) => {
           const status = resolveContractNoteStatusBadge(note);
+          const sourceInvoiceLabel = note.sourceInvoiceId
+            ? formatInvoiceReference({
+                displayReference: note.sourceInvoiceDisplayReference,
+                id: note.sourceInvoiceId,
+              })
+            : null;
           return (
             <TableRow
               key={note.id}
@@ -77,12 +83,12 @@ export function ContractNotesTable({ notes }: { notes: AdminContractNoteSummary[
                 ) : null}
               </TableCell>
               <TableCell className="hidden max-w-[14rem] md:table-cell">
-                {note.sourceInvoiceId ? (
+                {sourceInvoiceLabel ? (
                   <span
                     className="block truncate font-mono text-meta text-muted-foreground"
-                    title={note.sourceInvoiceId}
+                    title={sourceInvoiceLabel}
                   >
-                    {note.sourceInvoiceId}
+                    {sourceInvoiceLabel}
                   </span>
                 ) : (
                   <span className="text-muted-foreground">—</span>

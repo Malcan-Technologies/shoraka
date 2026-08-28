@@ -199,17 +199,30 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
           description: "Your organization onboarding has started and you can continue it at any time.",
         };
       case "ONBOARDING_CANCELLED":
+        // The stored event_type name is historical/forensic (an admin restart cancels the
+        // previous RegTank request and issues a new one) — the portal-facing copy describes
+        // the actual business action (restart), not a permanent termination.
         return {
-          title: "Onboarding Closed",
-          description: "Your organization onboarding was cancelled and will not continue.",
+          title: "Onboarding Restarted",
+          description:
+            "Your previous onboarding request was cancelled and a new onboarding request has been started.",
         };
       case "ONBOARDING_REJECTED":
         return {
           title: "Onboarding Rejected",
           description: `Your organization onboarding was rejected${metadata?.reason ? `: ${metadata.reason}` : "."}`,
         };
-      case "FINAL_APPROVAL_COMPLETED":
+      case "COD_REJECTED":
+        return {
+          title: "Onboarding Rejected",
+          description: "Your organization onboarding was rejected.",
+        };
       case "ONBOARDING_APPROVED":
+        return {
+          title: "Onboarding Submission Approved",
+          description: "Your onboarding submission was approved. We'll notify you when your onboarding is fully complete.",
+        };
+      case "FINAL_APPROVAL_COMPLETED":
         return {
           title: "Onboarding Approved",
           description: "Your organization onboarding was approved and no further action is needed.",
@@ -230,6 +243,7 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
       "ONBOARDING_STARTED",
       "ONBOARDING_CANCELLED",
       "ONBOARDING_REJECTED",
+      "COD_REJECTED",
       "FINAL_APPROVAL_COMPLETED",
       "ONBOARDING_APPROVED",
     ];

@@ -26,6 +26,8 @@ function mapReceipt(receipt: {
   purpose_label: string;
   payer_name: string | null;
   payer_company_name: string | null;
+  payer_unique_id: string | null;
+  payer_registration_number: string | null;
   payer_email: string | null;
   payer_phone: string | null;
   amount: Prisma.Decimal;
@@ -56,6 +58,8 @@ function mapReceipt(receipt: {
     purposeLabel: receipt.purpose_label,
     payerName: receipt.payer_name,
     payerCompanyName: receipt.payer_company_name,
+    payerUniqueId: receipt.payer_unique_id,
+    payerRegistrationNumber: receipt.payer_registration_number,
     payerEmail: receipt.payer_email,
     payerPhone: receipt.payer_phone,
     amount: decimalToNumber(receipt.amount),
@@ -87,19 +91,30 @@ export async function listGatewayPaymentReceipts(
   db: PrismaClient = defaultPrisma
 ) {
   const where: Prisma.GatewayPaymentReceiptWhereInput = {};
+  const and: Prisma.GatewayPaymentReceiptWhereInput[] = [];
 
   if (query.receiptNumber) {
-    where.receipt_number = { contains: query.receiptNumber, mode: "insensitive" };
+    and.push({
+      OR: [
+        { receipt_number: { contains: query.receiptNumber, mode: "insensitive" } },
+        { related_reference: { contains: query.receiptNumber, mode: "insensitive" } },
+      ],
+    });
   }
   if (query.purpose) where.payment_purpose = query.purpose;
   if (query.status) where.status = query.status;
   if (query.payer) {
-    where.OR = [
-      { payer_name: { contains: query.payer, mode: "insensitive" } },
-      { payer_company_name: { contains: query.payer, mode: "insensitive" } },
-      { payer_email: { contains: query.payer, mode: "insensitive" } },
-    ];
+    and.push({
+      OR: [
+        { payer_name: { contains: query.payer, mode: "insensitive" } },
+        { payer_company_name: { contains: query.payer, mode: "insensitive" } },
+        { payer_unique_id: { contains: query.payer, mode: "insensitive" } },
+        { payer_registration_number: { contains: query.payer, mode: "insensitive" } },
+        { payer_email: { contains: query.payer, mode: "insensitive" } },
+      ],
+    });
   }
+  if (and.length > 0) where.AND = and;
   if (query.from || query.to) {
     where.payment_date = {
       ...(query.from ? { gte: new Date(query.from) } : {}),

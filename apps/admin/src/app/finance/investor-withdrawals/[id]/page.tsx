@@ -3,7 +3,7 @@
 import { StatusBadge } from "@cashsouk/ui";
 
 import * as React from "react";
-import { format } from "date-fns";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
@@ -48,6 +48,7 @@ import {
   canResendWithdrawalTrusteeEmail,
   getTrusteeResendCopy,
 } from "@/lib/trustee-letter-resend";
+import { getTrusteeRegenerateCopy } from "@/lib/trustee-letter-regenerate";
 import { getTrusteeSubmitCopy } from "@/lib/trustee-letter-submit-copy";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -60,7 +61,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 function formatDateTime(value: string | null) {
   if (!value) return "—";
-  return format(new Date(value), "dd MMM yyyy, h:mm a");
+  return formatAuditDateTime(value);
 }
 
 function fullAccount(accountNumber: string | undefined) {
@@ -95,6 +96,7 @@ export default function InvestorWithdrawalDetailPage() {
   const markCompleted = useMarkWithdrawalCompleted();
   const [submitConfirmOpen, setSubmitConfirmOpen] = React.useState(false);
   const [resendConfirmOpen, setResendConfirmOpen] = React.useState(false);
+  const [regenerateConfirmOpen, setRegenerateConfirmOpen] = React.useState(false);
 
   const snapshot =
     withdrawal && withdrawal.beneficiarySnapshot && typeof withdrawal.beneficiarySnapshot === "object"
@@ -102,6 +104,9 @@ export default function InvestorWithdrawalDetailPage() {
       : {};
 
   const canGenerateLetter = Boolean(withdrawal && canManage && withdrawal.status === "DRAFT");
+  const canRegenerateLetter = Boolean(
+    withdrawal && canManage && withdrawal.status === "LETTER_GENERATED"
+  );
   const canSubmitToTrustee = Boolean(
     withdrawal && canManage && withdrawal.status === "LETTER_GENERATED"
   );
@@ -127,6 +132,7 @@ export default function InvestorWithdrawalDetailPage() {
     withdrawal?.trusteeAutoSendEmailEnabled === true
   );
   const trusteeResendCopy = getTrusteeResendCopy();
+  const trusteeRegenerateCopy = getTrusteeRegenerateCopy();
   const showResendTrusteeEmail = canResendWithdrawalTrusteeEmail(
     withdrawal?.trusteeEmailSentAt,
     withdrawal?.status
@@ -152,6 +158,17 @@ export default function InvestorWithdrawalDetailPage() {
       await resendTrusteeEmail.mutateAsync(withdrawal.id);
       toast.success(trusteeResendCopy.success);
       setResendConfirmOpen(false);
+    } catch (mutationError) {
+      toast.error(mutationError instanceof Error ? mutationError.message : "Action failed");
+    }
+  };
+
+  const confirmRegenerateLetter = async () => {
+    if (!withdrawal) return;
+    try {
+      await generateLetter.mutateAsync(withdrawal.id);
+      toast.success(trusteeRegenerateCopy.success);
+      setRegenerateConfirmOpen(false);
     } catch (mutationError) {
       toast.error(mutationError instanceof Error ? mutationError.message : "Action failed");
     }
@@ -325,10 +342,15 @@ export default function InvestorWithdrawalDetailPage() {
                         {trusteeEmailedCopy ? (
                           <p className="text-meta text-muted-foreground">{trusteeEmailedCopy}</p>
                         ) : null}
-                        {withdrawal.letterS3Key ? (
+                        {withdrawal.letterS3Key && withdrawal.status === "LETTER_GENERATED" ? (
                           <p className="text-xs text-muted-foreground">
-                            This letter was generated previously. Download opens the saved PDF. Regenerate is
-                            required to apply newer template changes.
+                            This letter was generated previously. Download opens the saved PDF.
+                            Regenerate to apply newer Trustee Letter or Money Flow Account settings
+                            before submitting to the trustee.
+                          </p>
+                        ) : withdrawal.letterS3Key ? (
+                          <p className="text-xs text-muted-foreground">
+                            This letter was generated previously. Download opens the saved PDF.
                           </p>
                         ) : null}
 
@@ -357,6 +379,19 @@ export default function InvestorWithdrawalDetailPage() {
                             }}
                           >
                             Generate letter
+                          </Button>
+                        ) : null}
+
+                        {canRegenerateLetter ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full"
+                            disabled={isActionPending}
+                            onClick={() => setRegenerateConfirmOpen(true)}
+                          >
+                            <ArrowPathIcon className="h-4 w-4" />
+                            {trusteeRegenerateCopy.button}
                           </Button>
                         ) : null}
 
@@ -497,6 +532,32 @@ export default function InvestorWithdrawalDetailPage() {
                 }}
               >
                 {trusteeResendCopy.confirmLabel}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={regenerateConfirmOpen}
+          onOpenChange={(open) => {
+            if (!open && !generateLetter.isPending) setRegenerateConfirmOpen(false);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{trusteeRegenerateCopy.confirmTitle}</AlertDialogTitle>
+              <AlertDialogDescription>{trusteeRegenerateCopy.description}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={generateLetter.isPending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={generateLetter.isPending}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void confirmRegenerateLetter();
+                }}
+              >
+                {trusteeRegenerateCopy.confirmLabel}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

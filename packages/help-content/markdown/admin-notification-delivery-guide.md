@@ -31,7 +31,7 @@ Open **Settings → Notifications**.
 
 **Reset to default** turns Platform and Email back on for every type and adds any types that are missing. Confirm in the popup before you continue.
 
-**Notification Logs** is a history of what was sent. **Admin** rows are broadcasts you sent. **System** rows are automatic alerts. **Recipients** is how many people we tried to reach. **Delivery** is how many of those were selected for the portal or for email — it is not proof that an email was opened.
+Delivery history is under **Audit → Notifications**, not on this settings page. **Admin** rows are broadcasts you sent. **System** rows are automatic alerts. **Recipients** is how many people we tried to reach. **Delivery** is how many of those were selected for the portal or for email — it is not proof that an email was opened.
 
 ## What issuers receive
 
@@ -64,4 +64,4 @@ Investors hear from CashSouk when:
 
 Use **Custom & Groups** to send a one-off message to all users, investors only, issuers only, specific people, or a saved group. You choose the title, message, optional link, and whether it goes to the portal, email, or both. Review the summary in the confirmation dialog before the message is sent.
 
-That send appears in **Notification Logs** as **one Admin row**, with the recipient count for the whole audience. People who received it still see the message in their own portal; the log does not list each person on a separate line.
+That send appears in **Audit → Notifications** as **one Admin row**, with the recipient count for the whole audience. People who received it still see the message in their own portal; the log does not list each person on a separate line.

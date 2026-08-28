@@ -12,7 +12,8 @@ describe("admin vertical timeline", () => {
     expect(shared).toContain("text-ui font-medium leading-snug");
     expect(shared).toContain("text-ui text-muted-foreground");
     expect(shared).toContain("text-meta text-muted-foreground");
-    expect(shared).toContain("formatDistanceToNow");
+    expect(shared).toContain("formatAuditDateTime");
+    expect(shared).not.toContain("formatDistanceToNow");
     expect(shared).not.toContain("text-[10px]");
     expect(shared).not.toContain("text-[11px]");
   });

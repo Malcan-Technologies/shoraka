@@ -45,12 +45,29 @@ describe("note listing expiry capacity routing", () => {
 
     expect(mockCloseFunding).toHaveBeenCalledWith(
       "note-funded",
-      expect.objectContaining({ userId: "SYS" })
+      expect.objectContaining({
+        userId: "SYS",
+        correlationId: "cron:note-listing-expiry",
+        auditContext: expect.objectContaining({
+          actorType: "SYSTEM",
+          source: "SYSTEM_JOB",
+          actorUserId: "SYS",
+          correlationId: "cron:note-listing-expiry",
+        }),
+      })
     );
     expect(mockFailFunding).toHaveBeenCalledWith(
       "note-failed",
-      expect.objectContaining({ userId: "SYS" })
+      expect.objectContaining({
+        userId: "SYS",
+        auditContext: expect.objectContaining({
+          actorType: "SYSTEM",
+          source: "SYSTEM_JOB",
+        }),
+      })
     );
+    expect(mockCloseFunding.mock.calls[0][1].portal).toBeUndefined();
+    expect(mockFailFunding.mock.calls[0][1].portal).toBeUndefined();
     expect(result.notesAutoFunded).toEqual(["note-funded"]);
     expect(result.notesAutoFailed).toEqual(["note-failed"]);
   });

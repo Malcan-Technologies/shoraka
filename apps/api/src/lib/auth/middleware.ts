@@ -5,6 +5,7 @@ import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission, type AdminRoleKey } 
 import { prisma } from "../prisma";
 import { verifyCognitoAccessToken } from "./cognito-jwt-verifier";
 import { resolveAdminAccess } from "./rbac";
+import { fillActiveRoleFromRequiredRoles, requestedRoleFromRequest, resolveActiveRole } from "./request-active-role";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -69,8 +70,7 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     // Set user and cognito sub on request
     req.user = user;
     req.cognitoSub = cognitoPayload.sub;
-    // Default activeRole to first role (can be changed via role switching endpoint)
-    req.activeRole = user.roles[0] || UserRole.INVESTOR;
+    req.activeRole = resolveActiveRole(user.roles, requestedRoleFromRequest(req));
 
     if (user.roles.includes(UserRole.ADMIN)) {
       const admin = await prisma.admin.findUnique({
@@ -138,6 +138,8 @@ export function requireRole(...roles: UserRole[]) {
       next(new AppError(403, "FORBIDDEN", "Issuer onboarding must be completed to access this resource"));
       return;
     }
+
+    req.activeRole = fillActiveRoleFromRequiredRoles(req.activeRole, roles);
 
     next();
   };

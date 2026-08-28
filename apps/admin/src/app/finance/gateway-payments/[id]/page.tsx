@@ -61,6 +61,9 @@ import {
   formatGatewayPaymentFailureReason,
   hasUncertainAmountMismatchRefund,
 } from "./gateway-payment-copy";
+import type { GatewayPaymentEventDto } from "@cashsouk/types";
+import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
+import { gatewayEventToAuditDetail } from "@/components/audit/audit-adapters";
 
 const RECEIPT_STATUS_LABEL: Record<string, string> = {
   PENDING: "Being prepared",
@@ -177,6 +180,7 @@ export default function GatewayPaymentDetailPage() {
   const receiptPdf = useGatewayPaymentReceiptPdf();
   const retryReceipt = useRetryGatewayPaymentReceipt();
   const [showRefundDialog, setShowRefundDialog] = React.useState(false);
+  const [selectedEvent, setSelectedEvent] = React.useState<GatewayPaymentEventDto | null>(null);
 
   const isPending =
     retryRefund.isPending ||
@@ -220,12 +224,18 @@ export default function GatewayPaymentDetailPage() {
     eventType: event.type,
     actor: event.actorName ?? "",
     actorUserId: event.actorUserId ?? "",
-    portal: "",
+    portal: event.portal ?? "",
     remark: event.reason ?? "",
-    metadata: mergeActivityCsvMetadata(null, {
+    metadata: mergeActivityCsvMetadata(event.metadata ?? null, {
       fromStatus: event.fromStatus,
       toStatus: event.toStatus,
     }),
+    actorType: event.actorType,
+    source: event.source,
+    targetType: event.targetType,
+    targetReference: event.targetId,
+    correlationId: event.correlationId,
+    status: event.toStatus,
   }));
 
   const handleRetryRefund = async () => {
@@ -867,11 +877,24 @@ export default function GatewayPaymentDetailPage() {
                               />
                               <DetailRow
                                 label={GATEWAY_PAYMENT_COPY.receipt.receiptName}
-                                value={payment.receipt.payerName || "—"}
+                                value={
+                                  payment.receipt.payerName && payment.receipt.payerUniqueId
+                                    ? `${payment.receipt.payerName} (${payment.receipt.payerUniqueId})`
+                                    : payment.receipt.payerName ||
+                                      payment.receipt.payerUniqueId ||
+                                      "—"
+                                }
                               />
                               <DetailRow
                                 label={GATEWAY_PAYMENT_COPY.receipt.receiptCompany}
-                                value={payment.receipt.payerCompanyName || "—"}
+                                value={
+                                  payment.receipt.payerCompanyName &&
+                                  payment.receipt.payerRegistrationNumber
+                                    ? `${payment.receipt.payerCompanyName} (${payment.receipt.payerRegistrationNumber})`
+                                    : payment.receipt.payerCompanyName ||
+                                      payment.receipt.payerRegistrationNumber ||
+                                      "—"
+                                }
                               />
                               <DetailRow
                                 label={GATEWAY_PAYMENT_COPY.receipt.paymentDate}
@@ -973,14 +996,15 @@ export default function GatewayPaymentDetailPage() {
                                     actorLabel={resolveAdminTimelineActorLabel({
                                       actorName: event.actorName,
                                       actorUserId: event.actorUserId,
-                                      portal: "ADMIN",
+                                      portal: event.portal ?? "ADMIN",
                                     })}
-                                    portal={event.actorUserId ? "ADMIN" : null}
+                                    portal={event.actorUserId ? event.portal ?? "ADMIN" : null}
                                     compactDetails={
                                       fromLabel && toLabel
                                         ? [{ label: "Status", value: `${fromLabel} → ${toLabel}` }]
                                         : undefined
                                     }
+                                    onViewDetails={() => setSelectedEvent(event)}
                                   />
                                 );
                               })}
@@ -996,6 +1020,21 @@ export default function GatewayPaymentDetailPage() {
           </div>
         </div>
 
+        <AuditDetailDrawer
+          open={selectedEvent != null}
+          onOpenChange={(open) => {
+            if (!open) setSelectedEvent(null);
+          }}
+          record={
+            selectedEvent
+              ? gatewayEventToAuditDetail(
+                  selectedEvent,
+                  formatGatewayEventTitle(selectedEvent.type, selectedEvent.reason),
+                  formatGatewayEventDescription(selectedEvent.type, selectedEvent.reason)
+                )
+              : null
+          }
+        />
         <ApplicationReviewRemarkDialog
           open={showRefundDialog}
           onOpenChange={setShowRefundDialog}

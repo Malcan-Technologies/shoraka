@@ -14,17 +14,13 @@ import { formatCurrency } from "@cashsouk/config";
 import {
   MARKETPLACE_MIN_COMMIT_MYR,
   PROSPECTUS_COMPANY_SIZE_VALUES,
-  PROSPECTUS_CONFIDENCE_GRADING_VALUES,
   PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES,
-  PROSPECTUS_PAYMASTER_RATING_VALUES,
   CASHSCOUK_RISK_GRADE_LETTER_COLOR,
-  SOUKSCORE_RISK_RATING_CATALOGUE,
-  SOUKSCORE_RISK_RATING_GRADES,
+  MARC_SME_BANDS,
   normalizeProspectusCompanySize,
-  normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
-  normalizeProspectusPaymasterRating,
-  resolveSoukscoreRiskRatingPresentation,
+  resolveMarcNoteRiskPresentation,
+  type MarcAssessmentSnapshot,
   type ProspectusReviewStoredContent,
 } from "@cashsouk/types";
 import { INVOICE_WORK_FIELD_LABELS } from "@/notes/prospectus-review/labels";
@@ -36,6 +32,7 @@ import {
   countMissingForTab,
   type ProspectusCompletionOptions,
 } from "@/notes/prospectus-review/completion";
+import { ProspectusMarcAssessmentSummary } from "@/notes/prospectus-review/marc-assessment-summary";
 import {
   ProspectusEditableTextField,
   ProspectusEditableTextarea,
@@ -54,9 +51,10 @@ import {
 } from "@/notes/prospectus-review/working-area-placeholders";
 
 const ISSUER_EDITABLE_LABEL = "Company Size";
-const INVOICE_EDITABLE_LABELS = new Set([
+const INVOICE_FACTS_EXCLUDED_LABELS = new Set([
   "Deed of Assignment (DOA)",
   "Paymaster Rating",
+  "Paymaster Grading",
   "Confidence Grading",
 ]);
 
@@ -94,6 +92,9 @@ export type WorkingAreaPageTwoProps = {
     | undefined;
   financialComparisonOpsWarning: { title: string; description: string } | null;
   noteRiskRating: unknown;
+  marcAssessment?: MarcAssessmentSnapshot | null;
+  issuerOrganizationId?: string | null;
+  marcAssessmentLoading?: boolean;
   updateDraft: (
     updater: (prev: ProspectusReviewStoredContent) => ProspectusReviewStoredContent
   ) => void;
@@ -114,6 +115,9 @@ export function WorkingAreaPageTwo({
   financialComparisonOverrides,
   financialComparisonOpsWarning,
   noteRiskRating,
+  marcAssessment = null,
+  issuerOrganizationId = null,
+  marcAssessmentLoading = false,
   updateDraft,
   completionLabel,
   completionOptions,
@@ -132,22 +136,21 @@ export function WorkingAreaPageTwo({
   const deedOfAssignment = normalizeProspectusDeedOfAssignment(
     draft.page2.invoicePaymaster?.deedOfAssignment
   );
-  const paymasterRating = normalizeProspectusPaymasterRating(
-    draft.page2.invoicePaymaster?.paymasterRating
-  );
-  const confidenceGrading = normalizeProspectusConfidenceGrading(
-    draft.page2.invoicePaymaster?.confidenceGrading
-  );
-  const risk = resolveSoukscoreRiskRatingPresentation(noteRiskRating);
+  const risk = resolveMarcNoteRiskPresentation(noteRiskRating);
 
   const filteredIssuerRows = issuerProfileRows.filter((r) => r.label !== ISSUER_EDITABLE_LABEL);
   const filteredInvoiceRows = invoicePaymasterRows.filter(
-    (r) => !INVOICE_EDITABLE_LABELS.has(r.label)
+    (r) => !INVOICE_FACTS_EXCLUDED_LABELS.has(r.label)
   );
 
   const issuerMissing = countMissingForTab(draft, "issuer_paymaster", completionOptions);
   const financialMissing = countMissingForTab(draft, "financial", completionOptions);
   const creditMissing = countMissingForTab(draft, "credit_invoice", completionOptions);
+  const invoiceFactsMissing = deedOfAssignment ? 0 : 1;
+  const creditInsightsMissing =
+    (draft.page2.creditInsights.litigationCheckOptionKey ? 0 : 1) +
+    (draft.page2.creditInsights.ccrisStatusOptionKey ? 0 : 1) +
+    (completionOptions?.hasMarcAssessment === false ? 1 : 0);
 
   const updateFinancialOverride = (fyeKey: string, field: string, value: string) => {
     updateDraft((prev) => ({
@@ -239,11 +242,7 @@ export function WorkingAreaPageTwo({
             <ProspectusSectionShell
               title="Invoice & Paymaster"
               icon={DocumentTextIcon}
-              missingCount={
-                [deedOfAssignment, paymasterRating, confidenceGrading].filter(Boolean).length === 3
-                  ? 0
-                  : 3 - [deedOfAssignment, paymasterRating, confidenceGrading].filter(Boolean).length
-              }
+              missingCount={invoiceFactsMissing}
             >
               <ProspectusInfoGrid>
                 {filteredInvoiceRows.map((row) => (
@@ -268,54 +267,6 @@ export function WorkingAreaPageTwo({
                         invoicePaymaster: {
                           ...prev.page2.invoicePaymaster,
                           deedOfAssignment: normalizeProspectusDeedOfAssignment(value),
-                        },
-                      },
-                    }))
-                  }
-                />
-                <ProspectusOptionSelect
-                  label="Paymaster Rating"
-                  value={paymasterRating}
-                  disabled={disabled}
-                  required
-                  incomplete={!paymasterRating}
-                  placeholder={SELECT_PLACEHOLDERS.paymasterRating}
-                  options={PROSPECTUS_PAYMASTER_RATING_VALUES.map((value) => ({
-                    key: value,
-                    label: value,
-                  }))}
-                  onChange={(value) =>
-                    updateDraft((prev) => ({
-                      ...prev,
-                      page2: {
-                        ...prev.page2,
-                        invoicePaymaster: {
-                          ...prev.page2.invoicePaymaster,
-                          paymasterRating: normalizeProspectusPaymasterRating(value),
-                        },
-                      },
-                    }))
-                  }
-                />
-                <ProspectusOptionSelect
-                  label="Confidence Grading"
-                  value={confidenceGrading}
-                  disabled={disabled}
-                  required
-                  incomplete={!confidenceGrading}
-                  placeholder={SELECT_PLACEHOLDERS.confidenceGrading}
-                  options={PROSPECTUS_CONFIDENCE_GRADING_VALUES.map((value) => ({
-                    key: value,
-                    label: value,
-                  }))}
-                  onChange={(value) =>
-                    updateDraft((prev) => ({
-                      ...prev,
-                      page2: {
-                        ...prev.page2,
-                        invoicePaymaster: {
-                          ...prev.page2.invoicePaymaster,
-                          confidenceGrading: normalizeProspectusConfidenceGrading(value),
                         },
                       },
                     }))
@@ -391,41 +342,45 @@ export function WorkingAreaPageTwo({
 
       {tab === "credit_invoice" ? (
         <div className="space-y-6" role="tabpanel">
-          <ProspectusSectionShell title="Credit Insights" icon={ClipboardDocumentCheckIcon} missingCount={creditMissing}>
-            <ProspectusInfoGrid columns={2}>
-              {(
-                [
-                  ["creditScoreOptionKey", "creditScore", "Credit Score"],
-                  ["paymentBehaviourOptionKey", "paymentBehaviour", "Payment Behaviour"],
-                  ["creditUtilisationOptionKey", "creditUtilisation", "Credit Utilisation"],
-                  ["litigationCheckOptionKey", "litigationCheck", "Litigation Check"],
-                  ["ccrisStatusOptionKey", "ccrisStatus", "CCRIS Status"],
-                ] as const
-              ).map(([field, catalogueKey, label]) => (
-                <ProspectusOptionSelect
-                  key={field}
-                  label={label}
-                  required
-                  disabled={disabled}
-                  incomplete={!draft.page2.creditInsights[field]}
-                  placeholder={SELECT_PLACEHOLDERS[catalogueKey]}
-                  value={draft.page2.creditInsights[field]}
-                  options={catalogues.creditInsights[catalogueKey] ?? []}
-                  onChange={(value) =>
-                    updateDraft((prev) => ({
-                      ...prev,
-                      page2: {
-                        ...prev.page2,
-                        creditInsights: {
-                          ...prev.page2.creditInsights,
-                          [field]: value,
+          <ProspectusSectionShell title="Credit Insights" icon={ClipboardDocumentCheckIcon} missingCount={creditInsightsMissing}>
+            <div className="space-y-6">
+              <ProspectusMarcAssessmentSummary
+                assessment={marcAssessment}
+                issuerOrganizationId={issuerOrganizationId}
+                loading={marcAssessmentLoading}
+              />
+              <ProspectusInfoGrid columns={2}>
+                {(
+                  [
+                    ["litigationCheckOptionKey", "litigationCheck", "Litigation Check"],
+                    ["ccrisStatusOptionKey", "ccrisStatus", "CCRIS Status"],
+                  ] as const
+                ).map(([field, catalogueKey, label]) => (
+                  <ProspectusOptionSelect
+                    key={field}
+                    label={label}
+                    required
+                    disabled={disabled}
+                    incomplete={!draft.page2.creditInsights[field]}
+                    placeholder={SELECT_PLACEHOLDERS[catalogueKey]}
+                    value={draft.page2.creditInsights[field]}
+                    options={catalogues.creditInsights[catalogueKey] ?? []}
+                    onChange={(value) =>
+                      updateDraft((prev) => ({
+                        ...prev,
+                        page2: {
+                          ...prev.page2,
+                          creditInsights: {
+                            ...prev.page2.creditInsights,
+                            [field]: value,
+                          },
                         },
-                      },
-                    }))
-                  }
-                />
-              ))}
-            </ProspectusInfoGrid>
+                      }))
+                    }
+                  />
+                ))}
+              </ProspectusInfoGrid>
+            </div>
           </ProspectusSectionShell>
 
           <div data-prospectus-about-invoice>
@@ -482,36 +437,33 @@ export function WorkingAreaPageTwo({
                     </tr>
                   </thead>
                   <tbody>
-                    {SOUKSCORE_RISK_RATING_GRADES.map((grade) => {
-                      const entry = SOUKSCORE_RISK_RATING_CATALOGUE[grade];
-                      return (
-                        <tr key={grade} className="border-b last:border-0">
-                          <td className="px-3 py-2 font-semibold tabular-nums">
-                            <span
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-xs font-extrabold"
-                              style={{
-                                backgroundColor: entry.color,
-                                color: CASHSCOUK_RISK_GRADE_LETTER_COLOR,
-                              }}
-                              data-grade-color={entry.color}
-                              data-grade-letter-color={CASHSCOUK_RISK_GRADE_LETTER_COLOR}
-                            >
-                              {entry.grade}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2">{entry.label}</td>
-                          <td className="px-3 py-2 text-muted-foreground">
-                            {entry.description}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {MARC_SME_BANDS.map((band) => (
+                      <tr key={band.key} className="border-b last:border-0">
+                        <td className="px-3 py-2 font-semibold tabular-nums">
+                          <span
+                            className="inline-flex min-w-[5.5rem] items-center justify-center rounded-md px-2 py-1 text-xs font-extrabold"
+                            style={{
+                              backgroundColor: band.color,
+                              color: CASHSCOUK_RISK_GRADE_LETTER_COLOR,
+                            }}
+                            data-grade-color={band.color}
+                            data-grade-letter-color={CASHSCOUK_RISK_GRADE_LETTER_COLOR}
+                          >
+                            {band.rangeLabel}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">{band.label}</td>
+                        <td className="px-3 py-2 text-muted-foreground">
+                          {band.groupedExplanation}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
               {!risk.isAvailable ? (
                 <p className="text-sm text-muted-foreground">
-                  No valid Note risk grade selected (—).
+                  Risk rating has not been assigned.
                 </p>
               ) : null}
             </div>

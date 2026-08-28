@@ -37,12 +37,12 @@ describe("admin trustee letter auto-email UI wiring", () => {
     expect(issuerPayout).toContain("useResendWithdrawalTrusteeEmail");
     expect(issuerPayout).toContain("note.trusteeAutoSendEmailEnabled === true");
     expect(issuerPayout).toContain("TRUSTEE_EMAIL_DELIVERED_LABEL");
-    expect(settlement).toContain("serviceFeeTrusteeEmailSentAt");
+    expect(settlement).toContain("settlementTrusteeEmailSentAt");
     expect(settlement).toContain("formatTrusteeInstructionEmailedCopy");
     expect(settlement).toContain("getTrusteeSubmitCopy");
     expect(settlement).toContain("getTrusteeResendCopy");
-    expect(settlement).toContain("canResendServiceFeeTrusteeEmail");
-    expect(settlement).toContain("useResendServiceFeeTrusteeEmail");
+    expect(settlement).toContain("canResendSettlementTrusteeEmail");
+    expect(settlement).toContain("useResendSettlementTrusteeEmail");
     expect(settlement).toContain("note.trusteeAutoSendEmailEnabled === true");
     expect(settlement).toContain("TRUSTEE_EMAIL_DELIVERED_LABEL");
     expect(investorWithdrawal).toContain("trusteeEmailSentAt");
@@ -54,6 +54,12 @@ describe("admin trustee letter auto-email UI wiring", () => {
     expect(investorWithdrawal).toContain("withdrawal?.trusteeAutoSendEmailEnabled === true");
     expect(investorWithdrawal).toContain("TRUSTEE_EMAIL_DELIVERED_LABEL");
     expect(investorWithdrawal).toContain("AlertDialog");
+    expect(issuerPayout).toContain("getTrusteeRegenerateCopy");
+    expect(issuerPayout).toContain('setConfirmAction("regenerate")');
+    expect(settlement).toContain("getTrusteeRegenerateCopy");
+    expect(settlement).toContain('setSettlementTrusteeConfirm("regenerate")');
+    expect(investorWithdrawal).toContain("getTrusteeRegenerateCopy");
+    expect(investorWithdrawal).toContain("setRegenerateConfirmOpen(true)");
     expect(investorWithdrawal).toContain("trusteeSubmitCopy.confirmTitle");
     expect(investorWithdrawal).toContain("trusteeSubmitCopy.description");
     expect(investorWithdrawal).toContain("trusteeSubmitCopy.confirmLabel");

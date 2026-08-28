@@ -2,8 +2,8 @@
 
 import { StatusBadge } from "@cashsouk/ui";
 
-import { format } from "date-fns";
 import Link from "next/link";
+import { formatAuditDate } from "@/components/audit/audit-presentation";
 import {
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
@@ -44,7 +44,7 @@ function maskAccount(accountNumber: string | undefined) {
 
 function formatDate(value: string | null) {
   if (!value) return "—";
-  return format(new Date(value), "dd MMM yyyy");
+  return formatAuditDate(value);
 }
 
 export default function InvestorWithdrawalsPage() {

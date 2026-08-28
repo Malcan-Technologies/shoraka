@@ -10,8 +10,6 @@ const OFFICER: Record<
   string,
   { field: string; kind: "money" | "ratio" | "percent" | "days" }
 > = {
-  "Operating Cash Flow": { field: "operatingCashFlow", kind: "money" },
-  "Free Cash Flow": { field: "freeCashFlow", kind: "money" },
   "Payables Days": { field: "payablesDays", kind: "days" },
 };
 

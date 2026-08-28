@@ -160,8 +160,16 @@ describe("runAcceptanceSigningExpiryJob", () => {
         applicationId: "app-1",
         eventType: "CONTRACT_OFFER_EXPIRED",
         entityId: "contract-1",
+        source: "SYSTEM_JOB",
+        context: expect.objectContaining({
+          actorType: "SYSTEM",
+          source: "SYSTEM_JOB",
+          actorUserId: "SYS",
+          correlationId: "cron:acceptance-signing-expiry",
+        }),
       })
     );
+    expect((logApplicationActivity as jest.Mock).mock.calls[0][0].portal).toBeUndefined();
   });
 
   it("sets OFFER_EXPIRED on invoice review item by scope key and syncs invoice_details section", async () => {
@@ -215,6 +223,11 @@ describe("runAcceptanceSigningExpiryJob", () => {
         applicationId: "app-inv-1",
         eventType: "INVOICE_OFFER_EXPIRED",
         entityId: "invoice-1",
+        source: "SYSTEM_JOB",
+        context: expect.objectContaining({
+          actorType: "SYSTEM",
+          source: "SYSTEM_JOB",
+        }),
       })
     );
   });

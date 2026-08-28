@@ -29,13 +29,16 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     productName: "Invoice Financing",
     issuerIndustry: "Construction",
     sourceApplicationId: "app-1",
+    sourceApplicationDisplayReference: null,
     sourceContractId: null,
     sourceContractDisplayReference: null,
     sourceInvoiceId: null,
+    sourceInvoiceDisplayReference: null,
     issuerOrganizationId: "org-1",
+    issuerOrganizationDisplayReference: null,
     issuerName: "Hidden Issuer Sdn Bhd",
     paymasterName: "Kementerian Kerja Raya",
-    riskRating: "B",
+    riskRating: "SME-3",
     status: "DRAFT",
     listingStatus: "UNPUBLISHED",
     fundingStatus: "NOT_OPEN",
@@ -197,7 +200,6 @@ describe("note & investment details coverage", () => {
       "Profit Rate (p.a.)",
       "Expected Return (p.a.)",
       "Tenure",
-      "Maturity Date",
       "Purpose of Financing",
       "Payment Basis",
       "Shariah Principle",
@@ -254,7 +256,6 @@ describe("note & investment details coverage", () => {
       "Profit Rate (p.a.)",
       "Expected Return (p.a.)",
       "Tenure",
-      "Maturity Date",
       "Purpose of Financing",
       "Payment Basis",
       "Shariah Principle",
@@ -267,11 +268,11 @@ describe("note & investment details coverage", () => {
       "Risk Label",
       "Risk Explanation",
     ]);
-    expect(byId["risk-information"]?.find((r) => r.label === "Risk Rating")?.value).toBe("B");
+    expect(byId["risk-information"]?.find((r) => r.label === "Risk Rating")?.value).toBe("SME-3");
   });
 
   it("keeps Risk Rating, Label, and Explanation; omits Rating Scale Reference from admin", () => {
-    const withGrade = buildNoteInvestmentDetailSections(sampleNote({ riskRating: "C" }));
+    const withGrade = buildNoteInvestmentDetailSections(sampleNote({ riskRating: "SME-5" }));
     const risk = withGrade.find((s) => s.id === "risk-information")!;
     expect(risk.title).toBe("Risk Information");
     expect(risk.rows.map((r) => r.label)).toEqual([
@@ -279,70 +280,28 @@ describe("note & investment details coverage", () => {
       "Risk Label",
       "Risk Explanation",
     ]);
-    expect(risk.rows.find((r) => r.label === "Risk Rating")?.value).toBe("C");
+    expect(risk.rows.find((r) => r.label === "Risk Rating")?.value).toBe("SME-5");
     expect(risk.rows.find((r) => r.label === "Risk Label")?.value).toBe("Moderate Risk");
     expect(risk.rows.find((r) => r.label === "Risk Explanation")?.value).toBe(
-      "The note reflects typical SME and transaction-level risks. Certain risk factors such as shorter operating history, moderate leverage, or first-time commercial relationships may be present. Suitable for investors comfortable with standard SME credit exposure."
+      "Moderate credit strength with moderate non-repayment risk"
     );
     expect(risk.rows.some((r) => r.label === "Rating Scale Reference")).toBe(false);
     expect(JSON.stringify(risk.rows)).not.toMatch(/See rating scale on page 2/);
+    expect(JSON.stringify(risk.rows)).not.toContain("typical SME and transaction-level risks");
 
-    const expectedByGrade: Record<string, { label: string; explanation: string }> = {
-      A: {
-        label: "Lower Risk",
-        explanation:
-          "The note demonstrates strong paymaster quality, sound transaction structure, stable issuer profile, and minimal adverse indicators. While not risk-free, it reflects relatively lower expected credit and operational risk compared to other notes on the platform.",
-      },
-      B: {
-        label: "Moderate-Low Risk",
-        explanation:
-          "The note presents generally favourable risk characteristics with minor sensitivities. Some moderate risk factors may be present, but overall structural and credit indicators remain sound.",
-      },
-      C: {
-        label: "Moderate Risk",
-        explanation:
-          "The note reflects typical SME and transaction-level risks. Certain risk factors such as shorter operating history, moderate leverage, or first-time commercial relationships may be present. Suitable for investors comfortable with standard SME credit exposure.",
-      },
-      D: {
-        label: "Higher Risk",
-        explanation:
-          "The note contains elevated risk characteristics, such as higher leverage, limited payment history, structural limitations, or weaker financial indicators. Investors should expect greater variability in payment timing and outcomes.",
-      },
-      E: {
-        label: "High Risk",
-        explanation:
-          "The note demonstrates multiple risk sensitivities, including financial, structural, or behavioural concerns. Suitable only for investors with higher risk tolerance and understanding of potential delay or recovery scenarios.",
-      },
-      F: {
-        label: "Not Eligible",
-        explanation:
-          "The note does not meet the Platform’s minimum listing standards due to legal, structural, integrity, or material credit concerns. It will not be made available for investment.",
-      },
-    };
-
-    for (const grade of ["A", "B", "C", "D", "E", "F"] as const) {
-      const rows = buildNoteInvestmentDetailSections(sampleNote({ riskRating: grade })).find(
-        (s) => s.id === "risk-information"
-      )!.rows;
-      expect(rows).toEqual([
-        { label: "Risk Rating", value: grade },
-        { label: "Risk Label", value: expectedByGrade[grade]!.label },
-        { label: "Risk Explanation", value: expectedByGrade[grade]!.explanation },
-      ]);
-    }
+    const letter = buildNoteInvestmentDetailSections(
+      sampleNote({ riskRating: "C" as never })
+    ).find((s) => s.id === "risk-information")!.rows;
+    expect(letter.find((r) => r.label === "Risk Rating")?.value).toBe("—");
+    expect(letter.find((r) => r.label === "Risk Label")?.value).toBe("—");
+    expect(letter.find((r) => r.label === "Risk Explanation")?.value).toBe("—");
 
     const missing = buildNoteInvestmentDetailSections(sampleNote({ riskRating: null })).find(
       (s) => s.id === "risk-information"
     )!.rows;
-    expect(missing.find((r) => r.label === "Risk Rating")?.value).toBe(
-      "—"
-    );
-    expect(missing.find((r) => r.label === "Risk Label")?.value).toBe(
-      "—"
-    );
-    expect(missing.find((r) => r.label === "Risk Explanation")?.value).toBe(
-      "—"
-    );
+    expect(missing.find((r) => r.label === "Risk Rating")?.value).toBe("—");
+    expect(missing.find((r) => r.label === "Risk Label")?.value).toBe("—");
+    expect(missing.find((r) => r.label === "Risk Explanation")?.value).toBe("—");
 
     const invalid = buildNoteInvestmentDetailSections(
       sampleNote({ riskRating: "AAA" as never })
@@ -419,7 +378,7 @@ describe("note & investment details coverage", () => {
   });
 });
 
-describe("Investment Summary Tenure and Maturity Date", () => {
+describe("Investment Summary Tenure (Maturity Date remains under Dates & Paymaster)", () => {
   function sectionRows(note: NoteDetail, id: string) {
     return buildNoteInvestmentDetailSections(note).find((s) => s.id === id)!.rows;
   }
@@ -428,14 +387,13 @@ describe("Investment Summary Tenure and Maturity Date", () => {
     return rows.find((r) => r.label === label)?.value;
   }
 
-  it("includes Tenure and Maturity Date in the approved Investment Summary order", () => {
+  it("includes Tenure in the approved Investment Summary order without Maturity Date", () => {
     expect(sectionRows(sampleNote(), "investment-terms").map((r) => r.label)).toEqual([
       "Financing Amount",
       "Minimum Investment",
       "Profit Rate (p.a.)",
       "Expected Return (p.a.)",
       "Tenure",
-      "Maturity Date",
       "Purpose of Financing",
       "Payment Basis",
       "Shariah Principle",
@@ -456,12 +414,12 @@ describe("Investment Summary Tenure and Maturity Date", () => {
     expect(value(dates, "Maturity Date")).toBeTruthy();
   });
 
-  it("matches Tenure and Maturity Date between Dates & Paymaster and Investment Summary", () => {
+  it("keeps Tenure in Investment Summary without duplicating Maturity Date", () => {
     const note = sampleNote();
     const dates = sectionRows(note, "dates-paymaster");
     const summary = sectionRows(note, "investment-terms");
     expect(value(summary, "Tenure")).toBe(value(dates, "Tenure"));
-    expect(value(summary, "Maturity Date")).toBe(value(dates, "Maturity Date"));
+    expect(value(summary, "Maturity Date")).toBeUndefined();
   });
 
   it("uses calculateCalendarDayCount and formatUtcCalendarDateEnMy without a second tenure formula", () => {
@@ -486,7 +444,7 @@ describe("Investment Summary Tenure and Maturity Date", () => {
       "investment-terms"
     );
     expect(value(summary, "Tenure")).toBe("120 days");
-    expect(value(summary, "Maturity Date")).toBe("12 September 2025");
+    expect(value(summary, "Maturity Date")).toBeUndefined();
 
     const source = fs.readFileSync(path.join(__dirname, "core-terms.ts"), "utf8");
     expect(source).toContain("calculateCalendarDayCount");
@@ -496,7 +454,7 @@ describe("Investment Summary Tenure and Maturity Date", () => {
     expect(source).not.toMatch(/daysLeft|investorDays|differenceInCalendarDays/);
   });
 
-  it("shows — for missing Tenure and Maturity Date in Investment Summary", () => {
+  it("shows — for missing Tenure in Investment Summary", () => {
     const base = sampleNote();
     const summary = sectionRows(
       sampleNote({
@@ -509,7 +467,7 @@ describe("Investment Summary Tenure and Maturity Date", () => {
       "investment-terms"
     );
     expect(value(summary, "Tenure")).toBe("—");
-    expect(value(summary, "Maturity Date")).toBe("—");
+    expect(value(summary, "Maturity Date")).toBeUndefined();
   });
 
   it("uses stored tenure and from-disbursement copy for new notes before activation", () => {
@@ -694,7 +652,7 @@ describe("Risk Information prospectus/admin boundary", () => {
 
   it("resolves grade-to-label and explanation from the shared catalogue in admin", () => {
     const adminCore = fs.readFileSync(path.join(__dirname, "core-terms.ts"), "utf8");
-    expect(adminCore).toContain("resolveSoukscoreRiskRatingPresentation");
+    expect(adminCore).toContain("resolveMarcNoteRiskPresentation");
     expect(adminCore).not.toContain('label: "Risk Label", value: DATA_NOT_AVAILABLE');
     expect(adminCore).not.toContain('label: "Risk Explanation", value: DATA_NOT_AVAILABLE');
   });

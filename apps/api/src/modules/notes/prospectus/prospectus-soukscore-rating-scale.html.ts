@@ -3,10 +3,32 @@
  * WHY: Full A–F reference scale; white grade letters; no selected-grade highlight
  */
 
-import { CASHSCOUK_RISK_GRADE_LETTER_COLOR } from "@cashsouk/types";
+import { CASHSCOUK_RISK_GRADE_LETTER_COLOR, MARC_SME_BANDS } from "@cashsouk/types";
 import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
 import { PROSPECTUS_RISK_SCALE_NOTE } from "./prospectus-static-copy";
 import type { ProspectusSoukscoreRatingScale } from "./prospectus-soukscore-rating-scale.types";
+
+export function buildProspectusMarcRatingScaleSectionHtml(): string {
+  const gradeCells = MARC_SME_BANDS.map((band) => {
+    return `    <div data-grade="${escapeHtml(band.rangeLabel)}">
+      <b class="grade marc ${escapeHtmlAttribute(band.key)}" style="background:${escapeHtmlAttribute(
+        band.color
+      )};color:${escapeHtmlAttribute(CASHSCOUK_RISK_GRADE_LETTER_COLOR)}">${escapeHtml(
+        band.rangeLabel
+      )}</b>
+      <strong>${escapeHtml(band.label)}</strong>
+      <span>${escapeHtml(band.groupedExplanation)}</span>
+    </div>`;
+  }).join("\n");
+
+  return `<section data-stage="7" data-marc-scale-version="sme-1-10">
+  <h2>Risk Rating Scale</h2>
+  <div class="risk-scale marc-scale" aria-label="MARC SME Risk Rating Scale">
+${gradeCells}
+  </div>
+  <em class="risk-scale-note">${escapeHtml(PROSPECTUS_RISK_SCALE_NOTE)}</em>
+</section>`;
+}
 
 /** Shared section markup used by stage preview and full Page 2 assembly. */
 export function buildProspectusSoukscoreRatingScaleSectionHtml(

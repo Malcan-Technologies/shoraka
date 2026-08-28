@@ -99,6 +99,7 @@ export interface InvoiceSectionProps {
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
   onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
+  suggestedMarcGrade?: string | null;
   sectionComparison?: {
     beforeInvoices: InvoiceSectionProps["invoices"];
     afterInvoices: InvoiceSectionProps["invoices"];
@@ -288,6 +289,7 @@ export function InvoiceSection({
   comments,
   onAddComment,
   onViewSignedInvoiceOffer,
+  suggestedMarcGrade = null,
   sectionComparison,
   hideSectionComments = false,
   contractId,
@@ -323,7 +325,7 @@ export function InvoiceSection({
               return (
                 <ReviewFieldBlock
                   key={id}
-                  title={`Invoice ${invoiceDetailString(bInv ?? aInv!, "number") !== REVIEW_EMPTY_LABEL ? invoiceDetailString(bInv ?? aInv!, "number") : id}`}
+                  title={invoiceTabLabel(bInv ?? aInv!)}
                 >
                   <div className="space-y-2">
                     <ComparisonFieldRow
@@ -587,6 +589,7 @@ export function InvoiceSection({
                     remainingAllocation={contractFacility?.lifetimeRemaining}
                     facilityOverLimit={contractFacility?.isOverLimit}
                     scopeKey={scopeKey}
+                    suggestedMarcGrade={suggestedMarcGrade}
                   />
                 </ReviewFieldBlock>
               </TabsContent>

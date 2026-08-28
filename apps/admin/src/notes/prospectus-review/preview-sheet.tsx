@@ -64,6 +64,23 @@ function ProspectusPreviewSheetComponent(props: ProspectusPreviewSheetProps) {
     [props.html]
   );
 
+  const availableTabs = React.useMemo(
+    () =>
+      PROSPECTUS_PREVIEW_TABS.filter((key) => {
+        if (key === "allPages" || key === "page1" || key === "page2" || key === "page3") {
+          return true;
+        }
+        return Boolean(cleanedHtml?.[key]);
+      }),
+    [cleanedHtml]
+  );
+
+  React.useEffect(() => {
+    if (!availableTabs.includes(tab)) {
+      setTab("page1");
+    }
+  }, [availableTabs, tab]);
+
   const html = cleanedHtml ? resolveOpenInNewTabHtml(cleanedHtml, tab) : "";
   const showInitialLoading = props.isLoading && !cleanedHtml;
   const showRefreshHint = Boolean(props.isFetching && cleanedHtml);
@@ -90,7 +107,7 @@ function ProspectusPreviewSheetComponent(props: ProspectusPreviewSheetProps) {
               onValueChange={(value) => setTab(value as ProspectusPreviewTab)}
             >
               <TabsList className="flex h-auto w-auto flex-wrap justify-start gap-1 bg-transparent p-0">
-                {PROSPECTUS_PREVIEW_TABS.map((key) => (
+                {availableTabs.map((key) => (
                   <TabsTrigger
                     key={key}
                     value={key}

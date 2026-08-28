@@ -38,6 +38,10 @@ export const ADMIN_PERMISSIONS = [
   "organizations.view",
   "organizations.manage",
 
+  // Paymaster master (legal customer / obligor)
+  "paymasters.view",
+  "paymasters.manage",
+
   // Roles / Permission Configuration
   "roles.view",
   "roles.manage",
@@ -60,7 +64,7 @@ export const ADMIN_PERMISSIONS = [
   "bucket_balances.view",
   "repayments.view",
   "disbursements.view",
-  "service_fee.view",
+  "settlements.view",
   "investor_withdrawals.view",
   "investor_withdrawals.manage",
   "gateway_payments.view",
@@ -239,6 +243,12 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
     permissions: pickPermissions("organizations.view", "organizations.manage"),
   },
   {
+    key: "paymasters",
+    label: "Paymasters",
+    description: "View and review reusable Paymaster (customer/obligor) records and mismatch flags.",
+    permissions: pickPermissions("paymasters.view", "paymasters.manage"),
+  },
+  {
     key: "audit",
     label: "Audit Logs",
     description: "Read-only access to audit logs.",
@@ -263,7 +273,7 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
       "bucket_balances.view",
       "repayments.view",
       "disbursements.view",
-      "service_fee.view",
+      "settlements.view",
       "investor_withdrawals.view",
       "investor_withdrawals.manage",
       "gateway_payments.view",

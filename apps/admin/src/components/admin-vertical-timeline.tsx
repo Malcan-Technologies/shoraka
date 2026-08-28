@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { format, formatDistanceToNow } from "date-fns";
 import { ComputerDesktopIcon, UserIcon } from "@heroicons/react/24/outline";
 import { Skeleton } from "@cashsouk/ui";
 import {
@@ -16,6 +15,7 @@ import {
   type AdminTimelineOriginator,
 } from "@/components/admin-timeline-originator";
 import { cn } from "@/lib/utils";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 
 export type { AdminTimelineDetail };
 
@@ -115,6 +115,7 @@ export function AdminVerticalTimelineItem({
   compactDetails,
   prose,
   footer,
+  onViewDetails,
 }: {
   title: string;
   description?: string | null;
@@ -127,6 +128,7 @@ export function AdminVerticalTimelineItem({
   compactDetails?: AdminTimelineDetail[];
   prose?: AdminTimelineDetail[];
   footer?: React.ReactNode;
+  onViewDetails?: () => void;
 }) {
   const created = createdAt instanceof Date ? createdAt : new Date(createdAt);
   const originator = resolveAdminTimelineOriginator({ actorLabel, portal });
@@ -137,6 +139,7 @@ export function AdminVerticalTimelineItem({
   });
   const compactRows = compactDetails ?? [];
   const proseRows = prose ?? [];
+  const timestamp = formatAuditDateTime(created);
 
   return (
     <div className="relative flex gap-3">
@@ -147,9 +150,9 @@ export function AdminVerticalTimelineItem({
           <time
             className="shrink-0 text-meta tabular-nums text-muted-foreground"
             dateTime={created.toISOString()}
-            title={format(created, "PPpp")}
+            title={timestamp}
           >
-            {formatDistanceToNow(created, { addSuffix: true })}
+            {timestamp}
           </time>
         </div>
 
@@ -173,9 +176,18 @@ export function AdminVerticalTimelineItem({
           </div>
         ) : null}
 
-        {timestampActions ? (
+        {timestampActions || onViewDetails ? (
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-ui text-muted-foreground">
             {timestampActions}
+            {onViewDetails ? (
+              <button
+                type="button"
+                onClick={onViewDetails}
+                className="hover:text-foreground hover:underline"
+              >
+                View details
+              </button>
+            ) : null}
           </div>
         ) : null}
 

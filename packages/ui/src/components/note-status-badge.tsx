@@ -3,6 +3,8 @@ import type { NoteDetail, NoteListItem } from "@cashsouk/types";
 import {
   isSettlementWrappingUpFromSettlements,
   isSettlementWrappingUpFromSummary,
+  isMarcSmeGrade,
+  marcBandForGrade,
 } from "@cashsouk/types";
 import {
   ArchiveBoxIcon,
@@ -335,7 +337,15 @@ export function NoteStatusBadge({
 }
 
 function soukscoreRiskRatingClass(riskRating: string | null | undefined): string {
-  const grade = riskRating?.trim().toUpperCase();
+  const raw = riskRating?.trim();
+  if (isMarcSmeGrade(raw)) {
+    const key = marcBandForGrade(raw)?.key;
+    if (key === "a" || key === "b") return NOTE_STATUS_BADGE_TONE_CLASS.success;
+    if (key === "c") return NOTE_STATUS_BADGE_TONE_CLASS.info;
+    if (key === "d") return NOTE_STATUS_BADGE_TONE_CLASS.warning;
+    return NOTE_STATUS_BADGE_TONE_CLASS.destructive;
+  }
+  const grade = raw?.toUpperCase();
   if (grade === "A" || grade === "B") {
     return NOTE_STATUS_BADGE_TONE_CLASS.success;
   }
@@ -358,7 +368,11 @@ export function SoukscoreRiskRatingBadge({
   riskRating: string | null | undefined;
   className?: string;
 }) {
-  const display = riskRating?.trim() ? riskRating.trim().toUpperCase() : null;
+  const display = isMarcSmeGrade(riskRating?.trim())
+    ? riskRating!.trim()
+    : riskRating?.trim()
+      ? riskRating.trim()
+      : null;
   return (
     <Badge
       variant="outline"

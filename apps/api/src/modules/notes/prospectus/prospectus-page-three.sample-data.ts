@@ -24,7 +24,7 @@ export const SAMPLE_PROSPECTUS_PAGE_THREE_INPUT: ProspectusPageThreeBuilderInput
   },
   invoiceSnapshot: {
     details: { value: 625000 },
-    offer_details: { risk_rating: "B" },
+    offer_details: { risk_rating: "SME-3" },
   },
   paymasterSnapshot: {
     name: "Kementerian Kerja Raya",

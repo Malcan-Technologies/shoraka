@@ -159,7 +159,7 @@ describe("buildFacilityTransactions", () => {
       ],
     });
     expect(rows.map((row) => row.label)).toEqual(
-      expect.arrayContaining(["Funding requested", "Funding approved", "Invoice offer sent"])
+      expect.arrayContaining(["Funding requested", "Funding approved", "You Received an Invoice Offer"])
     );
   });
 
@@ -169,7 +169,7 @@ describe("buildFacilityTransactions", () => {
       invoices: [],
       logs: [log({ event_type: "CONTRACT_OFFER_SENT" })],
     });
-    const offerSent = rows.filter((row) => row.label === "Facility offer sent");
+    const offerSent = rows.filter((row) => row.label === "You Received a Facility Offer");
     expect(offerSent).toHaveLength(1);
     expect(offerSent[0]?.id).toBe("log:log_1");
   });
@@ -278,6 +278,63 @@ describe("buildFacilityTransactions", () => {
     });
     const times = rows.map((row) => (row.at ? Date.parse(row.at) : 0));
     expect(times).toEqual([...times].sort((a, b) => b - a));
+  });
+
+  it("labels AMENDMENTS_SUBMITTED as CashSouk sending an amendment request", () => {
+    const rows = buildFacilityTransactions({
+      contract: contract(),
+      invoices: [],
+      logs: [log({ id: "amd", event_type: "AMENDMENTS_SUBMITTED" })],
+    });
+    const row = rows.find((r) => r.id === "log:amd");
+    expect(row?.label).toBe("Amendment Request Sent");
+    expect(row?.label).not.toMatch(/you submitted/i);
+    expect(row?.label).not.toMatch(/amendments submitted/i);
+  });
+
+  it("keeps APPLICATION_RESUBMITTED as the issuer submitting updated content", () => {
+    const rows = buildFacilityTransactions({
+      contract: contract(),
+      invoices: [],
+      logs: [log({ id: "resub", event_type: "APPLICATION_RESUBMITTED" })],
+    });
+    const row = rows.find((r) => r.id === "log:resub");
+    expect(row?.label).toBe("Facility Application Resubmitted");
+  });
+});
+
+describe("buildFacilityTransactions — signing deadline extended visibility", () => {
+  it("shows CONTRACT_SIGNING_DEADLINE_EXTENDED as a facility-side row", () => {
+    const rows = buildFacilityTransactions({
+      contract: contract(),
+      invoices: [],
+      logs: [log({ id: "l1", event_type: "CONTRACT_SIGNING_DEADLINE_EXTENDED" })],
+    });
+    const row = rows.find((r) => r.id === "log:l1");
+    expect(row?.label).toBe("Signing deadline extended");
+  });
+
+  it("shows INVOICE_SIGNING_DEADLINE_EXTENDED as an invoice-linked row", () => {
+    const rows = buildFacilityTransactions({
+      contract: contract(),
+      invoices: [invoice()],
+      logs: [log({ id: "l2", event_type: "INVOICE_SIGNING_DEADLINE_EXTENDED" })],
+    });
+    const row = rows.find((r) => r.id === "log:l2");
+    expect(row?.label).toBe("Signing deadline extended");
+  });
+
+  it("does not expose admin-only acceptance-approved-for-signing events", () => {
+    const rows = buildFacilityTransactions({
+      contract: contract(),
+      invoices: [],
+      logs: [
+        log({ id: "l3", event_type: "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING" }),
+        log({ id: "l4", event_type: "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING" }),
+      ],
+    });
+    expect(rows.find((r) => r.id === "log:l3")).toBeUndefined();
+    expect(rows.find((r) => r.id === "log:l4")).toBeUndefined();
   });
 });
 

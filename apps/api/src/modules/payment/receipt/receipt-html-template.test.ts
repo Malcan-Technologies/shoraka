@@ -14,6 +14,8 @@ describe("receipt-html-template", () => {
     },
     payerName: "Ali",
     payerCompanyName: "Ali Sdn Bhd",
+    payerUniqueId: null,
+    payerRegistrationNumber: "123456-A",
     payerEmail: "ali@example.com",
     payerPhone: "+60123456789",
     purposeLabel: "Investor Deposit",
@@ -41,6 +43,9 @@ describe("receipt-html-template", () => {
     expect(html).not.toContain("dep_");
     expect(html).toContain("Wallet Credit Status");
     expect(html).toContain("Credited");
+    expect(html).toContain("Ali Sdn Bhd (123456-A)");
+    expect(html).not.toContain("Registration No.");
+    expect(html).not.toContain("Unique ID");
     expect(html).toContain("This is a computer-generated receipt");
   });
 
@@ -74,6 +79,8 @@ describe("receipt-html-template", () => {
       },
       payerName: "<b>Ali</b>",
       payerCompanyName: null,
+      payerUniqueId: "IVT-<script>",
+      payerRegistrationNumber: null,
       payerEmail: null,
       payerPhone: null,
       purposeLabel: "Issuer Registration Fee",
@@ -90,7 +97,45 @@ describe("receipt-html-template", () => {
     });
 
     expect(escaped).toContain("REG&lt;script&gt;");
-    expect(escaped).toContain("&lt;b&gt;Ali&lt;/b&gt;");
+    expect(escaped).toContain("&lt;b&gt;Ali&lt;/b&gt; (IVT-&lt;script&gt;)");
+    expect(escaped).not.toContain("Unique ID");
     expect(escaped).not.toContain("<script>");
+  });
+
+  it("prints unique ID for individuals and omits empty registration", () => {
+    const individual = buildPaymentReceiptHtml({
+      receiptNumber: "RCP-20260803-003",
+      receiptDateLabel: "date",
+      merchant: {
+        legalName: "CashSouk Sdn Bhd",
+        registrationNumber: null,
+        licenceNumber: null,
+        address: null,
+        telephone: null,
+        email: null,
+      },
+      payerName: "Ali Bin Abu",
+      payerCompanyName: null,
+      payerUniqueId: "IVT-202608-A12",
+      payerRegistrationNumber: null,
+      payerEmail: null,
+      payerPhone: null,
+      purposeLabel: "Investor Deposit",
+      amountLabel: "RM 100.00",
+      currency: "MYR",
+      paymentMethod: "fpx",
+      paymentStatus: "Paid",
+      paymentDateLabel: "date",
+      curlecPaymentId: null,
+      curlecOrderId: "order_1",
+      relatedReferenceLabel: null,
+      relatedReference: null,
+      walletCreditStatus: "Credited",
+    });
+
+    expect(individual).toContain("Ali Bin Abu (IVT-202608-A12)");
+    expect(individual).not.toContain("Unique ID");
+    expect(individual).not.toContain("Registration No.");
+    expect(individual).not.toContain(">Company<");
   });
 });

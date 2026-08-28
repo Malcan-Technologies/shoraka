@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   ArrowDownTrayIcon,
   ClockIcon,
@@ -17,33 +18,35 @@ import {
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { AdminActivityCsvExportButton } from "@/components/admin-activity-csv-export-button";
 import { resolveAdminTimelineActorLabel } from "@/components/admin-timeline-originator";
-import {
-  formatNoteActivityEventLabel,
-  noteEventToActivityCsvRow,
-} from "@/notes/utils/note-activity-csv";
+import { useNoteEventsExport } from "@/notes/hooks/use-note-events-export";
+import { formatNoteActivityEventLabel } from "@/notes/utils/note-activity-csv";
 import {
   extractNoteTimelineDetails,
   noteDocumentFileName,
 } from "@/notes/utils/note-timeline-details";
+import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
+import { noteEventToAuditDetail } from "@/components/audit/audit-adapters";
 
 function extractS3Key(event: NoteEvent) {
   const s3Key = event.metadata?.s3Key;
   return typeof s3Key === "string" && s3Key.trim() ? s3Key : null;
 }
 
-function buildDownloadName(event: NoteEvent) {
-  if (event.eventType === "ARREARS_LETTER_GENERATED") return `arrears-letter-${event.noteId}.pdf`;
-  if (event.eventType === "SERVICE_FEE_TRUSTEE_LETTER_GENERATED") {
-    return `settlement-trustee-letter-${event.noteId}.pdf`;
+function buildDownloadName(event: NoteEvent, noteReference: string) {
+  const ref = noteReference.trim() || event.noteId;
+  if (event.eventType === "ARREARS_LETTER_GENERATED") return `arrears-letter-${ref}.pdf`;
+  if (event.eventType === "SETTLEMENT_TRUSTEE_LETTER_GENERATED") {
+    return `settlement-trustee-letter-${ref}.pdf`;
   }
-  return `note-letter-${event.noteId}.pdf`;
+  return `note-letter-${ref}.pdf`;
 }
 
 export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
+  const exportNoteEvents = useNoteEventsExport(note.id);
   const totalCount = note.events.length;
-  const csvRows = note.events.map(noteEventToActivityCsvRow);
+  const [selectedEvent, setSelectedEvent] = useState<NoteEvent | null>(null);
 
   return (
     <Card className="rounded-2xl">
@@ -58,7 +61,8 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
         actions={
           <AdminActivityCsvExportButton
             fileName={`${note.noteReference}-activity.csv`}
-            rows={csvRows}
+            rows={exportNoteEvents}
+            disabled={totalCount === 0}
           />
         }
       />
@@ -71,7 +75,7 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
           <AdminVerticalTimeline>
             {note.events.map((event) => {
               const s3Key = extractS3Key(event);
-              const { compact, prose } = extractNoteTimelineDetails(event);
+              const { compact, prose } = extractNoteTimelineDetails(event, note.title);
 
               return (
                 <AdminVerticalTimelineItem
@@ -86,6 +90,7 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                   portal={event.portal}
                   compactDetails={compact}
                   prose={prose}
+                  onViewDetails={() => setSelectedEvent(event)}
                   footer={
                     s3Key ? (
                       <AdminTimelineDetailCard>
@@ -111,7 +116,7 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                               size="sm"
                               variant="outline"
                               className="gap-1.5"
-                              onClick={() => handleDownloadDocument(s3Key, buildDownloadName(event))}
+                              onClick={() => handleDownloadDocument(s3Key, buildDownloadName(event, note.noteReference))}
                               disabled={viewDocumentPending}
                             >
                               <ArrowDownTrayIcon className="h-4 w-4" />
@@ -128,6 +133,20 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
           </AdminVerticalTimeline>
         )}
       </CardContent>
+      <AuditDetailDrawer
+        open={selectedEvent != null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedEvent(null);
+        }}
+        record={
+          selectedEvent
+            ? noteEventToAuditDetail(
+                selectedEvent,
+                formatNoteActivityEventLabel(selectedEvent.eventType, selectedEvent.metadata)
+              )
+            : null
+        }
+      />
     </Card>
   );
 }

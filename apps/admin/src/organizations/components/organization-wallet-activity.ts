@@ -22,6 +22,7 @@ export type WalletActivityRow = {
   amount: number;
   balance: number;
   postedAt: string;
+  entry: InvestorBalanceActivityEntry;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -77,6 +78,7 @@ export function mapWalletActivityEntry(
     amount: entry.amount,
     balance: runningBalance,
     postedAt: entry.postedAt,
+    entry,
   };
 }
 

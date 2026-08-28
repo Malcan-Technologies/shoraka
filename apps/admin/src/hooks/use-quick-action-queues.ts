@@ -29,7 +29,7 @@ import {
   usePendingInvestorWithdrawals,
   usePendingIssuerPayouts,
   usePendingRepayments,
-  usePendingServiceFeeTrusteeLetters,
+  usePendingSettlementTrusteeLetters,
 } from "@/notes/hooks/use-notes";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useGatewayPaymentsExceptionCount } from "@/hooks/use-gateway-payments";
@@ -41,7 +41,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
   const canApplications = can("applications.view");
   const canNotes = can("notes.view");
   const canRepayments = can("repayments.view");
-  const canServiceFee = can("service_fee.view");
+  const canSettlements = can("settlements.view");
   const canDisbursements = can("disbursements.view");
   const canViewInvestorWithdrawals = can("investor_withdrawals.view");
   const canViewGatewayPayments = can("gateway_payments.view");
@@ -62,8 +62,8 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
     usePendingIssuerPayouts({ enabled: canDisbursements });
   const { data: pendingInvestorWithdrawalsData, isLoading: isPendingInvestorWithdrawalsLoading } =
     usePendingInvestorWithdrawals({ enabled: canViewInvestorWithdrawals });
-  const { data: pendingServiceFeeLettersData, isLoading: isPendingServiceFeeLettersLoading } =
-    usePendingServiceFeeTrusteeLetters({ enabled: canServiceFee });
+  const { data: pendingSettlementTrusteeLettersData, isLoading: isPendingSettlementTrusteeLettersLoading } =
+    usePendingSettlementTrusteeLetters({ enabled: canSettlements });
   const { data: gatewayPaymentExceptionsData, isLoading: isGatewayPaymentExceptionsLoading } =
     useGatewayPaymentsExceptionCount({ enabled: canViewGatewayPayments });
   const { data: gatewayReconExceptionsData, isLoading: isGatewayReconExceptionsLoading } =
@@ -89,7 +89,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
   const pendingRepaymentsCount = pendingRepaymentsData?.count ?? 0;
   const pendingIssuerPayoutsCount = pendingIssuerPayoutsData?.count ?? 0;
   const pendingInvestorWithdrawalsCount = pendingInvestorWithdrawalsData?.count ?? 0;
-  const pendingServiceFeeLettersCount = pendingServiceFeeLettersData?.count ?? 0;
+  const pendingSettlementTrusteeLettersCount = pendingSettlementTrusteeLettersData?.count ?? 0;
   const gatewayPaymentExceptionsCount = gatewayPaymentExceptionsData?.count ?? 0;
   const gatewayReconExceptionsCount = gatewayReconExceptionsData?.count ?? 0;
   const firstProductQueuePath = React.useMemo(() => {
@@ -160,18 +160,18 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
         isLoading: loading || isPendingRepaymentsLoading,
       });
     }
-    if (canServiceFee) {
+    if (canSettlements) {
       list.push({
-        id: "service-fee",
+        id: "settlements",
         title: "Settlement Trustee Letters",
         shortTitle: "Trustee letters",
         description: "Posted settlements still in the settlement trustee instruction workflow",
-        count: pendingServiceFeeLettersCount,
+        count: pendingSettlementTrusteeLettersCount,
         countLabel: "pending",
-        href: "/finance/service-fee-trustee-letters",
+        href: "/finance/pending-settlement-trustee-letters",
         icon: ArrowsRightLeftIcon,
-        variant: urgencyVariant(pendingServiceFeeLettersCount, 5, 0),
-        isLoading: loading || isPendingServiceFeeLettersLoading,
+        variant: urgencyVariant(pendingSettlementTrusteeLettersCount, 5, 0),
+        isLoading: loading || isPendingSettlementTrusteeLettersLoading,
       });
     }
     if (canDisbursements) {
@@ -240,7 +240,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
     canNotes,
     canOnboarding,
     canRepayments,
-    canServiceFee,
+    canSettlements,
     canViewGatewayPayments,
     canViewInvestorWithdrawals,
     canViewReconciliation,
@@ -254,7 +254,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
     isPendingInvestorWithdrawalsLoading,
     isPendingIssuerPayoutsLoading,
     isPendingRepaymentsLoading,
-    isPendingServiceFeeLettersLoading,
+    isPendingSettlementTrusteeLettersLoading,
     isProductsLoading,
     loading,
     noteActionCount,
@@ -262,7 +262,7 @@ export function useQuickActionQueues({ loading = false }: { loading?: boolean } 
     pendingIssuerPayoutsCount,
     pendingOnboardingCount,
     pendingRepaymentsCount,
-    pendingServiceFeeLettersCount,
+    pendingSettlementTrusteeLettersCount,
   ]);
 
   const ready = queues.length === 0 || queues.every((queue) => !queue.isLoading);

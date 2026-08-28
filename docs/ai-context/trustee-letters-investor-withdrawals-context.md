@@ -138,7 +138,7 @@ In every trustee instruction PDF:
 |-------------|----------------------|
 | Issuer disbursement | Investor Pool |
 | Investor withdrawal | Investor Pool |
-| Repayment / settlement / service-fee trustee letter | Repayment Pool |
+| Repayment / settlement trustee letter | Repayment Pool |
 
 ### Destination row mapping (high level)
 
@@ -196,7 +196,7 @@ Data mappers: `trustee-letter-data.mapper.ts`
 
 **Purpose:** `Repayment to Investors and Platform`
 
-**Generated from:** `generateServiceFeeTrusteeLetter(noteId, settlementId)` — produces combined repayment waterfall PDF when settlement is POSTED and has trustee-relevant amounts.
+**Generated from:** `generateSettlementTrusteeLetter(noteId, settlementId)` — produces combined repayment waterfall PDF when settlement is POSTED and has trustee-relevant amounts.
 
 **Source/debit:** Repayment Pool
 
@@ -264,7 +264,7 @@ Investor submits withdrawal (Investor portal)
   → WithdrawalInstruction DRAFT created
 Admin views list / opens detail
   → DRAFT: edit beneficiary, generate letter
-  → LETTER_GENERATED: download, submit to trustee
+  → LETTER_GENERATED: download, regenerate (latest platform settings), submit to trustee
   → SUBMITTED_TO_TRUSTEE: download, mark completed
   → COMPLETED: download only
 ```
@@ -290,7 +290,7 @@ Admin views list / opens detail
 | Status | Actions (requires `investor_withdrawals.manage`) |
 |--------|--------------------------------------------------|
 | DRAFT | Edit beneficiary, Generate letter |
-| LETTER_GENERATED | Download letter, Submit to trustee |
+| LETTER_GENERATED | Download letter, Regenerate letter (latest platform settings), Submit to trustee |
 | SUBMITTED_TO_TRUSTEE | Download letter, Mark completed |
 | COMPLETED | Download letter |
 | CANCELLED | No processing actions |
@@ -443,6 +443,21 @@ Issuer payout list still uses `GET /v1/admin/withdrawals/pending-issuer-payouts`
 | API client | `packages/config/src/api-client.ts` |
 | Shared types | `packages/types/src/notes.ts`, `packages/types/src/rbac.ts` |
 | Admin hooks | `apps/admin/src/notes/hooks/use-notes.ts` |
+
+### Settlement trustee naming (canonical)
+
+| Layer | Name |
+|------|------|
+| Prisma enum | `SettlementTrusteeInstructionStatus` |
+| Prisma columns | `settlement_trustee_status` and `settlement_trustee_*` timestamps |
+| HTTP | `GET /v1/admin/notes/pending-settlement-trustee-letters` |
+| HTTP | `POST .../settlements/:id/settlement-trustee/{generate-letter,mark-submitted-to-trustee,resend-trustee-email,mark-completed}` |
+| Admin page | `/finance/pending-settlement-trustee-letters` |
+| Pending-list JSON | `trusteeInstructionAmount` (total instruction amount, not fee-only) |
+| Email kind | `SETTLEMENT` — Purpose: `Settlement trustee instruction` |
+| S3 prefix | `note-letters/{noteId}/settlement-trustee/` |
+| Audit | `SETTLEMENT_TRUSTEE_*` |
+| RBAC | `settlements.view` |
 
 ---
 

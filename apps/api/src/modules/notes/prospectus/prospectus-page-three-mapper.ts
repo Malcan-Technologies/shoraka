@@ -53,6 +53,7 @@ export type ProspectusPageThreeBuilderInput = {
    * Prisma Note mapping must leave this undefined.
    */
   publicationContent?: import("./prospectus-placeholder-publication-content").ProspectusPublicationContent;
+  marcSnapshot?: import("@cashsouk/types").MarcAssessmentSnapshot | null;
 };
 
 function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
@@ -125,6 +126,7 @@ export function mapProspectusPageThreeDataToInput(
     publicationContent: isPublished
       ? publicationContentFromFrozenSnapshot(note.prospectus_snapshot)
       : undefined,
+    marcSnapshot: data.marcSnapshot ?? null,
   };
 }
 

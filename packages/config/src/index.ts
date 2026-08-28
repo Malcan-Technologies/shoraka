@@ -1,5 +1,6 @@
 export * from "./api-client";
 export { parseContentDispositionFilename } from "./content-disposition-filename";
+export * from "./detect-client-portal";
 export * from "./auth-context";
 export * from "./date-ranges";
 export * from "./bank-account-details";

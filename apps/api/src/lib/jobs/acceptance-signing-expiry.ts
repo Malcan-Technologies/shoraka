@@ -23,7 +23,7 @@ import {
 import { prisma } from "../prisma";
 import { logger } from "../logger";
 import { logApplicationActivity } from "../../modules/applications/logs/service";
-import { ActivityPortal } from "../../modules/applications/logs/types";
+import { AUDIT_SOURCE, systemAuditContext } from "../audit";
 import { NotificationService } from "../../modules/notification/service";
 import { NotificationTypeIds } from "../../modules/notification/registry";
 import { systemNotificationLogKey } from "../../modules/notification/delivery-log";
@@ -40,6 +40,7 @@ import {
 import { applyContractCapacityChange } from "../refresh-contract-facility";
 
 const SYSTEM_USER_ID = "SYS";
+const CRON_CORRELATION_ID = "cron:acceptance-signing-expiry";
 const notificationService = new NotificationService();
 const productRepo = new ProductRepository();
 
@@ -485,13 +486,17 @@ async function expireOffer(params: {
     userId: systemUserId,
     applicationId: row.application_id,
     eventType: row.kind === "contract" ? "CONTRACT_OFFER_EXPIRED" : "INVOICE_OFFER_EXPIRED",
-    portal: ActivityPortal.ADMIN,
     entityId: row.id,
     metadata: {
       trigger: `${clock}_deadline_expired`,
       offer_kind: row.kind,
       [row.kind === "contract" ? "contract_id" : "invoice_id"]: row.id,
     },
+    context: systemAuditContext({
+      actorUserId: systemUserId,
+      correlationId: CRON_CORRELATION_ID,
+    }),
+    source: AUDIT_SOURCE.SYSTEM_JOB,
   });
 
   try {

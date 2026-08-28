@@ -3,6 +3,16 @@
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
+import {
+  REVIEW_EMPTY_LABEL,
+  reviewEmptyStateClass,
+  reviewLabelClass,
+  reviewRowGridClass,
+  reviewValueClass,
+} from "@/components/application-review/review-section-styles";
+import { orgHref } from "@/lib/admin-directory-hrefs";
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -20,8 +30,6 @@ import {
 } from "@/components/application-review/application-table-styles";
 import { cn } from "@/lib/utils";
 import { DirectorShareholderTable } from "@/components/admin/director-shareholder-table";
-import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
-import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
 import { formatCurrency, formatNumber } from "@cashsouk/config";
 import {
   FINANCIAL_FIELD_LABELS,
@@ -40,10 +48,14 @@ import {
   resolveCtosTotalAssets,
   resolveCtosTotalLiabilities,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
+  isMarcSmeGrade,
+  MARC_ASSESSMENT_REQUIRED_MESSAGE,
+  marcOfficialRiskProfile,
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
   type FinancialStatementsQuestionnaire,
+  type MarcAssessmentSnapshot,
 } from "@cashsouk/types";
 import { toast } from "sonner";
 import { format, isValid, parse, parseISO } from "date-fns";
@@ -260,6 +272,7 @@ interface ApplicationFinancialReviewContentProps {
         fetched_at: string;
         has_report_html: boolean;
       }> | null;
+      marcAssessment?: MarcAssessmentSnapshot | null;
       corporate_entities?: unknown;
     } | null;
     financial_statements?: unknown;
@@ -842,29 +855,67 @@ export function ApplicationFinancialReviewContent({
         />
       </ReviewFieldBlock>
 
-      <ReviewFieldBlock title="Cashsouk Intelligence">
-        <p className="text-xs text-muted-foreground mb-3">Score: —</p>
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="p-6">
-            <p className={reviewEmptyStateClass}>
-              In-house decisioning analysis component will be integrated here.
-            </p>
-            <div className="flex items-center gap-2 mt-4">
-              <Button variant="outline" size="sm" className="rounded-lg" disabled>
-                Action
-              </Button>
-              <Button size="sm" className="rounded-lg bg-primary text-primary-foreground" disabled>
-                Approve
-              </Button>
-              <Button variant="outline" size="sm" className="rounded-lg text-destructive" disabled>
-                Reject (need to add note)
-              </Button>
-              <Button variant="outline" size="sm" className="rounded-lg" disabled>
-                Request amendment
-              </Button>
+      <ReviewFieldBlock title="MARC Credit Assessment">
+        {(() => {
+          const marc = app.issuer_organization?.marcAssessment ?? null;
+          const grade = isMarcSmeGrade(marc?.creditGrade) ? marc.creditGrade : null;
+          if (!marc || !grade) {
+            return (
+              <div className="space-y-3">
+                <p className={reviewEmptyStateClass}>{MARC_ASSESSMENT_REQUIRED_MESSAGE}</p>
+                <p className={reviewEmptyStateClass}>
+                  MARC assessment has not been completed for this issuer.
+                </p>
+                {issuerOrgId ? (
+                  <Button asChild variant="outline" size="sm" className="rounded-lg">
+                    <Link href={orgHref("issuer", issuerOrgId)}>Open issuer MARC assessment</Link>
+                  </Button>
+                ) : null}
+              </div>
+            );
+          }
+          const score =
+            marc.creditScore != null ? String(marc.creditScore) : REVIEW_EMPTY_LABEL;
+          const pd =
+            marc.probabilityOfDefault != null
+              ? `${marc.probabilityOfDefault}%`
+              : REVIEW_EMPTY_LABEL;
+          const reportDate = marc.reportDate
+            ? format(new Date(marc.reportDate), "dd MMM yyyy")
+            : REVIEW_EMPTY_LABEL;
+          const lastUpdated = marc.assessedAt
+            ? format(new Date(marc.assessedAt), "dd MMM yyyy")
+            : REVIEW_EMPTY_LABEL;
+          return (
+            <div className="space-y-3">
+              <div className={reviewRowGridClass}>
+                <span className={reviewLabelClass}>Credit Grade</span>
+                <span className={reviewValueClass}>{grade}</span>
+                <span className={reviewLabelClass}>Risk Profile</span>
+                <span className={reviewValueClass}>
+                  {marcOfficialRiskProfile(grade) ?? REVIEW_EMPTY_LABEL}
+                </span>
+                <span className={reviewLabelClass}>Credit Score</span>
+                <span className={reviewValueClass}>{score}</span>
+                <span className={reviewLabelClass}>Probability of Default</span>
+                <span className={reviewValueClass}>{pd}</span>
+                <span className={reviewLabelClass}>Report</span>
+                <span className={reviewValueClass}>
+                  {marc.reportFileName?.trim() || REVIEW_EMPTY_LABEL}
+                </span>
+                <span className={reviewLabelClass}>Report date</span>
+                <span className={reviewValueClass}>{reportDate}</span>
+                <span className={reviewLabelClass}>Last updated</span>
+                <span className={reviewValueClass}>{lastUpdated}</span>
+              </div>
+              {issuerOrgId ? (
+                <Button asChild variant="outline" size="sm" className="rounded-lg">
+                  <Link href={orgHref("issuer", issuerOrgId)}>Open issuer MARC assessment</Link>
+                </Button>
+              ) : null}
             </div>
-          </div>
-        </div>
+          );
+        })()}
       </ReviewFieldBlock>
 
     </>

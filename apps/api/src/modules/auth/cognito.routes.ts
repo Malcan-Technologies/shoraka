@@ -6,7 +6,7 @@ import { verifyCognitoAccessToken } from "../../lib/auth/cognito-jwt-verifier";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { getEnv } from "../../config/env";
-import { detectRoleFromRequest, getPortalFromRole } from "../../lib/role-detector";
+import { detectInitiatingPortal, detectRoleFromRequest, parseKnownPortal } from "../../lib/role-detector";
 import { UserRole } from "@prisma/client";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AppError } from "../../lib/http/error-handler";
@@ -15,8 +15,10 @@ import {
   AdminUserGlobalSignOutCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { encryptOAuthState, decryptOAuthState, createOAuthState } from "../../lib/auth/oauth-state";
+import { classifyAccessAuthEvent } from "../../lib/auth/access-auth-audit";
 import { AuthRepository } from "./repository";
 import { AdminService } from "../admin/service";
+import { auditContextFromRequest, createAccessLogRow } from "../../lib/audit";
 
 const router = Router();
 
@@ -34,15 +36,18 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
   try {
     const detectedRole = detectRoleFromRequest(req);
     const requestedRole = detectedRole || UserRole.INVESTOR;
+    const initiatingPortal = detectInitiatingPortal(req);
 
     // Explicitly log what we're detecting
     logger.info(
       {
         correlationId,
         queryRole: req.query.role,
+        queryPortal: req.query.portal,
         detectedRole,
         requestedRole,
         requestedRoleString: requestedRole.toString(),
+        initiatingPortal,
         origin: req.get("origin"),
         referer: req.get("referer"),
         host: req.get("host"),
@@ -90,6 +95,7 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
         nonce,
         state: oauthState,
         requestedRole: requestedRole.toString().toUpperCase(),
+        portal: initiatingPortal,
         signup: signupParam,
         invitationToken,
         invitationRole,
@@ -102,6 +108,7 @@ router.get("/login", async (req: Request, res: Response, next: NextFunction) => 
       {
         correlationId,
         requestedRole: requestedRole.toString().toUpperCase(),
+        initiatingPortal,
         isSignup: signupParam,
         method: "encrypted-state",
       },
@@ -400,6 +407,7 @@ router.get("/callback", async (req: Request, res: Response) => {
     }
 
     const isSignup = stateData.signup === true;
+    const initiatingPortal = parseKnownPortal(stateData.portal);
 
     logger.info(
       {
@@ -408,6 +416,7 @@ router.get("/callback", async (req: Request, res: Response) => {
         requestedRole,
         requestedRoleString: requestedRole.toString(),
         isSignup,
+        initiatingPortal,
       },
       "Processing callback with requested role"
     );
@@ -646,25 +655,26 @@ router.get("/callback", async (req: Request, res: Response) => {
         const wasPreviouslyAdmin = !!adminRecord;
 
         // Log failed admin access attempt
-        await prisma.accessLog.create({
-          data: {
-            user_id: user.user_id,
-            event_type: "LOGIN",
-            portal: "admin",
-            ip_address: ipAddress,
-            user_agent: userAgent,
-            device_info: deviceInfo,
-            device_type: deviceType,
-            success: false,
-            metadata: {
-              requestedRole,
-              userRoles: user.roles,
-              hasAdminRole,
-              adminStatus,
-              wasPreviouslyAdmin,
-              reason: !hasAdminRole ? "User does not have ADMIN role" : "Admin account is inactive",
-            },
+        await createAccessLogRow({
+          userId: user.user_id,
+          eventType: "LOGIN",
+          portal: initiatingPortal,
+          ipAddress,
+          userAgent,
+          deviceInfo,
+          deviceType,
+          success: false,
+          metadata: {
+            requestedRole,
+            userRoles: user.roles,
+            hasAdminRole,
+            adminStatus,
+            wasPreviouslyAdmin,
+            portal: initiatingPortal,
+            stateId: stateData.stateId,
+            reason: !hasAdminRole ? "User does not have ADMIN role" : "Admin account is inactive",
           },
+          context: auditContextFromRequest(req),
         });
 
         // Redirect to landing page with error message
@@ -702,25 +712,33 @@ router.get("/callback", async (req: Request, res: Response) => {
       "Determined active role"
     );
 
-    const portal = getPortalFromRole(activeRole);
+    const portal = initiatingPortal;
+    const isNewCashSoukUser = !existingUser;
+    const hasSuccessfulSignup = isNewCashSoukUser
+      ? await authRepository.hasSuccessfulSignup(user.user_id)
+      : true;
+    const eventType = classifyAccessAuthEvent({
+      isNewCashSoukUser,
+      hasSuccessfulSignup,
+    });
 
     // Create access log
-    await prisma.accessLog.create({
-      data: {
-        user_id: user.user_id,
-        event_type: isSignup ? "SIGNUP" : "LOGIN",
+    await createAccessLogRow({
+      userId: user.user_id,
+      eventType,
+      portal,
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      deviceType,
+      success: true,
+      metadata: {
+        requestedRole,
+        roles: user.roles,
         portal,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        device_info: deviceInfo,
-        device_type: deviceType,
-        success: true,
-        metadata: {
-          requestedRole,
-          activeRole,
-          roles: user.roles,
-        },
+        stateId: stateData.stateId,
       },
+      context: auditContextFromRequest(req),
     });
 
     // Clear session data
@@ -948,27 +966,8 @@ router.get("/logout", async (req: Request, res: Response) => {
   const token = tokenFromHeader || tokenFromQuery;
 
   let cognitoSub: string | undefined;
-  let portal: string | undefined;
+  const portal = detectInitiatingPortal(req);
   let userId: string | undefined;
-
-  // Try to detect portal from referer/origin if token doesn't have it
-  // This helps when logout is called without a valid token
-  const referer = req.get("referer") || req.get("origin");
-  if (referer && !portal) {
-    try {
-      const url = new URL(referer);
-      const hostname = url.hostname.toLowerCase();
-      if (hostname.includes("admin")) {
-        portal = "admin";
-      } else if (hostname.includes("investor")) {
-        portal = "investor";
-      } else if (hostname.includes("issuer")) {
-        portal = "issuer";
-      }
-    } catch {
-      // Ignore URL parsing errors
-    }
-  }
 
   if (token) {
     try {
@@ -986,26 +985,21 @@ router.get("/logout", async (req: Request, res: Response) => {
         userId = user.user_id;
         const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
 
-        // Determine portal from user's roles if not detected from referer
-        if (!portal && user.roles.length > 0) {
-          portal = getPortalFromRole(user.roles[0]);
-        }
-
         // Create access log before signing out
-        await prisma.accessLog.create({
-          data: {
-            user_id: user.user_id,
-            event_type: "LOGOUT",
-            portal: portal || null,
-            ip_address: ipAddress,
-            user_agent: userAgent,
-            device_info: deviceInfo,
-            device_type: deviceType,
-            success: true,
-            metadata: {
-              roles: user.roles,
-            },
+        await createAccessLogRow({
+          userId: user.user_id,
+          eventType: "LOGOUT",
+          portal: portal,
+          ipAddress,
+          userAgent,
+          deviceInfo,
+          deviceType,
+          success: true,
+          metadata: {
+            roles: user.roles,
+            portal,
           },
+          context: auditContextFromRequest(req),
         });
 
         logger.info({ correlationId, userId: user.user_id, portal }, "Logout access log created");

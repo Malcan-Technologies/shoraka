@@ -1,4 +1,4 @@
-import type { NoteListItem } from "@cashsouk/types";
+import { formatInvoiceReference, formatNoteReference, type NoteListItem } from "@cashsouk/types";
 import type { IssuerDashboardInvoice, IssuerDashboardNote } from "@/types/issuer-dashboard";
 import { resolveIssuerInvoiceDashboardBadge } from "@/lib/issuer-dashboard-labels";
 import {
@@ -58,6 +58,12 @@ export function financingInvoiceRowSearchHaystack(
       invoice.customerName,
       invoice.note?.noteReference ?? "",
       productName,
+      invoice.displayReference ?? "",
+      formatInvoiceReference({
+        displayReference: invoice.displayReference,
+        businessNumber: invoice.invoiceNumber,
+        id: invoice.id,
+      }),
       invoice.id,
     ]
       .filter(Boolean)
@@ -67,11 +73,15 @@ export function financingInvoiceRowSearchHaystack(
   const note = row.note;
   return [
     note.noteReference,
+    formatNoteReference({ noteReference: note.noteReference, id: note.id }),
     note.title,
     note.purposeOfFinancing ?? "",
     note.paymasterName ?? "",
     note.productName ?? "",
     note.productCategory ?? "",
+    note.sourceApplicationDisplayReference ?? "",
+    note.sourceInvoiceDisplayReference ?? "",
+    note.sourceContractDisplayReference ?? "",
     note.sourceApplicationId,
     note.sourceInvoiceId ?? "",
     note.sourceContractId ?? "",

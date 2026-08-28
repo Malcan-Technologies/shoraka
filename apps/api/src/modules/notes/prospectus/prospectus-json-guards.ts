@@ -3,7 +3,7 @@
  * WHY: Avoid unchecked casts; malformed published snapshots must not crash or live-fallback
  */
 
-import { isSoukscoreRiskRating, type SoukscoreRiskRating } from "@cashsouk/types";
+import { isMarcSmeGrade, type MarcSmeGrade } from "@cashsouk/types";
 import type {
   NotePurposeSnapshot,
   ProspectusHistoricalNoteStatus,
@@ -78,11 +78,11 @@ export function parsePurposeSnapshot(value: unknown): NotePurposeSnapshot | null
   return { financing_for: financingFor };
 }
 
-export function parseInvoiceSnapshotRiskRating(value: unknown): SoukscoreRiskRating | null {
+export function parseInvoiceSnapshotRiskRating(value: unknown): MarcSmeGrade | null {
   const invoice = asJsonRecord(value);
   const offer = asJsonRecord(invoice?.offer_details);
   const rating = offer?.risk_rating;
-  return isSoukscoreRiskRating(rating) ? rating : null;
+  return isMarcSmeGrade(rating) ? rating : null;
 }
 
 const ISO_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;

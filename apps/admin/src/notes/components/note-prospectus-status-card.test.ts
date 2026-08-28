@@ -21,10 +21,13 @@ function baseNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     productName: null,
     issuerIndustry: null,
     sourceApplicationId: "app-1",
+    sourceApplicationDisplayReference: null,
     sourceContractId: null,
     sourceContractDisplayReference: null,
     sourceInvoiceId: null,
+    sourceInvoiceDisplayReference: null,
     issuerOrganizationId: "org-1",
+    issuerOrganizationDisplayReference: null,
     issuerName: null,
     paymasterName: null,
     riskRating: null,
@@ -193,6 +196,29 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.phase).toBe("approved");
     expect(model.workspaceLabel).toBe("Edit Prospectus");
     expect(model.workspaceLabel).not.toBe("Publish Note");
+  });
+
+  it("keeps Published after funding closes (status is FUNDING, not PUBLISHED)", () => {
+    const model = resolveProspectusStatusCard(
+      baseNote({
+        status: NoteStatus.FUNDING,
+        listingStatus: NoteListingStatus.CLOSED,
+        fundingStatus: NoteFundingStatus.FUNDED,
+        publishedAt: new Date().toISOString(),
+        prospectus: {
+          status: "DRAFT",
+          displayStatus: "Draft",
+          contentVersion: 1,
+          lastSavedAt: null,
+          approvedAt: null,
+          publishedAt: null,
+        },
+      })
+    );
+    expect(model.phase).toBe("published");
+    expect(model.badgeLabel).toBe("Published");
+    expect(model.emphasize).toBe(false);
+    expect(model.workspaceLabel).toBe("Open Review");
   });
 
   it("shows Draft after unpublish so the prospectus must be re-approved", () => {

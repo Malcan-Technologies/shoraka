@@ -169,6 +169,9 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(
         isProspectusNotePublished({ status: NoteStatus.DRAFT, published_at: new Date() })
       ).toBe(false);
+      expect(
+        isProspectusNotePublished({ status: NoteStatus.FUNDING, published_at: new Date() })
+      ).toBe(true);
     });
 
     it("selects only required Page 2 fields and not CTOS/live org", () => {
@@ -699,8 +702,10 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(invoiceHtml).not.toContain("Nature of Paymaster:");
       expect(invoiceHtml).not.toContain("Deed of Assignment (DOA):");
       expect(invoiceHtml).toContain("Yes");
-      expect(invoiceHtml).toContain("PM1");
-      expect(invoiceHtml).toContain("High");
+      expect(invoiceHtml).not.toContain("Paymaster Rating");
+      expect(invoiceHtml).not.toContain("Confidence Grading");
+      expect(invoiceHtml).not.toContain("PM1");
+      expect(invoiceHtml).not.toContain(">High<");
       expect(invoiceHtml).not.toContain("financing ratio");
       expect(invoiceHtml).not.toContain("INV-");
 
@@ -782,10 +787,9 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       );
 
       const selected = page.soukscoreRatingScale.grades.filter((g) => g.isSelected);
-      expect(selected).toHaveLength(1);
-      expect(selected[0]?.grade).toBe("B");
-      expect(page.soukscoreRatingScale.selectedGrade).toBe("B");
-      expect(page.soukscoreRatingScale.missingRatingMessage).toBeNull();
+      expect(selected).toHaveLength(0);
+      expect(page.soukscoreRatingScale.selectedGrade).toBeNull();
+      expect(page.soukscoreRatingScale.missingRatingMessage).toBe("—");
       expect(page.soukscoreRatingScale).not.toHaveProperty("assessmentNote");
       expect(page.soukscoreRatingScale.grades[0]).not.toHaveProperty("riskLabel");
       expect(page.soukscoreRatingScale.grades[0]).not.toHaveProperty("definition");
@@ -822,7 +826,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       const frozenNote = baseNote({
         invoice_snapshot: {
           details: { value: 100 },
-          offer_details: { risk_rating: "C" },
+          offer_details: { risk_rating: "SME-5" },
         },
       });
       const page = buildProspectusPageTwo(
@@ -832,14 +836,14 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
           liveCtosFinancials,
         })
       );
-      expect(page.soukscoreRatingScale.selectedGrade).toBe("C");
+      expect(page.soukscoreRatingScale.selectedGrade).toBeNull();
 
       const liveInvoiceWouldBe = { offer_details: { risk_rating: "A" } };
       expect(liveInvoiceWouldBe.offer_details.risk_rating).toBe("A");
       expect(
         (frozenNote.invoice_snapshot as { offer_details: { risk_rating: string } }).offer_details
           .risk_rating
-      ).toBe("C");
+      ).toBe("SME-5");
       expect(page.soukscoreRatingScale.selectedGrade).not.toBe(
         liveInvoiceWouldBe.offer_details.risk_rating
       );
@@ -850,7 +854,9 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(stage7Start).toBeGreaterThan(-1);
       expect(stage8Start).toBeGreaterThan(stage7Start);
       const stage7 = html.slice(stage7Start, stage8Start);
-      expect(stage7).toContain('data-grade="C"');
+      expect(stage7).toContain("SME-1 - SME-2");
+      expect(stage7).toContain("data-marc-scale-version");
+      expect(stage7).not.toContain('data-grade="C"');
       expect(stage7).not.toContain("data-selected");
       expect(stage7).not.toContain("is-selected");
       expect(stage7).toContain("Risk Rating Scale");
@@ -1000,13 +1006,21 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(html).toContain(PROSPECTUS_RISK_SCALE_NOTE);
       const scaleIdx = html.indexOf('data-stage="7"');
       const noteIdx = html.indexOf('class="risk-scale-note"');
-      const gradeBIdx = html.indexOf('data-grade="B"');
-      expect(noteIdx).toBeGreaterThan(gradeBIdx);
+      const gradeBandIdx = html.indexOf('data-grade="SME-1 - SME-2"');
+      expect(noteIdx).toBeGreaterThan(gradeBandIdx);
       expect(noteIdx).toBeGreaterThan(scaleIdx);
       expect(html).toContain("page-two-financial-card");
       expect(html).toContain("page-two-insights-card");
-      for (const grade of ["A", "B", "C", "D", "E", "F"]) {
-        expect(html).toContain(`data-grade="${grade}"`);
+      expect(html).toContain('class="risk-scale marc-scale"');
+      expect(html).not.toContain('class="soukscore-scale');
+      expect(html).toContain("SME-1 - SME-2");
+      expect(html).not.toContain("SME-1–2");
+      expect(html).toContain("Very strong credit strength; minimal repayment risk.");
+      expect(html).toContain("Very weak credit strength; high default risk.");
+      expect(html).not.toContain("Extremely strong credit strength with very low non-repayment risk");
+      expect(html).not.toContain("ellipsis");
+      for (const band of ["SME-1 - SME-2", "SME-3 - SME-4", "SME-5 - SME-6", "SME-7 - SME-8", "SME-9 - SME-10"]) {
+        expect(html).toContain(`data-grade="${band}"`);
       }
     });
 

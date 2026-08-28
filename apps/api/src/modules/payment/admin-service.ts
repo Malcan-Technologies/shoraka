@@ -20,6 +20,10 @@ import {
   initiateInvestorDepositRefund,
   retryWalletReversalForConfirmedRefund,
 } from "./refund-service";
+import {
+  notifyDepositNameCheckRejected,
+  notifyDepositSuccessful,
+} from "../notification/gateway-payment-notifications";
 import { scheduleGatewayPaymentReceipt } from "./receipt/receipt-service";
 import { getReceiptRelatedReferenceLabel } from "./receipt/receipt-purpose";
 import { buildGatewayPaymentSearchOr } from "./gateway-payment-list-search";
@@ -289,6 +293,8 @@ export async function getGatewayPaymentDetail(
           currency: payment.receipt.currency,
           payerName: payment.receipt.payer_name,
           payerCompanyName: payment.receipt.payer_company_name,
+          payerUniqueId: payment.receipt.payer_unique_id,
+          payerRegistrationNumber: payment.receipt.payer_registration_number,
           curlecPaymentId: payment.receipt.curlec_payment_id,
           curlecOrderId: payment.receipt.curlec_order_id,
         }
@@ -450,6 +456,11 @@ export async function approveNameCheck(
 
   scheduleGatewayPaymentReceipt(payment.id, db);
 
+  const completed = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
+  if (completed?.status === GatewayPaymentStatus.COMPLETED) {
+    await notifyDepositSuccessful(completed);
+  }
+
   return getGatewayPaymentDetail(gatewayPaymentId, db);
 }
 
@@ -486,6 +497,8 @@ export async function rejectNameCheck(
       reason: "Admin rejected the name match. A refund was started.",
     });
   });
+
+  await notifyDepositNameCheckRejected(payment);
 
   await initiateInvestorDepositRefund(
     payment,

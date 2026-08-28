@@ -10,9 +10,14 @@ import {
 } from "./labels";
 import { WORKFLOW_STATUS_BADGE } from "@/notes/utils/workflow-status-tokens";
 import {
+  MARC_ASSESSMENT_REQUIRED_MESSAGE,
+  type ProspectusReviewStoredContent,
+} from "@cashsouk/types";
+import {
   PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusCompletionChecklist,
   buildProspectusMissingRequiredFields,
+  countMissingForTab,
   getProspectusStepStatuses,
   isProspectusDraftReadyToSubmit,
   statusForCompletionItem,
@@ -28,7 +33,7 @@ import {
   PROSPECTUS_STEP_ICON_NAMES,
   PROSPECTUS_STEPS_GRID_CLASS,
 } from "./step-icons";
-import type { ProspectusReviewStoredContent } from "@cashsouk/types";
+import { resolveInternalTabForMissingSection } from "./working-area-placeholders";
 
 describe("prospectus review admin labels", () => {
   it("formats review statuses as Draft | Approved | Published only", () => {
@@ -178,7 +183,7 @@ describe("prospectus review completion readiness", () => {
     const draft = completeOfficerDraft();
 
     const checklist = buildProspectusCompletionChecklist(draft);
-    expect(checklist.find((i) => i.id === "paymaster")?.required).toBe(false);
+    expect(checklist.find((i) => i.id === "page3Paymaster")?.required).toBe(true);
     expect(checklist.find((i) => i.id === "financials")?.required).toBe(false);
     expect(checklist.find((i) => i.id === "highlights")?.complete).toBe(true);
     expect(checklist.find((i) => i.id === "credit")?.complete).toBe(true);
@@ -188,6 +193,7 @@ describe("prospectus review completion readiness", () => {
       incomeStatementYears: ["2022", "2023", "2024"],
     });
     expect(withIncomeYears.find((i) => i.id === "financials")?.required).toBe(true);
+    expect(withIncomeYears.find((i) => i.id === "page3Paymaster")?.required).toBe(true);
     expect(withIncomeYears.find((i) => i.id === "financials")?.complete).toBe(false);
   });
 
@@ -219,11 +225,21 @@ describe("prospectus review completion readiness", () => {
       "paymaster",
       "credit",
       "financials",
+      "page3Paymaster",
       "takeaways",
     ]);
     expect(statusForCompletionItem(checklist[0]!)).toBe("complete");
     expect(statusForCompletionItem(checklist[1]!)).toBe("required");
     expect(statusForCompletionItem(checklist[2]!)).toBe("optional");
+  });
+
+  it("routes Page 3 Paymaster Grading missing fields to the Paymaster Grading tab", () => {
+    expect(resolveInternalTabForMissingSection(2, "Page 3 Paymaster Grading")).toBe(
+      "paymaster_grading"
+    );
+    expect(resolveInternalTabForMissingSection(2, "Income Statement")).toBe("income");
+    expect(resolveInternalTabForMissingSection(2, "Investor Takeaways")).toBe("takeaways");
+    expect(resolveInternalTabForMissingSection(1, "Invoice & Paymaster")).toBe("issuer_paymaster");
   });
 
   it("lists missing required fields without optional paymaster track", () => {
@@ -245,6 +261,94 @@ describe("prospectus review completion readiness", () => {
     const missing = buildProspectusMissingRequiredFields(draft);
     expect(missing).toHaveLength(0);
     expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
+  });
+
+  it("counts missing Paymaster Grading and Confidence Grading on the Page 3 Paymaster Grading tab, not Page 2", () => {
+    const draft = completeOfficerDraft();
+    draft.page2.invoicePaymaster = {
+      deedOfAssignment: "Yes",
+    };
+    const missing = buildProspectusMissingRequiredFields(draft);
+    const grading = missing.filter((m) => m.section === "Page 3 Paymaster Grading");
+    expect(grading.map((m) => m.field)).toEqual(["Paymaster Grading", "Confidence Grading"]);
+    expect(grading.every((m) => m.tabId === "paymaster_grading")).toBe(true);
+    expect(grading.every((m) => m.pageStep === 2)).toBe(true);
+    expect(countMissingForTab(draft, "issuer_paymaster")).toBe(0);
+    expect(countMissingForTab(draft, "overview")).toBe(0);
+    expect(countMissingForTab(draft, "income")).toBe(0);
+    expect(countMissingForTab(draft, "balance")).toBe(0);
+    expect(countMissingForTab(draft, "coverage")).toBe(0);
+    expect(countMissingForTab(draft, "takeaways")).toBe(0);
+    expect(countMissingForTab(draft, "paymaster_grading")).toBe(2);
+    expect(missing.some((m) => m.section === "Invoice & Paymaster" && m.field !== "Deed of Assignment")).toBe(
+      false
+    );
+    expect(getProspectusStepStatuses(draft)[1]).toBe("complete");
+    expect(getProspectusStepStatuses(draft)[2]).toBe("required");
+
+    draft.page2.invoicePaymaster = {
+      deedOfAssignment: "Yes",
+      paymasterRating: "PM1",
+    };
+    expect(countMissingForTab(draft, "paymaster_grading")).toBe(1);
+
+    draft.page2.invoicePaymaster = {
+      deedOfAssignment: "Yes",
+      paymasterRating: "PM1",
+      confidenceGrading: "High",
+    };
+    expect(countMissingForTab(draft, "paymaster_grading")).toBe(0);
+    expect(countMissingForTab(draft, "overview")).toBe(0);
+    expect(buildProspectusMissingRequiredFields(draft).filter((m) => m.pageStep === 2)).toHaveLength(0);
+    expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
+  });
+
+  it("includes Paymaster Grading once in the Page 3 overall missing total", () => {
+    const draft = completeOfficerDraft();
+    draft.page2.invoicePaymaster = { deedOfAssignment: "Yes" };
+    const years = ["2022", "2023", "2024"] as const;
+    const page3Missing = buildProspectusMissingRequiredFields(draft, {
+      incomeStatementYears: years,
+    }).filter((m) => m.pageStep === 2);
+    const gradingMissing = page3Missing.filter((m) => m.tabId === "paymaster_grading");
+    expect(gradingMissing).toHaveLength(2);
+    expect(page3Missing.filter((m) => m.tabId === "overview")).toHaveLength(0);
+    expect(countMissingForTab(draft, "income", { incomeStatementYears: years })).toBe(9);
+    expect(countMissingForTab(draft, "balance", { incomeStatementYears: years })).toBe(12);
+    expect(countMissingForTab(draft, "coverage", { incomeStatementYears: years })).toBe(3);
+    expect(countMissingForTab(draft, "takeaways", { incomeStatementYears: years })).toBe(0);
+    expect(page3Missing).toHaveLength(9 + 12 + 3 + 2);
+
+    draft.page2.invoicePaymaster = {
+      deedOfAssignment: "Yes",
+      paymasterRating: "PM2",
+      confidenceGrading: "Medium",
+    };
+    expect(
+      buildProspectusMissingRequiredFields(draft, { incomeStatementYears: years }).filter(
+        (m) => m.pageStep === 2
+      )
+    ).toHaveLength(9 + 12 + 3);
+  });
+
+  it("treats a missing issuer MARC assessment as one Credit Insights blocker", () => {
+    const draft = completeOfficerDraft();
+    const missing = buildProspectusMissingRequiredFields(draft, { hasMarcAssessment: false });
+    const marc = missing.filter((m) => m.field === MARC_ASSESSMENT_REQUIRED_MESSAGE);
+    expect(marc).toHaveLength(1);
+    expect(marc[0]?.section).toBe("Credit Insights");
+    expect(marc[0]?.tabId).toBe("credit_invoice");
+    expect(missing.filter((m) => /Credit Grade|Credit Score|Probability of Default/i.test(m.field))).toHaveLength(
+      0
+    );
+    expect(isProspectusDraftReadyToSubmit(draft, { hasMarcAssessment: false })).toBe(false);
+  });
+
+  it("does not count MARC as missing until the organization assessment is evaluated", () => {
+    const draft = completeOfficerDraft();
+    expect(buildProspectusMissingRequiredFields(draft)).toHaveLength(0);
+    expect(buildProspectusMissingRequiredFields(draft, { hasMarcAssessment: undefined })).toHaveLength(0);
+    expect(buildProspectusMissingRequiredFields(draft, { hasMarcAssessment: true })).toHaveLength(0);
   });
 });
 

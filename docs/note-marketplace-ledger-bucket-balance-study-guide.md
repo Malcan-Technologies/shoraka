@@ -1320,7 +1320,7 @@ This is how the UI surfaces connect to the database tables.
 |---|---|---|---|
 | Publish button state | `notes` + `note_listings` | `status`, `funding_status`, `listing_status` | Enables “Publish” only for publishable notes |
 | Funding buttons | `notes` + `note_investments` | `funded_amount`, `minimum_funding_percent` | Determines close/fail eligibility |
-| Servicing & Settlement tab | `note_payments`, `note_settlements` | payment `evidence_files`, settlement statuses, `service_fee_trustee_status` | Drives receipts, preview/approve/post, trustee instruction |
+| Servicing & Settlement tab | `note_payments`, `note_settlements` | payment `evidence_files`, settlement statuses, `settlement_trustee_status` | Drives receipts, preview/approve/post, trustee instruction |
 | Ledger tab | `note_ledger_entries` | direction, account codes | Immutable postings |
 
 ### 6.4 Investor Marketplace

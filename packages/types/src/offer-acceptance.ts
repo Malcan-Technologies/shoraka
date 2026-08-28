@@ -506,7 +506,7 @@ export function getOfferAcceptanceStatusPresentation(
     case "DECLINED":
       return { label: "Offer Declined" };
     case "APPROVED_FOR_SIGNING":
-      return { label: "Approved For Signing" };
+      return { label: "Approved for Signing" };
     case "SIGNING_IN_PROGRESS":
       return { label: "Signing In Progress" };
     case "COMPLETED":

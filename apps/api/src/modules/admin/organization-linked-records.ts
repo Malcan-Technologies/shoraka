@@ -53,6 +53,14 @@ export function productIdFromFinancingType(financingType: unknown): string | nul
     : null;
 }
 
+export function productNameFromFinancingType(financingType: unknown): string | null {
+  if (!isPlainObjectRecord(financingType)) return null;
+  for (const value of [financingType.product_name, financingType.name]) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
 export function contractValueFromDetails(contractDetails: unknown): number | null {
   const details = isPlainObjectRecord(contractDetails) ? contractDetails : null;
   const value = Number(details?.value ?? details?.approved_facility ?? 0);
@@ -184,9 +192,7 @@ export async function listOrganizationLinkedRecords(
       type: "application",
       id: app.id,
       displayReference: app.display_reference ?? null,
-      title: productIdFromFinancingType(app.financing_type)
-        ? `Product ${productIdFromFinancingType(app.financing_type)}`
-        : "Application",
+      title: productNameFromFinancingType(app.financing_type) ?? "Application",
       amount: requestedAmountFromApplication(app),
       status: app.status,
       updatedAt: app.updated_at.toISOString(),

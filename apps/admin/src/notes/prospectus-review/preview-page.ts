@@ -1,15 +1,17 @@
 import type { ProspectusWorkflowStepId } from "./labels";
 
 /** Single-page tabs used for focused checking. */
-export type ProspectusPreviewPageKey = "page1" | "page2" | "page3";
+export type ProspectusPreviewPageKey = "page1" | "page2" | "page3" | "page4" | "page5";
 
-/** Preview sheet tabs including the combined three-page document. */
+/** Preview sheet tabs including the combined document. */
 export type ProspectusPreviewTab = ProspectusPreviewPageKey | "allPages";
 
 export const PROSPECTUS_PREVIEW_TABS: ProspectusPreviewTab[] = [
   "page1",
   "page2",
   "page3",
+  "page4",
+  "page5",
   "allPages",
 ];
 
@@ -17,6 +19,8 @@ export const PROSPECTUS_PREVIEW_TAB_LABELS: Record<ProspectusPreviewTab, string>
   page1: "Page 1",
   page2: "Page 2",
   page3: "Page 3",
+  page4: "Page 4",
+  page5: "Page 5",
   allPages: "All Pages",
 };
 
@@ -42,8 +46,9 @@ export function prospectusPreviewIframeTitle(tab: ProspectusPreviewTab): string 
 
 /** Open in New Tab uses the HTML for the currently selected preview tab. */
 export function resolveOpenInNewTabHtml(
-  pages: Record<ProspectusPreviewTab, string>,
+  pages: import("./preview-sheet-utils").ProspectusPreviewPages,
   tab: ProspectusPreviewTab
 ): string {
-  return pages[tab];
+  if (tab === "allPages") return pages.allPages;
+  return pages[tab] ?? pages.page1;
 }

@@ -17,11 +17,12 @@ import {
 } from "@cashsouk/config";
 import {
   getOfferPhaseDeadlineDisplay,
-  isSoukscoreRiskRating,
+  isMarcSmeGrade,
   previewAcceptanceDeadlineFromWorkflow,
+  resolveDefaultInvoiceRiskRating,
   resolveFinancingTenureDays,
-  SOUKSCORE_RISK_RATING_GRADES,
-  type SoukscoreRiskRating,
+  MARC_SME_GRADES,
+  type MarcSmeGrade,
 } from "@cashsouk/types";
 import {
   invoiceOfferFacilityFeeCollectEnabled,
@@ -221,7 +222,7 @@ export function InvoiceList({
     facilityFeeCollectAmount: number;
     additionalFees: SendInvoiceOfferUiPayload["additionalFees"];
     invoiceValue: number | null;
-    risk_rating: SoukscoreRiskRating;
+    risk_rating: MarcSmeGrade;
     financingTenureDays: number;
     offerFingerprint: string;
   } | null>(null);
@@ -296,16 +297,17 @@ export function InvoiceList({
   }, [initialOfferedFromInvoices]);
 
   const initialRiskFromInvoices = React.useMemo(() => {
-    const result: Record<string, SoukscoreRiskRating> = {};
+    const result: Record<string, MarcSmeGrade> = {};
     invoices.forEach((inv) => {
       const raw = (inv.offer_details as Record<string, unknown> | null)?.risk_rating;
-      if (isSoukscoreRiskRating(raw)) result[inv.id] = raw;
+      const resolved = resolveDefaultInvoiceRiskRating(raw, null);
+      if (resolved) result[inv.id] = resolved;
     });
     return result;
   }, [invoices]);
 
   const [riskRatingByInvoiceId, setRiskRatingByInvoiceId] = React.useState<
-    Record<string, SoukscoreRiskRating | null>
+    Record<string, MarcSmeGrade | null>
   >({});
 
   /** Draft strings while typing financing ratio (%); committed on blur with min/max clamp. */
@@ -812,7 +814,7 @@ export function InvoiceList({
                                       <Select
                                         value={riskRatingByInvoiceId[inv.id] ?? undefined}
                                         onValueChange={(value) => {
-                                          if (isSoukscoreRiskRating(value)) {
+                                          if (isMarcSmeGrade(value)) {
                                             setRiskRatingByInvoiceId((prev) => ({
                                               ...prev,
                                               [inv.id]: value,
@@ -825,7 +827,7 @@ export function InvoiceList({
                                           <SelectValue placeholder="Grade" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {SOUKSCORE_RISK_RATING_GRADES.map((grade) => (
+                                          {MARC_SME_GRADES.map((grade) => (
                                             <SelectItem key={grade} value={grade}>
                                               {grade}
                                             </SelectItem>

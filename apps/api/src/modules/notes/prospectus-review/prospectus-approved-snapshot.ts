@@ -6,6 +6,7 @@
 import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
+import { getCurrentMarcAssessment } from "../../paymaster/service";
 import { buildProspectusPage1TrackRecordSnapshot } from "../prospectus/prospectus-track-record-query";
 import {
   buildProspectusPage2Snapshot,
@@ -32,6 +33,8 @@ export type ProspectusApprovedSnapshot = {
     page1: string;
     page2: string;
     page3: string;
+    page4?: string;
+    page5?: string;
   };
 };
 
@@ -96,7 +99,7 @@ export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<
     throw new Error(`Note ${noteId} not found for prospectus freeze`);
   }
 
-  const [application, ctosReport] = await Promise.all([
+  const [application, ctosReport, marcSnapshot] = await Promise.all([
     note.source_application_id
       ? prisma.application.findUnique({
           where: { id: note.source_application_id },
@@ -111,6 +114,7 @@ export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<
       orderBy: { fetched_at: "desc" },
       select: { financials_json: true },
     }),
+    getCurrentMarcAssessment(note.issuer_organization_id),
   ]);
 
   const noteIdentity: Record<string, unknown> = {
@@ -132,6 +136,7 @@ export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<
     maturity_date: note.maturity_date?.toISOString() ?? null,
     listing_opens_at: note.listing?.opens_at?.toISOString() ?? null,
     listing_closes_at: note.listing?.closes_at?.toISOString() ?? null,
+    marc_snapshot: marcSnapshot,
   };
 
   const fingerprintSource = {
@@ -217,7 +222,7 @@ export async function buildCompleteApprovedProspectusSnapshot(input: {
  */
 export function withApprovedSnapshotHtml(
   snapshot: ProspectusApprovedSnapshot,
-  html: { page1: string; page2: string; page3: string }
+  html: { page1: string; page2: string; page3: string; page4?: string; page5?: string }
 ): ProspectusApprovedSnapshot {
   return { ...snapshot, html };
 }

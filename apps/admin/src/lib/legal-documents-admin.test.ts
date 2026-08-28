@@ -1,5 +1,5 @@
 import type { LegalDocumentDefinitionResponse } from "@cashsouk/types";
-import { LEGAL_DOCUMENT_TYPE_LABELS } from "@cashsouk/types";
+import { LEGAL_DOCUMENT_TYPE_LABELS, legalDocumentTypeLabel } from "@cashsouk/types";
 import {
   audienceLabel,
   availableLegalDocumentTypes,
@@ -76,6 +76,8 @@ describe("legal-documents-admin helpers", () => {
       "PDPA Notice and Consent"
     );
     expect(LEGAL_DOCUMENT_TYPE_LABELS.TERMS_OF_USE).toBe("Terms of Use");
+    expect(legalDocumentTypeLabel("TERMS_OF_USE")).toBe("Terms of Use");
+    expect(legalDocumentTypeLabel("PDPA_NOTICE_AND_CONSENT")).toBe("PDPA Notice and Consent");
     const formatted = formatLegalDate("2026-07-29T01:44:00.000Z");
     expect(formatted).toMatch(/29/);
     expect(formatted).toMatch(/Jul/);

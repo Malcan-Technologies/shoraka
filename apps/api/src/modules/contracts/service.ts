@@ -3,7 +3,7 @@ import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { AppError } from "../../lib/http/error-handler";
 import { logApplicationActivity } from "../applications/logs/service";
-import { ActivityPortal } from "../applications/logs/types";
+import { ActivityPortal, type IssuerActivityLogContext } from "../applications/logs/types";
 import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
 import {
   ApplicationStatus,
@@ -30,6 +30,7 @@ import {
   allocateDisplayReference,
   resolveApplicationProductCode,
 } from "../../lib/display-reference";
+import { resolvePaymasterFromCustomerDetails } from "../paymaster/service";
 
 export class ContractService {
   private repository: ContractRepository;
@@ -186,7 +187,12 @@ export class ContractService {
     return overlaid;
   }
 
-  async updateContract(id: string, data: Prisma.ContractUpdateInput, userId: string): Promise<Contract> {
+  async updateContract(
+    id: string,
+    data: Prisma.ContractUpdateInput,
+    userId: string,
+    options: { selectedPaymasterId?: string | null } = {}
+  ): Promise<Contract> {
     const contract = await this.verifyContractAccess(id, userId);
 
     /** invoice_only: allow customer_details only; reject contract_details updates. */
@@ -234,6 +240,20 @@ export class ContractService {
     const keysToCleanup: string[] = [];
     if (nextContractKey && nextContractKey !== prevContractKey) keysToCleanup.push(nextContractKey);
     if (nextCustomerKey && nextCustomerKey !== prevCustomerKey) keysToCleanup.push(nextCustomerKey);
+
+    if (data.customer_details != null && data.customer_details !== Prisma.JsonNull) {
+      const applicationId = (contract as { applications?: Array<{ id: string }> }).applications?.[0]?.id ?? null;
+      const resolved = await resolvePaymasterFromCustomerDetails({
+        issuerOrganizationId: contract.issuer_organization_id,
+        customerDetails: data.customer_details as Record<string, unknown>,
+        applicationId,
+        contractId: contract.id,
+        selectedPaymasterId: options.selectedPaymasterId ?? null,
+        lockExistingPaymasterId: contract.paymaster_id,
+      });
+      data.customer_details = resolved.customerDetails as Prisma.InputJsonValue;
+      data.paymaster = { connect: { id: resolved.paymasterId } };
+    }
 
     try {
       return await this.repository.update(id, {
@@ -363,7 +383,12 @@ export class ContractService {
     }
   }
 
-  async withdrawContract(id: string, userId: string, reason?: WithdrawReason): Promise<Contract> {
+  async withdrawContract(
+    id: string,
+    userId: string,
+    reason?: WithdrawReason,
+    logContext?: IssuerActivityLogContext
+  ): Promise<Contract> {
     const contract = await this.verifyContractAccess(id, userId);
 
     if (contract.status === ContractStatus.APPROVED) {
@@ -458,6 +483,7 @@ export class ContractService {
         eventType: "APPLICATION_WITHDRAWN",
         portal: ActivityPortal.ISSUER,
         metadata: { withdraw_reason: finalReason },
+        ...logContext,
       });
     }
 

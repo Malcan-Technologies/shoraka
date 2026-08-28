@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { ArrowLeftIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import {
+  isCompleteIssuerMarcAssessment,
+  isNoteProspectusPublished,
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
@@ -40,6 +42,7 @@ import { useUserDetail } from "@/hooks/use-users";
 import {
   ProspectusReviewConflictError,
   useApproveProspectusReview,
+  useIssuerMarcAssessment,
   usePreviewProspectusReview,
   useProspectusReview,
   useProspectusReviewPreview,
@@ -99,6 +102,13 @@ function ProspectusReviewPageInner() {
 
   const { data, isLoading, error, refetch } = useProspectusReview(noteId);
   const { data: note } = useNoteDetail(noteId);
+  const issuerOrganizationId = note?.issuerOrganizationId ?? null;
+  const {
+    data: marcAssessment,
+    isFetched: marcFetched,
+    isError: marcLoadError,
+    isLoading: marcAssessmentLoading,
+  } = useIssuerMarcAssessment(issuerOrganizationId);
   const { data: updatedByUser } = useUserDetail(data?.review.updatedByUserId ?? null);
 
   const saveDraft = useSaveProspectusReviewDraft(noteId);
@@ -149,7 +159,10 @@ function ProspectusReviewPageInner() {
   }, [dirty]);
 
   const status = data?.review.status as ProspectusReviewStatus | undefined;
-  const notePublished = note?.status === "PUBLISHED";
+  const notePublished = isNoteProspectusPublished({
+    status: note?.status,
+    publishedAt: note?.publishedAt,
+  });
   const locked = notePublished;
 
   const updateDraft = (
@@ -361,7 +374,16 @@ function ProspectusReviewPageInner() {
     frozenFinancialYears.length > 0
       ? frozenFinancialYears.map((year) => String(year.calendarYear))
       : pageTwoFinancialTable.yearHeaders.map((h) => h.yearLabel.replace(/^FY/, ""));
-  const completionOptions = { incomeStatementYears: incomeStatementYearKeys };
+  const completionOptions = {
+    incomeStatementYears: incomeStatementYearKeys,
+    hasMarcAssessment: !note
+      ? undefined
+      : !issuerOrganizationId?.trim()
+        ? false
+        : marcLoadError || !marcFetched
+          ? undefined
+          : isCompleteIssuerMarcAssessment(marcAssessment ?? null),
+  };
   const stepStatuses = getProspectusStepStatuses(draft, completionOptions);
   const manualYears = draft.page3.manualFinancialInputs?.years;
   const pageThreeMetadataRows = note
@@ -717,6 +739,9 @@ function ProspectusReviewPageInner() {
                         }
                         financialComparisonOpsWarning={financialComparisonOpsWarning}
                         noteRiskRating={note?.riskRating}
+                        marcAssessment={marcAssessment ?? null}
+                        issuerOrganizationId={issuerOrganizationId}
+                        marcAssessmentLoading={marcAssessmentLoading}
                         updateDraft={updateDraft}
                         completionLabel={pageCompletion}
                         completionOptions={completionOptions}

@@ -108,7 +108,11 @@ import {
   canManageDirectorShareholder,
   computeHasPendingDirectorShareholder,
   filterVisiblePeopleRows,
-  type SoukscoreRiskRating,
+  isMarcSmeGrade,
+  MARC_ASSESSMENT_REQUIRED_MESSAGE,
+  NOTE_RISK_RATING_UNASSIGNED_MESSAGE,
+  type MarcSmeGrade,
+  type MarcAssessmentSnapshot,
   type OfferAcceptanceStatus,
   buildOriginationPhaseInput,
   canRejectApplication,
@@ -128,8 +132,10 @@ import {
   type AdditionalFeeLine,
   type InvoiceOfferFeeScheduleWriteMode,
   type ReviewItemType,
+  canonicalDownloadFilenameToken,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
+import { assertIssuerMarcAssessmentComplete, getCurrentMarcAssessment } from "../paymaster/service";
 import { OrganizationRepository } from "../organization/repository";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import {
@@ -147,6 +153,7 @@ import { resolveCorporatePersonMergeKey } from "../regtank/helpers/corporate-per
 import { buildAdminPeopleList, buildDirectorShareholderPeopleList } from "./build-people-list";
 import { notifyIssuerDirectorShareholderActionRequired } from "../notification/director-shareholder-notifications";
 import { logApplicationActivity } from "../applications/logs/service";
+import { createApplicationReviewEventRow } from "../applications/logs/review-events";
 import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
 import { resolveAcceptanceReviewApprovalGate } from "../applications/acceptance-document-review-sync";
 
@@ -217,6 +224,7 @@ import {
 } from "../applications/offer-application-status";
 import { loadInheritedAcceptanceForExistingContract } from "../../lib/contract-originating-application";
 import { signingService } from "../signing/service";
+import { auditContextFromRequest, createOnboardingLogRow } from "../../lib/audit";
 
 const APPLICATION_ACTION_REQUIRED_STATUSES = [
   ApplicationStatus.SUBMITTED,
@@ -1439,6 +1447,14 @@ export class AdminService {
 
     // Create access log for admin action
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const updatedFields = Object.keys(data).filter(
+      (k) => data[k as keyof UpdateUserProfileInput] !== undefined
+    );
+    const nextValues = {
+      firstName: updatedUser.first_name,
+      lastName: updatedUser.last_name,
+      phone: updatedUser.phone,
+    };
     await this.repository.createAccessLog({
       userId: adminUserId,
       eventType: "PROFILE_UPDATED",
@@ -1451,20 +1467,19 @@ export class AdminService {
       metadata: {
         targetUserId: userId,
         targetUserEmail: user.email,
-        updatedFields: Object.keys(data).filter(
-          (k) => data[k as keyof UpdateUserProfileInput] !== undefined
-        ),
+        updatedFields,
         previousValues: {
           firstName: user.first_name,
           lastName: user.last_name,
           phone: user.phone,
         },
+        nextValues,
         nameLockedOverride: hasCompletedOnboarding && isChangingName,
       },
     });
 
-    // Create security log if admin changed name of onboarded user
-    if (hasCompletedOnboarding && isChangingName) {
+    // Security trail for any admin profile patch of an onboarded user, including phone-only edits.
+    if (hasCompletedOnboarding && updatedFields.length > 0) {
       await this.repository.createSecurityLog({
         userId: userId,
         eventType: "PROFILE_UPDATED",
@@ -1473,13 +1488,13 @@ export class AdminService {
         deviceInfo,
         metadata: {
           updatedBy: adminUserId,
-          updatedFields: Object.keys(data).filter(
-            (k) => data[k as keyof UpdateUserProfileInput] !== undefined
-          ),
+          updatedFields,
           previousValues: {
             firstName: user.first_name,
             lastName: user.last_name,
+            phone: user.phone,
           },
+          nextValues,
           adminOverride: true,
         },
       });
@@ -2678,6 +2693,7 @@ export class AdminService {
     investedAmount: number | null;
     approvedFacilityAmount: number | null;
     activeNotesAmount: number | null;
+    marcAssessment: import("@cashsouk/types").MarcAssessmentSnapshot | null;
     regtankPortalUrl: string | null;
     regtankRequestId: string | null;
     codRequestId: string | null;
@@ -3049,6 +3065,8 @@ export class AdminService {
       investedAmount,
       approvedFacilityAmount,
       activeNotesAmount,
+      marcAssessment:
+        portal === "issuer" ? await getCurrentMarcAssessment(org.id) : null,
       // Build RegTank portal URL from latest onboarding record
       regtankRequestId: org.regtank_onboarding?.[0]?.request_id ?? null,
       codRequestId,
@@ -3230,25 +3248,24 @@ export class AdminService {
     });
 
     // Log the sophisticated status update event
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: org.owner_user_id,
-        role: UserRole.INVESTOR,
-        event_type: "SOPHISTICATED_STATUS_UPDATED",
-        portal: "investor",
-        organization_name: org.name,
-        investor_organization_id: organizationId,
-        issuer_organization_id: null,
-        metadata: {
-          organizationId,
-          previousStatus: org.is_sophisticated_investor,
-          previousReason: org.sophisticated_investor_reason,
-          newStatus: isSophisticatedInvestor,
-          newReason: reason,
-          updatedBy: adminUserId || "admin",
-          action: isSophisticatedInvestor ? "granted" : "revoked",
-        },
+    await createOnboardingLogRow({
+      userId: org.owner_user_id,
+      role: UserRole.INVESTOR,
+      eventType: "SOPHISTICATED_STATUS_UPDATED",
+      portal: "investor",
+      organizationName: org.name,
+      investorOrganizationId: organizationId,
+      issuerOrganizationId: null,
+      metadata: {
+        organizationId,
+        previousStatus: org.is_sophisticated_investor,
+        previousReason: org.sophisticated_investor_reason,
+        newStatus: isSophisticatedInvestor,
+        newReason: reason,
+        updatedBy: adminUserId || "admin",
+        action: isSophisticatedInvestor ? "granted" : "revoked",
       },
+      actorUserId: adminUserId,
     });
 
     logger.info(
@@ -4314,32 +4331,32 @@ export class AdminService {
     // Use FINAL_APPROVAL_COMPLETED for both corporate and personal onboarding
     const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
     const eventType = "FINAL_APPROVAL_COMPLETED";
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: eventType,
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name:
-          onboarding.investor_organization?.name ||
-          onboarding.issuer_organization?.name ||
-          undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          organizationId: org.id,
-          organizationType: onboarding.organization_type,
-          portalType: onboarding.portal_type,
-          approvedBy: adminUserId,
-          regtankRequestId: onboarding.request_id,
-          isCorporateOnboarding,
-        },
+    await createOnboardingLogRow({
+      userId: onboarding.user_id,
+      eventType: eventType,
+      role: isInvestor ? "INVESTOR" : "ISSUER",
+      portal: onboarding.portal_type,
+      ipAddress:
+        (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+      userAgent: req.headers["user-agent"] || null,
+      deviceInfo: null,
+      deviceType: null,
+      organizationName:
+        onboarding.investor_organization?.name ||
+        onboarding.issuer_organization?.name ||
+        undefined,
+      investorOrganizationId: onboarding.investor_organization_id || undefined,
+      issuerOrganizationId: onboarding.issuer_organization_id || undefined,
+      metadata: {
+        organizationId: org.id,
+        organizationType: onboarding.organization_type,
+        portalType: onboarding.portal_type,
+        approvedBy: adminUserId,
+        regtankRequestId: onboarding.request_id,
+        isCorporateOnboarding,
       },
+      actorUserId: adminUserId,
+      context: auditContextFromRequest(req),
     });
 
     logger.info(
@@ -4358,7 +4375,7 @@ export class AdminService {
     try {
       await this.notificationService.sendTypedAndLogSystem(
         onboarding.user_id,
-        NotificationTypeIds.ONBOARDING_APPROVED,
+        NotificationTypeIds.ONBOARDING_COMPLETED,
         {
           onboardingType: onboarding.onboarding_type,
           orgName:
@@ -4493,35 +4510,35 @@ export class AdminService {
     }
 
     // Create onboarding log entry
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: "AML_APPROVED",
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name:
-          onboarding.investor_organization?.name ||
-          onboarding.issuer_organization?.name ||
-          undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          organizationId: org.id,
-          organizationType: onboarding.organization_type,
-          portalType: onboarding.portal_type,
-          onboardingRequestId: onboarding.request_id,
-          isCorporateOnboarding,
-          previousStatus: org.onboarding_status,
-          newStatus: orgAfterAml?.onboarding_status,
-          approvedBy: adminUserId,
-          approvedAt: now.toISOString(),
-        },
+    await createOnboardingLogRow({
+      userId: onboarding.user_id,
+      eventType: "AML_APPROVED",
+      role: isInvestor ? "INVESTOR" : "ISSUER",
+      portal: onboarding.portal_type,
+      ipAddress:
+        (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+      userAgent: req.headers["user-agent"] || null,
+      deviceInfo: null,
+      deviceType: null,
+      organizationName:
+        onboarding.investor_organization?.name ||
+        onboarding.issuer_organization?.name ||
+        undefined,
+      investorOrganizationId: onboarding.investor_organization_id || undefined,
+      issuerOrganizationId: onboarding.issuer_organization_id || undefined,
+      metadata: {
+        organizationId: org.id,
+        organizationType: onboarding.organization_type,
+        portalType: onboarding.portal_type,
+        onboardingRequestId: onboarding.request_id,
+        isCorporateOnboarding,
+        previousStatus: org.onboarding_status,
+        newStatus: orgAfterAml?.onboarding_status,
+        approvedBy: adminUserId,
+        approvedAt: now.toISOString(),
       },
+      actorUserId: adminUserId,
+      context: auditContextFromRequest(req),
     });
 
     logger.info(
@@ -4627,32 +4644,32 @@ export class AdminService {
     }
 
     // Create onboarding log entry with dedicated SSM_APPROVED event type
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: "SSM_APPROVED",
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name:
-          onboarding.investor_organization?.name ||
-          onboarding.issuer_organization?.name ||
-          undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          organizationId: org.id,
-          organizationType: onboarding.organization_type,
-          portalType: onboarding.portal_type,
-          approvedBy: adminUserId,
-          regtankRequestId: onboarding.request_id,
-          adminApprovedAt: now.toISOString(),
-        },
+    await createOnboardingLogRow({
+      userId: onboarding.user_id,
+      eventType: "SSM_APPROVED",
+      role: isInvestor ? "INVESTOR" : "ISSUER",
+      portal: onboarding.portal_type,
+      ipAddress:
+        (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+      userAgent: req.headers["user-agent"] || null,
+      deviceInfo: null,
+      deviceType: null,
+      organizationName:
+        onboarding.investor_organization?.name ||
+        onboarding.issuer_organization?.name ||
+        undefined,
+      investorOrganizationId: onboarding.investor_organization_id || undefined,
+      issuerOrganizationId: onboarding.issuer_organization_id || undefined,
+      metadata: {
+        organizationId: org.id,
+        organizationType: onboarding.organization_type,
+        portalType: onboarding.portal_type,
+        approvedBy: adminUserId,
+        regtankRequestId: onboarding.request_id,
+        adminApprovedAt: now.toISOString(),
       },
+      actorUserId: adminUserId,
+      context: auditContextFromRequest(req),
     });
 
     await advanceOnboardingStatusFromFlags({
@@ -4762,31 +4779,31 @@ export class AdminService {
       reason: "ADMIN_APPROVE_ONBOARDING_SUBMISSION",
     });
 
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: "ONBOARDING_APPROVED",
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name:
-          onboarding.investor_organization?.name ||
-          onboarding.issuer_organization?.name ||
-          undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          organizationId: org.id,
-          portalType: onboarding.portal_type,
-          approvedBy: adminUserId,
-          approvedAt: now.toISOString(),
-          regtankRequestId: onboarding.request_id,
-        },
+    await createOnboardingLogRow({
+      userId: onboarding.user_id,
+      eventType: "ONBOARDING_APPROVED",
+      role: isInvestor ? "INVESTOR" : "ISSUER",
+      portal: onboarding.portal_type,
+      ipAddress:
+        (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+      userAgent: req.headers["user-agent"] || null,
+      deviceInfo: null,
+      deviceType: null,
+      organizationName:
+        onboarding.investor_organization?.name ||
+        onboarding.issuer_organization?.name ||
+        undefined,
+      investorOrganizationId: onboarding.investor_organization_id || undefined,
+      issuerOrganizationId: onboarding.issuer_organization_id || undefined,
+      metadata: {
+        organizationId: org.id,
+        portalType: onboarding.portal_type,
+        approvedBy: adminUserId,
+        approvedAt: now.toISOString(),
+        regtankRequestId: onboarding.request_id,
       },
+      actorUserId: adminUserId,
+      context: auditContextFromRequest(req),
     });
 
     logger.info(
@@ -4921,34 +4938,6 @@ export class AdminService {
             });
           }
           onboardingApproved = true;
-
-          try {
-            await prisma.onboardingLog.create({
-              data: {
-                user_id: onboarding.user_id,
-                event_type: "ONBOARDING_STATUS_UPDATED",
-                role: isInvestor ? "INVESTOR" : "ISSUER",
-                portal: onboarding.portal_type,
-                organization_name: org.name ?? undefined,
-                investor_organization_id: isInvestor ? org.id : undefined,
-                issuer_organization_id: isInvestor ? undefined : org.id,
-                metadata: {
-                  organizationId: org.id,
-                  trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH",
-                  previousStatus: org.onboarding_status,
-                  codStatus: codStatusRaw,
-                },
-              },
-            });
-          } catch (logError) {
-            logger.error(
-              {
-                error: logError instanceof Error ? logError.message : String(logError),
-                organizationId: org.id,
-              },
-              "[Admin Refresh] Failed to write onboarding log (non-blocking)"
-            );
-          }
         }
 
         const { changed } = await advanceOnboardingStatusFromFlags({
@@ -4968,6 +4957,37 @@ export class AdminService {
               select: { onboarding_status: true },
             });
         onboardingStatusResult = afterOrg?.onboarding_status ?? onboardingStatusResult;
+
+        if (shouldApply) {
+          try {
+            await createOnboardingLogRow({
+              userId: onboarding.user_id,
+              eventType: "ONBOARDING_STATUS_UPDATED",
+              role: isInvestor ? "INVESTOR" : "ISSUER",
+              portal: onboarding.portal_type,
+              organizationName: org.name ?? undefined,
+              investorOrganizationId: isInvestor ? org.id : undefined,
+              issuerOrganizationId: isInvestor ? undefined : org.id,
+              metadata: {
+                organizationId: org.id,
+                trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH",
+                previousStatus: org.onboarding_status,
+                newStatus: afterOrg?.onboarding_status,
+                codStatus: codStatusRaw,
+              },
+              actorUserId: adminUserId,
+              context: auditContextFromRequest(_req),
+            });
+          } catch (logError) {
+            logger.error(
+              {
+                error: logError instanceof Error ? logError.message : String(logError),
+                organizationId: org.id,
+              },
+              "[Admin Refresh] Failed to write onboarding log (non-blocking)"
+            );
+          }
+        }
       }
 
       const mergeRoleLabels = (existingRole: string, incomingRole: string): string => {
@@ -6297,9 +6317,10 @@ export class AdminService {
           status: string;
           contract_details: Prisma.JsonValue | null;
           originating_application_id: string | null;
+          display_reference: string | null;
         }[]
       >`
-        SELECT status, contract_details, originating_application_id
+        SELECT status, contract_details, originating_application_id, display_reference
         FROM contracts
         WHERE id = ${contractId}
         FOR UPDATE
@@ -6314,6 +6335,9 @@ export class AdminService {
         return {
           originatingApplicationId: contract.originating_application_id,
           unchanged: true,
+          facilityDisabledAt: null,
+          displayReference: contract.display_reference,
+          previouslyEnabled: currentlyEnabled,
         };
       }
       if (!enabled) {
@@ -6354,6 +6378,9 @@ export class AdminService {
       return {
         originatingApplicationId: contract.originating_application_id,
         unchanged: false,
+        facilityDisabledAt: enabled ? null : now,
+        displayReference: contract.display_reference,
+        previouslyEnabled: currentlyEnabled,
       };
     });
 
@@ -6369,12 +6396,31 @@ export class AdminService {
         metadata: {
           contract_id: contractId,
           enabled,
+          ...(updated.displayReference ? { contractReference: updated.displayReference } : {}),
+          previousValues: { enabled: updated.previouslyEnabled },
+          nextValues: { enabled },
           ...(enabled ? {} : { reason: (reason ?? "").trim() }),
         },
         ipAddress: logContext?.ipAddress ?? undefined,
         userAgent: logContext?.userAgent ?? undefined,
         deviceInfo: logContext?.deviceInfo ?? undefined,
       });
+
+      if (!enabled && updated.originatingApplicationId) {
+        try {
+          await this.sendIssuerNotification(
+            updated.originatingApplicationId,
+            NotificationTypeIds.FACILITY_DISABLED,
+            { applicationId: updated.originatingApplicationId },
+            `facility-disabled:${contractId}:${updated.facilityDisabledAt ?? now}`
+          );
+        } catch (notificationError) {
+          logger.error(
+            { error: notificationError, contractId, applicationId: updated.originatingApplicationId },
+            "Failed to send facility disabled notification to issuer"
+          );
+        }
+      }
     }
 
     return this.getContractDetail(contractId);
@@ -6545,6 +6591,7 @@ export class AdminService {
           party_key: s.partyKey,
           onboarding_json: s.onboardingJson,
         })),
+        marcAssessment: await getCurrentMarcAssessment(issuerOrgId),
       } as typeof issuerOrg;
     }
     const applicationWithIssuerExtras =
@@ -6641,9 +6688,22 @@ export class AdminService {
         applicationWithIssuerExtras.contract_id
       )
     );
+    const issuerOrgWithDisplayReference =
+      applicationWithIssuerExtras.issuer_organization != null
+        ? {
+            ...applicationWithIssuerExtras.issuer_organization,
+            displayReference:
+              (
+                applicationWithIssuerExtras.issuer_organization as {
+                  display_reference?: string | null;
+                }
+              ).display_reference ?? null,
+          }
+        : applicationWithIssuerExtras.issuer_organization;
     const applicationWithDisplayReference = {
       ...applicationWithIssuerExtras,
       displayReference: applicationWithIssuerExtras.display_reference ?? null,
+      issuer_organization: issuerOrgWithDisplayReference,
       contract: contractWithDisplayReference,
       invoices: invoicesWithFacilityFeeAvailable,
     };
@@ -6805,13 +6865,16 @@ export class AdminService {
     });
     const invoice = await prisma.invoice.findFirst({
       where: { id: invoiceId, application_id: applicationId },
-      select: { id: true },
+      select: { id: true, display_reference: true },
     });
     if (!invoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found");
     }
     const buffer = await getS3ObjectBuffer(s3Key);
-    return { buffer, filename: `signed-invoice-offer-${invoice.id}.pdf` };
+    return {
+      buffer,
+      filename: `signed-invoice-offer-${canonicalDownloadFilenameToken(invoice.display_reference)}.pdf`,
+    };
   }
 
   /**
@@ -6829,8 +6892,15 @@ export class AdminService {
       applicationId,
       contractId: application.contract_id,
     });
+    const contract = await prisma.contract.findUnique({
+      where: { id: application.contract_id },
+      select: { display_reference: true },
+    });
     const buffer = await getS3ObjectBuffer(s3Key);
-    return { buffer, filename: `signed-contract-offer-${application.contract_id}.pdf` };
+    return {
+      buffer,
+      filename: `signed-contract-offer-${canonicalDownloadFilenameToken(contract?.display_reference)}.pdf`,
+    };
   }
 
   /**
@@ -6944,7 +7014,7 @@ export class AdminService {
         applicationId: id,
         portal: ActivityPortal.ADMIN,
         eventType: "APPLICATION_RESET_TO_UNDER_REVIEW",
-        metadata: { previous_status: currentStatus },
+        metadata: { previous_status: currentStatus, new_status: "UNDER_REVIEW" },
         ipAddress: logContext?.ipAddress ?? undefined,
         userAgent: logContext?.userAgent ?? undefined,
         deviceInfo: logContext?.deviceInfo ?? undefined,
@@ -8263,7 +8333,14 @@ export class AdminService {
   }
 
   private getInvoiceReference(
-    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
+    application: {
+      invoices?: {
+        id: string;
+        details?: { number?: string | number };
+        display_reference?: string | null;
+        displayReference?: string | null;
+      }[];
+    },
     invoiceKey: string
   ) {
     const invoices = application.invoices ?? [];
@@ -8282,12 +8359,14 @@ export class AdminService {
     }
 
     const invoiceNumber = matchedInvoice.details?.number;
+    const cashSoukReference =
+      matchedInvoice.displayReference?.trim() || matchedInvoice.display_reference?.trim() || undefined;
     return {
       invoiceId: matchedInvoice.id,
       invoiceNumber:
         invoiceNumber != null && String(invoiceNumber).trim() !== ""
           ? String(invoiceNumber).trim()
-          : undefined,
+          : cashSoukReference,
     };
   }
 
@@ -8313,7 +8392,7 @@ export class AdminService {
     const contractId = application.contract_id;
     const contract = await prisma.contract.findUnique({
       where: { id: contractId },
-      select: { customer_details: true, status: true },
+      select: { customer_details: true, status: true, display_reference: true },
     });
     if (!contract) {
       throw new AppError(404, "NOT_FOUND", "Facility not found");
@@ -8343,6 +8422,7 @@ export class AdminService {
       );
     }
 
+    const previousValue = (existing as Record<string, unknown>).is_large_private_company;
     const merged = {
       ...(existing as Record<string, unknown>),
       is_large_private_company: isLargePrivateCompany,
@@ -8356,9 +8436,17 @@ export class AdminService {
     await logApplicationActivity({
       userId: reviewerUserId,
       applicationId,
+      entityId: contractId,
       portal: ActivityPortal.ADMIN,
       eventType: "CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED",
-      metadata: { is_large_private_company: isLargePrivateCompany },
+      metadata: {
+        contract_id: contractId,
+        ...(contract.display_reference
+          ? { contractReference: contract.display_reference }
+          : {}),
+        previousValues: { is_large_private_company: previousValue ?? null },
+        nextValues: { is_large_private_company: isLargePrivateCompany },
+      },
       ipAddress: logContext?.ipAddress ?? undefined,
       userAgent: logContext?.userAgent ?? undefined,
       deviceInfo: logContext?.deviceInfo ?? undefined,
@@ -8556,17 +8644,20 @@ export class AdminService {
         },
       });
 
-      await tx.applicationReviewEvent.create({
-        data: {
-          application_id: applicationId,
-          event_type: "CONTRACT_OFFER_SENT",
+      await createApplicationReviewEventRow(
+        {
+          applicationId,
+          eventType: "CONTRACT_OFFER_SENT",
           scope: "section",
-          scope_key: "contract_details",
-          new_status: "OFFER_SENT",
-          reviewer_user_id: reviewerUserId,
+          scopeKey: "contract_details",
+          newStatus: "OFFER_SENT",
+          reviewerUserId,
           remark: `Facility offer sent: ${offeredFacility}`,
+          ipAddress: logContext?.ipAddress ?? undefined,
+          userAgent: logContext?.userAgent ?? undefined,
         },
-      });
+        tx
+      );
       await tx.application.update({
         where: { id: applicationId },
         data: { status: ApplicationStatus.CONTRACT_SENT },
@@ -8758,7 +8849,32 @@ export class AdminService {
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
+    try {
+      await this.sendIssuerNotification(
+        applicationId,
+        NotificationTypeIds.CONTRACT_SIGNING_DEADLINE_EXTENDED,
+        { applicationId, deadline: signingExpiresAt },
+        `contract-signing-deadline-extended:${signingExpiresAt ?? "unknown"}`
+      );
+    } catch (notificationError) {
+      logger.error(
+        { error: notificationError, applicationId, contractId },
+        "Failed to send signing deadline extended notification to issuer"
+      );
+    }
+
     return repository.getApplicationById(applicationId);
+  }
+
+  async assertIssuerMarcReadyForInvoiceOffer(
+    issuerOrganizationId: string | null | undefined
+  ): Promise<MarcAssessmentSnapshot> {
+    const orgId = typeof issuerOrganizationId === "string" ? issuerOrganizationId.trim() : "";
+    if (!orgId) {
+      throw new AppError(400, "MARC_ASSESSMENT_REQUIRED", MARC_ASSESSMENT_REQUIRED_MESSAGE);
+    }
+    const marc = await getCurrentMarcAssessment(orgId);
+    return assertIssuerMarcAssessmentComplete(marc);
   }
 
   async sendInvoiceOffer(
@@ -8768,7 +8884,7 @@ export class AdminService {
     offeredRatioPercent: number | null,
     offeredProfitRatePercent: number | null,
     platformFeeRatePercent: number | null,
-    riskRating: SoukscoreRiskRating,
+    riskRating: MarcSmeGrade,
     reviewerUserId: string,
     logContext?: AdminLogContext,
     feeSchedule?: {
@@ -8806,6 +8922,15 @@ export class AdminService {
       { invoiceId },
       "sending a new invoice offer"
     );
+    const issuerOrganizationId =
+      typeof (application as { issuer_organization_id?: unknown }).issuer_organization_id ===
+      "string"
+        ? (application as { issuer_organization_id: string }).issuer_organization_id
+        : null;
+    const marc = await this.assertIssuerMarcReadyForInvoiceOffer(issuerOrganizationId);
+    if (!isMarcSmeGrade(riskRating)) {
+      throw new AppError(400, "INVALID_INPUT", NOTE_RISK_RATING_UNASSIGNED_MESSAGE);
+    }
 
     const invoiceForSend = await prisma.invoice.findUnique({
       where: { id: invoiceId, application_id: applicationId },
@@ -8853,9 +8978,10 @@ export class AdminService {
           offer_details: Prisma.JsonValue | null;
           contract_id: string | null;
           updated_at: Date;
+          display_reference: string | null;
         }[]
       >`
-        SELECT status, details, offer_details, contract_id, updated_at
+        SELECT status, details, offer_details, contract_id, updated_at, display_reference
         FROM invoices
         WHERE id = ${invoiceId} AND application_id = ${applicationId}
         FOR UPDATE
@@ -8994,7 +9120,10 @@ export class AdminService {
           ? previousOffer.version
           : 0;
       const now = new Date().toISOString();
-      logger.info({ applicationId, invoiceId, riskRating }, "Saving invoice offer risk rating");
+      logger.info(
+        { applicationId, invoiceId, riskRating, marcSuggestedGrade: marc.creditGrade },
+        "Saving invoice offer risk rating"
+      );
       const offerDetails: Record<string, unknown> = {
         requested_amount: requestedAmount,
         offered_amount: offeredAmount,
@@ -9004,6 +9133,7 @@ export class AdminService {
         financing_tenure_days: offeredFinancingTenureDays,
         platform_fee_rate_percent: platformFeeStored,
         risk_rating: riskRating,
+        marc_suggested_grade: marc.creditGrade,
         ...feeSchedulePatch,
         sent_at: now,
         responded_at: null,
@@ -9061,16 +9191,19 @@ export class AdminService {
         },
       });
 
-      await tx.applicationReviewEvent.create({
-        data: {
-          application_id: applicationId,
-          event_type: "INVOICE_OFFER_SENT",
+      await createApplicationReviewEventRow(
+        {
+          applicationId,
+          eventType: "INVOICE_OFFER_SENT",
           scope: "item",
-          scope_key: scopeKey,
-          new_status: "OFFER_SENT",
-          reviewer_user_id: reviewerUserId,
+          scopeKey,
+          newStatus: "OFFER_SENT",
+          reviewerUserId,
+          ipAddress: logContext?.ipAddress ?? undefined,
+          userAgent: logContext?.userAgent ?? undefined,
         },
-      });
+        tx
+      );
       const invoiceStatuses = (
         await tx.invoice.findMany({
           where: { application_id: applicationId },
@@ -9086,7 +9219,9 @@ export class AdminService {
       });
 
       const invoiceNumber =
-        details.number != null && details.number !== "" ? String(details.number).trim() : null;
+        details.number != null && details.number !== ""
+          ? String(details.number).trim()
+          : lockedInvoice.display_reference?.trim() || null;
       const acceptanceExpiresAt = stampOfferAcceptance
         ? (getOfferAcceptanceFromOfferDetails(offerDetails)?.acceptance_expires_at ?? null)
         : null;
@@ -9300,6 +9435,24 @@ export class AdminService {
       userAgent: logContext?.userAgent ?? undefined,
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
+
+    try {
+      const { invoiceNumber } = this.getInvoiceReference(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        invoiceId
+      );
+      await this.sendIssuerNotification(
+        applicationId,
+        NotificationTypeIds.INVOICE_SIGNING_DEADLINE_EXTENDED,
+        { applicationId, invoiceNumber, deadline: signingExpiresAt },
+        `invoice-signing-deadline-extended:${invoiceId}:${signingExpiresAt ?? "unknown"}`
+      );
+    } catch (notificationError) {
+      logger.error(
+        { error: notificationError, applicationId, invoiceId },
+        "Failed to send signing deadline extended notification to issuer"
+      );
+    }
 
     return repository.getApplicationById(applicationId);
   }
@@ -10979,15 +11132,18 @@ export class AdminService {
         data: { status: ApplicationStatus.AMENDMENT_REQUESTED },
       });
 
-      await tx.applicationReviewEvent.create({
-        data: {
-          application_id: applicationId,
-          event_type: "AMENDMENTS_SUBMITTED",
-          new_status: "AMENDMENT_REQUESTED",
-          reviewer_user_id: reviewerUserId,
+      await createApplicationReviewEventRow(
+        {
+          applicationId,
+          eventType: "AMENDMENTS_SUBMITTED",
+          newStatus: "AMENDMENT_REQUESTED",
+          reviewerUserId,
           remark: `${pending.length} amendment(s) sent to issuer`,
+          ipAddress: logContext?.ipAddress ?? undefined,
+          userAgent: logContext?.userAgent ?? undefined,
         },
-      });
+        tx
+      );
     });
 
     await logApplicationActivity({

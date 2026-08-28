@@ -10,6 +10,7 @@ import {
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { z } from "zod";
+import { issuerActivityFromRequest } from "../../lib/audit";
 
 function getUserId(req: Request): string {
   if (!req.user?.user_id) {
@@ -64,11 +65,14 @@ async function updateContract(req: Request, res: Response, next: NextFunction) {
     const { id } = contractIdParamSchema.parse(req.params);
     const input = updateContractSchema.parse(req.body);
     const userId = getUserId(req);
+    const { selectedPaymasterId, ...rest } = input;
     const data: Prisma.ContractUpdateInput = {
-      ...input,
-      contract_details: input.contract_details === null ? Prisma.JsonNull : input.contract_details,
+      ...rest,
+      contract_details: rest.contract_details === null ? Prisma.JsonNull : rest.contract_details,
     };
-    const contract = await contractService.updateContract(id, data, userId);
+    const contract = await contractService.updateContract(id, data, userId, {
+      selectedPaymasterId: selectedPaymasterId ?? null,
+    });
 
     res.json({
       success: true,
@@ -153,7 +157,12 @@ async function withdrawContract(req: Request, res: Response, next: NextFunction)
   try {
     const { id } = contractIdParamSchema.parse(req.params);
     const userId = getUserId(req);
-    const contract = await contractService.withdrawContract(id, userId);
+    const contract = await contractService.withdrawContract(
+      id,
+      userId,
+      undefined,
+      issuerActivityFromRequest(req, res)
+    );
 
     res.json({
       success: true,

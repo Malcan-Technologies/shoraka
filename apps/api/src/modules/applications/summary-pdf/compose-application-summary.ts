@@ -48,14 +48,14 @@ const EVENT_LABELS: Record<string, string> = {
   CONTRACT_OFFER_ACCEPTED: "You accepted the facility offer",
   CONTRACT_OFFER_REJECTED: "You declined the facility offer",
   CONTRACT_OFFER_RETRACTED: "Facility offer was withdrawn by CashSouk",
-  CONTRACT_WITHDRAWN: "Facility withdrawn",
+  CONTRACT_OFFER_DECLINED: "Facility offer declined",
   INVOICE_OFFER_SENT: "Invoice financing offer sent",
   INVOICE_OFFER_ACCEPTED: "You accepted an invoice offer",
   INVOICE_OFFER_REJECTED: "You declined an invoice offer",
   INVOICE_OFFER_RETRACTED: "Invoice offer was withdrawn by CashSouk",
   INVOICE_WITHDRAWN: "Invoice withdrawn",
   OFFER_EXPIRED: "An offer expired",
-  AMENDMENTS_SUBMITTED: "You submitted requested changes",
+  AMENDMENTS_SUBMITTED: "Amendment Request Sent",
 };
 
 const ISSUER_VISIBLE_EVENTS = new Set(Object.keys(EVENT_LABELS));
@@ -213,7 +213,7 @@ function composeFacility(app: ApplicationSummarySource): SummaryField[] {
         facility_fee_upfront_collect_amount: parseFiniteNumber(
           offer.facility_fee_upfront_collect_amount
         ),
-      } satisfies ContractOfferDetails).filter((term) => term.label !== "Our reference (contract ID)")
+      } satisfies ContractOfferDetails).filter((term) => term.label !== "CashSouk Reference")
     : [];
   return [
     ...fieldsOf(
@@ -287,7 +287,7 @@ function composeInvoiceOfferTerms(
     dto.platform_fee_rate_percent != null;
   if (!hasCommercial) return [];
   return buildInvoiceOfferLetterTerms("unused", dto).filter(
-    (term) => term.label !== "Our reference (invoice ID)"
+    (term) => term.label !== "CashSouk Reference"
   );
 }
 

@@ -14,7 +14,6 @@ import {
   type AdminActivityCsvRow,
 } from "@/components/admin-activity-csv";
 import {
-  AdminTimelineDetailCard,
   AdminVerticalTimeline,
   AdminVerticalTimelineItem,
   AdminVerticalTimelineSkeleton,
@@ -22,10 +21,8 @@ import {
 import { resolveAdminTimelineActorLabel } from "@/components/admin-timeline-originator";
 import { ChevronDownIcon, ClockIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
-import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
-import { formatCurrency } from "@cashsouk/config";
-import { getItemDisplayNameFromScopeKey, formatPhaseDeadlineAbsolute } from "@cashsouk/types";
+import { formatApplicationReference, getItemDisplayNameFromScopeKey } from "@cashsouk/types";
 import type {
   ResubmitChangesMetadata,
   ResubmitFieldChangeItem,
@@ -37,6 +34,8 @@ import {
   useApplicationLogs,
   type ApplicationLogEntry,
 } from "@/hooks/use-application-logs";
+import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
+import { applicationLogToAuditDetail } from "@/components/audit/audit-adapters";
 
 type ActivityMetadata = {
   scope_key?: string;
@@ -67,6 +66,7 @@ function formatItemLabelFromScopeKey(scopeKey: string): string {
 
 interface AdminActivityTimelineProps {
   applicationId: string | null;
+  applicationDisplayReference?: string | null;
   /** Product id (same as route `productKey`) for workflow tabs in resubmit comparison modal. */
   productKey?: string | null;
   /** Section review statuses from application detail — same dots as main review tabs in comparison modal. */
@@ -135,30 +135,36 @@ function getEventLabel(
     APPLICATION_REJECTED: "Application Rejected",
     APPLICATION_WITHDRAWN: "Application Withdrawn",
     APPLICATION_COMPLETED: "Application Completed",
-    APPLICATION_RESET_TO_UNDER_REVIEW: "Application Reset to Under Review",
+    APPLICATION_RESET_TO_UNDER_REVIEW: "Application Returned to Review",
     CONTRACT_OFFER_SENT: "Facility Offer Sent",
     CONTRACT_OFFER_ACCEPTANCE_SUBMITTED: "Facility Offer Acceptance Submitted",
+    CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED: "Facility Offer Acceptance Resubmitted",
     CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING: "Facility Acceptance Approved for Signing",
-    CONTRACT_OFFER_ACCEPTED: "Facility Offer Signed",
+    CONTRACT_OFFER_ACCEPTED: "Facility Offer Accepted",
     CONTRACT_OFFER_REJECTED: "Facility Offer Withdrawn",
     CONTRACT_OFFER_RETRACTED: "Facility Offer Retracted",
     CONTRACT_FACILITY_OCCUPANCY_UPDATED: "Facility Occupancy Updated",
     CONTRACT_OFFER_EXPIRED: "Facility Offer Expired",
     CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
-    CONTRACT_WITHDRAWN: "Facility Offer Withdrawn",
+    CONTRACT_OFFER_DECLINED: "Facility Offer Declined",
     INVOICE_OFFER_SENT: "Invoice Offer Sent",
     INVOICE_OFFER_ACCEPTANCE_SUBMITTED: "Invoice Offer Acceptance Submitted",
+    INVOICE_OFFER_ACCEPTANCE_RESUBMITTED: "Invoice Offer Acceptance Resubmitted",
     INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING: "Invoice Acceptance Approved for Signing",
-    INVOICE_OFFER_ACCEPTED: "Invoice Offer Signed",
-    INVOICE_OFFER_REJECTED: "Invoice Offer Rejected",
+    INVOICE_OFFER_ACCEPTED: "Invoice Offer Accepted",
+    INVOICE_OFFER_REJECTED: "Invoice Offer Declined",
     INVOICE_OFFER_RETRACTED: "Invoice Offer Retracted",
     INVOICE_OFFER_EXPIRED: "Invoice Offer Expired",
     INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
     INVOICE_WITHDRAWN: "Invoice Withdrawn",
     SIGNING_PACKAGE_CREATED: "Signing Package Created",
-    SIGNING_PACKAGE_SENT: "Signing Package Sent",
-    SIGNING_PACKAGE_VOIDED: "Signing Package Voided",
+    SIGNING_PACKAGE_SENT: "Signing package sent",
+    SIGNING_PACKAGE_COMPLETED: "Signing Package Completed",
+    SIGNING_PACKAGE_VOIDED: "Signing package voided",
     AMENDMENTS_SUBMITTED: "Amendment Request Sent",
+    CONTRACT_FACILITY_FEE_WAIVED: "Facility Fee Waived",
+    CONTRACT_FACILITY_DISABLED: "Facility Disabled",
+    CONTRACT_FACILITY_ENABLED: "Facility Enabled",
   };
   if (eventType === "INVOICE_OFFER_SENT") {
     const invoiceNumber = metadata?.invoice_number;
@@ -175,14 +181,8 @@ function getEventLabel(
   if (eventType === "INVOICE_OFFER_ACCEPTED") {
     const invoiceNumber = metadata?.invoice_number;
     return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Offer Signed`
-      : "Invoice Offer Signed";
-  }
-  if (eventType === "INVOICE_OFFER_REJECTED") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Offer Rejected`
-      : "Invoice Offer Rejected";
+      ? `Invoice ${invoiceNumber} Offer Accepted`
+      : "Invoice Offer Accepted";
   }
   if (eventType === "INVOICE_WITHDRAWN") {
     const invoiceNumber = metadata?.invoice_number;
@@ -220,9 +220,6 @@ function getEventLabel(
 
 const ACTIVITY_PAGE_SIZE = 10;
 
-/** Audit-only events: still stored in application_logs but hidden from the timeline UI. */
-const TIMELINE_HIDDEN_EVENT_TYPES = new Set(["SIGNING_PACKAGE_COMPLETED"]);
-
 function formatActivityText(activity: ApplicationLogEntry["activity"]): string | null {
   if (activity == null) return null;
   if (typeof activity === "string") return activity;
@@ -252,107 +249,17 @@ function applicationLogToActivityCsvRow(
       review_cycle: log.review_cycle,
       ip_address: log.ip_address,
     }),
+    actorType: log.actor_type,
+    source: log.source ?? (typeof portalRaw === "string" ? portalRaw : null),
+    targetType: log.target_type,
+    targetReference: log.target_id ?? log.entityId,
+    correlationId: log.correlation_id,
   };
-}
-
-function ApplicationTimelineDetails({
-  eventType,
-  metadata,
-  remark,
-}: {
-  eventType: string;
-  metadata: ActivityMetadata | null;
-  remark: string | null | undefined;
-}) {
-  const showOffer =
-    eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT";
-  const showRejection =
-    (eventType === "CONTRACT_WITHDRAWN" || eventType === "INVOICE_OFFER_REJECTED") &&
-    Boolean(metadata?.rejection_reason);
-  const remarkLines = remark ? formatRemarkAsBullets(String(remark)) : [];
-
-  if (!showOffer && !showRejection && remarkLines.length === 0) return null;
-
-  return (
-    <AdminTimelineDetailCard>
-      <div className="space-y-3">
-      {showOffer && metadata && eventType === "CONTRACT_OFFER_SENT" ? (
-        <dl className="grid grid-cols-[minmax(7rem,auto)_1fr] gap-x-3 gap-y-1 text-ui">
-          {typeof metadata.offered_facility === "number" ? (
-            <>
-              <dt className="text-muted-foreground">Offered facility</dt>
-              <dd className="tabular-nums">{formatCurrency(metadata.offered_facility)}</dd>
-            </>
-          ) : null}
-          {typeof metadata.requested_facility === "number" ? (
-            <>
-              <dt className="text-muted-foreground">Requested facility</dt>
-              <dd className="tabular-nums">{formatCurrency(metadata.requested_facility)}</dd>
-            </>
-          ) : null}
-          {typeof metadata.acceptance_expires_at === "string" && metadata.acceptance_expires_at ? (
-            <>
-              <dt className="text-muted-foreground">Accept by</dt>
-              <dd className="tabular-nums">
-                {formatPhaseDeadlineAbsolute(metadata.acceptance_expires_at)}
-              </dd>
-            </>
-          ) : null}
-        </dl>
-      ) : null}
-      {showOffer && metadata && eventType === "INVOICE_OFFER_SENT" ? (
-        <dl className="grid grid-cols-[minmax(7rem,auto)_1fr] gap-x-3 gap-y-1 text-ui">
-          {typeof metadata.offered_amount === "number" ? (
-            <>
-              <dt className="text-muted-foreground">Financing amount</dt>
-              <dd className="tabular-nums">{formatCurrency(metadata.offered_amount)}</dd>
-            </>
-          ) : null}
-          {metadata.offered_ratio_percent != null ? (
-            <>
-              <dt className="text-muted-foreground">Financing ratio</dt>
-              <dd className="tabular-nums">{Number(metadata.offered_ratio_percent)}%</dd>
-            </>
-          ) : null}
-          {metadata.offered_profit_rate_percent != null ? (
-            <>
-              <dt className="text-muted-foreground">Profit rate</dt>
-              <dd className="tabular-nums">{Number(metadata.offered_profit_rate_percent)}%</dd>
-            </>
-          ) : null}
-          {typeof metadata.acceptance_expires_at === "string" && metadata.acceptance_expires_at ? (
-            <>
-              <dt className="text-muted-foreground">Accept by</dt>
-              <dd className="tabular-nums">
-                {formatPhaseDeadlineAbsolute(metadata.acceptance_expires_at)}
-              </dd>
-            </>
-          ) : null}
-        </dl>
-      ) : null}
-      {showRejection && metadata?.rejection_reason ? (
-        <div>
-          <p className="text-meta text-muted-foreground">Reason</p>
-          <p className="mt-0.5 text-ui leading-relaxed">{String(metadata.rejection_reason)}</p>
-        </div>
-      ) : null}
-      {remarkLines.length > 0 ? (
-        <div>
-          <p className="text-meta text-muted-foreground">Remark</p>
-          <ul className="mt-1 list-disc space-y-1 pl-5 text-ui leading-relaxed">
-            {remarkLines.map((line, i) => (
-              <li key={i}>{line}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      </div>
-    </AdminTimelineDetailCard>
-  );
 }
 
 export function AdminActivityTimeline({
   applicationId,
+  applicationDisplayReference,
   productKey,
   reviewTabSections,
   sectionLabelOverrides,
@@ -360,12 +267,9 @@ export function AdminActivityTimeline({
 }: AdminActivityTimelineProps) {
   const { data, isLoading, error } = useApplicationLogs(applicationId);
 
-  const logs: ApplicationLogEntry[] = React.useMemo(
-    () => (data ?? []).filter((log) => !TIMELINE_HIDDEN_EVENT_TYPES.has(log.event_type)),
-    [data]
-  );
+  const logs: ApplicationLogEntry[] = data ?? [];
 
-  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
+  const [selectedLog, setSelectedLog] = React.useState<ApplicationLogEntry | null>(null);
   const [comparisonModalOpen, setComparisonModalOpen] = React.useState(false);
   const [comparisonContext, setComparisonContext] = React.useState<{
     reviewCycle: number;
@@ -386,8 +290,6 @@ export function AdminActivityTimeline({
     [data, sectionLabelOverrides]
   );
 
-  const toggle = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
-
   return (
     <>
       <Card className="flex flex-col overflow-hidden rounded-2xl">
@@ -401,7 +303,10 @@ export function AdminActivityTimeline({
           }
           actions={
             <AdminActivityCsvExportButton
-              fileName={`application-${applicationId ?? "activity"}-activity.csv`}
+              fileName={`application-${formatApplicationReference({
+                displayReference: applicationDisplayReference,
+                id: applicationId,
+              }).replace(/[^A-Z0-9-]/gi, "") || "activity"}-activity.csv`}
               rows={csvRows}
             />
           }
@@ -461,7 +366,6 @@ export function AdminActivityTimeline({
                       actorUserId: log.actor_id,
                       portal,
                     });
-                    const remark = log.remark;
                     const entityId = log.entityId ?? undefined;
                     const resubmitChanges =
                       eventType === "APPLICATION_RESUBMITTED"
@@ -484,14 +388,6 @@ export function AdminActivityTimeline({
                           })
                         : null;
                     const description = tabsOnly ?? formatActivityText(log.activity);
-                    const canExpand = Boolean(
-                      remark ||
-                        ((eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT") &&
-                          metadata) ||
-                        ((eventType === "CONTRACT_WITHDRAWN" ||
-                          eventType === "INVOICE_OFFER_REJECTED") &&
-                          metadata?.rejection_reason)
-                    );
 
                     return (
                       <AdminVerticalTimelineItem
@@ -506,46 +402,25 @@ export function AdminActivityTimeline({
                         createdAt={log.created_at}
                         actorLabel={actorName}
                         portal={portal}
+                        onViewDetails={() => setSelectedLog(log)}
                         timestampActions={
-                          canOpenResubmitComparison || canExpand ? (
-                            <>
-                              {canOpenResubmitComparison ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setComparisonContext({
-                                      reviewCycle: reviewCycleFromLog!,
-                                      fieldChanges: Array.isArray(resubmitChanges?.field_changes)
-                                        ? (resubmitChanges!.field_changes as ResubmitFieldChangeItem[])
-                                        : undefined,
-                                    });
-                                    setComparisonModalOpen(true);
-                                  }}
-                                  className="hover:text-foreground hover:underline"
-                                >
-                                  View comparison
-                                </button>
-                              ) : null}
-                              {canExpand ? (
-                                <button
-                                  type="button"
-                                  onClick={() => toggle(log.id)}
-                                  className="hover:text-foreground hover:underline"
-                                >
-                                  {expanded[log.id] ? "Hide details" : "View details"}
-                                </button>
-                              ) : null}
-                            </>
+                          canOpenResubmitComparison ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setComparisonContext({
+                                  reviewCycle: reviewCycleFromLog!,
+                                  fieldChanges: Array.isArray(resubmitChanges?.field_changes)
+                                    ? (resubmitChanges!.field_changes as ResubmitFieldChangeItem[])
+                                    : undefined,
+                                });
+                                setComparisonModalOpen(true);
+                              }}
+                              className="hover:text-foreground hover:underline"
+                            >
+                              View comparison
+                            </button>
                           ) : undefined
-                        }
-                        footer={
-                          expanded[log.id] ? (
-                            <ApplicationTimelineDetails
-                              eventType={eventType}
-                              metadata={metadata}
-                              remark={remark}
-                            />
-                          ) : null
                         }
                       />
                     );
@@ -556,6 +431,26 @@ export function AdminActivityTimeline({
           )}
         </CardContent>
       </Card>
+      <AuditDetailDrawer
+        open={selectedLog != null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedLog(null);
+        }}
+        record={
+          selectedLog
+            ? applicationLogToAuditDetail(
+                selectedLog,
+                getEventLabel(
+                  selectedLog.event_type,
+                  selectedLog.metadata,
+                  selectedLog.entityId,
+                  sectionLabelOverrides
+                ),
+                formatActivityText(selectedLog.activity)
+              )
+            : null
+        }
+      />
       <ResubmitComparisonModal
         open={comparisonModalOpen}
         onOpenChange={(o) => {
@@ -563,6 +458,7 @@ export function AdminActivityTimeline({
           if (!o) setComparisonContext(null);
         }}
         applicationId={applicationId}
+        applicationDisplayReference={applicationDisplayReference}
         productKey={productKey ?? null}
         reviewCycle={comparisonContext?.reviewCycle ?? null}
         fieldChanges={comparisonContext?.fieldChanges}

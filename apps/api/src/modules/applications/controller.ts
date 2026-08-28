@@ -24,6 +24,7 @@ import { readSigningCloudConfigFromEnv } from "../signingcloud/signingcloud-api"
 import {
   createGeneratedDocumentApplicationRouter,
 } from "../generated-documents/controller";
+import { issuerActivityFromRequest } from "../../lib/audit";
 
 /**
  * Get authenticated user ID from request
@@ -174,7 +175,11 @@ async function cancelApplication(req: Request, res: Response, next: NextFunction
   try {
     const { id } = applicationIdParamSchema.parse(req.params);
     const userId = getUserId(req);
-    const application = await applicationService.cancelApplication(id, userId);
+    const application = await applicationService.cancelApplication(
+      id,
+      userId,
+      issuerActivityFromRequest(req, res)
+    );
 
     res.json({
       success: true,
@@ -296,17 +301,22 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
     const { status } = updateStatusSchema.parse(req.body);
     const userId = getUserId(req);
 
-    const result = await applicationService.updateApplicationStatus(id, status, userId);
+    const result = await applicationService.updateApplicationStatus(
+      id,
+      status,
+      userId,
+      issuerActivityFromRequest(req, res)
+    );
     try {
       const callerUserId = getUserId(req);
 
       // Issuer flows
-      if (status === "SUBMITTED" || status === "RESUBMITTED") {
+      if (status === "SUBMITTED") {
         await logApplicationActivity({
           userId: callerUserId,
           applicationId: result.id,
-          eventType: status === "RESUBMITTED" ? "APPLICATION_RESUBMITTED" : "APPLICATION_SUBMITTED",
-          reviewCycle: (result as any)?.review_cycle ?? undefined,
+          eventType: "APPLICATION_SUBMITTED",
+          reviewCycle: (result as { review_cycle?: number })?.review_cycle ?? undefined,
           ipAddress: req.ip ?? undefined,
           userAgent:
             (Array.isArray(req.headers["user-agent"])
@@ -402,7 +412,9 @@ export function createApplicationRouter(): Router {
         const data = await applicationService.respondToContractOffer(
           id,
           "accept",
-          userId
+          userId,
+          undefined,
+          { logContext: issuerActivityFromRequest(req, res) }
         );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
@@ -418,7 +430,13 @@ export function createApplicationRouter(): Router {
         const { id } = applicationIdParamSchema.parse(req.params);
         const { reason } = z.object({ reason: z.string().max(2000).optional() }).parse(req.body ?? {});
         const userId = getUserId(req);
-        const data = await applicationService.respondToContractOffer(id, "reject", userId, reason);
+        const data = await applicationService.respondToContractOffer(
+          id,
+          "reject",
+          userId,
+          reason,
+          { logContext: issuerActivityFromRequest(req, res) }
+        );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
         next(e);
@@ -436,7 +454,8 @@ export function createApplicationRouter(): Router {
         const data = await applicationService.submitContractOfferAcceptance(
           id,
           userId,
-          authorized_parties
+          authorized_parties,
+          issuerActivityFromRequest(req, res)
         );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
@@ -501,6 +520,7 @@ export function createApplicationRouter(): Router {
           {
             otp: { challengeId: challenge_id, otpCode: otp_code },
             consent_ids,
+            logContext: issuerActivityFromRequest(req, res),
           }
         );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
@@ -518,7 +538,14 @@ export function createApplicationRouter(): Router {
         const invoiceId = z.string().cuid().parse(req.params.invoiceId);
         const { reason } = z.object({ reason: z.string().max(2000).optional() }).parse(req.body ?? {});
         const userId = getUserId(req);
-        const data = await applicationService.respondToInvoiceOffer(id, invoiceId, "reject", userId, reason);
+        const data = await applicationService.respondToInvoiceOffer(
+          id,
+          invoiceId,
+          "reject",
+          userId,
+          reason,
+          { logContext: issuerActivityFromRequest(req, res) }
+        );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
         next(e);
@@ -538,7 +565,8 @@ export function createApplicationRouter(): Router {
           id,
           invoiceId,
           userId,
-          authorized_parties
+          authorized_parties,
+          issuerActivityFromRequest(req, res)
         );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
@@ -713,7 +741,11 @@ router.get("/:id", requireAuth, getApplication);
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
         const userId = getUserId(req);
-        const result = await applicationService.resubmitApplication(id, userId);
+        const result = await applicationService.resubmitApplication(
+          id,
+          userId,
+          issuerActivityFromRequest(req, res)
+        );
         res.json({
           success: true,
           data: result,

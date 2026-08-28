@@ -13,7 +13,7 @@ import {
 
 describe("buildContractOfferLetterTerms", () => {
   it("shows exact snapshot upfront and remaining drawdown collection amounts", () => {
-    const terms = buildContractOfferLetterTerms("con-1", {
+    const terms = buildContractOfferLetterTerms("CON-ARF-202608-K71", {
       requested_facility: 200_000,
       offered_facility: 150_000,
       facility_fee_rate_percent: 1,
@@ -30,6 +30,10 @@ describe("buildContractOfferLetterTerms", () => {
       value: "RM 1,100.00 is intended for collection from later invoice drawdowns.",
     });
     expect(terms.map((term) => term.value).join(" ")).not.toMatch(/progressively|due in full/i);
+    expect(terms[0]).toEqual({
+      label: "CashSouk Reference",
+      value: "CON-ARF-202608-K71",
+    });
   });
 
   it("says no upfront gateway payment is required when the snapshot upfront is RM0", () => {
@@ -145,6 +149,7 @@ describe("buildInvoiceOfferLetterTerms", () => {
       label: "Risk rating",
       value: "B",
     });
+    expect(terms[0]).toEqual({ label: "CashSouk Reference", value: "inv-123" });
     expect(terms).toContainEqual({
       label: "Financing margin",
       value: "80%",

@@ -18,11 +18,14 @@ import {
 import {
   extractOrganizationTimelineBylineChips,
   extractOrganizationTimelineCompactDetails,
+  organizationLogTargetReference,
 } from "@/components/organization-activity-timeline-details";
 import {
   ORGANIZATION_ACTIVITY_EVENT_TYPES,
   useOrganizationLogs,
 } from "@/hooks/use-organization-logs";
+import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
+import { organizationLogToAuditDetail } from "@/components/audit/audit-adapters";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { OnboardingLogResponse } from "@cashsouk/types";
 import {
@@ -43,21 +46,26 @@ function getEventLabel(eventType: string): string {
   const labels: Record<string, string> = {
     ONBOARDING_STARTED: "Onboarding Started",
     ONBOARDING_RESUMED: "Onboarding Resumed",
-    ONBOARDING_STATUS_UPDATED: "Status Updated",
-    ONBOARDING_CANCELLED: "Onboarding Cancelled",
+    ONBOARDING_STATUS_UPDATED: "Onboarding Status Updated",
+    ONBOARDING_CANCELLED: "Onboarding Restarted",
     ONBOARDING_REJECTED: "Onboarding Rejected",
+    COD_REJECTED: "Onboarding Rejected",
     ONBOARDING_APPROVED: "Onboarding Approved",
     AML_APPROVED: "AML Approved",
     TNC_APPROVED: "T&C Approved",
     TNC_ACCEPTED: "T&C Accepted",
     SSM_APPROVED: "SSM Approved",
     KYC_APPROVED: "KYC Approved",
-    KYB_APPROVED: "KYB Approved",
     FINAL_APPROVAL_COMPLETED: "Final Approval Completed",
     SOPHISTICATED_STATUS_UPDATED: "Sophisticated Status Updated",
     FORM_FILLED: "Form Submitted",
     ONBOARDING_RESET: "Onboarding Reset",
-    PROFILE_UPDATED: "Profile Updated",
+    PROFILE_UPDATED: "Organization Profile Updated",
+    MEMBER_ADDED: "Member Added",
+    MEMBER_INVITED: "Member Invited",
+    MEMBER_REMOVED: "Member Removed",
+    MEMBER_ROLE_CHANGED: "Member Role Changed",
+    MARC_ASSESSMENT_SAVED: "MARC Assessment Saved",
     USER_COMPLETED: "User Completed",
   };
   return (
@@ -78,8 +86,25 @@ function formatTrigger(trigger: string): string {
 
 function buildEventDescription(
   eventType: string,
-  metadata: Record<string, unknown> | null
+  metadata: Record<string, unknown> | null,
+  log?: OnboardingLogResponse
 ): string | null {
+  if (eventType === "PROFILE_UPDATED") {
+    const fields = Array.isArray(metadata?.updatedFields)
+      ? metadata.updatedFields.filter((field): field is string => typeof field === "string")
+      : [];
+    const actor = log ? organizationActorLabel(log) : "An admin";
+    const organizationName = log?.organizationName?.trim();
+    const fieldList = fields.length > 0 ? fields.join(", ") : null;
+    if (organizationName && fieldList) {
+      return `${actor} updated the organization profile for ${organizationName} (${fieldList}).`;
+    }
+    if (organizationName) {
+      return `${actor} updated the organization profile for ${organizationName}.`;
+    }
+    return fieldList ? `Updated ${fieldList}` : "Profile updated by admin";
+  }
+
   if (!metadata) return null;
 
   switch (eventType) {
@@ -103,17 +128,35 @@ function buildEventDescription(
     }
     case "FORM_FILLED":
       return metadata.section ? `Section: ${String(metadata.section)}` : null;
-    case "PROFILE_UPDATED": {
-      const fields = Array.isArray(metadata.updatedFields)
-        ? metadata.updatedFields.filter((field): field is string => typeof field === "string")
-        : [];
-      return fields.length > 0 ? `Updated ${fields.join(", ")}` : "Profile updated by admin";
-    }
     case "AML_APPROVED":
-    case "KYB_APPROVED":
     case "KYC_APPROVED":
       if (metadata.isCorporateOnboarding) return "Corporate onboarding";
       return null;
+    case "MEMBER_ADDED":
+      return metadata.memberEmail
+        ? `Member added: ${String(metadata.memberEmail)}`
+        : "A member was added to the organisation.";
+    case "MEMBER_INVITED":
+      return metadata.memberEmail
+        ? `Invitation sent to ${String(metadata.memberEmail)}`
+        : "A member invitation was created.";
+    case "MEMBER_REMOVED":
+      return metadata.memberEmail
+        ? `Member removed: ${String(metadata.memberEmail)}`
+        : "A member was removed from the organisation.";
+    case "MEMBER_ROLE_CHANGED":
+      if (metadata.previousRole && metadata.newRole) {
+        return `Member role changed from ${String(metadata.previousRole)} to ${String(metadata.newRole)}.`;
+      }
+      return "A member role was changed.";
+    case "MARC_ASSESSMENT_SAVED": {
+      const next =
+        metadata.nextValues && typeof metadata.nextValues === "object" && !Array.isArray(metadata.nextValues)
+          ? (metadata.nextValues as Record<string, unknown>)
+          : null;
+      const grade = typeof next?.creditGrade === "string" ? next.creditGrade : null;
+      return grade ? `MARC assessment saved (${grade}).` : "MARC assessment saved.";
+    }
     default:
       return null;
   }
@@ -138,6 +181,13 @@ function organizationLogToActivityCsvRow(log: OnboardingLogResponse): AdminActiv
       ip_address: log.ip_address,
       device_type: log.device_type,
     }),
+    actorType: log.actor_type,
+    actorEmail: log.user.email,
+    organisation: log.organizationName,
+    source: log.source ?? log.portal,
+    targetType: log.target_type,
+    targetReference: organizationLogTargetReference(log),
+    correlationId: log.correlation_id,
   };
 }
 
@@ -146,11 +196,13 @@ function OrganizationActivityTimelineList({
   hasNextPage,
   fetchNextPage,
   isFetchingNextPage,
+  onViewDetails,
 }: {
   logs: OnboardingLogResponse[];
   hasNextPage: boolean | undefined;
   fetchNextPage: () => void;
   isFetchingNextPage: boolean;
+  onViewDetails: (log: OnboardingLogResponse) => void;
 }) {
   return (
     <AdminVerticalTimeline
@@ -182,13 +234,14 @@ function OrganizationActivityTimelineList({
           <AdminVerticalTimelineItem
             key={log.id}
             title={getEventLabel(eventType)}
-            description={buildEventDescription(eventType, metadata)}
+            description={buildEventDescription(eventType, metadata, log)}
             descriptionClassName="line-clamp-2"
             createdAt={log.created_at}
             actorLabel={organizationActorLabel(log)}
             portal={log.portal}
             bylineChips={extractOrganizationTimelineBylineChips(metadata)}
             compactDetails={extractOrganizationTimelineCompactDetails(eventType, metadata)}
+            onViewDetails={() => onViewDetails(log)}
           />
         );
       })}
@@ -216,6 +269,7 @@ export function OrganizationActivityTimeline({
     isFetchingNextPage,
   } = useOrganizationLogs(organizationId);
 
+  const [selectedLog, setSelectedLog] = React.useState<OnboardingLogResponse | null>(null);
   const logs = React.useMemo(
     () => data?.pages.flatMap((page) => page.logs) ?? [],
     [data]
@@ -291,6 +345,7 @@ export function OrganizationActivityTimeline({
                   hasNextPage={hasNextPage}
                   fetchNextPage={fetchNextPage}
                   isFetchingNextPage={isFetchingNextPage}
+                  onViewDetails={setSelectedLog}
                 />
               </div>
             ) : (
@@ -301,6 +356,7 @@ export function OrganizationActivityTimeline({
                     hasNextPage={hasNextPage}
                     fetchNextPage={fetchNextPage}
                     isFetchingNextPage={isFetchingNextPage}
+                    onViewDetails={setSelectedLog}
                   />
                 </div>
               </ScrollArea>
@@ -308,6 +364,21 @@ export function OrganizationActivityTimeline({
           </div>
         )}
       </CardContent>
+      <AuditDetailDrawer
+        open={selectedLog != null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedLog(null);
+        }}
+        record={
+          selectedLog
+            ? organizationLogToAuditDetail(
+                selectedLog,
+                getEventLabel(selectedLog.event_type),
+                buildEventDescription(selectedLog.event_type, selectedLog.metadata, selectedLog)
+              )
+            : null
+        }
+      />
     </Card>
   );
 }

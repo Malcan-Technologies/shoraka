@@ -246,8 +246,6 @@ export function buildInvoicePaymasterVerificationRows(note: NoteDetail): CoreTer
       value: textOrDna(paymaster?.entity_type ?? paymaster?.entityType),
     },
     { label: "Deed of Assignment (DOA)", value: DATA_NOT_AVAILABLE },
-    { label: "Paymaster Rating", value: DATA_NOT_AVAILABLE },
-    { label: "Confidence Grading", value: DATA_NOT_AVAILABLE },
   ];
 }
 

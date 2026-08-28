@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/select";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useApplication } from "@/hooks/use-applications";
-import { useContract, useCreateContract, useUpdateContract } from "@/hooks/use-contracts";
+import { useContract, useCreateContract, useUpdateContract, useIssuerPaymasters } from "@/hooks/use-contracts";
 import { ContractDetailsSkeleton } from "@/app/(application-flow)/applications/components/contract-details-skeleton";
 import { toast } from "sonner";
 import { useAuthToken, createApiClient } from "@cashsouk/config";
@@ -340,6 +340,9 @@ export function ContractDetailsStep({
 }: ContractDetailsStepProps) {
   const { getAccessToken } = useAuthToken();
   const { data: application } = useApplication(applicationId);
+  const issuerOrganizationId =
+    (application as { issuer_organization_id?: string } | undefined)?.issuer_organization_id || "";
+  const { data: existingPaymasters = [] } = useIssuerPaymasters(issuerOrganizationId);
   const devTools = useDevTools();
 
   // DEBUG: Toggle skeleton mode
@@ -372,6 +375,8 @@ export function ContractDetailsStep({
       is_related_party: "" as YesNo | "",
     },
   });
+  const [customerMode, setCustomerMode] = React.useState<"existing" | "new">("new");
+  const [selectedPaymasterId, setSelectedPaymasterId] = React.useState<string>("");
 
   /** Note: Date inputs are free-text. Parents handle validation on save. */
 
@@ -506,6 +511,13 @@ export function ContractDetailsStep({
         is_related_party: relatedPartyValue,
       },
     };
+
+    const linkedPaymasterId =
+      typeof customerDetails.paymaster_id === "string" ? customerDetails.paymaster_id : "";
+    if (linkedPaymasterId) {
+      setSelectedPaymasterId(linkedPaymasterId);
+      setCustomerMode("existing");
+    }
 
     const displayedInitialData = {
       ...initialData,
@@ -652,6 +664,8 @@ export function ContractDetailsStep({
       country: updatedFormData.customer.country,
       is_related_party: updatedFormData.customer.is_related_party === "yes",
     };
+    const paymasterSelection =
+      customerMode === "existing" && selectedPaymasterId ? selectedPaymasterId : null;
 
     if (isInvoiceOnly) {
       const existingContractDetails = (
@@ -659,9 +673,11 @@ export function ContractDetailsStep({
       )?.contract_details;
       const updatePayload: {
         customer_details: typeof updatedCustomerDetails;
+        selectedPaymasterId?: string | null;
         contract_details?: null;
       } = {
         customer_details: updatedCustomerDetails,
+        selectedPaymasterId: paymasterSelection,
       };
       if (existingContractDetails != null && Object.keys(existingContractDetails).length > 0) {
         updatePayload.contract_details = null;
@@ -715,6 +731,7 @@ export function ContractDetailsStep({
       data: {
         contract_details: updatedContractDetails,
         customer_details: updatedCustomerDetails,
+        selectedPaymasterId: paymasterSelection,
       },
     });
 
@@ -736,6 +753,8 @@ export function ContractDetailsStep({
     contract,
     application,
     productMinMonths,
+    customerMode,
+    selectedPaymasterId,
   ]);
 
   /* ================================================================
@@ -874,6 +893,39 @@ export function ContractDetailsStep({
       (flaggedItems?.get("contract_details")?.size ?? 0) > 0
     );
   }, [readOnly, isAmendmentMode, flaggedSections, flaggedItems]);
+
+  const linkedFacilityPaymasterId = React.useMemo(() => {
+    const details = (contract as { customer_details?: { paymaster_id?: string | null } } | undefined)
+      ?.customer_details;
+    return typeof details?.paymaster_id === "string" && details.paymaster_id
+      ? details.paymaster_id
+      : "";
+  }, [contract]);
+  const paymasterIdentityLocked = Boolean(linkedFacilityPaymasterId);
+  const customerIdentityDisabled =
+    !stepIsEditable || paymasterIdentityLocked || (customerMode === "existing" && Boolean(selectedPaymasterId));
+
+  const applyExistingPaymaster = (paymasterId: string) => {
+    const option = existingPaymasters.find((entry) => entry.id === paymasterId);
+    setSelectedPaymasterId(paymasterId);
+    if (!option) return;
+    setFormData((prev) => ({
+      ...prev,
+      customer: {
+        ...prev.customer,
+        name: option.legalName,
+        entity_type: option.entityType,
+        ssm_number: option.registrationNumber,
+        country: option.registrationCountry || prev.customer.country,
+        is_related_party:
+          option.isRelatedParty == null
+            ? prev.customer.is_related_party
+            : option.isRelatedParty
+              ? "yes"
+              : "no",
+      },
+    }));
+  };
 
   /* ================================================================
      HANDLERS
@@ -1141,11 +1193,81 @@ export function ContractDetailsStep({
           </div>
 
           <div className={sectionGridClassName}>
+            {!paymasterIdentityLocked ? (
+              <>
+                <Label className={labelInputClassName}>Customer / Paymaster</Label>
+                <div className={applicationFlowRadioRowControlClassName}>
+                  <div className="flex flex-wrap gap-6 items-center">
+                    <CustomRadio
+                      name="customer-mode"
+                      value="existing"
+                      checked={customerMode === "existing"}
+                      onChange={() => {
+                        if (!stepIsEditable) return;
+                        setCustomerMode("existing");
+                      }}
+                      label="Select existing customer"
+                      selectedLabelClass="text-ui font-medium"
+                      unselectedLabelClass="text-ui"
+                      disabled={!stepIsEditable || existingPaymasters.length === 0}
+                    />
+                    <CustomRadio
+                      name="customer-mode"
+                      value="new"
+                      checked={customerMode === "new"}
+                      onChange={() => {
+                        if (!stepIsEditable) return;
+                        setCustomerMode("new");
+                        setSelectedPaymasterId("");
+                      }}
+                      label="Add new customer"
+                      selectedLabelClass="text-ui font-medium"
+                      unselectedLabelClass="text-ui"
+                      disabled={!stepIsEditable}
+                    />
+                  </div>
+                </div>
+                {customerMode === "existing" ? (
+                  <>
+                    <Label className={labelInputClassName}>Existing customer</Label>
+                    <Select
+                      value={selectedPaymasterId}
+                      onValueChange={(value) => applyExistingPaymaster(value)}
+                      disabled={!stepIsEditable}
+                    >
+                      <SelectTrigger
+                        className={cn(
+                          formSelectTriggerClassName,
+                          !stepIsEditable && formInputDisabledClassName
+                        )}
+                      >
+                        <SelectValue placeholder="Select a customer previously used by this issuer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {existingPaymasters.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.legalName} · {option.registrationNumber}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <Label className={labelInputClassName}>Customer / Paymaster</Label>
+                <p className="text-ui text-muted-foreground">
+                  This facility already has a linked customer. Legal identity cannot be changed.
+                </p>
+              </>
+            )}
+
             <Label className={labelInputClassName}>Customer Name</Label>
             <Input
               value={formData.customer.name}
               onChange={(e) => handleInputChange("customer", "name", e.target.value)}
-              disabled={!stepIsEditable}
+              disabled={customerIdentityDisabled}
               placeholder="eg. Petronas Chemical Bhd"
               className={inputClassName}
             />
@@ -1154,12 +1276,12 @@ export function ContractDetailsStep({
             <Select
               value={formData.customer.entity_type}
               onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
-              disabled={!stepIsEditable}
+              disabled={customerIdentityDisabled}
             >
               <SelectTrigger
                 className={cn(
                   formSelectTriggerClassName,
-                  !stepIsEditable && formInputDisabledClassName
+                  customerIdentityDisabled && formInputDisabledClassName
                 )}
               >
                 <SelectValue placeholder="Select entity type" />
@@ -1189,6 +1311,7 @@ export function ContractDetailsStep({
 
                   handleInputChange("customer", "ssm_number", raw);
                 }}
+                disabled={customerIdentityDisabled}
                 placeholder="e.g. 202123456789"
                 className={inputClassName}
               />
@@ -1206,7 +1329,8 @@ export function ContractDetailsStep({
                 "flex h-11 w-full items-center gap-2 px-3",
                 issuerFieldChromeClassName,
                 issuerFieldFocusWithinOpenClassName,
-                !stepIsEditable && formInputDisabledClassName
+                !stepIsEditable && formInputDisabledClassName,
+                customerIdentityDisabled && formInputDisabledClassName
               )}
             >
               <span
@@ -1219,10 +1343,10 @@ export function ContractDetailsStep({
                 id="contract-customer-country"
                 value={formData.customer.country}
                 onChange={(e) => handleInputChange("customer", "country", e.target.value)}
-                disabled={!stepIsEditable}
+                disabled={customerIdentityDisabled}
                 className={cn(
                   "min-h-0 min-w-0 flex-1 border-0 bg-transparent py-2 text-sm text-foreground outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0",
-                  stepIsEditable ? "cursor-pointer" : "cursor-not-allowed"
+                  customerIdentityDisabled ? "cursor-not-allowed" : "cursor-pointer"
                 )}
               >
                 {PHONE_SUPPORTED_COUNTRIES.map(({ code, name }) => (

@@ -2,8 +2,9 @@ import {
   countNoteInvestors,
   formatProspectusListBadge,
   getProspectusDisplayStatus,
+  isNoteProspectusPublished,
   hasSettlementTrusteeMovementFromPoolSummary,
-  isSoukscoreRiskRating,
+  isMarcSmeGrade,
   parseAdditionalFeeCharges,
   parseFacilityFeeCollectionWaiver,
   parseInvoiceFeeSchedule,
@@ -23,14 +24,111 @@ import { sortAdminNoteEvents } from "./admin-note-events-sorting";
 import { noteInclude } from "./repository";
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { prisma } from "../../lib/prisma";
+import { getLatestAssignmentNoticeForNote, mapAssignmentNotice } from "../paymaster/service";
 
 type NoteWithRelations = Prisma.NoteGetPayload<{
   include: typeof noteInclude;
 }>;
 
+type NoteSourceKeys = {
+  source_application_id: string;
+  source_contract_id: string | null;
+  source_invoice_id: string | null;
+  issuer_organization_id: string;
+};
+
+export type NoteSourceDisplayReferenceMaps = {
+  applicationById: Map<string, string | null>;
+  contractById: Map<string, string | null>;
+  invoiceById: Map<string, string | null>;
+  issuerOrgById: Map<string, string | null>;
+};
+
+export async function loadNoteSourceDisplayReferenceMaps(
+  notes: NoteSourceKeys[]
+): Promise<NoteSourceDisplayReferenceMaps> {
+  const applicationIds = [
+    ...new Set(notes.map((note) => note.source_application_id).filter((id) => Boolean(id?.trim()))),
+  ];
+  const contractIds = [
+    ...new Set(
+      notes
+        .map((note) => note.source_contract_id)
+        .filter((id): id is string => Boolean(id?.trim()))
+    ),
+  ];
+  const invoiceIds = [
+    ...new Set(
+      notes
+        .map((note) => note.source_invoice_id)
+        .filter((id): id is string => Boolean(id?.trim()))
+    ),
+  ];
+  const issuerOrgIds = [
+    ...new Set(notes.map((note) => note.issuer_organization_id).filter((id) => Boolean(id?.trim()))),
+  ];
+
+  const [applications, contracts, invoices, orgs] = await Promise.all([
+    applicationIds.length
+      ? prisma.application.findMany({
+          where: { id: { in: applicationIds } },
+          select: { id: true, display_reference: true },
+        })
+      : Promise.resolve([]),
+    contractIds.length
+      ? prisma.contract.findMany({
+          where: { id: { in: contractIds } },
+          select: { id: true, display_reference: true },
+        })
+      : Promise.resolve([]),
+    invoiceIds.length
+      ? prisma.invoice.findMany({
+          where: { id: { in: invoiceIds } },
+          select: { id: true, display_reference: true },
+        })
+      : Promise.resolve([]),
+    issuerOrgIds.length
+      ? prisma.issuerOrganization.findMany({
+          where: { id: { in: issuerOrgIds } },
+          select: { id: true, display_reference: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  return {
+    applicationById: new Map(applications.map((row) => [row.id, row.display_reference ?? null])),
+    contractById: new Map(contracts.map((row) => [row.id, row.display_reference ?? null])),
+    invoiceById: new Map(invoices.map((row) => [row.id, row.display_reference ?? null])),
+    issuerOrgById: new Map(orgs.map((row) => [row.id, row.display_reference ?? null])),
+  };
+}
+
+export function applyNoteSourceDisplayReferences<T extends ReturnType<typeof mapNoteListItem>>(
+  mapped: T,
+  note: NoteSourceKeys,
+  maps: NoteSourceDisplayReferenceMaps
+): T {
+  return {
+    ...mapped,
+    sourceApplicationDisplayReference:
+      maps.applicationById.get(note.source_application_id) ?? null,
+    sourceContractDisplayReference: note.source_contract_id
+      ? (maps.contractById.get(note.source_contract_id) ?? null)
+      : null,
+    sourceInvoiceDisplayReference: note.source_invoice_id
+      ? (maps.invoiceById.get(note.source_invoice_id) ?? null)
+      : null,
+    issuerOrganizationDisplayReference:
+      maps.issuerOrgById.get(note.issuer_organization_id) ?? null,
+  };
+}
+
 function mapProspectusSummary(note: NoteWithRelations): NoteProspectusSummary {
   const review = note.prospectus_review;
-  const notePublished = note.status === "PUBLISHED";
+  const notePublished = isNoteProspectusPublished({
+    status: note.status,
+    publishedAt: note.published_at,
+  });
   const displayStatus = getProspectusDisplayStatus({
     reviewStatus: review?.status ?? "DRAFT",
     notePublished,
@@ -277,7 +375,7 @@ function resolveRiskRating(note: NoteWithRelations) {
     invoiceSnapshot?.offer_details as Prisma.JsonValue | null | undefined
   );
   const riskRating = offerDetails?.risk_rating;
-  return isSoukscoreRiskRating(riskRating) ? riskRating : null;
+  return isMarcSmeGrade(riskRating) ? riskRating : null;
 }
 
 function resolveIssuerName(note: NoteWithRelations): string | null {
@@ -383,23 +481,23 @@ function resolveSettlementSummary(note: NoteWithRelations) {
     profitDays: settlement.profit_days,
     annualProfitRatePercent: decimalToNumber(settlement.annual_profit_rate_percent),
     postedAt: iso(settlement.posted_at),
-    serviceFeeTrusteeStatus: hasSettlementTrusteeMovement
-      ? (settlement.service_fee_trustee_status ?? null)
+    settlementTrusteeStatus: hasSettlementTrusteeMovement
+      ? (settlement.settlement_trustee_status ?? null)
       : null,
-    serviceFeeTrusteeCreatedAt: hasSettlementTrusteeMovement
-      ? iso(settlement.service_fee_trustee_created_at)
+    settlementTrusteeCreatedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.settlement_trustee_created_at)
       : null,
-    serviceFeeTrusteeLetterGeneratedAt: hasSettlementTrusteeMovement
-      ? iso(settlement.service_fee_trustee_letter_generated_at)
+    settlementTrusteeLetterGeneratedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.settlement_trustee_letter_generated_at)
       : null,
-    serviceFeeTrusteeSubmittedAt: hasSettlementTrusteeMovement
-      ? iso(settlement.service_fee_trustee_submitted_at)
+    settlementTrusteeSubmittedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.settlement_trustee_submitted_at)
       : null,
-    serviceFeeTrusteeCompletedAt: hasSettlementTrusteeMovement
-      ? iso(settlement.service_fee_trustee_completed_at)
+    settlementTrusteeCompletedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.settlement_trustee_completed_at)
       : null,
-    serviceFeeTrusteeEmailSentAt: hasSettlementTrusteeMovement
-      ? iso(settlement.service_fee_trustee_email_sent_at)
+    settlementTrusteeEmailSentAt: hasSettlementTrusteeMovement
+      ? iso(settlement.settlement_trustee_email_sent_at)
       : null,
   };
 }
@@ -419,14 +517,14 @@ export function resolveIssuerResidualPayoutListStatus(
     return { kind: "none" };
   }
 
-  if (settlementSummary.serviceFeeTrusteeStatus === "COMPLETED") {
+  if (settlementSummary.settlementTrusteeStatus === "COMPLETED") {
     return { kind: "paid" };
   }
 
   if (hasSettlementTrusteeMovementFromPoolSummary(settlementSummary)) {
     return {
       kind: "pending",
-      withTrustee: settlementSummary.serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE",
+      withTrustee: settlementSummary.settlementTrusteeStatus === "SUBMITTED_TO_TRUSTEE",
     };
   }
 
@@ -494,10 +592,13 @@ export function mapNoteListItem(note: NoteWithRelations) {
     purposeOfContract: resolveContractPurpose(note.contract_snapshot),
     issuerIndustry: resolveIssuerIndustry(note),
     sourceApplicationId: note.source_application_id,
+    sourceApplicationDisplayReference: null,
     sourceContractId: note.source_contract_id,
     sourceContractDisplayReference: null,
     sourceInvoiceId: note.source_invoice_id,
+    sourceInvoiceDisplayReference: null,
     issuerOrganizationId: note.issuer_organization_id,
+    issuerOrganizationDisplayReference: null,
     issuerName: resolveIssuerName(note),
     paymasterName: resolvePaymasterName(note),
     riskRating: resolveRiskRating(note),
@@ -548,6 +649,47 @@ export function mapNoteListItem(note: NoteWithRelations) {
   };
 }
 
+type NoteEventRecord = NoteWithRelations["events"][number];
+
+/**
+ * Deterministically ordered NoteEvent DTOs, shared by the note-detail timeline (capped via
+ * `noteInclude.events` take:50 for UI performance) and the full-history export path (unlimited
+ * query), so both surfaces use identical labels/metadata/timestamp/ordering semantics.
+ */
+export function mapNoteEventRecords(
+  events: NoteEventRecord[],
+  actorNameById: Map<string, string>
+) {
+  const sortedEvents = sortAdminNoteEvents(
+    events.map((event) => ({
+      id: event.id,
+      eventType: event.event_type,
+      createdAt: event.created_at,
+      record: event,
+    })),
+    "newest-first"
+  );
+
+  return sortedEvents.map(({ record: event }) => ({
+    id: event.id,
+    noteId: event.note_id,
+    eventType: event.event_type,
+    actorUserId: event.actor_user_id,
+    actorName: event.actor_user_id ? actorNameById.get(event.actor_user_id) ?? null : null,
+    actorRole: event.actor_role,
+    portal: event.portal,
+    correlationId: event.correlation_id,
+    metadata: asRecord(event.metadata),
+    createdAt: event.created_at.toISOString(),
+    actorType: event.actor_type,
+    source: event.source,
+    targetType: event.target_type,
+    targetId: event.target_id,
+    ipAddress: event.ip_address,
+    userAgent: event.user_agent,
+  }));
+}
+
 export async function mapNoteDetail(
   note: NoteWithRelations,
   options: {
@@ -567,18 +709,11 @@ export async function mapNoteDetail(
         )
       : new Map());
 
-  const sortedEvents = includeEvents
-    ? sortAdminNoteEvents(
-        note.events.map((event) => ({
-          id: event.id,
-          eventType: event.event_type,
-          createdAt: event.created_at,
-        })),
-        "newest-first"
-      )
-    : [];
+  const mappedEvents = includeEvents ? mapNoteEventRecords(note.events, actorNameById) : [];
+  const sourceMaps = await loadNoteSourceDisplayReferenceMaps([note]);
 
-  return {
+  const latestNotice = await getLatestAssignmentNoticeForNote(note.id);
+  return applyNoteSourceDisplayReferences({
     ...mapNoteListItem(note),
     issuerResidualPayout: resolveIssuerResidualPayoutListStatus(note, withdrawals),
     productSnapshot: asRecord(note.product_snapshot),
@@ -586,6 +721,9 @@ export async function mapNoteDetail(
     prospectusSnapshot: asRecord(note.prospectus_snapshot),
     issuerSnapshot: asRecord(note.issuer_snapshot) ?? {},
     paymasterSnapshot: asRecord(note.paymaster_snapshot),
+    paymasterId: note.paymaster_id ?? null,
+    assignmentNotice: latestNotice ? mapAssignmentNotice(latestNotice) : null,
+    paymasterAcknowledgementSatisfied: latestNotice?.status === "ACKNOWLEDGED",
     contractSnapshot: asRecord(note.contract_snapshot),
     invoiceSnapshot: asRecord(note.invoice_snapshot),
     feeSchedule: parseInvoiceFeeSchedule(asRecord(note.invoice_snapshot)?.offer_details),
@@ -690,50 +828,16 @@ export async function mapNoteDetail(
       previewSnapshot: asRecord(settlement.preview_snapshot) ?? {},
       approvedAt: iso(settlement.approved_at),
       postedAt: iso(settlement.posted_at),
-      serviceFeeTrusteeStatus: settlement.service_fee_trustee_status ?? null,
-      serviceFeeTrusteeCreatedAt: iso(settlement.service_fee_trustee_created_at),
-      serviceFeeTrusteeLetterGeneratedAt: iso(settlement.service_fee_trustee_letter_generated_at),
-      serviceFeeTrusteeSubmittedAt: iso(settlement.service_fee_trustee_submitted_at),
-      serviceFeeTrusteeCompletedAt: iso(settlement.service_fee_trustee_completed_at),
-      serviceFeeTrusteeEmailSentAt: iso(settlement.service_fee_trustee_email_sent_at),
+      settlementTrusteeStatus: settlement.settlement_trustee_status ?? null,
+      settlementTrusteeCreatedAt: iso(settlement.settlement_trustee_created_at),
+      settlementTrusteeLetterGeneratedAt: iso(settlement.settlement_trustee_letter_generated_at),
+      settlementTrusteeSubmittedAt: iso(settlement.settlement_trustee_submitted_at),
+      settlementTrusteeCompletedAt: iso(settlement.settlement_trustee_completed_at),
+      settlementTrusteeEmailSentAt: iso(settlement.settlement_trustee_email_sent_at),
     })),
-    events: includeEvents
-      ? sortedEvents.map((sortedEvent) => {
-          const event = note.events.find((e) => e.id === sortedEvent.id);
-          if (!event) {
-            // Defensive fallback for unexpected missing events.
-            return {
-              id: sortedEvent.id,
-              noteId: note.id,
-              eventType: sortedEvent.eventType,
-              actorUserId: null,
-              actorName: null,
-              actorRole: null,
-              portal: null,
-              correlationId: null,
-              metadata: null,
-              createdAt: new Date(sortedEvent.createdAt).toISOString(),
-            };
-          }
-
-          return {
-            id: event.id,
-            noteId: event.note_id,
-            eventType: event.event_type,
-            actorUserId: event.actor_user_id,
-            actorName: event.actor_user_id
-              ? actorNameById.get(event.actor_user_id) ?? null
-              : null,
-            actorRole: event.actor_role,
-            portal: event.portal,
-            correlationId: event.correlation_id,
-            metadata: asRecord(event.metadata),
-            createdAt: event.created_at.toISOString(),
-          };
-        })
-      : [],
+    events: mappedEvents,
     withdrawals: withdrawals.map(mapWithdrawalInstruction),
-  };
+  }, note, sourceMaps);
 }
 
 export function mapMarketplaceNoteDetail(note: NoteWithRelations) {

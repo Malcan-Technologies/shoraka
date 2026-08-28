@@ -22,10 +22,13 @@ function note(overrides: Partial<NoteListItem> = {}): NoteListItem {
     productName: "Invoice financing",
     issuerIndustry: null,
     sourceApplicationId: "app_1",
+    sourceApplicationDisplayReference: null,
     sourceContractId: null,
     sourceContractDisplayReference: null,
     sourceInvoiceId: "inv_1",
+    sourceInvoiceDisplayReference: null,
     issuerOrganizationId: "org_1",
+    issuerOrganizationDisplayReference: null,
     issuerName: null,
     paymasterName: "Acme",
     riskRating: null,
@@ -77,6 +80,23 @@ describe("getNoteAttentionAction", () => {
     expect(action.headline).toBe("Pay outstanding late charges");
     expect(action.label).toBe("Pay late charges");
     expect(action.hint).toContain("NOTE-1");
+    expect(action.hint).not.toContain("note_1");
+  });
+
+  it("does not fall back to the full note id when the reference is missing", () => {
+    const action = getNoteAttentionAction(
+      note({
+        noteReference: "",
+        excessLateCharges: {
+          owed: 250,
+          paid: 0,
+          outstanding: 250,
+          noteReference: "",
+        },
+      })
+    );
+    expect(action.hint).not.toContain("note_1");
+    expect(action.hint).toMatch(/#[A-Z0-9]+/);
   });
 
   it("asks for repayment proof when the note is in arrears", () => {

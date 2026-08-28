@@ -111,6 +111,11 @@ model Investment {
   @@map("investments")
 }
 
+/// Signup/login/logout and admin-initiated account actions.
+/// `user_id` is the acting user; `created_at` is the occurred-at field.
+/// Standard forensic columns (actor_type/target/source/correlation_id) are additive and nullable.
+/// No actor name/email snapshot: `user_id` cascade-deletes with the User, so the row cannot outlive
+/// the actor it would be preserving. Snapshots are only added to tables with no User FK.
 model AccessLog {
   id            String   @id @default(cuid())
   user_id       String
@@ -124,13 +129,22 @@ model AccessLog {
   created_at    DateTime @default(now())
   device_type   String?
   portal        String?
-  user          User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  actor_type     String?
+  target_type    String?
+  target_id      String?
+  source         String?
+  correlation_id String?
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([event_type])
   @@index([portal])
   @@index([created_at])
   @@index([user_id, created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("access_logs")
 }
 
@@ -209,6 +223,9 @@ model AdminInvitation {
   @@map("admin_invitations")
 }
 
+/// Security-sensitive account and RBAC changes.
+/// Every live writer sets `user_id` to the ACTOR (self-service or the acting admin), so no separate
+/// actor column is added here. The subject of the change lives in `target_type` / `target_id`.
 model SecurityLog {
   id          String   @id @default(cuid())
   user_id     String
@@ -218,16 +235,26 @@ model SecurityLog {
   device_info String?
   metadata    Json?
   created_at  DateTime @default(now())
-  user        User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  actor_type     String?
+  target_type    String?
+  target_id      String?
+  source         String?
+  portal         String?
+  correlation_id String?
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([event_type])
   @@index([created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("security_logs")
 }
 
 model OnboardingLog {
-  id                       String                @id @default(cuid())
+  id                       String   @id @default(cuid())
   user_id                  String
   role                     UserRole
   event_type               String
@@ -237,13 +264,25 @@ model OnboardingLog {
   device_info              String?
   device_type              String?
   metadata                 Json?
-  created_at               DateTime              @default(now())
+  created_at               DateTime @default(now())
   organization_name        String?
   investor_organization_id String?
   issuer_organization_id   String?
-  investor_organization    InvestorOrganization? @relation(fields: [investor_organization_id], references: [id])
-  issuer_organization      IssuerOrganization?   @relation(fields: [issuer_organization_id], references: [id])
-  user                     User                  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  /// `user_id` is the applicant; `actor_user_id` is who performed the action (the acting admin for
+  /// AML/SSM/final-approval decisions). Derived from the admin id origin/main already put in
+  /// `metadata`, so no extra query is needed on the write path.
+  actor_type        String?
+  actor_user_id     String?
+  organization_kind String?
+  target_type       String?
+  target_id         String?
+  source            String?
+  correlation_id    String?
+
+  investor_organization InvestorOrganization? @relation(fields: [investor_organization_id], references: [id])
+  issuer_organization   IssuerOrganization?   @relation(fields: [issuer_organization_id], references: [id])
+  user                  User                  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([role])
@@ -254,6 +293,9 @@ model OnboardingLog {
   @@index([organization_name])
   @@index([investor_organization_id])
   @@index([issuer_organization_id])
+  @@index([actor_user_id, created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("onboarding_logs")
 }
 
@@ -373,6 +415,9 @@ model IssuerOrganization {
   ctos_reports                 CtosReport[]
   ctos_party_supplements       CtosPartySupplement[]
   signingcloud_ekyc_sessions   SigningCloudEkyc[]
+  paymaster_links              IssuerPaymasterLink[]
+  marc_assessments             IssuerOrganizationMarcAssessment[]
+  assignment_notices           PaymasterAssignmentNotice[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
@@ -581,8 +626,10 @@ model ApplicationReviewRemark {
   @@map("application_review_remarks")
 }
 
+/// In-transaction review/offer audit written alongside the business state change.
+/// `reviewer_user_id` is the actor; `remark` is the historical copy of the reviewer remark.
 model ApplicationReviewEvent {
-  id               String      @id @default(cuid())
+  id               String   @id @default(cuid())
   application_id   String
   event_type       String
   scope            String?
@@ -591,11 +638,21 @@ model ApplicationReviewEvent {
   new_status       String
   reviewer_user_id String?
   remark           String?
-  created_at       DateTime    @default(now())
-  application      Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  created_at       DateTime @default(now())
+
+  actor_type     String?
+  source         String?
+  portal         String?
+  ip_address     String?
+  user_agent     String?
+  correlation_id String?
+  metadata       Json?
+
+  application Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
 
   @@index([application_id])
   @@index([application_id, created_at])
+  @@index([correlation_id])
   @@map("application_review_events")
 }
 
@@ -628,9 +685,13 @@ model Contract {
   signing_envelopes           SigningEnvelope[]
   gateway_payments            GatewayPayment[]
   offer_accept_otp_challenges OfferAcceptOtpChallenge[]
+  paymaster_id               String?
+  paymaster                  Paymaster?         @relation(fields: [paymaster_id], references: [id], onDelete: SetNull)
+  assignment_notices         PaymasterAssignmentNotice[]
 
   @@index([originating_application_id])
   @@index([display_reference])
+  @@index([paymaster_id])
   @@map("contracts")
 }
 
@@ -649,6 +710,7 @@ model Invoice {
   contract                      Contract?                 @relation(fields: [contract_id], references: [id])
   signing_envelopes             SigningEnvelope[]
   offer_accept_otp_challenges   OfferAcceptOtpChallenge[]
+  assignment_notices            PaymasterAssignmentNotice[]
 
   @@index([contract_id])
   @@index([application_id])
@@ -841,6 +903,7 @@ model Note {
   purpose_snapshot                Json?
   prospectus_snapshot             Json?
   issuer_snapshot                 Json
+  paymaster_id                    String?
   paymaster_snapshot              Json?
   contract_snapshot               Json?
   invoice_snapshot                Json?
@@ -886,10 +949,13 @@ model Note {
   prospectus_review               NoteProspectusReview?
   prospectus_publications         NoteProspectusPublication[]
   gateway_payments                GatewayPayment[]
+  paymaster                       Paymaster?                  @relation(fields: [paymaster_id], references: [id], onDelete: SetNull)
+  assignment_notices              PaymasterAssignmentNotice[]
 
   @@index([source_application_id])
   @@index([source_contract_id])
   @@index([issuer_organization_id])
+  @@index([paymaster_id])
   @@index([status])
   @@index([listing_status])
   @@index([funding_status])
@@ -960,6 +1026,130 @@ model NoteProspectusPublication {
   @@index([published_at])
   @@index([pdf_storage_key])
   @@map("note_prospectus_publications")
+}
+
+/// Reusable legal customer / obligor. Not exclusive to one issuer.
+model Paymaster {
+  id                   String                    @id @default(cuid())
+  legal_name           String
+  registration_number  String
+  registration_country String                    @default("MY")
+  entity_type          String
+  mismatch_pending     Boolean                   @default(false)
+  source               String                    @default("ISSUER_APPLICATION")
+  created_at           DateTime                  @default(now())
+  updated_at           DateTime                  @updatedAt
+  issuer_links         IssuerPaymasterLink[]
+  contracts            Contract[]
+  notes                Note[]
+  mismatches           PaymasterMismatch[]
+  assignment_notices   PaymasterAssignmentNotice[]
+
+  @@unique([registration_number])
+  @@index([legal_name])
+  @@index([mismatch_pending])
+  @@map("paymasters")
+}
+
+/// Issuer–paymaster relationship. Related-party is stored here, not on Paymaster.
+model IssuerPaymasterLink {
+  id                     String             @id @default(cuid())
+  issuer_organization_id String
+  paymaster_id           String
+  is_related_party       Boolean?
+  last_used_at           DateTime           @default(now())
+  created_at             DateTime           @default(now())
+  updated_at             DateTime           @updatedAt
+  issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  paymaster              Paymaster          @relation(fields: [paymaster_id], references: [id], onDelete: Cascade)
+
+  @@unique([issuer_organization_id, paymaster_id])
+  @@index([paymaster_id])
+  @@index([issuer_organization_id, last_used_at])
+  @@map("issuer_paymaster_links")
+}
+
+model PaymasterMismatch {
+  id                     String                   @id @default(cuid())
+  paymaster_id           String
+  application_id         String?
+  contract_id            String?
+  submitted_legal_name   String
+  submitted_entity_type  String
+  submitted_country      String
+  existing_legal_name    String
+  existing_entity_type   String
+  existing_country       String
+  status                 PaymasterMismatchStatus  @default(PENDING)
+  resolved_at            DateTime?
+  resolved_by_user_id    String?                  @db.VarChar(5)
+  created_at             DateTime                 @default(now())
+  paymaster              Paymaster                @relation(fields: [paymaster_id], references: [id], onDelete: Cascade)
+
+  @@index([paymaster_id, status])
+  @@index([application_id])
+  @@map("paymaster_mismatches")
+}
+
+/// Organization-level MARC assessment. Latest row is current. Historical rows stay for audit.
+model IssuerOrganizationMarcAssessment {
+  id                     String             @id @default(cuid())
+  issuer_organization_id String
+  credit_grade           String
+  credit_score           Decimal?           @db.Decimal(7, 2)
+  probability_of_default Decimal?           @db.Decimal(7, 4)
+  report_s3_key          String?
+  report_file_name       String?
+  report_date            DateTime?
+  created_by_user_id     String             @db.VarChar(5)
+  created_at             DateTime           @default(now())
+  issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+
+  @@index([issuer_organization_id, created_at(sort: Desc)], map: "marc_assessments_org_created_idx")
+  @@map("issuer_organization_marc_assessments")
+}
+
+/// Notice of Assignment + written paymaster acknowledgement. Owned by invoice (fresh per invoice) with optional contract/note links.
+model PaymasterAssignmentNotice {
+  id                                  String                            @id @default(cuid())
+  paymaster_id                        String
+  issuer_organization_id              String
+  contract_id                         String?
+  invoice_id                          String?
+  note_id                             String?
+  status                              PaymasterAssignmentNoticeStatus   @default(GENERATED)
+  version                             Int                               @default(1)
+  notice_s3_key                       String?
+  notice_file_name                    String?
+  notice_sha256                       String?
+  generated_at                        DateTime?
+  generated_by_user_id                String?                           @db.VarChar(5)
+  sent_at                             DateTime?
+  sent_by_user_id                     String?                           @db.VarChar(5)
+  acknowledgement_s3_key              String?
+  acknowledgement_file_name           String?
+  acknowledgement_uploaded_at         DateTime?
+  acknowledgement_uploaded_by_user_id String?                           @db.VarChar(5)
+  acknowledged_at                     DateTime?
+  acknowledged_by_user_id             String?                           @db.VarChar(5)
+  generation_error                    String?
+  template_pending                    Boolean                           @default(true)
+  metadata                            Json?
+  created_at                          DateTime                          @default(now())
+  updated_at                          DateTime                          @updatedAt
+  paymaster                           Paymaster                         @relation(fields: [paymaster_id], references: [id], onDelete: Restrict)
+  issuer_organization                 IssuerOrganization                @relation(fields: [issuer_organization_id], references: [id], onDelete: Restrict)
+  contract                            Contract?                         @relation(fields: [contract_id], references: [id], onDelete: SetNull)
+  invoice                             Invoice?                          @relation(fields: [invoice_id], references: [id], onDelete: SetNull)
+  note                                Note?                             @relation(fields: [note_id], references: [id], onDelete: SetNull)
+
+  @@index([paymaster_id])
+  @@index([issuer_organization_id])
+  @@index([contract_id])
+  @@index([invoice_id])
+  @@index([note_id])
+  @@index([status])
+  @@map("paymaster_assignment_notices")
 }
 
 model NoteListing {
@@ -1127,12 +1317,12 @@ model NoteSettlement {
   posted_at                               DateTime?
   idempotency_key                         String?                             @unique
   display_reference                       String?                             @unique
-  service_fee_trustee_status              ServiceFeeTrusteeInstructionStatus?
-  service_fee_trustee_created_at          DateTime?
-  service_fee_trustee_letter_generated_at DateTime?
-  service_fee_trustee_submitted_at        DateTime?
-  service_fee_trustee_completed_at        DateTime?
-  service_fee_trustee_email_sent_at       DateTime?                           @db.Timestamptz
+  settlement_trustee_status              SettlementTrusteeInstructionStatus?
+  settlement_trustee_created_at          DateTime?
+  settlement_trustee_letter_generated_at DateTime?
+  settlement_trustee_submitted_at        DateTime?
+  settlement_trustee_completed_at        DateTime?
+  settlement_trustee_email_sent_at       DateTime?                           @db.Timestamptz
   created_at                              DateTime                            @default(now())
   updated_at                              DateTime                            @updatedAt
   note                                    Note                                @relation(fields: [note_id], references: [id], onDelete: Cascade)
@@ -1143,7 +1333,7 @@ model NoteSettlement {
   @@index([status])
   @@index([posted_at])
   @@index([display_reference])
-  @@index([service_fee_trustee_status])
+  @@index([settlement_trustee_status])
   @@map("note_settlements")
 }
 
@@ -1203,15 +1393,27 @@ model NoteEvent {
   correlation_id String?
   metadata       Json?
   created_at     DateTime @default(now())
-  note           Note     @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  /// No organization column: it is reachable through the immutable `note_id` FK and denormalizing
+  /// it would mean an extra query inside every business transaction that writes a note event.
+  actor_type  String?
+  target_type String?
+  target_id   String?
+  source      String?
+
+  note Note @relation(fields: [note_id], references: [id], onDelete: Cascade)
 
   @@index([note_id])
   @@index([event_type])
   @@index([actor_user_id])
   @@index([created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("note_events")
 }
 
+/// Admin note action with first-class before/after state. Every row is also mirrored into
+/// `note_events` by `logAdminAction`; both copies are retained deliberately.
 model NoteAdminAction {
   id             String   @id @default(cuid())
   note_id        String
@@ -1224,12 +1426,22 @@ model NoteAdminAction {
   user_agent     String?
   correlation_id String?
   created_at     DateTime @default(now())
-  note           Note     @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  actor_type  String?
+  portal      String?
+  target_type String?
+  target_id   String?
+  source      String?
+  metadata    Json?
+
+  note Note @relation(fields: [note_id], references: [id], onDelete: Cascade)
 
   @@index([note_id])
   @@index([action_type])
   @@index([actor_user_id])
   @@index([created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("note_admin_actions")
 }
 
@@ -1329,10 +1541,12 @@ model GatewayPaymentReceipt {
   gateway_payment_id  String                      @unique
   payment_purpose     GatewayPaymentPurpose
   purpose_label       String
-  payer_name          String?
-  payer_company_name  String?
-  payer_email         String?
-  payer_phone         String?
+  payer_name                String?
+  payer_company_name        String?
+  payer_unique_id           String?
+  payer_registration_number String?
+  payer_email               String?
+  payer_phone               String?
   amount              Decimal                     @db.Decimal(18, 6)
   currency            String                      @default("MYR")
   payment_method      String?
@@ -1400,6 +1614,8 @@ model GatewayOrderAttempt {
 }
 
 /// Admin audit trail for gateway payment status and resolution actions.
+/// Event-level idempotency is deliberately NOT added here: `gateway_payments.idempotency_key`
+/// already de-duplicates at the payment level, and no live writer produces an event-level key.
 model GatewayPaymentEvent {
   id                 String                  @id @default(cuid())
   gateway_payment_id String
@@ -1410,9 +1626,22 @@ model GatewayPaymentEvent {
   reason             String?
   metadata           Json?
   created_at         DateTime                @default(now())
-  gateway_payment    GatewayPayment          @relation(fields: [gateway_payment_id], references: [id], onDelete: Cascade)
+
+  /// No organization column: it is reachable through the immutable `gateway_payment_id` FK.
+  actor_type     String?
+  target_type    String?
+  target_id      String?
+  source         String?
+  portal         String?
+  ip_address     String?
+  user_agent     String?
+  correlation_id String?
+
+  gateway_payment GatewayPayment @relation(fields: [gateway_payment_id], references: [id], onDelete: Cascade)
 
   @@index([gateway_payment_id, created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("gateway_payment_events")
 }
 
@@ -1827,15 +2056,26 @@ model LegalDocumentAuditLog {
   correlation_id            String?
   created_at                DateTime           @default(now())
 
+  /// Legal documents are platform-level, so there is deliberately no organization column here, and
+  /// `before_json` / `after_json` already carry the structured payload instead of a metadata blob.
+  actor_type  String?
+  target_type String?
+  target_id   String?
+  source      String?
+  portal      String?
+
   @@index([legal_document_id])
   @@index([legal_document_version_id])
   @@index([action])
   @@index([actor_user_id])
   @@index([document_type])
   @@index([created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("legal_document_audit_logs")
 }
 
+/// Product configuration/lifecycle audit. `user_id` is the acting admin.
 model ProductLog {
   id          String   @id @default(cuid())
   user_id     String
@@ -1846,16 +2086,29 @@ model ProductLog {
   device_info String?
   metadata    Json?
   created_at  DateTime @default(now())
-  user        User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  actor_type     String?
+  target_type    String?
+  target_id      String?
+  source         String?
+  portal         String?
+  correlation_id String?
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([product_id])
   @@index([event_type])
   @@index([created_at])
   @@index([user_id, created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("product_logs")
 }
 
+/// Primary application/contract/invoice/signing activity audit.
+/// `user_id` is the actor, `remark` is the historical copy of the reviewer/admin remark, and
+/// `created_at` is the occurred-at field.
 model ApplicationLog {
   id             String  @id @default(cuid())
   user_id        String
@@ -1867,6 +2120,7 @@ model ApplicationLog {
   metadata       Json?
   review_cycle   Int?
 
+  /// Deprecated in favour of event_type. Retained (never written) so historical rows keep meaning.
   level  ActivityLevel?
   target ActivityTarget?
   action ActivityAction?
@@ -1878,6 +2132,14 @@ model ApplicationLog {
 
   created_at DateTime @default(now())
 
+  /// No organization column: it is reachable through `application_id`, and denormalizing it would
+  /// mean an extra query inside every review transaction that writes an application log.
+  actor_type     String?
+  target_type    String?
+  target_id      String?
+  source         String?
+  correlation_id String?
+
   @@index([user_id])
   @@index([event_type])
   @@index([created_at])
@@ -1887,6 +2149,8 @@ model ApplicationLog {
   @@index([level])
   @@index([action])
   @@index([portal])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("application_logs")
 }
 
@@ -2009,6 +2273,10 @@ model NotificationGroup {
   @@map("notification_groups")
 }
 
+/// Admin broadcast audit.
+/// NOTE: `target_type` here is the AUDIENCE type (ALL_USERS | INVESTORS | ISSUERS |
+/// SPECIFIC_USERS | GROUP). It is intentionally NOT the shared audit target vocabulary, so no
+/// audit `target_type`/`target_id` columns are added to this table.
 model NotificationLog {
   id                        String                 @id @default(cuid())
   admin_user_id             String?
@@ -2286,7 +2554,7 @@ enum NoteSettlementType {
   DEFAULT_RECOVERY
 }
 
-enum ServiceFeeTrusteeInstructionStatus {
+enum SettlementTrusteeInstructionStatus {
   PENDING_LETTER
   LETTER_GENERATED
   SUBMITTED_TO_TRUSTEE
@@ -2561,4 +2829,17 @@ enum NotificationPortalTarget {
 enum NotificationLogSource {
   ADMIN
   SYSTEM
+}
+
+enum PaymasterMismatchStatus {
+  PENDING
+  RESOLVED
+}
+
+enum PaymasterAssignmentNoticeStatus {
+  GENERATED
+  SENT
+  ACKNOWLEDGEMENT_UPLOADED
+  ACKNOWLEDGED
+  FAILED
 }

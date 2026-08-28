@@ -1,4 +1,4 @@
-import type { SoukscoreRiskRating } from "./invoice-offer-risk-rating";
+import type { MarcSmeGrade } from "./marc-credit-grade";
 import type { FacilityFeeCollectionWaiver, InvoiceFeeSchedule } from "./fee-schedule";
 import type { ProfitWindowClassification } from "./tenure-profit";
 import type { ExcessLateChargesDto } from "./excess-late-charges";
@@ -163,7 +163,7 @@ export enum NoteSettlementType {
   DEFAULT_RECOVERY = "DEFAULT_RECOVERY",
 }
 
-export enum ServiceFeeTrusteeInstructionStatus {
+export enum SettlementTrusteeInstructionStatus {
   PENDING_LETTER = "PENDING_LETTER",
   LETTER_GENERATED = "LETTER_GENERATED",
   SUBMITTED_TO_TRUSTEE = "SUBMITTED_TO_TRUSTEE",
@@ -236,13 +236,13 @@ export interface NoteSettlementPoolSummary {
   profitDays: number;
   annualProfitRatePercent: number;
   postedAt: string | null;
-  /** Posted settlement with platform service fee: trustee instruction workflow (pools). */
-  serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
-  serviceFeeTrusteeCreatedAt: string | null;
-  serviceFeeTrusteeLetterGeneratedAt: string | null;
-  serviceFeeTrusteeSubmittedAt: string | null;
-  serviceFeeTrusteeCompletedAt: string | null;
-  serviceFeeTrusteeEmailSentAt: string | null;
+  /** Settlement-wide trustee instruction workflow status. */
+  settlementTrusteeStatus: SettlementTrusteeInstructionStatus | null;
+  settlementTrusteeCreatedAt: string | null;
+  settlementTrusteeLetterGeneratedAt: string | null;
+  settlementTrusteeSubmittedAt: string | null;
+  settlementTrusteeCompletedAt: string | null;
+  settlementTrusteeEmailSentAt: string | null;
 }
 
 /** Issuer portal: derived residual payout state for a note with `settlementSummary`. */
@@ -317,14 +317,20 @@ export interface NoteListItem extends NoteMoneySummary {
   purposeOfContract?: string | null;
   issuerIndustry: string | null;
   sourceApplicationId: string;
+  /** Canonical application reference (`APP-…`) when allocated. */
+  sourceApplicationDisplayReference: string | null;
   sourceContractId: string | null;
   /** Canonical facility reference (`CON-…`) when the note is under a master facility. */
   sourceContractDisplayReference: string | null;
   sourceInvoiceId: string | null;
+  /** Canonical invoice reference (`INV-…`) when allocated. */
+  sourceInvoiceDisplayReference: string | null;
   issuerOrganizationId: string;
+  /** Canonical issuer-org reference (`ISS-…`) when allocated. */
+  issuerOrganizationDisplayReference: string | null;
   issuerName: string | null;
   paymasterName: string | null;
-  riskRating: SoukscoreRiskRating | null;
+  riskRating: MarcSmeGrade | null;
   status: NoteStatus;
   listingStatus: NoteListingStatus;
   fundingStatus: NoteFundingStatus;
@@ -375,6 +381,9 @@ export interface NoteDetail extends NoteListItem {
   prospectusSnapshot: Record<string, unknown> | null;
   issuerSnapshot: Record<string, unknown>;
   paymasterSnapshot: Record<string, unknown> | null;
+  paymasterId?: string | null;
+  assignmentNotice?: import("./paymaster").PaymasterAssignmentNotice | null;
+  paymasterAcknowledgementSatisfied?: boolean;
   contractSnapshot: Record<string, unknown> | null;
   invoiceSnapshot: Record<string, unknown> | null;
   feeSchedule?: InvoiceFeeSchedule | null;
@@ -516,12 +525,12 @@ export interface NoteSettlement {
   previewSnapshot: Record<string, unknown>;
   approvedAt: string | null;
   postedAt: string | null;
-  serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
-  serviceFeeTrusteeCreatedAt: string | null;
-  serviceFeeTrusteeLetterGeneratedAt: string | null;
-  serviceFeeTrusteeSubmittedAt: string | null;
-  serviceFeeTrusteeCompletedAt: string | null;
-  serviceFeeTrusteeEmailSentAt: string | null;
+  settlementTrusteeStatus: SettlementTrusteeInstructionStatus | null;
+  settlementTrusteeCreatedAt: string | null;
+  settlementTrusteeLetterGeneratedAt: string | null;
+  settlementTrusteeSubmittedAt: string | null;
+  settlementTrusteeCompletedAt: string | null;
+  settlementTrusteeEmailSentAt: string | null;
 }
 
 export interface NoteSettlementAllocationPreview {
@@ -577,6 +586,12 @@ export interface NoteEvent {
   correlationId: string | null;
   metadata: Record<string, unknown> | null;
   createdAt: string;
+  actorType?: string | null;
+  source?: string | null;
+  targetType?: string | null;
+  targetId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
 }
 
 export interface NoteLedgerEntry {
@@ -691,6 +706,7 @@ export type PendingRepaymentAction = "REVIEW" | "AWAIT_REMAINDER" | "POST_SETTLE
 export interface PendingRepaymentItem {
   paymentId: string;
   noteId: string;
+  noteReference: string | null;
   noteTitle: string | null;
   noteStatus: string | null;
   amount: number;
@@ -716,6 +732,7 @@ export interface PendingIssuerPayoutItem {
   displayReference: string | null;
   settlementId: string | null;
   noteId: string;
+  noteReference: string | null;
   noteTitle: string | null;
   noteStatus: string | null;
   issuerOrganizationId: string | null;
@@ -736,26 +753,27 @@ export interface PendingIssuerPayoutsResponse {
 }
 
 /** Posted settlements with trustee movements where the settlement trustee instruction is not fully completed. */
-export interface PendingServiceFeeTrusteeLetterItem {
+export interface PendingSettlementTrusteeLetterItem {
   settlementId: string;
   displayReference: string | null;
   noteId: string;
+  noteReference: string | null;
   noteTitle: string | null;
   noteStatus: string | null;
   issuerOrganizationId: string | null;
   issuerOrganizationName: string | null;
   /** Total settlement trustee instruction amount across all instruction rows. */
-  serviceFeeAmount: number;
+  trusteeInstructionAmount: number;
   currency: string;
   settlementPostedAt: string | null;
-  trusteeInstructionStatus: ServiceFeeTrusteeInstructionStatus | null;
+  trusteeInstructionStatus: SettlementTrusteeInstructionStatus | null;
   submittedToTrusteeAt: string | null;
   instructionCompletedAt: string | null;
 }
 
-export interface PendingServiceFeeTrusteeLettersResponse {
+export interface PendingSettlementTrusteeLettersResponse {
   count: number;
-  items: PendingServiceFeeTrusteeLetterItem[];
+  items: PendingSettlementTrusteeLetterItem[];
 }
 
 export interface PendingInvestorWithdrawalsCountResponse {
@@ -1015,7 +1033,7 @@ export interface GetAdminNotesParams {
   excludeRepaid?: boolean;
   /**
    * When true, omit notes only if they are repaid or servicing SETTLED, have a posted settlement,
-   * and service-fee trustee is complete (no material fee or status COMPLETED). Matches the
+   * and settlement trustee is complete (no material trustee movement or status COMPLETED). Matches the
    * default admin registry "active work" view.
    */
   excludeFullySettledRegistryNotes?: boolean;
@@ -1066,6 +1084,7 @@ export interface InvestorBalanceActivityRelated {
   status: string;
   /** `confirmedAt` for investments, `completedAt` for withdrawals, credit time for deposits. */
   settledAt: string | null;
+  displayReference?: string | null;
 }
 
 export interface InvestorBalanceActivityEntry {
@@ -1120,13 +1139,14 @@ export interface EligibleNoteInvoice {
   contractId: string | null;
   contractDisplayReference: string | null;
   issuerOrganizationId: string;
+  issuerOrganizationDisplayReference: string | null;
   issuerName: string | null;
   paymasterName: string | null;
   invoiceNumber: string | null;
   invoiceAmount: number;
   offeredAmount: number | null;
   profitRatePercent: number | null;
-  riskRating: SoukscoreRiskRating | null;
+  riskRating: MarcSmeGrade | null;
   maturityDate: string | null;
   invoiceStatus: string;
   applicationStatus: string;
@@ -1306,12 +1326,12 @@ export function mapNoteSettlementToPoolSummary(
     | "annualProfitRatePercent"
     | "postedAt"
     | "serviceFeeAmount"
-    | "serviceFeeTrusteeStatus"
-    | "serviceFeeTrusteeCreatedAt"
-    | "serviceFeeTrusteeLetterGeneratedAt"
-    | "serviceFeeTrusteeSubmittedAt"
-    | "serviceFeeTrusteeCompletedAt"
-    | "serviceFeeTrusteeEmailSentAt"
+    | "settlementTrusteeStatus"
+    | "settlementTrusteeCreatedAt"
+    | "settlementTrusteeLetterGeneratedAt"
+    | "settlementTrusteeSubmittedAt"
+    | "settlementTrusteeCompletedAt"
+    | "settlementTrusteeEmailSentAt"
   >
 ): NoteSettlementPoolSummary {
   return {
@@ -1341,12 +1361,12 @@ export function mapNoteSettlementToPoolSummary(
     profitDays: settlement.profitDays,
     annualProfitRatePercent: settlement.annualProfitRatePercent,
     postedAt: settlement.postedAt,
-    serviceFeeTrusteeStatus: settlement.serviceFeeTrusteeStatus,
-    serviceFeeTrusteeCreatedAt: settlement.serviceFeeTrusteeCreatedAt,
-    serviceFeeTrusteeLetterGeneratedAt: settlement.serviceFeeTrusteeLetterGeneratedAt,
-    serviceFeeTrusteeSubmittedAt: settlement.serviceFeeTrusteeSubmittedAt,
-    serviceFeeTrusteeCompletedAt: settlement.serviceFeeTrusteeCompletedAt,
-    serviceFeeTrusteeEmailSentAt: settlement.serviceFeeTrusteeEmailSentAt,
+    settlementTrusteeStatus: settlement.settlementTrusteeStatus,
+    settlementTrusteeCreatedAt: settlement.settlementTrusteeCreatedAt,
+    settlementTrusteeLetterGeneratedAt: settlement.settlementTrusteeLetterGeneratedAt,
+    settlementTrusteeSubmittedAt: settlement.settlementTrusteeSubmittedAt,
+    settlementTrusteeCompletedAt: settlement.settlementTrusteeCompletedAt,
+    settlementTrusteeEmailSentAt: settlement.settlementTrusteeEmailSentAt,
   };
 }
 

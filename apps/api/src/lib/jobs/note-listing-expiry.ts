@@ -17,6 +17,7 @@ import { NoteFundingStatus, NoteListingStatus, NoteStatus } from "@prisma/client
 import { isNoteFullyFunded, meetsMinimumFunding } from "@cashsouk/types";
 import { prisma } from "../prisma";
 import { logger } from "../logger";
+import { systemAuditContext } from "../audit";
 import { noteService } from "../../modules/notes/service";
 
 const SYSTEM_USER_ID = "SYS";
@@ -73,9 +74,11 @@ export async function runNoteListingExpiryJob(): Promise<NoteListingExpiryResult
 
   const actor = {
     userId: SYSTEM_USER_ID,
-    role: "ADMIN" as const,
-    portal: "ADMIN" as const,
     correlationId: CRON_CORRELATION_ID,
+    auditContext: systemAuditContext({
+      actorUserId: SYSTEM_USER_ID,
+      correlationId: CRON_CORRELATION_ID,
+    }),
   };
 
   for (const note of candidateNotes) {

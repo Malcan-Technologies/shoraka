@@ -3,6 +3,8 @@ import { parseAboutYourBusiness, serializeAboutYourBusiness } from "@cashsouk/ty
 import { UserRole } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
+import { createOnboardingLogRow } from "../../lib/audit";
+import { buildOrganizationProfileAuditEvidence } from "./organization-profile-audit";
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
@@ -121,6 +123,7 @@ export async function updateAdminOrganizationProfile(params: {
             middle_name: true,
             corporate_onboarding_data: true,
             type: true,
+            display_reference: true,
           },
         })
       : await prisma.investorOrganization.findUnique({
@@ -136,6 +139,7 @@ export async function updateAdminOrganizationProfile(params: {
             middle_name: true,
             corporate_onboarding_data: true,
             type: true,
+            display_reference: true,
           },
         });
 
@@ -175,34 +179,54 @@ export async function updateAdminOrganizationProfile(params: {
     });
   }
 
-  const { updatedFields, bankFieldsChanged } = summarizeProfilePatch(input);
-  await prisma.onboardingLog.create({
-    data: {
-      user_id: org.owner_user_id,
-      investor_organization_id: portal === "investor" ? organizationId : null,
-      issuer_organization_id: portal === "issuer" ? organizationId : null,
-      organization_name: (input.name ?? org.name) || undefined,
-      role: portal === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
-      event_type: "PROFILE_UPDATED",
-      portal,
-      ip_address: requestMeta.ipAddress,
-      user_agent: requestMeta.userAgent,
-      device_info: requestMeta.deviceInfo,
-      device_type: requestMeta.deviceType,
-      metadata: {
-        updatedBy: adminUserId,
-        updatedFields,
-        bankFieldsChanged,
-        previousValues: {
-          name: org.name,
-          phoneNumber: org.phone_number,
-          address: org.address,
-          firstName: org.first_name,
-          lastName: org.last_name,
-          middleName: org.middle_name,
-        },
-      },
+  const { bankFieldsChanged } = summarizeProfilePatch(input);
+  const evidence = buildOrganizationProfileAuditEvidence({
+    previous: {
+      name: org.name,
+      phoneNumber: org.phone_number,
+      address: org.address,
+      firstName: org.first_name,
+      lastName: org.last_name,
+      middleName: org.middle_name,
+      corporateOnboardingData: org.corporate_onboarding_data,
     },
+    next: {
+      name: input.name !== undefined ? input.name : org.name,
+      phoneNumber: input.phoneNumber !== undefined ? input.phoneNumber : org.phone_number,
+      address: input.address !== undefined ? input.address : org.address,
+      firstName: input.firstName !== undefined ? input.firstName : org.first_name,
+      lastName: input.lastName !== undefined ? input.lastName : org.last_name,
+      middleName: input.middleName !== undefined ? input.middleName : org.middle_name,
+      corporateOnboardingData:
+        (updateData.corporate_onboarding_data as unknown) ?? org.corporate_onboarding_data,
+    },
+    corporatePatch: input.corporateOnboardingData,
+    bankFieldsChanged,
+    organizationReference: org.display_reference,
+  });
+  await createOnboardingLogRow({
+    userId: org.owner_user_id,
+    investorOrganizationId: portal === "investor" ? organizationId : null,
+    issuerOrganizationId: portal === "issuer" ? organizationId : null,
+    organizationName: (input.name ?? org.name) || undefined,
+    role: portal === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
+    eventType: "PROFILE_UPDATED",
+    portal,
+    ipAddress: requestMeta.ipAddress,
+    userAgent: requestMeta.userAgent,
+    deviceInfo: requestMeta.deviceInfo,
+    deviceType: requestMeta.deviceType,
+    metadata: {
+      updatedBy: adminUserId,
+      updatedFields: evidence.updatedFields,
+      bankFieldsChanged: evidence.bankFieldsChanged,
+      previousValues: evidence.previousValues,
+      nextValues: evidence.nextValues,
+      ...(evidence.organizationReference
+        ? { organizationReference: evidence.organizationReference }
+        : {}),
+    },
+    actorUserId: adminUserId,
   });
 
   return { success: true };

@@ -179,6 +179,8 @@ export interface NormalizedApplication {
   contractTitle: string | null;
   /** Contract ID for signing route. Null when no contract. */
   contractId: string | null;
+  /** Persisted CON-… when the nested contract is present. */
+  contractDisplayReference?: string | null;
   customer: string;
   applicationDate: string;
   /** When the issuer submitted the application to admin. Null for drafts. Helps issuer see how long it has been waiting. */

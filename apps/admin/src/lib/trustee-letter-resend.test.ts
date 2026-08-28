@@ -1,5 +1,5 @@
 import {
-  canResendServiceFeeTrusteeEmail,
+  canResendSettlementTrusteeEmail,
   canResendWithdrawalTrusteeEmail,
   getTrusteeResendCopy,
   TRUSTEE_RESEND_BUTTON,
@@ -43,22 +43,22 @@ describe("canResendWithdrawalTrusteeEmail", () => {
   });
 });
 
-describe("canResendServiceFeeTrusteeEmail", () => {
+describe("canResendSettlementTrusteeEmail", () => {
   it("shows after a send while generated or submitted", () => {
-    expect(canResendServiceFeeTrusteeEmail("2026-08-24T10:00:00.000Z", "LETTER_GENERATED")).toBe(
+    expect(canResendSettlementTrusteeEmail("2026-08-24T10:00:00.000Z", "LETTER_GENERATED")).toBe(
       true
     );
-    expect(canResendServiceFeeTrusteeEmail("2026-08-24T10:00:00.000Z", "SUBMITTED_TO_TRUSTEE")).toBe(
+    expect(canResendSettlementTrusteeEmail("2026-08-24T10:00:00.000Z", "SUBMITTED_TO_TRUSTEE")).toBe(
       true
     );
   });
 
   it("hides before the first send and after completed", () => {
-    expect(canResendServiceFeeTrusteeEmail(null, "SUBMITTED_TO_TRUSTEE")).toBe(false);
-    expect(canResendServiceFeeTrusteeEmail("2026-08-24T10:00:00.000Z", "PENDING_LETTER")).toBe(
+    expect(canResendSettlementTrusteeEmail(null, "SUBMITTED_TO_TRUSTEE")).toBe(false);
+    expect(canResendSettlementTrusteeEmail("2026-08-24T10:00:00.000Z", "PENDING_LETTER")).toBe(
       false
     );
-    expect(canResendServiceFeeTrusteeEmail("2026-08-24T10:00:00.000Z", null)).toBe(false);
-    expect(canResendServiceFeeTrusteeEmail("2026-08-24T10:00:00.000Z", "COMPLETED")).toBe(false);
+    expect(canResendSettlementTrusteeEmail("2026-08-24T10:00:00.000Z", null)).toBe(false);
+    expect(canResendSettlementTrusteeEmail("2026-08-24T10:00:00.000Z", "COMPLETED")).toBe(false);
   });
 });

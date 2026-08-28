@@ -4,6 +4,7 @@
  */
 
 import { NoteStatus, type PrismaClient } from "@prisma/client";
+import { isNoteProspectusPublished } from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
 
 export const PROSPECTUS_PAGE_ONE_NOTE_SELECT = {
@@ -63,14 +64,17 @@ export type ProspectusPageOneNoteRecord = {
 };
 
 /**
- * Published for prospectus freeze purposes: Note reached PUBLISHED via NoteService.publish.
- * Do not invent listing-only rules here.
+ * Published for prospectus freeze: Note completed NoteService.publish (`published_at` set)
+ * and was not unpublished (status is not DRAFT). Funding close / servicing keep the freeze.
  */
 export function isProspectusNotePublished(note: {
   status: NoteStatus;
   published_at: Date | null;
 }): boolean {
-  return note.status === NoteStatus.PUBLISHED && note.published_at != null;
+  return isNoteProspectusPublished({
+    status: note.status,
+    publishedAt: note.published_at,
+  });
 }
 
 export async function loadProspectusPageOneNote(

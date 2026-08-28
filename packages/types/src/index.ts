@@ -377,6 +377,8 @@ export interface CustomerDetails {
   country: string;
   is_related_party: boolean;
   is_large_private_company?: boolean;
+  /** Linked reusable Paymaster master. Related-party stays on this relationship blob. */
+  paymaster_id?: string | null;
   document?: {
     s3_key: string;
     file_name: string;
@@ -541,6 +543,8 @@ export * from "./guarantors";
 export * from "./company-name-normalization";
 export * from "./gateway-payments";
 export * from "./gateway-recon";
+export * from "./marc-credit-grade";
+export * from "./paymaster";
 export {
   ADMIN_PERMISSIONS,
   ADMIN_PERMISSION_GROUPS,

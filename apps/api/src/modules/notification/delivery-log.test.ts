@@ -37,6 +37,7 @@ describe("portalToNotificationLogTarget", () => {
     expect(notificationLogTargetToPortal("ISSUERS")).toBe("issuer");
     expect(notificationLogTargetToPortal("INVESTORS")).toBe("investor");
     expect(notificationLogTargetToPortal("ALL_USERS")).toBeUndefined();
+    expect(notificationLogTargetToPortal("SPECIFIC_USERS")).toBeUndefined();
     expect(notificationLogTargetToPortal("GROUP")).toBeUndefined();
   });
 });

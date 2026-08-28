@@ -50,6 +50,12 @@ import {
   aggregateApplicationNavCounts,
   type ApplicationNavCountItem,
 } from "./application-nav-counts";
+import {
+  AuditRequestContext,
+  createAccessLogRow,
+  createOnboardingLogRow,
+  createSecurityLogRow,
+} from "../../lib/audit";
 
 export class AdminRepository {
   private async resolveAdminRoleId(roleKey: AdminRoleKey): Promise<string> {
@@ -428,20 +434,9 @@ export class AdminRepository {
     deviceType?: string;
     success?: boolean;
     metadata?: object;
+    context?: AuditRequestContext | null;
   }): Promise<AccessLog> {
-    return prisma.accessLog.create({
-      data: {
-        user_id: data.userId,
-        event_type: data.eventType,
-        portal: data.portal,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        device_type: data.deviceType,
-        success: data.success ?? true,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
-    });
+    return createAccessLogRow(data);
   }
 
   /**
@@ -1063,17 +1058,9 @@ export class AdminRepository {
     userAgent?: string;
     deviceInfo?: string;
     metadata?: object;
+    context?: AuditRequestContext | null;
   }): Promise<SecurityLog> {
-    return prisma.securityLog.create({
-      data: {
-        user_id: data.userId,
-        event_type: data.eventType,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
-    });
+    return createSecurityLogRow(data);
   }
 
   /**
@@ -1171,23 +1158,10 @@ export class AdminRepository {
     deviceInfo?: string;
     deviceType?: string;
     metadata?: object;
+    context?: AuditRequestContext | null;
+    actorUserId?: string | null;
   }): Promise<OnboardingLog> {
-    return prisma.onboardingLog.create({
-      data: {
-        user_id: data.userId,
-        investor_organization_id: data.investorOrganizationId,
-        issuer_organization_id: data.issuerOrganizationId,
-        organization_name: data.organizationName,
-        role: data.role,
-        event_type: data.eventType,
-        portal: data.portal,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        device_type: data.deviceType,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
-    });
+    return createOnboardingLogRow(data);
   }
 
   /**
@@ -2343,6 +2317,7 @@ export class AdminRepository {
         { id: { contains: search, mode: "insensitive" } },
         { display_reference: { contains: search, mode: "insensitive" } },
         { issuer_organization: { name: { contains: search, mode: "insensitive" } } },
+        { issuer_organization: { display_reference: { contains: search, mode: "insensitive" } } },
       ];
     }
 
@@ -2499,7 +2474,9 @@ export class AdminRepository {
           },
         },
         { issuer_organization: { name: { contains: search, mode: "insensitive" } } },
+        { issuer_organization: { display_reference: { contains: search, mode: "insensitive" } } },
         { applications: { some: { id: { contains: search, mode: "insensitive" } } } },
+        { applications: { some: { display_reference: { contains: search, mode: "insensitive" } } } },
       ];
     }
 
@@ -2564,7 +2541,9 @@ export class AdminRepository {
     contractNumber: string | null;
     title: string | null;
     description: string | null;
+    issuerOrganizationId: string | null;
     issuerOrganizationName: string | null;
+    issuerOrganizationDisplayReference: string | null;
     requestedFacility: number;
     approvedFacility: number;
     utilizedFacility: number;
@@ -2593,7 +2572,6 @@ export class AdminRepository {
       requestedAmount: number;
       kind: "facility" | "invoice";
     }[];
-    issuerOrganizationId: string | null;
     notes: {
       id: string;
       noteReference: string;
@@ -2601,6 +2579,7 @@ export class AdminRepository {
       status: string;
       sourceApplicationId: string;
       sourceInvoiceId: string | null;
+      sourceInvoiceDisplayReference: string | null;
       targetAmount: number;
       fundedAmount: number;
       invoiceFaceAmount: number | null;
@@ -2633,6 +2612,7 @@ export class AdminRepository {
         issuer_organization: {
           select: {
             name: true,
+            display_reference: true,
           },
         },
         applications: {
@@ -2789,11 +2769,14 @@ export class AdminRepository {
     const sourceInvoices = sourceInvoiceIds.length
       ? await prisma.invoice.findMany({
           where: { id: { in: sourceInvoiceIds } },
-          select: { id: true, details: true },
+          select: { id: true, details: true, display_reference: true },
         })
       : [];
     const invoiceFaceById = new Map(
       sourceInvoices.map((invoice) => [invoice.id, readInvoiceFaceAmount(invoice.details)] as const)
+    );
+    const invoiceDisplayRefById = new Map(
+      sourceInvoices.map((invoice) => [invoice.id, invoice.display_reference ?? null] as const)
     );
 
     return {
@@ -2807,6 +2790,7 @@ export class AdminRepository {
       description: typeof contractDetails.description === "string" ? contractDetails.description : null,
       issuerOrganizationId: contract.issuer_organization_id,
       issuerOrganizationName: contract.issuer_organization?.name ?? null,
+      issuerOrganizationDisplayReference: contract.issuer_organization?.display_reference ?? null,
       requestedFacility: Number.isFinite(requestedFacility) ? requestedFacility : 0,
       approvedFacility:
         Number.isFinite(offeredFacility) && offeredFacility > 0
@@ -2838,6 +2822,9 @@ export class AdminRepository {
         status: note.status,
         sourceApplicationId: note.source_application_id,
         sourceInvoiceId: note.source_invoice_id,
+        sourceInvoiceDisplayReference: note.source_invoice_id
+          ? (invoiceDisplayRefById.get(note.source_invoice_id) ?? null)
+          : null,
         targetAmount: note.target_amount.toNumber(),
         fundedAmount: note.funded_amount.toNumber(),
         invoiceFaceAmount: note.source_invoice_id

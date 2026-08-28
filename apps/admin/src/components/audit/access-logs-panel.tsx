@@ -4,16 +4,19 @@ import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AccessLogsTable } from "@/components/access-logs-table";
 import { AccessLogsToolbar } from "@/components/access-logs-toolbar";
-import { useAccessLogs } from "@/hooks/use-access-logs";
+import { ACCESS_EVENT_TYPES, useAccessLogs } from "@/hooks/use-access-logs";
 import { AdminQueryErrorState } from "@/components/admin-query-error-state";
+import { AUDIT_LOG_PAGE_SIZE } from "@/components/audit/audit-log-shell";
 import type { EventType, GetAccessLogsParams } from "@cashsouk/types";
 
-const ACCESS_EVENT_TYPES: EventType[] = [
-  "LOGIN",
-  "LOGOUT",
-  "SIGNUP",
-  "KYC_STATUS_UPDATED",
-];
+export { ACCESS_EVENT_TYPES };
+
+// access_logs.PROFILE_UPDATED (an admin editing a user's own profile fields) collides with the
+// unrelated security_logs.PROFILE_UPDATED (self-service profile update) in the shared event-type
+// label config; disambiguated here so only this panel shows the access_logs-specific wording.
+const ACCESS_LOG_LABEL_OVERRIDES: Record<string, string> = {
+  PROFILE_UPDATED: "User Profile Updated",
+};
 
 export function AccessLogsPanel() {
   const queryClient = useQueryClient();
@@ -22,7 +25,7 @@ export function AccessLogsPanel() {
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [dateRangeFilter, setDateRangeFilter] = React.useState("all");
   const [currentPage, setCurrentPage] = React.useState(1);
-  const pageSize = 15;
+  const pageSize = AUDIT_LOG_PAGE_SIZE;
 
   const apiParams = React.useMemo(() => {
     const params: GetAccessLogsParams = {
@@ -111,6 +114,7 @@ export function AccessLogsPanel() {
         pageSize={pageSize}
         totalLogs={totalLogs}
         onPageChange={setCurrentPage}
+        labelOverrides={ACCESS_LOG_LABEL_OVERRIDES}
       />
     </div>
   );

@@ -72,10 +72,10 @@ export function OrganizationLegalAcceptancesPanel({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Accepted at</TableHead>
+                  <TableHead>Timestamp</TableHead>
                   <TableHead>Document</TableHead>
                   <TableHead>Version</TableHead>
-                  <TableHead>Accepted by</TableHead>
+                  <TableHead>Actor</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>

@@ -2,6 +2,7 @@ import {
   buildProspectusPdfObjectKey,
   countPdfPagesFromBuffer,
   countProspectusHtmlPages,
+  expectedProspectusPageCount,
   prospectusPdfFileName,
   sha256Hex,
 } from "./prospectus-pdf";
@@ -53,6 +54,21 @@ describe("prospectus PDF helpers", () => {
     const pdf = Buffer.from("%PDF-1.4 /Type /Page /Type /Page /Type /Page /Type /Pages");
     expect(countPdfPagesFromBuffer(pdf)).toBe(3);
     expect(sha256Hex(Buffer.from("hello"))).toHaveLength(64);
+  });
+
+  it("expects 3 pages for legacy HTML bundles and 5 when appendix pages are present", () => {
+    expect(
+      expectedProspectusPageCount({ page1: "a", page2: "b", page3: "c" })
+    ).toBe(3);
+    expect(
+      expectedProspectusPageCount({
+        page1: "a",
+        page2: "b",
+        page3: "c",
+        page4: "d",
+        page5: "e",
+      })
+    ).toBe(5);
   });
 
   it("builds a safe PDF filename from note reference", () => {

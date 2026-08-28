@@ -38,7 +38,7 @@ describe("extractNoteTimelineDetails", () => {
     );
 
     expect(compact).toEqual([
-      { key: "dueDate", label: "Due date", value: "09 Sep 2026" },
+      { key: "dueDate", label: "Due date", value: "9 Sep 2026" },
       { key: "overdue", label: "Overdue", value: "No" },
       { key: "daysLate", label: "Days late", value: "0" },
       { key: "checkDate", label: "Checked", value: expect.stringMatching(/12 May 2026/) },
@@ -52,17 +52,109 @@ describe("extractNoteTimelineDetails", () => {
     ]);
   });
 
-  it("shows resend metadata as Resent instead of Yes", () => {
-    const { compact } = extractNoteTimelineDetails(
+  it("shows trustee-email resend metadata as Redelivered instead of Yes", () => {
+    const withdrawal = extractNoteTimelineDetails(
       event({
         eventType: "WITHDRAWAL_TRUSTEE_EMAIL_SENT",
-        metadata: { withdrawalId: "wd-1", messageId: "ses-2", resend: true },
+        metadata: {
+          withdrawalId: "wd-1",
+          withdrawalReference: "WD-1",
+          messageId: "ses-2",
+          resend: true,
+        },
       })
     );
-    expect(compact).toEqual(
-      expect.arrayContaining([{ key: "resend", label: "Resend", value: "Resent" }])
+    expect(withdrawal.compact).toEqual(
+      expect.arrayContaining([
+        { key: "withdrawalId", label: "Withdrawal Id", value: "wd-1" },
+        { key: "withdrawalReference", label: "Withdrawal Reference", value: "WD-1" },
+        { key: "messageId", label: "Message Id", value: "ses-2" },
+        { key: "resend", label: "Redelivery", value: "Redelivered" },
+      ])
     );
-    expect(compact.find((row) => row.key === "resend")?.value).not.toBe("Yes");
+    expect(withdrawal.compact.find((row) => row.key === "resend")?.value).not.toBe("Yes");
+
+    const historicalWithdrawal = extractNoteTimelineDetails(
+      event({
+        eventType: "WITHDRAWAL_TRUSTEE_EMAIL_SENT",
+        metadata: { withdrawalId: "wd-old", messageId: "ses-old" },
+      })
+    );
+    expect(historicalWithdrawal.compact).toEqual([
+      { key: "withdrawalId", label: "Withdrawal Id", value: "wd-old" },
+      { key: "messageId", label: "Message Id", value: "ses-old" },
+    ]);
+
+    const settlement = extractNoteTimelineDetails(
+      event({
+        eventType: "SETTLEMENT_TRUSTEE_EMAIL_SENT",
+        metadata: { settlementId: "set-1", settlementReference: "STL-1", messageId: "ses-3" },
+      })
+    );
+    expect(settlement.compact).toEqual([
+      { key: "settlementId", label: "Settlement Id", value: "set-1" },
+      { key: "settlementReference", label: "Settlement Reference", value: "STL-1" },
+      { key: "messageId", label: "Message Id", value: "ses-3" },
+    ]);
+
+    const settlementResend = extractNoteTimelineDetails(
+      event({
+        eventType: "SETTLEMENT_TRUSTEE_EMAIL_SENT",
+        metadata: {
+          settlementId: "set-1",
+          settlementReference: "STL-1",
+          messageId: "ses-4",
+          resend: true,
+        },
+      })
+    );
+    expect(settlementResend.compact).toEqual(
+      expect.arrayContaining([
+        { key: "settlementId", label: "Settlement Id", value: "set-1" },
+        { key: "settlementReference", label: "Settlement Reference", value: "STL-1" },
+        { key: "messageId", label: "Message Id", value: "ses-4" },
+        { key: "resend", label: "Redelivery", value: "Redelivered" },
+      ])
+    );
+  });
+
+  it("hides settlement trustee letter s3Key from compact timeline details", () => {
+    const live = extractNoteTimelineDetails(
+      event({
+        eventType: "SETTLEMENT_TRUSTEE_LETTER_GENERATED",
+        metadata: { settlementId: "set-1", s3Key: "note-letters/n1/letter.pdf" },
+      })
+    );
+    expect(live.compact).toEqual([{ key: "settlementId", label: "Settlement Id", value: "set-1" }]);
+    expect(live.compact.find((row) => row.key === "s3Key")).toBeUndefined();
+  });
+
+  it("builds an activation sentence with the actor and note title", () => {
+    const { compact, prose } = extractNoteTimelineDetails(
+      event({ eventType: "ACTIVATE", actorName: "Jane Admin" }),
+      "Acme Note 1"
+    );
+
+    expect(compact).toEqual([]);
+    expect(prose).toEqual([
+      {
+        key: "message",
+        label: "Message",
+        value: "Jane Admin activated Acme Note 1. Servicing has started.",
+      },
+    ]);
+  });
+
+  it("falls back to generic actor/note wording when unavailable", () => {
+    const { prose } = extractNoteTimelineDetails(event({ eventType: "ACTIVATE" }));
+
+    expect(prose).toEqual([
+      {
+        key: "message",
+        label: "Message",
+        value: "An admin activated the note. Servicing has started.",
+      },
+    ]);
   });
 
   it("hides s3 keys from generic events", () => {
@@ -73,6 +165,23 @@ describe("extractNoteTimelineDetails", () => {
       })
     );
     expect(compact).toEqual([]);
+    expect(prose).toEqual([]);
+  });
+
+  it("shows withdrawal id and display reference for trustee submission", () => {
+    const { compact, prose } = extractNoteTimelineDetails(
+      event({
+        eventType: "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
+        metadata: {
+          withdrawalId: "clyk2n9x0001qwertyuiop",
+          withdrawalReference: "WDL-ARF-202608-A1Z",
+        },
+      })
+    );
+    expect(compact).toEqual([
+      { key: "withdrawalId", label: "Withdrawal Id", value: "clyk2n9x0001qwertyuiop" },
+      { key: "withdrawalReference", label: "Withdrawal Reference", value: "WDL-ARF-202608-A1Z" },
+    ]);
     expect(prose).toEqual([]);
   });
 });

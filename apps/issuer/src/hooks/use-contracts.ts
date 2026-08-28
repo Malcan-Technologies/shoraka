@@ -1,6 +1,6 @@
 import { createApiClient, getReviewDetailRefreshPolicy, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ContractDetails, CustomerDetails } from "@cashsouk/types";
+import type { ContractDetails, CustomerDetails, IssuerPaymasterOption } from "@cashsouk/types";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -18,6 +18,24 @@ export function useApprovedContracts(organizationId: string) {
         throw new Error(response.error.message);
       }
       return response.data;
+    },
+    enabled: !!organizationId,
+  });
+}
+
+export function useIssuerPaymasters(organizationId: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useQuery({
+    queryKey: ["issuer-paymasters", organizationId],
+    queryFn: async (): Promise<IssuerPaymasterOption[]> => {
+      if (!organizationId) return [];
+      const response = await apiClient.getIssuerPaymasters(organizationId);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data.paymasters;
     },
     enabled: !!organizationId,
   });
@@ -78,6 +96,7 @@ export function useUpdateContract() {
       data: {
         contract_details?: ContractDetails | null;
         customer_details?: CustomerDetails;
+        selectedPaymasterId?: string | null;
         status?: string;
       };
     }) => {

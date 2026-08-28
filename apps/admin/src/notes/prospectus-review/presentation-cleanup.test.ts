@@ -19,6 +19,8 @@ const financialComparisonTable = fs.readFileSync(
   path.join(root, "financial-comparison-working-table.tsx"),
   "utf8"
 );
+const marcSummary = fs.readFileSync(path.join(root, "marc-assessment-summary.tsx"), "utf8");
+const completion = fs.readFileSync(path.join(root, "completion.ts"), "utf8");
 
 describe("prospectus review presentation cleanup", () => {
   it("removes local preview shortcuts and preview-only verification copy", () => {
@@ -38,6 +40,8 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).toContain("WorkingAreaPreviewApproval");
     expect(pageSource).toContain("buildPageThreeAdminOverviewRows");
     expect(pageSource).toContain("mergeOfficerOverridesIntoFinancialTable");
+    expect(pageSource).toContain("useIssuerMarcAssessment");
+    expect(pageSource).toContain("hasMarcAssessment");
   });
 
   it("Page 1 uses field-centred sections without At a Glance duplicate", () => {
@@ -60,16 +64,30 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageTwo).toContain("Company Size");
     expect(pageTwo).toContain("Invoice & Paymaster");
     expect(pageTwo).toContain("Deed of Assignment");
-    expect(pageTwo).toContain("Paymaster Rating");
-    expect(pageTwo).toContain("Confidence Grading");
+    expect(pageTwo).not.toContain("Page 3 Paymaster Grading");
+    expect(pageTwo).not.toContain('label="Paymaster Grading"');
+    expect(pageTwo).not.toContain('label="Confidence Grading"');
+    expect(pageTwo).not.toContain("data-prospectus-page-three-paymaster-grading");
+    expect(pageTwo).not.toContain("Paymaster Grading (Page 3)");
+    expect(pageTwo).not.toContain("Confidence Grading (Page 3)");
+    expect(pageTwo).not.toContain("MARC Paymaster Grading");
+    expect(pageTwo).not.toContain("MARC Confidence Grading");
+    expect(pageTwo).toContain("ProspectusMarcAssessmentSummary");
+    expect(marcSummary).toContain("MARC Credit Assessment");
+    expect(marcSummary).toContain("Manage MARC Assessment");
+    expect(marcSummary).toContain("data-prospectus-marc-assessment");
+    expect(pageTwo).toContain("Litigation Check");
+    expect(pageTwo).toContain("CCRIS Status");
+    expect(pageTwo).not.toContain(
+      "MARC Credit Grade, Score, and Probability of Default come from the issuer organization MARC assessment."
+    );
     expect(pageTwo).toContain("Paymaster Track Record");
     expect(pageTwo).toContain("optional");
     expect(pageTwo).toContain("ProspectusFinancialComparisonWorkingTable");
     expect(pageTwo).toContain("About the Invoice / Work Performed");
     expect(pageTwo).toContain("ProspectusInternalTabs");
     expect(pageTwo).toContain("data-prospectus-risk-rating-scale");
-    expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_GRADES");
-    expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_CATALOGUE");
+    expect(pageTwo).toContain("MARC_SME_BANDS");
     expect(pageTwo).toContain("Risk Rating Scale");
     expect(pageTwo).not.toContain("Full A–F Cashsouk scale for reference.");
     expect(pageTwo).not.toContain('title="Cashsouk Risk Rating"');
@@ -85,8 +103,8 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageTwo).not.toContain("Scale Version");
     expect(pageTwo).not.toContain("soukscore-scale.v1");
     expect(pageTwo).not.toContain("From Invoice Offer");
-    expect(pageTwo).not.toContain("Very Low Risk");
-    expect(pageTwo).not.toContain("Moderately Low Risk");
+    expect(pageTwo).toContain("MARC_SME_BANDS");
+    expect(pageTwo).toContain("{band.label}");
     expect(pageTwo).not.toContain("Disabled in Prospectus");
     expect(pageTwo).not.toContain("Button Behaviour");
     expect(pageTwo).not.toContain('label="Destination"');
@@ -115,11 +133,52 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageThree).toContain("ProspectusCoverageWorkingTable");
     expect(pageThree).toContain("Investor Takeaways");
     expect(pageThree).toContain("ProspectusInternalTabs");
+    expect(pageThree).toContain('id: "paymaster_grading"');
+    expect(pageThree).toContain('label: "Paymaster Grading"');
+    expect(pageThree).toContain('tab === "paymaster_grading"');
+    expect(pageThree).toContain("Page 3 Paymaster Grading");
+    expect(pageThree).toContain('label="Paymaster Grading"');
+    expect(pageThree).toContain('label="Confidence Grading"');
+    expect(pageThree).toContain("data-prospectus-page-three-paymaster-grading");
+    expect(pageThree).toContain("page2.invoicePaymaster");
+    expect(pageThree.split("data-prospectus-page-three-paymaster-grading").length - 1).toBe(1);
+    expect(pageThree.split('label="Paymaster Grading"').length - 1).toBe(1);
+    expect(pageThree.split('label="Confidence Grading"').length - 1).toBe(1);
+    expect(pageThree.indexOf('tab === "paymaster_grading"')).toBeLessThan(
+      pageThree.indexOf("data-prospectus-page-three-paymaster-grading")
+    );
+    expect(pageThree.indexOf("data-prospectus-page-three-paymaster-grading")).toBeGreaterThan(
+      pageThree.indexOf('tab === "overview"')
+    );
+    expect(pageThree.indexOf("data-prospectus-page-three-paymaster-grading")).toBeGreaterThan(
+      pageThree.indexOf('tab === "income"')
+    );
+    expect(pageThree.indexOf("data-prospectus-page-three-paymaster-grading")).toBeGreaterThan(
+      pageThree.indexOf('tab === "balance"')
+    );
+    expect(pageThree.indexOf("data-prospectus-page-three-paymaster-grading")).toBeGreaterThan(
+      pageThree.indexOf('tab === "coverage"')
+    );
+    expect(pageThree.indexOf("data-prospectus-page-three-paymaster-grading")).toBeGreaterThan(
+      pageThree.indexOf('tab === "takeaways"')
+    );
+    expect(pageThree).not.toContain("MARC Paymaster Grading");
+    expect(pageThree).not.toContain("MARC Confidence Grading");
     expect(pageThree).not.toContain('label === "Sector"');
     expect(coverageTable).toContain('mode: "reused"');
     expect(coverageTable).not.toMatch(/From Page 2[\s\S]{0,40}<\/span>/);
     expect(coverageTable).not.toContain("Trend (3-Yr)");
     expect(financialComparisonTable).toContain("ProspectusSharedFinancialWorkingTable");
+  });
+
+  it("makes Paymaster Grading required without an || true workaround", () => {
+    expect(completion).toContain('id: "page3Paymaster"');
+    expect(completion).toMatch(/id: "page3Paymaster"[\s\S]*?required: true/);
+    expect(completion).not.toContain("|| true");
+    expect(completion).toContain('tabId: "paymaster_grading"');
+    expect(completion).not.toMatch(
+      /section: "Page 3 Paymaster Grading"[\s\S]{0,80}tabId: "overview"/
+    );
   });
 
   it("Preview & Approval keeps readiness and missing fields without Completion checklist", () => {

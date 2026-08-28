@@ -2,6 +2,7 @@
 
 import { CheckIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
+import { formatWithdrawalReference } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { InvestorActionDialog } from "@/components/investor-action-dialog";
 
@@ -9,9 +10,18 @@ interface WithdrawSuccessDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   amount: number;
+  displayReference?: string | null;
 }
 
-export function WithdrawSuccessDialog({ open, onOpenChange, amount }: WithdrawSuccessDialogProps) {
+export function WithdrawSuccessDialog({
+  open,
+  onOpenChange,
+  amount,
+  displayReference,
+}: WithdrawSuccessDialogProps) {
+  const reference = displayReference?.trim()
+    ? formatWithdrawalReference({ displayReference })
+    : null;
   return (
     <InvestorActionDialog
       open={open}
@@ -39,6 +49,9 @@ export function WithdrawSuccessDialog({ open, onOpenChange, amount }: WithdrawSu
         <p className="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-foreground">
           {formatCurrency(amount)}
         </p>
+        {reference ? (
+          <p className="mt-3 font-mono text-ui text-muted-foreground">Reference {reference}</p>
+        ) : null}
       </div>
     </InvestorActionDialog>
   );

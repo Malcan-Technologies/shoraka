@@ -100,14 +100,15 @@ export type EventType =
   | "LOGOUT"
   | "SIGNUP"
   | "ROLE_ADDED"
+  | "ROLE_REMOVED"
   | "ROLE_SWITCHED"
   | "ONBOARDING"
-  | "USER_COMPLETED"
+  | "ONBOARDING_RESET"
   | "KYC_STATUS_UPDATED"
   | "ONBOARDING_STATUS_UPDATED"
   | "PROFILE_UPDATED"
   | "PASSWORD_CHANGED"
-  | "EMAIL_CHANGED";
+  | "EMAIL_VERIFIED";
 
 export interface AccessLogUser {
   first_name: string;
@@ -130,6 +131,11 @@ export interface AccessLogResponse {
   success: boolean;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  actor_type?: string | null;
+  source?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  correlation_id?: string | null;
 }
 
 export interface GetAccessLogsParams extends PaginationParams {
@@ -300,10 +306,15 @@ export interface AcceptInvitationInput {
 // Security Logs Types
 export type SecurityEventType =
   | "PASSWORD_CHANGED"
-  | "EMAIL_CHANGED"
+  | "EMAIL_VERIFIED"
   | "ROLE_ADDED"
+  | "ROLE_REMOVED"
   | "ROLE_SWITCHED"
-  | "PROFILE_UPDATED";
+  | "ROLE_CREATED"
+  | "ROLE_PERMISSIONS_UPDATED"
+  | "INVITATION_REVOKED"
+  | "PROFILE_UPDATED"
+  | "PLATFORM_FINANCE_SETTINGS_UPDATED";
 
 export interface SecurityLogUser {
   first_name: string;
@@ -322,6 +333,12 @@ export interface SecurityLogResponse {
   device_info: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  actor_type?: string | null;
+  source?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  portal?: string | null;
+  correlation_id?: string | null;
 }
 
 export interface GetSecurityLogsParams extends PaginationParams {
@@ -337,6 +354,10 @@ export interface SecurityLogsResponse {
   pagination: PaginationResponse;
 }
 
+export interface ExportSecurityLogsParams extends Omit<GetSecurityLogsParams, "page" | "pageSize"> {
+  format?: "csv" | "json";
+}
+
 // Onboarding Logs Types
 export type OnboardingEventType =
   | "ONBOARDING_STARTED"
@@ -344,6 +365,7 @@ export type OnboardingEventType =
   | "ONBOARDING_CANCELLED"
   | "ONBOARDING_STATUS_UPDATED"
   | "ONBOARDING_REJECTED"
+  | "COD_REJECTED"
   | "SOPHISTICATED_STATUS_UPDATED"
   | "FINAL_APPROVAL_COMPLETED"
   | "FORM_FILLED"
@@ -353,8 +375,12 @@ export type OnboardingEventType =
   | "SSM_APPROVED"
   | "TNC_ACCEPTED"
   | "KYC_APPROVED"
-  | "KYB_APPROVED"
-  | "PROFILE_UPDATED";
+  | "PROFILE_UPDATED"
+  | "MEMBER_ADDED"
+  | "MEMBER_INVITED"
+  | "MEMBER_REMOVED"
+  | "MEMBER_ROLE_CHANGED"
+  | "MARC_ASSESSMENT_SAVED";
 
 export interface OnboardingLogUser {
   first_name: string;
@@ -378,6 +404,11 @@ export interface OnboardingLogResponse {
   created_at: string;
   organizationName?: string | null;
   organizationType?: "PERSONAL" | "COMPANY" | null;
+  actor_type?: string | null;
+  source?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  correlation_id?: string | null;
 }
 
 export interface GetOnboardingLogsParams extends PaginationParams {
@@ -633,6 +664,9 @@ export interface OrganizationDetailResponse {
 
   // Sum of funded amounts on ACTIVE notes (issuer portal only)
   activeNotesAmount: number | null;
+
+  /** Latest organization-level MARC assessment (issuer only). */
+  marcAssessment?: import("./marc-credit-grade").MarcAssessmentSnapshot | null;
 
   // RegTank portal link (for viewing in RegTank admin)
   regtankPortalUrl: string | null;
@@ -963,7 +997,9 @@ export interface DownloadUrlResponse {
 export type ProductEventType =
   | "PRODUCT_CREATED"
   | "PRODUCT_UPDATED"
-  | "PRODUCT_DELETED";
+  | "PRODUCT_DELETED"
+  | "PRODUCT_INACTIVATED"
+  | "PRODUCT_REACTIVATED";
 
 export interface ProductLogUser {
   first_name: string;
@@ -982,6 +1018,12 @@ export interface ProductLogResponse {
   device_info: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  actor_type?: string | null;
+  source?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  portal?: string | null;
+  correlation_id?: string | null;
 }
 
 export interface GetProductLogsParams extends PaginationParams {
@@ -1198,6 +1240,7 @@ export interface AdminContractNoteSummary {
   status: string;
   sourceApplicationId: string;
   sourceInvoiceId: string | null;
+  sourceInvoiceDisplayReference: string | null;
   /** Note target — the facility drawdown, same basis as utilized facility. */
   targetAmount: number;
   /** Marketplace fill. 0 until funding starts. */
@@ -1227,6 +1270,7 @@ export interface AdminContractDetail {
   description: string | null;
   issuerOrganizationId: string | null;
   issuerOrganizationName: string | null;
+  issuerOrganizationDisplayReference: string | null;
   requestedFacility: number;
   approvedFacility: number;
   utilizedFacility: number;

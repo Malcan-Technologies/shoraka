@@ -16,6 +16,19 @@ export type ProspectusWorkflowStatus = "DRAFT" | "APPROVED" | "PUBLISHED";
 export type ProspectusDisplayStatus = "Draft" | "Approved" | "Published";
 
 /**
+ * Prospectus lock/display: the note completed marketplace publish and was not unpublished.
+ * Funding close / servicing move `status` off PUBLISHED but `publishedAt` stays set.
+ * Unpublish returns to DRAFT and clears `publishedAt` — that is the only reopen path.
+ */
+export function isNoteProspectusPublished(note: {
+  status: string | null | undefined;
+  publishedAt: string | Date | null | undefined;
+}): boolean {
+  if (note.publishedAt == null || note.publishedAt === "") return false;
+  return note.status !== "DRAFT";
+}
+
+/**
  * Legacy READY_FOR_REVIEW / SUPERSEDED → DRAFT (must re-approve).
  * Never expose legacy labels in UI.
  */

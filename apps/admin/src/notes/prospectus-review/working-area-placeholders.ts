@@ -14,7 +14,8 @@ export type PageThreeTabId =
   | "income"
   | "balance"
   | "coverage"
-  | "takeaways";
+  | "takeaways"
+  | "paymaster_grading";
 
 export type ProspectusInternalTabId = PageOneTabId | PageTwoTabId | PageThreeTabId;
 
@@ -31,9 +32,17 @@ export function resolveInternalTabForMissingSection(
     if (section === "Financial Comparison") return "financial";
     if (section === "Credit Insights" || section === "About the Invoice") return "credit_invoice";
     if (section === "Risk Information" || section === "Risk & CTA") return "risk";
+    if (
+      section === "Issuer Profile" ||
+      section === "Invoice & Paymaster" ||
+      section === "Paymaster Track Record"
+    ) {
+      return "issuer_paymaster";
+    }
     return "issuer_paymaster";
   }
   if (pageStep === 2) {
+    if (section === "Page 3 Paymaster Grading") return "paymaster_grading";
     if (section === "Income Statement") return "income";
     if (section === "Balance Sheet") return "balance";
     if (section === "Coverage & Efficiency") return "coverage";
@@ -63,7 +72,7 @@ export const FINANCIAL_PLACEHOLDERS = {
 export const SELECT_PLACEHOLDERS = {
   companySize: "Select company size",
   deedOfAssignment: "Select Yes or No",
-  paymasterRating: "Select paymaster rating",
+  paymasterRating: "Select paymaster grading",
   confidenceGrading: "Select confidence grading",
   creditScore: "Select credit score",
   paymentBehaviour: "Select payment behaviour",

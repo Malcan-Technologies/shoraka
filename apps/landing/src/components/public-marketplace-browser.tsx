@@ -17,7 +17,7 @@ import {
 } from "@cashsouk/ui";
 import {
   MARKETPLACE_TENURE_FILTER_LABELS,
-  SOUKSCORE_RISK_RATING_GRADES,
+  MARC_SME_GRADES,
   formatNoteReferenceDisplay,
   marketplaceTenureFilterLabel,
   matchesMarketplaceTenureFilter,
@@ -113,8 +113,8 @@ export function PublicMarketplaceBrowser({
       : "all";
   const initialRisk =
     initialRiskParam &&
-    SOUKSCORE_RISK_RATING_GRADES.includes(
-      initialRiskParam as (typeof SOUKSCORE_RISK_RATING_GRADES)[number]
+    MARC_SME_GRADES.includes(
+      initialRiskParam as (typeof MARC_SME_GRADES)[number]
     )
       ? initialRiskParam
       : "all";
@@ -427,7 +427,7 @@ export function PublicMarketplaceBrowser({
                 <DropdownMenuLabel>Risk score</DropdownMenuLabel>
                 <DropdownMenuRadioGroup value={riskFilter} onValueChange={handleRiskChange}>
                   <DropdownMenuRadioItem value="all">All risk scores</DropdownMenuRadioItem>
-                  {SOUKSCORE_RISK_RATING_GRADES.map((grade) => (
+                  {MARC_SME_GRADES.map((grade) => (
                     <DropdownMenuRadioItem key={grade} value={grade}>
                       {grade}
                     </DropdownMenuRadioItem>

@@ -1,9 +1,9 @@
 /**
  * SECTION: Build Risk Assessment view-model
- * WHY: Canva shows SoukScore grade + catalogue label/explanation; no separate storage
+ * WHY: Frozen Invoice/Note MARC SME grade + official individual Risk Profile; no A–F fallback
  */
 
-import { resolveSoukscoreRiskRatingPresentation } from "@cashsouk/types";
+import { resolveMarcNoteRiskPresentation } from "@cashsouk/types";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_RATING_SCALE_REFERENCE,
@@ -15,26 +15,28 @@ import {
 export function buildProspectusRiskAssessment(
   input: ProspectusRiskAssessmentInput
 ): ProspectusRiskAssessment {
-  const presentation = resolveSoukscoreRiskRatingPresentation(input.soukscoreRiskRating);
+  const presentation = resolveMarcNoteRiskPresentation(input.soukscoreRiskRating);
 
   return {
     canva: {
       riskGrade: presentation.grade,
       riskLabel: presentation.label,
-      riskExplanation: presentation.description,
+      riskExplanation: presentation.riskProfile,
       riskGradeColor: presentation.color,
       riskGradeTextColor: presentation.textColor,
       ratingScaleReference: PROSPECTUS_RATING_SCALE_REFERENCE,
+      marcCreditScoreDisplay: null,
+      marcProbabilityOfDefaultDisplay: null,
     },
     audit: {
       riskScore: PROSPECTUS_DATA_NOT_AVAILABLE,
       riskAppliesTo: presentation.isAvailable
         ? "Invoice offer, frozen on Note snapshot"
         : PROSPECTUS_DATA_NOT_AVAILABLE,
-      assessmentSource: presentation.isAvailable
-        ? "Admin Cashsouk Risk Rating on invoice offer"
-        : PROSPECTUS_DATA_NOT_AVAILABLE,
       isFrozen: presentation.isAvailable,
+      assessmentSource: presentation.isAvailable
+        ? "Admin MARC SME risk rating on invoice offer"
+        : PROSPECTUS_DATA_NOT_AVAILABLE,
       scaleStatus: PROSPECTUS_RATING_SCALE_STATUS,
     },
   };

@@ -15,6 +15,9 @@ import {
   contractEventToActivityCsvRow,
   formatContractActivityEventLabel,
 } from "@/contracts/utils/contract-activity-csv";
+import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
+import { contractEventToAuditDetail } from "@/components/audit/audit-adapters";
+import { useState } from "react";
 
 function formatMetadataLabel(key: string) {
   return key
@@ -89,6 +92,7 @@ function extractMetadataDetails(event: AdminContractActivityEvent): {
 export function ContractActivityPanel({ contract }: { contract: AdminContractDetail }) {
   const events = contract.activity ?? [];
   const totalCount = events.length;
+  const [selectedEvent, setSelectedEvent] = useState<AdminContractActivityEvent | null>(null);
   const contractReference = formatContractReference({
     displayReference: contract.displayReference,
     businessNumber: contract.contractNumber,
@@ -141,12 +145,27 @@ export function ContractActivityPanel({ contract }: { contract: AdminContractDet
                   portal={event.portal}
                   compactDetails={compactMetadata}
                   prose={proseMetadata}
+                  onViewDetails={() => setSelectedEvent(event)}
                 />
               );
             })}
           </AdminVerticalTimeline>
         )}
       </CardContent>
+      <AuditDetailDrawer
+        open={selectedEvent != null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedEvent(null);
+        }}
+        record={
+          selectedEvent
+            ? contractEventToAuditDetail(
+                selectedEvent,
+                formatContractActivityEventLabel(selectedEvent.eventType)
+              )
+            : null
+        }
+      />
     </Card>
   );
 }

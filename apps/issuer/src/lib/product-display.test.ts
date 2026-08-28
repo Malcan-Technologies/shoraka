@@ -18,4 +18,11 @@ describe("resolveIssuerProductDisplay", () => {
       imageS3Key: null,
     });
   });
+
+  it("does not surface a raw product id as the label", () => {
+    expect(resolveIssuerProductDisplay(catalog, ["prod_missing"], [null])).toEqual({
+      name: "",
+      imageS3Key: null,
+    });
+  });
 });

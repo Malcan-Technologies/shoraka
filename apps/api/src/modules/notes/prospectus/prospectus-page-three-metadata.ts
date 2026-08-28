@@ -6,7 +6,7 @@
  */
 
 import {
-  isSoukscoreRiskRating,
+  isMarcSmeGrade,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusPaymasterRating,
 } from "@cashsouk/types";
@@ -47,7 +47,7 @@ export function buildProspectusPageThreeMetadata(
   void input.livePaymasterName;
   void input.ctosFinancials;
 
-  const riskRating = isSoukscoreRiskRating(input.selectedRiskRating)
+  const riskRating = isMarcSmeGrade(input.selectedRiskRating)
     ? input.selectedRiskRating
     : PROSPECTUS_DATA_NOT_AVAILABLE;
 

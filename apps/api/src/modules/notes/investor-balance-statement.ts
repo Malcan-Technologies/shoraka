@@ -94,6 +94,8 @@ function buildReference(entry: StatementLedgerEntry, noteReferenceById: Map<stri
     const noteReference = noteReferenceById.get(entry.noteId);
     if (noteReference) return noteReference;
   }
+  const relatedRef = entry.related?.displayReference?.trim();
+  if (relatedRef) return relatedRef;
   return entry.id.slice(0, 8).toUpperCase();
 }
 

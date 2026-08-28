@@ -157,6 +157,33 @@ export function adminHeroTintClass(token: StatusToken): string {
   return `admin-hero-tint-${token}`;
 }
 
+const ASSIGNMENT_NOTICE_STATUS_TOKEN: Record<string, StatusToken> = {
+  GENERATED: "action",
+  SENT: "submitted",
+  ACKNOWLEDGEMENT_UPLOADED: "action",
+  ACKNOWLEDGED: "success",
+  FAILED: "rejected",
+};
+
+const ASSIGNMENT_NOTICE_STATUS_LABEL: Record<string, string> = {
+  GENERATED: "Generated",
+  SENT: "Sent",
+  ACKNOWLEDGEMENT_UPLOADED: "Acknowledgement uploaded",
+  ACKNOWLEDGED: "Acknowledged",
+  FAILED: "Failed",
+};
+
+/** Notice of Assignment — do not reuse the global GENERATED=green mapping. */
+export function assignmentNoticeStatusToken(status: string | null | undefined): StatusToken {
+  const key = String(status ?? "").trim().toUpperCase();
+  return ASSIGNMENT_NOTICE_STATUS_TOKEN[key] ?? "neutral";
+}
+
+export function assignmentNoticeStatusLabel(status: string | null | undefined): string {
+  const key = String(status ?? "").trim().toUpperCase();
+  return ASSIGNMENT_NOTICE_STATUS_LABEL[key] ?? (key || "Not generated");
+}
+
 /** Subtle red row wash for arrears / failed notes — same 45% fill as action rows. */
 export const ADMIN_REJECTED_ROW_CLASS =
   "bg-[hsl(var(--status-rejected-bg)/0.45)] hover:bg-[hsl(var(--status-rejected-bg)/0.45)] odd:bg-[hsl(var(--status-rejected-bg)/0.45)]";

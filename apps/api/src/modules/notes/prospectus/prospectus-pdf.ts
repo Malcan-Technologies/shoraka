@@ -25,7 +25,37 @@ export type ProspectusFrozenHtmlBundle = {
   page1: string;
   page2: string;
   page3: string;
+  page4?: string;
+  page5?: string;
 };
+
+/** Legacy publications freeze 3 pages; new publications freeze 5 (MARC appendix). */
+export const PROSPECTUS_ALLOWED_PAGE_COUNTS = [3, 5] as const;
+
+export function expectedProspectusPageCount(html: ProspectusFrozenHtmlBundle): number {
+  return 3 + (html.page4 ? 1 : 0) + (html.page5 ? 1 : 0);
+}
+
+function assertAllowedProspectusPageCount(
+  found: number,
+  expected: number,
+  kind: "HTML" | "PDF"
+): void {
+  if (expected !== 3 && expected !== 5) {
+    throw new AppError(
+      500,
+      "PROSPECTUS_PDF_PAGE_COUNT",
+      `Prospectus must freeze 3 pages (legacy) or 5 pages (current); HTML bundle implies ${expected}`
+    );
+  }
+  if (found !== expected) {
+    throw new AppError(
+      500,
+      "PROSPECTUS_PDF_PAGE_COUNT",
+      `Prospectus ${kind} must contain exactly ${expected} pages (found ${found})`
+    );
+  }
+}
 
 export type ProspectusPdfArtifact = {
   storageBucket: string;
@@ -162,14 +192,9 @@ export async function generateAndStoreProspectusPdf(input: {
   html: ProspectusFrozenHtmlBundle;
 }): Promise<ProspectusPdfArtifact> {
   const documentHtml = combineProspectusPagesHtml(input.html);
+  const expectedPageCount = expectedProspectusPageCount(input.html);
   const htmlPageCount = countProspectusHtmlPages(documentHtml);
-  if (htmlPageCount !== 3) {
-    throw new AppError(
-      500,
-      "PROSPECTUS_PDF_PAGE_COUNT",
-      `Prospectus HTML must contain exactly 3 pages before PDF generation (found ${htmlPageCount})`
-    );
-  }
+  assertAllowedProspectusPageCount(htmlPageCount, expectedPageCount, "HTML");
 
   let pdfBuffer: Buffer;
   try {
@@ -185,13 +210,7 @@ export async function generateAndStoreProspectusPdf(input: {
 
   const sha256 = sha256Hex(pdfBuffer);
   const pdfPageCount = countPdfPagesFromBuffer(pdfBuffer);
-  if (pdfPageCount !== 3) {
-    throw new AppError(
-      500,
-      "PROSPECTUS_PDF_PAGE_COUNT",
-      `Generated Prospectus PDF must contain exactly 3 pages (found ${pdfPageCount})`
-    );
-  }
+  assertAllowedProspectusPageCount(pdfPageCount, expectedPageCount, "PDF");
 
   const storageKey = buildProspectusPdfObjectKey({
     noteId: input.noteId,

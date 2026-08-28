@@ -1,6 +1,6 @@
 import { PortalType } from "../../lib/http/url-utils";
 import { PortalContext } from "../../lib/http/portal-context";
-import { formatApplicationNotificationRef, formatPhaseDeadlineDateDDMMYYYY } from "@cashsouk/types";
+import { formatApplicationNotificationRef, formatPhaseDeadlineDateDDMMYYYY, formatWithdrawalReference } from "@cashsouk/types";
 
 /**
  * Registry of all system notification types to ensure type safety
@@ -8,7 +8,7 @@ import { formatApplicationNotificationRef, formatPhaseDeadlineDateDDMMYYYY } fro
  */
 export const NotificationTypeIds = {
   // System / Onboarding
-  ONBOARDING_APPROVED: "onboarding_approved",
+  ONBOARDING_COMPLETED: "onboarding_completed",
   ONBOARDING_REJECTED: "onboarding_rejected",
 
   // Authentication
@@ -31,6 +31,10 @@ export const NotificationTypeIds = {
   APPLICATION_RESUBMITTED_CONFIRMATION: "application_resubmitted_confirmation",
   APPLICATION_WITHDRAWN_CONFIRMATION: "application_withdrawn_confirmation",
   APPLICATION_COMPLETED: "application_completed",
+  APPLICATION_SUBMITTED_CONFIRMATION: "application_submitted_confirmation",
+  CONTRACT_SIGNING_DEADLINE_EXTENDED: "contract_signing_deadline_extended",
+  INVOICE_SIGNING_DEADLINE_EXTENDED: "invoice_signing_deadline_extended",
+  FACILITY_DISABLED: "facility_disabled",
 
   /** Issuer: CTOS or admin requests onboarding action for a director/shareholder party. */
   DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: "director_shareholder_action_required",
@@ -52,11 +56,21 @@ export const NotificationTypeIds = {
   NOTE_DEFAULTED: "note_defaulted",
   NOTE_DEFAULTED_INVESTOR: "note_defaulted_investor",
   WITHDRAWAL_SUBMITTED_TO_TRUSTEE: "withdrawal_submitted_to_trustee",
+  NOTE_PAYMENT_REJECTED: "note_payment_rejected",
+  WITHDRAWAL_COMPLETED: "withdrawal_completed",
 
   FACILITY_FEE_PAYMENT_REQUESTED: "facility_fee_payment_requested",
   FACILITY_FEE_UPFRONT_PAID: "facility_fee_upfront_paid",
   EXCESS_LATE_CHARGES_DUE: "excess_late_charges_due",
   EXCESS_LATE_CHARGES_PAID: "excess_late_charges_paid",
+
+  DEPOSIT_NAME_CHECK_REJECTED: "deposit_name_check_rejected",
+  DEPOSIT_REFUND_INITIATED: "deposit_refund_initiated",
+  DEPOSIT_REFUNDED: "deposit_refunded",
+  DEPOSIT_SUCCESSFUL: "deposit_successful",
+  INVESTMENT_COMMITTED: "investment_committed",
+  INVESTOR_WITHDRAWAL_SUBMITTED: "investor_withdrawal_submitted",
+  INVESTOR_WITHDRAWAL_COMPLETED: "investor_withdrawal_completed",
 } as const;
 
 export type NotificationTypeId = (typeof NotificationTypeIds)[keyof typeof NotificationTypeIds];
@@ -65,7 +79,7 @@ export type NotificationTypeId = (typeof NotificationTypeIds)[keyof typeof Notif
  * Define the payload data required for each notification type
  */
 export interface NotificationPayloads {
-  [NotificationTypeIds.ONBOARDING_APPROVED]: {
+  [NotificationTypeIds.ONBOARDING_COMPLETED]: {
     onboardingType: string;
     orgName: string;
     portalType: "investor" | "issuer";
@@ -141,8 +155,30 @@ export interface NotificationPayloads {
   [NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION]: {
     applicationId: string;
     displayReference?: string | null;
+    /** Distinguishes a true application withdrawal from an issuer declining a facility/invoice offer, which also transitions the application to WITHDRAWN. Undefined = true withdrawal (default copy). */
+    withdrawalReason?: "contract_offer_declined" | "invoice_offer_declined";
+    invoiceNumber?: string | null;
   };
   [NotificationTypeIds.APPLICATION_COMPLETED]: {
+    applicationId: string;
+    displayReference?: string | null;
+  };
+  [NotificationTypeIds.APPLICATION_SUBMITTED_CONFIRMATION]: {
+    applicationId: string;
+    displayReference?: string | null;
+  };
+  [NotificationTypeIds.CONTRACT_SIGNING_DEADLINE_EXTENDED]: {
+    applicationId: string;
+    displayReference?: string | null;
+    deadline: string | null;
+  };
+  [NotificationTypeIds.INVOICE_SIGNING_DEADLINE_EXTENDED]: {
+    applicationId: string;
+    displayReference?: string | null;
+    invoiceNumber?: string | null;
+    deadline: string | null;
+  };
+  [NotificationTypeIds.FACILITY_DISABLED]: {
     applicationId: string;
     displayReference?: string | null;
   };
@@ -219,6 +255,14 @@ export interface NotificationPayloads {
     withdrawalType: string;
     portalType: "investor" | "issuer";
   };
+  [NotificationTypeIds.NOTE_PAYMENT_REJECTED]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.WITHDRAWAL_COMPLETED]: {
+    noteId: string;
+    noteTitle: string;
+  };
   [NotificationTypeIds.FACILITY_FEE_PAYMENT_REQUESTED]: {
     applicationId: string;
     displayReference?: string | null;
@@ -238,6 +282,29 @@ export interface NotificationPayloads {
     noteId: string;
     noteReference: string;
     paidAmount: number;
+  };
+  [NotificationTypeIds.DEPOSIT_NAME_CHECK_REJECTED]: {
+    amount: number;
+  };
+  [NotificationTypeIds.DEPOSIT_REFUND_INITIATED]: {
+    amount: number;
+  };
+  [NotificationTypeIds.DEPOSIT_REFUNDED]: {
+    amount: number;
+  };
+  [NotificationTypeIds.DEPOSIT_SUCCESSFUL]: {
+    amount: number;
+  };
+  [NotificationTypeIds.INVESTMENT_COMMITTED]: {
+    amount: number;
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.INVESTOR_WITHDRAWAL_SUBMITTED]: {
+    amount: number;
+  };
+  [NotificationTypeIds.INVESTOR_WITHDRAWAL_COMPLETED]: {
+    amount: number;
   };
 }
 
@@ -276,8 +343,8 @@ function formatDateDDMMYYYY(value: string | Date): string {
 export const NOTIFICATION_TEMPLATES: {
   [T in NotificationTypeId]: NotificationTemplate<T>;
 } = {
-  [NotificationTypeIds.ONBOARDING_APPROVED]: {
-    title: "Onboarding Application Approved",
+  [NotificationTypeIds.ONBOARDING_COMPLETED]: {
+    title: "Onboarding Completed",
     message: (data) =>
       `Congratulations! Your ${data.onboardingType.toLowerCase()} onboarding for ${data.orgName} has been completed successfully. You now have full access to the platform.`,
     linkPath: () => "/",
@@ -305,11 +372,12 @@ export const NOTIFICATION_TEMPLATES: {
     title: "New Investment Opportunity",
     message: (data) => `A new product "${data.productName}" is now available for investment.`,
     linkPath: (data) => `/investments/${data.productId}`,
+    portal: "investor",
   },
   [NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED]: {
     title: "Amendment Requested",
     message: (data) =>
-      `Your application ${getApplicationNotificationRef(data)} requires updates. ${data.amendmentCount} amendment item(s) were requested by the reviewer.`,
+      `An amendment is required for application ${getApplicationNotificationRef(data)}. Review the request and resubmit your application.`,
     linkPath: (data) => `/applications/${data.applicationId}/edit`,
     portal: "issuer",
   },
@@ -379,9 +447,22 @@ export const NOTIFICATION_TEMPLATES: {
     portal: "issuer",
   },
   [NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION]: {
-    title: "Application Withdrawn",
-    message: (data) =>
-      `Your application ${getApplicationNotificationRef(data)} has been withdrawn successfully.`,
+    title: (data) => {
+      if (data.withdrawalReason === "contract_offer_declined") return "Facility Offer Declined";
+      if (data.withdrawalReason === "invoice_offer_declined") return "Invoice Offer Declined";
+      return "Application Withdrawn";
+    },
+    message: (data) => {
+      if (data.withdrawalReason === "contract_offer_declined") {
+        return `The facility offer on your application ${getApplicationNotificationRef(data)} was declined and the application is now closed.`;
+      }
+      if (data.withdrawalReason === "invoice_offer_declined") {
+        return data.invoiceNumber
+          ? `The invoice offer for invoice ${data.invoiceNumber} was declined.`
+          : `The invoice offer on your application ${getApplicationNotificationRef(data)} was declined.`;
+      }
+      return `Your application ${getApplicationNotificationRef(data)} has been withdrawn successfully.`;
+    },
     linkPath: (data) => `/applications/${data.applicationId}`,
     portal: "issuer",
   },
@@ -391,6 +472,34 @@ export const NOTIFICATION_TEMPLATES: {
       `Your application ${getApplicationNotificationRef(data)} has been completed successfully.`,
     linkPath: (data) => `/applications/${data.applicationId}`,
     portal: "issuer",
+  },
+  [NotificationTypeIds.APPLICATION_SUBMITTED_CONFIRMATION]: {
+    title: 'Application Submitted',
+    message: (data) =>
+      `Your application ${getApplicationNotificationRef(data)} has been submitted successfully and is now under review.`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.CONTRACT_SIGNING_DEADLINE_EXTENDED]: {
+    title: 'Signing Deadline Extended',
+    message: (data) =>
+      `The signing deadline for application ${getApplicationNotificationRef(data)} has been extended${data.deadline ? ` to ${formatPhaseDeadlineDateDDMMYYYY(data.deadline)}` : ""}.`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.INVOICE_SIGNING_DEADLINE_EXTENDED]: {
+    title: 'Signing Deadline Extended',
+    message: (data) =>
+      `The signing deadline for invoice ${data.invoiceNumber ?? getApplicationNotificationRef(data)} has been extended${data.deadline ? ` to ${formatPhaseDeadlineDateDDMMYYYY(data.deadline)}` : ""}.`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.FACILITY_DISABLED]: {
+    title: 'Facility Disabled',
+    message: (data) =>
+      `Your facility for application ${getApplicationNotificationRef(data)} has been disabled. New drawdowns are currently unavailable.`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
   },
   [NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
     title: "Action Required: Complete Director/Shareholder Onboarding",
@@ -479,20 +588,20 @@ export const NOTIFICATION_TEMPLATES: {
     portal: "issuer",
   },
   [NotificationTypeIds.NOTE_ARREARS_INVESTOR]: {
-    title: "Note in arrears",
+    title: "Note in Arrears",
     message: (data) =>
       `"${data.noteTitle}" is in arrears. We will keep you informed as servicing actions progress.`,
     linkPath: (data) => `/investments/${data.noteId}`,
     portal: "investor",
   },
   [NotificationTypeIds.NOTE_DEFAULTED]: {
-    title: "Note marked as default",
+    title: "Your Note Is in Default",
     message: (data) => `"${data.noteTitle}" has been marked as default.`,
     linkPath: (data) => `/notes/${data.noteId}`,
     portal: "issuer",
   },
   [NotificationTypeIds.NOTE_DEFAULTED_INVESTOR]: {
-    title: "Note marked as default",
+    title: "Your Investment Is in Default",
     message: (data) =>
       `"${data.noteTitle}" has been marked as default. This may affect recovery timelines; check your investments view for updates.`,
     linkPath: (data) => `/investments/${data.noteId}`,
@@ -501,7 +610,10 @@ export const NOTIFICATION_TEMPLATES: {
   [NotificationTypeIds.WITHDRAWAL_SUBMITTED_TO_TRUSTEE]: {
     title: "Withdrawal Submitted to Trustee",
     message: (data) => {
-      const ref = data.displayReference?.trim() || data.withdrawalId;
+      const ref = formatWithdrawalReference({
+        displayReference: data.displayReference,
+        id: data.withdrawalId,
+      });
       return `Withdrawal instruction ${ref} for "${data.noteTitle}" (${data.withdrawalType}) has been submitted to the trustee.`;
     },
     linkPath: (data) =>
@@ -509,6 +621,19 @@ export const NOTIFICATION_TEMPLATES: {
         ? `/investments/${data.noteId}`
         : `/financing/notes/${data.noteId}`,
     portal: (data) => data.portalType,
+  },
+  [NotificationTypeIds.NOTE_PAYMENT_REJECTED]: {
+    title: 'Repayment Rejected',
+    message: (data) =>
+      `Your repayment for note ${data.noteTitle} was rejected. Please review the repayment details.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.WITHDRAWAL_COMPLETED]: {
+    title: 'Your Disbursement Is Complete',
+    message: (data) => `The disbursement for note ${data.noteTitle} has been completed.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: 'issuer',
   },
   [NotificationTypeIds.FACILITY_FEE_PAYMENT_REQUESTED]: {
     title: "Upfront facility fee payment required",
@@ -537,6 +662,51 @@ export const NOTIFICATION_TEMPLATES: {
       `The outstanding late payment charges of RM${data.paidAmount.toLocaleString()} on note ${data.noteReference} have been received.`,
     linkPath: (data) => `/financing/notes/${data.noteId}`,
     portal: "issuer",
+  },
+  [NotificationTypeIds.DEPOSIT_NAME_CHECK_REJECTED]: {
+    title: 'Deposit Verification Failed',
+    message: () => `Your deposit could not be verified and will be returned.`,
+    linkPath: () => `/transactions`,
+    portal: 'investor',
+  },
+  [NotificationTypeIds.DEPOSIT_REFUND_INITIATED]: {
+    title: 'Refund Started',
+    message: (data) => `A refund for your deposit of RM${data.amount.toLocaleString()} has been initiated.`,
+    linkPath: () => `/transactions`,
+    portal: 'investor',
+  },
+  [NotificationTypeIds.DEPOSIT_REFUNDED]: {
+    title: 'Refund Completed',
+    message: (data) => `Your refund of RM${data.amount.toLocaleString()} has been completed.`,
+    linkPath: () => `/transactions`,
+    portal: 'investor',
+  },
+  [NotificationTypeIds.DEPOSIT_SUCCESSFUL]: {
+    title: "Deposit Successful",
+    message: (data) =>
+      `Your deposit of RM${data.amount.toLocaleString()} has been successfully credited to your wallet.`,
+    linkPath: () => `/transactions`,
+    portal: "investor",
+  },
+  [NotificationTypeIds.INVESTMENT_COMMITTED]: {
+    title: "Investment Committed",
+    message: (data) =>
+      `Your investment of RM${data.amount.toLocaleString()} in "${data.noteTitle}" has been successfully committed.`,
+    linkPath: (data) => `/investments/${data.noteId}`,
+    portal: "investor",
+  },
+  [NotificationTypeIds.INVESTOR_WITHDRAWAL_SUBMITTED]: {
+    title: "Withdrawal Submitted",
+    message: (data) =>
+      `Your withdrawal request of RM${data.amount.toLocaleString()} has been submitted for processing.`,
+    linkPath: () => `/transactions`,
+    portal: "investor",
+  },
+  [NotificationTypeIds.INVESTOR_WITHDRAWAL_COMPLETED]: {
+    title: "Withdrawal Completed",
+    message: (data) => `Your withdrawal of RM${data.amount.toLocaleString()} has been completed.`,
+    linkPath: () => `/transactions`,
+    portal: "investor",
   },
 };
 

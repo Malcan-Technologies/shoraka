@@ -2,6 +2,12 @@ import { prisma } from "../../lib/prisma";
 import { User, UserRole, AccessLog, UserSession, SecurityLog, OnboardingLog } from "@prisma/client";
 import { generateUniqueUserId } from "../../lib/user-id-generator";
 import { Prisma } from "@prisma/client";
+import {
+  AuditRequestContext,
+  createAccessLogRow,
+  createOnboardingLogRow,
+  createSecurityLogRow,
+} from "../../lib/audit";
 
 export class AuthRepository {
   /**
@@ -179,21 +185,9 @@ export class AuthRepository {
     cognitoEvent?: object;
     success?: boolean;
     metadata?: object;
+    context?: AuditRequestContext | null;
   }): Promise<AccessLog> {
-    return prisma.accessLog.create({
-      data: {
-        user_id: data.userId,
-        event_type: data.eventType,
-        portal: data.portal,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        device_type: data.deviceType,
-        cognito_event: data.cognitoEvent as any,
-        success: data.success ?? true,
-        metadata: data.metadata as any,
-      },
-    });
+    return createAccessLogRow(data);
   }
 
   /**
@@ -295,6 +289,18 @@ export class AuthRepository {
     });
   }
 
+  async hasSuccessfulSignup(userId: string): Promise<boolean> {
+    const existing = await prisma.accessLog.findFirst({
+      where: {
+        user_id: userId,
+        event_type: "SIGNUP",
+        success: true,
+      },
+      select: { id: true },
+    });
+    return existing !== null;
+  }
+
   /**
    * Create security log entry
    */
@@ -305,17 +311,9 @@ export class AuthRepository {
     userAgent?: string;
     deviceInfo?: string;
     metadata?: object;
+    context?: AuditRequestContext | null;
   }): Promise<SecurityLog> {
-    return prisma.securityLog.create({
-      data: {
-        user_id: data.userId,
-        event_type: data.eventType,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
-    });
+    return createSecurityLogRow(data);
   }
 
   /**
@@ -334,22 +332,9 @@ export class AuthRepository {
     investorOrganizationId?: string;
     issuerOrganizationId?: string;
     metadata?: object;
+    context?: AuditRequestContext | null;
+    actorUserId?: string | null;
   }): Promise<OnboardingLog> {
-    return prisma.onboardingLog.create({
-      data: {
-        user_id: data.userId,
-        role: data.role,
-        event_type: data.eventType,
-        portal: data.portal,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        device_type: data.deviceType,
-        organization_name: data.organizationName,
-        investor_organization_id: data.investorOrganizationId,
-        issuer_organization_id: data.issuerOrganizationId,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
-    });
+    return createOnboardingLogRow(data);
   }
 }

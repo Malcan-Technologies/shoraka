@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 
 export const TRUSTEE_EMAIL_DELIVERED_LABEL = "Email delivered to Trustee";
 
@@ -8,7 +8,7 @@ export function formatTrusteeInstructionEmailedCopy(
   if (!sentAt) return null;
   const date = new Date(sentAt);
   if (Number.isNaN(date.getTime())) return null;
-  return `${TRUSTEE_EMAIL_DELIVERED_LABEL} on ${format(date, "dd MMM yyyy, h:mm a")}`;
+  return `${TRUSTEE_EMAIL_DELIVERED_LABEL} on ${formatAuditDateTime(date)}`;
 }
 
 export function formatTrusteeInstructionEmailedAt(
@@ -17,5 +17,5 @@ export function formatTrusteeInstructionEmailedAt(
   if (!sentAt) return null;
   const date = new Date(sentAt);
   if (Number.isNaN(date.getTime())) return null;
-  return format(date, "dd MMM yyyy, h:mm a");
+  return formatAuditDateTime(date);
 }

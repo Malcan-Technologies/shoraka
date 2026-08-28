@@ -161,3 +161,25 @@ export function usePreviewProspectusReview(noteId: string) {
     },
   });
 }
+
+export function issuerMarcAssessmentKey(issuerOrganizationId: string) {
+  return ["admin", "issuer-marc", issuerOrganizationId] as const;
+}
+
+/** Live issuer-organization MARC assessment (not a Prospectus Review input). */
+export function useIssuerMarcAssessment(issuerOrganizationId?: string | null) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const orgId = issuerOrganizationId?.trim() || "";
+
+  return useQuery({
+    queryKey: issuerMarcAssessmentKey(orgId),
+    enabled: Boolean(orgId),
+    queryFn: async () => {
+      const res = await apiClient.getIssuerMarcAssessment(orgId);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data.current;
+    },
+  });
+}
+

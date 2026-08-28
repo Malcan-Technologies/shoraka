@@ -1,4 +1,4 @@
-import { NoteInvestmentStatus, type Notification } from "@prisma/client";
+import { NoteInvestmentStatus, WithdrawalType, type Notification } from "@prisma/client";
 import { logger } from "../../lib/logger";
 import { systemNotificationLogKey } from "./delivery-log";
 import { NotificationPayloads, NotificationTypeId, NotificationTypeIds } from "./registry";
@@ -207,6 +207,38 @@ export async function notifyNoteFundingFailed(args: {
   );
 }
 
+/** Confirmed investors only — does not notify the issuer. */
+export async function notifyNoteActiveInvestors(args: {
+  notificationService: NotificationService;
+  noteId: string;
+  noteTitle: string;
+}): Promise<void> {
+  const payload: BasicNotePayload = { noteId: args.noteId, noteTitle: args.noteTitle };
+  try {
+    const results = await sendToInvestorsOnNote(
+      args.notificationService,
+      args.noteId,
+      [NoteInvestmentStatus.CONFIRMED],
+      NotificationTypeIds.NOTE_ACTIVE_INVESTOR,
+      payload,
+      `note:lifecycle:${args.noteId}:active:investor`
+    );
+    await args.notificationService.logTypedSystemBatch(
+      NotificationTypeIds.NOTE_ACTIVE_INVESTOR,
+      payload,
+      results,
+      {
+        idempotencyKey: systemNotificationLogKey(
+          NotificationTypeIds.NOTE_ACTIVE_INVESTOR,
+          `note:lifecycle:${args.noteId}:active:investor`
+        ),
+      }
+    );
+  } catch (err) {
+    logLifecycleError("active_investor", args.noteId, err);
+  }
+}
+
 export async function notifyNoteActivated(args: {
   notificationService: NotificationService;
   noteId: string;
@@ -236,29 +268,11 @@ export async function notifyNoteActivated(args: {
   } catch (err) {
     logLifecycleError("active_issuer", args.noteId, err);
   }
-  try {
-    const results = await sendToInvestorsOnNote(
-      args.notificationService,
-      args.noteId,
-      [NoteInvestmentStatus.CONFIRMED],
-      NotificationTypeIds.NOTE_ACTIVE_INVESTOR,
-      payload,
-      `note:lifecycle:${args.noteId}:active:investor`
-    );
-    await args.notificationService.logTypedSystemBatch(
-      NotificationTypeIds.NOTE_ACTIVE_INVESTOR,
-      payload,
-      results,
-      {
-        idempotencyKey: systemNotificationLogKey(
-          NotificationTypeIds.NOTE_ACTIVE_INVESTOR,
-          `note:lifecycle:${args.noteId}:active:investor`
-        ),
-      }
-    );
-  } catch (err) {
-    logLifecycleError("active_investor", args.noteId, err);
-  }
+  await notifyNoteActiveInvestors({
+    notificationService: args.notificationService,
+    noteId: args.noteId,
+    noteTitle: args.noteTitle,
+  });
 }
 
 /** Full payoff — issuer organisation only (investors use settlement posted). */
@@ -470,5 +484,86 @@ export async function notifyNoteDefaulted(args: {
     );
   } catch (err) {
     logLifecycleError("defaulted_investor", args.noteId, err);
+  }
+}
+
+/** After a repayment is rejected by admin review — issuer organisation only. */
+export async function notifyNotePaymentRejected(args: {
+  notificationService: NotificationService;
+  noteId: string;
+  noteTitle: string;
+  issuerOrganizationId: string;
+  paymentId: string;
+}): Promise<void> {
+  const payload: NotificationPayloads[typeof NotificationTypeIds.NOTE_PAYMENT_REJECTED] = {
+    noteId: args.noteId,
+    noteTitle: args.noteTitle,
+  };
+  try {
+    const results = await sendToIssuerOrg(
+      args.notificationService,
+      args.issuerOrganizationId,
+      NotificationTypeIds.NOTE_PAYMENT_REJECTED,
+      payload,
+      `note:lifecycle:${args.noteId}:payment_rejected:${args.paymentId}`
+    );
+    await args.notificationService.logTypedSystemBatch(
+      NotificationTypeIds.NOTE_PAYMENT_REJECTED,
+      payload,
+      results,
+      {
+        idempotencyKey: systemNotificationLogKey(
+          NotificationTypeIds.NOTE_PAYMENT_REJECTED,
+          `note:lifecycle:${args.noteId}:payment_rejected:${args.paymentId}`
+        ),
+      }
+    );
+  } catch (err) {
+    logLifecycleError("payment_rejected", args.noteId, err);
+  }
+}
+
+/** True only for the issuer financing disbursement withdrawal type.
+ * Residual return, investor withdrawal, and admin adjustment are not user-facing disbursement. */
+export function isIssuerFinancingDisbursement(
+  withdrawalType: string | null | undefined
+): boolean {
+  return withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT;
+}
+
+/** After the issuer financing disbursement withdrawal completes — issuer organisation only.
+ * Only call when `isIssuerFinancingDisbursement` is true. */
+export async function notifyIssuerDisbursementCompleted(args: {
+  notificationService: NotificationService;
+  noteId: string;
+  noteTitle: string;
+  issuerOrganizationId: string;
+  withdrawalId: string;
+}): Promise<void> {
+  const payload: NotificationPayloads[typeof NotificationTypeIds.WITHDRAWAL_COMPLETED] = {
+    noteId: args.noteId,
+    noteTitle: args.noteTitle,
+  };
+  try {
+    const results = await sendToIssuerOrg(
+      args.notificationService,
+      args.issuerOrganizationId,
+      NotificationTypeIds.WITHDRAWAL_COMPLETED,
+      payload,
+      `withdrawal:lifecycle:${args.withdrawalId}:issuer_disbursement_completed`
+    );
+    await args.notificationService.logTypedSystemBatch(
+      NotificationTypeIds.WITHDRAWAL_COMPLETED,
+      payload,
+      results,
+      {
+        idempotencyKey: systemNotificationLogKey(
+          NotificationTypeIds.WITHDRAWAL_COMPLETED,
+          `withdrawal:lifecycle:${args.withdrawalId}:issuer_disbursement_completed`
+        ),
+      }
+    );
+  } catch (err) {
+    logLifecycleError("issuer_disbursement_completed", args.noteId, err);
   }
 }

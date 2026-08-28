@@ -17,7 +17,7 @@ import { notesKeys } from "../query-keys";
 /**
  * Broad invalidation that refreshes everything driven by a note-side mutation:
  * the sidebar/dashboard counts (action-count, pending-repayments, pending-issuer-payouts,
- * pending-service-fee-trustee-letters, pending-investor-withdrawals),
+ * pending-settlement-trustee-letters, pending-investor-withdrawals),
  * the bucket balances, the notes list/detail, and the investments registry. Use this from
  * any mutation that could change a count, bucket balance, or investment status.
  */
@@ -180,16 +180,16 @@ export function useAdminWithdrawal(id: string | null, { enabled = true }: { enab
   });
 }
 
-export function usePendingServiceFeeTrusteeLetters({
+export function usePendingSettlementTrusteeLetters({
   enabled = true,
 }: {
   enabled?: boolean;
 } = {}) {
   const apiClient = useNotesApiClient();
   return useQuery({
-    queryKey: [...notesKeys.all, "pending-service-fee-trustee-letters"],
+    queryKey: [...notesKeys.all, "pending-settlement-trustee-letters"],
     queryFn: async () => {
-      const response = await apiClient.getAdminPendingServiceFeeTrusteeLetters();
+      const response = await apiClient.getAdminPendingSettlementTrusteeLetters();
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
@@ -511,12 +511,12 @@ export function useCheckOverdueLateCharge() {
   });
 }
 
-export function useGenerateServiceFeeTrusteeLetter() {
+export function useGenerateSettlementTrusteeLetter() {
   const apiClient = useNotesApiClient();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ noteId, settlementId }: { noteId: string; settlementId: string }) => {
-      const response = await apiClient.generateAdminNoteServiceFeeTrusteeLetter(
+      const response = await apiClient.generateAdminNoteSettlementTrusteeLetter(
         noteId,
         settlementId
       );
@@ -530,12 +530,12 @@ export function useGenerateServiceFeeTrusteeLetter() {
   });
 }
 
-export function useMarkServiceFeeTrusteeLetterSubmitted() {
+export function useMarkSettlementTrusteeLetterSubmitted() {
   const apiClient = useNotesApiClient();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ noteId, settlementId }: { noteId: string; settlementId: string }) => {
-      const response = await apiClient.markAdminNoteServiceFeeTrusteeLetterSubmitted(
+      const response = await apiClient.markAdminNoteSettlementTrusteeLetterSubmitted(
         noteId,
         settlementId
       );
@@ -549,12 +549,12 @@ export function useMarkServiceFeeTrusteeLetterSubmitted() {
   });
 }
 
-export function useResendServiceFeeTrusteeEmail() {
+export function useResendSettlementTrusteeEmail() {
   const apiClient = useNotesApiClient();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ noteId, settlementId }: { noteId: string; settlementId: string }) => {
-      const response = await apiClient.resendAdminNoteServiceFeeTrusteeEmail(noteId, settlementId);
+      const response = await apiClient.resendAdminNoteSettlementTrusteeEmail(noteId, settlementId);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
@@ -565,12 +565,12 @@ export function useResendServiceFeeTrusteeEmail() {
   });
 }
 
-export function useMarkServiceFeeTrusteeInstructionCompleted() {
+export function useMarkSettlementTrusteeInstructionCompleted() {
   const apiClient = useNotesApiClient();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ noteId, settlementId }: { noteId: string; settlementId: string }) => {
-      const response = await apiClient.markAdminNoteServiceFeeTrusteeInstructionCompleted(
+      const response = await apiClient.markAdminNoteSettlementTrusteeInstructionCompleted(
         noteId,
         settlementId
       );

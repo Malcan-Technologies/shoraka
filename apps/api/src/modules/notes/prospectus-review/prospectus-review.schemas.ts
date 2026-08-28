@@ -412,8 +412,6 @@ const COVERAGE_OFFICER_LABELS: Record<
   (typeof PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS)[number],
   string
 > = {
-  operatingCashFlow: "Operating Cash Flow",
-  freeCashFlow: "Free Cash Flow",
   payablesDays: "Payables Days",
 };
 
@@ -514,9 +512,6 @@ export function validateApprovalContent(
     }
   }
   for (const field of [
-    "creditScoreOptionKey",
-    "paymentBehaviourOptionKey",
-    "creditUtilisationOptionKey",
     "litigationCheckOptionKey",
     "ccrisStatusOptionKey",
   ] as const) {
@@ -571,7 +566,7 @@ export function validateApprovalContent(
   if (!normalizeProspectusPaymasterRating(content.page2.invoicePaymaster?.paymasterRating)) {
     errors.push({
       path: "page2.invoicePaymaster.paymasterRating",
-      message: "Paymaster Rating is required before approving the Prospectus.",
+      message: "Paymaster Grading is required for Page 3 before approving the Prospectus.",
     });
   }
   if (
@@ -579,7 +574,7 @@ export function validateApprovalContent(
   ) {
     errors.push({
       path: "page2.invoicePaymaster.confidenceGrading",
-      message: "Confidence Grading is required before approving the Prospectus.",
+      message: "Confidence Grading is required for Page 3 before approving the Prospectus.",
     });
   }
 

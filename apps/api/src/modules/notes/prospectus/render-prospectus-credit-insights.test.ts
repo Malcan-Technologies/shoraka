@@ -85,9 +85,9 @@ describe("prospectus Page 2 Credit Insights (DATA STAGE 5)", () => {
     expect(data.litigationCheck).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.ccrisStatus).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     const html = buildProspectusCreditInsightsDocument(data);
-    expect(html).toContain("Credit Score:");
-    expect(html).toContain("Payment Behaviour:");
-    expect(html).toContain("Credit Utilisation:");
+    expect(html).toContain("MARC Credit Grade:");
+    expect(html).toContain("MARC Credit Score:");
+    expect(html).toContain("Probability of Default:");
     expect(html).toContain("Litigation Check:");
     expect(html).toContain("CCRIS Status:");
   });
@@ -186,11 +186,10 @@ describe("prospectus Page 2 Credit Insights (DATA STAGE 5)", () => {
     const html = buildProspectusCreditInsightsDocument(data);
 
     expect(html).toContain("CREDIT INSIGHTS");
-    expect(html).toContain("Credit Score: Good");
-    expect(html).toContain("Payment Behaviour: Good");
-    expect(html).toContain("Credit Utilisation: Healthy");
+    expect(html).toContain("MARC Credit Grade:");
     expect(html).toContain("Litigation Check: Clear");
     expect(html).toContain("CCRIS Status: No record");
+    expect(html).not.toContain("Credit Score: Good");
     expect(html).not.toContain("Credit Score Explanation");
     expect(html).not.toContain("720");
     expect(html).not.toContain("FICO");

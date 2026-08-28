@@ -18,6 +18,22 @@ import {
   type ProspectusCreditInsightsInput,
 } from "./prospectus-credit-insights.types";
 
+function formatMarcValue(value: string | number | null | undefined): string {
+  if (value == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  const text = String(value).trim();
+  return text.length > 0 ? text : PROSPECTUS_DATA_NOT_AVAILABLE;
+}
+
+function formatMarcPd(value: string | number | null | undefined): string {
+  if (value == null || value === "") return PROSPECTUS_DATA_NOT_AVAILABLE;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `${value.toFixed(value >= 10 ? 2 : 2)}%`;
+  }
+  const text = String(value).trim();
+  if (!text) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  return text.endsWith("%") ? text : `${text}%`;
+}
+
 export function buildProspectusCreditInsights(
   input: ProspectusCreditInsightsInput = {}
 ): ProspectusCreditInsights {
@@ -61,6 +77,9 @@ export function buildProspectusCreditInsights(
     creditUtilisation: resolve("creditUtilisation"),
     litigationCheck: resolve("litigationCheck"),
     ccrisStatus: resolve("ccrisStatus"),
+    marcCreditGrade: formatMarcValue(input.marcSnapshot?.creditGrade),
+    marcCreditScore: formatMarcValue(input.marcSnapshot?.creditScore),
+    probabilityOfDefault: formatMarcPd(input.marcSnapshot?.probabilityOfDefault),
     description: PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION,
     audit: PROSPECTUS_CREDIT_INSIGHTS_AUDIT,
   };

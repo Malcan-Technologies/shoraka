@@ -4,7 +4,7 @@ import { OrganizationRepository } from "../organization/repository";
 import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
 import { logApplicationActivity } from "../applications/logs/service";
-import { ActivityPortal } from "../applications/logs/types";
+import { ActivityPortal, type IssuerActivityLogContext } from "../applications/logs/types";
 import { Invoice } from "@prisma/client";
 import {
   ApplicationStatus,
@@ -684,7 +684,12 @@ export class InvoiceService {
     }
   }
 
-  async withdrawInvoice(id: string, userId: string, reason?: WithdrawReason): Promise<Invoice> {
+  async withdrawInvoice(
+    id: string,
+    userId: string,
+    reason?: WithdrawReason,
+    logContext?: IssuerActivityLogContext
+  ): Promise<Invoice> {
     const invoice = await this.verifyInvoiceAccess(id, userId);
 
     if (invoice.status === InvoiceStatus.APPROVED) {
@@ -737,6 +742,7 @@ export class InvoiceService {
           withdraw_reason: finalReason,
           ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
         },
+        ...logContext,
       });
 
       const allInvoices = await this.repository.findByApplicationId(invoice.application_id);
@@ -769,6 +775,7 @@ export class InvoiceService {
           eventType: "APPLICATION_WITHDRAWN",
           portal: ActivityPortal.ISSUER,
           metadata: { withdraw_reason: finalReason },
+          ...logContext,
         });
       }
     }

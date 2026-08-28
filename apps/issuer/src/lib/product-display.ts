@@ -28,7 +28,7 @@ export function buildProductDisplayMap(products: Product[]): Map<string, Product
       workflow[0]?.config?.name ||
       (product as Product & { name?: string; title?: string }).name ||
       (product as Product & { name?: string; title?: string }).title ||
-      `Product ${product.id}`;
+      "";
     map.set(product.id, {
       name,
       imageS3Key: resolveProductImageS3KeyFromWorkflow(product.workflow),

@@ -138,6 +138,20 @@ ${PROSPECTUS_DOCUMENT_CSS}
         })}
         <strong>${escapeHtml(s3.riskLabel)}</strong>
         <p class="prospectus-risk-description">${escapeHtml(s3.riskExplanation)}</p>
+        ${
+          s3.marcCreditScoreDisplay || s3.marcProbabilityOfDefaultDisplay
+            ? `<p class="prospectus-risk-metrics">${[
+                s3.marcCreditScoreDisplay
+                  ? `Credit Score: ${escapeHtml(s3.marcCreditScoreDisplay)}`
+                  : null,
+                s3.marcProbabilityOfDefaultDisplay
+                  ? `Probability of Default: ${escapeHtml(s3.marcProbabilityOfDefaultDisplay)}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join("<br />")}</p>`
+            : ""
+        }
         <span class="scale-link">${escapeHtml(s3.ratingScaleReference)}</span>
       </div>
     </div>
@@ -151,7 +165,6 @@ ${PROSPECTUS_DOCUMENT_CSS}
           ${summaryRow("Profit rate (p.a.)", s4a.profitRate)}
           ${summaryRow("Expected Return (p.a.)", s4a.expectedReturnForInvestmentPeriod)}
           ${summaryRow("Tenure", s4b.tenure, "4b")}
-          ${summaryRow("Maturity Date", s4b.maturityDate)}
           ${summaryRow("Purpose of Financing", s4b.purposeOfFinancing)}
           ${summaryRow("Payment Basis", s4c.paymentBasis, "4c")}
           ${summaryRow("Shariah Principle", s4c.shariahPrinciple)}

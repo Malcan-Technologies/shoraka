@@ -7,7 +7,7 @@ export type AdminTimelineDetail = {
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2})/;
-const ACRONYMS = new Set(["AML", "KYC", "KYB", "TNC", "SSM", "PDF", "CSV", "API", "ID"]);
+const ACRONYMS = new Set(["AML", "KYC", "KYB", "TNC", "SSM", "PDF", "CSV", "API", "ID", "MARC"]);
 
 export function humanizeAdminTimelineToken(value: string): string {
   const trimmed = value.trim();
@@ -35,10 +35,10 @@ export function formatAdminTimelineValue(value: string): string {
     const isDateOnly = /T00:00:00/.test(value);
     if (isDateOnly) {
       const [year, month, day] = value.slice(0, 10).split("-").map(Number);
-      return format(new Date(year, month - 1, day), "dd MMM yyyy");
+      return format(new Date(year, month - 1, day), "d MMM yyyy");
     }
 
-    return format(date, "dd MMM yyyy, h:mm a");
+    return format(date, "d MMM yyyy, h:mm a");
   }
 
   return humanizeAdminTimelineToken(value);

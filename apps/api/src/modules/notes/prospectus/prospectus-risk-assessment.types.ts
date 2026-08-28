@@ -1,17 +1,17 @@
 /**
  * SECTION: Prospectus Page 1 — Risk Assessment (DATA STAGE 3)
- * WHY: SoukScore grade + shared catalogue label/explanation; Page 2 scale reference
+ * WHY: Frozen invoice/Note MARC SME grade + official individual Risk Profile
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 
 export { PROSPECTUS_DATA_NOT_AVAILABLE };
 
-/** Static template text pointing readers to the Page 2 Cashsouk Risk Rating scale. */
+/** Static template text pointing readers to the Page 2 MARC SME scale. */
 export const PROSPECTUS_RATING_SCALE_REFERENCE = "See rating scale on page 2";
 
-/** Internal marker: A–F catalogue is the approved Cashsouk scale. */
-export const PROSPECTUS_RATING_SCALE_STATUS = "cashsouk_a_to_f" as const;
+/** Internal marker: MARC SME-1–10 is the approved Note risk scale. */
+export const PROSPECTUS_RATING_SCALE_STATUS = "marc_sme_1_to_10" as const;
 
 export type ProspectusRatingScaleStatus = typeof PROSPECTUS_RATING_SCALE_STATUS;
 
@@ -23,15 +23,17 @@ export interface ProspectusRiskAssessmentCanvaFacing {
   riskGradeColor: string;
   riskGradeTextColor: string;
   ratingScaleReference: string;
+  /** Not shown on the Note risk card; Credit Insights keeps org MARC score/PD. */
+  marcCreditScoreDisplay: string | null;
+  marcProbabilityOfDefaultDisplay: string | null;
 }
 
 /** Debug/audit metadata — not rendered in Canva-facing HTML. */
 export interface ProspectusRiskAssessmentAudit {
-  /** Always — — no numerical SoukScore on Note. */
   riskScore: string;
   riskAppliesTo: string;
   assessmentSource: string;
-  /** True when a valid grade is present from the frozen Note snapshot. */
+  /** True when a valid MARC SME grade is present from the frozen Note snapshot. */
   isFrozen: boolean;
   scaleStatus: ProspectusRatingScaleStatus;
 }
@@ -45,7 +47,7 @@ export interface ProspectusRiskAssessment {
 export interface ProspectusRiskAssessmentInput {
   /**
    * notes.invoice_snapshot.offer_details.risk_rating
-   * Allowed: A | B | C | D | E | F (isCashsoukRiskGrade)
+   * Allowed: SME-1 … SME-10 (isMarcSmeGrade). Letter grades are incomplete.
    */
   soukscoreRiskRating: string | null | undefined;
 }
@@ -65,29 +67,24 @@ export const PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES = {
     canonicalSource: "notes.invoice_snapshot.offer_details.risk_rating",
     availability: "stored" as const,
     surface: "canva" as const,
-    possibleAlternatives:
-      "live invoices.offer_details.risk_rating; Canva A– / A–E — not used",
-    notes:
-      "Cashsouk grades A–F via isCashsoukRiskGrade. NoteListItem.riskRating.",
+    possibleAlternatives: "live invoices.offer_details.risk_rating — not used at publish",
+    notes: "MARC SME grades via isMarcSmeGrade. NoteListItem.riskRating.",
   },
   riskLabel: {
     label: "Risk label",
-    canonicalSource: "CASHSCOUK_RISK_RATING_CATALOGUE[grade].label",
+    canonicalSource: "MARC_SME_BANDS grouping label for the SME grade",
     availability: "static" as const,
     surface: "canva" as const,
-    possibleAlternatives:
-      "RegTank riskLevel (Low/Medium/High Risk) — different system, not used",
-    notes:
-      "Resolved from grade via shared catalogue; not stored separately on Note.",
+    possibleAlternatives: "RegTank riskLevel (Low/Medium/High Risk) — different system, not used",
+    notes: "CashSouk band label for the frozen Note SME grade; not stored separately.",
   },
   riskExplanation: {
     label: "Risk explanation",
-    canonicalSource: "SOUKSCORE_RISK_RATING_CATALOGUE[grade].explanation",
+    canonicalSource: "MARC_SCORE_DEFINITIONS[grade].riskProfile",
     availability: "static" as const,
     surface: "canva" as const,
-    possibleAlternatives: "NoteListing.risk_disclosure; Canva sample narrative — not used",
-    notes:
-      "Resolved from grade via shared catalogue; not stored separately on Note.",
+    possibleAlternatives: "NoteListing.risk_disclosure; CashSouk A–F catalogue — not used",
+    notes: "Official MARC Risk Profile for the frozen Note SME grade.",
   },
   ratingScaleReference: {
     label: "Rating scale reference",
@@ -102,23 +99,23 @@ export const PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES = {
     canonicalSource: "none for note prospectus",
     availability: "not_stored" as const,
     surface: "audit" as const,
-    possibleAlternatives: "RegTank/CTOS numerical scores — not used",
-    notes: "No numerical SoukScore on Note. Audit-only; never Canva-facing.",
+    possibleAlternatives: "Organization MARC credit score — Credit Insights only",
+    notes: "No numerical score on the Note risk card. Audit-only; never Canva-facing.",
   },
   riskAppliesTo: {
     label: "Risk applies to",
     canonicalSource: "invoice offer → frozen on note invoice_snapshot",
     availability: "stored" as const,
     surface: "audit" as const,
-    possibleAlternatives: "issuer org AML; paymaster CTOS — different assessments",
-    notes: "Audit metadata only.",
+    possibleAlternatives: "issuer org MARC assessment — Credit Insights",
+    notes: "Audit metadata only. Final Note grade is Invoice.risk_rating.",
   },
   assessmentSource: {
     label: "Assessment source",
     canonicalSource: "Admin send-invoice-offer → offer_details.risk_rating",
     availability: "stored" as const,
     surface: "audit" as const,
-    possibleAlternatives: "CTOS; RegTank AML — not SoukScore",
-    notes: "Audit metadata only. Validated by SOUKSCORE_RISK_RATING_GRADES.",
+    possibleAlternatives: "IssuerOrganization MARC — suggested default only",
+    notes: "Audit metadata only. Validated by MARC_SME_GRADES.",
   },
 };

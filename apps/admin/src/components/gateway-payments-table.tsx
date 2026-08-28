@@ -321,7 +321,7 @@ function GatewayPaymentsTableContent({
             <ListToolbar
               searchValue={searchInput}
               onSearchChange={setSearchInput}
-              searchPlaceholder="Search by reference, organisation, purpose, or amount…"
+              searchPlaceholder="Search by CashSouk reference, organisation, purpose, or amount…"
               appliedFilters={appliedFilters}
               onClearFilters={hasActiveFilters ? clearFilters : undefined}
               onReload={() => {

@@ -27,13 +27,24 @@ export type ApplicationLogEntry = {
   event_type: string;
   activity: unknown;
   actor_id: string | null;
+  application_id?: string | null;
   metadata: Record<string, unknown> | null;
   ip_address: string | null;
   created_at: string;
   remark: string | null;
   entityId: string | null;
   review_cycle: number | null;
+  actor_type?: string | null;
+  source?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  portal?: string | null;
+  correlation_id?: string | null;
 };
+
+function optionalString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
 
 function normalizeLogItem(d: RawLogItem): ApplicationLogEntry {
   return {
@@ -41,6 +52,12 @@ function normalizeLogItem(d: RawLogItem): ApplicationLogEntry {
     event_type: typeof d.event_type === "string" ? d.event_type : String(d.event_type ?? ""),
     activity: d.activity,
     actor_id: typeof d.actor_id === "string" ? d.actor_id : typeof d.user_id === "string" ? d.user_id : null,
+    application_id:
+      typeof d.application_id === "string"
+        ? d.application_id
+        : typeof d.applicationId === "string"
+          ? d.applicationId
+          : null,
     metadata: d.metadata != null && typeof d.metadata === "object" && !Array.isArray(d.metadata)
       ? (d.metadata as Record<string, unknown>)
       : null,
@@ -54,6 +71,12 @@ function normalizeLogItem(d: RawLogItem): ApplicationLogEntry {
           ? d.entity_id
           : null,
     review_cycle: typeof d.review_cycle === "number" ? d.review_cycle : null,
+    actor_type: optionalString(d.actor_type),
+    source: optionalString(d.source),
+    target_type: optionalString(d.target_type),
+    target_id: optionalString(d.target_id),
+    portal: optionalString(d.portal),
+    correlation_id: optionalString(d.correlation_id),
   };
 }
 

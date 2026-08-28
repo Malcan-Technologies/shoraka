@@ -47,7 +47,7 @@ export function ApplicationsTableToolbar({
     <ListToolbar
       searchQuery={searchQuery}
       onSearchChange={onSearchChange}
-      searchPlaceholder="Search by reference, ID, or applicant name..."
+      searchPlaceholder="Search by CashSouk reference, organisation, or ID..."
       statusFilters={statusFilters}
       onStatusFiltersChange={onStatusFiltersChange}
       statusOptions={STATUS_OPTIONS}

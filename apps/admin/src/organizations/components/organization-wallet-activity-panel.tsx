@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { format } from "date-fns";
+import { formatAuditDateTime } from "@/components/audit/audit-presentation";
 import { BanknotesIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
@@ -16,6 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AuditDetailDrawer } from "@/components/audit/audit-detail-drawer";
+import { walletActivityToAuditDetail } from "@/components/audit/audit-adapters";
 import { useOrganizationWalletActivity } from "@/organizations/hooks/use-organization-wallet-activity";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
 import { adminActionRowClass, getAdminStatusToken } from "@/lib/admin-status-token";
@@ -43,17 +45,30 @@ function WalletActivityContextCell({ context }: { context: WalletActivityContext
   return (
     <span className="text-muted-foreground">
       {context.prefix ? <span>{context.prefix}</span> : null}
-      <Link href={`/notes/${context.noteId}`} className="hover:text-primary hover:underline">
+      <Link
+        href={`/notes/${context.noteId}`}
+        className="hover:text-primary hover:underline"
+        onClick={(event) => event.stopPropagation()}
+      >
         {context.noteReferenceDisplay}
       </Link>
     </span>
   );
 }
 
-function WalletActivityRowView({ row }: { row: WalletActivityRow }) {
+function WalletActivityRowView({
+  row,
+  onSelect,
+}: {
+  row: WalletActivityRow;
+  onSelect: (row: WalletActivityRow) => void;
+}) {
   const token = row.status ? getAdminStatusToken(row.status.tokenStatus) : "neutral";
   return (
-    <TableRow className={cn("odd:bg-muted/40 hover:bg-muted", adminActionRowClass(token))}>
+    <TableRow
+      className={cn("cursor-pointer odd:bg-muted/40 hover:bg-muted", adminActionRowClass(token))}
+      onClick={() => onSelect(row)}
+    >
       <TableCell className="min-w-[220px]">
         <div className="font-medium">{row.title}</div>
         <div className="mt-0.5 text-meta">
@@ -75,7 +90,7 @@ function WalletActivityRowView({ row }: { row: WalletActivityRow }) {
         {formatCurrency(row.balance)}
       </TableCell>
       <TableCell className="whitespace-nowrap text-ui text-muted-foreground">
-        {format(new Date(row.postedAt), "dd MMM yyyy HH:mm")}
+        {formatAuditDateTime(row.postedAt)}
       </TableCell>
     </TableRow>
   );
@@ -83,6 +98,8 @@ function WalletActivityRowView({ row }: { row: WalletActivityRow }) {
 
 export function OrganizationWalletActivityPanel({ organizationId }: { organizationId: string }) {
   const [page, setPage] = React.useState(1);
+  const [selectedRow, setSelectedRow] = React.useState<WalletActivityRow | null>(null);
+  const [detailOpen, setDetailOpen] = React.useState(false);
   const { data, isLoading, error } = useOrganizationWalletActivity(organizationId);
   const rows = React.useMemo(
     () => mapWalletActivityRows(data?.entries ?? [], Number(data?.summary.availableBalance ?? 0)),
@@ -150,7 +167,16 @@ export function OrganizationWalletActivityPanel({ organizationId }: { organizati
                               </TableCell>
                             </TableRow>
                           )
-                        : pageRows.map((row) => <WalletActivityRowView key={row.id} row={row} />)}
+                        : pageRows.map((row) => (
+                            <WalletActivityRowView
+                              key={row.id}
+                              row={row}
+                              onSelect={(selected) => {
+                                setSelectedRow(selected);
+                                setDetailOpen(true);
+                              }}
+                            />
+                          ))}
                   </TableBody>
                 </Table>
               </div>
@@ -168,6 +194,19 @@ export function OrganizationWalletActivityPanel({ organizationId }: { organizati
           </>
         )}
       </CardContent>
+      <AuditDetailDrawer
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        record={
+          selectedRow
+            ? walletActivityToAuditDetail({
+                title: selectedRow.title,
+                statusLabel: selectedRow.status?.label,
+                entry: selectedRow.entry,
+              })
+            : null
+        }
+      />
     </Card>
   );
 }
