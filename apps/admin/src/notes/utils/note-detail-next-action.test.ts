@@ -588,8 +588,8 @@ describe("standalone vs contract-linked notes", () => {
     expect(pageSource).not.toContain("Invoice Amount");
     expect(pageSource).not.toContain("Invoice amount");
     expect(pageSource).not.toContain("Risk Rating");
-    expect(pageSource).not.toContain("Paymaster");
     expect(pageSource).not.toContain("Workflow Status");
+    expect(pageSource).toContain("PaymasterAssignmentCard");
     expect(pageSource).toContain("NOTE_REFERENCE_TAB_TOKEN");
     expect(pageSource).toContain('id: "campaign"');
     expect(pageSource).toContain('id: "activity"');

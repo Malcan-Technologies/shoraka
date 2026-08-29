@@ -89,6 +89,7 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `MISSING_LEGAL_EVIDENCE` | OPS_ONLY | LIVE | ops_alerts | no |
 | `NOTE_CREATED_FROM_INVOICE` | NOTE_TIMELINE | LIVE | note_events | yes |
 | `NOTE_DEFAULT_MARKED` | NOTE_TIMELINE | LIVE | note_events | yes |
+| `ONBOARDING_AMENDMENT_REQUIRED` | ORG_ACTIVITY | LIVE | onboarding_logs | yes |
 | `ONBOARDING_APPROVED` | ORG_ACTIVITY | LIVE | onboarding_logs | yes |
 | `ONBOARDING_CANCELLED` | ORG_ACTIVITY | LIVE | onboarding_logs | yes |
 | `ONBOARDING_FEE_PAID` | ORG_ACTIVITY | LIVE | onboarding_logs | yes |

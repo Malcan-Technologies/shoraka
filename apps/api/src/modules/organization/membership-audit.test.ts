@@ -42,7 +42,8 @@ describe("logOrganizationMembershipEvent", () => {
           memberEmail: "member@example.com",
           newRole: "ORGANIZATION_MEMBER",
         }),
-      })
+      }),
+      expect.anything()
     );
   });
 
@@ -66,7 +67,8 @@ describe("logOrganizationMembershipEvent", () => {
           newRole: "ORGANIZATION_ADMIN",
           invitationId: "inv-1",
         }),
-      })
+      }),
+      expect.anything()
     );
   });
 
@@ -88,7 +90,8 @@ describe("logOrganizationMembershipEvent", () => {
           memberUserId: "member-1",
           previousRole: "ORGANIZATION_MEMBER",
         }),
-      })
+      }),
+      expect.anything()
     );
   });
 
@@ -110,7 +113,8 @@ describe("logOrganizationMembershipEvent", () => {
           previousRole: "ORGANIZATION_MEMBER",
           newRole: "ORGANIZATION_ADMIN",
         }),
-      })
+      }),
+      expect.anything()
     );
   });
 

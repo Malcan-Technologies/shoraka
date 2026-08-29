@@ -15,60 +15,81 @@ export type RaiseOpsAlertInput = {
 };
 
 export async function raiseOpsAlert(input: RaiseOpsAlertInput): Promise<void> {
-  try {
-    const existing = await prisma.opsAlert.findUnique({
-      where: { dedupe_key: input.dedupeKey },
-    });
+  await persistOpsAlertWithRetry(input);
+}
 
-    if (!existing) {
-      await prisma.opsAlert.create({
-        data: {
-          type: input.type,
-          severity: input.severity,
-          dedupe_key: input.dedupeKey,
-          title: input.title,
-          summary: input.summary ?? null,
-          entity_type: input.entityType ?? null,
-          entity_id: input.entityId ?? null,
-          details: (input.details ?? undefined) as Prisma.InputJsonValue | undefined,
-        },
-      });
-      return;
-    }
+async function persistOpsAlertOnce(input: RaiseOpsAlertInput): Promise<void> {
+  const existing = await prisma.opsAlert.findUnique({
+    where: { dedupe_key: input.dedupeKey },
+  });
 
-    const reopen = existing.status === OpsAlertStatus.RESOLVED || existing.status === OpsAlertStatus.CLOSED;
-    await prisma.opsAlert.update({
-      where: { id: existing.id },
+  if (!existing) {
+    await prisma.opsAlert.create({
       data: {
+        type: input.type,
         severity: input.severity,
+        dedupe_key: input.dedupeKey,
         title: input.title,
-        summary: input.summary ?? existing.summary,
-        entity_type: input.entityType ?? existing.entity_type,
-        entity_id: input.entityId ?? existing.entity_id,
-        details: (input.details ?? existing.details ?? undefined) as Prisma.InputJsonValue | undefined,
-        occurrence_count: { increment: 1 },
-        last_seen_at: new Date(),
-        ...(reopen
-          ? {
-              status: OpsAlertStatus.OPEN,
-              resolved_at: null,
-              resolved_by_user_id: null,
-              closed_at: null,
-              closed_by_user_id: null,
-            }
-          : {}),
+        summary: input.summary ?? null,
+        entity_type: input.entityType ?? null,
+        entity_id: input.entityId ?? null,
+        details: (input.details ?? undefined) as Prisma.InputJsonValue | undefined,
       },
     });
-  } catch (error) {
-    logger.error(
-      {
-        error: error instanceof Error ? error.message : String(error),
-        dedupeKey: input.dedupeKey,
-        type: input.type,
-      },
-      "Failed to raise ops alert (non-blocking)"
-    );
+    return;
   }
+
+  const reopen = existing.status === OpsAlertStatus.RESOLVED || existing.status === OpsAlertStatus.CLOSED;
+  await prisma.opsAlert.update({
+    where: { id: existing.id },
+    data: {
+      severity: input.severity,
+      title: input.title,
+      summary: input.summary ?? existing.summary,
+      entity_type: input.entityType ?? existing.entity_type,
+      entity_id: input.entityId ?? existing.entity_id,
+      details: (input.details ?? existing.details ?? undefined) as Prisma.InputJsonValue | undefined,
+      occurrence_count: { increment: 1 },
+      last_seen_at: new Date(),
+      ...(reopen
+        ? {
+            status: OpsAlertStatus.OPEN,
+            resolved_at: null,
+            resolved_by_user_id: null,
+            closed_at: null,
+            closed_by_user_id: null,
+          }
+        : {}),
+    },
+  });
+}
+
+/**
+ * Ops alerts overlay durable business evidence. Persist is retried once; a final
+ * failure is recorded as a structured error and never raises another Ops Alert.
+ */
+async function persistOpsAlertWithRetry(input: RaiseOpsAlertInput): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await persistOpsAlertOnce(input);
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  logger.error(
+    {
+      ops_alert_persist_failed: true,
+      recursiveGuard: true,
+      attempt: 2,
+      dedupeKey: input.dedupeKey,
+      type: input.type,
+      error: lastError instanceof Error ? lastError.message : String(lastError),
+    },
+    "Failed to persist ops alert after retry"
+  );
 }
 
 export async function raiseJobFailureAlert(jobName: string, error: unknown): Promise<void> {

@@ -4,12 +4,11 @@ import { RegTankIndividualOnboardingWebhook, PortalType } from "../types";
 import { logger } from "../../../lib/logger";
 import { RegTankRepository, RegTankOnboardingWithRelations } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
-import { AuthRepository } from "../../auth/repository";
 import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
 import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
 import { prisma } from "../../../lib/prisma";
-import { webhookAuditContext } from "../../../lib/audit";
+import { createOnboardingLogRow, persistOrganizationUpdateAndOnboardingLogs, webhookAuditContext } from "../../../lib/audit";
 import {
   mergeCtosPartySupplementDocument,
   normalizeRawStatus,
@@ -35,7 +34,6 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
   private service: RegTankService;
   private repository: RegTankRepository;
   private organizationRepository: OrganizationRepository;
-  private authRepository: AuthRepository;
   private notificationService: NotificationService;
 
   constructor() {
@@ -43,7 +41,6 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     this.service = new RegTankService();
     this.repository = new RegTankRepository();
     this.organizationRepository = new OrganizationRepository();
-    this.authRepository = new AuthRepository();
     this.notificationService = new NotificationService();
   }
 
@@ -192,40 +189,33 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
           const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (orgExists) {
             previousStatus = orgExists.onboarding_status;
-            await this.organizationRepository.updateInvestorOrganizationOnboarding(
+            await persistOrganizationUpdateAndOnboardingLogs({
+              portalType: "investor",
               organizationId,
-              OnboardingStatus.REJECTED
-            );
-
-            // Create ONBOARDING_REJECTED log
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.INVESTOR,
-                eventType: "ONBOARDING_REJECTED",
-                portal: portalType,
-                organizationName: orgExists.name || undefined,
-                investorOrganizationId: organizationId,
-                issuerOrganizationId: undefined,
-                context: webhookAuditContext(),
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus,
-                  newStatus: OnboardingStatus.REJECTED,
-                  trigger: "REGTANK_REJECTION",
-                },
-              });
-            } catch (logError) {
-              logger.error(
+              data: {
+                onboarding_status: OnboardingStatus.REJECTED,
+                onboarded_at: null,
+              },
+              logs: [
                 {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  requestId,
+                  userId: onboarding.user_id,
+                  role: UserRole.INVESTOR,
+                  eventType: "ONBOARDING_REJECTED",
+                  portal: portalType,
+                  organizationName: orgExists.name || undefined,
+                  investorOrganizationId: organizationId,
+                  issuerOrganizationId: undefined,
+                  context: webhookAuditContext(),
+                  metadata: {
+                    organizationId,
+                    requestId,
+                    previousStatus,
+                    newStatus: OnboardingStatus.REJECTED,
+                    trigger: "REGTANK_REJECTION",
+                  },
                 },
-                "Failed to create ONBOARDING_REJECTED log (non-blocking)"
-              );
-            }
+              ],
+            });
 
             logger.info(
               { organizationId, portalType, requestId, previousStatus },
@@ -247,40 +237,33 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
           const orgExists = await this.organizationRepository.findIssuerOrganizationById(organizationId);
           if (orgExists) {
             previousStatus = orgExists.onboarding_status;
-            await this.organizationRepository.updateIssuerOrganizationOnboarding(
+            await persistOrganizationUpdateAndOnboardingLogs({
+              portalType: "issuer",
               organizationId,
-              OnboardingStatus.REJECTED
-            );
-
-            // Create ONBOARDING_REJECTED log
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.ISSUER,
-                eventType: "ONBOARDING_REJECTED",
-                portal: portalType,
-                organizationName: orgExists.name || undefined,
-                investorOrganizationId: undefined,
-                issuerOrganizationId: organizationId,
-                context: webhookAuditContext(),
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus,
-                  newStatus: OnboardingStatus.REJECTED,
-                  trigger: "REGTANK_REJECTION",
-                },
-              });
-            } catch (logError) {
-              logger.error(
+              data: {
+                onboarding_status: OnboardingStatus.REJECTED,
+                onboarded_at: null,
+              },
+              logs: [
                 {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  requestId,
+                  userId: onboarding.user_id,
+                  role: UserRole.ISSUER,
+                  eventType: "ONBOARDING_REJECTED",
+                  portal: portalType,
+                  organizationName: orgExists.name || undefined,
+                  investorOrganizationId: undefined,
+                  issuerOrganizationId: organizationId,
+                  context: webhookAuditContext(),
+                  metadata: {
+                    organizationId,
+                    requestId,
+                    previousStatus,
+                    newStatus: OnboardingStatus.REJECTED,
+                    trigger: "REGTANK_REJECTION",
+                  },
                 },
-                "Failed to create ONBOARDING_REJECTED log (non-blocking)"
-              );
-            }
+              ],
+            });
 
             logger.info(
               { organizationId, portalType, requestId, previousStatus },
@@ -309,6 +292,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
           },
           "Failed to update organization status to REJECTED"
         );
+        throw orgError;
       }
     }
   }
@@ -341,51 +325,47 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       const previousStatus = orgExists.onboarding_status;
       const update = getIndividualWaitForApprovalUpdate({ currentOnboardingStatus: previousStatus });
 
-      if (update) {
-        if (isInvestor) {
-          await this.organizationRepository.updateInvestorOrganizationOnboarding(
-            organizationId,
-            OnboardingStatus.PENDING_APPROVAL,
-            { resetCompanySsmGateFromRegtankWebhook: true }
-          );
-        } else {
-          await this.organizationRepository.updateIssuerOrganizationOnboarding(
-            organizationId,
-            OnboardingStatus.PENDING_APPROVAL,
-            { resetCompanySsmGateFromRegtankWebhook: true }
-          );
+      await prisma.$transaction(async (tx) => {
+        if (update) {
+          if (isInvestor) {
+            await this.organizationRepository.updateInvestorOrganizationOnboarding(
+              organizationId,
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true },
+              tx
+            );
+          } else {
+            await this.organizationRepository.updateIssuerOrganizationOnboarding(
+              organizationId,
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true },
+              tx
+            );
+          }
         }
-      }
 
-      try {
-        await this.authRepository.createOnboardingLog({
-          userId: onboarding.user_id,
-          role: isInvestor ? UserRole.INVESTOR : UserRole.ISSUER,
-          eventType,
-          portal: portalType,
-          organizationName: orgExists.name || undefined,
-          investorOrganizationId: isInvestor ? organizationId : undefined,
-          issuerOrganizationId: isInvestor ? undefined : organizationId,
-          context: webhookAuditContext(),
-          metadata: {
-            organizationId,
-            requestId,
-            previousStatus,
-            newStatus: update ? OnboardingStatus.PENDING_APPROVAL : previousStatus,
-            trigger,
-            statusUpdateApplied: Boolean(update),
-          },
-        });
-      } catch (logError) {
-        logger.error(
+        await createOnboardingLogRow(
           {
-            error: logError instanceof Error ? logError.message : String(logError),
-            organizationId,
-            requestId,
+            userId: onboarding.user_id,
+            role: isInvestor ? UserRole.INVESTOR : UserRole.ISSUER,
+            eventType,
+            portal: portalType,
+            organizationName: orgExists.name || undefined,
+            investorOrganizationId: isInvestor ? organizationId : undefined,
+            issuerOrganizationId: isInvestor ? undefined : organizationId,
+            context: webhookAuditContext(),
+            metadata: {
+              organizationId,
+              requestId,
+              previousStatus,
+              newStatus: update ? OnboardingStatus.PENDING_APPROVAL : previousStatus,
+              trigger,
+              statusUpdateApplied: Boolean(update),
+            },
           },
-          "Failed to create onboarding status log (non-blocking)"
+          tx
         );
-      }
+      });
 
       logger.info(
         {
@@ -410,6 +390,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
         },
         failureLogMessage
       );
+      throw orgError;
     }
   }
 

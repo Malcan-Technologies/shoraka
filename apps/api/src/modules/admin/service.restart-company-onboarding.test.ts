@@ -2,6 +2,7 @@ import { OrganizationType } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 
 const mockAdminCreateOnboardingLog = jest.fn();
+const mockCreateOnboardingLogRow = jest.fn();
 const mockRegTankFindById = jest.fn();
 const mockRegTankCancelOnboarding = jest.fn();
 const mockRegTankCreateOnboarding = jest.fn();
@@ -57,6 +58,16 @@ jest.mock("../../lib/http/request-utils", () => ({
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        investorOrganization: {
+          update: (...args: unknown[]) => mockInvestorOrgUpdate(...args),
+        },
+        issuerOrganization: {
+          update: (...args: unknown[]) => mockIssuerOrgUpdate(...args),
+        },
+      })
+    ),
     investorOrganization: {
       update: (...args: unknown[]) => mockInvestorOrgUpdate(...args),
     },
@@ -65,6 +76,14 @@ jest.mock("../../lib/prisma", () => ({
     },
   },
 }));
+
+jest.mock("../../lib/audit", () => {
+  const actual = jest.requireActual("../../lib/audit");
+  return {
+    ...actual,
+    createOnboardingLogRow: (...args: unknown[]) => mockCreateOnboardingLogRow(...args),
+  };
+});
 
 import { AdminService } from "./service";
 
@@ -82,6 +101,7 @@ describe("AdminService.restartOnboarding company persistence", () => {
     mockInvestorOrgUpdate.mockResolvedValue({});
     mockIssuerOrgUpdate.mockResolvedValue({});
     mockAdminCreateOnboardingLog.mockResolvedValue({});
+    mockCreateOnboardingLogRow.mockResolvedValue({});
   });
 
   it("investor company restart cancels old COD row and creates a new COD row", async () => {
@@ -109,7 +129,8 @@ describe("AdminService.restartOnboarding company persistence", () => {
 
     expect(mockRegTankCancelOnboarding).toHaveBeenCalledWith(
       "row-cod-old",
-      expect.stringContaining("New requestId: COD0002")
+      expect.stringContaining("New requestId: COD0002"),
+      expect.anything()
     );
     expect(mockRegTankCreateOnboarding).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -119,13 +140,14 @@ describe("AdminService.restartOnboarding company persistence", () => {
         onboardingType: "CORPORATE",
         requestId: "COD0002",
         verifyLink: "https://masked.cod.link?requestId=COD0002",
-      })
+      }),
+      expect.anything()
     );
     expect(result.newRequestId).toBe("COD0002");
-    expect(mockAdminCreateOnboardingLog).toHaveBeenCalledWith(
+    expect(mockCreateOnboardingLogRow).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "ONBOARDING_CANCELLED",
-        portal: "admin",
+        portal: "ADMIN",
         actorUserId: "admin-1",
         userId: "USR01",
         context: expect.objectContaining({
@@ -134,7 +156,8 @@ describe("AdminService.restartOnboarding company persistence", () => {
           actorType: "ADMIN",
           actorUserId: "admin-1",
         }),
-      })
+      }),
+      expect.anything()
     );
   });
 
@@ -163,7 +186,8 @@ describe("AdminService.restartOnboarding company persistence", () => {
 
     expect(mockRegTankCancelOnboarding).toHaveBeenCalledWith(
       "row-cod-old-issuer",
-      expect.stringContaining("New requestId: COD1002")
+      expect.stringContaining("New requestId: COD1002"),
+      expect.anything()
     );
     expect(mockRegTankCreateOnboarding).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -173,7 +197,8 @@ describe("AdminService.restartOnboarding company persistence", () => {
         onboardingType: "CORPORATE",
         requestId: "COD1002",
         verifyLink: "https://masked.cod.link?requestId=COD1002",
-      })
+      }),
+      expect.anything()
     );
     expect(result.newRequestId).toBe("COD1002");
   });

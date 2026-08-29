@@ -54,6 +54,7 @@ describe("Phase 2 forensic source: production writers", () => {
     const src = read("modules/regtank/webhooks/cod-handler.ts");
     const block = src.slice(src.indexOf('statusUpper === "URL_GENERATED"'));
     expect(block).toMatch(/eventType:\s*"ONBOARDING_STATUS_UPDATED"/);
+    expect(block).toMatch(/eventType:\s*"ONBOARDING_AMENDMENT_REQUIRED"/);
     expect(block).toMatch(/trigger:\s*"COD_URL_GENERATED"/);
     expect(block).toMatch(/previousStatus/);
     expect(block).toMatch(/newStatus/);
@@ -85,6 +86,13 @@ describe("Phase 2 forensic source: production writers", () => {
     expect(src).toMatch(/eventType:\s*"ONBOARDING_CANCELLED"/);
     expect(src).toMatch(/portal:\s*AUDIT_PORTAL\.ADMIN/);
     expect(src).toMatch(/source:\s*AUDIT_SOURCE\.API/);
+    expect(src).toMatch(/actorUserId:\s*adminUserId/);
+  });
+
+  it("admin onboarding refresh attributes the Admin actor on the Admin portal", () => {
+    const src = read("modules/admin/service.ts");
+    const refresh = src.slice(src.indexOf("ADMIN_MANUAL_ONBOARDING_REFRESH"));
+    expect(refresh).toMatch(/portal:\s*AUDIT_PORTAL\.ADMIN/);
     expect(src).toMatch(/actorUserId:\s*adminUserId/);
   });
 

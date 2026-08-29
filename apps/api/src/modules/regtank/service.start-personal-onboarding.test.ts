@@ -63,6 +63,16 @@ jest.mock("../../lib/prisma", () => ({
     onboardingLog: {
       create: (...args: unknown[]) => mockOnboardingLogCreate(...args),
     },
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        onboardingLog: {
+          create: (...args: unknown[]) => mockOnboardingLogCreate(...args),
+        },
+        investorOrganization: {
+          update: jest.fn().mockResolvedValue({}),
+        },
+      })
+    ),
   },
 }));
 
@@ -462,7 +472,8 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
     expect(mockCancelOnboarding).toHaveBeenCalledTimes(1);
     expect(mockCancelOnboarding).toHaveBeenCalledWith(
       "rt_old",
-      expect.stringContaining("Auto-restarted due to stale/expired link")
+      expect.stringContaining("Auto-restarted due to stale/expired link"),
+      expect.anything()
     );
   });
 
@@ -485,7 +496,8 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
         requestId: "LD0001-R01",
         onboardingType: "INDIVIDUAL",
         organizationType: OrganizationType.PERSONAL,
-      })
+      }),
+      expect.anything()
     );
   });
 

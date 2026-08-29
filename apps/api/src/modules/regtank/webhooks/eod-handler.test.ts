@@ -8,11 +8,19 @@ jest.mock("../repository", () => ({
 }));
 
 const mockCreateOnboardingLog = jest.fn();
+const mockCreateOnboardingLogRow = jest.fn();
 jest.mock("../../auth/repository", () => ({
   AuthRepository: jest.fn().mockImplementation(() => ({
     createOnboardingLog: (...args: unknown[]) => mockCreateOnboardingLog(...args),
   })),
 }));
+jest.mock("../../../lib/audit", () => {
+  const actual = jest.requireActual("../../../lib/audit");
+  return {
+    ...actual,
+    createOnboardingLogRow: (...args: unknown[]) => mockCreateOnboardingLogRow(...args),
+  };
+});
 
 const mockFindInvestorOrganizationById = jest.fn();
 jest.mock("../../organization/repository", () => ({
@@ -37,6 +45,7 @@ jest.mock("../api-client", () => ({
 const mockRegTankOnboardingFindMany = jest.fn();
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => fn({})),
     regTankOnboarding: { findMany: (...args: unknown[]) => mockRegTankOnboardingFindMany(...args) },
     investorOrganization: { findUnique: jest.fn(), update: jest.fn() },
     issuerOrganization: { findUnique: jest.fn(), update: jest.fn() },
@@ -93,13 +102,14 @@ describe("EODWebhookHandler", () => {
     expect(mockAppendWebhookPayload).toHaveBeenCalledTimes(1);
     expect(mockAppendWebhookPayload).toHaveBeenCalledWith("COD001", expect.objectContaining({ requestId: "EOD001" }));
     expect(mockCreateOnboardingLog).not.toHaveBeenCalled();
+    expect(mockCreateOnboardingLogRow).not.toHaveBeenCalled();
     expect(mockFindInvestorOrganizationById).not.toHaveBeenCalled();
   });
 
   it("records EOD activity as a webhook integration, not as the applicant", async () => {
     mockRegTankOnboardingFindMany.mockResolvedValue([liveParentCod("EOD002")]);
     mockFindInvestorOrganizationById.mockResolvedValue(null);
-    mockCreateOnboardingLog.mockResolvedValue({});
+    mockCreateOnboardingLogRow.mockResolvedValue({});
     const handler = new EODWebhookHandler();
 
     await (handler as any).handle({
@@ -109,7 +119,7 @@ describe("EODWebhookHandler", () => {
       kycId: "kyc-1",
     });
 
-    expect(mockCreateOnboardingLog).toHaveBeenCalledWith(
+    expect(mockCreateOnboardingLogRow).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: "user-1",
         eventType: "EOD_WEBHOOK",
@@ -119,8 +129,9 @@ describe("EODWebhookHandler", () => {
           actorUserId: null,
           portal: null,
         }),
-      })
+      }),
+      expect.anything()
     );
-    expect(mockCreateOnboardingLog.mock.calls[0][0].portal).toBeUndefined();
+    expect(mockCreateOnboardingLogRow.mock.calls[0][0].portal).toBeUndefined();
   });
 });

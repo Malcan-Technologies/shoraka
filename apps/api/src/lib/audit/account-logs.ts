@@ -25,7 +25,7 @@ import {
 import { resolveStandardAuditFields } from "./standard-fields";
 import { sanitizeAuditMetadataRecord } from "./sanitize-metadata";
 
-type AccountAuditDb = Prisma.TransactionClient | typeof prisma;
+export type AccountAuditDb = Prisma.TransactionClient | typeof prisma;
 
 function metaString(metadata: unknown, ...keys: string[]): string | null {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;

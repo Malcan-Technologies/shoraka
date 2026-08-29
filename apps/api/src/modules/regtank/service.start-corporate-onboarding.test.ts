@@ -148,6 +148,9 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
           update: (...args: unknown[]) => mockTxUpdate(...args),
           create: (...args: unknown[]) => mockTxCreate(...args),
         },
+        onboardingLog: {
+          create: (...args: unknown[]) => mockOnboardingLogCreate(...args),
+        },
       })
     );
   });

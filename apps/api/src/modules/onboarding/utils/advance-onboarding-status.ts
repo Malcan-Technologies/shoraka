@@ -1,8 +1,10 @@
-import { OnboardingStatus, OrganizationType } from "@prisma/client";
+import { OnboardingStatus, OrganizationType, Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import { logger } from "../../../lib/logger";
 
 export type OnboardingPortalType = "investor" | "issuer";
+
+type OnboardingAdvanceDb = Prisma.TransactionClient | typeof prisma;
 
 /**
  * Moves org onboarding_status at most one step per loop iteration (max 2 iterations),
@@ -13,14 +15,16 @@ export async function advanceOnboardingStatusFromFlags(params: {
   organizationId: string;
   portalType: OnboardingPortalType;
   reason: string;
+  db?: OnboardingAdvanceDb;
 }): Promise<{ changed: boolean }> {
   const { organizationId, portalType, reason } = params;
+  const db = params.db ?? prisma;
   let changed = false;
 
   for (let iteration = 0; iteration < 2; iteration++) {
     const org =
       portalType === "investor"
-        ? await prisma.investorOrganization.findUnique({
+        ? await db.investorOrganization.findUnique({
             where: { id: organizationId },
             select: {
               onboarding_status: true,
@@ -30,7 +34,7 @@ export async function advanceOnboardingStatusFromFlags(params: {
               ssm_approved: true,
             },
           })
-        : await prisma.issuerOrganization.findUnique({
+        : await db.issuerOrganization.findUnique({
             where: { id: organizationId },
             select: {
               onboarding_status: true,
@@ -76,12 +80,12 @@ export async function advanceOnboardingStatusFromFlags(params: {
       }
 
       if (portalType === "investor") {
-        await prisma.investorOrganization.update({
+        await db.investorOrganization.update({
           where: { id: organizationId },
           data: { onboarding_status: OnboardingStatus.PENDING_AML },
         });
       } else {
-        await prisma.issuerOrganization.update({
+        await db.issuerOrganization.update({
           where: { id: organizationId },
           data: { onboarding_status: OnboardingStatus.PENDING_AML },
         });
@@ -104,12 +108,12 @@ export async function advanceOnboardingStatusFromFlags(params: {
 
     if (st === OnboardingStatus.PENDING_AML && aa) {
       if (portalType === "investor") {
-        await prisma.investorOrganization.update({
+        await db.investorOrganization.update({
           where: { id: organizationId },
           data: { onboarding_status: OnboardingStatus.PENDING_FINAL_APPROVAL },
         });
       } else {
-        await prisma.issuerOrganization.update({
+        await db.issuerOrganization.update({
           where: { id: organizationId },
           data: { onboarding_status: OnboardingStatus.PENDING_FINAL_APPROVAL },
         });

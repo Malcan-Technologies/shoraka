@@ -997,6 +997,7 @@ const ONBOARDING_LOG_CSV_EVENT_LABELS: Record<string, string> = {
   ONBOARDING_FEE_PAID: "Onboarding Fee Paid",
   ONBOARDING_RESUMED: "Onboarding Resumed",
   ONBOARDING_STATUS_UPDATED: "Onboarding Status Updated",
+  ONBOARDING_AMENDMENT_REQUIRED: "Additional Information Required",
   ONBOARDING_CANCELLED: "Onboarding Restarted",
   ONBOARDING_REJECTED: "Onboarding Rejected",
   COD_REJECTED: "Onboarding Rejected",

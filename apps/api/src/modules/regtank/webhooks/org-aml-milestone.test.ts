@@ -26,6 +26,26 @@ const mockRegTankOnboardingFindUnique = jest.fn(() => Promise.resolve(null));
 
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        investorOrganization: {
+          findUnique: (...args: unknown[]) => mockInvestorFindUnique(...(args as [])),
+          update: (...args: unknown[]) =>
+            mockInvestorUpdate(...(args as [{ data: Record<string, unknown> }])),
+        },
+        issuerOrganization: {
+          findUnique: (...args: unknown[]) => mockIssuerFindUnique(...(args as [])),
+          update: (...args: unknown[]) =>
+            mockIssuerUpdate(...(args as [{ data: Record<string, unknown> }])),
+        },
+        onboardingLog: {
+          create: (...args: unknown[]) => mockOnboardingLogCreate(...(args as [unknown])),
+        },
+        regTankOnboarding: {
+          findUnique: (...args: unknown[]) => mockRegTankOnboardingFindUnique(...(args as [])),
+        },
+      })
+    ),
     investorOrganization: {
       findUnique: (...args: unknown[]) => mockInvestorFindUnique(...(args as [])),
       update: (...args: unknown[]) => mockInvestorUpdate(...(args as [{ data: Record<string, unknown> }])),

@@ -14,6 +14,33 @@ jest.mock("../../lib/prisma", () => ({
   },
 }));
 
+jest.mock("../../lib/audit", () => {
+  const actual = jest.requireActual("../../lib/audit");
+  return {
+    ...actual,
+    persistOrganizationUpdateAndOnboardingLogs: jest.fn(
+      async (params: {
+        portalType: "investor" | "issuer";
+        organizationId: string;
+        data: Record<string, unknown>;
+      }) => {
+        const { prisma: db } = require("../../lib/prisma");
+        if (params.portalType === "investor") {
+          await db.investorOrganization.update({
+            where: { id: params.organizationId },
+            data: params.data,
+          });
+        } else {
+          await db.issuerOrganization.update({
+            where: { id: params.organizationId },
+            data: params.data,
+          });
+        }
+      }
+    ),
+  };
+});
+
 jest.mock("../onboarding/utils/advance-onboarding-status", () => ({
   advanceOnboardingStatusFromFlags: jest.fn(async () => ({ changed: false })),
 }));

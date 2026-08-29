@@ -24,7 +24,7 @@ import {
   isAmlWebhookOnboardingTypeConsistent,
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
-import { createOnboardingLogRow, webhookAuditContext } from "../../../lib/audit";
+import { persistOrganizationUpdateAndOnboardingLogs, webhookAuditContext } from "../../../lib/audit";
 
 /**
  * KYC (Know Your Customer) Webhook Handler
@@ -434,43 +434,34 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
             onboarding.investor_organization_id
           );
           if (org) {
-            await prisma.investorOrganization.update({
-              where: { id: onboarding.investor_organization_id },
+            await persistOrganizationUpdateAndOnboardingLogs({
+              portalType: "investor",
+              organizationId: onboarding.investor_organization_id,
               data: {
                 kyc_response: payload as Prisma.InputJsonValue,
               },
-            });
-
-            try {
-              await createOnboardingLogRow({
-                userId: onboarding.user_id,
-                role: UserRole.INVESTOR,
-                eventType: "ONBOARDING_STATUS_UPDATED",
-                portal: portalType as PortalType,
-                organizationName: org.name || undefined,
-                investorOrganizationId: onboarding.investor_organization_id || undefined,
-                issuerOrganizationId: undefined,
-                metadata: {
-                  organizationId: onboarding.investor_organization_id,
-                  kycRequestId: requestId,
-                  onboardingRequestId: onboarding.request_id,
-                  note: "KYC_APPROVED webhook stored kyc_response; onboarding_status and aml_approved unchanged",
-                  trigger: "KYC_APPROVED",
-                  previousStatus: org.onboarding_status,
-                  newStatus: org.onboarding_status,
-                },
-                context: webhookAuditContext(),
-              });
-            } catch (logError) {
-              logger.error(
+              logs: [
                 {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId: onboarding.investor_organization_id,
-                  kycRequestId: requestId,
+                  userId: onboarding.user_id,
+                  role: UserRole.INVESTOR,
+                  eventType: "ONBOARDING_STATUS_UPDATED",
+                  portal: portalType as PortalType,
+                  organizationName: org.name || undefined,
+                  investorOrganizationId: onboarding.investor_organization_id || undefined,
+                  issuerOrganizationId: undefined,
+                  metadata: {
+                    organizationId: onboarding.investor_organization_id,
+                    kycRequestId: requestId,
+                    onboardingRequestId: onboarding.request_id,
+                    note: "KYC_APPROVED webhook stored kyc_response; onboarding_status and aml_approved unchanged",
+                    trigger: "KYC_APPROVED",
+                    previousStatus: org.onboarding_status,
+                    newStatus: org.onboarding_status,
+                  },
+                  context: webhookAuditContext(),
                 },
-                "Failed to create onboarding log (non-blocking)"
-              );
-            }
+              ],
+            });
 
             logger.info(
               {
@@ -504,43 +495,34 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
             onboarding.issuer_organization_id
           );
           if (org) {
-            await prisma.issuerOrganization.update({
-              where: { id: onboarding.issuer_organization_id },
+            await persistOrganizationUpdateAndOnboardingLogs({
+              portalType: "issuer",
+              organizationId: onboarding.issuer_organization_id,
               data: {
                 kyc_response: payload as Prisma.InputJsonValue,
               },
-            });
-
-            try {
-              await createOnboardingLogRow({
-                userId: onboarding.user_id,
-                role: UserRole.ISSUER,
-                eventType: "ONBOARDING_STATUS_UPDATED",
-                portal: portalType as PortalType,
-                organizationName: org.name || undefined,
-                investorOrganizationId: undefined,
-                issuerOrganizationId: onboarding.issuer_organization_id || undefined,
-                metadata: {
-                  organizationId: onboarding.issuer_organization_id,
-                  kycRequestId: requestId,
-                  onboardingRequestId: onboarding.request_id,
-                  note: "KYC_APPROVED webhook stored kyc_response; onboarding_status and aml_approved unchanged",
-                  trigger: "KYC_APPROVED",
-                  previousStatus: org.onboarding_status,
-                  newStatus: org.onboarding_status,
-                },
-                context: webhookAuditContext(),
-              });
-            } catch (logError) {
-              logger.error(
+              logs: [
                 {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId: onboarding.issuer_organization_id,
-                  kycRequestId: requestId,
+                  userId: onboarding.user_id,
+                  role: UserRole.ISSUER,
+                  eventType: "ONBOARDING_STATUS_UPDATED",
+                  portal: portalType as PortalType,
+                  organizationName: org.name || undefined,
+                  investorOrganizationId: undefined,
+                  issuerOrganizationId: onboarding.issuer_organization_id || undefined,
+                  metadata: {
+                    organizationId: onboarding.issuer_organization_id,
+                    kycRequestId: requestId,
+                    onboardingRequestId: onboarding.request_id,
+                    note: "KYC_APPROVED webhook stored kyc_response; onboarding_status and aml_approved unchanged",
+                    trigger: "KYC_APPROVED",
+                    previousStatus: org.onboarding_status,
+                    newStatus: org.onboarding_status,
+                  },
+                  context: webhookAuditContext(),
                 },
-                "Failed to create onboarding log (non-blocking)"
-              );
-            }
+              ],
+            });
 
             logger.info(
               {
@@ -582,7 +564,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
           },
           "[KYC Webhook] Failed to update organization aml_approved flag"
         );
-        // Don't throw - allow webhook to complete even if organization update fails
+        throw error;
       }
     } else if (statusUpper && statusUpper !== "APPROVED") {
       logger.debug(

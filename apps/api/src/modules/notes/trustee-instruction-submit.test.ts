@@ -45,6 +45,9 @@ jest.mock("../../lib/prisma", () => ({
       findMany: jest.fn(),
       create: jest.fn(),
     },
+    paymasterAssignmentNotice: {
+      findFirst: jest.fn().mockResolvedValue({ status: "ACKNOWLEDGED" }),
+    },
     note: {
       findUnique: jest.fn(),
       updateMany: jest.fn(),
@@ -365,7 +368,7 @@ describe("trustee instruction submit email wiring", () => {
         expect.objectContaining({
           data: expect.objectContaining({
             event_type: "SETTLEMENT_TRUSTEE_LETTER_SUBMITTED",
-            metadata: { settlementId: "set-1" },
+            metadata: expect.objectContaining({ settlementId: "set-1" }),
           }),
         })
       );

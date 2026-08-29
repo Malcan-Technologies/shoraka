@@ -17,9 +17,9 @@ describe("Activity Adapters", () => {
         title: "Onboarding Started",
         description: "Your organization onboarding has started and you can continue it at any time.",
       });
-      expect(adapter.buildPresentation("ONBOARDING_FEE_PAID")).toEqual({
-        title: "Onboarding Fee Paid",
-        description: "The issuer registration fee was paid successfully.",
+      expect(adapter.buildPresentation("ONBOARDING_AMENDMENT_REQUIRED")).toEqual({
+        title: "Additional onboarding information is required",
+        description: "Please provide the additional onboarding information requested.",
       });
       expect(adapter.buildPresentation("ONBOARDING_REJECTED", { reason: "Missing documents" })).toEqual({
         title: "Onboarding Rejected",
@@ -54,6 +54,7 @@ describe("Activity Adapters", () => {
       expect(adapter.getEventTypes()).toEqual([
         "ONBOARDING_STARTED",
         "ONBOARDING_FEE_PAID",
+        "ONBOARDING_AMENDMENT_REQUIRED",
         "ONBOARDING_CANCELLED",
         "ONBOARDING_REJECTED",
         "COD_REJECTED",

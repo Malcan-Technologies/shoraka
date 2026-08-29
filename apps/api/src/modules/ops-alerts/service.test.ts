@@ -74,6 +74,19 @@ describe("ops alerts", () => {
     );
   });
 
+  it("retries persist once and does not throw or recurse when persist keeps failing", async () => {
+    mockFindUnique.mockRejectedValue(new Error("db down"));
+    await expect(
+      raiseOpsAlert({
+        type: OpsAlertType.STUCK_PAYMENT,
+        severity: OpsAlertSeverity.HIGH,
+        dedupeKey: "stuck-payment:pay-fail",
+        title: "Stuck payment",
+      })
+    ).resolves.toBeUndefined();
+    expect(mockFindUnique).toHaveBeenCalledTimes(2);
+  });
+
   it("acknowledges OPEN then resolves without reusing notification types", async () => {
     mockFindUnique.mockResolvedValue({
       id: "alert-1",

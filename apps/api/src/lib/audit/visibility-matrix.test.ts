@@ -30,6 +30,12 @@ describe("visibility matrix", () => {
     expect(userVisibleOrganizationEventTypes()).not.toContain("WEBHOOK_APPROVED");
   });
 
+  it("shows COD amendment as a user milestone without exposing the forensic status event", () => {
+    expect(EVENT_CATALOGUE.ONBOARDING_AMENDMENT_REQUIRED.userVisible).toBe(true);
+    expect(userVisibleOrganizationEventTypes()).toContain("ONBOARDING_AMENDMENT_REQUIRED");
+    expect(userVisibleOrganizationEventTypes()).not.toContain("ONBOARDING_STATUS_UPDATED");
+  });
+
   it("shows signing completed/declined/expired to users, not created/voided", () => {
     const visible = userVisibleApplicationEventTypes();
     expect(visible).toContain("SIGNING_PACKAGE_SENT");

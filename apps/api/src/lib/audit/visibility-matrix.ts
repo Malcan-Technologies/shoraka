@@ -137,7 +137,11 @@ export const EVENT_CATALOGUE: Record<string, EventCatalogueEntry> = {
   ONBOARDING_FEE_PAID: entry(EVENT_LAYER.ORG_ACTIVITY, "onboarding_logs", USER),
   ONBOARDING_RESUMED: entry(EVENT_LAYER.ORG_ACTIVITY, "onboarding_logs"),
   ONBOARDING_STATUS_UPDATED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "onboarding_logs", {
-    notes: "Includes COD URL_GENERATED → PENDING_AMENDMENT.",
+    notes: "Includes COD URL_GENERATED → PENDING_AMENDMENT forensic detail.",
+  }),
+  ONBOARDING_AMENDMENT_REQUIRED: entry(EVENT_LAYER.ORG_ACTIVITY, "onboarding_logs", {
+    ...USER,
+    notes: "Customer-facing amendment milestone. Does not expose COD/provider internals.",
   }),
   ONBOARDING_CANCELLED: entry(EVENT_LAYER.ORG_ACTIVITY, "onboarding_logs", USER),
   ONBOARDING_RESET: entry(EVENT_LAYER.ADMIN_ACTIVITY, "onboarding_logs"),

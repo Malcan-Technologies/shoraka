@@ -37,7 +37,7 @@ export class RegTankRepository {
     status: string;
     substatus?: string;
     regtankResponse?: Prisma.InputJsonValue;
-  }): Promise<RegTankOnboarding> {
+  }, db: Prisma.TransactionClient | typeof prisma = prisma): Promise<RegTankOnboarding> {
     // Set the appropriate organization ID field based on portal type
     const investorOrgId = data.portalType === "investor" ? data.organizationId : null;
     const issuerOrgId = data.portalType === "issuer" ? data.organizationId : null;
@@ -59,7 +59,7 @@ export class RegTankRepository {
     } satisfies Prisma.RegTankOnboardingUncheckedCreateInput;
 
     try {
-      return await prisma.regTankOnboarding.create({ data: payload });
+      return await db.regTankOnboarding.create({ data: payload });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -67,7 +67,7 @@ export class RegTankRepository {
         Array.isArray(error.meta?.target) &&
         error.meta.target.includes("request_id")
       ) {
-        const existing = await prisma.regTankOnboarding.findUnique({
+        const existing = await db.regTankOnboarding.findUnique({
           where: { request_id: data.requestId },
         });
         if (existing) {
@@ -233,9 +233,10 @@ export class RegTankRepository {
       completedAt?: Date;
       /** Latest raw RegTank response snapshot (e.g. from a live query/refresh, not a webhook). */
       regtankResponse?: Prisma.InputJsonValue;
-    }
+    },
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ): Promise<RegTankOnboarding> {
-    return prisma.regTankOnboarding.update({
+    return db.regTankOnboarding.update({
       where: { request_id: requestId },
       data: {
         status: data.status,
@@ -253,8 +254,12 @@ export class RegTankRepository {
    * Cancel an onboarding by its ID
    * Marks status as CANCELLED with reason in substatus
    */
-  async cancelOnboarding(id: string, reason: string): Promise<RegTankOnboarding> {
-    return prisma.regTankOnboarding.update({
+  async cancelOnboarding(
+    id: string,
+    reason: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ): Promise<RegTankOnboarding> {
+    return db.regTankOnboarding.update({
       where: { id },
       data: {
         status: "CANCELLED",
@@ -273,9 +278,10 @@ export class RegTankRepository {
    */
   async appendWebhookPayload(
     requestId: string,
-    payload: Prisma.InputJsonValue
+    payload: Prisma.InputJsonValue,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ): Promise<void> {
-    await prisma.$executeRaw`
+    await db.$executeRaw`
       UPDATE regtank_onboarding
       SET webhook_payloads = array_append(webhook_payloads, ${JSON.stringify(payload)}::jsonb),
           updated_at = NOW()

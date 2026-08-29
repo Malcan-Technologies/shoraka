@@ -56,6 +56,7 @@ export function formatRoleSwitchedLabel(metadata?: Record<string, unknown> | nul
 
 const ACTIVITY_STATUS_BY_EVENT: Record<string, ActivityStatusToken> = {
   ONBOARDING_STARTED: "action",
+  ONBOARDING_AMENDMENT_REQUIRED: "action",
   ONBOARDING_CANCELLED: "neutral",
   ONBOARDING_REJECTED: "rejected",
   FINAL_APPROVAL_COMPLETED: "success",

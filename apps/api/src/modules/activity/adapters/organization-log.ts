@@ -204,6 +204,11 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
           title: "Onboarding Fee Paid",
           description: "The issuer registration fee was paid successfully.",
         };
+      case "ONBOARDING_AMENDMENT_REQUIRED":
+        return {
+          title: "Additional onboarding information is required",
+          description: "Please provide the additional onboarding information requested.",
+        };
       case "ONBOARDING_CANCELLED":
         // The stored event_type name is historical/forensic (an admin restart cancels the
         // previous RegTank request and issues a new one) — the portal-facing copy describes

@@ -1,6 +1,7 @@
 const mockFindByRequestId = jest.fn();
 const mockUpdateStatus = jest.fn().mockResolvedValue({});
 const mockAppendWebhookPayload = jest.fn().mockResolvedValue(undefined);
+const mockOnboardingLogCreate = jest.fn().mockResolvedValue({});
 
 jest.mock("./repository", () => ({
   RegTankRepository: jest.fn().mockImplementation(() => ({
@@ -18,10 +19,14 @@ jest.mock("../organization/repository", () => ({
   OrganizationRepository: jest.fn().mockImplementation(() => ({})),
 }));
 
-jest.mock("../auth/repository", () => ({
-  AuthRepository: jest.fn().mockImplementation(() => ({
-    createOnboardingLog: jest.fn(),
-  })),
+jest.mock("../../lib/prisma", () => ({
+  prisma: {
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        onboardingLog: { create: (...args: unknown[]) => mockOnboardingLogCreate(...args) },
+      })
+    ),
+  },
 }));
 
 import { RegTankService } from "./service";
@@ -34,6 +39,7 @@ describe("RegTankService.handleWebhookUpdate", () => {
   it("does not append a synthetic webhook payload (persistence is owned by the webhook intake handler / refresh path)", async () => {
     mockFindByRequestId.mockResolvedValue({
       request_id: "LD001-R01",
+      user_id: "user-1",
       investor_organization_id: null,
       issuer_organization_id: null,
       portal_type: "investor",
@@ -52,6 +58,7 @@ describe("RegTankService.handleWebhookUpdate", () => {
   it("still updates status even though it no longer persists a payload", async () => {
     mockFindByRequestId.mockResolvedValue({
       request_id: "LD001-R02",
+      user_id: "user-1",
       investor_organization_id: null,
       issuer_organization_id: null,
       portal_type: "investor",
@@ -65,7 +72,8 @@ describe("RegTankService.handleWebhookUpdate", () => {
 
     expect(mockUpdateStatus).toHaveBeenCalledWith(
       "LD001-R02",
-      expect.objectContaining({ status: expect.any(String) })
+      expect.objectContaining({ status: expect.any(String) }),
+      expect.anything()
     );
     expect(mockAppendWebhookPayload).not.toHaveBeenCalled();
   });

@@ -338,7 +338,8 @@ export class OrganizationRepository {
   async updateInvestorOrganizationOnboarding(
     id: string,
     status: OnboardingStatus,
-    options?: UpdateOrganizationOnboardingOptions
+    options?: UpdateOrganizationOnboardingOptions,
+    db: OrganizationDbClient = prisma
   ): Promise<InvestorOrganization> {
     const updateData: {
       onboarding_status: OnboardingStatus;
@@ -358,7 +359,7 @@ export class OrganizationRepository {
       }
     }
 
-    return prisma.investorOrganization.update({
+    return db.investorOrganization.update({
       where: { id },
       data: updateData,
     });
@@ -370,7 +371,8 @@ export class OrganizationRepository {
   async updateIssuerOrganizationOnboarding(
     id: string,
     status: OnboardingStatus,
-    options?: UpdateOrganizationOnboardingOptions
+    options?: UpdateOrganizationOnboardingOptions,
+    db: OrganizationDbClient = prisma
   ): Promise<IssuerOrganization> {
     const updateData: {
       onboarding_status: OnboardingStatus;
@@ -390,7 +392,7 @@ export class OrganizationRepository {
       }
     }
 
-    return prisma.issuerOrganization.update({
+    return db.issuerOrganization.update({
       where: { id },
       data: updateData,
     });
@@ -440,8 +442,12 @@ export class OrganizationRepository {
   /**
    * Remove member from investor organization
    */
-  async removeInvestorOrganizationMember(organizationId: string, userId: string): Promise<void> {
-    await prisma.organizationMember.deleteMany({
+  async removeInvestorOrganizationMember(
+    organizationId: string,
+    userId: string,
+    db: OrganizationDbClient = prisma
+  ): Promise<void> {
+    await db.organizationMember.deleteMany({
       where: {
         investor_organization_id: organizationId,
         user_id: userId,
@@ -452,8 +458,12 @@ export class OrganizationRepository {
   /**
    * Remove member from issuer organization
    */
-  async removeIssuerOrganizationMember(organizationId: string, userId: string): Promise<void> {
-    await prisma.organizationMember.deleteMany({
+  async removeIssuerOrganizationMember(
+    organizationId: string,
+    userId: string,
+    db: OrganizationDbClient = prisma
+  ): Promise<void> {
+    await db.organizationMember.deleteMany({
       where: {
         issuer_organization_id: organizationId,
         user_id: userId,
@@ -513,27 +523,28 @@ export class OrganizationRepository {
     organizationId: string,
     userId: string,
     role: OrganizationMemberRole,
-    portalType: "investor" | "issuer"
+    portalType: "investor" | "issuer",
+    db: OrganizationDbClient = prisma
   ): Promise<OrganizationMember> {
     if (portalType === "investor") {
-      const member = await prisma.organizationMember.findFirstOrThrow({
+      const member = await db.organizationMember.findFirstOrThrow({
         where: {
           investor_organization_id: organizationId,
           user_id: userId,
         },
       });
-      return prisma.organizationMember.update({
+      return db.organizationMember.update({
         where: { id: member.id },
         data: { role },
       });
     } else {
-      const member = await prisma.organizationMember.findFirstOrThrow({
+      const member = await db.organizationMember.findFirstOrThrow({
         where: {
           issuer_organization_id: organizationId,
           user_id: userId,
         },
       });
-      return prisma.organizationMember.update({
+      return db.organizationMember.update({
         where: { id: member.id },
         data: { role },
       });
@@ -543,15 +554,18 @@ export class OrganizationRepository {
   /**
    * Create investor organization invitation
    */
-  async createInvestorOrganizationInvitation(data: {
-    email: string;
-    role: OrganizationMemberRole;
-    investorOrganizationId: string;
-    token: string;
-    expiresAt: Date;
-    invitedByUserId: string;
-  }) {
-    return prisma.investorOrganizationInvitation.create({
+  async createInvestorOrganizationInvitation(
+    data: {
+      email: string;
+      role: OrganizationMemberRole;
+      investorOrganizationId: string;
+      token: string;
+      expiresAt: Date;
+      invitedByUserId: string;
+    },
+    db: OrganizationDbClient = prisma
+  ) {
+    return db.investorOrganizationInvitation.create({
       data: {
         email: data.email,
         role: data.role,
@@ -566,15 +580,18 @@ export class OrganizationRepository {
   /**
    * Create issuer organization invitation
    */
-  async createIssuerOrganizationInvitation(data: {
-    email: string;
-    role: OrganizationMemberRole;
-    issuerOrganizationId: string;
-    token: string;
-    expiresAt: Date;
-    invitedByUserId: string;
-  }) {
-    return prisma.issuerOrganizationInvitation.create({
+  async createIssuerOrganizationInvitation(
+    data: {
+      email: string;
+      role: OrganizationMemberRole;
+      issuerOrganizationId: string;
+      token: string;
+      expiresAt: Date;
+      invitedByUserId: string;
+    },
+    db: OrganizationDbClient = prisma
+  ) {
+    return db.issuerOrganizationInvitation.create({
       data: {
         email: data.email,
         role: data.role,

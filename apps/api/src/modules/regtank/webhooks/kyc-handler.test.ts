@@ -52,6 +52,13 @@ const mockInvestorUpdate = jest.fn().mockResolvedValue({});
 const mockOnboardingLogCreate = jest.fn().mockResolvedValue({});
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        investorOrganization: { update: (...args: unknown[]) => mockInvestorUpdate(...args) },
+        issuerOrganization: { update: jest.fn() },
+        onboardingLog: { create: (...args: unknown[]) => mockOnboardingLogCreate(...args) },
+      })
+    ),
     investorOrganization: { update: (...args: unknown[]) => mockInvestorUpdate(...args) },
     issuerOrganization: { update: jest.fn() },
     onboardingLog: { create: (...args: unknown[]) => mockOnboardingLogCreate(...args) },

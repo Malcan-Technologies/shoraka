@@ -4,6 +4,7 @@
   "ONBOARDING_CANCELLED": { "label": "Onboarding Cancelled", "dotColor": "bg-gray-500" },
   "ONBOARDING_REJECTED": { "label": "Onboarding Rejected", "dotColor": "bg-red-500" },
   "ONBOARDING_STATUS_UPDATED": { "label": "Status Updated", "dotColor": "bg-indigo-500" },
+  "ONBOARDING_AMENDMENT_REQUIRED": { "label": "Additional information required", "dotColor": "bg-amber-500" },
   "FORM_FILLED": { "label": "Form Filled", "dotColor": "bg-sky-500" },
   "ONBOARDING_APPROVED": { "label": "Onboarding Approved", "dotColor": "bg-green-500" },
   "AML_APPROVED": { "label": "AML Approved", "dotColor": "bg-lime-500" },

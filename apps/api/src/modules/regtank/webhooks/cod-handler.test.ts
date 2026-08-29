@@ -49,6 +49,8 @@ jest.mock("../../notification/service", () => ({
 
 const mockInvestorUpdate = jest.fn();
 const mockIssuerUpdate = jest.fn();
+const mockInvestorFindUnique = jest.fn();
+const mockIssuerFindUnique = jest.fn();
 const mockCreateOnboardingLogRow = jest.fn();
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
@@ -56,14 +58,23 @@ jest.mock("../../../lib/prisma", () => ({
       fn({
         investorOrganization: {
           update: (...args: unknown[]) => mockInvestorUpdate(...args),
+          findUnique: (...args: unknown[]) => mockInvestorFindUnique(...args),
         },
         issuerOrganization: {
           update: (...args: unknown[]) => mockIssuerUpdate(...args),
+          findUnique: (...args: unknown[]) => mockIssuerFindUnique(...args),
         },
+        onboardingLog: { create: jest.fn() },
       })
     ),
-    investorOrganization: { update: (...args: unknown[]) => mockInvestorUpdate(...args), findUnique: jest.fn() },
-    issuerOrganization: { update: (...args: unknown[]) => mockIssuerUpdate(...args), findUnique: jest.fn() },
+    investorOrganization: {
+      update: (...args: unknown[]) => mockInvestorUpdate(...args),
+      findUnique: (...args: unknown[]) => mockInvestorFindUnique(...args),
+    },
+    issuerOrganization: {
+      update: (...args: unknown[]) => mockIssuerUpdate(...args),
+      findUnique: (...args: unknown[]) => mockIssuerFindUnique(...args),
+    },
     regTankOnboarding: { findUnique: jest.fn() },
   },
 }));
@@ -274,7 +285,7 @@ describe("CODWebhookHandler", () => {
         organization_type: OrganizationType.COMPANY,
       })
     );
-    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({
+    mockInvestorFindUnique.mockResolvedValue({
       id: "org-1",
       name: "Acme Sdn Bhd",
       onboarding_status: OnboardingStatus.PENDING_SSM_REVIEW,
@@ -320,5 +331,21 @@ describe("CODWebhookHandler", () => {
       }),
       expect.anything()
     );
+    expect(mockCreateOnboardingLogRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "ONBOARDING_AMENDMENT_REQUIRED",
+        metadata: expect.objectContaining({
+          organizationId: "org-1",
+          previousStatus: OnboardingStatus.PENDING_SSM_REVIEW,
+          newStatus: OnboardingStatus.PENDING_AMENDMENT,
+        }),
+      }),
+      expect.anything()
+    );
+    const amendmentMeta = mockCreateOnboardingLogRow.mock.calls.find(
+      (call) => (call[0] as { eventType?: string }).eventType === "ONBOARDING_AMENDMENT_REQUIRED"
+    )?.[0] as { metadata: Record<string, unknown> };
+    expect(amendmentMeta.metadata).not.toHaveProperty("requestId");
+    expect(amendmentMeta.metadata).not.toHaveProperty("providerStatus");
   });
 });

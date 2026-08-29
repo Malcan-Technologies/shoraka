@@ -133,6 +133,24 @@ None
 
 System event: `ONBOARDING_STATUS_UPDATED`
 
+**Additional onboarding information required**
+
+Meaning:
+Additional onboarding information is required. The organisation must provide it before review can continue. Operations still see the detailed forensic status separately.
+
+Where to find:
+Admin → Issuers / Investors → Activity
+Issuer → Activity
+Investor → Activity
+
+Visible to:
+Admin, Issuer, Investor
+
+Notification:
+None
+
+System event: `ONBOARDING_AMENDMENT_REQUIRED`
+
 **Form Submitted**
 
 Meaning:

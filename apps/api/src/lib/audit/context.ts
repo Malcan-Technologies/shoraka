@@ -166,6 +166,21 @@ export function auditActorTypeFor(options: {
   return AUDIT_ACTOR_TYPE.USER;
 }
 
+/** Admin-triggered accountability writes: actor is the Admin, portal is ADMIN, source is API. */
+export function adminAuditContextFromRequest(
+  req: Request,
+  adminUserId: string,
+  res?: Response
+): AuditRequestContext {
+  return auditContextFromRequest(req, {
+    actorType: AUDIT_ACTOR_TYPE.ADMIN,
+    actorUserId: adminUserId,
+    portal: AUDIT_PORTAL.ADMIN,
+    source: AUDIT_SOURCE.API,
+    res,
+  });
+}
+
 export function auditContextFromRequest(
   req: Request,
   options?: {
