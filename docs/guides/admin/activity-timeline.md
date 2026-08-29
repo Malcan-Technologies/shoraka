@@ -107,8 +107,8 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 
 | Event Type | Source | Portal | Description |
 |------------|--------|--------|-------------|
-| `APPLICATION_CREATED` | applications/controller | ISSUER | Issuer creates a new application |
-| `APPLICATION_SUBMITTED` | applications/controller | ISSUER | Issuer submits for review |
+| `APPLICATION_CREATED` | applications/controller (after create commits) | ISSUER | Issuer creates a new application |
+| `APPLICATION_SUBMITTED` | applications/service `persistSubmittedApplication` | ISSUER | Issuer submits for review |
 | `APPLICATION_RESUBMITTED` | applications/controller, amendments/service | ISSUER | Issuer resubmits after amendments |
 | `APPLICATION_APPROVED` | applications/controller, admin/service | ADMIN | Admin approves the application |
 | `APPLICATION_REJECTED` | applications/controller, admin/service | ADMIN | Admin rejects the application |

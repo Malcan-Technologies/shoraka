@@ -36,7 +36,7 @@ describe("logApplicationActivity", () => {
       logApplicationActivity({
         userId: "user-1",
         applicationId: "app-1",
-        eventType: "INVOICE_WITHDRAWN",
+        eventType: "APPLICATION_CREATED",
       })
     ).resolves.toBeUndefined();
   });

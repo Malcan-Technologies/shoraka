@@ -19,7 +19,7 @@ import {
 } from "../../modules/payment/refund-service";
 import { raiseOpsAlert } from "../../modules/ops-alerts/service";
 
-const STALE_CREATED_MINUTES = 60;
+export const STALE_CREATED_MINUTES = 60;
 const CRON_CORRELATION_ID = "cron:gateway-stuck-order-poller";
 
 export type GatewayStuckOrderPollerResult = {

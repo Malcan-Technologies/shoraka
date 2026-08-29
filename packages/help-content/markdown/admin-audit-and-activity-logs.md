@@ -3308,6 +3308,8 @@ Types include stuck payment, recon mismatch, receipt failure, webhook failure, s
 
 Alerts dedupe by key. Replay increments occurrence count instead of creating a duplicate notification.
 
+If an alert row fails to persist, the underlying payment, receipt, webhook, recon, envelope or legal row is still the source of truth. An hourly reconstruction job recreates missing reconstructable alerts and resolves alerts whose condition has cleared. Repeated job failures and short-lived Curlec poll errors stay in CloudWatch rather than being invented from the database.
+
 ---
 
 ## Historical aliases

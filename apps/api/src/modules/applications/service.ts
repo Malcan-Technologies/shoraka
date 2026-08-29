@@ -2190,6 +2190,20 @@ export class ApplicationService {
           where: { id },
           data: updateData,
         });
+
+        await logApplicationActivity(
+          {
+            userId,
+            applicationId: id,
+            eventType: ApplicationLogEventType.APPLICATION_SUBMITTED,
+            reviewCycle: application.review_cycle,
+            portal: ActivityPortal.ISSUER,
+            ipAddress: logContext?.ipAddress,
+            userAgent: logContext?.userAgent,
+            context: logContext?.context,
+          },
+          tx
+        );
       };
 
       const contractId = application.contract_id;

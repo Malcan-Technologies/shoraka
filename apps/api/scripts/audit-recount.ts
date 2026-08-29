@@ -31,6 +31,9 @@ const writerHits = new Set<string>();
 for (const match of sources.matchAll(/eventType:\s*(?:ApplicationLogEventType\.)?["']([A-Z][A-Z0-9_]+)["']/g)) {
   writerHits.add(match[1]);
 }
+for (const match of sources.matchAll(/eventType:\s*ApplicationLogEventType\.([A-Z][A-Z0-9_]+)/g)) {
+  writerHits.add(match[1]);
+}
 for (const match of sources.matchAll(/event_type:\s*["']([A-Z][A-Z0-9_]+)["']/g)) {
   writerHits.add(match[1]);
 }

@@ -47,6 +47,9 @@ jest.mock("./issuer-organization-financial-statements", () => ({
 jest.mock("./director-shareholder-onboarding-guard", () => ({
   assertIssuerOrgDirectorShareholderOnboardingReady: jest.fn(),
 }));
+jest.mock("./logs/service", () => ({
+  logApplicationActivity: jest.fn().mockResolvedValue(undefined),
+}));
 
 import { ApplicationService } from "./service";
 import { AppError } from "../../lib/http/error-handler";

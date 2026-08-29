@@ -9,6 +9,8 @@ import { runSigningReconcileJob } from "./signing-reconcile";
 import { runGatewayStuckOrderPollerJob } from "./gateway-stuck-order-poller";
 import { runGatewaySettlementReconForConfiguredAccounts } from "./gateway-settlement-recon";
 import { runGatewayReceiptRetryJob } from "./gateway-receipt-retry";
+import { runOpsAlertReconstructionJob } from "./ops-alert-reconstruction";
+import { runApplicationTimelineRepairJob } from "./application-timeline-repair";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
 import { raiseJobFailureAlert } from "../../modules/ops-alerts/service";
 
@@ -143,6 +145,30 @@ export function initJobs() {
       logger.error({ error }, "Failed to run gateway settlement recon job");
       await raiseJobFailureAlert("gateway-settlement-recon", error);
     }
+  });
+
+  // Rebuild missing Ops Alert queue rows from durable payment/recon/signing state.
+  cron.schedule("10 * * * *", async () => {
+    await withAdvisoryLock(JOB_LOCK_KEYS.OPS_ALERT_RECONSTRUCTION, async () => {
+      try {
+        await runOpsAlertReconstructionJob();
+      } catch (error) {
+        logger.error({ error }, "Failed to run ops alert reconstruction job");
+        await raiseJobFailureAlert("ops-alert-reconstruction", error);
+      }
+    });
+  });
+
+  // Repair missing APPLICATION_CREATED / APPLICATION_SUBMITTED timeline projections.
+  cron.schedule("20 * * * *", async () => {
+    await withAdvisoryLock(JOB_LOCK_KEYS.APPLICATION_TIMELINE_REPAIR, async () => {
+      try {
+        await runApplicationTimelineRepairJob();
+      } catch (error) {
+        logger.error({ error }, "Failed to run application timeline repair job");
+        await raiseJobFailureAlert("application-timeline-repair", error);
+      }
+    });
   });
 
   // Reconcile signing envelopes missing PDFs and stale trust-return sessions.

@@ -101,16 +101,16 @@ or offer details, a "View details" button shows them.
 Step 1: Issuer clicks "Create application" in the issuer portal.
 
   What happens: A new application is created in the database.
-  Log created: APPLICATION_CREATED
-  Who: The issuer (user_id)
+  Log created: APPLICATION_CREATED (timeline overlay after the draft row commits)
+  Who: The issuer (user_id). Repair rows use a null actor.
   Portal: ISSUER
   Where it shows: Activity timeline
 
 Step 2: Issuer fills in the form and clicks "Submit".
 
-  What happens: Application status changes to submitted. It goes to admin.
+  What happens: Application status and submitted_at persist with APPLICATION_SUBMITTED in the same transaction.
   Log created: APPLICATION_SUBMITTED
-  Who: The issuer
+  Who: The issuer (user_id on the application_logs row)
   Portal: ISSUER
   Where it shows: Activity timeline
 

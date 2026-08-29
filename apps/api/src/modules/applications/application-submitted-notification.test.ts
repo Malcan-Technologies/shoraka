@@ -39,7 +39,11 @@ jest.mock("../../lib/prisma", () => ({
       fn({
         invoice: { updateMany: jest.fn() },
         applicationRevision: { create: jest.fn() },
-        application: { update: jest.fn() },
+        application: {
+          update: jest.fn(),
+          findUnique: jest.fn().mockResolvedValue({ display_reference: "APP-1" }),
+        },
+        applicationLog: { create: jest.fn().mockResolvedValue({ id: "log-1" }) },
       })
     ),
     invoice: { updateMany: jest.fn() },
@@ -117,6 +121,57 @@ describe("ApplicationService.updateApplicationStatus — APPLICATION_SUBMITTED_C
       expect.anything(),
       expect.anything()
     );
+  });
+
+  it("writes APPLICATION_SUBMITTED on the same transaction client as the status update", async () => {
+    const { prisma } = require("../../lib/prisma") as { prisma: { $transaction: jest.Mock } };
+    let tx: { applicationLog: { create: jest.Mock }; application: { update: jest.Mock } };
+    prisma.$transaction.mockImplementationOnce(async (fn: (client: unknown) => Promise<unknown>) => {
+      tx = {
+        invoice: { updateMany: jest.fn() },
+        applicationRevision: { create: jest.fn() },
+        application: {
+          update: jest.fn(),
+          findUnique: jest.fn().mockResolvedValue({ display_reference: "APP-1" }),
+        },
+        applicationLog: { create: jest.fn().mockResolvedValue({ id: "log-1" }) },
+      };
+      return fn(tx);
+    });
+
+    await service.updateApplicationStatus("app-1", "SUBMITTED", "user-1");
+
+    expect(tx!.application.update).toHaveBeenCalled();
+    expect(tx!.applicationLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          event_type: "APPLICATION_SUBMITTED",
+          user_id: "user-1",
+          application_id: "app-1",
+        }),
+      })
+    );
+  });
+
+  it("rolls back submit when the in-transaction timeline insert fails", async () => {
+    const { prisma } = require("../../lib/prisma") as { prisma: { $transaction: jest.Mock } };
+    prisma.$transaction.mockImplementationOnce(async (fn: (client: unknown) => Promise<unknown>) => {
+      const tx = {
+        invoice: { updateMany: jest.fn() },
+        applicationRevision: { create: jest.fn() },
+        application: {
+          update: jest.fn(),
+          findUnique: jest.fn().mockResolvedValue({ display_reference: "APP-1" }),
+        },
+        applicationLog: { create: jest.fn().mockRejectedValue(new Error("timeline insert failed")) },
+      };
+      return fn(tx);
+    });
+
+    await expect(service.updateApplicationStatus("app-1", "SUBMITTED", "user-1")).rejects.toThrow(
+      "timeline insert failed"
+    );
+    expect(mockSendTyped).not.toHaveBeenCalled();
   });
 
   it("does not send the confirmation when the submit transaction fails", async () => {

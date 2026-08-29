@@ -54,7 +54,8 @@ describe("audit traceability source contracts", () => {
 
   it("PATCH /status no longer logs a second APPLICATION_RESUBMITTED", () => {
     const src = read("modules/applications/controller.ts");
-    expect(src).toMatch(/if \(status === "SUBMITTED"\)/);
+    expect(src).not.toMatch(/APPLICATION_SUBMITTED/);
+    expect(src).not.toMatch(/APPLICATION_RESUBMITTED/);
     expect(src).not.toMatch(/status === "SUBMITTED" \|\| status === "RESUBMITTED"/);
   });
 

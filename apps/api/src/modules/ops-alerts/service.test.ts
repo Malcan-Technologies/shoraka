@@ -85,6 +85,17 @@ describe("ops alerts", () => {
       })
     ).resolves.toBeUndefined();
     expect(mockFindUnique).toHaveBeenCalledTimes(2);
+    const { logger } = require("../../lib/logger") as { logger: { error: jest.Mock } };
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ops_alert_persist_failed: true,
+        recursiveGuard: true,
+        dedupeKey: "stuck-payment:pay-fail",
+        type: OpsAlertType.STUCK_PAYMENT,
+      }),
+      "Failed to persist ops alert after retry"
+    );
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
   it("acknowledges OPEN then resolves without reusing notification types", async () => {
