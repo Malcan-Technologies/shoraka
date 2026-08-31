@@ -66,4 +66,12 @@ describe("runApplicationTimelineRepairJob", () => {
     );
     expect(result.submitted).toBe(1);
   });
+
+  it("does not insert APPLICATION_CREATED when the event already exists", async () => {
+    const result = await runApplicationTimelineRepairJob();
+
+    expect(logApplicationActivity).not.toHaveBeenCalled();
+    expect(result.created).toBe(0);
+    expect(result.submitted).toBe(0);
+  });
 });

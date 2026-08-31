@@ -154,6 +154,9 @@ describe("audit traceability source contracts", () => {
     const applicationsController = read("modules/applications/controller.ts");
     expect(applicationsController).toMatch(/issuerActivityFromRequest\(req, res\)/);
     expect(applicationsController).toMatch(
+      /createApplication\(\s*input,\s*callerUserId,\s*issuerActivityFromRequest/
+    );
+    expect(applicationsController).toMatch(
       /updateApplicationStatus\(\s*id,\s*status,\s*userId,\s*issuerActivityFromRequest/
     );
     expect(read("modules/invoices/controller.ts")).toMatch(/issuerActivityFromRequest\(req, res\)/);

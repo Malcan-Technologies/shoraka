@@ -1,7 +1,9 @@
 /**
- * Repairs missing APPLICATION_CREATED / APPLICATION_SUBMITTED timeline projections
- * from durable application state. Rebuilt rows use source INTERNAL and a null actor
- * so reconstruction never invents a submitter.
+ * Legacy/backfill: inserts missing APPLICATION_CREATED / APPLICATION_SUBMITTED timeline
+ * rows from durable application state. Live create and submit write those events in the
+ * same Prisma transaction as the application row. This job only inserts when the event is
+ * absent (historical overlay failures, pre-atomic records). Rebuilt rows use source
+ * INTERNAL and a null actor so reconstruction never invents a creator or submitter.
  */
 import { prisma } from "../prisma";
 import { logger } from "../logger";

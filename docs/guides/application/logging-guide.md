@@ -105,8 +105,8 @@ or offer details, a "View details" button shows them.
 Step 1: Issuer clicks "Create application" in the issuer portal.
 
   What happens: A new application is created in the database.
-  Log created: APPLICATION_CREATED (timeline overlay after the draft row commits)
-  Who: The issuer (user_id). Repair rows use a null actor.
+  Log created: APPLICATION_CREATED (same transaction as the draft row)
+  Who: The issuer (user_id). Legacy repair rows for historical missing events use a null actor.
   Portal: ISSUER
   Where it shows: Activity timeline
 

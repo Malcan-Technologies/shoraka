@@ -107,7 +107,7 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 
 | Event Type | Source | Portal | Description |
 |------------|--------|--------|-------------|
-| `APPLICATION_CREATED` | applications/controller (after create commits) | ISSUER | Issuer creates a new application (overlay; repairable) |
+| `APPLICATION_CREATED` | applications/service `createApplication` | ISSUER | Issuer creates a new application (same transaction as draft row) |
 | `APPLICATION_SUBMITTED` | applications/service `persistSubmittedApplication` | ISSUER | Issuer submits for review (same transaction as status) |
 | `APPLICATION_RESUBMITTED` | applications/controller, amendments/service | ISSUER | Issuer resubmits after amendments |
 | `APPLICATION_APPROVED` | none (historical reader) | ADMIN | Old rows still render. No live writer. |

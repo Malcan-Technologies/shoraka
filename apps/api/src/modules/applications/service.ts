@@ -833,7 +833,11 @@ export class ApplicationService {
   /**
    * Create a new application
    */
-  async createApplication(input: CreateApplicationInput, userId: string): Promise<Application> {
+  async createApplication(
+    input: CreateApplicationInput,
+    userId: string,
+    logContext?: IssuerActivityLogContext
+  ): Promise<Application> {
     await legalDocumentAcceptanceService.assertNoPendingReacceptance(
       userId,
       input.issuerOrganizationId,
@@ -895,6 +899,20 @@ export class ApplicationService {
             data: { display_reference: reference },
           });
         }
+      );
+
+      await logApplicationActivity(
+        {
+          userId,
+          applicationId: created.id,
+          eventType: ApplicationLogEventType.APPLICATION_CREATED,
+          reviewCycle: 1,
+          portal: ActivityPortal.ISSUER,
+          ipAddress: logContext?.ipAddress,
+          userAgent: logContext?.userAgent,
+          context: logContext?.context,
+        },
+        tx
       );
 
       return tx.application.findUniqueOrThrow({

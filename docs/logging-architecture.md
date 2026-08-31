@@ -61,13 +61,13 @@ These may warn and continue. Losing them does not remove the business audit trai
 
 Application timeline: when the caller passes a transaction client, a failed `logApplicationActivity` insert aborts that transaction. Sequential callers (no `db`) still use the origin overlay: the mutation can commit without a timeline row. Do not treat those overlay rows as a substitute for legal or financial evidence tables.
 
-`APPLICATION_SUBMITTED` is written inside `persistSubmittedApplication` (same transaction as `status` + `submitted_at`) so the submitting actor is not lost. `APPLICATION_CREATED` stays a sequential overlay after the draft row commits; hourly timeline repair rebuilds missing created/submitted rows from `applications.created_at` / `submitted_at` with `source=INTERNAL` and a null actor (never invents a submitter).
+`APPLICATION_CREATED` is written inside `createApplication` (same transaction as the draft row) so the creating actor is not lost. `APPLICATION_SUBMITTED` is written inside `persistSubmittedApplication` (same transaction as `status` + `submitted_at`) so the submitting actor is not lost. Hourly timeline repair is a legacy/backfill: it inserts missing created/submitted rows from `applications.created_at` / `submitted_at` with `source=INTERNAL` and a null actor (never invents a creator or submitter).
 
 ## Accepted residuals
 
 These are known gaps. They are not silent, and they are not an Ops Alert queue.
 
-1. **`APPLICATION_CREATED` is a rebuildable timeline projection.** The draft `applications` row is the durable create fact. The timeline row is overlay-or-repair. Missing created/submitted timeline rows are rebuilt from `created_at` / `submitted_at` as above.
+1. **Historical missing create/submit timeline rows are backfilled.** Live `APPLICATION_CREATED` / `APPLICATION_SUBMITTED` are written in the same transaction as the application state. Hourly `application-timeline-repair` still inserts a missing timeline row from `created_at` / `submitted_at` for older records (null actor, `source=INTERNAL`). It does not invent a creator or submitter.
 2. **Curlec provider/sync failure is secondary to durable gateway state.** `gateway_payments` plus `gateway_payment_events` and the stuck-order poller are the money-in record. A failed provider fetch logs a warning and returns the stored payment. There is no reconstruction job and no Ops Alert.
 3. **Repeated job failure is `logger.error` plus the next cron run.** `initJobs()` logs the error and the following schedule retries. There is no reconstruction mechanism and no Ops Alert.
 
@@ -82,7 +82,7 @@ Playwright portal smoke lives under `apps/*/e2e`. The checks below are the durab
 | 3 | KYC reject/approve | KYC status on org/user | provider/Admin | KYC milestone | forensic |
 | 4 | AML manual/provider | AML milestone log | provider/Admin | AML milestone | forensic |
 | 5 | Admin reset/restart | onboarding reset/cancel + start | Admin API | cancelled/started | Admin + forensic |
-| 6 | Application create | `applications` DRAFT + `created_at` | Issuer API | Application Started (overlay/repair) | timeline |
+| 6 | Application create | `applications` DRAFT + `APPLICATION_CREATED` in same tx | Issuer API | Application Started | timeline + actor |
 | 7 | Application submit | `status` + `submitted_at` + `APPLICATION_SUBMITTED` in same tx | Issuer API | Application Submitted | timeline + actor |
 | 8 | Amendment/reject | review items + amendment logs | Admin/Issuer | amendment milestones | review events |
 | 9 | Offer send | offer status + `CONTRACT/INVOICE_OFFER_SENT` | Admin | offer received | timeline |

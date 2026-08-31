@@ -140,7 +140,7 @@ export function initJobs() {
     }
   });
 
-  // Repair missing APPLICATION_CREATED / APPLICATION_SUBMITTED timeline projections.
+  // Legacy/backfill: missing APPLICATION_CREATED / APPLICATION_SUBMITTED timeline rows.
   cron.schedule("20 * * * *", async () => {
     await withAdvisoryLock(JOB_LOCK_KEYS.APPLICATION_TIMELINE_REPAIR, async () => {
       try {
