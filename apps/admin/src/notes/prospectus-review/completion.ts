@@ -127,9 +127,6 @@ export function buildProspectusCompletionChecklist(
   const issuerPaymasterOfficerComplete =
     hasOption(draft.page2.issuerProfile?.companySize) &&
     hasOption(draft.page2.invoicePaymaster?.deedOfAssignment);
-  const page3PaymasterGradingComplete =
-    hasOption(draft.page2.invoicePaymaster?.paymasterRating) &&
-    hasOption(draft.page2.invoicePaymaster?.confidenceGrading);
 
   const takeaways = draft.page3.investorTakeaways;
   const takeawaysComplete =
@@ -174,12 +171,6 @@ export function buildProspectusCompletionChecklist(
       label: "Financial Review",
       complete: financialInputComplete,
       required: incomeYears.length > 0,
-    },
-    {
-      id: "page3Paymaster",
-      label: "Page 3 Paymaster Grading",
-      complete: page3PaymasterGradingComplete,
-      required: true,
     },
     {
       id: "takeaways",
@@ -227,10 +218,7 @@ export function getProspectusStepStatuses(
   return {
     0: worstStatus(statusFor("core"), statusFor("highlights")),
     1: statusFor("credit"),
-    2: worstStatus(
-      statusFor("financials"),
-      worstStatus(statusFor("takeaways"), statusFor("page3Paymaster"))
-    ),
+    2: worstStatus(statusFor("financials"), statusFor("takeaways")),
     ...(ready ? { 3: "complete" as const } : {}),
   };
 }
@@ -277,22 +265,6 @@ export function buildProspectusMissingRequiredFields(
       section: "Invoice & Paymaster",
       field: "Deed of Assignment",
       tabId: "issuer_paymaster",
-    });
-  }
-  if (!hasOption(draft.page2.invoicePaymaster?.paymasterRating)) {
-    missing.push({
-      pageStep: 2,
-      section: "Page 3 Paymaster Grading",
-      field: "Paymaster Grading",
-      tabId: "paymaster_grading",
-    });
-  }
-  if (!hasOption(draft.page2.invoicePaymaster?.confidenceGrading)) {
-    missing.push({
-      pageStep: 2,
-      section: "Page 3 Paymaster Grading",
-      field: "Confidence Grading",
-      tabId: "paymaster_grading",
     });
   }
 
@@ -445,7 +417,6 @@ export function countProspectusRequiredFields(
     4 + // about invoice
     years.length * PAGE_TWO_OVERRIDE_FIELDS.length;
   const page3Officer =
-    2 + // paymaster grading + confidence grading
     years.length * PAGE_THREE_OFFICER_FINANCIAL_FIELDS.length +
     6; // takeaways
   const total = highlightSlots + page2Officer + page3Officer;

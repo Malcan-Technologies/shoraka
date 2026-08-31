@@ -83,10 +83,6 @@ function metaIcon(labelKey: keyof typeof PROSPECTUS_PAGE_THREE_METADATA_LABELS):
       return renderProspectusHeroicon("risk-rating", { className: "icon" });
     case "paymaster":
       return renderProspectusHeroicon("paymaster", { className: "icon" });
-    case "paymasterGrading":
-      return renderProspectusHeroicon("rating", { className: "icon" });
-    case "confidenceGrading":
-      return renderProspectusHeroicon("confidence", { className: "icon" });
     default:
       return renderProspectusHeroicon("listing-date", { className: "icon" });
   }
@@ -111,16 +107,6 @@ function renderMetadataStrip(page: ProspectusPageThree): string {
     { key: "sector", label: labels.sector, value: metadata.metadata.sector },
     { key: "riskRating", label: labels.riskRating, value: metadata.metadata.riskRating },
     { key: "paymaster", label: labels.paymaster, value: metadata.metadata.paymaster },
-    {
-      key: "paymasterGrading",
-      label: labels.paymasterGrading,
-      value: metadata.metadata.paymasterGrading,
-    },
-    {
-      key: "confidenceGrading",
-      label: labels.confidenceGrading,
-      value: metadata.metadata.confidenceGrading,
-    },
   ];
   const cells = items
     .map(

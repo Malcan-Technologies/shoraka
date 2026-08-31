@@ -17,8 +17,6 @@ export const SAMPLE_PROSPECTUS_PAGE_THREE_METADATA_INPUT: ProspectusPageThreeMet
     officerCompanySize: "Medium",
     selectedRiskRating: "SME-3",
     paymasterName: "Kementerian Kerja Raya",
-    officerPaymasterRating: "PM1",
-    officerConfidenceGrading: "High",
     financialSource: SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE,
     liveOrganizationName: "LIVE ORG MUST NOT APPEAR",
     livePaymasterName: "LIVE PAYMASTER MUST NOT APPEAR",

@@ -54,7 +54,7 @@ describe("prospectus officer Invoice & Paymaster fields", () => {
     expect(validateDraftContent(empty)).toEqual([]);
   });
 
-  it("allows draft save without officer fields but blocks approval", () => {
+  it("allows draft save without officer fields but blocks approval only for missing DOA", () => {
     const draft = buildCompleteProspectusReviewDraft();
     draft.page2.invoicePaymaster = {
       deedOfAssignment: null,
@@ -72,28 +72,18 @@ describe("prospectus officer Invoice & Paymaster fields", () => {
       )
     ).toBe(true);
     expect(
-      approvalErrors.some(
-        (e) =>
-          e.path === "page2.invoicePaymaster.paymasterRating" &&
-          e.message === "Paymaster Grading is required for Page 3 before approving the Prospectus."
-      )
-    ).toBe(true);
+      approvalErrors.some((e) => e.path === "page2.invoicePaymaster.paymasterRating")
+    ).toBe(false);
     expect(
-      approvalErrors.some(
-        (e) =>
-          e.path === "page2.invoicePaymaster.confidenceGrading" &&
-          e.message === "Confidence Grading is required for Page 3 before approving the Prospectus."
-      )
-    ).toBe(true);
+      approvalErrors.some((e) => e.path === "page2.invoicePaymaster.confidenceGrading")
+    ).toBe(false);
   });
 
-  it("approves when all three officer fields are selected", () => {
+  it("approves when Deed of Assignment is selected even without grading fields", () => {
     const draft = buildCompleteProspectusReviewDraft();
-    expect(draft.page2.invoicePaymaster).toEqual({
+    draft.page2.invoicePaymaster = {
       deedOfAssignment: "Yes",
-      paymasterRating: "PM1",
-      confidenceGrading: "High",
-    });
+    };
     expect(validateApprovalContent(draft)).toEqual([]);
   });
 
@@ -155,7 +145,7 @@ describe("prospectus officer Invoice & Paymaster fields", () => {
     expect(hashDraftContent(approved)).toBe(hashDraftContent(cloneReviewContent(approved)));
   });
 
-  it("Page 3 metadata Paymaster/Confidence gradings match Page 2 officer catalogue values", () => {
+  it("Page 3 metadata omits Paymaster/Confidence gradings while keeping Sector, Risk Rating, and Paymaster", () => {
     const draft = buildCompleteProspectusReviewDraft();
     draft.page2.invoicePaymaster = {
       deedOfAssignment: "Yes",
@@ -163,21 +153,15 @@ describe("prospectus officer Invoice & Paymaster fields", () => {
       confidenceGrading: "Low",
     };
     const publication = toProspectusPublicationContent(draft);
-    const page2 = buildProspectusInvoicePaymaster({
-      invoiceSnapshot: SAMPLE_PROSPECTUS_PAGE_THREE_INPUT.invoiceSnapshot,
-      maturityDate: "2025-09-12T00:00:00.000Z",
-      paymasterSnapshot: SAMPLE_PROSPECTUS_PAGE_THREE_INPUT.paymasterSnapshot,
-      officerPaymasterRating: publication.invoicePaymaster?.paymasterRating,
-      officerConfidenceGrading: publication.invoicePaymaster?.confidenceGrading,
-    });
     const page3 = buildProspectusPageThree({
       ...SAMPLE_PROSPECTUS_PAGE_THREE_INPUT,
       publicationContent: publication,
     });
-    expect(page3.metadata.metadata.paymasterGrading).toBe(page2.paymasterRating);
-    expect(page3.metadata.metadata.confidenceGrading).toBe(page2.confidenceGrading);
-    expect(page3.metadata.metadata.paymasterGrading).toBe("PM3");
-    expect(page3.metadata.metadata.confidenceGrading).toBe("Low");
+    expect(page3.metadata.metadata).not.toHaveProperty("paymasterGrading");
+    expect(page3.metadata.metadata).not.toHaveProperty("confidenceGrading");
+    expect(page3.metadata.metadata.paymaster).toBeTruthy();
+    expect(page3.metadata.metadata.riskRating).toBeTruthy();
+    expect(page3.metadata.metadata.sector).toBeTruthy();
     expect(page3.metadata.metadata).not.toHaveProperty("issuer");
   });
 });

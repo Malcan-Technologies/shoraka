@@ -115,43 +115,12 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     );
   });
 
-  it("maps missing Page 2 Paymaster Grading to —", () => {
-    expect(
-      withSource({ officerPaymasterRating: undefined }).metadata.paymasterGrading
-    ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-  });
-
-  it("maps missing Page 2 Confidence Grading to —", () => {
-    expect(
-      withSource({ officerConfidenceGrading: undefined }).metadata.confidenceGrading
-    ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-  });
-
-  it("reuses Page 2 Paymaster Rating via shared catalogue (PM1–PM4)", () => {
-    expect(withSource({ officerPaymasterRating: "PM3" }).metadata.paymasterGrading).toBe(
-      "PM3"
-    );
-    expect(withSource({ officerPaymasterRating: "PM9" }).metadata.paymasterGrading).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
-  });
-
-  it("reuses Page 2 Confidence Grading via shared catalogue (High|Medium|Low)", () => {
-    expect(withSource({ officerConfidenceGrading: "Low" }).metadata.confidenceGrading).toBe(
-      "Low"
-    );
-    expect(
-      withSource({ officerConfidenceGrading: "Very High" }).metadata.confidenceGrading
-    ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-  });
-
-  it("does not invent gradings without officer Page 2 input", () => {
-    const data = withSource({
-      officerPaymasterRating: null,
-      officerConfidenceGrading: null,
-    });
-    expect(data.metadata.paymasterGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.metadata.confidenceGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  it("does not include Paymaster Grading or Confidence Grading in Page 3 metadata", () => {
+    const data = withSource();
+    expect(data.metadata).not.toHaveProperty("paymasterGrading");
+    expect(data.metadata).not.toHaveProperty("confidenceGrading");
+    expect(data.audit).not.toHaveProperty("paymasterGrading");
+    expect(data.audit).not.toHaveProperty("confidenceGrading");
   });
 
   it("omits Issuer entirely from the metadata view-model and HTML", () => {
@@ -163,8 +132,6 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
       "sector",
       "riskRating",
       "paymaster",
-      "paymasterGrading",
-      "confidenceGrading",
     ]);
     const html = buildProspectusPageThreeMetadataDocument(data);
     expect(html).not.toMatch(/\bIssuer\b/);
@@ -176,6 +143,8 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     expect(html).toContain("Construction | Medium");
     expect(html).toContain("Paymaster");
     expect(html).toContain("Kementerian Kerja Raya");
+    expect(html).not.toContain("Paymaster Grading");
+    expect(html).not.toContain("Confidence Grading");
     for (const label of Object.values(PROSPECTUS_PAGE_THREE_METADATA_LABELS)) {
       expect(html).toContain(label);
     }
@@ -282,20 +251,12 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
   it("exposes exact visible metadata fields without issuer", () => {
     const data = withSource();
     expect(Object.keys(data.metadata).sort()).toEqual(
-      [
-        "confidenceGrading",
-        "paymaster",
-        "paymasterGrading",
-        "riskRating",
-        "sector",
-      ].sort()
+      ["paymaster", "riskRating", "sector"].sort()
     );
     expect(PROSPECTUS_PAGE_THREE_METADATA_LABELS).toEqual({
       sector: "Sector",
       riskRating: "Risk Rating",
       paymaster: "Paymaster",
-      paymasterGrading: "Paymaster Grading",
-      confidenceGrading: "Confidence Grading",
     });
     expect(PROSPECTUS_PAGE_THREE_METADATA_LABELS).not.toHaveProperty("issuer");
   });

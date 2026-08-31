@@ -87,13 +87,13 @@ describe("prospectus Heroicons", () => {
     expect(html).not.toContain('data-prospectus-icon="confidence"');
   });
 
-  it("Page 3 metadata uses five semantic Heroicons", () => {
+  it("Page 3 metadata uses three semantic Heroicons", () => {
     const html = buildProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
     expect(html).toContain('data-prospectus-icon="sector"');
     expect(html).toContain('data-prospectus-icon="risk-rating"');
     expect(html).toContain('data-prospectus-icon="paymaster"');
-    expect(html).toContain('data-prospectus-icon="rating"');
-    expect(html).toContain('data-prospectus-icon="confidence"');
+    expect(html).not.toContain('data-prospectus-icon="rating"');
+    expect(html).not.toContain('data-prospectus-icon="confidence"');
   });
 
   it("Page 3 takeaways use the required Heroicon keys", () => {

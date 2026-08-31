@@ -389,8 +389,6 @@ function ProspectusReviewPageInner() {
   const pageThreeMetadataRows = note
     ? buildPageThreeAdminOverviewRows(note, {
         companySize: officerCompanySize,
-        paymasterRating: officerPaymasterRating,
-        confidenceGrading: officerConfidenceGrading,
       })
     : [];
   const incomeStatementTable = buildPageThreeIncomeStatementTable(

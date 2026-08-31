@@ -46,7 +46,8 @@ describe("prospectus field presentation — hidden sources", () => {
     expect(pageThreeCoverage).toContain('label: "Industry"');
     expect(pageThreeCoverage).toContain('label: "Company Size"');
     expect(pageThreeCoverage).toContain('label: "Risk Grade"');
-    expect(pageThreeCoverage).toContain('label: "Paymaster Grading"');
-    expect(pageThreeCoverage).toContain('label: "Confidence Grading"');
+    expect(pageThreeCoverage).toContain('label: "Paymaster"');
+    expect(pageThreeCoverage).not.toContain('label: "Paymaster Grading"');
+    expect(pageThreeCoverage).not.toContain('label: "Confidence Grading"');
   });
 });

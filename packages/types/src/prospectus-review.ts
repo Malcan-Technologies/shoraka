@@ -100,7 +100,8 @@ export interface ProspectusReviewStoredContent {
     };
     /**
      * Officer-selected Invoice & Paymaster fields (not inferred from uploads/CTOS).
-     * Required before Approve; optional while Draft.
+     * Deed of Assignment is required before Approve; optional while Draft.
+     * paymasterRating / confidenceGrading are unused legacy keys (not shown or required).
      */
     invoicePaymaster?: {
       deedOfAssignment?: ProspectusDeedOfAssignment | null;

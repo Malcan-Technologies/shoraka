@@ -167,8 +167,6 @@ export function buildPageThreeMetadataRows(
   note: NoteDetail,
   officerFields?: {
     companySize?: string | null;
-    paymasterRating?: string | null;
-    confidenceGrading?: string | null;
   }
 ): CoreTermRow[] {
   const issuer = asRecord(note.issuerSnapshot);
@@ -188,14 +186,6 @@ export function buildPageThreeMetadataRows(
     },
     { label: "Risk Rating", value: riskRating },
     { label: "Paymaster", value: textOrDna(note.paymasterName ?? paymaster?.name) },
-    {
-      label: "Paymaster Grading",
-      value: textOrDna(officerFields?.paymasterRating),
-    },
-    {
-      label: "Confidence Grading",
-      value: textOrDna(officerFields?.confidenceGrading),
-    },
   ];
 }
 
@@ -207,8 +197,6 @@ export function buildPageThreeAdminOverviewRows(
   note: NoteDetail,
   officerFields?: {
     companySize?: string | null;
-    paymasterRating?: string | null;
-    confidenceGrading?: string | null;
   }
 ): CoreTermRow[] {
   const issuer = asRecord(note.issuerSnapshot);
@@ -231,14 +219,6 @@ export function buildPageThreeAdminOverviewRows(
     { label: "Company Size", value: companySize },
     { label: "Risk Grade", value: riskRating },
     { label: "Paymaster", value: textOrDna(note.paymasterName ?? paymaster?.name) },
-    {
-      label: "Paymaster Grading",
-      value: textOrDna(officerFields?.paymasterRating),
-    },
-    {
-      label: "Confidence Grading",
-      value: textOrDna(officerFields?.confidenceGrading),
-    },
   ];
 }
 
