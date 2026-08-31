@@ -342,8 +342,8 @@ export class ShorakaStpService {
       userAgent: null,
       correlationId: null,
       metadata,
-      // Shoraka straight-through processing runs without a human actor.
-      source: AUDIT_SOURCE.INTERNAL,
+      // Admin HTTP triggers submit/fetch; actor is not attributed on these rows.
+      source: AUDIT_SOURCE.API,
       ...resolveNoteEventTarget(eventType, metadata),
     });
   }

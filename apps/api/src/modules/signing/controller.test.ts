@@ -195,12 +195,22 @@ describe("SigningController", () => {
         .post("/v1/admin/signing/applications/app-1/envelopes/send")
         .send({});
       expect(res.status).toBe(200);
-      expect(signingService.createAndSendAdminEnvelope).toHaveBeenCalledWith({
-        applicationId: "app-1",
-        userId: "user-1",
-        contractId: null,
-        invoiceId: null,
-      });
+      expect(signingService.createAndSendAdminEnvelope).toHaveBeenCalledWith(
+        expect.objectContaining({
+          applicationId: "app-1",
+          userId: "user-1",
+          contractId: null,
+          invoiceId: null,
+        })
+      );
+      const sent = (signingService.createAndSendAdminEnvelope as jest.Mock).mock.calls[0][0];
+      expect(sent.context).toEqual(
+        expect.objectContaining({
+          source: "API",
+          portal: "ADMIN",
+          actorUserId: "user-1",
+        })
+      );
     });
   });
 });

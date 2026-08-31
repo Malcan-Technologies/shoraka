@@ -40,8 +40,7 @@ function generateClientAssertion(cfg: CtosConfig): string {
     exp: Math.floor(Date.now() / 1000) + 300,
   };
   const jwtToken = jwt.sign(payloadObject, cfg.privateKeyPem, { algorithm: "RS256" });
-  logger.debug({ payload: payloadObject }, "CTOS JWT payload created");
-  logger.debug("CTOS JWT signed for client assertion");
+  logger.debug({ issuer: cfg.clientId, audience: cfg.tokenUrl }, "CTOS client assertion signed");
   return jwtToken;
 }
 

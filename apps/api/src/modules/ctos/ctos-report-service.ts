@@ -35,7 +35,8 @@ import {
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import { filterVisiblePeopleRows, normalizeRawStatus, type ApplicationPersonRow } from "@cashsouk/types";
 import { logApplicationActivity } from "../applications/logs/service";
-import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
+import { ApplicationLogEventType } from "../applications/logs/types";
+import { AUDIT_SOURCE, internalAuditContext } from "../../lib/audit";
 
 export type AdminOrgCtosPortal = "issuer" | "investor";
 
@@ -114,14 +115,19 @@ async function resetFinancialReviewAfterCtosUpdateIfNeeded(params: {
           reviewed_at: null,
         },
       });
-      await logApplicationActivity({
-        userId: "system",
-        applicationId: row.application_id,
-        eventType: ApplicationLogEventType.SECTION_REVIEWED_PENDING,
-        portal: ActivityPortal.ADMIN,
-        remark: "Reset due to CTOS update / AML pending",
-        metadata: { scope: "section", scope_key: "financial", old_status: "APPROVED", new_status: "PENDING" },
-      });
+      await logApplicationActivity(
+        {
+          userId: null,
+          applicationId: row.application_id,
+          eventType: ApplicationLogEventType.SECTION_REVIEWED_PENDING,
+          portal: null,
+          remark: "Reset due to CTOS update / AML pending",
+          metadata: { scope: "section", scope_key: "financial", old_status: "APPROVED", new_status: "PENDING" },
+          context: internalAuditContext(),
+          source: AUDIT_SOURCE.INTERNAL,
+        },
+        tx
+      );
     }
   });
 }

@@ -30,6 +30,9 @@ export const PRESENTATION_FILES: string[] = [
   "apps/api/src/modules/legal-documents/audit-admin-service.ts",
   "apps/api/src/modules/legal-documents/acceptance-admin-controller.ts",
   "apps/api/src/modules/legal-documents/acceptance-admin-service.ts",
+  "apps/api/src/modules/legal-documents/external-acceptance-admin-controller.ts",
+  "apps/api/src/modules/legal-documents/external-acceptance-admin-service.ts",
+  "apps/api/src/modules/legal-documents/external-acceptance-admin-schemas.ts",
   "apps/api/src/modules/legal-documents/schemas.ts",
   "apps/api/src/modules/notification/controller.ts",
   "apps/api/src/modules/payment/admin-service.ts",
@@ -100,6 +103,9 @@ export const PRESENTATION_FILES: string[] = [
   "apps/admin/src/components/audit/product-logs-panel.tsx",
   "apps/admin/src/components/audit/legal-document-audit-panel.tsx",
   "apps/admin/src/components/audit/legal-acceptances-panel.tsx",
+  "apps/admin/src/components/audit/legal-external-acceptances-panel.tsx",
+  "apps/admin/src/components/legal-external-acceptance-detail-sheet.tsx",
+  "apps/admin/src/lib/legal-acceptance-display.ts",
   "apps/admin/src/components/audit/notification-logs-panel.tsx",
   "apps/admin/src/notes/utils/note-timeline-details.ts",
   "apps/admin/src/notes/utils/note-activity-csv.ts",
@@ -119,6 +125,7 @@ export const PRESENTATION_FILES: string[] = [
   "apps/admin/src/hooks/use-application-logs.ts",
   "apps/admin/src/hooks/use-legal-document-audit-logs.ts",
   "apps/admin/src/hooks/use-legal-document-acceptances.ts",
+  "apps/admin/src/hooks/use-legal-external-acceptances.ts",
 
   // Issuer and investor activity surfaces
   "apps/issuer/src/app/(application-management)/applications/components/application-timeline.ts",

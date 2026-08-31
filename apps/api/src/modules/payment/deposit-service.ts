@@ -13,12 +13,13 @@ import {
   PrismaClient,
 } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
+import type { AuditRequestContext } from "../../lib/audit";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { creditInvestorBalance } from "../notes/investor-balance";
 import { postLedgerEntry } from "../notes/ledger";
 import { CreateInvestorDepositInput } from "./deposit-schemas";
 import { createGatewayOrder, mapGatewayPaymentResponse } from "./gateway-order-service";
-import { recordGatewayPaymentEvent } from "./gateway-events";
+import { recordGatewayPaymentEvent, recordGatewayPaymentCompletedIfAbsent } from "./gateway-events";
 import { assertTransition } from "./state";
 
 export type ActorContext = {
@@ -295,7 +296,11 @@ export function resolveInvestorExpectedName(org: InvestorOrganization): string |
 export async function creditCompletedDeposit(
   tx: Prisma.TransactionClient,
   gatewayPayment: GatewayPayment,
-  opts?: { nameCheckResult?: NameCheckResult; actorUserId?: string }
+  opts?: {
+    nameCheckResult?: NameCheckResult;
+    actorUserId?: string;
+    context?: AuditRequestContext | null;
+  }
 ) {
   assertTransition(gatewayPayment.status, GatewayPaymentStatus.COMPLETED);
 
@@ -352,13 +357,24 @@ export async function creditCompletedDeposit(
       ...(opts?.actorUserId ? { name_checked_by_user_id: opts.actorUserId } : {}),
     },
   });
+
+  await recordGatewayPaymentCompletedIfAbsent(tx, {
+    gatewayPaymentId: gatewayPayment.id,
+    fromStatus: gatewayPayment.status,
+    actorUserId: opts?.actorUserId ?? null,
+    context: opts?.context,
+  });
 }
 
 export async function pendNameCheckReview(
   tx: Prisma.TransactionClient,
   gatewayPayment: GatewayPayment,
   nameCheckResult: NameCheckResult,
-  opts?: { score?: number; matchedVariant?: string | null }
+  opts?: {
+    score?: number;
+    matchedVariant?: string | null;
+    context?: AuditRequestContext | null;
+  }
 ) {
   assertTransition(gatewayPayment.status, GatewayPaymentStatus.NAME_CHECK_PENDING);
 
@@ -379,6 +395,7 @@ export async function pendNameCheckReview(
   await recordGatewayPaymentEvent(tx, {
     gatewayPaymentId: gatewayPayment.id,
     type: GatewayPaymentEventType.NAME_CHECK,
+    context: opts?.context,
     fromStatus: gatewayPayment.status,
     toStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
     reason,

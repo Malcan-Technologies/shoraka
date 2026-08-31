@@ -6,4 +6,7 @@ export async function runGatewayReceiptRetryJob(): Promise<void> {
   if (result.attempted > 0) {
     logger.info(result, "Gateway payment receipt retry job completed");
   }
+  if (result.failed > 0) {
+    logger.error(result, "Gateway payment receipts still failing after retry");
+  }
 }

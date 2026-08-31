@@ -34,7 +34,8 @@ The table has these columns:
   Column name         What it stores
   ------------------- ---------------------------------------------------------
   id                  A unique ID for this log row. Like a serial number.
-  user_id             The ID of the person who did the action. Required.
+  user_id             The acting user when a human performed the change.
+                      Null for system/provider-derived rows.
   application_id      The ID of the application. Can be empty for some events.
   event_type          A short code that says what happened. Examples:
                       APPLICATION_CREATED, APPLICATION_SUBMITTED, etc.
@@ -73,8 +74,11 @@ The code passes:
 
 The function inserts a new row into application_logs. That is it.
 
-Logging never blocks the main flow. If logging fails, the app still works.
-The error is swallowed so the user does not see it.
+When the caller passes a transaction client, a failed insert aborts that
+transaction. Sequential callers (no transaction) keep overlay behaviour:
+the business mutation can already be committed, and the log write is
+attempted without failing the user-facing action. Do not treat overlay
+rows as legal or financial evidence.
 
 ================================================================================
 4. HOW DOES THE TIMELINE GET THE LOGS?
@@ -101,16 +105,16 @@ or offer details, a "View details" button shows them.
 Step 1: Issuer clicks "Create application" in the issuer portal.
 
   What happens: A new application is created in the database.
-  Log created: APPLICATION_CREATED
-  Who: The issuer (user_id)
+  Log created: APPLICATION_CREATED (same transaction as the draft row)
+  Who: The issuer (user_id).
   Portal: ISSUER
   Where it shows: Activity timeline
 
 Step 2: Issuer fills in the form and clicks "Submit".
 
-  What happens: Application status changes to submitted. It goes to admin.
+  What happens: Application status and submitted_at persist with APPLICATION_SUBMITTED in the same transaction.
   Log created: APPLICATION_SUBMITTED
-  Who: The issuer
+  Who: The issuer (user_id on the application_logs row)
   Portal: ISSUER
   Where it shows: Activity timeline
 
@@ -158,13 +162,11 @@ Step 5: Admin sends the amendment request to the issuer.
   Portal: ADMIN
   Where it shows: Activity timeline
 
-Step 6: Admin approves the whole application. Clicks "Approve application".
-
-  What happens: Application status becomes approved.
-  Log created: APPLICATION_APPROVED
-  Who: The admin
-  Portal: ADMIN
-  Where it shows: Activity timeline
+Step 6: There is no live whole-application approve writer.
+  APPLICATION_APPROVED is a historical reader only. Existing old rows
+  still render. Current terminal success is APPLICATION_COMPLETED when
+  the last offer is accepted (see scenario 11). Admin review writes
+  section/item events, then offers and signing.
 
 Step 7: Or admin rejects. Clicks "Reject application".
 
@@ -197,11 +199,12 @@ Step 2a: Issuer accepts. Clicks "Accept" on the contract offer.
 
 Step 2b: Issuer rejects. Clicks "Reject" on the contract offer.
 
-  What happens: Contract is withdrawn.
-  Log created: CONTRACT_OFFER_REJECTED
+  What happens: Contract offer is declined.
+  Log created: CONTRACT_OFFER_DECLINED
   Who: The issuer
   Portal: ISSUER
   Where it shows: Activity timeline
+  Note: CONTRACT_OFFER_REJECTED is a historical reader only.
 
 Step 2c: Admin retracts. Clicks "Retract contract offer".
 
@@ -211,13 +214,14 @@ Step 2c: Admin retracts. Clicks "Retract contract offer".
   Portal: ADMIN
   Where it shows: Activity timeline
 
-Step 2d: Offer expires. A cron job runs and withdraws expired offers.
+Step 2d: Offer expires. The hourly acceptance/signing job runs.
 
-  What happens: Contract is withdrawn automatically.
-  Log created: CONTRACT_WITHDRAWN (or OFFER_EXPIRED)
+  What happens: Entity status becomes OFFER_EXPIRED. offer_details are kept.
+  Log created: CONTRACT_OFFER_EXPIRED
   Who: System (cron)
   Portal: ADMIN
   Where it shows: Activity timeline
+  Issuer notification: offer_expired
 
 ================================================================================
 8. FULL SCENARIO — INVOICE OFFERS
@@ -264,13 +268,14 @@ Step 2d: Issuer withdraws the invoice. Clicks "Withdraw invoice".
   Portal: ISSUER
   Where it shows: Activity timeline
 
-Step 2e: Offer expires. Cron withdraws.
+Step 2e: Offer expires. The hourly acceptance/signing job runs.
 
-  What happens: Invoice is withdrawn automatically.
-  Log created: INVOICE_WITHDRAWN or OFFER_EXPIRED
+  What happens: Invoice status becomes OFFER_EXPIRED. offer_details are kept.
+  Log created: INVOICE_OFFER_EXPIRED
   Who: System (cron)
   Portal: ADMIN
   Where it shows: Activity timeline
+  Issuer notification: offer_expired
 
 ================================================================================
 9. FULL SCENARIO — ISSUER RESUBMITS AFTER AMENDMENTS
@@ -297,13 +302,14 @@ Step 1: Issuer cancels the application. Clicks "Cancel application".
   Portal: ISSUER
   Where it shows: Activity timeline
 
-Step 2: Admin withdraws a contract or invoice. Clicks "Withdraw" on that item.
+Step 2: Admin retracts a contract offer, or the issuer/admin withdraws an invoice.
 
-  What happens: That item is withdrawn. If it was the last one, application
-  may become WITHDRAWN.
-  Log created: CONTRACT_WITHDRAWN or INVOICE_WITHDRAWN
-  Who: The admin
-  Portal: ADMIN
+  What happens: That item is retracted or withdrawn. If it was the last one,
+  application may become WITHDRAWN.
+  Log created: CONTRACT_OFFER_RETRACTED or INVOICE_WITHDRAWN
+  (APPLICATION_WITHDRAWN if the application itself closes)
+  Who: The admin or issuer
+  Portal: ADMIN or ISSUER
   Where it shows: Activity timeline
 
 ================================================================================
@@ -325,34 +331,14 @@ When the last offer (contract or invoice) is accepted, the application is done.
 These are in apps/api/src/modules/applications/logs/types.ts.
 Use the enum. Do not invent new strings.
 
-  APPLICATION_CREATED
-  APPLICATION_SUBMITTED
-  APPLICATION_RESUBMITTED
-  APPLICATION_APPROVED
-  APPLICATION_REJECTED
-  APPLICATION_WITHDRAWN
-  APPLICATION_COMPLETED
-  APPLICATION_RESET_TO_UNDER_REVIEW
-  SECTION_REVIEWED_APPROVED
-  SECTION_REVIEWED_REJECTED
-  SECTION_REVIEWED_AMENDMENT_REQUESTED
-  SECTION_REVIEWED_PENDING
-  ITEM_REVIEWED_APPROVED
-  ITEM_REVIEWED_REJECTED
-  ITEM_REVIEWED_AMENDMENT_REQUESTED
-  ITEM_REVIEWED_PENDING
-  CONTRACT_OFFER_SENT
-  CONTRACT_OFFER_ACCEPTED
-  CONTRACT_OFFER_REJECTED
-  CONTRACT_OFFER_RETRACTED
-  CONTRACT_WITHDRAWN
-  INVOICE_OFFER_SENT
-  INVOICE_OFFER_ACCEPTED
-  INVOICE_OFFER_REJECTED
-  INVOICE_OFFER_RETRACTED
-  INVOICE_WITHDRAWN
-  OFFER_EXPIRED
-  AMENDMENTS_SUBMITTED
+Live vs historical vs dev-only is apps/api/src/lib/audit/visibility-matrix.ts.
+Do not advertise HISTORICAL_READER types as current writers.
+
+  APPLICATION_APPROVED and CONTRACT_OFFER_REJECTED remain in the enum so
+  old rows still render. Current facility decline is CONTRACT_OFFER_DECLINED.
+  Invoice decline still writes INVOICE_OFFER_REJECTED.
+  There is no CONTRACT_WITHDRAWN or OFFER_EXPIRED application-log type.
+  Expiry writers are CONTRACT_OFFER_EXPIRED / INVOICE_OFFER_EXPIRED.
 
 ================================================================================
 13. KEY FILES

@@ -17,6 +17,10 @@ describe("Activity Adapters", () => {
         title: "Onboarding Started",
         description: "Your organization onboarding has started and you can continue it at any time.",
       });
+      expect(adapter.buildPresentation("ONBOARDING_AMENDMENT_REQUIRED")).toEqual({
+        title: "Additional onboarding information is required",
+        description: "Please provide the additional onboarding information requested.",
+      });
       expect(adapter.buildPresentation("ONBOARDING_REJECTED", { reason: "Missing documents" })).toEqual({
         title: "Onboarding Rejected",
         description: "Your organization onboarding was rejected: Missing documents",
@@ -49,6 +53,8 @@ describe("Activity Adapters", () => {
       // retain the milestone too (docs/audit/audit-product-gap-review.md §4.1).
       expect(adapter.getEventTypes()).toEqual([
         "ONBOARDING_STARTED",
+        "ONBOARDING_FEE_PAID",
+        "ONBOARDING_AMENDMENT_REQUIRED",
         "ONBOARDING_CANCELLED",
         "ONBOARDING_REJECTED",
         "COD_REJECTED",

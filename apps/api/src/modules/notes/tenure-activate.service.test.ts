@@ -13,6 +13,9 @@ const mockPrisma: any = {
   note: {
     findUnique: jest.fn(),
   },
+  paymasterAssignmentNotice: {
+    findFirst: jest.fn().mockResolvedValue({ status: "ACKNOWLEDGED" }),
+  },
   $transaction: jest.fn(),
 };
 

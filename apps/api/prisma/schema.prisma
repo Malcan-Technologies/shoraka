@@ -2024,6 +2024,11 @@ model LegalExternalAcceptance {
   accepted_user_agent       String?
   accepted_device_info      String?
   acknowledgement_text      String?
+  /// Denormalized linkage so evidence survives envelope/recipient deletion (no FK cascade).
+  envelope_id               String?
+  application_id            String?
+  organization_id           String?
+  party_role                String?
   created_at                DateTime                       @default(now())
   updated_at                DateTime                       @updatedAt
   version                   LegalDocumentVersion           @relation(fields: [legal_document_version_id], references: [id], onDelete: Restrict)
@@ -2033,7 +2038,30 @@ model LegalExternalAcceptance {
   @@index([legal_document_version_id])
   @@index([document_type])
   @@index([accepted_at])
+  @@index([envelope_id])
+  @@index([application_id])
+  @@index([organization_id])
   @@map("legal_external_acceptances")
+}
+
+/// Hash/version evidence for generated LO and similar documents. Not an Activity row.
+model GeneratedDocumentEvidence {
+  id                 String   @id @default(cuid())
+  application_id     String
+  contract_id        String?
+  invoice_id         String?
+  document_type      String
+  template_version   String?
+  template_sha256    String
+  output_sha256      String
+  format             String
+  created_by_user_id String?  @db.VarChar(5)
+  created_at         DateTime @default(now())
+
+  @@index([application_id])
+  @@index([document_type])
+  @@index([created_at])
+  @@map("generated_document_evidence")
 }
 
 /// Immutable admin audit trail for legal document definition/version changes.
@@ -2111,7 +2139,8 @@ model ProductLog {
 /// `created_at` is the occurred-at field.
 model ApplicationLog {
   id             String  @id @default(cuid())
-  user_id        String
+  /// Acting user when a human performed the change. Null for system/provider-derived rows.
+  user_id        String?
   application_id String?
   event_type     String
   ip_address     String?
@@ -2504,6 +2533,7 @@ enum GatewayPaymentEventType {
   EXPIRED
   CAPTURE_MISMATCH
   REFUND_WALLET_REVERSAL_FAILED
+  GATEWAY_PAYMENT_COMPLETED
 }
 
 enum GatewayOrderAttemptStatus {

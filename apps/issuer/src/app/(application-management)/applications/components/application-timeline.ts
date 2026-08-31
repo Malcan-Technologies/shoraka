@@ -11,6 +11,7 @@ export type TimelineMilestone = {
 
 const EVENT_LABELS: Record<string, string> = {
   APPLICATION_CREATED: "You Started This Application",
+  APPLICATION_PROCESSING_FEE_PAID: "Application Processing Fee Paid",
   APPLICATION_SUBMITTED: "You Submitted This Application",
   APPLICATION_RESUBMITTED: "You Resubmitted This Application",
   APPLICATION_APPROVED: "Application approved",

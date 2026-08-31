@@ -18,8 +18,6 @@ import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { otpRequestRateLimiter } from "../../lib/http/rate-limit";
 import { z } from "zod";
-import { logApplicationActivity } from "./logs/service";
-import { ActivityPortal } from "./logs/types";
 import { readSigningCloudConfigFromEnv } from "../signingcloud/signingcloud-api";
 import {
   createGeneratedDocumentApplicationRouter,
@@ -54,24 +52,11 @@ async function createApplication(req: Request, res: Response, next: NextFunction
   try {
     const input = createApplicationSchema.parse(req.body);
     const callerUserId = getUserId(req);
-    const application = await applicationService.createApplication(input, callerUserId);
-    // Log application creation (issuer flow). Do not break main flow on failure.
-    try {
-      await logApplicationActivity({
-        userId: callerUserId,
-        applicationId: application.id,
-        eventType: "APPLICATION_CREATED",
-        reviewCycle: 1,
-        ipAddress: req.ip ?? undefined,
-        userAgent:
-          (Array.isArray(req.headers["user-agent"])
-            ? req.headers["user-agent"][0]
-            : req.headers["user-agent"]) ?? undefined,
-        portal: ActivityPortal.ISSUER,
-      });
-    } catch {
-      // swallow errors
-    }
+    const application = await applicationService.createApplication(
+      input,
+      callerUserId,
+      issuerActivityFromRequest(req, res)
+    );
 
     res.status(201).json({
       success: true,
@@ -307,27 +292,6 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
       userId,
       issuerActivityFromRequest(req, res)
     );
-    try {
-      const callerUserId = getUserId(req);
-
-      // Issuer flows
-      if (status === "SUBMITTED") {
-        await logApplicationActivity({
-          userId: callerUserId,
-          applicationId: result.id,
-          eventType: "APPLICATION_SUBMITTED",
-          reviewCycle: (result as { review_cycle?: number })?.review_cycle ?? undefined,
-          ipAddress: req.ip ?? undefined,
-          userAgent:
-            (Array.isArray(req.headers["user-agent"])
-              ? req.headers["user-agent"][0]
-              : req.headers["user-agent"]) ?? undefined,
-          portal: ActivityPortal.ISSUER,
-        });
-      }
-    } catch {
-      // swallow errors
-    }
 
     res.json({
       success: true,

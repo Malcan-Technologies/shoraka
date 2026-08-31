@@ -128,10 +128,17 @@ describe("POST invoice offer accept OTP eligibility", () => {
       "accept",
       "user-issuer-1",
       undefined,
-      {
+      expect.objectContaining({
         otp: { challengeId: CHALLENGE_ID, otpCode: "123456" },
         consent_ids: [...UTILISATION_OFFER_CONSENT_IDS],
-      }
+        logContext: expect.objectContaining({
+          context: expect.objectContaining({
+            actorType: "USER",
+            actorUserId: "user-issuer-1",
+            source: "API",
+          }),
+        }),
+      })
     );
   });
 });

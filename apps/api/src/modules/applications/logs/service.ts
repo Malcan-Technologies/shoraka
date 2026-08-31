@@ -5,10 +5,12 @@ import * as repository from "./repository";
 import { attachApplicationLogDisplayReferences } from "./attach-display-references";
 
 /**
- * Best-effort activity log. Preserved from origin/main: business flow must never fail because an
- * activity row could not be written.
+ * Application timeline writer.
  *
- * Pass `db` when the caller is inside a transaction that must roll back together with the log.
+ * When `db` is the caller's transaction client, a failed insert must abort that
+ * transaction so state and evidence cannot diverge. Sequential callers (no `db`)
+ * keep the origin/main overlay behaviour: the write is attempted, then logged, and
+ * does not fail the already-committed business mutation.
  */
 export async function logApplicationActivity(
   params: CreateApplicationLogParams,
@@ -24,7 +26,9 @@ export async function logApplicationActivity(
   try {
     await repository.createApplicationLog(next, db);
   } catch (error) {
-    // never throw; ensure business flow continues
+    if (db) {
+      throw error;
+    }
     console.error("Failed to log application activity", error);
   }
 }

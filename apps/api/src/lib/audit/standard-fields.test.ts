@@ -123,6 +123,39 @@ describe("resolveStandardAuditFields: source and actor stay consistent", () => {
     expect(resolved.source).toBe(AUDIT_SOURCE.API);
   });
 
+  it("keeps WEBHOOK when a related user id is present", () => {
+    const resolved = resolveStandardAuditFields({
+      actorUserId: "issuer-1",
+      portal: AUDIT_PORTAL.ISSUER,
+      context: webhookAuditContext({ actorUserId: "issuer-1" }),
+    });
+
+    expect(resolved.source).toBe(AUDIT_SOURCE.WEBHOOK);
+    expect(resolved.actor_user_id).toBe("issuer-1");
+    expect(resolved.actor_type).toBe(AUDIT_ACTOR_TYPE.INTEGRATION);
+    expect(resolved.portal).toBe(AUDIT_PORTAL.ISSUER);
+  });
+
+  it("attributes actorless human checkout sync as API without inventing a portal", () => {
+    const resolved = resolveStandardAuditFields({
+      context: {
+        actorType: AUDIT_ACTOR_TYPE.SYSTEM,
+        actorUserId: null,
+        source: AUDIT_SOURCE.API,
+        portal: null,
+        ipAddress: null,
+        userAgent: null,
+        correlationId: "sync:gp-1",
+      },
+      systemWhenActorless: true,
+    });
+
+    expect(resolved.source).toBe(AUDIT_SOURCE.API);
+    expect(resolved.actor_type).toBe(AUDIT_ACTOR_TYPE.SYSTEM);
+    expect(resolved.actor_user_id).toBeNull();
+    expect(resolved.portal).toBeNull();
+  });
+
   it("lets the call site override the source explicitly", () => {
     const resolved = resolveStandardAuditFields({
       context: webhookAuditContext(),

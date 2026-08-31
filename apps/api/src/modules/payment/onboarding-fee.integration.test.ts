@@ -664,6 +664,30 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       where: { gateway_payment_id: payment.id },
     });
     expect(ledgerCountAfterReplay).toBe(1);
+
+    const feePaidLogs = await prisma.onboardingLog.findMany({
+      where: {
+        event_type: "ONBOARDING_FEE_PAID",
+        issuer_organization_id: orgId,
+      },
+    });
+    const forThisPayment = feePaidLogs.filter((row) => {
+      const metadata = row.metadata;
+      return (
+        metadata != null &&
+        typeof metadata === "object" &&
+        !Array.isArray(metadata) &&
+        (metadata as Record<string, unknown>).gatewayPaymentId === payment.id
+      );
+    });
+    expect(forThisPayment).toHaveLength(1);
+    expect(forThisPayment[0]?.metadata).toMatchObject({ gatewayPaymentId: payment.id });
+    expect(forThisPayment[0]?.source).toBe("WEBHOOK");
+    expect(
+      await prisma.gatewayPaymentEvent.count({
+        where: { gateway_payment_id: payment.id, type: "GATEWAY_PAYMENT_COMPLETED" },
+      })
+    ).toBe(1);
   });
 
   it("recovers a valid late capture after local EXPIRED exactly once", async () => {

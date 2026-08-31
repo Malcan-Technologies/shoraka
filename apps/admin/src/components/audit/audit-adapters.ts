@@ -1,13 +1,14 @@
 import type {
   AdminContractActivityEvent,
   AdminNotificationLog,
+  GatewayPaymentEventDto,
   InvestorBalanceActivityEntry,
   LegalDocumentAuditLogListItem,
   NoteEvent,
   OnboardingLogResponse,
   ProductLogResponse,
 } from "@cashsouk/types";
-import type { GatewayPaymentEventDto } from "@cashsouk/types";
+import { formatForensicAuditSourceLabel } from "@cashsouk/types";
 import type { ApplicationLogEntry } from "@/hooks/use-application-logs";
 import { presentFields, type AuditDetailRecord } from "./audit-detail-model";
 import {
@@ -156,7 +157,7 @@ export function accessLogToAuditDetail(
       { label: "Actor ID", value: log.user_id },
       { label: "Portal", value: log.portal },
       { label: "Requested role", value: pickString(log.metadata, ["requestedRole"]) },
-      { label: "Source", value: log.source },
+      { label: "Source", value: formatAuditSourceLabel(log.source) },
       { label: "Correlation ID", value: log.correlation_id },
       { label: "OAuth state ID", value: pickString(log.metadata, ["stateId"]) },
       { label: "IP address", value: log.ip_address },
@@ -206,7 +207,7 @@ export function productLogToAuditDetail(log: ProductLogResponse & ForensicFields
     technical: presentFields([
       { label: "Event type", value: log.event_type },
       { label: "Actor ID", value: log.user_id },
-      { label: "Source", value: log.source },
+      { label: "Source", value: formatAuditSourceLabel(log.source) },
       { label: "Correlation ID", value: log.correlation_id },
       { label: "Product ID", value: log.product_id },
       { label: "IP address", value: log.ip_address },
@@ -378,7 +379,7 @@ export function noteEventToAuditDetail(
       { label: "Event type", value: event.eventType },
       { label: "Actor ID", value: event.actorUserId },
       { label: "Actor role", value: event.actorRole },
-      { label: "Source", value: event.source },
+      { label: "Source", value: formatAuditSourceLabel(event.source) },
       { label: "Portal", value: event.portal },
       { label: "Correlation ID", value: event.correlationId },
       { label: "IP address", value: event.ipAddress },
@@ -446,7 +447,7 @@ export function applicationLogToAuditDetail(
       { label: "Event type", value: log.event_type },
       { label: "Application ID", value: log.application_id },
       { label: "Actor ID", value: log.actor_id },
-      { label: "Source", value: log.source },
+      { label: "Source", value: formatAuditSourceLabel(log.source) },
       { label: "Correlation ID", value: log.correlation_id },
       { label: "IP address", value: log.ip_address },
       { label: "Review cycle", value: log.review_cycle != null ? String(log.review_cycle) : null },
@@ -518,7 +519,7 @@ export function organizationLogToAuditDetail(
     technical: presentFields([
       { label: "Event type", value: log.event_type },
       { label: "Actor ID", value: log.user_id },
-      { label: "Source", value: log.source },
+      { label: "Source", value: formatAuditSourceLabel(log.source) },
       { label: "Correlation ID", value: log.correlation_id },
       { label: "IP address", value: log.ip_address },
       { label: "Device", value: log.device_info ?? log.device_type },
@@ -630,7 +631,7 @@ export function gatewayEventToAuditDetail(
     technical: presentFields([
       { label: "Event type", value: event.type },
       { label: "Actor ID", value: event.actorUserId },
-      { label: "Source", value: event.source },
+      { label: "Source", value: formatAuditSourceLabel(event.source) },
       { label: "Correlation ID", value: event.correlationId },
       { label: "From status", value: event.fromStatus },
       { label: "To status", value: event.toStatus },
@@ -698,7 +699,7 @@ export function formatAuditActorCsv(
 }
 
 export function formatAuditSourceCsv(source: string | null | undefined): string {
-  return formatAuditSourceLabel(source) || source || "";
+  return formatForensicAuditSourceLabel(source);
 }
 
 export function formatAuditActorTypeCsv(type: string | null | undefined): string {

@@ -603,6 +603,7 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
       orderBy: { created_at: "desc" },
     });
     expect(events[0]?.reason).toBe("Currency mismatch");
+    expect(events[0]?.source).toBe("WEBHOOK");
   });
 
   it("credits only once under concurrent processing", async () => {

@@ -195,7 +195,8 @@ export class AdminRepository {
   async updateUserOnboarding(
     userId: string,
     data: { investorOnboarded?: boolean; issuerOnboarded?: boolean },
-    roles?: UserRole[]
+    roles?: UserRole[],
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ): Promise<User> {
     const updateData: Prisma.UserUpdateInput = {};
 
@@ -222,7 +223,7 @@ export class AdminRepository {
       updateData.roles = roles;
     }
 
-    return prisma.user.update({
+    return db.user.update({
       where: { user_id: userId },
       data: updateData,
     });
@@ -2744,7 +2745,7 @@ export class AdminRepository {
       ...new Set(
         activityLogs
           .map((log) => log.user_id)
-          .filter((actorId): actorId is string => Boolean(actorId) && !userIds.includes(actorId))
+          .filter((actorId): actorId is string => actorId != null && !userIds.includes(actorId))
       ),
     ];
     const extraActors = activityActorIds.length

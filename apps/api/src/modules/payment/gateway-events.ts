@@ -89,6 +89,36 @@ export async function getOpenOverrideProposal(
   };
 }
 
+export async function recordGatewayPaymentCompletedIfAbsent(
+  tx: Prisma.TransactionClient,
+  input: {
+    gatewayPaymentId: string;
+    fromStatus?: GatewayPaymentStatus | null;
+    actorUserId?: string | null;
+    context?: AuditRequestContext | null;
+    source?: AuditSource | null;
+  }
+) {
+  const existing = await tx.gatewayPaymentEvent.findFirst({
+    where: {
+      gateway_payment_id: input.gatewayPaymentId,
+      type: GatewayPaymentEventType.GATEWAY_PAYMENT_COMPLETED,
+    },
+    select: { id: true },
+  });
+  if (existing) return existing;
+
+  return recordGatewayPaymentEvent(tx, {
+    gatewayPaymentId: input.gatewayPaymentId,
+    type: GatewayPaymentEventType.GATEWAY_PAYMENT_COMPLETED,
+    actorUserId: input.actorUserId ?? undefined,
+    fromStatus: input.fromStatus ?? GatewayPaymentStatus.PAID,
+    toStatus: GatewayPaymentStatus.COMPLETED,
+    context: input.context,
+    source: input.source,
+  });
+}
+
 export function mapGatewayPaymentEvent(
   event: {
     id: string;

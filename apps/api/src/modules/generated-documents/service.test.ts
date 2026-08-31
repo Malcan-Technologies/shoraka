@@ -12,6 +12,9 @@ jest.mock("../../lib/prisma", () => ({
     platformFinanceSetting: {
       findFirst: jest.fn().mockResolvedValue(null),
     },
+    generatedDocumentEvidence: {
+      create: jest.fn().mockResolvedValue({ id: "gde-1" }),
+    },
   },
 }));
 

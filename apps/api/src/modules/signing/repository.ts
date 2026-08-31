@@ -379,9 +379,35 @@ export class SigningRepository {
     status: SigningEnvelopeWithGraph["recipients"][number]["status"],
     completed: boolean
   ): Promise<void> {
+    const current =
+      status === "VIEWED"
+        ? await prisma.signingRecipient.findUnique({
+            where: { id: recipientId },
+            select: { viewed_at: true },
+          })
+        : null;
     await prisma.signingRecipient.update({
       where: { id: recipientId },
-      data: { status, ...(completed ? { completed_at: new Date() } : {}) },
+      data: {
+        status,
+        ...(completed ? { completed_at: new Date() } : {}),
+        ...(status === "VIEWED" ? { viewed_at: current?.viewed_at ?? new Date() } : {}),
+      },
+    });
+  }
+
+  /** Records first view without clobbering a later status (SIGNED/DECLINED). */
+  async markRecipientViewedIfUnset(
+    recipientId: string,
+    viewedAt: Date = new Date()
+  ): Promise<void> {
+    await prisma.signingRecipient.updateMany({
+      where: { id: recipientId, viewed_at: null },
+      data: { viewed_at: viewedAt },
+    });
+    await prisma.signingRecipient.updateMany({
+      where: { id: recipientId, status: "SENT", viewed_at: { not: null } },
+      data: { status: "VIEWED" },
     });
   }
 

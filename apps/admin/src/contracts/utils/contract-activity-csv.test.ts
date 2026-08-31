@@ -33,20 +33,26 @@ describe("formatContractActivityEventLabel", () => {
   // ("Facility/Invoice Acceptance Approved for Signing"), aligned with admin-activity-timeline.tsx.
   it("uses the canonical Facility-prefixed wording for acceptance approved for signing", () => {
     expect(formatContractActivityEventLabel("CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING")).toBe(
-      "Facility acceptance approved for signing"
+      "Facility Acceptance Approved for Signing"
     );
   });
 
-  it("uses sentence-case signing-package wording, matching the facility/invoice timeline", () => {
+  it("uses Title Case for signing-package events, matching the application timeline", () => {
     expect(formatContractActivityEventLabel("SIGNING_PACKAGE_CREATED")).toBe(
       "Signing Package Created"
     );
-    expect(formatContractActivityEventLabel("SIGNING_PACKAGE_SENT")).toBe("Signing package sent");
+    expect(formatContractActivityEventLabel("SIGNING_PACKAGE_SENT")).toBe("Signing Package Sent");
     expect(formatContractActivityEventLabel("SIGNING_PACKAGE_COMPLETED")).toBe(
-      "Signing package completed"
+      "Signing Package Completed"
     );
     expect(formatContractActivityEventLabel("SIGNING_PACKAGE_VOIDED")).toBe(
-      "Signing package voided"
+      "Signing Package Voided"
+    );
+    expect(formatContractActivityEventLabel("SIGNING_PACKAGE_DECLINED")).toBe(
+      "Signing Package Declined"
+    );
+    expect(formatContractActivityEventLabel("SIGNING_PACKAGE_EXPIRED")).toBe(
+      "Signing Package Expired"
     );
   });
 });
@@ -89,7 +95,7 @@ describe("buildContractActivityCsv", () => {
         },
       })
     );
-    expect(row.event).toBe("Facility occupancy updated");
+    expect(row.event).toBe("Facility Occupancy Updated");
     expect(row.eventType).toBe("CONTRACT_FACILITY_OCCUPANCY_UPDATED");
     expect(row.targetType).toBe("CONTRACT");
     expect(row.targetReference).toBe("FAC-ARF-202608-A1Z");

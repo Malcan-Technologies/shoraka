@@ -659,8 +659,8 @@ describe("computeSigningEnvelopeProgress", () => {
       { id: "d2", name: "Guarantee", description: null, source: "TEMPLATE", order: 1, required: true, status: "PENDING", has_signed_pdf: false },
     ],
     recipients: [
-      { id: "r1", role_key: "issuer_director", role_label: "Director", name: "Ali", email: "a@co.my", routing_order: 0, status: "SIGNED", kyc_status: "VERIFIED", completed_at: null },
-      { id: "r2", role_key: "guarantor", role_label: "Guarantor", name: "Siti", email: "s@x.my", routing_order: 1, status: "PENDING", kyc_status: "PENDING", completed_at: null },
+      { id: "r1", role_key: "issuer_director", role_label: "Director", name: "Ali", email: "a@co.my", routing_order: 0, status: "SIGNED", kyc_status: "VERIFIED", completed_at: null, viewed_at: null },
+      { id: "r2", role_key: "guarantor", role_label: "Guarantor", name: "Siti", email: "s@x.my", routing_order: 1, status: "PENDING", kyc_status: "PENDING", completed_at: null, viewed_at: null },
     ],
     assignments: [
       { id: "a1", document_id: "d1", recipient_id: "r1", required: true, action: "SIGN", status: "SIGNED", signed_at: "2026-01-01T00:00:00Z" },
@@ -755,6 +755,7 @@ describe("findUnsignedSigningAssignmentForRecipient", () => {
         status: "PENDING",
         kyc_status: "VERIFIED",
         completed_at: null,
+        viewed_at: null,
       },
       {
         id: "r2",
@@ -766,6 +767,7 @@ describe("findUnsignedSigningAssignmentForRecipient", () => {
         status: "PENDING",
         kyc_status: "VERIFIED",
         completed_at: null,
+        viewed_at: null,
       },
     ],
     assignments: [

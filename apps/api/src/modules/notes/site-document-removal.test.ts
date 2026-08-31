@@ -9,8 +9,8 @@ describe("note investment SiteDocument removal", () => {
   const notesDir = __dirname;
   const serviceSource = readFileSync(join(notesDir, "service.ts"), "utf8");
   const schemasSource = readFileSync(join(notesDir, "schemas.ts"), "utf8");
-  const investorInvestPage = readFileSync(
-    join(notesDir, "../../../../investor/src/app/investments/page.tsx"),
+  const investorInvestDialog = readFileSync(
+    join(notesDir, "../../../../investor/src/marketplace/marketplace-invest-dialogs.tsx"),
     "utf8"
   );
   const prospectusFooter = readFileSync(
@@ -50,12 +50,12 @@ describe("note investment SiteDocument removal", () => {
   });
 
   it("investor invest dialog shows Prospectus acknowledgement only", () => {
-    expect(investorInvestPage).toMatch(
-      /I confirm that I have reviewed the[\s\S]*Prospectus[\s\S]*\./
+    expect(investorInvestDialog).toMatch(
+      /I(?:'|\&apos;)ve read the[\s\S]*prospectus[\s\S]*ready to continue/i
     );
-    expect(investorInvestPage).not.toMatch(/Product Terms/);
-    expect(investorInvestPage).not.toMatch(/Risk Disclosure Statement/);
-    expect(investorInvestPage).not.toMatch(/href="\/profile\?tab=documents"/);
+    expect(investorInvestDialog).not.toMatch(/Product Terms/);
+    expect(investorInvestDialog).not.toMatch(/Risk Disclosure Statement/);
+    expect(investorInvestDialog).not.toMatch(/href="\/profile\?tab=documents"/);
   });
 
   it("marketplace commit hook still sends prospectusAcknowledged only", () => {

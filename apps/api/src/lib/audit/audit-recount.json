@@ -1,0 +1,37 @@
+{
+  "liveEvents": 145,
+  "historicalReaders": 11,
+  "devOnly": 7,
+  "catalogueSize": 163,
+  "writerHits": 100,
+  "unknown": 0,
+  "unknownEvents": [],
+  "byLifecycle": {
+    "LIVE": 145,
+    "HISTORICAL_READER": 11,
+    "DEV_ONLY": 7
+  },
+  "byLayer": {
+    "APPLICATION_TIMELINE": 33,
+    "ADMIN_ACTIVITY": 60,
+    "ORG_ACTIVITY": 16,
+    "FORENSIC_ONLY": 9,
+    "NOTE_TIMELINE": 13,
+    "FINANCIAL_ONLY": 9,
+    "SECURITY_ONLY": 13,
+    "LEGAL_ONLY": 10
+  },
+  "byTable": {
+    "application_logs": 50,
+    "onboarding_logs": 35,
+    "note_events": 41,
+    "product_logs": 5,
+    "gateway_payment_events": 9,
+    "access_logs": 3,
+    "security_logs": 10,
+    "legal_document_audit_logs": 7,
+    "legal_document_acceptances": 1,
+    "legal_external_acceptances": 1,
+    "generated_document_evidence": 1
+  }
+}

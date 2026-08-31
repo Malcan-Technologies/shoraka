@@ -12,7 +12,7 @@ Each visible row now includes:
 - a link to the related application, contract, invoice, note, or organisation profile when a stable id exists
 - a timestamp
 
-The feed no longer mirrors every audit log. Low-value internal updates such as section-level and item-level review events are intentionally hidden from users. After onboarding is complete, the issuer and investor pages default to hiding onboarding events (still available via the Area filter).
+The feed no longer mirrors every audit log. The complete live Audit Log Register is `docs/logs-inventory.md`. This page only describes what issuer/investor `/activity` shows. Low-value internal updates such as section-level and item-level review events are intentionally hidden from users. After onboarding is complete, the issuer and investor pages default to hiding onboarding events (still available via the Area filter).
 
 ## Status badges
 
@@ -105,13 +105,13 @@ Visible application events match the investor portal:
 - `APPLICATION_SUBMITTED` -> `Application Submitted`
 - `APPLICATION_RESUBMITTED` -> `Application Resubmitted`
 - `AMENDMENTS_SUBMITTED` -> `Amendment Request Sent`
-- `APPLICATION_APPROVED` -> `Application Approved`
+- `APPLICATION_APPROVED` -> `Application Approved` (historical reader; old rows only)
 - `APPLICATION_REJECTED` -> `Application Rejected`
 - `APPLICATION_WITHDRAWN` -> `Application Closed`
 - `APPLICATION_COMPLETED` -> `Application Completed`
-- contract offer milestones (including `CONTRACT_OFFER_EXPIRED`, `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED`, `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED`)
-- invoice offer milestones (including `INVOICE_OFFER_EXPIRED`, `INVOICE_OFFER_ACCEPTANCE_SUBMITTED`, `INVOICE_OFFER_ACCEPTANCE_RESUBMITTED`)
-- signing package sent (`SIGNING_PACKAGE_SENT`); terminal success via offer signed events (`CONTRACT_OFFER_ACCEPTED`, `INVOICE_OFFER_ACCEPTED`)
+- contract offer milestones (including `CONTRACT_OFFER_EXPIRED`, `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED`, `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED`, `CONTRACT_OFFER_DECLINED`)
+- invoice offer milestones (including `INVOICE_OFFER_EXPIRED`, `INVOICE_OFFER_ACCEPTANCE_SUBMITTED`, `INVOICE_OFFER_ACCEPTANCE_RESUBMITTED`, `INVOICE_OFFER_REJECTED`)
+- signing package sent/completed/declined/expired (`SIGNING_PACKAGE_SENT`, `SIGNING_PACKAGE_COMPLETED`, `SIGNING_PACKAGE_DECLINED`, `SIGNING_PACKAGE_EXPIRED`); commercial success also via offer signed events (`CONTRACT_OFFER_ACCEPTED`, `INVOICE_OFFER_ACCEPTED`)
 
 ### Note
 
@@ -131,7 +131,7 @@ These logs still exist as audit records but are intentionally hidden from `/acti
 - application section-level review events
 - application item-level review events
 - admin-only acceptance approval events (`CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING`, `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING`)
-- signing package created/completed/voided audit rows (`SIGNING_PACKAGE_CREATED`, `SIGNING_PACKAGE_COMPLETED`, `SIGNING_PACKAGE_VOIDED`)
+- signing package created/voided audit rows (`SIGNING_PACKAGE_CREATED`, `SIGNING_PACKAGE_VOIDED`)
 - internal reset-style status churn that does not help a user understand what changed
 - note operational steps such as Shoraka or trustee processing details
 - note settlement approval workflow internals

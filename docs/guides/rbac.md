@@ -22,7 +22,7 @@ The API is the real security boundary. Frontend gating is for navigation and UX 
 
 | Export | Purpose |
 |---|---|
-| `ADMIN_PERMISSIONS` | Readonly tuple of all 47 valid permission strings. Derive `AdminPermission` from this. |
+| `ADMIN_PERMISSIONS` | Readonly tuple of all 53 valid permission strings. Derive `AdminPermission` from this. |
 | `AdminPermission` | TypeScript union type of all permission strings. Used as the type for all permission arguments. |
 | `ADMIN_PERMISSION_GROUPS` | Groups permissions by module for the Permission Configuration UI. Every permission must appear in a group. |
 | `FULL_ACCESS_ADMIN_ROLE_KEYS` | Currently `[AdminRole.SUPER_ADMIN]`. Roles in this list bypass `requirePermission` checks entirely. |
@@ -305,10 +305,11 @@ Do not block any notification tab behind `notifications.manage`.
 | Product Logs | `audit.product.view` |
 | Legal Documents | `document_management.view` |
 | Legal Acceptances | `document_management.view` |
+| External Acceptances | `document_management.view` |
 | Notifications | `notifications.view` |
 | Backend | `apps/api/src/modules/admin/controller.ts`, product log controller, legal-document controllers, notification controller |
-| Frontend page | `apps/admin/src/app/audit/page.tsx` (tabs: Access, Security, Products, Legal Documents, Legal Acceptances, Notifications) |
-| Notes | Audit pages are read-only. Search/filter/export use the same view permission as the source feature. There is no Document Logs tab. Legal Acceptances and Notification Logs are evidence views, not configuration. |
+| Frontend page | `apps/admin/src/app/audit/page.tsx` (tabs: Access, Security, Products, Legal Documents, Legal Acceptances, External Acceptances, Notifications) |
+| Notes | Audit pages are read-only. Search/filter/export use the same view permission as the source feature. There is no Document Logs tab. Legal Acceptances, External Acceptances, and Notification Logs are evidence views, not configuration. There is no Ops Alerts tab. |
 
 ### Legal Documents
 
@@ -331,6 +332,17 @@ Do not block any notification tab behind `notifications.manage`.
 | Frontend page | `apps/admin/src/app/audit/page.tsx` (`/audit?tab=legal-acceptances`); `/legal-document-acceptances` redirects here |
 | Shows | Accepted document type; exact version; file hash; organization; accepting user; timestamp; IP; user agent; acknowledgement wording; exact accepted PDF download |
 | Notes | Evidence comes from `LegalDocumentAcceptance` only. There is no DocumentLog / SiteDocument audit trail. |
+
+### External Acceptances
+
+| | |
+|---|---|
+| View (list, detail, export) | `document_management.view` |
+| Mutations | None — records are immutable (no update/delete API) |
+| Backend | `apps/api/src/modules/legal-documents/external-acceptance-admin-controller.ts` |
+| Frontend page | `apps/admin/src/app/audit/page.tsx` (`/audit?tab=external-acceptances`) |
+| Shows | Unauthenticated party snapshots (for example guarantors) plus envelope, application, and organisation linkage; search; filters (date, status, document type); CSV export; View details |
+| Notes | Evidence comes from `legal_external_acceptances`. Deleting a signing envelope does not cascade-delete this evidence. Not an Activity row. List and export use a masked IC; View details uses the stored IC number. |
 
 ### Removed (do not use)
 

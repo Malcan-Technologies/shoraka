@@ -35,7 +35,7 @@ export const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }>
   ONBOARDING_REJECTED: { label: "Onboarding Rejected", color: "bg-status-rejected-text" },
   ONBOARDING_STATUS_UPDATED: { label: "Status Updated", color: "bg-status-in-progress-text" },
   FORM_FILLED: { label: "Form Filled", color: "bg-status-submitted-text" },
-  ONBOARDING_APPROVED: { label: "Onboarding Approved", color: "bg-status-success-text" },
+  ONBOARDING_APPROVED: { label: "Onboarding Submission Approved", color: "bg-status-success-text" },
   AML_APPROVED: { label: "AML Approved", color: "bg-status-success-text" },
   TNC_APPROVED: { label: "T&C Approved", color: "bg-status-success-text" },
   TNC_ACCEPTED: { label: "T&C Accepted", color: "bg-status-success-text" },

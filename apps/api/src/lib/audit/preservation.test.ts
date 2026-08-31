@@ -194,8 +194,6 @@ describe("audit preservation: no new event types", () => {
       "APPLICATION_DOCUMENT_REPLACED",
       "CONTRACT_ACCEPTANCE_CHANGES_REQUESTED",
       "INVOICE_ACCEPTANCE_CHANGES_REQUESTED",
-      "SIGNING_PACKAGE_DECLINED",
-      "SIGNING_PACKAGE_EXPIRED",
     ];
     for (const event of deferred) {
       expect(declaredApplicationEvents).not.toContain(event);
@@ -210,17 +208,18 @@ describe("audit preservation: writer coverage", () => {
    * Declared but unwritten on the reference revision too. Flagged in the report, not deleted.
    * Anything NEW appearing here is a writer we dropped.
    */
-  const KNOWN_UNWRITTEN_EVENTS = new Set(["SECTION_REVIEWED_PENDING", "ITEM_REVIEWED_PENDING"]);
+  /**
+   * Events with no writer AND no remaining source string would go here.
+   * Historical APPLICATION_APPROVED / CONTRACT_OFFER_REJECTED still have reader
+   * labels, so they stay in the source-reference check. SECTION_REVIEWED_PENDING
+   * and ITEM_REVIEWED_PENDING have a live CTOS writer.
+   */
+  const KNOWN_UNWRITTEN_EVENTS = new Set<string>([]);
 
   /**
    * This is a "did the string vanish from the codebase" regression guard, not a
    * "does this event have a live writer" check — it matches any reference, including
-   * reader/label code, so it does not (and cannot) distinguish a real writer call site
-   * from a dead enum member that only survives in a case/label map. The authoritative
-   * per-event writer classification lives in `origin-main-preservation-inventory.md`
-   * §3.4, which lists `APPLICATION_APPROVED` and `CONTRACT_OFFER_REJECTED` as declared
-   * with no production writer; those are intentionally not in `KNOWN_UNWRITTEN_EVENTS`
-   * because a reader/label reference to them already exists and must keep existing.
+   * reader/label code. Live vs historical classification lives in visibility-matrix.ts.
    */
   it("keeps at least a source reference for every application log event that had one", () => {
     const missing: string[] = [];

@@ -37,6 +37,8 @@ export interface ProviderSignerDetail {
   email: string;
   status: ProviderSignerStatus;
   name?: string | null;
+  /** First-view timestamp from the provider when the payload includes one. */
+  viewedAt?: Date | null;
 }
 
 export interface ProviderContractDetails {

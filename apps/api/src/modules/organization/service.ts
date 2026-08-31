@@ -32,13 +32,12 @@ import { formatRolesForCognito } from "../../lib/auth/cognito";
 import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { getPortalFromRole } from "../../lib/role-detector";
-import { AuthRepository } from "../auth/repository";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
 import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import { sendEmail } from "../../lib/email/ses-client";
 import { sendOnboardingEmail } from "../../lib/email/ses";
 import { organizationInvitationTemplate } from "../../lib/email/templates";
-import { createOnboardingLogRow } from "../../lib/audit";
+import { auditContextFromRequest, persistOrganizationUpdateAndOnboardingLogs } from "../../lib/audit";
 import { buildOrganizationProfileAuditEvidence } from "../admin/organization-profile-audit";
 import { logOrganizationMembershipEvent } from "./membership-audit";
 import { randomBytes } from "crypto";
@@ -191,11 +190,9 @@ async function upsertCtosPartySupplementOnboardingJson(
 
 export class OrganizationService {
   private repository: OrganizationRepository;
-  private authRepository: AuthRepository;
 
   constructor() {
     this.repository = new OrganizationRepository();
-    this.authRepository = new AuthRepository();
   }
 
   /**
@@ -596,22 +593,27 @@ export class OrganizationService {
       "Adding member to organization"
     );
 
-    // Add the member
-    if (portalType === "investor") {
-      await this.repository.addOrganizationMember({
-        userId: targetUser.user_id,
-        investorOrganizationId: organizationId,
-        role,
-      });
-    } else {
-      await this.repository.addOrganizationMember({
-        userId: targetUser.user_id,
-        issuerOrganizationId: organizationId,
-        role,
-      });
-    }
+    await prisma.$transaction(async (tx) => {
+      if (portalType === "investor") {
+        await this.repository.addOrganizationMember(
+          {
+            userId: targetUser.user_id,
+            investorOrganizationId: organizationId,
+            role,
+          },
+          tx
+        );
+      } else {
+        await this.repository.addOrganizationMember(
+          {
+            userId: targetUser.user_id,
+            issuerOrganizationId: organizationId,
+            role,
+          },
+          tx
+        );
+      }
 
-    try {
       await logOrganizationMembershipEvent({
         eventType: "MEMBER_ADDED",
         actorUserId: userId,
@@ -623,16 +625,9 @@ export class OrganizationService {
         memberUserId: targetUser.user_id,
         memberEmail: targetUser.email,
         newRole: role,
+        db: tx,
       });
-    } catch (logError) {
-      logger.error(
-        {
-          error: logError instanceof Error ? logError.message : String(logError),
-          organizationId,
-        },
-        "Failed to write MEMBER_ADDED audit log (non-blocking)"
-      );
-    }
+    });
 
     return {
       success: true,
@@ -695,13 +690,13 @@ export class OrganizationService {
 
     logger.info({ organizationId, targetUserId }, "Removing member from organization");
 
-    if (portalType === "investor") {
-      await this.repository.removeInvestorOrganizationMember(organizationId, targetUserId);
-    } else {
-      await this.repository.removeIssuerOrganizationMember(organizationId, targetUserId);
-    }
+    await prisma.$transaction(async (tx) => {
+      if (portalType === "investor") {
+        await this.repository.removeInvestorOrganizationMember(organizationId, targetUserId, tx);
+      } else {
+        await this.repository.removeIssuerOrganizationMember(organizationId, targetUserId, tx);
+      }
 
-    try {
       await logOrganizationMembershipEvent({
         eventType: "MEMBER_REMOVED",
         actorUserId: userId,
@@ -713,16 +708,9 @@ export class OrganizationService {
         memberUserId: targetUserId,
         memberEmail: targetMember.user?.email,
         previousRole: targetMember.role,
+        db: tx,
       });
-    } catch (logError) {
-      logger.error(
-        {
-          error: logError instanceof Error ? logError.message : String(logError),
-          organizationId,
-        },
-        "Failed to write MEMBER_REMOVED audit log (non-blocking)"
-      );
-    }
+    });
 
     return { success: true };
   }
@@ -797,21 +785,6 @@ export class OrganizationService {
       };
     }
 
-    // Update the organization
-    if (portalType === "investor") {
-      await prisma.investorOrganization.update({
-        where: { id: organizationId },
-        data: updateData as Parameters<typeof prisma.investorOrganization.update>[0]["data"],
-      });
-    } else {
-      await prisma.issuerOrganization.update({
-        where: { id: organizationId },
-        data: updateData as Parameters<typeof prisma.issuerOrganization.update>[0]["data"],
-      });
-    }
-
-    logger.info({ organizationId, portalType, userId }, "Organization profile updated");
-
     const evidence = buildOrganizationProfileAuditEvidence({
       previous: {
         phoneNumber: organization.phone_number,
@@ -825,35 +798,35 @@ export class OrganizationService {
       bankFieldsChanged: input.bankAccountDetails !== undefined,
       organizationReference: organization.display_reference,
     });
-    try {
-      await createOnboardingLogRow({
-        userId,
-        actorUserId: userId,
-        investorOrganizationId: portalType === "investor" ? organizationId : null,
-        issuerOrganizationId: portalType === "issuer" ? organizationId : null,
-        organizationName: organization.name || undefined,
-        role: portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
-        eventType: "PROFILE_UPDATED",
-        portal: portalType,
-        metadata: {
-          updatedFields: evidence.updatedFields,
-          bankFieldsChanged: evidence.bankFieldsChanged,
-          previousValues: evidence.previousValues,
-          nextValues: evidence.nextValues,
-          ...(evidence.organizationReference
-            ? { organizationReference: evidence.organizationReference }
-            : {}),
-        },
-      });
-    } catch (logError) {
-      logger.error(
+
+    await persistOrganizationUpdateAndOnboardingLogs({
+      portalType,
+      organizationId,
+      data: updateData as Prisma.InvestorOrganizationUpdateInput | Prisma.IssuerOrganizationUpdateInput,
+      logs: [
         {
-          error: logError instanceof Error ? logError.message : String(logError),
-          organizationId,
+          userId,
+          actorUserId: userId,
+          investorOrganizationId: portalType === "investor" ? organizationId : null,
+          issuerOrganizationId: portalType === "issuer" ? organizationId : null,
+          organizationName: organization.name || undefined,
+          role: portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
+          eventType: "PROFILE_UPDATED",
+          portal: portalType,
+          metadata: {
+            updatedFields: evidence.updatedFields,
+            bankFieldsChanged: evidence.bankFieldsChanged,
+            previousValues: evidence.previousValues,
+            nextValues: evidence.nextValues,
+            ...(evidence.organizationReference
+              ? { organizationReference: evidence.organizationReference }
+              : {}),
+          },
         },
-        "Failed to write organization profile audit log (non-blocking)"
-      );
-    }
+      ],
+    });
+
+    logger.info({ organizationId, portalType, userId }, "Organization profile updated");
 
     return { success: true };
   }
@@ -904,18 +877,39 @@ export class OrganizationService {
       "Accepting Terms and Conditions for organization"
     );
 
-    // Update the organization's tnc_accepted flag
-    if (portalType === "investor") {
-      await prisma.investorOrganization.update({
-        where: { id: organizationId },
-        data: { tnc_accepted: true },
-      });
-    } else {
-      await prisma.issuerOrganization.update({
-        where: { id: organizationId },
-        data: { tnc_accepted: true },
-      });
-    }
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+    const portal = getPortalFromRole(role);
+
+    await persistOrganizationUpdateAndOnboardingLogs({
+      portalType,
+      organizationId,
+      data: { tnc_accepted: true },
+      logs: [
+        {
+          userId,
+          actorUserId: userId,
+          role,
+          eventType: "TNC_APPROVED",
+          portal,
+          ipAddress,
+          userAgent,
+          deviceInfo,
+          deviceType,
+          organizationName: organization.name || undefined,
+          investorOrganizationId: portalType === "investor" ? organizationId : undefined,
+          issuerOrganizationId: portalType === "issuer" ? organizationId : undefined,
+          context: auditContextFromRequest(req),
+          metadata: {
+            organizationId,
+            organizationType: organization.type,
+            organizationName: organization.name,
+            role,
+            legalDocumentsRequired: legalStatus.hasRequiredDocuments,
+          },
+        },
+      ],
+    });
 
     await advanceOnboardingStatusFromFlags({
       organizationId,
@@ -923,40 +917,7 @@ export class OrganizationService {
       reason: "USER_ACCEPT_TNC",
     });
 
-    // Log the T&C acceptance event
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-    const portal = getPortalFromRole(role);
-
-    // Get user for logging
-    const user = await prisma.user.findUnique({
-      where: { user_id: userId },
-    });
-
-    if (user) {
-      await this.authRepository.createOnboardingLog({
-        userId: user.user_id,
-        role,
-        eventType: "TNC_APPROVED",
-        portal,
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        deviceType,
-        organizationName: organization.name || undefined,
-        investorOrganizationId: portalType === "investor" ? organizationId : undefined,
-        issuerOrganizationId: portalType === "issuer" ? organizationId : undefined,
-        metadata: {
-          organizationId,
-          organizationType: organization.type,
-          organizationName: organization.name,
-          role,
-          legalDocumentsRequired: legalStatus.hasRequiredDocuments,
-        },
-      });
-
-      logger.info({ userId, organizationId, portalType, role }, "T&C acceptance event logged");
-    }
+    logger.info({ userId, organizationId, portalType, role }, "T&C acceptance event logged");
 
     return { success: true, tncAccepted: true };
   }
@@ -1009,31 +970,57 @@ export class OrganizationService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
 
-    // Create invitation
-    let invitation;
-    if (portalType === "investor") {
-      invitation = await this.repository.createInvestorOrganizationInvitation({
-        email,
-        role: input.role === "ORGANIZATION_ADMIN"
-          ? OrganizationMemberRole.ORGANIZATION_ADMIN
-          : OrganizationMemberRole.ORGANIZATION_MEMBER,
-        investorOrganizationId: organizationId,
-        token,
-        expiresAt,
-        invitedByUserId: userId,
+    const invitation = await prisma.$transaction(async (tx) => {
+      const created =
+        portalType === "investor"
+          ? await this.repository.createInvestorOrganizationInvitation(
+              {
+                email,
+                role:
+                  input.role === "ORGANIZATION_ADMIN"
+                    ? OrganizationMemberRole.ORGANIZATION_ADMIN
+                    : OrganizationMemberRole.ORGANIZATION_MEMBER,
+                investorOrganizationId: organizationId,
+                token,
+                expiresAt,
+                invitedByUserId: userId,
+              },
+              tx
+            )
+          : await this.repository.createIssuerOrganizationInvitation(
+              {
+                email,
+                role:
+                  input.role === "ORGANIZATION_ADMIN"
+                    ? OrganizationMemberRole.ORGANIZATION_ADMIN
+                    : OrganizationMemberRole.ORGANIZATION_MEMBER,
+                issuerOrganizationId: organizationId,
+                token,
+                expiresAt,
+                invitedByUserId: userId,
+              },
+              tx
+            );
+
+      await logOrganizationMembershipEvent({
+        eventType: "MEMBER_INVITED",
+        actorUserId: userId,
+        ownerUserId: organization.owner_user_id,
+        organizationId,
+        portalType,
+        organizationName: organization.name,
+        organizationReference: organization.display_reference,
+        memberEmail: input.email?.toLowerCase() || undefined,
+        newRole:
+          input.role === "ORGANIZATION_ADMIN"
+            ? OrganizationMemberRole.ORGANIZATION_ADMIN
+            : OrganizationMemberRole.ORGANIZATION_MEMBER,
+        invitationId: created.id,
+        db: tx,
       });
-    } else {
-      invitation = await this.repository.createIssuerOrganizationInvitation({
-        email,
-        role: input.role === "ORGANIZATION_ADMIN"
-          ? OrganizationMemberRole.ORGANIZATION_ADMIN
-          : OrganizationMemberRole.ORGANIZATION_MEMBER,
-        issuerOrganizationId: organizationId,
-        token,
-        expiresAt,
-        invitedByUserId: userId,
-      });
-    }
+
+      return created;
+    });
 
     // Send invitation email
     const inviter = await prisma.user.findUnique({
@@ -1089,32 +1076,6 @@ export class OrganizationService {
           "Failed to send invitation email - invitation URL available for manual sharing"
         );
       }
-    }
-
-    try {
-      await logOrganizationMembershipEvent({
-        eventType: "MEMBER_INVITED",
-        actorUserId: userId,
-        ownerUserId: organization.owner_user_id,
-        organizationId,
-        portalType,
-        organizationName: organization.name,
-        organizationReference: organization.display_reference,
-        memberEmail: input.email?.toLowerCase() || undefined,
-        newRole:
-          input.role === "ORGANIZATION_ADMIN"
-            ? OrganizationMemberRole.ORGANIZATION_ADMIN
-            : OrganizationMemberRole.ORGANIZATION_MEMBER,
-        invitationId: invitation.id,
-      });
-    } catch (logError) {
-      logger.error(
-        {
-          error: logError instanceof Error ? logError.message : String(logError),
-          organizationId,
-        },
-        "Failed to write MEMBER_INVITED audit log (non-blocking)"
-      );
     }
 
     return {
@@ -1626,14 +1587,9 @@ export class OrganizationService {
         ? OrganizationMemberRole.ORGANIZATION_ADMIN
         : OrganizationMemberRole.ORGANIZATION_MEMBER;
 
-    await this.repository.updateMemberRole(organizationId, input.userId, newRole, portalType);
+    await prisma.$transaction(async (tx) => {
+      await this.repository.updateMemberRole(organizationId, input.userId, newRole, portalType, tx);
 
-    logger.info(
-      { organizationId, targetUserId: input.userId, newRole },
-      "Member role changed"
-    );
-
-    try {
       await logOrganizationMembershipEvent({
         eventType: "MEMBER_ROLE_CHANGED",
         actorUserId: userId,
@@ -1646,16 +1602,9 @@ export class OrganizationService {
         memberEmail: targetMember.user?.email,
         previousRole: targetMember.role,
         newRole,
+        db: tx,
       });
-    } catch (logError) {
-      logger.error(
-        {
-          error: logError instanceof Error ? logError.message : String(logError),
-          organizationId,
-        },
-        "Failed to write MEMBER_ROLE_CHANGED audit log (non-blocking)"
-      );
-    }
+    });
 
     return { success: true };
   }

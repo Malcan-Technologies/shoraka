@@ -19,8 +19,10 @@ describe("ORGANIZATION_ACTIVITY_EVENT_TYPES — dead filter cleanup", () => {
     expect(ORGANIZATION_ACTIVITY_EVENT_TYPES).toEqual(
       expect.arrayContaining([
         "ONBOARDING_STARTED",
+        "ONBOARDING_FEE_PAID",
         "ONBOARDING_RESUMED",
         "ONBOARDING_STATUS_UPDATED",
+        "ONBOARDING_AMENDMENT_REQUIRED",
         "ONBOARDING_CANCELLED",
         "ONBOARDING_REJECTED",
         "COD_REJECTED",

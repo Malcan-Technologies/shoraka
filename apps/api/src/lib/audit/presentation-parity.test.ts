@@ -51,6 +51,7 @@ describe("audit exports project columns explicitly", () => {
     "apps/api/src/modules/products/log/controller.ts",
     "apps/api/src/modules/legal-documents/audit-admin-controller.ts",
     "apps/api/src/modules/legal-documents/acceptance-admin-controller.ts",
+    "apps/api/src/modules/legal-documents/external-acceptance-admin-controller.ts",
   ];
 
   for (const path of EXPORT_SERIALIZERS) {

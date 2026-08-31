@@ -42,6 +42,7 @@ export async function createApplicationLog(
     source: params.source,
     targetType,
     targetId,
+    systemWhenActorless: params.userId == null,
   });
 
   const metadata = mergeDisplayReferences(params.metadata, {
@@ -53,7 +54,7 @@ export async function createApplicationLog(
 
   return db.applicationLog.create({
     data: {
-      user_id: params.userId,
+      user_id: params.userId ?? null,
       application_id: applicationId,
       event_type: params.eventType,
       level: null,

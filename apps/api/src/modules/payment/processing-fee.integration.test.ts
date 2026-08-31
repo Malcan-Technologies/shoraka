@@ -483,6 +483,22 @@ describeIntegration("application processing fee (M9)", () => {
       where: { gateway_payment_id: payment.id },
     });
     expect(ledgerCountAfterReplay).toBe(1);
+
+    const feePaidLogs = await prisma.applicationLog.findMany({
+      where: {
+        event_type: "APPLICATION_PROCESSING_FEE_PAID",
+        application_id: applicationId,
+      },
+    });
+    expect(feePaidLogs).toHaveLength(1);
+    expect(feePaidLogs[0]?.metadata).toMatchObject({ gatewayPaymentId: payment.id });
+    expect(feePaidLogs[0]?.source).toBe("WEBHOOK");
+    expect(feePaidLogs[0]?.user_id).toBeNull();
+    expect(
+      await prisma.gatewayPaymentEvent.count({
+        where: { gateway_payment_id: payment.id, type: "GATEWAY_PAYMENT_COMPLETED" },
+      })
+    ).toBe(1);
   });
 
   it("recovers a valid late capture after local EXPIRED exactly once", async () => {

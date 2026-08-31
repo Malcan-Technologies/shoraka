@@ -54,7 +54,8 @@ describe("audit traceability source contracts", () => {
 
   it("PATCH /status no longer logs a second APPLICATION_RESUBMITTED", () => {
     const src = read("modules/applications/controller.ts");
-    expect(src).toMatch(/if \(status === "SUBMITTED"\)/);
+    expect(src).not.toMatch(/APPLICATION_SUBMITTED/);
+    expect(src).not.toMatch(/APPLICATION_RESUBMITTED/);
     expect(src).not.toMatch(/status === "SUBMITTED" \|\| status === "RESUBMITTED"/);
   });
 
@@ -153,6 +154,9 @@ describe("audit traceability source contracts", () => {
     const applicationsController = read("modules/applications/controller.ts");
     expect(applicationsController).toMatch(/issuerActivityFromRequest\(req, res\)/);
     expect(applicationsController).toMatch(
+      /createApplication\(\s*input,\s*callerUserId,\s*issuerActivityFromRequest/
+    );
+    expect(applicationsController).toMatch(
       /updateApplicationStatus\(\s*id,\s*status,\s*userId,\s*issuerActivityFromRequest/
     );
     expect(read("modules/invoices/controller.ts")).toMatch(/issuerActivityFromRequest\(req, res\)/);
@@ -225,6 +229,7 @@ describe("audit traceability source contracts", () => {
     const window = src.slice(idx, idx + 350);
     expect(window).toMatch(/withdrawalId: id/);
     expect(window).toMatch(/withdrawalReference/);
+    expect(window).toMatch(/withdrawalType: withdrawal\.withdrawal_type/);
     expect(window).toMatch(/s3Key: key/);
     expect(window).not.toMatch(/note_id:/);
   });

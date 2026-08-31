@@ -44,6 +44,7 @@ export type GeneratedDocumentResult = {
   contentType: string;
   filename: string;
   templateSha256: string;
+  outputSha256: string;
   type: GeneratedDocumentTypeDefinition;
 };
 
@@ -242,7 +243,13 @@ export class GeneratedDocumentsService {
 
     switch (typeKey) {
       case "arf_contract_facility_lo":
-        return this.generateArfContractFacilityLo(application, typeDef, input.format, workflow);
+        return this.generateArfContractFacilityLo(
+          application,
+          typeDef,
+          input.format,
+          workflow,
+          input.userId
+        );
       default:
         throw new AppError(400, "VALIDATION_ERROR", "Unsupported generated document type.");
     }
@@ -252,7 +259,8 @@ export class GeneratedDocumentsService {
     application: Awaited<ReturnType<ApplicationRepository["findById"]>>,
     typeDef: GeneratedDocumentTypeDefinition,
     format: GeneratedDocumentFormat,
-    productWorkflow: unknown[]
+    productWorkflow: unknown[],
+    createdByUserId: string
   ): Promise<GeneratedDocumentResult> {
     const contract = (application as { contract?: Record<string, unknown> | null }).contract;
     if (!contract) {
@@ -348,23 +356,45 @@ export class GeneratedDocumentsService {
     const basename = loDownloadBasename(mergeData.issuer_name);
 
     if (format === "docx") {
-      return {
+      const result = {
         buffer: docxBuffer,
         contentType:
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename: `${basename}.docx`,
         templateSha256,
+        outputSha256: crypto.createHash("sha256").update(docxBuffer).digest("hex"),
         type: typeDef,
       };
+      await this.persistGeneratedDocumentEvidence({
+        applicationId: application!.id,
+        contractId: typeof contract.id === "string" ? contract.id : null,
+        typeDef,
+        format,
+        templateSha256,
+        outputSha256: result.outputSha256,
+        createdByUserId,
+      });
+      return result;
     }
 
     try {
       const pdfBuffer = await convertDocxToPdf(docxBuffer);
+      const outputSha256 = crypto.createHash("sha256").update(pdfBuffer).digest("hex");
+      await this.persistGeneratedDocumentEvidence({
+        applicationId: application!.id,
+        contractId: typeof contract.id === "string" ? contract.id : null,
+        typeDef,
+        format,
+        templateSha256,
+        outputSha256,
+        createdByUserId,
+      });
       return {
         buffer: pdfBuffer,
         contentType: "application/pdf",
         filename: `${basename}.pdf`,
         templateSha256,
+        outputSha256,
         type: typeDef,
       };
     } catch (err) {
@@ -375,6 +405,29 @@ export class GeneratedDocumentsService {
       }
       throw err;
     }
+  }
+
+  private async persistGeneratedDocumentEvidence(input: {
+    applicationId: string;
+    contractId: string | null;
+    typeDef: GeneratedDocumentTypeDefinition;
+    format: GeneratedDocumentFormat;
+    templateSha256: string;
+    outputSha256: string;
+    createdByUserId: string;
+  }): Promise<void> {
+    await prisma.generatedDocumentEvidence.create({
+      data: {
+        application_id: input.applicationId,
+        contract_id: input.contractId,
+        document_type: input.typeDef.key,
+        template_version: String(input.typeDef.version),
+        template_sha256: input.templateSha256,
+        output_sha256: input.outputSha256,
+        format: input.format,
+        created_by_user_id: input.createdByUserId,
+      },
+    });
   }
 }
 

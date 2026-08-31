@@ -212,6 +212,7 @@ describeIntegration("facility fee gateway payments", () => {
       await prisma.gatewayPayment.deleteMany({ where: { id: { in: createdPaymentIds } } });
     }
     if (createdContractIds.length > 0) {
+      await prisma.applicationLog.deleteMany({ where: { entity_id: { in: createdContractIds } } });
       await prisma.gatewayOrderAttempt.deleteMany({
         where: {
           purpose: GatewayPaymentPurpose.FACILITY_FEE,
@@ -298,6 +299,16 @@ describeIntegration("facility fee gateway payments", () => {
       where: { idempotency_key: `gateway-facility-fee:ledger:${first.id}` },
     });
     expect(ledgerCount).toBe(1);
+    const completedEvents = await prisma.gatewayPaymentEvent.count({
+      where: { gateway_payment_id: first.id, type: "GATEWAY_PAYMENT_COMPLETED" },
+    });
+    expect(completedEvents).toBe(1);
+    const feePaidLogs = await prisma.applicationLog.findMany({
+      where: { event_type: "FACILITY_FEE_PAID", entity_id: contractId },
+    });
+    expect(feePaidLogs).toHaveLength(1);
+    expect(feePaidLogs[0]?.metadata).toMatchObject({ gatewayPaymentId: first.id });
+    expect(feePaidLogs[0]?.source).toBe("WEBHOOK");
     const ledger = await prisma.noteLedgerEntry.findFirst({
       where: { gateway_payment_id: first.id },
     });
@@ -318,6 +329,16 @@ describeIntegration("facility fee gateway payments", () => {
     expect(
       await prisma.noteLedgerEntry.count({
         where: { idempotency_key: `gateway-facility-fee:ledger:${first.id}` },
+      })
+    ).toBe(1);
+    expect(
+      await prisma.applicationLog.count({
+        where: { event_type: "FACILITY_FEE_PAID", entity_id: contractId },
+      })
+    ).toBe(1);
+    expect(
+      await prisma.gatewayPaymentEvent.count({
+        where: { gateway_payment_id: first.id, type: "GATEWAY_PAYMENT_COMPLETED" },
       })
     ).toBe(1);
 

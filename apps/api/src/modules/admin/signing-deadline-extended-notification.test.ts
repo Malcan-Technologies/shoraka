@@ -48,7 +48,7 @@ const PAST_DEADLINE = "2020-01-01T00:00:00.000Z";
 function offerDetailsApprovedForSigning() {
   return withOfferAcceptance(
     {},
-    { status: "APPROVED_FOR_SIGNING", signing_expires_at: PAST_DEADLINE }
+    { status: "SIGNING_IN_PROGRESS", signing_expires_at: PAST_DEADLINE }
   );
 }
 

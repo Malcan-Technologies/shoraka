@@ -9,6 +9,7 @@ import {
   OrganizationType,
   Prisma,
   PrismaClient,
+  UserRole,
 } from "@prisma/client";
 import { ZodError } from "zod";
 import { getCurlecConfig } from "../../config/curlec";
@@ -21,6 +22,10 @@ import {
   roundNoteMoney,
 } from "@cashsouk/types";
 import { lockContractRow } from "../../lib/refresh-contract-facility";
+import { AUDIT_PORTAL, apiAuditContext, createOnboardingLogRow, webhookAuditContext } from "../../lib/audit";
+import type { AuditRequestContext } from "../../lib/audit";
+import { createApplicationLog } from "../applications/logs/repository";
+import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
 import { postLedgerEntry } from "../notes/ledger";
 import {
   creditCompletedDeposit,
@@ -30,7 +35,7 @@ import {
 import { verifyCurlecWebhookSignature } from "./curlec-signature";
 import { createCurlecClient } from "./curlec-client";
 import { assertGatewayAccountMatch } from "./gateway-account";
-import { recordGatewayPaymentEvent } from "./gateway-events";
+import { recordGatewayPaymentEvent, recordGatewayPaymentCompletedIfAbsent } from "./gateway-events";
 import { scheduleGatewayPaymentReceipt } from "./receipt/receipt-service";
 import { notifyDepositSuccessful } from "../notification/gateway-payment-notifications";
 import { notifyFacilityFeeUpfrontPaidIfSettled } from "../notification/facility-fee-notifications";
@@ -265,7 +270,22 @@ type GatewayPaymentHoldInput = {
   actualSen?: number;
   expectedCurrency?: string;
   actualCurrency?: string;
+  context?: AuditRequestContext | null;
 };
+
+function resolveCurlecCaptureAuditContext(input: {
+  eventId: string;
+  context?: AuditRequestContext | null;
+}): AuditRequestContext {
+  return input.context ?? webhookAuditContext({ correlationId: input.eventId });
+}
+
+function overlayFeePaidAuditContext(context: AuditRequestContext): AuditRequestContext {
+  return {
+    ...context,
+    portal: context.portal ?? AUDIT_PORTAL.ISSUER,
+  };
+}
 
 /**
  * Money was captured at Curlec but failed local validation (e.g. currency mismatch
@@ -348,6 +368,7 @@ async function applyGatewayPaymentCaptureHold(
   await recordGatewayPaymentEvent(tx, {
     gatewayPaymentId: payment.id,
     type: GatewayPaymentEventType.CAPTURE_MISMATCH,
+    context: input.context,
     fromStatus,
     toStatus: GatewayPaymentStatus.HELD,
     reason,
@@ -381,6 +402,7 @@ export async function processInvestorDepositCapture(
     paymentId: string;
     eventId: string;
     routeGatewayAccount?: CurlecGatewayAccount;
+    context?: AuditRequestContext | null;
   },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
@@ -388,6 +410,7 @@ export async function processInvestorDepositCapture(
   if (!routeGatewayAccount) {
     throw new AppError(500, "GATEWAY_ACCOUNT_REQUIRED", "routeGatewayAccount is required");
   }
+  const auditContext = resolveCurlecCaptureAuditContext(input);
 
   const payment = await db.gatewayPayment.findFirst({
     where: { curlec_order_id: input.orderId, gatewayAccount: routeGatewayAccount },
@@ -454,6 +477,7 @@ export async function processInvestorDepositCapture(
         curlecOrderId: input.orderId,
         expectedCurrency: isCaptureValid.expectedCurrency,
         actualCurrency: isCaptureValid.actualCurrency,
+        context: auditContext,
       });
       logger.warn(
         {
@@ -491,6 +515,7 @@ export async function processInvestorDepositCapture(
         curlecPaymentId: curlecPayment.id,
         curlecOrderId: input.orderId,
         claimCapture: true,
+        context: auditContext,
       },
       db
     );
@@ -535,7 +560,10 @@ export async function processInvestorDepositCapture(
       }
 
       const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-      await creditCompletedDeposit(tx, current, { nameCheckResult: NameCheckResult.PASS });
+      await creditCompletedDeposit(tx, current, {
+        nameCheckResult: NameCheckResult.PASS,
+        context: auditContext,
+      });
     });
 
     const completed = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
@@ -556,6 +584,7 @@ export async function processInvestorDepositCapture(
           reason: "NAME_MISMATCH",
           curlecPaymentId: curlecPayment.id,
           nameCheckResult,
+          context: auditContext,
         },
         db
       );
@@ -574,6 +603,7 @@ export async function processInvestorDepositCapture(
       await pendNameCheckReview(tx, current, nameCheckResult, {
         score: nameCheck.score,
         matchedVariant: nameCheck.matchedVariant,
+        context: auditContext,
       });
     });
   }
@@ -599,6 +629,7 @@ export async function processStoredCurlecWebhook(
   db: PrismaClient = defaultPrisma,
   routeGatewayAccount: CurlecGatewayAccount
 ): Promise<void> {
+  const context = webhookAuditContext({ correlationId: eventId });
   const stored = await db.gatewayWebhookEvent.findFirst({
     where: { event_id: eventId, gatewayAccount: routeGatewayAccount },
   });
@@ -616,6 +647,10 @@ export async function processStoredCurlecWebhook(
   } catch (error) {
     if (error instanceof ZodError) {
       await markWebhookProcessed(db, eventId, "Invalid stored payload", routeGatewayAccount);
+      logger.error(
+        { eventId, gatewayAccount: routeGatewayAccount },
+        "Stored Curlec webhook payload failed validation"
+      );
       return;
     }
     throw error;
@@ -667,11 +702,11 @@ export async function processStoredCurlecWebhook(
     }
 
     if (payload.event === "refund.created") {
-      await adoptGatewayRefundCreated(payment, { refundId: refund.refundId }, db);
+      await adoptGatewayRefundCreated(payment, { refundId: refund.refundId, context }, db);
     } else if (payload.event === "refund.processed") {
-      await completeGatewayPaymentRefund(payment, { refundId: refund.refundId }, db);
+      await completeGatewayPaymentRefund(payment, { refundId: refund.refundId, context }, db);
     } else {
-      await failGatewayPaymentRefund(payment, { refundId: refund.refundId }, db);
+      await failGatewayPaymentRefund(payment, { refundId: refund.refundId, context }, db);
     }
 
     await markWebhookProcessed(db, eventId, null, routeGatewayAccount);
@@ -732,7 +767,7 @@ export async function processStoredCurlecWebhook(
   }
 
   await processGatewayPaymentCapture(
-    { orderId: capture.orderId, paymentId, eventId, routeGatewayAccount },
+    { orderId: capture.orderId, paymentId, eventId, routeGatewayAccount, context },
     db
   );
 }
@@ -743,6 +778,7 @@ async function processGatewayPaymentCapture(
     paymentId: string;
     eventId: string;
     routeGatewayAccount: CurlecGatewayAccount;
+    context?: AuditRequestContext | null;
   },
   db: PrismaClient
 ): Promise<void> {
@@ -788,6 +824,7 @@ export async function processOnboardingFeeCapture(
     paymentId: string;
     eventId: string;
     routeGatewayAccount?: CurlecGatewayAccount;
+    context?: AuditRequestContext | null;
   },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
@@ -795,6 +832,7 @@ export async function processOnboardingFeeCapture(
   if (!routeGatewayAccount) {
     throw new AppError(500, "GATEWAY_ACCOUNT_REQUIRED", "routeGatewayAccount is required");
   }
+  const auditContext = resolveCurlecCaptureAuditContext(input);
   const payment = await db.gatewayPayment.findFirst({
     where: { curlec_order_id: input.orderId, gatewayAccount: routeGatewayAccount },
   });
@@ -812,6 +850,9 @@ export async function processOnboardingFeeCapture(
   assertGatewayAccountMatch(routeGatewayAccount, payment.gatewayAccount, "onboarding-fee-capture");
 
   if (isCaptureSkippableStatus(payment.status)) {
+    if (payment.status === GatewayPaymentStatus.COMPLETED) {
+      await ensureOnboardingFeePaidActivity(db, payment, auditContext);
+    }
     await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
     return;
   }
@@ -834,6 +875,7 @@ export async function processOnboardingFeeCapture(
       curlecOrderId: input.orderId,
       expectedCurrency: captureValidation.expectedCurrency,
       actualCurrency: captureValidation.actualCurrency,
+      context: auditContext,
     });
     return;
   }
@@ -857,6 +899,7 @@ export async function processOnboardingFeeCapture(
         curlecPaymentId: curlecPayment.id,
         curlecOrderId: input.orderId,
         claimCapture: true,
+        context: auditContext,
       },
       db
     );
@@ -881,7 +924,7 @@ export async function processOnboardingFeeCapture(
     }
 
     const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    await completeOnboardingFeePayment(tx, current);
+    await completeOnboardingFeePayment(tx, current, auditContext);
   });
 
   const completedOnboarding = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
@@ -908,6 +951,7 @@ export async function processProcessingFeeCapture(
     paymentId: string;
     eventId: string;
     routeGatewayAccount?: CurlecGatewayAccount;
+    context?: AuditRequestContext | null;
   },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
@@ -915,6 +959,7 @@ export async function processProcessingFeeCapture(
   if (!routeGatewayAccount) {
     throw new AppError(500, "GATEWAY_ACCOUNT_REQUIRED", "routeGatewayAccount is required");
   }
+  const auditContext = resolveCurlecCaptureAuditContext(input);
   const payment = await db.gatewayPayment.findFirst({
     where: { curlec_order_id: input.orderId, gatewayAccount: routeGatewayAccount },
   });
@@ -932,6 +977,9 @@ export async function processProcessingFeeCapture(
   assertGatewayAccountMatch(routeGatewayAccount, payment.gatewayAccount, "processing-fee-capture");
 
   if (isCaptureSkippableStatus(payment.status)) {
+    if (payment.status === GatewayPaymentStatus.COMPLETED) {
+      await ensureApplicationProcessingFeePaidActivity(db, payment, auditContext);
+    }
     await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
     return;
   }
@@ -954,6 +1002,7 @@ export async function processProcessingFeeCapture(
       curlecOrderId: input.orderId,
       expectedCurrency: captureValidation.expectedCurrency,
       actualCurrency: captureValidation.actualCurrency,
+      context: auditContext,
     });
     return;
   }
@@ -977,6 +1026,7 @@ export async function processProcessingFeeCapture(
         curlecPaymentId: curlecPayment.id,
         curlecOrderId: input.orderId,
         claimCapture: true,
+        context: auditContext,
       },
       db
     );
@@ -1001,7 +1051,7 @@ export async function processProcessingFeeCapture(
     }
 
     const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    await completeProcessingFeePayment(tx, current);
+    await completeProcessingFeePayment(tx, current, auditContext);
   });
 
   const completedProcessing = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
@@ -1028,6 +1078,7 @@ export async function processFacilityFeeCapture(
     paymentId: string;
     eventId: string;
     routeGatewayAccount?: CurlecGatewayAccount;
+    context?: AuditRequestContext | null;
   },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
@@ -1035,6 +1086,7 @@ export async function processFacilityFeeCapture(
   if (!routeGatewayAccount) {
     throw new AppError(500, "GATEWAY_ACCOUNT_REQUIRED", "routeGatewayAccount is required");
   }
+  const auditContext = resolveCurlecCaptureAuditContext(input);
   const payment = await db.gatewayPayment.findFirst({
     where: { curlec_order_id: input.orderId, gatewayAccount: routeGatewayAccount },
   });
@@ -1074,6 +1126,7 @@ export async function processFacilityFeeCapture(
       curlecOrderId: input.orderId,
       expectedCurrency: captureValidation.expectedCurrency,
       actualCurrency: captureValidation.actualCurrency,
+      context: auditContext,
     });
     return;
   }
@@ -1097,6 +1150,7 @@ export async function processFacilityFeeCapture(
         curlecPaymentId: curlecPayment.id,
         curlecOrderId: input.orderId,
         claimCapture: true,
+        context: auditContext,
       },
       db
     );
@@ -1121,7 +1175,7 @@ export async function processFacilityFeeCapture(
     }
 
     const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    await completeFacilityFeePayment(tx, current);
+    await completeFacilityFeePayment(tx, current, auditContext);
   });
 
   const completedFacility = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
@@ -1175,6 +1229,7 @@ export async function processExcessLateChargeCapture(
     paymentId: string;
     eventId: string;
     routeGatewayAccount?: CurlecGatewayAccount;
+    context?: AuditRequestContext | null;
   },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
@@ -1182,6 +1237,7 @@ export async function processExcessLateChargeCapture(
   if (!routeGatewayAccount) {
     throw new AppError(500, "GATEWAY_ACCOUNT_REQUIRED", "routeGatewayAccount is required");
   }
+  const auditContext = resolveCurlecCaptureAuditContext(input);
   const payment = await db.gatewayPayment.findFirst({
     where: { curlec_order_id: input.orderId, gatewayAccount: routeGatewayAccount },
   });
@@ -1221,6 +1277,7 @@ export async function processExcessLateChargeCapture(
       curlecOrderId: input.orderId,
       expectedCurrency: captureValidation.expectedCurrency,
       actualCurrency: captureValidation.actualCurrency,
+      context: auditContext,
     });
     return;
   }
@@ -1244,6 +1301,7 @@ export async function processExcessLateChargeCapture(
         curlecPaymentId: curlecPayment.id,
         curlecOrderId: input.orderId,
         claimCapture: true,
+        context: auditContext,
       },
       db
     );
@@ -1269,7 +1327,7 @@ export async function processExcessLateChargeCapture(
     }
 
     const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    const result = await completeExcessLateChargePayment(tx, current);
+    const result = await completeExcessLateChargePayment(tx, current, auditContext);
     if (result.heldForOverCredit) {
       heldForOverCredit = true;
       await applyGatewayPaymentCaptureHold(tx, current, {
@@ -1371,7 +1429,8 @@ async function markGatewayPaymentFailedByOrderId(
  */
 export async function syncGatewayPaymentFromCurlec(
   payment: GatewayPayment,
-  db: PrismaClient = defaultPrisma
+  db: PrismaClient = defaultPrisma,
+  context?: AuditRequestContext | null
 ): Promise<GatewayPayment> {
   if (isCaptureSkippableStatus(payment.status)) {
     return payment;
@@ -1422,6 +1481,7 @@ export async function syncGatewayPaymentFromCurlec(
         paymentId: latest.id,
         eventId: `sync:${payment.id}:${latest.id}`,
         routeGatewayAccount: payment.gatewayAccount,
+        context: context ?? apiAuditContext({ correlationId: `sync:${payment.id}` }),
       },
       db
     );
@@ -1433,7 +1493,8 @@ export async function syncGatewayPaymentFromCurlec(
 
 async function completeOnboardingFeePayment(
   tx: Prisma.TransactionClient,
-  gatewayPayment: GatewayPayment
+  gatewayPayment: GatewayPayment,
+  context?: AuditRequestContext | null
 ) {
   assertTransition(gatewayPayment.status, GatewayPaymentStatus.COMPLETED);
 
@@ -1472,11 +1533,27 @@ async function completeOnboardingFeePayment(
     where: { id: gatewayPayment.id },
     data: { status: GatewayPaymentStatus.COMPLETED },
   });
+
+  await recordGatewayPaymentCompletedIfAbsent(tx, {
+    gatewayPaymentId: gatewayPayment.id,
+    fromStatus: gatewayPayment.status,
+    context,
+  });
+
+  await ensureOnboardingFeePaidActivity(
+    tx,
+    {
+      ...gatewayPayment,
+      status: GatewayPaymentStatus.COMPLETED,
+    },
+    context
+  );
 }
 
 async function completeProcessingFeePayment(
   tx: Prisma.TransactionClient,
-  gatewayPayment: GatewayPayment
+  gatewayPayment: GatewayPayment,
+  context?: AuditRequestContext | null
 ) {
   assertTransition(gatewayPayment.status, GatewayPaymentStatus.COMPLETED);
 
@@ -1510,6 +1587,194 @@ async function completeProcessingFeePayment(
     where: { id: gatewayPayment.id },
     data: { status: GatewayPaymentStatus.COMPLETED },
   });
+
+  await recordGatewayPaymentCompletedIfAbsent(tx, {
+    gatewayPaymentId: gatewayPayment.id,
+    fromStatus: gatewayPayment.status,
+    context,
+  });
+
+  await ensureApplicationProcessingFeePaidActivity(
+    tx,
+    {
+      ...gatewayPayment,
+      status: GatewayPaymentStatus.COMPLETED,
+    },
+    context
+  );
+}
+
+function gatewayPaymentActorUserId(payment: GatewayPayment): string | null {
+  const metadata = payment.metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const actorUserId = (metadata as Record<string, unknown>).actorUserId;
+  return typeof actorUserId === "string" && actorUserId.length > 0 ? actorUserId : null;
+}
+
+function hasGatewayPaymentId(
+  metadata: Prisma.JsonValue | null,
+  gatewayPaymentId: string
+): boolean {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
+  return (metadata as Record<string, unknown>).gatewayPaymentId === gatewayPaymentId;
+}
+
+async function ensureOnboardingFeePaidActivity(
+  db: Prisma.TransactionClient | PrismaClient,
+  payment: GatewayPayment,
+  context?: AuditRequestContext | null
+) {
+  const orgId = payment.issuer_organization_id;
+  if (!orgId) return;
+
+  const existing = await db.onboardingLog.findMany({
+    where: {
+      event_type: "ONBOARDING_FEE_PAID",
+      issuer_organization_id: orgId,
+    },
+    select: { metadata: true },
+  });
+  if (existing.some((row) => hasGatewayPaymentId(row.metadata, payment.id))) return;
+
+  const org = await db.issuerOrganization.findUnique({
+    where: { id: orgId },
+    select: { owner_user_id: true, name: true },
+  });
+  if (!org) {
+    throw new AppError(
+      500,
+      "GATEWAY_PAYMENT_INVALID",
+      "Issuer organization not found for onboarding fee"
+    );
+  }
+
+  const actorUserId = gatewayPaymentActorUserId(payment);
+  await createOnboardingLogRow(
+    {
+      userId: actorUserId ?? org.owner_user_id,
+      role: UserRole.ISSUER,
+      eventType: "ONBOARDING_FEE_PAID",
+      portal: "issuer",
+      issuerOrganizationId: orgId,
+      organizationName: org.name,
+      metadata: {
+        gatewayPaymentId: payment.id,
+        amount: payment.amount.toNumber(),
+        currency: payment.currency,
+        ...(actorUserId ? { initiatedByUserId: actorUserId } : {}),
+      },
+      context: overlayFeePaidAuditContext(
+        context ?? webhookAuditContext({ portal: AUDIT_PORTAL.ISSUER })
+      ),
+    },
+    db
+  );
+}
+
+async function ensureApplicationProcessingFeePaidActivity(
+  db: Prisma.TransactionClient | PrismaClient,
+  payment: GatewayPayment,
+  context?: AuditRequestContext | null
+) {
+  const applicationId = payment.application_id;
+  if (!applicationId) return;
+
+  const existing = await db.applicationLog.findMany({
+    where: {
+      event_type: ApplicationLogEventType.APPLICATION_PROCESSING_FEE_PAID,
+      application_id: applicationId,
+    },
+    select: { metadata: true },
+  });
+  if (existing.some((row) => hasGatewayPaymentId(row.metadata, payment.id))) return;
+
+  const application = await db.application.findUnique({
+    where: { id: applicationId },
+    select: {
+      issuer_organization: { select: { owner_user_id: true } },
+    },
+  });
+  if (!application) {
+    throw new AppError(
+      500,
+      "GATEWAY_PAYMENT_INVALID",
+      "Application not found for processing fee"
+    );
+  }
+
+  const actorUserId = gatewayPaymentActorUserId(payment);
+  await createApplicationLog(
+    {
+      userId: null,
+      applicationId,
+      eventType: ApplicationLogEventType.APPLICATION_PROCESSING_FEE_PAID,
+      portal: ActivityPortal.ISSUER,
+      metadata: {
+        gatewayPaymentId: payment.id,
+        amount: payment.amount.toNumber(),
+        currency: payment.currency,
+        organizationOwnerUserId: application.issuer_organization.owner_user_id,
+        ...(actorUserId ? { initiatedByUserId: actorUserId } : {}),
+      },
+      context: overlayFeePaidAuditContext(
+        context ?? webhookAuditContext({ portal: AUDIT_PORTAL.ISSUER })
+      ),
+    },
+    db
+  );
+}
+
+async function ensureFacilityFeePaidActivity(
+  db: Prisma.TransactionClient | PrismaClient,
+  payment: GatewayPayment,
+  context?: AuditRequestContext | null
+) {
+  const contractId = payment.contract_id;
+  if (!contractId) return;
+
+  const existing = await db.applicationLog.findMany({
+    where: {
+      event_type: ApplicationLogEventType.FACILITY_FEE_PAID,
+      entity_id: contractId,
+    },
+    select: { metadata: true },
+  });
+  if (existing.some((row) => hasGatewayPaymentId(row.metadata, payment.id))) return;
+
+  const contract = await db.contract.findUnique({
+    where: { id: contractId },
+    select: {
+      originating_application_id: true,
+      issuer_organization: { select: { owner_user_id: true } },
+    },
+  });
+  if (!contract) {
+    throw new AppError(500, "GATEWAY_PAYMENT_INVALID", "Facility not found for facility fee");
+  }
+
+  const applicationId = payment.application_id ?? contract.originating_application_id ?? null;
+  const actorUserId = gatewayPaymentActorUserId(payment);
+  await createApplicationLog(
+    {
+      userId: null,
+      applicationId,
+      entityId: contractId,
+      eventType: ApplicationLogEventType.FACILITY_FEE_PAID,
+      portal: ActivityPortal.ISSUER,
+      metadata: {
+        gatewayPaymentId: payment.id,
+        contract_id: contractId,
+        amount: payment.amount.toNumber(),
+        currency: payment.currency,
+        organizationOwnerUserId: contract.issuer_organization.owner_user_id,
+        ...(actorUserId ? { initiatedByUserId: actorUserId } : {}),
+      },
+      context: overlayFeePaidAuditContext(
+        context ?? webhookAuditContext({ portal: AUDIT_PORTAL.ISSUER })
+      ),
+    },
+    db
+  );
 }
 
 function readCaptureMismatchType(metadata: Prisma.JsonValue | null): string | null {
@@ -1522,7 +1787,8 @@ function readCaptureMismatchType(metadata: Prisma.JsonValue | null): string | nu
 
 async function completeFacilityFeePayment(
   tx: Prisma.TransactionClient,
-  gatewayPayment: GatewayPayment
+  gatewayPayment: GatewayPayment,
+  context?: AuditRequestContext | null
 ) {
   if (!gatewayPayment.contract_id) {
     throw new AppError(500, "GATEWAY_PAYMENT_INVALID", "Facility fee is missing contract");
@@ -1589,6 +1855,14 @@ async function completeFacilityFeePayment(
     where: { id: gatewayPayment.id },
     data: { status: GatewayPaymentStatus.COMPLETED },
   });
+
+  await recordGatewayPaymentCompletedIfAbsent(tx, {
+    gatewayPaymentId: gatewayPayment.id,
+    fromStatus: gatewayPayment.status,
+    context,
+  });
+
+  await ensureFacilityFeePaidActivity(tx, gatewayPayment, context);
 }
 
 /**

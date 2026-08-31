@@ -2,7 +2,6 @@ import { BaseWebhookHandler } from "./base-webhook-handler";
 import { RegTankEODWebhook } from "../types";
 import { logger } from "../../../lib/logger";
 import { RegTankRepository } from "../repository";
-import { AuthRepository } from "../../auth/repository";
 import { AmlIdentityRepository } from "../aml-identity-repository";
 import { UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
@@ -17,6 +16,7 @@ import {
   isEodParentFamilyMatch,
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
+import { createOnboardingLogRow, webhookAuditContext } from "../../../lib/audit";
 
 type DirectorKycJsonRow = {
   eodRequestId: string;
@@ -114,7 +114,6 @@ function computeDirectorMatch(
  */
 export class EODWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
-  private authRepository: AuthRepository;
   private organizationRepository: OrganizationRepository;
   private amlIdentityRepository: AmlIdentityRepository;
   private apiClient: ReturnType<typeof getRegTankAPIClient>;
@@ -122,7 +121,6 @@ export class EODWebhookHandler extends BaseWebhookHandler {
   constructor() {
     super();
     this.repository = new RegTankRepository();
-    this.authRepository = new AuthRepository();
     this.organizationRepository = new OrganizationRepository();
     this.amlIdentityRepository = new AmlIdentityRepository();
     this.apiClient = getRegTankAPIClient();
@@ -238,11 +236,8 @@ export class EODWebhookHandler extends BaseWebhookHandler {
       return;
     }
 
-    // Append to history using the COD requestId (the parent onboarding record's request_id)
-    // This ensures EOD webhooks are stored with the correct COD onboarding record
-    await this.repository.appendWebhookPayload(onboarding.request_id, payload as Prisma.InputJsonValue);
-
     if (isCancelledOnboardingRow(onboarding)) {
+      await this.repository.appendWebhookPayload(onboarding.request_id, payload as Prisma.InputJsonValue);
       logCancelledOnboardingSkip({
         webhookFamily: "eodliveness",
         webhookRequestId: eodRequestId,
@@ -251,12 +246,42 @@ export class EODWebhookHandler extends BaseWebhookHandler {
       return;
     }
 
-    // Note: We don't update the COD onboarding record status with EOD status
-    // EOD status represents individual entities (directors/shareholders), not the company
-    // The COD onboarding record status is updated by COD webhooks, not EOD webhooks
-    // We only store the EOD webhook payload in the COD onboarding record's webhook_payloads array
-
     const statusUpper = statusRaw.toUpperCase();
+    const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
+    const portalType = onboarding.portal_type as PortalType;
+    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+    const eventType =
+      statusUpper === "APPROVED" ? "EOD_APPROVED" : statusUpper === "REJECTED" ? "EOD_REJECTED" : "EOD_WEBHOOK";
+
+    await prisma.$transaction(async (tx) => {
+      await this.repository.appendWebhookPayload(
+        onboarding.request_id,
+        payload as Prisma.InputJsonValue,
+        tx
+      );
+      await createOnboardingLogRow(
+        {
+          userId: onboarding.user_id,
+          role,
+          eventType,
+          organizationName:
+            onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
+          investorOrganizationId: onboarding.investor_organization_id || undefined,
+          issuerOrganizationId: onboarding.issuer_organization_id || undefined,
+          metadata: {
+            eodRequestId,
+            codRequestId: onboarding.request_id,
+            status: statusUpper,
+            confidence,
+            kycId,
+            organizationId: organizationId || null,
+            onboardingType: onboarding.onboarding_type,
+          },
+          context: webhookAuditContext(),
+        },
+        tx
+      );
+    });
 
     logger.info(
       {
@@ -265,61 +290,22 @@ export class EODWebhookHandler extends BaseWebhookHandler {
         status: statusUpper,
         confidence,
         kycId,
-        organizationId: onboarding.investor_organization_id || onboarding.issuer_organization_id,
+        organizationId,
       },
       "[EOD Webhook] EOD webhook processed and appended to parent COD onboarding record"
     );
 
-    // Create onboarding log entry for EOD webhook
-    const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
-    const portalType = onboarding.portal_type as PortalType;
-    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-
-    try {
-      const eventType = statusUpper === "APPROVED" ? "EOD_APPROVED" : statusUpper === "REJECTED" ? "EOD_REJECTED" : "EOD_WEBHOOK";
-
-      await this.authRepository.createOnboardingLog({
+    logger.debug(
+      {
+        eodRequestId,
+        codRequestId: onboarding.request_id,
         userId: onboarding.user_id,
         role,
         eventType,
-        portal: portalType,
-        organizationName: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-        investorOrganizationId: onboarding.investor_organization_id || undefined,
-        issuerOrganizationId: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          eodRequestId,
-          codRequestId: onboarding.request_id,
-          status: statusUpper,
-          confidence,
-          kycId,
-          organizationId: organizationId || null,
-          onboardingType: onboarding.onboarding_type,
-        },
-      });
-
-      logger.debug(
-        {
-          eodRequestId,
-          codRequestId: onboarding.request_id,
-          userId: onboarding.user_id,
-          role,
-          eventType,
-          portalType,
-        },
-        "[EOD Webhook] Created EOD onboarding log entry"
-      );
-    } catch (logError) {
-      // Log error but don't fail the webhook processing
-      logger.error(
-        {
-          error: logError instanceof Error ? logError.message : String(logError),
-          eodRequestId,
-          codRequestId: onboarding.request_id,
-          userId: onboarding.user_id,
-        },
-        "[EOD Webhook] Failed to create EOD onboarding log entry (non-blocking)"
-      );
-    }
+        portalType,
+      },
+      "[EOD Webhook] Created EOD onboarding log entry"
+    );
 
     // Update director KYC status in parent organization's director_kyc_status JSON field
     if (organizationId) {

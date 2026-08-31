@@ -1,5 +1,6 @@
 import { UserRole } from "@prisma/client";
-import { createOnboardingLogRow } from "../../lib/audit";
+import { createOnboardingLogRow, AccountAuditDb } from "../../lib/audit";
+import { prisma } from "../../lib/prisma";
 import { snapshotBusinessReference } from "../../lib/audit/display-references";
 
 export const ORGANIZATION_MEMBERSHIP_EVENT = {
@@ -25,30 +26,34 @@ export async function logOrganizationMembershipEvent(params: {
   previousRole?: string | null;
   newRole?: string | null;
   invitationId?: string | null;
+  db?: AccountAuditDb;
 }): Promise<void> {
   const organizationReference = snapshotBusinessReference(
     params.organizationReference,
     params.organizationId
   );
   const subjectUserId = params.memberUserId || params.ownerUserId;
-  await createOnboardingLogRow({
-    userId: subjectUserId,
-    actorUserId: params.actorUserId,
-    role: params.portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
-    eventType: params.eventType,
-    portal: params.portalType,
-    organizationName: params.organizationName ?? undefined,
-    investorOrganizationId: params.portalType === "investor" ? params.organizationId : null,
-    issuerOrganizationId: params.portalType === "issuer" ? params.organizationId : null,
-    metadata: {
-      action: params.eventType,
-      organizationId: params.organizationId,
-      ...(organizationReference ? { organizationReference } : {}),
-      ...(params.memberUserId ? { memberUserId: params.memberUserId } : {}),
-      ...(params.memberEmail ? { memberEmail: params.memberEmail } : {}),
-      ...(params.previousRole ? { previousRole: params.previousRole } : {}),
-      ...(params.newRole ? { newRole: params.newRole } : {}),
-      ...(params.invitationId ? { invitationId: params.invitationId } : {}),
+  await createOnboardingLogRow(
+    {
+      userId: subjectUserId,
+      actorUserId: params.actorUserId,
+      role: params.portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
+      eventType: params.eventType,
+      portal: params.portalType,
+      organizationName: params.organizationName ?? undefined,
+      investorOrganizationId: params.portalType === "investor" ? params.organizationId : null,
+      issuerOrganizationId: params.portalType === "issuer" ? params.organizationId : null,
+      metadata: {
+        action: params.eventType,
+        organizationId: params.organizationId,
+        ...(organizationReference ? { organizationReference } : {}),
+        ...(params.memberUserId ? { memberUserId: params.memberUserId } : {}),
+        ...(params.memberEmail ? { memberEmail: params.memberEmail } : {}),
+        ...(params.previousRole ? { previousRole: params.previousRole } : {}),
+        ...(params.newRole ? { newRole: params.newRole } : {}),
+        ...(params.invitationId ? { invitationId: params.invitationId } : {}),
+      },
     },
-  });
+    params.db ?? prisma
+  );
 }

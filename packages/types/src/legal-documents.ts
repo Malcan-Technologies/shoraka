@@ -23,6 +23,45 @@ export type LegalDocumentType =
 export type LegalExternalAcceptanceSource = "SIGNING_RECIPIENT";
 export type LegalExternalAcceptanceStatus = "OPENED" | "ACCEPTED";
 
+export interface LegalExternalAcceptanceListItem {
+  id: string;
+  status: LegalExternalAcceptanceStatus;
+  documentType: LegalDocumentType | null;
+  documentTitle: string;
+  versionNumber: number | null;
+  legalDocumentVersionId: string;
+  legalDocumentId: string | null;
+  documentHash: string | null;
+  fileName: string | null;
+  partyName: string;
+  partyEmail: string;
+  partyIcMasked: string | null;
+  partyRole: string | null;
+  sourceType: LegalExternalAcceptanceSource;
+  sourceId: string;
+  envelopeId: string | null;
+  applicationId: string | null;
+  organizationId: string | null;
+  organizationName: string | null;
+  openedAt: string | null;
+  acceptedAt: string | null;
+  createdAt: string;
+}
+
+export interface LegalExternalAcceptanceDetail extends LegalExternalAcceptanceListItem {
+  partyIcNumber: string | null;
+  openedIpAddress: string | null;
+  openedUserAgent: string | null;
+  openedDeviceInfo: string | null;
+  acceptedIpAddress: string | null;
+  acceptedUserAgent: string | null;
+  acceptedDeviceInfo: string | null;
+  acknowledgementText: string | null;
+  versionStatus: LegalDocumentVersionStatus | null;
+  contentType: string | null;
+  fileSize: number | null;
+}
+
 /** @deprecated Use LegalDocumentType */
 export type OnboardingLegalDocumentType = LegalDocumentType;
 

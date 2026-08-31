@@ -66,6 +66,8 @@ import {
 import { applicationService } from "../applications/service";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
+import type { AuditRequestContext } from "../../lib/audit";
+import { systemAuditContext, webhookAuditContext, internalAuditContext } from "../../lib/audit";
 import {
   signingRepository,
   type SigningApplicationContext,
@@ -277,6 +279,7 @@ export interface CreateAndSendAdminEnvelopeInput {
   userId: string;
   contractId?: string | null;
   invoiceId?: string | null;
+  context?: AuditRequestContext | null;
 }
 
 export class SigningService {
@@ -682,7 +685,7 @@ export class SigningService {
   }
 
   private async logSigningPackageActivity(params: {
-    userId: string;
+    userId: string | null;
     applicationId: string;
     eventType: ApplicationLogEventType;
     envelope: {
@@ -693,14 +696,21 @@ export class SigningService {
       provider_ref?: unknown;
       documents?: Array<{ provider_contract_ref?: string | null }>;
     };
-    portal?: ActivityPortal;
+    portal?: ActivityPortal | null;
     extraMetadata?: Record<string, unknown>;
+    context?: AuditRequestContext | null;
   }): Promise<void> {
+    const portal =
+      params.portal !== undefined
+        ? params.portal
+        : params.userId
+          ? ActivityPortal.ADMIN
+          : null;
     await logApplicationActivity({
       userId: params.userId,
       applicationId: params.applicationId,
       entityId: params.envelope.id,
-      portal: params.portal ?? ActivityPortal.ADMIN,
+      portal,
       eventType: params.eventType,
       metadata: {
         envelope_id: params.envelope.id,
@@ -710,6 +720,7 @@ export class SigningService {
         ...signingProviderReferenceMetadata(params.envelope),
         ...params.extraMetadata,
       },
+      context: params.context,
     });
   }
 
@@ -913,6 +924,7 @@ export class SigningService {
         return this.sendEnvelope(activeEnvelope.id, {
           userId: input.userId,
           portal: ActivityPortal.ADMIN,
+          context: input.context,
         });
       }
       throw new AppError(
@@ -992,10 +1004,12 @@ export class SigningService {
         title: draft.title,
       },
       portal: ActivityPortal.ADMIN,
+      context: input.context,
     });
     return this.sendEnvelope(draft.id, {
       userId: input.userId,
       portal: ActivityPortal.ADMIN,
+      context: input.context,
     });
   }
 
@@ -1159,7 +1173,14 @@ export class SigningService {
 
   async getEnvelopeForExternalToken(accessToken: string): Promise<ExternalSigningSessionDto> {
     const { envelope, recipient } = await this.resolveExternalTokenSession(accessToken);
-    return this.mapExternalSession(envelope, recipient, isClosedEnvelopeStatus(envelope.status));
+    await this.repo.markRecipientViewedIfUnset(recipient.id);
+    const refreshed = await this.requireEnvelope(envelope.id);
+    const updatedRecipient = refreshed.recipients.find((item) => item.id === recipient.id)!;
+    return this.mapExternalSession(
+      refreshed,
+      updatedRecipient,
+      isClosedEnvelopeStatus(refreshed.status)
+    );
   }
 
   async verifyExternalAccessCode(
@@ -1299,7 +1320,7 @@ export class SigningService {
 
   async sendEnvelope(
     id: string,
-    actor?: { userId: string; portal: ActivityPortal }
+    actor?: { userId: string; portal: ActivityPortal; context?: AuditRequestContext | null }
   ): Promise<SigningEnvelopeDto> {
     const envelope = await this.requireEnvelope(id);
     if (envelope.status !== "DRAFT") {
@@ -1475,16 +1496,15 @@ export class SigningService {
       typeof signingExpiresAt === "string" ? new Date(signingExpiresAt) : undefined
     );
     await this.markOfferAcceptanceSigningInProgress(envelope, deadlinePatch);
-    const logUserId = actor?.userId ?? envelope.created_by_user_id;
-    if (logUserId) {
-      await this.logSigningPackageActivity({
-        userId: logUserId,
-        applicationId: envelope.application_id,
-        eventType: ApplicationLogEventType.SIGNING_PACKAGE_SENT,
-        envelope,
-        portal: actor?.portal ?? ActivityPortal.ADMIN,
-      });
-    }
+    const logUserId = actor?.userId ?? envelope.created_by_user_id ?? null;
+    await this.logSigningPackageActivity({
+      userId: logUserId,
+      applicationId: envelope.application_id,
+      eventType: ApplicationLogEventType.SIGNING_PACKAGE_SENT,
+      envelope,
+      portal: actor?.portal ?? (logUserId ? ActivityPortal.ADMIN : null),
+      context: actor?.context,
+    });
     return this.getEnvelope(id);
   }
 
@@ -1669,6 +1689,7 @@ export class SigningService {
   async openExternalWarning(accessToken: string, req: Request) {
     const { recipient } = await this.requireExternalTokenSession(accessToken);
     await this.assertRecipientIdentityComplete(recipient);
+    await this.repo.markRecipientViewedIfUnset(recipient.id);
     return legalExternalAcceptanceService.recordOpenedForSigningRecipient(req, recipient);
   }
 
@@ -1698,6 +1719,7 @@ export class SigningService {
       throw new AppError(409, "SIGNING_ENVELOPE_CLOSED", "This signing package is closed.");
     }
     await this.assertRecipientCanSign(recipient);
+    await this.repo.markRecipientViewedIfUnset(recipient.id);
     const assignment = envelope.assignments.find(
       (item) =>
         item.document_id === document.id &&
@@ -1945,7 +1967,10 @@ export class SigningService {
    * Pull live per-signer status from the provider (SigningCloud Get Document Detail)
    * and update assignments by email. Fetches signed PDFs when a document is complete.
    */
-  async syncEnvelopeFromProvider(envelopeId: string): Promise<void> {
+  async syncEnvelopeFromProvider(
+    envelopeId: string,
+    options?: { context?: AuditRequestContext | null }
+  ): Promise<void> {
     let envelope = await this.requireEnvelope(envelopeId);
     let assignmentsChanged = false;
     let detailAttempts = 0;
@@ -2006,6 +2031,13 @@ export class SigningService {
           continue;
         }
 
+        const providerSigner = details.signers.find(
+          (signer) => normalizeSigningEmail(signer.email) === normalizeSigningEmail(recipient.email)
+        );
+        if (providerSigner?.viewedAt) {
+          await this.repo.markRecipientViewedIfUnset(recipient.id, providerSigner.viewedAt);
+        }
+
         if (providerStatus === "SIGNED" && assignment.status !== "SIGNED") {
           await this.repo.markAssignmentSigned(assignment.id);
           assignmentsChanged = true;
@@ -2017,7 +2049,7 @@ export class SigningService {
     }
 
     if (assignmentsChanged) {
-      await this.rollupEnvelope(envelopeId);
+      await this.rollupEnvelope(envelopeId, options);
       envelope = await this.requireEnvelope(envelopeId);
     }
 
@@ -2081,7 +2113,9 @@ export class SigningService {
       return { skipped: true };
     }
 
-    await this.syncEnvelopeFromProvider(envelope.id);
+    await this.syncEnvelopeFromProvider(envelope.id, {
+      context: webhookAuditContext(),
+    });
     logger.info(
       { envelopeId: envelope.id, providerContractRef },
       "Signing envelope synced via provider callback"
@@ -2089,7 +2123,10 @@ export class SigningService {
     return { skipped: false };
   }
 
-  private async rollupEnvelope(envelopeId: string): Promise<void> {
+  private async rollupEnvelope(
+    envelopeId: string,
+    options?: { context?: AuditRequestContext | null }
+  ): Promise<void> {
     const envelope = await this.requireEnvelope(envelopeId);
     const assignmentInputs: AssignmentStatusInput[] = envelope.assignments.map((a) => ({
       status: a.status,
@@ -2133,25 +2170,24 @@ export class SigningService {
       }
 
       if (nextEnvelopeStatus === "COMPLETED") {
-        if (envelope.created_by_user_id) {
-          await this.logSigningPackageActivity({
-            userId: envelope.created_by_user_id,
-            applicationId: envelope.application_id,
-            eventType: ApplicationLogEventType.SIGNING_PACKAGE_COMPLETED,
-            envelope,
-          });
-        }
+        await this.logSigningPackageActivity({
+          userId: null,
+          applicationId: envelope.application_id,
+          eventType: ApplicationLogEventType.SIGNING_PACKAGE_COMPLETED,
+          envelope,
+          portal: null,
+          context: options?.context ?? internalAuditContext(),
+        });
         await this.finalizeCompletedEnvelopeOffer(envelope);
       } else if (nextEnvelopeStatus === "DECLINED") {
-        if (envelope.created_by_user_id) {
-          await this.logSigningPackageActivity({
-            userId: envelope.created_by_user_id,
-            applicationId: envelope.application_id,
-            eventType: ApplicationLogEventType.SIGNING_PACKAGE_VOIDED,
-            envelope,
-            extraMetadata: { void_reason: "declined" },
-          });
-        }
+        await this.logSigningPackageActivity({
+          userId: null,
+          applicationId: envelope.application_id,
+          eventType: ApplicationLogEventType.SIGNING_PACKAGE_DECLINED,
+          envelope,
+          portal: null,
+          context: options?.context ?? internalAuditContext(),
+        });
         await this.rollbackOfferAcceptanceAfterEnvelopeClosed(envelope);
       }
     }
@@ -2159,10 +2195,6 @@ export class SigningService {
 
   private async finalizeCompletedEnvelopeOffer(envelope: SigningEnvelopeWithGraph): Promise<void> {
     const initiatedByUserId = envelope.created_by_user_id;
-    if (!initiatedByUserId) {
-      logger.warn({ envelopeId: envelope.id }, "Skipping offer finalization for envelope without creator");
-      return;
-    }
     const signedDocument =
       envelope.documents.find((document) => document.source === "GENERATED_OFFER_LETTER" && document.signed_s3_key) ??
       envelope.documents.find((document) => document.signed_s3_key);
@@ -2205,18 +2237,45 @@ export class SigningService {
     }
     await this.repo.voidEnvelope(id, reason);
     await this.rollbackOfferAcceptanceAfterEnvelopeClosed(envelope);
-    const actorUserId = options?.userId ?? envelope.created_by_user_id;
-    if (actorUserId) {
-      await this.logSigningPackageActivity({
-        userId: actorUserId,
-        applicationId: envelope.application_id,
-        eventType: ApplicationLogEventType.SIGNING_PACKAGE_VOIDED,
-        envelope,
-        portal: options?.portal ?? ActivityPortal.ADMIN,
-        extraMetadata: reason?.trim() ? { void_reason: reason.trim() } : undefined,
-      });
-    }
+    const actorUserId = options?.userId ?? envelope.created_by_user_id ?? null;
+    await this.logSigningPackageActivity({
+      userId: actorUserId,
+      applicationId: envelope.application_id,
+      eventType: ApplicationLogEventType.SIGNING_PACKAGE_VOIDED,
+      envelope,
+      portal: options?.portal ?? (actorUserId ? ActivityPortal.ADMIN : null),
+      extraMetadata: reason?.trim() ? { void_reason: reason.trim() } : undefined,
+    });
     return this.getEnvelope(id);
+  }
+
+  /**
+   * Close an active envelope whose expires_at has passed. Logs SIGNING_PACKAGE_EXPIRED
+   * even when the envelope has no creator user.
+   */
+  async expireEnvelope(
+    id: string,
+    options?: { context?: AuditRequestContext | null }
+  ): Promise<boolean> {
+    const envelope = await this.requireEnvelope(id);
+    if (isClosedEnvelopeStatus(envelope.status)) return false;
+    const updated = await this.repo.updateEnvelopeStatusIfCurrent(
+      id,
+      envelope.status,
+      "EXPIRED",
+      false
+    );
+    if (!updated) return false;
+    await this.rollbackOfferAcceptanceAfterEnvelopeClosed(envelope);
+    await this.logSigningPackageActivity({
+      userId: null,
+      applicationId: envelope.application_id,
+      eventType: ApplicationLogEventType.SIGNING_PACKAGE_EXPIRED,
+      envelope,
+      portal: null,
+      context: options?.context ?? systemAuditContext({ correlationId: "cron:signing-envelope-expiry" }),
+    });
+    return true;
   }
 
   async remindRecipient(envelopeId: string, recipientId: string): Promise<void> {

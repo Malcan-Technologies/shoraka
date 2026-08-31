@@ -13,13 +13,21 @@ import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { OrganizationRepository } from "../organization/repository";
-import { AuthRepository } from "../auth/repository";
 import { getRegTankConfig } from "../../config/regtank";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
 import { normalizeRawStatus } from "@cashsouk/types";
-import { decideIndividualApprovedOutcome } from "./helpers/individual-onboarding-transition";
+import {
+  decideIndividualApprovedOutcome,
+  getIndividualWaitForApprovalUpdate,
+} from "./helpers/individual-onboarding-transition";
 import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
-import { auditContextFromRequest, createOnboardingLogRow, webhookAuditContext } from "../../lib/audit";
+import {
+  auditContextFromRequest,
+  createOnboardingLogRow,
+  persistOrganizationUpdateAndOnboardingLogs,
+  webhookAuditContext,
+  type AuditRequestContext,
+} from "../../lib/audit";
 
 type StartPersonalOnboardingResult = {
   verifyLink: string;
@@ -142,12 +150,10 @@ export class RegTankService {
   private repository: RegTankRepository;
   private apiClient = getRegTankAPIClient();
   private organizationRepository: OrganizationRepository;
-  private authRepository: AuthRepository;
 
   constructor() {
     this.repository = new RegTankRepository();
     this.organizationRepository = new OrganizationRepository();
-    this.authRepository = new AuthRepository();
   }
 
   private async runPersonalOnboardingSingleFlight(
@@ -677,6 +683,7 @@ export class RegTankService {
     }
 
     try {
+      const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
       await prisma.$transaction(async (tx) => {
         await tx.regTankOnboarding.update({
           where: { id: existingOnboarding.id },
@@ -702,6 +709,30 @@ export class RegTankService {
             regtank_response: regTankResponse as Prisma.InputJsonValue,
           },
         });
+
+        await createOnboardingLogRow(
+          {
+            userId: userId,
+            role: portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
+            eventType: "ONBOARDING_RESUMED",
+            portal: portalType,
+            ipAddress,
+            userAgent,
+            deviceInfo,
+            deviceType,
+            investorOrganizationId: portalType === "investor" ? organizationId : null,
+            issuerOrganizationId: portalType === "issuer" ? organizationId : null,
+            metadata: {
+              organizationId,
+              previousRequestId: existingOnboarding.request_id,
+              newRequestId: resolvedResponse.requestId,
+              onboardingType: "CORPORATE",
+              trigger: "AUTO_REGENERATE_EXPIRED_COMPANY_LINK",
+            },
+            context: auditContextFromRequest(req),
+          },
+          tx
+        );
       });
     } catch (error) {
       logger.error(
@@ -715,28 +746,6 @@ export class RegTankService {
       );
       throw error;
     }
-
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    await createOnboardingLogRow({
-      userId: userId,
-      role: portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
-      eventType: "ONBOARDING_RESUMED",
-      portal: portalType,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      investorOrganizationId: portalType === "investor" ? organizationId : null,
-      issuerOrganizationId: portalType === "issuer" ? organizationId : null,
-      metadata: {
-        organizationId,
-        previousRequestId: existingOnboarding.request_id,
-        newRequestId: resolvedResponse.requestId,
-        onboardingType: "CORPORATE",
-        trigger: "AUTO_REGENERATE_EXPIRED_COMPANY_LINK",
-      },
-      context: auditContextFromRequest(req),
-    });
 
     logger.info(
       {
@@ -784,48 +793,57 @@ export class RegTankService {
     const expiresIn = resolvedRestart.expiredIn;
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
-    if (existingOnboarding.status !== "CANCELLED") {
-      await this.repository.cancelOnboarding(
-        existingOnboarding.id,
-        `Auto-restarted due to stale/expired link. New requestId: ${resolvedRestart.requestId}`
-      );
-    }
-
-    await this.repository.createOnboarding({
-      userId,
-      organizationId,
-      organizationType,
-      portalType,
-      requestId: resolvedRestart.requestId,
-      referenceId: `${organizationId}-restart-${Date.now()}`,
-      onboardingType: "INDIVIDUAL",
-      verifyLink: resolvedRestart.verifyLink,
-      verifyLinkExpiresAt: expiresAt,
-      status: "IN_PROGRESS",
-      regtankResponse: regTankResponse as Prisma.InputJsonValue,
-    });
-
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    await createOnboardingLogRow({
-      userId: userId,
-      role: UserRole.INVESTOR,
-      eventType: "ONBOARDING_RESUMED",
-      portal: portalType,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      investorOrganizationId: organizationId,
-      issuerOrganizationId: null,
-      metadata: {
-        organizationId,
-        previousRequestId: existingOnboarding.request_id,
-        newRequestId: resolvedRestart.requestId,
-        onboardingType: "INDIVIDUAL",
-        previousOrgStatus,
-        trigger: "AUTO_RESTART_EXPIRED_OR_STALE_LINK",
-      },
-      context: auditContextFromRequest(req),
+    await prisma.$transaction(async (tx) => {
+      if (existingOnboarding.status !== "CANCELLED") {
+        await this.repository.cancelOnboarding(
+          existingOnboarding.id,
+          `Auto-restarted due to stale/expired link. New requestId: ${resolvedRestart.requestId}`,
+          tx
+        );
+      }
+
+      await this.repository.createOnboarding(
+        {
+          userId,
+          organizationId,
+          organizationType,
+          portalType,
+          requestId: resolvedRestart.requestId,
+          referenceId: `${organizationId}-restart-${Date.now()}`,
+          onboardingType: "INDIVIDUAL",
+          verifyLink: resolvedRestart.verifyLink,
+          verifyLinkExpiresAt: expiresAt,
+          status: "IN_PROGRESS",
+          regtankResponse: regTankResponse as Prisma.InputJsonValue,
+        },
+        tx
+      );
+
+      await createOnboardingLogRow(
+        {
+          userId: userId,
+          role: UserRole.INVESTOR,
+          eventType: "ONBOARDING_RESUMED",
+          portal: portalType,
+          ipAddress,
+          userAgent,
+          deviceInfo,
+          deviceType,
+          investorOrganizationId: organizationId,
+          issuerOrganizationId: null,
+          metadata: {
+            organizationId,
+            previousRequestId: existingOnboarding.request_id,
+            newRequestId: resolvedRestart.requestId,
+            onboardingType: "INDIVIDUAL",
+            previousOrgStatus,
+            trigger: "AUTO_RESTART_EXPIRED_OR_STALE_LINK",
+          },
+          context: auditContextFromRequest(req),
+        },
+        tx
+      );
     });
 
     logger.info(
@@ -1003,47 +1021,51 @@ export class RegTankService {
           "Resuming existing onboarding for organization (active and unexpired)"
         );
 
-        // For personal accounts, ensure organization status is IN_PROGRESS when resuming
-        if (organization.type === OrganizationType.PERSONAL) {
-          if (
-            organization.onboarding_status === OnboardingStatus.PENDING ||
-            organization.onboarding_status === OnboardingStatus.IN_PROGRESS
-          ) {
+        const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+        const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+        const shouldMarkInProgress =
+          organization.type === OrganizationType.PERSONAL &&
+          (organization.onboarding_status === OnboardingStatus.PENDING ||
+            organization.onboarding_status === OnboardingStatus.IN_PROGRESS);
+
+        await prisma.$transaction(async (tx) => {
+          if (shouldMarkInProgress) {
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               organizationId,
-              OnboardingStatus.IN_PROGRESS
+              OnboardingStatus.IN_PROGRESS,
+              undefined,
+              tx
             );
             logger.info(
               { organizationId, previousStatus: organization.onboarding_status },
               "Updated personal organization status to IN_PROGRESS when resuming onboarding"
             );
           }
-        }
 
-        // Log ONBOARDING_RESUMED when resuming existing onboarding (only once, here)
-        const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-        const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-
-        await createOnboardingLogRow({
-          userId: userId,
-          role,
-          eventType: "ONBOARDING_RESUMED",
-          portal: portalType,
-          ipAddress,
-          userAgent,
-          deviceInfo,
-          deviceType,
-          organizationName: organization.name,
-          investorOrganizationId: organizationId,
-          issuerOrganizationId: null,
-          metadata: {
-            organizationId,
-            requestId: existingOnboarding.request_id,
-            onboardingType: "INDIVIDUAL",
-            previousOrgStatus: organization.onboarding_status,
-            previousRegTankStatus: existingOnboarding.status,
-          },
-          context: auditContextFromRequest(req),
+          await createOnboardingLogRow(
+            {
+              userId: userId,
+              role,
+              eventType: "ONBOARDING_RESUMED",
+              portal: portalType,
+              ipAddress,
+              userAgent,
+              deviceInfo,
+              deviceType,
+              organizationName: organization.name,
+              investorOrganizationId: organizationId,
+              issuerOrganizationId: null,
+              metadata: {
+                organizationId,
+                requestId: existingOnboarding.request_id,
+                onboardingType: "INDIVIDUAL",
+                previousOrgStatus: organization.onboarding_status,
+                previousRegTankStatus: existingOnboarding.status,
+              },
+              context: auditContextFromRequest(req),
+            },
+            tx
+          );
         });
 
         // Ensure onboarding settings are configured before resuming
@@ -1312,46 +1334,51 @@ export class RegTankService {
       const initialStatus =
         organization.type === OrganizationType.PERSONAL ? "IN_PROGRESS" : "PENDING";
 
-      // Store onboarding record
-      await this.repository.createOnboarding({
-        userId,
-        organizationId,
-        organizationType: organization.type,
-        portalType,
-        requestId: regTankResponse.requestId,
-        referenceId,
-        onboardingType: "INDIVIDUAL",
-        verifyLink: regTankResponse.verifyLink,
-        verifyLinkExpiresAt: expiresAt,
-        status: initialStatus,
-        regtankResponse: regTankResponse as Prisma.InputJsonValue,
-      });
+        await prisma.$transaction(async (tx) => {
+          await this.repository.createOnboarding(
+            {
+              userId,
+              organizationId,
+              organizationType: organization.type,
+              portalType,
+              requestId: regTankResponse.requestId,
+              referenceId,
+              onboardingType: "INDIVIDUAL",
+              verifyLink: regTankResponse.verifyLink,
+              verifyLinkExpiresAt: expiresAt,
+              status: initialStatus,
+              regtankResponse: regTankResponse as Prisma.InputJsonValue,
+            },
+            tx
+          );
 
-      // Log onboarding event - always ONBOARDING_STARTED when creating a new onboarding
-      // Note: ONBOARDING_RESUMED is only logged in the shouldResume block above when actually resuming
-      const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+          const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+          const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
 
-      await createOnboardingLogRow({
-        userId: userId,
-        role,
-        eventType: "ONBOARDING_STARTED",
-        portal: portalType,
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        deviceType,
-        organizationName: organization.name,
-        investorOrganizationId: organizationId,
-        issuerOrganizationId: null,
-        metadata: {
-          organizationId,
-          requestId: regTankResponse.requestId,
-          onboardingType: "INDIVIDUAL",
-          previousOrgStatus: previousOrgStatus,
-        },
-        context: auditContextFromRequest(req),
-      });
+          await createOnboardingLogRow(
+            {
+              userId: userId,
+              role,
+              eventType: "ONBOARDING_STARTED",
+              portal: portalType,
+              ipAddress,
+              userAgent,
+              deviceInfo,
+              deviceType,
+              organizationName: organization.name,
+              investorOrganizationId: organizationId,
+              issuerOrganizationId: null,
+              metadata: {
+                organizationId,
+                requestId: regTankResponse.requestId,
+                onboardingType: "INDIVIDUAL",
+                previousOrgStatus: previousOrgStatus,
+              },
+              context: auditContextFromRequest(req),
+            },
+            tx
+          );
+        });
 
       logger.info(
         {
@@ -1737,43 +1764,49 @@ export class RegTankService {
         // Corporate onboarding starts with PENDING status
         const initialStatus = "PENDING";
 
-        // Store onboarding record
-        await this.repository.createOnboarding({
-          userId,
-          organizationId,
-          organizationType: organization.type,
-          portalType,
-          requestId: resolvedResponse.requestId,
-          referenceId,
-          onboardingType: "CORPORATE",
-          verifyLink: resolvedResponse.verifyLink,
-          verifyLinkExpiresAt: expiresAt,
-          status: initialStatus,
-          regtankResponse: regTankResponse as Prisma.InputJsonValue,
-        });
+        await prisma.$transaction(async (tx) => {
+          await this.repository.createOnboarding(
+            {
+              userId,
+              organizationId,
+              organizationType: organization.type,
+              portalType,
+              requestId: resolvedResponse.requestId,
+              referenceId,
+              onboardingType: "CORPORATE",
+              verifyLink: resolvedResponse.verifyLink,
+              verifyLinkExpiresAt: expiresAt,
+              status: initialStatus,
+              regtankResponse: regTankResponse as Prisma.InputJsonValue,
+            },
+            tx
+          );
 
-        // Log onboarding started event
-        const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-        const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+          const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+          const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
 
-        await createOnboardingLogRow({
-          userId: userId,
-          role,
-          eventType: "ONBOARDING_STARTED",
-          portal: portalType,
-          ipAddress,
-          userAgent,
-          deviceInfo,
-          deviceType,
-          organizationName: organization.name,
-          investorOrganizationId: portalType === "investor" ? organizationId : null,
-          issuerOrganizationId: portalType === "issuer" ? organizationId : null,
-          metadata: {
-            organizationId,
-            requestId: resolvedResponse.requestId,
-            onboardingType: "CORPORATE",
-          },
-          context: auditContextFromRequest(req),
+          await createOnboardingLogRow(
+            {
+              userId: userId,
+              role,
+              eventType: "ONBOARDING_STARTED",
+              portal: portalType,
+              ipAddress,
+              userAgent,
+              deviceInfo,
+              deviceType,
+              organizationName: organization.name,
+              investorOrganizationId: portalType === "investor" ? organizationId : null,
+              issuerOrganizationId: portalType === "issuer" ? organizationId : null,
+              metadata: {
+                organizationId,
+                requestId: resolvedResponse.requestId,
+                onboardingType: "CORPORATE",
+              },
+              context: auditContextFromRequest(req),
+            },
+            tx
+          );
         });
 
         logger.info(
@@ -2285,47 +2318,39 @@ export class RegTankService {
           "Determined sophisticated investor status"
         );
 
-        const updated = await prisma.investorOrganization.update({
-          where: { id: organizationId },
+        await persistOrganizationUpdateAndOnboardingLogs({
+          portalType: "investor",
+          organizationId,
           data: {
             ...updateData,
             is_sophisticated_investor: sophisticatedResult.isSophisticated,
             sophisticated_investor_reason: sophisticatedResult.reason,
           },
+          logs: sophisticatedResult.isSophisticated
+            ? [
+                {
+                  userId: org.owner_user_id,
+                  role: UserRole.INVESTOR,
+                  eventType: "SOPHISTICATED_STATUS_UPDATED",
+                  portal: "investor",
+                  organizationName: org.name,
+                  investorOrganizationId: organizationId,
+                  issuerOrganizationId: null,
+                  metadata: {
+                    organizationId,
+                    previousStatus: org.is_sophisticated_investor,
+                    previousReason: org.sophisticated_investor_reason,
+                    newStatus: sophisticatedResult.isSophisticated,
+                    newReason: sophisticatedResult.reason,
+                    updatedBy: "system",
+                    action: "auto_granted",
+                    source: "regtank_onboarding",
+                  },
+                  context: webhookAuditContext(),
+                },
+              ]
+            : [],
         });
-
-        // Log sophisticated status determination if status was set
-        if (sophisticatedResult.isSophisticated) {
-          await createOnboardingLogRow({
-            userId: org.owner_user_id,
-            role: UserRole.INVESTOR,
-            eventType: "SOPHISTICATED_STATUS_UPDATED",
-            portal: "investor",
-            organizationName: org.name,
-            investorOrganizationId: organizationId,
-            issuerOrganizationId: null,
-            metadata: {
-              organizationId,
-              previousStatus: org.is_sophisticated_investor,
-              previousReason: org.sophisticated_investor_reason,
-              newStatus: sophisticatedResult.isSophisticated,
-              newReason: sophisticatedResult.reason,
-              updatedBy: "system",
-              action: "auto_granted",
-              source: "regtank_onboarding",
-            },
-          });
-
-          logger.info(
-            {
-              organizationId,
-              userId: org.owner_user_id,
-              status: sophisticatedResult.isSophisticated,
-              reason: sophisticatedResult.reason,
-            },
-            "Logged automatic sophisticated investor status grant"
-          );
-        }
 
         logger.info(
           {
@@ -2333,9 +2358,9 @@ export class RegTankService {
             updatedFields: Object.keys(updateData).filter(
               (key) => updateData[key as keyof typeof updateData] !== null
             ),
-            hasFirstName: !!updated.first_name,
-            hasLastName: !!updated.last_name,
-            hasKycId: !!updated.kyc_id,
+            hasFirstName: Boolean(updateData.first_name),
+            hasLastName: Boolean(updateData.last_name),
+            hasKycId: Boolean(updateData.kyc_id),
           },
           "Successfully updated investor organization with RegTank data"
         );
@@ -2413,7 +2438,14 @@ export class RegTankService {
   /**
    * Handle webhook update from RegTank
    */
-  async handleWebhookUpdate(payload: RegTankWebhookPayload): Promise<void> {
+  async handleWebhookUpdate(
+    payload: RegTankWebhookPayload,
+    auditOverride?: {
+      context: AuditRequestContext;
+      portal?: string;
+      actorUserId?: string | null;
+    }
+  ): Promise<void> {
     const { requestId, status, substatus } = payload;
 
     logger.info(
@@ -2468,67 +2500,156 @@ export class RegTankService {
       updateData.completedAt = new Date();
     }
 
-    await this.repository.updateStatus(requestId, updateData);
+    const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
+    const portalType = onboarding.portal_type as PortalType;
+    const subjectUserId = onboarding.user_id;
+    const auditContext = auditOverride?.context ?? webhookAuditContext();
+    const logPortal = auditOverride?.portal ?? portalType;
+    const auditActorUserId = auditOverride?.actorUserId;
+    let skipWebhookTransportLog = false;
+    if (statusUpper === "APPROVED") {
+      skipWebhookTransportLog = Boolean(organizationId);
+    }
+    const skipTransportBecauseLivenessBusinessLog = isLivenessCompleted && Boolean(organizationId);
 
-    // Log the status update for verification
+    let forensicEventType = "ONBOARDING_STATUS_UPDATED";
+    if (statusUpper === "APPROVED") {
+      forensicEventType = "WEBHOOK_APPROVED";
+    } else if (statusUpper === "REJECTED") {
+      forensicEventType = "WEBHOOK_REJECTED";
+    } else if (statusUpper === "LIVENESS_PASSED") {
+      forensicEventType = "FORM_FILLED";
+    } else if (
+      statusUpper === "FORM_FILLING" ||
+      statusUpper === "PROCESSING" ||
+      statusUpper === "ID_UPLOADED"
+    ) {
+      forensicEventType = "FORM_FILLED";
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await this.repository.updateStatus(requestId, updateData, tx);
+      if (!skipWebhookTransportLog && !skipTransportBecauseLivenessBusinessLog) {
+        const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+        await createOnboardingLogRow(
+          {
+            userId: subjectUserId,
+            role,
+            eventType: forensicEventType,
+            portal: logPortal,
+            organizationName: undefined,
+            investorOrganizationId: portalType === "investor" && organizationId ? organizationId : undefined,
+            issuerOrganizationId: portalType === "issuer" && organizationId ? organizationId : undefined,
+            context: auditContext,
+            actorUserId: auditActorUserId,
+            metadata: {
+              requestId,
+              status: statusUpper,
+              substatus: substatus || null,
+              ...(typeof payload === "object" && payload && "reasonCode" in payload
+                ? { reasonCode: (payload as { reasonCode?: unknown }).reasonCode ?? null }
+                : {}),
+              trigger: auditOverride ? "ADMIN_MANUAL_ONBOARDING_REFRESH" : "REGTANK_WEBHOOK",
+            },
+          },
+          tx
+        );
+      }
+    });
+
     logger.info(
       {
         requestId,
         regtankStatus: statusUpper,
         persistedRegtankStatus,
-        organizationId: onboarding.investor_organization_id || onboarding.issuer_organization_id,
+        organizationId,
         portalType: onboarding.portal_type,
         note: `reg_tank_onboarding.status set to ${persistedRegtankStatus || "(empty)"}`,
       },
       "[RegTank Webhook] Updated regtank_onboarding.status"
     );
 
-    // Update organization status based on RegTank status
-    const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
-
-    // Update organization to PENDING_APPROVAL when liveness test completes
     if (isLivenessCompleted && organizationId) {
-      const portalType = onboarding.portal_type as PortalType;
-
       try {
-        if (portalType === "investor") {
-          const orgExists =
-            await this.organizationRepository.findInvestorOrganizationById(organizationId);
-          if (orgExists) {
-            await this.organizationRepository.updateInvestorOrganizationOnboarding(
-              organizationId,
-              OnboardingStatus.PENDING_APPROVAL,
-              { resetCompanySsmGateFromRegtankWebhook: true }
-            );
-            logger.info(
-              { organizationId, portalType, requestId, status: statusUpper },
-              "Liveness test completed, updated investor organization status to PENDING_APPROVAL"
-            );
-          } else {
-            logger.warn(
-              { organizationId, requestId },
-              "Investor organization not found, skipping PENDING_APPROVAL update"
-            );
-          }
+        const isInvestor = portalType === "investor";
+        const orgExists = isInvestor
+          ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
+          : await this.organizationRepository.findIssuerOrganizationById(organizationId);
+
+        if (!orgExists) {
+          logger.warn(
+            { organizationId, requestId },
+            "Organization not found, skipping PENDING_APPROVAL update"
+          );
         } else {
-          const orgExists =
-            await this.organizationRepository.findIssuerOrganizationById(organizationId);
-          if (orgExists) {
-            await this.organizationRepository.updateIssuerOrganizationOnboarding(
+          const previousStatus = orgExists.onboarding_status;
+          const update = getIndividualWaitForApprovalUpdate({
+            currentOnboardingStatus: previousStatus,
+          });
+          const livenessEventType =
+            statusUpper === "LIVENESS_PASSED" && isInvestor
+              ? "FORM_FILLED"
+              : "ONBOARDING_STATUS_UPDATED";
+
+          await prisma.$transaction(async (tx) => {
+            if (update) {
+              if (isInvestor) {
+                await this.organizationRepository.updateInvestorOrganizationOnboarding(
+                  organizationId,
+                  OnboardingStatus.PENDING_APPROVAL,
+                  { resetCompanySsmGateFromRegtankWebhook: true },
+                  tx
+                );
+              } else {
+                await this.organizationRepository.updateIssuerOrganizationOnboarding(
+                  organizationId,
+                  OnboardingStatus.PENDING_APPROVAL,
+                  { resetCompanySsmGateFromRegtankWebhook: true },
+                  tx
+                );
+              }
+            }
+
+            await createOnboardingLogRow(
+              {
+                userId: subjectUserId,
+                role: isInvestor ? UserRole.INVESTOR : UserRole.ISSUER,
+                eventType: livenessEventType,
+                portal: logPortal,
+                organizationName: orgExists.name || undefined,
+                investorOrganizationId: isInvestor ? organizationId : undefined,
+                issuerOrganizationId: isInvestor ? undefined : organizationId,
+                context: auditContext,
+                actorUserId: auditActorUserId,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus,
+                  newStatus: update ? OnboardingStatus.PENDING_APPROVAL : previousStatus,
+                  trigger: auditOverride
+                    ? "ADMIN_MANUAL_ONBOARDING_REFRESH"
+                    : statusUpper === "LIVENESS_PASSED"
+                      ? "LIVENESS_PASSED"
+                      : "WAIT_FOR_APPROVAL",
+                  statusUpdateApplied: Boolean(update),
+                },
+              },
+              tx
+            );
+          });
+
+          logger.info(
+            {
               organizationId,
-              OnboardingStatus.PENDING_APPROVAL,
-              { resetCompanySsmGateFromRegtankWebhook: true }
-            );
-            logger.info(
-              { organizationId, portalType, requestId, status: statusUpper },
-              "Liveness test completed, updated issuer organization status to PENDING_APPROVAL"
-            );
-          } else {
-            logger.warn(
-              { organizationId, requestId },
-              "Issuer organization not found, skipping PENDING_APPROVAL update"
-            );
-          }
+              portalType,
+              requestId,
+              status: statusUpper,
+              statusUpdateApplied: Boolean(update),
+            },
+            update
+              ? "Liveness test completed, updated organization status to PENDING_APPROVAL"
+              : "Skipped liveness status update — organization already progressed past review"
+          );
         }
       } catch (orgError) {
         logger.error(
@@ -2541,19 +2662,19 @@ export class RegTankService {
           },
           "Failed to update organization status to PENDING_APPROVAL"
         );
+        throw orgError;
       }
     }
 
     if (statusUpper === "APPROVED" && organizationId) {
-      const portalType = onboarding.portal_type as PortalType;
-
       try {
-        // Wait 3 seconds to allow KYC webhooks to arrive and be stored
-        logger.info(
-          { requestId, organizationId, portalType },
-          "Waiting 3 seconds before fetching RegTank onboarding details to allow KYC webhooks to arrive"
-        );
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+        if (!auditOverride) {
+          logger.info(
+            { requestId, organizationId, portalType },
+            "Waiting 3 seconds before fetching RegTank onboarding details to allow KYC webhooks to arrive"
+          );
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+        }
 
         // Fetch full details from RegTank API
         logger.info(
@@ -2664,6 +2785,8 @@ export class RegTankService {
           requestId
         );
 
+        const onboardingUserId = onboarding.user_id;
+
         // User milestone after RegTank onboarding approval:
         // - COMPANY: first admin step is CTOS → PENDING_SSM_REVIEW
         // - PERSONAL: PENDING_APPROVAL → PENDING_AML + onboarding_approved when RegTank APPROVED (webhook); else land on PENDING_APPROVAL
@@ -2675,39 +2798,35 @@ export class RegTankService {
 
             if (org.type === OrganizationType.COMPANY) {
               const nextOrgStatus = OnboardingStatus.PENDING_SSM_REVIEW;
-              await this.organizationRepository.updateInvestorOrganizationOnboarding(
-                organizationId,
-                nextOrgStatus
-              );
-
-              try {
-                await this.authRepository.createOnboardingLog({
-                  userId: onboarding.user_id,
-                  role: UserRole.INVESTOR,
-                  eventType: "ONBOARDING_APPROVED",
-                  portal: portalType,
-                  organizationName: org.name || undefined,
-                  investorOrganizationId: organizationId,
-                  issuerOrganizationId: undefined,
-                  context: webhookAuditContext(),
-                  metadata: {
-                    organizationId,
-                    requestId,
-                    previousStatus,
-                    newStatus: nextOrgStatus,
-                    trigger: "REGTANK_APPROVED",
-                  },
-                });
-              } catch (logError) {
-                logger.error(
-                  {
-                    error: logError instanceof Error ? logError.message : String(logError),
-                    organizationId,
-                    requestId,
-                  },
-                  "Failed to create onboarding log (non-blocking)"
+              await prisma.$transaction(async (tx) => {
+                await this.organizationRepository.updateInvestorOrganizationOnboarding(
+                  organizationId,
+                  nextOrgStatus,
+                  undefined,
+                  tx
                 );
-              }
+                await createOnboardingLogRow(
+                  {
+                    userId: onboardingUserId,
+                    role: UserRole.INVESTOR,
+                    eventType: "ONBOARDING_APPROVED",
+                    portal: logPortal,
+                    organizationName: org.name || undefined,
+                    investorOrganizationId: organizationId,
+                    issuerOrganizationId: undefined,
+                    context: auditContext,
+                    actorUserId: auditActorUserId,
+                    metadata: {
+                      organizationId,
+                      requestId,
+                      previousStatus,
+                      newStatus: nextOrgStatus,
+                      trigger: "REGTANK_APPROVED",
+                    },
+                  },
+                  tx
+                );
+              });
 
               logger.info(
                 { organizationId, portalType, orgType: org.type, nextOrgStatus },
@@ -2723,96 +2842,83 @@ export class RegTankService {
               });
 
               if (outcome === "heal-to-pending-approval") {
-                // APPROVED arrived before WAIT_FOR_APPROVAL/LIVENESS_PASSED was processed
-                // (org still PENDING/IN_PROGRESS) — safe to land it on PENDING_APPROVAL.
                 const healedOrgStatus = OnboardingStatus.PENDING_APPROVAL;
-                await this.organizationRepository.updateInvestorOrganizationOnboarding(
-                  organizationId,
-                  healedOrgStatus,
-                  { resetCompanySsmGateFromRegtankWebhook: true }
-                );
-
-                try {
-                  await this.authRepository.createOnboardingLog({
-                    userId: onboarding.user_id,
-                    role: UserRole.INVESTOR,
-                    eventType: "ONBOARDING_APPROVED",
-                    portal: portalType,
-                    organizationName: org.name || undefined,
-                    investorOrganizationId: organizationId,
-                    issuerOrganizationId: undefined,
-                    context: webhookAuditContext(),
-                    metadata: {
-                      organizationId,
-                      requestId,
-                      previousStatus,
-                      newStatus: healedOrgStatus,
-                      trigger: "REGTANK_APPROVED",
-                    },
-                  });
-                } catch (logError) {
-                  logger.error(
-                    {
-                      error: logError instanceof Error ? logError.message : String(logError),
-                      organizationId,
-                      requestId,
-                    },
-                    "Failed to create onboarding log (non-blocking)"
+                await prisma.$transaction(async (tx) => {
+                  await this.organizationRepository.updateInvestorOrganizationOnboarding(
+                    organizationId,
+                    healedOrgStatus,
+                    { resetCompanySsmGateFromRegtankWebhook: true },
+                    tx
                   );
-                }
+                  await createOnboardingLogRow(
+                    {
+                      userId: onboardingUserId,
+                      role: UserRole.INVESTOR,
+                      eventType: "ONBOARDING_APPROVED",
+                      portal: logPortal,
+                      organizationName: org.name || undefined,
+                      investorOrganizationId: organizationId,
+                      issuerOrganizationId: undefined,
+                      context: auditContext,
+                      actorUserId: auditActorUserId,
+                      metadata: {
+                        organizationId,
+                        requestId,
+                        previousStatus,
+                        newStatus: healedOrgStatus,
+                        trigger: "REGTANK_APPROVED",
+                      },
+                    },
+                    tx
+                  );
+                });
 
                 logger.info(
                   { organizationId, portalType, orgType: org.type, nextOrgStatus: healedOrgStatus },
                   "Updated investor organization to first admin gate after RegTank onboarding approval"
                 );
               } else if (outcome === "set-approved-and-advance") {
-                await prisma.investorOrganization.update({
-                  where: { id: organizationId },
-                  data: {
-                    onboarding_approved: true,
-                  },
-                });
-                await advanceOnboardingStatusFromFlags({
-                  organizationId,
-                  portalType: "investor",
-                  reason: "REGTANK_INDIVIDUAL_APPROVED",
-                });
-                const after = await prisma.investorOrganization.findUnique({
-                  where: { id: organizationId },
-                  select: { onboarding_status: true },
-                });
-
-                try {
-                  await this.authRepository.createOnboardingLog({
-                    userId: onboarding.user_id,
-                    role: UserRole.INVESTOR,
-                    eventType: "ONBOARDING_APPROVED",
-                    portal: portalType,
-                    organizationName: org.name || undefined,
-                    investorOrganizationId: organizationId,
-                    issuerOrganizationId: undefined,
-                    context: webhookAuditContext(),
-                    metadata: {
-                      organizationId,
-                      requestId,
-                      previousStatus,
-                      newStatus: after?.onboarding_status,
-                      trigger: "REGTANK_INDIVIDUAL_APPROVED",
-                    },
+                const personalApprovedStatus = await prisma.$transaction(async (tx) => {
+                  await tx.investorOrganization.update({
+                    where: { id: organizationId },
+                    data: { onboarding_approved: true },
                   });
-                } catch (logError) {
-                  logger.error(
+                  await advanceOnboardingStatusFromFlags({
+                    organizationId,
+                    portalType: "investor",
+                    reason: "REGTANK_INDIVIDUAL_APPROVED",
+                    db: tx,
+                  });
+                  const after = await tx.investorOrganization.findUnique({
+                    where: { id: organizationId },
+                    select: { onboarding_status: true },
+                  });
+                  await createOnboardingLogRow(
                     {
-                      error: logError instanceof Error ? logError.message : String(logError),
-                      organizationId,
-                      requestId,
+                      userId: onboardingUserId,
+                      role: UserRole.INVESTOR,
+                      eventType: "ONBOARDING_APPROVED",
+                      portal: logPortal,
+                      organizationName: org.name || undefined,
+                      investorOrganizationId: organizationId,
+                      issuerOrganizationId: undefined,
+                      context: auditContext,
+                      actorUserId: auditActorUserId,
+                      metadata: {
+                        organizationId,
+                        requestId,
+                        previousStatus,
+                        newStatus: after?.onboarding_status,
+                        trigger: "REGTANK_INDIVIDUAL_APPROVED",
+                      },
                     },
-                    "Failed to create onboarding log (non-blocking)"
+                    tx
                   );
-                }
+                  return after?.onboarding_status;
+                });
 
                 logger.info(
-                  { organizationId, portalType, newStatus: after?.onboarding_status },
+                  { organizationId, portalType, newStatus: personalApprovedStatus },
                   "Set onboarding_approved and applied advance after RegTank APPROVED (personal investor)"
                 );
               } else {
@@ -2847,40 +2953,35 @@ export class RegTankService {
           const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
           if (org) {
             const previousStatus = org.onboarding_status;
-            await this.organizationRepository.updateIssuerOrganizationOnboarding(
-              organizationId,
-              OnboardingStatus.PENDING_SSM_REVIEW
-            );
-
-            // Create onboarding status updated log
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.ISSUER,
-                eventType: "ONBOARDING_STATUS_UPDATED",
-                portal: portalType,
-                organizationName: org.name || undefined,
-                investorOrganizationId: undefined,
-                issuerOrganizationId: organizationId,
-                context: webhookAuditContext(),
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus,
-                  newStatus: OnboardingStatus.PENDING_SSM_REVIEW,
-                  trigger: "REGTANK_APPROVED",
-                },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  requestId,
-                },
-                "Failed to create onboarding status updated log (non-blocking)"
+            await prisma.$transaction(async (tx) => {
+              await this.organizationRepository.updateIssuerOrganizationOnboarding(
+                organizationId,
+                OnboardingStatus.PENDING_SSM_REVIEW,
+                undefined,
+                tx
               );
-            }
+              await createOnboardingLogRow(
+                {
+                  userId: onboardingUserId,
+                  role: UserRole.ISSUER,
+                  eventType: "ONBOARDING_STATUS_UPDATED",
+                  portal: logPortal,
+                  organizationName: org.name || undefined,
+                  investorOrganizationId: undefined,
+                  issuerOrganizationId: organizationId,
+                  context: auditContext,
+                  actorUserId: auditActorUserId,
+                  metadata: {
+                    organizationId,
+                    requestId,
+                    previousStatus,
+                    newStatus: OnboardingStatus.PENDING_SSM_REVIEW,
+                    trigger: "REGTANK_APPROVED",
+                  },
+                },
+                tx
+              );
+            });
 
             logger.info(
               { organizationId, portalType },
@@ -2901,9 +3002,9 @@ export class RegTankService {
             portalType,
             requestId,
           },
-          "Failed to fetch RegTank details or update organization, continuing with webhook processing"
+          "Failed to fetch RegTank details or update organization"
         );
-        // Don't throw - allow webhook to complete even if data extraction fails
+        throw error;
       }
 
       // Update user's account array
@@ -2940,93 +3041,6 @@ export class RegTankService {
           portalType,
         },
         "Organization status updated to PENDING_AML after RegTank approval"
-      );
-    }
-
-    // Create onboarding log entry for audit purposes
-    try {
-      const portalType = onboarding.portal_type as PortalType;
-      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-
-      // Fetch organization details for logging
-      const org = organizationId
-        ? portalType === "investor"
-          ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
-          : await this.organizationRepository.findIssuerOrganizationById(organizationId)
-        : null;
-
-      // Determine event type based on status
-      // Use new specific event types for better tracking
-      // Note: ONBOARDING_APPROVED is logged separately when admin approves in RegTank (see extractAndUpdateOrganizationData)
-      // Determine event type based on status.
-      // APPROVED is recorded as ONBOARDING_APPROVED by extractAndUpdateOrganizationData — do not
-      // also write WEBHOOK_APPROVED for the same business fact.
-      let eventType = "ONBOARDING_STATUS_UPDATED";
-      let skipWebhookTransportLog = false;
-      if (statusUpper === "APPROVED") {
-        skipWebhookTransportLog = Boolean(organizationId);
-        eventType = "WEBHOOK_APPROVED";
-      } else if (statusUpper === "REJECTED") {
-        eventType = "WEBHOOK_REJECTED";
-      } else if (statusUpper === "WAIT_FOR_APPROVAL" || statusUpper === "PENDING_APPROVAL") {
-        eventType = "ONBOARDING_STATUS_UPDATED";
-      } else if (statusUpper === "LIVENESS_PASSED") {
-        eventType = "FORM_FILLED";
-      } else if (
-        statusUpper === "FORM_FILLING" ||
-        statusUpper === "PROCESSING" ||
-        statusUpper === "ID_UPLOADED"
-      ) {
-        eventType = "FORM_FILLED";
-      } else if (statusUpper === "IN_PROGRESS") {
-        eventType = "ONBOARDING_STATUS_UPDATED";
-      }
-
-      if (!skipWebhookTransportLog) {
-      await this.authRepository.createOnboardingLog({
-        userId: onboarding.user_id,
-        role,
-        eventType,
-        portal: portalType,
-        organizationName: org?.name || undefined,
-        investorOrganizationId: (portalType === "investor" && organizationId) ? organizationId : undefined,
-        issuerOrganizationId: (portalType === "issuer" && organizationId) ? organizationId : undefined,
-        context: webhookAuditContext(),
-        metadata: {
-          requestId,
-          status: statusUpper,
-          substatus: substatus || null,
-          payload: payload,
-          ...(eventType === "ONBOARDING_STATUS_UPDATED"
-            ? {
-                trigger: "REGTANK_WEBHOOK",
-                previousStatus: org && "onboarding_status" in org ? org.onboarding_status : undefined,
-                newStatus: statusUpper,
-              }
-            : {}),
-        },
-      });
-      }
-
-      logger.debug(
-        {
-          requestId,
-          userId: onboarding.user_id,
-          role,
-          eventType,
-          portalType,
-        },
-        "Created onboarding log entry for webhook"
-      );
-    } catch (logError) {
-      // Log error but don't fail the webhook processing
-      logger.error(
-        {
-          error: logError instanceof Error ? logError.message : String(logError),
-          requestId,
-          userId: onboarding.user_id,
-        },
-        "Failed to create onboarding log entry for webhook (non-blocking)"
       );
     }
 

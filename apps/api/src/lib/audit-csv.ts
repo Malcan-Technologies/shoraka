@@ -1,11 +1,14 @@
-import { formatRoleSwitchedLabel } from "@cashsouk/types";
+import { formatForensicAuditSourceLabel, formatRoleSwitchedLabel } from "@cashsouk/types";
 
 export { formatRoleSwitchedLabel };
 
 const ACRONYMS = new Set(["AML", "KYC", "KYB", "TNC", "SSM", "PDF", "CSV", "API", "ID", "MARC"]);
 
 const SECRET_KEY =
-  /^(.*[_-]?)?(password|secret|access_?token|refresh_?token|id_token|private_?key|api_?key|authorization|credential|session_token)([_-].*)?$/i;
+  /^(.*[_-]?)?(password|secret|access_?token|refresh_?token|id_token|jwt|private_?key|api_?key|authorization|credential|session_token|payload|raw_?payload|raw_?body|request_?body)([_-].*)?$/i;
+
+const PII_KEY =
+  /^(.*[_-]?)?(nric|ic_?number|government_?id(_?number)?|document_?num|mykad|full_?ic|passport_?number)([_-].*)?$/i;
 
 export function humanizeAuditEventType(eventType: string, overrides?: Record<string, string>): string {
   const trimmed = eventType.trim();
@@ -34,7 +37,7 @@ export function redactAuditSecrets(value: unknown): unknown {
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
-      out[key] = SECRET_KEY.test(key) ? "[REDACTED]" : redactAuditSecrets(nested);
+      out[key] = SECRET_KEY.test(key) || PII_KEY.test(key) ? "[REDACTED]" : redactAuditSecrets(nested);
     }
     return out;
   }
@@ -109,7 +112,7 @@ export function buildAuditCsv(rows: AuditCsvCoreRow[], extraHeaders: string[] = 
     row.actorType ?? "",
     row.actorEmail ?? "",
     row.organisation ?? "",
-    row.source ?? "",
+    formatForensicAuditSourceLabel(row.source),
     row.targetType ?? "",
     row.targetReference ?? "",
     row.status ?? "",

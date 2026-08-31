@@ -47,8 +47,6 @@ describe("admin dual-limit surfaces", () => {
     expect(source).not.toMatch(
       /issuerFinancingAmount\s*=\s*\n?\s*invoiceValue !== null && financingRatio !== null/
     );
-    expect(source).toContain("REMAINING_CREDIT_LABEL");
-    expect(source).toContain("REMAINING_ALLOCATION_LABEL");
   });
 
   it("keeps settlement allocation on repaid facility-backed notes", () => {

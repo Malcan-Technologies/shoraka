@@ -138,6 +138,7 @@ describe("shoraka-stp fetch-certificate guard (Phase 1)", () => {
         data: expect.objectContaining({
           note_id: "note-1",
           event_type: "SHORAKA_CERTIFICATE_FETCHED",
+          source: "API",
           metadata: expect.objectContaining({
             document_type: "Tawarruq Certificate",
             certificate_available: true,

@@ -63,6 +63,7 @@ export function createGeneratedDocumentApplicationRouter(): Router {
       res.setHeader("Content-Type", result.contentType);
       res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
       res.setHeader("X-Generated-Document-Template-SHA256", result.templateSha256);
+      res.setHeader("X-Generated-Document-Output-SHA256", result.outputSha256);
       res.setHeader("X-Generated-Document-Type", result.type.key);
       res.setHeader("X-Generated-Document-Version", String(result.type.version));
       res.send(result.buffer);
@@ -96,6 +97,7 @@ export function createAdminGeneratedDocumentApplicationRouter(): Router {
       res.setHeader("Content-Type", result.contentType);
       res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
       res.setHeader("X-Generated-Document-Template-SHA256", result.templateSha256);
+      res.setHeader("X-Generated-Document-Output-SHA256", result.outputSha256);
       res.setHeader("X-Generated-Document-Type", result.type.key);
       res.setHeader("X-Generated-Document-Version", String(result.type.version));
       res.send(result.buffer);

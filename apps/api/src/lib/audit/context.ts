@@ -166,6 +166,21 @@ export function auditActorTypeFor(options: {
   return AUDIT_ACTOR_TYPE.USER;
 }
 
+/** Admin-triggered accountability writes: actor is the Admin, portal is ADMIN, source is API. */
+export function adminAuditContextFromRequest(
+  req: Request,
+  adminUserId: string,
+  res?: Response
+): AuditRequestContext {
+  return auditContextFromRequest(req, {
+    actorType: AUDIT_ACTOR_TYPE.ADMIN,
+    actorUserId: adminUserId,
+    portal: AUDIT_PORTAL.ADMIN,
+    source: AUDIT_SOURCE.API,
+    res,
+  });
+}
+
 export function auditContextFromRequest(
   req: Request,
   options?: {
@@ -200,6 +215,27 @@ export function issuerActivityFromRequest(req: Request, res?: Response) {
     context,
     ipAddress: context.ipAddress ?? undefined,
     userAgent: context.userAgent ?? undefined,
+  };
+}
+
+/** Authenticated portal/API request constructed outside Express (e.g. checkout status sync). */
+export function apiAuditContext(options?: {
+  actorUserId?: string | null;
+  actorType?: AuditActorType;
+  portal?: AuditPortal | null;
+  correlationId?: string | null;
+}): AuditRequestContext {
+  const actorUserId = options?.actorUserId ?? null;
+  return {
+    actorType:
+      options?.actorType ??
+      (actorUserId ? AUDIT_ACTOR_TYPE.USER : AUDIT_ACTOR_TYPE.SYSTEM),
+    actorUserId,
+    source: AUDIT_SOURCE.API,
+    portal: options?.portal ?? null,
+    ipAddress: null,
+    userAgent: null,
+    correlationId: options?.correlationId ?? null,
   };
 }
 

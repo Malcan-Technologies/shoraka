@@ -833,7 +833,11 @@ export class ApplicationService {
   /**
    * Create a new application
    */
-  async createApplication(input: CreateApplicationInput, userId: string): Promise<Application> {
+  async createApplication(
+    input: CreateApplicationInput,
+    userId: string,
+    logContext?: IssuerActivityLogContext
+  ): Promise<Application> {
     await legalDocumentAcceptanceService.assertNoPendingReacceptance(
       userId,
       input.issuerOrganizationId,
@@ -895,6 +899,20 @@ export class ApplicationService {
             data: { display_reference: reference },
           });
         }
+      );
+
+      await logApplicationActivity(
+        {
+          userId,
+          applicationId: created.id,
+          eventType: ApplicationLogEventType.APPLICATION_CREATED,
+          reviewCycle: 1,
+          portal: ActivityPortal.ISSUER,
+          ipAddress: logContext?.ipAddress,
+          userAgent: logContext?.userAgent,
+          context: logContext?.context,
+        },
+        tx
       );
 
       return tx.application.findUniqueOrThrow({
@@ -2190,6 +2208,20 @@ export class ApplicationService {
           where: { id },
           data: updateData,
         });
+
+        await logApplicationActivity(
+          {
+            userId,
+            applicationId: id,
+            eventType: ApplicationLogEventType.APPLICATION_SUBMITTED,
+            reviewCycle: application.review_cycle,
+            portal: ActivityPortal.ISSUER,
+            ipAddress: logContext?.ipAddress,
+            userAgent: logContext?.userAgent,
+            context: logContext?.context,
+          },
+          tx
+        );
       };
 
       const contractId = application.contract_id;
@@ -3031,14 +3063,18 @@ export class ApplicationService {
   async respondToContractOffer(
     applicationId: string,
     action: "accept" | "reject",
-    userId: string,
+    userId: string | null,
     rejectionReason?: string,
     options?: {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
       logContext?: IssuerActivityLogContext;
     }
   ): Promise<Application> {
-    await this.verifyApplicationAccess(applicationId, userId);
+    if (userId) {
+      await this.verifyApplicationAccess(applicationId, userId);
+    } else if (!options?.signingCompletion) {
+      throw new AppError(401, "UNAUTHORIZED", "Actor required to respond to this offer.");
+    }
 
     const application = await this.repository.findById(applicationId);
     if (!application) {
@@ -3576,7 +3612,7 @@ export class ApplicationService {
     applicationId: string,
     invoiceId: string,
     action: "accept" | "reject",
-    userId: string,
+    userId: string | null,
     rejectionReason?: string,
     options?: {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
@@ -3585,7 +3621,11 @@ export class ApplicationService {
       logContext?: IssuerActivityLogContext;
     }
   ): Promise<Application> {
-    await this.verifyApplicationAccess(applicationId, userId);
+    if (userId) {
+      await this.verifyApplicationAccess(applicationId, userId);
+    } else if (!options?.signingCompletion) {
+      throw new AppError(401, "UNAUTHORIZED", "Actor required to respond to this offer.");
+    }
 
     const application = await this.repository.findById(applicationId);
     if (!application) {
@@ -4122,7 +4162,7 @@ export class ApplicationService {
     applicationId: string;
     contractId?: string | null;
     invoiceId?: string | null;
-    initiatedByUserId: string;
+    initiatedByUserId: string | null;
     signedOfferLetterS3Key: string;
     signedFileSha256: string;
   }): Promise<{ skipped: boolean }> {

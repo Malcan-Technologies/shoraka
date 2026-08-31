@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { formatRoleSwitchedLabel } from "@cashsouk/types";
+import { formatForensicAuditSourceLabel, formatRoleSwitchedLabel } from "@cashsouk/types";
 import { humanizeAdminTimelineToken } from "@/components/admin-timeline-format";
 
 export { formatRoleSwitchedLabel };
@@ -58,6 +58,13 @@ const APPLICATION_AUDIT_EVENT_LABELS: Record<string, string> = {
   MEMBER_REMOVED: "Member Removed",
   MEMBER_ROLE_CHANGED: "Member Role Changed",
   MARC_ASSESSMENT_SAVED: "MARC Assessment Saved",
+  ONBOARDING_APPROVED: "Onboarding Submission Approved",
+  EOD_APPROVED: "Entity Onboarding Data Approved",
+  EOD_REJECTED: "Entity Onboarding Data Rejected",
+  EOD_WEBHOOK: "Entity Onboarding Data Provider Update",
+  OVERDUE_LATE_CHARGE_CHECKED: "Note Entered Arrears",
+  CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED: "Large Private Customer Flag Updated",
+  GATEWAY_PAYMENT_COMPLETED: "Payment Received Successfully",
 };
 
 export function formatAuditEventLabel(
@@ -271,13 +278,18 @@ export function formatAuditActorTypeLabel(type: string): string {
 export function formatAuditSourceLabel(source: string | null | undefined): string {
   if (!source?.trim()) return "";
   const key = source.trim().toUpperCase();
-  if (key === "API") return "API";
   if (key === "ADMIN") return "Admin Portal";
   if (key === "SYSTEM") return "System";
-  if (key === "SYSTEM_JOB" || key === "JOB") return "System Job";
-  if (key === "INTERNAL") return "Internal";
-  if (key === "PORTAL") return "Portal";
-  if (key === "WEBHOOK") return "Webhook";
+  if (
+    key === "API" ||
+    key === "PORTAL" ||
+    key === "WEBHOOK" ||
+    key === "SYSTEM_JOB" ||
+    key === "JOB" ||
+    key === "INTERNAL"
+  ) {
+    return formatForensicAuditSourceLabel(source);
+  }
   return formatAuditEventLabel(source);
 }
 

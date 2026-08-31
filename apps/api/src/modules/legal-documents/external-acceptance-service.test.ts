@@ -8,6 +8,8 @@ jest.mock("../../lib/prisma", () => ({
       create: jest.fn(),
       update: jest.fn(),
     },
+    signingRecipient: { findUnique: jest.fn() },
+    signingEnvelope: { findUnique: jest.fn() },
   },
 }));
 
@@ -83,6 +85,14 @@ describe("LegalExternalAcceptanceService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (legalDocumentRepository.findPublishedByType as jest.Mock).mockResolvedValue(published);
+    (prisma.signingRecipient.findUnique as jest.Mock).mockResolvedValue({
+      envelope_id: "env-1",
+      role_key: "guarantor",
+      envelope: {
+        application_id: "app-1",
+        application: { issuer_organization_id: "org-1" },
+      },
+    });
   });
 
   it("directors do not need the guarantor warning", async () => {
@@ -161,6 +171,10 @@ describe("LegalExternalAcceptanceService", () => {
           party_email: "siti@example.com",
           party_ic_number: "900101015432",
           status: "OPENED",
+          envelope_id: "env-1",
+          application_id: "app-1",
+          organization_id: "org-1",
+          party_role: "guarantor",
         }),
       })
     );

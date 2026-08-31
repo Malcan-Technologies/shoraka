@@ -83,11 +83,12 @@ describe("renderFacilityLoDocx", () => {
   it("keeps five Word tables in the tagged template", () => {
     const zip = new PizZip(readFacilityLoTemplateBytes());
     const xml = zip.file("word/document.xml")?.asText() ?? "";
+    const plain = wordPlainText(xml);
     expect((xml.match(/<w:tbl\b/g) ?? []).length).toBe(5);
-    expect(xml).toContain("{part_a_checkbox}");
-    expect(xml).toContain("{#corporate_guarantor_pages}");
-    expect(xml).toContain("{#finance_documents_guarantors}");
-    expect(xml).toContain("{left_name}");
+    expect(plain).toContain("{part_a_checkbox}");
+    expect(plain).toContain("{#corporate_guarantor_pages}");
+    expect(plain).toContain("{#finance_documents_guarantors}");
+    expect(plain).toContain("{left_name}");
     expect(xml).not.toContain("{left}");
     expect(xml).not.toContain("{right}");
     expect(xml).not.toContain("RM{financing_limit_rm}");
@@ -100,7 +101,7 @@ describe("renderFacilityLoDocx", () => {
     const repPara = paragraphContaining(xml, "{rep_line}");
     expect(repPara).toContain('<w:numId w:val="4"/>');
     expect(repPara).toContain('<w:ilvl w:val="1"/>');
-    expect(emptyParagraphsAfterLast(xml, "{company_ssm}", "{#signatory_rows}")).toBe(4);
+    expect(emptyParagraphsAfterLast(xml, "{company_ssm}", "{#signatory_rows}")).toBe(5);
     expect(emptyParagraphsBetween(xml, "Date: ______________________", SIG_LINE)).toBe(2);
     expect(xml).toContain('w:val="yellow"');
     expect(runContaining(xml, "{issuer_name}")).toContain('w:val="yellow"');

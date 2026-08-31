@@ -9,6 +9,7 @@ import { regTankRouter } from "./modules/regtank/controller";
 import { regTankAdminRouter } from "./modules/regtank/admin-controller";
 import { legalDocumentAdminRouter } from "./modules/legal-documents/admin-controller";
 import { legalDocumentAcceptanceAdminRouter } from "./modules/legal-documents/acceptance-admin-controller";
+import { legalExternalAcceptanceAdminRouter } from "./modules/legal-documents/external-acceptance-admin-controller";
 import { legalDocumentAuditAdminRouter } from "./modules/legal-documents/audit-admin-controller";
 import { legalDocumentUserRouter } from "./modules/legal-documents/user-controller";
 import { legalDocumentPublicRouter } from "./modules/legal-documents/public-controller";
@@ -154,6 +155,7 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/gateway-recon", devAuthBypass, gatewayReconAdminRouter);
     v1Router.use("/admin/legal-documents", devAuthBypass, requireRole(UserRole.ADMIN), legalDocumentAdminRouter);
     v1Router.use("/admin/legal-document-acceptances", devAuthBypass, requireRole(UserRole.ADMIN), legalDocumentAcceptanceAdminRouter);
+    v1Router.use("/admin/legal-external-acceptances", devAuthBypass, requireRole(UserRole.ADMIN), legalExternalAcceptanceAdminRouter);
     v1Router.use("/admin/legal-document-audit-logs", devAuthBypass, requireRole(UserRole.ADMIN), legalDocumentAuditAdminRouter);
     v1Router.use("/admin/product-logs", devAuthBypass, requireRole(UserRole.ADMIN), productLogRouter);
     // DEMO: ARF contract LO merge (wet-ink docx) — not production Send Offer
@@ -175,6 +177,7 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/gateway-recon", requireAuth, gatewayReconAdminRouter);
     v1Router.use("/admin/legal-documents", requireAuth, requireRole(UserRole.ADMIN), legalDocumentAdminRouter);
     v1Router.use("/admin/legal-document-acceptances", requireAuth, requireRole(UserRole.ADMIN), legalDocumentAcceptanceAdminRouter);
+    v1Router.use("/admin/legal-external-acceptances", requireAuth, requireRole(UserRole.ADMIN), legalExternalAcceptanceAdminRouter);
     v1Router.use("/admin/legal-document-audit-logs", requireAuth, requireRole(UserRole.ADMIN), legalDocumentAuditAdminRouter);
     v1Router.use("/admin/product-logs", requireAuth, requireRole(UserRole.ADMIN), productLogRouter);
     v1Router.use(

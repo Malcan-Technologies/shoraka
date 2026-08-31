@@ -1,3 +1,4 @@
+import { formatForensicAuditSourceLabel } from "@cashsouk/types";
 import {
   compactAuditMetadata,
   formatAuditEventLabel,
@@ -71,7 +72,7 @@ export function buildAuditCsv(rows: AuditCsvRow[], extraHeaders: string[] = []):
     row.actorType ?? "",
     row.actorEmail ?? "",
     row.organisation ?? "",
-    row.source ?? "",
+    formatForensicAuditSourceLabel(row.source),
     row.targetType ?? "",
     row.targetReference ?? "",
     row.status ?? "",

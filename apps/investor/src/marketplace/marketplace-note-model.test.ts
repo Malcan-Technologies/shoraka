@@ -271,7 +271,7 @@ describe("marketplaceNoteMatchesFilters", () => {
       marketplaceNoteMatchesFilters(acme, {
         search: "",
         industry: "all",
-        risk: "A",
+        risk: "SME-1",
         profit: "all",
         tenor: "all",
         listing: "open",
@@ -281,7 +281,7 @@ describe("marketplaceNoteMatchesFilters", () => {
       marketplaceNoteMatchesFilters(acme, {
         search: "",
         industry: "Manufacturing",
-        risk: "B",
+        risk: "SME-3",
         profit: "mid",
         tenor: "all",
         listing: "open",

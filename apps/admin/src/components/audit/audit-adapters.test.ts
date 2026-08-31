@@ -493,7 +493,7 @@ describe("MARC_ASSESSMENT_SAVED Event Details", () => {
         { label: "Event type", value: "MARC_ASSESSMENT_SAVED" },
         { label: "Organization DB ID", value: "org-cuid" },
         { label: "Report S3 key", value: "marc-reports/org-cuid/august.pdf" },
-        { label: "Source", value: "API" },
+        { label: "Source", value: "Portal" },
         { label: "IP address", value: "1.1.1.1" },
         { label: "Correlation ID", value: "corr-1" },
       ])

@@ -4,7 +4,6 @@
  * Also: helpers for the controller to find S3 keys to delete on update/delete.
  */
 
-import { logger } from "../../../lib/logger";
 import { productLogRepository } from "../repository";
 import type { ProductEventType } from "../schemas";
 
@@ -43,7 +42,7 @@ export function buildProductLogMetadata(
 
 // --- Write one log row ---
 
-/** Save one product_log. If it fails we only log a warning (don't break the request). */
+/** Save one product_log. Failures surface to the caller so product mutations stay atomic. */
 export async function createProductLogEntry(
   userId: string | null,
   productId: string | null,
@@ -54,19 +53,15 @@ export async function createProductLogEntry(
   metadata?: Record<string, unknown>
 ): Promise<void> {
   if (!userId) return;
-  try {
-    await productLogRepository.create({
-      userId,
-      productId,
-      eventType,
-      ipAddress: ipAddress ?? null,
-      userAgent: userAgent ?? null,
-      deviceInfo: deviceInfo ?? null,
-      metadata: metadata ?? null,
-    });
-  } catch (err) {
-    logger.warn({ err, eventType, productId }, "Failed to write product log");
-  }
+  await productLogRepository.create({
+    userId,
+    productId,
+    eventType,
+    ipAddress: ipAddress ?? null,
+    userAgent: userAgent ?? null,
+    deviceInfo: deviceInfo ?? null,
+    metadata: metadata ?? null,
+  });
 }
 
 // --- S3 key helpers (used by controller to delete files on update/delete) ---

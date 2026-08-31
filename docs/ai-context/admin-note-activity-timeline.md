@@ -62,7 +62,7 @@ Priority numbers increase from earliest → latest lifecycle step.
 11. `WITHDRAWAL_COMPLETED`
 12. `PAYMENT_RECEIVED`
 13. `ISSUER_PAYMENT_SUBMITTED`
-14. `SETTLEMENT_PREVIEWED`
+14. `SETTLEMENT_PREVIEWED` (historical reader; no live preview writer; kept so old rows sort)
 15. `SETTLEMENT_APPROVED`
 16. `SETTLEMENT_TRUSTEE_LETTER_GENERATED`
 17. `SETTLEMENT_TRUSTEE_EMAIL_SENT`

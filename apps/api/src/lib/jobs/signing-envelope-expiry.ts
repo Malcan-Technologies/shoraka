@@ -4,12 +4,15 @@
  */
 import { prisma } from "../prisma";
 import { logger } from "../logger";
+import { systemAuditContext } from "../audit";
+import { signingService } from "../../modules/signing/service";
 
 export type SigningEnvelopeExpiryResult = {
   expiredEnvelopeIds: string[];
 };
 
 const ACTIVE_ENVELOPE_STATUSES = ["DRAFT", "SENT", "IN_PROGRESS"] as const;
+const EXPIRY_CORRELATION_ID = "cron:signing-envelope-expiry";
 
 export async function runSigningEnvelopeExpiryJob(): Promise<SigningEnvelopeExpiryResult> {
   const now = new Date();
@@ -23,12 +26,15 @@ export async function runSigningEnvelopeExpiryJob(): Promise<SigningEnvelopeExpi
 
   if (expired.length === 0) return { expiredEnvelopeIds: [] };
 
-  const ids = expired.map((envelope) => envelope.id);
-  await prisma.signingEnvelope.updateMany({
-    where: { id: { in: ids } },
-    data: { status: "EXPIRED" },
-  });
+  const context = systemAuditContext({ correlationId: EXPIRY_CORRELATION_ID });
+  const expiredEnvelopeIds: string[] = [];
+  for (const envelope of expired) {
+    const closed = await signingService.expireEnvelope(envelope.id, { context });
+    if (closed) {
+      expiredEnvelopeIds.push(envelope.id);
+    }
+  }
 
-  logger.info({ expiredEnvelopeCount: ids.length }, "Expired signing envelopes");
-  return { expiredEnvelopeIds: ids };
+  logger.info({ expiredEnvelopeCount: expiredEnvelopeIds.length }, "Expired signing envelopes");
+  return { expiredEnvelopeIds };
 }

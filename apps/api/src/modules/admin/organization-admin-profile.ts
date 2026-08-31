@@ -3,7 +3,12 @@ import { parseAboutYourBusiness, serializeAboutYourBusiness } from "@cashsouk/ty
 import { UserRole } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
-import { createOnboardingLogRow } from "../../lib/audit";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_PORTAL,
+  AUDIT_SOURCE,
+  persistOrganizationUpdateAndOnboardingLogs,
+} from "../../lib/audit";
 import { buildOrganizationProfileAuditEvidence } from "./organization-profile-audit";
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
@@ -167,18 +172,6 @@ export async function updateAdminOrganizationProfile(params: {
     );
   }
 
-  if (portal === "issuer") {
-    await prisma.issuerOrganization.update({
-      where: { id: organizationId },
-      data: updateData,
-    });
-  } else {
-    await prisma.investorOrganization.update({
-      where: { id: organizationId },
-      data: updateData,
-    });
-  }
-
   const { bankFieldsChanged } = summarizeProfilePatch(input);
   const evidence = buildOrganizationProfileAuditEvidence({
     previous: {
@@ -204,29 +197,47 @@ export async function updateAdminOrganizationProfile(params: {
     bankFieldsChanged,
     organizationReference: org.display_reference,
   });
-  await createOnboardingLogRow({
-    userId: org.owner_user_id,
-    investorOrganizationId: portal === "investor" ? organizationId : null,
-    issuerOrganizationId: portal === "issuer" ? organizationId : null,
-    organizationName: (input.name ?? org.name) || undefined,
-    role: portal === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
-    eventType: "PROFILE_UPDATED",
-    portal,
-    ipAddress: requestMeta.ipAddress,
-    userAgent: requestMeta.userAgent,
-    deviceInfo: requestMeta.deviceInfo,
-    deviceType: requestMeta.deviceType,
-    metadata: {
-      updatedBy: adminUserId,
-      updatedFields: evidence.updatedFields,
-      bankFieldsChanged: evidence.bankFieldsChanged,
-      previousValues: evidence.previousValues,
-      nextValues: evidence.nextValues,
-      ...(evidence.organizationReference
-        ? { organizationReference: evidence.organizationReference }
-        : {}),
-    },
-    actorUserId: adminUserId,
+
+  await persistOrganizationUpdateAndOnboardingLogs({
+    portalType: portal,
+    organizationId,
+    data: updateData,
+    logs: [
+      {
+        userId: org.owner_user_id,
+        investorOrganizationId: portal === "investor" ? organizationId : null,
+        issuerOrganizationId: portal === "issuer" ? organizationId : null,
+        organizationName: (input.name ?? org.name) || undefined,
+        role: portal === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
+        eventType: "PROFILE_UPDATED",
+        portal: AUDIT_PORTAL.ADMIN,
+        ipAddress: requestMeta.ipAddress,
+        userAgent: requestMeta.userAgent,
+        deviceInfo: requestMeta.deviceInfo,
+        deviceType: requestMeta.deviceType,
+        metadata: {
+          updatedBy: adminUserId,
+          updatedFields: evidence.updatedFields,
+          bankFieldsChanged: evidence.bankFieldsChanged,
+          previousValues: evidence.previousValues,
+          nextValues: evidence.nextValues,
+          subjectPortal: portal,
+          ...(evidence.organizationReference
+            ? { organizationReference: evidence.organizationReference }
+            : {}),
+        },
+        actorUserId: adminUserId,
+        context: {
+          actorType: AUDIT_ACTOR_TYPE.ADMIN,
+          actorUserId: adminUserId,
+          source: AUDIT_SOURCE.API,
+          portal: AUDIT_PORTAL.ADMIN,
+          ipAddress: requestMeta.ipAddress ?? null,
+          userAgent: requestMeta.userAgent ?? null,
+          correlationId: null,
+        },
+      },
+    ],
   });
 
   return { success: true };

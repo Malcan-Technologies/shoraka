@@ -39,6 +39,10 @@ Plain-text guides for application status rules and log events:
 - **[Lifecycle Possibilities](./guides/application/lifecycle-possibilities.md)** - All status combinations (contract, invoices, result)
 - **[Logging Scenarios](./guides/application/logging-scenarios.md)** - UI button to event type mapping
 - **[Logging Guide](./guides/application/logging-guide.md)** - Full scenarios, DB storage, kid-level explanation
+- **[Audit Log Register](./logs-inventory.md)** - Active named events the live platform can produce
+- **[Notification Register](./notifications-inventory.md)** - Typed messages, Admin settings, and direct emails
+- **[Logging architecture](./logging-architecture.md)** - Current layers, evidence rules, residuals
+- **[Event catalogue](./logging-event-catalogue.md)** - Generated from `visibility-matrix.ts` (includes historical readers; not the Ops register)
 
 ### 🛠️ Admin
 

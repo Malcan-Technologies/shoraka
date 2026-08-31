@@ -51,4 +51,27 @@ describe("parseSigningCloudContractDetails", () => {
       { email: "two@co.my", status: "REJECTED", name: "Two" },
     ]);
   });
+
+  it("captures a provider first-view timestamp when present", () => {
+    const result = parseSigningCloudContractDetails({
+      data: {
+        addressee: [
+          {
+            email: "ali@co.my",
+            signstate: 0,
+            viewTime: "2026-08-29T04:00:00.000Z",
+          },
+        ],
+      },
+    });
+
+    expect(result.signers).toEqual([
+      {
+        email: "ali@co.my",
+        status: "PENDING",
+        name: null,
+        viewedAt: new Date("2026-08-29T04:00:00.000Z"),
+      },
+    ]);
+  });
 });

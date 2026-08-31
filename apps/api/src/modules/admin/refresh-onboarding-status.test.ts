@@ -75,6 +75,21 @@ const mockIssuerOrgUpdate = jest.fn(() => Promise.resolve());
 const mockOnboardingLogCreate = jest.fn(() => Promise.resolve());
 jest.mock("../../lib/prisma", () => ({
   prisma: {
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        investorOrganization: {
+          findUnique: (...args: unknown[]) => mockInvestorOrgFindUnique(...args),
+          update: (...args: unknown[]) => mockInvestorOrgUpdate(...args),
+        },
+        issuerOrganization: {
+          findUnique: (...args: unknown[]) => mockIssuerOrgFindUnique(...args),
+          update: (...args: unknown[]) => mockIssuerOrgUpdate(...args),
+        },
+        onboardingLog: {
+          create: (...args: unknown[]) => mockOnboardingLogCreate(...args),
+        },
+      })
+    ),
     regTankOnboarding: {
       findUnique: (...args: unknown[]) => mockRegTankOnboardingFindUnique(...args),
     },
@@ -94,11 +109,14 @@ jest.mock("../../lib/prisma", () => ({
 
 import { AdminService } from "./service";
 
+const adminReq = { headers: {}, ip: undefined } as never;
+
 function personalOnboarding(overrides: Record<string, unknown> = {}) {
   return {
     id: "onboarding-1",
     request_id: "LD001",
     reference_id: "ref-1",
+    user_id: "user-1",
     onboarding_type: "INDIVIDUAL",
     portal_type: "investor",
     status: "WAIT_FOR_APPROVAL",
@@ -169,13 +187,19 @@ describe("AdminService.refreshOnboardingStatus — personal", () => {
     });
 
     const service = new AdminService();
-    const result = await service.refreshOnboardingStatus({} as never, "onboarding-1", "admin-1");
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-1", "admin-1");
 
     expect(mockHandleWebhookUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ requestId: "LD001", status: "APPROVED" })
+      expect.objectContaining({ requestId: "LD001", status: "APPROVED" }),
+      expect.objectContaining({ portal: "ADMIN", actorUserId: "admin-1" })
     );
     expect(mockApplyPersonalAmlMilestoneFromLiveKyc).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1", kycId: "KYC001", userId: "admin-1" })
+      expect.objectContaining({
+        organizationId: "org-1",
+        kycId: "KYC001",
+        userId: "user-1",
+        actorUserId: "admin-1",
+      })
     );
     expect(result.advanced).toBe(true);
     expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_FINAL_APPROVAL);
@@ -195,7 +219,7 @@ describe("AdminService.refreshOnboardingStatus — personal", () => {
     });
 
     const service = new AdminService();
-    const result = await service.refreshOnboardingStatus({} as never, "onboarding-1", "admin-1");
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-1", "admin-1");
 
     expect(mockHandleWebhookUpdate).not.toHaveBeenCalled();
     expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_APPROVAL);
@@ -233,7 +257,7 @@ describe("AdminService.refreshOnboardingStatus — personal", () => {
     });
 
     const service = new AdminService();
-    const result = await service.refreshOnboardingStatus({} as never, "onboarding-1", "admin-1");
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-1", "admin-1");
 
     expect(result.amlApproved).toBe(false);
     expect(result.advanced).toBe(false);
@@ -270,7 +294,7 @@ describe("AdminService.refreshOnboardingStatus — personal", () => {
     });
 
     const service = new AdminService();
-    const result = await service.refreshOnboardingStatus({} as never, "onboarding-1", "admin-1");
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-1", "admin-1");
 
     expect(result.advanced).toBe(false);
     expect(result.amlApproved).toBe(false);
@@ -288,7 +312,7 @@ describe("AdminService.refreshOnboardingStatus — personal", () => {
     });
 
     const service = new AdminService();
-    const result = await service.refreshOnboardingStatus({} as never, "onboarding-1", "admin-1");
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-1", "admin-1");
 
     expect(mockApplyPersonalAmlMilestoneFromLiveKyc).not.toHaveBeenCalled();
     expect(result.warnings.some((w) => w.toLowerCase().includes("kyc"))).toBe(true);
@@ -318,10 +342,11 @@ describe("AdminService.refreshOnboardingStatus — personal", () => {
     });
 
     const service = new AdminService();
-    await service.refreshOnboardingStatus({} as never, "onboarding-1", "admin-1");
+    await service.refreshOnboardingStatus(adminReq, "onboarding-1", "admin-1");
 
     expect(mockHandleWebhookUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ requestId: "LD001", status: "APPROVED", referenceId: "ref-1" })
+      expect.objectContaining({ requestId: "LD001", status: "APPROVED", referenceId: "ref-1" }),
+      expect.objectContaining({ portal: "ADMIN", actorUserId: "admin-1" })
     );
   });
 });
@@ -390,7 +415,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     });
 
     const service = new AdminService();
-    await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
 
     const investorUpdatePayload = mockInvestorOrgUpdate.mock.calls.find(
       (call) => call?.[0]?.where?.id === "org-2" && call?.[0]?.data?.director_kyc_status
@@ -440,7 +465,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     });
 
     const service = new AdminService();
-    await service.refreshOnboardingStatus({} as never, "onboarding-issuer", "admin-1");
+    await service.refreshOnboardingStatus(adminReq, "onboarding-issuer", "admin-1");
 
     expect(mockIssuerOrgUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "issuer-org-1" } })
@@ -508,7 +533,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     });
 
     const service = new AdminService();
-    await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
 
     const investorUpdatePayload = mockInvestorOrgUpdate.mock.calls.find(
       (call) => call?.[0]?.where?.id === "org-2" && call?.[0]?.data?.director_kyc_status
@@ -541,7 +566,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     });
 
     const service = new AdminService();
-    const result = await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
 
     expect(mockUpdateStatus).toHaveBeenCalledWith(
       "COD05339",
@@ -565,7 +590,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     });
 
     const service = new AdminService();
-    await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
 
     expect(mockUpdateStatus).toHaveBeenCalledWith(
       "COD001",
@@ -588,7 +613,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     });
 
     const service = new AdminService();
-    await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
 
     expect(mockUpdateStatus).toHaveBeenCalledWith(
       "COD05339",
@@ -626,7 +651,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     });
 
     const service = new AdminService();
-    const result = await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
 
     expect(mockAdvanceOnboardingStatusFromFlags).toHaveBeenCalled();
     expect(result.onboardingProviderStatus).toBe("APPROVED");
@@ -644,7 +669,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     });
 
     const service = new AdminService();
-    const result = await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
 
     expect(mockUpdateStatus).not.toHaveBeenCalledWith("COD05339", expect.anything());
     expect(result.partialFailures).toContain("COD");
@@ -666,7 +691,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     mockInvestorOrgFindUnique.mockResolvedValue({ ssm_approved: true });
 
     const service = new AdminService();
-    const result = await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
 
     expect(mockGetCorporateOnboardingDetails).not.toHaveBeenCalled();
     expect(mockApplyCorporateAmlMilestoneFromLiveKyb).not.toHaveBeenCalled();
@@ -690,7 +715,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     mockInvestorOrgFindUnique.mockResolvedValue({ ssm_approved: false });
 
     const service = new AdminService();
-    const result = await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
 
     expect(mockGetCorporateOnboardingDetails).not.toHaveBeenCalled();
     expect(result.onboardingStatus).toBe(OnboardingStatus.REJECTED);
@@ -713,7 +738,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     });
 
     const service = new AdminService();
-    const result = await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
 
     expect(result.ssmApproved).toBe(true);
     expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_AML);
@@ -726,7 +751,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     mockApplyCorporateAmlMilestoneFromLiveKyb.mockRejectedValue(new Error("RegTank KYB timeout"));
 
     const service = new AdminService();
-    const result = await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
 
     expect(result.partialFailures).toContain("KYB");
     expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_AML);
@@ -810,7 +835,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     });
 
     const service = new AdminService();
-    const first = await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    const first = await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
     expect(first.onboardingStatus).toBe(OnboardingStatus.PENDING_AML);
 
     expect(mockGetCorporateOnboardingDetails).toHaveBeenCalledWith("COD05079");
@@ -874,7 +899,7 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     mockGetCorporateOnboardingDetails.mockClear();
     mockGetEntityOnboardingDetails.mockClear();
 
-    await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
 
     const secondUpdate = mockInvestorOrgUpdate.mock.calls.find(
       (call) => call?.[0]?.where?.id === "org-2" && call?.[0]?.data?.director_kyc_status

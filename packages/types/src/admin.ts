@@ -361,9 +361,11 @@ export interface ExportSecurityLogsParams extends Omit<GetSecurityLogsParams, "p
 // Onboarding Logs Types
 export type OnboardingEventType =
   | "ONBOARDING_STARTED"
+  | "ONBOARDING_FEE_PAID"
   | "ONBOARDING_RESUMED"
   | "ONBOARDING_CANCELLED"
   | "ONBOARDING_STATUS_UPDATED"
+  | "ONBOARDING_AMENDMENT_REQUIRED"
   | "ONBOARDING_REJECTED"
   | "COD_REJECTED"
   | "SOPHISTICATED_STATUS_UPDATED"
@@ -380,7 +382,9 @@ export type OnboardingEventType =
   | "MEMBER_INVITED"
   | "MEMBER_REMOVED"
   | "MEMBER_ROLE_CHANGED"
-  | "MARC_ASSESSMENT_SAVED";
+  | "MARC_ASSESSMENT_SAVED"
+  | "EOD_APPROVED"
+  | "EOD_REJECTED";
 
 export interface OnboardingLogUser {
   first_name: string;

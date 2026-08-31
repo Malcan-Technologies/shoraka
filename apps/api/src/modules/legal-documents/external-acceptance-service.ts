@@ -36,6 +36,7 @@ export type SigningRecipientParty = {
   name: string;
   email: string;
   ic_number: string | null;
+  envelope_id?: string;
 };
 
 function evidenceFromVersion(version: VersionWithDocument) {
@@ -45,6 +46,48 @@ function evidenceFromVersion(version: VersionWithDocument) {
     document_type: type,
     version_number: version.version,
     document_hash: version.file_hash,
+  };
+}
+
+async function linkageFromRecipient(recipient: SigningRecipientParty) {
+  const envelopeId = recipient.envelope_id;
+  if (!envelopeId) {
+    const row = await prisma.signingRecipient.findUnique({
+      where: { id: recipient.id },
+      select: {
+        envelope_id: true,
+        role_key: true,
+        envelope: {
+          select: {
+            application_id: true,
+            application: { select: { issuer_organization_id: true } },
+          },
+        },
+      },
+    });
+    if (!row) {
+      return { envelope_id: null, application_id: null, organization_id: null, party_role: recipient.role_key };
+    }
+    return {
+      envelope_id: row.envelope_id,
+      application_id: row.envelope.application_id,
+      organization_id: row.envelope.application.issuer_organization_id,
+      party_role: row.role_key,
+    };
+  }
+
+  const envelope = await prisma.signingEnvelope.findUnique({
+    where: { id: envelopeId },
+    select: {
+      application_id: true,
+      application: { select: { issuer_organization_id: true } },
+    },
+  });
+  return {
+    envelope_id: envelopeId,
+    application_id: envelope?.application_id ?? null,
+    organization_id: envelope?.application.issuer_organization_id ?? null,
+    party_role: recipient.role_key,
   };
 }
 
@@ -150,6 +193,7 @@ export class LegalExternalAcceptanceService {
     });
 
     if (!existing) {
+      const linkage = await linkageFromRecipient(recipient);
       await prisma.legalExternalAcceptance.create({
         data: {
           legal_document_version_id: version.id,
@@ -164,6 +208,10 @@ export class LegalExternalAcceptanceService {
           opened_ip_address: ipAddress,
           opened_user_agent: userAgent,
           opened_device_info: deviceInfo,
+          envelope_id: linkage.envelope_id,
+          application_id: linkage.application_id,
+          organization_id: linkage.organization_id,
+          party_role: linkage.party_role,
         },
       });
     }
@@ -186,6 +234,7 @@ export class LegalExternalAcceptanceService {
 
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
     const documentType = version.legal_document.type as LegalDocumentType;
+    const linkage = await linkageFromRecipient(recipient);
 
     await prisma.legalExternalAcceptance.update({
       where: { id: existing.id },
@@ -200,6 +249,10 @@ export class LegalExternalAcceptanceService {
         party_name: recipient.name,
         party_email: recipient.email,
         party_ic_number: recipient.ic_number,
+        envelope_id: linkage.envelope_id ?? existing.envelope_id,
+        application_id: linkage.application_id ?? existing.application_id,
+        organization_id: linkage.organization_id ?? existing.organization_id,
+        party_role: linkage.party_role ?? existing.party_role,
       },
     });
   }
