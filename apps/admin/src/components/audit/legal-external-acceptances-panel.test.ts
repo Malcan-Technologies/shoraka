@@ -40,12 +40,11 @@ describe("External Acceptances Admin presentation", () => {
     expect(hook).toContain('query.set("dateFrom"');
   });
 
-  it("opens View details and shows masked IC only", () => {
+  it("opens View details and shows the stored IC number", () => {
     expect(panel).toContain("LegalExternalAcceptanceDetailSheet");
     expect(panel).toContain("openDetails");
-    expect(sheet).toContain("partyIcMasked");
-    expect(sheet).not.toContain("partyIcNumber");
-    expect(hook).not.toContain("partyIcNumber");
+    expect(sheet).toContain("partyIcNumber");
+    expect(sheet).not.toContain("partyIcMasked");
   });
 
   it("keeps hash in the detail sheet and exports through the dedicated reader route", () => {

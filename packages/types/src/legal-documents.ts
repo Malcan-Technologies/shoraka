@@ -49,6 +49,7 @@ export interface LegalExternalAcceptanceListItem {
 }
 
 export interface LegalExternalAcceptanceDetail extends LegalExternalAcceptanceListItem {
+  partyIcNumber: string | null;
   openedIpAddress: string | null;
   openedUserAgent: string | null;
   openedDeviceInfo: string | null;

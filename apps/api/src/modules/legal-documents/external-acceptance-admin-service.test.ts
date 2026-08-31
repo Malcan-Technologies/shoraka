@@ -97,7 +97,7 @@ describe("legal external acceptance Admin reader", () => {
     expect(result.acceptances[0]).not.toHaveProperty("partyIcNumber");
   });
 
-  it("returns detail evidence without unmasked IC", async () => {
+  it("returns detail evidence including the stored IC number", async () => {
     (prisma.legalExternalAcceptance.findUnique as jest.Mock).mockResolvedValue(makeRow());
     (prisma.issuerOrganization.findMany as jest.Mock).mockResolvedValue([
       { id: "org-1", name: "Acme Sdn Bhd" },
@@ -106,7 +106,7 @@ describe("legal external acceptance Admin reader", () => {
     const acceptance = await legalExternalAcceptanceAdminService.getAcceptanceById("ext-1");
 
     expect(acceptance.partyIcMasked).toBe("••••5432");
-    expect(acceptance).not.toHaveProperty("partyIcNumber");
+    expect(acceptance.partyIcNumber).toBe("900101015432");
     expect(acceptance.openedIpAddress).toBe("198.51.100.10");
     expect(acceptance.acceptedIpAddress).toBe("203.0.113.20");
     expect(acceptance.acknowledgementText).toContain("warning statement");

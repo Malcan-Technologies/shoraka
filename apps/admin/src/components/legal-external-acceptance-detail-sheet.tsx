@@ -104,7 +104,7 @@ export function LegalExternalAcceptanceDetailSheet({
                 <DetailField label="Party name" value={acceptance.partyName} />
                 <DetailField label="Party email" value={acceptance.partyEmail} />
                 <DetailField label="Party role" value={acceptance.partyRole} />
-                <DetailField label="IC number" value={acceptance.partyIcMasked} />
+                <DetailField label="IC number" value={acceptance.partyIcNumber} />
                 <DetailField label="Source type" value={acceptance.sourceType} />
                 <DetailField label="Source ID" value={acceptance.sourceId} />
               </div>

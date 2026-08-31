@@ -140,7 +140,10 @@ export async function getLegalExternalAcceptanceById(id: string) {
     throw new AppError(404, "LEGAL_EXTERNAL_ACCEPTANCE_NOT_FOUND", "External acceptance not found");
   }
   const orgNames = await resolveOrgNames([row]);
-  return toDetail(row, orgNames);
+  return {
+    ...toDetail(row, orgNames),
+    partyIcNumber: row.party_ic_number,
+  };
 }
 
 export async function exportLegalExternalAcceptances(query: ExportLegalExternalAcceptancesQuery) {
