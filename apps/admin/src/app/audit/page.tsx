@@ -89,7 +89,7 @@ function AuditPageContent() {
           description="Review access, security, product, legal, operations, and notification evidence across the platform."
         />
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-          <TabsList className="flex h-auto w-fit max-w-full flex-wrap justify-start">
+          <TabsList className="relative z-20 flex h-auto w-fit max-w-full flex-wrap justify-start">
             {visibleTabs.map((tab) => (
               <TabsTrigger key={tab.id} value={tab.id}>
                 {tab.label}

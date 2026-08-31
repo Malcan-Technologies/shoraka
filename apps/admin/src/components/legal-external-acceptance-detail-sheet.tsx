@@ -44,7 +44,11 @@ export function LegalExternalAcceptanceDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+      {open ? (
+        <SheetContent
+          className="w-full overflow-y-auto sm:max-w-lg"
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
         <SheetHeader>
           <SheetTitle>
             {acceptance?.status === "OPENED"
@@ -183,7 +187,8 @@ export function LegalExternalAcceptanceDetailSheet({
             </div>
           </div>
         ) : null}
-      </SheetContent>
+        </SheetContent>
+      ) : null}
     </Sheet>
   );
 }

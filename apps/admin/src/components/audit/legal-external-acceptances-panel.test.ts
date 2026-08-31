@@ -47,6 +47,25 @@ describe("External Acceptances Admin presentation", () => {
     expect(sheet).not.toContain("partyIcMasked");
   });
 
+  it("does not mount the detail SheetContent overlay unless View details is open", () => {
+    const openGate = sheet.indexOf("{open ?");
+    const content = sheet.indexOf("<SheetContent");
+    expect(openGate).toBeGreaterThan(-1);
+    expect(content).toBeGreaterThan(openGate);
+    expect(sheet).toContain("onCloseAutoFocus");
+  });
+
+  it("clears the selected row when the drawer closes so no modal overlay can linger", () => {
+    expect(panel).toContain("handleDetailOpenChange");
+    expect(panel).toContain("setSelectedAcceptanceId(null)");
+    expect(panel).toContain("open={detailOpen && selectedAcceptanceId != null}");
+  });
+
+  it("disables pointer events on a closed Sheet overlay so a stale backdrop cannot cover Audit tabs", () => {
+    const uiSheet = read("../ui/sheet.tsx");
+    expect(uiSheet).toContain("data-[state=closed]:pointer-events-none");
+  });
+
   it("keeps hash in the detail sheet and exports through the dedicated reader route", () => {
     expect(sheet).toContain('label="Hash"');
     expect(sheet).toContain("acceptance.documentHash");

@@ -178,6 +178,13 @@ export function LegalExternalAcceptancesPanel() {
     setDetailOpen(true);
   };
 
+  const handleDetailOpenChange = (nextOpen: boolean) => {
+    setDetailOpen(nextOpen);
+    if (!nextOpen) {
+      setSelectedAcceptanceId(null);
+    }
+  };
+
   React.useEffect(() => {
     setPage(1);
   }, [searchQuery, documentTypeFilter, statusFilter, dateFrom, dateTo]);
@@ -354,8 +361,8 @@ export function LegalExternalAcceptancesPanel() {
 
       <LegalExternalAcceptanceDetailSheet
         acceptanceId={selectedAcceptanceId}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
+        open={detailOpen && selectedAcceptanceId != null}
+        onOpenChange={handleDetailOpenChange}
       />
     </div>
   );
