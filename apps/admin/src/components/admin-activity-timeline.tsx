@@ -160,15 +160,16 @@ function getEventLabel(
     INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
     INVOICE_WITHDRAWN: "Invoice Withdrawn",
     SIGNING_PACKAGE_CREATED: "Signing Package Created",
-    SIGNING_PACKAGE_SENT: "Signing package sent",
+    SIGNING_PACKAGE_SENT: "Signing Package Sent",
     SIGNING_PACKAGE_COMPLETED: "Signing Package Completed",
-    SIGNING_PACKAGE_DECLINED: "Signing package declined",
-    SIGNING_PACKAGE_EXPIRED: "Signing package expired",
-    SIGNING_PACKAGE_VOIDED: "Signing package voided",
+    SIGNING_PACKAGE_DECLINED: "Signing Package Declined",
+    SIGNING_PACKAGE_EXPIRED: "Signing Package Expired",
+    SIGNING_PACKAGE_VOIDED: "Signing Package Voided",
     AMENDMENTS_SUBMITTED: "Amendment Request Sent",
     CONTRACT_FACILITY_FEE_WAIVED: "Facility Fee Waived",
     CONTRACT_FACILITY_DISABLED: "Facility Disabled",
     CONTRACT_FACILITY_ENABLED: "Facility Enabled",
+    CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED: "Large Private Customer Flag Updated",
   };
   if (eventType === "INVOICE_OFFER_SENT") {
     const invoiceNumber = metadata?.invoice_number;

@@ -1,5 +1,10 @@
 # Logging architecture
 
+Operations inventories (active live platform only):
+
+- [Audit Log Register](./logs-inventory.md)
+- [Notification Register](./notifications-inventory.md)
+
 CashSouk does not keep one giant timeline. Each fact is written to the layer that owns it.
 
 ## Layers

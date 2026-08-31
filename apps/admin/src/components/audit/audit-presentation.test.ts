@@ -33,7 +33,9 @@ describe("audit presentation", () => {
     expect(formatAuditEventLabel("MEMBER_INVITED")).toBe("Member Invited");
     expect(formatAuditEventLabel("MEMBER_REMOVED")).toBe("Member Removed");
     expect(formatAuditEventLabel("MEMBER_ROLE_CHANGED")).toBe("Member Role Changed");
-    expect(formatAuditEventLabel("MARC_ASSESSMENT_SAVED")).toBe("MARC Assessment Saved");
+    expect(formatAuditEventLabel("OVERDUE_LATE_CHARGE_CHECKED")).toBe("Note Entered Arrears");
+    expect(formatAuditEventLabel("ONBOARDING_APPROVED")).toBe("Onboarding Submission Approved");
+    expect(formatAuditEventLabel("EOD_APPROVED")).toBe("Enhanced Due Diligence Approved");
     expect(formatAuditEventLabel("MEMBER_ADDED")).not.toBe("Role Added");
     expect(formatAuditEventLabel("MEMBER_REMOVED")).not.toBe("Role Removed");
   });
@@ -164,7 +166,7 @@ describe("buildAuditCsv", () => {
     const csv = buildAuditCsv([
       {
         timestamp: "2026-05-12T14:15:42.000Z",
-        event: "Overdue Late Charge Checked",
+        event: "Note Entered Arrears",
         eventType: "OVERDUE_LATE_CHARGE_CHECKED",
         actor: "Ada Admin",
         actorType: "ADMIN",
@@ -178,7 +180,7 @@ describe("buildAuditCsv", () => {
     expect(lines[0]).toContain("Timestamp");
     expect(lines[0]).toContain("Event Type");
     expect(lines[0]).toContain("Correlation ID");
-    expect(lines[1]).toContain("Overdue Late Charge Checked");
+    expect(lines[1]).toContain("Note Entered Arrears");
     expect(lines[1]).toContain('""not overdue""');
   });
 

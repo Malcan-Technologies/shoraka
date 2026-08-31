@@ -8,12 +8,12 @@ import { join } from "node:path";
 describe("admin activity timeline signing-package copy", () => {
   const source = readFileSync(join(__dirname, "admin-activity-timeline.tsx"), "utf8");
 
-  it("uses Title Case for Signing Package Created (copy standardization) and sentence-case for the rest", () => {
+  it("uses Title Case for signing-package events", () => {
     expect(source).toMatch(/SIGNING_PACKAGE_CREATED:\s*"Signing Package Created"/);
-    expect(source).toMatch(/SIGNING_PACKAGE_SENT:\s*"Signing package sent"/);
-    expect(source).toMatch(/SIGNING_PACKAGE_VOIDED:\s*"Signing package voided"/);
-    expect(source).toMatch(/SIGNING_PACKAGE_DECLINED:\s*"Signing package declined"/);
-    expect(source).toMatch(/SIGNING_PACKAGE_EXPIRED:\s*"Signing package expired"/);
+    expect(source).toMatch(/SIGNING_PACKAGE_SENT:\s*"Signing Package Sent"/);
+    expect(source).toMatch(/SIGNING_PACKAGE_VOIDED:\s*"Signing Package Voided"/);
+    expect(source).toMatch(/SIGNING_PACKAGE_DECLINED:\s*"Signing Package Declined"/);
+    expect(source).toMatch(/SIGNING_PACKAGE_EXPIRED:\s*"Signing Package Expired"/);
   });
 
   it("shows SIGNING_PACKAGE_COMPLETED as a real timeline event", () => {

@@ -1,414 +1,418 @@
-# Logs Inventory
+# Audit Log Register
 
 **As of:** 31 August 2026  
-**Scope:** Named durable events and related activity/evidence records that the **current live platform can still produce**.  
-**Method:** Traced from Admin / Issuer / Investor UI → API → service → Prisma / jobs / webhooks. Catalogue file `apps/api/src/lib/audit/visibility-matrix.ts` is a named-event index, not a complete writer list. Extra live writers (notes, gateway Prisma types) are included here when they have production callers.
+**Scope:** Named events the **current live platform can still produce**. Historical, deprecated, dead, and unreachable names are excluded.  
+**Method:** Traced from Admin / Issuer / Investor UI → API → service → Prisma / jobs / webhooks.
 
-Do not treat this file as the Operations Help guide. Help stays short; this inventory is the full current map.
+This is the Operations Audit Log Register. Each active event appears **once**, grouped by module — not by issuer/investor journey.
+
+Help (Admin Operations Guide) stays journey-oriented. This register is the unique-event inventory.
+
+Do not treat `apps/api/src/lib/audit/visibility-matrix.ts` or `docs/logging-event-catalogue.md` as this register. The catalogue includes historical readers and a few LIVE names with no production writer (`ACCOUNT_LOCKED`, gateway `CREATED` / `COMPLETED` / `FAILED`). Those are excluded here. Extra live writers missing from the catalogue are included.
 
 ---
 
 ## How to read
 
-| Column | Meaning |
+| Field | Meaning |
 | --- | --- |
-| Event | Stored `event_type` / `action` / gateway `type` |
-| Cause | Business action that writes it |
-| Actor | Who or what triggers it, and the role |
-| Refs | Typical ids in the row or metadata |
-| Recorded | What is stored |
-| Code | Production writer (not tests) |
-| Store | Prisma table |
-| Admin | Shown in Admin/Operations UI today? |
-| Where | Screen |
-| Ops wording | Whether the Admin/customer label is understandable |
-| Gaps | Missing context that makes the row hard to interpret |
-| Overlap | Same fact written elsewhere |
+| Event ID | Stable inventory id |
+| Module | Business / system area |
+| Event / Activity | Operations name shown in Admin (past tense, object included) |
+| System Event Code | Stored backend code. Not renamed |
+| Description | What happened |
+| Trigger / Condition | What causes the write |
+| Actor | Customer, Admin, System, Gateway, Webhook |
+| Affected Record | Entity the event is about |
+| Recorded Data | Important stored values |
+| Record Source | Prisma table / store |
+| Admin Location | Where Operations can see it today |
+| Customer Visible | Yes = issuer or investor Activity feed |
+| Notes | Visibility class, overlaps, caveats |
 
-**Source labels in Admin:** Portal / Webhook / System job / Internal process (`formatForensicAuditSourceLabel`).
+**Admin location wording** uses: Issuer record - Activity, Investor record - Activity, Application record - Activity Timeline, Application record - Acceptance, Facility record - Activity, Note record - Activity, Note record - Late Payment, Finance - Payments - Gateway Payments, Finance - Reconciliation, Finance - Investor Withdrawals, Audit - Access / Security / Products / Legal Documents / Legal Acceptances / External Acceptances / Notifications.
 
-**Customer Activity** (`/activity` on Issuer and Investor) only shows `userVisible` milestones. Admin timelines show a wider set.
+**Source labels** on rows: Portal / Webhook / System job / Internal process.
 
----
+**Customer Activity** only shows a subset of milestones. Admin timelines show a wider set.
 
-## Where Operations sees logs
-
-| Screen | What it reads |
-| --- | --- |
-| Admin Applications → Activity Timeline | `application_logs` |
-| Admin Applications → Acceptance → Signing package | Envelope + recipient status, including **Viewed** (`SigningRecipient.viewed_at`, not an Activity event) |
-| Admin Facilities → Activity / Facility & Offer | `application_logs` (facility-scoped) |
-| Admin Issuers / Investors → Activity | `onboarding_logs` (admin allowlist, not forensic `WEBHOOK_*` / `EOD_WEBHOOK`) |
-| Admin Issuers / Investors → Acceptances / People | Legal acceptances; membership is in Activity via `MEMBER_*` |
-| Admin Notes → Activity | `note_events` |
-| Admin Notes → Campaign, Disbursement, Servicing, Late Payment, Ledger | Note state + ledger; letter events appear on Activity when written |
-| Admin Audit → Access / Security / Products / Legal Documents / Legal Acceptances / External Acceptances / Notifications | Matching audit tables |
-| Finance → Gateway Payments (list + detail Activity Timeline) | `gateway_payments` + `gateway_payment_events` |
-| Finance → Reconciliation | `gateway_recon_runs` / `gateway_recon_exceptions` |
-| Finance money movement (Repayments, Settlements, Issuer Payouts, Investor Withdrawals) | Operational screens; matching `note_events` / gateway rows |
-| Issuer / Investor Activity | Filtered application + org + note milestones |
-
-`note_admin_actions` and `application_review_events` are **written** on live paths but have **no dedicated Admin reader** today. Admin Notes/Applications Activity uses `note_events` / `application_logs`.
-
-Generated document hashes have **no Audit tab**. A letter on the note may still show as a Note Activity event.
+**There is no single cross-platform Audit table.** Operations still open the record that owns the event. Opening a row (where a drawer exists) shows the system event code, metadata, actor, source, and related ids.
 
 ---
 
-## 1. Authentication and access
+## Where Operations looks today
 
-| Event | Cause | Actor | Refs | Recorded | Code | Store | Admin | Where | Ops wording | Gaps | Overlap |
+| Admin surface | Reads | Typical use |
+| --- | --- | --- |
+| Application record - Activity Timeline | `application_logs` | Application, offer, signing, facility occupancy |
+| Facility record - Activity / Facility & Offer | `application_logs` (facility-scoped) | Facility offer and occupancy |
+| Issuer / Investor record - Activity | `onboarding_logs` (not forensic `WEBHOOK_*` / `EOD_WEBHOOK`) | Onboarding and membership |
+| Application record - Acceptance | Envelope + recipient, including Viewed | Signing status; Viewed is not an Activity event |
+| Note record - Activity | `note_events` | Note lifecycle, servicing, trustee |
+| Note record - Late Payment / Ledger | Note state + `note_ledger_entries` | Arrears / money on the Note |
+| Finance - Payments - Gateway Payments | `gateway_payments` + `gateway_payment_events` | Payment proof |
+| Finance - Reconciliation | `gateway_recon_runs` / `gateway_recon_exceptions` | Settlement match |
+| Finance - Investor Withdrawals | Wallet / withdrawal screens | Investor cash movement |
+| Audit - Access / Security / Products / Legal Documents / Legal Acceptances / External Acceptances / Notifications | Matching audit tables | Cross-cutting records |
+
+---
+
+## Active event register
+
+### 1. Onboarding
+
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `LOGIN` | Successful OAuth callback for an existing user | User (any portal role) | `user_id` | Portal, IP, user agent, source `API` | `auth/cognito.routes.ts`, `lib/auth/access-auth-audit.ts` | `access_logs` | Yes | Audit → Access | Yes (“Login”) | Portal comes from OAuth state | First-ever user is `SIGNUP` instead |
-| `SIGNUP` | First CashSouk user row with no prior SIGNUP | User | `user_id` | Same as LOGIN | `auth/repository.ts` + OAuth callback | `access_logs` | Yes | Audit → Access | Yes (“Sign Up”) | Not a marketing “registration complete” | Mutually exclusive with LOGIN on that callback |
-| `LOGOUT` | Sign-out | User | `user_id` | Best-effort; may skip if token already invalid | `auth/cognito.routes.ts` | `access_logs` | Yes | Audit → Access | Yes | Can be missing if Cognito token already dead | — |
-| `PASSWORD_CHANGED` | In-app change password (Cognito `ChangePassword`) | User | `user_id` | Security row + metadata | `auth/service.ts` `changePassword` | `security_logs` | Yes | Audit → Security | Yes | Forgot-password (Cognito hosted) does **not** write this | Same action also sends typed notification |
-| `EMAIL_VERIFIED` | Email verification attempt (success **or** failure) | User | `user_id` | Security row; `metadata.reason` is `EMAIL_VERIFIED` or `VERIFICATION_FAILED` | `auth/service.ts` | `security_logs` | Yes | Audit → Security | **Partial** — failed attempts use the same event name | Must open metadata for `success: false` | — |
-| `UserSession` | Session issued / tracked for auth | User | `user_id`, session id | Session row (not an Activity event) | Auth session writers | `user_sessions` | No dedicated Audit tab | Session internals | n/a | Not an Operations timeline | Separate from Access |
+| LOG-ONB-001 | Onboarding Started | `ONBOARDING_STARTED` | Issuer or investor onboarding began | User starts onboarding | Customer | User / organisation | Portal, org ids | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | Yes | Operations activity |
+| LOG-ONB-002 | Onboarding Fee Paid | `ONBOARDING_FEE_PAID` | Issuer registration fee captured | Gateway capture of onboarding fee | Gateway | Organisation | Payment refs | `onboarding_logs` | Issuer record - Activity. Finance - Payments - Gateway Payments | Yes | Also gateway payment. Use Gateway Payments as payment proof |
+| LOG-ONB-003 | Onboarding Resumed | `ONBOARDING_RESUMED` | Onboarding continued after an interruption | User or provider resume | Customer / Webhook | User / organisation | Request id | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
+| LOG-ONB-004 | Onboarding Status Updated | `ONBOARDING_STATUS_UPDATED` | Provider or Admin status change that is not a dedicated milestone | Webhook or Admin refresh | Webhook / Admin | Organisation | trigger, status, substatus | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | Open detail for trigger. Can pair with Form Submitted |
+| LOG-ONB-005 | Additional Information Required | `ONBOARDING_AMENDMENT_REQUIRED` | More onboarding information is required | Corporate onboarding amendment path | Webhook | Organisation | Request refs | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | Yes | Director/shareholder inbox type is separate |
+| LOG-ONB-006 | Onboarding Restarted | `ONBOARDING_CANCELLED` | Admin restarted onboarding (stored name still says cancelled) | Admin restart | Admin | Organisation | Restart metadata | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | Yes | A new Onboarding Started follows |
+| LOG-ONB-007 | Onboarding Reset | `ONBOARDING_RESET` | Admin reset local onboarding state | Admin reset | Admin | Organisation | Reason | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | User-initiated cancel writes no log |
+| LOG-ONB-008 | Onboarding Rejected | `ONBOARDING_REJECTED` | Individual or organisation onboarding rejected | Provider reject | Webhook | User / organisation | Reason when present | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | Yes | Pairs with Onboarding Rejected notification |
+| LOG-ONB-009 | Corporate Onboarding Rejected | `COD_REJECTED` | Corporate onboarding rejected | COD reject | Webhook | Organisation | Request refs | `onboarding_logs` | Issuer record - Activity | Yes | Customer label matches Onboarding Rejected |
+| LOG-ONB-010 | Onboarding Submission Approved | `ONBOARDING_APPROVED` | Submission approved; not always final access | Provider or Admin approval | Webhook / Admin | Organisation | Approval refs | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | Yes | Different from Final Approval Completed |
+| LOG-ONB-011 | Final Approval Completed | `FINAL_APPROVAL_COMPLETED` | Admin granted full platform access | Admin final approval | Admin | User / organisation | Final approval refs | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | Yes | Customer Activity title is Onboarding Approved |
+| LOG-ONB-012 | AML Approved | `AML_APPROVED` | AML milestone approved | Admin or AML webhook | Admin / Webhook | Organisation | AML metadata | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
+| LOG-ONB-013 | Company Registry Check Approved | `SSM_APPROVED` | SSM / company-registry check approved | Admin SSM approval | Admin | Organisation | SSM metadata | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
+| LOG-ONB-014 | Terms and Conditions Approved | `TNC_APPROVED` | Organisation terms accepted | User accepts T&C | Customer | Organisation | Version refs | `onboarding_logs` | Issuer record - Activity or Investor record - Activity. Audit - Legal Acceptances | No | Legal Acceptances is legal proof |
+| LOG-ONB-015 | Identity Documents Submitted | `FORM_FILLED` | Liveness, form, or ID upload recorded | Provider webhook or Admin refresh | Webhook | User | Status | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | Admin label Form Submitted |
+| LOG-ONB-016 | Sophisticated Investor Status Updated | `SOPHISTICATED_STATUS_UPDATED` | Sophisticated-investor flag changed | Admin update | Admin | Organisation / user | New status | `onboarding_logs` | Investor record - Activity | No | — |
+| LOG-ONB-017 | Enhanced Due Diligence Approved | `EOD_APPROVED` | Enhanced due diligence approved | EOD approved | Webhook / Admin | Organisation | EOD result | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
+| LOG-ONB-018 | Enhanced Due Diligence Rejected | `EOD_REJECTED` | Enhanced due diligence rejected | EOD rejected | Webhook / Admin | Organisation | EOD result | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
 
-Forgot-password and Admin 2FA reset run in Cognito, not this API. They are **not** access/security events here.
+### 2. Applications
 
----
-
-## 2. Roles, invitations, and admin security
-
-| Event | Cause | Actor | Refs | Recorded | Code | Store | Admin | Where | Ops wording | Gaps | Overlap |
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `ROLE_CREATED` | Admin creates a custom admin role | Admin | role id | Role key / permissions snapshot | `admin/service.ts` | `security_logs` | Yes | Audit → Security | Yes | — | — |
-| `ROLE_PERMISSIONS_UPDATED` | Admin changes role permissions | Admin | role id | Before/after permissions | `admin/service.ts` | `security_logs` | Yes | Audit → Security | Yes | — | — |
-| `ROLE_ADDED` | Role granted to a user | Admin or self-service add-role during onboarding | `user_id`, role | Target user in metadata | `admin/service.ts`, `auth/service.ts` | `security_logs` | Yes | Audit → Security | Yes | — | — |
-| `ROLE_REMOVED` | Role removed | Admin | `user_id`, role | Target user | `admin/service.ts` | `security_logs` | Yes | Audit → Security | Yes | — | — |
-| `ROLE_SWITCHED` | Active role changed | User | `user_id` | From/to role | `admin/service.ts` / auth role switch | `security_logs` | Yes | Audit → Security | Yes (`formatRoleSwitchedLabel`) | — | — |
-| `INVITATION_REVOKED` | Admin invite revoked | Admin | invite / target user | Invite metadata | `admin/service.ts` | `security_logs` | Yes | Audit → Security | Yes | Admin invite **send** is email-only (see Notifications Inventory) | — |
-| `PLATFORM_FINANCE_SETTINGS_UPDATED` | Admin updates platform finance settings | Admin | settings keys | Changed fields | `notes/service.ts` | `security_logs` | Yes | Audit → Security | Partial (tokenised name) | Which fields changed may need the drawer | — |
+| LOG-APP-001 | Application Created | `APPLICATION_CREATED` | Draft application created | Issuer creates draft, or hourly repair | Customer / System | Application | Application refs | `application_logs` | Application record - Activity Timeline | Yes | Customer title Application Started. Overlay can be repaired with source Internal process |
+| LOG-APP-002 | Application Processing Fee Paid | `APPLICATION_PROCESSING_FEE_PAID` | Application processing fee captured | Fee capture | Gateway | Application | Payment refs | `application_logs` | Application record - Activity Timeline. Finance - Payments - Gateway Payments | Yes | Gateway Payments is payment proof |
+| LOG-APP-003 | Application Submitted | `APPLICATION_SUBMITTED` | Application first submitted | Issuer submit | Customer | Application | submitted_at | `application_logs` | Application record - Activity Timeline | Yes | Inbox type application_submitted_confirmation |
+| LOG-APP-004 | Application Resubmitted | `APPLICATION_RESUBMITTED` | Application resubmitted after amendment | Issuer resubmit | Customer | Application | Review cycle | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-APP-005 | Application Rejected | `APPLICATION_REJECTED` | Application rejected | Admin reject | Admin | Application | Remark | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-APP-006 | Application Withdrawn | `APPLICATION_WITHDRAWN` | Application withdrawn or closed by decline | Issuer withdraw or decline close | Customer | Application | Reason | `application_logs` | Application record - Activity Timeline | Yes | Decline also uses withdrawn confirmation notification |
+| LOG-APP-007 | Application Completed | `APPLICATION_COMPLETED` | Application reached completed | Accept / complete path | System / Customer | Application | Completion refs | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-APP-008 | Application Returned to Review | `APPLICATION_RESET_TO_UNDER_REVIEW` | Admin returned application to review | Admin reset | Admin | Application | Remark | `application_logs` | Application record - Activity Timeline | No | May send Offer Retracted or Reset notification |
+| LOG-APP-009 | Section Approved | `SECTION_REVIEWED_APPROVED` | A review section was approved | Admin section approve | Admin | Application section | scope_key, statuses, remark | `application_logs` | Application record - Activity Timeline | No | Title includes section name |
+| LOG-APP-010 | Section Rejected | `SECTION_REVIEWED_REJECTED` | A review section was rejected | Admin section reject | Admin | Application section | scope_key, remark | `application_logs` | Application record - Activity Timeline | No | — |
+| LOG-APP-011 | Section Amendment Requested | `SECTION_REVIEWED_AMENDMENT_REQUESTED` | Amendment requested on a section | Admin section amend | Admin | Application section | scope_key, remark | `application_logs` | Application record - Activity Timeline | No | Pack send is Amendment Request Sent |
+| LOG-APP-012 | Section Reset to Pending | `SECTION_REVIEWED_PENDING` | Section reset to pending | Admin or CTOS reset | Admin / System | Application section | Reason | `application_logs` | Application record - Activity Timeline | No | — |
+| LOG-APP-013 | Item Approved | `ITEM_REVIEWED_APPROVED` | A checklist item was approved | Admin item approve | Admin | Application item | scope_key, statuses | `application_logs` | Application record - Activity Timeline | No | — |
+| LOG-APP-014 | Item Rejected | `ITEM_REVIEWED_REJECTED` | A checklist item was rejected | Admin item reject | Admin | Application item | scope_key | `application_logs` | Application record - Activity Timeline | No | — |
+| LOG-APP-015 | Item Amendment Requested | `ITEM_REVIEWED_AMENDMENT_REQUESTED` | Amendment requested on an item | Admin item amend | Admin | Application item | scope_key | `application_logs` | Application record - Activity Timeline | No | — |
+| LOG-APP-016 | Item Reset to Pending | `ITEM_REVIEWED_PENDING` | Checklist item reset to pending | Admin item reset | Admin | Application item | scope_key | `application_logs` | Application record - Activity Timeline | No | — |
+| LOG-APP-017 | Amendment Request Sent | `AMENDMENTS_SUBMITTED` | Admin sent the amendment pack to the issuer | Admin submit amendment pack | Admin | Application | Cycle, remark | `application_logs` | Application record - Activity Timeline | Yes | Also mirrored in application_review_events |
 
----
+### 3. Offers
 
-## 3. Issuer / Investor onboarding, KYC, KYB, AML
-
-Store: `onboarding_logs`. Applicant is `user_id`; acting Admin is `actor_user_id`. Raw RegTank payloads are stripped.
-
-| Event | Cause | Actor | Refs | Recorded | Code | Store | Admin | Where | Ops wording | Gaps | Overlap |
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `ONBOARDING_STARTED` | User starts issuer or investor onboarding | Issuer or Investor | user, org, role | Role, portal, org ids | `auth/service.ts`, org start paths | `onboarding_logs` | Yes | Org Activity; customer Activity | Yes | No typed notification | — |
-| `ONBOARDING_FEE_PAID` | Issuer registration fee captured | Payment webhook | org, payment | Fee / payment refs in metadata | `payment/webhook-service.ts` | `onboarding_logs` | Yes | Org Activity; customer Activity | Yes | No typed notification | Also `gateway_payments` |
-| `ONBOARDING_RESUMED` | Onboarding resumed after interrupt | User / provider | request id | Status metadata | `regtank/service.ts` | `onboarding_logs` | Yes | Admin org Activity | Partial | Not customer-visible | — |
-| `ONBOARDING_STATUS_UPDATED` | KYC/KYB/COD status change that is not a dedicated milestone | Webhook or Admin refresh | request id, `trigger` | Status, substatus, trigger (`KYC_APPROVED`, `REGTANK_WEBHOOK`, `ADMIN_MANUAL_ONBOARDING_REFRESH`, …) | `admin/service.ts`, `regtank/service.ts`, COD/individual handlers | `onboarding_logs` | Yes | Admin org Activity | Partial — one event covers many provider statuses | Must open metadata for `trigger` / status | Same webhook may also write `FORM_FILLED` or skip transport log |
-| `FORM_FILLED` | Liveness / form-filling / ID uploaded webhook | RegTank webhook or Admin refresh | request id, status | Forensic status | `regtank/service.ts` `handleWebhookUpdate` | `onboarding_logs` | Yes | Admin org Activity | Partial (“Form Filled” for several statuses) | Not a single business milestone | Skipped when liveness already logged against an org |
-| `ONBOARDING_AMENDMENT_REQUIRED` | COD wait / amendment path | Webhook | org, request | Customer-safe amendment milestone | `regtank/webhooks/cod-handler.ts` | `onboarding_logs` | Yes | Org + customer Activity | Yes | No typed inbox notification (director/shareholder type is separate) | Forensic `ONBOARDING_STATUS_UPDATED` may also exist |
-| `ONBOARDING_CANCELLED` | Admin **restarts** onboarding (cancels prior provider request) | Admin | user, org | Restart metadata | `admin/service.ts` | `onboarding_logs` | Yes | Org Activity | **Confusing stored name.** Customer title is **Onboarding Restarted** | Stored type still says CANCELLED | New `ONBOARDING_STARTED` follows |
-| `ONBOARDING_RESET` | Admin reset of local onboarding state | Admin | user, org | Reset reason | `admin/service.ts` | `onboarding_logs` | Yes | Admin org Activity | Yes | User-initiated cancel writes **no** log | — |
-| `ONBOARDING_REJECTED` | Individual / org onboarding rejected | Webhook | user, reason | Reason when present | `regtank/webhooks/individual-onboarding-handler.ts`, COD handler | `onboarding_logs` | Yes | Org + customer Activity | Yes | — | Notification `onboarding_rejected` |
-| `COD_REJECTED` | Corporate onboarding rejected at COD | Webhook | org, request | Rejection | `regtank/webhooks/cod-handler.ts` | `onboarding_logs` | Yes | Org + customer Activity | Customer label same as rejected | Two reject event names | `onboarding_rejected` notification |
-| `ONBOARDING_APPROVED` | Provider/org approval (submission approved, not always final access) | Webhook / Admin | org | Approval | `admin/service.ts`, RegTank paths | `onboarding_logs` | Yes | Org Activity | Customer: **Onboarding Submission Approved**; Admin: **Onboarding Approved** | Easy to mix with final approval | `WEBHOOK_APPROVED` skipped when org already exists |
-| `FINAL_APPROVAL_COMPLETED` | Admin completes final approval | Admin | user, org | Final approval | `admin/service.ts` `completeFinalApproval` | `onboarding_logs` | Yes | Org + customer Activity | Customer: **Onboarding Approved**; Admin: **Final Approval Completed** | Two “approved” milestones | Notification `onboarding_completed` |
-| `AML_APPROVED` | AML milestone approved | Admin or AML webhook | org | AML metadata | `admin/service.ts`, `regtank/webhooks/org-aml-milestone.ts` | `onboarding_logs` | Yes | Admin org Activity | Yes | Not customer Activity | — |
-| `SSM_APPROVED` | SSM / KYB company check approved | Admin | org | SSM metadata | `admin/service.ts` | `onboarding_logs` | Yes | Admin org Activity | Yes | — | — |
-| `TNC_APPROVED` | Organisation T&C accepted | User (org) | org | T&C version refs | `organization/service.ts` | `onboarding_logs` | Yes | Admin org Activity | Yes | Historical rows may still say `TNC_ACCEPTED` | Legal acceptance table is separate |
-| `SOPHISTICATED_STATUS_UPDATED` | Admin updates sophisticated-investor flag | Admin | org / user | New status | `admin/service.ts` | `onboarding_logs` | Yes | Admin org Activity | Yes | — | — |
-| `PROFILE_UPDATED` | Org profile patched | Admin or org admin | org | Changed fields | `admin/organization-admin-profile.ts`, org profile writers | `onboarding_logs` | Yes | Admin org Activity | Yes | Field-level detail in metadata | — |
-| `MEMBER_INVITED` | Org member invite created | Org admin | invitee email, role, org | Invite metadata | `organization/membership-audit.ts` via `organization/service.ts` | `onboarding_logs` | Yes | Admin org Activity | Yes | Invite email is SES, not inbox type | — |
-| `MEMBER_ADDED` | Member joined org | User accepting invite / add | user, org, role | Membership | `organization/service.ts` | `onboarding_logs` | Yes | Admin org Activity | Yes | — | — |
-| `MEMBER_REMOVED` | Member removed | Org admin | user, org | Removal | `organization/service.ts` | `onboarding_logs` | Yes | Admin org Activity | Yes | — | — |
-| `MEMBER_ROLE_CHANGED` | Member role changed | Org admin | user, org, from/to role | Role change | `organization/service.ts` | `onboarding_logs` | Yes | Admin org Activity | Yes | — | — |
-| `MARC_ASSESSMENT_SAVED` | Admin saves MARC assessment | Admin | org | Assessment snapshot | `paymaster/service.ts` | `onboarding_logs` | Yes | Admin org Activity | Yes | No notification | — |
-| `EOD_APPROVED` | EOD (enhanced due diligence) approved | Webhook / Admin | org | EOD result | `regtank/webhooks/eod-handler.ts` | `onboarding_logs` | Yes | Admin org Activity | Yes | — | `EOD_WEBHOOK` is forensic-only |
-| `EOD_REJECTED` | EOD rejected | Webhook / Admin | org | EOD result | `eod-handler.ts` | `onboarding_logs` | Yes | Admin org Activity | Yes | — | — |
-| `EOD_WEBHOOK` | Raw EOD webhook append | Webhook | request / payload refs (stripped) | Forensic EOD | `eod-handler.ts` | `onboarding_logs` | **No** org Activity (FORENSIC_ONLY) | Investigation via DB / export if used | Technical | Not on Admin org timeline | Business result is `EOD_APPROVED` / `EOD_REJECTED` |
-| `WEBHOOK_REJECTED` | RegTank `handleWebhookUpdate` status REJECTED | Webhook (production) | request id, status | Forensic transport log | `regtank/service.ts` | `onboarding_logs` | **No** org Activity | Forensic only | Technical | Catalogue marks DEV_ONLY; **production writer still runs** on REJECTED | Alongside `ONBOARDING_REJECTED` business rows when those fire |
-| `WEBHOOK_APPROVED` | `handleWebhookUpdate` APPROVED when **no organisation id** yet | Webhook | request id | Forensic | `regtank/service.ts` | `onboarding_logs` | **No** | Forensic only | Technical | **Skipped** when `organizationId` exists (normal org path writes `ONBOARDING_APPROVED` instead) | Catalogue DEV_ONLY is incomplete for the no-org case |
+| LOG-OFR-001 | Facility Offer Sent | `CONTRACT_OFFER_SENT` | Facility offer sent to the issuer | Admin send offer | Admin | Contract / application | Amounts, expiry | `application_logs` | Application record - Activity Timeline. Facility record - Activity | Yes | Review-event mirror |
+| LOG-OFR-002 | Facility Offer Acceptance Submitted | `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED` | Issuer submitted facility acceptance documents | Issuer submit acceptance | Customer | Contract | Acceptance refs | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-OFR-003 | Facility Offer Acceptance Resubmitted | `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED` | Issuer resubmitted facility acceptance documents | Issuer resubmit | Customer | Contract | Acceptance refs | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-OFR-004 | Facility Acceptance Approved for Signing | `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` | Admin approved facility acceptance for signing | Admin approve for signing | Admin | Contract | Approval refs | `application_logs` | Application record - Activity Timeline | No | — |
+| LOG-OFR-005 | Facility Offer Accepted | `CONTRACT_OFFER_ACCEPTED` | Facility offer accepted | Issuer accept path | Customer / System | Contract | Acceptance refs | `application_logs` | Application record - Activity Timeline | Yes | May also complete the application |
+| LOG-OFR-006 | Facility Offer Declined | `CONTRACT_OFFER_DECLINED` | Issuer declined the facility offer | Issuer decline | Customer | Contract | Decline refs | `application_logs` | Application record - Activity Timeline | Yes | Live decline is not CONTRACT_OFFER_REJECTED |
+| LOG-OFR-007 | Facility Offer Retracted | `CONTRACT_OFFER_RETRACTED` | Admin retracted the facility offer | Admin retract | Admin | Contract | Retract refs | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-OFR-008 | Facility Offer Expired | `CONTRACT_OFFER_EXPIRED` | Facility offer expired | Hourly expiry job | System | Contract | Expiry refs | `application_logs` | Application record - Activity Timeline | Yes | — |
 
-CTOS KYB retry (`lib/jobs/ctos-kyb-retry.ts`, every 5 minutes) does **not** write an onboarding event. Financial section reset after CTOS **does** write `SECTION_REVIEWED_PENDING` (applications).
+### 4. Signing
 
----
-
-## 4. Applications, review, contract financing, invoice financing
-
-Store: `application_logs` via `logApplicationActivity` (`applications/logs/service.ts`). Typical refs: application id + display `APP…`, contract `CON…`, invoice `INV…`, note `NOTE…` in metadata.
-
-**Admin:** Applications / Facilities Activity. **Customer:** milestone subset (`userVisible`).
-
-| Event | Cause | Actor | Refs | Recorded | Code | Admin | Where | Ops wording | Gaps | Overlap |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `APPLICATION_CREATED` | Issuer creates draft | Issuer | application | Overlay after draft commit | `applications/controller.ts`; repair `lib/jobs/application-timeline-repair.ts` | Yes | Application timeline; customer “Application Started” | Yes | Overlay can be missing until hourly repair; repaired rows have `source=INTERNAL` and **null actor** | Draft `applications` row is the durable create |
-| `APPLICATION_PROCESSING_FEE_PAID` | Application processing fee captured | Webhook / payment | application, payment | Fee metadata | Applications / payment fee path | Yes | Timeline + customer | Yes | No typed notification | Gateway payment events |
-| `FACILITY_FEE_PAID` | Upfront facility fee captured | Webhook / payment | application, contract, payment | Amount / payment | Applications / payment | Yes | Timeline + customer | Yes | — | Gateway events + `facility_fee_upfront_paid` notif |
-| `APPLICATION_SUBMITTED` | Issuer submits application | Issuer | application | Same tx as `submitted_at` | `applications/service.ts` `persistSubmittedApplication` | Yes | Timeline + customer | Yes | — | Inbox `application_submitted_confirmation` (inbox only) |
-| `APPLICATION_RESUBMITTED` | Issuer resubmits after amendment | Issuer | application, review cycle | Cycle | `admin/service.ts` / applications resubmit | Yes | Timeline + customer | Yes | — | `application_resubmitted_confirmation` |
-| `APPLICATION_REJECTED` | Admin rejects application | Admin | application | Remark | `admin/service.ts` | Yes | Timeline + customer | Yes | — | `application_rejected` notif |
-| `APPLICATION_WITHDRAWN` | Issuer withdraws application (or decline closes it) | Issuer | application | Reason in metadata | `applications/service.ts` | Yes | Timeline + customer | Yes | Decline also uses withdrawn confirmation notification with different copy | `CONTRACT_OFFER_DECLINED` / invoice decline |
-| `APPLICATION_COMPLETED` | Application reaches completed | System / accept path | application | Completion | `applications/service.ts` | Yes | Timeline + customer | Yes | — | `application_completed` notif |
-| `APPLICATION_RESET_TO_UNDER_REVIEW` | Admin returns application to review | Admin | application | Remark | `admin/service.ts` | Yes | Admin timeline | Yes (“Returned to Review”) | Not customer Activity | Notification `offer_retracted_or_reset` when offer reset |
-| `SECTION_REVIEWED_APPROVED` | Admin approves a review section | Admin | application, section | old/new status, remark | `admin/service.ts` | Yes | Admin timeline | Yes | Section key in metadata | — |
-| `SECTION_REVIEWED_REJECTED` | Admin rejects a section | Admin | application, section | status, remark | `admin/service.ts` | Yes | Admin timeline | Yes | — | — |
-| `SECTION_REVIEWED_AMENDMENT_REQUESTED` | Admin requests section amendment | Admin | application, section | status, remark | `admin/service.ts` | Yes | Admin timeline | Yes | — | May pair with `AMENDMENTS_SUBMITTED` + issuer notif |
-| `SECTION_REVIEWED_PENDING` | Section reset to pending (incl. CTOS financial reset) | Admin or INTERNAL job | application, section | reason | `admin/service.ts`; `ctos/ctos-report-service.ts` | Yes | Admin timeline | Yes | CTOS path actor is system | — |
-| `ITEM_REVIEWED_APPROVED` / `REJECTED` / `AMENDMENT_REQUESTED` / `PENDING` | Admin reviews a checklist item | Admin | application, item key | scope_key, statuses, remark | `admin/service.ts` | Yes | Admin timeline | Yes | Item name in metadata | — |
-| `AMENDMENTS_SUBMITTED` | Admin **sends** the amendment request pack to the issuer | Admin | application, cycle | Remark; review-event mirror | `admin/service.ts` | Yes | Timeline; customer “Amendment Request Sent” | **Name sounds like issuer submitted.** Admin/customer label is “Amendment Request Sent” | — | `application_review_events` mirror; notif `application_amendments_requested` |
-| `CONTRACT_OFFER_SENT` | Admin sends facility offer | Admin | application, contract, expiry | Offer amounts, expiry | `admin/service.ts` | Yes | Timeline + customer | Yes | — | Review-event mirror; notif `contract_offer_sent` |
-| `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED` | Issuer submits acceptance docs | Issuer | application, contract | Acceptance | `applications/service.ts` | Yes | Timeline + customer | Yes | — | — |
-| `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED` | Issuer resubmits acceptance after changes requested | Issuer | application, contract | Acceptance | `applications/service.ts` | Yes | Timeline + customer | Yes | — | First changes-requested notif is separate |
-| `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` | Admin approves acceptance for signing | Admin | application, contract | Approval | `admin/service.ts` | Yes | Admin timeline | Yes | Not customer Activity | — |
-| `CONTRACT_OFFER_ACCEPTED` | Facility offer accepted (post-signing / fee path) | Issuer / system | application, contract | Acceptance | `applications/service.ts` | Yes | Timeline + customer | Yes | — | May also complete application |
-| `CONTRACT_OFFER_DECLINED` | Issuer declines facility offer | Issuer | application, contract | Decline | `applications/service.ts` | Yes | Timeline + customer | Yes | Live decline is **not** `CONTRACT_OFFER_REJECTED` | `application_withdrawn_confirmation` with decline copy |
-| `CONTRACT_OFFER_RETRACTED` | Admin retracts facility offer | Admin | application, contract | Retract | `admin/service.ts` | Yes | Timeline + customer | Yes | — | `offer_retracted_or_reset` |
-| `CONTRACT_OFFER_EXPIRED` | Acceptance/signing deadline job expires facility offer | SYSTEM_JOB | application, contract | Expiry | `lib/jobs/acceptance-signing-expiry.ts` | Yes | Timeline + customer | Yes | — | Notif `offer_expired`; may also expire signing package |
-| `CONTRACT_SIGNING_DEADLINE_EXTENDED` | Admin extends signing deadline | Admin | application, contract, new deadline | New deadline | `admin/service.ts` | Yes | Timeline + customer | Yes | — | `contract_signing_deadline_extended` |
-| `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | Draw / fund / repay changes occupancy | System (drawdown, funding, repayment) | application, contract, note | Occupancy figures | `lib/refresh-contract-facility.ts`, `contracts/service.ts` | Yes | Timeline + customer | Yes | Two layers of the same fact | `FACILITY_OCCUPANCY_UPDATED` on the note |
-| `CONTRACT_FACILITY_FEE_WAIVED` | Admin waives facility fee on the **application/contract** | Admin | application, contract | Waiver | `admin/service.ts` | Yes | Admin timeline | Yes | Distinct from note `WAIVE_FACILITY_FEE_COLLECTION` | — |
-| `CONTRACT_FACILITY_DISABLED` | Admin disables facility (blocks drawdowns) | Admin | application, contract | Disable | `admin/service.ts` | Yes | Admin timeline | Yes | — | `facility_disabled` notif |
-| `CONTRACT_FACILITY_ENABLED` | Admin re-enables facility | Admin | application, contract | Enable | `admin/service.ts` | Yes | Admin timeline | Yes | **No** enable notification | — |
-| `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | Admin updates large-private customer flag | Admin | application, contract | Flag | `admin/service.ts` | Yes | Admin timeline | Partial (humanised token) | — | — |
-| `INVOICE_OFFER_SENT` | Admin sends invoice offer | Admin | application, invoice, amount, expiry | Offer | `admin/service.ts` | Yes | Timeline + customer | Yes | — | Review-event mirror; `invoice_offer_sent` |
-| `INVOICE_OFFER_ACCEPTANCE_SUBMITTED` / `RESUBMITTED` | Issuer acceptance docs | Issuer | application, invoice | Acceptance | `applications/service.ts` | Yes | Timeline + customer | Yes | OTP for accept is a separate SES + `offer_accept_otp_challenges` row | — |
-| `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING` | Admin approves invoice acceptance | Admin | application, invoice | Approval | `admin/service.ts` | Yes | Admin timeline | Yes | — | — |
-| `INVOICE_OFFER_ACCEPTED` | Invoice offer accepted | Issuer | application, invoice | Acceptance | `applications/service.ts` | Yes | Timeline + customer | Yes | — | May complete application |
-| `INVOICE_OFFER_REJECTED` | Issuer declines invoice offer (**live** writer) | Issuer | application, invoice | Decline | `applications/service.ts` | Yes | Timeline + customer “Invoice Offer Declined” | Admin CSV also says “Declined” | Do not confuse with historical facility `CONTRACT_OFFER_REJECTED` | Decline notification copy |
-| `INVOICE_OFFER_RETRACTED` | Admin retracts invoice offer | Admin | application, invoice | Retract | `admin/service.ts` | Yes | Timeline + customer | Yes | — | `offer_retracted_or_reset` |
-| `INVOICE_OFFER_EXPIRED` | Deadline job expires invoice offer | SYSTEM_JOB | application, invoice | Expiry | `acceptance-signing-expiry.ts` | Yes | Timeline + customer | Yes | — | `offer_expired` |
-| `INVOICE_SIGNING_DEADLINE_EXTENDED` | Admin extends invoice signing deadline | Admin | application, invoice | Deadline | `admin/service.ts` | Yes | Timeline + customer | Yes | — | `invoice_signing_deadline_extended` |
-| `INVOICE_WITHDRAWN` | Issuer withdraws an invoice from the application | Issuer | application, invoice | Withdrawal | `invoices/service.ts` | Yes | Timeline + customer | Yes | **No** dedicated notification type | — |
-| `SIGNING_PACKAGE_CREATED` | Signing envelope created | Admin / system | application, envelope | Envelope id | `signing/service.ts` | Yes | Admin timeline | Yes | Not customer Activity | Envelope table is source of truth |
-| `SIGNING_PACKAGE_SENT` | Signing links emailed | Admin / system | application, envelope | Recipients | `signing/service.ts` | Yes | Timeline + customer | Yes | Reminder send does **not** write a second Activity event | SES signing email (not typed notif) |
-| `SIGNING_PACKAGE_COMPLETED` | Envelope completed | Webhook / signing service | application, envelope | Envelope | `signing/service.ts` | Yes | Timeline + customer | Yes | No typed notification | Legal / signed PDFs elsewhere |
-| `SIGNING_PACKAGE_DECLINED` | Signer declined | Signer / webhook | application, envelope | Envelope | `signing/service.ts` | Yes | Timeline + customer | Yes | No typed notification | Distinct from VOIDED |
-| `SIGNING_PACKAGE_EXPIRED` | Envelope `expires_at` elapsed | SYSTEM_JOB `signing-envelope-expiry` | application, envelope | Envelope | signing expiry job + signing service | Yes | Timeline + customer | Yes | Offer-phase expiry is a different event | `offer_expired` may also fire |
-| `SIGNING_PACKAGE_VOIDED` | Admin voids package | Admin | application, envelope | Envelope | `signing/service.ts` | Yes | Admin timeline only | Yes | Not customer Activity; no notification | — |
-
-**Acceptance document changes requested** is a **notification**, not a distinct application_log type (review item statuses carry the work).
-
----
-
-## 5. Signing evidence that is not an Activity event
-
-| Record | Cause | Actor | Refs | Recorded | Code | Store | Admin | Where | Ops wording | Gaps | Overlap |
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Signer **Viewed** | Recipient opened signing link | Signer | envelope, recipient | `viewed_at` | `signing/service.ts` | `SigningRecipient` | Yes (status **Viewed**, not a timestamped Activity row) | Application Acceptance → Signing package | Partial — status only | Not in Activity timeline | Completing still writes `SIGNING_PACKAGE_*` |
-| Signing reconcile job | Backfill missing signed PDFs / stale trust-return | SYSTEM_JOB `*/30` | envelope, documents | PDF store / session cleanup | `lib/jobs/signing-reconcile.ts` | Envelope / documents | Indirect | Documents on envelope | n/a | **No** new Activity event | Repair only |
+| LOG-SGN-001 | Facility Signing Deadline Extended | `CONTRACT_SIGNING_DEADLINE_EXTENDED` | Facility signing deadline extended | Admin extend | Admin | Contract | New deadline | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-SGN-002 | Invoice Signing Deadline Extended | `INVOICE_SIGNING_DEADLINE_EXTENDED` | Invoice signing deadline extended | Admin extend | Admin | Invoice | New deadline | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-SGN-003 | Signing Package Created | `SIGNING_PACKAGE_CREATED` | Signing envelope created | Admin or system create envelope | Admin / System | Envelope | Envelope id | `application_logs` | Application record - Activity Timeline | No | Envelope table is source of truth for signing status |
+| LOG-SGN-004 | Signing Package Sent | `SIGNING_PACKAGE_SENT` | Signing links emailed | Send package | Admin / System | Envelope | Recipients | `application_logs` | Application record - Activity Timeline. Application record - Acceptance | Yes | Reminder send does not write a second Activity event |
+| LOG-SGN-005 | Signing Package Completed | `SIGNING_PACKAGE_COMPLETED` | Signing package completed | Signing webhook | Webhook | Envelope | Envelope refs | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-SGN-006 | Signing Package Declined | `SIGNING_PACKAGE_DECLINED` | Signer declined | Signer decline | Customer / signer | Envelope | Envelope refs | `application_logs` | Application record - Activity Timeline | Yes | Different from voided |
+| LOG-SGN-007 | Signing Package Expired | `SIGNING_PACKAGE_EXPIRED` | Signing package expired | Signing expiry job | System | Envelope | Envelope refs | `application_logs` | Application record - Activity Timeline | Yes | Offer expiry is a different event |
+| LOG-SGN-008 | Signing Package Voided | `SIGNING_PACKAGE_VOIDED` | Admin voided the signing package | Admin void | Admin | Envelope | Envelope refs | `application_logs` | Application record - Activity Timeline | No | — |
 
----
+### 5. Facilities
 
-## 6. Investment notes — marketplace, funding, servicing
-
-Store: `note_events` (`lib/audit/note-events.ts`, `notes/service.ts` `logEvent` / `logAdminAction`). Admin Notes → Activity uses `formatNoteActivityEventLabel`. Customer Activity is a **small subset** (see note-log adapter).
-
-`logAdminAction` also writes `note_admin_actions` (no Admin UI reader).
-
-| Event | Cause | Actor | Refs | Recorded | Code | Admin | Where | Ops wording | Gaps | Overlap |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `NOTE_CREATED_FROM_INVOICE` | Note created from funded invoice | Admin / system | note, invoice, application | Note ref | `notes/service.ts` | Yes | Note Activity; issuer Activity “Note created” | Yes | — | — |
-| `UPDATE_DRAFT` | Admin updates draft note | Admin | note | Draft fields | `notes/service.ts` | Yes | Note Activity “Draft updated” | Yes | **Not** in event catalogue | — |
-| `UPDATE_FEATURED_SETTINGS` | Admin featured-note flags | Admin | note | Featured flags | `notes/service.ts` | Yes | “Featured settings updated” | Yes | Not in catalogue | — |
-| `PUBLISH` | Publish to marketplace | Admin | note | Publish | `notes/service.ts` | Yes | Note + issuer Activity | Yes | — | `note_published` notif; dual `note_admin_actions` |
-| `UNPUBLISH` | Unpublish from marketplace | Admin | note | Unpublish | `notes/service.ts` | Yes | “Unpublished from marketplace” | Yes | Not in catalogue | Prospectus invalidation events |
-| `PAUSE_LISTING` / `RESUME_LISTING` | Pause or resume campaign | Admin | note | Listing state | `notes/service.ts` | Yes | Campaign paused/resumed; issuer Activity | Yes | No dedicated notifications | — |
-| `CLOSE_FUNDING` | Funding closed (min met) | Admin or listing-expiry job | note | Funding | `notes/service.ts`; `lib/jobs/note-listing-expiry.ts` | Yes | “Funding Closed”; issuer Activity | Yes | — | `note_funding_succeeded` |
-| `FAIL_FUNDING` | Listing fails min funding | Admin or expiry job | note | Failure | `notes/service.ts`; expiry job | Yes | “Funding unsuccessful”; issuer+investor Activity | Yes | — | Issuer + investor notifs |
-| `INVESTMENT_COMMITTED` | Investor commits funds | Investor | note, investment, user | Amount | `notes/service.ts` | Yes | Note Activity; investor Activity | Yes | — | `investment_committed` (inbox only); wallet hold |
-| `ACTIVATE` | Note activated after funding | Admin / system | note | Activation | `notes/service.ts` | Yes | Note + both portals | Yes | — | `note_active_issuer` + `note_active_investor` |
-| `FACILITY_OCCUPANCY_UPDATED` | Note-layer occupancy | System | note, contract | Occupancy | `lib/refresh-contract-facility.ts` | Yes | Note Activity | Yes | Not customer note Activity | Application-layer twin |
-| `ISSUER_PAYMENT_SUBMITTED` | Issuer submits repayment that **needs Admin review** | Issuer | note, payment | Payment | `notes/service.ts` `recordPayment` | Yes | Note Activity; issuer Activity | Yes (“Repayment Submitted”) | — | Mutually exclusive with `PAYMENT_RECEIVED` |
-| `PAYMENT_RECEIVED` | Repayment recorded **without** Admin review | Issuer / system | note, payment | Payment | `notes/service.ts` `recordPayment` | Yes | “Repayment received” | Yes | **Not** in catalogue; **not** on customer note Activity adapter | Investor notif `note_payment_received` |
-| `PAYMENT_APPROVED` | Admin approves repayment | Admin | note, payment | Approval | `notes/service.ts` | Yes | “Repayment approved” | Yes | No issuer “approved” notification | — |
-| `PAYMENT_REJECTED` | Admin rejects repayment | Admin | note, payment | Reason | `notes/service.ts` | Yes | “Repayment Rejected” | Yes | — | `note_payment_rejected` (inbox only) |
-| `SETTLEMENT_APPROVED` | Admin approves settlement | Admin | note, settlement | Approval | `notes/service.ts` | Yes | “Settlement approved” | Yes | Preview has **no** event | — |
-| `SETTLEMENT_POSTED` | Settlement posted to ledgers | Admin / system | note, settlement | Posting | `notes/service.ts` | Yes | Note Activity; investor Activity | Yes | — | `note_settlement_posted`; excess late-charge notifs; trustee events |
-| `LATE_CHARGE_APPROVED` | Admin approves late charge | Admin | note | Charge | `notes/service.ts` | Yes | Yes | Yes | — | — |
-| `OVERDUE_LATE_CHARGE_CHECKED` | Servicing status actually changes (arrears path) | SYSTEM / servicing | note | New servicing status | `notes/service.ts` | Yes | “Overdue Late Charge Checked” | **Technical** | Written only when status changes | `note_arrears` / `note_arrears_investor` |
-| `NOTE_DEFAULT_MARKED` | Note marked default | Admin | note | Default | `notes/service.ts` | Yes | “Note Defaulted”; both portals | Yes | — | default notifs |
-| `ARREARS_LETTER_GENERATED` / `DEFAULT_LETTER_GENERATED` | Generated arrears/default letter | Admin | note, document | Letter / hash | `notes/service.ts` `generateNoteLetter` | Yes | Letter generated | Yes | Not in catalogue; hash also in `generated_document_evidence` | Generated-document evidence |
-| `WAIVE_FACILITY_FEE_COLLECTION` | Admin waives collecting facility fee on the **note** | Admin | note | Waiver | `notes/service.ts` | Yes | “Facility Fee Collection Waived” | Yes | Distinct from `CONTRACT_FACILITY_FEE_WAIVED` | Not in catalogue |
-| `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` | Disbursement instruction created | Admin | note, withdrawal | Withdrawal | `notes/service.ts` | Yes | “Disbursement instruction created” | Yes | — | Follow-on trustee events |
-| `WITHDRAWAL_LETTER_GENERATED` | Trustee letter generated | Admin | note, withdrawal | Letter; residual-return relabel | `notes/service.ts` | Yes | Withdrawal or residual-return label | Yes if metadata `withdrawalType` present | Residual vs disbursement depends on metadata | `generated_document_evidence` |
-| `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | Instruction submitted to trustee | Admin | note, withdrawal | Submission | `notes/service.ts` | Yes | Yes | Yes | — | `withdrawal_submitted_to_trustee` (issuer and/or investor) |
-| `WITHDRAWAL_BENEFICIARY_UPDATED` | Beneficiary changed | Admin | note, withdrawal | Beneficiary | `notes/service.ts` | Yes | Yes | Yes | — | — |
-| `WITHDRAWAL_TRUSTEE_EMAIL_SENT` | Trustee email sent (or resend) | Admin / system | note, withdrawal | `resend` flag | `notes/service.ts` | Yes | Resend label if `resend=true` | Yes | SES to trustee, not user inbox | — |
-| `WITHDRAWAL_COMPLETED` | Withdrawal / disbursement / residual completed | Admin | note, withdrawal | Completion | `notes/service.ts` | Yes | Residual-return relabel when type matches | Yes | Issuer disbursement notif `withdrawal_completed` is inbox-only | Ledger / wallet |
-| `SETTLEMENT_TRUSTEE_LETTER_GENERATED` / `_SUBMITTED` / `INSTRUCTION_COMPLETED` / `SETTLEMENT_TRUSTEE_EMAIL_SENT` | Settlement trustee pack | Admin | note, settlement | Letter / email / `resend` | `notes/service.ts` | Yes | Technical but labelled | Partial | Trustee is email+PDF | Tests assert `SERVICE_FEE_TRUSTEE_*` is **not** written |
-| `PAYMASTER_NOTICE_GENERATED` / `SENT` / `UPLOADED` / `ACKNOWLEDGEMENT_UPLOADED` / `CONFIRMED` | Paymaster assignment notice lifecycle | Admin | note, notice | Notice status | `paymaster/assignment-notice.service.ts` | Yes | Humanised | Partial | No typed user notification | — |
-| `PROSPECTUS_REVIEW_CREATE` / `DRAFT_UPDATE` / `APPROVE` | Prospectus review workflow | Admin | note, prospectus | Review | `notes/prospectus-review/prospectus-review.service.ts` | Yes | Clear labels | Yes | No user notification | Dual `note_admin_actions` |
-| `PROSPECTUS_APPROVAL_INVALIDATED_EDIT` / `_SOURCE` / `_UNPUBLISH` | Approval cleared | Admin / system | note | Reason | prospectus-review.service.ts | Yes | Clear labels | Yes | — | Follows edit/unpublish |
-| `SHORAKA_ORDER_SUBMITTED` | Tawarruq order submitted | System / Admin | note, order | Order | `shoraka-stp/shoraka-stp-service.ts` | Yes | “Tawarruq Order Submitted” | Yes for Ops who know tawarruq | No user notification | `ShorakaTradeOrder` row |
-| `SHORAKA_CERTIFICATE_FETCHED` | Certificate retrieved | System | note, order | Certificate | `shoraka-stp-service.ts` | Yes | “Tawarruq Certificate Retrieved” | Yes | — | — |
-
-**Not written:** `SETTLEMENT_PREVIEWED` (preview computes only).
-
----
-
-## 7. Products
-
-| Event | Cause | Actor | Refs | Recorded | Code | Store | Admin | Where | Ops wording | Gaps | Overlap |
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `PRODUCT_CREATED` | Admin creates product | Admin | product id, workflow snapshot | Config snapshot | `products/repository.ts` | `product_logs` | Yes | Audit → Products | Yes | Creating a product does **not** auto-send `new_product_alert` | — |
-| `PRODUCT_UPDATED` | Admin updates / versions product | Admin | product | Snapshot | `products/repository.ts` | `product_logs` | Yes | Audit → Products | Yes | Further create-complete steps log UPDATED not CREATED | — |
-| `PRODUCT_DELETED` | Admin deletes product | Admin | product | Snapshot | `products/repository.ts` | `product_logs` | Yes | Audit → Products | Yes | — | `setInactive` / `restoreProduct` are **unmounted** |
+| LOG-FAC-001 | Facility Fee Paid | `FACILITY_FEE_PAID` | Upfront facility fee captured | Fee capture | Gateway | Contract / application | Amount, payment | `application_logs` | Application record - Activity Timeline. Finance - Payments - Gateway Payments | Yes | Notification Upfront Facility Fee Paid |
+| LOG-FAC-002 | Facility Occupancy Updated | `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | Facility occupancy figures changed | Draw, funding, or repayment | System | Contract | Occupancy figures | `application_logs` | Application record - Activity Timeline. Facility record - Activity | Yes | Twin of Note occupancy |
+| LOG-FAC-003 | Facility Fee Waived | `CONTRACT_FACILITY_FEE_WAIVED` | Facility fee waived on the contract | Admin waive | Admin | Contract | Waiver refs | `application_logs` | Facility record - Activity | No | Different from Note-level waive |
+| LOG-FAC-004 | Facility Disabled | `CONTRACT_FACILITY_DISABLED` | Facility disabled (new drawdowns blocked) | Admin disable | Admin | Contract | Disable refs | `application_logs` | Facility record - Activity | No | — |
+| LOG-FAC-005 | Facility Enabled | `CONTRACT_FACILITY_ENABLED` | Facility enabled | Admin enable | Admin | Contract | Enable refs | `application_logs` | Facility record - Activity | No | No enable notification |
+| LOG-FAC-006 | Large Private Customer Flag Updated | `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | Large-private customer flag changed | Admin update flag | Admin | Contract | Flag value | `application_logs` | Facility record - Activity | No | — |
+| LOG-FAC-007 | Note Occupancy Updated | `FACILITY_OCCUPANCY_UPDATED` | Note-layer occupancy figures changed | Same occupancy refresh as facility | System | Note / contract | Occupancy figures | `note_events` | Note record - Activity | No | Twin of Facility Occupancy Updated |
+| LOG-FAC-008 | Facility Fee Collection Waived | `WAIVE_FACILITY_FEE_COLLECTION` | Collecting the facility fee on the Note was waived | Admin waive on Note | Admin | Note | Waiver refs | `note_events` | Note record - Activity | No | Different from contract waive |
 
----
+### 6. Invoices
 
-## 8. Payment gateway, deposits, refunds, receipts, recon
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-INV-001 | Invoice Offer Sent | `INVOICE_OFFER_SENT` | Invoice offer sent | Admin send offer | Admin | Invoice | Invoice number, amounts, expiry | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-INV-002 | Invoice Offer Acceptance Submitted | `INVOICE_OFFER_ACCEPTANCE_SUBMITTED` | Issuer submitted invoice acceptance documents | Issuer submit | Customer | Invoice | Acceptance refs | `application_logs` | Application record - Activity Timeline | Yes | OTP email is a separate direct email |
+| LOG-INV-003 | Invoice Offer Acceptance Resubmitted | `INVOICE_OFFER_ACCEPTANCE_RESUBMITTED` | Issuer resubmitted invoice acceptance documents | Issuer resubmit | Customer | Invoice | Acceptance refs | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-INV-004 | Invoice Acceptance Approved for Signing | `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING` | Admin approved invoice acceptance for signing | Admin approve | Admin | Invoice | Approval refs | `application_logs` | Application record - Activity Timeline | No | — |
+| LOG-INV-005 | Invoice Offer Accepted | `INVOICE_OFFER_ACCEPTED` | Invoice offer accepted | Issuer accept | Customer | Invoice | Acceptance refs | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-INV-006 | Invoice Offer Declined | `INVOICE_OFFER_REJECTED` | Issuer declined the invoice offer | Issuer decline | Customer | Invoice | Decline refs | `application_logs` | Application record - Activity Timeline | Yes | Stored code says REJECTED; Admin label is Declined |
+| LOG-INV-007 | Invoice Offer Retracted | `INVOICE_OFFER_RETRACTED` | Admin retracted the invoice offer | Admin retract | Admin | Invoice | Retract refs | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-INV-008 | Invoice Offer Expired | `INVOICE_OFFER_EXPIRED` | Invoice offer expired | Hourly expiry job | System | Invoice | Expiry refs | `application_logs` | Application record - Activity Timeline | Yes | — |
+| LOG-INV-009 | Invoice Withdrawn | `INVOICE_WITHDRAWN` | Issuer withdrew an invoice from the application | Issuer withdraw invoice | Customer | Invoice | Withdrawal refs | `application_logs` | Application record - Activity Timeline | Yes | No dedicated notification type |
 
-Parent row: `gateway_payments`. Timeline: `gateway_payment_events` via `recordGatewayPaymentEvent` (`payment/gateway-events.ts`). Admin: Finance → Gateway Payments → Activity Timeline.
+### 7. Investment Notes
 
-Live Prisma types (catalogue names `CREATED` / `COMPLETED` / `FAILED` are **not** written):
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-NTE-001 | Note Created | `NOTE_CREATED_FROM_INVOICE` | Note created from a funded invoice | Create Note | Admin / System | Note | Invoice / application refs | `note_events` | Note record - Activity | Yes | — |
+| LOG-NTE-002 | Draft Updated | `UPDATE_DRAFT` | Draft Note updated | Admin edit draft | Admin | Note | Draft fields | `note_events` | Note record - Activity | No | Also mirrored in note_admin_actions |
+| LOG-NTE-003 | Featured Settings Updated | `UPDATE_FEATURED_SETTINGS` | Featured-Note flags changed | Admin featured settings | Admin | Note | Featured flags | `note_events` | Note record - Activity | No | — |
+| LOG-NTE-004 | Note Published | `PUBLISH` | Note published to the marketplace | Admin publish | Admin | Note | Publish refs | `note_events` | Note record - Activity | Yes | — |
+| LOG-NTE-005 | Note Unpublished | `UNPUBLISH` | Note unpublished from the marketplace | Admin unpublish | Admin | Note | Unpublish refs | `note_events` | Note record - Activity | No | May clear prospectus approval |
+| LOG-NTE-006 | Campaign Paused | `PAUSE_LISTING` | Campaign paused | Admin pause | Admin | Note | Listing state | `note_events` | Note record - Activity | Yes | — |
+| LOG-NTE-007 | Campaign Resumed | `RESUME_LISTING` | Campaign resumed | Admin resume | Admin | Note | Listing state | `note_events` | Note record - Activity | Yes | — |
+| LOG-NTE-008 | Funding Closed | `CLOSE_FUNDING` | Funding closed because the minimum was met | Admin close or listing-expiry job | Admin / System | Note | Funding refs | `note_events` | Note record - Activity | Yes | Issuer only on customer Activity |
+| LOG-NTE-009 | Funding Unsuccessful | `FAIL_FUNDING` | Funding did not complete | Admin fail or listing-expiry job | Admin / System | Note | Failure refs | `note_events` | Note record - Activity | Yes | Issuer and investor |
+| LOG-NTE-010 | Note Activated | `ACTIVATE` | Note activated after funding | Admin or system activate | Admin / System | Note | Activation refs | `note_events` | Note record - Activity | Yes | — |
+| LOG-NTE-011 | Paymaster Notice Generated | `PAYMASTER_NOTICE_GENERATED` | Paymaster assignment notice generated | Admin generate notice | Admin | Notice | Notice id | `note_events` | Note record - Activity | No | — |
+| LOG-NTE-012 | Paymaster Notice Sent | `PAYMASTER_NOTICE_SENT` | Paymaster notice sent | Admin send notice | Admin | Notice | Notice id | `note_events` | Note record - Activity | No | — |
+| LOG-NTE-013 | Paymaster Notice Uploaded | `PAYMASTER_NOTICE_UPLOADED` | Paymaster notice uploaded | Admin upload | Admin | Notice | Notice id | `note_events` | Note record - Activity | No | — |
+| LOG-NTE-014 | Paymaster Acknowledgement Uploaded | `PAYMASTER_ACKNOWLEDGEMENT_UPLOADED` | Paymaster acknowledgement uploaded | Admin upload ack | Admin | Notice | Notice id | `note_events` | Note record - Activity | No | — |
+| LOG-NTE-015 | Paymaster Acknowledgement Confirmed | `PAYMASTER_ACKNOWLEDGEMENT_CONFIRMED` | Paymaster acknowledgement confirmed | Admin confirm | Admin | Notice | Notice id | `note_events` | Note record - Activity | No | — |
+| LOG-NTE-016 | Prospectus Review Created | `PROSPECTUS_REVIEW_CREATE` | Prospectus review started | Admin start review | Admin | Prospectus | Review refs | `note_events` | Note record - Activity | No | — |
+| LOG-NTE-017 | Prospectus Draft Updated | `PROSPECTUS_REVIEW_DRAFT_UPDATE` | Prospectus draft updated | Admin draft update | Admin | Prospectus | Review refs | `note_events` | Note record - Activity | No | — |
+| LOG-NTE-018 | Prospectus Approved | `PROSPECTUS_REVIEW_APPROVE` | Prospectus approved | Admin approve | Admin | Prospectus | Review refs | `note_events` | Note record - Activity | No | — |
+| LOG-NTE-019 | Prospectus Approval Cleared After Edit | `PROSPECTUS_APPROVAL_INVALIDATED_EDIT` | Prospectus approval cleared after edit | Edit after approve | Admin / System | Prospectus | Reason | `note_events` | Note record - Activity | No | — |
+| LOG-NTE-020 | Prospectus Approval Cleared After Source Change | `PROSPECTUS_APPROVAL_INVALIDATED_SOURCE` | Prospectus approval cleared after source change | Source change | System | Prospectus | Reason | `note_events` | Note record - Activity | No | — |
+| LOG-NTE-021 | Prospectus Approval Cleared After Unpublish | `PROSPECTUS_APPROVAL_INVALIDATED_UNPUBLISH` | Prospectus approval cleared after unpublish | Unpublish | System | Prospectus | Reason | `note_events` | Note record - Activity | No | — |
 
-| Event | Cause | Actor | Refs | Recorded | Code | Admin | Where | Ops wording | Gaps | Overlap |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `NAME_CHECK` | Deposit enters name-check | Webhook / deposit service | payment, org | from/to status | `payment/deposit-service.ts` | Yes | Gateway payment timeline | Yes | Not in named catalogue | — |
-| `NAME_CHECK_APPROVED` | Admin approves name check | Admin | payment | Status transition | `payment/admin-service.ts` | Yes | Gateway timeline | Yes | — | May then complete deposit |
-| `NAME_CHECK_REJECTED` | Admin rejects name check | Admin | payment | Status | `payment/admin-service.ts` | Yes | Gateway timeline | Yes | — | `deposit_name_check_rejected` |
-| `GATEWAY_PAYMENT_COMPLETED` | Capture completed | Webhook | payment | Status | `payment/webhook-service.ts` | Yes | Gateway timeline | Yes | Application/onboarding fee also has Activity milestones | Application/org fee events |
-| `CAPTURE_MISMATCH` | Capture amount mismatch | Webhook / amount-mismatch service | payment | Amounts | `payment/amount-mismatch-service.ts` | Yes | Gateway timeline | Yes | Ops must open amounts | Recon exceptions may also flag mismatches |
-| `EXPIRED` | Stuck-order poller expires abandoned checkout | SYSTEM_JOB `*/15` | payment | Expiry | `lib/jobs/gateway-stuck-order-poller.ts` | Yes | Gateway timeline | Yes | — | — |
-| `REFUND_INITIATED` | Refund started | Webhook / refund service | payment, refund | Refund | `payment/refund-service.ts` | Yes | Gateway timeline | Yes | — | `deposit_refund_initiated` |
-| `REFUNDED` | Refund completed | Webhook / refund service | payment | Refund | `refund-service.ts` | Yes | Gateway timeline | Yes | — | `deposit_refunded` |
-| `REFUND_WALLET_REVERSAL_FAILED` | Wallet reversal failed after refund | System | payment | Error metadata | `refund-service.ts` | Yes | Gateway timeline | Technical | Need metadata for why | Process `logger.error` may also fire |
+### 8. Investments
 
-| Record family | Cause | Actor | Store | Admin | Where | Notes |
-| --- | --- | --- | --- | --- | --- | --- |
-| `GatewayWebhookEvent` | Curlec webhook received | Curlec | `gateway_webhook_events` | No dedicated tab | Dedup/audit | Raw payload; **not** the business event |
-| `GatewayOrderAttempt` | Checkout order attempts | User / gateway | `gateway_order_attempts` | Via payment detail | Attempt status | Complements payment row |
-| `GatewayPaymentReceipt` | Receipt PDF generate/retry | Webhook / `gateway-receipt-retry` `*/10` | `gateway_payment_receipts` | Payment detail | Receipt file | Retry job does not write a new named Activity type |
-| `GatewayReconRun` | Daily recon 18:00 UTC or Admin trigger | SYSTEM_JOB / Admin | `gateway_recon_runs` | Yes | Finance → Reconciliation | Run totals |
-| `GatewayReconException` | Orphan / mismatch in recon | Job | `gateway_recon_exceptions` | Yes | Reconciliation | Admin can resolve with reason |
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-CMT-001 | Investment Committed | `INVESTMENT_COMMITTED` | Investor committed funds to a Note | Investor commit | Customer | Note / investment | Amount, user | `note_events` | Note record - Activity | Yes | Investor Activity. Wallet hold is a related journal |
 
-`OVERRIDE_PROPOSED` / `APPROVED` / `REJECTED` exist on the Prisma enum and are **not** written by `recordGatewayPaymentEvent`.
+### 9. Payments
 
----
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-PAY-001 | Bank Account Name Check Started | `NAME_CHECK` | Deposit entered bank-name check | Deposit name-check | Webhook | Gateway payment | from/to status | `gateway_payment_events` | Finance - Payments - Gateway Payments | No | Finance record |
+| LOG-PAY-002 | Bank Account Name Check Passed | `NAME_CHECK_APPROVED` | Bank-name check passed | Admin approve name check | Admin | Gateway payment | Status | `gateway_payment_events` | Finance - Payments - Gateway Payments | No | May then complete the deposit |
+| LOG-PAY-003 | Bank Account Name Check Failed | `NAME_CHECK_REJECTED` | Bank-name check failed | Admin reject name check | Admin | Gateway payment | Status | `gateway_payment_events` | Finance - Payments - Gateway Payments | No | Deposit Verification Failed notification |
+| LOG-PAY-004 | Payment Received Successfully | `GATEWAY_PAYMENT_COMPLETED` | Payment capture completed | Gateway capture | Gateway | Gateway payment | Status | `gateway_payment_events` | Finance - Payments - Gateway Payments | No | Onboarding, processing, and facility fees also write Activity milestones |
+| LOG-PAY-005 | Payment Amount Mismatch | `CAPTURE_MISMATCH` | Captured amount or currency did not match | Mismatch on capture | Webhook | Gateway payment | Amounts, reason | `gateway_payment_events` | Finance - Payments - Gateway Payments | No | Admin title may be Payment Currency Mismatch |
+| LOG-PAY-006 | Payment Session Expired | `EXPIRED` | Checkout session expired | Stuck-order poller | System | Gateway payment | Expiry refs | `gateway_payment_events` | Finance - Payments - Gateway Payments | No | — |
+| LOG-PAY-007 | Refund Started | `REFUND_INITIATED` | Refund started | Refund request | Webhook / Admin / System | Gateway payment | Refund refs | `gateway_payment_events` | Finance - Payments - Gateway Payments | No | — |
+| LOG-PAY-008 | Refund Completed | `REFUNDED` | Refund completed | Refund confirmed | Webhook / System | Gateway payment | Refund refs | `gateway_payment_events` | Finance - Payments - Gateway Payments | No | — |
+| LOG-PAY-009 | Wallet Update Failed After Refund | `REFUND_WALLET_REVERSAL_FAILED` | Wallet could not be updated after refund | Wallet reversal failed | System | Gateway payment | Error metadata | `gateway_payment_events` | Finance - Payments - Gateway Payments | No | — |
 
-## 9. Wallet, ledger, investments (journal records)
+### 10. Disbursement
 
-These are money journals, not Activity event types. They are live and used.
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-DSB-001 | Disbursement Instruction Created | `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED` | Disbursement instruction created | Admin create withdrawal | Admin | Withdrawal | Withdrawal refs | `note_events` | Note record - Activity | No | — |
+| LOG-DSB-002 | Withdrawal Letter Generated | `WITHDRAWAL_LETTER_GENERATED` | Trustee letter generated | Admin generate letter | Admin | Withdrawal | Letter refs; residual relabel | `note_events` | Note record - Activity | No | Residual return uses Residual Return Letter Generated |
+| LOG-DSB-003 | Withdrawal Submitted to Trustee | `WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | Instruction submitted to trustee | Admin submit | Admin | Withdrawal | Submission refs | `note_events` | Note record - Activity | No | Typed notification may go to issuer and/or investor |
+| LOG-DSB-004 | Withdrawal Beneficiary Updated | `WITHDRAWAL_BENEFICIARY_UPDATED` | Withdrawal beneficiary changed | Admin update beneficiary | Admin | Withdrawal | Beneficiary refs | `note_events` | Note record - Activity | No | — |
+| LOG-DSB-005 | Trustee Instruction Emailed | `WITHDRAWAL_TRUSTEE_EMAIL_SENT` | Trustee instruction emailed | Send or resend trustee email | Admin / System | Withdrawal | resend flag | `note_events` | Note record - Activity | No | Direct email to trustee. Resend label: Redelivered |
+| LOG-DSB-006 | Withdrawal Completed | `WITHDRAWAL_COMPLETED` | Withdrawal, disbursement, or residual return completed | Admin complete | Admin | Withdrawal | Type in metadata | `note_events` | Note record - Activity | Yes | Issuer disbursement may notify. Residual Return Completed when type is residual |
 
-| Record | Cause | Actor | Refs | Store | Admin | Where | Ops wording | Gaps |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `InvestorBalanceTransaction` | Deposit, invest, refund, investor cash withdrawal | Investor / webhook / Admin | org, amount, type | `investor_balance_transactions` | Yes | Investor org / Finance withdrawals / wallet views | Transaction types | Pair with gateway + note events |
-| `NoteLedgerEntry` | Funding, repayment, settlement, fees, tawarruq, residual | System / Admin | note, account, amount | `note_ledger_entries` | Yes | Notes → Ledger | Account codes need Ops training | Not a labelled “log” |
-| `ShorakaTradeOrder` | Tawarruq order state | System | note, order | `shoraka` trade order table | Yes | Note tawarruq UI | — | Events `SHORAKA_*` overlay |
+### 11. Repayment
 
----
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-RPY-001 | Repayment Submitted | `ISSUER_PAYMENT_SUBMITTED` | Issuer submitted a repayment that needs Admin review | Issuer submit needing review | Customer | Payment | Payment id | `note_events` | Note record - Activity | Yes | Mutually exclusive with Repayment Received |
+| LOG-RPY-002 | Repayment Received | `PAYMENT_RECEIVED` | Repayment recorded without Admin review | Issuer repayment auto-record | Customer / System | Payment | Payment id | `note_events` | Note record - Activity | No | Not on customer Note Activity. Investor notification is separate |
+| LOG-RPY-003 | Repayment Approved | `PAYMENT_APPROVED` | Admin approved a repayment | Admin approve | Admin | Payment | Payment id | `note_events` | Note record - Activity | No | No issuer approved notification |
+| LOG-RPY-004 | Repayment Rejected | `PAYMENT_REJECTED` | Admin rejected a repayment | Admin reject | Admin | Payment | Reason | `note_events` | Note record - Activity | No | — |
 
-## 10. Legal documents, acceptances, generated files
+### 12. Late Payment / Arrears / Default
 
-| Event / record | Cause | Actor | Refs | Store | Code | Admin | Where | Ops wording | Gaps | Overlap |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `LEGAL_DOCUMENT_CREATED` | Admin creates legal document | Admin | document | `legal_document_audit_logs` | `legal-documents/service.ts` | Yes | Audit → Legal Documents | Yes | Never Activity | — |
-| `LEGAL_DOCUMENT_UPDATED` | Admin updates document metadata | Admin | document | same | same | Yes | same | Yes | — | — |
-| `LEGAL_VERSION_UPLOADED` / `FILE_REPLACED` / `PUBLISHED` / `ARCHIVED` / `RESTORED` | Version lifecycle | Admin | document, version, hash | same | same | Yes | same | Yes | — | — |
-| `LEGAL_DOCUMENT_ACCEPTANCE` | User accepts a published legal document | Issuer / Investor user | user, org, version, hash | `legal_document_acceptances` | legal acceptance-service | Yes | Audit → Legal Acceptances; org Acceptances | Status labels | Not Activity | T&C onboarding log is separate |
-| `LEGAL_EXTERNAL_ACCEPTANCE` | External signer / guarantor acceptance | Signing webhook | envelope, application, org | `legal_external_acceptances` | external-acceptance-service | Yes | Audit → External Acceptances | Status labels | No FK cascade | Signing package events |
-| `GENERATED_DOCUMENT_EVIDENCE` | Generated LO / letter persisted | Admin / system | template + output SHA-256, note/app | `generated_document_evidence` | `generated-documents/service.ts` | **No Audit tab** | Note Activity may show letter events | Hash is forensic | Ops cannot browse hashes in Audit | Letter `*_LETTER_GENERATED` events |
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-LTE-001 | Late Charge Approved | `LATE_CHARGE_APPROVED` | Admin approved a late charge | Admin approve charge | Admin | Note | Charge refs | `note_events` | Note record - Activity | No | — |
+| LOG-LTE-002 | Note Entered Arrears | `OVERDUE_LATE_CHARGE_CHECKED` | Servicing status changed (arrears path) | Servicing status change only | System | Note | Servicing status, due date | `note_events` | Note record - Late Payment. Note record - Activity | No | Written only when status actually changes |
+| LOG-LTE-003 | Note Defaulted | `NOTE_DEFAULT_MARKED` | Note marked default | Admin mark default | Admin | Note | Reason | `note_events` | Note record - Activity | Yes | Issuer and investor |
+| LOG-LTE-004 | Arrears Letter Generated | `ARREARS_LETTER_GENERATED` | Arrears letter generated | Admin generate letter | Admin | Note / document | Hash | `note_events` | Note record - Activity | No | Also generated_document_evidence |
+| LOG-LTE-005 | Default Letter Generated | `DEFAULT_LETTER_GENERATED` | Default letter generated | Admin generate letter | Admin | Note / document | Hash | `note_events` | Note record - Activity | No | Also generated_document_evidence |
 
----
+### 13. Settlement
 
-## 11. Notifications as logs
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-STL-001 | Settlement Approved | `SETTLEMENT_APPROVED` | Admin approved a settlement | Admin approve | Admin | Settlement | Settlement id | `note_events` | Note record - Activity | No | Preview has no event |
+| LOG-STL-002 | Settlement Posted | `SETTLEMENT_POSTED` | Settlement posted to ledgers | Admin or system post | Admin / System | Settlement | Posting refs | `note_events` | Note record - Activity | Yes | Investor Activity. Related ledger and late-charge notifications |
+| LOG-STL-003 | Settlement Trustee Letter Generated | `SETTLEMENT_TRUSTEE_LETTER_GENERATED` | Settlement trustee letter generated | Admin generate | Admin | Settlement | Letter refs | `note_events` | Note record - Activity | No | — |
+| LOG-STL-004 | Settlement Trustee Letter Submitted | `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED` | Settlement trustee letter submitted | Admin submit | Admin | Settlement | Letter refs | `note_events` | Note record - Activity | No | — |
+| LOG-STL-005 | Settlement Trustee Instruction Completed | `SETTLEMENT_TRUSTEE_INSTRUCTION_COMPLETED` | Settlement trustee instruction completed | Admin complete | Admin | Settlement | Instruction refs | `note_events` | Note record - Activity | No | — |
+| LOG-STL-006 | Settlement Trustee Email Sent | `SETTLEMENT_TRUSTEE_EMAIL_SENT` | Settlement trustee instruction emailed | Send or resend | Admin / System | Settlement | resend flag | `note_events` | Note record - Activity | No | Direct email. Resend label: Redelivered |
 
-Delivery evidence for inbox/email is `notification_logs` (Admin Audit → Notifications). Inbox rows are `notifications`. See **Notifications Inventory** for types. Included here only as a store:
+### 14. Legal
 
-| Record | Cause | Actor | Store | Admin | Where |
-| --- | --- | --- | --- | --- | --- |
-| `NotificationLog` `source=SYSTEM` | Automatic typed send | System | `notification_logs` | Yes | Audit → Notifications |
-| `NotificationLog` `source=ADMIN` | Settings → Notifications → Custom & Groups | Admin | `notification_logs` | Yes | same |
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-LGL-001 | Document Created | `LEGAL_DOCUMENT_CREATED` | Legal document created | Admin create document | Admin | Legal document | Document id | `legal_document_audit_logs` | Audit - Legal Documents | No | Legal record |
+| LOG-LGL-002 | Document Updated | `LEGAL_DOCUMENT_UPDATED` | Legal document metadata updated | Admin update | Admin | Legal document | Document id | `legal_document_audit_logs` | Audit - Legal Documents | No | — |
+| LOG-LGL-003 | Version Uploaded | `LEGAL_VERSION_UPLOADED` | Legal document version uploaded | Admin upload | Admin | Legal version | Hash | `legal_document_audit_logs` | Audit - Legal Documents | No | — |
+| LOG-LGL-004 | Version File Replaced | `LEGAL_VERSION_FILE_REPLACED` | Legal version file replaced | Admin replace file | Admin | Legal version | Hash | `legal_document_audit_logs` | Audit - Legal Documents | No | — |
+| LOG-LGL-005 | Version Published | `LEGAL_VERSION_PUBLISHED` | Legal version published | Admin publish | Admin | Legal version | Version refs | `legal_document_audit_logs` | Audit - Legal Documents | No | — |
+| LOG-LGL-006 | Version Archived | `LEGAL_VERSION_ARCHIVED` | Legal version archived | Admin archive | Admin | Legal version | Version refs | `legal_document_audit_logs` | Audit - Legal Documents | No | — |
+| LOG-LGL-007 | Version Restored | `LEGAL_VERSION_RESTORED` | Legal version restored | Admin restore | Admin | Legal version | Version refs | `legal_document_audit_logs` | Audit - Legal Documents | No | — |
+| LOG-LGL-008 | Legal Document Accepted | `LEGAL_DOCUMENT_ACCEPTANCE` | User accepted a published legal document | User accept | Customer | Acceptance | User, org, version, hash | `legal_document_acceptances` | Audit - Legal Acceptances | No | Row insert is the event. Primary legal proof |
+| LOG-LGL-009 | External Person or Guarantor Accepted | `LEGAL_EXTERNAL_ACCEPTANCE` | External signer or guarantor accepted | Signing webhook | Webhook / signer | External acceptance | Envelope, application, org | `legal_external_acceptances` | Audit - External Acceptances | No | Overlaps signing package events |
+| LOG-LGL-010 | Generated Document Hash Stored | `GENERATED_DOCUMENT_EVIDENCE` | Generated letter or LO hash stored | Persist generated PDF | Admin / System | Generated document | Template and output SHA-256 | `generated_document_evidence` | No current Admin UI | No | Letter Activity is the Operations view |
 
----
+### 15. Users / Organisation
 
-## 12. Review / admin mirrors (written, not shown as their own UI)
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-ORG-001 | Organisation Profile Updated | `PROFILE_UPDATED` | Organisation profile patched | Admin or org-admin profile patch | Admin / Customer | Organisation | Updated fields | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | Same code is also written to access_logs (Admin user profile) and security_logs (self-service profile). Open Record Source to tell them apart |
+| LOG-ORG-002 | Member Added | `MEMBER_ADDED` | Member joined the organisation | Accept invite or add | Customer | Membership | Role | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
+| LOG-ORG-003 | Member Invited | `MEMBER_INVITED` | Organisation member invited | Org admin invite | Customer | Invite | Email, role | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | Invite email is a direct email, not a typed notification |
+| LOG-ORG-004 | Member Removed | `MEMBER_REMOVED` | Member removed | Org admin remove | Customer | Membership | User, org | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
+| LOG-ORG-005 | Member Role Changed | `MEMBER_ROLE_CHANGED` | Member role changed | Org admin role change | Customer | Membership | From/to role | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
 
-| Record | Cause | Store | Admin reader | Overlap |
+### 16. Access & Security
+
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-SEC-001 | Login | `LOGIN` | Successful sign-in for an existing user | OAuth callback | Customer | User | Portal, IP, user agent | `access_logs` | Audit - Access | No | First-ever user is Sign Up |
+| LOG-SEC-002 | Sign Up | `SIGNUP` | First CashSouk user record created | First user on OAuth callback | Customer | User | Portal, IP, user agent | `access_logs` | Audit - Access | No | Mutually exclusive with Login on that callback |
+| LOG-SEC-003 | Logout | `LOGOUT` | Sign-out | User sign-out | Customer | User | Best-effort | `access_logs` | Audit - Access | No | May be missing if the token is already invalid |
+| LOG-SEC-004 | Role Created | `ROLE_CREATED` | Admin created a custom role | Admin create role | Admin | Role | Permissions snapshot | `security_logs` | Audit - Security | No | — |
+| LOG-SEC-005 | Role Permissions Updated | `ROLE_PERMISSIONS_UPDATED` | Role permissions changed | Admin edit role | Admin | Role | Before/after permissions | `security_logs` | Audit - Security | No | — |
+| LOG-SEC-006 | Role Added | `ROLE_ADDED` | Role granted to a user | Admin grant or self-service add-role | Admin / Customer | User | Role, target user | `security_logs` | Audit - Security | No | — |
+| LOG-SEC-007 | Role Removed | `ROLE_REMOVED` | Role removed from a user | Admin remove role | Admin | User | Role | `security_logs` | Audit - Security | No | — |
+| LOG-SEC-008 | Role Switched | `ROLE_SWITCHED` | Active role changed, or Admin deactivated/reactivated | Switch role or Admin deactivate | Customer / Admin | User | From/to, action | `security_logs` | Audit - Security | No | Label may be Admin Deactivated / Reactivated / Role Changed |
+| LOG-SEC-009 | Password Changed | `PASSWORD_CHANGED` | In-app password change | Portal ChangePassword | Customer | User | Security metadata | `security_logs` | Audit - Security | No | Cognito forgot-password does not write this |
+| LOG-SEC-010 | Email Verified | `EMAIL_VERIFIED` | Email verification attempt (success or failure) | Verify email | Customer | User | success / VERIFICATION_FAILED | `security_logs` | Audit - Security | No | Open detail for failed attempts |
+| LOG-SEC-011 | Invitation Revoked | `INVITATION_REVOKED` | Admin invitation revoked | Admin revoke invite | Admin | Invite | Invitee | `security_logs` | Audit - Security | No | Invite send is a direct email only |
+
+### 17. Products
+
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-PRD-001 | Product Created | `PRODUCT_CREATED` | Product created | Admin create product | Admin | Product | Config snapshot | `product_logs` | Audit - Products | No | Does not auto-send New Product Alert |
+| LOG-PRD-002 | Product Updated | `PRODUCT_UPDATED` | Product updated or versioned | Admin update | Admin | Product | Snapshot | `product_logs` | Audit - Products | No | — |
+| LOG-PRD-003 | Product Deleted | `PRODUCT_DELETED` | Product deleted | Admin delete | Admin | Product | Snapshot | `product_logs` | Audit - Products | No | — |
+
+### 18. Administration / Configuration
+
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-ADM-001 | Platform Finance Settings Updated | `PLATFORM_FINANCE_SETTINGS_UPDATED` | Platform finance settings saved | Admin settings save | Admin | Platform settings | Changed keys | `security_logs` | Audit - Security | No | — |
+| LOG-ADM-002 | MARC Assessment Saved | `MARC_ASSESSMENT_SAVED` | MARC assessment saved | Admin save MARC | Admin | Organisation | Assessment fields | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
+
+### 19. Integrations / Gateway / System
+
+| Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| LOG-INT-001 | Enhanced Due Diligence Provider Update | `EOD_WEBHOOK` | Raw enhanced due diligence webhook stored | EOD webhook that is not the business approve/reject row | Webhook | Organisation | Stripped payload refs | `onboarding_logs` | No current Admin UI | No | Investigation. Business result is EOD Approved/Rejected |
+| LOG-INT-002 | Identity Check Approved Before Organisation | `WEBHOOK_APPROVED` | Provider APPROVED when no organisation id exists yet | RegTank APPROVED without org | Webhook | Onboarding request | requestId, status | `onboarding_logs` | No current Admin UI | No | Skipped when organisation exists (writes Onboarding Submission Approved instead). Catalogue marks DEV_ONLY; production writer still runs |
+| LOG-INT-003 | Identity Check Rejected (Provider Transport) | `WEBHOOK_REJECTED` | Provider REJECTED transport log | RegTank REJECTED | Webhook | Onboarding request | requestId, status | `onboarding_logs` | No current Admin UI | No | May coexist with Onboarding Rejected. Catalogue marks DEV_ONLY; production writer still runs |
+| LOG-INT-004 | Tawarruq Order Submitted | `SHORAKA_ORDER_SUBMITTED` | Tawarruq order submitted | STP order | System / Admin | Trade order | trade_order_id | `note_events` | Note record - Activity | No | — |
+| LOG-INT-005 | Tawarruq Certificate Retrieved | `SHORAKA_CERTIFICATE_FETCHED` | Tawarruq certificate retrieved | Fetch certificate | System | Trade order | Certificate refs | `note_events` | Note record - Activity | No | — |
+
+## Supporting Investigation Records
+
+These are not normal business Activity events. Use them to investigate what happened. They are not duplicated as Activity rows in the register above (except where a named event already exists).
+
+| Record | Purpose | Source | Admin Location | Primary Use |
 | --- | --- | --- | --- | --- |
-| `ApplicationReviewEvent` | Offer sent; amendments submitted (three Admin paths) | `application_review_events` | **None** (timeline uses `application_logs`) | Same event names as application logs |
-| `ApplicationReviewRemark` | Reviewer remarks on items/sections | `application_review_remarks` | Application review UI (remarks), not Audit | Remark text also copied onto application_log `remark` |
-| `NoteAdminAction` | Every `logAdminAction` | `note_admin_actions` | **None** (Notes Activity uses `note_events`) | Duplicate of admin note events |
+| Login session | Session issued / tracked | `user_sessions` | No current Admin UI | Investigation / support |
+| Signer viewed the package | Signer opened the signing link | `SigningRecipient.viewed_at` | Application record - Acceptance | Signing investigation |
+| Application review copy | Extra copy of offer sent or amendment sent | `application_review_events` | No current Admin UI | Investigation. Use Application record - Activity Timeline |
+| Reviewer remarks | Comments entered during review | `application_review_remarks` | Application review remarks | Review comments |
+| Note Admin action copy | Extra copy of Admin Note actions | `note_admin_actions` | No current Admin UI | Duplicate of Note record - Activity |
+| Raw payment-provider update | Provider webhook received | `gateway_webhook_events` | No current Admin UI | Provider / dedup investigation |
+| Checkout attempt | Payment session attempted | `gateway_order_attempts` | Finance - Payments - Gateway Payments | Payment investigation |
+| Payment receipt | Receipt file generated or retried | `gateway_payment_receipts` | Finance - Payments - Gateway Payments | Receipt file |
+| Reconciliation completed | Settlement reconciliation run | `gateway_recon_runs` | Finance - Reconciliation | Finance match |
+| Reconciliation mismatch found | Unmatched or mismatched payment | `gateway_recon_exceptions` | Finance - Reconciliation | Finance exception |
+| Investor wallet movement | Deposit, invest, refund, cash withdrawal | `investor_balance_transactions` | Finance - Investor Withdrawals | Wallet journal |
+| Note ledger | Money movement on the Note | `note_ledger_entries` | Note record - Ledger | Note money journal |
+| Invoice offer verification-code record | Verification code issued | `offer_accept_otp_challenges` | No current Admin UI | Invoice-accept OTP |
+| Notification delivery record | Typed in-app / email send | `notification_logs` | Audit - Notifications | Delivery proof for typed messages |
+
+Count: **14** families.
 
 ---
 
-## 13. Scheduled jobs that produce logs
+## Related Records and Source of Truth
 
-All registered in `apps/api/src/lib/jobs/index.ts`.
+Do not delete overlapping stores. Use the primary record for the question you are answering.
 
-| Job | Schedule | Logs / records it can produce |
+| Business Action | Related Records | Primary Record for Operations | Reason |
+| --- | --- | --- | --- |
+| Payment confirmation (deposit, fee, refund) | Activity fee milestones + `gateway_payment_events` + wallet journal | Finance - Payments - Gateway Payments | Activity is the business milestone. Gateway Payments is payment proof |
+| Legal document accepted | `TNC_APPROVED` Activity + `legal_document_acceptances` | Audit - Legal Acceptances | Activity is the milestone. Acceptances hold hash and party proof |
+| External / guarantor acceptance | Signing package events + `legal_external_acceptances` | Audit - External Acceptances | Signing status vs legal proof |
+| Facility occupancy | `CONTRACT_FACILITY_OCCUPANCY_UPDATED` + `FACILITY_OCCUPANCY_UPDATED` | Facility record - Activity for facility; Note record - Activity for Note | Same draw/fund/repay, two layers |
+| Offer sent or amendment pack sent | `application_logs` + `application_review_events` | Application record - Activity Timeline | Review mirror has no Admin reader |
+| Admin Note action | `note_events` + `note_admin_actions` | Note record - Activity | Admin action mirror has no Admin reader |
+| Letter generated | `*_LETTER_GENERATED` + `generated_document_evidence` | Note record - Activity for Operations; hash table for investigation | No Audit tab for hashes |
+| Provider identity update | `EOD_WEBHOOK` / `WEBHOOK_*` + business onboarding event | Issuer / Investor record - Activity for the business result | Forensic rows have no Org Activity UI |
+| Investment committed | `INVESTMENT_COMMITTED` + wallet hold | Note record - Activity for the commitment; wallet for money | Two purposes |
+| Typed notification vs Activity | Activity row + inbox + `notification_logs` | Activity for what happened; Audit - Notifications for whether the message was sent | Different questions |
+
+---
+
+## Logging Gaps
+
+Live actions that currently produce no proper named audit / Activity event. Not implemented in this change.
+
+| Action | Current Behaviour | Recommended Audit Event | Priority |
+| --- | --- | --- | --- |
+| User cancelled onboarding | Explicitly no `onboarding_logs` | Onboarding Cancelled by User | Medium |
+| Signing reminder | Direct email only; no Activity | Signing Reminder Sent | Low |
+| Settlement preview | Computation only | None, unless Finance needs a preview trail | Low |
+| Notification preference changed | Preference row only | Notification Preference Updated | Low |
+| Company-search / CTOS retry tick | Process log | None per tick | No notification needed / keep process log |
+| Signing PDF backfill | Envelope files repaired | None | Low |
+| Forgot password / Admin authenticator reset | Cognito only | Outside this app | n/a |
+| Admin custom announcement | `notification_logs` only | Keep as notification delivery, not Activity | n/a |
+| Invoice-offer verification code | OTP row + SES; no application Activity | Optional Application OTP Sent | Low |
+
+Invoice-offer OTP **does** persist `offer_accept_otp_challenges`. It is listed under Supporting Investigation Records.
+
+---
+
+## Admin UI notes (display mapping)
+
+No unified Date / Time · Module · Event · Actor · Reference · Summary · Status table exists. Timelines are vertical cards; Audit tabs are separate tables. Detail drawers already expose system event code and metadata.
+
+Display-only label updates made with this register (stored codes unchanged):
+
+| System Event Code | Previous Admin wording | Operations name now |
 | --- | --- | --- |
-| Notification cleanup | 00:00 | Deletes expired inbox rows; process log only |
-| CTOS KYB retry | `*/5` | Diagnostic; may cause later `SECTION_REVIEWED_PENDING` |
-| Note listing expiry | hourly | `CLOSE_FUNDING` / `FAIL_FUNDING` + notifications |
-| Signing envelope expiry | hourly | `SIGNING_PACKAGE_EXPIRED` |
-| Acceptance/signing expiry | hourly | `CONTRACT_OFFER_EXPIRED` / `INVOICE_OFFER_EXPIRED`; notifs `offer_expired`, `offer_expiry_reminder_24h` |
-| Gateway stuck-order poller | `*/15` | `EXPIRED` (and related payment events) |
-| Gateway receipt retry | `*/10` | Receipt rows |
-| Gateway settlement recon | 18:00 UTC | Recon run + exceptions |
-| Application timeline repair | hourly `:20` | Missing `APPLICATION_CREATED` / `APPLICATION_SUBMITTED` with `source=INTERNAL` |
-| Signing reconcile | `*/30` | PDF/session repair, no Activity event |
+| `ONBOARDING_APPROVED` | Onboarding Approved | Onboarding Submission Approved |
+| `EOD_APPROVED` | Eod Approved | Enhanced Due Diligence Approved |
+| `EOD_REJECTED` | Eod Rejected | Enhanced Due Diligence Rejected |
+| `OVERDUE_LATE_CHARGE_CHECKED` | Overdue Late Charge Checked | Note Entered Arrears |
+| `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | Humanized token | Large Private Customer Flag Updated |
+| `GATEWAY_PAYMENT_COMPLETED` | Gateway Payment Completed | Payment Received Successfully |
+| `NAME_CHECK` / `NAME_CHECK_APPROVED` / `NAME_CHECK_REJECTED` | Name check needed / approved / rejected | Bank Account Name Check Started / Passed / Failed |
+| `CAPTURE_MISMATCH` | Payment mismatch found | Payment Amount Mismatch (or Payment Currency Mismatch) |
+| `EXPIRED` | Payment expired | Payment Session Expired |
+| `REFUND_WALLET_REVERSAL_FAILED` | Wallet balance could not be updated | Wallet Update Failed After Refund |
+| `SIGNING_PACKAGE_SENT` / declined / expired / voided | Mixed sentence case | Signing Package Sent / Declined / Expired / Voided |
+
+Remaining UI limits (not changed):
+
+- No Module column on timelines or Audit tabs
+- External Acceptances has no detail drawer; Hash is on the table
+- Forensic `WEBHOOK_*` / `EOD_WEBHOOK` have no Admin reader
+- `generated_document_evidence`, `application_review_events`, `note_admin_actions` have no Admin reader
+- Customer Activity titles can still differ (example: Final Approval Completed vs customer “Onboarding Approved”)
+- Facility compact metadata can still show technical field keys
 
 ---
 
-## 14. Process logs (not durable business events)
-
-Useful for investigation; **not** Activity:
-
-- `logger.error` in `initJobs` when a cron run throws
-- Failed Curlec webhook persist / provider fetch warnings (`payment` webhook path)
-- Failed `notification_logs` insert after send
-- Failed SES (signing, trustee, invite, OTP)
-- Failed S3 cleanup / receipt generation
-
-These stay in CloudWatch / pino. There is no Ops Alerts queue.
-
----
-
-## Active actions with no proper activity/audit log
-
-Live UI/API actions that do **not** write a named Activity/audit event (or only a non-timeline row):
-
-| Action | What exists instead | Why it is a gap |
-| --- | --- | --- |
-| User-initiated onboarding cancel | Explicitly **no** `onboarding_logs` (`auth/service.ts` `cancelOnboarding`) | Cannot see self-cancel on Activity |
-| Signing **reminder** | SES only | No `SIGNING_PACKAGE_*` reminder event |
-| Settlement **preview** | Computation only | Intentional; still no forensic row |
-| Notification preference change | `user_notification_preferences` | No audit of who changed channels |
-| CTOS KYB retry tick | Process log | No onboarding event per retry |
-| Signing PDF reconcile | Envelope files | No Activity that PDFs were backfilled |
-| Admin 2FA reset / forgot password | Cognito | Outside this app’s logs |
-| Custom announcement send | `notification_logs` | Not an Activity event (acceptable for notifications) |
-
-OTP for invoice-offer accept **does** persist `offer_accept_otp_challenges` and send SES; it is not an application Activity event.
-
----
-
-## Excluded / dead / unreachable
-
-Not in the main inventory as live writers:
-
-| Item | Why excluded |
-| --- | --- |
-| `APPLICATION_APPROVED` | HISTORICAL_READER; no writer. Customer adapter still **labels** old rows. |
-| `CONTRACT_OFFER_REJECTED` | HISTORICAL. Live facility decline is `CONTRACT_OFFER_DECLINED`. |
-| `PRODUCT_INACTIVATED` / `PRODUCT_REACTIVATED` | `setInactive` / `restoreProduct` have **no non-test callers**. Controller deletes. |
-| `ACCOUNT_LOCKED` | Catalogue LIVE; **tests only** — no production writer |
-| `CREATED` / `COMPLETED` / `FAILED` on gateway catalogue | Stale names; Prisma uses `GATEWAY_PAYMENT_COMPLETED`, `EXPIRED`, etc. |
-| `OVERRIDE_*` | Enum only; no `recordGatewayPaymentEvent` |
-| `SETTLEMENT_PREVIEWED` | No live `logEvent` |
-| `SERVICE_FEE_TRUSTEE_*` | Tests assert **not** written; live uses `SETTLEMENT_TRUSTEE_*` |
-| `KYC_APPROVED` as `event_type` | Historical; live uses `ONBOARDING_STATUS_UPDATED` + metadata `trigger` |
-| `TNC_ACCEPTED` | Live writer is `TNC_APPROVED` |
-| `USER_COMPLETED` as writer | Auth **reads** historical rows; final access is `FINAL_APPROVAL_COMPLETED`. Dev webhook handler can still write it when that route is mounted. |
-| `WEBHOOK_RECEIVED`, `WEBHOOK_PENDING_APPROVAL`, `WEBHOOK_LIVENESS_PASSED`, `WEBHOOK_FORM_FILLING`, `WEBHOOK_IN_PROGRESS` | Only `regtank/webhook-handler-dev.ts` (mounted when `NODE_ENV !== "production"` **or** `ENABLE_REGTANK_DEV_WEBHOOK`) |
-| Ops Alerts | Removed (no table, API, job, or Admin UI) |
-| Old UI aliases (`NOTE_CREATED`, `NOTE_PUBLISHED` as writers) | Labels for historical rows; live types are `NOTE_CREATED_FROM_INVOICE` / `PUBLISH` |
-
----
-
-## Catalogue vs this inventory
-
-`docs/logging-event-catalogue.md` lists catalogue classification. This inventory **adds** live writers missing from the catalogue (`PAYMENT_RECEIVED`, `UNPUBLISH`, `UPDATE_DRAFT`, `UPDATE_FEATURED_SETTINGS`, `WAIVE_FACILITY_FEE_COLLECTION`, letter events, gateway `NAME_CHECK*`, `REFUND_INITIATED`, `CAPTURE_MISMATCH`, `REFUND_WALLET_REVERSAL_FAILED`) and **drops** catalogue LIVE rows with no production writer (`ACCOUNT_LOCKED`, unused gateway names).
-
-## Count snapshot (this inventory)
+## Count snapshot
 
 | Bucket | Count |
 | --- | --- |
-| Named live event types (application / onboarding / note / product / gateway / access / security / legal) | **156** |
-| Related live record families (sessions, signer viewed, review mirrors, gateway raw/recon/receipts, ledgers, OTP, notification logs) | **14** |
-| Overlapping write patterns (same fact in two stores) | **9** |
-| Dead / unreachable / historical names excluded | **24** |
-| Active actions with no proper Activity/audit event | **7** |
+| Active named event types | **156** |
+| Supporting investigation record families | **14** |
+| Events with no current Admin reader | 4 named (`EOD_WEBHOOK`, `WEBHOOK_APPROVED`, `WEBHOOK_REJECTED`, `GENERATED_DOCUMENT_EVIDENCE`) plus supporting families without a screen |
+| Related-record patterns | **9** |
+| Logging gaps (named audit missing) | **7** live actions listed above |
 
-Process-only `logger.error` / CloudWatch lines are described in §14 and are **not** counted in the 156.
-
-Notifications are counted in `docs/notifications-inventory.md`, not here.
+Excluded on purpose: historical readers, unmounted product inactivate/reactivate, `ACCOUNT_LOCKED`, unused gateway `CREATED` / `COMPLETED` / `FAILED`, `OVERRIDE_*` (enum only), Cognito-only mail, Ops Alerts (removed).

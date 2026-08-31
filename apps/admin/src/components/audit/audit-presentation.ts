@@ -58,6 +58,12 @@ const APPLICATION_AUDIT_EVENT_LABELS: Record<string, string> = {
   MEMBER_REMOVED: "Member Removed",
   MEMBER_ROLE_CHANGED: "Member Role Changed",
   MARC_ASSESSMENT_SAVED: "MARC Assessment Saved",
+  ONBOARDING_APPROVED: "Onboarding Submission Approved",
+  EOD_APPROVED: "Enhanced Due Diligence Approved",
+  EOD_REJECTED: "Enhanced Due Diligence Rejected",
+  OVERDUE_LATE_CHARGE_CHECKED: "Note Entered Arrears",
+  CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED: "Large Private Customer Flag Updated",
+  GATEWAY_PAYMENT_COMPLETED: "Payment Received Successfully",
 };
 
 export function formatAuditEventLabel(

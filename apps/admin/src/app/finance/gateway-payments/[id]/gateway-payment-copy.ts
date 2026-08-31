@@ -215,25 +215,29 @@ export const GATEWAY_PAYMENT_COPY = {
 
 export const EVENT_COPY: Record<string, { title: string; description: string }> = {
   NAME_CHECK: {
-    title: "Name check needed",
+    title: "Bank Account Name Check Started",
     description:
       "Payment received, but the bank name could not be matched to the investor profile. Waiting for review.",
   },
   NAME_CHECK_APPROVED: {
-    title: "Name check approved",
+    title: "Bank Account Name Check Passed",
     description: "The names were confirmed to match. The deposit was completed.",
   },
   NAME_CHECK_REJECTED: {
-    title: "Name Check Rejected",
+    title: "Bank Account Name Check Failed",
     description: "The names did not match. A refund was started.",
   },
+  GATEWAY_PAYMENT_COMPLETED: {
+    title: "Payment Received Successfully",
+    description: "The payment was received and completed.",
+  },
   CAPTURE_MISMATCH: {
-    title: "Payment mismatch found",
+    title: "Payment Amount Mismatch",
     description:
-      "The payment details did not match what Cashsouk expected. See the status card for amount or currency details.",
+      "The payment details did not match what CashSouk expected. See the status card for amount or currency details.",
   },
   EXPIRED: {
-    title: "Payment expired",
+    title: "Payment Session Expired",
     description: "The payment link timed out before payment was finished.",
   },
   OVERRIDE_PROPOSED: {
@@ -253,12 +257,12 @@ export const EVENT_COPY: Record<string, { title: string; description: string }> 
     description: "A full refund was requested. Waiting for Curlec to confirm the result.",
   },
   REFUND_WALLET_REVERSAL_FAILED: {
-    title: "Wallet balance could not be updated",
+    title: "Wallet Update Failed After Refund",
     description:
       "The refund was completed, but the wallet balance could not be fully updated. Part of the amount may still need attention.",
   },
   REFUNDED: {
-    title: "Refund completed",
+    title: "Refund Completed",
     description: "The refund was confirmed. Money was returned to the payer.",
   },
 };
@@ -277,10 +281,10 @@ export const REASON_COPY: Record<string, string> = {
 
 export function formatGatewayEventTitle(type: string, reason?: string | null) {
   if (type === "CAPTURE_MISMATCH" && reason === "Currency mismatch") {
-    return "Currency mismatch found";
+    return "Payment Currency Mismatch";
   }
   if (type === "CAPTURE_MISMATCH" && reason?.toLowerCase().includes("amount")) {
-    return "Amount mismatch found";
+    return "Payment Amount Mismatch";
   }
   if (EVENT_COPY[type]) return EVENT_COPY[type].title;
   return type

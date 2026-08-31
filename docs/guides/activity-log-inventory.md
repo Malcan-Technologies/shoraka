@@ -12,7 +12,7 @@ Each visible row now includes:
 - a link to the related application, contract, invoice, note, or organisation profile when a stable id exists
 - a timestamp
 
-The feed no longer mirrors every audit log. Low-value internal updates such as section-level and item-level review events are intentionally hidden from users. After onboarding is complete, the issuer and investor pages default to hiding onboarding events (still available via the Area filter).
+The feed no longer mirrors every audit log. The complete live Audit Log Register is `docs/logs-inventory.md`. This page only describes what issuer/investor `/activity` shows. Low-value internal updates such as section-level and item-level review events are intentionally hidden from users. After onboarding is complete, the issuer and investor pages default to hiding onboarding events (still available via the Area filter).
 
 ## Status badges
 

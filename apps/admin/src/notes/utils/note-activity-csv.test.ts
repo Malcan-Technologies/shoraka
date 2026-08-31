@@ -20,11 +20,11 @@ function event(overrides: Partial<NoteEvent> = {}): NoteEvent {
 describe("formatNoteActivityEventLabel", () => {
   it("maps known types and rewrites Shoraka to Tawarruq", () => {
     expect(formatNoteActivityEventLabel("NOTE_PUBLISHED")).toBe("Note Published");
-    expect(formatNoteActivityEventLabel("PAUSE_LISTING")).toBe("Campaign paused");
-    expect(formatNoteActivityEventLabel("FAIL_FUNDING")).toBe("Funding unsuccessful");
-    expect(formatNoteActivityEventLabel("PROSPECTUS_REVIEW_APPROVE")).toBe("Prospectus approved");
+    expect(formatNoteActivityEventLabel("PAUSE_LISTING")).toBe("Campaign Paused");
+    expect(formatNoteActivityEventLabel("FAIL_FUNDING")).toBe("Funding Unsuccessful");
+    expect(formatNoteActivityEventLabel("PROSPECTUS_REVIEW_APPROVE")).toBe("Prospectus Approved");
     expect(formatNoteActivityEventLabel("PROSPECTUS_APPROVAL_INVALIDATED_UNPUBLISH")).toBe(
-      "Prospectus approval cleared after unpublish"
+      "Prospectus Approval Cleared After Unpublish"
     );
     expect(formatNoteActivityEventLabel("SHORAKA_ORDER_SUBMITTED")).toBe(
       "Tawarruq Order Submitted"
@@ -94,7 +94,7 @@ describe("buildNoteActivityCsv", () => {
     expect(lines[0]).toContain("Timestamp");
     expect(lines[0]).toContain("Event");
     expect(lines[0]).toContain("Actor");
-    expect(lines[1]).toContain("Note created");
+    expect(lines[1]).toContain("Note Created");
     expect(lines[1]).toContain("NOTE_CREATED");
     expect(lines[1]).toContain("Issuer said ready");
     expect(lines[1]).toContain("Ada Admin");
@@ -109,7 +109,7 @@ describe("buildNoteActivityCsv", () => {
     ]);
     expect(csv).toContain("25000");
     expect(csv).toContain("INVESTMENT_COMMITTED");
-    expect(csv).toContain("Investment committed");
+    expect(csv).toContain("Investment Committed");
   });
 
   it("exports an empty table with only the header", () => {
@@ -226,7 +226,7 @@ describe("buildNoteActivityCsv", () => {
         },
       })
     );
-    expect(row.event).toBe("Withdrawal letter generated");
+    expect(row.event).toBe("Withdrawal Letter Generated");
     expect(row.eventType).toBe("WITHDRAWAL_LETTER_GENERATED");
     expect(row.targetType).toBe("WITHDRAWAL");
     expect(row.targetReference).toBe("WDL-ARF-202608-A1Z");
@@ -303,7 +303,7 @@ describe("buildNoteActivityCsv", () => {
       }),
     ]);
     expect(csv).toContain("NOTE_FACILITY_FEE_COLLECTION_WAIVED");
-    expect(csv).toContain("Facility fee collection waived");
+    expect(csv).toContain("Facility Fee Collection Waived");
     expect(csv).toContain("legacy row");
   });
 

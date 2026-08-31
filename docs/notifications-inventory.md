@@ -1,224 +1,281 @@
-# Notifications Inventory
+# Notification Register
 
 **As of:** 31 August 2026  
-**Scope:** Messages the **current live platform can still send**: typed inbox/email, Admin custom sends, and other live SES emails.  
-**Method:** Traced from UI/API → `NotificationService` / SES → `notifications` / `notification_logs`. A seeded type or template is not listed as automatic unless a production caller exists.
+**Scope:** Messages the **current live platform can still send**: typed inbox/email, Admin custom sends, and other live transactional emails.  
+**Method:** Traced from UI/API → `NotificationService` / SES → `notifications` / `notification_logs`. A seeded type is listed as automatic only if a production caller exists.
+
+This register is separate from the [Audit Log Register](./logs-inventory.md).
+
+Delivery is **not** permanently fixed. Admin Settings → Notifications → Configuration controls `notification_types.enabled_platform` and `enabled_email` for SYSTEM and AUTHENTICATION types. Current seed defaults are listed; Operations can change them later.
 
 ---
 
-## How notifications work
+## How configuration actually works
 
-| Channel | Store | Who sees it |
+### Typed send path (`NotificationService.createInternal`)
+
+For automatic / `sendTyped` sends:
+
+- **In-app** is sent if AUTHENTICATION **or** (`sendToPlatform` override if set) **or** (`type.enabled_platform` AND (if `user_configurable`, user pref in-app, defaulting to true)).
+- **Email** uses the same pattern for `enabled_email`.
+- If both channels are false, nothing is stored (no inbox row).
+
+**Admin disabling a type in Configuration stops automatic sends** of that channel.
+
+Exceptions:
+
+| Exception | Behaviour |
+| --- | --- |
+| `password_changed` | AUTHENTICATION. Both channels forced. Admin switches locked. API rejects turning either off |
+| Admin Custom & Groups send | Passes `sendToPlatform` / `sendToEmail` and **bypasses** type flags and user prefs |
+| Direct / transactional emails | Do not use `NotificationService` or these toggles |
+
+### Admin Settings → Notifications
+
+| UI | What it does |
+| --- | --- |
+| Tab **Configuration**, card **System Notification Types** | Lists SYSTEM and AUTHENTICATION types only. Toggles labelled **Platform** and **Email** |
+| Badge **Always on for security** | `category === AUTHENTICATION` (`password_changed`) |
+| Portal Scope Investor / Issuer / Both | Filters by `portal_targets` |
+| **Reset to default** | Turns Platform + Email **on for every catalog type** (including marketing). Does not restore seed email-off defaults |
+| Tab **Custom & Groups** | Manual send. Type picker is MARKETING + ANNOUNCEMENT only (`new_product_alert`, `system_announcement`) |
+
+`system_announcement` and `new_product_alert` are **not** on the Configuration list.
+
+Seed insert is `createTypeIfNotExist`. Changing seed names or default toggles does **not** update existing production rows until Reset (and Reset turns **both** channels on).
+
+### User portal preferences
+
+Account → **Marketing emails** only lists `user_configurable && category === MARKETING`. Today that is **`new_product_alert`** (investor-only). Issuers see an empty list.
+
+Most SYSTEM types are `user_configurable: true` in seed, but the portal **does not expose them**. The API would honour a pref row if one existed.
+
+### Delivery records
+
+| Path | Store |
+| --- | --- |
+| Typed automatic send | `notifications` + `notification_logs` `source=SYSTEM` |
+| Admin custom send | Inbox + `notification_logs` `source=ADMIN` |
+| Email success on typed send | `email_sent_at` on the inbox row. Subject is `[CashSouk] ` + inbox title |
+| Direct emails | **Not** in `notification_logs` |
+
+Audit → Notifications **Event** column uses seed `name`. Drawer **Title** uses the inbox / Admin-supplied title.
+
+---
+
+## Name mapping
+
+| Layer | What Operations see |
+| --- | --- |
+| System Type | `notification_types.id` |
+| Admin Display Name | seed `name` (Settings Configuration and Audit Event) |
+| Notification / inbox / email subject body | `registry.ts` title (or Admin custom title) |
+| Email subject | `[CashSouk] ` + that title |
+
+They are not always the same. This register lists all three.
+
+---
+
+## Typed notification register
+
+### Access & Security
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-SEC-001 | Password Changed | `password_changed` | Password Changed | In-app ChangePassword (not Cognito forgot-password) | Acting user | Issuer or Investor | Automatic | Yes | Yes | No — AUTHENTICATION always on | Always in-app + Email | Forced both channels. Admin cannot disable. User prefs ignored | Inbox + `notification_logs` source=SYSTEM | Audit - Notifications | Mandatory. Inbox title matches Admin name |
+
+### Onboarding
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-ONB-001 | Onboarding Completed | `onboarding_completed` | Onboarding Completed | Admin final approval | Onboarding user | Issuer or Investor | Automatic | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-ONB-002 | Onboarding Application Rejected | `onboarding_rejected` | Onboarding Rejected | Provider reject (individual and/or COD) | Onboarding user | Issuer or Investor | Automatic | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | Inbox title differs from Admin name |
+| NTF-ONB-003 | Action Required: Complete Director/Shareholder Onboarding | `director_shareholder_action_required` | Director/Shareholder Action Required | CTOS pull finds a director/shareholder who must complete onboarding | Issuer organisation owner | Issuer | Automatic | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | Verify-link SES to the person is a separate direct email |
+| NTF-ONB-004 | Action Required: Complete Director/Shareholder Onboarding | `investor_director_shareholder_action_required` | Investor Director/Shareholder Action Required | Same, investor organisation | Investor organisation owner | Investor | Automatic | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | Same inbox title as issuer type |
+
+### Applications
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-APP-001 | Amendment Requested | `application_amendments_requested` | Application Amendments Requested | Admin sends amendment pack | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags. Seed marks user_configurable but portal UI does not expose SYSTEM types | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-APP-002 | Application Rejected | `application_rejected` | Application Rejected | Admin rejects application | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-APP-003 | Application Resubmitted | `application_resubmitted_confirmation` | Application Resubmitted Confirmation | Issuer resubmits | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-APP-004 | Application Withdrawn / Facility Offer Declined / Invoice Offer Declined | `application_withdrawn_confirmation` | Application Withdrawn Confirmation | Withdraw or decline offer | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Inbox title switches by withdrawalReason |
+| NTF-APP-005 | Application Completed | `application_completed` | Application Completed | Application completed | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-APP-006 | Application Submitted | `application_submitted_confirmation` | Application Submitted Confirmation | First submit | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app; email off in seed (Admin can enable) | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Email can be enabled in Settings Configuration |
+
+### Offers
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-OFR-001 | Acceptance Documents Need Updates | `acceptance_document_changes_requested` | Acceptance Documents Need Updates | First CHANGES_REQUESTED in an acceptance cycle | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Further requests in the same cycle do not re-notify |
+| NTF-OFR-002 | Facility Offer Received | `contract_offer_sent` | Facility Offer Sent | Admin sends facility offer | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Admin name says Sent; inbox says Received |
+| NTF-OFR-003 | Invoice Offer Received | `invoice_offer_sent` | Invoice Offer Sent | Admin sends invoice offer | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-OFR-004 | Offer Updated | `offer_retracted_or_reset` | Offer Retracted or Reset | Admin retracts offer or returns application to review | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | One type covers two Admin actions |
+| NTF-OFR-005 | Offer Expired | `offer_expired` | Offer Expired | Hourly acceptance/signing expiry job | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-OFR-006 | Offer Expiring Soon | `offer_expiry_reminder_24h` | Offer Expiry Reminder | Same job, before deadline | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Id is historical. Window is product days_before_expiry, not always 24h |
+
+### Signing
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-SGN-001 | Signing Deadline Extended | `contract_signing_deadline_extended` | Facility Signing Deadline Extended | Admin extends facility signing deadline | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Same inbox title as invoice type |
+| NTF-SGN-002 | Signing Deadline Extended | `invoice_signing_deadline_extended` | Invoice Signing Deadline Extended | Admin extends invoice signing deadline | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+
+### Facilities
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-FAC-001 | Facility Disabled | `facility_disabled` | Facility Disabled | Admin disables facility | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | No matching enable notification |
+| NTF-FAC-002 | Upfront Facility Fee Payment Required | `facility_fee_payment_requested` | Upfront facility fee payment required | Issuer accepts a facility offer that requires a gateway fee | Issuer owner and organisation admins | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-FAC-003 | Upfront Facility Fee Paid | `facility_fee_upfront_paid` | Upfront facility fee paid | Upfront facility fee captured in full | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+
+### Investment Notes
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-NTE-001 | Note Published | `note_published` | Note published | Note published | All issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-NTE-002 | Funding Closed Successfully | `note_funding_succeeded` | Note funding succeeded | Funding closed successfully | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-NTE-003 | Note Funding Did Not Complete | `note_funding_failed_issuer` | Funding Unsuccessful | Funding fail | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Paired with investor type |
+| NTF-NTE-004 | Note Is Active | `note_active_issuer` | Note active | Note activated | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-NTE-005 | Note Repaid | `note_repaid_issuer` | Note repaid | Note fully repaid | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Investors get Settlement Posted instead |
+
+### Investments
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-CMT-001 | Commitment Released | `note_funding_failed_investor` | Funding Unsuccessful | Same funding fail | Members of investing organisations | Investor | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Paired with issuer type |
+| NTF-CMT-002 | Investment Is Active | `note_active_investor` | Note active | Same activation | Investors on the Note | Investor | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-CMT-003 | Investment Committed | `investment_committed` | Investment committed | Investor commits to a Note | Acting investor | Investor | Automatic | Yes | Yes | Yes | In-app; email off in seed (Admin can enable) | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+
+### Payments
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-PAY-001 | Deposit Verification Failed | `deposit_name_check_rejected` | Deposit verification failed | Bank account name check failed | Investor organisation members | Investor | Automatic | Yes | Yes | Yes | In-app; email off in seed (Admin can enable) | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-PAY-002 | Refund Started | `deposit_refund_initiated` | Deposit refund started | Deposit refund started | Investor organisation members | Investor | Automatic | Yes | Yes | Yes | In-app; email off in seed (Admin can enable) | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-PAY-003 | Refund Completed | `deposit_refunded` | Deposit refund completed | Deposit refund completed | Investor organisation members | Investor | Automatic | Yes | Yes | Yes | In-app; email off in seed (Admin can enable) | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-PAY-004 | Deposit Successful | `deposit_successful` | Deposit successful | Deposit credited | Investor organisation members | Investor | Automatic | Yes | Yes | Yes | In-app; email off in seed (Admin can enable) | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+
+### Disbursement
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-DSB-001 | Withdrawal Submitted to Trustee | `withdrawal_submitted_to_trustee` | Withdrawal submitted to trustee | Trustee instruction submitted | Issuer and/or investor members depending on withdrawal type | Issuer and/or Investor | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Trustee PDF email is a separate direct email |
+| NTF-DSB-002 | Your Disbursement Is Complete | `withdrawal_completed` | Disbursement completed | Issuer financing disbursement completed | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app; email off in seed (Admin can enable) | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Not investor cash withdrawal |
+| NTF-DSB-003 | Withdrawal Submitted | `investor_withdrawal_submitted` | Withdrawal submitted | Investor cash withdrawal requested | Acting investor | Investor | Automatic | Yes | Yes | Yes | In-app; email off in seed (Admin can enable) | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-DSB-004 | Withdrawal Completed | `investor_withdrawal_completed` | Withdrawal completed | Investor cash withdrawal completed | Acting investor | Investor | Automatic | Yes | Yes | Yes | In-app; email off in seed (Admin can enable) | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Distinct from issuer Disbursement completed |
+
+### Repayment
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-RPY-001 | Repayment Received | `note_payment_received` | Repayment Received | Repayment recorded | Investors on the Note | Investor | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-RPY-002 | Repayment Rejected | `note_payment_rejected` | Repayment rejected | Admin rejects issuer repayment | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app; email off in seed (Admin can enable) | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+
+### Late Payment / Arrears / Default
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-LTE-001 | Note in Arrears | `note_arrears` | Note in arrears | Note entered arrears | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-LTE-002 | Note in Arrears | `note_arrears_investor` | Note in arrears | Same arrears | Investors | Investor | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | Inbox casing Note in Arrears |
+| NTF-LTE-003 | Your Note Is in Default | `note_defaulted` | Note defaulted (issuer) | Note marked default | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-LTE-004 | Your Investment Is in Default | `note_defaulted_investor` | Note defaulted | Same default | Investors | Investor | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+| NTF-LTE-005 | Outstanding Late Charges to Pay | `excess_late_charges_due` | Outstanding late charges to pay | Settlement posted with leftover late charges | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | May send with Settlement Posted |
+| NTF-LTE-006 | Late Payment Charges Received | `excess_late_charges_paid` | Late payment charges received | Outstanding late charges paid in full | Issuer organisation members | Issuer | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+
+### Settlement
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-STL-001 | Settlement Posted | `note_settlement_posted` | Note settlement posted | Settlement posted | Investors on the Note | Investor | Automatic | Yes | Yes | Yes | In-app + Email | Type flags ± unused user prefs | Inbox + SYSTEM log | Audit - Notifications | — |
+
+### Products
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-PRD-001 | New Investment Opportunity | `new_product_alert` | New Product Alert | Admin Custom & Groups send only. Not fired on product create | Selected investors | Investor | Manual | Yes | Yes | Not in Configuration tab (MARKETING). User Marketing card can change prefs; send form overrides | In-app + Email (send form override) | User prefs only apply if a typed path is used; Custom send overrides | Inbox + ADMIN log | Audit - Notifications | Only type exposed on the portal Marketing emails card |
+
+### Administration / Configuration
+
+| Notification ID | Notification (inbox) | System Type | Admin Display Name | Trigger | Recipient | Recipient Role | Automatic / Manual | In-App Supported | Email Supported | Admin Configurable | Default Delivery | Preference Source | Delivery Record | Admin Location | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| NTF-ADM-001 | System Announcement | `system_announcement` | System Announcement | Admin Custom & Groups send | Selected users or group | Issuer and/or Investor | Manual | Yes | Yes | Not in Configuration tab (ANNOUNCEMENT). Send form chooses channels | In-app + Email (send form override) | Admin send overrides type flags and user prefs | Inbox + `notification_logs` source=ADMIN | Audit - Notifications | Admin supplies title and body |
+
+## Direct / Transactional Emails
+
+These bypass Admin notification preferences and `NotificationService`. They are not the 49 typed types.
+
+| Email | Trigger | Recipient | Configurable? | Delivery Record | Admin Location | Ignores notification prefs? | In `notification_logs`? |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Organisation Invitation | Member invited or invite resent | Invitee | No. Always sent when the invite action runs | Invite row + `MEMBER_INVITED` | Issuer record - Activity or Investor record - Activity | Yes | No |
+| Admin Invitation | Admin invited or invite resent | Invitee | No | Invite row. Revoke is `INVITATION_REVOKED` | Audit - Security (revoke only) | Yes | No |
+| Signing Package / Reminder | Send package or remind signer | Named signer | No | Envelope / recipient. `SIGNING_PACKAGE_SENT` only on first send | Application record - Acceptance | Yes | No |
+| Invoice Offer Verification Code | Issuer requests a code to accept an invoice offer | Selected signatory | No | `offer_accept_otp_challenges` | No current Admin UI | Yes | No |
+| Director/Shareholder Verification | Person must verify | The person | No | Onboarding / provider state | Issuer record - People or Investor record - People | Yes | No |
+| Trustee Instruction | Trustee letter send | Configured trustee recipients | Trustee recipient config, not notification prefs | Note events `*_TRUSTEE_EMAIL_SENT` | Note record - Activity | Yes | No |
+
+Count: **6**.
+
+---
+
+## Notification gaps
+
+Live actions with no typed inbox/email to the customer. Do not assume every action needs a message.
+
+| Action | Current Notification | Potential Recipient | Recommendation |
+| --- | --- | --- | --- |
+| Onboarding started / fee paid | None (Activity only) | Onboarding user | No notification needed |
+| Generic additional onboarding information required | Activity only (director/shareholder type is separate) | Onboarding user | Consider notification |
+| Admin restart onboarding | Activity only | Onboarding user | No notification needed |
+| Facility enabled | Log only | Issuer owner / admins | Consider notification |
+| Facility fee waived | Logs only | Issuer | Business decision required |
+| Invoice withdrawn (not offer decline) | Activity only | Issuer | Consider notification |
+| Campaign paused / resumed / unpublished | Activity only | Issuer | Business decision required |
+| Signing package sent to organisation members who are not the signer | Signer gets SES; org inbox silent | Organisation members | Business decision required |
+| Signing completed / declined / expired / voided | Activity only | Organisation / signer | Recommended for completed / declined / expired (signers already get SES) |
+| Repayment approved | Activity only | Issuer | No notification needed (investor gets Repayment Received) |
+| Settlement approved (before post) | Activity only | Issuer / investor | No notification needed (investors get Settlement Posted) |
+| Prospectus / paymaster / tawarruq | Note Activity only | n/a | No notification needed |
+| Product created | Product log; no auto `new_product_alert` | Investors | Business decision required |
+| Organisation member invited (existing members) | SES to invitee only | Existing members | No notification needed |
+| Signing reminder | SES to signer | Signer | No notification needed |
+
+---
+
+## Notification Admin UI notes
+
+Settings page columns today: **Name** (`type.name`), description, **Platform**, **Email**, optional **Always on for security**. There is no explicit “mandatory channel” field except AUTHENTICATION.
+
+Audit → Notifications columns: Timestamp, Event (seed name), Actor/Source, Audience, Platform Delivered, Email Delivered.
+
+Remaining naming splits (documented, not silently renamed in the database):
+
+| System Type | Admin Display Name | Inbox / email title |
 | --- | --- | --- |
-| In-app (platform) | `notifications` | Issuer / Investor bell + `/notifications` |
-| Email | SES via `lib/email/ses-client.ts`; `email_sent_at` on inbox row when sent | User mailbox |
-| Delivery audit | `notification_logs` (`source=SYSTEM` or `ADMIN`) | Admin Audit → Notifications |
-| User channel prefs | `user_notification_preferences` | Settings in portals (except non-configurable types) |
+| `contract_offer_sent` | Facility Offer Sent | Facility Offer Received |
+| `invoice_offer_sent` | Invoice Offer Sent | Invoice Offer Received |
+| `offer_retracted_or_reset` | Offer Retracted or Reset | Offer Updated |
+| `onboarding_rejected` | Onboarding Rejected | Onboarding Application Rejected |
+| `note_funding_failed_*` | Funding Unsuccessful | Note funding did not complete / Commitment released |
+| `withdrawal_completed` | Disbursement completed | Your Disbursement Is Complete |
+| `new_product_alert` | New Product Alert | New Investment Opportunity (or Admin override) |
 
-**Recipient helpers:**
-
-- Application issuer types: organisation **owner** plus members with `OWNER` or `ORGANIZATION_ADMIN` (`getIssuerRecipientUserIdsForApplication`).
-- Note lifecycle: typically **all org members** of issuer and/or investing orgs (`note-lifecycle-notifications.ts`).
-- Deposits: all members of the investor organisation.
-- Investment committed / investor cash withdrawal: the **acting user**.
-- Password changed: the user who changed the password.
-
-**Password Changed** is always both channels and not user-configurable.
-
-Inbox-only **defaults** (`enabled_email: false` in seed): `application_submitted_confirmation`, `note_payment_rejected`, `withdrawal_completed` (issuer disbursement), `deposit_name_check_rejected`, `deposit_refund_initiated`, `deposit_refunded`, `deposit_successful`, `investment_committed`, `investor_withdrawal_submitted`, `investor_withdrawal_completed`.
-
-Users can still turn email on later for configurable types.
-
-**Admin custom send** is live: Settings → Notifications → Custom & Groups → `POST /v1/notifications/admin/send` → `NotificationService.sendBulkNotification`. Type picker is limited to **MARKETING** or **ANNOUNCEMENT**, which maps to `new_product_alert` and `system_announcement`. Product create/update does **not** auto-send `new_product_alert`.
+Renaming seed `name` would not update existing production rows (`createTypeIfNotExist`). Inbox titles are customer-facing and were left unchanged.
 
 ---
 
-## A. Typed notifications (49)
-
-Seed: `apps/api/src/modules/notification/seed-data.ts`. Copy: `apps/api/src/modules/notification/registry.ts`.
-
-Reachability: **Automatic** = production sender on a live flow. **Admin custom** = only via Admin send UI.
-
-### Authentication
-
-| Name / id | Trigger | Recipient | Role | Channel | Title / content | Code | Stored | Reachable | Sent as designed | Duplicates | Same event → more than one |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Password Changed `password_changed` | In-app `changePassword` (not Cognito forgot-password) | Acting user | Issuer or Investor | Inbox + email (forced) | “Password Changed” + date | `auth/service.ts` | Inbox + SYSTEM log | Yes | Yes | Security log `PASSWORD_CHANGED` is a log, not a second notification | No |
-
-### Onboarding / KYC / KYB / AML
-
-| Name / id | Trigger | Recipient | Role | Channel | Title / content | Code | Stored | Reachable | Sent as designed | Duplicates | Same event → more than one |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Onboarding Completed `onboarding_completed` | Admin **final** approval | Onboarding user | Issuer or Investor | Inbox + email | “Onboarding Completed” + org name | `admin/service.ts` `completeFinalApproval` | Inbox + log | Yes | Yes. Seed id used to be `onboarding_approved`; live id is `onboarding_completed` | Activity has `FINAL_APPROVAL_COMPLETED` (customer title “Onboarding Approved”) | No |
-| Onboarding Rejected `onboarding_rejected` | Provider reject (individual and/or COD) | Onboarding user | Issuer or Investor | Inbox + email | “Onboarding Application Rejected” + optional reason | `regtank/webhooks/individual-onboarding-handler.ts`, `cod-handler.ts` | Inbox + log | Yes | Yes | Two log types (`ONBOARDING_REJECTED` / `COD_REJECTED`) can pair with one notif | Handler may send from more than one reject branch; idempotency keys apply |
-| Director/Shareholder Action Required `director_shareholder_action_required` | CTOS pull finds new director/shareholder needing action | Issuer **org owner** | Issuer | Inbox + email (not user-configurable) | “Action Required…” + person name | `notification/director-shareholder-notifications.ts` | Inbox + log | Yes | Yes | Verify-link SES is a **separate** email to the person | One notif per person/idempotency key |
-| Investor Director/Shareholder Action Required `investor_director_shareholder_action_required` | Same, investor org | Investor org owner | Investor | Inbox + email | Same title pattern | same module | Inbox + log | Yes | Yes | Same | Same |
-
-**Not typed (no inbox):** onboarding started, fee paid, amendment required (Activity only), Admin restart, SSM/AML/EOD milestones, membership add/remove.
-
-Director/shareholder **verify link** is listed under Other SES.
-
-### Admin announcements (not automatic)
-
-| Name / id | Trigger | Recipient | Role | Channel | Title / content | Code | Stored | Reachable | Sent as designed | Duplicates |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| System Announcement `system_announcement` | Admin custom send | Selected users / group | Issuer and/or Investor | Prefs (default both) | Admin-supplied title and body | `notification/service.ts` `sendBulkNotification` | Inbox + `source=ADMIN` log | Yes — Settings → Notifications → Custom & Groups | Yes if Admin fills title/message | None automatic |
-| New Product Alert `new_product_alert` | Admin custom send **only** | Selected users (investor-targeted type) | Investor | Prefs (default both) | Template: “New Investment Opportunity” + product name **or** Admin override if send uses custom title | `sendBulkNotification`; template in `registry.ts` | Inbox + ADMIN log | Yes as **manual** send. **Not** fired on product create | Template mentions product; Admin send may use custom copy | Product `PRODUCT_CREATED` log is unrelated |
-
-### Applications, offers, signing deadlines (issuer)
-
-| Name / id | Trigger | Recipient | Role | Channel | Title / content | Code | Stored | Reachable | Sent as designed | Duplicates | Same event → more than one |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Application Amendments Requested `application_amendments_requested` | Admin submits amendment pack | Issuer owner + org admins | Issuer | Inbox + email | “Amendment Requested” + APP ref | `admin/service.ts` | Inbox + log | Yes | Yes | Log `AMENDMENTS_SUBMITTED` | No |
-| Acceptance Documents Need Updates `acceptance_document_changes_requested` | First CHANGES_REQUESTED in an acceptance cycle | Issuer owner + org admins | Issuer | Inbox + email | Asks issuer to replace files on Review Offer | `admin/service.ts` | Inbox + log | Yes | Further requests in the **same cycle do not re-notify** (by design) | — | No |
-| Application Rejected `application_rejected` | Admin rejects application | Issuer owner + org admins | Issuer | Inbox + email | Application rejected + APP ref | `admin/service.ts` | Inbox + log | Yes | Yes | — | No |
-| Facility Offer Sent `contract_offer_sent` | Admin sends facility offer | Issuer owner + org admins | Issuer | Inbox + email | “Facility Offer Received” + amount + expiry | `admin/service.ts` | Inbox + log | Yes | Title says Received; seed name says Sent | — | No |
-| Invoice Offer Sent `invoice_offer_sent` | Admin sends invoice offer | Issuer owner + org admins | Issuer | Inbox + email | Invoice offer + RM amount + expiry | `admin/service.ts` | Inbox + log | Yes | Yes | OTP email is extra when they **accept** | No |
-| Offer Retracted or Reset `offer_retracted_or_reset` | Admin retracts offer **or** resets application to review | Issuer owner + org admins | Issuer | Inbox + email | “Offer Updated” — retracted or reset, no longer active | `admin/service.ts` (retract + reset paths) | Inbox + log | Yes | One type covers two Admin actions | Title does not say which action | No |
-| Offer Expired `offer_expired` | Hourly acceptance/signing expiry job | Issuer owner + org admins | Issuer | Inbox + email | Facility or invoice offer has expired | `lib/jobs/acceptance-signing-expiry.ts` | Inbox + log | Yes | Yes | Signing package expiry is a **log**, not this type | Job may also write offer expired **logs** |
-| Offer Expiry Reminder `offer_expiry_reminder_24h` | Same job, before deadline | Issuer owner + org admins | Issuer | Inbox + email | “Offer Expiring Soon” + days window | `acceptance-signing-expiry.ts` | Inbox + log | Yes | **Id is historical.** Window is product `days_before_expiry`, not always 24h | — | No |
-| Application Resubmitted Confirmation `application_resubmitted_confirmation` | Issuer resubmits | Issuer owner + org admins | Issuer | Inbox + email | Resubmitted + review cycle | `applications/service.ts` | Inbox + log | Yes | Yes | — | No |
-| Application Withdrawn Confirmation `application_withdrawn_confirmation` | Withdraw **or** facility/invoice offer declined | Issuer owner + org admins | Issuer | Inbox + email | Title switches: Withdrawn / Facility Offer Declined / Invoice Offer Declined | `applications/service.ts` | Inbox + log | Yes | Same type, different copy via `withdrawalReason` | Not a second type for decline | One send per action |
-| Application Completed `application_completed` | Application status completed (incl. after accept paths) | Issuer owner + org admins | Issuer | Inbox + email | Completed successfully | `applications/service.ts` | Inbox + log | Yes | Yes | — | No |
-| Application Submitted Confirmation `application_submitted_confirmation` | First submit | Issuer owner + org admins | Issuer | **Inbox only** (email off by default) | “Application Submitted” + under review | `applications/service.ts` | Inbox + log | Yes | Email off unless user enables | — | No |
-| Facility Signing Deadline Extended `contract_signing_deadline_extended` | Admin extends facility signing deadline | Issuer owner + org admins | Issuer | Inbox + email | Deadline extended + date | `admin/service.ts` | Inbox + log | Yes | Yes | — | No |
-| Invoice Signing Deadline Extended `invoice_signing_deadline_extended` | Admin extends invoice signing deadline | Issuer owner + org admins | Issuer | Inbox + email | Invoice deadline extended | `admin/service.ts` | Inbox + log | Yes | Yes | — | No |
-| Facility Disabled `facility_disabled` | Admin disables facility | Issuer owner + org admins | Issuer | Inbox + email | Disabled; new drawdowns unavailable | `admin/service.ts` | Inbox + log | Yes | Yes | **No** matching enable notification | No |
-| Upfront facility fee payment required `facility_fee_payment_requested` | Issuer accepts facility offer that requires gateway fee | Issuer owner + org admins | Issuer | Inbox + email | RM due; pay before invoice financing | `applications/service.ts` via `facility-fee-notifications.ts` | Inbox + log | Yes | Yes | — | No |
-| Upfront facility fee paid `facility_fee_upfront_paid` | Fee captured in full | Issuer org members (typed helper) | Issuer | Inbox + email | Fee received; facility usable | `facility-fee-notifications.ts` | Inbox + log | Yes | Yes | Log `FACILITY_FEE_PAID` | No |
-
-**Signing package sent/completed/declined/expired/voided** have **no** typed types. Signers get SES (section B). Org inbox is not notified of signing status.
-
-### Notes — publish, funding, servicing, default
-
-Senders: `notification/note-lifecycle-notifications.ts` unless noted.
-
-| Name / id | Trigger | Recipient | Role | Channel | Title / content | Code | Stored | Reachable | Sent as designed | Duplicates | Same event → more than one |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Note published `note_published` | Publish | All issuer org members | Issuer | Inbox + email | Note published to marketplace | `notifyNotePublished` | Inbox + log | Yes | Yes | Log `PUBLISH` | No |
-| Note funding succeeded `note_funding_succeeded` | Funding close success | Issuer org members | Issuer | Inbox + email | Minimum reached; commitments locked | `notifyNoteFundingSucceeded` | Inbox + log | Yes | Yes | Log `CLOSE_FUNDING` | No |
-| Funding Unsuccessful `note_funding_failed_issuer` | Funding fail | Issuer org members | Issuer | Inbox + email | Did not reach minimum | `notifyNoteFundingFailed` | Inbox + log | Yes | Yes | — | **Yes** — also investor type |
-| Funding Unsuccessful `note_funding_failed_investor` | Same fail | Members of orgs that had commitments | Investor | Inbox + email | “Commitment released” | same | Inbox + log | Yes | Yes | — | Pair with issuer type |
-| Note active `note_active_issuer` | Note activated | Issuer org members | Issuer | Inbox + email | Note active; disbursement/servicing | lifecycle notify activate | Inbox + log | Yes | Yes | — | **Yes** — investor type |
-| Note active `note_active_investor` | Same | Investors on the note | Investor | Inbox + email | “Investment is active” | same | Inbox + log | Yes | Yes | — | Pair |
-| Note repaid `note_repaid_issuer` | Fully repaid / settled | Issuer org members | Issuer | Inbox + email | Fully repaid and settled | lifecycle | Inbox + log | Yes | Yes | Investor gets `note_settlement_posted` instead of a “repaid” type | Different types per role |
-| Repayment Received `note_payment_received` | Repayment recorded (received path) | Investors on the note | Investor | Inbox + email | Repayment recorded | lifecycle | Inbox + log | Yes | Issuer **Activity** may show submitted/received; this type is investor-only | Admin “Repayment received” log is not this inbox | No issuer payment-received type |
-| Note settlement posted `note_settlement_posted` | Settlement posted | Investors on the note | Investor | Inbox + email | Settlement posted | lifecycle | Inbox + log | Yes | Yes | May coincide with excess late-charge types | Excess late charges are extra types |
-| Note in arrears `note_arrears` | Servicing → arrears | Issuer org members | Issuer | Inbox + email | Moved into arrears | lifecycle | Inbox + log | Yes | Yes | — | **Yes** — investor type |
-| Note in arrears `note_arrears_investor` | Same | Investors | Investor | Inbox + email | In arrears | lifecycle | Inbox + log | Yes | Yes | — | Pair |
-| Note defaulted (issuer) `note_defaulted` | Marked default | Issuer org members | Issuer | Inbox + email | “Your Note Is in Default” | lifecycle | Inbox + log | Yes | Yes | — | **Yes** — investor type |
-| Note defaulted `note_defaulted_investor` | Same | Investors | Investor | Inbox + email | “Your Investment Is in Default” | lifecycle | Inbox + log | Yes | Yes | — | Pair |
-| Repayment rejected `note_payment_rejected` | Admin rejects issuer repayment | Issuer org members | Issuer | **Inbox only** default | Repayment rejected; review details | lifecycle | Inbox + log | Yes | Email off by default | Log `PAYMENT_REJECTED` | No |
-| Outstanding late charges `excess_late_charges_due` | Settlement posted with leftover late charges | Issuer org members | Issuer | Inbox + email | RM outstanding on note | `excess-late-charge-notifications.ts` | Inbox + log | Yes | Yes | — | May send with settlement posted |
-| Late payment charges received `excess_late_charges_paid` | Excess late charges paid in full | Issuer org members | Issuer | Inbox + email | Charges received | same | Inbox + log | Yes | Yes | — | No |
-
-**No typed types:** pause/resume/unpublish, prospectus, paymaster, tawarruq, occupancy, facility fee **waive**, payment **approved**, settlement **approved**.
-
-### Withdrawals and disbursement
-
-| Name / id | Trigger | Recipient | Role | Channel | Title / content | Code | Stored | Reachable | Sent as designed | Duplicates | Same event → more than one |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Withdrawal submitted to trustee `withdrawal_submitted_to_trustee` | Trustee instruction submitted | Issuer and/or investor org members depending on withdrawal type | Issuer and/or Investor (`portalType` in payload) | Inbox + email | Instruction + display ref + withdrawal type | `notification/withdrawal-notifications.ts` | Inbox + log | Yes | Title is generic; residual vs disbursement is in `withdrawalType` | Trustee **SES+PDF** is a different email to the trustee | Can notify both portals for some types |
-| Disbursement completed `withdrawal_completed` | Issuer financing disbursement completed | Issuer org members | Issuer | **Inbox only** default | “Your Disbursement Is Complete” | note-lifecycle | Inbox + log | Yes | **Not** investor cash withdrawal (that is `investor_withdrawal_completed`) | Residual completion is Activity-relabelled, not this type unless the same helper runs | Confirm residual uses Activity not this type |
-| Withdrawal submitted `investor_withdrawal_submitted` | Investor cash withdrawal requested | Acting investor user | Investor | **Inbox only** default | Request submitted | `investor-withdrawal-notifications.ts` | Inbox + log | Yes | Email off | — | No |
-| Withdrawal completed `investor_withdrawal_completed` | Investor cash withdrawal completed | Acting investor user | Investor | **Inbox only** default | Withdrawal completed + RM | same | Inbox + log | Yes | Email off | Distinct from issuer `withdrawal_completed` | No |
-
-### Investor wallet / gateway
-
-| Name / id | Trigger | Recipient | Role | Channel | Title / content | Code | Stored | Reachable | Sent as designed | Duplicates |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Deposit verification failed `deposit_name_check_rejected` | Name check rejected | Investor org members | Investor | Inbox only default | Could not verify; will be returned | `gateway-payment-notifications.ts` | Inbox + log | Yes | Email off | Gateway event `NAME_CHECK_REJECTED` | No |
-| Deposit refund started `deposit_refund_initiated` | Refund initiated | Investor org members | Investor | Inbox only default | Refund started + RM | same | Inbox + log | Yes | Email off | `REFUND_INITIATED` | No |
-| Deposit refund completed `deposit_refunded` | Refund completed | Investor org members | Investor | Inbox only default | Refund completed + RM | same | Inbox + log | Yes | Email off | `REFUNDED` | No |
-| Deposit successful `deposit_successful` | Deposit credited | Investor org members | Investor | Inbox only default | Credited to wallet + RM | same | Inbox + log | Yes | Email off | Gateway completed + wallet journal | No |
-| Investment committed `investment_committed` | Investor commits to a note | Acting investor | Investor | Inbox only default | RM + note title | `investment-notifications.ts` | Inbox + log | Yes | Email off | Log `INVESTMENT_COMMITTED` | No |
-
----
-
-## B. Other live emails (not the 49 types)
-
-These are reachable SES messages **without** an inbox `NotificationType`.
-
-| Name | Trigger | Recipient | Role | Channel | Subject | Main content | Code | Stored | Reachable | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Organisation member invite / resend | Org admin invites or resends | Invitee email | Future issuer or investor member | Email only | `You've been invited to join {org} on CashSouk` | Role + accept link | `organization/service.ts` + `organizationInvitationTemplate` | Invite row; `MEMBER_INVITED` log; **no** inbox type | Yes | Resend uses the same template |
-| Admin invite / resend | Admin invites or resends | Invitee email | Future Admin | Email only | `You've been invited to join CashSouk as {role}` | Role + 24h link | `admin/service.ts` + `adminInvitationTemplate` | Invite row; revoke is `INVITATION_REVOKED` | Yes | Accept is Cognito/admin signup |
-| Signing package / reminder | Send package or `remindRecipient` | Named signer email | External signer / authorised rep (may not be a portal user) | Email only | `Signature requested: {title}` or `Reminder: {title}` | Unique signing URL; IC check | `signing/service.ts` `sendSigningEmail` | Envelope/recipient; `SIGNING_PACKAGE_SENT` only on first send | Yes | Reminder does not write Activity. Skipped if `ISSUER_URL` missing |
-| Invoice offer-accept OTP | Issuer requests OTP to accept invoice offer | Signatory email | Issuer signatory | Email only | `Verification code to accept invoice offer {invoice ref}` | Code, invoice, facility, amount, TTL | `applications/offer-accept-otp.ts` | `offer_accept_otp_challenges` | Yes | Not an inbox notification; cooldown/resend limits |
-| Director/shareholder verify link | CTOS path needs the person to verify | Person’s email | Director/shareholder (may be new) | Email only | `Complete your verification` | 24h verify URL | `lib/email/ses.ts` `sendOnboardingEmail` from `organization/service.ts` | Onboarding/provider state | Yes | Separate from owner’s `director_shareholder_action_required` inbox |
-| Trustee instruction + PDF | Auto-send trustee letter | Configured trustee recipients | Trustee (external) | Email + PDF attachment | `Trustee instruction — {purpose} — {reference}` | Attached signed instruction | `notes/trustee-letters/trustee-instruction-email.ts` | Note events `*_TRUSTEE_EMAIL_SENT`; S3 letter | Yes if trustee recipients configured | Kinds: issuer disbursement, investor withdrawal, residual return, admin adjustment, settlement |
-
-Typed notification emails use the same SES client with titles/bodies from `NOTIFICATION_TEMPLATES` (HTML wrappers in notification email templates). Those are **not** extra types.
-
----
-
-## C. What is not a platform notification
-
-| Item | Why excluded |
-| --- | --- |
-| Cognito forgot-password / hosted UI mail | AWS Cognito, not `NotificationService` or app SES templates |
-| Admin 2FA reset | Cognito console |
-| Ops Alerts | Removed |
-| Dev RegTank webhook emails | None; dev handler is logs only |
-| Product create auto-alert | Type exists; **no** product-create caller |
-
----
-
-## Active actions with no notification
-
-Customer or issuer/investor can complete these live actions and get **no** typed inbox/email (Activity or SES-to-someone-else may still exist):
-
-| Action | What they get instead |
-| --- | --- |
-| Onboarding started / fee paid | Activity only |
-| Onboarding amendment required (generic COD) | Activity `ONBOARDING_AMENDMENT_REQUIRED`; DS action is a different type |
-| Admin restart onboarding | Activity “Onboarding Restarted”; no inbox |
-| Facility **enabled** | Log `CONTRACT_FACILITY_ENABLED` only |
-| Facility fee waived (contract or note) | Logs only |
-| Invoice withdrawn | Activity only |
-| Pause / resume listing | Issuer Activity only |
-| Unpublish | Admin/issuer Activity only |
-| Signing sent (org members who are not the signer) | Signers get SES; org inbox silent |
-| Signing completed / declined / expired / voided | Activity (voided = Admin only) |
-| Repayment **approved** | Activity `PAYMENT_APPROVED` |
-| Settlement **approved** (before post) | Activity `SETTLEMENT_APPROVED` |
-| Prospectus review / paymaster / tawarruq | Admin Note Activity only |
-| Product created | Product log; investors not auto-notified |
-| Org member invited | SES invite; no inbox type for existing members |
-| Signing reminder | SES to signer only |
-
-Whether each “should” notify is a product decision. They are listed because the live action exists and no typed (or, for signing status, no org) notification fires.
-
----
-
-## Duplicate / overlapping notifications
-
-| Pattern | What happens |
-| --- | --- |
-| Funding fail | **Two** types: issuer + investor |
-| Note activate | **Two** types: issuer + investor |
-| Arrears | **Two** types |
-| Default | **Two** types |
-| Offer declined | Log `CONTRACT_OFFER_DECLINED` / `INVOICE_OFFER_REJECTED` + notif type `application_withdrawn_confirmation` |
-| Offer retract **and** reset-to-review | Same notif type `offer_retracted_or_reset` |
-| Settlement posted + leftover late charges | `note_settlement_posted` (investors) **and** `excess_late_charges_due` (issuer) |
-| Director/shareholder | Owner inbox type **and** SES verify link to the person |
-| Trustee flow | User typed `withdrawal_submitted_to_trustee` **and** SES+PDF to trustee |
-| Invoice accept | Offer-sent inbox earlier; OTP email at accept |
-| Admin custom send | Can use `system_announcement` / `new_product_alert` in addition to any automatic types |
-
-These are overlapping **by design**, not dead duplicates.
-
-## Count snapshot (this inventory)
+## Count snapshot
 
 | Bucket | Count |
 | --- | --- |
-| Seeded typed types | **49** (`seed-data.ts`) |
-| Automatic typed senders | **47** |
-| Admin-custom-only typed types | **2** (`system_announcement`, `new_product_alert`) |
-| Other live SES (not typed) | **6** |
-| Total distinct live message kinds | **55** |
-| Same-event dual types (issuer+investor pairs) | **4** funding fail, activate, arrears, default |
-| Active actions with no typed/org notification | **16** listed in the gap table |
-
-Inbox delivery was **code-traced**, not live-sent in this review (no Playwright mail/inbox pass).
+| Active typed notification types | **49** |
+| Automatic | **47** |
+| Admin / manual only | **2** (`system_announcement`, `new_product_alert`) |
+| Direct / transactional emails | **6** |
+| Types supporting in-app | **49** |
+| Types supporting email | **49** (email may be off in seed or disabled later) |
+| Shown on Settings Configuration | SYSTEM + AUTHENTICATION (not MARKETING / ANNOUNCEMENT) |
+| User-configurable in portal UI | **1** (`new_product_alert`) |
+| Mandatory / non-configurable | **5** seed `user_configurable: false` (password + 2 onboarding + 2 director/shareholder). Password is the only always-on channel pair |
+| Seed email off (Admin can still enable) | **10** |
