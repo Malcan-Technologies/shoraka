@@ -70,8 +70,6 @@ export const FINANCIAL_PLACEHOLDERS = {
 export const SELECT_PLACEHOLDERS = {
   companySize: "Select company size",
   deedOfAssignment: "Select Yes or No",
-  paymasterRating: "Select paymaster grading",
-  confidenceGrading: "Select confidence grading",
   creditScore: "Select credit score",
   paymentBehaviour: "Select payment behaviour",
   creditUtilisation: "Select credit utilisation",

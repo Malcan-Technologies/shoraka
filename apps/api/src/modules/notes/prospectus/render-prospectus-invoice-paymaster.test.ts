@@ -121,23 +121,21 @@ describe("prospectus Page 2 Invoice & Paymaster Information (DATA STAGE 2)", () 
     expect(data.paymasterNature).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("keeps DOA, Paymaster Rating, and Confidence Grading as DNA without officer content", () => {
+  it("keeps DOA as DNA without officer content and omits obsolete grading fields", () => {
     const data = buildProspectusInvoicePaymaster(SAMPLE_PROSPECTUS_INVOICE_PAYMASTER_INPUT);
     expect(data.deedOfAssignment).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.paymasterRating).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.confidenceGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data).not.toHaveProperty("paymasterRating");
+    expect(data).not.toHaveProperty("confidenceGrading");
   });
 
-  it("uses officer-selected DOA, Paymaster Rating, and Confidence Grading", () => {
+  it("uses officer-selected Deed of Assignment only", () => {
     const data = buildProspectusInvoicePaymaster({
       ...SAMPLE_PROSPECTUS_INVOICE_PAYMASTER_INPUT,
       officerDeedOfAssignment: "Yes",
-      officerPaymasterRating: "PM2",
-      officerConfidenceGrading: "Medium",
     });
     expect(data.deedOfAssignment).toBe("Yes");
-    expect(data.paymasterRating).toBe("PM2");
-    expect(data.confidenceGrading).toBe("Medium");
+    expect(data).not.toHaveProperty("paymasterRating");
+    expect(data).not.toHaveProperty("confidenceGrading");
   });
 
   it("does not infer DOA Yes from uploaded supporting documents", () => {
@@ -168,24 +166,14 @@ describe("prospectus Page 2 Invoice & Paymaster Information (DATA STAGE 2)", () 
     expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.deedOfAssignment.canonicalSource).toBe(
       "prospectus_review.page2.invoicePaymaster.deedOfAssignment"
     );
-    expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.paymasterRating.canonicalSource).toBe(
-      "prospectus_review.page2.invoicePaymaster.paymasterRating"
-    );
-    expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.confidenceGrading.canonicalSource).toBe(
-      "prospectus_review.page2.invoicePaymaster.confidenceGrading"
-    );
+    expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES).not.toHaveProperty("paymasterRating");
+    expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES).not.toHaveProperty("confidenceGrading");
     expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.deedOfAssignment.availability).toBe(
-      "stored"
-    );
-    expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.paymasterRating.availability).toBe(
-      "stored"
-    );
-    expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.confidenceGrading.availability).toBe(
       "stored"
     );
   });
 
-  it("HTML shows exactly seven labels plus heading and hides audit/extra money fields", () => {
+  it("HTML shows exactly five labels plus heading and hides audit/extra money fields", () => {
     const data = buildProspectusInvoicePaymaster(SAMPLE_PROSPECTUS_INVOICE_PAYMASTER_INPUT);
     const html = buildProspectusInvoicePaymasterDocument(data);
 
@@ -234,8 +222,8 @@ describe("prospectus Page 2 Invoice & Paymaster Information (DATA STAGE 2)", () 
     expect(data.audit.deedOfAssignment.isOfficerContent).toBe(true);
     expect(data.audit.deedOfAssignment.requiredForApproval).toBe(true);
     expect(data.audit.deedOfAssignment.inferenceAllowed).toBe(false);
-    expect(data.audit.paymasterRating.isOfficerContent).toBe(true);
-    expect(data.audit.confidenceGrading.isOfficerContent).toBe(true);
+    expect(data.audit).not.toHaveProperty("paymasterRating");
+    expect(data.audit).not.toHaveProperty("confidenceGrading");
     expect(data.audit.snapshot.liveFallbackAllowed).toBe(false);
   });
 });

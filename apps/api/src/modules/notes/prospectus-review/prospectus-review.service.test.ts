@@ -144,8 +144,6 @@ describe("prospectus review content", () => {
     const draft = completeSelectableDraft();
     draft.page2.invoicePaymaster = {
       deedOfAssignment: null,
-      paymasterRating: null,
-      confidenceGrading: null,
     };
     const errors = validateApprovalContent(draft);
     expect(

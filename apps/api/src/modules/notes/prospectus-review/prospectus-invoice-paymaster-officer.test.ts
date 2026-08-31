@@ -1,13 +1,9 @@
 /**
- * SECTION: Officer DOA / Paymaster Rating / Confidence Grading in Prospectus review
+ * SECTION: Officer Deed of Assignment in Prospectus review
  * WHY: Mandatory for Approve; optional while Draft; not inferred from system data
  */
 
-import {
-  PROSPECTUS_CONFIDENCE_GRADING_VALUES,
-  PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES,
-  PROSPECTUS_PAYMASTER_RATING_VALUES,
-} from "@cashsouk/types";
+import { PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES } from "@cashsouk/types";
 import { buildProspectusInvoicePaymaster } from "../prospectus/prospectus-invoice-paymaster";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "../prospectus/prospectus-invoice-paymaster.types";
 import { buildProspectusPageThree } from "../prospectus/prospectus-page-three-mapper";
@@ -26,41 +22,63 @@ import {
 } from "./prospectus-review.schemas";
 
 describe("prospectus officer Invoice & Paymaster fields", () => {
-  it("accepts all allowed dropdown values and empty in draft schema", () => {
+  it("review Zod schema invoicePaymaster only contains deedOfAssignment", () => {
+    const schema = saveProspectusReviewDraftSchema.shape.draftContent.shape.page2.shape
+      .invoicePaymaster;
+    const keys = Object.keys(schema.unwrap().shape);
+    expect(keys).toEqual(["deedOfAssignment"]);
+    expect(keys).not.toContain("paymasterRating");
+    expect(keys).not.toContain("confidenceGrading");
+  });
+
+  it("accepts all allowed DOA values and empty in draft schema", () => {
     for (const deedOfAssignment of PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES) {
-      for (const paymasterRating of PROSPECTUS_PAYMASTER_RATING_VALUES) {
-        for (const confidenceGrading of PROSPECTUS_CONFIDENCE_GRADING_VALUES) {
-          const draft = buildCompleteProspectusReviewDraft();
-          draft.page2.invoicePaymaster = {
-            deedOfAssignment,
-            paymasterRating,
-            confidenceGrading,
-          };
-          expect(validateDraftContent(draft)).toEqual([]);
-          expect(
-            saveProspectusReviewDraftSchema.shape.draftContent.parse(draft).page2
-              .invoicePaymaster
-          ).toEqual({ deedOfAssignment, paymasterRating, confidenceGrading });
-        }
-      }
+      const draft = buildCompleteProspectusReviewDraft();
+      draft.page2.invoicePaymaster = { deedOfAssignment };
+      expect(validateDraftContent(draft)).toEqual([]);
+      expect(
+        saveProspectusReviewDraftSchema.shape.draftContent.parse(draft).page2.invoicePaymaster
+      ).toEqual({ deedOfAssignment });
     }
 
     const empty = emptyProspectusReviewContent();
-    empty.page2.invoicePaymaster = {
-      deedOfAssignment: null,
-      paymasterRating: null,
-      confidenceGrading: null,
-    };
+    empty.page2.invoicePaymaster = { deedOfAssignment: null };
     expect(validateDraftContent(empty)).toEqual([]);
+  });
+
+  it("strips obsolete paymasterRating and confidenceGrading from save payloads", () => {
+    const draft = buildCompleteProspectusReviewDraft();
+    const parsed = saveProspectusReviewDraftSchema.shape.draftContent.parse({
+      ...draft,
+      page2: {
+        ...draft.page2,
+        invoicePaymaster: {
+          deedOfAssignment: "Yes",
+          paymasterRating: "PM1",
+          confidenceGrading: "High",
+        },
+      },
+    });
+    expect(parsed.page2.invoicePaymaster).toEqual({ deedOfAssignment: "Yes" });
+    expect(parsed.page2.invoicePaymaster).not.toHaveProperty("paymasterRating");
+    expect(parsed.page2.invoicePaymaster).not.toHaveProperty("confidenceGrading");
+  });
+
+  it("does not emit paymasterRating or confidenceGrading on empty review JSON or publication", () => {
+    const empty = emptyProspectusReviewContent();
+    expect(empty.page2.invoicePaymaster).toEqual({ deedOfAssignment: null });
+    expect(empty.page2.invoicePaymaster).not.toHaveProperty("paymasterRating");
+    expect(empty.page2.invoicePaymaster).not.toHaveProperty("confidenceGrading");
+
+    const publication = toProspectusPublicationContent(buildCompleteProspectusReviewDraft());
+    expect(publication.invoicePaymaster).toEqual({ deedOfAssignment: "Yes" });
+    expect(publication.invoicePaymaster).not.toHaveProperty("paymasterRating");
+    expect(publication.invoicePaymaster).not.toHaveProperty("confidenceGrading");
   });
 
   it("allows draft save without officer fields but blocks approval only for missing DOA", () => {
     const draft = buildCompleteProspectusReviewDraft();
-    draft.page2.invoicePaymaster = {
-      deedOfAssignment: null,
-      paymasterRating: null,
-      confidenceGrading: null,
-    };
+    draft.page2.invoicePaymaster = { deedOfAssignment: null };
     expect(validateDraftContent(draft)).toEqual([]);
     const approvalErrors = validateApprovalContent(draft);
     expect(
@@ -79,39 +97,27 @@ describe("prospectus officer Invoice & Paymaster fields", () => {
     ).toBe(false);
   });
 
-  it("approves when Deed of Assignment is selected even without grading fields", () => {
+  it("approves when Deed of Assignment is selected", () => {
     const draft = buildCompleteProspectusReviewDraft();
-    draft.page2.invoicePaymaster = {
-      deedOfAssignment: "Yes",
-    };
+    draft.page2.invoicePaymaster = { deedOfAssignment: "Yes" };
     expect(validateApprovalContent(draft)).toEqual([]);
   });
 
-  it("resolves officer fields into publication content and builder", () => {
+  it("resolves DOA into publication content and builder", () => {
     const draft = emptyProspectusReviewContent();
-    draft.page2.invoicePaymaster = {
-      deedOfAssignment: "No",
-      paymasterRating: "PM3",
-      confidenceGrading: "Low",
-    };
+    draft.page2.invoicePaymaster = { deedOfAssignment: "No" };
     const publication = toProspectusPublicationContent(draft);
-    expect(publication.invoicePaymaster).toEqual({
-      deedOfAssignment: "No",
-      paymasterRating: "PM3",
-      confidenceGrading: "Low",
-    });
+    expect(publication.invoicePaymaster).toEqual({ deedOfAssignment: "No" });
 
     const section = buildProspectusInvoicePaymaster({
       invoiceSnapshot: { details: { value: 100 } },
       maturityDate: "2025-09-12T00:00:00.000Z",
       paymasterSnapshot: { name: "KKR", entity_type: "Government" },
       officerDeedOfAssignment: publication.invoicePaymaster?.deedOfAssignment,
-      officerPaymasterRating: publication.invoicePaymaster?.paymasterRating,
-      officerConfidenceGrading: publication.invoicePaymaster?.confidenceGrading,
     });
     expect(section.deedOfAssignment).toBe("No");
-    expect(section.paymasterRating).toBe("PM3");
-    expect(section.confidenceGrading).toBe("Low");
+    expect(section).not.toHaveProperty("paymasterRating");
+    expect(section).not.toHaveProperty("confidenceGrading");
   });
 
   it("keeps old reviews without invoicePaymaster compatible for draft and DNA render", () => {
@@ -125,33 +131,21 @@ describe("prospectus officer Invoice & Paymaster fields", () => {
     expect(publication.invoicePaymaster?.deedOfAssignment ?? null).toBeNull();
     const section = buildProspectusInvoicePaymaster({
       officerDeedOfAssignment: publication.invoicePaymaster?.deedOfAssignment,
-      officerPaymasterRating: publication.invoicePaymaster?.paymasterRating,
-      officerConfidenceGrading: publication.invoicePaymaster?.confidenceGrading,
     });
     expect(section.deedOfAssignment).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(section.paymasterRating).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(section.confidenceGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
   it("changing officer Invoice & Paymaster fields changes draft fingerprint", () => {
     const approved = buildCompleteProspectusReviewDraft();
     const next = cloneReviewContent(approved);
-    next.page2.invoicePaymaster = {
-      deedOfAssignment: "No",
-      paymasterRating: "PM4",
-      confidenceGrading: "Low",
-    };
+    next.page2.invoicePaymaster = { deedOfAssignment: "No" };
     expect(hashDraftContent(approved)).not.toBe(hashDraftContent(next));
     expect(hashDraftContent(approved)).toBe(hashDraftContent(cloneReviewContent(approved)));
   });
 
   it("Page 3 metadata omits Paymaster/Confidence gradings while keeping Sector, Risk Rating, and Paymaster", () => {
     const draft = buildCompleteProspectusReviewDraft();
-    draft.page2.invoicePaymaster = {
-      deedOfAssignment: "Yes",
-      paymasterRating: "PM3",
-      confidenceGrading: "Low",
-    };
+    draft.page2.invoicePaymaster = { deedOfAssignment: "Yes" };
     const publication = toProspectusPublicationContent(draft);
     const page3 = buildProspectusPageThree({
       ...SAMPLE_PROSPECTUS_PAGE_THREE_INPUT,

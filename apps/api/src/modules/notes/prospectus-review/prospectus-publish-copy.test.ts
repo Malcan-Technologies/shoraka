@@ -33,8 +33,6 @@ describe("prospectus publish exact copy", () => {
           '<div class="meta-strip-item"><div class="meta-strip-label">Sector</div><div class="meta-strip-value">Construction</div></div>',
           '<div class="meta-strip-item"><div class="meta-strip-label">Risk Rating</div><div class="meta-strip-value">BBB</div></div>',
           '<div class="meta-strip-item"><div class="meta-strip-label">Paymaster</div><div class="meta-strip-value">KKR</div></div>',
-          '<div class="meta-strip-item"><div class="meta-strip-label">Paymaster Grading</div><div class="meta-strip-value">PM1</div></div>',
-          '<div class="meta-strip-item"><div class="meta-strip-label">Confidence Grading</div><div class="meta-strip-value">High</div></div>',
           "</div></section>",
           '<section data-content-stage="income-statement">',
           "<h2>3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)</h2>",
@@ -85,10 +83,11 @@ describe("prospectus publish exact copy", () => {
     expect(approved.html.page2).toContain("Successful Repayment: 98.5%");
     expect(approved.html.page2).toContain('data-grade="BBB" data-selected="true"');
     expect(approved.html.page2).toContain("RISK RATING SCALE");
-    expect(approved.html.page3).toContain("Paymaster Grading");
-    expect(approved.html.page3).toContain("PM1");
-    expect(approved.html.page3).toContain("Confidence Grading");
-    expect(approved.html.page3).toContain("High");
+    expect(approved.html.page3).toContain("Sector");
+    expect(approved.html.page3).toContain("Risk Rating");
+    expect(approved.html.page3).toContain("Paymaster");
+    expect(approved.html.page3).not.toContain("Paymaster Grading");
+    expect(approved.html.page3).not.toContain("Confidence Grading");
     expect(approved.html.page3).toContain("3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)");
     expect(approved.html.page3).toContain("3-YEAR BALANCE SHEET & LIQUIDITY (MYR mil.)");
     expect(approved.html.page3).toContain("<td>2.1</td>");
@@ -110,7 +109,7 @@ describe("prospectus publish exact copy", () => {
     expect(JSON.stringify(published.html)).not.toEqual(JSON.stringify(approved.html));
     expect(published.note_identity.invoice_snapshot.offer_details.risk_rating).toBe("A");
     expect(approved.html.page2).toContain('data-grade="BBB" data-selected="true"');
-    expect(approved.html.page3).toContain("PM1");
+    expect(approved.html.page3).toContain("KKR");
   });
 
   it("keeps investment publication id distinct from content_version alone", () => {

@@ -33,8 +33,6 @@ describe("toAdminInvoicePaymasterRows", () => {
         entity_type: "Federal Government Agency",
       },
       officerDeedOfAssignment: "Yes",
-      officerPaymasterRating: "PM1",
-      officerConfidenceGrading: "High",
     });
     expect(toAdminInvoicePaymasterRows(withOfficer).slice(4)).toEqual([
       { label: "Deed of Assignment (DOA)", value: "Yes" },

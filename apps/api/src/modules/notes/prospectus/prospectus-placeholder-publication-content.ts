@@ -108,10 +108,6 @@ export interface ProspectusIssuerProfilePublicationInputs {
 export interface ProspectusInvoicePaymasterPublicationInputs {
   /** Officer-selected DOA — Yes | No, or null when unset. */
   deedOfAssignment?: string | null;
-  /** Officer-selected Paymaster Rating — PM1–PM4, or null when unset. */
-  paymasterRating?: string | null;
-  /** Officer-selected Confidence Grading — High | Medium | Low, or null when unset. */
-  confidenceGrading?: string | null;
 }
 
 export interface ProspectusFinancialComparisonYearOverride {
@@ -208,8 +204,6 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
   },
   invoicePaymaster: {
     deedOfAssignment: "Yes",
-    paymasterRating: "PM1",
-    confidenceGrading: "High",
   },
   invoiceWorkStatements: [
     {

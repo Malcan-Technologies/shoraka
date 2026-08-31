@@ -51,12 +51,7 @@ import {
 } from "@/notes/prospectus-review/working-area-placeholders";
 
 const ISSUER_EDITABLE_LABEL = "Company Size";
-const INVOICE_FACTS_EXCLUDED_LABELS = new Set([
-  "Deed of Assignment (DOA)",
-  "Paymaster Rating",
-  "Paymaster Grading",
-  "Confidence Grading",
-]);
+const INVOICE_FACTS_EXCLUDED_LABELS = new Set(["Deed of Assignment (DOA)"]);
 
 const PAYMASTER_TRACK_FIELDS = [
   ["totalInvoicesPaid", "Total Invoices Paid", ""] as const,

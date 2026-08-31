@@ -85,10 +85,7 @@ export const prospectusReviewStoredContentSchema = z
         invoicePaymaster: z
           .object({
             deedOfAssignment: z.enum(["Yes", "No"]).nullable().optional(),
-            paymasterRating: z.enum(["PM1", "PM2", "PM3", "PM4"]).nullable().optional(),
-            confidenceGrading: z.enum(["High", "Medium", "Low"]).nullable().optional(),
           })
-          .strict()
           .optional(),
         paymasterTrackRecord: z
           .object({

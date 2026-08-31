@@ -497,8 +497,6 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
           ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
           invoicePaymaster: {
             deedOfAssignment: "Yes",
-            paymasterRating: "PM4",
-            confidenceGrading: "Medium",
           },
         },
       });

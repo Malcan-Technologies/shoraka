@@ -674,8 +674,8 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       expect(page.invoicePaymaster.invoiceAmount).toBe(formatProspectusMoneyMyr(625_000));
       expect(page.invoicePaymaster.deedOfAssignment).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(page.invoicePaymaster.paymasterRating).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(page.invoicePaymaster.confidenceGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(page.invoicePaymaster).not.toHaveProperty("paymasterRating");
+      expect(page.invoicePaymaster).not.toHaveProperty("confidenceGrading");
 
       const withOfficerInvoice = buildProspectusPageTwo({
         ...mapProspectusPageTwoDataToInput({
@@ -687,14 +687,12 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
           ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
           invoicePaymaster: {
             deedOfAssignment: "Yes",
-            paymasterRating: "PM1",
-            confidenceGrading: "High",
           },
         },
       });
       expect(withOfficerInvoice.invoicePaymaster.deedOfAssignment).toBe("Yes");
-      expect(withOfficerInvoice.invoicePaymaster.paymasterRating).toBe("PM1");
-      expect(withOfficerInvoice.invoicePaymaster.confidenceGrading).toBe("High");
+      expect(withOfficerInvoice.invoicePaymaster).not.toHaveProperty("paymasterRating");
+      expect(withOfficerInvoice.invoicePaymaster).not.toHaveProperty("confidenceGrading");
 
       const invoiceHtml = renderProspectusPageTwoHtml(withOfficerInvoice);
       expect(invoiceHtml).toContain("Nature of Paymaster");

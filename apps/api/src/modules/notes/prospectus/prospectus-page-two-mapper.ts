@@ -213,8 +213,6 @@ export function buildProspectusPageTwo(
       paymasterSnapshot: input.paymasterSnapshot,
       maturityDate: input.maturityDate,
       officerDeedOfAssignment: input.publicationContent?.invoicePaymaster?.deedOfAssignment,
-      officerPaymasterRating: input.publicationContent?.invoicePaymaster?.paymasterRating,
-      officerConfidenceGrading: input.publicationContent?.invoicePaymaster?.confidenceGrading,
     }),
     paymasterTrackRecord: buildProspectusPaymasterTrackRecord({
       officerInputs: input.publicationContent?.paymasterTrackRecord ?? null,

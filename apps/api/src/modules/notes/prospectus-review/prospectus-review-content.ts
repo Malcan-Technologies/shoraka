@@ -12,19 +12,15 @@ import {
   buildProspectusAboutInvoiceRecommendations,
   buildProspectusHighlightRecommendations,
   normalizeProspectusCompanySize,
-  normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
-  normalizeProspectusPaymasterRating,
   type ProspectusAboutInvoiceItem,
   type ProspectusAboutInvoiceItemId,
   type ProspectusAboutInvoiceRecommendationInput,
   type ProspectusAboutInvoiceSourceType,
   type ProspectusCompanySize,
-  type ProspectusConfidenceGrading,
   type ProspectusDeedOfAssignment,
   type ProspectusHighlightKey,
   type ProspectusHighlightRecommendationInput,
-  type ProspectusPaymasterRating,
 } from "@cashsouk/types";
 import {
   PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE,
@@ -105,8 +101,6 @@ export interface ProspectusReviewStoredContent {
     /** Officer-selected Invoice & Paymaster fields — required before Approve. */
     invoicePaymaster?: {
       deedOfAssignment?: ProspectusDeedOfAssignment | null;
-      paymasterRating?: ProspectusPaymasterRating | null;
-      confidenceGrading?: ProspectusConfidenceGrading | null;
     };
     paymasterTrackRecord?: ProspectusReviewPaymasterTrackRecord;
     /** Officer overrides for unsupported Page 2 financial comparison metrics. */
@@ -229,10 +223,18 @@ export function normalizeProspectusReviewSelections(
   recommendationInput: ProspectusHighlightRecommendationInput = {},
   aboutInvoiceInput: ProspectusAboutInvoiceRecommendationInput = {}
 ): ProspectusReviewStoredContent {
-  return normalizeAboutInvoiceSelections(
+  const normalized = normalizeAboutInvoiceSelections(
     normalizeHighlightSelections(content, recommendationInput),
     aboutInvoiceInput
   );
+  const deedOfAssignment = normalized.page2.invoicePaymaster?.deedOfAssignment ?? null;
+  return {
+    ...normalized,
+    page2: {
+      ...normalized.page2,
+      invoicePaymaster: { deedOfAssignment },
+    },
+  };
 }
 
 /**
@@ -325,8 +327,6 @@ export function emptyProspectusReviewContent(
       issuerProfile: { companySize: null },
       invoicePaymaster: {
         deedOfAssignment: null,
-        paymasterRating: null,
-        confidenceGrading: null,
       },
       paymasterTrackRecord: {},
       financialComparison: { overrides: {} },
@@ -456,12 +456,6 @@ export function toProspectusPublicationContent(
     invoicePaymaster: {
       deedOfAssignment: normalizeProspectusDeedOfAssignment(
         content.page2.invoicePaymaster?.deedOfAssignment
-      ),
-      paymasterRating: normalizeProspectusPaymasterRating(
-        content.page2.invoicePaymaster?.paymasterRating
-      ),
-      confidenceGrading: normalizeProspectusConfidenceGrading(
-        content.page2.invoicePaymaster?.confidenceGrading
       ),
     },
     paymasterTrackRecord: content.page2.paymasterTrackRecord,

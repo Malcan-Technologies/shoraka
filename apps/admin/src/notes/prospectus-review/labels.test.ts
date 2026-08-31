@@ -134,8 +134,6 @@ describe("prospectus review completion readiness", () => {
     draft.page2.issuerProfile = { companySize: "Medium" };
     draft.page2.invoicePaymaster = {
       deedOfAssignment: "Yes",
-      paymasterRating: "PM1",
-      confidenceGrading: "High",
     };
     draft.page2.creditInsights = {
       creditScoreOptionKey: "good",

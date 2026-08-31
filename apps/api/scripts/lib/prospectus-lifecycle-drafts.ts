@@ -211,8 +211,6 @@ export function buildLifecycleProspectusDraft(input: {
   draft.page2.issuerProfile = { companySize: "Medium" };
   draft.page2.invoicePaymaster = {
     deedOfAssignment: "Yes",
-    paymasterRating: "PM1",
-    confidenceGrading: "High",
   };
 
   if (input.mode === "partial") {

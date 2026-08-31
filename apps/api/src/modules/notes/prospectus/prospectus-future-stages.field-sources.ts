@@ -146,8 +146,6 @@
  *
  * Officer-selected (Prospectus review content; required before Approve):
  * - Deed of Assignment (DOA) → page2.invoicePaymaster.deedOfAssignment (Yes | No)
- * - Paymaster Rating → page2.invoicePaymaster.paymasterRating (PM1–PM4)
- * - Confidence Grading → page2.invoicePaymaster.confidenceGrading (High | Medium | Low)
  * Not inferred from uploads, CTOS, Contract, or Invoice.
  *
  * Snapshot rule: note_creation_snapshots for frozen facts; officer fields from publication content.
