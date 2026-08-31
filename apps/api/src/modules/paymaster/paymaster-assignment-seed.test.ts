@@ -5,7 +5,7 @@
 import { PrismaClient } from "@prisma/client";
 import { parseApprovedSnapshot } from "../notes/prospectus-review/prospectus-approved-snapshot";
 import { expectedProspectusPageCount } from "../notes/prospectus/prospectus-pdf";
-import { listIssuerPaymasters } from "./service";
+import { listIssuerPaymasters, lookupPaymasterByRegistration } from "./service";
 import {
   NOTE_A_ID,
   NOTE_B_ID,
@@ -42,6 +42,16 @@ describe("paymaster assignment scenario seed", () => {
     });
     expect(harbourRows).toHaveLength(1);
     expect(harbourRows[0]?.legal_name).toBe(PMAS_PAYMASTER_1_NAME);
+    expect(harbourRows[0]?.verification_status).toBe("VERIFIED");
+
+    const pacific = await prisma.paymaster.findUniqueOrThrow({
+      where: { registration_number: PMAS_PAYMASTER_2_SSM },
+    });
+    expect(pacific.verification_status).toBe("VERIFIED");
+    const delta = await prisma.paymaster.findUniqueOrThrow({
+      where: { registration_number: PMAS_PAYMASTER_3_SSM },
+    });
+    expect(delta.verification_status).toBe("UNVERIFIED");
 
     const sameNameDifferentSsm = await prisma.paymaster.count({
       where: { legal_name: PMAS_PAYMASTER_1_NAME },
@@ -80,11 +90,27 @@ describe("paymaster assignment scenario seed", () => {
     const issuerBOptions = await listIssuerPaymasters(PMAS_ORG_B_ID);
     const issuerCOptions = await listIssuerPaymasters(PMAS_ORG_C_ID);
     expect(issuerAOptions.some((row) => row.id === first.paymaster1Id)).toBe(true);
+    expect(issuerAOptions.some((row) => row.registrationNumber === PMAS_PAYMASTER_3_SSM)).toBe(
+      false
+    );
     expect(issuerBOptions.some((row) => row.id === first.paymaster1Id)).toBe(true);
     expect(issuerCOptions.some((row) => row.id === first.paymaster1Id)).toBe(false);
     expect(issuerCOptions.some((row) => row.registrationNumber === PMAS_PAYMASTER_2_SSM)).toBe(
       true
     );
+
+    const crossIssuerLookup = await lookupPaymasterByRegistration(PMAS_PAYMASTER_2_SSM);
+    expect(crossIssuerLookup.status).toBe("FOUND_VERIFIED");
+    expect(crossIssuerLookup.paymaster?.id).toBe(first.paymaster2Id);
+    expect(crossIssuerLookup.paymaster).toEqual({
+      id: first.paymaster2Id,
+      legalName: expect.any(String),
+      registrationNumber: PMAS_PAYMASTER_2_SSM,
+      registrationCountry: "MY",
+      entityType: expect.any(String),
+      verificationStatus: "VERIFIED",
+    });
+    expect(JSON.stringify(crossIssuerLookup)).not.toMatch(/Eastwind|ISS-PMAS-C|South Ridge/i);
 
     const marcA = await prisma.issuerOrganizationMarcAssessment.findFirstOrThrow({
       where: { issuer_organization_id: PMAS_ORG_A_ID },

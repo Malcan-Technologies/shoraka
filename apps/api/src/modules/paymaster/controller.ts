@@ -11,6 +11,7 @@ import {
   marcAssessmentSchema,
   marcUploadUrlSchema,
   paymasterIdParamSchema,
+  issuerPaymasterLookupQuerySchema,
   resolveMismatchSchema,
 } from "./schemas";
 import {
@@ -19,8 +20,10 @@ import {
   getCurrentMarcAssessment,
   listAdminPaymasters,
   listIssuerPaymasters,
+  lookupPaymasterByRegistration,
   requestIssuerMarcReportUploadUrl,
   resolvePaymasterMismatch,
+  verifyPaymaster,
 } from "./service";
 import {
   attachAssignmentNoticeFile,
@@ -52,6 +55,27 @@ function send(res: Response, data: unknown, status = 200) {
 export function createIssuerPaymasterRouter(): Router {
   const router = Router();
   router.use(requireAuth);
+
+  router.get("/lookup", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const query = issuerPaymasterLookupQuerySchema.parse(req.query);
+      const userId = getUserId(req);
+      const member = await organizationRepository.getOrganizationMember(
+        query.organizationId,
+        userId,
+        "issuer"
+      );
+      const organization = await organizationRepository.findIssuerOrganizationById(
+        query.organizationId
+      );
+      if (!member && organization?.owner_user_id !== userId) {
+        throw new AppError(403, "FORBIDDEN", "You do not have access to this organisation.");
+      }
+      send(res, await lookupPaymasterByRegistration(query.registrationNumber));
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get("/", async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -93,6 +117,7 @@ adminPaymasterRouter.get(
         await listAdminPaymasters({
           q: query.q,
           mismatchPending: query.mismatchPending === "true" ? true : undefined,
+          verificationStatus: query.verificationStatus,
           page: query.page,
           pageSize: query.pageSize,
         })
@@ -110,6 +135,25 @@ adminPaymasterRouter.get(
     try {
       const { id } = paymasterIdParamSchema.parse(req.params);
       send(res, await getAdminPaymasterDetail(id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminPaymasterRouter.post(
+  "/:id/verify",
+  requirePermission("paymasters.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = paymasterIdParamSchema.parse(req.params);
+      send(
+        res,
+        await verifyPaymaster({
+          paymasterId: id,
+          actorUserId: getUserId(req),
+        })
+      );
     } catch (error) {
       next(error);
     }

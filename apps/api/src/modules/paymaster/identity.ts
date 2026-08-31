@@ -41,14 +41,26 @@ export type PaymasterSubmittedIdentity = {
   entityType: string;
 };
 
+/** Registration-only parse. Country can be added later without changing name matching. */
+export function parseRegistrationLookup(value: unknown): string | null {
+  const registrationNumber = normalizeRegistrationNumber(value);
+  return isMalaysianSsmNumber(registrationNumber) ? registrationNumber : null;
+}
+
+export function parseRelatedPartyFlag(value: unknown): boolean | null {
+  if (value === true) return true;
+  if (value === false) return false;
+  return null;
+}
+
 export function parseSubmittedIdentity(input: {
   name?: unknown;
   ssm_number?: unknown;
   country?: unknown;
   entity_type?: unknown;
 }): PaymasterSubmittedIdentity | null {
-  const registrationNumber = normalizeRegistrationNumber(input.ssm_number);
-  if (!isMalaysianSsmNumber(registrationNumber)) return null;
+  const registrationNumber = parseRegistrationLookup(input.ssm_number);
+  if (!registrationNumber) return null;
   const legalName = normalizeLegalName(input.name);
   const entityType = normalizeEntityType(input.entity_type);
   if (!legalName || !entityType) return null;

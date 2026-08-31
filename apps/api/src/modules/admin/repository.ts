@@ -2877,7 +2877,34 @@ export class AdminRepository {
         },
         invoices: { orderBy: { created_at: "asc" } },
         contract: {
-          include: { invoices: { orderBy: { created_at: "asc" } } },
+          include: {
+            invoices: { orderBy: { created_at: "asc" } },
+            paymaster: {
+              select: {
+                id: true,
+                legal_name: true,
+                registration_number: true,
+                registration_country: true,
+                entity_type: true,
+                verification_status: true,
+                verified_at: true,
+                verified_by_user_id: true,
+                mismatch_pending: true,
+                mismatches: {
+                  where: { status: "PENDING" },
+                  select: {
+                    id: true,
+                    application_id: true,
+                    contract_id: true,
+                    status: true,
+                    submitted_legal_name: true,
+                    existing_legal_name: true,
+                  },
+                  take: 20,
+                },
+              },
+            },
+          },
         },
         application_reviews: true,
         application_review_items: true,

@@ -1,47 +1,32 @@
 import {
-  describePaymasterMismatch,
-  isMalaysianSsmNumber,
-  namesDiffer,
-  normalizeRegistrationNumber,
+  parseRegistrationLookup,
+  parseRelatedPartyFlag,
   parseSubmittedIdentity,
 } from "./identity";
 
-describe("paymaster identity", () => {
-  it("normalizes SSM to digits and accepts 12-digit Malaysian numbers", () => {
-    expect(normalizeRegistrationNumber("2022-01234567")).toBe("202201234567");
-    expect(isMalaysianSsmNumber("202201234567")).toBe(true);
-    expect(isMalaysianSsmNumber("123")).toBe(false);
+describe("Paymaster identity helpers", () => {
+  it("normalizes 12-digit Malaysian registration numbers only", () => {
+    expect(parseRegistrationLookup("2021-3456-7890")).toBe("202134567890");
+    expect(parseRegistrationLookup("123")).toBeNull();
+    expect(parseRegistrationLookup("ABC Trading")).toBeNull();
   });
 
-  it("does not treat name as identity", () => {
-    expect(namesDiffer("Petronas", "PETRONAS")).toBe(false);
-    expect(namesDiffer("Petronas", "Other Co")).toBe(true);
+  it("does not treat unanswered related-party as false", () => {
+    expect(parseRelatedPartyFlag(undefined)).toBeNull();
+    expect(parseRelatedPartyFlag("no")).toBeNull();
+    expect(parseRelatedPartyFlag(true)).toBe(true);
+    expect(parseRelatedPartyFlag(false)).toBe(false);
   });
 
-  it("parses submitted identity from customer details", () => {
+  it("parses submitted identity by registration, never by name", () => {
     const parsed = parseSubmittedIdentity({
-      name: "Acme Sdn Bhd",
-      ssm_number: "202201234567",
-      country: "MY",
-      entity_type: "Company",
+      name: " ABC Trading Sdn Bhd ",
+      ssm_number: "202134567890",
+      country: "my",
+      entity_type: "Private Limited Company (Sdn Bhd)",
     });
-    expect(parsed?.registrationNumber).toBe("202201234567");
-  });
-
-  it("flags descriptive mismatch without treating it as a new identity", () => {
-    const mismatch = describePaymasterMismatch(
-      {
-        legal_name: "Acme Sdn Bhd",
-        entity_type: "Company",
-        registration_country: "MY",
-      },
-      {
-        legalName: "Acme Trading",
-        registrationNumber: "202201234567",
-        registrationCountry: "SG",
-        entityType: "LLP",
-      }
-    );
-    expect(mismatch).toEqual({ name: true, entityType: true, country: true });
+    expect(parsed?.registrationNumber).toBe("202134567890");
+    expect(parsed?.legalName).toBe("ABC Trading Sdn Bhd");
+    expect(parseSubmittedIdentity({ name: "ABC Trading Sdn Bhd" })).toBeNull();
   });
 });

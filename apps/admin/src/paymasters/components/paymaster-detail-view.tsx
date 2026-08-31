@@ -26,6 +26,7 @@ import {
   assignmentNoticeStatusToken,
 } from "@/lib/admin-status-token";
 import { useAdminPaymasterDetail, useResolvePaymasterMismatch } from "@/paymasters/hooks/use-paymasters";
+import { PaymasterVerificationPanel } from "@/paymasters/components/paymaster-verification-panel";
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -205,9 +206,14 @@ export function PaymasterDetailView({ paymasterId }: { paymasterId: string }) {
       <AdminCollapsibleCard
         title="Verification"
         icon={IdentificationIcon}
-        description="External verification is not performed at Paymaster create."
+        description="Internal Paymaster identity review. This is not an external SSM or CTOS check."
       >
-        <p className="text-ui text-muted-foreground">No external verification performed.</p>
+        <PaymasterVerificationPanel
+          paymaster={data}
+          paymasterId={data.id}
+          canManage={canManage}
+          layout="detail"
+        />
       </AdminCollapsibleCard>
 
       <AdminCollapsibleCard

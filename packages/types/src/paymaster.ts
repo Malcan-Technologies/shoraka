@@ -12,13 +12,35 @@ export type PaymasterAssignmentNoticeStatus =
 export const PAYMASTER_MISMATCH_STATUSES = ["PENDING", "RESOLVED"] as const;
 export type PaymasterMismatchStatus = (typeof PAYMASTER_MISMATCH_STATUSES)[number];
 
-export interface PaymasterIdentity {
+export const PAYMASTER_VERIFICATION_STATUSES = ["UNVERIFIED", "VERIFIED"] as const;
+export type PaymasterVerificationStatus = (typeof PAYMASTER_VERIFICATION_STATUSES)[number];
+
+export const PAYMASTER_LOOKUP_STATUSES = [
+  "FOUND_VERIFIED",
+  "FOUND_UNVERIFIED",
+  "NOT_FOUND",
+] as const;
+export type PaymasterLookupStatus = (typeof PAYMASTER_LOOKUP_STATUSES)[number];
+
+export function isPaymasterVerified(
+  status: PaymasterVerificationStatus | string | null | undefined
+): boolean {
+  return status === "VERIFIED";
+}
+
+export interface PaymasterMasterIdentity {
   id: string;
   legalName: string;
   registrationNumber: string;
   registrationCountry: string;
   entityType: string;
+  verificationStatus: PaymasterVerificationStatus;
+}
+
+export interface PaymasterIdentity extends PaymasterMasterIdentity {
   mismatchPending: boolean;
+  verifiedAt: string | null;
+  verifiedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -87,6 +109,7 @@ export interface PaymasterNoticeHistoryRow {
 
 export interface PaymasterDetail extends PaymasterIdentity {
   source: string;
+  verifiedByName: string | null;
   issuers: PaymasterIssuerLinkRow[];
   financings: PaymasterFinancingRow[];
   mismatches: PaymasterMismatchRow[];
@@ -99,8 +122,23 @@ export interface IssuerPaymasterOption {
   registrationNumber: string;
   registrationCountry: string;
   entityType: string;
+  verificationStatus: PaymasterVerificationStatus;
   isRelatedParty: boolean | null;
   lastUsedAt: string;
+}
+
+export interface PaymasterLookupMatch {
+  id: string;
+  legalName: string;
+  registrationNumber: string;
+  registrationCountry: string;
+  entityType: string;
+  verificationStatus: PaymasterVerificationStatus;
+}
+
+export interface PaymasterLookupResult {
+  status: PaymasterLookupStatus;
+  paymaster: PaymasterLookupMatch | null;
 }
 
 export interface PaymasterAssignmentNotice {
@@ -129,3 +167,15 @@ export const PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE =
 
 export const ASSIGNMENT_NOTICE_LEGAL_TEMPLATE_PENDING =
   "Approved Notice of Assignment legal wording is pending. This file records assignment particulars only and is not a substitute for the approved legal template.";
+
+export const PAYMASTER_NOT_VERIFIED_CODE = "PAYMASTER_NOT_VERIFIED";
+export const PAYMASTER_NOT_VERIFIED_MESSAGE =
+  "You can only select a verified Paymaster for reuse.";
+
+export const VERIFIED_PAYMASTER_MUST_BE_SELECTED_CODE = "VERIFIED_PAYMASTER_MUST_BE_SELECTED";
+export const VERIFIED_PAYMASTER_MUST_BE_SELECTED_MESSAGE =
+  "A verified Paymaster exists for this registration number. Select it to continue.";
+
+export const RELATED_PARTY_REQUIRED_CODE = "RELATED_PARTY_REQUIRED";
+export const RELATED_PARTY_REQUIRED_MESSAGE =
+  "Please confirm whether the customer is related to you.";

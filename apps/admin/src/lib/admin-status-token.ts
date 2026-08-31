@@ -49,6 +49,7 @@ const REJECTED_STATUSES = new Set([
 
 /** Yellow — CashSouk admin needs to act. */
 const ADMIN_ACTION_STATUSES = new Set([
+  "UNVERIFIED",
   "PENDING",
   "SUBMITTED",
   "RESUBMITTED",

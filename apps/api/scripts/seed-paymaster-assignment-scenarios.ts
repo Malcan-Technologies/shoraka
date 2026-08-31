@@ -280,7 +280,21 @@ async function upsertPaymaster(input: {
   registrationNumber: string;
   entityType: string;
   mismatchPending: boolean;
+  verificationStatus: "UNVERIFIED" | "VERIFIED";
+  verifiedByUserId?: string;
 }): Promise<{ id: string; created: boolean }> {
+  const verificationData =
+    input.verificationStatus === "VERIFIED"
+      ? {
+          verification_status: "VERIFIED" as const,
+          verified_at: new Date("2026-06-01T00:00:00.000Z"),
+          verified_by_user_id: input.verifiedByUserId ?? null,
+        }
+      : {
+          verification_status: "UNVERIFIED" as const,
+          verified_at: null,
+          verified_by_user_id: null,
+        };
   const bySsm = await prisma.paymaster.findUnique({
     where: { registration_number: input.registrationNumber },
   });
@@ -293,6 +307,7 @@ async function upsertPaymaster(input: {
         entity_type: input.entityType,
         mismatch_pending: input.mismatchPending,
         source: "ISSUER_APPLICATION",
+        ...verificationData,
       },
     });
     return { id: updated.id, created: false };
@@ -306,6 +321,7 @@ async function upsertPaymaster(input: {
       entity_type: input.entityType,
       mismatch_pending: input.mismatchPending,
       source: "ISSUER_APPLICATION",
+      ...verificationData,
     },
   });
   return { id: created.id, created: true };
@@ -1124,6 +1140,8 @@ export async function seedPaymasterAssignmentScenarios() {
     registrationNumber: PMAS_PAYMASTER_1_SSM,
     entityType: ENTITY_SDN_BHD,
     mismatchPending: false,
+    verificationStatus: "VERIFIED",
+    verifiedByUserId: adminUserId,
   });
   const pm2 = await upsertPaymaster({
     preferredId: PMAS_PAYMASTER_2_ID,
@@ -1131,6 +1149,8 @@ export async function seedPaymasterAssignmentScenarios() {
     registrationNumber: PMAS_PAYMASTER_2_SSM,
     entityType: ENTITY_SDN_BHD,
     mismatchPending: false,
+    verificationStatus: "VERIFIED",
+    verifiedByUserId: adminUserId,
   });
   const pm3 = await upsertPaymaster({
     preferredId: PMAS_PAYMASTER_3_ID,
@@ -1138,6 +1158,7 @@ export async function seedPaymasterAssignmentScenarios() {
     registrationNumber: PMAS_PAYMASTER_3_SSM,
     entityType: ENTITY_SDN_BHD,
     mismatchPending: true,
+    verificationStatus: "UNVERIFIED",
   });
   const paymasterByPreferredId = {
     [PMAS_PAYMASTER_1_ID]: pm1.id,

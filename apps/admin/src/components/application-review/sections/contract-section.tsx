@@ -73,6 +73,8 @@ import {
 import { parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics";
 import type { ReviewSectionId } from "../section-types";
 import { ComparisonFieldRow, ComparisonYesNoRadioRow, unknownToTriBool } from "../comparison-field-row";
+import { PaymasterVerificationPanel, type ApplicationReviewPaymaster } from "@/paymasters/components/paymaster-verification-panel";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   ComparisonDocumentTitleRow,
   fileDocToComparisonChips,
@@ -146,6 +148,9 @@ export interface ContractSectionProps {
     remainingAllocation: number;
     reservedFacility: number;
   };
+  paymaster?: ApplicationReviewPaymaster | null;
+  paymasterId?: string | null;
+  contractId?: string | null;
 }
 
 export function ContractSection({
@@ -178,7 +183,12 @@ export function ContractSection({
   sectionComparison,
   hideSectionComments = false,
   reviewOccupancy,
+  paymaster,
+  paymasterId,
+  contractId,
 }: ContractSectionProps) {
+  const { can } = usePermissions();
+  const canManagePaymasters = can("paymasters.manage");
   const patchLargePrivate = usePatchContractCustomerLargePrivate();
   const liveCustomerDetails = customerDetails as Record<string, unknown> | null | undefined;
   const [largePrivateCompany, setLargePrivateCompany] = React.useState<boolean | null>(() =>
@@ -907,6 +917,20 @@ export function ContractSection({
               </div>
             </ReviewFieldBlock>
           )}
+
+          {cust ? (
+            <ReviewFieldBlock title="Paymaster Verification">
+              <PaymasterVerificationPanel
+                paymaster={paymaster}
+                paymasterId={paymasterId}
+                customerDetails={customerDetails}
+                applicationId={applicationId}
+                contractId={contractId}
+                canManage={canManagePaymasters}
+                showMismatchBanner
+              />
+            </ReviewFieldBlock>
+          ) : null}
 
           <ReviewFieldBlock title="Evidence">
             <div className="space-y-3">

@@ -1,6 +1,6 @@
 import { createApiClient, getReviewDetailRefreshPolicy, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ContractDetails, CustomerDetails, IssuerPaymasterOption } from "@cashsouk/types";
+import type { ContractDetails, CustomerDetails, IssuerPaymasterOption, PaymasterLookupResult } from "@cashsouk/types";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -38,6 +38,27 @@ export function useIssuerPaymasters(organizationId: string) {
       return response.data.paymasters;
     },
     enabled: !!organizationId,
+  });
+}
+
+export function useIssuerPaymasterLookup() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async (params: {
+      organizationId: string;
+      registrationNumber: string;
+    }): Promise<PaymasterLookupResult> => {
+      const response = await apiClient.lookupIssuerPaymaster(
+        params.organizationId,
+        params.registrationNumber
+      );
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
   });
 }
 
@@ -109,6 +130,7 @@ export function useUpdateContract() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["contract", data.id] });
       queryClient.invalidateQueries({ queryKey: ["application", data.application_id] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-paymasters"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to update facility", {

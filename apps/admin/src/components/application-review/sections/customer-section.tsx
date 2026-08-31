@@ -16,6 +16,8 @@ import {
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
 import { ComparisonFieldRow, ComparisonYesNoRadioRow, unknownToTriBool } from "../comparison-field-row";
+import { PaymasterVerificationPanel, type ApplicationReviewPaymaster } from "@/paymasters/components/paymaster-verification-panel";
+import { usePermissions } from "@/hooks/use-permissions";
 
 export interface CustomerSectionProps {
   customerDetails?: unknown;
@@ -41,6 +43,10 @@ export interface CustomerSectionProps {
     isPathChanged: (path: string) => boolean;
   };
   hideSectionComments?: boolean;
+  paymaster?: ApplicationReviewPaymaster | null;
+  paymasterId?: string | null;
+  applicationId?: string;
+  contractId?: string | null;
 }
 
 export function CustomerSection({
@@ -59,7 +65,13 @@ export function CustomerSection({
   onAddComment,
   sectionComparison,
   hideSectionComments = false,
+  paymaster,
+  paymasterId,
+  applicationId,
+  contractId,
 }: CustomerSectionProps) {
+  const { can } = usePermissions();
+  const canManagePaymasters = can("paymasters.manage");
   if (sectionComparison) {
     const { beforeCustomer, afterCustomer, isPathChanged } = sectionComparison;
     const b = beforeCustomer as Record<string, unknown> | null | undefined;
@@ -150,6 +162,19 @@ export function CustomerSection({
       ) : (
         <p className={reviewEmptyStateClass}>No customer details submitted.</p>
       )}
+      {hasData ? (
+        <ReviewFieldBlock title="Paymaster Verification">
+          <PaymasterVerificationPanel
+            paymaster={paymaster}
+            paymasterId={paymasterId}
+            customerDetails={customerDetails}
+            applicationId={applicationId}
+            contractId={contractId}
+            canManage={canManagePaymasters}
+            showMismatchBanner
+          />
+        </ReviewFieldBlock>
+      ) : null}
       {!hideSectionComments ? (
         <SectionComments comments={comments} onSubmitComment={onAddComment} />
       ) : null}

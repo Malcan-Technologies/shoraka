@@ -75,6 +75,8 @@ export type ReviewApplicationView = {
     customer_details?: unknown;
     offer_details?: unknown;
     status?: string;
+    paymaster_id?: string | null;
+    paymaster?: import("@/paymasters/components/paymaster-verification-panel").ApplicationReviewPaymaster | null;
     invoices?: { id: string; application_id: string; details?: unknown; status?: string; offer_details?: unknown }[];
   } | null;
   invoices?: {
@@ -488,6 +490,10 @@ export function SectionContent({
         return (
           <CustomerSection
             customerDetails={app.contract?.customer_details}
+            paymaster={app.contract?.paymaster}
+            paymasterId={app.contract?.paymaster_id ?? app.contract?.paymaster?.id}
+            applicationId={typeof app.id === "string" ? app.id : ""}
+            contractId={app.contract?.id ?? null}
             section={section}
             isReviewable={isReviewable}
             approvePending={approveSectionPending}
@@ -523,6 +529,9 @@ export function SectionContent({
           offerDetails={(app.contract as { offer_details?: unknown } | null | undefined)?.offer_details}
           contractStatus={app.contract?.status}
           customerDetails={app.contract?.customer_details}
+          paymaster={app.contract?.paymaster}
+          paymasterId={app.contract?.paymaster_id ?? app.contract?.paymaster?.id}
+          contractId={app.contract?.id ?? null}
           productDefaultFacilityFeeRatePercent={productDefaultFacilityFeeRatePercent}
           productWorkflow={productWorkflow}
           section={section}

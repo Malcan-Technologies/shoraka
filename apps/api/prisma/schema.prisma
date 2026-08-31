@@ -1030,15 +1030,18 @@ model NoteProspectusPublication {
 
 /// Reusable legal customer / obligor. Not exclusive to one issuer.
 model Paymaster {
-  id                   String                    @id @default(cuid())
+  id                   String                       @id @default(cuid())
   legal_name           String
   registration_number  String
-  registration_country String                    @default("MY")
+  registration_country String                       @default("MY")
   entity_type          String
-  mismatch_pending     Boolean                   @default(false)
-  source               String                    @default("ISSUER_APPLICATION")
-  created_at           DateTime                  @default(now())
-  updated_at           DateTime                  @updatedAt
+  verification_status  PaymasterVerificationStatus  @default(UNVERIFIED)
+  verified_at          DateTime?
+  verified_by_user_id  String?                      @db.VarChar(5)
+  mismatch_pending     Boolean                      @default(false)
+  source               String                       @default("ISSUER_APPLICATION")
+  created_at           DateTime                     @default(now())
+  updated_at           DateTime                     @updatedAt
   issuer_links         IssuerPaymasterLink[]
   contracts            Contract[]
   notes                Note[]
@@ -1048,6 +1051,7 @@ model Paymaster {
   @@unique([registration_number])
   @@index([legal_name])
   @@index([mismatch_pending])
+  @@index([verification_status])
   @@map("paymasters")
 }
 
@@ -2859,6 +2863,11 @@ enum NotificationPortalTarget {
 enum NotificationLogSource {
   ADMIN
   SYSTEM
+}
+
+enum PaymasterVerificationStatus {
+  UNVERIFIED
+  VERIFIED
 }
 
 enum PaymasterMismatchStatus {
