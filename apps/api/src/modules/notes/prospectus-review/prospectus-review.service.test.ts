@@ -140,25 +140,21 @@ describe("prospectus review content", () => {
     expect(validateApprovalContent(draft)).toEqual([]);
   });
 
-  it("requires Invoice & Paymaster officer fields before approval", () => {
+  it("requires Deed of Assignment before approval and does not require gradings", () => {
     const draft = completeSelectableDraft();
     draft.page2.invoicePaymaster = {
       deedOfAssignment: null,
-      paymasterRating: null,
-      confidenceGrading: null,
     };
     const errors = validateApprovalContent(draft);
     expect(
       errors.some((e) => e.path === "page2.invoicePaymaster.deedOfAssignment")
     ).toBe(true);
-    expect(errors.some((e) => e.path === "page2.invoicePaymaster.paymasterRating")).toBe(true);
+    expect(errors.some((e) => e.path === "page2.invoicePaymaster.paymasterRating")).toBe(false);
     expect(
       errors.some((e) => e.path === "page2.invoicePaymaster.confidenceGrading")
-    ).toBe(true);
+    ).toBe(false);
     draft.page2.invoicePaymaster = {
       deedOfAssignment: "Yes",
-      paymasterRating: "PM2",
-      confidenceGrading: "Medium",
     };
     expect(validateApprovalContent(draft)).toEqual([]);
   });

@@ -390,8 +390,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(page.metadata.metadata.sector).toBe("Construction | Medium");
       expect(page.metadata.metadata.riskRating).toBe("SME-3");
       expect(page.metadata.metadata.paymaster).toBe("Kementerian Kerja Raya");
-      expect(page.metadata.metadata.paymasterGrading).toBe("PM1");
-      expect(page.metadata.metadata.confidenceGrading).toBe("High");
+      expect(page.metadata.metadata).not.toHaveProperty("paymasterGrading");
+      expect(page.metadata.metadata).not.toHaveProperty("confidenceGrading");
 
       const invalid = buildProspectusPageThree({
         ...mapProspectusPageThreeDataToInput({
@@ -470,12 +470,14 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).toContain("CashSouk");
       expect(html).toContain("Sector");
       expect(html).toContain("Construction | Medium");
-      expect(html).toContain("Paymaster Grading");
-      expect(html).toContain("PM1");
-      expect(html).toContain("Confidence Grading");
-      expect(html).toContain("High");
+      expect(html).toContain("Risk Rating");
+      expect(html).toContain("Paymaster");
+      expect(html).not.toContain("Paymaster Grading");
+      expect(html).not.toContain("Confidence Grading");
       expect(html).toContain("meta-strip");
-      expect(html).toContain("grid-template-columns:repeat(5,minmax(0,1fr))");
+      expect(html).toContain(
+        ".identity-strip,.meta-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))"
+      );
       expect(html).not.toContain("source-statement");
       expect(html).not.toContain("page-footer-group");
       expect(html).toContain("financial-source");
@@ -488,22 +490,23 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).not.toContain("Data not available");
     });
 
-    it("reuses Page 2 officer gradings for Page 3 metadata strip", () => {
+    it("does not include Paymaster Grading or Confidence Grading on the Page 3 strip", () => {
       const page = buildProspectusPageThree({
         ...SAMPLE_PROSPECTUS_PAGE_THREE_INPUT,
         publicationContent: {
           ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
           invoicePaymaster: {
             deedOfAssignment: "Yes",
-            paymasterRating: "PM4",
-            confidenceGrading: "Medium",
           },
         },
       });
-      expect(page.metadata.metadata.paymasterGrading).toBe("PM4");
-      expect(page.metadata.metadata.confidenceGrading).toBe("Medium");
-      expect(page.metadata.audit.paymasterGrading.page3StorageAllowed).toBe(false);
-      expect(page.metadata.audit.confidenceGrading.page3StorageAllowed).toBe(false);
+      expect(page.metadata.metadata).not.toHaveProperty("paymasterGrading");
+      expect(page.metadata.metadata).not.toHaveProperty("confidenceGrading");
+      expect(page.metadata.audit).not.toHaveProperty("paymasterGrading");
+      expect(page.metadata.audit).not.toHaveProperty("confidenceGrading");
+      expect(page.metadata.metadata.sector).toBeTruthy();
+      expect(page.metadata.metadata.riskRating).toBeTruthy();
+      expect(page.metadata.metadata.paymaster).toBeTruthy();
     });
   });
 
@@ -590,8 +593,17 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).toContain('data-meta-key="sector"');
       expect(html).toContain('data-meta-key="riskRating"');
       expect(html).toContain('data-meta-key="paymaster"');
-      expect(html).toContain('data-meta-key="paymasterGrading"');
-      expect(html).toContain('data-meta-key="confidenceGrading"');
+      expect(html).not.toContain('data-meta-key="paymasterGrading"');
+      expect(html).not.toContain('data-meta-key="confidenceGrading"');
+      const stripStart = html.indexOf('data-content-stage="metadata-strip"');
+      const stripEnd = html.indexOf('data-content-stage="income-statement"', stripStart);
+      const strip = html.slice(stripStart, stripEnd);
+      expect(strip.match(/class="meta-strip-item"/g)).toHaveLength(3);
+      expect(strip).not.toContain("Paymaster Grading");
+      expect(strip).not.toContain("Confidence Grading");
+      expect(html).toContain(
+        ".identity-strip,.meta-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))"
+      );
 
       expect(html).toContain("3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)");
       expect(html).toContain("prospectus-income-trend-insight");

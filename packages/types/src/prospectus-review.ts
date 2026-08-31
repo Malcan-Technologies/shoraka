@@ -39,41 +39,6 @@ export function normalizeProspectusDeedOfAssignment(
     : null;
 }
 
-/**
- * Officer-selected Paymaster Rating for Page 2 Invoice & Paymaster.
- * Required before Approve; optional while Draft.
- */
-export const PROSPECTUS_PAYMASTER_RATING_VALUES = ["PM1", "PM2", "PM3", "PM4"] as const;
-export type ProspectusPaymasterRating = (typeof PROSPECTUS_PAYMASTER_RATING_VALUES)[number];
-
-export function normalizeProspectusPaymasterRating(
-  value: unknown
-): ProspectusPaymasterRating | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return (PROSPECTUS_PAYMASTER_RATING_VALUES as readonly string[]).includes(trimmed)
-    ? (trimmed as ProspectusPaymasterRating)
-    : null;
-}
-
-/**
- * Officer-selected Confidence Grading for Page 2 Invoice & Paymaster.
- * Required before Approve; optional while Draft.
- */
-export const PROSPECTUS_CONFIDENCE_GRADING_VALUES = ["High", "Medium", "Low"] as const;
-export type ProspectusConfidenceGrading =
-  (typeof PROSPECTUS_CONFIDENCE_GRADING_VALUES)[number];
-
-export function normalizeProspectusConfidenceGrading(
-  value: unknown
-): ProspectusConfidenceGrading | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return (PROSPECTUS_CONFIDENCE_GRADING_VALUES as readonly string[]).includes(trimmed)
-    ? (trimmed as ProspectusConfidenceGrading)
-    : null;
-}
-
 /** Stored officer-edited highlight copy (Shariah is fixed on write/resolve). */
 export interface ProspectusReviewHighlightSelection {
   key: string;
@@ -100,12 +65,10 @@ export interface ProspectusReviewStoredContent {
     };
     /**
      * Officer-selected Invoice & Paymaster fields (not inferred from uploads/CTOS).
-     * Required before Approve; optional while Draft.
+     * Deed of Assignment is required before Approve; optional while Draft.
      */
     invoicePaymaster?: {
       deedOfAssignment?: ProspectusDeedOfAssignment | null;
-      paymasterRating?: ProspectusPaymasterRating | null;
-      confidenceGrading?: ProspectusConfidenceGrading | null;
     };
     paymasterTrackRecord?: {
       totalInvoicesPaid?: number | null;

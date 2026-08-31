@@ -175,8 +175,10 @@ describe("paymaster assignment scenario seed", () => {
     const snapFive = parseApprovedSnapshot(pubFive.snapshot);
     const snapLegacy = parseApprovedSnapshot(pubLegacy.snapshot);
     expect(snapFive?.html.page1).toContain("Closing Date");
-    expect(snapFive?.html.page3).toContain("Paymaster Grading");
-    expect(snapFive?.html.page3).toContain("Confidence Grading");
+    expect(snapFive?.html.page3).not.toContain("Paymaster Grading");
+    expect(snapFive?.html.page3).not.toContain("Confidence Grading");
+    expect(snapFive?.html.page3).toContain("Sector");
+    expect(snapFive?.html.page3).toContain("Paymaster");
     expect(snapFive?.html.page2).not.toContain("Paymaster Rating");
     expect(snapFive?.html.page2).not.toContain("Confidence Grading");
     expect(snapFive?.html.page4).toBeTruthy();

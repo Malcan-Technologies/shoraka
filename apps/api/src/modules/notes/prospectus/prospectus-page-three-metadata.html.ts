@@ -48,12 +48,10 @@ ${data.financialYears
   <section>
     <h2>${escapeHtml(data.pageTitle)}</h2>
     <p>${escapeHtml(data.pageSubtitle)}</p>
-    <div class="meta-strip" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;">
+    <div class="meta-strip" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;">
       <div><div>${escapeHtml(labels.sector)}</div><div>${escapeHtml(data.metadata.sector)}</div></div>
       <div><div>${escapeHtml(labels.riskRating)}</div><div>${escapeHtml(data.metadata.riskRating)}</div></div>
       <div><div>${escapeHtml(labels.paymaster)}</div><div>${escapeHtml(data.metadata.paymaster)}</div></div>
-      <div><div>${escapeHtml(labels.paymasterGrading)}</div><div>${escapeHtml(data.metadata.paymasterGrading)}</div></div>
-      <div><div>${escapeHtml(labels.confidenceGrading)}</div><div>${escapeHtml(data.metadata.confidenceGrading)}</div></div>
     </div>
     <h3>Selected financial years</h3>
     ${yearBlock}

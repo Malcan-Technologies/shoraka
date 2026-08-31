@@ -165,21 +165,17 @@ describe("page three coverage verification", () => {
   it("builds Financing & Risk Details without Issuer", () => {
     const rows = buildPageThreeMetadataRows(sampleNote(), {
       companySize: "Medium",
-      paymasterRating: "PM2",
-      confidenceGrading: "Medium",
     });
     expect(rows.map((r) => r.label)).toEqual([
       "Sector",
       "Risk Rating",
       "Paymaster",
-      "Paymaster Grading",
-      "Confidence Grading",
     ]);
     expect(rows.find((r) => r.label === "Sector")?.value).toBe("Construction | Medium");
     expect(rows.find((r) => r.label === "Risk Rating")?.value).toBe("SME-3");
     expect(rows.find((r) => r.label === "Paymaster")?.value).toBe("Kementerian Kerja Raya");
-    expect(rows.find((r) => r.label === "Paymaster Grading")?.value).toBe("PM2");
-    expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe("Medium");
+    expect(rows.find((r) => r.label === "Paymaster Grading")).toBeUndefined();
+    expect(rows.find((r) => r.label === "Confidence Grading")).toBeUndefined();
     expect(rows.some((r) => /issuer/i.test(r.label))).toBe(false);
     expect(pageThreeHidesIssuerIdentity(rows)).toBe(true);
   });
@@ -187,16 +183,12 @@ describe("page three coverage verification", () => {
   it("Admin overview shows Industry and Company Size separately", () => {
     const rows = buildPageThreeAdminOverviewRows(sampleNote(), {
       companySize: "Medium",
-      paymasterRating: "PM2",
-      confidenceGrading: "Medium",
     });
     expect(rows.map((r) => r.label)).toEqual([
       "Industry",
       "Company Size",
       "Risk Grade",
       "Paymaster",
-      "Paymaster Grading",
-      "Confidence Grading",
     ]);
     expect(rows.find((r) => r.label === "Industry")?.value).toBe("Construction");
     expect(rows.find((r) => r.label === "Company Size")?.value).toBe("Medium");
@@ -217,14 +209,13 @@ describe("page three coverage verification", () => {
     ).toBe("Small");
   });
 
-  it("shows — for missing Page 2 gradings", () => {
+  it("does not include Paymaster Grading or Confidence Grading on Page 3 metadata rows", () => {
     const rows = buildPageThreeMetadataRows(sampleNote());
-    expect(rows.find((r) => r.label === "Paymaster Grading")?.value).toBe(
-      "—"
-    );
-    expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe(
-      "—"
-    );
+    expect(rows.find((r) => r.label === "Paymaster Grading")).toBeUndefined();
+    expect(rows.find((r) => r.label === "Confidence Grading")).toBeUndefined();
+    expect(rows.find((r) => r.label === "Sector")).toBeDefined();
+    expect(rows.find((r) => r.label === "Risk Rating")).toBeDefined();
+    expect(rows.find((r) => r.label === "Paymaster")).toBeDefined();
   });
 
   it("builds Income Statement as a seven-metric multi-year table", () => {

@@ -4,6 +4,10 @@ import { buildProspectusPageThreeHtml } from "./prospectus-page-three.html";
 import { SAMPLE_PROSPECTUS_PAGE_THREE } from "./prospectus-page-three.sample-data";
 import { buildProspectusPageOneHtml } from "./prospectus-page-one.html";
 import { SAMPLE_PROSPECTUS_PAGE_ONE } from "./prospectus-page-one.sample-data";
+import {
+  buildProspectusPageFourHtml,
+  buildProspectusPageFiveHtml,
+} from "./prospectus-marc-appendix.html";
 
 describe("prospectus V3 field visibility", () => {
   it("Page 1 still includes Closing Date", () => {
@@ -18,12 +22,24 @@ describe("prospectus V3 field visibility", () => {
     expect(html).toContain("MARC Credit Grade");
   });
 
-  it("Page 3 keeps Paymaster Grading and Confidence Grading and omits OCF/FCF/Trend", () => {
+  it("Page 3 omits Paymaster Grading and Confidence Grading and omits OCF/FCF/Trend", () => {
     const html = buildProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
-    expect(html).toContain("Paymaster Grading");
-    expect(html).toContain("Confidence Grading");
+    expect(html).not.toContain("Paymaster Grading");
+    expect(html).not.toContain("Confidence Grading");
+    expect(html).toContain("Sector");
+    expect(html).toContain("Risk Rating");
+    expect(html).toContain("Paymaster");
     expect(html).not.toContain("Operating Cash Flow");
     expect(html).not.toContain("Free Cash Flow");
     expect(html).not.toContain("Trend (3-Yr)");
+  });
+
+  it("Pages 4 and 5 remain MARC appendix pages without Paymaster/Confidence grading", () => {
+    const page4 = buildProspectusPageFourHtml();
+    const page5 = buildProspectusPageFiveHtml();
+    expect(page4).not.toContain("Paymaster Grading");
+    expect(page4).not.toContain("Confidence Grading");
+    expect(page5).not.toContain("Paymaster Grading");
+    expect(page5).not.toContain("Confidence Grading");
   });
 });

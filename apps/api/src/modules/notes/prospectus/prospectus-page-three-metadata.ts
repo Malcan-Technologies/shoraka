@@ -1,15 +1,10 @@
 /**
  * SECTION: Build Page 3 Stage 1 metadata + shared financial-year pass-through
  * WHY: Frozen snapshot strings + SoukScore validator; issuer identity omitted;
- *      Sector = anonymous Industry | Company Size from Page 2 sources;
- *      Paymaster/Confidence gradings reused from Page 2 officer confirmations
+ *      Sector = anonymous Industry | Company Size from Page 2 sources
  */
 
-import {
-  isMarcSmeGrade,
-  normalizeProspectusConfidenceGrading,
-  normalizeProspectusPaymasterRating,
-} from "@cashsouk/types";
+import { isMarcSmeGrade } from "@cashsouk/types";
 import { formatProspectusIndustryAndCompanySize } from "./prospectus-industry-company-size";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -51,13 +46,6 @@ export function buildProspectusPageThreeMetadata(
     ? input.selectedRiskRating
     : PROSPECTUS_DATA_NOT_AVAILABLE;
 
-  const paymasterGrading =
-    normalizeProspectusPaymasterRating(input.officerPaymasterRating) ??
-    PROSPECTUS_DATA_NOT_AVAILABLE;
-  const confidenceGrading =
-    normalizeProspectusConfidenceGrading(input.officerConfidenceGrading) ??
-    PROSPECTUS_DATA_NOT_AVAILABLE;
-
   return {
     pageTitle: PROSPECTUS_PAGE_THREE_PAGE_TITLE,
     pageSubtitle: PROSPECTUS_DETAILED_FINANCIAL_SUBTITLE,
@@ -68,8 +56,6 @@ export function buildProspectusPageThreeMetadata(
       ),
       riskRating,
       paymaster: displayString(input.paymasterName),
-      paymasterGrading,
-      confidenceGrading,
     },
     // Pass-through only — never re-select years or re-derive FYE in Page 3.
     financialYears: input.financialSource.years,

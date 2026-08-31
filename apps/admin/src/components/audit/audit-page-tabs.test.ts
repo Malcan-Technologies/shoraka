@@ -24,4 +24,19 @@ describe("Admin Audit page hosts evidence views", () => {
     expect(source).toContain('permission: "document_management.view"');
     expect(source).toContain('permission: "notifications.view"');
   });
+
+  it("switches External Acceptances with the same query-param Tabs control as Legal Acceptances", () => {
+    expect(source).toContain("value={activeTab}");
+    expect(source).toContain("onValueChange={handleTabChange}");
+    expect(source).toContain("router.replace(`${pathname}?tab=${value}`)");
+    expect(source).toContain('id: "legal-acceptances"');
+    expect(source).toContain('id: "external-acceptances"');
+    expect(source).not.toContain("/audit/external-acceptances");
+  });
+
+  it("keeps the Audit tab strip above panel content so a closed drawer cannot swallow tab clicks", () => {
+    expect(source).toContain(
+      'className="relative z-20 flex h-auto w-fit max-w-full flex-wrap justify-start"'
+    );
+  });
 });

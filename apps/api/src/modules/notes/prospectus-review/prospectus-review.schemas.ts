@@ -5,9 +5,7 @@
 import { z } from "zod";
 import {
   normalizeProspectusCompanySize,
-  normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
-  normalizeProspectusPaymasterRating,
   PROSPECTUS_ABOUT_INVOICE_ITEM_IDS,
   PROSPECTUS_HIGHLIGHT_KEYS,
 } from "@cashsouk/types";
@@ -87,8 +85,6 @@ export const prospectusReviewStoredContentSchema = z
         invoicePaymaster: z
           .object({
             deedOfAssignment: z.enum(["Yes", "No"]).nullable().optional(),
-            paymasterRating: z.enum(["PM1", "PM2", "PM3", "PM4"]).nullable().optional(),
-            confidenceGrading: z.enum(["High", "Medium", "Low"]).nullable().optional(),
           })
           .strict()
           .optional(),
@@ -561,20 +557,6 @@ export function validateApprovalContent(
     errors.push({
       path: "page2.invoicePaymaster.deedOfAssignment",
       message: "Deed of Assignment (DOA) is required before approving the Prospectus.",
-    });
-  }
-  if (!normalizeProspectusPaymasterRating(content.page2.invoicePaymaster?.paymasterRating)) {
-    errors.push({
-      path: "page2.invoicePaymaster.paymasterRating",
-      message: "Paymaster Grading is required for Page 3 before approving the Prospectus.",
-    });
-  }
-  if (
-    !normalizeProspectusConfidenceGrading(content.page2.invoicePaymaster?.confidenceGrading)
-  ) {
-    errors.push({
-      path: "page2.invoicePaymaster.confidenceGrading",
-      message: "Confidence Grading is required for Page 3 before approving the Prospectus.",
     });
   }
 

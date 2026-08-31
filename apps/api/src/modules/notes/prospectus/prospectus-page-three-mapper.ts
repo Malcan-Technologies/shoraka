@@ -146,9 +146,6 @@ export function buildProspectusPageThree(
     officerCompanySize: input.publicationContent?.issuerProfile?.companySize,
     selectedRiskRating: parseInvoiceSnapshotRiskRating(input.invoiceSnapshot),
     paymasterName: paymaster.name,
-    officerPaymasterRating: input.publicationContent?.invoicePaymaster?.paymasterRating,
-    officerConfidenceGrading:
-      input.publicationContent?.invoicePaymaster?.confidenceGrading,
     financialSource,
   });
 

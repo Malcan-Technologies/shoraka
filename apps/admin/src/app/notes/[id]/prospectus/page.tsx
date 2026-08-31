@@ -9,9 +9,7 @@ import {
   isCompleteIssuerMarcAssessment,
   isNoteProspectusPublished,
   normalizeProspectusCompanySize,
-  normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
-  normalizeProspectusPaymasterRating,
   type ProspectusReviewStoredContent,
   type ProspectusReviewStatus,
 } from "@cashsouk/types";
@@ -324,21 +322,9 @@ function ProspectusReviewPageInner() {
   const officerDeedOfAssignment = normalizeProspectusDeedOfAssignment(
     draft.page2.invoicePaymaster?.deedOfAssignment
   );
-  const officerPaymasterRating = normalizeProspectusPaymasterRating(
-    draft.page2.invoicePaymaster?.paymasterRating
-  );
-  const officerConfidenceGrading = normalizeProspectusConfidenceGrading(
-    draft.page2.invoicePaymaster?.confidenceGrading
-  );
   const invoicePaymasterRows = (data?.invoicePaymaster?.rows ?? []).map((row) => {
     if (row.label === "Deed of Assignment (DOA)") {
       return { ...row, value: officerDeedOfAssignment ?? "—" };
-    }
-    if (row.label === "Paymaster Rating") {
-      return { ...row, value: officerPaymasterRating ?? "—" };
-    }
-    if (row.label === "Confidence Grading") {
-      return { ...row, value: officerConfidenceGrading ?? "—" };
     }
     return row;
   });
@@ -389,8 +375,6 @@ function ProspectusReviewPageInner() {
   const pageThreeMetadataRows = note
     ? buildPageThreeAdminOverviewRows(note, {
         companySize: officerCompanySize,
-        paymasterRating: officerPaymasterRating,
-        confidenceGrading: officerConfidenceGrading,
       })
     : [];
   const incomeStatementTable = buildPageThreeIncomeStatementTable(

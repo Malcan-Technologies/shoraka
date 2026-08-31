@@ -6,27 +6,23 @@ import { buildProspectusMissingRequiredFields } from "./completion";
  * Reused displays must read the same draft path (no duplicate stores).
  */
 describe("prospectus working-area field ownership", () => {
-  it("stores Paymaster Rating and Confidence only under page2.invoicePaymaster", () => {
+  it("does not store paymasterRating or confidenceGrading on prospectus review content", () => {
     const draft: ProspectusReviewStoredContent = {
       page1: { keyInvestorHighlights: [] },
       page2: {
         creditInsights: {},
         invoicePaymaster: {
-          paymasterRating: "PM2",
-          confidenceGrading: "Medium",
+          deedOfAssignment: "Yes",
         },
         aboutInvoice: { items: [] },
       },
       page3: { investorTakeaways: {} },
     };
-    expect(draft.page2.invoicePaymaster?.paymasterRating).toBe("PM2");
-    expect(draft.page2.invoicePaymaster?.confidenceGrading).toBe("Medium");
-    expect(
-      (draft.page3 as { paymasterRating?: string }).paymasterRating
-    ).toBeUndefined();
-    expect(
-      (draft.page3 as { confidenceGrading?: string }).confidenceGrading
-    ).toBeUndefined();
+    expect(draft.page2.invoicePaymaster).toEqual({ deedOfAssignment: "Yes" });
+    expect(draft.page2.invoicePaymaster).not.toHaveProperty("paymasterRating");
+    expect(draft.page2.invoicePaymaster).not.toHaveProperty("confidenceGrading");
+    expect(draft.page3).not.toHaveProperty("paymasterRating");
+    expect(draft.page3).not.toHaveProperty("confidenceGrading");
   });
 
   it("stores IC / DSCR / Receivables Days only under page2 financial overrides", () => {
@@ -81,8 +77,6 @@ describe("prospectus working-area field ownership", () => {
         issuerProfile: { companySize: "Medium" },
         invoicePaymaster: {
           deedOfAssignment: "Yes",
-          paymasterRating: "PM1",
-          confidenceGrading: "High",
         },
         creditInsights: {
           creditScoreOptionKey: "good",
@@ -126,8 +120,7 @@ describe("prospectus working-area field ownership", () => {
           ccrisStatusOptionKey: "no_record",
         },
         invoicePaymaster: {
-          paymasterRating: "PM1",
-          confidenceGrading: "High",
+          deedOfAssignment: "Yes",
         },
         aboutInvoice: { items: [] },
       },

@@ -3,19 +3,12 @@
 import * as React from "react";
 import {
   ChartBarIcon,
-  ClipboardDocumentCheckIcon,
   InformationCircleIcon,
   LightBulbIcon,
   PresentationChartLineIcon,
   ScaleIcon,
 } from "@heroicons/react/24/outline";
-import {
-  PROSPECTUS_CONFIDENCE_GRADING_VALUES,
-  PROSPECTUS_PAYMASTER_RATING_VALUES,
-  normalizeProspectusConfidenceGrading,
-  normalizeProspectusPaymasterRating,
-  type ProspectusReviewStoredContent,
-} from "@cashsouk/types";
+import { type ProspectusReviewStoredContent } from "@cashsouk/types";
 import type { CoreTermRow } from "@/notes/prospectus-review/core-terms";
 import type { FinancialMetricTableModel } from "@/notes/prospectus-review/financial-metric-table";
 import type { PageThreeManualYears } from "@/notes/prospectus-review/page-three-coverage";
@@ -102,26 +95,11 @@ export function WorkingAreaPageThree({
     if (controlledTab == null) setInternalTab(next);
   };
 
-  const paymasterRating = normalizeProspectusPaymasterRating(
-    draft.page2.invoicePaymaster?.paymasterRating
-  );
-  const confidenceGrading = normalizeProspectusConfidenceGrading(
-    draft.page2.invoicePaymaster?.confidenceGrading
-  );
-  const overviewFacts = overviewRows.filter(
-    (row) => row.label !== "Paymaster Grading" && row.label !== "Confidence Grading"
-  );
-
   const incomeMissing = countMissingForTab(draft, "income", completionOptions);
   const balanceMissing = countMissingForTab(draft, "balance", completionOptions);
   const coverageMissing = countMissingForTab(draft, "coverage", completionOptions);
   const takeawaysMissing = countMissingForTab(draft, "takeaways", completionOptions);
   const overviewMissing = countMissingForTab(draft, "overview", completionOptions);
-  const paymasterGradingMissing = countMissingForTab(
-    draft,
-    "paymaster_grading",
-    completionOptions
-  );
   const showFinancialOpsWarning =
     financialComparisonOpsWarning != null &&
     (tab === "income" || tab === "balance" || tab === "coverage");
@@ -151,11 +129,6 @@ export function WorkingAreaPageThree({
             label: "Investor Takeaways",
             missingCount: takeawaysMissing,
           },
-          {
-            id: "paymaster_grading",
-            label: "Paymaster Grading",
-            missingCount: paymasterGradingMissing,
-          },
         ]}
       />
 
@@ -170,7 +143,7 @@ export function WorkingAreaPageThree({
         <div role="tabpanel">
           <ProspectusSectionShell title="Overview" icon={InformationCircleIcon}>
             <ProspectusInfoGrid>
-              {overviewFacts.map((row) => (
+              {overviewRows.map((row) => (
                 <ProspectusReadOnlyField
                   key={row.label}
                   label={row.label}
@@ -261,67 +234,6 @@ export function WorkingAreaPageThree({
                 />
               ))}
             </div>
-          </ProspectusSectionShell>
-        </div>
-      ) : null}
-
-      {tab === "paymaster_grading" ? (
-        <div role="tabpanel" data-prospectus-page-three-paymaster-grading>
-          <ProspectusSectionShell
-            title="Page 3 Paymaster Grading"
-            icon={ClipboardDocumentCheckIcon}
-            missingCount={paymasterGradingMissing}
-          >
-            <ProspectusInfoGrid columns={2}>
-              <ProspectusOptionSelect
-                label="Paymaster Grading"
-                value={paymasterRating}
-                disabled={disabled}
-                required
-                incomplete={!paymasterRating}
-                placeholder={SELECT_PLACEHOLDERS.paymasterRating}
-                options={PROSPECTUS_PAYMASTER_RATING_VALUES.map((value) => ({
-                  key: value,
-                  label: value,
-                }))}
-                onChange={(value) =>
-                  updateDraft((prev) => ({
-                    ...prev,
-                    page2: {
-                      ...prev.page2,
-                      invoicePaymaster: {
-                        ...prev.page2.invoicePaymaster,
-                        paymasterRating: normalizeProspectusPaymasterRating(value),
-                      },
-                    },
-                  }))
-                }
-              />
-              <ProspectusOptionSelect
-                label="Confidence Grading"
-                value={confidenceGrading}
-                disabled={disabled}
-                required
-                incomplete={!confidenceGrading}
-                placeholder={SELECT_PLACEHOLDERS.confidenceGrading}
-                options={PROSPECTUS_CONFIDENCE_GRADING_VALUES.map((value) => ({
-                  key: value,
-                  label: value,
-                }))}
-                onChange={(value) =>
-                  updateDraft((prev) => ({
-                    ...prev,
-                    page2: {
-                      ...prev.page2,
-                      invoicePaymaster: {
-                        ...prev.page2.invoicePaymaster,
-                        confidenceGrading: normalizeProspectusConfidenceGrading(value),
-                      },
-                    },
-                  }))
-                }
-              />
-            </ProspectusInfoGrid>
           </ProspectusSectionShell>
         </div>
       ) : null}
