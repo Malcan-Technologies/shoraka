@@ -1,6 +1,6 @@
 # Notification Register
 
-**As of:** 31 August 2026  
+**As of:** 1 September 2026  
 **Scope:** Messages the **current live platform can still send**: typed inbox/email, Admin custom sends, and other live transactional emails.  
 **Method:** Traced from UI/API → `NotificationService` / SES → `notifications` / `notification_logs`. A seeded type is listed as automatic only if a production caller exists.
 
@@ -90,7 +90,7 @@ They are not always the same. This register lists all three.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | NTF-ONB-001 | Onboarding Completed | `onboarding_completed` | Onboarding Completed | Admin final approval | Onboarding user | Issuer or Investor | Automatic | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | — |
 | NTF-ONB-002 | Onboarding Application Rejected | `onboarding_rejected` | Onboarding Rejected | Provider reject (individual and/or COD) | Onboarding user | Issuer or Investor | Automatic | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | Inbox title differs from Admin name |
-| NTF-ONB-003 | Action Required: Complete Director/Shareholder Onboarding | `director_shareholder_action_required` | Director/Shareholder Action Required | CTOS pull finds a director/shareholder who must complete onboarding. Admin `POST .../director-shareholders/notify-action-required` also exists (no Admin UI caller found) | Issuer organisation owner | Issuer | Automatic (plus API-only manual) | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | Verify-link SES to the person is a separate direct email |
+| NTF-ONB-003 | Action Required: Complete Director/Shareholder Onboarding | `director_shareholder_action_required` | Director/Shareholder Action Required | CTOS pull finds a director/shareholder who must complete onboarding | Issuer organisation owner | Issuer | Automatic | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | Verify-link SES to the person is a separate direct email. `POST .../director-shareholders/notify-action-required` is mounted with no Admin UI caller and is not a production business path |
 | NTF-ONB-004 | Action Required: Complete Director/Shareholder Onboarding | `investor_director_shareholder_action_required` | Investor Director/Shareholder Action Required | Same, investor organisation | Investor organisation owner | Investor | Automatic | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | Same inbox title as issuer type |
 
 ### Applications

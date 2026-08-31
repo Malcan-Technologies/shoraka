@@ -8,7 +8,7 @@ tags:
   - audit
   - notifications
 order: 29
-updated: 2026-08-31
+updated: 2026-09-01
 ---
 
 This guide lists the Activity records, Admin logs, notifications, and direct emails available in the current platform.
@@ -50,13 +50,11 @@ Signing Package Declined is when the signer declined. Signing Package Voided is 
 | Onboarding Resumed | Issuer → Activity | Not customer visible | None | None |
 | Additional Information Required | Issuer → Activity | Activity | None | None |
 | Onboarding Restarted | Issuer → Activity | Activity | None | None |
-| Onboarding Reset | Audit → Access | Not customer visible | None | None |
 | Onboarding Rejected | Issuer → Activity | Activity + Notification | Onboarding Application Rejected | Follows Admin notification settings |
 | Onboarding Rejected (company onboarding) | Issuer → Activity | Activity + Notification | Onboarding Application Rejected | Follows Admin notification settings |
 | Onboarding Submission Approved | Issuer → Activity | Activity | None | None |
 | Final Approval Completed | Issuer → Activity | Activity + Notification | Onboarding Completed | Follows Admin notification settings |
 | Terms and Conditions Approved | Issuer → Activity; Audit → Legal Acceptances | Not customer visible | None | None |
-| AML Approved | Issuer → Activity | Not customer visible | None | None |
 | SSM Approved | Issuer → Activity | Not customer visible | None | None |
 | Entity Onboarding Data Approved | Issuer → Activity | Not customer visible | None | None |
 | Entity Onboarding Data Rejected | Issuer → Activity | Not customer visible | None | None |
@@ -105,7 +103,6 @@ Signing Package Declined is when the signer declined. Signing Package Voided is 
 | Invoice Offer Expired | Application → Activity Timeline | Activity + Notification | Offer Expired | Follows Admin notification settings |
 | Invoice Withdrawn | Application → Activity Timeline | Activity | None | None |
 | Acceptance Documents Need Updates | Application → Acceptance | Notification | Acceptance Documents Need Updates | Follows Admin notification settings |
-| Invoice Offer Verification Code | Application → Acceptance | Email only | Invoice Offer Verification Code | Direct email |
 
 ### Signing
 
@@ -203,14 +200,12 @@ For a residual return, Admin Activity may show Residual Return Letter Generated,
 | Onboarding Resumed | Investor → Activity | Not customer visible | None | None |
 | Additional Information Required | Investor → Activity | Activity | None | None |
 | Onboarding Restarted | Investor → Activity | Activity | None | None |
-| Onboarding Reset | Audit → Access | Not customer visible | None | None |
 | Onboarding Rejected | Investor → Activity | Activity + Notification | Onboarding Application Rejected | Follows Admin notification settings |
 | Onboarding Rejected (company onboarding) | Investor → Activity | Activity + Notification | Onboarding Application Rejected | Follows Admin notification settings |
 | Onboarding Submission Approved | Investor → Activity | Activity | None | None |
 | Final Approval Completed | Investor → Activity | Activity + Notification | Onboarding Completed | Follows Admin notification settings |
 | Terms and Conditions Approved | Investor → Activity; Audit → Legal Acceptances | Not customer visible | None | None |
 | Sophisticated Investor Status Updated | Investor → Activity | Not customer visible | None | None |
-| AML Approved | Investor → Activity | Not customer visible | None | None |
 | SSM Approved | Investor → Activity | Not customer visible | None | None |
 | Form Submitted | Investor → Activity | Not customer visible | None | None |
 | Entity Onboarding Data Approved | Investor → Activity | Not customer visible | None | None |
@@ -278,7 +273,6 @@ Payment Amount Mismatch may appear as Payment Currency Mismatch when the currenc
 | Section Amendment Requested | Application → Activity Timeline | Not customer visible | None | None |
 | Section Reset to Pending | Application → Activity Timeline | Not customer visible | None | None |
 | Invoice Details Offer Sent | Application → Activity Timeline | Not customer visible | None | None |
-| Invoice Details Offer Expired | Application → Activity Timeline | Not customer visible | None | None |
 | Invoice Details Withdrawn | Application → Activity Timeline | Not customer visible | None | None |
 | Item Approved | Application → Activity Timeline | Not customer visible | None | None |
 | Item Rejected | Application → Activity Timeline | Not customer visible | None | None |
@@ -459,6 +453,6 @@ These are direct emails and are separate from standard platform notifications.
 | Admin Invitation | Admin invited or invite resent | Invitee | Audit → Security |
 | Signing Package | Signing package sent | Named signer | Application → Acceptance |
 | Signing Reminder | Reminder requested | Named signer | Application → Acceptance |
-| Invoice Offer Verification Code | Issuer requests a code to accept an invoice offer | Selected signatory | Application → Acceptance |
+| Invoice Offer Verification Code | Issuer requests a code to accept an invoice offer | Selected signatory | No current Admin UI |
 | Director/Shareholder Verification | The person must verify | The person | Issuer → People; Investor → People |
 | Trustee Instruction | Trustee letter is sent | Trustee recipients | Note → Activity |
