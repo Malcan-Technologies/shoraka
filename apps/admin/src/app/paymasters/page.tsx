@@ -9,22 +9,24 @@ import { ListToolbar } from "@/shared/admin-list/components/list-toolbar";
 import { PaymastersTable } from "@/paymasters/components/paymasters-table";
 import { paymastersKeys, useAdminPaymasters } from "@/paymasters/hooks/use-paymasters";
 import { paymasterHref } from "@/lib/admin-directory-hrefs";
+import type { PaymasterVerificationStatus } from "@cashsouk/types";
 
 export default function PaymastersPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [mismatchOnly, setMismatchOnly] = React.useState(false);
+  const [verificationFilters, setVerificationFilters] = React.useState<string[]>([]);
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 20;
+  const verificationStatus = verificationFilters[0] as PaymasterVerificationStatus | undefined;
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, mismatchOnly]);
+  }, [searchQuery, verificationStatus]);
 
   const { data, isLoading, error } = useAdminPaymasters({
     q: searchQuery || undefined,
-    mismatchPending: mismatchOnly || undefined,
+    verificationStatus,
     page: currentPage,
     pageSize,
   });
@@ -36,7 +38,7 @@ export default function PaymastersPage() {
           <section className="space-y-4">
             <AdminPageHeader
               title="Paymasters"
-              description="Reusable customer and obligor records created from issuer Customer Details. Review identity mismatches here; Notice of Assignment is managed on the related Note."
+              description="Reusable customer and obligor records created from issuer Customer Details. Verify identity here; Notice of Assignment is managed on the related Note."
             />
             {error ? (
               <div className="py-8 text-center text-destructive">
@@ -47,19 +49,20 @@ export default function PaymastersPage() {
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
               searchPlaceholder="Search name or SSM"
-              statusFilters={[]}
-              onStatusFiltersChange={() => undefined}
-              statusOptions={[]}
+              statusFilters={verificationFilters}
+              onStatusFiltersChange={setVerificationFilters}
+              statusOptions={[
+                { value: "VERIFIED", label: "Verified" },
+                { value: "UNVERIFIED", label: "Unverified" },
+              ]}
+              statusFilterMode="single"
               totalCount={data?.total ?? 0}
               filteredCount={data?.total ?? 0}
               itemLabelSingular="paymaster"
               itemLabelPlural="paymasters"
-              extraToggleLabel="Review required"
-              extraToggleChecked={mismatchOnly}
-              onExtraToggleChange={setMismatchOnly}
               onClearFilters={() => {
                 setSearchQuery("");
-                setMismatchOnly(false);
+                setVerificationFilters([]);
               }}
               onRefresh={() => queryClient.invalidateQueries({ queryKey: paymastersKeys.all })}
               isLoading={isLoading}

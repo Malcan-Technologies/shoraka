@@ -106,6 +106,15 @@ export const EVENT_CATALOGUE: Record<string, EventCatalogueEntry> = {
   CONTRACT_FACILITY_DISABLED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs"),
   CONTRACT_FACILITY_ENABLED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs"),
   CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs"),
+  PAYMASTER_CREATED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs", {
+    notes: "Issuer created a new Paymaster master as UNVERIFIED. Not customer visible.",
+  }),
+  PAYMASTER_LINKED_TO_ISSUER: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs", {
+    notes: "New IssuerPaymasterLink on an existing master. Not written for last_used_at updates or the originating create.",
+  }),
+  PAYMASTER_VERIFIED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs", {
+    notes: "Admin identity review UNVERIFIED → VERIFIED. Display as Paymaster Identity Verified. Not application approval.",
+  }),
   INVOICE_OFFER_SENT: entry(EVENT_LAYER.APPLICATION_TIMELINE, "application_logs", USER),
   INVOICE_OFFER_ACCEPTANCE_SUBMITTED: entry(EVENT_LAYER.APPLICATION_TIMELINE, "application_logs", USER),
   INVOICE_OFFER_ACCEPTANCE_RESUBMITTED: entry(

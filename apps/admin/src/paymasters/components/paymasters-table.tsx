@@ -13,32 +13,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
-import { ADMIN_ACTION_ROW_CLASS } from "@/lib/admin-status-token";
-import { cn } from "@/lib/utils";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
 
 function TableSkeleton() {
   return (
     <>
       {Array.from({ length: 5 }).map((_, i) => (
         <TableRow key={i}>
-          <TableCell>
-            <Skeleton className="h-5 w-40" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-5 w-28" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-5 w-24" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-5 w-16" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-5 w-16" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-5 w-28" />
-          </TableCell>
+              {Array.from({ length: 8 }).map((_, cell) => (
+            <TableCell key={cell}>
+              <Skeleton className="h-5 w-24" />
+            </TableCell>
+          ))}
         </TableRow>
       ))}
     </>
@@ -78,7 +64,7 @@ export function PaymastersTable({
               <TableHead className="text-sm font-semibold">Issuers</TableHead>
               <TableHead className="text-sm font-semibold">Notes</TableHead>
               <TableHead className="text-sm font-semibold">Last used</TableHead>
-              <TableHead className="text-sm font-semibold">Review</TableHead>
+              <TableHead className="text-sm font-semibold">Verification</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -94,7 +80,7 @@ export function PaymastersTable({
               items.map((item) => (
                 <TableRow
                   key={item.id}
-                  className={cn("cursor-pointer", item.mismatchPending && ADMIN_ACTION_ROW_CLASS)}
+                  className="cursor-pointer"
                   onClick={() => onViewDetails(item)}
                 >
                   <TableCell className="text-ui font-medium">{item.legalName}</TableCell>
@@ -107,11 +93,10 @@ export function PaymastersTable({
                     {item.lastUsedAt ? format(new Date(item.lastUsedAt), "dd MMM yyyy") : "—"}
                   </TableCell>
                   <TableCell>
-                    {item.mismatchPending ? (
-                      <StatusBadge label="Review required" status="action" />
-                    ) : (
-                      <span className="text-ui text-muted-foreground">—</span>
-                    )}
+                    <StatusBadge
+                      label={item.verificationStatus === "VERIFIED" ? "Verified" : "Unverified"}
+                      status={getAdminStatusToken(item.verificationStatus)}
+                    />
                   </TableCell>
                 </TableRow>
               ))

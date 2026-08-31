@@ -72,6 +72,7 @@ async function updateContract(req: Request, res: Response, next: NextFunction) {
     };
     const contract = await contractService.updateContract(id, data, userId, {
       selectedPaymasterId: selectedPaymasterId ?? null,
+      logContext: issuerActivityFromRequest(req, res),
     });
 
     res.json({

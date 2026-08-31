@@ -177,6 +177,24 @@ Invoice-only products omit facility stages and move from **invoice pending** to 
 - Use amendment for correctable defects. Use rejection when the case or unit should stop.
 - Refresh organization and subject CTOS (and related party data) when material facts changed before approving financials.
 - Confirm customer or paymaster data before sending commercial offers.
+- Use **Paymaster Verification** on Application Review or Paymaster Detail to record that identity was reviewed internally. This is not SSM Approved, not CTOS, and not application approval. Verifying a Paymaster does not approve the application or section.
+
+## Paymaster identity
+
+Paymaster is the reusable customer / obligor master. Same SSM number is always the same master.
+
+Issuer flow:
+
+1. The issuer enters the 12-digit SSM first.
+2. If a **Verified** Paymaster exists, they must select it. Identity autofills and cannot be edited.
+3. If none exists, they enter identity. A new Paymaster is created **Unverified**.
+4. Admin later verifies identity. A Verified Paymaster can be reused by other issuers.
+
+On Application Review, **Paymaster Verification** is separate from section approval, application approval, SSM onboarding, MARC, and Notice of Assignment. Use **Verify Paymaster** only after confirming legal name, registration, country, and entity type.
+
+Related-party (Yes / No) is per issuer link, not part of locked master identity. Large Private Company stays on the application / facility.
+
+The Paymasters register lists identity and Verified / Unverified status. It is not a mismatch inbox.
 - Confirm guarantor screening before treating guarantor support as established.
 - Use invoice offers for invoice-level commercial approval and facility offers for facility-level approval.
 - Do not send offers until upstream sections are approved and the relevant tab is unlocked.

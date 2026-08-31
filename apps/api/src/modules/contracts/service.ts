@@ -191,7 +191,10 @@ export class ContractService {
     id: string,
     data: Prisma.ContractUpdateInput,
     userId: string,
-    options: { selectedPaymasterId?: string | null } = {}
+    options: {
+      selectedPaymasterId?: string | null;
+      logContext?: IssuerActivityLogContext;
+    } = {}
   ): Promise<Contract> {
     const contract = await this.verifyContractAccess(id, userId);
 
@@ -243,6 +246,13 @@ export class ContractService {
 
     if (data.customer_details != null && data.customer_details !== Prisma.JsonNull) {
       const applicationId = (contract as { applications?: Array<{ id: string }> }).applications?.[0]?.id ?? null;
+      const previousCustomer =
+        contract.customer_details &&
+        typeof contract.customer_details === "object" &&
+        !Array.isArray(contract.customer_details)
+          ? (contract.customer_details as Record<string, unknown>)
+          : null;
+      const previousLpc = previousCustomer?.is_large_private_company;
       const resolved = await resolvePaymasterFromCustomerDetails({
         issuerOrganizationId: contract.issuer_organization_id,
         customerDetails: data.customer_details as Record<string, unknown>,
@@ -250,6 +260,10 @@ export class ContractService {
         contractId: contract.id,
         selectedPaymasterId: options.selectedPaymasterId ?? null,
         lockExistingPaymasterId: contract.paymaster_id,
+        previousLargePrivateCompany: typeof previousLpc === "boolean" ? previousLpc : undefined,
+        previousDocument: previousCustomer?.document,
+        actorUserId: userId,
+        auditContext: options.logContext?.context,
       });
       data.customer_details = resolved.customerDetails as Prisma.InputJsonValue;
       data.paymaster = { connect: { id: resolved.paymasterId } };

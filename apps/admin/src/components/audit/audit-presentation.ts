@@ -64,6 +64,9 @@ const APPLICATION_AUDIT_EVENT_LABELS: Record<string, string> = {
   EOD_WEBHOOK: "Entity Onboarding Data Provider Update",
   OVERDUE_LATE_CHARGE_CHECKED: "Note Entered Arrears",
   CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED: "Large Private Customer Flag Updated",
+  PAYMASTER_CREATED: "Paymaster Created",
+  PAYMASTER_LINKED_TO_ISSUER: "Paymaster Linked to Issuer",
+  PAYMASTER_VERIFIED: "Paymaster Identity Verified",
   GATEWAY_PAYMENT_COMPLETED: "Payment Received Successfully",
 };
 

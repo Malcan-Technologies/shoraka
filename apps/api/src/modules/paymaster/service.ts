@@ -6,7 +6,17 @@ import {
   MARC_REPORT_REQUIRED_MESSAGE,
   PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_CODE,
   PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE,
+  PAYMASTER_EXISTING_IDENTITY_IMMUTABLE_MESSAGE,
+  PAYMASTER_IDENTITY_IMMUTABLE_CODE,
+  PAYMASTER_IDENTITY_IMMUTABLE_MESSAGE,
+  PAYMASTER_NOT_VERIFIED_CODE,
+  PAYMASTER_NOT_VERIFIED_MESSAGE,
+  RELATED_PARTY_REQUIRED_CODE,
+  RELATED_PARTY_REQUIRED_MESSAGE,
+  VERIFIED_PAYMASTER_MUST_BE_SELECTED_CODE,
+  VERIFIED_PAYMASTER_MUST_BE_SELECTED_MESSAGE,
   isCompleteIssuerMarcAssessment,
+  isPaymasterVerified,
   marcSmeGradeFromCreditScore,
   parseMarcCreditScore,
   parseMarcProbabilityOfDefault,
@@ -15,6 +25,9 @@ import {
   type PaymasterAssignmentNotice as PaymasterAssignmentNoticeDto,
   type PaymasterDetail,
   type PaymasterListItem,
+  type PaymasterLookupMatch,
+  type PaymasterLookupResult,
+  type PaymasterVerificationStatus,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import {
@@ -24,6 +37,7 @@ import {
 import { snapshotBusinessReference } from "../../lib/audit/display-references";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
+import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
 import {
   MARC_ASSESSMENT_SAVED,
   buildMarcAssessmentAuditMetadata,
@@ -31,10 +45,15 @@ import {
 } from "./marc-assessment-audit";
 import { generatePresignedUploadUrl, validateDocument } from "../../lib/s3/client";
 import {
-  describePaymasterMismatch,
+  parseRegistrationLookup,
+  parseRelatedPartyFlag,
   parseSubmittedIdentity,
-  type PaymasterSubmittedIdentity,
+  submittedIdentityConflictsWithMaster,
 } from "./identity";
+import {
+  buildPaymasterIdentityAuditMetadata,
+  writePaymasterIdentityApplicationLog,
+} from "./identity-audit";
 import { buildPaymasterSnapshot } from "./snapshot";
 
 export type CustomerDetailsJson = {
@@ -59,67 +78,136 @@ function decimalToNumber(value: { toString(): string } | number | null | undefin
   return Number.isFinite(n) ? n : null;
 }
 
+type PaymasterRow = {
+  id: string;
+  legal_name: string;
+  registration_number: string;
+  registration_country: string;
+  entity_type: string;
+  verification_status: PaymasterVerificationStatus;
+  verified_at: Date | null;
+  verified_by_user_id: string | null;
+  source?: string;
+  created_at: Date;
+  updated_at: Date;
+};
+
+function requireRelatedParty(value: unknown): boolean {
+  const parsed = parseRelatedPartyFlag(value);
+  if (parsed == null) {
+    throw new AppError(400, RELATED_PARTY_REQUIRED_CODE, RELATED_PARTY_REQUIRED_MESSAGE);
+  }
+  return parsed;
+}
+
+function resolveLargePrivateCompany(params: {
+  incoming: unknown;
+  previous: boolean | undefined;
+}): boolean | undefined {
+  if (typeof params.incoming === "boolean") return params.incoming;
+  return params.previous;
+}
+
+function toLookupMatch(row: {
+  id: string;
+  legal_name: string;
+  registration_number: string;
+  registration_country: string;
+  entity_type: string;
+  verification_status: PaymasterVerificationStatus;
+}): PaymasterLookupMatch {
+  return {
+    id: row.id,
+    legalName: row.legal_name,
+    registrationNumber: row.registration_number,
+    registrationCountry: row.registration_country,
+    entityType: row.entity_type,
+    verificationStatus: row.verification_status,
+  };
+}
+
+function mapIdentityFields(row: PaymasterRow) {
+  return {
+    id: row.id,
+    legalName: row.legal_name,
+    registrationNumber: row.registration_number,
+    registrationCountry: row.registration_country,
+    entityType: row.entity_type,
+    verificationStatus: row.verification_status,
+    verifiedAt: row.verified_at?.toISOString() ?? null,
+    verifiedByUserId: row.verified_by_user_id,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
 export async function findPaymasterByRegistration(registrationNumber: string) {
   return prisma.paymaster.findUnique({
     where: { registration_number: registrationNumber },
   });
 }
 
-async function createMismatch(params: {
-  paymasterId: string;
-  existing: { legal_name: string; entity_type: string; registration_country: string };
-  submitted: PaymasterSubmittedIdentity;
-  applicationId?: string | null;
-  contractId?: string | null;
-}) {
-  await prisma.paymasterMismatch.create({
-    data: {
-      paymaster_id: params.paymasterId,
-      application_id: params.applicationId ?? null,
-      contract_id: params.contractId ?? null,
-      submitted_legal_name: params.submitted.legalName,
-      submitted_entity_type: params.submitted.entityType,
-      submitted_country: params.submitted.registrationCountry,
-      existing_legal_name: params.existing.legal_name,
-      existing_entity_type: params.existing.entity_type,
-      existing_country: params.existing.registration_country,
-      status: "PENDING",
-    },
-  });
-  await prisma.paymaster.update({
-    where: { id: params.paymasterId },
-    data: { mismatch_pending: true },
-  });
+function assertSubmittedIdentityMatchesMaster(
+  existing: {
+    legal_name: string;
+    entity_type: string;
+    registration_country: string;
+    registration_number: string;
+    verification_status: PaymasterVerificationStatus;
+  },
+  customerDetails: CustomerDetailsJson
+) {
+  const submitted = parseSubmittedIdentity(customerDetails);
+  if (!submitted) return;
+  if (!submittedIdentityConflictsWithMaster(existing, submitted)) return;
+  throw new AppError(
+    409,
+    PAYMASTER_IDENTITY_IMMUTABLE_CODE,
+    isPaymasterVerified(existing.verification_status)
+      ? PAYMASTER_IDENTITY_IMMUTABLE_MESSAGE
+      : PAYMASTER_EXISTING_IDENTITY_IMMUTABLE_MESSAGE
+  );
 }
 
 async function upsertIssuerLink(params: {
   issuerOrganizationId: string;
   paymasterId: string;
   isRelatedParty: boolean | null;
-}) {
-  return prisma.issuerPaymasterLink.upsert({
+}): Promise<{ id: string; created: boolean }> {
+  const existing = await prisma.issuerPaymasterLink.findUnique({
     where: {
       issuer_organization_id_paymaster_id: {
         issuer_organization_id: params.issuerOrganizationId,
         paymaster_id: params.paymasterId,
       },
     },
-    create: {
+    select: { id: true },
+  });
+  if (existing) {
+    const updated = await prisma.issuerPaymasterLink.update({
+      where: { id: existing.id },
+      data: {
+        is_related_party: params.isRelatedParty,
+        last_used_at: new Date(),
+      },
+    });
+    return { id: updated.id, created: false };
+  }
+  const created = await prisma.issuerPaymasterLink.create({
+    data: {
       issuer_organization_id: params.issuerOrganizationId,
       paymaster_id: params.paymasterId,
       is_related_party: params.isRelatedParty,
       last_used_at: new Date(),
     },
-    update: {
-      is_related_party: params.isRelatedParty,
-      last_used_at: new Date(),
-    },
   });
+  return { id: created.id, created: true };
 }
 
 /**
  * Resolve or create a global Paymaster from issuer Customer Details.
- * Matches by SSM only. Never overwrites legal identity. Flags descriptive mismatches.
+ * Matches by SSM only. Never overwrites legal identity.
+ * Verified reuse requires explicit selectedPaymasterId. Conflicting identity is rejected.
  */
 export async function resolvePaymasterFromCustomerDetails(params: {
   issuerOrganizationId: string;
@@ -127,56 +215,93 @@ export async function resolvePaymasterFromCustomerDetails(params: {
   applicationId?: string | null;
   contractId?: string | null;
   selectedPaymasterId?: string | null;
-  /** When true, keep an already-linked facility Paymaster even if SSM in JSON differs. */
+  /** When set, keep an already-linked facility Paymaster even if SSM in JSON differs. */
   lockExistingPaymasterId?: string | null;
+  previousLargePrivateCompany?: boolean;
+  previousDocument?: unknown;
+  actorUserId?: string | null;
+  auditContext?: AuditRequestContext | null;
 }): Promise<{
   paymasterId: string;
   customerDetails: CustomerDetailsJson;
-  mismatchCreated: boolean;
+  paymasterCreated: boolean;
+  issuerLinkCreated: boolean;
 }> {
   const selectedId = params.selectedPaymasterId?.trim() || null;
   const lockId = params.lockExistingPaymasterId?.trim() || null;
+  const isRelatedParty = requireRelatedParty(params.customerDetails.is_related_party);
+  const isLargePrivateCompany = resolveLargePrivateCompany({
+    incoming: params.customerDetails.is_large_private_company,
+    previous: params.previousLargePrivateCompany,
+  });
+  const document =
+    params.customerDetails.document != null ? params.customerDetails.document : params.previousDocument;
+
+  const finish = async (
+    paymaster: {
+      id: string;
+      legal_name: string;
+      entity_type: string;
+      registration_number: string;
+      registration_country: string;
+      verification_status: PaymasterVerificationStatus;
+    },
+    paymasterCreated: boolean
+  ) => {
+    const link = await upsertIssuerLink({
+      issuerOrganizationId: params.issuerOrganizationId,
+      paymasterId: paymaster.id,
+      isRelatedParty,
+    });
+    const issuerLinkCreated = !paymasterCreated && link.created;
+    const snapshot = buildPaymasterSnapshot({
+      paymaster,
+      isRelatedParty,
+      isLargePrivateCompany,
+      document,
+    });
+    const applicationId = params.applicationId?.trim() || null;
+    const actorUserId = params.actorUserId?.trim() || null;
+    if (actorUserId && applicationId && (paymasterCreated || issuerLinkCreated)) {
+      const metadata = buildPaymasterIdentityAuditMetadata({
+        paymasterId: paymaster.id,
+        registrationNumber: paymaster.registration_number,
+        legalName: paymaster.legal_name,
+        verificationStatus: paymaster.verification_status,
+        issuerOrganizationId: params.issuerOrganizationId,
+        issuerPaymasterLinkId: link.id,
+        applicationId,
+        contractId: params.contractId,
+        relatedParty: isRelatedParty,
+        source: paymasterCreated ? "issuer" : "issuer_reuse",
+      });
+      await writePaymasterIdentityApplicationLog({
+        eventType: paymasterCreated
+          ? ApplicationLogEventType.PAYMASTER_CREATED
+          : ApplicationLogEventType.PAYMASTER_LINKED_TO_ISSUER,
+        actorUserId,
+        applicationId,
+        portal: ActivityPortal.ISSUER,
+        paymasterId: paymaster.id,
+        metadata,
+        context: params.auditContext,
+      });
+    }
+    return {
+      paymasterId: paymaster.id,
+      customerDetails: snapshot,
+      paymasterCreated,
+      issuerLinkCreated,
+    };
+  };
 
   if (lockId) {
     const existing = await prisma.paymaster.findUnique({ where: { id: lockId } });
     if (!existing) {
       throw new AppError(404, "PAYMASTER_NOT_FOUND", "Facility Paymaster was not found.");
     }
-    const submitted = parseSubmittedIdentity(params.customerDetails);
-    let mismatchCreated = false;
-    if (submitted) {
-      const mismatch = describePaymasterMismatch(existing, submitted);
-      if (mismatch) {
-        await createMismatch({
-          paymasterId: existing.id,
-          existing,
-          submitted,
-          applicationId: params.applicationId,
-          contractId: params.contractId,
-        });
-        mismatchCreated = true;
-        logger.info(
-          { paymasterId: existing.id, contractId: params.contractId },
-          "Paymaster descriptive mismatch flagged on existing facility"
-        );
-      }
-    }
-    const isRelatedParty = Boolean(params.customerDetails.is_related_party);
-    await upsertIssuerLink({
-      issuerOrganizationId: params.issuerOrganizationId,
-      paymasterId: existing.id,
-      isRelatedParty,
-    });
-    const snapshot = buildPaymasterSnapshot({
-      paymaster: existing,
-      isRelatedParty,
-      isLargePrivateCompany:
-        typeof params.customerDetails.is_large_private_company === "boolean"
-          ? params.customerDetails.is_large_private_company
-          : undefined,
-      document: params.customerDetails.document,
-    });
-    return { paymasterId: existing.id, customerDetails: snapshot, mismatchCreated };
+    assertSubmittedIdentityMatchesMaster(existing, params.customerDetails);
+    return finish(existing, false);
   }
 
   if (selectedId) {
@@ -184,45 +309,15 @@ export async function resolvePaymasterFromCustomerDetails(params: {
     if (!selected) {
       throw new AppError(404, "PAYMASTER_NOT_FOUND", "Selected customer was not found.");
     }
-    const link = await prisma.issuerPaymasterLink.findUnique({
-      where: {
-        issuer_organization_id_paymaster_id: {
-          issuer_organization_id: params.issuerOrganizationId,
-          paymaster_id: selected.id,
-        },
-      },
-    });
-    if (!link) {
-      throw new AppError(
-        403,
-        "PAYMASTER_NOT_ON_ISSUER",
-        "You can only select a customer previously used by this issuer."
-      );
+    if (!isPaymasterVerified(selected.verification_status)) {
+      throw new AppError(403, PAYMASTER_NOT_VERIFIED_CODE, PAYMASTER_NOT_VERIFIED_MESSAGE);
     }
-    const isRelatedParty = Boolean(params.customerDetails.is_related_party);
-    await upsertIssuerLink({
-      issuerOrganizationId: params.issuerOrganizationId,
-      paymasterId: selected.id,
-      isRelatedParty,
-    });
-    const snapshot = buildPaymasterSnapshot({
-      paymaster: selected,
-      isRelatedParty,
-      isLargePrivateCompany:
-        typeof params.customerDetails.is_large_private_company === "boolean"
-          ? params.customerDetails.is_large_private_company
-          : undefined,
-      document: params.customerDetails.document,
-    });
-    return {
-      paymasterId: selected.id,
-      customerDetails: snapshot,
-      mismatchCreated: false,
-    };
+    assertSubmittedIdentityMatchesMaster(selected, params.customerDetails);
+    return finish(selected, false);
   }
 
-  const submitted = parseSubmittedIdentity(params.customerDetails);
-  if (!submitted) {
+  const registrationNumber = parseRegistrationLookup(params.customerDetails.ssm_number);
+  if (!registrationNumber) {
     throw new AppError(
       400,
       "VALIDATION_ERROR",
@@ -230,67 +325,143 @@ export async function resolvePaymasterFromCustomerDetails(params: {
     );
   }
 
-  const found = await findPaymasterByRegistration(submitted.registrationNumber);
-  let paymaster = found;
-  let mismatchCreated = false;
+  const found = await findPaymasterByRegistration(registrationNumber);
 
-  if (!paymaster) {
-    paymaster = await prisma.paymaster.create({
-      data: {
-        legal_name: submitted.legalName,
-        registration_number: submitted.registrationNumber,
-        registration_country: submitted.registrationCountry,
-        entity_type: submitted.entityType,
-        source: "ISSUER_APPLICATION",
-      },
-    });
-    logger.info(
-      { paymasterId: paymaster.id, registrationNumber: submitted.registrationNumber },
-      "Paymaster master created from issuer customer details"
+  if (found && isPaymasterVerified(found.verification_status)) {
+    throw new AppError(
+      400,
+      VERIFIED_PAYMASTER_MUST_BE_SELECTED_CODE,
+      VERIFIED_PAYMASTER_MUST_BE_SELECTED_MESSAGE
     );
-  } else {
-    const mismatch = describePaymasterMismatch(paymaster, submitted);
-    if (mismatch) {
-      await createMismatch({
-        paymasterId: paymaster.id,
-        existing: paymaster,
-        submitted,
-        applicationId: params.applicationId,
-        contractId: params.contractId,
-      });
-      mismatchCreated = true;
-      logger.info(
-        { paymasterId: paymaster.id, mismatch },
-        "Paymaster descriptive mismatch flagged; legal identity not overwritten"
-      );
-    }
   }
 
-  const isRelatedParty = Boolean(params.customerDetails.is_related_party);
-  await upsertIssuerLink({
-    issuerOrganizationId: params.issuerOrganizationId,
-    paymasterId: paymaster.id,
-    isRelatedParty,
-  });
+  if (found) {
+    assertSubmittedIdentityMatchesMaster(found, params.customerDetails);
+    return finish(found, false);
+  }
 
-  const snapshot = buildPaymasterSnapshot({
-    paymaster,
-    isRelatedParty,
-    isLargePrivateCompany:
-      typeof params.customerDetails.is_large_private_company === "boolean"
-        ? params.customerDetails.is_large_private_company
-        : undefined,
-    document: params.customerDetails.document,
-  });
+  const submitted = parseSubmittedIdentity(params.customerDetails);
+  if (!submitted) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Customer name and entity type are required for a new Paymaster."
+    );
+  }
 
-  return { paymasterId: paymaster.id, customerDetails: snapshot, mismatchCreated };
+  const paymaster = await prisma.paymaster.create({
+    data: {
+      legal_name: submitted.legalName,
+      registration_number: submitted.registrationNumber,
+      registration_country: submitted.registrationCountry,
+      entity_type: submitted.entityType,
+      verification_status: "UNVERIFIED",
+      source: "ISSUER_APPLICATION",
+    },
+  });
+  logger.info(
+    { paymasterId: paymaster.id, registrationNumber: submitted.registrationNumber },
+    "Paymaster master created from issuer customer details"
+  );
+  return finish(paymaster, true);
+}
+
+export async function lookupPaymasterByRegistration(
+  registrationNumberRaw: unknown
+): Promise<PaymasterLookupResult> {
+  const registrationNumber = parseRegistrationLookup(registrationNumberRaw);
+  if (!registrationNumber) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Customer SSM number must be a 12-digit registration number."
+    );
+  }
+  const found = await findPaymasterByRegistration(registrationNumber);
+  if (!found) {
+    return { status: "NOT_FOUND", paymaster: null };
+  }
+  return {
+    status: isPaymasterVerified(found.verification_status) ? "FOUND_VERIFIED" : "FOUND_UNVERIFIED",
+    paymaster: toLookupMatch(found),
+  };
+}
+
+export async function verifyPaymaster(params: {
+  paymasterId: string;
+  actorUserId: string;
+  applicationId?: string | null;
+  auditContext?: AuditRequestContext | null;
+}): Promise<PaymasterDetail> {
+  const existing = await prisma.paymaster.findUnique({ where: { id: params.paymasterId } });
+  if (!existing) throw new AppError(404, "PAYMASTER_NOT_FOUND", "Paymaster not found");
+  if (!isPaymasterVerified(existing.verification_status)) {
+    await prisma.$transaction(async (tx) => {
+      await tx.paymaster.update({
+        where: { id: params.paymasterId },
+        data: {
+          verification_status: "VERIFIED",
+          verified_at: new Date(),
+          verified_by_user_id: params.actorUserId,
+        },
+      });
+      logger.info(
+        { paymasterId: params.paymasterId, actorUserId: params.actorUserId },
+        "Paymaster identity reviewed"
+      );
+      const applicationId =
+        params.applicationId?.trim() || (await findLinkedApplicationId(params.paymasterId, tx));
+      if (!applicationId) return;
+      await writePaymasterIdentityApplicationLog(
+        {
+          eventType: ApplicationLogEventType.PAYMASTER_VERIFIED,
+          actorUserId: params.actorUserId,
+          applicationId,
+          portal: ActivityPortal.ADMIN,
+          paymasterId: params.paymasterId,
+          metadata: buildPaymasterIdentityAuditMetadata({
+            paymasterId: params.paymasterId,
+            registrationNumber: existing.registration_number,
+            legalName: existing.legal_name,
+            verificationStatus: "VERIFIED",
+            applicationId,
+            previousStatus: "UNVERIFIED",
+            newStatus: "VERIFIED",
+            verifiedByUserId: params.actorUserId,
+            source: "admin",
+          }),
+          context: params.auditContext,
+        },
+        tx
+      );
+    });
+  }
+  return getAdminPaymasterDetail(params.paymasterId);
+}
+
+async function findLinkedApplicationId(
+  paymasterId: string,
+  db: Prisma.TransactionClient | typeof prisma = prisma
+): Promise<string | null> {
+  const contract = await db.contract.findFirst({
+    where: { paymaster_id: paymasterId },
+    orderBy: { updated_at: "desc" },
+    select: {
+      originating_application_id: true,
+      applications: { select: { id: true }, take: 1, orderBy: { updated_at: "desc" } },
+    },
+  });
+  return contract?.applications[0]?.id ?? contract?.originating_application_id ?? null;
 }
 
 export async function listIssuerPaymasters(
   issuerOrganizationId: string
 ): Promise<IssuerPaymasterOption[]> {
   const links = await prisma.issuerPaymasterLink.findMany({
-    where: { issuer_organization_id: issuerOrganizationId },
+    where: {
+      issuer_organization_id: issuerOrganizationId,
+      paymaster: { verification_status: "VERIFIED" },
+    },
     include: { paymaster: true },
     orderBy: { last_used_at: "desc" },
   });
@@ -300,6 +471,7 @@ export async function listIssuerPaymasters(
     registrationNumber: link.paymaster.registration_number,
     registrationCountry: link.paymaster.registration_country,
     entityType: link.paymaster.entity_type,
+    verificationStatus: link.paymaster.verification_status,
     isRelatedParty: link.is_related_party,
     lastUsedAt: link.last_used_at.toISOString(),
   }));
@@ -307,12 +479,12 @@ export async function listIssuerPaymasters(
 
 export async function listAdminPaymasters(input: {
   q?: string;
-  mismatchPending?: boolean;
+  verificationStatus?: PaymasterVerificationStatus;
   page: number;
   pageSize: number;
 }): Promise<{ items: PaymasterListItem[]; total: number; page: number; pageSize: number }> {
   const where: Prisma.PaymasterWhereInput = {};
-  if (input.mismatchPending === true) where.mismatch_pending = true;
+  if (input.verificationStatus) where.verification_status = input.verificationStatus;
   if (input.q?.trim()) {
     const q = input.q.trim();
     where.OR = [
@@ -340,14 +512,7 @@ export async function listAdminPaymasters(input: {
     pageSize: input.pageSize,
     total,
     items: rows.map((row) => ({
-      id: row.id,
-      legalName: row.legal_name,
-      registrationNumber: row.registration_number,
-      registrationCountry: row.registration_country,
-      entityType: row.entity_type,
-      mismatchPending: row.mismatch_pending,
-      createdAt: row.created_at.toISOString(),
-      updatedAt: row.updated_at.toISOString(),
+      ...mapIdentityFields(row),
       linkedIssuerCount: row._count.issuer_links,
       linkedNoteCount: row._count.notes,
       lastUsedAt: row.issuer_links[0]?.last_used_at.toISOString() ?? null,
@@ -365,7 +530,6 @@ export async function getAdminPaymasterDetail(id: string): Promise<PaymasterDeta
         },
         orderBy: { last_used_at: "desc" },
       },
-      mismatches: { orderBy: { created_at: "desc" }, take: 50 },
       assignment_notices: {
         orderBy: { created_at: "desc" },
         take: 50,
@@ -408,17 +572,20 @@ export async function getAdminPaymasterDetail(id: string): Promise<PaymasterDeta
   const issuerNameById = new Map(
     row.issuer_links.map((link) => [link.issuer_organization_id, link.issuer_organization.name])
   );
+  const verifier = row.verified_by_user_id
+    ? await prisma.user.findUnique({
+        where: { user_id: row.verified_by_user_id },
+        select: { first_name: true, last_name: true },
+      })
+    : null;
+  const verifiedByName = verifier
+    ? [verifier.first_name, verifier.last_name].filter(Boolean).join(" ").trim() || null
+    : null;
 
   return {
-    id: row.id,
-    legalName: row.legal_name,
-    registrationNumber: row.registration_number,
-    registrationCountry: row.registration_country,
-    entityType: row.entity_type,
-    mismatchPending: row.mismatch_pending,
+    ...mapIdentityFields(row),
     source: row.source,
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    verifiedByName,
     issuers: row.issuer_links.map((link) => ({
       issuerOrganizationId: link.issuer_organization_id,
       issuerName: link.issuer_organization.name,
@@ -458,20 +625,6 @@ export async function getAdminPaymasterDetail(id: string): Promise<PaymasterDeta
         updatedAt: note.updated_at.toISOString(),
       })),
     ],
-    mismatches: row.mismatches.map((mismatch) => ({
-      id: mismatch.id,
-      status: mismatch.status,
-      submittedLegalName: mismatch.submitted_legal_name,
-      submittedEntityType: mismatch.submitted_entity_type,
-      submittedCountry: mismatch.submitted_country,
-      existingLegalName: mismatch.existing_legal_name,
-      existingEntityType: mismatch.existing_entity_type,
-      existingCountry: mismatch.existing_country,
-      applicationId: mismatch.application_id,
-      contractId: mismatch.contract_id,
-      createdAt: mismatch.created_at.toISOString(),
-      resolvedAt: mismatch.resolved_at?.toISOString() ?? null,
-    })),
     notices: row.assignment_notices.map((notice) => ({
       id: notice.id,
       status: notice.status,
@@ -489,35 +642,6 @@ export async function getAdminPaymasterDetail(id: string): Promise<PaymasterDeta
       acknowledgedAt: notice.acknowledged_at?.toISOString() ?? null,
     })),
   };
-}
-
-export async function resolvePaymasterMismatch(params: {
-  paymasterId: string;
-  mismatchId: string;
-  actorUserId: string;
-}): Promise<void> {
-  const mismatch = await prisma.paymasterMismatch.findFirst({
-    where: { id: params.mismatchId, paymaster_id: params.paymasterId },
-  });
-  if (!mismatch) throw new AppError(404, "PAYMASTER_MISMATCH_NOT_FOUND", "Mismatch not found");
-  if (mismatch.status === "RESOLVED") return;
-
-  await prisma.paymasterMismatch.update({
-    where: { id: mismatch.id },
-    data: {
-      status: "RESOLVED",
-      resolved_at: new Date(),
-      resolved_by_user_id: params.actorUserId,
-    },
-  });
-
-  const pending = await prisma.paymasterMismatch.count({
-    where: { paymaster_id: params.paymasterId, status: "PENDING" },
-  });
-  await prisma.paymaster.update({
-    where: { id: params.paymasterId },
-    data: { mismatch_pending: pending > 0 },
-  });
 }
 
 function mapMarcAssessmentRow(row: {

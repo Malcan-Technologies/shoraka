@@ -149,9 +149,12 @@ import type {
   InvoiceOfferAcceptSignatoriesResponse,
   IssuerPaymasterOption,
   MarcAssessmentSnapshot,
+  PaymasterActivityEvent,
   PaymasterAssignmentNotice,
   PaymasterDetail,
   PaymasterListItem,
+  PaymasterLookupResult,
+  PaymasterVerificationStatus,
 } from "@cashsouk/types";
 import { parseContentDispositionFilename } from "./content-disposition-filename";
 import { detectClientPortal } from "./detect-client-portal";
@@ -723,10 +726,21 @@ export class ApiClient {
     return this.get(`/v1/issuer/paymasters?organizationId=${encodeURIComponent(organizationId)}`);
   }
 
+  async lookupIssuerPaymaster(
+    organizationId: string,
+    registrationNumber: string
+  ): Promise<ApiResponse<PaymasterLookupResult> | ApiError> {
+    const query = new URLSearchParams({
+      organizationId,
+      registrationNumber,
+    });
+    return this.get(`/v1/issuer/paymasters/lookup?${query.toString()}`);
+  }
+
   async listAdminPaymasters(
     params: {
       q?: string;
-      mismatchPending?: boolean;
+      verificationStatus?: PaymasterVerificationStatus;
       page?: number;
       pageSize?: number;
     } = {}
@@ -740,7 +754,7 @@ export class ApiClient {
   > {
     const query = new URLSearchParams();
     if (params.q) query.set("q", params.q);
-    if (params.mismatchPending) query.set("mismatchPending", "true");
+    if (params.verificationStatus) query.set("verificationStatus", params.verificationStatus);
     query.set("page", String(params.page ?? 1));
     query.set("pageSize", String(params.pageSize ?? 20));
     return this.get(`/v1/admin/paymasters?${query.toString()}`);
@@ -750,13 +764,17 @@ export class ApiClient {
     return this.get(`/v1/admin/paymasters/${id}`);
   }
 
-  async resolveAdminPaymasterMismatch(
+  async getAdminPaymasterActivity(
+    id: string
+  ): Promise<ApiResponse<{ events: PaymasterActivityEvent[] }> | ApiError> {
+    return this.get(`/v1/admin/paymasters/${id}/activity`);
+  }
+
+  async verifyAdminPaymaster(
     paymasterId: string,
-    mismatchId: string
+    body: { applicationId?: string } = {}
   ): Promise<ApiResponse<PaymasterDetail> | ApiError> {
-    return this.post(`/v1/admin/paymasters/${paymasterId}/mismatches/${mismatchId}/resolve`, {
-      keepExisting: true,
-    });
+    return this.post(`/v1/admin/paymasters/${paymasterId}/verify`, body);
   }
 
   async getIssuerMarcAssessment(

@@ -84,6 +84,7 @@ Once sent, the application becomes Amendment Requested. The issuer can edit only
 Use a facility offer when the application requires a facility-level approval. Before sending:
 
 - Confirm the customer or paymaster details.
+- Confirm Paymaster identity on **Paymaster Verification** if it is still Unverified. Verification does not approve the application or send the offer.
 - Confirm whether the customer is a large private company.
 - Make sure the offered facility does not exceed the requested facility and is strictly less than contract value.
 - Make sure the offer has not already been accepted or signed.

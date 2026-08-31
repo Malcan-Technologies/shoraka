@@ -7,6 +7,7 @@ import {
   noteEventToAuditDetail,
   notificationRelatedReference,
   organizationLogToAuditDetail,
+  paymasterActivityToAuditDetail,
   productLogToAuditDetail,
 } from "./audit-adapters";
 
@@ -320,6 +321,81 @@ describe("occupancy Event Details display references", () => {
     expect(detail.target?.invoiceReference).toBeNull();
     expect(detail.previousValues).toEqual({ utilized_facility: 0 });
     expect(detail.nextValues).toEqual({ utilized_facility: 1 });
+  });
+});
+
+describe("Paymaster identity Event Details", () => {
+  it("surfaces legal name, SSM, and status without using a JSON-only title", () => {
+    const detail = applicationLogToAuditDetail(
+      {
+        id: "log-pm",
+        event_type: "PAYMASTER_VERIFIED",
+        activity: null,
+        actor_id: "A1B2C",
+        application_id: "app-1",
+        metadata: {
+          legalName: "ABC Trading Sdn Bhd",
+          registrationNumber: "202134567890",
+          verification_status: "VERIFIED",
+          previous_status: "UNVERIFIED",
+          new_status: "VERIFIED",
+        },
+        ip_address: null,
+        created_at: "2026-09-01T00:00:00.000Z",
+        remark: "ABC Trading Sdn Bhd (202134567890) identity reviewed internally. Unverified → Verified.",
+        entityId: "pm_1",
+        review_cycle: null,
+      },
+      "Paymaster Identity Verified",
+      "ABC Trading Sdn Bhd (202134567890) identity reviewed internally. Unverified → Verified."
+    );
+    expect(detail.eventLabel).toBe("Paymaster Identity Verified");
+    expect(detail.description).toContain("identity reviewed internally");
+    expect(detail.target?.extra).toEqual(
+      expect.arrayContaining([
+        { label: "Legal name", value: "ABC Trading Sdn Bhd" },
+        { label: "Registration / SSM", value: "202134567890" },
+        { label: "Verification status", value: "VERIFIED" },
+        { label: "Previous status", value: "UNVERIFIED" },
+        { label: "New status", value: "VERIFIED" },
+      ])
+    );
+  });
+
+  it("maps Paymaster Activity rows to Event Details without inventing a link event", () => {
+    const detail = paymasterActivityToAuditDetail(
+      {
+        id: "log-linked",
+        eventType: "PAYMASTER_LINKED_TO_ISSUER",
+        createdAt: "2026-08-20T07:42:00.000Z",
+        remark: "ABC Trading Sdn Bhd (202134567890) linked to this issuer.",
+        actorUserId: "issuer-user",
+        actorName: "Issuer User",
+        portal: "ISSUER",
+        paymasterId: "pm_1",
+        issuerOrganizationId: "org-b",
+        issuerName: "Issuer B",
+        issuerDisplayReference: "ISS-B",
+        applicationId: "app-b",
+        applicationDisplayReference: "APP-B",
+        applicationProductId: "prod-1",
+        relatedParty: true,
+        verificationStatus: "VERIFIED",
+        previousStatus: null,
+        newStatus: null,
+        metadata: { paymaster_id: "pm_1", related_party: true },
+      },
+      "Paymaster Linked to Issuer"
+    );
+    expect(detail.eventLabel).toBe("Paymaster Linked to Issuer");
+    expect(detail.target?.type).toBe("PAYMASTER");
+    expect(detail.target?.id).toBe("pm_1");
+    expect(detail.target?.extra).toEqual(
+      expect.arrayContaining([
+        { label: "Issuer", value: "Issuer B" },
+        { label: "Related party", value: "Yes" },
+      ])
+    );
   });
 });
 

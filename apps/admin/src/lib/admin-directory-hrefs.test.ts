@@ -1,5 +1,5 @@
 import type { PortalType } from "@cashsouk/types";
-import { accountHref, issuerMarcHref, orgHref, orgListHref } from "./admin-directory-hrefs";
+import { accountHref, applicationHref, issuerMarcHref, orgHref, orgListHref } from "./admin-directory-hrefs";
 
 describe("admin directory hrefs", () => {
   it("builds user account detail paths", () => {
@@ -12,6 +12,11 @@ describe("admin directory hrefs", () => {
     expect(orgHref("issuer", "org-1")).toBe("/issuers/org-1");
     expect(orgHref("investor", "org-2")).toBe("/investors/org-2");
     expect(issuerMarcHref("org-1")).toBe("/issuers/org-1?tab=organization#marc-assessment");
+  });
+
+  it("builds application detail paths from product and application ids", () => {
+    expect(applicationHref("prod-1", "app-1")).toBe("/applications/prod-1/app-1");
+    expect(applicationHref("a/b", "c d")).toBe("/applications/a%2Fb/c%20d");
   });
 
   it("encodes ids in detail paths", () => {

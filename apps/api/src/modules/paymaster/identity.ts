@@ -41,14 +41,26 @@ export type PaymasterSubmittedIdentity = {
   entityType: string;
 };
 
+/** Registration-only parse. Country can be added later without changing name matching. */
+export function parseRegistrationLookup(value: unknown): string | null {
+  const registrationNumber = normalizeRegistrationNumber(value);
+  return isMalaysianSsmNumber(registrationNumber) ? registrationNumber : null;
+}
+
+export function parseRelatedPartyFlag(value: unknown): boolean | null {
+  if (value === true) return true;
+  if (value === false) return false;
+  return null;
+}
+
 export function parseSubmittedIdentity(input: {
   name?: unknown;
   ssm_number?: unknown;
   country?: unknown;
   entity_type?: unknown;
 }): PaymasterSubmittedIdentity | null {
-  const registrationNumber = normalizeRegistrationNumber(input.ssm_number);
-  if (!isMalaysianSsmNumber(registrationNumber)) return null;
+  const registrationNumber = parseRegistrationLookup(input.ssm_number);
+  if (!registrationNumber) return null;
   const legalName = normalizeLegalName(input.name);
   const entityType = normalizeEntityType(input.entity_type);
   if (!legalName || !entityType) return null;
@@ -60,21 +72,19 @@ export function parseSubmittedIdentity(input: {
   };
 }
 
-export type PaymasterDescriptiveMismatch = {
-  name: boolean;
-  entityType: boolean;
-  country: boolean;
-};
-
-export function describePaymasterMismatch(
-  existing: { legal_name: string; entity_type: string; registration_country: string },
+export function submittedIdentityConflictsWithMaster(
+  existing: {
+    legal_name: string;
+    entity_type: string;
+    registration_country: string;
+    registration_number: string;
+  },
   submitted: PaymasterSubmittedIdentity
-): PaymasterDescriptiveMismatch | null {
-  const mismatch: PaymasterDescriptiveMismatch = {
-    name: namesDiffer(existing.legal_name, submitted.legalName),
-    entityType: existing.entity_type.trim().toLowerCase() !== submitted.entityType.trim().toLowerCase(),
-    country: existing.registration_country.trim().toUpperCase() !== submitted.registrationCountry,
-  };
-  if (!mismatch.name && !mismatch.entityType && !mismatch.country) return null;
-  return mismatch;
+): boolean {
+  return (
+    namesDiffer(existing.legal_name, submitted.legalName) ||
+    existing.entity_type.trim().toLowerCase() !== submitted.entityType.trim().toLowerCase() ||
+    existing.registration_country.trim().toUpperCase() !== submitted.registrationCountry ||
+    existing.registration_number !== submitted.registrationNumber
+  );
 }

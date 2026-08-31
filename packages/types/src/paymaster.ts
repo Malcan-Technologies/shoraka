@@ -9,16 +9,34 @@ export const PAYMASTER_ASSIGNMENT_NOTICE_STATUSES = [
 export type PaymasterAssignmentNoticeStatus =
   (typeof PAYMASTER_ASSIGNMENT_NOTICE_STATUSES)[number];
 
-export const PAYMASTER_MISMATCH_STATUSES = ["PENDING", "RESOLVED"] as const;
-export type PaymasterMismatchStatus = (typeof PAYMASTER_MISMATCH_STATUSES)[number];
+export const PAYMASTER_VERIFICATION_STATUSES = ["UNVERIFIED", "VERIFIED"] as const;
+export type PaymasterVerificationStatus = (typeof PAYMASTER_VERIFICATION_STATUSES)[number];
 
-export interface PaymasterIdentity {
+export const PAYMASTER_LOOKUP_STATUSES = [
+  "FOUND_VERIFIED",
+  "FOUND_UNVERIFIED",
+  "NOT_FOUND",
+] as const;
+export type PaymasterLookupStatus = (typeof PAYMASTER_LOOKUP_STATUSES)[number];
+
+export function isPaymasterVerified(
+  status: PaymasterVerificationStatus | string | null | undefined
+): boolean {
+  return status === "VERIFIED";
+}
+
+export interface PaymasterMasterIdentity {
   id: string;
   legalName: string;
   registrationNumber: string;
   registrationCountry: string;
   entityType: string;
-  mismatchPending: boolean;
+  verificationStatus: PaymasterVerificationStatus;
+}
+
+export interface PaymasterIdentity extends PaymasterMasterIdentity {
+  verifiedAt: string | null;
+  verifiedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -53,21 +71,6 @@ export interface PaymasterFinancingRow {
   updatedAt: string | null;
 }
 
-export interface PaymasterMismatchRow {
-  id: string;
-  status: PaymasterMismatchStatus;
-  submittedLegalName: string;
-  submittedEntityType: string;
-  submittedCountry: string;
-  existingLegalName: string;
-  existingEntityType: string;
-  existingCountry: string;
-  applicationId: string | null;
-  contractId: string | null;
-  createdAt: string;
-  resolvedAt: string | null;
-}
-
 export interface PaymasterNoticeHistoryRow {
   id: string;
   status: PaymasterAssignmentNoticeStatus;
@@ -87,10 +90,49 @@ export interface PaymasterNoticeHistoryRow {
 
 export interface PaymasterDetail extends PaymasterIdentity {
   source: string;
+  verifiedByName: string | null;
   issuers: PaymasterIssuerLinkRow[];
   financings: PaymasterFinancingRow[];
-  mismatches: PaymasterMismatchRow[];
   notices: PaymasterNoticeHistoryRow[];
+}
+
+/** Identity lifecycle events stored on `application_logs` and read from Application and Paymaster Activity. */
+export const PAYMASTER_IDENTITY_ACTIVITY_EVENT_TYPES = [
+  "PAYMASTER_CREATED",
+  "PAYMASTER_LINKED_TO_ISSUER",
+  "PAYMASTER_VERIFIED",
+] as const;
+
+export type PaymasterIdentityActivityEventType =
+  (typeof PAYMASTER_IDENTITY_ACTIVITY_EVENT_TYPES)[number];
+
+export function isPaymasterIdentityActivityEventType(
+  eventType: string
+): eventType is PaymasterIdentityActivityEventType {
+  return (PAYMASTER_IDENTITY_ACTIVITY_EVENT_TYPES as readonly string[]).includes(eventType);
+}
+
+/** One `application_logs` row for a Paymaster master. Same record as Application Activity. */
+export interface PaymasterActivityEvent {
+  id: string;
+  eventType: PaymasterIdentityActivityEventType;
+  createdAt: string;
+  remark: string | null;
+  actorUserId: string | null;
+  actorName: string | null;
+  portal: string | null;
+  paymasterId: string;
+  issuerOrganizationId: string | null;
+  issuerName: string | null;
+  issuerDisplayReference: string | null;
+  applicationId: string | null;
+  applicationDisplayReference: string | null;
+  applicationProductId: string | null;
+  relatedParty: boolean | null;
+  verificationStatus: string | null;
+  previousStatus: string | null;
+  newStatus: string | null;
+  metadata: Record<string, unknown> | null;
 }
 
 export interface IssuerPaymasterOption {
@@ -99,8 +141,23 @@ export interface IssuerPaymasterOption {
   registrationNumber: string;
   registrationCountry: string;
   entityType: string;
+  verificationStatus: PaymasterVerificationStatus;
   isRelatedParty: boolean | null;
   lastUsedAt: string;
+}
+
+export interface PaymasterLookupMatch {
+  id: string;
+  legalName: string;
+  registrationNumber: string;
+  registrationCountry: string;
+  entityType: string;
+  verificationStatus: PaymasterVerificationStatus;
+}
+
+export interface PaymasterLookupResult {
+  status: PaymasterLookupStatus;
+  paymaster: PaymasterLookupMatch | null;
 }
 
 export interface PaymasterAssignmentNotice {
@@ -129,3 +186,21 @@ export const PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE =
 
 export const ASSIGNMENT_NOTICE_LEGAL_TEMPLATE_PENDING =
   "Approved Notice of Assignment legal wording is pending. This file records assignment particulars only and is not a substitute for the approved legal template.";
+
+export const PAYMASTER_NOT_VERIFIED_CODE = "PAYMASTER_NOT_VERIFIED";
+export const PAYMASTER_NOT_VERIFIED_MESSAGE =
+  "You can only select a verified Paymaster for reuse.";
+
+export const VERIFIED_PAYMASTER_MUST_BE_SELECTED_CODE = "VERIFIED_PAYMASTER_MUST_BE_SELECTED";
+export const VERIFIED_PAYMASTER_MUST_BE_SELECTED_MESSAGE =
+  "A verified Paymaster exists for this registration number. Select it to continue.";
+
+export const RELATED_PARTY_REQUIRED_CODE = "RELATED_PARTY_REQUIRED";
+export const RELATED_PARTY_REQUIRED_MESSAGE =
+  "Please confirm whether the customer is related to you.";
+
+export const PAYMASTER_IDENTITY_IMMUTABLE_CODE = "PAYMASTER_IDENTITY_IMMUTABLE";
+export const PAYMASTER_IDENTITY_IMMUTABLE_MESSAGE =
+  "Verified Paymaster identity cannot be changed.";
+export const PAYMASTER_EXISTING_IDENTITY_IMMUTABLE_MESSAGE =
+  "Existing Paymaster identity cannot be changed.";

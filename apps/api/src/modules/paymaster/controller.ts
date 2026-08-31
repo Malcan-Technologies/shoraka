@@ -11,16 +11,19 @@ import {
   marcAssessmentSchema,
   marcUploadUrlSchema,
   paymasterIdParamSchema,
-  resolveMismatchSchema,
+  issuerPaymasterLookupQuerySchema,
+  verifyPaymasterBodySchema,
 } from "./schemas";
+import { listAdminPaymasterActivity } from "./activity";
 import {
   createMarcAssessment,
   getAdminPaymasterDetail,
   getCurrentMarcAssessment,
   listAdminPaymasters,
   listIssuerPaymasters,
+  lookupPaymasterByRegistration,
   requestIssuerMarcReportUploadUrl,
-  resolvePaymasterMismatch,
+  verifyPaymaster,
 } from "./service";
 import {
   attachAssignmentNoticeFile,
@@ -52,6 +55,27 @@ function send(res: Response, data: unknown, status = 200) {
 export function createIssuerPaymasterRouter(): Router {
   const router = Router();
   router.use(requireAuth);
+
+  router.get("/lookup", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const query = issuerPaymasterLookupQuerySchema.parse(req.query);
+      const userId = getUserId(req);
+      const member = await organizationRepository.getOrganizationMember(
+        query.organizationId,
+        userId,
+        "issuer"
+      );
+      const organization = await organizationRepository.findIssuerOrganizationById(
+        query.organizationId
+      );
+      if (!member && organization?.owner_user_id !== userId) {
+        throw new AppError(403, "FORBIDDEN", "You do not have access to this organisation.");
+      }
+      send(res, await lookupPaymasterByRegistration(query.registrationNumber));
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get("/", async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -92,11 +116,24 @@ adminPaymasterRouter.get(
         res,
         await listAdminPaymasters({
           q: query.q,
-          mismatchPending: query.mismatchPending === "true" ? true : undefined,
+          verificationStatus: query.verificationStatus,
           page: query.page,
           pageSize: query.pageSize,
         })
       );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminPaymasterRouter.get(
+  "/:id/activity",
+  requirePermission("paymasters.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = paymasterIdParamSchema.parse(req.params);
+      send(res, await listAdminPaymasterActivity(id));
     } catch (error) {
       next(error);
     }
@@ -117,19 +154,21 @@ adminPaymasterRouter.get(
 );
 
 adminPaymasterRouter.post(
-  "/:id/mismatches/:mismatchId/resolve",
+  "/:id/verify",
   requirePermission("paymasters.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = paymasterIdParamSchema.parse(req.params);
-      const mismatchId = String(req.params.mismatchId);
-      resolveMismatchSchema.parse(req.body ?? {});
-      await resolvePaymasterMismatch({
-        paymasterId: id,
-        mismatchId,
-        actorUserId: getUserId(req),
-      });
-      send(res, await getAdminPaymasterDetail(id));
+      const body = verifyPaymasterBodySchema.parse(req.body ?? {});
+      send(
+        res,
+        await verifyPaymaster({
+          paymasterId: id,
+          actorUserId: getUserId(req),
+          applicationId: body.applicationId,
+          auditContext: auditContextFromRequest(req, { res }),
+        })
+      );
     } catch (error) {
       next(error);
     }
