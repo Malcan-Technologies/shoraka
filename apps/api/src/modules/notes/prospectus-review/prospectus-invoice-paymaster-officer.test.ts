@@ -46,9 +46,9 @@ describe("prospectus officer Invoice & Paymaster fields", () => {
     expect(validateDraftContent(empty)).toEqual([]);
   });
 
-  it("strips obsolete paymasterRating and confidenceGrading from save payloads", () => {
+  it("rejects obsolete paymasterRating and confidenceGrading on save payloads", () => {
     const draft = buildCompleteProspectusReviewDraft();
-    const parsed = saveProspectusReviewDraftSchema.shape.draftContent.parse({
+    const result = saveProspectusReviewDraftSchema.shape.draftContent.safeParse({
       ...draft,
       page2: {
         ...draft.page2,
@@ -59,9 +59,11 @@ describe("prospectus officer Invoice & Paymaster fields", () => {
         },
       },
     });
-    expect(parsed.page2.invoicePaymaster).toEqual({ deedOfAssignment: "Yes" });
-    expect(parsed.page2.invoicePaymaster).not.toHaveProperty("paymasterRating");
-    expect(parsed.page2.invoicePaymaster).not.toHaveProperty("confidenceGrading");
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.issues.some((issue) => issue.code === "unrecognized_keys")).toBe(true);
+    expect(JSON.stringify(result.error.issues)).toContain("paymasterRating");
+    expect(JSON.stringify(result.error.issues)).toContain("confidenceGrading");
   });
 
   it("does not emit paymasterRating or confidenceGrading on empty review JSON or publication", () => {

@@ -86,6 +86,7 @@ export const prospectusReviewStoredContentSchema = z
           .object({
             deedOfAssignment: z.enum(["Yes", "No"]).nullable().optional(),
           })
+          .strict()
           .optional(),
         paymasterTrackRecord: z
           .object({
