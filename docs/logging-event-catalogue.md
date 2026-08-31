@@ -56,7 +56,7 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `INVOICE_OFFER_ACCEPTANCE_SUBMITTED` | APPLICATION_TIMELINE | LIVE | application_logs | yes |
 | `INVOICE_OFFER_ACCEPTED` | APPLICATION_TIMELINE | LIVE | application_logs | yes |
 | `INVOICE_OFFER_EXPIRED` | APPLICATION_TIMELINE | LIVE | application_logs | yes |
-| `INVOICE_OFFER_REJECTED` | APPLICATION_TIMELINE | HISTORICAL_READER | application_logs | yes |
+| `INVOICE_OFFER_REJECTED` | APPLICATION_TIMELINE | LIVE | application_logs | yes |
 | `INVOICE_OFFER_RETRACTED` | APPLICATION_TIMELINE | LIVE | application_logs | yes |
 | `INVOICE_OFFER_SENT` | APPLICATION_TIMELINE | LIVE | application_logs | yes |
 | `INVOICE_SIGNING_DEADLINE_EXTENDED` | APPLICATION_TIMELINE | LIVE | application_logs | yes |

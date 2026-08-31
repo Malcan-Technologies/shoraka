@@ -1,14 +1,14 @@
 {
-  "liveEvents": 144,
-  "historicalReaders": 12,
+  "liveEvents": 145,
+  "historicalReaders": 11,
   "devOnly": 7,
   "catalogueSize": 163,
   "writerHits": 100,
   "unknown": 0,
   "unknownEvents": [],
   "byLifecycle": {
-    "LIVE": 144,
-    "HISTORICAL_READER": 12,
+    "LIVE": 145,
+    "HISTORICAL_READER": 11,
     "DEV_ONLY": 7
   },
   "byLayer": {
