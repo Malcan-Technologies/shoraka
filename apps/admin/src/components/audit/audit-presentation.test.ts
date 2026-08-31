@@ -35,7 +35,9 @@ describe("audit presentation", () => {
     expect(formatAuditEventLabel("MEMBER_ROLE_CHANGED")).toBe("Member Role Changed");
     expect(formatAuditEventLabel("OVERDUE_LATE_CHARGE_CHECKED")).toBe("Note Entered Arrears");
     expect(formatAuditEventLabel("ONBOARDING_APPROVED")).toBe("Onboarding Submission Approved");
-    expect(formatAuditEventLabel("EOD_APPROVED")).toBe("Enhanced Due Diligence Approved");
+    expect(formatAuditEventLabel("EOD_APPROVED")).toBe("Entity Onboarding Data Approved");
+    expect(formatAuditEventLabel("EOD_REJECTED")).toBe("Entity Onboarding Data Rejected");
+    expect(formatAuditEventLabel("EOD_WEBHOOK")).toBe("Entity Onboarding Data Provider Update");
     expect(formatAuditEventLabel("MEMBER_ADDED")).not.toBe("Role Added");
     expect(formatAuditEventLabel("MEMBER_REMOVED")).not.toBe("Role Removed");
   });

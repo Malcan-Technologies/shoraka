@@ -10,6 +10,16 @@ Help (Admin Operations Guide) stays journey-oriented. This register is the uniqu
 
 Do not treat `apps/api/src/lib/audit/visibility-matrix.ts` or `docs/logging-event-catalogue.md` as this register. The catalogue includes historical readers and a few LIVE names with no production writer (`ACCOUNT_LOCKED`, gateway `CREATED` / `COMPLETED` / `FAILED`). Those are excluded here. Extra live writers missing from the catalogue are included.
 
+**Acronyms in this register follow this codebase, not general English:**
+
+| Code | Meaning in this platform |
+| --- | --- |
+| EOD | Entity Onboarding Data (RegTank director/shareholder onboarding; `/eodliveness`) |
+| COD | Company Onboarding Data (RegTank corporate onboarding; `/codliveness`) |
+| SSM | Admin “SSM Verification” step (`ssm_approved` / `ssm_checked`). Not expanded here. |
+| AML | Admin “AML” screening step (`aml_approved`). Not expanded here. |
+| MARC | Issuer MARC credit assessment saved on the organisation. |
+
 ---
 
 ## How to read
@@ -69,18 +79,18 @@ Do not treat `apps/api/src/lib/audit/visibility-matrix.ts` or `docs/logging-even
 | LOG-ONB-004 | Onboarding Status Updated | `ONBOARDING_STATUS_UPDATED` | Provider or Admin status change that is not a dedicated milestone | Webhook or Admin refresh | Webhook / Admin | Organisation | trigger, status, substatus | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | Open detail for trigger. Can pair with Form Submitted |
 | LOG-ONB-005 | Additional Information Required | `ONBOARDING_AMENDMENT_REQUIRED` | More onboarding information is required | Corporate onboarding amendment path | Webhook | Organisation | Request refs | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | Yes | Director/shareholder inbox type is separate |
 | LOG-ONB-006 | Onboarding Restarted | `ONBOARDING_CANCELLED` | Admin restarted onboarding (stored name still says cancelled) | Admin restart | Admin | Organisation | Restart metadata | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | Yes | A new Onboarding Started follows |
-| LOG-ONB-007 | Onboarding Reset | `ONBOARDING_RESET` | Admin reset local onboarding state | Admin reset | Admin | Organisation | Reason | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | User-initiated cancel writes no log |
+| LOG-ONB-007 | Onboarding Reset | `ONBOARDING_RESET` | Admin reset local onboarding flags | `POST /v1/admin/users/:id/reset-onboarding` (mounted; Swagger: temporary testing; no Admin UI button) | Admin | User / organisation | Reason | `onboarding_logs` + `access_logs` | Audit - Access | No | Dual-write. Organisation Activity **excludes** this type from its query. Not on Issuer/Investor record Activity |
 | LOG-ONB-008 | Onboarding Rejected | `ONBOARDING_REJECTED` | Individual or organisation onboarding rejected | Provider reject | Webhook | User / organisation | Reason when present | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | Yes | Pairs with Onboarding Rejected notification |
-| LOG-ONB-009 | Corporate Onboarding Rejected | `COD_REJECTED` | Corporate onboarding rejected | COD reject | Webhook | Organisation | Request refs | `onboarding_logs` | Issuer record - Activity | Yes | Customer label matches Onboarding Rejected |
+| LOG-ONB-009 | Onboarding Rejected | `COD_REJECTED` | Company Onboarding Data (COD) rejected; organisation set to REJECTED | RegTank `/codliveness` reject | Webhook | Organisation | Request refs | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | Yes | Distinct stored code from `ONBOARDING_REJECTED`. Admin and customer labels are both Onboarding Rejected. COD = Company Onboarding Data |
 | LOG-ONB-010 | Onboarding Submission Approved | `ONBOARDING_APPROVED` | Submission approved; not always final access | Provider or Admin approval | Webhook / Admin | Organisation | Approval refs | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | Yes | Different from Final Approval Completed |
 | LOG-ONB-011 | Final Approval Completed | `FINAL_APPROVAL_COMPLETED` | Admin granted full platform access | Admin final approval | Admin | User / organisation | Final approval refs | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | Yes | Customer Activity title is Onboarding Approved |
-| LOG-ONB-012 | AML Approved | `AML_APPROVED` | AML milestone approved | Admin or AML webhook | Admin / Webhook | Organisation | AML metadata | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
-| LOG-ONB-013 | Company Registry Check Approved | `SSM_APPROVED` | SSM / company-registry check approved | Admin SSM approval | Admin | Organisation | SSM metadata | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
+| LOG-ONB-012 | AML Approved | `AML_APPROVED` | Admin approved the AML screening step | Admin `POST .../approve-aml` while status is PENDING_AML | Admin | Organisation | AML metadata | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | Provider AML clearance writes `ONBOARDING_STATUS_UPDATED`, not this code |
+| LOG-ONB-013 | SSM Approved | `SSM_APPROVED` | Admin approved SSM verification | Admin `POST .../approve-ssm` | Admin | Organisation | SSM metadata | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | Admin UI: SSM Verification. Sets `ssm_approved` (investor) or `ssm_checked` (issuer) |
 | LOG-ONB-014 | Terms and Conditions Approved | `TNC_APPROVED` | Organisation terms accepted | User accepts T&C | Customer | Organisation | Version refs | `onboarding_logs` | Issuer record - Activity or Investor record - Activity. Audit - Legal Acceptances | No | Legal Acceptances is legal proof |
-| LOG-ONB-015 | Identity Documents Submitted | `FORM_FILLED` | Liveness, form, or ID upload recorded | Provider webhook or Admin refresh | Webhook | User | Status | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | Admin label Form Submitted |
-| LOG-ONB-016 | Sophisticated Investor Status Updated | `SOPHISTICATED_STATUS_UPDATED` | Sophisticated-investor flag changed | Admin update | Admin | Organisation / user | New status | `onboarding_logs` | Investor record - Activity | No | — |
-| LOG-ONB-017 | Enhanced Due Diligence Approved | `EOD_APPROVED` | Enhanced due diligence approved | EOD approved | Webhook / Admin | Organisation | EOD result | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
-| LOG-ONB-018 | Enhanced Due Diligence Rejected | `EOD_REJECTED` | Enhanced due diligence rejected | EOD rejected | Webhook / Admin | Organisation | EOD result | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
+| LOG-ONB-015 | Form Submitted | `FORM_FILLED` | Investor personal liveness passed; organisation moved toward pending approval | Investor `/liveness` webhook status `LIVENESS_PASSED` | Webhook | User / organisation | Status | `onboarding_logs` | Investor record - Activity | No | Issuer liveness writes `ONBOARDING_STATUS_UPDATED` instead. Admin label Form Submitted |
+| LOG-ONB-016 | Sophisticated Investor Status Updated | `SOPHISTICATED_STATUS_UPDATED` | Sophisticated-investor flag changed | Admin `PATCH .../sophisticated-status`, or RegTank extract grants the flag | Admin / Webhook | Organisation / user | New status | `onboarding_logs` | Investor record - Activity | No | — |
+| LOG-ONB-017 | Entity Onboarding Data Approved | `EOD_APPROVED` | A director/shareholder Entity Onboarding Data (EOD) request was approved; director KYC JSON may update | RegTank `/eodliveness` status APPROVED | Webhook | Organisation | eodRequestId, codRequestId, status, kycId | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | EOD is **not** Enhanced Due Diligence. Code: “EOD (Entity Onboarding Data)” |
+| LOG-ONB-018 | Entity Onboarding Data Rejected | `EOD_REJECTED` | A director/shareholder EOD request was rejected; director KYC JSON may update | RegTank `/eodliveness` status REJECTED | Webhook | Organisation | eodRequestId, status | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | Same EOD meaning as LOG-ONB-017 |
 
 ### 2. Applications
 
@@ -103,6 +113,9 @@ Do not treat `apps/api/src/lib/audit/visibility-matrix.ts` or `docs/logging-even
 | LOG-APP-015 | Item Amendment Requested | `ITEM_REVIEWED_AMENDMENT_REQUESTED` | Amendment requested on an item | Admin item amend | Admin | Application item | scope_key | `application_logs` | Application record - Activity Timeline | No | — |
 | LOG-APP-016 | Item Reset to Pending | `ITEM_REVIEWED_PENDING` | Checklist item reset to pending | Admin item reset | Admin | Application item | scope_key | `application_logs` | Application record - Activity Timeline | No | — |
 | LOG-APP-017 | Amendment Request Sent | `AMENDMENTS_SUBMITTED` | Admin sent the amendment pack to the issuer | Admin submit amendment pack | Admin | Application | Cycle, remark | `application_logs` | Application record - Activity Timeline | Yes | Also mirrored in application_review_events |
+| LOG-APP-018 | Invoice Details Offer Sent | `SECTION_REVIEWED_OFFER_SENT` | Invoice-details section rolled up to OFFER_SENT | Admin invoice offer/send path updates section from items | Admin | Application section | scope_key=invoice_details | `application_logs` | Application record - Activity Timeline | No | Dynamic `SECTION_REVIEWED_${status}` from invoice-details sync. Distinct from `INVOICE_OFFER_SENT` |
+| LOG-APP-019 | Invoice Details Offer Expired | `SECTION_REVIEWED_OFFER_EXPIRED` | Invoice-details section rolled up to OFFER_EXPIRED | Admin path that syncs invoice-details from items | Admin | Application section | scope_key=invoice_details | `application_logs` | Application record - Activity Timeline | No | Same dynamic writer as LOG-APP-018 |
+| LOG-APP-020 | Invoice Details Withdrawn | `SECTION_REVIEWED_WITHDRAWN` | Invoice-details section rolled up to WITHDRAWN | Admin path that syncs invoice-details from items | Admin | Application section | scope_key=invoice_details | `application_logs` | Application record - Activity Timeline | No | Same dynamic writer as LOG-APP-018 |
 
 ### 3. Offers
 
@@ -298,17 +311,15 @@ Do not treat `apps/api/src/lib/audit/visibility-matrix.ts` or `docs/logging-even
 | Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | LOG-ADM-001 | Platform Finance Settings Updated | `PLATFORM_FINANCE_SETTINGS_UPDATED` | Platform finance settings saved | Admin settings save | Admin | Platform settings | Changed keys | `security_logs` | Audit - Security | No | — |
-| LOG-ADM-002 | MARC Assessment Saved | `MARC_ASSESSMENT_SAVED` | MARC assessment saved | Admin save MARC | Admin | Organisation | Assessment fields | `onboarding_logs` | Issuer record - Activity or Investor record - Activity | No | — |
+| LOG-ADM-002 | MARC Assessment Saved | `MARC_ASSESSMENT_SAVED` | Issuer MARC credit assessment saved | Admin save MARC on issuer organisation | Admin | Issuer organisation | Assessment fields | `onboarding_logs` | Issuer record - Activity | No | Issuer only. Not written for investor organisations |
 
 ### 19. Integrations / Gateway / System
 
 | Event ID | Event / Activity | System Event Code | Description | Trigger / Condition | Actor | Affected Record | Recorded Data | Record Source | Admin Location | Customer Visible | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| LOG-INT-001 | Enhanced Due Diligence Provider Update | `EOD_WEBHOOK` | Raw enhanced due diligence webhook stored | EOD webhook that is not the business approve/reject row | Webhook | Organisation | Stripped payload refs | `onboarding_logs` | No current Admin UI | No | Investigation. Business result is EOD Approved/Rejected |
-| LOG-INT-002 | Identity Check Approved Before Organisation | `WEBHOOK_APPROVED` | Provider APPROVED when no organisation id exists yet | RegTank APPROVED without org | Webhook | Onboarding request | requestId, status | `onboarding_logs` | No current Admin UI | No | Skipped when organisation exists (writes Onboarding Submission Approved instead). Catalogue marks DEV_ONLY; production writer still runs |
-| LOG-INT-003 | Identity Check Rejected (Provider Transport) | `WEBHOOK_REJECTED` | Provider REJECTED transport log | RegTank REJECTED | Webhook | Onboarding request | requestId, status | `onboarding_logs` | No current Admin UI | No | May coexist with Onboarding Rejected. Catalogue marks DEV_ONLY; production writer still runs |
-| LOG-INT-004 | Tawarruq Order Submitted | `SHORAKA_ORDER_SUBMITTED` | Tawarruq order submitted | STP order | System / Admin | Trade order | trade_order_id | `note_events` | Note record - Activity | No | — |
-| LOG-INT-005 | Tawarruq Certificate Retrieved | `SHORAKA_CERTIFICATE_FETCHED` | Tawarruq certificate retrieved | Fetch certificate | System | Trade order | Certificate refs | `note_events` | Note record - Activity | No | — |
+| LOG-INT-001 | Entity Onboarding Data Provider Update | `EOD_WEBHOOK` | EOD webhook with a status other than APPROVED or REJECTED | RegTank `/eodliveness` non-approve/reject status | Webhook | Organisation | eodRequestId, status | `onboarding_logs` | No current Admin UI | No | Organisation Activity query excludes this type. Approve/reject write LOG-ONB-017/018 instead |
+| LOG-INT-002 | Tawarruq Order Submitted | `SHORAKA_ORDER_SUBMITTED` | Tawarruq order submitted | Admin `POST .../shoraka/submit-order` on first trade-order create | Admin | Trade order | trade_order_id | `note_events` | Note record - Activity | No | Stored code uses SHORAKA. Admin note timeline labels Tawarruq |
+| LOG-INT-003 | Tawarruq Certificate Retrieved | `SHORAKA_CERTIFICATE_FETCHED` | Tawarruq certificate retrieved | Admin `POST .../shoraka/fetch-certificate` when provider COMPLETED | Admin | Trade order | Certificate refs | `note_events` | Note record - Activity | No | Same SHORAKA stored prefix |
 
 ## Supporting Investigation Records
 
@@ -316,7 +327,6 @@ These are not normal business Activity events. Use them to investigate what happ
 
 | Record | Purpose | Source | Admin Location | Primary Use |
 | --- | --- | --- | --- | --- |
-| Login session | Session issued / tracked | `user_sessions` | No current Admin UI | Investigation / support |
 | Signer viewed the package | Signer opened the signing link | `SigningRecipient.viewed_at` | Application record - Acceptance | Signing investigation |
 | Application review copy | Extra copy of offer sent or amendment sent | `application_review_events` | No current Admin UI | Investigation. Use Application record - Activity Timeline |
 | Reviewer remarks | Comments entered during review | `application_review_remarks` | Application review remarks | Review comments |
@@ -331,7 +341,9 @@ These are not normal business Activity events. Use them to investigate what happ
 | Invoice offer verification-code record | Verification code issued | `offer_accept_otp_challenges` | No current Admin UI | Invoice-accept OTP |
 | Notification delivery record | Typed in-app / email send | `notification_logs` | Audit - Notifications | Delivery proof for typed messages |
 
-Count: **14** families.
+Count: **13** families.
+
+`user_sessions` is not listed: `AuthRepository.upsertUserSession` has no production caller, so the table is not a live supporting family.
 
 ---
 
@@ -348,7 +360,7 @@ Do not delete overlapping stores. Use the primary record for the question you ar
 | Offer sent or amendment pack sent | `application_logs` + `application_review_events` | Application record - Activity Timeline | Review mirror has no Admin reader |
 | Admin Note action | `note_events` + `note_admin_actions` | Note record - Activity | Admin action mirror has no Admin reader |
 | Letter generated | `*_LETTER_GENERATED` + `generated_document_evidence` | Note record - Activity for Operations; hash table for investigation | No Audit tab for hashes |
-| Provider identity update | `EOD_WEBHOOK` / `WEBHOOK_*` + business onboarding event | Issuer / Investor record - Activity for the business result | Forensic rows have no Org Activity UI |
+| Provider identity update | `EOD_WEBHOOK` + EOD Approved/Rejected | Issuer / Investor record - Activity for APPROVED/REJECTED | Forensic `EOD_WEBHOOK` has no Org Activity UI |
 | Investment committed | `INVESTMENT_COMMITTED` + wallet hold | Note record - Activity for the commitment; wallet for money | Two purposes |
 | Typed notification vs Activity | Activity row + inbox + `notification_logs` | Activity for what happened; Audit - Notifications for whether the message was sent | Different questions |
 
@@ -383,8 +395,12 @@ Display-only label updates made with this register (stored codes unchanged):
 | System Event Code | Previous Admin wording | Operations name now |
 | --- | --- | --- |
 | `ONBOARDING_APPROVED` | Onboarding Approved | Onboarding Submission Approved |
-| `EOD_APPROVED` | Eod Approved | Enhanced Due Diligence Approved |
-| `EOD_REJECTED` | Eod Rejected | Enhanced Due Diligence Rejected |
+| `EOD_APPROVED` | Enhanced Due Diligence Approved | Entity Onboarding Data Approved |
+| `EOD_REJECTED` | Enhanced Due Diligence Rejected | Entity Onboarding Data Rejected |
+| `EOD_WEBHOOK` | Enhanced Due Diligence Provider Update | Entity Onboarding Data Provider Update |
+| `SSM_APPROVED` | Company Registry Check Approved | SSM Approved |
+| `COD_REJECTED` | Corporate Onboarding Rejected | Onboarding Rejected (same Admin label as individual reject) |
+| `FORM_FILLED` | Identity Documents Submitted | Form Submitted |
 | `OVERDUE_LATE_CHARGE_CHECKED` | Overdue Late Charge Checked | Note Entered Arrears |
 | `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | Humanized token | Large Private Customer Flag Updated |
 | `GATEWAY_PAYMENT_COMPLETED` | Gateway Payment Completed | Payment Received Successfully |
@@ -398,7 +414,8 @@ Remaining UI limits (not changed):
 
 - No Module column on timelines or Audit tabs
 - External Acceptances has no detail drawer; Hash is on the table
-- Forensic `WEBHOOK_*` / `EOD_WEBHOOK` have no Admin reader
+- Forensic `EOD_WEBHOOK` has no Admin reader (Organisation Activity allowlist excludes it)
+- `WEBHOOK_APPROVED` / `WEBHOOK_REJECTED` are not current production events: live callers never hit those branches (dev webhook handler only)
 - `generated_document_evidence`, `application_review_events`, `note_admin_actions` have no Admin reader
 - Customer Activity titles can still differ (example: Final Approval Completed vs customer “Onboarding Approved”)
 - Facility compact metadata can still show technical field keys
@@ -409,10 +426,10 @@ Remaining UI limits (not changed):
 
 | Bucket | Count |
 | --- | --- |
-| Active named event types | **156** |
-| Supporting investigation record families | **14** |
-| Events with no current Admin reader | 4 named (`EOD_WEBHOOK`, `WEBHOOK_APPROVED`, `WEBHOOK_REJECTED`, `GENERATED_DOCUMENT_EVIDENCE`) plus supporting families without a screen |
+| Active named event types | **157** |
+| Supporting investigation record families | **13** |
+| Events with no current Admin reader | 2 named (`EOD_WEBHOOK`, `GENERATED_DOCUMENT_EVIDENCE`) plus supporting families without a screen |
 | Related-record patterns | **9** |
 | Logging gaps (named audit missing) | **7** live actions listed above |
 
-Excluded on purpose: historical readers, unmounted product inactivate/reactivate, `ACCOUNT_LOCKED`, unused gateway `CREATED` / `COMPLETED` / `FAILED`, `OVERRIDE_*` (enum only), Cognito-only mail, Ops Alerts (removed).
+Excluded on purpose: historical readers, unmounted product inactivate/reactivate, `ACCOUNT_LOCKED`, unused gateway `CREATED` / `COMPLETED` / `FAILED`, `OVERRIDE_*` (enum only), unreachable `WEBHOOK_APPROVED` / `WEBHOOK_REJECTED` production branches, Cognito-only mail, Ops Alerts (removed), unused `user_sessions` upsert.

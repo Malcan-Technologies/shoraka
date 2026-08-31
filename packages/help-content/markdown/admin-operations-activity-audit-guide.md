@@ -35,6 +35,8 @@ The customer Activity feed shows **Application Created** as **Application Starte
 
 Signing Package Declined is when the signer declined. Signing Package Voided is when the signing package was cancelled.
 
+**Entity Onboarding Data** is a director or shareholder onboarding update from the identity provider. It is not Enhanced Due Diligence. **Company onboarding rejected** uses the same Admin label as individual onboarding rejected. **SSM Approved** is the Admin SSM Verification step.
+
 ---
 
 ## Issuer
@@ -48,16 +50,16 @@ Signing Package Declined is when the signer declined. Signing Package Voided is 
 | Onboarding Resumed | Issuer → Activity | Not customer visible | None | None |
 | Additional Information Required | Issuer → Activity | Activity | None | None |
 | Onboarding Restarted | Issuer → Activity | Activity | None | None |
-| Onboarding Reset | Issuer → Activity | Not customer visible | None | None |
+| Onboarding Reset | Audit → Access | Not customer visible | None | None |
 | Onboarding Rejected | Issuer → Activity | Activity + Notification | Onboarding Application Rejected | Follows Admin notification settings |
-| Corporate Onboarding Rejected | Issuer → Activity | Activity + Notification | Onboarding Application Rejected | Follows Admin notification settings |
+| Onboarding Rejected (company onboarding) | Issuer → Activity | Activity + Notification | Onboarding Application Rejected | Follows Admin notification settings |
 | Onboarding Submission Approved | Issuer → Activity | Activity | None | None |
 | Final Approval Completed | Issuer → Activity | Activity + Notification | Onboarding Completed | Follows Admin notification settings |
 | Terms and Conditions Approved | Issuer → Activity; Audit → Legal Acceptances | Not customer visible | None | None |
 | AML Approved | Issuer → Activity | Not customer visible | None | None |
-| Company Registry Check Approved | Issuer → Activity | Not customer visible | None | None |
-| Enhanced Due Diligence Approved | Issuer → Activity | Not customer visible | None | None |
-| Enhanced Due Diligence Rejected | Issuer → Activity | Not customer visible | None | None |
+| SSM Approved | Issuer → Activity | Not customer visible | None | None |
+| Entity Onboarding Data Approved | Issuer → Activity | Not customer visible | None | None |
+| Entity Onboarding Data Rejected | Issuer → Activity | Not customer visible | None | None |
 | Action Required: Complete Director/Shareholder Onboarding | Issuer → People | Notification | Action Required: Complete Director/Shareholder Onboarding | Follows Admin notification settings |
 | Director/Shareholder Verification | Issuer → People | Email only | Director/Shareholder Verification | Direct email |
 
@@ -201,16 +203,18 @@ For a residual return, Admin Activity may show Residual Return Letter Generated,
 | Onboarding Resumed | Investor → Activity | Not customer visible | None | None |
 | Additional Information Required | Investor → Activity | Activity | None | None |
 | Onboarding Restarted | Investor → Activity | Activity | None | None |
-| Onboarding Reset | Investor → Activity | Not customer visible | None | None |
+| Onboarding Reset | Audit → Access | Not customer visible | None | None |
 | Onboarding Rejected | Investor → Activity | Activity + Notification | Onboarding Application Rejected | Follows Admin notification settings |
+| Onboarding Rejected (company onboarding) | Investor → Activity | Activity + Notification | Onboarding Application Rejected | Follows Admin notification settings |
 | Onboarding Submission Approved | Investor → Activity | Activity | None | None |
 | Final Approval Completed | Investor → Activity | Activity + Notification | Onboarding Completed | Follows Admin notification settings |
 | Terms and Conditions Approved | Investor → Activity; Audit → Legal Acceptances | Not customer visible | None | None |
 | Sophisticated Investor Status Updated | Investor → Activity | Not customer visible | None | None |
 | AML Approved | Investor → Activity | Not customer visible | None | None |
-| Company Registry Check Approved | Investor → Activity | Not customer visible | None | None |
-| Enhanced Due Diligence Approved | Investor → Activity | Not customer visible | None | None |
-| Enhanced Due Diligence Rejected | Investor → Activity | Not customer visible | None | None |
+| SSM Approved | Investor → Activity | Not customer visible | None | None |
+| Form Submitted | Investor → Activity | Not customer visible | None | None |
+| Entity Onboarding Data Approved | Investor → Activity | Not customer visible | None | None |
+| Entity Onboarding Data Rejected | Investor → Activity | Not customer visible | None | None |
 | Action Required: Complete Director/Shareholder Onboarding | Investor → People | Notification | Action Required: Complete Director/Shareholder Onboarding | Follows Admin notification settings |
 | Director/Shareholder Verification | Investor → People | Email only | Director/Shareholder Verification | Direct email |
 
@@ -273,6 +277,9 @@ Payment Amount Mismatch may appear as Payment Currency Mismatch when the currenc
 | Section Rejected | Application → Activity Timeline | Not customer visible | None | None |
 | Section Amendment Requested | Application → Activity Timeline | Not customer visible | None | None |
 | Section Reset to Pending | Application → Activity Timeline | Not customer visible | None | None |
+| Invoice Details Offer Sent | Application → Activity Timeline | Not customer visible | None | None |
+| Invoice Details Offer Expired | Application → Activity Timeline | Not customer visible | None | None |
+| Invoice Details Withdrawn | Application → Activity Timeline | Not customer visible | None | None |
 | Item Approved | Application → Activity Timeline | Not customer visible | None | None |
 | Item Rejected | Application → Activity Timeline | Not customer visible | None | None |
 | Item Amendment Requested | Application → Activity Timeline | Not customer visible | None | None |
@@ -287,9 +294,8 @@ Payment Amount Mismatch may appear as Payment Currency Mismatch when the currenc
 | Member Removed | Issuer → Activity; Investor → Activity | Not customer visible | None | None |
 | Member Role Changed | Issuer → Activity; Investor → Activity | Not customer visible | None | None |
 | Organisation Profile Updated | Issuer → Activity; Investor → Activity | Not customer visible | None | None |
-| MARC Assessment Saved | Issuer → Activity; Investor → Activity | Not customer visible | None | None |
+| MARC Assessment Saved | Issuer → Activity | Not customer visible | None | None |
 | Onboarding Status Updated | Issuer → Activity; Investor → Activity | Not customer visible | None | None |
-| Identity Documents Submitted | Issuer → Activity; Investor → Activity | Not customer visible | None | None |
 
 ### Notes / Prospectus / Paymaster / Tawarruq
 
@@ -451,7 +457,8 @@ These are direct emails and are separate from standard platform notifications.
 | --- | --- | --- | --- |
 | Organisation Invitation | Member invited or invite resent | Invitee | Issuer → Activity; Investor → Activity |
 | Admin Invitation | Admin invited or invite resent | Invitee | Audit → Security |
-| Signing Package / Reminder | Signing package sent, or reminder requested | Named signer | Application → Acceptance |
+| Signing Package | Signing package sent | Named signer | Application → Acceptance |
+| Signing Reminder | Reminder requested | Named signer | Application → Acceptance |
 | Invoice Offer Verification Code | Issuer requests a code to accept an invoice offer | Selected signatory | Application → Acceptance |
 | Director/Shareholder Verification | The person must verify | The person | Issuer → People; Investor → People |
 | Trustee Instruction | Trustee letter is sent | Trustee recipients | Note → Activity |

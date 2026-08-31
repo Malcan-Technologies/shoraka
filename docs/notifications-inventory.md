@@ -90,7 +90,7 @@ They are not always the same. This register lists all three.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | NTF-ONB-001 | Onboarding Completed | `onboarding_completed` | Onboarding Completed | Admin final approval | Onboarding user | Issuer or Investor | Automatic | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | — |
 | NTF-ONB-002 | Onboarding Application Rejected | `onboarding_rejected` | Onboarding Rejected | Provider reject (individual and/or COD) | Onboarding user | Issuer or Investor | Automatic | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | Inbox title differs from Admin name |
-| NTF-ONB-003 | Action Required: Complete Director/Shareholder Onboarding | `director_shareholder_action_required` | Director/Shareholder Action Required | CTOS pull finds a director/shareholder who must complete onboarding | Issuer organisation owner | Issuer | Automatic | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | Verify-link SES to the person is a separate direct email |
+| NTF-ONB-003 | Action Required: Complete Director/Shareholder Onboarding | `director_shareholder_action_required` | Director/Shareholder Action Required | CTOS pull finds a director/shareholder who must complete onboarding. Admin `POST .../director-shareholders/notify-action-required` also exists (no Admin UI caller found) | Issuer organisation owner | Issuer | Automatic (plus API-only manual) | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | Verify-link SES to the person is a separate direct email |
 | NTF-ONB-004 | Action Required: Complete Director/Shareholder Onboarding | `investor_director_shareholder_action_required` | Investor Director/Shareholder Action Required | Same, investor organisation | Investor organisation owner | Investor | Automatic | Yes | Yes | Yes — Settings Configuration | In-app + Email | Type flags. Not user-configurable | Inbox + SYSTEM log | Audit - Notifications | Same inbox title as issuer type |
 
 ### Applications
@@ -210,12 +210,13 @@ These bypass Admin notification preferences and `NotificationService`. They are 
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Organisation Invitation | Member invited or invite resent | Invitee | No. Always sent when the invite action runs | Invite row + `MEMBER_INVITED` | Issuer record - Activity or Investor record - Activity | Yes | No |
 | Admin Invitation | Admin invited or invite resent | Invitee | No | Invite row. Revoke is `INVITATION_REVOKED` | Audit - Security (revoke only) | Yes | No |
-| Signing Package / Reminder | Send package or remind signer | Named signer | No | Envelope / recipient. `SIGNING_PACKAGE_SENT` only on first send | Application record - Acceptance | Yes | No |
+| Signing Package | Admin send signing package | Named signer | No | Envelope / recipient. `SIGNING_PACKAGE_SENT` on first send | Application record - Acceptance | Yes | No |
+| Signing Reminder | Admin remind signer | Named signer | No | Recipient delivery status. No second Activity event | Application record - Acceptance | Yes | No |
 | Invoice Offer Verification Code | Issuer requests a code to accept an invoice offer | Selected signatory | No | `offer_accept_otp_challenges` | No current Admin UI | Yes | No |
-| Director/Shareholder Verification | Person must verify | The person | No | Onboarding / provider state | Issuer record - People or Investor record - People | Yes | No |
-| Trustee Instruction | Trustee letter send | Configured trustee recipients | Trustee recipient config, not notification prefs | Note events `*_TRUSTEE_EMAIL_SENT` | Note record - Activity | Yes | No |
+| Director/Shareholder Verification | Person must verify (RegTank verify-link fallback) | The person | No | Onboarding / provider state | Issuer record - People or Investor record - People | Yes | No |
+| Trustee Instruction | Withdrawal or settlement trustee letter send/resend | Configured trustee recipients | Trustee recipient config, not notification prefs | Note events `*_TRUSTEE_EMAIL_SENT` | Note record - Activity | Yes | No |
 
-Count: **6**.
+Count: **7**.
 
 ---
 
@@ -272,7 +273,7 @@ Renaming seed `name` would not update existing production rows (`createTypeIfNot
 | Active typed notification types | **49** |
 | Automatic | **47** |
 | Admin / manual only | **2** (`system_announcement`, `new_product_alert`) |
-| Direct / transactional emails | **6** |
+| Direct / transactional emails | **7** |
 | Types supporting in-app | **49** |
 | Types supporting email | **49** (email may be off in seed or disabled later) |
 | Shown on Settings Configuration | SYSTEM + AUTHENTICATION (not MARKETING / ANNOUNCEMENT) |
