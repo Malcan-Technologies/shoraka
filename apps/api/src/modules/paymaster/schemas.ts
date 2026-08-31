@@ -6,7 +6,6 @@ export const paymasterIdParamSchema = z.object({
 
 export const listPaymastersQuerySchema = z.object({
   q: z.string().trim().optional(),
-  mismatchPending: z.enum(["true", "false"]).optional(),
   verificationStatus: z.enum(["UNVERIFIED", "VERIFIED"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
@@ -21,8 +20,8 @@ export const issuerPaymasterLookupQuerySchema = z.object({
   registrationNumber: z.string().min(1),
 });
 
-export const resolveMismatchSchema = z.object({
-  keepExisting: z.boolean().default(true),
+export const verifyPaymasterBodySchema = z.object({
+  applicationId: z.string().min(1).optional(),
 });
 
 export const marcAssessmentSchema = z.object({

@@ -152,6 +152,9 @@ Do not treat `apps/api/src/lib/audit/visibility-matrix.ts` or `docs/logging-even
 | LOG-FAC-006 | Large Private Customer Flag Updated | `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | Large-private customer flag changed | Admin update flag | Admin | Contract | Flag value | `application_logs` | Facility record - Activity | No | — |
 | LOG-FAC-007 | Note Occupancy Updated | `FACILITY_OCCUPANCY_UPDATED` | Note-layer occupancy figures changed | Same occupancy refresh as facility | System | Note / contract | Occupancy figures | `note_events` | Note record - Activity | No | Twin of Facility Occupancy Updated |
 | LOG-FAC-008 | Facility Fee Collection Waived | `WAIVE_FACILITY_FEE_COLLECTION` | Collecting the facility fee on the Note was waived | Admin waive on Note | Admin | Note | Waiver refs | `note_events` | Note record - Activity | No | Different from contract waive |
+| LOG-FAC-009 | Paymaster Created | `PAYMASTER_CREATED` | New Paymaster master created Unverified from issuer Customer Details | Issuer Save of Customer Details when SSM is not already on a master | Issuer | Paymaster + originating application | Paymaster id, SSM, legal name, Unverified | `application_logs` | Application record - Activity Timeline | No | Initial issuer link is included. Do not also write Linked to Issuer |
+| LOG-FAC-010 | Paymaster Linked to Issuer | `PAYMASTER_LINKED_TO_ISSUER` | New issuer link created on an existing Paymaster master | Issuer Save when this issuer did not already have a link | Issuer | Paymaster + originating application | Link id, Paymaster id, related-party, verification status | `application_logs` | Application record - Activity Timeline | No | Not written for same-issuer reuse or last-used updates |
+| LOG-FAC-011 | Paymaster Identity Verified | `PAYMASTER_VERIFIED` | Admin reviewed Paymaster identity Unverified → Verified | Admin Verify Paymaster | Admin | Paymaster + originating application when supplied | Previous/new status, verified by | `application_logs` | Application record - Activity Timeline | No | Not application approval. Not Notice acknowledgement. Idempotent re-verify writes nothing |
 
 ### 6. Invoices
 
@@ -400,6 +403,9 @@ Display-only label updates made with this register (stored codes unchanged):
 | `FORM_FILLED` | Identity Documents Submitted | Form Submitted |
 | `OVERDUE_LATE_CHARGE_CHECKED` | Overdue Late Charge Checked | Note Entered Arrears |
 | `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | Humanized token | Large Private Customer Flag Updated |
+| `PAYMASTER_CREATED` | Humanized token | Paymaster Created |
+| `PAYMASTER_LINKED_TO_ISSUER` | Humanized token | Paymaster Linked to Issuer |
+| `PAYMASTER_VERIFIED` | Paymaster Verified | Paymaster Identity Verified |
 | `GATEWAY_PAYMENT_COMPLETED` | Gateway Payment Completed | Payment Received Successfully |
 | `NAME_CHECK` / `NAME_CHECK_APPROVED` / `NAME_CHECK_REJECTED` | Name check needed / approved / rejected | Bank Account Name Check Started / Passed / Failed |
 | `CAPTURE_MISMATCH` | Payment mismatch found | Payment Amount Mismatch (or Payment Currency Mismatch) |
@@ -423,7 +429,7 @@ Remaining UI limits (not changed):
 
 | Bucket | Count |
 | --- | --- |
-| Active named event types | **154** |
+| Active named event types | **157** |
 | Supporting investigation record families | **13** |
 | Events with no current Admin reader | 2 named (`EOD_WEBHOOK`, `GENERATED_DOCUMENT_EVIDENCE`) plus supporting families without a screen |
 | Related-record patterns | **9** |

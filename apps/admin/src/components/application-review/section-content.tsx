@@ -493,7 +493,6 @@ export function SectionContent({
             paymaster={app.contract?.paymaster}
             paymasterId={app.contract?.paymaster_id ?? app.contract?.paymaster?.id}
             applicationId={typeof app.id === "string" ? app.id : ""}
-            contractId={app.contract?.id ?? null}
             section={section}
             isReviewable={isReviewable}
             approvePending={approveSectionPending}
@@ -531,7 +530,6 @@ export function SectionContent({
           customerDetails={app.contract?.customer_details}
           paymaster={app.contract?.paymaster}
           paymasterId={app.contract?.paymaster_id ?? app.contract?.paymaster?.id}
-          contractId={app.contract?.id ?? null}
           productDefaultFacilityFeeRatePercent={productDefaultFacilityFeeRatePercent}
           productWorkflow={productWorkflow}
           section={section}

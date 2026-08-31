@@ -430,6 +430,19 @@ export function applicationLogToAuditDetail(
       contractReference: pickString(metadata, ["contractReference"]),
       invoiceReference: pickString(metadata, ["invoiceReference"]),
       envelopeReference: pickString(metadata, ["envelopeId", "envelope_id"]),
+      extra: presentFields([
+        { label: "Legal name", value: pickString(metadata, ["legalName", "legal_name"]) },
+        {
+          label: "Registration / SSM",
+          value: pickString(metadata, ["registrationNumber", "registration_number"]),
+        },
+        {
+          label: "Verification status",
+          value: pickString(metadata, ["verification_status", "verificationStatus"]),
+        },
+        { label: "Previous status", value: pickString(metadata, ["previous_status"]) },
+        { label: "New status", value: pickString(metadata, ["new_status"]) },
+      ]),
     },
     financial: {
       ...metadataAmount(metadata),

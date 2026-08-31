@@ -739,7 +739,6 @@ export class ApiClient {
   async listAdminPaymasters(
     params: {
       q?: string;
-      mismatchPending?: boolean;
       verificationStatus?: PaymasterVerificationStatus;
       page?: number;
       pageSize?: number;
@@ -754,7 +753,6 @@ export class ApiClient {
   > {
     const query = new URLSearchParams();
     if (params.q) query.set("q", params.q);
-    if (params.mismatchPending) query.set("mismatchPending", "true");
     if (params.verificationStatus) query.set("verificationStatus", params.verificationStatus);
     query.set("page", String(params.page ?? 1));
     query.set("pageSize", String(params.pageSize ?? 20));
@@ -765,17 +763,11 @@ export class ApiClient {
     return this.get(`/v1/admin/paymasters/${id}`);
   }
 
-  async verifyAdminPaymaster(paymasterId: string): Promise<ApiResponse<PaymasterDetail> | ApiError> {
-    return this.post(`/v1/admin/paymasters/${paymasterId}/verify`, {});
-  }
-
-  async resolveAdminPaymasterMismatch(
+  async verifyAdminPaymaster(
     paymasterId: string,
-    mismatchId: string
+    body: { applicationId?: string } = {}
   ): Promise<ApiResponse<PaymasterDetail> | ApiError> {
-    return this.post(`/v1/admin/paymasters/${paymasterId}/mismatches/${mismatchId}/resolve`, {
-      keepExisting: true,
-    });
+    return this.post(`/v1/admin/paymasters/${paymasterId}/verify`, body);
   }
 
   async getIssuerMarcAssessment(

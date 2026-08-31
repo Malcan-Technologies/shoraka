@@ -112,6 +112,13 @@ describe("ApplicationLogAdapter", () => {
         "SIGNING_PACKAGE_EXPIRED",
       ])
     );
+    expect(eventTypes).not.toEqual(
+      expect.arrayContaining([
+        "PAYMASTER_CREATED",
+        "PAYMASTER_LINKED_TO_ISSUER",
+        "PAYMASTER_VERIFIED",
+      ])
+    );
   });
 
   it("transforms record to unified activity", () => {

@@ -323,6 +323,45 @@ describe("occupancy Event Details display references", () => {
   });
 });
 
+describe("Paymaster identity Event Details", () => {
+  it("surfaces legal name, SSM, and status without using a JSON-only title", () => {
+    const detail = applicationLogToAuditDetail(
+      {
+        id: "log-pm",
+        event_type: "PAYMASTER_VERIFIED",
+        activity: null,
+        actor_id: "A1B2C",
+        application_id: "app-1",
+        metadata: {
+          legalName: "ABC Trading Sdn Bhd",
+          registrationNumber: "202134567890",
+          verification_status: "VERIFIED",
+          previous_status: "UNVERIFIED",
+          new_status: "VERIFIED",
+        },
+        ip_address: null,
+        created_at: "2026-09-01T00:00:00.000Z",
+        remark: "ABC Trading Sdn Bhd (202134567890) identity reviewed internally. Unverified → Verified.",
+        entityId: "pm_1",
+        review_cycle: null,
+      },
+      "Paymaster Identity Verified",
+      "ABC Trading Sdn Bhd (202134567890) identity reviewed internally. Unverified → Verified."
+    );
+    expect(detail.eventLabel).toBe("Paymaster Identity Verified");
+    expect(detail.description).toContain("identity reviewed internally");
+    expect(detail.target?.extra).toEqual(
+      expect.arrayContaining([
+        { label: "Legal name", value: "ABC Trading Sdn Bhd" },
+        { label: "Registration / SSM", value: "202134567890" },
+        { label: "Verification status", value: "VERIFIED" },
+        { label: "Previous status", value: "UNVERIFIED" },
+        { label: "New status", value: "VERIFIED" },
+      ])
+    );
+  });
+});
+
 describe("withdrawal letter and Shoraka Event Details", () => {
   it("keeps withdrawalReference independent of later live-row changes", () => {
     const detail = noteEventToAuditDetail(

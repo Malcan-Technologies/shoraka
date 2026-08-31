@@ -104,9 +104,12 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `PAUSE_LISTING` | NOTE_TIMELINE | LIVE | note_events | yes |
 | `PAYMASTER_ACKNOWLEDGEMENT_CONFIRMED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `PAYMASTER_ACKNOWLEDGEMENT_UPLOADED` | ADMIN_ACTIVITY | LIVE | note_events | no |
+| `PAYMASTER_CREATED` | ADMIN_ACTIVITY | LIVE | application_logs | no |
+| `PAYMASTER_LINKED_TO_ISSUER` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `PAYMASTER_NOTICE_GENERATED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `PAYMASTER_NOTICE_SENT` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `PAYMASTER_NOTICE_UPLOADED` | ADMIN_ACTIVITY | LIVE | note_events | no |
+| `PAYMASTER_VERIFIED` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `PAYMENT_APPROVED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `PAYMENT_REJECTED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `PLATFORM_FINANCE_SETTINGS_UPDATED` | SECURITY_ONLY | LIVE | security_logs | no |

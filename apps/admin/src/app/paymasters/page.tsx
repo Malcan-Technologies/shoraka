@@ -15,7 +15,6 @@ export default function PaymastersPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [mismatchOnly, setMismatchOnly] = React.useState(false);
   const [verificationFilters, setVerificationFilters] = React.useState<string[]>([]);
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 20;
@@ -23,11 +22,10 @@ export default function PaymastersPage() {
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, mismatchOnly, verificationStatus]);
+  }, [searchQuery, verificationStatus]);
 
   const { data, isLoading, error } = useAdminPaymasters({
     q: searchQuery || undefined,
-    mismatchPending: mismatchOnly || undefined,
     verificationStatus,
     page: currentPage,
     pageSize,
@@ -40,7 +38,7 @@ export default function PaymastersPage() {
           <section className="space-y-4">
             <AdminPageHeader
               title="Paymasters"
-              description="Reusable customer and obligor records created from issuer Customer Details. Review identity mismatches here; Notice of Assignment is managed on the related Note."
+              description="Reusable customer and obligor records created from issuer Customer Details. Verify identity here; Notice of Assignment is managed on the related Note."
             />
             {error ? (
               <div className="py-8 text-center text-destructive">
@@ -62,12 +60,8 @@ export default function PaymastersPage() {
               filteredCount={data?.total ?? 0}
               itemLabelSingular="paymaster"
               itemLabelPlural="paymasters"
-              extraToggleLabel="Review required"
-              extraToggleChecked={mismatchOnly}
-              onExtraToggleChange={setMismatchOnly}
               onClearFilters={() => {
                 setSearchQuery("");
-                setMismatchOnly(false);
                 setVerificationFilters([]);
               }}
               onRefresh={() => queryClient.invalidateQueries({ queryKey: paymastersKeys.all })}

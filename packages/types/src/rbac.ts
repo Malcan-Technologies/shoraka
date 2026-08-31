@@ -245,7 +245,7 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
   {
     key: "paymasters",
     label: "Paymasters",
-    description: "View and review reusable Paymaster (customer/obligor) records and mismatch flags.",
+    description: "View and review reusable Paymaster (customer/obligor) records and verification status.",
     permissions: pickPermissions("paymasters.view", "paymasters.manage"),
   },
   {

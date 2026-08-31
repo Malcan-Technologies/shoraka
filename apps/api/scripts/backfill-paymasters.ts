@@ -2,12 +2,13 @@
 /**
  * Backfill Paymaster masters from Contract.customer_details JSON.
  * Groups only by exact 12-digit SSM. Never merges by name.
- * Conflicting country/entity type/name → link existing + flag mismatch.
+ * Existing masters are reused; identity is never overwritten.
+ * Conflicting submitted identity is skipped (contract left unresolved).
  * Invalid SSM → leave unresolved. Does not mutate Note.paymaster_snapshot.
  */
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
-import { describePaymasterMismatch, parseSubmittedIdentity } from "../src/modules/paymaster/identity";
+import { parseSubmittedIdentity, submittedIdentityConflictsWithMaster } from "../src/modules/paymaster/identity";
 import { buildPaymasterSnapshot, snapshotAsJson } from "../src/modules/paymaster/snapshot";
 
 const dryRun = process.argv.includes("--dry-run");
@@ -26,7 +27,7 @@ async function main() {
   let linked = 0;
   let created = 0;
   let unresolved = 0;
-  let mismatches = 0;
+  let identityConflicts = 0;
 
   for (const contract of contracts) {
     const submitted = parseSubmittedIdentity(contract.customer_details);
@@ -39,10 +40,15 @@ async function main() {
       where: { registration_number: submitted.registrationNumber },
     });
 
+    if (existing && submittedIdentityConflictsWithMaster(existing, submitted)) {
+      identityConflicts += 1;
+      unresolved += 1;
+      continue;
+    }
+
     if (dryRun) {
       if (existing) linked += 1;
       else created += 1;
-      if (existing && describePaymasterMismatch(existing, submitted)) mismatches += 1;
       continue;
     }
 
@@ -54,34 +60,12 @@ async function main() {
           registration_number: submitted.registrationNumber,
           registration_country: submitted.registrationCountry,
           entity_type: submitted.entityType,
+          verification_status: "UNVERIFIED",
           source: "BACKFILL",
         },
       }));
     if (existing) linked += 1;
     else created += 1;
-
-    const mismatch = describePaymasterMismatch(paymaster, submitted);
-    if (mismatch) {
-      mismatches += 1;
-      await prisma.paymasterMismatch.create({
-        data: {
-          paymaster_id: paymaster.id,
-          application_id: contract.application_id,
-          contract_id: contract.id,
-          submitted_legal_name: submitted.legalName,
-          submitted_entity_type: submitted.entityType,
-          submitted_country: submitted.registrationCountry,
-          existing_legal_name: paymaster.legal_name,
-          existing_entity_type: paymaster.entity_type,
-          existing_country: paymaster.registration_country,
-          status: "PENDING",
-        },
-      });
-      await prisma.paymaster.update({
-        where: { id: paymaster.id },
-        data: { mismatch_pending: true },
-      });
-    }
 
     const related =
       contract.customer_details &&
@@ -103,7 +87,6 @@ async function main() {
         is_related_party: related,
       },
       update: {
-        is_related_party: related,
         last_used_at: new Date(),
       },
     });
@@ -128,7 +111,7 @@ async function main() {
 
   console.log(
     JSON.stringify(
-      { dryRun, scanned: contracts.length, created, linked, unresolved, mismatches },
+      { dryRun, scanned: contracts.length, created, linked, unresolved, identityConflicts },
       null,
       2
     )

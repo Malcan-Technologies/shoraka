@@ -11,7 +11,6 @@ export const paymastersKeys = {
   all: ["admin", "paymasters"] as const,
   list: (params: {
     q?: string;
-    mismatchPending?: boolean;
     verificationStatus?: PaymasterVerificationStatus;
     page?: number;
     pageSize?: number;
@@ -21,7 +20,6 @@ export const paymastersKeys = {
 
 export function useAdminPaymasters(params: {
   q?: string;
-  mismatchPending?: boolean;
   verificationStatus?: PaymasterVerificationStatus;
   page?: number;
   pageSize?: number;
@@ -57,30 +55,16 @@ export function useVerifyPaymaster() {
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (paymasterId: string) => {
-      const response = await apiClient.verifyAdminPaymaster(paymasterId);
+    mutationFn: async (params: { paymasterId: string; applicationId?: string }) => {
+      const response = await apiClient.verifyAdminPaymaster(params.paymasterId, {
+        applicationId: params.applicationId,
+      });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: paymastersKeys.all });
       queryClient.invalidateQueries({ queryKey: applicationsKeys.all });
-    },
-  });
-}
-
-export function useResolvePaymasterMismatch(paymasterId: string) {
-  const { getAccessToken } = useAuthToken();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (mismatchId: string) => {
-      const response = await apiClient.resolveAdminPaymasterMismatch(paymasterId, mismatchId);
-      if (!response.success) throw new Error(response.error.message);
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: paymastersKeys.all });
     },
   });
 }

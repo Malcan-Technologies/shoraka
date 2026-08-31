@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { paymasterHref } from "@/lib/admin-directory-hrefs";
-import { ADMIN_ACTION_SURFACE_CLASS, getAdminStatusToken } from "@/lib/admin-status-token";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
 import {
   reviewLabelClass,
   reviewRowGridClass,
@@ -44,16 +44,6 @@ export type ApplicationReviewPaymaster = {
   verified_by_user_id?: string | null;
   verifiedByUserId?: string | null;
   verifiedByName?: string | null;
-  mismatch_pending?: boolean | null;
-  mismatchPending?: boolean | null;
-  mismatches?: Array<{
-    id: string;
-    status: string;
-    application_id?: string | null;
-    applicationId?: string | null;
-    contract_id?: string | null;
-    contractId?: string | null;
-  }>;
 };
 
 function text(value: unknown, fallback = "—"): string {
@@ -65,45 +55,19 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-export function paymasterHasPendingMismatch(params: {
-  paymaster?: ApplicationReviewPaymaster | null;
-  applicationId?: string;
-  contractId?: string | null;
-}): boolean {
-  const row = params.paymaster;
-  if (!row) return false;
-  const mismatches = row.mismatches ?? [];
-  const pending = mismatches.filter((item) => item.status === "PENDING");
-  if (pending.length === 0) {
-    return Boolean(row.mismatch_pending ?? row.mismatchPending);
-  }
-  return pending.some((item) => {
-    const applicationId = item.application_id ?? item.applicationId ?? null;
-    const contractId = item.contract_id ?? item.contractId ?? null;
-    if (!applicationId && !contractId) return true;
-    if (params.applicationId && applicationId === params.applicationId) return true;
-    if (params.contractId && contractId === params.contractId) return true;
-    return false;
-  });
-}
-
 export function PaymasterVerificationPanel({
   paymaster,
   paymasterId,
   customerDetails,
   applicationId,
-  contractId,
   canManage,
-  showMismatchBanner = false,
   layout = "review",
 }: {
   paymaster?: ApplicationReviewPaymaster | null;
   paymasterId?: string | null;
   customerDetails?: unknown;
   applicationId?: string;
-  contractId?: string | null;
   canManage: boolean;
-  showMismatchBanner?: boolean;
   layout?: "review" | "detail";
 }) {
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -130,13 +94,6 @@ export function PaymasterVerificationPanel({
         ? format(new Date(verifiedAtRaw), "dd MMM yyyy, h:mm a")
         : "—";
   const verifiedBy = text(paymaster?.verifiedByName, "—");
-  const pendingMismatch =
-    showMismatchBanner &&
-    paymasterHasPendingMismatch({
-      paymaster,
-      applicationId,
-      contractId,
-    });
 
   if (!resolvedId && !paymaster) {
     return layout === "detail" ? (
@@ -147,7 +104,10 @@ export function PaymasterVerificationPanel({
   const onConfirm = async () => {
     if (!resolvedId) return;
     try {
-      await verifyPaymaster.mutateAsync(resolvedId);
+      await verifyPaymaster.mutateAsync({
+        paymasterId: resolvedId,
+        applicationId,
+      });
       toast.success("Paymaster identity reviewed");
       setConfirmOpen(false);
     } catch (err) {
@@ -157,19 +117,6 @@ export function PaymasterVerificationPanel({
 
   return (
     <div className="space-y-4">
-      {pendingMismatch ? (
-        <div className={`space-y-2 rounded-xl border p-4 ${ADMIN_ACTION_SURFACE_CLASS}`}>
-          <p className="text-ui">
-            Customer details differ from the existing Paymaster record.
-          </p>
-          {resolvedId ? (
-            <Button asChild variant="outline" size="sm" className="h-8 rounded-lg text-ui">
-              <Link href={paymasterHref(resolvedId)}>Review Paymaster</Link>
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-
       <div className={layout === "review" ? reviewRowGridClass : "grid gap-4 sm:grid-cols-2"}>
         {layout === "review" ? (
           <>

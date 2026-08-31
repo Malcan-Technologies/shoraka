@@ -51,6 +51,15 @@ describe("visibility matrix", () => {
     expect(userVisibleApplicationEventTypes()).not.toContain("SECTION_REVIEWED_APPROVED");
   });
 
+  it("keeps Paymaster identity events as admin-only activity", () => {
+    expect(EVENT_CATALOGUE.PAYMASTER_CREATED.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.PAYMASTER_LINKED_TO_ISSUER.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.PAYMASTER_VERIFIED.userVisible).toBe(false);
+    expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_CREATED");
+    expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_LINKED_TO_ISSUER");
+    expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_VERIFIED");
+  });
+
   it("treats occupancy dual IDs as two layers, not duplicates", () => {
     expect(EVENT_CATALOGUE.CONTRACT_FACILITY_OCCUPANCY_UPDATED.layer).toBe(
       EVENT_LAYER.APPLICATION_TIMELINE

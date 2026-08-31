@@ -72,21 +72,19 @@ export function parseSubmittedIdentity(input: {
   };
 }
 
-export type PaymasterDescriptiveMismatch = {
-  name: boolean;
-  entityType: boolean;
-  country: boolean;
-};
-
-export function describePaymasterMismatch(
-  existing: { legal_name: string; entity_type: string; registration_country: string },
+export function submittedIdentityConflictsWithMaster(
+  existing: {
+    legal_name: string;
+    entity_type: string;
+    registration_country: string;
+    registration_number: string;
+  },
   submitted: PaymasterSubmittedIdentity
-): PaymasterDescriptiveMismatch | null {
-  const mismatch: PaymasterDescriptiveMismatch = {
-    name: namesDiffer(existing.legal_name, submitted.legalName),
-    entityType: existing.entity_type.trim().toLowerCase() !== submitted.entityType.trim().toLowerCase(),
-    country: existing.registration_country.trim().toUpperCase() !== submitted.registrationCountry,
-  };
-  if (!mismatch.name && !mismatch.entityType && !mismatch.country) return null;
-  return mismatch;
+): boolean {
+  return (
+    namesDiffer(existing.legal_name, submitted.legalName) ||
+    existing.entity_type.trim().toLowerCase() !== submitted.entityType.trim().toLowerCase() ||
+    existing.registration_country.trim().toUpperCase() !== submitted.registrationCountry ||
+    existing.registration_number !== submitted.registrationNumber
+  );
 }

@@ -173,6 +173,9 @@ function getEventLabel(
     CONTRACT_FACILITY_DISABLED: "Facility Disabled",
     CONTRACT_FACILITY_ENABLED: "Facility Enabled",
     CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED: "Large Private Customer Flag Updated",
+    PAYMASTER_CREATED: "Paymaster Created",
+    PAYMASTER_LINKED_TO_ISSUER: "Paymaster Linked to Issuer",
+    PAYMASTER_VERIFIED: "Paymaster Identity Verified",
   };
   if (eventType === "INVOICE_OFFER_SENT") {
     const invoiceNumber = metadata?.invoice_number;
@@ -233,6 +236,58 @@ function formatActivityText(activity: ApplicationLogEntry["activity"]): string |
   if (typeof activity === "string") return activity;
   if (typeof activity === "number" || typeof activity === "boolean") return String(activity);
   return JSON.stringify(activity);
+}
+
+function paymasterIdentityDescription(
+  eventType: string,
+  metadata?: Record<string, unknown> | null,
+  remark?: string | null
+): string | null {
+  if (remark?.trim()) return remark.trim();
+  if (!eventType.startsWith("PAYMASTER_")) return null;
+  const legalName = typeof metadata?.legalName === "string" ? metadata.legalName.trim() : "";
+  const registrationNumber =
+    typeof metadata?.registrationNumber === "string" ? metadata.registrationNumber.trim() : "";
+  const identity = [legalName, registrationNumber ? `(${registrationNumber})` : ""]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  if (eventType === "PAYMASTER_CREATED") {
+    return identity ? `${identity} created as Unverified.` : "Paymaster master created as Unverified.";
+  }
+  if (eventType === "PAYMASTER_LINKED_TO_ISSUER") {
+    return identity ? `${identity} linked to this issuer.` : "Existing Paymaster linked to this issuer.";
+  }
+  if (eventType === "PAYMASTER_VERIFIED") {
+    return identity
+      ? `${identity} identity reviewed internally. Unverified → Verified.`
+      : "Paymaster identity reviewed internally. Unverified → Verified.";
+  }
+  return identity || null;
+}
+
+function paymasterIdentityCompactDetails(
+  eventType: string,
+  metadata?: Record<string, unknown> | null
+): { label: string; value: string }[] {
+  if (!eventType.startsWith("PAYMASTER_")) return [];
+  const rows: { label: string; value: string }[] = [];
+  const legalName = typeof metadata?.legalName === "string" ? metadata.legalName.trim() : "";
+  const registrationNumber =
+    typeof metadata?.registrationNumber === "string" ? metadata.registrationNumber.trim() : "";
+  const status =
+    typeof metadata?.verification_status === "string" ? metadata.verification_status.trim() : "";
+  const previousStatus =
+    typeof metadata?.previous_status === "string" ? metadata.previous_status.trim() : "";
+  const newStatus = typeof metadata?.new_status === "string" ? metadata.new_status.trim() : "";
+  if (legalName) rows.push({ label: "Legal name", value: legalName });
+  if (registrationNumber) rows.push({ label: "SSM", value: registrationNumber });
+  if (previousStatus && newStatus) {
+    rows.push({ label: "Status", value: `${previousStatus} → ${newStatus}` });
+  } else if (status) {
+    rows.push({ label: "Status", value: status });
+  }
+  return rows;
 }
 
 function applicationLogToActivityCsvRow(
@@ -395,7 +450,10 @@ export function AdminActivityTimeline({
                             sectionLabelOverrides,
                           })
                         : null;
-                    const description = tabsOnly ?? formatActivityText(log.activity);
+                    const description =
+                      tabsOnly ??
+                      paymasterIdentityDescription(eventType, metadata, log.remark) ??
+                      formatActivityText(log.activity);
 
                     return (
                       <AdminVerticalTimelineItem
@@ -410,6 +468,7 @@ export function AdminActivityTimeline({
                         createdAt={log.created_at}
                         actorLabel={actorName}
                         portal={portal}
+                        compactDetails={paymasterIdentityCompactDetails(eventType, metadata)}
                         onViewDetails={() => setSelectedLog(log)}
                         timestampActions={
                           canOpenResubmitComparison ? (
@@ -454,7 +513,11 @@ export function AdminActivityTimeline({
                   selectedLog.entityId,
                   sectionLabelOverrides
                 ),
-                formatActivityText(selectedLog.activity)
+                paymasterIdentityDescription(
+                  selectedLog.event_type,
+                  selectedLog.metadata,
+                  selectedLog.remark
+                ) ?? formatActivityText(selectedLog.activity)
               )
             : null
         }

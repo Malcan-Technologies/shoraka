@@ -38,6 +38,8 @@ Follow the progress bar. The middle steps are **only** what your product include
 
 On **Company Details**, if a director or shareholder is missing a government ID, enter it on that step or open **Organisation** to finish it on the company people list.
 
+On **Facility and Customer Details**, enter the customer **SSM / registration number** first. If a verified customer already exists, select it — name and other identity fields fill in and stay locked. If none exists, enter the identity. Related-party is a separate Yes / No for your organisation.
+
 ### Invoice tenure
 
 When a product asks for invoice details:

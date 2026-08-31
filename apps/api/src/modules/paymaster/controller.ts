@@ -12,7 +12,7 @@ import {
   marcUploadUrlSchema,
   paymasterIdParamSchema,
   issuerPaymasterLookupQuerySchema,
-  resolveMismatchSchema,
+  verifyPaymasterBodySchema,
 } from "./schemas";
 import {
   createMarcAssessment,
@@ -22,7 +22,6 @@ import {
   listIssuerPaymasters,
   lookupPaymasterByRegistration,
   requestIssuerMarcReportUploadUrl,
-  resolvePaymasterMismatch,
   verifyPaymaster,
 } from "./service";
 import {
@@ -116,7 +115,6 @@ adminPaymasterRouter.get(
         res,
         await listAdminPaymasters({
           q: query.q,
-          mismatchPending: query.mismatchPending === "true" ? true : undefined,
           verificationStatus: query.verificationStatus,
           page: query.page,
           pageSize: query.pageSize,
@@ -147,33 +145,16 @@ adminPaymasterRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = paymasterIdParamSchema.parse(req.params);
+      const body = verifyPaymasterBodySchema.parse(req.body ?? {});
       send(
         res,
         await verifyPaymaster({
           paymasterId: id,
           actorUserId: getUserId(req),
+          applicationId: body.applicationId,
+          auditContext: auditContextFromRequest(req, { res }),
         })
       );
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-adminPaymasterRouter.post(
-  "/:id/mismatches/:mismatchId/resolve",
-  requirePermission("paymasters.manage"),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = paymasterIdParamSchema.parse(req.params);
-      const mismatchId = String(req.params.mismatchId);
-      resolveMismatchSchema.parse(req.body ?? {});
-      await resolvePaymasterMismatch({
-        paymasterId: id,
-        mismatchId,
-        actorUserId: getUserId(req),
-      });
-      send(res, await getAdminPaymasterDetail(id));
     } catch (error) {
       next(error);
     }

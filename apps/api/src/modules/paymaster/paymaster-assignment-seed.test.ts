@@ -203,18 +203,23 @@ describe("paymaster assignment scenario seed", () => {
     const listingA = await prisma.noteListing.findUniqueOrThrow({ where: { note_id: NOTE_A_ID } });
     expect(listingA.closes_at).toBeTruthy();
 
-    const mismatch = await prisma.paymasterMismatch.findUniqueOrThrow({
-      where: { id: "seed_pmas_mismatch_delta" },
-    });
-    expect(mismatch.paymaster_id).toBe(first.paymaster3Id);
-    expect(mismatch.status).toBe("PENDING");
-    expect(mismatch.submitted_country).toBe("SG");
-    expect(mismatch.existing_country).toBe("MY");
-    expect(mismatch.submitted_entity_type).not.toBe(mismatch.existing_entity_type);
     const deltaDuplicates = await prisma.paymaster.count({
       where: { registration_number: PMAS_PAYMASTER_3_SSM },
     });
     expect(deltaDuplicates).toBe(1);
+    const unverifiedContract = await prisma.contract.findUniqueOrThrow({
+      where: { id: "seed_pmas_contract_mismatch" },
+    });
+    const details = unverifiedContract.customer_details as {
+      name?: string;
+      ssm_number?: string;
+      country?: string;
+      entity_type?: string;
+    };
+    expect(details.ssm_number).toBe(PMAS_PAYMASTER_3_SSM);
+    expect(details.country).toBe("MY");
+    expect(details.entity_type).toBe(delta.entity_type);
+    expect(details.name).toBe(delta.legal_name);
 
     const listed = await prisma.note.findUniqueOrThrow({ where: { id: NOTE_L_ID } });
     expect(listed.note_reference).toBeDefined();

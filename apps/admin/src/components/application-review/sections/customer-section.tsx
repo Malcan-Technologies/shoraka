@@ -46,7 +46,6 @@ export interface CustomerSectionProps {
   paymaster?: ApplicationReviewPaymaster | null;
   paymasterId?: string | null;
   applicationId?: string;
-  contractId?: string | null;
 }
 
 export function CustomerSection({
@@ -68,7 +67,6 @@ export function CustomerSection({
   paymaster,
   paymasterId,
   applicationId,
-  contractId,
 }: CustomerSectionProps) {
   const { can } = usePermissions();
   const canManagePaymasters = can("paymasters.manage");
@@ -169,9 +167,7 @@ export function CustomerSection({
             paymasterId={paymasterId}
             customerDetails={customerDetails}
             applicationId={applicationId}
-            contractId={contractId}
             canManage={canManagePaymasters}
-            showMismatchBanner
           />
         </ReviewFieldBlock>
       ) : null}

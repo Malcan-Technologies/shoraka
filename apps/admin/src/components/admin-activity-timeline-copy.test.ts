@@ -37,4 +37,12 @@ describe("admin activity timeline signing-package copy", () => {
       /INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING:\s*"Invoice Acceptance Approved for Signing"/
     );
   });
+
+  it("labels Paymaster identity events with business titles, not raw codes", () => {
+    expect(source).toMatch(/PAYMASTER_CREATED:\s*"Paymaster Created"/);
+    expect(source).toMatch(/PAYMASTER_LINKED_TO_ISSUER:\s*"Paymaster Linked to Issuer"/);
+    expect(source).toMatch(/PAYMASTER_VERIFIED:\s*"Paymaster Identity Verified"/);
+    expect(source).not.toMatch(/PAYMASTER_VERIFIED:\s*"Paymaster Verified"/);
+    expect(source).not.toMatch(/PAYMASTER_MISMATCH/);
+  });
 });

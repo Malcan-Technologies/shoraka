@@ -306,6 +306,9 @@ Payment Amount Mismatch may appear as Payment Currency Mismatch when the currenc
 | Paymaster Notice Uploaded | Note → Activity | Not customer visible | None | None |
 | Paymaster Acknowledgement Uploaded | Note → Activity | Not customer visible | None | None |
 | Paymaster Acknowledgement Confirmed | Note → Activity | Not customer visible | None | None |
+| Paymaster Created | Application → Activity Timeline | Not customer visible | None | None |
+| Paymaster Linked to Issuer | Application → Activity Timeline | Not customer visible | None | None |
+| Paymaster Identity Verified | Application → Activity Timeline | Not customer visible | None | None |
 | Tawarruq Order Submitted | Note → Activity | Not customer visible | None | None |
 | Tawarruq Certificate Retrieved | Note → Activity | Not customer visible | None | None |
 

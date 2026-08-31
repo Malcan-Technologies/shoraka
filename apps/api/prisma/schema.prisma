@@ -1038,19 +1038,16 @@ model Paymaster {
   verification_status  PaymasterVerificationStatus  @default(UNVERIFIED)
   verified_at          DateTime?
   verified_by_user_id  String?                      @db.VarChar(5)
-  mismatch_pending     Boolean                      @default(false)
   source               String                       @default("ISSUER_APPLICATION")
   created_at           DateTime                     @default(now())
   updated_at           DateTime                     @updatedAt
   issuer_links         IssuerPaymasterLink[]
   contracts            Contract[]
   notes                Note[]
-  mismatches           PaymasterMismatch[]
   assignment_notices   PaymasterAssignmentNotice[]
 
   @@unique([registration_number])
   @@index([legal_name])
-  @@index([mismatch_pending])
   @@index([verification_status])
   @@map("paymasters")
 }
@@ -1071,28 +1068,6 @@ model IssuerPaymasterLink {
   @@index([paymaster_id])
   @@index([issuer_organization_id, last_used_at])
   @@map("issuer_paymaster_links")
-}
-
-model PaymasterMismatch {
-  id                     String                   @id @default(cuid())
-  paymaster_id           String
-  application_id         String?
-  contract_id            String?
-  submitted_legal_name   String
-  submitted_entity_type  String
-  submitted_country      String
-  existing_legal_name    String
-  existing_entity_type   String
-  existing_country       String
-  status                 PaymasterMismatchStatus  @default(PENDING)
-  resolved_at            DateTime?
-  resolved_by_user_id    String?                  @db.VarChar(5)
-  created_at             DateTime                 @default(now())
-  paymaster              Paymaster                @relation(fields: [paymaster_id], references: [id], onDelete: Cascade)
-
-  @@index([paymaster_id, status])
-  @@index([application_id])
-  @@map("paymaster_mismatches")
 }
 
 /// Organization-level MARC assessment. Latest row is current. Historical rows stay for audit.
@@ -2868,11 +2843,6 @@ enum NotificationLogSource {
 enum PaymasterVerificationStatus {
   UNVERIFIED
   VERIFIED
-}
-
-enum PaymasterMismatchStatus {
-  PENDING
-  RESOLVED
 }
 
 enum PaymasterAssignmentNoticeStatus {

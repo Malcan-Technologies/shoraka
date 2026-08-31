@@ -9,9 +9,6 @@ export const PAYMASTER_ASSIGNMENT_NOTICE_STATUSES = [
 export type PaymasterAssignmentNoticeStatus =
   (typeof PAYMASTER_ASSIGNMENT_NOTICE_STATUSES)[number];
 
-export const PAYMASTER_MISMATCH_STATUSES = ["PENDING", "RESOLVED"] as const;
-export type PaymasterMismatchStatus = (typeof PAYMASTER_MISMATCH_STATUSES)[number];
-
 export const PAYMASTER_VERIFICATION_STATUSES = ["UNVERIFIED", "VERIFIED"] as const;
 export type PaymasterVerificationStatus = (typeof PAYMASTER_VERIFICATION_STATUSES)[number];
 
@@ -38,7 +35,6 @@ export interface PaymasterMasterIdentity {
 }
 
 export interface PaymasterIdentity extends PaymasterMasterIdentity {
-  mismatchPending: boolean;
   verifiedAt: string | null;
   verifiedByUserId: string | null;
   createdAt: string;
@@ -75,21 +71,6 @@ export interface PaymasterFinancingRow {
   updatedAt: string | null;
 }
 
-export interface PaymasterMismatchRow {
-  id: string;
-  status: PaymasterMismatchStatus;
-  submittedLegalName: string;
-  submittedEntityType: string;
-  submittedCountry: string;
-  existingLegalName: string;
-  existingEntityType: string;
-  existingCountry: string;
-  applicationId: string | null;
-  contractId: string | null;
-  createdAt: string;
-  resolvedAt: string | null;
-}
-
 export interface PaymasterNoticeHistoryRow {
   id: string;
   status: PaymasterAssignmentNoticeStatus;
@@ -112,7 +93,6 @@ export interface PaymasterDetail extends PaymasterIdentity {
   verifiedByName: string | null;
   issuers: PaymasterIssuerLinkRow[];
   financings: PaymasterFinancingRow[];
-  mismatches: PaymasterMismatchRow[];
   notices: PaymasterNoticeHistoryRow[];
 }
 
@@ -179,3 +159,9 @@ export const VERIFIED_PAYMASTER_MUST_BE_SELECTED_MESSAGE =
 export const RELATED_PARTY_REQUIRED_CODE = "RELATED_PARTY_REQUIRED";
 export const RELATED_PARTY_REQUIRED_MESSAGE =
   "Please confirm whether the customer is related to you.";
+
+export const PAYMASTER_IDENTITY_IMMUTABLE_CODE = "PAYMASTER_IDENTITY_IMMUTABLE";
+export const PAYMASTER_IDENTITY_IMMUTABLE_MESSAGE =
+  "Verified Paymaster identity cannot be changed.";
+export const PAYMASTER_EXISTING_IDENTITY_IMMUTABLE_MESSAGE =
+  "Existing Paymaster identity cannot be changed.";

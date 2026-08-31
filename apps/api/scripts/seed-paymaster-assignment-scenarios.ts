@@ -105,7 +105,6 @@ export const PMAS_PAYMASTER_2_NAME = "Pacific Trade Obligor Sdn Bhd";
 export const PMAS_PAYMASTER_3_NAME = "Delta Supply Paymaster Sdn Bhd";
 
 export const ENTITY_SDN_BHD = "Private Limited Company (Sdn Bhd)";
-export const ENTITY_BHD = "Public Limited Company (Bhd)";
 
 export const NOTE_A_REF = "NOTE-PMAS-ACK-001";
 export const NOTE_B_REF = "NOTE-PMAS-SENT-001";
@@ -279,7 +278,6 @@ async function upsertPaymaster(input: {
   legalName: string;
   registrationNumber: string;
   entityType: string;
-  mismatchPending: boolean;
   verificationStatus: "UNVERIFIED" | "VERIFIED";
   verifiedByUserId?: string;
 }): Promise<{ id: string; created: boolean }> {
@@ -305,7 +303,6 @@ async function upsertPaymaster(input: {
         legal_name: input.legalName,
         registration_country: "MY",
         entity_type: input.entityType,
-        mismatch_pending: input.mismatchPending,
         source: "ISSUER_APPLICATION",
         ...verificationData,
       },
@@ -319,7 +316,6 @@ async function upsertPaymaster(input: {
       registration_number: input.registrationNumber,
       registration_country: "MY",
       entity_type: input.entityType,
-      mismatch_pending: input.mismatchPending,
       source: "ISSUER_APPLICATION",
       ...verificationData,
     },
@@ -461,9 +457,6 @@ async function resetSeedGraph() {
   await prisma.signingEnvelope.deleteMany({ where: { application_id: { in: appIds } } });
   await prisma.invoice.deleteMany({ where: { application_id: { in: appIds } } });
   await prisma.application.deleteMany({ where: { id: { in: appIds } } });
-  await prisma.paymasterMismatch.deleteMany({
-    where: { id: "seed_pmas_mismatch_delta" },
-  });
   await prisma.contract.deleteMany({
     where: {
       id: {
@@ -1139,7 +1132,6 @@ export async function seedPaymasterAssignmentScenarios() {
     legalName: PMAS_PAYMASTER_1_NAME,
     registrationNumber: PMAS_PAYMASTER_1_SSM,
     entityType: ENTITY_SDN_BHD,
-    mismatchPending: false,
     verificationStatus: "VERIFIED",
     verifiedByUserId: adminUserId,
   });
@@ -1148,7 +1140,6 @@ export async function seedPaymasterAssignmentScenarios() {
     legalName: PMAS_PAYMASTER_2_NAME,
     registrationNumber: PMAS_PAYMASTER_2_SSM,
     entityType: ENTITY_SDN_BHD,
-    mismatchPending: false,
     verificationStatus: "VERIFIED",
     verifiedByUserId: adminUserId,
   });
@@ -1157,7 +1148,6 @@ export async function seedPaymasterAssignmentScenarios() {
     legalName: PMAS_PAYMASTER_3_NAME,
     registrationNumber: PMAS_PAYMASTER_3_SSM,
     entityType: ENTITY_SDN_BHD,
-    mismatchPending: true,
     verificationStatus: "UNVERIFIED",
   });
   const paymasterByPreferredId = {
@@ -1374,12 +1364,12 @@ export async function seedPaymasterAssignmentScenarios() {
     pageCounts[spec.noteReference] = freeze.pageCount;
   }
 
-  const mismatchCustomer = customerDetails({
+  const unverifiedCustomer = customerDetails({
     paymasterId: pm3.id,
     name: PMAS_PAYMASTER_3_NAME,
     ssm: PMAS_PAYMASTER_3_SSM,
-    entityType: ENTITY_BHD,
-    country: "SG",
+    entityType: ENTITY_SDN_BHD,
+    country: "MY",
     relatedParty: false,
   });
   await prisma.contract.upsert({
@@ -1388,8 +1378,8 @@ export async function seedPaymasterAssignmentScenarios() {
       issuer_organization_id: PMAS_ORG_A_ID,
       paymaster_id: pm3.id,
       status: ContractStatus.APPROVED,
-      display_reference: "CTR-PMAS-MISMATCH",
-      customer_details: mismatchCustomer,
+      display_reference: "CTR-PMAS-UNVERIFIED",
+      customer_details: unverifiedCustomer,
       contract_details: {
         approved_facility: 800_000,
         financing: 180_000,
@@ -1402,8 +1392,8 @@ export async function seedPaymasterAssignmentScenarios() {
       issuer_organization_id: PMAS_ORG_A_ID,
       paymaster_id: pm3.id,
       status: ContractStatus.APPROVED,
-      display_reference: "CTR-PMAS-MISMATCH",
-      customer_details: mismatchCustomer,
+      display_reference: "CTR-PMAS-UNVERIFIED",
+      customer_details: unverifiedCustomer,
       contract_details: {
         approved_facility: 800_000,
         financing: 180_000,
@@ -1420,7 +1410,7 @@ export async function seedPaymasterAssignmentScenarios() {
       status: ApplicationStatus.COMPLETED,
       last_completed_step: 9,
       submitted_at: now,
-      display_reference: "APP-PMAS-MISMATCH",
+      display_reference: "APP-PMAS-UNVERIFIED",
       contract_id: "seed_pmas_contract_mismatch",
       financing_type: {
         product_id: PMAS_PRODUCT_ID,
@@ -1439,7 +1429,7 @@ export async function seedPaymasterAssignmentScenarios() {
       status: ApplicationStatus.COMPLETED,
       last_completed_step: 9,
       submitted_at: now,
-      display_reference: "APP-PMAS-MISMATCH",
+      display_reference: "APP-PMAS-UNVERIFIED",
       contract_id: "seed_pmas_contract_mismatch",
       financing_type: {
         product_id: PMAS_PRODUCT_ID,
@@ -1450,21 +1440,6 @@ export async function seedPaymasterAssignmentScenarios() {
         structure_type: "existing_contract",
         existing_contract_id: "seed_pmas_contract_mismatch",
       } as Prisma.InputJsonValue,
-    },
-  });
-  await prisma.paymasterMismatch.create({
-    data: {
-      id: "seed_pmas_mismatch_delta",
-      paymaster_id: pm3.id,
-      application_id: "seed_pmas_app_mismatch",
-      contract_id: "seed_pmas_contract_mismatch",
-      submitted_legal_name: PMAS_PAYMASTER_3_NAME,
-      submitted_entity_type: ENTITY_BHD,
-      submitted_country: "SG",
-      existing_legal_name: PMAS_PAYMASTER_3_NAME,
-      existing_entity_type: ENTITY_SDN_BHD,
-      existing_country: "MY",
-      status: "PENDING",
     },
   });
   await prisma.issuerPaymasterLink.upsert({

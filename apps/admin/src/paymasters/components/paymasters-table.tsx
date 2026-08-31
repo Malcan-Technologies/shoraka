@@ -13,15 +13,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
-import { ADMIN_ACTION_ROW_CLASS, getAdminStatusToken } from "@/lib/admin-status-token";
-import { cn } from "@/lib/utils";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
 
 function TableSkeleton() {
   return (
     <>
       {Array.from({ length: 5 }).map((_, i) => (
         <TableRow key={i}>
-          {Array.from({ length: 9 }).map((_, cell) => (
+              {Array.from({ length: 8 }).map((_, cell) => (
             <TableCell key={cell}>
               <Skeleton className="h-5 w-24" />
             </TableCell>
@@ -66,7 +65,6 @@ export function PaymastersTable({
               <TableHead className="text-sm font-semibold">Notes</TableHead>
               <TableHead className="text-sm font-semibold">Last used</TableHead>
               <TableHead className="text-sm font-semibold">Verification</TableHead>
-              <TableHead className="text-sm font-semibold">Review</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -74,7 +72,7 @@ export function PaymastersTable({
               <TableSkeleton />
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="py-10 text-center text-ui text-muted-foreground">
+                <TableCell colSpan={8} className="py-10 text-center text-ui text-muted-foreground">
                   No paymasters yet. They are created when issuers save Customer Details.
                 </TableCell>
               </TableRow>
@@ -82,7 +80,7 @@ export function PaymastersTable({
               items.map((item) => (
                 <TableRow
                   key={item.id}
-                  className={cn("cursor-pointer", item.mismatchPending && ADMIN_ACTION_ROW_CLASS)}
+                  className="cursor-pointer"
                   onClick={() => onViewDetails(item)}
                 >
                   <TableCell className="text-ui font-medium">{item.legalName}</TableCell>
@@ -99,13 +97,6 @@ export function PaymastersTable({
                       label={item.verificationStatus === "VERIFIED" ? "Verified" : "Unverified"}
                       status={getAdminStatusToken(item.verificationStatus)}
                     />
-                  </TableCell>
-                  <TableCell>
-                    {item.mismatchPending ? (
-                      <StatusBadge label="Review required" status="action" />
-                    ) : (
-                      <span className="text-ui text-muted-foreground">—</span>
-                    )}
                   </TableCell>
                 </TableRow>
               ))

@@ -3,7 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { toast } from "sonner";
 import {
   BuildingOffice2Icon,
   ClipboardDocumentListIcon,
@@ -17,7 +16,6 @@ import {
   AdminEntityHeader,
   AdminEntitySummaryCard,
 } from "@/components/admin-detail";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { usePermissions } from "@/hooks/use-permissions";
 import { orgHref } from "@/lib/admin-directory-hrefs";
@@ -25,7 +23,7 @@ import {
   assignmentNoticeStatusLabel,
   assignmentNoticeStatusToken,
 } from "@/lib/admin-status-token";
-import { useAdminPaymasterDetail, useResolvePaymasterMismatch } from "@/paymasters/hooks/use-paymasters";
+import { useAdminPaymasterDetail } from "@/paymasters/hooks/use-paymasters";
 import { PaymasterVerificationPanel } from "@/paymasters/components/paymaster-verification-panel";
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -41,7 +39,6 @@ export function PaymasterDetailView({ paymasterId }: { paymasterId: string }) {
   const { can } = usePermissions();
   const canManage = can("paymasters.manage");
   const { data, isLoading, error } = useAdminPaymasterDetail(paymasterId);
-  const resolveMismatch = useResolvePaymasterMismatch(paymasterId);
 
   if (isLoading) {
     return (
@@ -145,58 +142,6 @@ export function PaymasterDetailView({ paymasterId }: { paymasterId: string }) {
                 </div>
                 <div className="text-ui text-muted-foreground">{row.status || "—"}</div>
                 <div className="text-ui text-muted-foreground">{row.issuerName || "—"}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </AdminCollapsibleCard>
-
-      <AdminCollapsibleCard
-        title="Data review"
-        icon={IdentificationIcon}
-        description="Same SSM with different submitted name, country, or entity type. Existing legal identity is kept."
-        needsAction={data.mismatches.some((row) => row.status === "PENDING")}
-      >
-        {data.mismatches.length === 0 ? (
-          <p className="text-ui text-muted-foreground">No submitted identity mismatches.</p>
-        ) : (
-          <div className="space-y-4">
-            {data.mismatches.map((mismatch) => (
-              <div key={mismatch.id} className="rounded-xl border p-4">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <StatusBadge
-                    label={mismatch.status === "PENDING" ? "Review required" : "Resolved"}
-                    status={mismatch.status === "PENDING" ? "action" : "success"}
-                  />
-                  <span className="text-meta text-muted-foreground">
-                    {format(new Date(mismatch.createdAt), "dd MMM yyyy")}
-                  </span>
-                </div>
-                <p className="text-ui">
-                  Submitted {mismatch.submittedLegalName} / {mismatch.submittedEntityType} /{" "}
-                  {mismatch.submittedCountry}
-                </p>
-                <p className="text-meta text-muted-foreground">
-                  Existing {mismatch.existingLegalName} / {mismatch.existingEntityType} /{" "}
-                  {mismatch.existingCountry}
-                </p>
-                {mismatch.status === "PENDING" && canManage ? (
-                  <Button
-                    size="sm"
-                    className="mt-3"
-                    disabled={resolveMismatch.isPending}
-                    onClick={async () => {
-                      try {
-                        await resolveMismatch.mutateAsync(mismatch.id);
-                        toast.success("Mismatch marked resolved. Existing legal identity was kept.");
-                      } catch (err) {
-                        toast.error(err instanceof Error ? err.message : "Failed to resolve mismatch");
-                      }
-                    }}
-                  >
-                    Keep existing identity
-                  </Button>
-                ) : null}
               </div>
             ))}
           </div>

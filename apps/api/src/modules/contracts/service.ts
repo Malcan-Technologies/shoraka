@@ -191,7 +191,10 @@ export class ContractService {
     id: string,
     data: Prisma.ContractUpdateInput,
     userId: string,
-    options: { selectedPaymasterId?: string | null } = {}
+    options: {
+      selectedPaymasterId?: string | null;
+      logContext?: IssuerActivityLogContext;
+    } = {}
   ): Promise<Contract> {
     const contract = await this.verifyContractAccess(id, userId);
 
@@ -259,6 +262,8 @@ export class ContractService {
         lockExistingPaymasterId: contract.paymaster_id,
         previousLargePrivateCompany: typeof previousLpc === "boolean" ? previousLpc : undefined,
         previousDocument: previousCustomer?.document,
+        actorUserId: userId,
+        auditContext: options.logContext?.context,
       });
       data.customer_details = resolved.customerDetails as Prisma.InputJsonValue;
       data.paymaster = { connect: { id: resolved.paymasterId } };

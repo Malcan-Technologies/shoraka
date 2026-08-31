@@ -181,3 +181,13 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 | `SIGNING_PACKAGE_DECLINED` | signing/service | ISSUER | Signer declined the envelope |
 | `SIGNING_PACKAGE_EXPIRED` | signing/service | SYSTEM | Envelope `expires_at` elapsed while still active |
 | `SIGNING_PACKAGE_VOIDED` | signing/service | ADMIN | Admin voids the package |
+
+### Paymaster identity
+
+These events are Admin Activity on the Application timeline. They are not customer-visible and they are not Notice / acknowledgement events.
+
+| Event Type | Source | Portal | Description |
+|------------|--------|--------|-------------|
+| `PAYMASTER_CREATED` | paymaster/service `resolvePaymasterFromCustomerDetails` | ISSUER | New Paymaster master created Unverified from Customer Details Save. Display: Paymaster Created |
+| `PAYMASTER_LINKED_TO_ISSUER` | paymaster/service `resolvePaymasterFromCustomerDetails` | ISSUER | New issuer link on an existing master. Not written for the originating create or same-issuer reuse. Display: Paymaster Linked to Issuer |
+| `PAYMASTER_VERIFIED` | paymaster/service `verifyPaymaster` | ADMIN | First Unverified → Verified via Verify Paymaster. Display: Paymaster Identity Verified. Does not approve the application |

@@ -1,4 +1,7 @@
 import {
+  PAYMASTER_EXISTING_IDENTITY_IMMUTABLE_MESSAGE,
+  PAYMASTER_IDENTITY_IMMUTABLE_CODE,
+  PAYMASTER_IDENTITY_IMMUTABLE_MESSAGE,
   PAYMASTER_NOT_VERIFIED_CODE,
   RELATED_PARTY_REQUIRED_CODE,
   VERIFIED_PAYMASTER_MUST_BE_SELECTED_CODE,
@@ -8,15 +11,18 @@ jest.mock("../../lib/prisma", () => ({
   prisma: {
     paymaster: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
     },
     issuerPaymasterLink: {
-      upsert: jest.fn(),
+      findUnique: jest.fn(),
       findMany: jest.fn(),
-    },
-    paymasterMismatch: {
       create: jest.fn(),
+      update: jest.fn(),
+    },
+    contract: {
+      findFirst: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
@@ -30,11 +36,22 @@ jest.mock("../../lib/prisma", () => ({
     applicationRevision: {
       update: jest.fn(),
     },
+    $transaction: jest.fn(),
   },
 }));
 
+jest.mock("./identity-audit", () => {
+  const actual = jest.requireActual("./identity-audit");
+  return {
+    ...actual,
+    writePaymasterIdentityApplicationLog: jest.fn(async () => undefined),
+  };
+});
+
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
+import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
+import { writePaymasterIdentityApplicationLog } from "./identity-audit";
 import {
   listIssuerPaymasters,
   lookupPaymasterByRegistration,
@@ -44,6 +61,10 @@ import {
 
 const issuerOrganizationId = "org-a";
 const actorUserId = "A1B2C";
+const applicationId = "app-1";
+const writeLogMock = writePaymasterIdentityApplicationLog as jest.MockedFunction<
+  typeof writePaymasterIdentityApplicationLog
+>;
 
 function paymasterRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -55,7 +76,6 @@ function paymasterRow(overrides: Record<string, unknown> = {}) {
     verification_status: "VERIFIED",
     verified_at: new Date("2026-06-01T00:00:00.000Z"),
     verified_by_user_id: actorUserId,
-    mismatch_pending: false,
     source: "ISSUER_APPLICATION",
     created_at: new Date("2026-01-01T00:00:00.000Z"),
     updated_at: new Date("2026-01-02T00:00:00.000Z"),
@@ -67,25 +87,43 @@ function detailIncludes(row: ReturnType<typeof paymasterRow>) {
   return {
     ...row,
     issuer_links: [],
-    mismatches: [],
     assignment_notices: [],
     contracts: [],
     notes: [],
   };
 }
 
+function matchingDetails(row: ReturnType<typeof paymasterRow>, extra: Record<string, unknown> = {}) {
+  return {
+    name: row.legal_name,
+    entity_type: row.entity_type,
+    ssm_number: row.registration_number,
+    country: row.registration_country,
+    is_related_party: false,
+    ...extra,
+  };
+}
+
 describe("Paymaster verification and SSM-first reuse", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (prisma.issuerPaymasterLink.upsert as jest.Mock).mockResolvedValue({});
-    (prisma.paymasterMismatch.create as jest.Mock).mockResolvedValue({});
+    (prisma.$transaction as jest.Mock).mockImplementation(async (fn: (tx: typeof prisma) => unknown) =>
+      fn(prisma)
+    );
+    (prisma.issuerPaymasterLink.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.issuerPaymasterLink.create as jest.Mock).mockResolvedValue({ id: "link-new" });
+    (prisma.issuerPaymasterLink.update as jest.Mock).mockResolvedValue({ id: "link-existing" });
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({
       first_name: "Max",
       last_name: "Admin",
     });
+    (prisma.contract.findFirst as jest.Mock).mockResolvedValue({
+      originating_application_id: applicationId,
+      applications: [{ id: applicationId }],
+    });
   });
 
-  it("creates a new Paymaster as UNVERIFIED", async () => {
+  it("creates a new Paymaster as UNVERIFIED and writes PAYMASTER_CREATED once", async () => {
     (prisma.paymaster.findUnique as jest.Mock).mockResolvedValue(null);
     (prisma.paymaster.create as jest.Mock).mockResolvedValue(
       paymasterRow({
@@ -93,11 +131,16 @@ describe("Paymaster verification and SSM-first reuse", () => {
         verification_status: "UNVERIFIED",
         verified_at: null,
         verified_by_user_id: null,
+        registration_number: "202201234567",
+        legal_name: "New Co Sdn Bhd",
       })
     );
 
     const result = await resolvePaymasterFromCustomerDetails({
       issuerOrganizationId,
+      actorUserId,
+      applicationId,
+      contractId: "ctr-1",
       customerDetails: {
         name: "New Co Sdn Bhd",
         entity_type: "Private Limited Company (Sdn Bhd)",
@@ -115,8 +158,23 @@ describe("Paymaster verification and SSM-first reuse", () => {
         }),
       })
     );
-    expect(result.paymasterId).toBe("pm_new");
-    expect(result.customerDetails.is_related_party).toBe(false);
+    expect(result.paymasterCreated).toBe(true);
+    expect(result.issuerLinkCreated).toBe(false);
+    expect(prisma.issuerPaymasterLink.create).toHaveBeenCalled();
+    expect(writeLogMock).toHaveBeenCalledTimes(1);
+    expect(writeLogMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: ApplicationLogEventType.PAYMASTER_CREATED,
+        actorUserId,
+        applicationId,
+        portal: ActivityPortal.ISSUER,
+        paymasterId: "pm_new",
+        metadata: expect.objectContaining({
+          verification_status: "UNVERIFIED",
+          registrationNumber: "202201234567",
+        }),
+      })
+    );
   });
 
   it("rejects unverified selectedPaymasterId", async () => {
@@ -127,41 +185,35 @@ describe("Paymaster verification and SSM-first reuse", () => {
       resolvePaymasterFromCustomerDetails({
         issuerOrganizationId,
         selectedPaymasterId: "pm_pending",
-        customerDetails: {
-          name: "Pending Co",
-          entity_type: "Private Limited Company (Sdn Bhd)",
-          ssm_number: "202134567890",
-          country: "MY",
-          is_related_party: false,
-        },
+        customerDetails: matchingDetails(
+          paymasterRow({ id: "pm_pending", verification_status: "UNVERIFIED" })
+        ),
       })
     ).rejects.toMatchObject({
       code: PAYMASTER_NOT_VERIFIED_CODE,
     } satisfies Partial<AppError>);
   });
 
-  it("allows verified selectedPaymasterId without a prior issuer link", async () => {
+  it("allows verified selectedPaymasterId without a prior issuer link and emits PAYMASTER_LINKED_TO_ISSUER once", async () => {
     const selected = paymasterRow({ id: "pm_global" });
     (prisma.paymaster.findUnique as jest.Mock).mockResolvedValue(selected);
 
     const result = await resolvePaymasterFromCustomerDetails({
       issuerOrganizationId: "org-b",
       selectedPaymasterId: "pm_global",
-      customerDetails: {
-        name: selected.legal_name,
-        entity_type: selected.entity_type,
-        ssm_number: selected.registration_number,
-        country: selected.registration_country,
-        is_related_party: true,
-      },
+      actorUserId,
+      applicationId,
+      contractId: "ctr-2",
+      customerDetails: matchingDetails(selected, { is_related_party: true }),
     });
 
     expect(result.paymasterId).toBe("pm_global");
-    expect(result.customerDetails.name).toBe(selected.legal_name);
+    expect(result.paymasterCreated).toBe(false);
+    expect(result.issuerLinkCreated).toBe(true);
     expect(result.customerDetails.is_related_party).toBe(true);
-    expect(prisma.issuerPaymasterLink.upsert).toHaveBeenCalledWith(
+    expect(prisma.issuerPaymasterLink.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({
+        data: expect.objectContaining({
           issuer_organization_id: "org-b",
           paymaster_id: "pm_global",
           is_related_party: true,
@@ -169,6 +221,56 @@ describe("Paymaster verification and SSM-first reuse", () => {
       })
     );
     expect(prisma.paymaster.create).not.toHaveBeenCalled();
+    expect(writeLogMock).toHaveBeenCalledTimes(1);
+    expect(writeLogMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: ApplicationLogEventType.PAYMASTER_LINKED_TO_ISSUER,
+        paymasterId: "pm_global",
+      })
+    );
+  });
+
+  it("does not emit PAYMASTER_LINKED_TO_ISSUER on same-issuer reuse", async () => {
+    const selected = paymasterRow();
+    (prisma.paymaster.findUnique as jest.Mock).mockResolvedValue(selected);
+    (prisma.issuerPaymasterLink.findUnique as jest.Mock).mockResolvedValue({ id: "link-existing" });
+
+    const result = await resolvePaymasterFromCustomerDetails({
+      issuerOrganizationId,
+      selectedPaymasterId: selected.id,
+      actorUserId,
+      applicationId,
+      customerDetails: matchingDetails(selected),
+    });
+
+    expect(result.issuerLinkCreated).toBe(false);
+    expect(prisma.issuerPaymasterLink.update).toHaveBeenCalled();
+    expect(prisma.issuerPaymasterLink.create).not.toHaveBeenCalled();
+    expect(writeLogMock).not.toHaveBeenCalled();
+  });
+
+  it("does not emit a second link event on repeated cross-issuer Save", async () => {
+    const selected = paymasterRow({ id: "pm_global" });
+    (prisma.paymaster.findUnique as jest.Mock).mockResolvedValue(selected);
+    (prisma.issuerPaymasterLink.findUnique as jest.Mock).mockResolvedValue({ id: "link-b" });
+
+    await resolvePaymasterFromCustomerDetails({
+      issuerOrganizationId: "org-b",
+      selectedPaymasterId: "pm_global",
+      actorUserId,
+      applicationId,
+      customerDetails: matchingDetails(selected),
+    });
+    await resolvePaymasterFromCustomerDetails({
+      issuerOrganizationId: "org-b",
+      selectedPaymasterId: "pm_global",
+      actorUserId,
+      applicationId,
+      customerDetails: matchingDetails(selected),
+    });
+
+    expect(writeLogMock).not.toHaveBeenCalled();
+    expect(prisma.issuerPaymasterLink.create).not.toHaveBeenCalled();
   });
 
   it("rejects a verified SSM match unless the issuer explicitly selects it", async () => {
@@ -176,20 +278,39 @@ describe("Paymaster verification and SSM-first reuse", () => {
     await expect(
       resolvePaymasterFromCustomerDetails({
         issuerOrganizationId,
-        customerDetails: {
-          name: "ABC Trading Sdn Bhd",
-          entity_type: "Private Limited Company (Sdn Bhd)",
-          ssm_number: "202134567890",
-          country: "MY",
-          is_related_party: false,
-        },
+        customerDetails: matchingDetails(paymasterRow()),
       })
     ).rejects.toMatchObject({
       code: VERIFIED_PAYMASTER_MUST_BE_SELECTED_CODE,
     } satisfies Partial<AppError>);
   });
 
-  it("reuses an unverified Paymaster without creating a duplicate", async () => {
+  it("reuses an unverified Paymaster without creating a duplicate or mismatch", async () => {
+    const existing = paymasterRow({
+      id: "pm_unverified",
+      verification_status: "UNVERIFIED",
+      verified_at: null,
+      verified_by_user_id: null,
+    });
+    (prisma.paymaster.findUnique as jest.Mock).mockResolvedValue(existing);
+    (prisma.issuerPaymasterLink.findUnique as jest.Mock).mockResolvedValue({ id: "link-existing" });
+
+    const result = await resolvePaymasterFromCustomerDetails({
+      issuerOrganizationId,
+      actorUserId,
+      applicationId,
+      customerDetails: matchingDetails(existing),
+    });
+
+    expect(prisma.paymaster.create).not.toHaveBeenCalled();
+    expect(result.paymasterId).toBe("pm_unverified");
+    expect(result.customerDetails.name).toBe(existing.legal_name);
+    expect(result.issuerLinkCreated).toBe(false);
+    expect(writeLogMock).not.toHaveBeenCalled();
+    expect(prisma.paymaster.update).not.toHaveBeenCalled();
+  });
+
+  it("rejects conflicting identity on an existing UNVERIFIED Paymaster without mutating the master", async () => {
     const existing = paymasterRow({
       id: "pm_unverified",
       verification_status: "UNVERIFIED",
@@ -198,27 +319,48 @@ describe("Paymaster verification and SSM-first reuse", () => {
     });
     (prisma.paymaster.findUnique as jest.Mock).mockResolvedValue(existing);
 
-    const result = await resolvePaymasterFromCustomerDetails({
-      issuerOrganizationId,
-      customerDetails: {
-        name: "Different Name Sdn Bhd",
-        entity_type: "Public Limited Company (Bhd)",
-        ssm_number: "202134567890",
-        country: "SG",
-        is_related_party: false,
-      },
-    });
-
-    expect(prisma.paymaster.create).not.toHaveBeenCalled();
-    expect(result.paymasterId).toBe("pm_unverified");
-    expect(result.customerDetails.name).toBe(existing.legal_name);
-    expect(result.customerDetails.country).toBe(existing.registration_country);
-    expect(result.mismatchCreated).toBe(true);
-    expect(prisma.paymaster.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { mismatch_pending: true },
+    await expect(
+      resolvePaymasterFromCustomerDetails({
+        issuerOrganizationId,
+        customerDetails: {
+          name: "Different Name Sdn Bhd",
+          entity_type: "Public Limited Company (Bhd)",
+          ssm_number: "202134567890",
+          country: "SG",
+          is_related_party: false,
+        },
       })
-    );
+    ).rejects.toMatchObject({
+      code: PAYMASTER_IDENTITY_IMMUTABLE_CODE,
+      message: PAYMASTER_EXISTING_IDENTITY_IMMUTABLE_MESSAGE,
+    } satisfies Partial<AppError>);
+    expect(prisma.paymaster.create).not.toHaveBeenCalled();
+    expect(prisma.paymaster.update).not.toHaveBeenCalled();
+    expect(writeLogMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects conflicting VERIFIED identity without mutating the master", async () => {
+    const selected = paymasterRow();
+    (prisma.paymaster.findUnique as jest.Mock).mockResolvedValue(selected);
+
+    await expect(
+      resolvePaymasterFromCustomerDetails({
+        issuerOrganizationId,
+        selectedPaymasterId: selected.id,
+        customerDetails: {
+          name: "Wrong Name Sdn Bhd",
+          entity_type: "Partnership",
+          ssm_number: selected.registration_number,
+          country: "SG",
+          is_related_party: false,
+        },
+      })
+    ).rejects.toMatchObject({
+      code: PAYMASTER_IDENTITY_IMMUTABLE_CODE,
+      message: PAYMASTER_IDENTITY_IMMUTABLE_MESSAGE,
+    } satisfies Partial<AppError>);
+    expect(prisma.paymaster.update).not.toHaveBeenCalled();
+    expect(writeLogMock).not.toHaveBeenCalled();
   });
 
   it("requires an explicit related-party answer", async () => {
@@ -237,50 +379,33 @@ describe("Paymaster verification and SSM-first reuse", () => {
     } satisfies Partial<AppError>);
   });
 
+  it("keeps related-party issuer-specific on a new link", async () => {
+    const selected = paymasterRow({ id: "pm_global" });
+    (prisma.paymaster.findUnique as jest.Mock).mockResolvedValue(selected);
+    await resolvePaymasterFromCustomerDetails({
+      issuerOrganizationId: "org-b",
+      selectedPaymasterId: "pm_global",
+      customerDetails: matchingDetails(selected, { is_related_party: true }),
+    });
+    expect(prisma.issuerPaymasterLink.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ is_related_party: true }),
+      })
+    );
+  });
+
   it("preserves Admin-set large private company on customer_details rebuild", async () => {
     const existing = paymasterRow({ id: "pm_unverified", verification_status: "UNVERIFIED" });
     (prisma.paymaster.findUnique as jest.Mock).mockResolvedValue(existing);
+    (prisma.issuerPaymasterLink.findUnique as jest.Mock).mockResolvedValue({ id: "link-existing" });
 
     const result = await resolvePaymasterFromCustomerDetails({
       issuerOrganizationId,
       previousLargePrivateCompany: true,
-      customerDetails: {
-        name: existing.legal_name,
-        entity_type: existing.entity_type,
-        ssm_number: existing.registration_number,
-        country: existing.registration_country,
-        is_related_party: false,
-      },
+      customerDetails: matchingDetails(existing),
     });
 
     expect(result.customerDetails.is_large_private_company).toBe(true);
-  });
-
-  it("does not overwrite verified master identity from a conflicting payload", async () => {
-    const selected = paymasterRow();
-    (prisma.paymaster.findUnique as jest.Mock).mockResolvedValue(selected);
-
-    const result = await resolvePaymasterFromCustomerDetails({
-      issuerOrganizationId,
-      selectedPaymasterId: selected.id,
-      customerDetails: {
-        name: "Wrong Name Sdn Bhd",
-        entity_type: "Partnership",
-        ssm_number: selected.registration_number,
-        country: "SG",
-        is_related_party: false,
-      },
-    });
-
-    expect(result.customerDetails.name).toBe(selected.legal_name);
-    expect(result.customerDetails.entity_type).toBe(selected.entity_type);
-    expect(result.customerDetails.country).toBe(selected.registration_country);
-    expect(result.mismatchCreated).toBe(true);
-    expect(prisma.paymaster.update).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ legal_name: "Wrong Name Sdn Bhd" }),
-      })
-    );
   });
 
   it("lookup returns master identity only", async () => {
@@ -333,7 +458,7 @@ describe("Paymaster verification and SSM-first reuse", () => {
     expect(rows[0]?.id).toBe("pm_linked");
   });
 
-  it("verifyPaymaster sets verified_at and verified_by without approving an application", async () => {
+  it("verifyPaymaster sets verified_at and writes PAYMASTER_VERIFIED once without approving an application", async () => {
     const unverified = paymasterRow({
       id: "pm_pending",
       verification_status: "UNVERIFIED",
@@ -351,7 +476,11 @@ describe("Paymaster verification and SSM-first reuse", () => {
       .mockResolvedValueOnce(detailIncludes(verified));
     (prisma.paymaster.update as jest.Mock).mockResolvedValue(verified);
 
-    const detail = await verifyPaymaster({ paymasterId: "pm_pending", actorUserId });
+    const detail = await verifyPaymaster({
+      paymasterId: "pm_pending",
+      actorUserId,
+      applicationId,
+    });
     expect(prisma.paymaster.update).toHaveBeenCalledWith({
       where: { id: "pm_pending" },
       data: {
@@ -361,10 +490,50 @@ describe("Paymaster verification and SSM-first reuse", () => {
       },
     });
     expect(detail.verificationStatus).toBe("VERIFIED");
-    expect(detail.verifiedByUserId).toBe(actorUserId);
-    expect(detail.verifiedAt).toBeTruthy();
+    expect(writeLogMock).toHaveBeenCalledTimes(1);
+    expect(writeLogMock.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        eventType: ApplicationLogEventType.PAYMASTER_VERIFIED,
+        portal: ActivityPortal.ADMIN,
+        metadata: expect.objectContaining({
+          previous_status: "UNVERIFIED",
+          new_status: "VERIFIED",
+        }),
+      })
+    );
     expect(prisma.application.update).not.toHaveBeenCalled();
     expect(prisma.note.update).not.toHaveBeenCalled();
     expect(prisma.applicationRevision.update).not.toHaveBeenCalled();
+  });
+
+  it("does not emit PAYMASTER_VERIFIED on an idempotent second verify", async () => {
+    const verified = paymasterRow();
+    (prisma.paymaster.findUnique as jest.Mock)
+      .mockResolvedValueOnce(verified)
+      .mockResolvedValueOnce(detailIncludes(verified));
+
+    await verifyPaymaster({ paymasterId: verified.id, actorUserId, applicationId });
+    expect(prisma.paymaster.update).not.toHaveBeenCalled();
+    expect(writeLogMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("Paymaster identity writers stay notification-free and separate from approval", () => {
+  const { readFileSync } = require("node:fs") as typeof import("node:fs");
+  const { join } = require("node:path") as typeof import("node:path");
+
+  it("does not send Paymaster notifications from create, link, or verify", () => {
+    const src = [
+      readFileSync(join(__dirname, "service.ts"), "utf8"),
+      readFileSync(join(__dirname, "identity-audit.ts"), "utf8"),
+      readFileSync(join(__dirname, "controller.ts"), "utf8"),
+    ].join("\n");
+    expect(src).not.toMatch(/sendTyped|NotificationService|createInternal/);
+  });
+
+  it("does not verify a Paymaster when an application or section is approved", () => {
+    const adminSrc = readFileSync(join(__dirname, "../admin/service.ts"), "utf8");
+    expect(adminSrc).not.toMatch(/verifyPaymaster/);
+    expect(adminSrc).not.toMatch(/verification_status:\s*"VERIFIED"/);
   });
 });
