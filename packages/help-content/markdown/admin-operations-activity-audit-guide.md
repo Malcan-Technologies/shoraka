@@ -311,7 +311,7 @@ Payment Amount Mismatch may appear as Payment Currency Mismatch when the currenc
 
 ### Legal
 
-Legal acceptance records appear under Audit → Legal Acceptances and Audit → External Acceptances.
+Legal acceptance records appear under Audit → Legal Acceptances and Audit → External Acceptances. External Acceptances uses the same Audit toolbar as Legal Acceptances (search, filters, export, refresh, and View details).
 
 | Activity | Admin Location | Customer Visibility | Notification | Delivery |
 | --- | --- | --- | --- | --- |

@@ -410,7 +410,7 @@ Display-only label updates made with this register (stored codes unchanged):
 Remaining UI limits (not changed):
 
 - No Module column on timelines or Audit tabs
-- External Acceptances has no detail drawer; Hash is on the table
+- External Acceptances hash, IP, user agent, and acknowledgement wording are in the detail drawer, not the table
 - Forensic `EOD_WEBHOOK` has no Admin reader (Organisation Activity allowlist excludes it)
 - `WEBHOOK_APPROVED` / `WEBHOOK_REJECTED` are not current production events: live callers never hit those branches (dev webhook handler only)
 - `generated_document_evidence`, `application_review_events`, `note_admin_actions` have no Admin reader

@@ -25,3 +25,13 @@ export const listLegalExternalAcceptancesQuerySchema = z.object({
 export type ListLegalExternalAcceptancesQuery = z.infer<
   typeof listLegalExternalAcceptancesQuerySchema
 >;
+
+export const exportLegalExternalAcceptancesQuerySchema = listLegalExternalAcceptancesQuerySchema
+  .omit({ page: true, pageSize: true })
+  .extend({
+    format: z.enum(["csv", "json"]).default("csv"),
+  });
+
+export type ExportLegalExternalAcceptancesQuery = z.infer<
+  typeof exportLegalExternalAcceptancesQuerySchema
+>;

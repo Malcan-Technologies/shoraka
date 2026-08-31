@@ -337,12 +337,12 @@ Do not block any notification tab behind `notifications.manage`.
 
 | | |
 |---|---|
-| View | `document_management.view` |
+| View (list, detail, export) | `document_management.view` |
 | Mutations | None — records are immutable (no update/delete API) |
 | Backend | `apps/api/src/modules/legal-documents/external-acceptance-admin-controller.ts` |
 | Frontend page | `apps/admin/src/app/audit/page.tsx` (`/audit?tab=external-acceptances`) |
-| Shows | Unauthenticated party snapshots (for example guarantors) plus envelope, application, and organisation linkage |
-| Notes | Evidence comes from `legal_external_acceptances`. Deleting a signing envelope does not cascade-delete this evidence. Not an Activity row. |
+| Shows | Unauthenticated party snapshots (for example guarantors) plus envelope, application, and organisation linkage; search; filters (date, status, document type); CSV export; View details |
+| Notes | Evidence comes from `legal_external_acceptances`. Deleting a signing envelope does not cascade-delete this evidence. Not an Activity row. IC is shown masked only. |
 
 ### Removed (do not use)
 

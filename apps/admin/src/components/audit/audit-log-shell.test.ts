@@ -11,6 +11,7 @@ const TABLE_FILES = [
   "product-logs-panel.tsx",
   "legal-document-audit-panel.tsx",
   "legal-acceptances-panel.tsx",
+  "legal-external-acceptances-panel.tsx",
   "notification-logs-panel.tsx",
 ];
 
@@ -19,6 +20,7 @@ const TOOLBAR_FILES = [
   "product-logs-panel.tsx",
   "legal-document-audit-panel.tsx",
   "legal-acceptances-panel.tsx",
+  "legal-external-acceptances-panel.tsx",
   "notification-logs-panel.tsx",
 ];
 
@@ -37,6 +39,8 @@ describe("dedicated Admin log tables share one visual shell", () => {
     expect(read("product-logs-panel.tsx")).toContain("AuditLogViewDetailsButton");
     expect(read("legal-document-audit-panel.tsx")).toContain("AuditLogTableShell");
     expect(read("legal-acceptances-panel.tsx")).toContain("AuditLogTableShell");
+    expect(read("legal-external-acceptances-panel.tsx")).toContain("AuditLogTableShell");
+    expect(read("legal-external-acceptances-panel.tsx")).toContain("AuditLogViewDetailsButton");
     expect(read("notification-logs-panel.tsx")).toContain("AuditLogTableShell");
   });
 
@@ -60,6 +64,16 @@ describe("dedicated Admin log tables share one visual shell", () => {
     );
     expect(read("legal-acceptances-panel.tsx")).not.toContain("Accepted at");
     expect(read("legal-acceptances-panel.tsx")).not.toContain("Accepted by");
+    expect(read("legal-external-acceptances-panel.tsx")).toContain(
+      "<AuditLogHead>Timestamp</AuditLogHead>"
+    );
+    expect(read("legal-external-acceptances-panel.tsx")).toContain(
+      "<AuditLogHead>Party</AuditLogHead>"
+    );
+    expect(read("legal-external-acceptances-panel.tsx")).not.toContain(
+      "<AuditLogHead>Actor</AuditLogHead>"
+    );
+    expect(read("legal-external-acceptances-panel.tsx")).toContain("AUDIT_LOG_PAGE_SIZE");
     expect(read("../access-logs-toolbar.tsx")).toContain("AuditLogDateRangeOptions");
     expect(read("product-logs-panel.tsx")).toContain("AUDIT_LOG_PAGE_SIZE");
     expect(read("legal-document-audit-panel.tsx")).toContain("AUDIT_LOG_PAGE_SIZE");
@@ -78,6 +92,9 @@ describe("dedicated Admin log tables share one visual shell", () => {
     expect(read("product-logs-panel.tsx")).toContain("disabled={totalCount === 0}");
     expect(read("legal-document-audit-panel.tsx")).toContain("disabled={exporting || totalCount === 0}");
     expect(read("legal-acceptances-panel.tsx")).toContain("disabled={exporting || totalCount === 0}");
+    expect(read("legal-external-acceptances-panel.tsx")).toContain(
+      "disabled={exporting || totalCount === 0}"
+    );
     expect(read("notification-logs-panel.tsx")).toContain(
       "disabled={exportingLogs || (paginationLogs?.total ?? 0) === 0}"
     );
@@ -95,6 +112,9 @@ describe("dedicated Admin log tables share one visual shell", () => {
     );
     expect(read("legal-acceptances-panel.tsx")).toContain(
       'searchPlaceholder="Search by user, email, organisation, or document..."'
+    );
+    expect(read("legal-external-acceptances-panel.tsx")).toContain(
+      'searchPlaceholder="Search by party, email, envelope, or application..."'
     );
     expect(read("notification-logs-panel.tsx")).toContain(
       'searchPlaceholder="Search by title, message, type, or admin..."'
