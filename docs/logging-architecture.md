@@ -6,16 +6,18 @@ CashSouk does not keep one giant timeline. Each fact is written to the layer tha
 
 | Layer | Store | Who sees it |
 | --- | --- | --- |
-| USER_ACTIVITY | access/security as needed | Account owner (milestones only via Activity adapters) |
+| USER_ACTIVITY | layer enum only; no catalogue rows | User milestones use `userVisible` on org/application/note events, not a separate table |
 | ORG_ACTIVITY | `onboarding_logs` | Issuer/Investor Activity (milestones); Admin org Activity (operational) |
 | APPLICATION_TIMELINE | `application_logs` | Issuer Activity milestones; Admin application/facility timelines |
 | NOTE_TIMELINE | `note_events` | Issuer/Investor note milestones; Admin note timeline |
 | ADMIN_ACTIVITY | same tables, admin allowlists | Admin only |
 | FORENSIC_ONLY | forensic columns + review-event mirror | Admin investigation; not user Activity |
 | LEGAL_ONLY | `legal_document_acceptances`, `legal_external_acceptances`, `legal_document_audit_logs`, `generated_document_evidence` | Admin legal readers. Never Activity rows |
-| FINANCIAL_ONLY | `gateway_payment_events`, ledgers | Admin finance / gateway screens |
+| FINANCIAL_ONLY | `gateway_payments`, `gateway_payment_events`, ledgers | Admin finance / gateway screens. Provider traces live here (and process logs), not Activity |
 | SECURITY_ONLY | `access_logs`, `security_logs` | Admin Audit → Access/Security |
-| NOTIFICATION | `notifications` / `notification_logs` | User inboxes + Admin notification logs |
+| NOTIFICATION | `notifications` / `notification_logs` | User inboxes + Admin notification logs. Not an event-catalogue table |
+
+There is no Ops Alerts layer, queue, or reconstruction job. Activity is not the source of truth for legal evidence, financial journals, gateway diagnostics, forensic columns, or notifications.
 
 ## Attribution
 
@@ -56,6 +58,14 @@ Application timeline: when the caller passes a transaction client, a failed `log
 
 `APPLICATION_SUBMITTED` is written inside `persistSubmittedApplication` (same transaction as `status` + `submitted_at`) so the submitting actor is not lost. `APPLICATION_CREATED` stays a sequential overlay after the draft row commits; hourly timeline repair rebuilds missing created/submitted rows from `applications.created_at` / `submitted_at` with `source=INTERNAL` and a null actor (never invents a submitter).
 
+## Accepted residuals
+
+These are known gaps. They are not silent, and they are not an Ops Alert queue.
+
+1. **`APPLICATION_CREATED` is a rebuildable timeline projection.** The draft `applications` row is the durable create fact. The timeline row is overlay-or-repair. Missing created/submitted timeline rows are rebuilt from `created_at` / `submitted_at` as above.
+2. **Curlec provider/sync failure is secondary to durable gateway state.** `gateway_payments` plus `gateway_payment_events` and the stuck-order poller are the money-in record. A failed provider fetch logs a warning and returns the stored payment. There is no reconstruction job and no Ops Alert.
+3. **Repeated job failure is `logger.error` plus the next cron run.** `initJobs()` logs the error and the following schedule retries. There is no reconstruction mechanism and no Ops Alert.
+
 ## Accountability scenarios (UAT)
 
 Playwright portal smoke lives under `apps/*/e2e`. The checks below are the durable-evidence map for accountability UAT, not a second Playwright suite.
@@ -84,9 +94,9 @@ Playwright portal smoke lives under `apps/*/e2e`. The checks below are the durab
 | 24 | Residual return | residual payment | system/Admin | return milestone | ledger |
 | 25 | Investor withdrawal | withdrawal instruction | Investor/Admin | withdrawal | trustee + audit |
 | 26 | Refund | refund_reference + events | webhook | refund milestone | gateway events |
-| 28 | Legal acceptance | `legal_document_acceptances` | user API | not Activity | legal reader |
-| 29 | External guarantor acceptance | `legal_external_acceptances` | signing webhook | not Activity | legal reader |
-| 30 | Admin audit export | enumerated export columns | Admin | n/a | CSV without forensic dump |
+| 27 | Legal acceptance | `legal_document_acceptances` | user API | not Activity | legal reader |
+| 28 | External guarantor acceptance | `legal_external_acceptances` | signing webhook | not Activity | legal reader |
+| 29 | Admin audit export | enumerated export columns | Admin | n/a | CSV without forensic dump |
 
 Issuer/Investor Activity must not show provider internals, webhook event names, request IDs, system jobs, Admin rationale, security internals, ledger internals, or raw legal metadata.
 

@@ -8,12 +8,14 @@ tags:
   - audit
   - notifications
 order: 30
-updated: 2026-08-29
+updated: 2026-08-31
 ---
 
 CashSouk records important actions across the platform.
 
 Use this page to see what activity, logs, evidence and notifications are available and where to find them.
+
+Activity timelines are not the source of truth for legal evidence, financial journals, gateway diagnostics, forensic investigation fields, or notification delivery. Those stay on their own Admin screens.
 
 Internal IDs may also be shown on some screens for investigation.
 
@@ -1139,14 +1141,51 @@ All signers completed the signing package.
 Where to find:
 Admin → Applications → Activity Timeline
 Admin → Facilities → Activity
+Issuer → Activity
 
 Visible to:
-Admin
+Admin, Issuer
 
 Notification:
 None
 
 System event: `SIGNING_PACKAGE_COMPLETED`
+
+**Signing Package Declined**
+
+Meaning:
+A required signer declined the signing package.
+
+Where to find:
+Admin → Applications → Activity Timeline
+Admin → Facilities → Activity
+Issuer → Activity
+
+Visible to:
+Admin, Issuer
+
+Notification:
+None
+
+System event: `SIGNING_PACKAGE_DECLINED`
+
+**Signing Package Expired**
+
+Meaning:
+The signing package expired before all required signatures were collected.
+
+Where to find:
+Admin → Applications → Activity Timeline
+Admin → Facilities → Activity
+Issuer → Activity
+
+Visible to:
+Admin, Issuer
+
+Notification:
+None
+
+System event: `SIGNING_PACKAGE_EXPIRED`
 
 **Signing Package Voided**
 
@@ -1929,22 +1968,6 @@ Notification:
 None
 
 System event: `LATE_CHARGE_APPROVED`
-
-**Settlement Previewed**
-
-Meaning:
-Operations previewed the settlement.
-
-Where to find:
-Admin → Notes → Activity
-
-Visible to:
-Admin
-
-Notification:
-None
-
-System event: `SETTLEMENT_PREVIEWED`
 
 **Settlement Approved**
 

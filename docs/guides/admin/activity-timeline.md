@@ -19,7 +19,7 @@ The `application_logs` table (Prisma model: `ApplicationLog`) is defined in `app
 Important fields:
 
 - **id** — Unique identifier for the log row.
-- **user_id** — Who performed the action. Required.
+- **user_id** — Acting user when a human performed the change. Null for system/provider-derived rows and timeline repair.
 - **application_id** — Which application the log belongs to. Can be null for some system events.
 - **event_type** — Short code describing the event, e.g. `APPLICATION_CREATED`, `APPLICATION_SUBMITTED`, `SECTION_REVIEWED_APPROVED`, `ITEM_REVIEWED_AMENDMENT_REQUESTED`, `APPLICATION_RESUBMITTED`.
 - **remark** — Human-readable note. Stored at the top level. The UI uses this for the "View details" content. Do not put the main remark text in metadata.
@@ -45,7 +45,7 @@ Important fields:
 
 Logs are created in two ways.
 
-**Preferred:** Use `createApplicationLog` in `apps/api/src/modules/applications/logs/repository.ts`. It accepts `CreateApplicationLogParams` from `apps/api/src/modules/applications/logs/types.ts`. You can pass `eventType` directly or let it be built from `level`, `target`, and `action`. Always set `remark` at the top level when you want a visible note. The `logApplicationActivity` wrapper in `apps/api/src/modules/applications/logs/service.ts` calls this and swallows errors so logging never blocks the main flow.
+**Preferred:** Use `createApplicationLog` in `apps/api/src/modules/applications/logs/repository.ts`. It accepts `CreateApplicationLogParams` from `apps/api/src/modules/applications/logs/types.ts`. You can pass `eventType` directly or let it be built from `level`, `target`, and `action`. Always set `remark` at the top level when you want a visible note. The `logApplicationActivity` wrapper in `apps/api/src/modules/applications/logs/service.ts` aborts the caller transaction when `db` is passed and the insert fails. Sequential callers (no `db`) keep overlay behaviour: the write is attempted after the mutation and does not fail the already-committed action.
 
 **Direct:** Some code (e.g. the amendments service) calls `prisma.applicationLog.create` directly. When doing so, set `remark` at the top level and use `metadata` only for extra structured data.
 
@@ -101,16 +101,16 @@ The `ApplicationLogAdapter` in `apps/api/src/modules/activity/adapters/applicati
 
 All event types that can appear in `application_logs`. Add new mappings in `admin-activity-timeline.tsx` (`getEventLabel`) when introducing a new type.
 
-**Timeline display:** `SIGNING_PACKAGE_COMPLETED` is written for audit/debug but filtered out of the admin Activity Timeline (`TIMELINE_HIDDEN_EVENT_TYPES`). The terminal signing milestone shown to users is `CONTRACT_OFFER_ACCEPTED` / `INVOICE_OFFER_ACCEPTED` (“Offer Signed”).
+**Timeline display:** `SIGNING_PACKAGE_COMPLETED`, `SIGNING_PACKAGE_DECLINED`, and `SIGNING_PACKAGE_EXPIRED` are live user-visible timeline events. Terminal commercial success is still `CONTRACT_OFFER_ACCEPTED` / `INVOICE_OFFER_ACCEPTED`. There is no `TIMELINE_HIDDEN_EVENT_TYPES` filter.
 
 ### Application lifecycle
 
 | Event Type | Source | Portal | Description |
 |------------|--------|--------|-------------|
-| `APPLICATION_CREATED` | applications/controller (after create commits) | ISSUER | Issuer creates a new application |
-| `APPLICATION_SUBMITTED` | applications/service `persistSubmittedApplication` | ISSUER | Issuer submits for review |
+| `APPLICATION_CREATED` | applications/controller (after create commits) | ISSUER | Issuer creates a new application (overlay; repairable) |
+| `APPLICATION_SUBMITTED` | applications/service `persistSubmittedApplication` | ISSUER | Issuer submits for review (same transaction as status) |
 | `APPLICATION_RESUBMITTED` | applications/controller, amendments/service | ISSUER | Issuer resubmits after amendments |
-| `APPLICATION_APPROVED` | applications/controller, admin/service | ADMIN | Admin approves the application |
+| `APPLICATION_APPROVED` | none (historical reader) | ADMIN | Old rows still render. No live writer. |
 | `APPLICATION_REJECTED` | applications/controller, admin/service | ADMIN | Admin rejects the application |
 | `APPLICATION_RESET_TO_UNDER_REVIEW` | admin/service | ADMIN | Admin resets status to under review |
 | `APPLICATION_WITHDRAWN` | applications/service, contracts/service, invoices/service | ISSUER | Application withdrawn (user or cascading) |
@@ -125,7 +125,8 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 | `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED` | applications/service | ISSUER | Issuer resubmits acceptance docs after `CHANGES_REQUESTED` |
 | `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` | admin/service, applications/service | ADMIN, ISSUER | Acceptance docs approved; signing unlocked (issuer auto-approve when no docs configured) |
 | `CONTRACT_OFFER_ACCEPTED` | applications/service | ISSUER | Terminal signing success: all signers completed and offer commercially accepted (shown as “Contract Offer Signed”) |
-| `CONTRACT_WITHDRAWN` | applications/service | ISSUER, ADMIN | Issuer rejects offer (terminal withdraw) |
+| `CONTRACT_OFFER_DECLINED` | applications/service | ISSUER | Issuer declines the facility offer |
+| `CONTRACT_OFFER_REJECTED` | none (historical reader) | ISSUER | Old decline rows still render. Current writer is `CONTRACT_OFFER_DECLINED` |
 | `CONTRACT_OFFER_RETRACTED` | admin/service | ADMIN | Admin retracts contract offer |
 | `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | refresh-contract-facility | ADMIN, ISSUER | Live occupancy reserved, true-up to funded, or released on repay |
 
@@ -138,7 +139,7 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 | `INVOICE_OFFER_ACCEPTANCE_RESUBMITTED` | applications/service | ISSUER | Issuer resubmits acceptance docs after `CHANGES_REQUESTED` |
 | `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING` | admin/service, applications/service | ADMIN, ISSUER | Acceptance docs approved; signing unlocked |
 | `INVOICE_OFFER_ACCEPTED` | applications/service | ISSUER | Terminal signing success for invoice-only offers (shown as “Invoice Offer Signed”) |
-| `INVOICE_OFFER_REJECTED` | applications/service | ISSUER | Issuer rejects invoice offer |
+| `INVOICE_OFFER_REJECTED` | applications/service | ISSUER | Issuer declines the invoice offer |
 | `INVOICE_OFFER_RETRACTED` | admin/service | ADMIN | Admin retracts invoice offer |
 | `INVOICE_WITHDRAWN` | invoices/service | ISSUER | Issuer withdraws an invoice |
 
@@ -176,5 +177,7 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 |------------|--------|--------|-------------|
 | `SIGNING_PACKAGE_CREATED` | signing/service | ADMIN | Admin creates a draft signing envelope from approved authorised representatives |
 | `SIGNING_PACKAGE_SENT` | signing/service | ADMIN | Signing package sent to all signers |
-| `SIGNING_PACKAGE_COMPLETED` | signing/service | ISSUER | Envelope rollup COMPLETED (audit-only; hidden from timeline — use `CONTRACT_OFFER_ACCEPTED` / `INVOICE_OFFER_ACCEPTED`) |
-| `SIGNING_PACKAGE_VOIDED` | signing/service | ADMIN, ISSUER | Admin voids package or signer declines (rollup) |
+| `SIGNING_PACKAGE_COMPLETED` | signing/service | ISSUER | Envelope rollup COMPLETED (user-visible; commercial success is still offer accepted) |
+| `SIGNING_PACKAGE_DECLINED` | signing/service | ISSUER | Signer declined the envelope |
+| `SIGNING_PACKAGE_EXPIRED` | signing/service | SYSTEM | Envelope `expires_at` elapsed while still active |
+| `SIGNING_PACKAGE_VOIDED` | signing/service | ADMIN | Admin voids the package |

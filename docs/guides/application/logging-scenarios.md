@@ -24,7 +24,7 @@ ISSUER PORTAL (User actions)
   Cancel application            APPLICATION_WITHDRAWN           Activity timeline
   Withdraw invoice              INVOICE_WITHDRAWN              Activity timeline
   Accept contract offer        CONTRACT_OFFER_ACCEPTED         Activity timeline
-  Reject contract offer         CONTRACT_OFFER_REJECTED        Activity timeline
+  Reject contract offer         CONTRACT_OFFER_DECLINED       Activity timeline
   Accept invoice offer          INVOICE_OFFER_ACCEPTED        Activity timeline
   Reject invoice offer          INVOICE_OFFER_REJECTED        Activity timeline
 
@@ -33,6 +33,8 @@ Notes:
     withdrawn.
   INVOICE_WITHDRAWN also when admin withdraws invoice.
   APPLICATION_COMPLETED logged when last offer accepted.
+  CONTRACT_OFFER_REJECTED is historical; current facility decline is
+    CONTRACT_OFFER_DECLINED.
 
 ================================================================================
 ADMIN PORTAL (Admin actions)
