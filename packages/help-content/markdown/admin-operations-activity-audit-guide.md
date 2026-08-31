@@ -25,37 +25,37 @@ Declined means the signer said no. Voided means Operations cancelled the signing
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Onboarding started | Activity | Issuer record - Activity tab | — | No automatic message |
-| Onboarding fee paid | Activity | Issuer record - Activity tab. Confirm payment in Finance - Payments - Gateway Payments | — | No automatic message |
-| Onboarding resumed | No customer-facing entry | Issuer record - Activity tab | — | No automatic message |
-| More information required | Activity | Issuer record - Activity tab | — | No automatic message |
-| Onboarding restarted | Activity (shown as Onboarding Restarted) | Issuer record - Activity tab | — | No automatic message |
-| Onboarding reset | No customer-facing entry | Issuer record - Activity tab | — | No automatic message |
-| Onboarding rejected | Activity + notification | Issuer record - Activity tab | Onboarding Rejected | In-app + email by default |
-| Corporate onboarding rejected | Activity + notification | Issuer record - Activity tab | Onboarding Rejected | In-app + email by default |
-| Onboarding submission approved | Activity (shown as Onboarding Submission Approved) | Issuer record - Activity tab | — | No automatic message |
-| Onboarding completed | Activity + notification (Activity shows Onboarding Approved) | Issuer record - Activity tab | Onboarding Completed | In-app + email by default |
-| Terms and conditions accepted | No customer-facing entry | Issuer record - Activity tab. Legal proof: Audit - Legal Acceptances | — | No automatic message |
-| AML approved | No customer-facing entry | Issuer record - Activity tab | — | No automatic message |
-| Company registry check approved | No customer-facing entry | Issuer record - Activity tab | — | No automatic message |
-| Enhanced due diligence approved | No customer-facing entry | Issuer record - Activity tab | — | No automatic message |
-| Enhanced due diligence rejected | No customer-facing entry | Issuer record - Activity tab | — | No automatic message |
-| Director or shareholder must complete onboarding | Notification | Issuer record - People. Audit - Notifications | Director/Shareholder Action Required | In-app + email by default |
-| Director or shareholder verification email | Email | Issuer record - People | Email sent directly to the person who must verify | Email only |
+| Onboarding started | Activity | Issuer record - Activity | — | No automatic message |
+| Onboarding fee paid | Activity | Issuer record - Activity. Finance - Payments - Gateway Payments | — | No automatic message |
+| Onboarding resumed | No customer-facing entry | Issuer record - Activity | — | No automatic message |
+| More information required | Activity | Issuer record - Activity | — | No automatic message |
+| Onboarding restarted | Activity | Issuer record - Activity | — | No automatic message |
+| Onboarding reset | No customer-facing entry | Issuer record - Activity | — | No automatic message |
+| Onboarding rejected | Activity + notification | Issuer record - Activity | Onboarding Rejected | In-app + email by default |
+| Corporate onboarding rejected | Activity + notification | Issuer record - Activity | Onboarding Rejected | In-app + email by default |
+| Onboarding submission approved | Activity | Issuer record - Activity | — | No automatic message |
+| Onboarding completed | Activity + notification | Issuer record - Activity | Onboarding Completed | In-app + email by default |
+| Terms and conditions accepted | No customer-facing entry | Issuer record - Activity. Audit - Legal Acceptances | — | No automatic message |
+| AML approved | No customer-facing entry | Issuer record - Activity | — | No automatic message |
+| Company registry check approved | No customer-facing entry | Issuer record - Activity | — | No automatic message |
+| Enhanced due diligence approved | No customer-facing entry | Issuer record - Activity | — | No automatic message |
+| Enhanced due diligence rejected | No customer-facing entry | Issuer record - Activity | — | No automatic message |
+| Director or shareholder must complete onboarding | Notification | Issuer record - People | Director/Shareholder Action Required | In-app + email by default |
+| Director or shareholder verification email | Email only | Issuer record - People | Director/Shareholder Verification | Email only |
 
 ### 2. Application
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
 | Application started | Activity | Application record - Activity Timeline | — | No automatic message |
-| Application processing fee paid | Activity | Application record - Activity Timeline. Confirm in Finance - Payments - Gateway Payments | — | No automatic message |
+| Application processing fee paid | Activity | Application record - Activity Timeline. Finance - Payments - Gateway Payments | — | No automatic message |
 | Application submitted | Activity + notification | Application record - Activity Timeline | Application Submitted Confirmation | In-app by default; email can be enabled |
-| Amendment requested | Activity + notification (shown as Amendment Request Sent) | Application record - Activity Timeline | Application Amendments Requested | In-app + email by default |
+| Amendment requested | Activity + notification | Application record - Activity Timeline | Application Amendments Requested | In-app + email by default |
 | Application resubmitted | Activity + notification | Application record - Activity Timeline | Application Resubmitted Confirmation | In-app + email by default |
 | Application rejected | Activity + notification | Application record - Activity Timeline | Application Rejected | In-app + email by default |
 | Application withdrawn | Activity + notification | Application record - Activity Timeline | Application Withdrawn Confirmation | In-app + email by default |
 | Application completed | Activity + notification | Application record - Activity Timeline | Application Completed | In-app + email by default |
-| Application returned to review | No customer-facing entry | Application record - Activity Timeline | Offer Retracted or Reset (when an offer is reset) | In-app + email by default |
+| Application returned to review | No customer-facing entry | Application record - Activity Timeline | Offer Retracted or Reset | In-app + email by default |
 
 ### 3. Facility / Invoice Offer
 
@@ -66,28 +66,28 @@ Declined means the signer said no. Voided means Operations cancelled the signing
 | Facility acceptance resubmitted | Activity | Application record - Activity Timeline | — | No automatic message |
 | Facility acceptance approved for signing | No customer-facing entry | Application record - Activity Timeline | — | No automatic message |
 | Facility offer accepted | Activity | Application record - Activity Timeline | — | No automatic message |
-| Facility offer declined | Activity + notification | Application record - Activity Timeline | Application Withdrawn Confirmation (decline wording) | In-app + email by default |
+| Facility offer declined | Activity + notification | Application record - Activity Timeline | Application Withdrawn Confirmation | In-app + email by default |
 | Facility offer retracted | Activity + notification | Application record - Activity Timeline | Offer Retracted or Reset | In-app + email by default |
 | Facility offer expired | Activity + notification | Application record - Activity Timeline | Offer Expired | In-app + email by default |
-| Offer expiring soon | Notification | Application record - Activity Timeline | Offer Expiry Reminder | In-app + email by default. Timing follows the product reminder setting, not always 24 hours |
+| Offer expiring soon | Notification | Application record - Activity Timeline | Offer Expiry Reminder | In-app + email by default |
 | Facility signing deadline extended | Activity + notification | Application record - Activity Timeline | Facility Signing Deadline Extended | In-app + email by default |
-| Facility occupancy updated | Activity | Facility record - Activity tab | — | No automatic message |
-| Facility fee waived | No customer-facing entry | Facility record - Activity tab | — | No automatic message |
-| Facility disabled | Notification | Facility record - Activity tab | Facility Disabled | In-app + email by default |
-| Facility enabled | No customer-facing entry | Facility record - Activity tab | — | No automatic message |
-| Large-private customer flag updated | No customer-facing entry | Facility record - Activity tab | — | No automatic message |
+| Facility occupancy updated | Activity | Facility record - Activity | — | No automatic message |
+| Facility fee waived | No customer-facing entry | Facility record - Activity | — | No automatic message |
+| Facility disabled | Notification | Facility record - Activity | Facility Disabled | In-app + email by default |
+| Facility enabled | No customer-facing entry | Facility record - Activity | — | No automatic message |
+| Large-private customer flag updated | No customer-facing entry | Facility record - Activity | — | No automatic message |
 | Invoice offer sent | Activity + notification | Application record - Activity Timeline | Invoice Offer Sent | In-app + email by default |
 | Invoice acceptance submitted | Activity | Application record - Activity Timeline | — | No automatic message |
 | Invoice acceptance resubmitted | Activity | Application record - Activity Timeline | — | No automatic message |
 | Invoice acceptance approved for signing | No customer-facing entry | Application record - Activity Timeline | — | No automatic message |
 | Invoice offer accepted | Activity | Application record - Activity Timeline | — | No automatic message |
-| Invoice offer declined | Activity + notification | Application record - Activity Timeline | Application Withdrawn Confirmation (decline wording) | In-app + email by default |
+| Invoice offer declined | Activity + notification | Application record - Activity Timeline | Application Withdrawn Confirmation | In-app + email by default |
 | Invoice offer retracted | Activity + notification | Application record - Activity Timeline | Offer Retracted or Reset | In-app + email by default |
 | Invoice offer expired | Activity + notification | Application record - Activity Timeline | Offer Expired | In-app + email by default |
 | Invoice signing deadline extended | Activity + notification | Application record - Activity Timeline | Invoice Signing Deadline Extended | In-app + email by default |
 | Invoice withdrawn | Activity | Application record - Activity Timeline | — | No automatic message |
 | Acceptance documents need updates | Notification | Application record - Acceptance | Acceptance Documents Need Updates | In-app + email by default |
-| Invoice offer verification code | Email | Application record - Acceptance | Email sent to selected signatory | Email only |
+| Invoice offer verification code | Email only | Application record - Acceptance | Invoice Offer Verification Code | Email only |
 
 ### 4. Signing
 
@@ -96,13 +96,13 @@ Declined means the signer said no. Voided means Operations cancelled the signing
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
 | Signing package created | No customer-facing entry | Application record - Activity Timeline | — | No automatic message |
-| Signing package sent | Activity | Application record - Activity Timeline and Application record - Acceptance | Email sent directly to signer | Email only |
+| Signing package sent | Activity | Application record - Activity Timeline. Application record - Acceptance | Signing Package / Reminder | Email only |
 | Signing completed | Activity | Application record - Activity Timeline | — | No automatic message |
 | Signing declined | Activity | Application record - Activity Timeline | — | No automatic message |
 | Signing expired | Activity | Application record - Activity Timeline | — | No automatic message |
 | Signing voided | No customer-facing entry | Application record - Activity Timeline | — | No automatic message |
-| Signing reminder | Email | Application record - Acceptance | Email sent directly to signer | Email only |
-| Signer opened the link | No customer-facing entry | Application record - Acceptance (status Viewed) | — | No automatic message |
+| Signing reminder | Email only | Application record - Acceptance | Signing Package / Reminder | Email only |
+| Signer opened the link | No customer-facing entry | Application record - Acceptance | — | No automatic message |
 
 ### 5. Fees and Payments
 
@@ -110,69 +110,71 @@ For payment confirmation, use **Finance - Payments - Gateway Payments**. Do not 
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Upfront facility fee requested | Notification | Facility record - Facility and Offer | Upfront facility fee payment required | In-app + email by default |
-| Facility fee paid | Activity + notification | Application record - Activity Timeline. Confirm in Finance - Payments - Gateway Payments | Upfront facility fee paid | In-app + email by default |
-| Facility fee collection waived on the Note | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Outstanding late charges to pay | Notification | Note record - Activity tab | Outstanding late charges to pay | In-app + email by default |
-| Late payment charges received | Notification | Finance - Payments - Gateway Payments | Late payment charges received | In-app + email by default |
+| Upfront facility fee requested | Notification | Facility record - Facility & Offer | Upfront Facility Fee Payment Required | In-app + email by default |
+| Facility fee paid | Activity + notification | Application record - Activity Timeline. Finance - Payments - Gateway Payments | Upfront Facility Fee Paid | In-app + email by default |
+| Facility fee collection waived on the Note | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Outstanding late charges to pay | Notification | Note record - Activity | Outstanding Late Charges To Pay | In-app + email by default |
+| Late payment charges received | Notification | Finance - Payments - Gateway Payments | Late Payment Charges Received | In-app + email by default |
 
 ### 6. Funding / Note
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Note created | Activity (issuer) | Note record - Activity tab | — | No automatic message |
-| Draft updated | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Featured settings updated | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Note published | Activity + notification (issuer) | Note record - Activity tab | Note published | In-app + email by default |
-| Unpublished from marketplace | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Campaign paused | Activity (issuer) | Note record - Activity tab | — | No automatic message |
-| Campaign resumed | Activity (issuer) | Note record - Activity tab | — | No automatic message |
-| Funding closed | Activity + notification (issuer) | Note record - Activity tab | Note funding succeeded | In-app + email by default |
-| Funding unsuccessful | Activity + notification | Note record - Activity tab | Funding Unsuccessful (issuer and investor) | In-app + email by default |
-| Note activated | Activity + notification | Note record - Activity tab | Note active (issuer and investor) | In-app + email by default |
-| Note occupancy updated | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Note fully repaid | Notification (issuer) | Note record - Activity tab | Note repaid | In-app + email by default |
+| Note created | Activity (issuer) | Note record - Activity | — | No automatic message |
+| Draft updated | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Featured settings updated | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Note published | Activity + notification (issuer) | Note record - Activity | Note Published | In-app + email by default |
+| Unpublished from marketplace | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Campaign paused | Activity (issuer) | Note record - Activity | — | No automatic message |
+| Campaign resumed | Activity (issuer) | Note record - Activity | — | No automatic message |
+| Funding closed | Activity + notification (issuer) | Note record - Activity | Note Funding Succeeded | In-app + email by default |
+| Funding unsuccessful | Activity + notification (issuer and investor) | Note record - Activity | Funding Unsuccessful | In-app + email by default |
+| Note activated | Activity + notification (issuer and investor) | Note record - Activity | Note Active | In-app + email by default |
+| Note occupancy updated | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Note fully repaid | Notification (issuer) | Note record - Activity | Note Repaid | In-app + email by default |
 
 ### 7. Disbursement
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Disbursement instruction created | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Withdrawal letter generated | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Submitted to trustee | Notification | Note record - Activity tab | Withdrawal submitted to trustee | In-app + email by default |
-| Beneficiary updated | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Trustee instruction emailed | No customer-facing entry | Note record - Activity tab | Email + PDF sent to trustee | Email only |
-| Disbursement completed | Activity + notification (issuer financing disbursement) | Note record - Activity tab | Disbursement completed | In-app by default; email can be enabled |
+| Disbursement instruction created | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Withdrawal letter generated | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Submitted to trustee | Notification | Note record - Activity | Withdrawal Submitted To Trustee | In-app + email by default |
+| Beneficiary updated | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Trustee instruction emailed | No customer-facing entry | Note record - Activity | Trustee Instruction | Email only |
+| Disbursement completed | Activity + notification (issuer) | Note record - Activity | Disbursement Completed | In-app by default; email can be enabled |
 
 ### 8. Repayment
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Repayment submitted for review | Activity (issuer) | Note record - Activity tab | — | No automatic message |
-| Repayment received | Notification (investor). No issuer Activity for this path | Note record - Activity tab | Repayment Received | In-app + email by default |
-| Repayment approved | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Repayment rejected | Notification (issuer) | Note record - Activity tab | Repayment rejected | In-app by default; email can be enabled |
+| Repayment submitted for review | Activity (issuer) | Note record - Activity | — | No automatic message |
+| Repayment received | Notification (investor) | Note record - Activity | Repayment Received | In-app + email by default |
+| Repayment approved | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Repayment rejected | Notification (issuer) | Note record - Activity | Repayment Rejected | In-app by default; email can be enabled |
 
 ### 9. Late / Default
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Note in arrears | Notification | Note record - Late Payment | Note in arrears (issuer and investor) | In-app + email by default |
-| Note defaulted | Activity + notification | Note record - Activity tab | Note defaulted (issuer and investor) | In-app + email by default |
-| Late charge approved | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Arrears letter generated | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Default letter generated | No customer-facing entry | Note record - Activity tab | — | No automatic message |
+| Note in arrears | Notification (issuer) | Note record - Late Payment | Note In Arrears | In-app + email by default |
+| Note in arrears | Notification (investor) | Note record - Late Payment | Note In Arrears | In-app + email by default |
+| Note defaulted | Activity + notification (issuer) | Note record - Activity | Note Defaulted (Issuer) | In-app + email by default |
+| Note defaulted | Activity + notification (investor) | Note record - Activity | Note Defaulted | In-app + email by default |
+| Late charge approved | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Arrears letter generated | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Default letter generated | No customer-facing entry | Note record - Activity | — | No automatic message |
 
 ### 10. Settlement
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Settlement approved | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Settlement posted | Activity (investor) + notifications | Note record - Activity tab | Note settlement posted (investor). Note repaid (issuer). Outstanding late charges if leftover | In-app + email by default |
-| Settlement trustee letter generated | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Settlement trustee letter submitted | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Settlement trustee instruction completed | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Settlement trustee email sent | No customer-facing entry | Note record - Activity tab | Email + PDF sent to trustee | Email only |
+| Settlement approved | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Settlement posted | Activity + notification (investor) | Note record - Activity | Note Settlement Posted | In-app + email by default |
+| Settlement trustee letter generated | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Settlement trustee letter submitted | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Settlement trustee instruction completed | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Settlement trustee email sent | No customer-facing entry | Note record - Activity | Trustee Instruction | Email only |
 
 ## Investor Journey
 
@@ -180,18 +182,18 @@ For payment confirmation, use **Finance - Payments - Gateway Payments**. Do not 
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Onboarding started | Activity | Investor record - Activity tab | — | No automatic message |
-| Onboarding resumed | No customer-facing entry | Investor record - Activity tab | — | No automatic message |
-| More information required | Activity | Investor record - Activity tab | — | No automatic message |
-| Onboarding restarted | Activity (shown as Onboarding Restarted) | Investor record - Activity tab | — | No automatic message |
-| Onboarding reset | No customer-facing entry | Investor record - Activity tab | — | No automatic message |
-| Onboarding rejected | Activity + notification | Investor record - Activity tab | Onboarding Rejected | In-app + email by default |
-| Onboarding submission approved | Activity | Investor record - Activity tab | — | No automatic message |
-| Onboarding completed | Activity + notification | Investor record - Activity tab | Onboarding Completed | In-app + email by default |
-| Terms and conditions accepted | No customer-facing entry | Investor record - Activity tab. Legal proof: Audit - Legal Acceptances | — | No automatic message |
-| Sophisticated investor status updated | No customer-facing entry | Investor record - Activity tab | — | No automatic message |
-| AML approved | No customer-facing entry | Investor record - Activity tab | — | No automatic message |
-| Director or shareholder must complete onboarding | Notification | Investor record - People. Audit - Notifications | Investor Director/Shareholder Action Required | In-app + email by default |
+| Onboarding started | Activity | Investor record - Activity | — | No automatic message |
+| Onboarding resumed | No customer-facing entry | Investor record - Activity | — | No automatic message |
+| More information required | Activity | Investor record - Activity | — | No automatic message |
+| Onboarding restarted | Activity | Investor record - Activity | — | No automatic message |
+| Onboarding reset | No customer-facing entry | Investor record - Activity | — | No automatic message |
+| Onboarding rejected | Activity + notification | Investor record - Activity | Onboarding Rejected | In-app + email by default |
+| Onboarding submission approved | Activity | Investor record - Activity | — | No automatic message |
+| Onboarding completed | Activity + notification | Investor record - Activity | Onboarding Completed | In-app + email by default |
+| Terms and conditions accepted | No customer-facing entry | Investor record - Activity. Audit - Legal Acceptances | — | No automatic message |
+| Sophisticated investor status updated | No customer-facing entry | Investor record - Activity | — | No automatic message |
+| AML approved | No customer-facing entry | Investor record - Activity | — | No automatic message |
+| Director or shareholder must complete onboarding | Notification | Investor record - People | Investor Director/Shareholder Action Required | In-app + email by default |
 
 ### 2. Deposit
 
@@ -199,46 +201,46 @@ For payment confirmation, use **Finance - Payments - Gateway Payments**. Do not 
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Bank name check started | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
-| Bank name check approved | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
-| Bank name check rejected | Notification | Finance - Payments - Gateway Payments | Deposit verification failed | In-app by default; email can be enabled |
-| Deposit successful | Notification | Finance - Payments - Gateway Payments | Deposit successful | In-app by default; email can be enabled |
-| Capture amount mismatch | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
-| Checkout expired | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
-| Deposit refund started | Notification | Finance - Payments - Gateway Payments | Deposit refund started | In-app by default; email can be enabled |
-| Deposit refund completed | Notification | Finance - Payments - Gateway Payments | Deposit refund completed | In-app by default; email can be enabled |
-| Wallet reversal failed after refund | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
+| Bank account name check started | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
+| Bank account name check passed | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
+| Bank account name check failed | Notification (investor) | Finance - Payments - Gateway Payments | Deposit Verification Failed | In-app by default; email can be enabled |
+| Deposit successful | Notification (investor) | Finance - Payments - Gateway Payments | Deposit Successful | In-app by default; email can be enabled |
+| Payment amount mismatch | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
+| Payment session expired | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
+| Refund started | Notification (investor) | Finance - Payments - Gateway Payments | Deposit Refund Started | In-app by default; email can be enabled |
+| Refund completed | Notification (investor) | Finance - Payments - Gateway Payments | Deposit Refund Completed | In-app by default; email can be enabled |
+| Wallet update failed after refund | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
 
 ### 3. Investment
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Investment committed | Activity + notification | Note record - Activity tab | Investment committed | In-app by default; email can be enabled |
+| Investment committed | Activity + notification (investor) | Note record - Activity | Investment Committed | In-app by default; email can be enabled |
 
 ### 4. Funding
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Funding unsuccessful | Activity + notification | Note record - Activity tab | Funding Unsuccessful (commitment released) | In-app + email by default |
-| Note became active | Activity + notification | Note record - Activity tab | Note active | In-app + email by default |
+| Funding unsuccessful | Activity + notification (investor) | Note record - Activity | Funding Unsuccessful | In-app + email by default |
+| Note became active | Activity + notification (investor) | Note record - Activity | Note Active | In-app + email by default |
 
 ### 5. Repayment / Return
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Repayment received | Notification | Note record - Activity tab | Repayment Received | In-app + email by default |
-| Settlement posted | Activity + notification | Note record - Activity tab | Note settlement posted | In-app + email by default |
-| Note in arrears | Notification | Note record - Late Payment | Note in arrears | In-app + email by default |
-| Note defaulted | Activity + notification | Note record - Activity tab | Note defaulted | In-app + email by default |
-| Residual return completed | Activity | Note record - Activity tab | — | No automatic message |
+| Repayment received | Notification (investor) | Note record - Activity | Repayment Received | In-app + email by default |
+| Settlement posted | Activity + notification (investor) | Note record - Activity | Note Settlement Posted | In-app + email by default |
+| Note in arrears | Notification (investor) | Note record - Late Payment | Note In Arrears | In-app + email by default |
+| Note defaulted | Activity + notification (investor) | Note record - Activity | Note Defaulted | In-app + email by default |
+| Residual return completed | Activity (investor) | Note record - Activity | — | No automatic message |
 
 ### 6. Withdrawal / Refund
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Cash withdrawal submitted | Notification | Finance - Money movement - Investor Withdrawals | Withdrawal submitted | In-app by default; email can be enabled |
-| Cash withdrawal completed | Notification | Finance - Money movement - Investor Withdrawals | Withdrawal completed | In-app by default; email can be enabled |
-| Withdrawal submitted to trustee | Notification | Note record - Activity tab | Withdrawal submitted to trustee | In-app + email by default |
+| Cash withdrawal submitted | Notification (investor) | Finance - Investor Withdrawals | Withdrawal Submitted | In-app by default; email can be enabled |
+| Cash withdrawal completed | Notification (investor) | Finance - Investor Withdrawals | Withdrawal Completed | In-app by default; email can be enabled |
+| Withdrawal submitted to trustee | Notification (investor) | Note record - Activity | Withdrawal Submitted To Trustee | In-app + email by default |
 
 ## Admin / Finance / Support
 
@@ -259,32 +261,32 @@ For payment confirmation, use **Finance - Payments - Gateway Payments**. Do not 
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Member invited | Email (invitee) | Issuer or Investor record - Activity tab | Email sent to invitee | Email only |
-| Member added | No customer-facing entry | Issuer or Investor record - Activity tab | — | No automatic message |
-| Member removed | No customer-facing entry | Issuer or Investor record - Activity tab | — | No automatic message |
-| Member role changed | No customer-facing entry | Issuer or Investor record - Activity tab | — | No automatic message |
-| Organisation profile updated | No customer-facing entry | Issuer or Investor record - Activity tab | — | No automatic message |
-| MARC assessment saved | No customer-facing entry | Issuer or Investor record - Activity tab | — | No automatic message |
-| Identity or company-check status updated | No customer-facing entry | Issuer or Investor record - Activity tab | — | No automatic message |
-| Identity documents or liveness completed | No customer-facing entry | Issuer or Investor record - Activity tab | — | No automatic message |
+| Member invited | Email only | Issuer record - Activity or Investor record - Activity | Organisation Invitation | Email only |
+| Member added | No customer-facing entry | Issuer record - Activity or Investor record - Activity | — | No automatic message |
+| Member removed | No customer-facing entry | Issuer record - Activity or Investor record - Activity | — | No automatic message |
+| Member role changed | No customer-facing entry | Issuer record - Activity or Investor record - Activity | — | No automatic message |
+| Organisation profile updated | No customer-facing entry | Issuer record - Activity or Investor record - Activity | — | No automatic message |
+| MARC assessment saved | No customer-facing entry | Issuer record - Activity or Investor record - Activity | — | No automatic message |
+| Identity or company-check status updated | No customer-facing entry | Issuer record - Activity or Investor record - Activity | — | No automatic message |
+| Identity documents or liveness completed | No customer-facing entry | Issuer record - Activity or Investor record - Activity | — | No automatic message |
 
 ### 3. Notes / Prospectus / Paymaster / Tawarruq
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Prospectus review created | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Prospectus draft updated | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Prospectus approved | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Prospectus approval cleared after edit | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Prospectus approval cleared after source change | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Prospectus approval cleared after unpublish | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Paymaster notice generated | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Paymaster notice sent | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Paymaster notice uploaded | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Paymaster acknowledgement uploaded | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Paymaster acknowledgement confirmed | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Tawarruq order submitted | No customer-facing entry | Note record - Activity tab | — | No automatic message |
-| Tawarruq certificate retrieved | No customer-facing entry | Note record - Activity tab | — | No automatic message |
+| Prospectus review created | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Prospectus draft updated | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Prospectus approved | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Prospectus approval cleared after edit | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Prospectus approval cleared after source change | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Prospectus approval cleared after unpublish | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Paymaster notice generated | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Paymaster notice sent | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Paymaster notice uploaded | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Paymaster acknowledgement uploaded | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Paymaster acknowledgement confirmed | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Tawarruq order submitted | No customer-facing entry | Note record - Activity | — | No automatic message |
+| Tawarruq certificate retrieved | No customer-facing entry | Note record - Activity | — | No automatic message |
 
 ### 4. Legal
 
@@ -301,7 +303,7 @@ For proof of document acceptance, use **Audit - Legal Acceptances** or **Audit -
 | Version restored | No customer-facing entry | Audit - Legal Documents | — | No automatic message |
 | Legal document accepted | No customer-facing entry | Audit - Legal Acceptances | — | No automatic message |
 | External person or guarantor accepted | No customer-facing entry | Audit - External Acceptances | — | No automatic message |
-| Generated letter or document hash stored | No customer-facing entry | Note record - Activity tab may show the letter. Hash itself has no dedicated Audit tab | — | No automatic message |
+| Generated letter or document hash stored | No customer-facing entry | Note record - Activity | — | No automatic message |
 
 ### 5. Payments / Gateway / Reconciliation
 
@@ -309,17 +311,20 @@ For payment confirmation, use **Finance - Payments - Gateway Payments**. Do not 
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Bank name check started | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
-| Bank name check approved | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
-| Bank name check rejected | Notification (investor deposit) | Finance - Payments - Gateway Payments | Deposit verification failed | In-app by default; email can be enabled |
-| Payment captured | Notification or Activity depending on the payment type | Finance - Payments - Gateway Payments | Deposit successful or the matching fee-paid message | See Fees, Deposit, or Onboarding |
-| Capture amount mismatch | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
-| Checkout expired | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
-| Refund started | Notification (investor deposit) | Finance - Payments - Gateway Payments | Deposit refund started | In-app by default; email can be enabled |
-| Refund completed | Notification (investor deposit) | Finance - Payments - Gateway Payments | Deposit refund completed | In-app by default; email can be enabled |
-| Wallet reversal failed after refund | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
-| Settlement reconciliation run | No customer-facing entry | Finance - Reconciliation | — | No automatic message |
-| Reconciliation exception | No customer-facing entry | Finance - Reconciliation | — | No automatic message |
+| Bank account name check started | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
+| Bank account name check passed | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
+| Bank account name check failed | Notification (investor) | Finance - Payments - Gateway Payments | Deposit Verification Failed | In-app by default; email can be enabled |
+| Payment received successfully (investor deposit) | Notification (investor) | Finance - Payments - Gateway Payments | Deposit Successful | In-app by default; email can be enabled |
+| Payment received successfully (application processing fee) | Activity | Application record - Activity Timeline. Finance - Payments - Gateway Payments | — | No automatic message |
+| Payment received successfully (onboarding fee) | Activity | Issuer record - Activity. Finance - Payments - Gateway Payments | — | No automatic message |
+| Payment received successfully (facility fee) | Activity + notification | Application record - Activity Timeline. Finance - Payments - Gateway Payments | Upfront Facility Fee Paid | In-app + email by default |
+| Payment amount mismatch | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
+| Payment session expired | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
+| Refund started | Notification (investor) | Finance - Payments - Gateway Payments | Deposit Refund Started | In-app by default; email can be enabled |
+| Refund completed | Notification (investor) | Finance - Payments - Gateway Payments | Deposit Refund Completed | In-app by default; email can be enabled |
+| Wallet update failed after refund | No customer-facing entry | Finance - Payments - Gateway Payments | — | No automatic message |
+| Reconciliation completed | No customer-facing entry | Finance - Reconciliation | — | No automatic message |
+| Reconciliation mismatch found | No customer-facing entry | Finance - Reconciliation | — | No automatic message |
 
 ### 6. Access / Security
 
@@ -329,7 +334,7 @@ For payment confirmation, use **Finance - Payments - Gateway Payments**. Do not 
 | First account created | No customer-facing entry | Audit - Access | — | No automatic message |
 | Logout | No customer-facing entry | Audit - Access | — | No automatic message |
 | Password changed | Notification | Audit - Security | Password Changed | Always in-app + email |
-| Email verification (success or failed attempt) | No customer-facing entry | Audit - Security | — | No automatic message |
+| Email verification | No customer-facing entry | Audit - Security | — | No automatic message |
 | Role created | No customer-facing entry | Audit - Security | — | No automatic message |
 | Role permissions updated | No customer-facing entry | Audit - Security | — | No automatic message |
 | Role added | No customer-facing entry | Audit - Security | — | No automatic message |
@@ -342,7 +347,7 @@ For payment confirmation, use **Finance - Payments - Gateway Payments**. Do not 
 
 | What happened | Customer sees | Where to check in Admin | Message sent | Delivery |
 | --- | --- | --- | --- | --- |
-| Product created | No customer-facing entry | Audit - Products | New Product Alert only if Operations sends it manually | In-app + email by default when sent |
+| Product created | No customer-facing entry | Audit - Products | — | No automatic message |
 | Product updated | No customer-facing entry | Audit - Products | — | No automatic message |
 | Product deleted | No customer-facing entry | Audit - Products | — | No automatic message |
 
@@ -350,7 +355,7 @@ For payment confirmation, use **Finance - Payments - Gateway Payments**. Do not 
 
 In-app messages appear in the issuer or investor bell. Delivery of those messages is recorded in **Audit - Notifications**.
 
-Emails sent only to a signer, invitee, trustee, or verification person do **not** appear in Audit - Notifications.
+Direct emails to a signer, invitee, trustee, or verification person do **not** appear in Audit - Notifications.
 
 #### Platform messages
 
@@ -360,7 +365,7 @@ Emails sent only to a signer, invitee, trustee, or verification person do **not*
 | Onboarding Completed | The onboarding user | Final approval | In-app + email by default | Audit - Notifications |
 | Onboarding Rejected | The onboarding user | Onboarding rejected | In-app + email by default | Audit - Notifications |
 | System Announcement | Selected users or a group | Operations sends a custom announcement | In-app + email by default | Audit - Notifications |
-| New Product Alert | Selected investors | Operations sends a custom alert (not automatic when a product is created) | In-app + email by default | Audit - Notifications |
+| New Product Alert | Selected investors | Operations sends a custom alert | In-app + email by default | Audit - Notifications |
 | Application Amendments Requested | Issuer owner and organisation admins | Amendment pack sent | In-app + email by default | Audit - Notifications |
 | Acceptance Documents Need Updates | Issuer owner and organisation admins | First request to update acceptance documents in a cycle | In-app + email by default | Audit - Notifications |
 | Application Rejected | Issuer owner and organisation admins | Application rejected | In-app + email by default | Audit - Notifications |
@@ -378,44 +383,46 @@ Emails sent only to a signer, invitee, trustee, or verification person do **not*
 | Facility Disabled | Issuer owner and organisation admins | Facility disabled | In-app + email by default | Audit - Notifications |
 | Director/Shareholder Action Required | Issuer organisation owner | A director or shareholder still needs to complete onboarding | In-app + email by default | Audit - Notifications |
 | Investor Director/Shareholder Action Required | Investor organisation owner | A director or shareholder still needs to complete onboarding | In-app + email by default | Audit - Notifications |
-| Note published | Issuer organisation members | Note published | In-app + email by default | Audit - Notifications |
-| Note funding succeeded | Issuer org members | Funding closed successfully | In-app + email by default | Audit - Notifications |
-| Funding Unsuccessful (issuer) | Issuer org members | Funding did not complete | In-app + email by default | Audit - Notifications |
-| Funding Unsuccessful (investor) | Investors who had committed | Funding did not complete | In-app + email by default | Audit - Notifications |
-| Note active (issuer) | Issuer org members | Note activated | In-app + email by default | Audit - Notifications |
-| Note active (investor) | Investors on the Note | Note activated | In-app + email by default | Audit - Notifications |
-| Note repaid | Issuer org members | Note fully repaid | In-app + email by default | Audit - Notifications |
+| Note Published | Issuer organisation members | Note published | In-app + email by default | Audit - Notifications |
+| Note Funding Succeeded | Issuer organisation members | Funding closed successfully | In-app + email by default | Audit - Notifications |
+| Funding Unsuccessful | Issuer organisation members | Funding did not complete | In-app + email by default | Audit - Notifications |
+| Funding Unsuccessful | Investors who had committed | Funding did not complete | In-app + email by default | Audit - Notifications |
+| Note Active | Issuer organisation members | Note activated | In-app + email by default | Audit - Notifications |
+| Note Active | Investors on the Note | Note activated | In-app + email by default | Audit - Notifications |
+| Note Repaid | Issuer organisation members | Note fully repaid | In-app + email by default | Audit - Notifications |
 | Repayment Received | Investors on the Note | Repayment recorded | In-app + email by default | Audit - Notifications |
-| Note settlement posted | Investors on the Note | Settlement posted | In-app + email by default | Audit - Notifications |
-| Note in arrears (issuer) | Issuer org members | Note entered arrears | In-app + email by default | Audit - Notifications |
-| Note in arrears (investor) | Investors | Note entered arrears | In-app + email by default | Audit - Notifications |
-| Note defaulted (issuer) | Issuer org members | Note marked default | In-app + email by default | Audit - Notifications |
-| Note defaulted (investor) | Investors | Note marked default | In-app + email by default | Audit - Notifications |
-| Withdrawal submitted to trustee | Issuer and/or investor members, depending on the withdrawal type | Instruction submitted to trustee | In-app + email by default | Audit - Notifications |
-| Repayment rejected | Issuer org members | Repayment rejected | In-app by default; email can be enabled | Audit - Notifications |
-| Disbursement completed | Issuer org members | Issuer financing disbursement completed | In-app by default; email can be enabled | Audit - Notifications |
-| Upfront facility fee payment required | Issuer owner and organisation admins | Facility offer accepted and an upfront fee is due | In-app + email by default | Audit - Notifications |
-| Upfront facility fee paid | Issuer org members | Upfront facility fee paid | In-app + email by default | Audit - Notifications |
-| Outstanding late charges to pay | Issuer org members | Settlement posted with leftover late charges | In-app + email by default | Audit - Notifications |
-| Late payment charges received | Issuer org members | Outstanding late charges paid | In-app + email by default | Audit - Notifications |
-| Deposit verification failed | Investor org members | Deposit name check rejected | In-app by default; email can be enabled | Audit - Notifications |
-| Deposit refund started | Investor org members | Deposit refund started | In-app by default; email can be enabled | Audit - Notifications |
-| Deposit refund completed | Investor org members | Deposit refund completed | In-app by default; email can be enabled | Audit - Notifications |
-| Deposit successful | Investor org members | Deposit credited | In-app by default; email can be enabled | Audit - Notifications |
-| Investment committed | The investor who committed | Investment committed | In-app by default; email can be enabled | Audit - Notifications |
-| Withdrawal submitted | The investor who requested cash withdrawal | Cash withdrawal submitted | In-app by default; email can be enabled | Audit - Notifications |
-| Withdrawal completed | The investor who requested cash withdrawal | Cash withdrawal completed | In-app by default; email can be enabled | Audit - Notifications |
+| Note Settlement Posted | Investors on the Note | Settlement posted | In-app + email by default | Audit - Notifications |
+| Note In Arrears | Issuer organisation members | Note entered arrears | In-app + email by default | Audit - Notifications |
+| Note In Arrears | Investors | Note entered arrears | In-app + email by default | Audit - Notifications |
+| Note Defaulted (Issuer) | Issuer organisation members | Note marked default | In-app + email by default | Audit - Notifications |
+| Note Defaulted | Investors | Note marked default | In-app + email by default | Audit - Notifications |
+| Withdrawal Submitted To Trustee | Issuer and investor members, depending on the withdrawal type | Instruction submitted to trustee | In-app + email by default | Audit - Notifications |
+| Repayment Rejected | Issuer organisation members | Repayment rejected | In-app by default; email can be enabled | Audit - Notifications |
+| Disbursement Completed | Issuer organisation members | Issuer financing disbursement completed | In-app by default; email can be enabled | Audit - Notifications |
+| Upfront Facility Fee Payment Required | Issuer owner and organisation admins | Facility offer accepted and an upfront fee is due | In-app + email by default | Audit - Notifications |
+| Upfront Facility Fee Paid | Issuer organisation members | Upfront facility fee paid | In-app + email by default | Audit - Notifications |
+| Outstanding Late Charges To Pay | Issuer organisation members | Settlement posted with leftover late charges | In-app + email by default | Audit - Notifications |
+| Late Payment Charges Received | Issuer organisation members | Outstanding late charges paid | In-app + email by default | Audit - Notifications |
+| Deposit Verification Failed | Investor organisation members | Bank account name check failed | In-app by default; email can be enabled | Audit - Notifications |
+| Deposit Refund Started | Investor organisation members | Deposit refund started | In-app by default; email can be enabled | Audit - Notifications |
+| Deposit Refund Completed | Investor organisation members | Deposit refund completed | In-app by default; email can be enabled | Audit - Notifications |
+| Deposit Successful | Investor organisation members | Deposit credited | In-app by default; email can be enabled | Audit - Notifications |
+| Investment Committed | The investor who committed | Investment committed | In-app by default; email can be enabled | Audit - Notifications |
+| Withdrawal Submitted | The investor who requested cash withdrawal | Cash withdrawal submitted | In-app by default; email can be enabled | Audit - Notifications |
+| Withdrawal Completed | The investor who requested cash withdrawal | Cash withdrawal completed | In-app by default; email can be enabled | Audit - Notifications |
 
-#### Direct emails (not in Audit - Notifications)
+#### Direct emails
+
+These do not appear in Audit - Notifications.
 
 | Email | Sent to | When it is sent | Delivery |
 | --- | --- | --- | --- |
-| Organisation invitation | Invitee | Member invited or invite resent | Email sent to invitee |
-| Admin invitation | Invitee | Admin invited or invite resent | Email sent to invitee |
-| Signing package / reminder | Named signer | Signing package sent, or reminder requested | Email sent directly to signer |
-| Invoice offer verification code | Selected signatory | Issuer requests a code to accept an invoice offer | Email sent to selected signatory |
-| Director/shareholder verification | The person who must verify | Director or shareholder verification is required | Email sent directly to the person who must verify |
-| Trustee instruction | Trustee recipients | Trustee letter is sent | Email + PDF sent to trustee |
+| Organisation Invitation | Invitee | Member invited or invite resent | Email only |
+| Admin Invitation | Invitee | Admin invited or invite resent | Email only |
+| Signing Package / Reminder | Named signer | Signing package sent, or reminder requested | Email only |
+| Invoice Offer Verification Code | Selected signatory | Issuer requests a code to accept an invoice offer | Email only |
+| Director/Shareholder Verification | The person who must verify | Director or shareholder verification is required | Email only |
+| Trustee Instruction | Trustee recipients | Trustee letter is sent | Email only |
 
 ## Additional records used for investigation
 
@@ -424,50 +431,50 @@ These are not the customer Activity feed. Use them when you need payment proof, 
 | Record | What it proves | Where to check in Admin | Customer sees |
 | --- | --- | --- | --- |
 | Login session | A session was issued | No dedicated Admin screen | No customer-facing entry |
-| Signer viewed the package | The signer opened the signing link | Application record - Acceptance (status Viewed) | No customer-facing entry |
-| Application review copy | Extra copy of offer sent / amendment sent | No dedicated Admin screen. Use Application record - Activity Timeline | No customer-facing entry |
-| Reviewer remarks | Comments entered during review | Application review screens | No customer-facing entry |
-| Note Admin action copy | Extra copy of Admin Note actions | No dedicated Admin screen. Use Note record - Activity tab | No customer-facing entry |
+| Signer viewed the package | The signer opened the signing link | Application record - Acceptance | No customer-facing entry |
+| Application review copy | Extra copy of offer sent or amendment sent | Application record - Activity Timeline | No customer-facing entry |
+| Reviewer remarks | Comments entered during review | Application record - Activity Timeline | No customer-facing entry |
+| Note Admin action copy | Extra copy of Admin Note actions | Note record - Activity | No customer-facing entry |
 | Raw payment-provider update | The payment provider sent an update | No dedicated Admin screen | No customer-facing entry |
-| Checkout attempt | A payment checkout was attempted | Finance - Payments - Gateway Payments (payment detail) | No customer-facing entry |
-| Payment receipt | Receipt file generated or retried | Finance - Payments - Gateway Payments (payment detail) | No customer-facing entry |
-| Reconciliation run | A settlement reconciliation run | Finance - Reconciliation | No customer-facing entry |
-| Reconciliation exception | An unmatched or mismatched payment in recon | Finance - Reconciliation | No customer-facing entry |
-| Investor wallet movement | Deposit, invest, refund, or cash withdrawal | Investor record and Finance - Money movement - Investor Withdrawals | Wallet history |
-| Note ledger | Money movement on the Note | Note record - Ledger | No customer-facing entry |
-| Invoice offer verification-code record | A verification code was issued | No dedicated Admin screen | Email |
-| Notification delivery record | An in-app or email platform message was sent | Audit - Notifications | Inbox when a platform message was sent |
-| Identity check approved (before organisation exists) | Provider approved identity when no organisation record existed yet | Additional investigation only | No customer-facing entry |
-| Identity check rejected (provider update) | Provider rejected identity at the transport layer | Additional investigation only | No customer-facing entry |
-| Enhanced due diligence provider update | Raw enhanced due diligence update | Additional investigation only. Business result is on the Activity tab as approved or rejected | No customer-facing entry |
+| Checkout attempt | A payment session was attempted | Finance - Payments - Gateway Payments | No customer-facing entry |
+| Payment receipt | Receipt file generated or retried | Finance - Payments - Gateway Payments | No customer-facing entry |
+| Reconciliation completed | A settlement reconciliation run | Finance - Reconciliation | No customer-facing entry |
+| Reconciliation mismatch found | An unmatched or mismatched payment | Finance - Reconciliation | No customer-facing entry |
+| Investor wallet movement | Deposit, invest, refund, or cash withdrawal | Finance - Investor Withdrawals | No customer-facing entry |
+| Note ledger | Amounts posted on the Note | Note record - Ledger | No customer-facing entry |
+| Invoice offer verification-code record | A verification code was issued | No dedicated Admin screen | Email only |
+| Notification delivery record | An in-app or email platform message was sent | Audit - Notifications | Notification |
+| Identity check approved (before organisation exists) | Identity was approved before an organisation record existed | No dedicated Admin screen | No customer-facing entry |
+| Identity check rejected (provider update) | Identity was rejected by the provider | No dedicated Admin screen | No customer-facing entry |
+| Enhanced due diligence provider update | Raw enhanced due diligence update | Issuer record - Activity or Investor record - Activity | No customer-facing entry |
 
 ## Actions that may not appear in Activity or Notifications
 
 | Action | What Operations should know | Where to check instead |
 | --- | --- | --- |
-| User cancelled onboarding | No Activity row is created | Issuer or Investor record - current onboarding status |
-| Signing reminder | No new Activity row is created | Application record - Acceptance / Signing Package |
-| Settlement preview | No Activity row is created | The settlement preview screen |
-| Notification preference changed | No Activity entry is created | User notification settings |
-| Company-search retry | No Activity row per retry | Later financial-section reset may appear on Application record - Activity Timeline |
-| Signed PDF backfill | No Activity row that files were repaired | Application record - Acceptance / documents |
-| Forgot password or Admin authenticator reset | Handled by the authentication service, not the Activity log | Follow the account recovery process |
-| Onboarding started or onboarding fee paid | No automatic message | Issuer or Investor record - Activity tab |
-| More onboarding information required | No automatic message unless a director/shareholder action is raised | Issuer or Investor record - Activity tab |
-| Onboarding restarted | No automatic message | Issuer or Investor record - Activity tab |
-| Facility enabled | No automatic message | Facility record - Activity tab |
-| Facility fee waived | No automatic message | Facility record or Note record - Activity tab |
+| User cancelled onboarding | No Activity timeline entry | Issuer record - Activity or Investor record - Activity |
+| Signing reminder | No Activity timeline entry | Application record - Acceptance |
+| Settlement preview | No Activity timeline entry | Note record - Activity |
+| Notification preference changed | No Activity timeline entry | User notification settings |
+| Company-search retry | No Activity timeline entry for each retry | Application record - Activity Timeline |
+| Signed PDF backfill | No Activity timeline entry | Application record - Acceptance |
+| Forgot password or Admin authenticator reset | Handled by the authentication service, not Activity | Follow the account recovery process |
+| Onboarding started or onboarding fee paid | No automatic message | Issuer record - Activity or Investor record - Activity |
+| More onboarding information required | No automatic message | Issuer record - Activity or Investor record - Activity |
+| Onboarding restarted | No automatic message | Issuer record - Activity or Investor record - Activity |
+| Facility enabled | No automatic message | Facility record - Activity |
+| Facility fee waived | No automatic message | Facility record - Activity or Note record - Activity |
 | Invoice withdrawn | No automatic message | Application record - Activity Timeline |
-| Campaign paused or resumed | No automatic message | Note record - Activity tab |
-| Note unpublished | No automatic message | Note record - Activity tab |
-| Signing package sent (organisation members who are not the signer) | Organisation inbox is not notified | Application record - Acceptance. Signer receives email |
+| Campaign paused or resumed | No automatic message | Note record - Activity |
+| Note unpublished | No automatic message | Note record - Activity |
+| Signing package sent to organisation members who are not the signer | No automatic message to the organisation inbox | Application record - Acceptance |
 | Signing completed, declined, expired, or voided | No automatic message | Application record - Activity Timeline |
-| Repayment approved | No automatic message | Note record - Activity tab |
-| Settlement approved (before posting) | No automatic message | Note record - Activity tab |
-| Prospectus, paymaster, or tawarruq | No automatic message | Note record - Activity tab |
-| Product created | No automatic investor message | Audit - Products. Send New Product Alert only if needed |
-| Organisation member invited | No in-app platform message | Email sent to invitee |
-| Signing reminder | No in-app platform message | Email sent directly to signer |
+| Repayment approved | No automatic message | Note record - Activity |
+| Settlement approved | No automatic message | Note record - Activity |
+| Prospectus, paymaster, or tawarruq | No automatic message | Note record - Activity |
+| Product created | No automatic message | Audit - Products |
+| Organisation member invited | No in-app platform message | Issuer record - Activity or Investor record - Activity |
+| Signing reminder | No in-app platform message | Application record - Acceptance |
 
 ## Old items you may see in historical records
 
@@ -475,15 +482,15 @@ These are not created by current flows. Older records can still show them.
 
 | What you may see | What it means |
 | --- | --- |
-| Application approved | May appear in older records only. Current flows do not create this |
+| Application approved | May appear in older records only |
 | Facility offer rejected | May appear in older records only. Current decline is Facility Offer Declined |
-| Product inactivated / reactivated | May appear in older product records. Current flow deletes a product instead |
+| Product inactivated or reactivated | May appear in older product records. Current flow deletes a product instead |
 | Settlement previewed | May appear in older Note records. Preview no longer creates a timeline row |
 | Old trustee service-fee labels | May appear in older records only. Current labels are settlement trustee actions |
-| KYC approved (as the stored name) | May appear in older records only. Current identity updates use a status update |
-| Terms accepted (old name) | May appear in older records only. Current name is Terms and conditions accepted |
+| KYC approved | May appear in older records only |
+| Terms accepted | May appear in older records only. Current name is Terms and conditions accepted |
 | User completed | May appear in older records only. Current completion is Onboarding completed |
-| Note created / Note published (old names) | Labels for older rows. Current names are Note created and Note published from the live actions |
+| Note created or Note published as older labels | Labels for older rows |
 | Account locked | Not created by current flows |
 | Ops Alerts | Removed. Not used by the current platform |
 
@@ -492,11 +499,11 @@ These are not created by current flows. Older records can still show them.
 | What you may see twice | Why |
 | --- | --- |
 | Facility occupancy and Note occupancy | The same draw, funding, or repayment is recorded on the facility and on the Note |
-| Offer or amendment on Activity, plus a review copy | Operations should use the Activity Timeline |
-| Admin Note action, plus a second Admin copy | Operations should use the Note Activity tab |
-| Fee paid on Activity and in Gateway Payments | Activity is the milestone. Gateway Payments is payment proof |
-| Terms accepted on Activity and Legal Acceptances | Activity is the milestone. Legal Acceptances is legal proof |
-| Payment provider update and Gateway Payments timeline | Gateway Payments is the business payment record |
+| Offer or amendment on Activity, plus a review copy | Operations should use Application record - Activity Timeline |
+| Admin Note action, plus a second Admin copy | Operations should use Note record - Activity |
+| Fee paid on Activity and in Gateway Payments | Activity is the milestone. Finance - Payments - Gateway Payments is payment proof |
+| Terms accepted on Activity and Legal Acceptances | Activity is the milestone. Audit - Legal Acceptances is legal proof |
+| Payment provider update and Gateway Payments | Finance - Payments - Gateway Payments is the business payment record |
 | Identity status, documents completed, and investigation-only identity updates | Same identity check, different layers |
 | Letter on Activity and a stored document hash | Timeline for Operations. Hash for investigation |
 | Email verification success and failed attempt | Same security record type. Open the detail to see the result |
@@ -632,15 +639,15 @@ For support escalation only.
 | Product created | `PRODUCT_CREATED` |
 | Product updated | `PRODUCT_UPDATED` |
 | Product deleted | `PRODUCT_DELETED` |
-| Bank name check started | `NAME_CHECK` |
-| Bank name check approved | `NAME_CHECK_APPROVED` |
-| Bank name check rejected | `NAME_CHECK_REJECTED` |
-| Payment captured | `GATEWAY_PAYMENT_COMPLETED` |
-| Capture amount mismatch | `CAPTURE_MISMATCH` |
-| Checkout expired | `EXPIRED` |
+| Bank account name check started | `NAME_CHECK` |
+| Bank account name check passed | `NAME_CHECK_APPROVED` |
+| Bank account name check failed | `NAME_CHECK_REJECTED` |
+| Payment received successfully | `GATEWAY_PAYMENT_COMPLETED` |
+| Payment amount mismatch | `CAPTURE_MISMATCH` |
+| Payment session expired | `EXPIRED` |
 | Refund started | `REFUND_INITIATED` |
 | Refund completed | `REFUNDED` |
-| Wallet reversal failed after refund | `REFUND_WALLET_REVERSAL_FAILED` |
+| Wallet update failed after refund | `REFUND_WALLET_REVERSAL_FAILED` |
 | Login | `LOGIN` |
 | First account created | `SIGNUP` |
 | Logout | `LOGOUT` |
@@ -671,8 +678,8 @@ For support escalation only.
 | Raw payment-provider update | `gateway_webhook_events` |
 | Checkout attempt | `gateway_order_attempts` |
 | Payment receipt | `gateway_payment_receipts` |
-| Reconciliation run | `gateway_recon_runs` |
-| Reconciliation exception | `gateway_recon_exceptions` |
+| Reconciliation completed | `gateway_recon_runs` |
+| Reconciliation mismatch found | `gateway_recon_exceptions` |
 | Investor wallet movement | `investor_balance_transactions` |
 | Note ledger | `note_ledger_entries` |
 | Invoice offer verification-code record | `offer_accept_otp_challenges` |
@@ -682,14 +689,14 @@ For support escalation only.
 
 | If you need to know... | Check here |
 | --- | --- |
-| What happened during onboarding? | Issuer / Investor record - Activity tab |
+| What happened during onboarding? | Issuer record - Activity or Investor record - Activity |
 | What happened to an application? | Application record - Activity Timeline |
-| What happened to a facility? | Facility record - Activity tab |
-| What happened during signing? | Application record - Acceptance / Signing Package |
-| What happened to a Note? | Note record - Activity tab |
+| What happened to a facility? | Facility record - Activity |
+| What happened during signing? | Application record - Acceptance |
+| What happened to a Note? | Note record - Activity |
 | Did a payment succeed? | Finance - Payments - Gateway Payments |
 | Did reconciliation match? | Finance - Reconciliation |
 | Was a legal document accepted? | Audit - Legal Acceptances |
 | Did an external guarantor accept? | Audit - External Acceptances |
 | Was a platform message sent? | Audit - Notifications |
-| Who logged in or changed permissions? | Audit - Access / Security |
+| Who logged in or changed permissions? | Audit - Access or Audit - Security |
