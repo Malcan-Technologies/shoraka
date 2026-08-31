@@ -13,6 +13,8 @@ updated: 2026-08-31
 
 CashSouk records important actions across the platform.
 
+For a simple Operations walkthrough (where to look, what events mean, and what to tell customers), start with Help → **Operations Guide: Activity, Audit Logs and Notifications**.
+
 Use this page to see what activity, logs, evidence and notifications are available and where to find them.
 
 Activity timelines are not the source of truth for legal evidence, financial journals, gateway diagnostics, forensic investigation fields, or notification delivery. Those stay on their own Admin screens.
