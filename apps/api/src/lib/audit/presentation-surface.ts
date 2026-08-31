@@ -101,7 +101,6 @@ export const PRESENTATION_FILES: string[] = [
   "apps/admin/src/components/audit/legal-document-audit-panel.tsx",
   "apps/admin/src/components/audit/legal-acceptances-panel.tsx",
   "apps/admin/src/components/audit/legal-external-acceptances-panel.tsx",
-  "apps/admin/src/components/audit/ops-alerts-panel.tsx",
   "apps/admin/src/components/audit/notification-logs-panel.tsx",
   "apps/admin/src/notes/utils/note-timeline-details.ts",
   "apps/admin/src/notes/utils/note-activity-csv.ts",
@@ -122,7 +121,6 @@ export const PRESENTATION_FILES: string[] = [
   "apps/admin/src/hooks/use-legal-document-audit-logs.ts",
   "apps/admin/src/hooks/use-legal-document-acceptances.ts",
   "apps/admin/src/hooks/use-legal-external-acceptances.ts",
-  "apps/admin/src/hooks/use-ops-alerts.ts",
 
   // Issuer and investor activity surfaces
   "apps/issuer/src/app/(application-management)/applications/components/application-timeline.ts",

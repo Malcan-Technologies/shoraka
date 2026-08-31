@@ -9,10 +9,8 @@ import { runSigningReconcileJob } from "./signing-reconcile";
 import { runGatewayStuckOrderPollerJob } from "./gateway-stuck-order-poller";
 import { runGatewaySettlementReconForConfiguredAccounts } from "./gateway-settlement-recon";
 import { runGatewayReceiptRetryJob } from "./gateway-receipt-retry";
-import { runOpsAlertReconstructionJob } from "./ops-alert-reconstruction";
 import { runApplicationTimelineRepairJob } from "./application-timeline-repair";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
-import { raiseJobFailureAlert } from "../../modules/ops-alerts/service";
 
 const notificationService = new NotificationService();
 
@@ -39,7 +37,6 @@ export function initJobs() {
       await runCtosKybRetryJob();
     } catch (error) {
       logger.error({ error }, "Failed to run CTOS KYB retry job");
-      await raiseJobFailureAlert("ctos-kyb-retry", error);
     }
   });
 
@@ -82,7 +79,6 @@ export function initJobs() {
         }
       } catch (error) {
         logger.error({ error }, "Failed to run signing envelope expiry job");
-        await raiseJobFailureAlert("signing-envelope-expiry", error);
       }
     });
   });
@@ -120,7 +116,6 @@ export function initJobs() {
         await runGatewayStuckOrderPollerJob();
       } catch (error) {
         logger.error({ error }, "Failed to run gateway stuck-order poller");
-        await raiseJobFailureAlert("gateway-stuck-order-poller", error);
       }
     });
   });
@@ -132,7 +127,6 @@ export function initJobs() {
         await runGatewayReceiptRetryJob();
       } catch (error) {
         logger.error({ error }, "Failed to run gateway receipt retry job");
-        await raiseJobFailureAlert("gateway-receipt-retry", error);
       }
     });
   });
@@ -143,20 +137,7 @@ export function initJobs() {
       await runGatewaySettlementReconForConfiguredAccounts();
     } catch (error) {
       logger.error({ error }, "Failed to run gateway settlement recon job");
-      await raiseJobFailureAlert("gateway-settlement-recon", error);
     }
-  });
-
-  // Rebuild missing Ops Alert queue rows from durable payment/recon/signing state.
-  cron.schedule("10 * * * *", async () => {
-    await withAdvisoryLock(JOB_LOCK_KEYS.OPS_ALERT_RECONSTRUCTION, async () => {
-      try {
-        await runOpsAlertReconstructionJob();
-      } catch (error) {
-        logger.error({ error }, "Failed to run ops alert reconstruction job");
-        await raiseJobFailureAlert("ops-alert-reconstruction", error);
-      }
-    });
   });
 
   // Repair missing APPLICATION_CREATED / APPLICATION_SUBMITTED timeline projections.
@@ -166,7 +147,6 @@ export function initJobs() {
         await runApplicationTimelineRepairJob();
       } catch (error) {
         logger.error({ error }, "Failed to run application timeline repair job");
-        await raiseJobFailureAlert("application-timeline-repair", error);
       }
     });
   });
@@ -178,7 +158,6 @@ export function initJobs() {
         await runSigningReconcileJob();
       } catch (error) {
         logger.error({ error }, "Failed to run signing reconcile job");
-        await raiseJobFailureAlert("signing-reconcile", error);
       }
     });
   });

@@ -16,7 +16,6 @@ export const EVENT_LAYER = {
   LEGAL_ONLY: "LEGAL_ONLY",
   FINANCIAL_ONLY: "FINANCIAL_ONLY",
   SECURITY_ONLY: "SECURITY_ONLY",
-  OPS_ONLY: "OPS_ONLY",
   NOTIFICATION: "NOTIFICATION",
 } as const;
 
@@ -308,17 +307,6 @@ export const EVENT_CATALOGUE: Record<string, EventCatalogueEntry> = {
   LEGAL_DOCUMENT_ACCEPTANCE: entry(EVENT_LAYER.LEGAL_ONLY, "legal_document_acceptances"),
   LEGAL_EXTERNAL_ACCEPTANCE: entry(EVENT_LAYER.LEGAL_ONLY, "legal_external_acceptances"),
   GENERATED_DOCUMENT_EVIDENCE: entry(EVENT_LAYER.LEGAL_ONLY, "generated_document_evidence"),
-
-  // --- ops ---
-  STUCK_PAYMENT: entry(EVENT_LAYER.OPS_ONLY, "ops_alerts"),
-  RECON_MISMATCH: entry(EVENT_LAYER.OPS_ONLY, "ops_alerts"),
-  RECEIPT_FAILURE: entry(EVENT_LAYER.OPS_ONLY, "ops_alerts"),
-  WEBHOOK_FAILURE: entry(EVENT_LAYER.OPS_ONLY, "ops_alerts"),
-  SIGNING_EXPIRY: entry(EVENT_LAYER.OPS_ONLY, "ops_alerts"),
-  PROVIDER_FAILURE: entry(EVENT_LAYER.OPS_ONLY, "ops_alerts"),
-  REPEATED_JOB_FAILURE: entry(EVENT_LAYER.OPS_ONLY, "ops_alerts"),
-  MISSING_LEGAL_EVIDENCE: entry(EVENT_LAYER.OPS_ONLY, "ops_alerts"),
-  GATEWAY_LEDGER_MISMATCH: entry(EVENT_LAYER.OPS_ONLY, "ops_alerts"),
 };
 
 export function catalogueEntry(eventType: string): EventCatalogueEntry | undefined {

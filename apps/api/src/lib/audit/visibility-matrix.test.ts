@@ -46,17 +46,6 @@ describe("visibility matrix", () => {
     expect(visible).not.toContain("SIGNING_PACKAGE_VOIDED");
   });
 
-  it("does not advertise Ops Alert types on user Activity", () => {
-    const visibleApp = userVisibleApplicationEventTypes();
-    const visibleOrg = userVisibleOrganizationEventTypes();
-    for (const [eventType, entry] of Object.entries(EVENT_CATALOGUE)) {
-      if (entry.layer !== EVENT_LAYER.OPS_ONLY) continue;
-      expect(entry.userVisible).toBe(false);
-      expect(visibleApp).not.toContain(eventType);
-      expect(visibleOrg).not.toContain(eventType);
-    }
-  });
-
   it("keeps review events as admin activity", () => {
     expect(EVENT_CATALOGUE.SECTION_REVIEWED_APPROVED.layer).toBe(EVENT_LAYER.ADMIN_ACTIVITY);
     expect(userVisibleApplicationEventTypes()).not.toContain("SECTION_REVIEWED_APPROVED");

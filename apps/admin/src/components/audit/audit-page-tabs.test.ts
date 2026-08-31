@@ -13,7 +13,6 @@ describe("Admin Audit page hosts evidence views", () => {
       "legal-documents",
       "legal-acceptances",
       "external-acceptances",
-      "ops-alerts",
       "notifications",
     ]);
   });
@@ -21,10 +20,8 @@ describe("Admin Audit page hosts evidence views", () => {
   it("reuses the existing evidence panels and keeps per-tab permissions", () => {
     expect(source).toContain("LegalAcceptancesPanel");
     expect(source).toContain("LegalExternalAcceptancesPanel");
-    expect(source).toContain("OpsAlertsPanel");
     expect(source).toContain("NotificationLogsPanel");
     expect(source).toContain('permission: "document_management.view"');
-    expect(source).toContain('permission: "ops.alerts.view"');
     expect(source).toContain('permission: "notifications.view"');
   });
 });

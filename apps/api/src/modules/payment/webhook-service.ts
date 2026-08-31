@@ -6,8 +6,6 @@ import {
   GatewayPaymentStatus,
   NameCheckResult,
   NoteLedgerDirection,
-  OpsAlertSeverity,
-  OpsAlertType,
   OrganizationType,
   Prisma,
   PrismaClient,
@@ -35,7 +33,6 @@ import {
   resolveInvestorExpectedNameVariants,
 } from "./deposit-service";
 import { verifyCurlecWebhookSignature } from "./curlec-signature";
-import { raiseOpsAlert } from "../ops-alerts/service";
 import { createCurlecClient } from "./curlec-client";
 import { assertGatewayAccountMatch } from "./gateway-account";
 import { recordGatewayPaymentEvent, recordGatewayPaymentCompletedIfAbsent } from "./gateway-events";
@@ -650,15 +647,10 @@ export async function processStoredCurlecWebhook(
   } catch (error) {
     if (error instanceof ZodError) {
       await markWebhookProcessed(db, eventId, "Invalid stored payload", routeGatewayAccount);
-      await raiseOpsAlert({
-        type: OpsAlertType.WEBHOOK_FAILURE,
-        severity: OpsAlertSeverity.HIGH,
-        dedupeKey: `webhook-failure:${eventId}`,
-        title: "Curlec webhook payload failed validation",
-        summary: "Stored webhook event could not be parsed",
-        entityType: "gateway_webhook_event",
-        entityId: eventId,
-      });
+      logger.error(
+        { eventId, gatewayAccount: routeGatewayAccount },
+        "Stored Curlec webhook payload failed validation"
+      );
       return;
     }
     throw error;
@@ -1458,15 +1450,6 @@ export async function syncGatewayPaymentFromCurlec(
       },
       "Curlec order payments sync failed"
     );
-    await raiseOpsAlert({
-      type: OpsAlertType.PROVIDER_FAILURE,
-      severity: OpsAlertSeverity.MEDIUM,
-      dedupeKey: `provider-failure:curlec-order:${payment.id}`,
-      title: "Curlec order payment sync failed",
-      summary: error instanceof Error ? error.message : String(error),
-      entityType: "gateway_payment",
-      entityId: payment.id,
-    });
     return payment;
   }
 

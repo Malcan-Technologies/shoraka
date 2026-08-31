@@ -6,8 +6,6 @@ import { Prisma } from "@prisma/client";
 import { logger } from "../logger";
 import { systemAuditContext } from "../audit";
 import { signingService } from "../../modules/signing/service";
-import { OpsAlertSeverity, OpsAlertType } from "@prisma/client";
-import { raiseOpsAlert } from "../../modules/ops-alerts/service";
 
 export type SigningReconcileResult = {
   syncedEnvelopeIds: string[];
@@ -97,60 +95,5 @@ export async function runSigningReconcileJob(): Promise<SigningReconcileResult> 
     logger.info(result, "Signing reconcile job completed");
   }
 
-  if (result.errors.length > 0) {
-    await raiseOpsAlert({
-      type: OpsAlertType.PROVIDER_FAILURE,
-      severity: OpsAlertSeverity.HIGH,
-      dedupeKey: "signing-reconcile:errors",
-      title: "Signing provider reconcile errors",
-      summary: result.errors[0],
-      entityType: "job",
-      entityId: "signing-reconcile",
-      details: { errors: result.errors },
-    });
-  }
-
-  await raiseMissingGuarantorAcceptanceAlerts();
-
   return result;
-}
-
-async function raiseMissingGuarantorAcceptanceAlerts(): Promise<void> {
-  const completed = await prisma.signingEnvelope.findMany({
-    where: {
-      status: "COMPLETED",
-      recipients: { some: { role_key: "guarantor" } },
-    },
-    select: {
-      id: true,
-      application_id: true,
-      recipients: { where: { role_key: "guarantor" }, select: { id: true } },
-    },
-    take: 50,
-    orderBy: { completed_at: "desc" },
-  });
-
-  for (const envelope of completed) {
-    for (const recipient of envelope.recipients) {
-      const accepted = await prisma.legalExternalAcceptance.findFirst({
-        where: {
-          source_type: "SIGNING_RECIPIENT",
-          source_id: recipient.id,
-          status: "ACCEPTED",
-        },
-        select: { id: true },
-      });
-      if (accepted) continue;
-      await raiseOpsAlert({
-        type: OpsAlertType.MISSING_LEGAL_EVIDENCE,
-        severity: OpsAlertSeverity.HIGH,
-        dedupeKey: `missing-legal:${recipient.id}`,
-        title: "Completed envelope missing guarantor legal acceptance",
-        summary: "A guarantor signed without a stored legal_external_acceptances ACCEPTED row",
-        entityType: "signing_envelope",
-        entityId: envelope.id,
-        details: { recipientId: recipient.id, applicationId: envelope.application_id },
-      });
-    }
-  }
 }

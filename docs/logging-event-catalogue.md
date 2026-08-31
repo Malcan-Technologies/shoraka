@@ -47,7 +47,6 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `FAIL_FUNDING` | NOTE_TIMELINE | LIVE | note_events | yes |
 | `FINAL_APPROVAL_COMPLETED` | ORG_ACTIVITY | LIVE | onboarding_logs | yes |
 | `FORM_FILLED` | ADMIN_ACTIVITY | LIVE | onboarding_logs | no |
-| `GATEWAY_LEDGER_MISMATCH` | OPS_ONLY | LIVE | ops_alerts | no |
 | `GATEWAY_PAYMENT_COMPLETED` | FINANCIAL_ONLY | LIVE | gateway_payment_events | no |
 | `GENERATED_DOCUMENT_EVIDENCE` | LEGAL_ONLY | LIVE | generated_document_evidence | no |
 | `INVESTMENT_COMMITTED` | NOTE_TIMELINE | LIVE | note_events | yes |
@@ -86,7 +85,6 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `MEMBER_INVITED` | ORG_ACTIVITY | LIVE | onboarding_logs | no |
 | `MEMBER_REMOVED` | ORG_ACTIVITY | LIVE | onboarding_logs | no |
 | `MEMBER_ROLE_CHANGED` | ORG_ACTIVITY | LIVE | onboarding_logs | no |
-| `MISSING_LEGAL_EVIDENCE` | OPS_ONLY | LIVE | ops_alerts | no |
 | `NOTE_CREATED_FROM_INVOICE` | NOTE_TIMELINE | LIVE | note_events | yes |
 | `NOTE_DEFAULT_MARKED` | NOTE_TIMELINE | LIVE | note_events | yes |
 | `ONBOARDING_AMENDMENT_REQUIRED` | ORG_ACTIVITY | LIVE | onboarding_logs | yes |
@@ -124,12 +122,8 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `PROSPECTUS_REVIEW_APPROVE` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `PROSPECTUS_REVIEW_CREATE` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `PROSPECTUS_REVIEW_DRAFT_UPDATE` | ADMIN_ACTIVITY | LIVE | note_events | no |
-| `PROVIDER_FAILURE` | OPS_ONLY | LIVE | ops_alerts | no |
 | `PUBLISH` | NOTE_TIMELINE | LIVE | note_events | yes |
-| `RECEIPT_FAILURE` | OPS_ONLY | LIVE | ops_alerts | no |
-| `RECON_MISMATCH` | OPS_ONLY | LIVE | ops_alerts | no |
 | `REFUNDED` | FINANCIAL_ONLY | LIVE | gateway_payment_events | no |
-| `REPEATED_JOB_FAILURE` | OPS_ONLY | LIVE | ops_alerts | no |
 | `RESUME_LISTING` | NOTE_TIMELINE | LIVE | note_events | yes |
 | `ROLE_ADDED` | SECURITY_ONLY | LIVE | security_logs | no |
 | `ROLE_CREATED` | SECURITY_ONLY | LIVE | security_logs | no |
@@ -149,7 +143,6 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `SETTLEMENT_TRUSTEE_LETTER_SUBMITTED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `SHORAKA_CERTIFICATE_FETCHED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `SHORAKA_ORDER_SUBMITTED` | ADMIN_ACTIVITY | LIVE | note_events | no |
-| `SIGNING_EXPIRY` | OPS_ONLY | LIVE | ops_alerts | no |
 | `SIGNING_PACKAGE_COMPLETED` | APPLICATION_TIMELINE | LIVE | application_logs | yes |
 | `SIGNING_PACKAGE_CREATED` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `SIGNING_PACKAGE_DECLINED` | APPLICATION_TIMELINE | LIVE | application_logs | yes |
@@ -159,12 +152,10 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `SIGNUP` | SECURITY_ONLY | LIVE | access_logs | no |
 | `SOPHISTICATED_STATUS_UPDATED` | ADMIN_ACTIVITY | LIVE | onboarding_logs | no |
 | `SSM_APPROVED` | ADMIN_ACTIVITY | LIVE | onboarding_logs | no |
-| `STUCK_PAYMENT` | OPS_ONLY | LIVE | ops_alerts | no |
 | `TNC_ACCEPTED` | ORG_ACTIVITY | HISTORICAL_READER | onboarding_logs | no |
 | `TNC_APPROVED` | ADMIN_ACTIVITY | LIVE | onboarding_logs | no |
 | `USER_COMPLETED` | ORG_ACTIVITY | HISTORICAL_READER | onboarding_logs | no |
 | `WEBHOOK_APPROVED` | FORENSIC_ONLY | DEV_ONLY | onboarding_logs | no |
-| `WEBHOOK_FAILURE` | OPS_ONLY | LIVE | ops_alerts | no |
 | `WEBHOOK_FORM_FILLING` | FORENSIC_ONLY | DEV_ONLY | onboarding_logs | no |
 | `WEBHOOK_IN_PROGRESS` | FORENSIC_ONLY | DEV_ONLY | onboarding_logs | no |
 | `WEBHOOK_LIVENESS_PASSED` | FORENSIC_ONLY | DEV_ONLY | onboarding_logs | no |

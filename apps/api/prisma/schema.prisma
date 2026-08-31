@@ -2064,37 +2064,6 @@ model GeneratedDocumentEvidence {
   @@map("generated_document_evidence")
 }
 
-/// First-class operations alerts. Not a user notification type.
-model OpsAlert {
-  id                      String           @id @default(cuid())
-  type                    OpsAlertType
-  severity                OpsAlertSeverity
-  status                  OpsAlertStatus   @default(OPEN)
-  dedupe_key              String           @unique
-  title                   String
-  summary                 String?
-  entity_type             String?
-  entity_id               String?
-  details                 Json?
-  owner_user_id           String?          @db.VarChar(5)
-  occurrence_count        Int              @default(1)
-  first_seen_at           DateTime         @default(now())
-  last_seen_at            DateTime         @default(now())
-  created_at              DateTime         @default(now())
-  acknowledged_at         DateTime?
-  acknowledged_by_user_id String?          @db.VarChar(5)
-  resolved_at             DateTime?
-  resolved_by_user_id     String?          @db.VarChar(5)
-  closed_at               DateTime?
-  closed_by_user_id       String?          @db.VarChar(5)
-
-  @@index([status, severity])
-  @@index([type, status])
-  @@index([entity_type, entity_id])
-  @@index([created_at])
-  @@map("ops_alerts")
-}
-
 /// Immutable admin audit trail for legal document definition/version changes.
 model LegalDocumentAuditLog {
   id                        String             @id @default(cuid())
@@ -2903,30 +2872,4 @@ enum PaymasterAssignmentNoticeStatus {
   ACKNOWLEDGEMENT_UPLOADED
   ACKNOWLEDGED
   FAILED
-}
-
-enum OpsAlertType {
-  STUCK_PAYMENT
-  RECON_MISMATCH
-  RECEIPT_FAILURE
-  WEBHOOK_FAILURE
-  SIGNING_EXPIRY
-  PROVIDER_FAILURE
-  REPEATED_JOB_FAILURE
-  MISSING_LEGAL_EVIDENCE
-  GATEWAY_LEDGER_MISMATCH
-}
-
-enum OpsAlertSeverity {
-  CRITICAL
-  HIGH
-  MEDIUM
-  LOW
-}
-
-enum OpsAlertStatus {
-  OPEN
-  ACKNOWLEDGED
-  RESOLVED
-  CLOSED
 }

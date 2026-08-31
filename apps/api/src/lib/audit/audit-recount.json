@@ -1,13 +1,13 @@
 {
-  "liveEvents": 153,
+  "liveEvents": 144,
   "historicalReaders": 12,
   "devOnly": 7,
-  "catalogueSize": 172,
+  "catalogueSize": 163,
   "writerHits": 100,
   "unknown": 0,
   "unknownEvents": [],
   "byLifecycle": {
-    "LIVE": 153,
+    "LIVE": 144,
     "HISTORICAL_READER": 12,
     "DEV_ONLY": 7
   },
@@ -19,8 +19,7 @@
     "NOTE_TIMELINE": 13,
     "FINANCIAL_ONLY": 9,
     "SECURITY_ONLY": 13,
-    "LEGAL_ONLY": 10,
-    "OPS_ONLY": 9
+    "LEGAL_ONLY": 10
   },
   "byTable": {
     "application_logs": 50,
@@ -33,7 +32,6 @@
     "legal_document_audit_logs": 7,
     "legal_document_acceptances": 1,
     "legal_external_acceptances": 1,
-    "generated_document_evidence": 1,
-    "ops_alerts": 9
+    "generated_document_evidence": 1
   }
 }

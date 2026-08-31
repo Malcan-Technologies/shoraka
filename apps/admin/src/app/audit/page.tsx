@@ -10,7 +10,6 @@ import { LegalAcceptancesPanel } from "@/components/audit/legal-acceptances-pane
 import { LegalExternalAcceptancesPanel } from "@/components/audit/legal-external-acceptances-panel";
 import { LegalDocumentAuditPanel } from "@/components/audit/legal-document-audit-panel";
 import { NotificationLogsPanel } from "@/components/audit/notification-logs-panel";
-import { OpsAlertsPanel } from "@/components/audit/ops-alerts-panel";
 import { ProductLogsPanel } from "@/components/audit/product-logs-panel";
 import { SecurityLogsPanel } from "@/components/audit/security-logs-panel";
 import { AccessDeniedCard } from "@/components/require-permission";
@@ -24,7 +23,6 @@ const AUDIT_TABS = [
   { id: "legal-documents", label: "Legal Documents", permission: "document_management.view" },
   { id: "legal-acceptances", label: "Legal Acceptances", permission: "document_management.view" },
   { id: "external-acceptances", label: "External Acceptances", permission: "document_management.view" },
-  { id: "ops-alerts", label: "Ops Alerts", permission: "ops.alerts.view" },
   { id: "notifications", label: "Notifications", permission: "notifications.view" },
 ] as const satisfies ReadonlyArray<{
   id: string;
@@ -107,7 +105,6 @@ function AuditPageContent() {
               {tab.id === "legal-documents" ? <LegalDocumentAuditPanel /> : null}
               {tab.id === "legal-acceptances" ? <LegalAcceptancesPanel /> : null}
               {tab.id === "external-acceptances" ? <LegalExternalAcceptancesPanel /> : null}
-              {tab.id === "ops-alerts" ? <OpsAlertsPanel /> : null}
               {tab.id === "notifications" ? <NotificationLogsPanel /> : null}
             </TabsContent>
           ))}

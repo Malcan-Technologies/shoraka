@@ -10,10 +10,6 @@ jest.mock("../../modules/signing/service", () => ({
   },
 }));
 
-jest.mock("../../modules/ops-alerts/service", () => ({
-  raiseOpsAlert: jest.fn().mockResolvedValue(undefined),
-}));
-
 import { prisma } from "../prisma";
 import { signingService } from "../../modules/signing/service";
 import { runSigningEnvelopeExpiryJob } from "./signing-envelope-expiry";

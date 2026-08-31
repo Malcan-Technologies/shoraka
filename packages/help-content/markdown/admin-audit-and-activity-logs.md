@@ -32,7 +32,6 @@ Internal IDs may also be shown on some screens for investigation.
 - [Withdrawals & Trustee](#withdrawals--trustee)
 - [Legal Documents](#legal-documents)
 - [Legal Acceptances](#legal-acceptances)
-- [Ops Alerts](#ops-alerts)
 - [Products](#products)
 - [Access & Security](#access--security)
 - [Notifications](#notifications)
@@ -3273,7 +3272,6 @@ Operations can use these prefixes when searching or communicating about a record
 | Legal documents | Admin → Audit → Legal Documents |
 | Legal acceptances | Admin → Audit → Legal Acceptances |
 | External acceptances | Admin → Audit → External Acceptances |
-| Ops alerts | Admin → Audit → Ops Alerts |
 | Access logs | Admin → Audit → Access |
 | Security logs | Admin → Audit → Security |
 | Product logs | Admin → Audit → Products |
@@ -3293,22 +3291,6 @@ Unauthenticated parties (for example guarantors on a signing link) accept publis
 **Where Operations checks:** Admin → Audit → External Acceptances
 
 This is legal evidence, not an Activity row. Rows keep party name/email/role snapshots plus envelope, application and organisation linkage. Deleting a signing envelope does not cascade-delete this evidence.
-
----
-
-## Ops Alerts
-
-First-class operations alerts (not user notification types).
-
-**Where Operations checks:** Admin → Audit → Ops Alerts
-
-Statuses: OPEN → ACKNOWLEDGED → RESOLVED / CLOSED.
-
-Types include stuck payment, recon mismatch, receipt failure, webhook failure, signing expiry, provider failure, repeated job failure, missing legal evidence, and gateway/ledger mismatch.
-
-Alerts dedupe by key. Replay increments occurrence count instead of creating a duplicate notification.
-
-If an alert row fails to persist, the underlying payment, receipt, webhook, recon, envelope or legal row is still the source of truth. An hourly reconstruction job recreates missing reconstructable alerts and resolves alerts whose condition has cleared. Repeated job failures and short-lived Curlec poll errors stay in CloudWatch rather than being invented from the database.
 
 ---
 

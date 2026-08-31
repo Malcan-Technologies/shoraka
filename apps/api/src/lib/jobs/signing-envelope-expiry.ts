@@ -6,8 +6,6 @@ import { prisma } from "../prisma";
 import { logger } from "../logger";
 import { systemAuditContext } from "../audit";
 import { signingService } from "../../modules/signing/service";
-import { OpsAlertSeverity, OpsAlertType } from "@prisma/client";
-import { raiseOpsAlert } from "../../modules/ops-alerts/service";
 
 export type SigningEnvelopeExpiryResult = {
   expiredEnvelopeIds: string[];
@@ -34,15 +32,6 @@ export async function runSigningEnvelopeExpiryJob(): Promise<SigningEnvelopeExpi
     const closed = await signingService.expireEnvelope(envelope.id, { context });
     if (closed) {
       expiredEnvelopeIds.push(envelope.id);
-      await raiseOpsAlert({
-        type: OpsAlertType.SIGNING_EXPIRY,
-        severity: OpsAlertSeverity.MEDIUM,
-        dedupeKey: `signing-expiry:${envelope.id}`,
-        title: "Signing package expired",
-        summary: "An active signing envelope reached its expiry timestamp",
-        entityType: "signing_envelope",
-        entityId: envelope.id,
-      });
     }
   }
 
