@@ -5,5 +5,6 @@ These files are historical investigation notes from earlier branches. They are *
 Current sources of truth:
 
 - `docs/logging-architecture.md`
+- `docs/logging-event-catalogue.md`
 - `apps/api/src/lib/audit/visibility-matrix.ts`
-- Operations Help: Logs, Activity & Notifications
+- Admin Help: Operations Guide: Activity, Logs and Notifications (`packages/help-content/markdown/admin-operations-activity-audit-guide.md`)

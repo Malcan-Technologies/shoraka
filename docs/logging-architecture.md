@@ -105,3 +105,19 @@ Issuer/Investor Activity must not show provider internals, webhook event names, 
 Live vs historical vs dev-only classification is `apps/api/src/lib/audit/visibility-matrix.ts`. Historical readers stay so old rows still render. Help and catalogues must not advertise them as current writers.
 
 Stale audit journals live under `docs/audit/archive/`.
+
+Admin Help for Operations is `packages/help-content/markdown/admin-operations-activity-audit-guide.md`. Event names live in `docs/logging-event-catalogue.md`.
+
+## Record prefixes
+
+| Prefix | Meaning |
+| --- | --- |
+| APP | Application |
+| CON | Facility / Contract |
+| INV | Invoice |
+| NOTE | Investment Note |
+| SET | Settlement |
+| WDL | Withdrawal |
+| ISS | Issuer organisation |
+| IVT | Investor organisation |
+| RCP | Receipt |
