@@ -527,6 +527,7 @@ describe("Paymaster identity writers stay notification-free and separate from ap
       readFileSync(join(__dirname, "service.ts"), "utf8"),
       readFileSync(join(__dirname, "identity-audit.ts"), "utf8"),
       readFileSync(join(__dirname, "controller.ts"), "utf8"),
+      readFileSync(join(__dirname, "activity.ts"), "utf8"),
     ].join("\n");
     expect(src).not.toMatch(/sendTyped|NotificationService|createInternal/);
   });

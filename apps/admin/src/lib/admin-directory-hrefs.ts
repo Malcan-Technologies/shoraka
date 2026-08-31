@@ -17,6 +17,10 @@ export function issuerMarcHref(organizationId: string): string {
   return `${orgHref("issuer", organizationId)}?tab=organization#marc-assessment`;
 }
 
+export function applicationHref(productId: string, applicationId: string): string {
+  return `/applications/${encodeURIComponent(productId)}/${encodeURIComponent(applicationId)}`;
+}
+
 export function paymasterHref(id: string): string {
   return `/paymasters/${encodeURIComponent(id)}`;
 }

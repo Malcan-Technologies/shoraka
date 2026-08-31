@@ -6,6 +6,7 @@ import type {
   LegalDocumentAuditLogListItem,
   NoteEvent,
   OnboardingLogResponse,
+  PaymasterActivityEvent,
   ProductLogResponse,
 } from "@cashsouk/types";
 import { formatForensicAuditSourceLabel } from "@cashsouk/types";
@@ -585,6 +586,63 @@ export function contractEventToAuditDetail(
     reason: event.remark,
     technical: presentFields([
       { label: "Event type", value: event.eventType },
+      { label: "Application ID", value: event.applicationId },
+      { label: "Actor ID", value: event.actorUserId },
+      { label: "Source", value: event.portal },
+    ]),
+    metadata: event.metadata,
+    previousValues: previous,
+    nextValues: next,
+  };
+}
+
+export function paymasterActivityToAuditDetail(
+  event: PaymasterActivityEvent,
+  eventLabel: string
+): AuditDetailRecord {
+  const actorType = resolveAuditActorType({
+    portal: event.portal,
+    actorName: event.actorName,
+    actorUserId: event.actorUserId,
+  });
+  const { previous, next } = extractPreviousNext(event.metadata);
+  return {
+    id: event.id,
+    title: "Event details",
+    eventLabel,
+    eventType: event.eventType,
+    timestamp: event.createdAt,
+    description: event.remark,
+    actor: {
+      name: presentAuditActorName(event.actorName, actorType),
+      type: actorType,
+      source: event.portal,
+      id: event.actorUserId,
+      portal: event.portal,
+    },
+    target: {
+      type: "PAYMASTER",
+      id: event.paymasterId,
+      applicationReference: event.applicationDisplayReference,
+      extra: presentFields([
+        { label: "Issuer", value: event.issuerName },
+        { label: "Issuer organisation ID", value: event.issuerOrganizationId },
+        { label: "Application", value: event.applicationDisplayReference },
+        {
+          label: "Related party",
+          value: event.relatedParty == null ? null : event.relatedParty ? "Yes" : "No",
+        },
+        { label: "Verification status", value: event.verificationStatus },
+        { label: "Previous status", value: event.previousStatus },
+        { label: "New status", value: event.newStatus },
+      ]),
+    },
+    changedFields: diffAuditValues(previous, next),
+    reason: event.remark,
+    remark: event.remark,
+    technical: presentFields([
+      { label: "Event type", value: event.eventType },
+      { label: "Paymaster ID", value: event.paymasterId },
       { label: "Application ID", value: event.applicationId },
       { label: "Actor ID", value: event.actorUserId },
       { label: "Source", value: event.portal },

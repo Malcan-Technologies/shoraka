@@ -96,6 +96,45 @@ export interface PaymasterDetail extends PaymasterIdentity {
   notices: PaymasterNoticeHistoryRow[];
 }
 
+/** Identity lifecycle events stored on `application_logs` and read from Application and Paymaster Activity. */
+export const PAYMASTER_IDENTITY_ACTIVITY_EVENT_TYPES = [
+  "PAYMASTER_CREATED",
+  "PAYMASTER_LINKED_TO_ISSUER",
+  "PAYMASTER_VERIFIED",
+] as const;
+
+export type PaymasterIdentityActivityEventType =
+  (typeof PAYMASTER_IDENTITY_ACTIVITY_EVENT_TYPES)[number];
+
+export function isPaymasterIdentityActivityEventType(
+  eventType: string
+): eventType is PaymasterIdentityActivityEventType {
+  return (PAYMASTER_IDENTITY_ACTIVITY_EVENT_TYPES as readonly string[]).includes(eventType);
+}
+
+/** One `application_logs` row for a Paymaster master. Same record as Application Activity. */
+export interface PaymasterActivityEvent {
+  id: string;
+  eventType: PaymasterIdentityActivityEventType;
+  createdAt: string;
+  remark: string | null;
+  actorUserId: string | null;
+  actorName: string | null;
+  portal: string | null;
+  paymasterId: string;
+  issuerOrganizationId: string | null;
+  issuerName: string | null;
+  issuerDisplayReference: string | null;
+  applicationId: string | null;
+  applicationDisplayReference: string | null;
+  applicationProductId: string | null;
+  relatedParty: boolean | null;
+  verificationStatus: string | null;
+  previousStatus: string | null;
+  newStatus: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
 export interface IssuerPaymasterOption {
   id: string;
   legalName: string;

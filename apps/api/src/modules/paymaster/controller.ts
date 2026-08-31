@@ -14,6 +14,7 @@ import {
   issuerPaymasterLookupQuerySchema,
   verifyPaymasterBodySchema,
 } from "./schemas";
+import { listAdminPaymasterActivity } from "./activity";
 import {
   createMarcAssessment,
   getAdminPaymasterDetail,
@@ -120,6 +121,19 @@ adminPaymasterRouter.get(
           pageSize: query.pageSize,
         })
       );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminPaymasterRouter.get(
+  "/:id/activity",
+  requirePermission("paymasters.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = paymasterIdParamSchema.parse(req.params);
+      send(res, await listAdminPaymasterActivity(id));
     } catch (error) {
       next(error);
     }

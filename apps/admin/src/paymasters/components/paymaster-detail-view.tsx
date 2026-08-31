@@ -24,6 +24,7 @@ import {
   assignmentNoticeStatusToken,
 } from "@/lib/admin-status-token";
 import { useAdminPaymasterDetail } from "@/paymasters/hooks/use-paymasters";
+import { PaymasterActivityPanel } from "@/paymasters/components/paymaster-activity-panel";
 import { PaymasterVerificationPanel } from "@/paymasters/components/paymaster-verification-panel";
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -160,6 +161,8 @@ export function PaymasterDetailView({ paymasterId }: { paymasterId: string }) {
           layout="detail"
         />
       </AdminCollapsibleCard>
+
+      <PaymasterActivityPanel paymasterId={data.id} legalName={data.legalName} />
 
       <AdminCollapsibleCard
         title="Assignment notices"

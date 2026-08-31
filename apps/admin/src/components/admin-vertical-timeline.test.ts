@@ -36,6 +36,7 @@ describe("admin timeline wrappers use the shared list", () => {
     "organization-activity-timeline.tsx",
     "../notes/components/note-timeline-panel.tsx",
     "../contracts/components/contract-activity-panel.tsx",
+    "../paymasters/components/paymaster-activity-panel.tsx",
     "../app/finance/gateway-payments/[id]/page.tsx",
   ];
 

@@ -32,6 +32,37 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(panel).not.toMatch(/mismatch/i);
   });
 
+  it("Paymaster Detail shows identity Activity separately from Linked issuers and notices", () => {
+    const detail = readFileSync(join(__dirname, "paymaster-detail-view.tsx"), "utf8");
+    const activity = readFileSync(join(__dirname, "paymaster-activity-panel.tsx"), "utf8");
+    expect(detail).toContain("PaymasterActivityPanel");
+    expect(detail).toContain('title="Linked issuers"');
+    expect(detail).toContain("PaymasterVerificationPanel");
+    expect(detail).toContain('title="Assignment notices"');
+    expect(detail.indexOf("<PaymasterVerificationPanel")).toBeLessThan(
+      detail.indexOf("<PaymasterActivityPanel")
+    );
+    expect(activity).toContain('title="Activity"');
+    expect(activity).toContain("AdminVerticalTimeline");
+    expect(activity).toContain("formatAuditEventLabel");
+    expect(activity).toContain("events.map");
+    expect(activity).toContain("orgHref");
+    expect(activity).toContain("applicationHref");
+    expect(activity).toMatch(/created, issuer-link, and identity-verified/);
+    expect(activity).not.toMatch(/PAYMASTER_NOTICE|acknowledgement|Notice of Assignment/i);
+    expect(activity).not.toMatch(/sendTyped|NotificationService/);
+  });
+
+  it("Application Activity still presents the same Paymaster identity events", () => {
+    const timeline = readFileSync(
+      join(__dirname, "../../components/admin-activity-timeline.tsx"),
+      "utf8"
+    );
+    expect(timeline).toMatch(/PAYMASTER_CREATED:\s*"Paymaster Created"/);
+    expect(timeline).toMatch(/PAYMASTER_LINKED_TO_ISSUER:\s*"Paymaster Linked to Issuer"/);
+    expect(timeline).toMatch(/PAYMASTER_VERIFIED:\s*"Paymaster Identity Verified"/);
+  });
+
   it("Application Review retains Verify Paymaster without mismatch warning", () => {
     const customer = readFileSync(
       join(__dirname, "../../components/application-review/sections/customer-section.tsx"),

@@ -184,10 +184,10 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 
 ### Paymaster identity
 
-These events are Admin Activity on the Application timeline. They are not customer-visible and they are not Notice / acknowledgement events.
+These events are Admin Activity on the Application timeline and on Paymaster → Activity. They are the same `application_logs` rows, not duplicated. They are not customer-visible and they are not Notice / acknowledgement events.
 
 | Event Type | Source | Portal | Description |
 |------------|--------|--------|-------------|
-| `PAYMASTER_CREATED` | paymaster/service `resolvePaymasterFromCustomerDetails` | ISSUER | New Paymaster master created Unverified from Customer Details Save. Display: Paymaster Created |
-| `PAYMASTER_LINKED_TO_ISSUER` | paymaster/service `resolvePaymasterFromCustomerDetails` | ISSUER | New issuer link on an existing master. Not written for the originating create or same-issuer reuse. Display: Paymaster Linked to Issuer |
-| `PAYMASTER_VERIFIED` | paymaster/service `verifyPaymaster` | ADMIN | First Unverified → Verified via Verify Paymaster. Display: Paymaster Identity Verified. Does not approve the application |
+| `PAYMASTER_CREATED` | paymaster/service `resolvePaymasterFromCustomerDetails` | ISSUER | New Paymaster master created Unverified from Customer Details Save. Display: Paymaster Created. Admin: Application → Activity Timeline; Paymaster → Activity |
+| `PAYMASTER_LINKED_TO_ISSUER` | paymaster/service `resolvePaymasterFromCustomerDetails` | ISSUER | New issuer link on an existing master. Not written for the originating create or same-issuer reuse. Display: Paymaster Linked to Issuer. Admin: Application → Activity Timeline; Paymaster → Activity |
+| `PAYMASTER_VERIFIED` | paymaster/service `verifyPaymaster` | ADMIN | First Unverified → Verified via Verify Paymaster. Display: Paymaster Identity Verified. Does not approve the application. Admin: Application → Activity Timeline; Paymaster → Activity |

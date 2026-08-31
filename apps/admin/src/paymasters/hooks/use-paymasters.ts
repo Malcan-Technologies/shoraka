@@ -16,6 +16,7 @@ export const paymastersKeys = {
     pageSize?: number;
   }) => [...paymastersKeys.all, "list", params] as const,
   detail: (id: string) => [...paymastersKeys.all, "detail", id] as const,
+  activity: (id: string) => [...paymastersKeys.all, "activity", id] as const,
 };
 
 export function useAdminPaymasters(params: {
@@ -45,6 +46,20 @@ export function useAdminPaymasterDetail(id: string) {
       const response = await apiClient.getAdminPaymasterDetail(id);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
+    },
+    enabled: Boolean(id),
+  });
+}
+
+export function useAdminPaymasterActivity(id: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  return useQuery({
+    queryKey: paymastersKeys.activity(id),
+    queryFn: async () => {
+      const response = await apiClient.getAdminPaymasterActivity(id);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data.events;
     },
     enabled: Boolean(id),
   });

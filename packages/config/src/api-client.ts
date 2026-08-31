@@ -149,6 +149,7 @@ import type {
   InvoiceOfferAcceptSignatoriesResponse,
   IssuerPaymasterOption,
   MarcAssessmentSnapshot,
+  PaymasterActivityEvent,
   PaymasterAssignmentNotice,
   PaymasterDetail,
   PaymasterListItem,
@@ -761,6 +762,12 @@ export class ApiClient {
 
   async getAdminPaymasterDetail(id: string): Promise<ApiResponse<PaymasterDetail> | ApiError> {
     return this.get(`/v1/admin/paymasters/${id}`);
+  }
+
+  async getAdminPaymasterActivity(
+    id: string
+  ): Promise<ApiResponse<{ events: PaymasterActivityEvent[] }> | ApiError> {
+    return this.get(`/v1/admin/paymasters/${id}/activity`);
   }
 
   async verifyAdminPaymaster(
