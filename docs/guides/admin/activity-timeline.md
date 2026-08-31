@@ -19,7 +19,7 @@ The `application_logs` table (Prisma model: `ApplicationLog`) is defined in `app
 Important fields:
 
 - **id** — Unique identifier for the log row.
-- **user_id** — Acting user when a human performed the change. Null for system/provider-derived rows and timeline repair.
+- **user_id** — Acting user when a human performed the change. Null for system/provider-derived rows.
 - **application_id** — Which application the log belongs to. Can be null for some system events.
 - **event_type** — Short code describing the event, e.g. `APPLICATION_CREATED`, `APPLICATION_SUBMITTED`, `SECTION_REVIEWED_APPROVED`, `ITEM_REVIEWED_AMENDMENT_REQUESTED`, `APPLICATION_RESUBMITTED`.
 - **remark** — Human-readable note. Stored at the top level. The UI uses this for the "View details" content. Do not put the main remark text in metadata.

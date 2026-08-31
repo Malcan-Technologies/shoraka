@@ -9,7 +9,6 @@ import { runSigningReconcileJob } from "./signing-reconcile";
 import { runGatewayStuckOrderPollerJob } from "./gateway-stuck-order-poller";
 import { runGatewaySettlementReconForConfiguredAccounts } from "./gateway-settlement-recon";
 import { runGatewayReceiptRetryJob } from "./gateway-receipt-retry";
-import { runApplicationTimelineRepairJob } from "./application-timeline-repair";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
 
 const notificationService = new NotificationService();
@@ -138,17 +137,6 @@ export function initJobs() {
     } catch (error) {
       logger.error({ error }, "Failed to run gateway settlement recon job");
     }
-  });
-
-  // Legacy/backfill: missing APPLICATION_CREATED / APPLICATION_SUBMITTED timeline rows.
-  cron.schedule("20 * * * *", async () => {
-    await withAdvisoryLock(JOB_LOCK_KEYS.APPLICATION_TIMELINE_REPAIR, async () => {
-      try {
-        await runApplicationTimelineRepairJob();
-      } catch (error) {
-        logger.error({ error }, "Failed to run application timeline repair job");
-      }
-    });
   });
 
   // Reconcile signing envelopes missing PDFs and stale trust-return sessions.

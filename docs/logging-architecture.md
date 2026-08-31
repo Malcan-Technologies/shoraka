@@ -61,13 +61,13 @@ These may warn and continue. Losing them does not remove the business audit trai
 
 Application timeline: when the caller passes a transaction client, a failed `logApplicationActivity` insert aborts that transaction. Sequential callers (no `db`) still use the origin overlay: the mutation can commit without a timeline row. Do not treat those overlay rows as a substitute for legal or financial evidence tables.
 
-`APPLICATION_CREATED` is written inside `createApplication` (same transaction as the draft row) so the creating actor is not lost. `APPLICATION_SUBMITTED` is written inside `persistSubmittedApplication` (same transaction as `status` + `submitted_at`) so the submitting actor is not lost. Hourly timeline repair is a legacy/backfill: it inserts missing created/submitted rows from `applications.created_at` / `submitted_at` with `source=INTERNAL` and a null actor (never invents a creator or submitter).
+`APPLICATION_CREATED` is written inside `createApplication` (same transaction as the draft row) so the creating actor is not lost. `APPLICATION_SUBMITTED` is written inside `persistSubmittedApplication` (same transaction as `status` + `submitted_at`) so the submitting actor is not lost. There is no recurring application timeline repair job.
 
 ## Accepted residuals
 
 These are known gaps. They are not silent, and they are not an Ops Alert queue.
 
-1. **Historical missing create/submit timeline rows are backfilled.** Live `APPLICATION_CREATED` / `APPLICATION_SUBMITTED` are written in the same transaction as the application state. Hourly `application-timeline-repair` still inserts a missing timeline row from `created_at` / `submitted_at` for older records (null actor, `source=INTERNAL`). It does not invent a creator or submitter.
+1. **Missing historical create/submit timeline rows are not reconstructed.** Live `APPLICATION_CREATED` / `APPLICATION_SUBMITTED` are written in the same transaction as the application state. Older applications that never received those timeline rows stay without them. There is no recurring repair job.
 2. **Curlec provider/sync failure is secondary to durable gateway state.** `gateway_payments` plus `gateway_payment_events` and the stuck-order poller are the money-in record. A failed provider fetch logs a warning and returns the stored payment. There is no reconstruction job and no Ops Alert.
 3. **Repeated job failure is `logger.error` plus the next cron run.** `initJobs()` logs the error and the following schedule retries. There is no reconstruction mechanism and no Ops Alert.
 

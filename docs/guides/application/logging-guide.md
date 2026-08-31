@@ -35,7 +35,7 @@ The table has these columns:
   ------------------- ---------------------------------------------------------
   id                  A unique ID for this log row. Like a serial number.
   user_id             The acting user when a human performed the change.
-                      Null for system/provider-derived rows and timeline repair.
+                      Null for system/provider-derived rows.
   application_id      The ID of the application. Can be empty for some events.
   event_type          A short code that says what happened. Examples:
                       APPLICATION_CREATED, APPLICATION_SUBMITTED, etc.
@@ -106,7 +106,7 @@ Step 1: Issuer clicks "Create application" in the issuer portal.
 
   What happens: A new application is created in the database.
   Log created: APPLICATION_CREATED (same transaction as the draft row)
-  Who: The issuer (user_id). Legacy repair rows for historical missing events use a null actor.
+  Who: The issuer (user_id).
   Portal: ISSUER
   Where it shows: Activity timeline
 

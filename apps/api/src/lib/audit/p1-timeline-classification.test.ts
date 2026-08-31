@@ -27,4 +27,12 @@ describe("P1 application timeline classification", () => {
     expect(persist).toMatch(/,\s*tx\s*\)/);
     expect(read("modules/applications/controller.ts")).not.toMatch(/APPLICATION_SUBMITTED/);
   });
+
+  it("does not register an application timeline repair job", () => {
+    const jobs = read("lib/jobs/index.ts");
+    expect(jobs).not.toMatch(/application-timeline-repair/);
+    expect(jobs).not.toMatch(/runApplicationTimelineRepairJob/);
+    expect(jobs).not.toMatch(/APPLICATION_TIMELINE_REPAIR/);
+    expect(read("lib/jobs/with-advisory-lock.ts")).not.toMatch(/APPLICATION_TIMELINE_REPAIR/);
+  });
 });

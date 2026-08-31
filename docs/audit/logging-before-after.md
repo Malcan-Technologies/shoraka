@@ -148,7 +148,7 @@ DEV_ONLY: `WEBHOOK_*` from `webhook-handler-dev.ts`.
 | Event | Behaviour |
 |---|---|
 | `APPLICATION_SUBMITTED` | Inside `persistSubmittedApplication` **same transaction** as `status` + `submitted_at` (`applications/service.ts` ~2194). Failed insert aborts submit. Introduced `864c294b`. |
-| `APPLICATION_CREATED` | Inside `createApplication` **same transaction** as the draft `applications` row (`applications/service.ts`). Failed insert aborts create. Controller overlay removed. Hourly `application-timeline-repair.ts` remains as a **legacy/backfill** for historical missing created/submitted rows (`source=INTERNAL`, null actor). |
+| `APPLICATION_CREATED` | Inside `createApplication` **same transaction** as the draft `applications` row (`applications/service.ts`). Failed insert aborts create. Controller overlay removed. No recurring timeline repair job. |
 | Material onboarding | Same Prisma transaction as org state (`onboarding-tx.ts` / `createOnboardingLogRow`). |
 
 ### Catalogue gaps (live label, weak/no writer)
@@ -188,7 +188,7 @@ Git `-S` first appearance after `2e80520c`:
 | `generated_document_evidence` | `0c7dd795` | `generated-documents/service.ts` |
 | `PAYMASTER_*`, `MARC_ASSESSMENT_SAVED` | `0b7af35f` / `0c7dd795` | paymaster services |
 | `LegalExternalAcceptance` | `96e5b8a6` Feat/acceptance documents (#235) | `legal-documents/external-acceptance-service.ts` |
-| Atomic `APPLICATION_SUBMITTED` + timeline repair | `864c294b` | `applications/service.ts`, `application-timeline-repair.ts` |
+| Atomic `APPLICATION_SUBMITTED` | `864c294b` | `applications/service.ts` (hourly timeline repair from that commit was later removed) |
 | Catalogue / visibility matrix | `0c7dd795` and later | `visibility-matrix.ts` |
 
 `96e5b8a6` is on this branch history (`2e80520c..1deb2f8b`). External acceptance is **in AFTER**, even though the commit message is the acceptance-documents PR, not “Redo log”.
@@ -356,7 +356,6 @@ Channels remain platform + email per seed defaults (password-changed always both
 |---|---|---|---|---|---|---|
 | Submit log | Issuer Submit | `applications/service.ts` `persistSubmittedApplication` | `application_logs` | API | Overlay → atomic | `864c294b`; `git show 2e80520c:apps/api/src/modules/applications/controller.ts` ~304 |
 | Create log | Issuer creates draft | `applications/service.ts` `createApplication` | `application_logs` | API | Overlay → atomic | Same pattern as submit; controller overlay removed |
-| Repair | Hourly job | `application-timeline-repair.ts` | `application_logs` | INTERNAL | Legacy/backfill for missing created/submitted rows | `864c294b`; live create/submit are atomic |
 | Facility decline | Issuer reject offer | `applications/service.ts` | `application_logs` | API | `CONTRACT_WITHDRAWN` → `CONTRACT_OFFER_DECLINED` | `c775cada`; BEFORE ~2886 |
 | Signing declined | Provider/signer decline | `signing/service.ts` | `application_logs` | WEBHOOK/INTERNAL | VOIDED → DECLINED | `0c7dd795`; BEFORE ~1940 |
 | Signing expired | Envelope `expires_at` | `signing/service.ts` | `application_logs` | SYSTEM_JOB | New type | `0c7dd795` |
