@@ -482,5 +482,23 @@ export const OPENING_APPLICATION_COPY = {
 export const FACILITY_ONLY_SUBMIT_COPY =
   "This application is for a facility only. After CashSouk approves it, Finance an invoice will appear on the facility so you can request financing for an invoice.";
 
+export const INHERITED_FACILITY_GUARANTORS_STEP_DESCRIPTION =
+  "Tell us why you are raising funds. Guarantors are taken from the approved facility.";
+
+export const INHERITED_FACILITY_GUARANTORS_ISSUER_COPY =
+  "Guarantors were provided when this facility was approved. This drawdown uses the same guarantors and they cannot be changed here.";
+
+export const INHERITED_FACILITY_GUARANTORS_ADMIN_COPY =
+  "Guarantors were provided when this facility was approved";
+
+export const INHERITED_FACILITY_GUARANTORS_ADMIN_LOCK_TOOLTIP =
+  "Guarantors were provided when the linked facility was approved";
+
+export const INHERITED_FACILITY_GUARANTORS_AML_BLOCKED =
+  "Guarantors for this drawdown are inherited from the facility application. Start AML screening there.";
+
+export const FACILITY_GUARANTORS_REQUIRED =
+  "The selected facility has no guarantors. Contact CashSouk before requesting a drawdown.";
+
 export const NO_APPROVED_FACILITY_COPY = "You do not have an approved facility yet";
 export const SET_UP_FACILITY_INSTEAD_COPY = "Set up a new facility instead";

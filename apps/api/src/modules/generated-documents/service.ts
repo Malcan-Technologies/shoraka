@@ -7,6 +7,7 @@ import {
   listGeneratedDocumentTypesForContext,
   parseGeneratedDocumentTypeKey,
   readFinancingStructureType,
+  isInheritedFacilityGuarantorReview,
   resolveAcceptanceDocumentsFromWorkflow,
   parseSupportingDocumentRow,
   parseGuarantorAgreementRow,
@@ -29,6 +30,7 @@ import {
   renderFacilityLoDocx,
 } from "../applications/letter-of-offer/render-facility-lo-docx";
 import { convertDocxToPdf, DocxToPdfError } from "../applications/letter-of-offer/convert-docx-to-pdf";
+import { loadInheritedGuarantorsForExistingContract } from "../../lib/contract-originating-application";
 
 const SUPPORTING_DOC_CATEGORIES = [
   "financial_docs",
@@ -296,6 +298,23 @@ export class GeneratedDocumentsService {
       // Platform finance settings may be unavailable in some envs.
     }
 
+    const financingStructureType = readFinancingStructureType(application!.financing_structure);
+    let liveGuarantors = (application as { application_guarantors?: unknown }).application_guarantors;
+    if (
+      isInheritedFacilityGuarantorReview(financingStructureType) &&
+      application!.contract_id
+    ) {
+      const inherited = await loadInheritedGuarantorsForExistingContract(prisma, {
+        contractId: application!.contract_id,
+        originatingApplicationId:
+          (contract as { originating_application_id?: string | null }).originating_application_id ??
+          null,
+      });
+      if (inherited) {
+        liveGuarantors = inherited.application_guarantors;
+      }
+    }
+
     const mergeData = buildFacilityLoMergeData({
       contract: {
         id: String(contract.id),
@@ -315,10 +334,9 @@ export class GeneratedDocumentsService {
         id: application!.id,
         company_details: application!.company_details,
         business_details: application!.business_details,
-        application_guarantors: (application as { application_guarantors?: unknown })
-          .application_guarantors,
+        application_guarantors: liveGuarantors,
       },
-      financingStructureType: readFinancingStructureType(application!.financing_structure),
+      financingStructureType,
       gracePeriodDaysDefault,
       productWorkflow,
     });
@@ -330,14 +348,14 @@ export class GeneratedDocumentsService {
           ? (offerRecord as { sent_at: string }).sent_at.trim()
           : ""
         : "";
-    const liveGuarantors = (application as { application_guarantors?: unknown }).application_guarantors;
+    const liveGuarantorCount = Array.isArray(liveGuarantors) ? liveGuarantors.length : 0;
     assertFacilityLoMergeReady({
       mergeData,
       sentAt,
       authorizedParties: getLoAuthorizedPartiesFromAcceptance(
         getOfferAcceptanceFromOfferDetails(contract.offer_details)
       ),
-      liveGuarantorCount: Array.isArray(liveGuarantors) ? liveGuarantors.length : 0,
+      liveGuarantorCount,
     });
 
     const templateBytes = readFacilityLoTemplateBytes();

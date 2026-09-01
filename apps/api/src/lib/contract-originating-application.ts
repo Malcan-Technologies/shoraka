@@ -1,8 +1,10 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import {
+  isInheritedFacilityGuarantorReview,
   isNewContractFinancingStructure,
   isTerminalOriginatingApplicationStatus,
   pickEarliestOriginatingApplication,
+  readFinancingStructureType,
 } from "@cashsouk/types";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
@@ -122,5 +124,88 @@ export async function loadInheritedAcceptanceForExistingContract(
     review_items: sourceApplication.application_review_items,
     product_workflow: productWorkflow,
     product_version: sourceApplication.product_version,
+  };
+}
+
+export type InheritedGuarantorsPayload = {
+  source_application_id: string;
+  source_display_reference: string | null;
+  source_product_id: string | null;
+  application_guarantors: unknown[];
+};
+
+export async function loadInheritedGuarantorsForExistingContract(
+  db: DbClient,
+  input: {
+    contractId: string;
+    originatingApplicationId?: string | null;
+  }
+): Promise<InheritedGuarantorsPayload | null> {
+  const sourceApplicationId = await resolveContractOriginatingApplicationId(
+    db,
+    input.contractId,
+    input.originatingApplicationId
+  );
+  if (!sourceApplicationId) {
+    return null;
+  }
+
+  const sourceApplication = await db.application.findUnique({
+    where: { id: sourceApplicationId },
+    select: {
+      id: true,
+      display_reference: true,
+      financing_type: true,
+      application_guarantors: { orderBy: { position: "asc" as const } },
+    },
+  });
+  if (!sourceApplication) {
+    return null;
+  }
+
+  const financingType =
+    sourceApplication.financing_type && typeof sourceApplication.financing_type === "object"
+      ? (sourceApplication.financing_type as Record<string, unknown>)
+      : null;
+  const productId =
+    typeof financingType?.product_id === "string" ? financingType.product_id : null;
+
+  return {
+    source_application_id: sourceApplication.id,
+    source_display_reference: sourceApplication.display_reference ?? null,
+    source_product_id: productId,
+    application_guarantors: sourceApplication.application_guarantors,
+  };
+}
+
+export async function attachInheritedFacilityGuarantors<
+  T extends {
+    financing_structure?: unknown;
+    contract_id?: string | null;
+    contract?: { status?: string | null; originating_application_id?: string | null } | null;
+    application_guarantors?: unknown;
+  },
+>(
+  db: DbClient,
+  application: T
+): Promise<T & { inherited_guarantors: InheritedGuarantorsPayload | null }> {
+  const structureType = readFinancingStructureType(application.financing_structure);
+  if (
+    !isInheritedFacilityGuarantorReview(structureType) ||
+    !application.contract_id ||
+    application.contract?.status !== "APPROVED"
+  ) {
+    return { ...application, inherited_guarantors: null };
+  }
+
+  const inherited = await loadInheritedGuarantorsForExistingContract(db, {
+    contractId: application.contract_id,
+    originatingApplicationId: application.contract.originating_application_id ?? null,
+  });
+
+  return {
+    ...application,
+    inherited_guarantors: inherited,
+    application_guarantors: inherited?.application_guarantors ?? application.application_guarantors,
   };
 }

@@ -251,6 +251,16 @@ export interface Application {
   business_details?: JsonValue | null;
   /** Present when loaded via GET /applications/:id (relational guarantors for hydration). */
   application_guarantors?: unknown[];
+  /**
+   * Existing-contract drawdowns: guarantors from the originating facility application.
+   * `application_guarantors` is overlaid with the same rows for read-only display.
+   */
+  inherited_guarantors?: {
+    source_application_id: string;
+    source_display_reference?: string | null;
+    source_product_id?: string | null;
+    application_guarantors: unknown[];
+  } | null;
   supporting_documents?: JsonValue | null;
   /** Offer-acceptance uploads (e.g. Board Resolution); separate from supporting_documents. */
   acceptance_documents?: JsonValue | null;

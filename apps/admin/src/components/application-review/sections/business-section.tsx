@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Label } from "@/components/ui/label";
 import { YesNoRadioDisplay, StatusBadge } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
@@ -69,6 +70,7 @@ import { regtankNationalityDisplayLabel } from "@cashsouk/types";
 import {
   GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
   GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS,
+  INHERITED_FACILITY_GUARANTORS_ADMIN_COPY,
   type GuarantorCompanyRelationship,
   type GuarantorIndividualRelationship,
 } from "@cashsouk/types";
@@ -119,6 +121,8 @@ export interface BusinessSectionProps {
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
   hideSectionComments?: boolean;
+  guarantorsReviewMode?: "live" | "inherited";
+  inheritedSourceApplication?: { id: string; productId: string | null };
 }
 
 const DECLARATION_TEXT =
@@ -1716,11 +1720,15 @@ export function BusinessSection({
   onAddComment,
   sectionComparison,
   hideSectionComments = false,
+  guarantorsReviewMode = "live",
+  inheritedSourceApplication,
 }: BusinessSectionProps) {
+  const isInheritedGuarantors = guarantorsReviewMode === "inherited";
   const ctosAppId = applicationId.trim() || undefined;
   const { getAccessToken } = useAuthToken();
   const { can } = usePermissions();
-  const canManageGuarantorCtos = can("applications.business_guarantor.manage");
+  const canManageGuarantorCtos =
+    can("applications.business_guarantor.manage") && !isInheritedGuarantors;
   const ctosSubjectLoading = false;
   const createSubjectCtos = useCreateApplicationCtosSubjectReport(ctosAppId);
 
@@ -2043,6 +2051,26 @@ export function BusinessSection({
       >
       {view ? (
         <>
+          {isInheritedGuarantors ? (
+            <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              {INHERITED_FACILITY_GUARANTORS_ADMIN_COPY}
+              {inheritedSourceApplication?.productId && inheritedSourceApplication.id ? (
+                <>
+                  {" "}
+                  in{" "}
+                  <Link
+                    href={`/applications/${encodeURIComponent(inheritedSourceApplication.productId)}/${encodeURIComponent(inheritedSourceApplication.id)}`}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    the originating application
+                  </Link>
+                </>
+              ) : (
+                " in the originating application"
+              )}
+              . Screen and amend them there. This view is read-only.
+            </div>
+          ) : null}
           <ReviewFieldBlock title="Why Are You Raising Funds?">
             <div className={reviewRowGridClass}>
               <Label className={reviewLabelClass}>What Is This Financing For?</Label>

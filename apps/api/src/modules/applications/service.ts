@@ -12,6 +12,7 @@ import {
   CreateApplicationInput,
   UpdateApplicationStepInput,
   businessDetailsDataSchema,
+  businessDetailsInheritedGuarantorsDataSchema,
   financialStatementsInputSchema,
   financialStatementsV2Schema,
 } from "./schemas";
@@ -106,6 +107,10 @@ import {
   type ComposeApplicationSummaryInput,
 } from "./summary-pdf";
 import { applyContractCapacityChange, lockContractRow } from "../../lib/refresh-contract-facility";
+import {
+  attachInheritedFacilityGuarantors,
+  loadInheritedGuarantorsForExistingContract,
+} from "../../lib/contract-originating-application";
 import { assertFacilityFeeUpfrontSettled } from "../../lib/facility-fee-upfront-guard";
 import {
   resolveContractValue,
@@ -135,6 +140,8 @@ import {
   buildUtilisationOfferConsentAcknowledgement,
   readFinancingStructureType,
   roundNoteMoney,
+  isInheritedFacilityGuarantorReview,
+  FACILITY_GUARANTORS_REQUIRED,
 } from "@cashsouk/types";
 import {
   consumeOfferAcceptOtpInTx,
@@ -939,11 +946,14 @@ export class ApplicationService {
     });
     return overlayReadCapacityOnApplicationContract(
       prisma,
-      enrichApplicationOriginationFields(
-        application as Parameters<typeof enrichApplicationOriginationFields>[0] & {
-          display_reference?: string | null;
-        },
-        envelopes
+      await attachInheritedFacilityGuarantors(
+        prisma,
+        enrichApplicationOriginationFields(
+          application as Parameters<typeof enrichApplicationOriginationFields>[0] & {
+            display_reference?: string | null;
+          },
+          envelopes
+        )
       )
     );
   }
@@ -1229,7 +1239,15 @@ export class ApplicationService {
     let dataToStore: Prisma.InputJsonValue = input.data as Prisma.InputJsonValue;
 
     if (fieldName === "business_details") {
-      const result = businessDetailsDataSchema.safeParse(input.data);
+      const inheritGuarantors = isInheritedFacilityGuarantorReview(
+        readFinancingStructureType(application.financing_structure)
+      );
+      const payload = inheritGuarantors
+        ? { ...(input.data as Record<string, unknown>), guarantors: [] }
+        : input.data;
+      const result = inheritGuarantors
+        ? businessDetailsInheritedGuarantorsDataSchema.safeParse(payload)
+        : businessDetailsDataSchema.safeParse(payload);
       if (!result.success) {
         const message = result.error.errors.map((e) => e.message).join("; ");
         throw new AppError(400, "VALIDATION_ERROR", message);
@@ -1390,6 +1408,7 @@ export class ApplicationService {
         );
 
         updateData.contract = { connect: { id: structureData.existing_contract_id } };
+        await prisma.applicationGuarantor.deleteMany({ where: { application_id: id } });
       } else if (
         structureData?.structure_type === "invoice_only" ||
         structureData?.structure_type === "new_contract"
@@ -1444,12 +1463,19 @@ export class ApplicationService {
     }
 
     if (fieldName === "business_details") {
+      const inheritGuarantors = isInheritedFacilityGuarantorReview(
+        readFinancingStructureType(application.financing_structure)
+      );
       return prisma.$transaction(async (tx) => {
         const updated = await tx.application.update({
           where: { id },
           data: updateData,
         });
-        await this.syncApplicationGuarantors(tx, id, input.data);
+        if (inheritGuarantors) {
+          await tx.applicationGuarantor.deleteMany({ where: { application_id: id } });
+        } else {
+          await this.syncApplicationGuarantors(tx, id, input.data);
+        }
         return updated as Application;
       });
     }
@@ -2029,6 +2055,24 @@ export class ApplicationService {
         invoices: (application as { invoices?: unknown[] }).invoices ?? [],
         contract: submitContract,
       });
+      if (
+        isInheritedFacilityGuarantorReview(
+          readFinancingStructureType(application.financing_structure)
+        )
+      ) {
+        const inheritedGuarantors = application.contract_id
+          ? await loadInheritedGuarantorsForExistingContract(prisma, {
+              contractId: application.contract_id,
+              originatingApplicationId:
+                (
+                  submitContract as { originating_application_id?: string | null } | null
+                )?.originating_application_id ?? null,
+            })
+          : null;
+        if (!inheritedGuarantors || inheritedGuarantors.application_guarantors.length === 0) {
+          throw new AppError(400, "FACILITY_GUARANTORS_REQUIRED", FACILITY_GUARANTORS_REQUIRED);
+        }
+      }
       await assertApplicationProcessingFeePaid(id);
 
       const financingTypeSubmit = application.financing_type as
@@ -2202,6 +2246,10 @@ export class ApplicationService {
               data: { status: "SUBMITTED" as any },
             });
           }
+        }
+
+        if (readFinancingStructureType(application.financing_structure) === "existing_contract") {
+          await tx.applicationGuarantor.deleteMany({ where: { application_id: id } });
         }
 
         await tx.application.update({

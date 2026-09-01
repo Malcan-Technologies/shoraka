@@ -103,6 +103,7 @@ import {
   isAcceptanceHubCompleteFromOffer,
   shouldShowAcceptanceDocumentsReviewSection,
   isFacilityOnlyNewContract,
+  INHERITED_FACILITY_GUARANTORS_AML_BLOCKED,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
   canManageDirectorShareholder,
@@ -222,7 +223,7 @@ import {
   resolveApplicationStatusFromOfferAcceptancePhase,
   resolveInvoiceCentricApplicationStatus,
 } from "../applications/offer-application-status";
-import { loadInheritedAcceptanceForExistingContract } from "../../lib/contract-originating-application";
+import { loadInheritedAcceptanceForExistingContract, attachInheritedFacilityGuarantors } from "../../lib/contract-originating-application";
 import { signingService } from "../signing/service";
 import {
   AUDIT_ACTOR_TYPE,
@@ -6554,6 +6555,17 @@ export class AdminService {
     clientGuarantorId: string,
     adminUserId: string
   ): Promise<{ requestId: string; regtank_portal_url: string }> {
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { financing_structure: true },
+    });
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    if (isExistingContractFinancing(application.financing_structure)) {
+      throw new AppError(400, "INHERITED_GUARANTORS", INHERITED_FACILITY_GUARANTORS_AML_BLOCKED);
+    }
+
     const row = await prisma.applicationGuarantor.findFirst({
       where: {
         application_id: applicationId,
@@ -6798,8 +6810,12 @@ export class AdminService {
               ).display_reference ?? null,
           }
         : applicationWithIssuerExtras.issuer_organization;
+    const applicationWithInheritedGuarantors = await attachInheritedFacilityGuarantors(
+      prisma,
+      applicationWithIssuerExtras
+    );
     const applicationWithDisplayReference = {
-      ...applicationWithIssuerExtras,
+      ...applicationWithInheritedGuarantors,
       displayReference: applicationWithIssuerExtras.display_reference ?? null,
       issuer_organization: issuerOrgWithDisplayReference,
       contract: contractWithDisplayReference,
@@ -6825,7 +6841,9 @@ export class AdminService {
         },
       }),
       application_guarantors: this.mapApplicationGuarantorsForAdmin(
-        applicationWithIssuerExtras.application_guarantors
+        applicationWithInheritedGuarantors.application_guarantors as
+          | ApplicationGuarantor[]
+          | undefined
       ),
       required_review_sections: orderedRequiredSections,
       visible_review_sections: orderedVisibleSections,
@@ -6833,6 +6851,7 @@ export class AdminService {
       // Frozen at application.product_version — Acceptance/signing UI must not use live catalog.
       product_workflow: sectionPolicy.productWorkflow,
       inherited_acceptance: inheritedAcceptance,
+      inherited_guarantors: applicationWithInheritedGuarantors.inherited_guarantors,
     };
   }
 
