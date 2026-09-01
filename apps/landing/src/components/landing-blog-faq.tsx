@@ -89,7 +89,7 @@ function AuthorAvatar({ name }: { name: string }) {
 function BlogSection() {
   return (
     <section className="border-t border-border/60 bg-muted/35 py-10 md:py-14 lg:py-16">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
           <header className="max-w-2xl space-y-4 text-left">
             <p className="text-sm font-semibold uppercase tracking-wide text-primary">Our blog</p>
@@ -102,7 +102,7 @@ function BlogSection() {
           </header>
           <Button
             asChild
-            className="h-12 shrink-0 rounded-xl bg-primary px-6 text-[15px] font-semibold text-primary-foreground shadow-brand hover:opacity-95 md:self-end"
+            className="h-12 w-full shrink-0 rounded-xl bg-primary px-6 text-[15px] font-semibold text-primary-foreground shadow-brand hover:opacity-95 sm:w-auto md:self-end"
           >
             <Link href="#">View all posts</Link>
           </Button>
@@ -156,7 +156,7 @@ function BlogSection() {
 function FaqSection() {
   return (
     <section className="bg-background py-10 md:py-14 lg:py-16">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <header className="max-w-2xl">
           <p className="text-sm font-semibold uppercase tracking-wide text-primary">Support</p>
           <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl lg:text-4xl">

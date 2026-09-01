@@ -326,6 +326,7 @@ adminNotesRouter.get(
         publicationId: doc.publicationId,
         contentVersion: doc.contentVersion,
         pdfViewUrl: doc.pdfViewUrl,
+        pdfDownloadUrl: doc.pdfDownloadUrl,
         pdfExpiresIn: doc.pdfExpiresIn,
         pdfContentType: doc.pdfContentType,
         pdfFileName: doc.pdfFileName,
@@ -783,6 +784,33 @@ marketplaceRouter.get(
         publicationId: doc.publicationId,
         contentVersion: doc.contentVersion,
         pdfViewUrl: doc.pdfViewUrl,
+        pdfDownloadUrl: doc.pdfDownloadUrl,
+        pdfExpiresIn: doc.pdfExpiresIn,
+        pdfContentType: doc.pdfContentType,
+        pdfFileName: doc.pdfFileName,
+        pdfSha256: doc.pdfSha256,
+        pdfSnapshotHash: doc.pdfSnapshotHash,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+publicMarketplaceRouter.get(
+  "/notes/:id/prospectus",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { getMarketplacePublishedProspectus } = await import(
+        "./prospectus-review/prospectus-investor-access"
+      );
+      const doc = await getMarketplacePublishedProspectus(id);
+      send(res, {
+        publicationId: doc.publicationId,
+        contentVersion: doc.contentVersion,
+        pdfViewUrl: doc.pdfViewUrl,
+        pdfDownloadUrl: doc.pdfDownloadUrl,
         pdfExpiresIn: doc.pdfExpiresIn,
         pdfContentType: doc.pdfContentType,
         pdfFileName: doc.pdfFileName,
@@ -850,6 +878,7 @@ investorNotesRouter.get(
         publicationId: doc.publicationId,
         contentVersion: doc.contentVersion,
         pdfViewUrl: doc.pdfViewUrl,
+        pdfDownloadUrl: doc.pdfDownloadUrl,
         pdfExpiresIn: doc.pdfExpiresIn,
         pdfContentType: doc.pdfContentType,
         pdfFileName: doc.pdfFileName,

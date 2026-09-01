@@ -938,6 +938,7 @@ export class ApiClient {
         publicationId: string;
         contentVersion: number;
         pdfViewUrl: string;
+        pdfDownloadUrl: string;
         pdfExpiresIn: number;
         pdfContentType: "application/pdf";
         pdfFileName: string;
@@ -956,6 +957,7 @@ export class ApiClient {
         publicationId: string;
         contentVersion: number;
         pdfViewUrl: string;
+        pdfDownloadUrl: string;
         pdfExpiresIn: number;
         pdfContentType: "application/pdf";
         pdfFileName: string;
@@ -967,6 +969,25 @@ export class ApiClient {
     return this.get(`/v1/marketplace/notes/${noteId}/prospectus`);
   }
 
+  async getPublicMarketplaceNoteProspectus(
+    noteId: string
+  ): Promise<
+    | ApiResponse<{
+        publicationId: string;
+        contentVersion: number;
+        pdfViewUrl: string;
+        pdfDownloadUrl: string;
+        pdfExpiresIn: number;
+        pdfContentType: "application/pdf";
+        pdfFileName: string;
+        pdfSha256: string | null;
+        pdfSnapshotHash: string | null;
+      }>
+    | ApiError
+  > {
+    return this.get(`/v1/public/marketplace/notes/${noteId}/prospectus`);
+  }
+
   async getInvestorInvestmentProspectus(
     investmentId: string
   ): Promise<
@@ -975,6 +996,7 @@ export class ApiClient {
         publicationId: string;
         contentVersion: number;
         pdfViewUrl: string;
+        pdfDownloadUrl: string;
         pdfExpiresIn: number;
         pdfContentType: "application/pdf";
         pdfFileName: string;

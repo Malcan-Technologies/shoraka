@@ -16,6 +16,7 @@ export type InvestorProspectusPdf = {
   publicationId: string;
   contentVersion: number;
   pdfViewUrl: string;
+  pdfDownloadUrl: string;
   pdfExpiresIn: number;
   pdfContentType: "application/pdf";
   pdfFileName: string;
@@ -55,15 +56,23 @@ async function resolveReadyPublicationPdf(
     select: { note_reference: true },
   });
   const fileName = prospectusPdfFileName(note?.note_reference);
-  const { viewUrl, expiresIn } = await generateProspectusPdfViewUrl({
-    storageKey: publication.pdf_storage_key,
-    fileName,
-  });
+  const [{ viewUrl, expiresIn }, download] = await Promise.all([
+    generateProspectusPdfViewUrl({
+      storageKey: publication.pdf_storage_key,
+      fileName,
+    }),
+    generateProspectusPdfViewUrl({
+      storageKey: publication.pdf_storage_key,
+      fileName,
+      disposition: "attachment",
+    }),
+  ]);
 
   return {
     publicationId: publication.id,
     contentVersion: publication.content_version,
     pdfViewUrl: viewUrl,
+    pdfDownloadUrl: download.viewUrl,
     pdfExpiresIn: expiresIn,
     pdfContentType: "application/pdf",
     pdfFileName: fileName,

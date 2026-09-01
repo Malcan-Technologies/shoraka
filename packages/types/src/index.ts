@@ -524,6 +524,8 @@ export * from "./marketplace-note-dates";
 export * from "./note-timing-display";
 export * from "./marketplace-tenure-filter";
 export * from "./marketplace-catalog";
+export * from "./marketplace-note-view";
+export * from "./marketplace-industry";
 export * from "./prospectus-calendar";
 export * from "./signing-envelopes";
 export * from "./acceptance-documents";

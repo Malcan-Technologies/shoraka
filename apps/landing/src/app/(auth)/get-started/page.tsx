@@ -101,10 +101,10 @@ function GetStartedPageContent() {
               <p className="text-sm text-muted-foreground">
                 Earn competitive returns by funding financing opportunities from our curated borrower pool.
               </p>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs text-primary/80">
-                  <MapPinIcon className="h-3 w-3" />
-                  Malaysian citizens & Malaysia-registered entities
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="inline-flex max-w-full items-start gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-left text-xs leading-5 text-primary/80">
+                  <MapPinIcon className="mt-0.5 h-3 w-3 shrink-0" />
+                  <span className="min-w-0">Malaysian citizens & Malaysia-registered entities</span>
                 </span>
               </div>
             </CardContent>
@@ -128,10 +128,10 @@ function GetStartedPageContent() {
               <p className="text-sm text-muted-foreground">
                 Apply for financing with flexible terms and transparent rates.
               </p>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/20 px-2.5 py-0.5 text-xs text-secondary-foreground/70">
-                  <MapPinIcon className="h-3 w-3" />
-                  Malaysia-registered entities only
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="inline-flex max-w-full items-start gap-1.5 rounded-full bg-secondary/20 px-2.5 py-0.5 text-left text-xs leading-5 text-secondary-foreground/70">
+                  <MapPinIcon className="mt-0.5 h-3 w-3 shrink-0" />
+                  <span className="min-w-0">Malaysia-registered entities only</span>
                 </span>
               </div>
             </CardContent>
@@ -170,7 +170,9 @@ function GetStartedPageContent() {
           <AlertDialogHeader>
             <div className="w-full flex items-start justify-between gap-4">
               <div>
-                <AlertDialogTitle className="text-[20px] font-bold">Shariah Compliance Requirement Notice</AlertDialogTitle>
+                <AlertDialogTitle className="pr-8 text-lg font-bold sm:text-[20px]">
+                  Shariah Compliance Requirement Notice
+                </AlertDialogTitle>
                 <AlertDialogDescription className="text-sm text-muted-foreground mt-1">
                   Please read the following carefully.
                 </AlertDialogDescription>

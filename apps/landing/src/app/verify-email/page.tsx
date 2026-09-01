@@ -202,7 +202,7 @@ function VerifyEmailPageContent() {
   // Success state
   if (isVerified) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background p-6">
+      <div className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-6">
         <Card className="w-full max-w-md rounded-2xl shadow-brand">
           <CardContent className="p-8 text-center space-y-6">
             <div className="flex justify-center">
@@ -224,7 +224,7 @@ function VerifyEmailPageContent() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background p-6">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-6">
       <Card className="w-full max-w-md rounded-2xl shadow-brand">
         <CardHeader className="space-y-3 pb-6">
           <CardTitle className="text-2xl font-bold">

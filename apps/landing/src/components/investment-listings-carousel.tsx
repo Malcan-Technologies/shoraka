@@ -64,7 +64,8 @@ export function InvestmentListingsCarousel({
     const el = scrollRef.current;
     if (!el) return;
     const slide = el.querySelector("[data-carousel-slide]") as HTMLElement | null;
-    const step = (slide?.getBoundingClientRect().width ?? 320) + 24;
+    const gap = Number.parseFloat(getComputedStyle(el).columnGap || getComputedStyle(el).gap) || 24;
+    const step = (slide?.getBoundingClientRect().width ?? 320) + gap;
     el.scrollBy({ left: direction * step, behavior: "smooth" });
   }, []);
 
@@ -110,7 +111,7 @@ export function InvestmentListingsCarousel({
 
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [respectMotion]);
+  }, [listings.length, respectMotion]);
 
   if (listings.length === 0) return null;
 
@@ -127,21 +128,21 @@ export function InvestmentListingsCarousel({
         ref={scrollRef}
         role="region"
         aria-label="Featured investment listings"
-        className="flex gap-6 overflow-x-auto overflow-y-hidden overscroll-x-contain pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex items-stretch gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain pb-2 pt-1 [scrollbar-width:none] sm:gap-6 [&::-webkit-scrollbar]:hidden"
         style={{
           paddingLeft:
-            "max(1.5rem, calc((100vw - min(100vw, 80rem)) / 2 + 1.5rem))",
+            "max(1rem, calc((100vw - min(100vw, 80rem)) / 2 + 1rem))",
           paddingRight:
-            "max(1.5rem, calc((100vw - min(100vw, 80rem)) / 2 + 1.5rem))",
+            "max(1rem, calc((100vw - min(100vw, 80rem)) / 2 + 1rem))",
         }}
       >
         {listings.map((data, i) => (
           <div
             key={`${data.id}-set-a-${i}`}
             data-carousel-slide
-            className="w-[min(22rem,calc(100vw-3rem))] shrink-0 sm:w-[min(24rem,calc(100vw-3.5rem))] lg:w-[min(26rem,calc(100vw-4rem))]"
+            className="flex w-[min(20.5rem,calc(100vw-2rem))] shrink-0 sm:w-[min(24rem,calc(100vw-3.5rem))] lg:w-[min(26rem,calc(100vw-4rem))]"
           >
-            <InvestmentListingCard data={data} showDownloadLink />
+            <InvestmentListingCard data={data} showProspectus />
           </div>
         ))}
         {listings.length > 1
@@ -150,9 +151,9 @@ export function InvestmentListingsCarousel({
             key={`${data.id}-set-b-${i}`}
             data-carousel-slide
             aria-hidden
-            className="w-[min(22rem,calc(100vw-3rem))] shrink-0 sm:w-[min(24rem,calc(100vw-3.5rem))] lg:w-[min(26rem,calc(100vw-4rem))]"
+            className="flex w-[min(20.5rem,calc(100vw-2rem))] shrink-0 sm:w-[min(24rem,calc(100vw-3.5rem))] lg:w-[min(26rem,calc(100vw-4rem))]"
           >
-            <InvestmentListingCard data={data} showDownloadLink />
+            <InvestmentListingCard data={data} showProspectus />
           </div>
             ))
           : null}

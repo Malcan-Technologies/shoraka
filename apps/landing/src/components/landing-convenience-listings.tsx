@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { connection } from "next/server";
 import {
   ArrowRightIcon,
   BanknotesIcon,
@@ -9,11 +8,13 @@ import {
   UserGroupIcon,
 } from "@heroicons/react/24/solid";
 import { Button } from "@cashsouk/ui";
-import { createApiClient } from "@cashsouk/config/src/api-client";
-import { type NoteListItem } from "@cashsouk/types";
-import { mapPublicNoteTiming } from "@/lib/public-note-timing";
+import { toMarketplaceNote } from "@cashsouk/types";
+import { getPublicMarketplaceNotesSlice } from "@/lib/public-marketplace-notes";
 import { InvestmentListingsCarousel } from "./investment-listings-carousel";
-import type { InvestmentListingData } from "./investment-listing-card";
+import {
+  toInvestmentListingData,
+  type InvestmentListingData,
+} from "./investment-listing-card";
 
 const FEATURE_ITEMS = [
   {
@@ -65,7 +66,7 @@ function FeatureCard({ title, description, Icon, span }: (typeof FEATURE_ITEMS)[
 function ConvenienceSection() {
   return (
     <section className="bg-background py-10 md:py-14 lg:py-16">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <header className="mx-auto max-w-3xl text-center">
           <h2 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl lg:text-4xl">
             Financing and investing that meets you where you are
@@ -85,54 +86,21 @@ function ConvenienceSection() {
   );
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-function mapNoteToInvestmentListing(note: NoteListItem): InvestmentListingData {
-  const timing = mapPublicNoteTiming(note);
-  return {
-    id: note.id,
-    purposeOfFinancing: note.purposeOfFinancing?.trim() || null,
-    contractTitle: note.contractTitle?.trim() || null,
-    purposeOfContract: note.purposeOfContract?.trim() || null,
-    noteReference: note.noteReference.trim() || null,
-    productName: note.productName?.trim() || null,
-    productImageUrl: note.productImageUrl?.trim() || null,
-    sector: note.issuerIndustry?.trim() || null,
-    daysLeft: timing.daysLeft,
-    funded: note.fundedAmount,
-    goal: note.targetAmount,
-    ratePercent: note.profitRatePercent,
-    tenorDays: timing.tenorDays,
-    timing: timing.timing,
-    score: note.riskRating,
-  };
-}
-
 async function getLandingCarouselListings(): Promise<InvestmentListingData[]> {
-  try {
-    const apiClient = createApiClient(API_URL);
-    const response = await apiClient.getPublicMarketplaceNotes({
-      page: 1,
-      pageSize: 12,
-    });
-    if (!response.success) return [];
-    return response.data.notes.map(mapNoteToInvestmentListing);
-  } catch {
-    return [];
-  }
+  const notes = await getPublicMarketplaceNotesSlice(12);
+  return notes.map((note) => toInvestmentListingData(toMarketplaceNote(note)));
 }
 
 export async function LandingInvestmentListings() {
-  await connection();
   const listings = await getLandingCarouselListings();
 
   return (
-    <section className="w-full min-w-0 border-t border-border/60 bg-muted/35 py-10 md:py-14 lg:py-16">
-      <div className="mx-auto max-w-7xl px-6">
+    <section className="w-full min-w-0 overflow-x-clip border-t border-border/60 bg-muted/35 py-10 md:py-14 lg:py-16">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
           <header className="max-w-2xl space-y-4 text-left">
             <p className="text-sm font-semibold uppercase tracking-wide text-primary">Invest</p>
-            <h2 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl lg:text-4xl">
+            <h2 className="text-balance text-2xl font-bold tracking-tight text-foreground md:text-3xl lg:text-4xl">
               Invest in verified secured loans
             </h2>
             <p className="text-[17px] leading-7 text-muted-foreground">
@@ -140,11 +108,11 @@ export async function LandingInvestmentListings() {
               clarity—with transparent key terms before you commit.
             </p>
           </header>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:shrink-0">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center lg:shrink-0">
             <Button
               asChild
               variant="outline"
-              className="h-12 rounded-xl border-border bg-background px-6 text-[15px] font-semibold text-foreground hover:bg-muted"
+              className="h-11 w-full rounded-xl border-border bg-background px-6 text-[15px] font-semibold text-foreground hover:bg-muted sm:h-12 sm:w-auto"
             >
               <Link href="/marketplace" className="inline-flex items-center gap-2">
                 View all listings
@@ -153,7 +121,7 @@ export async function LandingInvestmentListings() {
             </Button>
             <Button
               asChild
-              className="h-12 rounded-xl bg-primary px-6 text-[15px] font-semibold text-primary-foreground shadow-brand hover:opacity-95"
+              className="h-11 w-full rounded-xl bg-primary px-6 text-[15px] font-semibold text-primary-foreground shadow-brand hover:opacity-95 sm:h-12 sm:w-auto"
             >
               <Link href="/get-started">Start investing</Link>
             </Button>
@@ -165,8 +133,8 @@ export async function LandingInvestmentListings() {
         {listings.length > 0 ? (
           <InvestmentListingsCarousel listings={listings} />
         ) : (
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="rounded-2xl border border-border bg-card p-8 text-center">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6">
+            <div className="rounded-2xl border border-border bg-card p-6 text-center sm:p-8">
               <p className="text-[17px] leading-7 text-muted-foreground">
                 No active notes are available right now. Check back soon for open listings.
               </p>

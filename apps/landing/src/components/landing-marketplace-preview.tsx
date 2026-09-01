@@ -41,11 +41,11 @@ export function LandingMarketplacePreview({
 }) {
   return (
     <section className="bg-muted/30 py-16 sm:py-20">
-      <div className="container mx-auto px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-3">
             <p className="text-sm font-semibold text-primary">Investment options</p>
-            <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            <h2 className="text-balance text-2xl font-semibold tracking-tight text-foreground sm:text-3xl md:text-4xl">
               Invest in verified secured loans
             </h2>
             <p className="text-[17px] leading-7 text-muted-foreground">

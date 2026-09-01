@@ -7,7 +7,7 @@ import { ChevronRightIcon } from "@heroicons/react/24/outline";
 
 export function LandingHero() {
   return (
-    <section className="relative overflow-hidden pt-24 md:pt-28 pb-10 md:pb-16">
+    <section className="relative overflow-hidden pt-10 pb-10 md:pt-16 md:pb-16">
       <div className="pointer-events-none absolute inset-0">
         <div
           className="absolute inset-0 opacity-[0.35]"
@@ -22,23 +22,21 @@ export function LandingHero() {
         />
       </div>
 
-      <div className="relative z-[1] mx-auto max-w-7xl px-6">
+      <div className="relative z-[1] mx-auto max-w-7xl px-4 sm:px-6">
         <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
           <div className="space-y-6">
-            <div
-              className="inline-flex max-w-full flex-wrap items-center overflow-hidden rounded-full border border-border bg-card text-[15px] shadow-sm"
-            >
-              <span className="inline-flex items-center gap-2 bg-muted px-4 py-2 font-medium text-secondary-foreground">
+            <div className="inline-flex max-w-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-xs shadow-sm sm:flex-row sm:rounded-full sm:text-[15px]">
+              <span className="inline-flex items-center gap-2 bg-muted px-3 py-1.5 font-medium text-secondary-foreground sm:px-4 sm:py-2">
                 <span className="size-2 shrink-0 rounded-full bg-primary" aria-hidden />
                 Welcome
               </span>
-              <span className="inline-flex items-center gap-1 px-4 py-2 font-medium text-foreground">
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 font-medium text-foreground sm:px-4 sm:py-2">
                 #1 supply chain financing in Malaysia
                 <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
               </span>
             </div>
 
-            <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl lg:text-[2.75rem] lg:leading-[1.15]">
+            <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground md:text-4xl lg:text-[2.75rem] lg:leading-[1.15]">
               Invest smartly or{" "}
               <span className="text-primary">Get Funded</span>
             </h1>

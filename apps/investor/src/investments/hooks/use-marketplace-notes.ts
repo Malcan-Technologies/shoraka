@@ -38,17 +38,31 @@ function useMarketplaceApiClient() {
   return createApiClient(API_URL, getAccessToken);
 }
 
+async function openFetchedPdfInNewTab(loadUrl: () => Promise<string>) {
+  const viewer = window.open("about:blank", "_blank");
+  if (!viewer) throw new Error("Pop-up blocked");
+  try {
+    const pdfViewUrl = await loadUrl();
+    viewer.opener = null;
+    viewer.location.replace(pdfViewUrl);
+  } catch (error) {
+    viewer.close();
+    throw error;
+  }
+}
+
 /** Open frozen published Prospectus PDF in a new tab (marketplace Note). */
 export function useOpenMarketplaceProspectus() {
   const apiClient = useMarketplaceApiClient();
   return async (noteId: string) => {
-    const res = await apiClient.getMarketplaceNoteProspectus(noteId);
-    if (!res.success) throw new Error(res.error.message);
-    if (!res.data.pdfViewUrl) {
-      throw new Error("Prospectus PDF is not available");
-    }
-    const w = window.open(res.data.pdfViewUrl, "_blank");
-    if (!w) throw new Error("Pop-up blocked");
+    await openFetchedPdfInNewTab(async () => {
+      const res = await apiClient.getMarketplaceNoteProspectus(noteId);
+      if (!res.success) throw new Error(res.error.message);
+      if (!res.data.pdfViewUrl) {
+        throw new Error("Prospectus PDF is not available");
+      }
+      return res.data.pdfViewUrl;
+    });
   };
 }
 
@@ -56,13 +70,14 @@ export function useOpenMarketplaceProspectus() {
 export function useOpenInvestmentProspectus() {
   const apiClient = useMarketplaceApiClient();
   return async (investmentId: string) => {
-    const res = await apiClient.getInvestorInvestmentProspectus(investmentId);
-    if (!res.success) throw new Error(res.error.message);
-    if (!res.data.pdfViewUrl) {
-      throw new Error("Prospectus PDF is not available");
-    }
-    const w = window.open(res.data.pdfViewUrl, "_blank");
-    if (!w) throw new Error("Pop-up blocked");
+    await openFetchedPdfInNewTab(async () => {
+      const res = await apiClient.getInvestorInvestmentProspectus(investmentId);
+      if (!res.success) throw new Error(res.error.message);
+      if (!res.data.pdfViewUrl) {
+        throw new Error("Prospectus PDF is not available");
+      }
+      return res.data.pdfViewUrl;
+    });
   };
 }
 

@@ -26,7 +26,7 @@ export function RoleSelectionModal({ open, onOpenChange }: RoleSelectionModalPro
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent>
+      <SheetContent className="w-[min(22rem,calc(100vw-1.5rem))]">
         <SheetHeader>
           <SheetTitle>Sign in as</SheetTitle>
           <SheetDescription>Choose how you&apos;d like to sign in</SheetDescription>

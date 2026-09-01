@@ -46,7 +46,7 @@ export function TestimonialLogoCloud() {
 
   return (
     <section className="bg-background py-10 md:py-14 lg:py-16">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="grid gap-12 lg:grid-cols-2 lg:items-center lg:gap-14">
           <div>
             <div className="flex gap-1" aria-hidden>

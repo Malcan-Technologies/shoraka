@@ -18,17 +18,16 @@ import {
 import {
   MARKETPLACE_TENURE_FILTER_LABELS,
   MARC_SME_GRADES,
-  formatNoteReferenceDisplay,
+  marketplaceNoteMatchesFilters,
   marketplaceTenureFilterLabel,
-  matchesMarketplaceTenureFilter,
+  sortFeaturedMarketplaceNotes,
+  toMarketplaceNote,
   type NoteListItem,
 } from "@cashsouk/types";
-import { computeMarketplaceCommitBounds } from "@/lib/marketplace-commit-bounds";
-import { mapPublicNoteTiming } from "@/lib/public-note-timing";
 import {
-  PublicMarketplaceNoteCard,
-  type PublicMarketplaceNote,
-} from "./public-marketplace-note-card";
+  InvestmentListingCard,
+  toInvestmentListingData,
+} from "./investment-listing-card";
 const ONBOARDING_INDUSTRY_OPTIONS = [
   "Agriculture, Forestry, Fishing",
   "Manufacturing",
@@ -52,31 +51,23 @@ const ONBOARDING_INDUSTRY_OPTIONS = [
 const FEATURED_MARKETPLACE_NOTES_LIMIT = 3;
 const MARKETPLACE_LISTINGS_PAGE_SIZE = 9;
 
-function toMarketplaceNote(note: NoteListItem): PublicMarketplaceNote {
-  const { investable } = computeMarketplaceCommitBounds(note.targetAmount, note.fundedAmount);
-  const timing = mapPublicNoteTiming(note);
-
-  return {
-    id: note.id,
-    noteCode: note.noteReference.trim() || null,
-    purposeOfFinancing: note.purposeOfFinancing?.trim() || null,
-    contractTitle: note.contractTitle?.trim() || null,
-    purposeOfContract: note.purposeOfContract?.trim() || null,
-    noteTitle: note.title?.trim() || null,
-    productName: note.productName?.trim() || null,
-    productImageUrl: note.productImageUrl?.trim() || null,
-    industry: note.issuerIndustry?.trim() || null,
-    fundedAmount: note.fundedAmount,
-    goalAmount: note.targetAmount,
-    annualReturn: note.profitRatePercent,
-    tenorDays: timing.tenorDays,
-    timing: timing.timing,
-    riskScore: note.riskRating,
-    daysLeft: timing.daysLeft,
-    investable,
-    isFeatured: note.featuredActive,
-    featuredRank: note.featuredRank ?? undefined,
-  };
+function marketplaceQueryString(input: {
+  search: string;
+  industry: string;
+  risk: string;
+  profit: string;
+  tenor: string;
+  page: number;
+}) {
+  const params = new URLSearchParams();
+  const trimmedSearch = input.search.trim();
+  if (trimmedSearch) params.set("q", trimmedSearch);
+  if (input.industry !== "all") params.set("industry", input.industry);
+  if (input.risk !== "all") params.set("risk", input.risk);
+  if (input.profit !== "all") params.set("profit", input.profit);
+  if (input.tenor !== "all") params.set("tenor", input.tenor);
+  if (input.page > 1) params.set("page", String(input.page));
+  return params.toString();
 }
 
 type PublicMarketplaceBrowserProps = {
@@ -141,11 +132,6 @@ export function PublicMarketplaceBrowser({
     return () => clearTimeout(timer);
   }, [search]);
 
-  useEffect(() => {
-    setSearch(initialSearch);
-    setDebouncedSearch(initialSearch.trim());
-  }, [initialSearch]);
-
   const isFirstDebouncedSearchPageReset = useRef(true);
   useEffect(() => {
     if (isFirstDebouncedSearchPageReset.current) {
@@ -156,29 +142,57 @@ export function PublicMarketplaceBrowser({
   }, [debouncedSearch]);
 
   useEffect(() => {
-    setIndustryFilter(initialIndustry);
-    setRiskFilter(initialRisk);
-    setProfitFilter(initialProfit);
-    setTenorFilter(initialTenor);
-  }, [initialIndustry, initialProfit, initialRisk, initialTenor]);
+    const query = marketplaceQueryString({
+      search: debouncedSearch,
+      industry: industryFilter,
+      risk: riskFilter,
+      profit: profitFilter,
+      tenor: tenorFilter,
+      page: currentPage,
+    });
+    const next = query ? `${pathname}?${query}` : pathname;
+    const current = `${pathname}${window.location.search}`;
+    if (current === next) return;
+    window.history.replaceState(window.history.state, "", next);
+  }, [
+    currentPage,
+    debouncedSearch,
+    industryFilter,
+    pathname,
+    profitFilter,
+    riskFilter,
+    tenorFilter,
+  ]);
 
   useEffect(() => {
-    setCurrentPage(initialPage);
-  }, [initialPage]);
+    const applySearch = (params: URLSearchParams) => {
+      const nextSearch = params.get("q") ?? "";
+      const nextIndustry = params.get("industry") ?? "all";
+      const nextRisk = params.get("risk") ?? "all";
+      const nextProfit = params.get("profit") ?? "all";
+      const nextTenor = params.get("tenor") ?? "all";
+      const parsedPage = Number.parseInt(params.get("page") ?? "1", 10);
+      setSearch(nextSearch);
+      setDebouncedSearch(nextSearch.trim());
+      setIndustryFilter(
+        ONBOARDING_INDUSTRY_OPTIONS.includes(
+          nextIndustry as (typeof ONBOARDING_INDUSTRY_OPTIONS)[number]
+        )
+          ? nextIndustry
+          : "all"
+      );
+      setRiskFilter(
+        MARC_SME_GRADES.includes(nextRisk as (typeof MARC_SME_GRADES)[number]) ? nextRisk : "all"
+      );
+      setProfitFilter(["low", "mid", "high"].includes(nextProfit) ? nextProfit : "all");
+      setTenorFilter(["short", "medium", "long"].includes(nextTenor) ? nextTenor : "all");
+      setCurrentPage(Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1);
+    };
 
-  useEffect(() => {
-    const params = new URLSearchParams();
-    const trimmedSearch = search.trim();
-    if (trimmedSearch) params.set("q", trimmedSearch);
-    if (industryFilter !== "all") params.set("industry", industryFilter);
-    if (riskFilter !== "all") params.set("risk", riskFilter);
-    if (profitFilter !== "all") params.set("profit", profitFilter);
-    if (tenorFilter !== "all") params.set("tenor", tenorFilter);
-    if (currentPage > 1) params.set("page", String(currentPage));
-
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [currentPage, industryFilter, pathname, profitFilter, riskFilter, router, search, tenorFilter]);
+    const onPopState = () => applySearch(new URLSearchParams(window.location.search));
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   const handleIndustryChange = (value: string) => {
     setIndustryFilter(value);
@@ -225,50 +239,23 @@ export function PublicMarketplaceBrowser({
   const normalizedSearchQuery = debouncedSearch.trim().toLowerCase();
 
   const featuredNotes = useMemo(
-    () =>
-      marketplaceNotes
-        .filter((note) => note.isFeatured)
-        .sort((left, right) => {
-          const leftRank = left.featuredRank ?? Number.MAX_SAFE_INTEGER;
-          const rightRank = right.featuredRank ?? Number.MAX_SAFE_INTEGER;
-          if (leftRank !== rightRank) return leftRank - rightRank;
-          return (left.noteCode ?? "").localeCompare(right.noteCode ?? "");
-        }),
+    () => sortFeaturedMarketplaceNotes(marketplaceNotes.filter((note) => note.isFeatured)),
     [marketplaceNotes]
   );
 
   const filteredNotes = useMemo(() => {
-    return marketplaceNotes.filter((note) => !note.isFeatured).filter((note) => {
-      const matchesSearch =
-        normalizedSearchQuery.length === 0 ||
-        (note.noteTitle ?? "").toLowerCase().includes(normalizedSearchQuery) ||
-        (note.productName ?? "").toLowerCase().includes(normalizedSearchQuery) ||
-        (note.purposeOfFinancing ?? "").toLowerCase().includes(normalizedSearchQuery) ||
-        (note.contractTitle ?? "").toLowerCase().includes(normalizedSearchQuery) ||
-        (note.purposeOfContract ?? "").toLowerCase().includes(normalizedSearchQuery) ||
-        (note.industry ?? "").toLowerCase().includes(normalizedSearchQuery) ||
-        (note.noteCode ?? "").toLowerCase().includes(normalizedSearchQuery) ||
-        formatNoteReferenceDisplay(note.noteCode).toLowerCase().includes(normalizedSearchQuery);
-      const matchesIndustry = industryFilter === "all" || note.industry === industryFilter;
-      const matchesRisk =
-        riskFilter === "all" ||
-        (note.riskScore?.trim().toUpperCase() ?? "") === riskFilter;
-      const matchesProfit =
-        profitFilter === "all" ||
-        (note.annualReturn !== null &&
-          ((profitFilter === "low" && note.annualReturn < 14) ||
-            (profitFilter === "mid" && note.annualReturn >= 14 && note.annualReturn <= 15) ||
-            (profitFilter === "high" && note.annualReturn > 15)));
-      const matchesTenor = matchesMarketplaceTenureFilter(note.tenorDays, tenorFilter);
-
-      return (
-        matchesSearch &&
-        matchesIndustry &&
-        matchesRisk &&
-        matchesProfit &&
-        matchesTenor
+    return marketplaceNotes
+      .filter((note) => !note.isFeatured)
+      .filter((note) =>
+        marketplaceNoteMatchesFilters(note, {
+          search: normalizedSearchQuery,
+          industry: industryFilter,
+          risk: riskFilter,
+          profit: profitFilter,
+          tenor: tenorFilter,
+          listing: "open",
+        })
       );
-    });
   }, [
     industryFilter,
     marketplaceNotes,
@@ -362,14 +349,18 @@ export function PublicMarketplaceBrowser({
       {featuredNotes.length > 0 ? (
         <section className="space-y-4">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight text-foreground">
+            <h2 className="text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               Featured investment opportunities
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">Top picks curated for you</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 md:items-stretch">
             {featuredNotes.slice(0, FEATURED_MARKETPLACE_NOTES_LIMIT).map((note) => (
-              <PublicMarketplaceNoteCard key={note.id} note={note} />
+              <InvestmentListingCard
+                key={note.id}
+                data={toInvestmentListingData(note)}
+                showProspectus
+              />
             ))}
           </div>
         </section>
@@ -398,11 +389,12 @@ export function PublicMarketplaceBrowser({
                 <ListToolbarFilterTrigger
                   label="Industry"
                   count={industryFilter !== "all" ? 1 : 0}
+                  className="max-sm:px-3"
                 />
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] w-80 overflow-y-auto"
+                className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] w-[min(20rem,calc(100vw-2rem))] overflow-y-auto"
               >
                 <DropdownMenuLabel>Industry</DropdownMenuLabel>
                 <DropdownMenuRadioGroup value={industryFilter} onValueChange={handleIndustryChange}>
@@ -421,6 +413,7 @@ export function PublicMarketplaceBrowser({
                 <ListToolbarFilterTrigger
                   label="Risk score"
                   count={riskFilter !== "all" ? 1 : 0}
+                  className="max-sm:px-3"
                 />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
@@ -441,6 +434,7 @@ export function PublicMarketplaceBrowser({
                 <ListToolbarFilterTrigger
                   label="Profit"
                   count={profitFilter !== "all" ? 1 : 0}
+                  className="max-sm:px-3"
                 />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
@@ -459,6 +453,7 @@ export function PublicMarketplaceBrowser({
                 <ListToolbarFilterTrigger
                   label="Tenure"
                   count={tenorFilter !== "all" ? 1 : 0}
+                  className="max-sm:px-3"
                 />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -484,7 +479,11 @@ export function PublicMarketplaceBrowser({
           {visibleNotes.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 md:items-stretch">
               {visibleNotes.map((note) => (
-                <PublicMarketplaceNoteCard key={note.id} note={note} />
+                <InvestmentListingCard
+                  key={note.id}
+                  data={toInvestmentListingData(note)}
+                  showProspectus
+                />
               ))}
             </div>
           ) : (
@@ -498,7 +497,7 @@ export function PublicMarketplaceBrowser({
 
           {totalPages > 1 ? (
             <nav
-              className="flex flex-col gap-3 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6"
+              className="flex flex-col gap-3 border-t px-0 py-4 sm:flex-row sm:items-center sm:justify-between"
               aria-label="Listings pagination"
             >
               <div className="text-sm text-muted-foreground">

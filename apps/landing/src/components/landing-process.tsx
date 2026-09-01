@@ -179,7 +179,7 @@ function FlowDiagram({ variant }: { variant: "top" | "bottom" }) {
 export function LandingProcess() {
   return (
     <section className="bg-background py-10 md:py-14 lg:py-16">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <header className="mx-auto max-w-3xl text-center">
           <p className="text-sm font-semibold uppercase tracking-wide text-primary">
             Process

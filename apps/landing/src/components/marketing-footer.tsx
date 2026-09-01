@@ -65,7 +65,7 @@ export function MarketingFooter() {
   return (
     <footer className="bg-primary text-primary-foreground">
       <div className="border-b border-primary-foreground/15">
-        <div className="mx-auto max-w-7xl px-6 py-10 text-center md:py-12">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-10 text-center md:py-12">
           <h2 className="text-2xl font-bold tracking-tight text-primary-foreground md:text-3xl lg:text-4xl">
             Start Your Investment Journey Today
           </h2>
@@ -91,7 +91,7 @@ export function MarketingFooter() {
       </div>
 
       <div className="border-b border-primary-foreground/15">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-10 md:py-12 lg:grid-cols-3 lg:gap-14">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 md:py-12 lg:grid-cols-3 lg:gap-14">
           <div>
             <Link href="/" className="inline-flex items-center gap-3">
               <Logo className="brightness-0 invert" size={44} />
@@ -198,7 +198,7 @@ export function MarketingFooter() {
         </div>
       </div>
 
-      <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 px-6 py-8 sm:flex-row">
+      <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 px-4 py-8 sm:flex-row sm:px-6">
         <p className="text-sm text-primary-foreground/80">
           © {year} {COMPANY.brandName}. All rights reserved.
         </p>

@@ -1296,12 +1296,12 @@ model NoteSettlement {
   posted_at                               DateTime?
   idempotency_key                         String?                             @unique
   display_reference                       String?                             @unique
-  settlement_trustee_status              SettlementTrusteeInstructionStatus?
-  settlement_trustee_created_at          DateTime?
-  settlement_trustee_letter_generated_at DateTime?
-  settlement_trustee_submitted_at        DateTime?
-  settlement_trustee_completed_at        DateTime?
-  settlement_trustee_email_sent_at       DateTime?                           @db.Timestamptz
+  settlement_trustee_status              SettlementTrusteeInstructionStatus? @map("service_fee_trustee_status")
+  settlement_trustee_created_at          DateTime?                           @map("service_fee_trustee_created_at")
+  settlement_trustee_letter_generated_at DateTime?                           @map("service_fee_trustee_letter_generated_at")
+  settlement_trustee_submitted_at        DateTime?                           @map("service_fee_trustee_submitted_at")
+  settlement_trustee_completed_at        DateTime?                           @map("service_fee_trustee_completed_at")
+  settlement_trustee_email_sent_at       DateTime?                           @db.Timestamptz @map("service_fee_trustee_email_sent_at")
   created_at                              DateTime                            @default(now())
   updated_at                              DateTime                            @updatedAt
   note                                    Note                                @relation(fields: [note_id], references: [id], onDelete: Cascade)
@@ -1312,7 +1312,7 @@ model NoteSettlement {
   @@index([status])
   @@index([posted_at])
   @@index([display_reference])
-  @@index([settlement_trustee_status])
+  @@index([settlement_trustee_status], map: "note_settlements_service_fee_trustee_status_idx")
   @@map("note_settlements")
 }
 
@@ -2568,6 +2568,8 @@ enum SettlementTrusteeInstructionStatus {
   LETTER_GENERATED
   SUBMITTED_TO_TRUSTEE
   COMPLETED
+
+  @@map("ServiceFeeTrusteeInstructionStatus")
 }
 
 enum NoteLedgerAccountType {

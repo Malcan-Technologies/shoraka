@@ -74,7 +74,7 @@ function VerifyEmailHelpContent() {
   };
 
   return (
-    <div className="container flex items-center justify-center min-h-screen py-12">
+    <div className="container flex min-h-screen items-center justify-center px-4 py-12 sm:px-6">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">

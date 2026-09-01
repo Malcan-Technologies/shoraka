@@ -248,6 +248,14 @@ pnpm --filter api prisma migrate status --schema=./prisma/schema.prisma
    }
    ```
 
+   Do not rename a live column or enum type in place. Deploy runs `migrate deploy`
+   **before** the new API image is live, so the current API still queries the old
+   names. Keep the physical name and map it in Prisma instead:
+
+   ```prisma
+   settlement_trustee_status SettlementTrusteeInstructionStatus? @map("service_fee_trustee_status")
+   ```
+
 4. **Review generated SQL before deploying**
    - Check `prisma/migrations/*/migration.sql`
    - Ensure no data loss
@@ -270,7 +278,9 @@ pnpm --filter api prisma migrate status --schema=./prisma/schema.prisma
 3. **Don't run migrations manually in production**
    - Let GitHub Actions handle it (unless emergency)
 
-4. **Don't make breaking schema changes without a migration strategy**
+4. **Don't rename columns/enums the running API still selects** — use `@map` / `@@map`.
+
+5. **Don't make breaking schema changes without a migration strategy**
    ```prisma
    # Breaking: Removing required field
    model User {

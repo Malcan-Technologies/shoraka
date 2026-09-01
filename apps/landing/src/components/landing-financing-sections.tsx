@@ -105,7 +105,7 @@ function ShariahMark() {
 function InvoiceSimpleSection() {
   return (
     <section className="border-t border-border/60 bg-muted/35 py-10 md:py-14 lg:py-16">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="max-w-2xl space-y-4">
           <p className="text-sm font-semibold uppercase tracking-wide text-primary">Borrow</p>
           <h2 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl lg:text-4xl">
@@ -183,7 +183,7 @@ function InvoiceSimpleSection() {
 function WhyARSection() {
   return (
     <section className="bg-background py-10 md:py-14 lg:py-16">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <header className="mx-auto max-w-3xl text-center">
           <p className="text-sm font-semibold uppercase tracking-wide text-primary">Why AR?</p>
           <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl lg:text-4xl">

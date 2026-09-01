@@ -270,13 +270,16 @@ export async function generateAndStoreProspectusPdf(input: {
 export async function generateProspectusPdfViewUrl(input: {
   storageKey: string;
   fileName: string;
+  disposition?: "inline" | "attachment";
 }): Promise<{ viewUrl: string; expiresIn: number }> {
   const client = getS3Client();
+  const safeName = input.fileName.replace(/"/g, "");
+  const disposition = input.disposition ?? "inline";
   const command = new GetObjectCommand({
     Bucket: S3_BUCKET,
     Key: input.storageKey,
     ResponseContentType: PROSPECTUS_PDF_CONTENT_TYPE,
-    ResponseContentDisposition: `inline; filename="${input.fileName.replace(/"/g, "")}"`,
+    ResponseContentDisposition: `${disposition}; filename="${safeName}"`,
   });
   const viewUrl = await getSignedUrl(client, command, {
     expiresIn: PROSPECTUS_PDF_VIEW_URL_EXPIRY_SECONDS,

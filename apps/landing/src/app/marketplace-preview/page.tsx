@@ -1,29 +1,14 @@
 import Link from "next/link";
-import { connection } from "next/server";
 import { Navbar } from "../../components/navbar";
 import { Footer } from "../../components/footer";
 import { Button } from "@cashsouk/ui";
-import { createApiClient } from "@cashsouk/config/src/api-client";
-import type { NoteListItem } from "@cashsouk/types";
 import { LandingMarketplacePreview } from "../../components/landing-marketplace-preview";
+import { getPublicMarketplaceNotesSlice } from "../../lib/public-marketplace-notes";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3001";
 
-async function getLandingMarketplaceNotes(): Promise<NoteListItem[]> {
-  try {
-    const apiClient = createApiClient(API_URL);
-    const response = await apiClient.getPublicMarketplaceNotes({ page: 1, pageSize: 3 });
-    if (!response.success) return [];
-    return response.data.notes;
-  } catch {
-    return [];
-  }
-}
-
 export default async function MarketplacePreviewPage() {
-  await connection();
-  const notes = await getLandingMarketplaceNotes();
+  const notes = await getPublicMarketplaceNotesSlice(3);
   return (
     <>
       <Navbar />
@@ -40,15 +25,15 @@ export default async function MarketplacePreviewPage() {
           />
         </div>
 
-        <section className="relative mx-auto max-w-6xl px-6 py-20 sm:py-24">
+        <section className="relative mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-20 md:py-24">
           <div className="overflow-hidden rounded-3xl border border-border bg-card/80 shadow-xl backdrop-blur-sm">
             <div className="h-1.5 bg-gradient-to-r from-primary via-accent to-secondary" />
-            <div className="space-y-8 p-8 md:p-12 lg:p-16">
-              <div className="inline-flex items-center rounded-full bg-primary/10 px-4 py-1 text-sm font-semibold text-primary">
+            <div className="space-y-6 p-6 sm:space-y-8 sm:p-8 md:p-12 lg:p-16">
+              <div className="inline-flex max-w-full items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary sm:px-4 sm:text-sm">
                 P2P Lending Marketplace
               </div>
               <div className="space-y-5">
-                <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+                <h1 className="text-balance text-3xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
                   Invest in verified secured loans
                 </h1>
                 <p className="max-w-[60ch] text-[17px] leading-7 text-muted-foreground">
