@@ -34,10 +34,13 @@ export const PLACEHOLDER_FINANCE_DOCUMENT_PARTY: ContractFacilityLoFinanceDocume
   representatives: [],
 };
 
+export function visibleNric(nric: string): string {
+  return nric.trim() || LO_MERGE_PLACEHOLDER_NRIC;
+}
+
 export function formatIndividualGuarantorLine(name: string, nric: string): string {
   const displayName = name.trim() || LO_MERGE_PLACEHOLDER_NAME;
-  const displayNric = nric.trim() || LO_MERGE_PLACEHOLDER_NRIC;
-  return `${displayName} (NRIC No. ${displayNric})`;
+  return `${displayName} (NRIC No. ${visibleNric(nric)})`;
 }
 
 export function formatCorporateGuarantorLine(name: string, ssm: string): string {
@@ -301,7 +304,9 @@ export const FACILITY_LO_CORPORATE_SIGNATORIES_PER_PAGE = 4;
 
 export type FacilityLoCorporateSignatoryRow = {
   left_name: string;
+  left_nric: string;
   right_name: string;
+  right_nric: string;
   /** Empty-string right is falsy for Word — hide the second box on odd counts. */
   show_right: boolean;
 };
@@ -314,15 +319,21 @@ export type FacilityLoCorporateGuarantorPage = {
   signatory_rows: FacilityLoCorporateSignatoryRow[];
 };
 
-export function pairSignatoryRows(names: string[]): FacilityLoCorporateSignatoryRow[] {
-  const source = names.length === 0 ? [""] : names;
+export function pairSignatoryRows(
+  signatories: Array<{ name: string; nric: string }>
+): FacilityLoCorporateSignatoryRow[] {
+  const source = signatories.length === 0 ? [{ name: "", nric: "" }] : signatories;
   const rows: FacilityLoCorporateSignatoryRow[] = [];
   for (let i = 0; i < source.length; i += 2) {
-    const leftRaw = (source[i] ?? "").trim();
-    const right_name = (source[i + 1] ?? "").trim();
+    const left = source[i] ?? { name: "", nric: "" };
+    const right = source[i + 1];
+    const left_name = left.name.trim() || LO_MERGE_PLACEHOLDER_NAME;
+    const right_name = (right?.name ?? "").trim();
     rows.push({
-      left_name: leftRaw || LO_MERGE_PLACEHOLDER_NAME,
+      left_name,
+      left_nric: visibleNric(left.nric),
       right_name,
+      right_nric: right_name ? visibleNric(right?.nric ?? "") : "",
       show_right: right_name.length > 0,
     });
   }
@@ -338,8 +349,10 @@ export function buildCorporateGuarantorPages(
 
   for (const company of companies) {
     if (!company.name.trim()) continue;
-    const names = company.signatories.map((s) => s.name.trim()).filter(Boolean);
-    const rows = pairSignatoryRows(names);
+    const people = company.signatories
+      .map((signatory) => ({ name: signatory.name.trim(), nric: signatory.nric.trim() }))
+      .filter((signatory) => signatory.name.length > 0);
+    const rows = pairSignatoryRows(people);
     for (let i = 0; i < rows.length; i += rowsPerPage) {
       pages.push({
         company_name: company.name,
@@ -364,6 +377,7 @@ export function buildFacilityLoRenderPayload(data: ContractFacilityLoMergeData):
     const needsBreak = !isLast || hasCorporate;
     return {
       ...guarantor,
+      nric: visibleNric(guarantor.nric),
       page_break: needsBreak ? FACILITY_LO_PAGE_BREAK_XML : "",
     };
   });

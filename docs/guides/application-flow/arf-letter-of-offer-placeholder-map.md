@@ -2,7 +2,7 @@
 
 Editable fill map for the contract facility LO.
 
-**Current tagged template:** 19 August 2026 LO (`arf_contract_facility_lo` **v8**, per-guarantor acknowledgement pages).  
+**Current tagged template:** 19 August 2026 LO (`arf_contract_facility_lo` **v12**, per-guarantor acknowledgement pages).  
 **Verification / FLAG list:** [lo-19-aug-2026-field-map.md](../generated-documents/lo-19-aug-2026-field-map.md)  
 **Working index:** [lo-data-sources.md](../generated-documents/lo-data-sources.md)
 

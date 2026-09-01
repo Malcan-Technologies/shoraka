@@ -164,17 +164,27 @@ describe("buildCorporateGuarantorPages", () => {
     return buildCorporateGuarantorPages([{ name: "HoldCo", ssm: "1", signatories: names }]);
   }
 
+  function row(leftName: string, rightName = "") {
+    return {
+      left_name: leftName,
+      left_nric: "[INSERT]",
+      right_name: rightName,
+      right_nric: rightName ? "[INSERT]" : "",
+      show_right: rightName.length > 0,
+    };
+  }
+
   it("pairs 1 signatory onto one page with no right box", () => {
     const pages = pagesFor(1);
     expect(pages).toHaveLength(1);
     expect(pages[0]?.is_first_page).toBe(true);
-    expect(pages[0]?.signatory_rows).toEqual([{ left_name: "S1", right_name: "", show_right: false }]);
+    expect(pages[0]?.signatory_rows).toEqual([row("S1")]);
   });
 
   it("pairs 2 signatories onto one row", () => {
     const pages = pagesFor(2);
     expect(pages).toHaveLength(1);
-    expect(pages[0]?.signatory_rows).toEqual([{ left_name: "S1", right_name: "S2", show_right: true }]);
+    expect(pages[0]?.signatory_rows).toEqual([row("S1", "S2")]);
   });
 
   it("fits 4 signatories on one page", () => {
@@ -189,23 +199,41 @@ describe("buildCorporateGuarantorPages", () => {
     expect(pages[0]?.is_first_page).toBe(true);
     expect(pages[0]?.signatory_rows).toHaveLength(2);
     expect(pages[1]?.is_first_page).toBe(false);
-    expect(pages[1]?.signatory_rows).toEqual([{ left_name: "S5", right_name: "", show_right: false }]);
+    expect(pages[1]?.signatory_rows).toEqual([row("S5")]);
   });
 
   it("splits 9 signatories into three pages", () => {
     const pages = pagesFor(9);
     expect(pages).toHaveLength(3);
-    expect(pages[2]?.signatory_rows).toEqual([{ left_name: "S9", right_name: "", show_right: false }]);
+    expect(pages[2]?.signatory_rows).toEqual([row("S9")]);
   });
 
   it("keeps a blank box when a company has zero signatories", () => {
     const pages = buildCorporateGuarantorPages([{ name: "HoldCo", ssm: "1", signatories: [] }]);
     expect(pages).toHaveLength(1);
-    expect(pages[0]?.signatory_rows).toEqual([
-      { left_name: "[INSERT NAME]", right_name: "", show_right: false },
+    expect(pages[0]?.signatory_rows).toEqual([row("[INSERT NAME]")]);
+    expect(pairSignatoryRows([])).toEqual([row("[INSERT NAME]")]);
+  });
+
+  it("pairs collected NRIC onto each signature box", () => {
+    const pages = buildCorporateGuarantorPages([
+      {
+        name: "HoldCo",
+        ssm: "1",
+        signatories: [
+          { name: "Nora", nric: "880101015555", capacity: "director" },
+          { name: "Farid", nric: "", capacity: "director" },
+        ],
+      },
     ]);
-    expect(pairSignatoryRows([])).toEqual([
-      { left_name: "[INSERT NAME]", right_name: "", show_right: false },
+    expect(pages[0]?.signatory_rows).toEqual([
+      {
+        left_name: "Nora",
+        left_nric: "880101015555",
+        right_name: "Farid",
+        right_nric: "[INSERT]",
+        show_right: true,
+      },
     ]);
   });
 });
