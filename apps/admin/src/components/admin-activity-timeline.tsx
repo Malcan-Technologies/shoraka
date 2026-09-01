@@ -176,6 +176,7 @@ function getEventLabel(
     PAYMASTER_CREATED: "Paymaster Created",
     PAYMASTER_LINKED_TO_ISSUER: "Paymaster Linked to Issuer",
     PAYMASTER_VERIFIED: "Paymaster Identity Verified",
+    PAYMASTER_IDENTITY_RESOLVED: "Paymaster Identity Resolved",
   };
   if (eventType === "INVOICE_OFFER_SENT") {
     const invoiceNumber = metadata?.invoice_number;
@@ -262,6 +263,11 @@ function paymasterIdentityDescription(
     return identity
       ? `${identity} identity reviewed internally. Unverified → Verified.`
       : "Paymaster identity reviewed internally. Unverified → Verified.";
+  }
+  if (eventType === "PAYMASTER_IDENTITY_RESOLVED") {
+    return identity
+      ? `Submitted customer identity replaced with verified Paymaster ${identity}.`
+      : "Submitted customer identity replaced with the verified Paymaster.";
   }
   return identity || null;
 }

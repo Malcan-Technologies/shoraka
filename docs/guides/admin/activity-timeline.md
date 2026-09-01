@@ -188,6 +188,7 @@ These events are Admin Activity on the Application timeline and on Paymaster →
 
 | Event Type | Source | Portal | Description |
 |------------|--------|--------|-------------|
-| `PAYMASTER_CREATED` | paymaster/service `resolvePaymasterFromCustomerDetails` | ISSUER | New Paymaster master created Unverified from Customer Details Save. Display: Paymaster Created. Admin: Application → Activity Timeline; Paymaster → Activity |
+| `PAYMASTER_CREATED` | paymaster/service `resolvePaymasterFromCustomerDetails` | ISSUER | New Paymaster master created Unverified at application submit/resubmit. Display: Paymaster Created. Admin: Application → Activity Timeline; Paymaster → Activity |
 | `PAYMASTER_LINKED_TO_ISSUER` | paymaster/service `resolvePaymasterFromCustomerDetails` | ISSUER | New issuer link on an existing master. Not written for the originating create or same-issuer reuse. Display: Paymaster Linked to Issuer. Admin: Application → Activity Timeline; Paymaster → Activity |
 | `PAYMASTER_VERIFIED` | paymaster/service `verifyPaymaster` | ADMIN | First Unverified → Verified via Verify Paymaster. Display: Paymaster Identity Verified. Does not approve the application. Admin: Application → Activity Timeline; Paymaster → Activity |
+| `PAYMASTER_IDENTITY_RESOLVED` | paymaster/service `applyVerifiedPaymasterIdentityToApplication` | ADMIN | Admin used verified Paymaster identity on this application's submitted customer_details. Display: Paymaster Identity Resolved. Does not notify the issuer. Admin: Application → Activity Timeline; Paymaster → Activity |

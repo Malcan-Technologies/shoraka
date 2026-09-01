@@ -1,4 +1,4 @@
-import { buildPaymasterSnapshot } from "./snapshot";
+import { buildPaymasterSnapshot, buildSubmittedCustomerDetails } from "./snapshot";
 import { buildApplicationRevisionSnapshot } from "../applications/revision-snapshot";
 
 describe("Paymaster snapshot compatibility", () => {
@@ -63,5 +63,21 @@ describe("Paymaster snapshot compatibility", () => {
     const stored = (snapshot as { contract: typeof contract }).contract.customer_details;
     expect(stored.name).toBe("ABC Trading Sdn Bhd");
     expect(stored).not.toHaveProperty("verification_status");
+  });
+
+  it("keeps issuer-submitted customer_details when they differ from the master", () => {
+    const submitted = buildSubmittedCustomerDetails({
+      submitted: {
+        legalName: "ABC Trading Malaysia",
+        registrationNumber: "202134567890",
+        registrationCountry: "MY",
+        entityType: "Partnership",
+      },
+      isRelatedParty: false,
+      paymasterId: "pm_1",
+    });
+    expect(submitted.name).toBe("ABC Trading Malaysia");
+    expect(submitted.entity_type).toBe("Partnership");
+    expect(submitted.paymaster_id).toBe("pm_1");
   });
 });

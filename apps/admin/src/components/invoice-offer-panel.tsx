@@ -124,6 +124,8 @@ export interface InvoiceOfferPanelProps {
   facilityOverLimit?: boolean;
   scopeKey: string;
   suggestedMarcGrade?: string | null;
+  /** When set, Send Offer toasts this reason instead of opening confirm. */
+  offerIdentityBlockReason?: string | null;
 }
 
 export function InvoiceOfferPanel({
@@ -145,6 +147,7 @@ export function InvoiceOfferPanel({
   facilityOverLimit,
   scopeKey,
   suggestedMarcGrade = null,
+  offerIdentityBlockReason = null,
 }: InvoiceOfferPanelProps) {
   const queryClient = useQueryClient();
   const facilityFeeRemaining = resolveInvoiceOfferFacilityFeeRemaining(invoice);
@@ -414,6 +417,10 @@ export function InvoiceOfferPanel({
 
   const handleConfirmInvoiceOffer = React.useCallback(async () => {
     if (!onSendInvoiceOffer || !invoiceOfferConfirm || !invoiceOfferConfirmGuard) return;
+    if (offerIdentityBlockReason) {
+      alert(offerIdentityBlockReason);
+      return;
+    }
     if (!isMarcSmeGrade(suggestedMarcGrade)) {
       alert(MARC_ASSESSMENT_REQUIRED_MESSAGE);
       return;
@@ -446,6 +453,8 @@ export function InvoiceOfferPanel({
     offerDisable.disabled,
     applicationId,
     closeInvoiceOfferConfirm,
+    suggestedMarcGrade,
+    offerIdentityBlockReason,
   ]);
 
   const controlsDisabled = isRowGreyedOut || isAdminRejected;
@@ -768,6 +777,10 @@ export function InvoiceOfferPanel({
             }
             onClick={() => {
               if (offerDisable.disabled || feeSendBlockedReason || sendOfferBlockedByTenure) return;
+              if (offerIdentityBlockReason) {
+                alert(offerIdentityBlockReason);
+                return;
+              }
               if (financingTenureDays == null || !isValidFinancingTenureDays(financingTenureDays)) {
                 return;
               }

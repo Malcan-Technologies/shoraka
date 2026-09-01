@@ -36,6 +36,9 @@ jest.mock("../issuer-organization-financial-statements", () => ({
 jest.mock("../supporting-docs-workflow", () => ({
   assertRequiredSupportingDocumentsPresent: jest.fn(),
 }));
+jest.mock("../../paymaster/service", () => ({
+  linkPaymasterForApplicationSubmission: jest.fn().mockResolvedValue(undefined),
+}));
 
 import { resubmitApplication } from "./service";
 import { prisma } from "../../../lib/prisma";

@@ -43,6 +43,25 @@ jest.mock("../../lib/prisma", () => ({
       create: jest.fn(),
       update: jest.fn(),
     },
+    application: {
+      findUnique: jest.fn().mockResolvedValue({
+        contract: {
+          customer_details: {
+            name: "ABC Trading Sdn Bhd",
+            entity_type: "Private Limited Company (Sdn Bhd)",
+            ssm_number: "202134567890",
+            country: "MY",
+          },
+          paymaster: {
+            legal_name: "ABC Trading Sdn Bhd",
+            entity_type: "Private Limited Company (Sdn Bhd)",
+            registration_number: "202134567890",
+            registration_country: "MY",
+            verification_status: "VERIFIED",
+          },
+        },
+      }),
+    },
     $transaction: jest.fn(),
   },
 }));

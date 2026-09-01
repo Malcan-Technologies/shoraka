@@ -186,11 +186,13 @@ Paymaster is the reusable customer / obligor master. Same SSM number is always t
 Issuer flow:
 
 1. The issuer enters the 12-digit SSM first.
-2. If a **Verified** Paymaster exists, they must select it. Identity autofills and cannot be edited.
-3. If none exists, they enter identity. A new Paymaster is created **Unverified**.
+2. If a **Verified** Paymaster exists, identity autofills and cannot be edited.
+3. If none exists, they enter identity for this application. A Paymaster master is created **Unverified** on submit, not on draft save.
 4. Admin later verifies identity. A Verified Paymaster can be reused by other issuers.
 
 On Application Review, **Paymaster Verification** is separate from section approval, application approval, SSM onboarding, MARC, and Notice of Assignment. Use **Verify Paymaster** only after confirming legal name, registration, country, and entity type.
+
+When submitted customer identity differs from a **Verified** Paymaster, Application Review shows Submitted vs Verified. **Use Verified Paymaster** updates this application's submitted details internally and does not notify the issuer. **Request Amendment** uses the existing Facility / Customer amendment remark flow. Do not send a facility or invoice offer until identity is verified and submitted vs verified is resolved.
 
 Related-party (Yes / No) is per issuer link, not part of locked master identity. Large Private Company stays on the application / facility.
 

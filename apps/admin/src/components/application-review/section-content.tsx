@@ -22,7 +22,7 @@ import type { ReviewTabDescriptor } from "./review-registry";
 import { isSignedContractOfferLetterAvailable } from "./offer-signing-availability";
 import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 import type { SendInvoiceOfferUiPayload } from "@/components/utilisation-fee-lines";
-import { parseItemScopeKey, type ReviewItemType } from "@cashsouk/types";
+import { parseItemScopeKey, paymasterIdentityOfferBlockReason, type ReviewItemType } from "@cashsouk/types";
 
 function acceptanceHubItemType(itemId: string, itemType?: ReviewItemType): ReviewItemType {
   if (itemType === "authorized_representatives" || itemType === "document" || itemType === "invoice") {
@@ -268,6 +268,10 @@ export function SectionContent({
   const adminReviewTabCapacity = resolveAdminReviewTabCapacity({
     app,
     contractSectionStatus: sectionStatusMap?.get("contract_details") ?? "",
+  });
+  const offerIdentityBlockReason = paymasterIdentityOfferBlockReason({
+    submitted: (app.contract?.customer_details as Record<string, unknown> | null | undefined) ?? null,
+    paymaster: app.contract?.paymaster ?? null,
   });
 
   switch (descriptor.kind) {
@@ -627,6 +631,7 @@ export function SectionContent({
           suggestedMarcGrade={
             app.issuer_organization?.marcAssessment?.creditGrade ?? null
           }
+          offerIdentityBlockReason={offerIdentityBlockReason}
           sectionComparison={
             sectionComparison
               ? (() => {

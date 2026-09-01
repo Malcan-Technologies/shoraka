@@ -155,6 +155,7 @@ Do not treat `apps/api/src/lib/audit/visibility-matrix.ts` or `docs/logging-even
 | LOG-FAC-009 | Paymaster Created | `PAYMASTER_CREATED` | New Paymaster master created Unverified from issuer Customer Details | Issuer Save of Customer Details when SSM is not already on a master | Issuer | Paymaster + originating application | Paymaster id, SSM, legal name, Unverified | `application_logs` | Application record - Activity Timeline; Paymaster record - Activity | No | Initial issuer link is included. Do not also write Linked to Issuer |
 | LOG-FAC-010 | Paymaster Linked to Issuer | `PAYMASTER_LINKED_TO_ISSUER` | New issuer link created on an existing Paymaster master | Issuer Save when this issuer did not already have a link | Issuer | Paymaster + originating application | Link id, Paymaster id, related-party, verification status | `application_logs` | Application record - Activity Timeline; Paymaster record - Activity | No | Not written for same-issuer reuse or last-used updates |
 | LOG-FAC-011 | Paymaster Identity Verified | `PAYMASTER_VERIFIED` | Admin reviewed Paymaster identity Unverified → Verified | Admin Verify Paymaster | Admin | Paymaster + originating application when supplied | Previous/new status, verified by | `application_logs` | Application record - Activity Timeline; Paymaster record - Activity | No | Not application approval. Not Notice acknowledgement. Idempotent re-verify writes nothing |
+| LOG-FAC-012 | Paymaster Identity Resolved | `PAYMASTER_IDENTITY_RESOLVED` | Admin overlaid verified Paymaster identity onto this application's submitted customer details | Admin Use Verified Paymaster | Admin | Application + Paymaster | Submitted identity before, verified identity used, resolution | `application_logs` | Application record - Activity Timeline; Paymaster record - Activity | No | Does not notify the issuer. Revision snapshots from submit stay unchanged |
 
 ### 6. Invoices
 
@@ -406,6 +407,7 @@ Display-only label updates made with this register (stored codes unchanged):
 | `PAYMASTER_CREATED` | Humanized token | Paymaster Created |
 | `PAYMASTER_LINKED_TO_ISSUER` | Humanized token | Paymaster Linked to Issuer |
 | `PAYMASTER_VERIFIED` | Paymaster Verified | Paymaster Identity Verified |
+| `PAYMASTER_IDENTITY_RESOLVED` | Humanized token | Paymaster Identity Resolved |
 | `GATEWAY_PAYMENT_COMPLETED` | Gateway Payment Completed | Payment Received Successfully |
 | `NAME_CHECK` / `NAME_CHECK_APPROVED` / `NAME_CHECK_REJECTED` | Name check needed / approved / rejected | Bank Account Name Check Started / Passed / Failed |
 | `CAPTURE_MISMATCH` | Payment mismatch found | Payment Amount Mismatch (or Payment Currency Mismatch) |

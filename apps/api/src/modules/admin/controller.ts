@@ -67,6 +67,8 @@ import {
 } from "./schemas";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
+import { auditContextFromRequest } from "../../lib/audit";
+import { applyVerifiedPaymasterIdentityToApplication } from "../paymaster/service";
 import { noteService } from "../notes/service";
 import { investorBalanceActivityQuerySchema } from "../notes/schemas";
 import {
@@ -3509,6 +3511,29 @@ router.patch(
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/paymaster-identity/use-verified",
+  requirePermission("paymasters.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const result = await applyVerifiedPaymasterIdentityToApplication({
+        applicationId: id,
+        actorUserId: req.user.user_id,
+        auditContext: auditContextFromRequest(req, { res }),
+      });
       res.json({
         success: true,
         data: result,

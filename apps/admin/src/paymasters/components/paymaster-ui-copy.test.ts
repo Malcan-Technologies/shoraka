@@ -61,6 +61,7 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(timeline).toMatch(/PAYMASTER_CREATED:\s*"Paymaster Created"/);
     expect(timeline).toMatch(/PAYMASTER_LINKED_TO_ISSUER:\s*"Paymaster Linked to Issuer"/);
     expect(timeline).toMatch(/PAYMASTER_VERIFIED:\s*"Paymaster Identity Verified"/);
+    expect(timeline).toMatch(/PAYMASTER_IDENTITY_RESOLVED:\s*"Paymaster Identity Resolved"/);
   });
 
   it("Application Review retains Verify Paymaster without mismatch warning", () => {
@@ -72,9 +73,20 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
       join(__dirname, "../../components/application-review/sections/contract-section.tsx"),
       "utf8"
     );
+    const comparison = readFileSync(
+      join(
+        __dirname,
+        "../../components/application-review/paymaster-identity-comparison.tsx"
+      ),
+      "utf8"
+    );
     const panel = readFileSync(join(__dirname, "paymaster-verification-panel.tsx"), "utf8");
     expect(customer).toContain("Paymaster Verification");
     expect(contract).toContain("Paymaster Verification");
+    expect(customer).toContain("SubmittedVerifiedPaymasterIdentity");
+    expect(contract).toContain("SubmittedVerifiedPaymasterIdentity");
+    expect(comparison).toContain("Use Verified Paymaster");
+    expect(comparison).toContain("Request Amendment");
     expect(customer).not.toMatch(/showMismatchBanner/);
     expect(contract).not.toMatch(/showMismatchBanner/);
     expect(panel).toContain("Verify Paymaster");

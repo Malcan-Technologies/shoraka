@@ -117,6 +117,7 @@ describe("ApplicationLogAdapter", () => {
         "PAYMASTER_CREATED",
         "PAYMASTER_LINKED_TO_ISSUER",
         "PAYMASTER_VERIFIED",
+        "PAYMASTER_IDENTITY_RESOLVED",
       ])
     );
   });

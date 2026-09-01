@@ -79,15 +79,17 @@ import {
 import { getCountries, type Country } from "react-phone-number-input";
 import phoneLabelsEn from "react-phone-number-input/locale/en.json";
 import phoneFlags from "react-phone-number-input/flags";
-import type { PaymasterLookupMatch, PaymasterLookupStatus } from "@cashsouk/types";
+import type { IssuerPaymasterOption, PaymasterLookupMatch, PaymasterLookupStatus } from "@cashsouk/types";
 import {
   customerIdentityLocked,
   customerStepValid,
+  isFacilityPaymasterLocked,
   isRelatedPartyAnswered,
+  isTwelveDigitRegistration,
+  lookupStatusFromResult,
   relatedPartyFieldsVisible,
-  registrationLockedAfterLookup,
   showCustomerMasterFields,
-  showRegistrationGate,
+  type YesNo,
 } from "@/app/(application-flow)/applications/steps/customer-paymaster-flow";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -128,8 +130,6 @@ export function generateMockData(): Record<string, unknown> {
     },
   };
 }
-
-type YesNo = "yes" | "no";
 
 const ENTITY_TYPES = [
   "Sole Proprietor",
@@ -363,6 +363,19 @@ export function ContractDetailsStep({
   const { data: contract, isLoading: isLoadingContract } = useContract(contractId || "");
   const createContractMutation = useCreateContract();
   const updateContractMutation = useUpdateContract();
+  const lookupMutateRef = React.useRef(lookupPaymaster.mutateAsync);
+  lookupMutateRef.current = lookupPaymaster.mutateAsync;
+
+  const contractStatus = (contract as { status?: string } | null | undefined)?.status;
+  const facilityPaymasterLocked = isFacilityPaymasterLocked(contractStatus);
+  const stepIsEditable = React.useMemo(() => {
+    if (readOnly) return false;
+    if (!isAmendmentMode) return true;
+    return (
+      flaggedSections?.has("contract_details") ||
+      (flaggedItems?.get("contract_details")?.size ?? 0) > 0
+    );
+  }, [readOnly, isAmendmentMode, flaggedSections, flaggedItems]);
 
   /* ================================================================
      LOCAL STATE (owned entirely by this component)
@@ -387,11 +400,12 @@ export function ContractDetailsStep({
       is_related_party: "" as YesNo | "",
     },
   });
-  const [customerMode, setCustomerMode] = React.useState<"existing" | "new">("new");
-  const [selectedPaymasterId, setSelectedPaymasterId] = React.useState<string>("");
   const [lookupStatus, setLookupStatus] = React.useState<PaymasterLookupStatus | "idle">("idle");
   const [lookupMatch, setLookupMatch] = React.useState<PaymasterLookupMatch | null>(null);
   const [lookupError, setLookupError] = React.useState<string | null>(null);
+  const skipIdentityResetRef = React.useRef(true);
+  const lastLookedUpSsmRef = React.useRef("");
+  const lookupGenerationRef = React.useRef(0);
 
   /** Note: Date inputs are free-text. Parents handle validation on save. */
 
@@ -462,11 +476,13 @@ export function ContractDetailsStep({
       contract: adjustedContract ? { ...prev.contract, ...adjustedContract } : prev.contract,
       customer: data.customer ? { ...prev.customer, ...data.customer } : prev.customer,
     }));
-    setCustomerMode("new");
-    setSelectedPaymasterId("");
     setLookupStatus("NOT_FOUND");
     setLookupMatch(null);
     setLookupError(null);
+    skipIdentityResetRef.current = true;
+    lastLookedUpSsmRef.current = isTwelveDigitRegistration(String(data.customer?.ssm_number ?? ""))
+      ? String(data.customer?.ssm_number)
+      : "";
     if (devTools) {
       if (devTools.autoFillData?.stepKey === "contract_details") devTools.clearAutoFill();
       else devTools.clearAutoFillForStep("contract_details");
@@ -532,22 +548,6 @@ export function ContractDetailsStep({
       },
     };
 
-    const linkedPaymasterId =
-      typeof customerDetails.paymaster_id === "string" ? customerDetails.paymaster_id : "";
-    if (linkedPaymasterId) {
-      setSelectedPaymasterId(linkedPaymasterId);
-      const linkedVerified = existingPaymasters.some((row) => row.id === linkedPaymasterId);
-      setCustomerMode(linkedVerified ? "existing" : "new");
-      setLookupStatus("idle");
-      setLookupMatch(null);
-    } else if (
-      /^\d{12}$/.test(String(customerDetails.ssm_number ?? "")) &&
-      customerDetails.name
-    ) {
-      setCustomerMode("new");
-      setLookupStatus("NOT_FOUND");
-    }
-
     const displayedInitialData = {
       ...initialData,
       contract: {
@@ -556,6 +556,19 @@ export function ContractDetailsStep({
         end_date: isoToApplicationFlowDateDisplay(initialData.contract.end_date),
       },
     };
+
+    const savedSsm = String(customerDetails.ssm_number ?? "");
+    skipIdentityResetRef.current = true;
+    if (isFacilityPaymasterLocked((contract as { status?: string } | null)?.status)) {
+      setLookupStatus("idle");
+      lastLookedUpSsmRef.current = isTwelveDigitRegistration(savedSsm) ? savedSsm : "";
+    } else if (isTwelveDigitRegistration(savedSsm) && customerDetails.name) {
+      setLookupStatus("NOT_FOUND");
+      lastLookedUpSsmRef.current = "";
+    } else {
+      setLookupStatus("idle");
+      lastLookedUpSsmRef.current = "";
+    }
 
     setFormData(displayedInitialData);
 
@@ -617,14 +630,8 @@ export function ContractDetailsStep({
       validationErrors.push("VALIDATION_CONTRACT_RELATED_PARTY_REQUIRED");
     if (
       !customerStepValid({
-        customerMode,
-        selectedPaymasterId,
         lookupStatus,
-        facilityPaymasterLocked: Boolean(
-          typeof (contract as { customer_details?: { paymaster_id?: string | null } } | undefined)
-            ?.customer_details?.paymaster_id === "string" &&
-            (contract as { customer_details?: { paymaster_id?: string } }).customer_details?.paymaster_id
-        ),
+        facilityPaymasterLocked,
         name: formData.customer.name,
         entityType: formData.customer.entity_type,
         ssmNumber: formData.customer.ssm_number,
@@ -714,11 +721,6 @@ export function ContractDetailsStep({
       country: updatedFormData.customer.country,
       is_related_party: updatedFormData.customer.is_related_party === "yes",
     };
-    const paymasterSelection =
-      selectedPaymasterId &&
-      (customerMode === "existing" || lookupStatus === "FOUND_VERIFIED")
-        ? selectedPaymasterId
-        : null;
 
     if (isInvoiceOnly) {
       const existingContractDetails = (
@@ -726,11 +728,9 @@ export function ContractDetailsStep({
       )?.contract_details;
       const updatePayload: {
         customer_details: typeof updatedCustomerDetails;
-        selectedPaymasterId?: string | null;
         contract_details?: null;
       } = {
         customer_details: updatedCustomerDetails,
-        selectedPaymasterId: paymasterSelection,
       };
       if (existingContractDetails != null && Object.keys(existingContractDetails).length > 0) {
         updatePayload.contract_details = null;
@@ -784,7 +784,6 @@ export function ContractDetailsStep({
       data: {
         contract_details: updatedContractDetails,
         customer_details: updatedCustomerDetails,
-        selectedPaymasterId: paymasterSelection,
       },
     });
 
@@ -806,9 +805,8 @@ export function ContractDetailsStep({
     contract,
     application,
     productMinMonths,
-    customerMode,
-    selectedPaymasterId,
     lookupStatus,
+    facilityPaymasterLocked,
   ]);
 
   /* ================================================================
@@ -905,14 +903,8 @@ export function ContractDetailsStep({
       !isRequestedFacilityAtOrAboveContractValue(requestedFacility, contractFace);
 
     const isValidCustomer = customerStepValid({
-      customerMode,
-      selectedPaymasterId,
       lookupStatus,
-      facilityPaymasterLocked: Boolean(
-        typeof (contract as { customer_details?: { paymaster_id?: string | null } } | undefined)
-          ?.customer_details?.paymaster_id === "string" &&
-          (contract as { customer_details?: { paymaster_id?: string } }).customer_details?.paymaster_id
-      ),
+      facilityPaymasterLocked,
       name: formData.customer.name,
       entityType: formData.customer.entity_type,
       ssmNumber: formData.customer.ssm_number,
@@ -947,71 +939,42 @@ export function ContractDetailsStep({
       saveFunction: saveFunctionRef.current || undefined,
       _saveFunctionRef: saveFunctionRef, // internal fallback for debugging/tests
     });
-  }, [formData, pendingFiles, isInvoiceOnly, customerMode, selectedPaymasterId, lookupStatus, contract]);
-  // Determine whether the step is editable (amendment mode + flagged, or explicit readOnly override)
-  const stepIsEditable = React.useMemo(() => {
-    if (readOnly) return false;
-    if (!isAmendmentMode) return true;
-    return (
-      flaggedSections?.has("contract_details") ||
-      (flaggedItems?.get("contract_details")?.size ?? 0) > 0
-    );
-  }, [readOnly, isAmendmentMode, flaggedSections, flaggedItems]);
+  }, [formData, pendingFiles, isInvoiceOnly, lookupStatus, facilityPaymasterLocked, contract]);
 
-  const linkedFacilityPaymasterId = React.useMemo(() => {
-    const details = (contract as { customer_details?: { paymaster_id?: string | null } } | undefined)
-      ?.customer_details;
-    return typeof details?.paymaster_id === "string" && details.paymaster_id
-      ? details.paymaster_id
-      : "";
-  }, [contract]);
-  const paymasterIdentityLocked = Boolean(linkedFacilityPaymasterId);
   const masterFieldsDisabled = customerIdentityLocked({
     stepEditable: stepIsEditable,
-    facilityPaymasterLocked: paymasterIdentityLocked,
-    customerMode,
-    selectedPaymasterId,
+    facilityPaymasterLocked,
     lookupStatus,
   });
-  const ssmLocked = !stepIsEditable || registrationLockedAfterLookup({
-    facilityPaymasterLocked: paymasterIdentityLocked,
-    customerMode,
-    lookupStatus,
-    selectedPaymasterId,
-  });
+  const ssmLocked = !stepIsEditable || facilityPaymasterLocked;
   const showMasterFields = showCustomerMasterFields({
-    facilityPaymasterLocked: paymasterIdentityLocked,
-    customerMode,
-    selectedPaymasterId,
+    facilityPaymasterLocked,
     lookupStatus,
-  });
-  const showSsmGate = showRegistrationGate({
-    facilityPaymasterLocked: paymasterIdentityLocked,
-    customerMode,
+    ssmNumber: formData.customer.ssm_number,
   });
   const showRelatedParty = relatedPartyFieldsVisible({
-    facilityPaymasterLocked: paymasterIdentityLocked,
-    customerMode,
-    selectedPaymasterId,
+    facilityPaymasterLocked,
     lookupStatus,
+    ssmNumber: formData.customer.ssm_number,
   });
-  const showVerifiedMatchCard =
-    customerMode === "new" &&
-    lookupStatus === "FOUND_VERIFIED" &&
-    !selectedPaymasterId &&
-    Boolean(lookupMatch);
+  const showVerifiedIdentity = lookupStatus === "FOUND_VERIFIED" && !facilityPaymasterLocked;
   const countryLabel = (code: string) =>
     PHONE_SUPPORTED_COUNTRIES.find((c) => c.code === code)?.name ?? code;
 
-  const applyPaymasterIdentity = (option: {
-    id: string;
-    legalName: string;
-    entityType: string;
-    registrationNumber: string;
-    registrationCountry: string;
-    isRelatedParty?: boolean | null;
-  }) => {
-    setSelectedPaymasterId(option.id);
+  const applyPreviousPaymaster = (option: IssuerPaymasterOption) => {
+    if (!stepIsEditable || facilityPaymasterLocked) return;
+    skipIdentityResetRef.current = false;
+    lastLookedUpSsmRef.current = option.registrationNumber;
+    setLookupError(null);
+    setLookupStatus("FOUND_VERIFIED");
+    setLookupMatch({
+      id: option.id,
+      legalName: option.legalName,
+      registrationNumber: option.registrationNumber,
+      registrationCountry: option.registrationCountry,
+      entityType: option.entityType,
+      verificationStatus: option.verificationStatus,
+    });
     setFormData((prev) => ({
       ...prev,
       customer: {
@@ -1030,77 +993,96 @@ export function ContractDetailsStep({
     }));
   };
 
-  const applyExistingPaymaster = (paymasterId: string) => {
-    const option = existingPaymasters.find((entry) => entry.id === paymasterId);
-    if (!option) return;
-    setLookupStatus("idle");
-    setLookupMatch(null);
-    applyPaymasterIdentity(option);
-  };
-
-  const resetRegistrationLookup = () => {
-    if (!stepIsEditable || paymasterIdentityLocked) return;
-    setLookupStatus("idle");
-    setLookupMatch(null);
-    setLookupError(null);
-    setSelectedPaymasterId("");
-    setFormData((prev) => ({
-      ...prev,
-      customer: {
-        ...prev.customer,
-        name: "",
-        entity_type: "",
-      },
-    }));
-  };
-
-  const runRegistrationLookup = async () => {
-    if (!stepIsEditable || paymasterIdentityLocked) return;
+  React.useEffect(() => {
+    if (!stepIsEditable || facilityPaymasterLocked) return;
     const ssm = formData.customer.ssm_number;
-    if (!/^\d{12}$/.test(ssm)) {
-      setHasSubmitted(true);
-      setLookupError("SSM number must be 12 digits");
-      return;
-    }
-    if (!issuerOrganizationId) {
-      setLookupError("Organisation is required to check this registration number.");
-      return;
-    }
-    setLookupError(null);
-    try {
-      const result = await lookupPaymaster.mutateAsync({
-        organizationId: issuerOrganizationId,
-        registrationNumber: ssm,
-      });
-      setLookupStatus(result.status);
-      setLookupMatch(result.paymaster);
-      setSelectedPaymasterId("");
-      if (result.status === "FOUND_UNVERIFIED" && result.paymaster) {
-        setFormData((prev) => ({
-          ...prev,
-          customer: {
-            ...prev.customer,
-            name: result.paymaster!.legalName,
-            entity_type: result.paymaster!.entityType,
-            ssm_number: result.paymaster!.registrationNumber,
-            country: result.paymaster!.registrationCountry || prev.customer.country,
-          },
-        }));
-      }
-      if (result.status === "FOUND_VERIFIED") {
+    if (!isTwelveDigitRegistration(ssm)) {
+      lookupGenerationRef.current += 1;
+      setLookupStatus("idle");
+      setLookupMatch(null);
+      if (lastLookedUpSsmRef.current !== "") {
         setFormData((prev) => ({
           ...prev,
           customer: {
             ...prev.customer,
             name: "",
             entity_type: "",
+            country: "MY",
+            is_related_party: "",
           },
         }));
       }
-    } catch (err) {
-      setLookupError(err instanceof Error ? err.message : "Could not check this registration number.");
+      lastLookedUpSsmRef.current = "";
+      return;
     }
-  };
+    if (lastLookedUpSsmRef.current === ssm) return;
+
+    const generation = ++lookupGenerationRef.current;
+    const handle = window.setTimeout(() => {
+      void (async () => {
+        if (!issuerOrganizationId) {
+          if (generation !== lookupGenerationRef.current) return;
+          setLookupError("Organisation is required to check this registration number.");
+          return;
+        }
+        const previousSsm = lastLookedUpSsmRef.current;
+        const shouldResetIdentity =
+          previousSsm !== "" && previousSsm !== ssm && !skipIdentityResetRef.current;
+        skipIdentityResetRef.current = false;
+        if (shouldResetIdentity) {
+          setFormData((prev) => ({
+            ...prev,
+            customer: {
+              ...prev.customer,
+              name: "",
+              entity_type: "",
+              country: "MY",
+              is_related_party: "",
+            },
+          }));
+        }
+        setLookupError(null);
+        try {
+          const result = await lookupMutateRef.current({
+            organizationId: issuerOrganizationId,
+            registrationNumber: ssm,
+          });
+          if (generation !== lookupGenerationRef.current) return;
+          const status = lookupStatusFromResult(result);
+          lastLookedUpSsmRef.current = ssm;
+          setLookupStatus(status);
+          setLookupMatch(status === "FOUND_VERIFIED" ? result.paymaster : null);
+          if (status === "FOUND_VERIFIED" && result.paymaster) {
+            setFormData((prev) => ({
+              ...prev,
+              customer: {
+                ...prev.customer,
+                name: result.paymaster!.legalName,
+                entity_type: result.paymaster!.entityType,
+                ssm_number: result.paymaster!.registrationNumber,
+                country: result.paymaster!.registrationCountry || prev.customer.country,
+              },
+            }));
+          }
+        } catch (err) {
+          if (generation !== lookupGenerationRef.current) return;
+          setLookupStatus("idle");
+          setLookupMatch(null);
+          setLookupError(
+            err instanceof Error ? err.message : "Could not check this registration number."
+          );
+        }
+      })();
+    }, 300);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [
+    formData.customer.ssm_number,
+    stepIsEditable,
+    facilityPaymasterLocked,
+    issuerOrganizationId,
+  ]);
 
   /* ================================================================
      HANDLERS
@@ -1367,191 +1349,85 @@ export function ContractDetailsStep({
           </div>
 
           <div className={sectionGridClassName}>
-            {!paymasterIdentityLocked ? (
-              <>
-                <Label className={labelInputClassName}>Customer / Paymaster</Label>
-                <div className={applicationFlowRadioRowControlClassName}>
-                  <div className="space-y-3">
-                    <p className="text-ui text-muted-foreground">
-                      How would you like to add the customer?
-                    </p>
-                    <div className="flex flex-wrap gap-6 items-center">
-                      <CustomRadio
-                        name="customer-mode"
-                        value="existing"
-                        checked={customerMode === "existing"}
-                        onChange={() => {
-                          if (!stepIsEditable) return;
-                          setCustomerMode("existing");
-                          setLookupStatus("idle");
-                          setLookupMatch(null);
-                          setLookupError(null);
-                        }}
-                        label="Select Existing Paymaster"
-                        selectedLabelClass="text-ui font-medium"
-                        unselectedLabelClass="text-ui"
-                        disabled={!stepIsEditable || existingPaymasters.length === 0}
-                      />
-                      <CustomRadio
-                        name="customer-mode"
-                        value="new"
-                        checked={customerMode === "new"}
-                        onChange={() => {
-                          if (!stepIsEditable) return;
-                          setCustomerMode("new");
-                          setSelectedPaymasterId("");
-                          setLookupStatus("idle");
-                          setLookupMatch(null);
-                          setLookupError(null);
-                        }}
-                        label="Add New Paymaster"
-                        selectedLabelClass="text-ui font-medium"
-                        unselectedLabelClass="text-ui"
-                        disabled={!stepIsEditable}
-                      />
-                    </div>
-                  </div>
-                </div>
-                {customerMode === "existing" ? (
-                  <>
-                    <Label className={labelInputClassName}>Existing Paymaster</Label>
-                    <Select
-                      value={selectedPaymasterId}
-                      onValueChange={(value) => applyExistingPaymaster(value)}
-                      disabled={!stepIsEditable}
-                    >
-                      <SelectTrigger
-                        className={cn(
-                          formSelectTriggerClassName,
-                          !stepIsEditable && formInputDisabledClassName
-                        )}
-                      >
-                        <SelectValue placeholder="Select a verified Paymaster previously used by this issuer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {existingPaymasters.map((option) => (
-                          <SelectItem key={option.id} value={option.id}>
-                            {option.legalName} · {option.registrationNumber}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </>
-                ) : null}
-              </>
-            ) : (
+            {facilityPaymasterLocked ? (
               <>
                 <Label className={labelInputClassName}>Customer / Paymaster</Label>
                 <p className="text-ui text-muted-foreground">
                   This facility already has a linked customer. Legal identity cannot be changed.
                 </p>
               </>
-            )}
+            ) : null}
 
-            {showSsmGate ? (
-              <>
-                <Label className={labelInputClassName}>SSM / Registration Number</Label>
-                <div className="space-y-2 min-h-[48px]">
-                  <Input
-                    value={formData.customer.ssm_number}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (raw === "") {
-                        handleInputChange("customer", "ssm_number", "");
-                        return;
-                      }
-                      if (!/^\d{0,12}$/.test(raw)) return;
-                      handleInputChange("customer", "ssm_number", raw);
-                    }}
-                    disabled={ssmLocked}
-                    placeholder="e.g. 202123456789"
-                    className={inputClassName}
-                  />
-                  <p className="text-meta text-muted-foreground">12 digits</p>
-                  {hasSubmitted && !/^\d{12}$/.test(formData.customer.ssm_number) && (
-                    <p className="text-meta text-destructive">SSM number must be 12 digits</p>
-                  )}
-                  {lookupError ? <p className="text-meta text-destructive">{lookupError}</p> : null}
-                  {lookupStatus === "idle" ? (
+            <Label className={labelInputClassName}>SSM / Registration Number</Label>
+            <div className="space-y-2 min-h-[48px]">
+              <Input
+                value={formData.customer.ssm_number}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === "") {
+                    handleInputChange("customer", "ssm_number", "");
+                    return;
+                  }
+                  if (!/^\d{0,12}$/.test(raw)) return;
+                  handleInputChange("customer", "ssm_number", raw);
+                }}
+                disabled={ssmLocked}
+                placeholder="e.g. 202123456789"
+                className={inputClassName}
+              />
+              <p className="text-meta text-muted-foreground">12 digits</p>
+              {hasSubmitted && !isTwelveDigitRegistration(formData.customer.ssm_number) && (
+                <p className="text-meta text-destructive">SSM number must be 12 digits</p>
+              )}
+              {lookupError ? <p className="text-meta text-destructive">{lookupError}</p> : null}
+              {lookupPaymaster.isPending && isTwelveDigitRegistration(formData.customer.ssm_number) ? (
+                <p className="text-meta text-muted-foreground">Looking up this registration number…</p>
+              ) : null}
+              {!facilityPaymasterLocked && existingPaymasters.length > 0 ? (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {existingPaymasters.map((option) => (
                     <Button
-                      type="button"
-                      className="h-10 rounded-xl text-ui"
-                      disabled={!stepIsEditable || lookupPaymaster.isPending}
-                      onClick={() => void runRegistrationLookup()}
-                    >
-                      {lookupPaymaster.isPending ? "Checking..." : "Check"}
-                    </Button>
-                  ) : (
-                    <Button
+                      key={option.id}
                       type="button"
                       variant="outline"
-                      className="h-10 rounded-xl text-ui"
+                      className="h-8 rounded-xl text-ui"
                       disabled={!stepIsEditable}
-                      onClick={resetRegistrationLookup}
+                      onClick={() => applyPreviousPaymaster(option)}
                     >
-                      Change Registration Number
+                      {option.legalName}
                     </Button>
-                  )}
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            {showVerifiedIdentity ? (
+              <>
+                <Label className={labelInputClassName}>Verified Paymaster</Label>
+                <div className="space-y-1">
+                  <p className="text-ui text-foreground">
+                    {lookupMatch?.legalName || formData.customer.name}
+                  </p>
+                  <p className="text-ui text-muted-foreground">
+                    {lookupMatch?.entityType || formData.customer.entity_type}
+                  </p>
+                  <p className="text-ui text-muted-foreground">
+                    {countryLabel(lookupMatch?.registrationCountry || formData.customer.country)}
+                  </p>
                 </div>
               </>
             ) : null}
 
-            {showVerifiedMatchCard && lookupMatch ? (
+            {lookupStatus === "NOT_FOUND" && !facilityPaymasterLocked ? (
               <>
-                <Label className={labelInputClassName}>Existing Paymaster Found</Label>
-                <div className="space-y-3 rounded-xl border border-border p-4">
-                  <div className="space-y-1">
-                    <p className="text-ui font-medium">{lookupMatch.legalName}</p>
-                    <p className="text-meta text-muted-foreground">
-                      Registration: {lookupMatch.registrationNumber}
-                    </p>
-                    <p className="text-meta text-muted-foreground">
-                      Country: {countryLabel(lookupMatch.registrationCountry)}
-                    </p>
-                    <p className="text-meta text-muted-foreground">
-                      Entity Type: {lookupMatch.entityType}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    className="h-10 rounded-xl text-ui"
-                    disabled={!stepIsEditable}
-                    onClick={() =>
-                      applyPaymasterIdentity({
-                        id: lookupMatch.id,
-                        legalName: lookupMatch.legalName,
-                        entityType: lookupMatch.entityType,
-                        registrationNumber: lookupMatch.registrationNumber,
-                        registrationCountry: lookupMatch.registrationCountry,
-                        isRelatedParty: null,
-                      })
-                    }
-                  >
-                    Use This Paymaster
-                  </Button>
-                </div>
-              </>
-            ) : null}
-
-            {customerMode === "new" && lookupStatus === "FOUND_UNVERIFIED" ? (
-              <>
-                <Label className={labelInputClassName}>Verification</Label>
+                <Label className={labelInputClassName}>Customer identity</Label>
                 <p className="text-ui text-muted-foreground">
-                  This customer is already registered and is pending verification.
+                  No verified Paymaster found. Enter the customer details for this application.
                 </p>
               </>
             ) : null}
 
-            {customerMode === "new" && lookupStatus === "NOT_FOUND" ? (
-              <>
-                <Label className={labelInputClassName}>New customer</Label>
-                <p className="text-ui text-muted-foreground">
-                  No verified Paymaster found. Please enter the customer details below.
-                </p>
-              </>
-            ) : null}
-
-            {showMasterFields ? (
+            {showMasterFields && !showVerifiedIdentity ? (
               <>
                 <Label className={labelInputClassName}>Customer Name</Label>
                 <Input
@@ -1590,20 +1466,6 @@ export function ContractDetailsStep({
                     ))}
                   </SelectContent>
                 </Select>
-
-                {!showSsmGate ? (
-                  <>
-                    <Label className={labelInputClassName}>SSM / Registration Number</Label>
-                    <div className="space-y-1 min-h-[48px]">
-                      <Input
-                        value={formData.customer.ssm_number}
-                        disabled
-                        className={inputClassName}
-                      />
-                      <p className="text-meta text-muted-foreground">12 digits</p>
-                    </div>
-                  </>
-                ) : null}
 
                 <Label htmlFor="contract-customer-country" className={labelInputClassName}>
                   Customer Country
