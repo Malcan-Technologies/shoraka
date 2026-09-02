@@ -136,9 +136,6 @@ describe("prospectus review completion readiness", () => {
       deedOfAssignment: "Yes",
     };
     draft.page2.creditInsights = {
-      creditScoreOptionKey: "good",
-      paymentBehaviourOptionKey: "good",
-      creditUtilisationOptionKey: "healthy",
       litigationCheckOptionKey: "clear",
       ccrisStatusOptionKey: "no_record",
     };
@@ -279,8 +276,22 @@ describe("prospectus review completion readiness", () => {
       false
     );
     expect(getProspectusStepStatuses(draft)[1]).toBe("complete");
-    expect(getProspectusStepStatuses(draft)[2]).not.toBe("required");
+    expect(getProspectusStepStatuses(draft)[2]).toBe("complete");
     expect(buildProspectusMissingRequiredFields(draft).filter((m) => m.pageStep === 2)).toHaveLength(0);
+    expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
+  });
+
+  it("marks Page 2 complete without retired Credit Insights officer selects", () => {
+    const draft = completeOfficerDraft();
+    draft.page2.creditInsights = {
+      litigationCheckOptionKey: "clear",
+      ccrisStatusOptionKey: "no_record",
+    };
+    expect(buildProspectusMissingRequiredFields(draft).filter((m) => m.pageStep === 1)).toHaveLength(0);
+    expect(getProspectusStepStatuses(draft)[1]).toBe("complete");
+    expect(buildProspectusCompletionChecklist(draft).find((i) => i.id === "credit")?.complete).toBe(
+      true
+    );
     expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
   });
 

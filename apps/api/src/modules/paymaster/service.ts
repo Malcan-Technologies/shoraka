@@ -17,6 +17,7 @@ import {
   RELATED_PARTY_REQUIRED_MESSAGE,
   isCompleteIssuerMarcAssessment,
   isPaymasterVerified,
+  resolveCompletedSigningEnvelopeWhere,
   paymasterIdentityOfferBlockReason,
   submittedIdentityDiffersFromVerified,
   marcSmeGradeFromCreditScore,
@@ -1093,22 +1094,31 @@ export async function assertPaymasterAcknowledgementForDisbursement(noteId: stri
   }
 }
 
+/**
+ * Same completed-envelope rule as note publish: contract-linked invoices reuse the
+ * facility package (any application). Do not require the envelope to live on the
+ * note's source application or on the invoice row.
+ */
 export async function isExecutionPackCompleteForNote(params: {
-  sourceApplicationId: string;
   sourceContractId: string | null;
   sourceInvoiceId: string | null;
 }): Promise<boolean> {
+  let invoiceContractId: string | null = null;
+  if (params.sourceInvoiceId) {
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: params.sourceInvoiceId },
+      select: { contract_id: true },
+    });
+    invoiceContractId = invoice?.contract_id ?? null;
+  }
+  const envelopeWhere = resolveCompletedSigningEnvelopeWhere({
+    sourceInvoiceId: params.sourceInvoiceId,
+    sourceContractId: params.sourceContractId,
+    invoiceContractId,
+  });
+  if (!envelopeWhere) return false;
   const envelope = await prisma.signingEnvelope.findFirst({
-    where: {
-      status: "COMPLETED",
-      application_id: params.sourceApplicationId,
-      OR: [
-        ...(params.sourceInvoiceId ? [{ invoice_id: params.sourceInvoiceId }] : []),
-        ...(params.sourceContractId
-          ? [{ contract_id: params.sourceContractId, invoice_id: null }]
-          : []),
-      ],
-    },
+    where: { status: "COMPLETED", ...envelopeWhere },
     select: { id: true },
   });
   return Boolean(envelope);

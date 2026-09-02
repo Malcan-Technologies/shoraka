@@ -112,9 +112,6 @@ export function buildProspectusCompletionChecklist(
   const credit = draft.page2.creditInsights;
   const marcComplete = options?.hasMarcAssessment !== false;
   const creditInsightsComplete =
-    hasOption(credit.creditScoreOptionKey) &&
-    hasOption(credit.paymentBehaviourOptionKey) &&
-    hasOption(credit.creditUtilisationOptionKey) &&
     hasOption(credit.litigationCheckOptionKey) &&
     hasOption(credit.ccrisStatusOptionKey) &&
     marcComplete;
@@ -181,48 +178,6 @@ export function buildProspectusCompletionChecklist(
   ];
 }
 
-export function isProspectusDraftReadyToSubmit(
-  draft: import("@cashsouk/types").ProspectusReviewStoredContent,
-  options?: ProspectusCompletionOptions
-): boolean {
-  return buildProspectusCompletionChecklist(draft, options)
-    .filter((item) => item.required)
-    .every((item) => item.complete);
-}
-
-export function statusForCompletionItem(item: ProspectusCompletionItem): ProspectusStepStatus {
-  if (item.complete) return "complete";
-  return item.required ? "required" : "optional";
-}
-
-function worstStatus(a: ProspectusStepStatus, b: ProspectusStepStatus): ProspectusStepStatus {
-  if (a === "required" || b === "required") return "required";
-  if (a === "optional" || b === "optional") return a === "complete" ? b : a;
-  return "complete";
-}
-
-export function getProspectusStepStatuses(
-  draft: import("@cashsouk/types").ProspectusReviewStoredContent,
-  options?: ProspectusCompletionOptions
-): Partial<Record<ProspectusWorkflowStepId, ProspectusStepStatus>> {
-  const checklist = buildProspectusCompletionChecklist(draft, options);
-  const byId = Object.fromEntries(checklist.map((item) => [item.id, item]));
-  const ready = isProspectusDraftReadyToSubmit(draft, options);
-
-  const statusFor = (itemId: string): ProspectusStepStatus => {
-    const item = byId[itemId];
-    if (!item) return "optional";
-    return statusForCompletionItem(item);
-  };
-
-  return {
-    0: worstStatus(statusFor("core"), statusFor("highlights")),
-    1: statusFor("credit"),
-    2: worstStatus(statusFor("financials"), statusFor("takeaways")),
-    ...(ready ? { 3: "complete" as const } : {}),
-  };
-}
-
 /** Grouped missing required fields for Preview & Approval navigation. */
 export type ProspectusMissingField = {
   pageStep: ProspectusWorkflowStepId;
@@ -232,6 +187,39 @@ export type ProspectusMissingField = {
   /** Internal working-area tab id for navigation. */
   tabId?: string;
 };
+
+export function isProspectusDraftReadyToSubmit(
+  draft: import("@cashsouk/types").ProspectusReviewStoredContent,
+  options?: ProspectusCompletionOptions
+): boolean {
+  return buildProspectusMissingRequiredFields(draft, options).length === 0;
+}
+
+export function statusForCompletionItem(item: ProspectusCompletionItem): ProspectusStepStatus {
+  if (item.complete) return "complete";
+  return item.required ? "required" : "optional";
+}
+
+function pageStatusFromMissing(
+  missing: ProspectusMissingField[],
+  pageStep: ProspectusWorkflowStepId
+): ProspectusStepStatus {
+  return missing.some((item) => item.pageStep === pageStep) ? "required" : "complete";
+}
+
+export function getProspectusStepStatuses(
+  draft: import("@cashsouk/types").ProspectusReviewStoredContent,
+  options?: ProspectusCompletionOptions
+): Partial<Record<ProspectusWorkflowStepId, ProspectusStepStatus>> {
+  const missing = buildProspectusMissingRequiredFields(draft, options);
+
+  return {
+    0: pageStatusFromMissing(missing, 0),
+    1: pageStatusFromMissing(missing, 1),
+    2: pageStatusFromMissing(missing, 2),
+    ...(missing.length === 0 ? { 3: "complete" as const } : {}),
+  };
+}
 
 export function buildProspectusMissingRequiredFields(
   draft: import("@cashsouk/types").ProspectusReviewStoredContent,

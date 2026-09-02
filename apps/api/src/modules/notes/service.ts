@@ -27,7 +27,10 @@ import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { buildPaymasterSnapshot } from "../paymaster/snapshot";
-import { assertPaymasterAcknowledgementForDisbursement } from "../paymaster/service";
+import {
+  assertPaymasterAcknowledgementForDisbursement,
+  isExecutionPackCompleteForNote,
+} from "../paymaster/service";
 import {
   assertInvoiceFeeScheduleChargeable,
   settleCloseFundingFacilityFees,
@@ -72,7 +75,6 @@ import {
   meetsMinimumFunding,
   normalizeNoteCapacityAmount,
   NOTE_MONEY_TOLERANCE,
-  resolveCompletedSigningEnvelopeWhere,
   roundNoteMoney,
   parseFacilityFeeCollectionWaiver,
   settleDisbursementFees,
@@ -1499,26 +1501,11 @@ export class NoteService {
     if (!workflow) return;
 
     if (workflowHasSigningPackage(workflow)) {
-      let invoiceContractId: string | null = null;
-      if (note.source_invoice_id) {
-        const invoice = await prisma.invoice.findUnique({
-          where: { id: note.source_invoice_id },
-          select: { contract_id: true },
-        });
-        invoiceContractId = invoice?.contract_id ?? null;
-      }
-      const envelopeWhere = resolveCompletedSigningEnvelopeWhere({
-        sourceInvoiceId: note.source_invoice_id,
+      const packComplete = await isExecutionPackCompleteForNote({
         sourceContractId: note.source_contract_id,
-        invoiceContractId,
+        sourceInvoiceId: note.source_invoice_id,
       });
-      const completedEnvelope = envelopeWhere
-        ? await prisma.signingEnvelope.findFirst({
-            where: { status: "COMPLETED", ...envelopeWhere },
-            select: { id: true },
-          })
-        : null;
-      if (!completedEnvelope) {
+      if (!packComplete) {
         throw new AppError(
           409,
           "SIGNING_ENVELOPE_INCOMPLETE",
