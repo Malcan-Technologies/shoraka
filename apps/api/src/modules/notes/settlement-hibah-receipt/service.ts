@@ -510,7 +510,10 @@ export async function generateAdminSettlementHibahReceipt(
       "Receipt already exists. Use Retry for a failed version or Regenerate for a new version"
     );
   }
-  await generateSettlementHibahReceipt({ noteId, source: "ADMIN_GENERATE", actor }, db);
+  await generateSettlementHibahReceipt(
+    { noteId, source: "ADMIN_GENERATE", actor, createMissing: true },
+    db
+  );
   return getAdminSettlementHibahReceipt(noteId, db);
 }
 

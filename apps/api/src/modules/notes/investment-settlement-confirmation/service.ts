@@ -5,6 +5,7 @@ import {
   type PrismaClient,
 } from "@prisma/client";
 import type {
+  AdminInvestmentSettlementConfirmationItem,
   AdminInvestmentSettlementConfirmationsPayload,
   InvestmentSettlementConfirmationPdfPayload,
   OfficialDocumentReviewVersion,
@@ -1109,7 +1110,7 @@ export async function getAdminInvestmentSettlementConfirmations(
       })
     : [];
   const orgById = new Map(orgs.map((org) => [org.id, org]));
-  const confirmations = [];
+  const confirmations: AdminInvestmentSettlementConfirmationItem[] = [];
   for (const orgId of expectedOrgIds) {
     const investorRows = allRows.filter((row) => row.investor_organization_id === orgId);
     const currentVersion = currentOfficialDocumentVersion(investorRows);
@@ -1140,7 +1141,7 @@ export async function getAdminInvestmentSettlementConfirmations(
       investorOrganizationId: orgId,
       investorReference: snapshot?.investorReference ?? fallbackRef,
       version: payload.version,
-      status: payload.status === "NONE" ? "NONE" : payload.status,
+      status: payload.status,
       isCurrent: payload.isCurrent,
       generationError: payload.generationError,
       generatedAt: payload.generatedAt,

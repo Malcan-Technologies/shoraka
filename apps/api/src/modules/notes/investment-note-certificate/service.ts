@@ -586,7 +586,7 @@ export async function generateAdminInvestmentNoteCertificate(
     );
   }
   await generateInvestmentNoteCertificates(
-    { noteId, source: "ADMIN_GENERATE", actor },
+    { noteId, source: "ADMIN_GENERATE", actor, createMissing: true },
     db
   );
   return getAdminInvestmentNoteCertificate(noteId, db);

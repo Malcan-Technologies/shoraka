@@ -701,6 +701,31 @@ describe("confirmation generate, regenerate and publish", () => {
     );
   });
 
+  it("creates unpublished V03 on the next regenerate", async () => {
+    await generateAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    await reissueAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    await publishAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    const admin = await reissueAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(admin.confirmations[0]?.version).toBe("V02");
+    expect(admin.confirmations[0]?.isCurrent).toBe(true);
+    expect(admin.confirmations[0]?.reviewVersion?.version).toBe("V03");
+    expect(admin.confirmations[0]?.reviewVersion?.canPublish).toBe(true);
+    const investor = await getInvestorInvestmentSettlementConfirmation("inv-1", "investor-user");
+    expect(investor.version).toBe("V02");
+  });
+
   it("generate all skips investors that already have a confirmation", async () => {
     postedSettlement.preview_snapshot = {
       allocations: [
