@@ -404,6 +404,11 @@ describe("audience download authorization", () => {
     expect(payload.status).toBe("READY");
     expect(payload.certificateNumber).toBe("IINC-NOTE-1");
     expect(payload.canRetry).toBe(false);
+    expect(payload.viewUrl).toBe("https://s3/view");
+    expect(payload.downloadUrl).toBe("https://s3/view");
+    expect(mockGenerateCertificatePdfViewUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ disposition: "attachment" })
+    );
   });
 });
 

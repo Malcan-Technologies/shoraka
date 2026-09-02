@@ -114,6 +114,21 @@ export function useViewIssuerInvestmentNoteCertificate(noteId: string | null) {
   });
 }
 
+export function useDownloadIssuerInvestmentNoteCertificate(noteId: string | null) {
+  const apiClient = useIssuerNotesApiClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const response = await apiClient.getIssuerInvestmentNoteCertificate(noteId);
+      if (!response.success) throw new Error(response.error.message);
+      if (!response.data.downloadUrl) {
+        throw new Error("Investment Note Certificate is not available");
+      }
+      return response.data;
+    },
+  });
+}
+
 export function useIssuerSettlementHibahReceipt(noteId?: string) {
   const apiClient = useIssuerNotesApiClient();
   return useQuery({

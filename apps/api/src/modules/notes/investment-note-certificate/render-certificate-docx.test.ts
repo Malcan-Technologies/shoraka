@@ -130,6 +130,8 @@ describe("renderInvestmentNoteCertificateDocx", () => {
   it("admin/issuer TOTAL row reconciles to frozen note totals", () => {
     const data = buildCertificateDocxMergeData(snapshot, { audience: "ADMIN" });
     expect(data.certificateNumber).toBe("IINC-NOTE-20260902-AAA");
+    expect(data.noteReference).toBe("NOTE-20260902-AAA");
+    expect(data.campaignId).toBe("NOTE-20260902-AAA");
     expect(data.investorScheduleReference).toBe("IS-NOTE-20260902-AAA-V01");
     expect(data.scheduleVersion).toBe("V01");
     expect(data.investors).toHaveLength(2);
@@ -153,5 +155,62 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(data.sumSharePercent).toBe("62.50%");
     expect(data.sumExpectedProfit).toBe("1,250.00");
     expect(data.sumTotalPayable).toBe("51,250.00");
+  });
+
+  it("prints display references and never raw organization or note CUIDs", () => {
+    const issuerCuid = "cmknlimvf0003grp0hsbmc1dp";
+    const investorCuid = "cmkm0fc2r00059v8jzc71b39c";
+    const noteCuid = "cmtjz7ez50002ks59pu7j2xml";
+    const investmentCuid = "cmtjz7ez5investment00001";
+    const withIds = sampleInvestmentNoteCertificateSnapshot([
+      {
+        investorOrganizationId: investorCuid,
+        investorReference: "IVT-202609-A12",
+        investorName: "Alice Tan",
+        principal: 80_000,
+        sharePercent: 100,
+        expectedGrossProfit: 2_000,
+        totalPayable: 82_000,
+      },
+    ]);
+    withIds.note.noteId = noteCuid;
+    withIds.note.issuerReference = "ISS-202608-DK3";
+    withIds.note.noteReference = "NOTE-ARF-202609-5O3";
+    withIds.note.campaignReference = "NOTE-ARF-202609-5O3";
+    withIds.certificate.certificateNumber = "IINC-NOTE-ARF-202609-5O3";
+    withIds.investorSchedule.scheduleReference = "IS-NOTE-ARF-202609-5O3-V01";
+
+    const admin = wordPlainText(renderedXml(withIds, { audience: "ADMIN" }));
+    const issuer = wordPlainText(renderedXml(withIds, { audience: "ISSUER" }));
+    const investor = wordPlainText(
+      renderedXml(withIds, { audience: "INVESTOR", investorOrganizationId: investorCuid })
+    );
+
+    for (const plain of [admin, issuer, investor]) {
+      expect(plain).toContain("ISS-202608-DK3");
+      expect(plain).toContain("IVT-202609-A12");
+      expect(plain).toContain("IINC-NOTE-ARF-202609-5O3");
+      expect(plain).toContain("NOTE-ARF-202609-5O3");
+      expect(plain).toContain("IS-NOTE-ARF-202609-5O3-V01");
+      expect(plain).not.toContain(issuerCuid);
+      expect(plain).not.toContain(investorCuid);
+      expect(plain).not.toContain(noteCuid);
+      expect(plain).not.toContain(investmentCuid);
+    }
+
+    expect(admin).toContain("Alice Tan");
+    expect(issuer).not.toContain("Alice Tan");
+    expect(investor).toContain("Alice Tan");
+  });
+
+  it("keeps Company no. as — when the snapshot has no registration number", () => {
+    const missing = sampleInvestmentNoteCertificateSnapshot();
+    missing.note.companyRegistrationNumber = "—";
+    const admin = wordPlainText(renderedXml(missing, { audience: "ADMIN" }));
+    expect(admin).toContain("—");
+    expect(admin).not.toContain("1234567-A");
+    expect(buildCertificateDocxMergeData(missing, { audience: "ADMIN" }).companyRegistration).toBe(
+      "—"
+    );
   });
 });

@@ -20,6 +20,10 @@ import {
   money2,
 } from "./calculations";
 import {
+  certificatePartyDisplayReference,
+  resolveCertificateCompanyRegistration,
+} from "./certificate-identity";
+import {
   CERTIFICATE_CAMPAIGN_STATUS,
   CERTIFICATE_CURRENCY_LABEL,
   CERTIFICATE_FIRST_VERSION,
@@ -234,7 +238,11 @@ export async function buildInvestmentNoteCertificateSnapshot(
   const [issuerOrg, investorOrgs] = await Promise.all([
     prisma.issuerOrganization.findUnique({
       where: { id: note.issuer_organization_id },
-      select: { display_reference: true },
+      select: {
+        display_reference: true,
+        registration_number: true,
+        corporate_onboarding_data: true,
+      },
     }),
     prisma.investorOrganization.findMany({
       where: { id: { in: orgIds } },
@@ -269,7 +277,10 @@ export async function buildInvestmentNoteCertificateSnapshot(
       const org = investorOrgById.get(row.investor_organization_id);
       return {
         investorOrganizationId: row.investor_organization_id,
-        investorReference: nonEmpty(org?.display_reference) ?? row.investor_organization_id,
+        investorReference: certificatePartyDisplayReference(
+          org?.display_reference,
+          row.investor_organization_id
+        ),
         investorName: org ? freezeInvestorName(org) : "—",
         amount: toNumber(row.amount),
       };
@@ -304,10 +315,16 @@ export async function buildInvestmentNoteCertificateSnapshot(
       noteId: note.id,
       noteReference: note.note_reference,
       campaignReference: note.note_reference,
-      issuerReference: nonEmpty(issuerOrg?.display_reference) ?? note.issuer_organization_id,
+      issuerReference: certificatePartyDisplayReference(
+        issuerOrg?.display_reference,
+        note.issuer_organization_id
+      ),
       businessSector: nonEmpty(issuerSnapshot?.industry) ?? "—",
       issuerLegalName: nonEmpty(issuerSnapshot?.name) ?? "—",
-      companyRegistrationNumber: nonEmpty(issuerSnapshot?.registration_number) ?? "—",
+      companyRegistrationNumber: resolveCertificateCompanyRegistration({
+        issuerSnapshot,
+        issuerOrganization: issuerOrg,
+      }),
       campaignStatus: CERTIFICATE_CAMPAIGN_STATUS,
       fundingCloseDate: isoDate(note.funding_closed_at),
       fundingCloseDateDisplay: displayUtcDate(note.funding_closed_at),
