@@ -504,6 +504,7 @@ export * from "./regtank-iso3166-countries";
 export * from "./notes";
 export * from "./investment-note-certificate";
 export * from "./settlement-hibah-receipt";
+export * from "./investment-settlement-confirmation";
 export * from "./financing-tenure";
 export * from "./invoice-financing-ratio";
 export * from "./invoice-details-config";

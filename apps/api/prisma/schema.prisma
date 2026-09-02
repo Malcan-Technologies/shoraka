@@ -351,9 +351,10 @@ model InvestorOrganization {
   regtank_onboarding            RegTankOnboarding[]              @relation("RegTankOnboardingToInvestorOrg")
   ctos_reports                  CtosReport[]
   ctos_party_supplements        CtosPartySupplement[]
-  investor_balance              InvestorBalance?
-  investor_balance_transactions InvestorBalanceTransaction[]
-  gateway_payments              GatewayPayment[]
+  investor_balance                     InvestorBalance?
+  investor_balance_transactions        InvestorBalanceTransaction[]
+  gateway_payments                     GatewayPayment[]
+  investment_settlement_confirmations  InvestmentSettlementConfirmation[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
@@ -951,8 +952,9 @@ model Note {
   gateway_payments                GatewayPayment[]
   paymaster                       Paymaster?                  @relation(fields: [paymaster_id], references: [id], onDelete: SetNull)
   assignment_notices              PaymasterAssignmentNotice[]
-  investment_certificates         NoteInvestmentCertificate[]
-  settlement_hibah_receipts       SettlementHibahReceipt[]
+  investment_certificates               NoteInvestmentCertificate[]
+  settlement_hibah_receipts             SettlementHibahReceipt[]
+  investment_settlement_confirmations   InvestmentSettlementConfirmation[]
 
   @@index([source_application_id])
   @@index([source_contract_id])
@@ -1309,6 +1311,7 @@ model NoteSettlement {
   note                                    Note                                @relation(fields: [note_id], references: [id], onDelete: Cascade)
   withdrawals                             WithdrawalInstruction[]
   hibah_receipts                          SettlementHibahReceipt[]
+  investment_settlement_confirmations     InvestmentSettlementConfirmation[]
 
   @@index([note_id])
   @@index([payment_id])
@@ -2448,6 +2451,39 @@ enum SettlementHibahReceiptStatus {
   PENDING
   READY
   FAILED
+}
+
+enum InvestmentSettlementConfirmationStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+/// Immutable investor-copy Investment Settlement Confirmation PDF
+/// (one V01 per posted settlement and investor organization).
+model InvestmentSettlementConfirmation {
+  id                       String                                    @id @default(cuid())
+  note_id                  String
+  settlement_id            String
+  investor_organization_id String
+  version                  String
+  status                   InvestmentSettlementConfirmationStatus    @default(PENDING)
+  snapshot                 Json
+  pdf_s3_key               String?
+  pdf_sha256               String?
+  generated_at             DateTime?
+  generation_error         String?
+  created_at               DateTime                                  @default(now())
+  updated_at               DateTime                                  @updatedAt
+  note                     Note                                      @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  settlement               NoteSettlement                            @relation(fields: [settlement_id], references: [id], onDelete: Cascade)
+  investor_organization    InvestorOrganization                      @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+
+  @@unique([settlement_id, investor_organization_id, version], map: "investment_settlement_confirmations_scope_uidx")
+  @@index([note_id, version])
+  @@index([investor_organization_id])
+  @@index([status])
+  @@map("investment_settlement_confirmations")
 }
 
 /// Immutable issuer-copy Settlement & Hibah Receipt PDF (one V01 per posted settlement).

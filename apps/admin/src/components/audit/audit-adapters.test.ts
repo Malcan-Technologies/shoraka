@@ -304,6 +304,38 @@ describe("note Event Details nested snapshots", () => {
       ])
     );
   });
+
+  it("surfaces investor settlement confirmation count and hashes", () => {
+    const detail = noteEventToAuditDetail(
+      {
+        id: "evt-isc",
+        noteId: "note-1",
+        eventType: "INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED",
+        actorUserId: "admin-1",
+        actorName: "Ada",
+        actorRole: "ADMIN",
+        portal: "ADMIN",
+        correlationId: null,
+        createdAt: "2026-09-02T00:00:00.000Z",
+        metadata: {
+          version: "V01",
+          settlementId: "set-1",
+          settlementReference: "SET-ARF-202608-A52",
+          confirmationCount: 2,
+          snapshotSha256: "snap",
+          pdfSha256: "pdf",
+          source: "SETTLEMENT_POSTED",
+        },
+      },
+      "Investment Settlement Confirmation Generated"
+    );
+    expect(detail.target?.extra).toEqual(
+      expect.arrayContaining([
+        { label: "Version", value: "V01" },
+        { label: "Confirmation count", value: "2" },
+      ])
+    );
+  });
 });
 
 describe("contract activity Event Details", () => {

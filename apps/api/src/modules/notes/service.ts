@@ -5548,6 +5548,14 @@ export class NoteService {
       settlementId,
       investorOrganizationIds: repaidInvestorOrgIds,
     });
+    const { scheduleInvestmentSettlementConfirmations } = await import(
+      "./investment-settlement-confirmation/service"
+    );
+    scheduleInvestmentSettlementConfirmations({
+      settlementId,
+      source: "SETTLEMENT_POSTED",
+      actor,
+    });
     const postedExcessOwed = toNumber(settlement.excess_late_charge_amount);
     const postedExcessPaid = toNumber(settlement.excess_late_charge_paid_amount);
     if (postedExcessOwed - postedExcessPaid > 0.005) {

@@ -130,7 +130,9 @@ import {
 } from "@/notes/utils/workflow-status-tokens";
 import { ActualSettlementDateField } from "@/notes/components/actual-settlement-date-field";
 import { SettlementHibahReceiptCard } from "@/notes/components/settlement-hibah-receipt-card";
+import { InvestmentSettlementConfirmationCard } from "@/notes/components/investment-settlement-confirmation-card";
 import { useAdminSettlementHibahReceipt } from "@/notes/hooks/use-settlement-hibah-receipt";
+import { useAdminInvestmentSettlementConfirmations } from "@/notes/hooks/use-investment-settlement-confirmation";
 import {
   actualSettlementDateError,
   defaultActualSettlementDate,
@@ -575,6 +577,9 @@ export function SettlementPanel({
   const postedSettlementId =
     note.settlements.find((settlement) => settlement.status === "POSTED")?.id ?? null;
   const { data: hibahReceipt } = useAdminSettlementHibahReceipt(
+    postedSettlementId ? note.id : undefined
+  );
+  const { data: investorConfirmations } = useAdminInvestmentSettlementConfirmations(
     postedSettlementId ? note.id : undefined
   );
 
@@ -2785,6 +2790,14 @@ export function SettlementPanel({
               </div>
             )}
           </div>
+
+          {postedSettlementId && investorConfirmations ? (
+            <InvestmentSettlementConfirmationCard
+              noteId={note.id}
+              payload={investorConfirmations}
+              canRetry={canSettlement}
+            />
+          ) : null}
 
           {postedSettlementId && hibahReceipt ? (
             <SettlementHibahReceiptCard

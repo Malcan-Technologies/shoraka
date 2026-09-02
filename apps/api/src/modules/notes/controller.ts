@@ -403,6 +403,46 @@ adminNotesRouter.post(
   }
 );
 
+adminNotesRouter.get(
+  "/:id/investment-settlement-confirmations",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { getAdminInvestmentSettlementConfirmations } = await import(
+        "./investment-settlement-confirmation/service"
+      );
+      send(res, await getAdminInvestmentSettlementConfirmations(id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/investment-settlement-confirmations/:investorOrganizationId/retry",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const investorOrganizationId = z.string().min(1).parse(req.params.investorOrganizationId);
+      const { retryAdminInvestmentSettlementConfirmation } = await import(
+        "./investment-settlement-confirmation/service"
+      );
+      send(
+        res,
+        await retryAdminInvestmentSettlementConfirmation(
+          id,
+          investorOrganizationId,
+          getActor(req, res, "ADMIN")
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 adminNotesRouter.post(
   "/:id/prospectus-review/preview",
   requirePermission("notes.manage"),
@@ -966,6 +1006,27 @@ investorNotesRouter.get(
       send(
         res,
         await getInvestorInvestmentNoteCertificate(
+          investmentId,
+          getActor(req, res, "INVESTOR").userId
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+investorNotesRouter.get(
+  "/investments/:investmentId/settlement-confirmation",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const investmentId = z.string().min(1).parse(req.params.investmentId);
+      const { getInvestorInvestmentSettlementConfirmation } = await import(
+        "./investment-settlement-confirmation/service"
+      );
+      send(
+        res,
+        await getInvestorInvestmentSettlementConfirmation(
           investmentId,
           getActor(req, res, "INVESTOR").userId
         )

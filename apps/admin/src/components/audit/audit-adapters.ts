@@ -375,6 +375,7 @@ export function noteEventToAuditDetail(
         { label: "Receipt number", value: pickString(metadata, ["receiptNumber"]) },
         { label: "Version", value: pickString(metadata, ["version"]) },
         { label: "Hibah amount", value: pickString(metadata, ["hibahAmount"]) },
+        { label: "Confirmation count", value: pickString(metadata, ["confirmationCount"]) },
       ]),
     },
     financial,

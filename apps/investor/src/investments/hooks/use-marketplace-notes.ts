@@ -109,6 +109,35 @@ export function useOpenInvestorInvestmentNoteCertificate() {
   };
 }
 
+export function useInvestorInvestmentSettlementConfirmation(investmentId?: string) {
+  const apiClient = useMarketplaceApiClient();
+  return useQuery({
+    queryKey: ["investor-investment-settlement-confirmation", investmentId] as const,
+    enabled: Boolean(investmentId),
+    refetchInterval: (query) => (query.state.data?.status === "PENDING" ? 5000 : false),
+    queryFn: async () => {
+      if (!investmentId) throw new Error("Investment ID is required");
+      const res = await apiClient.getInvestorInvestmentSettlementConfirmation(investmentId);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+  });
+}
+
+export function useOpenInvestorInvestmentSettlementConfirmation() {
+  const apiClient = useMarketplaceApiClient();
+  return async (investmentId: string) => {
+    await openFetchedPdfInNewTab(async () => {
+      const res = await apiClient.getInvestorInvestmentSettlementConfirmation(investmentId);
+      if (!res.success) throw new Error(res.error.message);
+      if (!res.data.downloadUrl) {
+        throw new Error("Settlement confirmation is not available");
+      }
+      return res.data.downloadUrl;
+    });
+  };
+}
+
 export function useMarketplaceNotes({
   search = "",
   page = 1,

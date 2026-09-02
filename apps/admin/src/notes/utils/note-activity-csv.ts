@@ -60,6 +60,7 @@ const EVENT_LABELS: Record<string, string> = {
   SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate Retrieved",
   INVESTMENT_NOTE_CERTIFICATE_GENERATED: "Investment Note Certificate Generated",
   SETTLEMENT_HIBAH_RECEIPT_GENERATED: "Settlement & Hibah Receipt Generated",
+  INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED: "Investment Settlement Confirmation Generated",
 };
 
 const RESIDUAL_RETURN_EVENT_LABELS: Record<string, string> = {

@@ -25,6 +25,7 @@
     "gateway_recon_runs",
     "gateway_webhook_events",
     "generated_document_evidence",
+    "investment_settlement_confirmations",
     "investments",
     "investor_balance_transactions",
     "investor_balances",
@@ -157,6 +158,7 @@
     "noteEvent": [
       "INVESTMENT_COMMITTED",
       "INVESTMENT_NOTE_CERTIFICATE_GENERATED",
+      "INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED",
       "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED",
       "LATE_CHARGE_APPROVED",
       "NOTE_CREATED_FROM_INVOICE",
