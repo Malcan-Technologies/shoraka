@@ -68,4 +68,18 @@ describe("visibility matrix", () => {
     );
     expect(EVENT_CATALOGUE.FACILITY_OCCUPANCY_UPDATED.layer).toBe(EVENT_LAYER.NOTE_TIMELINE);
   });
+
+  it("keeps Settlement Hibah Receipt generated as Admin Activity only", () => {
+    expect(EVENT_CATALOGUE.SETTLEMENT_HIBAH_RECEIPT_GENERATED.layer).toBe(EVENT_LAYER.ADMIN_ACTIVITY);
+    expect(EVENT_CATALOGUE.SETTLEMENT_HIBAH_RECEIPT_GENERATED.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.SETTLEMENT_HIBAH_RECEIPT_GENERATED.table).toBe("note_events");
+  });
+
+  it("keeps Investment Settlement Confirmation generated as Admin Activity only", () => {
+    expect(EVENT_CATALOGUE.INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED.layer).toBe(
+      EVENT_LAYER.ADMIN_ACTIVITY
+    );
+    expect(EVENT_CATALOGUE.INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED.table).toBe("note_events");
+  });
 });

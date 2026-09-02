@@ -95,6 +95,10 @@ import type {
   GetAdminNotesParams,
   MarketplaceNoteDetail,
   NoteDetail,
+  InvestmentNoteCertificatePdfPayload,
+  SettlementHibahReceiptPdfPayload,
+  InvestmentSettlementConfirmationPdfPayload,
+  AdminInvestmentSettlementConfirmationsPayload,
   NoteSettlementPreviewResult,
   NoteActionRequiredCountResponse,
   GetAdminInvestmentsParams,
@@ -956,6 +960,46 @@ export class ApiClient {
     return this.get(`/v1/admin/notes/${id}/prospectus`);
   }
 
+  async getAdminInvestmentNoteCertificate(
+    id: string
+  ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
+    return this.get(`/v1/admin/notes/${id}/investment-note-certificate`);
+  }
+
+  async retryAdminInvestmentNoteCertificate(
+    id: string
+  ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
+    return this.post(`/v1/admin/notes/${id}/investment-note-certificate/retry`, {});
+  }
+
+  async getAdminSettlementHibahReceipt(
+    id: string
+  ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
+    return this.get(`/v1/admin/notes/${id}/settlement-hibah-receipt`);
+  }
+
+  async retryAdminSettlementHibahReceipt(
+    id: string
+  ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
+    return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/retry`, {});
+  }
+
+  async getAdminInvestmentSettlementConfirmations(
+    id: string
+  ): Promise<ApiResponse<AdminInvestmentSettlementConfirmationsPayload> | ApiError> {
+    return this.get(`/v1/admin/notes/${id}/investment-settlement-confirmations`);
+  }
+
+  async retryAdminInvestmentSettlementConfirmation(
+    id: string,
+    investorOrganizationId: string
+  ): Promise<ApiResponse<AdminInvestmentSettlementConfirmationsPayload> | ApiError> {
+    return this.post(
+      `/v1/admin/notes/${id}/investment-settlement-confirmations/${investorOrganizationId}/retry`,
+      {}
+    );
+  }
+
   async getMarketplaceNoteProspectus(
     noteId: string
   ): Promise<
@@ -1012,6 +1056,18 @@ export class ApiClient {
     | ApiError
   > {
     return this.get(`/v1/investor/investments/${investmentId}/prospectus`);
+  }
+
+  async getInvestorInvestmentNoteCertificate(
+    investmentId: string
+  ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
+    return this.get(`/v1/investor/investments/${investmentId}/investment-note-certificate`);
+  }
+
+  async getInvestorInvestmentSettlementConfirmation(
+    investmentId: string
+  ): Promise<ApiResponse<InvestmentSettlementConfirmationPdfPayload> | ApiError> {
+    return this.get(`/v1/investor/investments/${investmentId}/settlement-confirmation`);
   }
 
   async getAdminProspectusReviewPreview(
@@ -3626,6 +3682,22 @@ export class ApiClient {
     return this.post<{ viewUrl: string; expiresIn: number }>(
       `/v1/issuer/notes/${noteId}/shoraka-certificate/view-url`,
       {}
+    );
+  }
+
+  async getIssuerInvestmentNoteCertificate(
+    noteId: string
+  ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
+    return this.get<InvestmentNoteCertificatePdfPayload>(
+      `/v1/issuer/notes/${noteId}/investment-note-certificate`
+    );
+  }
+
+  async getIssuerSettlementHibahReceipt(
+    noteId: string
+  ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
+    return this.get<SettlementHibahReceiptPdfPayload>(
+      `/v1/issuer/notes/${noteId}/settlement-hibah-receipt`
     );
   }
 

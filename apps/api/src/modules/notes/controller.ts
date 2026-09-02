@@ -339,6 +339,110 @@ adminNotesRouter.get(
   }
 );
 
+adminNotesRouter.get(
+  "/:id/investment-note-certificate",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { getAdminInvestmentNoteCertificate } = await import(
+        "./investment-note-certificate/service"
+      );
+      send(res, await getAdminInvestmentNoteCertificate(id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/investment-note-certificate/retry",
+  requirePermission("notes.disbursement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { retryAdminInvestmentNoteCertificate } = await import(
+        "./investment-note-certificate/service"
+      );
+      send(res, await retryAdminInvestmentNoteCertificate(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.get(
+  "/:id/settlement-hibah-receipt",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { getAdminSettlementHibahReceipt } = await import(
+        "./settlement-hibah-receipt/service"
+      );
+      send(res, await getAdminSettlementHibahReceipt(id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/settlement-hibah-receipt/retry",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { retryAdminSettlementHibahReceipt } = await import(
+        "./settlement-hibah-receipt/service"
+      );
+      send(res, await retryAdminSettlementHibahReceipt(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.get(
+  "/:id/investment-settlement-confirmations",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { getAdminInvestmentSettlementConfirmations } = await import(
+        "./investment-settlement-confirmation/service"
+      );
+      send(res, await getAdminInvestmentSettlementConfirmations(id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/investment-settlement-confirmations/:investorOrganizationId/retry",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const investorOrganizationId = z.string().min(1).parse(req.params.investorOrganizationId);
+      const { retryAdminInvestmentSettlementConfirmation } = await import(
+        "./investment-settlement-confirmation/service"
+      );
+      send(
+        res,
+        await retryAdminInvestmentSettlementConfirmation(
+          id,
+          investorOrganizationId,
+          getActor(req, res, "ADMIN")
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 adminNotesRouter.post(
   "/:id/prospectus-review/preview",
   requirePermission("notes.manage"),
@@ -891,6 +995,48 @@ investorNotesRouter.get(
   }
 );
 
+investorNotesRouter.get(
+  "/investments/:investmentId/investment-note-certificate",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const investmentId = z.string().min(1).parse(req.params.investmentId);
+      const { getInvestorInvestmentNoteCertificate } = await import(
+        "./investment-note-certificate/service"
+      );
+      send(
+        res,
+        await getInvestorInvestmentNoteCertificate(
+          investmentId,
+          getActor(req, res, "INVESTOR").userId
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+investorNotesRouter.get(
+  "/investments/:investmentId/settlement-confirmation",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const investmentId = z.string().min(1).parse(req.params.investmentId);
+      const { getInvestorInvestmentSettlementConfirmation } = await import(
+        "./investment-settlement-confirmation/service"
+      );
+      send(
+        res,
+        await getInvestorInvestmentSettlementConfirmation(
+          investmentId,
+          getActor(req, res, "INVESTOR").userId
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 investorNotesRouter.get("/portfolio/history", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const query = investorPortfolioHistoryQuerySchema.parse(req.query);
@@ -995,6 +1141,36 @@ issuerNotesRouter.post("/notes/:id/shoraka-certificate/view-url", async (req: Re
     send(
       res,
       await noteService.getIssuerShorakaCertificateViewUrl(id, getActor(req, res, "ISSUER").userId)
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
+issuerNotesRouter.get("/notes/:id/investment-note-certificate", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const { getIssuerInvestmentNoteCertificate } = await import(
+      "./investment-note-certificate/service"
+    );
+    send(
+      res,
+      await getIssuerInvestmentNoteCertificate(id, getActor(req, res, "ISSUER").userId)
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
+issuerNotesRouter.get("/notes/:id/settlement-hibah-receipt", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const { getIssuerSettlementHibahReceipt } = await import(
+      "./settlement-hibah-receipt/service"
+    );
+    send(
+      res,
+      await getIssuerSettlementHibahReceipt(id, getActor(req, res, "ISSUER").userId)
     );
   } catch (error) {
     next(error);

@@ -5548,6 +5548,14 @@ export class NoteService {
       settlementId,
       investorOrganizationIds: repaidInvestorOrgIds,
     });
+    const { scheduleInvestmentSettlementConfirmations } = await import(
+      "./investment-settlement-confirmation/service"
+    );
+    scheduleInvestmentSettlementConfirmations({
+      settlementId,
+      source: "SETTLEMENT_POSTED",
+      actor,
+    });
     const postedExcessOwed = toNumber(settlement.excess_late_charge_amount);
     const postedExcessPaid = toNumber(settlement.excess_late_charge_paid_amount);
     if (postedExcessOwed - postedExcessPaid > 0.005) {
@@ -5566,6 +5574,14 @@ export class NoteService {
         noteId: id,
         issuerOrganizationId: settlement.note.issuer_organization_id,
         noteTitle: resolveNoteNotificationTitle(settlement.note),
+      });
+      const { scheduleSettlementHibahReceiptGeneration } = await import(
+        "./settlement-hibah-receipt/service"
+      );
+      scheduleSettlementHibahReceiptGeneration({
+        noteId: id,
+        source: "SETTLEMENT_COMPLETED",
+        actor,
       });
     }
     return this.getAdminNoteDetail(id);
@@ -6300,6 +6316,14 @@ export class NoteService {
           noteTitle: resolveNoteNotificationTitle(note),
         });
       }
+      const { scheduleSettlementHibahReceiptGeneration } = await import(
+        "./settlement-hibah-receipt/service"
+      );
+      scheduleSettlementHibahReceiptGeneration({
+        noteId,
+        source: "SETTLEMENT_COMPLETED",
+        actor,
+      });
     }
 
     return this.getAdminNoteDetail(noteId);
@@ -7166,6 +7190,31 @@ export class NoteService {
         withdrawalType: withdrawal.withdrawal_type,
         amount: toNumber(withdrawal.amount),
       });
+
+      if (withdrawal.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {
+        const { scheduleInvestmentNoteCertificateGeneration } = await import(
+          "./investment-note-certificate/service"
+        );
+        scheduleInvestmentNoteCertificateGeneration({
+          noteId: withdrawal.note_id,
+          source: "DISBURSEMENT_COMPLETED",
+          actor,
+        });
+      }
+
+      if (
+        withdrawal.withdrawal_type === WithdrawalType.ISSUER_RESIDUAL_RETURN &&
+        noteReleasedFromLegacyResidual
+      ) {
+        const { scheduleSettlementHibahReceiptGeneration } = await import(
+          "./settlement-hibah-receipt/service"
+        );
+        scheduleSettlementHibahReceiptGeneration({
+          noteId: withdrawal.note_id,
+          source: "SETTLEMENT_COMPLETED",
+          actor,
+        });
+      }
 
       // Only the issuer financing disbursement withdrawal type represents a user-facing
       // disbursement outcome; residual return / investor withdrawal / admin adjustment do not.

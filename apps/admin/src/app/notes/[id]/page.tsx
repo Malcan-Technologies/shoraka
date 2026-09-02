@@ -57,6 +57,8 @@ import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
 import { IssuerPayoutCard } from "@/notes/components/issuer-payout-card";
+import { InvestmentNoteCertificateCard } from "@/notes/components/investment-note-certificate-card";
+import { useAdminInvestmentNoteCertificate } from "@/notes/hooks/use-investment-note-certificate";
 import { PaymasterAssignmentCard } from "@/notes/components/paymaster-assignment-card";
 import { NoteWorkflowTabHeader } from "@/notes/components/note-workflow-tab-header";
 import {
@@ -258,6 +260,7 @@ export default function NoteDetailPage() {
   const failFunding = useFailNoteFunding();
   const updateNoteFeatured = useUpdateNoteFeatured();
   const openProspectusPdf = useOpenAdminProspectusPdf();
+  const { data: investmentNoteCertificate } = useAdminInvestmentNoteCertificate(noteId);
   const [pendingAction, setPendingAction] = React.useState<NoteLifecycleAction | null>(null);
   const [featuredEnabled, setFeaturedEnabled] = React.useState(false);
 
@@ -599,6 +602,17 @@ export default function NoteDetailPage() {
                                 </p>
                               </div>
                             )}
+                            {investmentNoteCertificate &&
+                            investmentNoteCertificate.status !== "NONE" ? (
+                              <InvestmentNoteCertificateCard
+                                noteId={note.id}
+                                payload={{
+                                  ...investmentNoteCertificate,
+                                  canRetry:
+                                    investmentNoteCertificate.canRetry && canDisbursement,
+                                }}
+                              />
+                            ) : null}
                           </CardContent>
                         </Card>
                       </AdminDetailTabPanel>

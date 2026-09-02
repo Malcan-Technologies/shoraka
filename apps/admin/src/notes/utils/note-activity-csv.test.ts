@@ -29,6 +29,15 @@ describe("formatNoteActivityEventLabel", () => {
     expect(formatNoteActivityEventLabel("SHORAKA_ORDER_SUBMITTED")).toBe(
       "Tawarruq Order Submitted"
     );
+    expect(formatNoteActivityEventLabel("INVESTMENT_NOTE_CERTIFICATE_GENERATED")).toBe(
+      "Investment Note Certificate Generated"
+    );
+    expect(formatNoteActivityEventLabel("SETTLEMENT_HIBAH_RECEIPT_GENERATED")).toBe(
+      "Settlement & Hibah Receipt Generated"
+    );
+    expect(formatNoteActivityEventLabel("INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED")).toBe(
+      "Investment Settlement Confirmation Generated"
+    );
     expect(formatNoteActivityEventLabel("WITHDRAWAL_TRUSTEE_EMAIL_SENT")).toBe(
       "Withdrawal Trustee Email Sent"
     );
@@ -320,5 +329,45 @@ describe("buildNoteActivityCsv", () => {
       })
     );
     expect(row.targetReference).toBe("WDL-ARF-202608-A1Z");
+  });
+
+  it("exports settlement hibah receipt with SET reference and hibah amount", () => {
+    const row = noteEventToActivityCsvRow(
+      event({
+        eventType: "SETTLEMENT_HIBAH_RECEIPT_GENERATED",
+        targetType: "NOTE_SETTLEMENT",
+        targetId: "set-1",
+        metadata: {
+          settlementId: "set-1",
+          settlementReference: "SET-ARF-202608-A52",
+          receiptNumber: "SET-ARF-202608-A52",
+          version: "V01",
+          hibahAmount: 1750,
+        },
+      })
+    );
+    expect(row.event).toBe("Settlement & Hibah Receipt Generated");
+    expect(row.eventType).toBe("SETTLEMENT_HIBAH_RECEIPT_GENERATED");
+    expect(row.targetType).toBe("NOTE_SETTLEMENT");
+    expect(row.targetReference).toBe("SET-ARF-202608-A52");
+    expect(row.amount).toBe(1750);
+  });
+
+  it("exports investor settlement confirmation count against the settlement reference", () => {
+    const row = noteEventToActivityCsvRow(
+      event({
+        eventType: "INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED",
+        targetType: "NOTE_SETTLEMENT",
+        targetId: "set-1",
+        metadata: {
+          settlementId: "set-1",
+          settlementReference: "SET-ARF-202608-A52",
+          version: "V01",
+          confirmationCount: 3,
+        },
+      })
+    );
+    expect(row.event).toBe("Investment Settlement Confirmation Generated");
+    expect(row.targetReference).toBe("SET-ARF-202608-A52");
   });
 });

@@ -52,6 +52,10 @@ jest.mock("../notification/investor-withdrawal-notifications", () => ({
   notifyInvestorCashWithdrawalCompleted: jest.fn(),
 }));
 
+jest.mock("./investment-note-certificate/service", () => ({
+  scheduleInvestmentNoteCertificateGeneration: jest.fn(),
+}));
+
 import { NoteService } from "./service";
 import {
   notifyIssuerDisbursementCompleted,
@@ -61,6 +65,7 @@ import {
 import {
   notifyInvestorCashWithdrawalCompleted,
 } from "../notification/investor-withdrawal-notifications";
+import { scheduleInvestmentNoteCertificateGeneration } from "./investment-note-certificate/service";
 
 describe("NoteService activate tenure disbursement date", () => {
   const actor = {
@@ -453,6 +458,11 @@ describe("NoteService markWithdrawalCompleted issuer disbursement notifications"
       })
     );
     expect(notifyInvestorCashWithdrawalCompleted).not.toHaveBeenCalled();
+    expect(scheduleInvestmentNoteCertificateGeneration).toHaveBeenCalledWith({
+      noteId: "note_1",
+      source: "DISBURSEMENT_COMPLETED",
+      actor,
+    });
   });
 
   it("does not notify investors for residual or admin withdrawals", async () => {
@@ -496,6 +506,7 @@ describe("NoteService markWithdrawalCompleted issuer disbursement notifications"
     expect(notifyIssuerDisbursementCompleted).not.toHaveBeenCalled();
     expect(notifyNoteActivated).not.toHaveBeenCalled();
     expect(notifyInvestorCashWithdrawalCompleted).not.toHaveBeenCalled();
+    expect(scheduleInvestmentNoteCertificateGeneration).not.toHaveBeenCalled();
   });
 
   it("does not re-notify when a completed withdrawal is submitted again", async () => {
@@ -556,6 +567,7 @@ describe("NoteService markWithdrawalCompleted issuer disbursement notifications"
         withdrawalType: WithdrawalType.INVESTOR_WITHDRAWAL,
       })
     );
+    expect(scheduleInvestmentNoteCertificateGeneration).not.toHaveBeenCalled();
     expect(notifyIssuerDisbursementCompleted).not.toHaveBeenCalled();
     expect(notifyNoteActiveInvestors).not.toHaveBeenCalled();
   });
