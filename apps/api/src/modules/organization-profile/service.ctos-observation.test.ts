@@ -2,6 +2,7 @@ const parties: Array<Record<string, unknown>> = [];
 let partySeq = 1;
 
 const mockIssuerFindUnique = jest.fn();
+const mockIssuerUpdateMany = jest.fn();
 const mockCtosFindFirst = jest.fn();
 const mockPartyCount = jest.fn();
 const mockPartyFindMany = jest.fn();
@@ -12,8 +13,14 @@ const mockPartyUpdate = jest.fn();
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
-    issuerOrganization: { findUnique: (...args: unknown[]) => mockIssuerFindUnique(...args) },
-    investorOrganization: { findUnique: jest.fn() },
+    issuerOrganization: {
+      findUnique: (...args: unknown[]) => mockIssuerFindUnique(...args),
+      updateMany: (...args: unknown[]) => mockIssuerUpdateMany(...args),
+    },
+    investorOrganization: {
+      findUnique: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     ctosReport: { findFirst: (...args: unknown[]) => mockCtosFindFirst(...args) },
     organizationPartyProfile: {
       count: (...args: unknown[]) => mockPartyCount(...args),
@@ -88,26 +95,89 @@ function row(partial: Record<string, unknown>) {
   };
 }
 
+let issuerOrg: Record<string, unknown>;
+
+function wireIssuerOrg() {
+  issuerOrg = {
+    id: "org-1",
+    regulatory_structure_established_at: null,
+    corporate_entities: null,
+    name: "Acme",
+    registration_number: "1234567A",
+    party_profiles: parties,
+    corporate_onboarding_data: null,
+    company_category: null,
+    date_of_incorporation: null,
+    date_of_commencement: null,
+    country_of_incorporation: null,
+    sc_company_type: null,
+    phone_number: null,
+    company_email: null,
+  };
+  mockIssuerFindUnique.mockImplementation(async () => issuerOrg);
+  mockIssuerUpdateMany.mockImplementation(
+    async ({
+      where,
+      data,
+    }: {
+      where?: { regulatory_structure_established_at?: Date | null };
+      data: { regulatory_structure_established_at?: Date };
+    }) => {
+      if (where && where.regulatory_structure_established_at !== null) return { count: 0 };
+      if (issuerOrg.regulatory_structure_established_at != null) return { count: 0 };
+      issuerOrg.regulatory_structure_established_at =
+        data.regulatory_structure_established_at ?? new Date();
+      return { count: 1 };
+    }
+  );
+}
+
+const firstEstablishmentCtos = {
+  directors: [
+    {
+      party_type: "I",
+      nic_brno: "900101101234",
+      name: "SARAH BINTI ALI",
+      position: "DO",
+      appoint: "01-01-2020",
+    },
+    { party_type: "I", nic_brno: "850101011111", name: "Ali", position: "DO" },
+  ],
+  shareholders: [
+    { party_type: "I", nic_brno: "880101011111", name: "John", equity_percentage: 20 },
+    {
+      party_type: "C",
+      ic_lcno: "1234567-A",
+      name: "ABC Holdings",
+      equity_percentage: 40,
+    },
+  ],
+};
+
+function pushManualSarah(overrides: Record<string, unknown> = {}) {
+  parties.push(
+    row({
+      id: "p-sarah",
+      party_key: "900101101234",
+      identity_number: "900101101234",
+      name: "Sarah",
+      origin: OrganizationPartyOrigin.USER_ADDED,
+      is_director: true,
+      is_shareholder: false,
+      is_board: true,
+      appointment_date: null,
+      shareholding_percentage: null,
+      ...overrides,
+    })
+  );
+}
+
 describe("CTOS master party observation", () => {
   beforeEach(() => {
     parties.length = 0;
     partySeq = 1;
     jest.clearAllMocks();
-    mockIssuerFindUnique.mockResolvedValue({
-      id: "org-1",
-      corporate_entities: null,
-      name: "Acme",
-      registration_number: "1234567A",
-      party_profiles: parties,
-      corporate_onboarding_data: null,
-      company_category: null,
-      date_of_incorporation: null,
-      date_of_commencement: null,
-      country_of_incorporation: null,
-      sc_company_type: null,
-      phone_number: null,
-      company_email: null,
-    });
+    wireIssuerOrg();
     mockCtosFindFirst.mockResolvedValue(null);
     mockPartyCount.mockImplementation(async () =>
       parties.filter((p) => p.membership_status === "MASTER_ACTIVE").length
@@ -467,6 +537,116 @@ describe("CTOS master party observation", () => {
     expect(parties.some((p) => p.party_key === "800101011234")).toBe(true);
     expect(parties.find((p) => p.id === "p-cfo")?.membership_status).toBe("MASTER_ACTIVE");
   });
+
+  it("does not treat a manually added director as initial CTOS/RegTank establishment", async () => {
+    pushManualSarah();
+    await seedMasterPartiesIfEmpty("issuer", "org-1");
+    expect(issuerOrg.regulatory_structure_established_at).toBeNull();
+    expect(mockPartyCreateMany).not.toHaveBeenCalled();
+  });
+
+  it("first CTOS establishes remaining people as MASTER_ACTIVE even if Sarah was added manually", async () => {
+    pushManualSarah();
+    await observeExternalCtosParties("issuer", "org-1", firstEstablishmentCtos);
+
+    const sarahRows = parties.filter((p) => p.party_key === "900101101234" || p.id === "p-sarah");
+    expect(sarahRows).toHaveLength(1);
+    const sarah = sarahRows[0];
+    expect(sarah?.membership_status).toBe("MASTER_ACTIVE");
+    expect(sarah?.origin).toBe("USER_ADDED");
+    expect(sarah?.name).toBe("Sarah");
+    expect(sarah?.appointment_date).toEqual(new Date("2020-01-01T00:00:00.000Z"));
+    expect(sarah?.external_observation).toMatchObject({
+      name: "SARAH BINTI ALI",
+      identityNumber: "900101101234",
+    });
+
+    const ali = parties.find((p) => p.party_key === "850101011111");
+    expect(ali?.membership_status).toBe("MASTER_ACTIVE");
+    expect(ali?.origin).toBe("CTOS_PARTY");
+    expect(ali?.name).toBe("Ali");
+    expect(ali?.is_director).toBe(true);
+
+    const john = parties.find((p) => p.party_key === "880101011111");
+    expect(john?.membership_status).toBe("MASTER_ACTIVE");
+    expect(john?.origin).toBe("CTOS_PARTY");
+    expect(john?.is_shareholder).toBe(true);
+
+    const abc = parties.find((p) => p.party_key === "1234567A");
+    expect(abc?.membership_status).toBe("MASTER_ACTIVE");
+    expect(abc?.origin).toBe("CTOS_PARTY");
+    expect(abc?.entity_type).toBe("CORPORATE");
+    expect(abc?.name).toBe("ABC Holdings");
+
+    expect(issuerOrg.regulatory_structure_established_at).toBeInstanceOf(Date);
+  });
+
+  it("after initial establishment a newly discovered CTOS party is EXTERNAL_OBSERVED", async () => {
+    pushManualSarah();
+    await observeExternalCtosParties("issuer", "org-1", firstEstablishmentCtos);
+    await observeExternalCtosParties("issuer", "org-1", {
+      ...firstEstablishmentCtos,
+      directors: [
+        ...firstEstablishmentCtos.directors,
+        { party_type: "I", nic_brno: "990101011111", name: "Zara", position: "DO" },
+      ],
+    });
+
+    const zara = parties.find((p) => p.party_key === "990101011111");
+    expect(zara?.membership_status).toBe("EXTERNAL_OBSERVED");
+    expect(parties.find((p) => p.party_key === "850101011111")?.membership_status).toBe(
+      "MASTER_ACTIVE"
+    );
+    expect(parties.filter((p) => p.party_key === "900101101234")).toHaveLength(1);
+  });
+
+  it("a first CTOS that only matches the manual director still completes establishment", async () => {
+    pushManualSarah();
+    await observeExternalCtosParties("issuer", "org-1", {
+      directors: [
+        {
+          party_type: "I",
+          nic_brno: "900101101234",
+          name: "SARAH BINTI ALI",
+          position: "DO",
+        },
+      ],
+    });
+    expect(issuerOrg.regulatory_structure_established_at).toBeInstanceOf(Date);
+
+    await observeExternalCtosParties("issuer", "org-1", {
+      directors: [
+        {
+          party_type: "I",
+          nic_brno: "900101101234",
+          name: "SARAH BINTI ALI",
+          position: "DO",
+        },
+        { party_type: "I", nic_brno: "850101011111", name: "Ali", position: "DO" },
+      ],
+    });
+    expect(parties.find((p) => p.party_key === "850101011111")?.membership_status).toBe(
+      "EXTERNAL_OBSERVED"
+    );
+    expect(parties.find((p) => p.id === "p-sarah")?.membership_status).toBe("MASTER_ACTIVE");
+  });
+
+  it("stored CTOS seed still establishes unmatched people when a manual director exists", async () => {
+    pushManualSarah();
+    mockCtosFindFirst.mockResolvedValue({ company_json: firstEstablishmentCtos });
+    await seedMasterPartiesIfEmpty("issuer", "org-1");
+    expect(parties.find((p) => p.party_key === "850101011111")?.membership_status).toBe(
+      "MASTER_ACTIVE"
+    );
+    expect(parties.find((p) => p.party_key === "880101011111")?.membership_status).toBe(
+      "MASTER_ACTIVE"
+    );
+    expect(parties.find((p) => p.party_key === "1234567A")?.membership_status).toBe(
+      "MASTER_ACTIVE"
+    );
+    expect(parties.filter((p) => p.party_key === "900101101234")).toHaveLength(1);
+    expect(issuerOrg.regulatory_structure_established_at).toBeInstanceOf(Date);
+  });
 });
 
 describe("user-added master parties", () => {
@@ -474,21 +654,7 @@ describe("user-added master parties", () => {
     parties.length = 0;
     partySeq = 1;
     jest.clearAllMocks();
-    mockIssuerFindUnique.mockResolvedValue({
-      id: "org-1",
-      corporate_entities: null,
-      name: "Acme",
-      registration_number: "1234567A",
-      party_profiles: parties,
-      corporate_onboarding_data: null,
-      company_category: null,
-      date_of_incorporation: null,
-      date_of_commencement: null,
-      country_of_incorporation: null,
-      sc_company_type: null,
-      phone_number: null,
-      company_email: null,
-    });
+    wireIssuerOrg();
     mockCtosFindFirst.mockResolvedValue(null);
     mockPartyCount.mockImplementation(async () =>
       parties.filter((p) => p.membership_status === "MASTER_ACTIVE").length

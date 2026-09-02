@@ -349,6 +349,9 @@ model InvestorOrganization {
   country_of_incorporation      String?
   residential_address           Json?
   profile_field_sources         Json                             @default("{}")
+  /// Set when the first CTOS or RegTank director/shareholder snapshot has been applied.
+  /// User-added people alone do not set this.
+  regulatory_structure_established_at DateTime?
   invitations                   InvestorOrganizationInvitation[]
   party_profiles                OrganizationPartyProfile[]
   owner                         User                             @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
@@ -418,6 +421,9 @@ model IssuerOrganization {
   company_category             ScCompanyCategory?
   company_email                String?
   profile_field_sources        Json                           @default("{}")
+  /// Set when the first CTOS or RegTank director/shareholder snapshot has been applied.
+  /// User-added people alone do not set this.
+  regulatory_structure_established_at DateTime?
   party_profiles               OrganizationPartyProfile[]
   applications                 Application[]
   gateway_payments             GatewayPayment[]

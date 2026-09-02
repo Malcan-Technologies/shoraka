@@ -3,6 +3,7 @@ import {
   OrganizationPartyMembershipStatus,
   OrganizationPartyOrigin,
   Prisma,
+  type OrganizationPartyProfile,
 } from "@prisma/client";
 import {
   buildInvestorProfileCompleteness,
@@ -98,6 +99,198 @@ async function assertOrgExists(portal: Portal, organizationId: string) {
   return org;
 }
 
+function candidateSource(candidate: RegulatoryPartyCandidate): ProfileValueSource {
+  return candidate.origin === "CTOS_PARTY" ? "CTOS" : "REGTANK";
+}
+
+function hasLegacyExternalStructureEvidence(row: {
+  origin: OrganizationPartyOrigin;
+  membership_status: OrganizationPartyMembershipStatus;
+  external_observation: unknown;
+}): boolean {
+  if (row.origin === OrganizationPartyOrigin.CTOS_PARTY) return true;
+  if (row.origin === OrganizationPartyOrigin.REGTANK_PARTY) return true;
+  if (row.membership_status === OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) return true;
+  return row.external_observation != null;
+}
+
+async function readOrgRegulatoryState(portal: Portal, organizationId: string) {
+  if (portal === "issuer") {
+    return prisma.issuerOrganization.findUnique({
+      where: { id: organizationId },
+      select: {
+        corporate_entities: true,
+        regulatory_structure_established_at: true,
+      },
+    });
+  }
+  return prisma.investorOrganization.findUnique({
+    where: { id: organizationId },
+    select: {
+      corporate_entities: true,
+      regulatory_structure_established_at: true,
+    },
+  });
+}
+
+async function markRegulatoryStructureEstablished(
+  portal: Portal,
+  organizationId: string
+): Promise<void> {
+  const data = { regulatory_structure_established_at: new Date() };
+  const where = { id: organizationId, regulatory_structure_established_at: null };
+  if (portal === "issuer") {
+    await prisma.issuerOrganization.updateMany({ where, data });
+    return;
+  }
+  await prisma.investorOrganization.updateMany({ where, data });
+}
+
+async function isRegulatoryStructureEstablished(
+  portal: Portal,
+  organizationId: string
+): Promise<boolean> {
+  const org = await readOrgRegulatoryState(portal, organizationId);
+  if (!org) return false;
+  if (org.regulatory_structure_established_at) return true;
+
+  const existing = await prisma.organizationPartyProfile.findMany({
+    where: orgWhere(portal, organizationId),
+    select: { origin: true, membership_status: true, external_observation: true },
+  });
+  if (!existing.some(hasLegacyExternalStructureEvidence)) return false;
+  await markRegulatoryStructureEstablished(portal, organizationId);
+  return true;
+}
+
+function candidateToCreateManyRow(
+  portal: Portal,
+  organizationId: string,
+  candidate: RegulatoryPartyCandidate,
+  membership: OrganizationPartyMembershipStatus
+) {
+  const created = candidateToCreateData(portal, organizationId, candidate, membership);
+  return {
+    party_key: created.party_key,
+    origin: created.origin,
+    membership_status: created.membership_status,
+    entity_type: created.entity_type,
+    name: created.name,
+    identity_number: created.identity_number,
+    identity_prefix: created.identity_prefix,
+    is_director: created.is_director,
+    is_shareholder: created.is_shareholder,
+    is_board: created.is_board,
+    is_management: created.is_management,
+    shareholding_percentage: created.shareholding_percentage,
+    appointment_date: created.appointment_date,
+    resignation_date: created.resignation_date,
+    address: created.address ?? Prisma.JsonNull,
+    field_sources: created.field_sources,
+    issuer_organization_id: portal === "issuer" ? organizationId : null,
+    investor_organization_id: portal === "investor" ? organizationId : null,
+  };
+}
+
+async function fillEmptyPartyFromCandidate(
+  row: OrganizationPartyProfile,
+  candidate: RegulatoryPartyCandidate,
+  existing: Array<{ id: string; party_key: string }>
+): Promise<OrganizationPartyProfile> {
+  const source = candidateSource(candidate);
+  let sources = parseFieldSources(row.field_sources);
+  const data: Prisma.OrganizationPartyProfileUpdateInput = {};
+  let wrote = false;
+
+  const apply = <T,>(field: string, current: T, incoming: T): T => {
+    const result = fillEmptyMaster({ master: current, incoming, sources, field, source });
+    sources = result.sources;
+    if (result.wrote) wrote = true;
+    return result.value;
+  };
+
+  data.name = apply("name", row.name, candidate.name);
+  data.identity_number = apply("identityNumber", row.identity_number, candidate.identityNumber);
+  data.identity_prefix = apply("identityPrefix", row.identity_prefix, candidate.identityPrefix);
+  data.shareholding_percentage = apply(
+    "shareholdingPercentage",
+    row.shareholding_percentage,
+    candidate.shareholdingPercentage != null
+      ? new Prisma.Decimal(candidate.shareholdingPercentage)
+      : null
+  );
+  data.appointment_date = apply(
+    "appointmentDate",
+    row.appointment_date,
+    parseDateInput(candidate.appointmentDate)
+  );
+  data.resignation_date = apply(
+    "resignationDate",
+    row.resignation_date,
+    parseDateInput(candidate.resignationDate)
+  );
+
+  const addrResult = mergeEmptyAddress({
+    master: row.address,
+    incoming: candidate.addressLine1 ? { line1: candidate.addressLine1 } : null,
+    sources,
+    fieldPrefix: "address",
+    source,
+  });
+  sources = addrResult.sources;
+  if (addrResult.wrote) {
+    data.address = asJson(addrResult.value);
+    wrote = true;
+  }
+
+  const rekey =
+    row.party_key !== candidate.partyKey &&
+    !existing.some((p) => p.id !== row.id && p.party_key === candidate.partyKey);
+  if (rekey) {
+    data.party_key = candidate.partyKey;
+    wrote = true;
+  }
+
+  if (!wrote) return row;
+  data.field_sources = asJson(sources);
+  return prisma.organizationPartyProfile.update({ where: { id: row.id }, data });
+}
+
+async function applyInitialRegulatoryCandidates(
+  portal: Portal,
+  organizationId: string,
+  candidates: RegulatoryPartyCandidate[]
+): Promise<void> {
+  if (candidates.length === 0) return;
+  const existing = await prisma.organizationPartyProfile.findMany({
+    where: orgWhere(portal, organizationId),
+  });
+
+  for (const candidate of candidates) {
+    const row = findExistingPartyForIdentityKey(existing, candidate.partyKey);
+    if (!row) continue;
+    const updated = await fillEmptyPartyFromCandidate(row, candidate, existing);
+    const idx = existing.findIndex((p) => p.id === row.id);
+    if (idx >= 0) existing[idx] = updated;
+  }
+
+  const toCreate = candidates.filter((c) => !findExistingPartyForIdentityKey(existing, c.partyKey));
+  if (toCreate.length === 0) return;
+
+  try {
+    await prisma.organizationPartyProfile.createMany({
+      data: toCreate.map((c) =>
+        candidateToCreateManyRow(portal, organizationId, c, "MASTER_ACTIVE")
+      ),
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return;
+    }
+    throw error;
+  }
+}
+
 function candidateToCreateData(
   portal: Portal,
   organizationId: string,
@@ -149,26 +342,9 @@ export async function seedMasterPartiesIfEmpty(
   organizationId: string
 ): Promise<void> {
   await assertOrgExists(portal, organizationId);
-  const existing = await prisma.organizationPartyProfile.findMany({
-    where: orgWhere(portal, organizationId),
-  });
-  const hasRegulatoryMaster = existing.some(
-    (row) =>
-      row.membership_status === OrganizationPartyMembershipStatus.MASTER_ACTIVE &&
-      isCtosComparableParty({ isDirector: row.is_director, isShareholder: row.is_shareholder })
-  );
-  if (hasRegulatoryMaster) return;
+  if (await isRegulatoryStructureEstablished(portal, organizationId)) return;
 
-  const org =
-    portal === "issuer"
-      ? await prisma.issuerOrganization.findUnique({
-          where: { id: organizationId },
-          select: { corporate_entities: true },
-        })
-      : await prisma.investorOrganization.findUnique({
-          where: { id: organizationId },
-          select: { corporate_entities: true },
-        });
+  const org = await readOrgRegulatoryState(portal, organizationId);
   if (!org) return;
 
   const ctos = await prisma.ctosReport.findFirst({
@@ -185,41 +361,10 @@ export async function seedMasterPartiesIfEmpty(
     fromCtos.length > 0
       ? fromCtos
       : extractRegulatoryPartiesFromCorporateEntities(org.corporate_entities);
-  const toCreate = candidates.filter((c) => !findExistingPartyForIdentityKey(existing, c.partyKey));
-  if (toCreate.length === 0) return;
+  if (candidates.length === 0) return;
 
-  try {
-    await prisma.organizationPartyProfile.createMany({
-      data: toCreate.map((c) => {
-        const created = candidateToCreateData(portal, organizationId, c, "MASTER_ACTIVE");
-        return {
-          party_key: created.party_key,
-          origin: created.origin,
-          membership_status: created.membership_status,
-          entity_type: created.entity_type,
-          name: created.name,
-          identity_number: created.identity_number,
-          identity_prefix: created.identity_prefix,
-          is_director: created.is_director,
-          is_shareholder: created.is_shareholder,
-          is_board: created.is_board,
-          is_management: created.is_management,
-          shareholding_percentage: created.shareholding_percentage,
-          appointment_date: created.appointment_date,
-          resignation_date: created.resignation_date,
-          address: created.address ?? Prisma.JsonNull,
-          field_sources: created.field_sources,
-          issuer_organization_id: portal === "issuer" ? organizationId : null,
-          investor_organization_id: portal === "investor" ? organizationId : null,
-        };
-      }),
-    });
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return;
-    }
-    throw error;
-  }
+  await applyInitialRegulatoryCandidates(portal, organizationId, candidates);
+  await markRegulatoryStructureEstablished(portal, organizationId);
 }
 
 export async function observeExternalCtosParties(
@@ -229,34 +374,35 @@ export async function observeExternalCtosParties(
 ): Promise<void> {
   await seedMasterPartiesIfEmpty(portal, organizationId);
 
-  const masterCount = await prisma.organizationPartyProfile.count({
-    where: {
-      ...orgWhere(portal, organizationId),
-      membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
-    },
-  });
-  if (masterCount === 0) {
-    return;
+  const candidates = extractRegulatoryPartiesFromCtos(companyJson);
+  let established = await isRegulatoryStructureEstablished(portal, organizationId);
+  if (!established && candidates.length > 0) {
+    await applyInitialRegulatoryCandidates(portal, organizationId, candidates);
+    await markRegulatoryStructureEstablished(portal, organizationId);
+    established = true;
   }
 
   const snapshot = extractCtosObservationSnapshot(companyJson);
   const existing = await prisma.organizationPartyProfile.findMany({
     where: orgWhere(portal, organizationId),
   });
+  if (existing.length === 0 && snapshot.size === 0) return;
+
+  const unmatchedMembership = established
+    ? OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED
+    : OrganizationPartyMembershipStatus.MASTER_ACTIVE;
   const seen = new Set<string>();
 
   for (const [partyKey, observation] of snapshot) {
     seen.add(partyKey);
     const row = findExistingPartyForIdentityKey(existing, partyKey);
     if (!row) {
-      const candidate = extractRegulatoryPartiesFromCtos(companyJson).find(
-        (p) => p.partyKey === partyKey
-      );
+      const candidate = candidates.find((p) => p.partyKey === partyKey);
       if (!candidate) continue;
       const created = await prisma.organizationPartyProfile.create({
         data: {
-          ...candidateToCreateData(portal, organizationId, candidate, "EXTERNAL_OBSERVED"),
-          membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+          ...candidateToCreateData(portal, organizationId, candidate, unmatchedMembership),
+          membership_status: unmatchedMembership,
           external_observation: asJson(observation),
         },
       });
