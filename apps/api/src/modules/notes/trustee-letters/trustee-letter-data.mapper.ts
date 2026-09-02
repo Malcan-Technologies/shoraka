@@ -13,12 +13,24 @@ function formatRm(amount: number): string {
   return amount.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+const MALAYSIA_TZ = "Asia/Kuala_Lumpur";
+
 function formatLetterDate(date: Date): string {
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: MALAYSIA_TZ,
+  });
 }
 
 function formatShortDate(date: Date): string {
-  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: MALAYSIA_TZ,
+  });
 }
 
 function accountRow(account: TrusteeAccountDetails, amount: number, remarks: string): Omit<TrusteePaymentRow, "no"> {
@@ -151,9 +163,10 @@ export function mapDisbursementLetterData(input: {
   }
 
   const now = input.referenceDate ?? new Date();
+  const letterDate = formatLetterDate(now);
   return {
     ourRef: input.ourRef?.trim() ?? "",
-    date: formatLetterDate(now),
+    date: letterDate,
     trusteeName: letterConfig.trusteeName,
     trusteeAddressLines: [
       letterConfig.trusteeAddressLine1,
@@ -165,7 +178,7 @@ export function mapDisbursementLetterData(input: {
     instructionTitle: "Instruction of Payment",
     debitAccountNumber: debit.accountNumber,
     debitAccountName: debit.accountName || debit.displayName || "Investor Pool Account",
-    valueDate: "",
+    valueDate: letterDate,
     purpose: "Disbursement to Borrower and Platform",
     openingParagraph: OPENING_PARAGRAPH,
     paymentRows: rows,
@@ -303,6 +316,7 @@ export function mapRepaymentLetterData(input: {
   }
 
   const now = input.referenceDate ?? new Date();
+  const letterDate = formatLetterDate(now);
   const supportingParagraph = buildRepaymentSupportingParagraph({
     borrowerEntries: input.borrowerEntries,
     repaymentAccountName: input.repaymentAccountName || debit.accountName || debit.displayName || "Repayment Pool",
@@ -312,7 +326,7 @@ export function mapRepaymentLetterData(input: {
 
   return {
     ourRef: input.ourRef?.trim() ?? "",
-    date: formatLetterDate(now),
+    date: letterDate,
     trusteeName: letterConfig.trusteeName,
     trusteeAddressLines: [
       letterConfig.trusteeAddressLine1,
@@ -324,7 +338,7 @@ export function mapRepaymentLetterData(input: {
     instructionTitle: "Instruction of Payment",
     debitAccountNumber: debit.accountNumber,
     debitAccountName: debit.accountName || debit.displayName || "Repayment Pool Account",
-    valueDate: "",
+    valueDate: letterDate,
     purpose: "Repayment to Investors and Platform",
     openingParagraph: OPENING_PARAGRAPH,
     paymentRows: rows,
@@ -348,6 +362,7 @@ export function mapInvestorWithdrawalLetterData(input: {
   const debit = bucketAccounts.INVESTOR_POOL;
   const snapshot = input.beneficiarySnapshot;
   const now = input.referenceDate ?? new Date();
+  const letterDate = formatLetterDate(now);
 
   const rows: TrusteePaymentRow[] = [
     {
@@ -365,7 +380,7 @@ export function mapInvestorWithdrawalLetterData(input: {
 
   return {
     ourRef: input.ourRef?.trim() ?? "",
-    date: formatLetterDate(now),
+    date: letterDate,
     trusteeName: letterConfig.trusteeName,
     trusteeAddressLines: [
       letterConfig.trusteeAddressLine1,
@@ -377,7 +392,7 @@ export function mapInvestorWithdrawalLetterData(input: {
     instructionTitle: "Instruction of Payment",
     debitAccountNumber: debit.accountNumber,
     debitAccountName: debit.accountName || debit.displayName || "Investor Pool Account",
-    valueDate: "",
+    valueDate: letterDate,
     purpose: "Withdrawal by Investors",
     openingParagraph: OPENING_PARAGRAPH,
     paymentRows: rows,

@@ -1,4 +1,5 @@
 import {
+  buildRepaymentBorrowerEntries,
   mapDisbursementLetterData,
   mapInvestorWithdrawalLetterData,
   mapRepaymentLetterData,
@@ -178,5 +179,73 @@ describe("mapDisbursementLetterData fee rows", () => {
     ]);
     expect(letter.paymentRows.map((row) => row.amount)).toEqual([90_000, 2_000, 500, 800, 50]);
     expect(letter.paymentRows.slice(2).every((row) => row.accountNo === "333")).toBe(true);
+  });
+});
+
+describe("trustee-letter Malaysia dates", () => {
+  const afterMytMidnight = new Date("2026-09-01T16:00:00.000Z");
+  const beforeMytMidnight = new Date("2026-09-01T15:59:59.000Z");
+
+  it("prints Date and Value Date as the same Malaysia calendar day", () => {
+    const config = buildConfig();
+    const disbursement = mapDisbursementLetterData({
+      withdrawalId: "wd_date",
+      withdrawalAmount: 1000,
+      beneficiarySnapshot: {},
+      metadata: null,
+      config,
+      referenceDate: afterMytMidnight,
+    });
+    const repayment = mapRepaymentLetterData({
+      settlementId: "set_date",
+      investorPrincipal: 500,
+      investorProfitNet: 0,
+      tawidhInvestorAmount: 0,
+      serviceFeeAmount: 0,
+      tawidhAccountAmount: 0,
+      gharamahAmount: 0,
+      issuerResidualAmount: 0,
+      borrowerEntries: [],
+      repaymentAccountName: "Repayment Pool",
+      config,
+      referenceDate: afterMytMidnight,
+    });
+    const investorWithdrawal = mapInvestorWithdrawalLetterData({
+      withdrawalId: "wd_inv_date",
+      amount: 500,
+      beneficiarySnapshot: {},
+      investorOrganizationName: "Investor",
+      config,
+      referenceDate: afterMytMidnight,
+    });
+
+    expect(disbursement.date).toBe("2 September 2026");
+    expect(disbursement.valueDate).toBe(disbursement.date);
+    expect(repayment.date).toBe("2 September 2026");
+    expect(repayment.valueDate).toBe(repayment.date);
+    expect(investorWithdrawal.date).toBe("2 September 2026");
+    expect(investorWithdrawal.valueDate).toBe(investorWithdrawal.date);
+  });
+
+  it("keeps the Malaysia calendar day across UTC midnight", () => {
+    const letter = mapDisbursementLetterData({
+      withdrawalId: "wd_tz",
+      withdrawalAmount: 1000,
+      beneficiarySnapshot: {},
+      metadata: null,
+      config: buildConfig(),
+      referenceDate: beforeMytMidnight,
+    });
+    expect(letter.date).toBe("1 September 2026");
+    expect(letter.valueDate).toBe("1 September 2026");
+  });
+
+  it("formats repayment receipt dates in Malaysia time", () => {
+    const entries = buildRepaymentBorrowerEntries({
+      payerName: "Issuer Sdn Bhd",
+      receiptAmount: 100,
+      receiptDate: afterMytMidnight,
+    });
+    expect(entries[0]?.date).toBe("02 Sept 2026");
   });
 });
