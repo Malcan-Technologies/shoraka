@@ -3294,7 +3294,7 @@ enum ProfileValueSource {
 enum OrganizationPartyOrigin {
   CTOS_PARTY
   REGTANK_PARTY
-  USER_MANAGEMENT
+  USER_ADDED
 }
 
 enum OrganizationPartyEntityType {

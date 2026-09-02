@@ -299,8 +299,8 @@ function PartyStep({
       {filtered.length === 0 ? (
         <p className="text-ui text-muted-foreground">
           {kind === "shareholders"
-            ? "No shareholders are on the CashSouk master list yet. If CTOS returned no parties, add them with Admin after review, or complete onboarding so RegTank can seed the list."
-            : "No board members on the master list. Management members can be added below."}
+            ? "No shareholders are on the CashSouk master list yet. Add them from Profile if the company structure has changed."
+            : "No board or management members on the master list yet. Add them from Profile."}
         </p>
       ) : null}
       {filtered.map((party) => (
@@ -317,95 +317,7 @@ function PartyStep({
           }}
         />
       ))}
-      {kind === "board" ? (
-        <AddManagementForm
-          onSave={async (data) => {
-            const res = await api.createManagementParty("issuer", orgId, data);
-            if (!res.success) throw new Error(res.error.message);
-            toast.success("Management member added");
-            await onSaved();
-          }}
-        />
-      ) : null}
     </div>
-  );
-}
-
-function AddManagementForm({
-  onSave,
-}: {
-  onSave: (data: Record<string, unknown>) => Promise<void>;
-}) {
-  const [form, setForm] = React.useState({
-    name: "",
-    identityNumber: "",
-    identityPrefix: "NRIC",
-    personKind: "MANAGEMENT",
-    designation: "",
-    appointmentDate: "",
-  });
-  return (
-    <form
-      className="grid gap-4 rounded-xl border border-dashed p-6 sm:grid-cols-2"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        await onSave({
-          name: form.name || null,
-          identityNumber: form.identityNumber || null,
-          identityPrefix: form.identityPrefix || null,
-          personKind: form.personKind,
-          designation: form.designation || null,
-          appointmentDate: form.appointmentDate || null,
-        });
-        setForm({
-          name: "",
-          identityNumber: "",
-          identityPrefix: "NRIC",
-          personKind: "MANAGEMENT",
-          designation: "",
-          appointmentDate: "",
-        });
-      }}
-    >
-      <p className="text-ui font-medium sm:col-span-2">Add a management team member</p>
-      <TextField label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
-      <SelectField
-        label="Identity prefix"
-        value={form.identityPrefix}
-        onChange={(v) => setForm({ ...form, identityPrefix: v })}
-        options={SC_IDENTITY_PREFIXES.filter((k) => k !== "ROC").map((k) => ({
-          value: k,
-          label: SC_IDENTITY_PREFIX_LABELS[k],
-        }))}
-      />
-      <TextField
-        label="Identity number"
-        value={form.identityNumber}
-        onChange={(v) => setForm({ ...form, identityNumber: v })}
-      />
-      <SelectField
-        label="Board / management"
-        value={form.personKind}
-        onChange={(v) => setForm({ ...form, personKind: v })}
-        options={SC_PERSON_KINDS.map((k) => ({ value: k, label: SC_PERSON_KIND_LABELS[k] }))}
-      />
-      <SelectField
-        label="Designation"
-        value={form.designation}
-        onChange={(v) => setForm({ ...form, designation: v })}
-        options={SC_DESIGNATIONS.map((k) => ({ value: k, label: SC_DESIGNATION_LABELS[k] }))}
-      />
-      <DateField
-        label="Appointment date"
-        value={form.appointmentDate}
-        onChange={(v) => setForm({ ...form, appointmentDate: v })}
-      />
-      <div className="sm:col-span-2">
-        <Button type="submit" className="h-10" variant="outline">
-          Add member
-        </Button>
-      </div>
-    </form>
   );
 }
 

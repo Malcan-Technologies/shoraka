@@ -64,9 +64,15 @@ export type ProfileValueSource = (typeof PROFILE_VALUE_SOURCES)[number];
 export const ORGANIZATION_PARTY_ORIGINS = [
   "CTOS_PARTY",
   "REGTANK_PARTY",
-  "USER_MANAGEMENT",
+  "USER_ADDED",
 ] as const;
 export type OrganizationPartyOrigin = (typeof ORGANIZATION_PARTY_ORIGINS)[number];
+
+export const ORGANIZATION_PARTY_ORIGIN_LABELS: Record<OrganizationPartyOrigin, string> = {
+  CTOS_PARTY: "CTOS",
+  REGTANK_PARTY: "RegTank",
+  USER_ADDED: "Issuer/User",
+};
 
 export const ORGANIZATION_PARTY_ENTITY_TYPES = ["INDIVIDUAL", "CORPORATE"] as const;
 export type OrganizationPartyEntityType = (typeof ORGANIZATION_PARTY_ENTITY_TYPES)[number];

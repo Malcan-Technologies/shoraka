@@ -1095,10 +1095,6 @@ export default function ProfilePage() {
                 </div>
               ) : null}
 
-              {!isPersonal && activeOrganization?.id ? (
-                <IssuerMasterPartiesCard organizationId={activeOrganization.id} />
-              ) : null}
-
               {!isPersonal && activeOrganization?.id && (
                 <div ref={aboutSectionRef}>
                   <AboutYourBusinessCard
@@ -1548,6 +1544,20 @@ export default function ProfilePage() {
               </div>
 
               {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
+              {!isPersonal && activeOrganization?.id ? (
+                <IssuerMasterPartiesCard
+                  organizationId={activeOrganization.id}
+                  onPartyChanged={async () => {
+                    await queryClient.invalidateQueries({
+                      queryKey: ["corporate-entities", activeOrganization.id],
+                    });
+                    await queryClient.invalidateQueries({
+                      queryKey: ["organization-detail", activeOrganization.id],
+                    });
+                  }}
+                />
+              ) : null}
+
               {!isPersonal && activeOrganization?.id && orgData && (
                 <div ref={directorsSectionRef} className="scroll-mt-24">
                   <DirectorShareholdersUnifiedSection

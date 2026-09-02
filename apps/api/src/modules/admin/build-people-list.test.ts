@@ -892,6 +892,181 @@ describe("buildUnifiedPeople", () => {
     expect(unresolved?.requestId).toBe("EOD-MISSING");
   });
 
+  it("CTOS_EMPTY still injects a user-added director into people[]", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: { directors: [], shareholders: [] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: [
+        { partyKey: "900101101234", onboardingJson: { email: "sarah@example.com", requestId: "", status: "", screening: null } },
+      ],
+      corporateEntities: null,
+      masterParties: [
+        {
+          partyKey: "900101101234",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Sarah Tan",
+          identityNumber: "900101101234",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+        },
+      ],
+    });
+    expect(result.listSource).toBe("CTOS_EMPTY");
+    expect(result.people.find((p) => p.matchKey === "900101101234")?.name).toBe("Sarah Tan");
+  });
+
+  it("injects a user-added director into people[] when CTOS does not list them", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: {
+        directors: [
+          { party_type: "I", nic_brno: "800101011234", name: "A", position: "DO" },
+        ],
+        shareholders: [],
+      },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: [{ partyKey: "900101101234", onboardingJson: { email: "sarah@example.com", requestId: "", status: "", screening: null } }],
+      corporateEntities: null,
+      masterParties: [
+        {
+          partyKey: "900101101234",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Sarah Tan",
+          identityNumber: "900101101234",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+        },
+      ],
+    });
+    const sarah = result.people.find((p) => p.matchKey === "900101101234");
+    expect(sarah?.name).toBe("Sarah Tan");
+    expect(sarah?.roles).toContain("DIRECTOR");
+    expect(sarah?.email).toBe("sarah@example.com");
+  });
+
+  it("does not inject a <5% individual shareholder-only master party into operational people[]", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
+      masterParties: [
+        {
+          partyKey: "880101011111",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "John Lee",
+          identityNumber: "880101011111",
+          isDirector: false,
+          isShareholder: true,
+          shareholdingPercentage: "2",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "880101011111")).toBeUndefined();
+  });
+
+  it("G: CTOS-discovered EXTERNAL_OBSERVED director stays one people[] row", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: {
+        directors: [
+          { party_type: "I", nic_brno: "990101011111", name: "New Director C", position: "DO" },
+        ],
+        shareholders: [],
+      },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: null,
+      masterParties: [
+        {
+          partyKey: "990101011111",
+          membershipStatus: "EXTERNAL_OBSERVED",
+          entityType: "INDIVIDUAL",
+          name: "New Director C",
+          identityNumber: "990101011111",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+        },
+      ],
+    });
+    const rows = result.people.filter((p) => p.matchKey === "990101011111");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.roles).toContain("DIRECTOR");
+  });
+
+  it("L: KYC supplement status attaches to a user-added master director", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: [
+        {
+          partyKey: "900101101234",
+          onboardingJson: {
+            email: "sarah@example.com",
+            status: "APPROVED",
+            requestId: "EOD-SARAH",
+            verifyLink: "",
+            screening: { status: "APPROVED" },
+          },
+        },
+      ],
+      corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
+      masterParties: [
+        {
+          partyKey: "900101101234",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "Sarah Tan",
+          identityNumber: "900101101234",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+        },
+      ],
+    });
+    const sarah = result.people.find((p) => p.matchKey === "900101101234");
+    expect(sarah?.email).toBe("sarah@example.com");
+    expect(sarah?.onboarding.status).toBe("APPROVED");
+    expect(sarah?.status).toBe("APPROVED");
+  });
+
+  it("does not inject a management-only master party into operational people[]", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: {
+        directors: [
+          { party_type: "I", nic_brno: "800101011234", name: "A", position: "DO" },
+        ],
+        shareholders: [],
+      },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: null,
+      masterParties: [
+        {
+          partyKey: "770101011111",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "CFO John",
+          identityNumber: "770101011111",
+          isDirector: false,
+          isShareholder: false,
+          shareholdingPercentage: null,
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "770101011111")).toBeUndefined();
+  });
+
   it("empty corporate_entities still yields empty people (empty state)", () => {
     const result = buildDirectorShareholderPeopleList({
       ctos: null,

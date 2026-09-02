@@ -151,6 +151,7 @@ import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-e
 import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/extract-government-id";
 import { resolveCorporatePersonMergeKey } from "../regtank/helpers/corporate-person-merge-key";
 import { buildAdminPeopleList, buildDirectorShareholderPeopleList } from "./build-people-list";
+import { buildDirectorShareholderPeopleListWithMaster } from "../organization-profile/load-master-parties-for-people";
 import { notifyIssuerDirectorShareholderActionRequired } from "../notification/director-shareholder-notifications";
 import { logApplicationActivity } from "../applications/logs/service";
 import { createApplicationReviewEventRow } from "../applications/logs/review-events";
@@ -3068,8 +3069,8 @@ export class AdminService {
           ? (org.business_aml_status as Record<string, unknown> | null)
           : undefined,
       ...(org.type === "COMPANY"
-        ? (() => {
-            const partyBuild = buildDirectorShareholderPeopleList({
+        ? await (async () => {
+            const partyBuild = await buildDirectorShareholderPeopleListWithMaster(portal, id, {
               ctos:
                 portal === "issuer"
                   ? (latestOrganizationCtosCompanyJson ?? null)
@@ -3468,13 +3469,25 @@ export class AdminService {
       refreshed.portal_type === "investor"
         ? refreshed.investor_organization
         : refreshed.issuer_organization;
-    const partyBuild = buildDirectorShareholderPeopleList({
-      ctos: existingResponse.latestOrganizationCtosCompanyJson,
-      issuerDirectorKycStatus: organizationForPeople?.director_kyc_status ?? null,
-      issuerDirectorAmlStatus: organizationForPeople?.director_aml_status ?? null,
-      ctosPartySupplements: organizationForPeople?.ctos_party_supplements ?? null,
-      corporateEntities: existingResponse.corporateEntities ?? null,
-    });
+    const partyBuild = orgId
+      ? await buildDirectorShareholderPeopleListWithMaster(
+          isInvestor ? "investor" : "issuer",
+          orgId,
+          {
+            ctos: existingResponse.latestOrganizationCtosCompanyJson,
+            issuerDirectorKycStatus: organizationForPeople?.director_kyc_status ?? null,
+            issuerDirectorAmlStatus: organizationForPeople?.director_aml_status ?? null,
+            ctosPartySupplements: organizationForPeople?.ctos_party_supplements ?? null,
+            corporateEntities: existingResponse.corporateEntities ?? null,
+          }
+        )
+      : buildDirectorShareholderPeopleList({
+          ctos: existingResponse.latestOrganizationCtosCompanyJson,
+          issuerDirectorKycStatus: organizationForPeople?.director_kyc_status ?? null,
+          issuerDirectorAmlStatus: organizationForPeople?.director_aml_status ?? null,
+          ctosPartySupplements: organizationForPeople?.ctos_party_supplements ?? null,
+          corporateEntities: existingResponse.corporateEntities ?? null,
+        });
 
     return {
       ...existingResponse,
@@ -6751,15 +6764,25 @@ export class AdminService {
     )
       ? (applicationWithIssuerExtras.issuer_organization as Record<string, unknown>)
       : null;
-    const partyBuild = buildDirectorShareholderPeopleList({
-      ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
-      issuerDirectorKycStatus: issuerOrgForPeople?.director_kyc_status ?? null,
-      issuerDirectorAmlStatus: issuerOrgForPeople?.director_aml_status ?? null,
-      ctosPartySupplements: Array.isArray(issuerOrgForPeople?.ctos_party_supplements)
-        ? issuerOrgForPeople.ctos_party_supplements
-        : null,
-      corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
-    });
+    const partyBuild = issuerOrgId
+      ? await buildDirectorShareholderPeopleListWithMaster("issuer", issuerOrgId, {
+          ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
+          issuerDirectorKycStatus: issuerOrgForPeople?.director_kyc_status ?? null,
+          issuerDirectorAmlStatus: issuerOrgForPeople?.director_aml_status ?? null,
+          ctosPartySupplements: Array.isArray(issuerOrgForPeople?.ctos_party_supplements)
+            ? issuerOrgForPeople.ctos_party_supplements
+            : null,
+          corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
+        })
+      : buildDirectorShareholderPeopleList({
+          ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
+          issuerDirectorKycStatus: issuerOrgForPeople?.director_kyc_status ?? null,
+          issuerDirectorAmlStatus: issuerOrgForPeople?.director_aml_status ?? null,
+          ctosPartySupplements: Array.isArray(issuerOrgForPeople?.ctos_party_supplements)
+            ? issuerOrgForPeople.ctos_party_supplements
+            : null,
+          corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
+        });
 
     let inheritedAcceptance: Awaited<
       ReturnType<typeof loadInheritedAcceptanceForExistingContract>

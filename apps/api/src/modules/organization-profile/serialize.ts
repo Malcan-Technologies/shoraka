@@ -9,6 +9,7 @@ import type {
 import {
   comrepCalendarDateKey,
   isMasterFieldEmpty,
+  normalizeDirectorShareholderIdKey,
   parseComrepCalendarDate,
   valuesEqualForMismatch,
 } from "@cashsouk/types";
@@ -292,7 +293,10 @@ export function computePartyMismatches(params: {
     const equal =
       field === "appointmentDate" || field === "resignationDate"
         ? comrepCalendarDateKey(masterValue) === comrepCalendarDateKey(externalValue)
-        : valuesEqualForMismatch(masterValue, externalValue);
+        : field === "identityNumber"
+          ? (normalizeDirectorShareholderIdKey(String(masterValue ?? "")) ?? "") ===
+            (normalizeDirectorShareholderIdKey(String(externalValue ?? "")) ?? "")
+          : valuesEqualForMismatch(masterValue, externalValue);
     if (equal) continue;
     const kept = resolutions[field];
     if (kept?.action === "KEEP" && valuesEqualForMismatch(kept.externalValue, externalValue)) {

@@ -6,7 +6,7 @@ import {
   adoptObservedParty,
   assertIssuerProfileCompleteForSubmit,
   computeOrgProfileCompleteness,
-  createManagementParty,
+  createUserAddedParty,
   deleteManagementParty,
   inactivateMasterParty,
   listPartyProfiles,
@@ -21,10 +21,11 @@ import {
   mismatchResolveSchema,
   orgMasterPatchSchema,
   partyPatchSchema,
+  createPartySchema,
   portalParamSchema,
 } from "./schemas";
 import { createSecurityLogRow } from "../../lib/audit/account-logs";
-import { AUDIT_TARGET_TYPE } from "../../lib/audit/context";
+import { AUDIT_PORTAL, AUDIT_TARGET_TYPE } from "../../lib/audit/context";
 
 const organizationService = new OrganizationService();
 
@@ -152,12 +153,23 @@ export function createOrganizationProfileRouter() {
         const portal = portalFromParams(req);
         const { id } = req.params;
         await assertOrgAccess(req, portal, id);
-        const patch = partyPatchSchema.parse(req.body);
-        const data = await createManagementParty({
+        const patch = createPartySchema.parse(req.body);
+        const data = await createUserAddedParty({
           portal,
           organizationId: id,
           patch,
           source: "USER",
+        });
+        await createSecurityLogRow({
+          userId: req.user!.user_id,
+          eventType: "MASTER_PARTY_CREATED",
+          portal: portal === "issuer" ? AUDIT_PORTAL.ISSUER : AUDIT_PORTAL.INVESTOR,
+          targetType: AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: id,
+          correlationId: typeof req.headers["x-correlation-id"] === "string"
+            ? req.headers["x-correlation-id"]
+            : null,
+          metadata: { portal, partyId: data.id, partyKey: data.partyKey, origin: data.origin },
         });
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {
@@ -339,8 +351,8 @@ export function createAdminOrganizationProfileRouter() {
   router.post("/:portal/:id/party-profiles", requirePermission("organizations.manage"), async (req, res, next) => {
     try {
       const portal = portalFromParams(req);
-      const patch = partyPatchSchema.parse(req.body);
-      const data = await createManagementParty({
+      const patch = createPartySchema.parse(req.body);
+      const data = await createUserAddedParty({
         portal,
         organizationId: req.params.id,
         patch,

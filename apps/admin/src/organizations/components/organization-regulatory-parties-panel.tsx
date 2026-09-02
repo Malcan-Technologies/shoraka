@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
+  ORGANIZATION_PARTY_ORIGIN_LABELS,
   PROFILE_VALUE_SOURCE_LABELS,
   type OrganizationDetailResponse,
   type OrganizationPartyProfileDto,
@@ -146,7 +147,16 @@ function PartyCard({
             {party.entityType} · {party.isDirector ? "Director" : ""}
             {party.isDirector && party.isShareholder ? " · " : ""}
             {party.isShareholder ? "Shareholder" : ""}
+            {party.isBoard ? " · Board" : ""}
             {party.isManagement ? " · Management" : ""}
+          </p>
+          <p className="text-meta text-muted-foreground">
+            Current source: {ORGANIZATION_PARTY_ORIGIN_LABELS[party.origin]}
+            {party.externalObservation
+              ? " · Latest CTOS: matched"
+              : party.absentFromLatestExternal
+                ? " · Latest CTOS: not present"
+                : " · Latest CTOS: not yet found"}
           </p>
         </div>
         <StatusBadge status={status.key} label={status.label} />

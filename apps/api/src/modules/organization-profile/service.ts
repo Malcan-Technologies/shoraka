@@ -11,6 +11,12 @@ import {
   latestUnauditedYearBlock,
   isMasterFieldEmpty,
   valuesEqualForMismatch,
+  canonicalPartyIdentityKey,
+  findExistingPartyForIdentityKey,
+  isCtosComparableParty,
+  mergeCtosPartySupplementDocument,
+  partySeenInExternalKeys,
+  USER_GENERATED_PARTY_KEY_PREFIX,
   type ComrepProfileCompleteness,
   type OrganizationPartyProfileDto,
   type PartyMismatchResolveInput,
@@ -31,7 +37,7 @@ import {
   extractRegulatoryPartiesFromCtos,
   type RegulatoryPartyCandidate,
 } from "./extract-regulatory-parties";
-import type { OrgMasterPatchInput, PartyPatchInput } from "./schemas";
+import type { CreatePartyInput, OrgMasterPatchInput, PartyPatchInput } from "./schemas";
 import {
   asAddress,
   asJson,
@@ -143,13 +149,15 @@ export async function seedMasterPartiesIfEmpty(
   organizationId: string
 ): Promise<void> {
   await assertOrgExists(portal, organizationId);
-  const existing = await prisma.organizationPartyProfile.count({
-    where: {
-      ...orgWhere(portal, organizationId),
-      membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
-    },
+  const existing = await prisma.organizationPartyProfile.findMany({
+    where: orgWhere(portal, organizationId),
   });
-  if (existing > 0) return;
+  const hasRegulatoryMaster = existing.some(
+    (row) =>
+      row.membership_status === OrganizationPartyMembershipStatus.MASTER_ACTIVE &&
+      isCtosComparableParty({ isDirector: row.is_director, isShareholder: row.is_shareholder })
+  );
+  if (hasRegulatoryMaster) return;
 
   const org =
     portal === "issuer"
@@ -173,14 +181,16 @@ export async function seedMasterPartiesIfEmpty(
   });
 
   const fromCtos = extractRegulatoryPartiesFromCtos(ctos?.company_json ?? null);
-  const candidates = fromCtos.length > 0
-    ? fromCtos
-    : extractRegulatoryPartiesFromCorporateEntities(org.corporate_entities);
-  if (candidates.length === 0) return;
+  const candidates =
+    fromCtos.length > 0
+      ? fromCtos
+      : extractRegulatoryPartiesFromCorporateEntities(org.corporate_entities);
+  const toCreate = candidates.filter((c) => !findExistingPartyForIdentityKey(existing, c.partyKey));
+  if (toCreate.length === 0) return;
 
   try {
     await prisma.organizationPartyProfile.createMany({
-      data: candidates.map((c) => {
+      data: toCreate.map((c) => {
         const created = candidateToCreateData(portal, organizationId, c, "MASTER_ACTIVE");
         return {
           party_key: created.party_key,
@@ -233,24 +243,24 @@ export async function observeExternalCtosParties(
   const existing = await prisma.organizationPartyProfile.findMany({
     where: orgWhere(portal, organizationId),
   });
-  const byKey = new Map(existing.map((row) => [row.party_key, row]));
   const seen = new Set<string>();
 
   for (const [partyKey, observation] of snapshot) {
     seen.add(partyKey);
-    const row = byKey.get(partyKey);
+    const row = findExistingPartyForIdentityKey(existing, partyKey);
     if (!row) {
       const candidate = extractRegulatoryPartiesFromCtos(companyJson).find(
         (p) => p.partyKey === partyKey
       );
       if (!candidate) continue;
-      await prisma.organizationPartyProfile.create({
+      const created = await prisma.organizationPartyProfile.create({
         data: {
           ...candidateToCreateData(portal, organizationId, candidate, "EXTERNAL_OBSERVED"),
           membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
           external_observation: asJson(observation),
         },
       });
+      existing.push(created);
       continue;
     }
     const previousObservation =
@@ -259,24 +269,38 @@ export async function observeExternalCtosParties(
       !Array.isArray(row.external_observation)
         ? (row.external_observation as Record<string, unknown>)
         : null;
-    await prisma.organizationPartyProfile.update({
+    const rekey = row.party_key !== partyKey && !existing.some((p) => p.id !== row.id && p.party_key === partyKey);
+    const updated = await prisma.organizationPartyProfile.update({
       where: { id: row.id },
       data: {
         absent_from_latest_external: false,
         external_observation: asJson(mergeObservationResolutions(previousObservation, observation)),
+        ...(rekey ? { party_key: partyKey } : {}),
+        ...(row.identity_number ? {} : { identity_number: candidateIdentityFromObservation(observation) }),
       },
     });
+    const idx = existing.findIndex((p) => p.id === row.id);
+    if (idx >= 0) existing[idx] = updated;
   }
 
   for (const row of existing) {
     if (row.membership_status === OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) continue;
-    if (seen.has(row.party_key)) continue;
-    if (row.origin === OrganizationPartyOrigin.USER_MANAGEMENT) continue;
+    if (partySeenInExternalKeys(row, seen)) continue;
+    if (
+      !isCtosComparableParty({ isDirector: row.is_director, isShareholder: row.is_shareholder })
+    ) {
+      continue;
+    }
     await prisma.organizationPartyProfile.update({
       where: { id: row.id },
       data: { absent_from_latest_external: true },
     });
   }
+}
+
+function candidateIdentityFromObservation(observation: Record<string, unknown>): string | null {
+  const raw = observation.identityNumber;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
 }
 
 export async function listPartyProfiles(
@@ -781,7 +805,7 @@ export async function patchPartyProfile(params: {
     }
     if (
       p.personKind !== undefined &&
-      row.origin !== OrganizationPartyOrigin.USER_MANAGEMENT
+      row.origin !== OrganizationPartyOrigin.USER_ADDED
     ) {
       const nextBoard = p.personKind === "BOARD";
       const nextManagement = p.personKind === "MANAGEMENT";
@@ -800,13 +824,13 @@ export async function patchPartyProfile(params: {
     if (p.isManagement !== undefined) data.is_management = p.isManagement;
   }
   if (p.personKind === "BOARD") {
-    if (params.source !== "USER" || row.origin === OrganizationPartyOrigin.USER_MANAGEMENT) {
+    if (params.source !== "USER" || row.origin === OrganizationPartyOrigin.USER_ADDED) {
       data.is_board = true;
       data.is_management = false;
     }
   }
   if (p.personKind === "MANAGEMENT") {
-    if (params.source !== "USER" || row.origin === OrganizationPartyOrigin.USER_MANAGEMENT) {
+    if (params.source !== "USER" || row.origin === OrganizationPartyOrigin.USER_ADDED) {
       data.is_management = true;
       data.is_board = false;
     }
@@ -865,43 +889,253 @@ export async function patchPartyProfile(params: {
   return serializeParty(updated);
 }
 
+function resolveCreatePartyRoles(patch: CreatePartyInput): {
+  isDirector: boolean;
+  isShareholder: boolean;
+  isBoard: boolean;
+  isManagement: boolean;
+} {
+  const isDirector = patch.isDirector === true;
+  const isShareholder = patch.isShareholder === true;
+  const isBoard = patch.isBoard === true || patch.personKind === "BOARD";
+  const isManagement = patch.isManagement === true || patch.personKind === "MANAGEMENT";
+  return { isDirector, isShareholder, isBoard, isManagement };
+}
+
+function stampProvidedPartyFields(
+  patch: CreatePartyInput,
+  source: ProfileValueSource
+): ProfileFieldSources {
+  let sources: ProfileFieldSources = {};
+  const mark = (field: string, filled: boolean) => {
+    if (filled) sources = stampSource(sources, field, source);
+  };
+  mark("name", Boolean(patch.name?.trim()));
+  mark("identityNumber", Boolean(patch.identityNumber?.trim()));
+  mark("identityPrefix", Boolean(patch.identityPrefix));
+  mark("shareholdingPercentage", patch.shareholdingPercentage != null && patch.shareholdingPercentage !== "");
+  mark("shareholdingUnits", patch.shareholdingUnits != null && patch.shareholdingUnits !== "");
+  mark("shareholdingAmount", patch.shareholdingAmount != null && patch.shareholdingAmount !== "");
+  mark("shareType", Boolean(patch.shareType));
+  mark("appointmentDate", Boolean(patch.appointmentDate));
+  mark("designation", Boolean(patch.designation));
+  mark("nationality", Boolean(patch.nationality?.trim()));
+  mark("gender", Boolean(patch.gender));
+  mark("dateOfBirth", Boolean(patch.dateOfBirth));
+  mark("dateOfIncorporation", Boolean(patch.dateOfIncorporation));
+  mark("countryOfIncorporation", Boolean(patch.countryOfIncorporation?.trim()));
+  mark("address", Boolean(patch.address));
+  return sources;
+}
+
+async function upsertPartyEmailSupplement(params: {
+  portal: Portal;
+  organizationId: string;
+  partyKey: string;
+  email: string;
+}): Promise<void> {
+  const where =
+    params.portal === "issuer"
+      ? { issuer_organization_id: params.organizationId, party_key: params.partyKey }
+      : { investor_organization_id: params.organizationId, party_key: params.partyKey };
+  const existing = await prisma.ctosPartySupplement.findFirst({ where });
+  const merged = mergeCtosPartySupplementDocument(existing?.onboarding_json, {
+    onboarding: existing
+      ? { email: params.email }
+      : {
+          email: params.email,
+          status: "NOT_STARTED",
+          requestId: `draft-${Date.now()}`,
+          verifyLink: "",
+        },
+  });
+  if (existing) {
+    await prisma.ctosPartySupplement.update({
+      where: { id: existing.id },
+      data: { onboarding_json: asJson(merged) },
+    });
+    return;
+  }
+  await prisma.ctosPartySupplement.create({
+    data: {
+      issuer_organization_id: params.portal === "issuer" ? params.organizationId : null,
+      investor_organization_id: params.portal === "investor" ? params.organizationId : null,
+      party_key: params.partyKey,
+      onboarding_json: asJson(merged),
+    },
+  });
+}
+
+export async function createUserAddedParty(params: {
+  portal: Portal;
+  organizationId: string;
+  patch: CreatePartyInput;
+  source: ProfileValueSource;
+}): Promise<OrganizationPartyProfileDto> {
+  await assertOrgExists(params.portal, params.organizationId);
+  const roles = resolveCreatePartyRoles(params.patch);
+  if (!roles.isDirector && !roles.isShareholder && !roles.isBoard && !roles.isManagement) {
+    throw new AppError(400, "VALIDATION_ERROR", "Select at least one role");
+  }
+
+  const entityType: OrganizationPartyEntityType =
+    params.patch.entityType === "CORPORATE" || params.patch.identityPrefix === "ROC"
+      ? OrganizationPartyEntityType.CORPORATE
+      : OrganizationPartyEntityType.INDIVIDUAL;
+
+  if (entityType === OrganizationPartyEntityType.CORPORATE) {
+    if (roles.isDirector || roles.isBoard || roles.isManagement) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "A company can be added as a shareholder, not as a director, board, or management member"
+      );
+    }
+    if (!roles.isShareholder) {
+      throw new AppError(400, "VALIDATION_ERROR", "A company party must be a shareholder");
+    }
+  }
+
+  const identity = params.patch.identityNumber?.trim() || null;
+  const identityKey = canonicalPartyIdentityKey(identity);
+  const needsIdentity = roles.isDirector || roles.isShareholder || roles.isBoard;
+  if (needsIdentity && !identityKey) {
+    throw new AppError(400, "VALIDATION_ERROR", "Identity number is required for this role");
+  }
+
+  const existingRows = await prisma.organizationPartyProfile.findMany({
+    where: orgWhere(params.portal, params.organizationId),
+  });
+  const existing = identityKey ? findExistingPartyForIdentityKey(existingRows, identityKey) : undefined;
+  const partyKey = identityKey ?? `${USER_GENERATED_PARTY_KEY_PREFIX}${crypto.randomUUID()}`;
+  const fieldSources = stampProvidedPartyFields(params.patch, params.source);
+  const email = (params.patch.email ?? "").trim();
+
+  if (existing) {
+    const nextDirector = existing.is_director || roles.isDirector;
+    const nextShareholder = existing.is_shareholder || roles.isShareholder;
+    const nextBoard = existing.is_board || roles.isBoard;
+    const nextManagement = existing.is_management || roles.isManagement;
+    const fill = <T,>(current: T, incoming: T | undefined): T => {
+      if (incoming === undefined || incoming === null || incoming === ("" as T)) return current;
+      if (!isMasterFieldEmpty(current)) return current;
+      return incoming;
+    };
+    const updated = await prisma.organizationPartyProfile.update({
+      where: { id: existing.id },
+      data: {
+        membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
+        name: fill(existing.name, params.patch.name ?? null),
+        identity_number: fill(existing.identity_number, identity),
+        identity_prefix: fill(existing.identity_prefix, params.patch.identityPrefix ?? null),
+        is_director: nextDirector,
+        is_shareholder: nextShareholder,
+        is_board: nextBoard,
+        is_management: nextManagement,
+        gender: fill(existing.gender, params.patch.gender ?? null),
+        nationality: fill(existing.nationality, params.patch.nationality ?? null),
+        country_of_incorporation: fill(
+          existing.country_of_incorporation,
+          params.patch.countryOfIncorporation ?? null
+        ),
+        date_of_birth: fill(existing.date_of_birth, parseDateInput(params.patch.dateOfBirth)),
+        date_of_incorporation: fill(
+          existing.date_of_incorporation,
+          parseDateInput(params.patch.dateOfIncorporation)
+        ),
+        address: existing.address
+          ? existing.address
+          : params.patch.address
+            ? asJson(params.patch.address)
+            : undefined,
+        share_type: fill(existing.share_type, params.patch.shareType ?? null),
+        share_type_other: fill(existing.share_type_other, params.patch.shareTypeOther ?? null),
+        shareholding_units: fill(existing.shareholding_units, decimalOrNull(params.patch.shareholdingUnits)),
+        shareholding_amount: fill(
+          existing.shareholding_amount,
+          decimalOrNull(params.patch.shareholdingAmount)
+        ),
+        shareholding_percentage: fill(
+          existing.shareholding_percentage,
+          decimalOrNull(params.patch.shareholdingPercentage)
+        ),
+        designation: fill(existing.designation, params.patch.designation ?? null),
+        designation_other: fill(existing.designation_other, params.patch.designationOther ?? null),
+        appointment_date: fill(existing.appointment_date, parseDateInput(params.patch.appointmentDate)),
+        field_sources: asJson({ ...parseFieldSources(existing.field_sources), ...fieldSources }),
+        ...(existing.party_key !== partyKey &&
+        !existingRows.some((row) => row.id !== existing.id && row.party_key === partyKey)
+          ? { party_key: partyKey }
+          : {}),
+      },
+    });
+    if (email) {
+      await upsertPartyEmailSupplement({
+        portal: params.portal,
+        organizationId: params.organizationId,
+        partyKey: updated.party_key,
+        email,
+      });
+    }
+    return serializeParty(updated);
+  }
+
+  const created = await prisma.organizationPartyProfile.create({
+    data: {
+      ...orgWhere(params.portal, params.organizationId),
+      party_key: partyKey,
+      origin: OrganizationPartyOrigin.USER_ADDED,
+      membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
+      entity_type: entityType,
+      name: params.patch.name ?? null,
+      identity_number: identity,
+      identity_prefix: params.patch.identityPrefix ?? (entityType === "CORPORATE" ? "ROC" : null),
+      is_director: roles.isDirector,
+      is_shareholder: roles.isShareholder,
+      is_board: roles.isBoard,
+      is_management: roles.isManagement,
+      gender: params.patch.gender ?? null,
+      nationality: params.patch.nationality ?? null,
+      country_of_incorporation: params.patch.countryOfIncorporation ?? null,
+      date_of_birth: parseDateInput(params.patch.dateOfBirth),
+      date_of_incorporation: parseDateInput(params.patch.dateOfIncorporation),
+      address: params.patch.address ? asJson(params.patch.address) : undefined,
+      share_type: params.patch.shareType ?? null,
+      share_type_other: params.patch.shareTypeOther ?? null,
+      shareholding_units: decimalOrNull(params.patch.shareholdingUnits),
+      shareholding_amount: decimalOrNull(params.patch.shareholdingAmount),
+      shareholding_percentage: decimalOrNull(params.patch.shareholdingPercentage),
+      designation: params.patch.designation ?? null,
+      designation_other: params.patch.designationOther ?? null,
+      appointment_date: parseDateInput(params.patch.appointmentDate),
+      field_sources: asJson(fieldSources),
+    },
+  });
+  if (email) {
+    await upsertPartyEmailSupplement({
+      portal: params.portal,
+      organizationId: params.organizationId,
+      partyKey: created.party_key,
+      email,
+    });
+  }
+  return serializeParty(created);
+}
+
 export async function createManagementParty(params: {
   portal: Portal;
   organizationId: string;
   patch: PartyPatch;
   source: ProfileValueSource;
 }): Promise<OrganizationPartyProfileDto> {
-  await assertOrgExists(params.portal, params.organizationId);
-  const identity = params.patch.identityNumber?.trim();
-  if (!identity) {
-    throw new AppError(400, "VALIDATION_ERROR", "Identity number is required for management members");
-  }
-  const partyKey = `mgmt:${identity.replace(/[^a-zA-Z0-9]/g, "").toUpperCase()}`;
-  const created = await prisma.organizationPartyProfile.create({
-    data: {
-      ...orgWhere(params.portal, params.organizationId),
-      party_key: partyKey,
-      origin: OrganizationPartyOrigin.USER_MANAGEMENT,
-      membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
-      entity_type: OrganizationPartyEntityType.INDIVIDUAL,
-      name: params.patch.name ?? null,
-      identity_number: identity,
-      identity_prefix: params.patch.identityPrefix ?? null,
-      is_director: false,
-      is_shareholder: false,
-      is_board: params.patch.personKind === "BOARD",
-      is_management: params.patch.personKind !== "BOARD",
-      gender: params.patch.gender ?? null,
-      nationality: params.patch.nationality ?? null,
-      date_of_birth: parseDateInput(params.patch.dateOfBirth),
-      address: params.patch.address ? asJson(params.patch.address) : undefined,
-      designation: params.patch.designation ?? null,
-      designation_other: params.patch.designationOther ?? null,
-      appointment_date: parseDateInput(params.patch.appointmentDate),
-      field_sources: asJson(stampSource({}, "name", params.source)),
+  return createUserAddedParty({
+    ...params,
+    patch: {
+      ...params.patch,
+      isManagement: params.patch.isManagement ?? params.patch.personKind !== "BOARD",
+      isBoard: params.patch.isBoard ?? params.patch.personKind === "BOARD",
     },
   });
-  return serializeParty(created);
 }
 
 export async function deleteManagementParty(params: {
@@ -913,8 +1147,15 @@ export async function deleteManagementParty(params: {
     where: { id: params.partyId, ...orgWhere(params.portal, params.organizationId) },
   });
   if (!row) throw new AppError(404, "NOT_FOUND", "Party profile not found");
-  if (row.origin !== OrganizationPartyOrigin.USER_MANAGEMENT) {
-    throw new AppError(400, "INVALID_PARTY", "Only user-added management members can be removed");
+  if (row.origin !== OrganizationPartyOrigin.USER_ADDED) {
+    throw new AppError(400, "INVALID_PARTY", "Only user-added people can be removed");
+  }
+  if (row.is_director || row.is_shareholder) {
+    throw new AppError(
+      400,
+      "INVALID_PARTY",
+      "Directors and shareholders cannot be removed here. Ask Admin to inactivate the party if needed."
+    );
   }
   await prisma.organizationPartyProfile.delete({ where: { id: row.id } });
 }

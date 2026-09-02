@@ -111,6 +111,15 @@ describe("computePartyMismatches", () => {
     });
     expect(mismatches.find((m) => m.field === "appointmentDate")).toBeUndefined();
   });
+
+  it("does not treat hyphenated NRIC as a different identity", () => {
+    const mismatches = computePartyMismatches({
+      master: { ...baseMaster, identityNumber: "900101101234" },
+      observation: { identityNumber: "900101-10-1234", name: "Ali" },
+      sources: {},
+    });
+    expect(mismatches.find((m) => m.field === "identityNumber")).toBeUndefined();
+  });
 });
 
 describe("mergeObservationResolutions", () => {

@@ -235,8 +235,24 @@ export const operatorFinancialStatementSchema = z
   })
   .strict();
 
+export const createPartySchema = partyPatchSchema
+  .extend({
+    entityType: z.enum(ORGANIZATION_PARTY_ENTITY_TYPES).optional(),
+    email: z.union([z.string().email().max(255), z.literal(""), z.null()]).optional(),
+  })
+  .refine(
+    (value) =>
+      value.isDirector === true ||
+      value.isShareholder === true ||
+      value.isBoard === true ||
+      value.isManagement === true ||
+      Boolean(value.personKind),
+    { message: "Select at least one role" }
+  );
+
 export type OrgMasterPatchInput = z.infer<typeof orgMasterPatchSchema>;
 export type PartyPatchInput = z.infer<typeof partyPatchSchema>;
+export type CreatePartyInput = z.infer<typeof createPartySchema>;
 export type OperatorShareholderInput = z.infer<typeof operatorShareholderSchema>;
 export type OperatorOfficerInput = z.infer<typeof operatorOfficerSchema>;
 export type OperatorAdvisorInput = z.infer<typeof operatorAdvisorSchema>;

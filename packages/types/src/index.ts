@@ -555,6 +555,7 @@ export * from "./marc-credit-grade";
 export * from "./paymaster";
 export * from "./comrep-profile";
 export * from "./organization-party-profile";
+export * from "./organization-party-key";
 export * from "./operator-profile";
 export {
   ADMIN_PERMISSIONS,

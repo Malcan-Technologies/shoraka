@@ -21,9 +21,10 @@ import { requireAuth } from "../../lib/auth/middleware";
 import { parseAboutYourBusiness } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { AMLSyncService } from "../regtank/aml-sync-service";
-import { buildDirectorShareholderPeopleList, buildAdminPeopleList } from "../admin/build-people-list";
+import { buildAdminPeopleList } from "../admin/build-people-list";
 import { filterVisiblePeopleRows, isReadyOnboardingStatus } from "@cashsouk/types";
 import { computeOrgProfileCompleteness } from "../organization-profile/service";
+import { buildDirectorShareholderPeopleListWithMaster } from "../organization-profile/load-master-parties-for-people";
 
 const organizationService = new OrganizationService();
 
@@ -82,7 +83,7 @@ async function listOrganizations(
             portalType === "investor"
               ? await organizationService.getInvestorPartyListExtras(org.id)
               : await organizationService.getIssuerPartyListExtras(org.id);
-          const partyBuild = buildDirectorShareholderPeopleList({
+          const partyBuild = await buildDirectorShareholderPeopleListWithMaster(portalType, org.id, {
             ctos: extras.latestOrganizationCtosCompanyJson ?? null,
             issuerDirectorKycStatus: (org as { director_kyc_status?: unknown }).director_kyc_status ?? null,
             issuerDirectorAmlStatus: (org as { director_aml_status?: unknown }).director_aml_status ?? null,
@@ -343,7 +344,7 @@ async function getOrganization(
 
     const peopleForSubmit =
       portalType === "issuer" && organization.type === "COMPANY" && issuerPartyExtras
-        ? buildDirectorShareholderPeopleList({
+        ? await buildDirectorShareholderPeopleListWithMaster("issuer", organization.id, {
             ctos: issuerPartyExtras.latestOrganizationCtosCompanyJson ?? null,
             issuerDirectorKycStatus: org.director_kyc_status ?? null,
             issuerDirectorAmlStatus: org.director_aml_status ?? null,
@@ -358,7 +359,7 @@ async function getOrganization(
 
     const companyPartyBuild =
       organization.type === "COMPANY"
-        ? buildDirectorShareholderPeopleList({
+        ? await buildDirectorShareholderPeopleListWithMaster(portalType, organization.id, {
             ctos:
               portalType === "issuer"
                 ? (issuerPartyExtras?.latestOrganizationCtosCompanyJson ?? null)
