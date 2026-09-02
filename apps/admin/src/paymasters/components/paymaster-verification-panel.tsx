@@ -117,7 +117,7 @@ export function PaymasterVerificationPanel({
 
   return (
     <div className="space-y-4">
-      <div className={layout === "review" ? reviewRowGridClass : "grid gap-4 sm:grid-cols-2"}>
+      <div className={layout === "review" ? reviewRowGridClass : "grid gap-4"}>
         {layout === "review" ? (
           <>
             <Label className={reviewLabelClass}>Status</Label>
@@ -149,10 +149,12 @@ export function PaymasterVerificationPanel({
         )}
       </div>
 
-      <p className="text-meta text-muted-foreground">
-        Paymaster identity reviewed internally. This is not an external SSM or CTOS check, and it
-        does not approve the application.
-      </p>
+      {layout === "review" ? (
+        <p className="text-meta text-muted-foreground">
+          Paymaster identity reviewed internally. This is not an external SSM or CTOS check, and it
+          does not approve the application.
+        </p>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         {resolvedId && layout !== "detail" ? (

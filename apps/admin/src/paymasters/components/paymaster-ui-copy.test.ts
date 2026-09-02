@@ -19,9 +19,11 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
 
   it("Paymaster Detail keeps verification status/by/at and has no mismatch section", () => {
     const detail = readFileSync(join(__dirname, "paymaster-detail-view.tsx"), "utf8");
+    const card = readFileSync(join(__dirname, "paymaster-verification-card.tsx"), "utf8");
     const panel = readFileSync(join(__dirname, "paymaster-verification-panel.tsx"), "utf8");
-    expect(detail).toContain("PaymasterVerificationPanel");
-    expect(detail).toContain("Internal Paymaster identity review");
+    expect(detail).toContain("PaymasterVerificationCard");
+    expect(card).toContain("PaymasterVerificationPanel");
+    expect(card).toContain("Internal Paymaster identity review");
     expect(detail).not.toMatch(/Keep existing identity/i);
     expect(detail).not.toMatch(/Data review/i);
     expect(panel).toContain("Verified by");
@@ -32,16 +34,22 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(panel).not.toMatch(/mismatch/i);
   });
 
-  it("Paymaster Detail shows identity Activity separately from Linked issuers and notices", () => {
+  it("Paymaster Detail uses issuer-style tabs with identity Activity separate from Linked issuers and notices", () => {
     const detail = readFileSync(join(__dirname, "paymaster-detail-view.tsx"), "utf8");
+    const linked = readFileSync(join(__dirname, "paymaster-linked-records-panel.tsx"), "utf8");
+    const notices = readFileSync(join(__dirname, "paymaster-notices-card.tsx"), "utf8");
     const activity = readFileSync(join(__dirname, "paymaster-activity-panel.tsx"), "utf8");
+    expect(detail).toContain("AdminDetailTabs");
+    expect(detail).toContain("AdminRelatedRecordsRail");
+    expect(detail).toContain('id: "identity"');
+    expect(detail).toContain('id: "linked-records"');
+    expect(detail).toContain('id: "activity"');
     expect(detail).toContain("PaymasterActivityPanel");
-    expect(detail).toContain('title="Linked issuers"');
-    expect(detail).toContain("PaymasterVerificationPanel");
-    expect(detail).toContain('title="Assignment notices"');
-    expect(detail.indexOf("<PaymasterVerificationPanel")).toBeLessThan(
-      detail.indexOf("<PaymasterActivityPanel")
-    );
+    expect(detail).toContain("PaymasterVerificationCard");
+    expect(detail).toContain("PaymasterNoticesCard");
+    expect(linked).toContain('title="Linked records"');
+    expect(linked).toContain("Issuers that have used this Paymaster");
+    expect(notices).toContain('title="Assignment notices"');
     expect(activity).toContain('title="Activity"');
     expect(activity).toContain("AdminVerticalTimeline");
     expect(activity).toContain("formatAuditEventLabel");
