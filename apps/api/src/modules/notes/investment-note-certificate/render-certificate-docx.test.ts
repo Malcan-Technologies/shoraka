@@ -11,19 +11,35 @@ import {
 } from "./render-certificate-docx";
 import type { InvestmentNoteCertificateSnapshot } from "./types";
 
+function decodeXmlText(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&");
+}
+
 function wordPlainText(xml: string): string {
   let text = "";
   const re = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
   let match: RegExpExecArray | null;
   while ((match = re.exec(xml))) {
-    text += (match[1] ?? "")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&apos;/g, "'")
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, "&");
+    text += decodeXmlText(match[1] ?? "");
   }
   return text;
+}
+
+function cellTexts(rowXml: string): string[] {
+  return (rowXml.match(/<w:tc\b[\s\S]*?<\/w:tc>/g) ?? []).map((cell) => {
+    let text = "";
+    const re = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(cell))) {
+      text += decodeXmlText(match[1] ?? "");
+    }
+    return text;
+  });
 }
 
 function renderedXml(snapshot: InvestmentNoteCertificateSnapshot, audience: Parameters<typeof renderInvestmentNoteCertificateDocx>[1]) {
@@ -31,13 +47,33 @@ function renderedXml(snapshot: InvestmentNoteCertificateSnapshot, audience: Para
   return zip.file("word/document.xml")?.asText() ?? "";
 }
 
-function allocationTableXml(xml: string): string {
+function allocationTables(xml: string): string[] {
   const tables = xml.match(/<w:tbl\b[\s\S]*?<\/w:tbl>/g) ?? [];
-  return tables[8] ?? "";
+  return tables.filter((table) => {
+    const text = wordPlainText(table);
+    return text.includes("Investor ID") && text.includes("Share %") && text.includes("TOTAL");
+  });
+}
+
+function allocationTableXml(xml: string): string {
+  const tables = allocationTables(xml);
+  expect(tables).toHaveLength(1);
+  return tables[0] ?? "";
 }
 
 function allocationRowCount(xml: string): number {
   return (allocationTableXml(xml).match(/<w:tr\b[\s\S]*?<\/w:tr>/g) ?? []).length;
+}
+
+function allocationGridWidths(xml: string): number[] {
+  return [...allocationTableXml(xml).matchAll(/<w:gridCol[^>]*w:w="(\d+)"/g)].map((match) =>
+    Number(match[1])
+  );
+}
+
+function allocationRows(xml: string): string[][] {
+  const rows = allocationTableXml(xml).match(/<w:tr\b[\s\S]*?<\/w:tr>/g) ?? [];
+  return rows.map(cellTexts);
 }
 
 describe("renderInvestmentNoteCertificateDocx", () => {
@@ -58,10 +94,14 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(plain).not.toContain("{#investors}");
     expect(plain).not.toContain("{/investors}");
     expect(plain).not.toContain("{issuerLegalName}");
+    expect(plain).not.toContain("{#isIssuerAudience}");
+    expect(plain).not.toContain("{^isIssuerAudience}");
+    expect(plain).not.toContain("{/isIssuerAudience}");
   });
 
   it("admin copy includes issuer identity and all investor names", () => {
-    const plain = wordPlainText(renderedXml(snapshot, { audience: "ADMIN" }));
+    const xml = renderedXml(snapshot, { audience: "ADMIN" });
+    const plain = wordPlainText(xml);
     expect(plain).toContain("IINC-NOTE-20260902-AAA");
     expect(plain).toContain("IS-NOTE-20260902-AAA-V01");
     expect(plain).toContain("V01");
@@ -72,28 +112,66 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(plain).toContain("IVT-A");
     expect(plain).toContain("IVT-B");
     expect(plain).toContain(PROSPECTUS_FIXED_SHARIAH_PRINCIPLE);
+    expect(plain).toContain("Investor / Noteholder");
+    const rows = allocationRows(xml);
+    expect(rows[0]).toEqual([
+      "No.",
+      "Investor ID",
+      "Investor / Noteholder",
+      "Principal (RM)",
+      "Share %",
+      "Expected Profit (RM)",
+      "Total payable (RM)",
+    ]);
+    expect(rows[1]?.[2]).toBe("Alice Tan");
+    expect(rows[2]?.[2]).toBe("Bob Lee");
+    expect(rows.at(-1)).toEqual(["", "", "TOTAL", "80,000.00", "100.00%", "2,000.00", "82,000.00"]);
+    expect(allocationGridWidths(xml)).toEqual([450, 1150, 2150, 1350, 850, 1579, 1711]);
   });
 
   it("issuer copy includes investor IDs but never investor names", () => {
-    const plain = wordPlainText(renderedXml(snapshot, { audience: "ISSUER" }));
+    const xml = renderedXml(snapshot, { audience: "ISSUER" });
+    const plain = wordPlainText(xml);
     expect(plain).toContain("Helios Manufacturing Sdn Bhd");
     expect(plain).toContain("IVT-A");
     expect(plain).toContain("IVT-B");
     expect(plain).not.toContain("Alice Tan");
     expect(plain).not.toContain("Bob Lee");
+    expect(plain).not.toContain("Investor / Noteholder");
+    const rows = allocationRows(xml);
+    expect(rows[0]).toEqual([
+      "No.",
+      "Investor ID",
+      "Principal (RM)",
+      "Share %",
+      "Expected Profit (RM)",
+      "Total payable (RM)",
+    ]);
+    expect(rows).toHaveLength(4);
+    expect(rows[1]).toHaveLength(6);
+    expect(rows.at(-1)).toEqual(["", "TOTAL", "80,000.00", "100.00%", "2,000.00", "82,000.00"]);
+    const widths = allocationGridWidths(xml);
+    expect(widths).toEqual([450, 2500, 1620, 850, 1840, 1980]);
+    expect(widths.reduce((sum, width) => sum + width, 0)).toBe(9240);
   });
 
   it("investor A copy hides issuer legal identity and omits investor B", () => {
-    const plain = wordPlainText(
-      renderedXml(snapshot, { audience: "INVESTOR", investorOrganizationId: "org-a" })
-    );
+    const xml = renderedXml(snapshot, { audience: "INVESTOR", investorOrganizationId: "org-a" });
+    const plain = wordPlainText(xml);
     expect(plain).toContain("Alice Tan");
     expect(plain).toContain("IVT-A");
     expect(plain).toContain("ISS-001");
+    expect(plain).toContain("Investor / Noteholder");
     expect(plain).not.toContain("Bob Lee");
     expect(plain).not.toContain("IVT-B");
     expect(plain).not.toContain("Helios Manufacturing Sdn Bhd");
     expect(plain).not.toContain("1234567-A");
+    const rows = allocationRows(xml);
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.[1]).toBe("Investor ID");
+    expect(rows[0]?.[2]).toBe("Investor / Noteholder");
+    expect(rows[1]).toEqual(["1", "IVT-A", "Alice Tan", "50,000.00", "62.50%", "1,250.00", "51,250.00"]);
+    expect(rows.at(-1)).toEqual(["", "", "TOTAL", "50,000.00", "62.50%", "1,250.00", "51,250.00"]);
   });
 
   it("investor B cannot appear in investor A document", () => {
@@ -106,12 +184,17 @@ describe("renderInvestmentNoteCertificateDocx", () => {
 
   it("grows investor rows dynamically beyond the template's 10 example lines", () => {
     const large = sampleInvestmentNoteCertificateSnapshot(manyCertificateInvestors(12));
-    const xml = renderedXml(large, { audience: "ADMIN" });
-    expect(allocationRowCount(xml)).toBe(14);
-    const plain = wordPlainText(xml);
+    const adminXml = renderedXml(large, { audience: "ADMIN" });
+    expect(allocationRowCount(adminXml)).toBe(14);
+    const plain = wordPlainText(adminXml);
     expect(plain).toContain("IVT-1");
     expect(plain).toContain("IVT-12");
     expect(plain).toContain("Investor 12");
+    const issuerXml = renderedXml(large, { audience: "ISSUER" });
+    expect(allocationRowCount(issuerXml)).toBe(14);
+    expect(allocationRows(issuerXml)[0]).toHaveLength(6);
+    expect(wordPlainText(issuerXml)).not.toContain("Investor 12");
+    expect(wordPlainText(issuerXml)).toContain("IVT-12");
   });
 
   it("renders a single investor row plus TOTAL", () => {
@@ -135,6 +218,10 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(data.investorScheduleReference).toBe("IS-NOTE-20260902-AAA-V01");
     expect(data.scheduleVersion).toBe("V01");
     expect(data.investors).toHaveLength(2);
+    expect(data.isIssuerAudience).toBe(false);
+    expect(buildCertificateDocxMergeData(snapshot, { audience: "ISSUER" }).isIssuerAudience).toBe(
+      true
+    );
     expect(data.sumPrincipal).toBe("80,000.00");
     expect(data.sumSharePercent).toBe("100.00%");
     expect(data.sumExpectedProfit).toBe("2,000.00");
@@ -150,6 +237,7 @@ describe("renderInvestmentNoteCertificateDocx", () => {
       investorOrganizationId: "org-a",
     });
     expect(data.investors).toHaveLength(1);
+    expect(data.isIssuerAudience).toBe(false);
     expect(data.investors[0]?.investorId).toBe("IVT-A");
     expect(data.sumPrincipal).toBe("50,000.00");
     expect(data.sumSharePercent).toBe("62.50%");

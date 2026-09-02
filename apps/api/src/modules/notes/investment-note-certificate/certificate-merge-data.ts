@@ -67,6 +67,7 @@ export type CertificateDocxMergeData = {
   sumSharePercent: string;
   sumExpectedProfit: string;
   sumTotalPayable: string;
+  isIssuerAudience: boolean;
 };
 
 /**
@@ -140,5 +141,6 @@ export function buildCertificateDocxMergeData(
     sumSharePercent: investorScoped ? formatCertificateShare(sumShare) : "100.00%",
     sumExpectedProfit: formatCertificateAmount(investorScoped ? sumProfit : n.contractedProfit),
     sumTotalPayable: formatCertificateAmount(investorScoped ? sumPayable : n.totalAmountPayable),
+    isIssuerAudience: input.audience === "ISSUER",
   };
 }

@@ -250,6 +250,15 @@ describe("buildSettlementHibahReceiptSnapshot", () => {
     expect(snapshot.investorScheduleReference).toBe("IS-ARF-202608-A52-V01");
   });
 
+  it("does not freeze the issuer organization CUID as Issuer ID", async () => {
+    const issuerCuid = "cmknlimvf0003grp0hsbmc1dp";
+    mockPrisma.note.findUnique.mockResolvedValue(baseNote({ issuer_organization_id: issuerCuid }));
+    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({ display_reference: null });
+    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED");
+    expect(snapshot.issuerReference).toBe("—");
+    expect(snapshot.issuerReference).not.toBe(issuerCuid);
+  });
+
   it("does not generate while the note is still ACTIVE awaiting trustee completion", async () => {
     mockPrisma.note.findUnique.mockResolvedValue(
       baseNote({ status: NoteStatus.ACTIVE, servicing_status: NoteServicingStatus.CURRENT })
