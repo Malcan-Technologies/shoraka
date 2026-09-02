@@ -603,15 +603,31 @@ export default function NoteDetailPage() {
                               </div>
                             )}
                             {investmentNoteCertificate &&
-                            investmentNoteCertificate.status !== "NONE" ? (
+                            (investmentNoteCertificate.canGenerate ||
+                              investmentNoteCertificate.status !== "NONE") ? (
                               <InvestmentNoteCertificateCard
                                 noteId={note.id}
                                 payload={{
                                   ...investmentNoteCertificate,
+                                  canGenerate:
+                                    investmentNoteCertificate.canGenerate && canDisbursement,
                                   canRetry:
                                     investmentNoteCertificate.canRetry && canDisbursement,
-                                  canReissue:
-                                    investmentNoteCertificate.canReissue && canDisbursement,
+                                  canRegenerate:
+                                    investmentNoteCertificate.canRegenerate && canDisbursement,
+                                  canPublish:
+                                    investmentNoteCertificate.canPublish && canDisbursement,
+                                  reviewVersion: investmentNoteCertificate.reviewVersion
+                                    ? {
+                                        ...investmentNoteCertificate.reviewVersion,
+                                        canRetry:
+                                          investmentNoteCertificate.reviewVersion.canRetry &&
+                                          canDisbursement,
+                                        canPublish:
+                                          investmentNoteCertificate.reviewVersion.canPublish &&
+                                          canDisbursement,
+                                      }
+                                    : null,
                                 }}
                               />
                             ) : null}

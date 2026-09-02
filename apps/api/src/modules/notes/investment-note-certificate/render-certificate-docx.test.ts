@@ -181,6 +181,7 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     ]);
     expect(rows).toHaveLength(4);
     expect(rows[1]).toHaveLength(6);
+    expect(rows[1]?.[2]).not.toBe("—");
     expect(rows.at(-1)).toEqual(["", "TOTAL", "80,000.00", "100.00%", "2,000.00", "82,000.00"]);
     const widths = allocationGridWidths(xml);
     expect(widths).toEqual([450, 2500, 1620, 850, 1840, 1980]);

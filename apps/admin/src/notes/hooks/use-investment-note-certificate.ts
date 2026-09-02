@@ -29,6 +29,10 @@ export function useAdminInvestmentNoteCertificate(noteId?: string) {
   return useQuery({
     queryKey: investmentNoteCertificateKey(noteId),
     enabled: Boolean(noteId),
+    refetchInterval: (query) =>
+      query.state.data?.status === "PENDING" || query.state.data?.reviewVersion?.status === "PENDING"
+        ? 5000
+        : false,
     queryFn: async () => {
       if (!noteId) throw new Error("Note ID is required");
       const response = await apiClient.getAdminInvestmentNoteCertificate(noteId);
@@ -42,13 +46,15 @@ export function useOpenAdminInvestmentNoteCertificate(noteId?: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (target: "current" | "review" = "current") => {
       if (!noteId) throw new Error("Note ID is required");
       await openSignedPdfInNewTab(async () => {
         const res = await apiClient.getAdminInvestmentNoteCertificate(noteId);
         if (!res.success) throw new Error(res.error.message);
-        if (!res.data.viewUrl) throw new Error("Investment Note Certificate is not available");
-        return res.data.viewUrl;
+        const url =
+          target === "review" ? res.data.reviewVersion?.viewUrl : res.data.viewUrl;
+        if (!url) throw new Error("Investment Note Certificate is not available");
+        return url;
       }, "Pop-up blocked. Allow pop-ups for this site to view the certificate PDF.");
     },
   });
@@ -58,14 +64,33 @@ export function useDownloadAdminInvestmentNoteCertificate(noteId?: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (target: "current" | "review" = "current") => {
       if (!noteId) throw new Error("Note ID is required");
       await openSignedPdfInNewTab(async () => {
         const res = await apiClient.getAdminInvestmentNoteCertificate(noteId);
         if (!res.success) throw new Error(res.error.message);
-        if (!res.data.downloadUrl) throw new Error("Investment Note Certificate is not available");
-        return res.data.downloadUrl;
+        const url =
+          target === "review" ? res.data.reviewVersion?.downloadUrl : res.data.downloadUrl;
+        if (!url) throw new Error("Investment Note Certificate is not available");
+        return url;
       }, "Pop-up blocked. Allow pop-ups for this site to download the certificate PDF.");
+    },
+  });
+}
+
+export function useGenerateAdminInvestmentNoteCertificate(noteId?: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const res = await apiClient.generateAdminInvestmentNoteCertificate(noteId);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+    onSuccess: (data: InvestmentNoteCertificatePdfPayload) => {
+      qc.setQueryData(investmentNoteCertificateKey(noteId), data);
     },
   });
 }
@@ -95,6 +120,23 @@ export function useReissueAdminInvestmentNoteCertificate(noteId?: string) {
     mutationFn: async () => {
       if (!noteId) throw new Error("Note ID is required");
       const res = await apiClient.reissueAdminInvestmentNoteCertificate(noteId);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+    onSuccess: (data: InvestmentNoteCertificatePdfPayload) => {
+      qc.setQueryData(investmentNoteCertificateKey(noteId), data);
+    },
+  });
+}
+
+export function usePublishAdminInvestmentNoteCertificate(noteId?: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const res = await apiClient.publishAdminInvestmentNoteCertificate(noteId);
       if (!res.success) throw new Error(res.error.message);
       return res.data;
     },

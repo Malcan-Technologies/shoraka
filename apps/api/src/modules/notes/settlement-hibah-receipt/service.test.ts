@@ -79,6 +79,7 @@ const mockPrisma: any = {
         generation_error: null,
         created_at: new Date(),
         updated_at: new Date(),
+        is_current: false,
         ...data,
       };
       receiptStore.rows.push(row);
@@ -88,6 +89,18 @@ const mockPrisma: any = {
       const row = receiptStore.rows.find((item) => item.id === where.id);
       Object.assign(row, data);
       return row;
+    }),
+    updateMany: jest.fn(async ({ where, data }: any) => {
+      let count = 0;
+      for (const row of receiptStore.rows) {
+        if (where?.settlement_id && row.settlement_id !== where.settlement_id) continue;
+        if (where?.version && row.version !== where.version) continue;
+        if (where?.is_current === true && row.is_current !== true) continue;
+        if (where?.is_current === false && row.is_current !== false) continue;
+        Object.assign(row, data);
+        count += 1;
+      }
+      return { count };
     }),
   },
   noteEvent: {
@@ -148,11 +161,14 @@ jest.mock("../audit-fields", () => ({
 }));
 
 import {
+  generateAdminSettlementHibahReceipt,
   generateSettlementHibahReceipt,
   getAdminSettlementHibahReceipt,
   getIssuerSettlementHibahReceipt,
+  publishAdminSettlementHibahReceipt,
   reissueAdminSettlementHibahReceipt,
   retryAdminSettlementHibahReceipt,
+  retryFailedSettlementHibahReceipts,
 } from "./service";
 
 function sampleSnapshot(
@@ -438,7 +454,7 @@ describe("receipt visibility", () => {
     expect(payload.status).toBe("FAILED");
     expect(payload.generationError).toBe("gotenberg down");
     expect(payload.canRetry).toBe(true);
-    expect(payload.canReissue).toBe(false);
+    expect(payload.canRegenerate).toBe(false);
   });
 
   it("lets the owning issuer view without technical errors", async () => {
@@ -446,7 +462,7 @@ describe("receipt visibility", () => {
     expect(payload.status).toBe("FAILED");
     expect(payload.generationError).toBeNull();
     expect(payload.canRetry).toBe(false);
-    expect(payload.canReissue).toBe(false);
+    expect(payload.canRegenerate).toBe(false);
   });
 
   it("forbids another issuer", async () => {
@@ -571,8 +587,13 @@ describe("receipt regenerate / reissue", () => {
     expect(v02?.snapshot.authorisation.stampSource).toBe("SEPARATE_RECEIPT_STAMP");
     expect(v02?.snapshot.hibahAmount).toBe(2_000);
     expect(v02?.snapshot.grossReceiptAmount).toBe(100_000);
-    expect(payload.version).toBe("V02");
-    expect(payload.canReissue).toBe(true);
+    expect(payload.version).toBe("V01");
+    expect(payload.isCurrent).toBe(true);
+    expect(payload.canRegenerate).toBe(true);
+    expect(payload.reviewVersion?.version).toBe("V02");
+    expect(payload.reviewVersion?.canPublish).toBe(true);
+    expect(v01?.is_current).toBe(true);
+    expect(v02?.is_current).toBe(false);
     expect(mockCreateNoteEventRow).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -586,7 +607,7 @@ describe("receipt regenerate / reissue", () => {
     );
   });
 
-  it("creates V03 on the next reissue and returns it to the issuer", async () => {
+  it("creates V03 on the next regenerate without publishing it to the issuer", async () => {
     await generateSettlementHibahReceipt({
       noteId: "note-1",
       source: "SETTLEMENT_COMPLETED",
@@ -595,7 +616,55 @@ describe("receipt regenerate / reissue", () => {
     await reissueAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" });
     expect(receiptStore.rows.map((row) => row.version).sort()).toEqual(["V01", "V02", "V03"]);
     const issuer = await getIssuerSettlementHibahReceipt("note-1", "issuer-user");
-    expect(issuer.version).toBe("V03");
-    expect(issuer.canReissue).toBe(false);
+    expect(issuer.version).toBe("V01");
+    expect(issuer.canRegenerate).toBe(false);
+  });
+
+  it("publishes the regenerated receipt and keeps V01 as history", async () => {
+    await generateSettlementHibahReceipt({
+      noteId: "note-1",
+      source: "SETTLEMENT_COMPLETED",
+    });
+    await reissueAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" });
+    mockCreateNoteEventRow.mockClear();
+    const published = await publishAdminSettlementHibahReceipt("note-1", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(published.version).toBe("V02");
+    expect(published.isCurrent).toBe(true);
+    const issuer = await getIssuerSettlementHibahReceipt("note-1", "issuer-user");
+    expect(issuer.version).toBe("V02");
+    expect(receiptStore.rows.find((row) => row.version === "V01")?.is_current).toBe(false);
+    expect(mockCreateNoteEventRow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: "SETTLEMENT_HIBAH_RECEIPT_PUBLISHED",
+        metadata: expect.objectContaining({
+          version: "V02",
+          previousVersion: "V01",
+          source: "ADMIN_PUBLISH",
+        }),
+      })
+    );
+  });
+
+  it("lets admin generate V01 when the note is fully settled", async () => {
+    const empty = await getAdminSettlementHibahReceipt("note-1");
+    expect(empty.status).toBe("NONE");
+    expect(empty.canGenerate).toBe(true);
+    const payload = await generateAdminSettlementHibahReceipt("note-1", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(payload.version).toBe("V01");
+    expect(payload.isCurrent).toBe(true);
+    expect(payload.canGenerate).toBe(false);
+  });
+
+  it("does not create a receipt from the retry cron when none exists", async () => {
+    await retryFailedSettlementHibahReceipts(mockPrisma);
+    expect(mockBuildSnapshot).not.toHaveBeenCalled();
+    expect(receiptStore.rows).toHaveLength(0);
   });
 });

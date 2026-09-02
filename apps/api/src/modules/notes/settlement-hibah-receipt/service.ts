@@ -6,12 +6,19 @@ import {
   SettlementHibahReceiptStatus,
   type PrismaClient,
 } from "@prisma/client";
-import type { SettlementHibahReceiptPdfPayload } from "@cashsouk/types";
+import type {
+  OfficialDocumentReviewVersion,
+  SettlementHibahReceiptPdfPayload,
+} from "@cashsouk/types";
 import {
   latestOfficialDocumentVersion,
   nextOfficialDocumentVersion,
 } from "@cashsouk/types";
 import { prisma as defaultPrisma } from "../../../lib/prisma";
+import {
+  currentOfficialDocumentVersion,
+  unpublishedLatestOfficialDocumentVersion,
+} from "../official-document-publication";
 import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
 import {
@@ -74,8 +81,12 @@ function emptyPdfPayload(
     status: "NONE",
     generationError: null,
     generatedAt: null,
+    canGenerate: false,
     canRetry: false,
-    canReissue: false,
+    canRegenerate: false,
+    canPublish: false,
+    isCurrent: false,
+    reviewVersion: null,
     viewUrl: null,
     downloadUrl: null,
     pdfExpiresIn: null,
@@ -124,13 +135,37 @@ function latestReceiptVersion(rows: ReceiptRow[]): string | null {
   return latestOfficialDocumentVersion(rows.map((row) => row.version));
 }
 
-function latestReadyReceipt(rows: ReceiptRow[]): ReceiptRow | null {
-  const ready = rows.filter(
-    (row) => row.status === SettlementHibahReceiptStatus.READY && row.pdf_s3_key
-  );
-  const version = latestOfficialDocumentVersion(ready.map((row) => row.version));
-  if (!version) return null;
-  return ready.find((row) => row.version === version) ?? null;
+function receiptRowReady(row: ReceiptRow | null): boolean {
+  return Boolean(row && row.status === SettlementHibahReceiptStatus.READY && row.pdf_s3_key);
+}
+
+async function setHibahReceiptVersionCurrent(
+  db: PrismaClient,
+  settlementId: string,
+  version: string
+): Promise<void> {
+  await db.settlementHibahReceipt.updateMany({
+    where: { settlement_id: settlementId, is_current: true },
+    data: { is_current: false },
+  });
+  await db.settlementHibahReceipt.updateMany({
+    where: { settlement_id: settlementId, version },
+    data: { is_current: true },
+  });
+}
+
+async function maybeMarkFirstHibahReceiptCurrent(input: {
+  db: PrismaClient;
+  settlementId: string;
+  version: string;
+}): Promise<void> {
+  if (input.version !== RECEIPT_FIRST_VERSION) return;
+  const rows = await loadReceiptRows(input.db, input.settlementId);
+  if (currentOfficialDocumentVersion(rows)) return;
+  const row = rows.find((item) => item.version === input.version) ?? null;
+  if (receiptRowReady(row)) {
+    await setHibahReceiptVersionCurrent(input.db, input.settlementId, input.version);
+  }
 }
 
 async function findPostedSettlement(db: PrismaClient, noteId: string) {
@@ -188,6 +223,7 @@ async function persistIncompleteFailure(input: {
         note_id: input.noteId,
         settlement_id: input.settlementId,
         version: RECEIPT_FIRST_VERSION,
+        is_current: false,
         ...data,
       },
     });
@@ -208,6 +244,7 @@ async function ensureReceiptRow(input: {
         receipt_number: input.snapshot.receiptNumber,
         version: input.snapshot.version,
         status: SettlementHibahReceiptStatus.PENDING,
+        is_current: false,
         snapshot: input.snapshot as unknown as Prisma.InputJsonValue,
       },
     });
@@ -351,6 +388,7 @@ export async function generateSettlementHibahReceipt(
     noteId: string;
     source: ReceiptGenerationSource;
     actor?: ActorContext;
+    createMissing?: boolean;
   },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
@@ -364,8 +402,14 @@ export async function generateSettlementHibahReceipt(
   const rows = await loadReceiptRows(db, posted.id);
   const latest = latestReceiptVersion(rows);
   const latestRow = latest ? rows.find((row) => row.version === latest) ?? null : null;
+  if (!latestRow && input.createMissing === false) return;
 
   if (latestRow?.status === SettlementHibahReceiptStatus.READY && latestRow.pdf_s3_key) {
+    await maybeMarkFirstHibahReceiptCurrent({
+      db,
+      settlementId: posted.id,
+      version: latestRow.version,
+    });
     const readySnapshot = parseHibahReceiptSnapshot(latestRow.snapshot);
     if (readySnapshot) {
       await writeGeneratedAuditEvent({
@@ -381,6 +425,7 @@ export async function generateSettlementHibahReceipt(
 
   let snapshot = latestRow ? parseHibahReceiptSnapshot(latestRow.snapshot) : null;
   if (!snapshot) {
+    if (input.createMissing === false) return;
     try {
       snapshot = await buildSettlementHibahReceiptSnapshot(input.noteId, input.source);
     } catch (error) {
@@ -426,6 +471,11 @@ export async function generateSettlementHibahReceipt(
   const refreshedVersion = snapshot.version;
   const refreshed = refreshedRows.find((row) => row.version === refreshedVersion) ?? null;
   if (refreshed?.status !== SettlementHibahReceiptStatus.READY || !refreshed.pdf_s3_key) return;
+  await maybeMarkFirstHibahReceiptCurrent({
+    db,
+    settlementId: posted.id,
+    version: refreshedVersion,
+  });
   const readySnapshot = parseHibahReceiptSnapshot(refreshed.snapshot) ?? snapshot;
   await writeGeneratedAuditEvent({
     db,
@@ -436,12 +486,101 @@ export async function generateSettlementHibahReceipt(
   });
 }
 
+export async function generateAdminSettlementHibahReceipt(
+  noteId: string,
+  actor: ActorContext,
+  db: PrismaClient = defaultPrisma
+): Promise<SettlementHibahReceiptPdfPayload> {
+  if (!(await noteIsEligible(db, noteId))) {
+    throw new AppError(
+      409,
+      "RECEIPT_GENERATE_NOT_ALLOWED",
+      "Receipt generation is available after the financing is fully settled"
+    );
+  }
+  const posted = await findPostedSettlement(db, noteId);
+  if (!posted) {
+    throw new AppError(404, "SETTLEMENT_NOT_FOUND", "Posted settlement not found");
+  }
+  const rows = await loadReceiptRows(db, posted.id);
+  if (rows.length > 0) {
+    throw new AppError(
+      409,
+      "RECEIPT_GENERATE_NOT_ALLOWED",
+      "Receipt already exists. Use Retry for a failed version or Regenerate for a new version"
+    );
+  }
+  await generateSettlementHibahReceipt({ noteId, source: "ADMIN_GENERATE", actor }, db);
+  return getAdminSettlementHibahReceipt(noteId, db);
+}
+
+export async function publishAdminSettlementHibahReceipt(
+  noteId: string,
+  actor: ActorContext,
+  db: PrismaClient = defaultPrisma
+): Promise<SettlementHibahReceiptPdfPayload> {
+  const posted = await findPostedSettlement(db, noteId);
+  if (!posted) {
+    throw new AppError(404, "SETTLEMENT_NOT_FOUND", "Posted settlement not found");
+  }
+  const rows = await loadReceiptRows(db, posted.id);
+  const previousVersion = currentOfficialDocumentVersion(rows);
+  const reviewVersion = unpublishedLatestOfficialDocumentVersion(rows, previousVersion);
+  const reviewRow = reviewVersion
+    ? rows.find((row) => row.version === reviewVersion) ?? null
+    : null;
+  if (!receiptRowReady(reviewRow) || !reviewVersion) {
+    throw new AppError(
+      409,
+      "RECEIPT_PUBLISH_NOT_ALLOWED",
+      "Publish New Version is only available for a regenerated READY receipt"
+    );
+  }
+  await setHibahReceiptVersionCurrent(db, posted.id, reviewVersion);
+  const snapshot = parseHibahReceiptSnapshot(reviewRow!.snapshot);
+  const metadata = {
+    documentType: "SETTLEMENT_HIBAH_RECEIPT",
+    noteId,
+    settlementId: posted.id,
+    settlementReference: posted.display_reference,
+    receiptNumber: reviewRow!.receipt_number,
+    version: reviewVersion,
+    previousVersion,
+    publishedAt: new Date().toISOString(),
+    snapshotSha256: snapshot?.snapshotSha256 ?? null,
+    pdfSha256: reviewRow!.pdf_sha256,
+    source: "ADMIN_PUBLISH",
+  };
+  const target = resolveNoteEventTarget("SETTLEMENT_HIBAH_RECEIPT_PUBLISHED", metadata);
+  await createNoteEventRow(db, {
+    noteId,
+    eventType: "SETTLEMENT_HIBAH_RECEIPT_PUBLISHED",
+    actorUserId: actor.userId,
+    actorRole: actor.role,
+    portal: actor.portal ?? AUDIT_PORTAL.ADMIN,
+    ipAddress: actor.ipAddress,
+    userAgent: actor.userAgent,
+    correlationId: actor.correlationId,
+    context:
+      actor.auditContext ??
+      systemAuditContext({
+        portal: AUDIT_PORTAL.ADMIN,
+        actorUserId: actor.userId,
+        correlationId: actor.correlationId ?? `settlement-hibah-receipt-publish:${noteId}`,
+      }),
+    metadata,
+    targetType: target.targetType,
+    targetId: target.targetId ?? posted.id,
+  });
+  return getAdminSettlementHibahReceipt(noteId, db);
+}
+
 export function scheduleSettlementHibahReceiptGeneration(input: {
   noteId: string;
   source: ReceiptGenerationSource;
   actor?: ActorContext;
 }): void {
-  void generateSettlementHibahReceipt(input).catch((error) => {
+  void generateSettlementHibahReceipt({ ...input, createMissing: false }).catch((error) => {
     logger.error(
       { err: error, noteId: input.noteId },
       "Settlement hibah receipt generation threw after settlement"
@@ -473,6 +612,7 @@ export async function retryFailedSettlementHibahReceipts(
       {
         noteId,
         source: "ADMIN_RETRY",
+        createMissing: false,
         actor: {
           userId: "SYS",
           role: "SYSTEM",
@@ -518,7 +658,10 @@ export async function retryAdminSettlementHibahReceipt(
       "Retry is only available when receipt generation has failed"
     );
   }
-  await generateSettlementHibahReceipt({ noteId, source: "ADMIN_RETRY", actor }, db);
+  await generateSettlementHibahReceipt(
+    { noteId, source: "ADMIN_RETRY", actor, createMissing: false },
+    db
+  );
   return getAdminSettlementHibahReceipt(noteId, db);
 }
 
@@ -581,7 +724,7 @@ export async function reissueAdminSettlementHibahReceipt(
     throw new AppError(
       409,
       "RECEIPT_REISSUE_NOT_ALLOWED",
-      "Regenerate / Reissue is only available for a READY receipt"
+      "Regenerate is only available for a READY current receipt"
     );
   }
   const posted = await findPostedSettlement(db, noteId);
@@ -589,21 +732,29 @@ export async function reissueAdminSettlementHibahReceipt(
     throw new AppError(404, "SETTLEMENT_NOT_FOUND", "Posted settlement not found");
   }
   const rows = await loadReceiptRows(db, posted.id);
-  const readyRow = latestReadyReceipt(rows);
-  const latest = latestReceiptVersion(rows);
-  const latestRow = latest ? rows.find((row) => row.version === latest) ?? null : null;
-  if (
-    !readyRow ||
-    latestRow?.status !== SettlementHibahReceiptStatus.READY ||
-    !latestRow.pdf_s3_key
-  ) {
+  const currentVersion = currentOfficialDocumentVersion(rows);
+  const currentRow = currentVersion
+    ? rows.find((row) => row.version === currentVersion) ?? null
+    : null;
+  if (!receiptRowReady(currentRow) || !currentVersion) {
     throw new AppError(
       409,
       "RECEIPT_REISSUE_NOT_ALLOWED",
-      "Regenerate / Reissue is only available for a READY receipt"
+      "Regenerate is only available for a READY current receipt"
     );
   }
-  const previousSnapshot = parseHibahReceiptSnapshot(readyRow.snapshot);
+  const latest = latestReceiptVersion(rows);
+  const latestRow = latest ? rows.find((row) => row.version === latest) ?? null : null;
+  if (latest && latest !== currentVersion && latestRow?.status !== SettlementHibahReceiptStatus.READY) {
+    throw new AppError(
+      409,
+      "RECEIPT_REISSUE_NOT_ALLOWED",
+      latestRow?.status === SettlementHibahReceiptStatus.FAILED
+        ? "Retry the failed regenerated version before creating another"
+        : "Wait for the regenerated version to finish before creating another"
+    );
+  }
+  const previousSnapshot = parseHibahReceiptSnapshot(currentRow!.snapshot);
   if (!previousSnapshot) {
     throw new AppError(
       409,
@@ -612,7 +763,7 @@ export async function reissueAdminSettlementHibahReceipt(
     );
   }
 
-  const nextVersion = nextOfficialDocumentVersion(readyRow.version);
+  const nextVersion = nextOfficialDocumentVersion(latest ?? currentVersion);
   const authorisation = await freezeReceiptAuthorisation();
   const nextSnapshot = reissueHibahReceiptSnapshotFromReady(previousSnapshot, {
     version: nextVersion,
@@ -634,14 +785,14 @@ export async function reissueAdminSettlementHibahReceipt(
   }
 
   const refreshed = await loadReceiptRow(db, posted.id, nextVersion);
-  if (refreshed?.status === SettlementHibahReceiptStatus.READY && refreshed.pdf_s3_key) {
+  if (receiptRowReady(refreshed)) {
     await writeReissuedReceiptAuditEvent({
       db,
-      previousVersion: readyRow.version,
+      previousVersion: currentVersion,
       previousSnapshotSha256: previousSnapshot.snapshotSha256,
       snapshot: nextSnapshot,
       actor,
-      pdfSha256: refreshed.pdf_sha256,
+      pdfSha256: refreshed?.pdf_sha256 ?? null,
     });
   }
   return getAdminSettlementHibahReceipt(noteId, db);
@@ -650,10 +801,19 @@ export async function reissueAdminSettlementHibahReceipt(
 async function payloadForRow(input: {
   row: ReceiptRow | null;
   hideError?: boolean;
-  canReissue?: boolean;
+  isCurrent?: boolean;
+  canGenerate?: boolean;
+  canRegenerate?: boolean;
+  canPublish?: boolean;
+  reviewVersion?: OfficialDocumentReviewVersion | null;
 }): Promise<SettlementHibahReceiptPdfPayload> {
   const row = input.row;
-  if (!row) return emptyPdfPayload();
+  if (!row) {
+    return emptyPdfPayload({
+      canGenerate: input.canGenerate === true,
+      reviewVersion: input.reviewVersion ?? null,
+    });
+  }
   const snapshot = parseHibahReceiptSnapshot(row.snapshot);
   const ready = row.status === SettlementHibahReceiptStatus.READY && row.pdf_s3_key;
   const fileName = receiptPdfFileName(snapshot?.receiptNumber ?? row.receipt_number);
@@ -664,16 +824,43 @@ async function payloadForRow(input: {
     receiptNumber: snapshot?.receiptNumber ?? row.receipt_number,
     version: row.version,
     status: row.status,
+    isCurrent: input.isCurrent === true,
     generationError: input.hideError ? null : row.generation_error,
     generatedAt: row.generated_at?.toISOString() ?? null,
+    canGenerate: input.canGenerate === true,
     canRetry: row.status === SettlementHibahReceiptStatus.FAILED,
-    canReissue: input.canReissue === true && row.status === SettlementHibahReceiptStatus.READY,
+    canRegenerate: input.canRegenerate === true && row.status === SettlementHibahReceiptStatus.READY,
+    canPublish: input.canPublish === true,
     viewUrl: urls?.viewUrl ?? null,
     downloadUrl: urls?.downloadUrl ?? null,
     pdfExpiresIn: urls?.expiresIn ?? null,
     pdfFileName: ready ? fileName : null,
     pdfSha256: row.pdf_sha256,
+    reviewVersion: input.reviewVersion ?? null,
   });
+}
+
+async function reviewPayloadForReceipt(row: ReceiptRow | null): Promise<OfficialDocumentReviewVersion | null> {
+  if (!row) return null;
+  const snapshot = parseHibahReceiptSnapshot(row.snapshot);
+  const ready = row.status === SettlementHibahReceiptStatus.READY && row.pdf_s3_key;
+  const fileName = receiptPdfFileName(snapshot?.receiptNumber ?? row.receipt_number);
+  const urls = ready
+    ? await signedPdfUrls({ storageKey: row.pdf_s3_key!, fileName })
+    : null;
+  return {
+    version: row.version,
+    status: row.status,
+    generationError: row.generation_error,
+    generatedAt: row.generated_at?.toISOString() ?? null,
+    canRetry: row.status === SettlementHibahReceiptStatus.FAILED,
+    canPublish: row.status === SettlementHibahReceiptStatus.READY,
+    viewUrl: urls?.viewUrl ?? null,
+    downloadUrl: urls?.downloadUrl ?? null,
+    pdfExpiresIn: urls?.expiresIn ?? null,
+    pdfFileName: ready ? fileName : null,
+    pdfSha256: row.pdf_sha256,
+  };
 }
 
 export async function getAdminSettlementHibahReceipt(
@@ -685,38 +872,30 @@ export async function getAdminSettlementHibahReceipt(
     select: { id: true, status: true, servicing_status: true },
   });
   if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+  const eligible = isNoteFullySettledForHibahReceipt(note);
   const posted = await findPostedSettlement(db, noteId);
   if (!posted) return emptyPdfPayload();
   const rows = await loadReceiptRows(db, posted.id);
-  const latest = latestReceiptVersion(rows);
-  const latestRow = latest ? rows.find((row) => row.version === latest) ?? null : null;
-  const readyRow = latestReadyReceipt(rows);
-  const statusRow = latestRow;
-  const viewRow =
-    statusRow?.status === SettlementHibahReceiptStatus.READY ? statusRow : readyRow;
-  const payload = await payloadForRow({
-    row: statusRow,
-    canReissue: statusRow?.status === SettlementHibahReceiptStatus.READY,
-  });
-  if (
-    viewRow &&
-    viewRow.id !== statusRow?.id &&
-    viewRow.status === SettlementHibahReceiptStatus.READY &&
-    viewRow.pdf_s3_key
-  ) {
-    const snapshot = parseHibahReceiptSnapshot(viewRow.snapshot);
-    const fileName = receiptPdfFileName(snapshot?.receiptNumber ?? viewRow.receipt_number);
-    const urls = await signedPdfUrls({ storageKey: viewRow.pdf_s3_key, fileName });
-    return {
-      ...payload,
-      viewUrl: urls.viewUrl,
-      downloadUrl: urls.downloadUrl,
-      pdfExpiresIn: urls.expiresIn,
-      pdfFileName: fileName,
-      pdfSha256: viewRow.pdf_sha256,
-    };
+  if (rows.length === 0) {
+    return emptyPdfPayload({ canGenerate: eligible });
   }
-  return payload;
+  const currentVersion = currentOfficialDocumentVersion(rows);
+  const latest = latestReceiptVersion(rows);
+  const reviewVersionKey = unpublishedLatestOfficialDocumentVersion(rows, currentVersion);
+  const mainVersion = currentVersion ?? latest;
+  const mainRow = mainVersion ? rows.find((row) => row.version === mainVersion) ?? null : null;
+  const reviewRow = reviewVersionKey
+    ? rows.find((row) => row.version === reviewVersionKey) ?? null
+    : null;
+  const canRegenerate =
+    receiptRowReady(currentVersion ? rows.find((row) => row.version === currentVersion) ?? null : null) &&
+    (reviewVersionKey == null || reviewRow?.status === SettlementHibahReceiptStatus.READY);
+  return payloadForRow({
+    row: mainRow,
+    isCurrent: currentVersion === mainVersion && receiptRowReady(mainRow),
+    canRegenerate,
+    reviewVersion: await reviewPayloadForReceipt(reviewRow),
+  });
 }
 
 export async function getIssuerSettlementHibahReceipt(
@@ -746,14 +925,23 @@ export async function getIssuerSettlementHibahReceipt(
   const posted = await findPostedSettlement(db, noteId);
   if (!posted) return emptyPdfPayload();
   const rows = await loadReceiptRows(db, posted.id);
-  const readyRow = latestReadyReceipt(rows);
-  const latest = latestReceiptVersion(rows);
-  const latestRow = latest ? rows.find((row) => row.version === latest) ?? null : null;
+  const currentVersion = currentOfficialDocumentVersion(rows);
+  const viewRow = currentVersion
+    ? rows.find((row) => row.version === currentVersion) ?? null
+    : rows.find((row) => row.version === RECEIPT_FIRST_VERSION) ?? null;
   const payload = await payloadForRow({
-    row: readyRow ?? latestRow,
+    row: viewRow,
     hideError: true,
+    isCurrent: currentVersion === viewRow?.version && receiptRowReady(viewRow),
   });
-  return { ...payload, canRetry: false, canReissue: false };
+  return {
+    ...payload,
+    canGenerate: false,
+    canRetry: false,
+    canRegenerate: false,
+    canPublish: false,
+    reviewVersion: null,
+  };
 }
 
 export function isNoteRepaidAndSettled(note: {

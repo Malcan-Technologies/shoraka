@@ -2474,6 +2474,7 @@ model InvestmentSettlementConfirmation {
   pdf_sha256               String?
   generated_at             DateTime?
   generation_error         String?
+  is_current               Boolean                                  @default(false)
   created_at               DateTime                                  @default(now())
   updated_at               DateTime                                  @updatedAt
   note                     Note                                      @relation(fields: [note_id], references: [id], onDelete: Cascade)
@@ -2484,6 +2485,7 @@ model InvestmentSettlementConfirmation {
   @@index([note_id, version])
   @@index([investor_organization_id])
   @@index([status])
+  @@index([settlement_id, investor_organization_id, is_current])
   @@map("investment_settlement_confirmations")
 }
 
@@ -2500,6 +2502,7 @@ model SettlementHibahReceipt {
   pdf_sha256       String?
   generated_at     DateTime?
   generation_error String?
+  is_current       Boolean                       @default(false)
   created_at       DateTime                      @default(now())
   updated_at       DateTime                      @updatedAt
   note             Note                          @relation(fields: [note_id], references: [id], onDelete: Cascade)
@@ -2509,6 +2512,7 @@ model SettlementHibahReceipt {
   @@index([note_id, version])
   @@index([status])
   @@index([receipt_number])
+  @@index([settlement_id, is_current])
   @@map("settlement_hibah_receipts")
 }
 
@@ -2540,6 +2544,7 @@ model NoteInvestmentCertificate {
   pdf_sha256               String?
   generated_at             DateTime?
   generation_error         String?
+  is_current               Boolean                             @default(false)
   created_at               DateTime                            @default(now())
   updated_at               DateTime                            @updatedAt
   note                     Note                                @relation(fields: [note_id], references: [id], onDelete: Cascade)
@@ -2549,6 +2554,7 @@ model NoteInvestmentCertificate {
   @@index([investor_organization_id])
   @@index([status])
   @@index([certificate_number])
+  @@index([note_id, is_current])
   @@map("note_investment_certificates")
 }
 

@@ -5,12 +5,20 @@ import {
   Prisma,
   type PrismaClient,
 } from "@prisma/client";
-import type { InvestmentNoteCertificatePdfPayload } from "@cashsouk/types";
+import type {
+  InvestmentNoteCertificatePdfPayload,
+  OfficialDocumentReviewVersion,
+} from "@cashsouk/types";
 import {
   latestOfficialDocumentVersion,
   nextOfficialDocumentVersion,
 } from "@cashsouk/types";
 import { prisma as defaultPrisma } from "../../../lib/prisma";
+import {
+  currentOfficialDocumentVersion,
+  unpublishedLatestOfficialDocumentVersion,
+} from "../official-document-publication";
+import { isNoteEligibleForCertificateGeneration } from "./eligibility";
 import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
 import {
@@ -71,8 +79,12 @@ function emptyPdfPayload(
     generationError: null,
     generatedAt: null,
     investorCount: 0,
+    canGenerate: false,
     canRetry: false,
-    canReissue: false,
+    canRegenerate: false,
+    canPublish: false,
+    isCurrent: false,
+    reviewVersion: null,
     viewUrl: null,
     downloadUrl: null,
     pdfExpiresIn: null,
@@ -138,17 +150,45 @@ function latestVersionOf(rows: CertificateRow[]): string | null {
   return latestOfficialDocumentVersion(rows.map((row) => row.version));
 }
 
-function readyVersionsOf(rows: CertificateRow[]): string[] {
-  const versions = [...new Set(rows.map((row) => row.version))];
-  return versions.filter((version) => {
-    const scoped = rowsForVersion(rows, version);
-    return (
-      scoped.length > 0 &&
-      scoped.every(
-        (row) => row.status === NoteInvestmentCertificateStatus.READY && row.pdf_s3_key
-      )
-    );
+async function setCertificateVersionCurrent(
+  db: PrismaClient,
+  noteId: string,
+  version: string
+): Promise<void> {
+  await db.noteInvestmentCertificate.updateMany({
+    where: { note_id: noteId, is_current: true },
+    data: { is_current: false },
   });
+  await db.noteInvestmentCertificate.updateMany({
+    where: { note_id: noteId, version },
+    data: { is_current: true },
+  });
+}
+
+async function maybeMarkFirstCertificateVersionCurrent(input: {
+  db: PrismaClient;
+  noteId: string;
+  version: string;
+}): Promise<void> {
+  if (input.version !== CERTIFICATE_FIRST_VERSION) return;
+  const rows = await loadNoteRows(input.db, input.noteId);
+  if (currentOfficialDocumentVersion(rows)) return;
+  const versionRows = rowsForVersion(rows, input.version);
+  if (
+    versionRowsReady(versionRows) &&
+    versionRows.length > 0
+  ) {
+    await setCertificateVersionCurrent(input.db, input.noteId, input.version);
+  }
+}
+
+function versionRowsReady(rows: CertificateRow[]): boolean {
+  return (
+    rows.length > 0 &&
+    rows.every(
+      (row) => row.status === NoteInvestmentCertificateStatus.READY && row.pdf_s3_key
+    )
+  );
 }
 
 function snapshotFromRows(rows: CertificateRow[]): InvestmentNoteCertificateSnapshot | null {
@@ -191,6 +231,7 @@ async function ensureAudienceRows(input: {
           audience_scope_key,
           investor_organization_id: scope.investorOrganizationId,
           status: NoteInvestmentCertificateStatus.PENDING,
+          is_current: false,
           snapshot: input.snapshot as unknown as Prisma.InputJsonValue,
         },
       });
@@ -376,6 +417,7 @@ async function persistIncompleteFailure(input: {
       audience: NoteInvestmentCertificateAudience.ADMIN,
       audience_scope_key,
       investor_organization_id: null,
+      is_current: false,
       ...data,
     },
   });
@@ -391,6 +433,7 @@ export async function generateInvestmentNoteCertificates(
     noteId: string;
     source: CertificateGenerationSource;
     actor?: ActorContext;
+    createMissing?: boolean;
   },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
@@ -406,6 +449,7 @@ export async function generateInvestmentNoteCertificates(
   const allRows = await loadNoteRows(db, input.noteId);
 
   if (allRows.length === 0) {
+    if (input.createMissing === false) return;
     let snapshot: InvestmentNoteCertificateSnapshot;
     try {
       snapshot = await buildInvestmentNoteCertificateSnapshot(input.noteId);
@@ -494,6 +538,12 @@ async function generateVersionPdfs(input: {
   );
   if (!allReady) return;
 
+  await maybeMarkFirstCertificateVersionCurrent({
+    db: input.db,
+    noteId: input.noteId,
+    version: input.snapshot.certificate.version,
+  });
+
   const adminRow = refreshed.find((row) => row.audience === NoteInvestmentCertificateAudience.ADMIN);
   await writeGeneratedAuditEvent({
     db: input.db,
@@ -505,15 +555,144 @@ async function generateVersionPdfs(input: {
   });
 }
 
+export async function generateAdminInvestmentNoteCertificate(
+  noteId: string,
+  actor: ActorContext,
+  db: PrismaClient = defaultPrisma
+): Promise<InvestmentNoteCertificatePdfPayload> {
+  const note = await db.note.findUnique({
+    where: { id: noteId },
+    select: {
+      id: true,
+      status: true,
+      funding_status: true,
+      disbursement_value_date: true,
+    },
+  });
+  if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+  if (!isNoteEligibleForCertificateGeneration(note)) {
+    throw new AppError(
+      409,
+      "CERTIFICATE_GENERATE_NOT_ALLOWED",
+      "Certificate generation is available after issuer disbursement is completed on a funded note"
+    );
+  }
+  const rows = await loadNoteRows(db, noteId);
+  if (rows.length > 0) {
+    throw new AppError(
+      409,
+      "CERTIFICATE_GENERATE_NOT_ALLOWED",
+      "Certificate already exists. Use Retry for a failed version or Regenerate for a new version"
+    );
+  }
+  await generateInvestmentNoteCertificates(
+    { noteId, source: "ADMIN_GENERATE", actor },
+    db
+  );
+  return getAdminInvestmentNoteCertificate(noteId, db);
+}
+
+export async function publishAdminInvestmentNoteCertificate(
+  noteId: string,
+  actor: ActorContext,
+  db: PrismaClient = defaultPrisma
+): Promise<InvestmentNoteCertificatePdfPayload> {
+  const note = await db.note.findUnique({ where: { id: noteId }, select: { id: true } });
+  if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+  const rows = await loadNoteRows(db, noteId);
+  const previousVersion = currentOfficialDocumentVersion(rows);
+  const reviewVersion = unpublishedLatestOfficialDocumentVersion(rows, previousVersion);
+  if (!reviewVersion) {
+    throw new AppError(
+      409,
+      "CERTIFICATE_PUBLISH_NOT_ALLOWED",
+      "Publish New Version is only available for a regenerated READY certificate"
+    );
+  }
+  const reviewRows = rowsForVersion(rows, reviewVersion);
+  if (!versionRowsReady(reviewRows)) {
+    throw new AppError(
+      409,
+      "CERTIFICATE_PUBLISH_NOT_ALLOWED",
+      "Publish New Version is only available for a regenerated READY certificate"
+    );
+  }
+  await setCertificateVersionCurrent(db, noteId, reviewVersion);
+  const snapshot = snapshotFromRows(reviewRows);
+  const adminRow = pickAudienceRow(reviewRows, NoteInvestmentCertificateAudience.ADMIN);
+  await writePublishedAuditEvent({
+    db,
+    noteId,
+    documentType: "ISLAMIC_INVESTMENT_NOTE_CERTIFICATE",
+    eventType: "INVESTMENT_NOTE_CERTIFICATE_PUBLISHED",
+    version: reviewVersion,
+    previousVersion,
+    actor,
+    snapshotSha256: snapshot?.snapshotSha256 ?? null,
+    adminPdfSha256: adminRow?.pdf_sha256 ?? null,
+    extra: {
+      certificateNumber: snapshot?.certificate.certificateNumber ?? adminRow?.certificate_number,
+      investorCount: snapshot?.investors.length ?? 0,
+    },
+  });
+  return getAdminInvestmentNoteCertificate(noteId, db);
+}
+
+async function writePublishedAuditEvent(input: {
+  db: PrismaClient;
+  noteId: string;
+  documentType: string;
+  eventType: "INVESTMENT_NOTE_CERTIFICATE_PUBLISHED";
+  version: string;
+  previousVersion: string | null;
+  actor: ActorContext;
+  snapshotSha256: string | null;
+  adminPdfSha256: string | null;
+  extra?: Record<string, unknown>;
+}): Promise<void> {
+  const metadata = {
+    documentType: input.documentType,
+    version: input.version,
+    previousVersion: input.previousVersion,
+    publishedAt: new Date().toISOString(),
+    snapshotSha256: input.snapshotSha256,
+    adminPdfSha256: input.adminPdfSha256,
+    source: "ADMIN_PUBLISH",
+    ...input.extra,
+  };
+  const target = resolveNoteEventTarget(input.eventType, metadata);
+  await createNoteEventRow(input.db, {
+    noteId: input.noteId,
+    eventType: input.eventType,
+    actorUserId: input.actor.userId,
+    actorRole: input.actor.role,
+    portal: input.actor.portal ?? AUDIT_PORTAL.ADMIN,
+    ipAddress: input.actor.ipAddress,
+    userAgent: input.actor.userAgent,
+    correlationId: input.actor.correlationId,
+    context:
+      input.actor.auditContext ??
+      systemAuditContext({
+        portal: AUDIT_PORTAL.ADMIN,
+        actorUserId: input.actor.userId,
+        correlationId:
+          input.actor.correlationId ?? `investment-note-certificate-publish:${input.noteId}`,
+      }),
+    metadata,
+    targetType: target.targetType,
+    targetId: target.targetId ?? input.noteId,
+  });
+}
+
 export function scheduleInvestmentNoteCertificateGeneration(input: {
   noteId: string;
   source: CertificateGenerationSource;
   actor?: ActorContext;
 }): void {
-  void generateInvestmentNoteCertificates(input).catch((error) => {
+  void generateInvestmentNoteCertificates({ ...input, createMissing: false }).catch((error) => {
     logger.error(
       { err: error, noteId: input.noteId },
-      "Investment note certificate generation threw after disbursement"
+      "Investment note certificate generation threw"
     );
   });
 }
@@ -541,6 +720,7 @@ export async function retryFailedInvestmentNoteCertificates(
     await generateInvestmentNoteCertificates({
       noteId,
       source: "ADMIN_RETRY",
+      createMissing: false,
       actor: {
         userId: "SYS",
         role: "SYSTEM",
@@ -584,7 +764,7 @@ export async function retryAdminInvestmentNoteCertificate(
     );
   }
   await generateInvestmentNoteCertificates(
-    { noteId, source: "ADMIN_RETRY", actor },
+    { noteId, source: "ADMIN_RETRY", actor, createMissing: false },
     db
   );
   return getAdminInvestmentNoteCertificate(noteId, db);
@@ -651,31 +831,41 @@ export async function reissueAdminInvestmentNoteCertificate(
     throw new AppError(
       409,
       "CERTIFICATE_REISSUE_NOT_ALLOWED",
-      "Regenerate / Reissue is only available for a READY certificate"
+      "Regenerate is only available for a READY current certificate"
     );
   }
 
   const rows = await loadNoteRows(db, noteId);
-  const ready = readyVersionsOf(rows);
-  const latestReady = latestOfficialDocumentVersion(ready);
-  if (!latestReady) {
+  const currentVersion = currentOfficialDocumentVersion(rows);
+  if (!currentVersion) {
     throw new AppError(
       409,
       "CERTIFICATE_REISSUE_NOT_ALLOWED",
-      "Regenerate / Reissue is only available for a READY certificate"
+      "Regenerate is only available for a READY current certificate"
+    );
+  }
+  const currentRows = rowsForVersion(rows, currentVersion);
+  if (!versionRowsReady(currentRows)) {
+    throw new AppError(
+      409,
+      "CERTIFICATE_REISSUE_NOT_ALLOWED",
+      "Regenerate is only available for a READY current certificate"
     );
   }
   const latest = latestVersionOf(rows);
   const latestRows = latest ? rowsForVersion(rows, latest) : [];
-  if (aggregateStatus(latestRows).status !== "READY") {
+  const latestStatus = aggregateStatus(latestRows).status;
+  if (latest && latest !== currentVersion && latestStatus !== "READY") {
     throw new AppError(
       409,
       "CERTIFICATE_REISSUE_NOT_ALLOWED",
-      "Regenerate / Reissue is only available for a READY certificate"
+      latestStatus === "FAILED"
+        ? "Retry the failed regenerated version before creating another"
+        : "Wait for the regenerated version to finish before creating another"
     );
   }
 
-  const previousSnapshot = snapshotFromRows(rowsForVersion(rows, latestReady));
+  const previousSnapshot = snapshotFromRows(currentRows);
   if (!previousSnapshot) {
     throw new AppError(
       409,
@@ -684,7 +874,7 @@ export async function reissueAdminInvestmentNoteCertificate(
     );
   }
 
-  const nextVersion = nextOfficialDocumentVersion(latestReady);
+  const nextVersion = nextOfficialDocumentVersion(latest ?? currentVersion);
   const authorisation = await freezeCertificateAuthorisation();
   const nextSnapshot = reissueCertificateSnapshotFromReady(previousSnapshot, {
     version: nextVersion,
@@ -701,17 +891,14 @@ export async function reissueAdminInvestmentNoteCertificate(
   });
 
   const refreshed = await loadVersionRows(db, noteId, nextVersion);
-  const allReady = refreshed.every(
-    (row) => row.status === NoteInvestmentCertificateStatus.READY && row.pdf_s3_key
-  );
-  if (allReady) {
+  if (versionRowsReady(refreshed)) {
     const adminRow = refreshed.find(
       (row) => row.audience === NoteInvestmentCertificateAudience.ADMIN
     );
     await writeReissuedAuditEvent({
       db,
       noteId,
-      previousVersion: latestReady,
+      previousVersion: currentVersion,
       previousSnapshotSha256: previousSnapshot.snapshotSha256,
       snapshot: nextSnapshot,
       actor,
@@ -727,7 +914,11 @@ async function payloadForAudienceRow(input: {
   snapshot: InvestmentNoteCertificateSnapshot | null;
   rows: CertificateRow[];
   version: string;
-  canReissue?: boolean;
+  isCurrent?: boolean;
+  canGenerate?: boolean;
+  canRegenerate?: boolean;
+  canPublish?: boolean;
+  reviewVersion?: OfficialDocumentReviewVersion | null;
   fileNameHint?: string | null;
 }): Promise<InvestmentNoteCertificatePdfPayload> {
   const { status, canRetry } = aggregateStatus(input.rows);
@@ -753,11 +944,14 @@ async function payloadForAudienceRow(input: {
     certificateNumber: snapshot?.certificate.certificateNumber ?? input.row?.certificate_number ?? "",
     version: input.version,
     status,
+    isCurrent: input.isCurrent === true,
     generationError: failed?.generation_error ?? null,
     generatedAt: readyRow?.generated_at?.toISOString() ?? null,
     investorCount: snapshot?.investors.length ?? 0,
+    canGenerate: input.canGenerate === true,
     canRetry,
-    canReissue: input.canReissue === true && status === "READY",
+    canRegenerate: input.canRegenerate === true && status === "READY",
+    canPublish: input.canPublish === true,
     viewUrl: urls?.viewUrl ?? null,
     downloadUrl: urls?.downloadUrl ?? null,
     pdfExpiresIn: urls?.expiresIn ?? null,
@@ -769,7 +963,51 @@ async function payloadForAudienceRow(input: {
         })
       : null,
     pdfSha256: readyRow?.pdf_sha256 ?? null,
+    reviewVersion: input.reviewVersion ?? null,
   });
+}
+
+async function reviewPayloadForRows(
+  rows: CertificateRow[],
+  audience: NoteInvestmentCertificateAudience,
+  investorOrganizationId?: string | null
+): Promise<OfficialDocumentReviewVersion | null> {
+  if (rows.length === 0) return null;
+  const { status, canRetry } = aggregateStatus(rows);
+  if (status === "NONE") return null;
+  const snapshot = snapshotFromRows(rows);
+  const row = pickAudienceRow(rows, audience, investorOrganizationId);
+  const readyRow =
+    row?.status === NoteInvestmentCertificateStatus.READY && row.pdf_s3_key ? row : null;
+  const urls = readyRow
+    ? await signedPdfUrls({
+        storageKey: readyRow.pdf_s3_key!,
+        fileName: certificatePdfFileName({
+          certificateNumber: snapshot?.certificate.certificateNumber ?? readyRow.certificate_number,
+          audience: readyRow.audience,
+        }),
+      })
+    : null;
+  const failed = rows.find((item) => item.status === NoteInvestmentCertificateStatus.FAILED);
+  return {
+    version: rows[0]?.version ?? CERTIFICATE_FIRST_VERSION,
+    status: status === "READY" || status === "FAILED" || status === "PENDING" ? status : "PENDING",
+    generationError: failed?.generation_error ?? null,
+    generatedAt: readyRow?.generated_at?.toISOString() ?? null,
+    canRetry,
+    canPublish: status === "READY",
+    viewUrl: urls?.viewUrl ?? null,
+    downloadUrl: urls?.downloadUrl ?? null,
+    pdfExpiresIn: urls?.expiresIn ?? null,
+    pdfFileName: readyRow
+      ? certificatePdfFileName({
+          certificateNumber:
+            snapshot?.certificate.certificateNumber ?? readyRow.certificate_number,
+          audience: readyRow.audience,
+        })
+      : null,
+    pdfSha256: readyRow?.pdf_sha256 ?? null,
+  };
 }
 
 function pickAudienceRow(
@@ -786,29 +1024,55 @@ function pickAudienceRow(
   });
 }
 
+function userFacingCertificateVersion(rows: CertificateRow[]): string | null {
+  return (
+    currentOfficialDocumentVersion(rows) ??
+    (rows.some((row) => row.is_current) ? null : latestVersionOf(rows.filter((row) => row.version === CERTIFICATE_FIRST_VERSION)))
+  );
+}
+
 export async function getAdminInvestmentNoteCertificate(
   noteId: string,
   db: PrismaClient = defaultPrisma
 ): Promise<InvestmentNoteCertificatePdfPayload> {
-  const note = await db.note.findUnique({ where: { id: noteId }, select: { id: true } });
+  const note = await db.note.findUnique({
+    where: { id: noteId },
+    select: {
+      id: true,
+      status: true,
+      funding_status: true,
+      disbursement_value_date: true,
+    },
+  });
   if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+  const eligible = isNoteEligibleForCertificateGeneration(note);
   const allRows = await loadNoteRows(db, noteId);
-  if (allRows.length === 0) return emptyPdfPayload();
+  if (allRows.length === 0) {
+    return emptyPdfPayload({ canGenerate: eligible });
+  }
+  const currentVersion = currentOfficialDocumentVersion(allRows);
   const latest = latestVersionOf(allRows) ?? CERTIFICATE_FIRST_VERSION;
-  const latestRows = rowsForVersion(allRows, latest);
-  const latestReady = latestOfficialDocumentVersion(readyVersionsOf(allRows));
-  const viewRows = latestReady ? rowsForVersion(allRows, latestReady) : [];
-  const status = aggregateStatus(latestRows);
-  const viewRow = pickAudienceRow(viewRows, NoteInvestmentCertificateAudience.ADMIN);
-  const snapshot =
-    snapshotFromRows(latestRows) ??
-    (latestReady ? snapshotFromRows(viewRows) : null);
+  const reviewVersionKey = unpublishedLatestOfficialDocumentVersion(allRows, currentVersion);
+  const mainVersion = currentVersion ?? latest;
+  const mainRows = rowsForVersion(allRows, mainVersion);
+  const reviewRows = reviewVersionKey ? rowsForVersion(allRows, reviewVersionKey) : [];
+  const reviewStatus = aggregateStatus(reviewRows).status;
+  const canRegenerate =
+    currentVersion != null &&
+    versionRowsReady(rowsForVersion(allRows, currentVersion)) &&
+    (reviewVersionKey == null || reviewStatus === "READY");
+  const reviewVersion = reviewVersionKey
+    ? await reviewPayloadForRows(reviewRows, NoteInvestmentCertificateAudience.ADMIN)
+    : null;
+  const snapshot = snapshotFromRows(mainRows);
   return payloadForAudienceRow({
-    row: viewRow ?? pickAudienceRow(latestRows, NoteInvestmentCertificateAudience.ADMIN),
+    row: pickAudienceRow(mainRows, NoteInvestmentCertificateAudience.ADMIN),
     snapshot,
-    rows: latestRows,
-    version: latest,
-    canReissue: status.status === "READY",
+    rows: mainRows,
+    version: mainVersion,
+    isCurrent: currentVersion === mainVersion && versionRowsReady(mainRows),
+    canRegenerate,
+    reviewVersion,
   });
 }
 
@@ -835,12 +1099,7 @@ export async function getIssuerInvestmentNoteCertificate(
   const issuerRows = allRows.filter(
     (row) => row.audience === NoteInvestmentCertificateAudience.ISSUER
   );
-  const ready = issuerRows.filter(
-    (row) => row.status === NoteInvestmentCertificateStatus.READY && row.pdf_s3_key
-  );
-  const viewVersion =
-    latestOfficialDocumentVersion(ready.map((row) => row.version)) ??
-    latestVersionOf(issuerRows);
+  const viewVersion = userFacingCertificateVersion(issuerRows);
   const viewRows = viewVersion ? rowsForVersion(issuerRows, viewVersion) : [];
   const snapshot = snapshotFromRows(viewRows) ?? snapshotFromRows(issuerRows);
   const payload = await payloadForAudienceRow({
@@ -848,8 +1107,16 @@ export async function getIssuerInvestmentNoteCertificate(
     snapshot,
     rows: viewRows,
     version: viewVersion ?? CERTIFICATE_FIRST_VERSION,
+    isCurrent: currentOfficialDocumentVersion(issuerRows) === viewVersion,
   });
-  return { ...payload, canRetry: false, canReissue: false };
+  return {
+    ...payload,
+    canGenerate: false,
+    canRetry: false,
+    canRegenerate: false,
+    canPublish: false,
+    reviewVersion: null,
+  };
 }
 
 export async function getInvestorInvestmentNoteCertificate(
@@ -899,12 +1166,7 @@ export async function getInvestorInvestmentNoteCertificate(
     throw new AppError(403, "INVESTMENT_FORBIDDEN", "Investment is not accessible");
   }
 
-  const ready = investorRows.filter(
-    (row) => row.status === NoteInvestmentCertificateStatus.READY && row.pdf_s3_key
-  );
-  const viewVersion =
-    latestOfficialDocumentVersion(ready.map((row) => row.version)) ??
-    latestVersionOf(investorRows);
+  const viewVersion = userFacingCertificateVersion(investorRows);
   const viewRows = viewVersion ? rowsForVersion(investorRows, viewVersion) : [];
   const snapshot = snapshotFromRows(viewRows) ?? snapshotFromRows(investorRows);
   const investorRef =
@@ -916,6 +1178,7 @@ export async function getInvestorInvestmentNoteCertificate(
     snapshot,
     rows: viewRows,
     version: viewVersion ?? CERTIFICATE_FIRST_VERSION,
+    isCurrent: currentOfficialDocumentVersion(investorRows) === viewVersion,
     fileNameHint: viewRows[0]
       ? certificatePdfFileName({
           certificateNumber: viewRows[0].certificate_number,
@@ -924,5 +1187,12 @@ export async function getInvestorInvestmentNoteCertificate(
         })
       : null,
   });
-  return { ...payload, canRetry: false, canReissue: false };
+  return {
+    ...payload,
+    canGenerate: false,
+    canRetry: false,
+    canRegenerate: false,
+    canPublish: false,
+    reviewVersion: null,
+  };
 }

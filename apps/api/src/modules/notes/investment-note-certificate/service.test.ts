@@ -3,6 +3,7 @@ import {
   NoteInvestmentCertificateAudience,
   NoteInvestmentCertificateStatus,
   NoteInvestmentStatus,
+  NoteStatus,
 } from "@prisma/client";
 import { AppError } from "../../../lib/http/error-handler";
 import type { InvestmentNoteCertificateSnapshot } from "./types";
@@ -79,13 +80,16 @@ const mockPrisma: any = {
       return row;
     }),
     updateMany: jest.fn(async ({ where, data }: any) => {
+      let count = 0;
       for (const row of certificateStore.rows) {
         if (where?.note_id && row.note_id !== where.note_id) continue;
         if (where?.version && row.version !== where.version) continue;
-        if (row.status === NoteInvestmentCertificateStatus.READY) continue;
+        if (where?.is_current === true && row.is_current !== true) continue;
+        if (where?.is_current === false && row.is_current !== false) continue;
         Object.assign(row, data);
+        count += 1;
       }
-      return { count: certificateStore.rows.length };
+      return { count };
     }),
   },
   noteInvestment: {
@@ -151,12 +155,15 @@ jest.mock("../audit-fields", () => ({
 }));
 
 import {
+  generateAdminInvestmentNoteCertificate,
   generateInvestmentNoteCertificates,
   getAdminInvestmentNoteCertificate,
   getInvestorInvestmentNoteCertificate,
   getIssuerInvestmentNoteCertificate,
+  publishAdminInvestmentNoteCertificate,
   reissueAdminInvestmentNoteCertificate,
   retryAdminInvestmentNoteCertificate,
+  retryFailedInvestmentNoteCertificates,
 } from "./service";
 
 function sampleSnapshot(
@@ -260,6 +267,8 @@ describe("generateInvestmentNoteCertificates", () => {
       id: "note-1",
       note_reference: "NOTE-1",
       funding_status: NoteFundingStatus.FUNDED,
+      status: NoteStatus.ACTIVE,
+      disbursement_value_date: new Date("2026-09-01"),
       issuer_organization_id: "issuer-org",
     };
     mockRenderDocx.mockImplementation(
@@ -410,6 +419,8 @@ describe("audience download authorization", () => {
       id: "note-1",
       note_reference: "NOTE-1",
       funding_status: NoteFundingStatus.FUNDED,
+      status: NoteStatus.ACTIVE,
+      disbursement_value_date: new Date("2026-09-01"),
       issuer_organization_id: "issuer-org",
     };
     mockRenderDocx.mockImplementation(
@@ -425,6 +436,9 @@ describe("audience download authorization", () => {
     });
     mockBuildSnapshot.mockResolvedValue(sampleSnapshot());
     mockLoadFrozenStampImage.mockResolvedValue(null);
+    mockCreateNoteEventRow.mockImplementation(async (_db: unknown, params: any) => {
+      noteEvents.push({ metadata: params.metadata, eventType: params.eventType });
+    });
   });
 
   it("investor A cannot retrieve investor B PDF", async () => {
@@ -457,7 +471,47 @@ describe("audience download authorization", () => {
     expect(mockGenerateCertificatePdfViewUrl).toHaveBeenCalledWith(
       expect.objectContaining({ disposition: "attachment" })
     );
-    expect(payload.canReissue).toBe(true);
+    expect(payload.canRegenerate).toBe(true);
+    expect(payload.isCurrent).toBe(true);
+    expect(payload.version).toBe("V01");
+    expect(payload.reviewVersion).toBeNull();
+  });
+
+  it("lets admin generate V01 when eligible and no document exists", async () => {
+    const empty = await getAdminInvestmentNoteCertificate("note-1");
+    expect(empty.status).toBe("NONE");
+    expect(empty.canGenerate).toBe(true);
+    const payload = await generateAdminInvestmentNoteCertificate("note-1", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(payload.status).toBe("READY");
+    expect(payload.version).toBe("V01");
+    expect(payload.isCurrent).toBe(true);
+    expect(payload.canGenerate).toBe(false);
+    expect(payload.canRegenerate).toBe(true);
+    expect(mockCreateNoteEventRow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: "INVESTMENT_NOTE_CERTIFICATE_GENERATED",
+        metadata: expect.objectContaining({ source: "ADMIN_GENERATE", version: "V01" }),
+      })
+    );
+  });
+
+  it("does not allow Generate when the note is not yet issued", async () => {
+    currentNote.status = NoteStatus.PUBLISHED;
+    currentNote.disbursement_value_date = null;
+    await expect(
+      generateAdminInvestmentNoteCertificate("note-1", { userId: "admin-1" })
+    ).rejects.toMatchObject({ code: "CERTIFICATE_GENERATE_NOT_ALLOWED" });
+    expect(certificateStore.rows).toHaveLength(0);
+  });
+
+  it("does not create a document from the retry cron when none exists", async () => {
+    await retryFailedInvestmentNoteCertificates(mockPrisma);
+    expect(mockBuildSnapshot).not.toHaveBeenCalled();
+    expect(certificateStore.rows).toHaveLength(0);
   });
 });
 
@@ -471,6 +525,8 @@ describe("certificate regenerate / reissue", () => {
       id: "note-1",
       note_reference: "NOTE-1",
       funding_status: NoteFundingStatus.FUNDED,
+      status: NoteStatus.ACTIVE,
+      disbursement_value_date: new Date("2026-09-01"),
       issuer_organization_id: "issuer-org",
     };
     mockRenderDocx.mockImplementation(
@@ -576,8 +632,14 @@ describe("certificate regenerate / reissue", () => {
     );
     expect(v02.every((row) => row.snapshot.note.fundedAmount === 80)).toBe(true);
     expect(v02.every((row) => row.snapshot.note.contractedProfit === 2)).toBe(true);
-    expect(payload.version).toBe("V02");
-    expect(payload.canReissue).toBe(true);
+    expect(payload.version).toBe("V01");
+    expect(payload.isCurrent).toBe(true);
+    expect(payload.canRegenerate).toBe(true);
+    expect(payload.reviewVersion?.version).toBe("V02");
+    expect(payload.reviewVersion?.status).toBe("READY");
+    expect(payload.reviewVersion?.canPublish).toBe(true);
+    expect(v01.every((row) => row.is_current === true)).toBe(true);
+    expect(v02.every((row) => row.is_current === false)).toBe(true);
     expect(mockCreateNoteEventRow).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -591,7 +653,7 @@ describe("certificate regenerate / reissue", () => {
     );
   });
 
-  it("creates V03 on the next reissue and returns V03 to the issuer", async () => {
+  it("creates V03 on the next regenerate without publishing it to the issuer", async () => {
     await generateInvestmentNoteCertificates({
       noteId: "note-1",
       source: "DISBURSEMENT_COMPLETED",
@@ -604,9 +666,51 @@ describe("certificate regenerate / reissue", () => {
     await reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" });
     expect(certificateStore.rows.some((row) => row.version === "V03")).toBe(true);
     const issuer = await getIssuerInvestmentNoteCertificate("note-1", "issuer-user");
-    expect(issuer.version).toBe("V03");
-    expect(issuer.canReissue).toBe(false);
+    expect(issuer.version).toBe("V01");
+    expect(issuer.canRegenerate).toBe(false);
     expect(issuer.canRetry).toBe(false);
+  });
+
+  it("publishes the regenerated version and keeps V01 as history", async () => {
+    investments.push({
+      id: "inv-1",
+      note_id: "note-1",
+      investor_organization_id: "org-a",
+    });
+    await generateInvestmentNoteCertificates({
+      noteId: "note-1",
+      source: "DISBURSEMENT_COMPLETED",
+    });
+    await reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" });
+    mockCreateNoteEventRow.mockClear();
+    const published = await publishAdminInvestmentNoteCertificate("note-1", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(published.version).toBe("V02");
+    expect(published.isCurrent).toBe(true);
+    expect(published.reviewVersion).toBeNull();
+    expect(certificateStore.rows.filter((row) => row.version === "V01").every((row) => row.is_current === false)).toBe(
+      true
+    );
+    expect(certificateStore.rows.filter((row) => row.version === "V02").every((row) => row.is_current === true)).toBe(
+      true
+    );
+    const issuer = await getIssuerInvestmentNoteCertificate("note-1", "issuer-user");
+    expect(issuer.version).toBe("V02");
+    const investor = await getInvestorInvestmentNoteCertificate("inv-1", "user-a");
+    expect(investor.version).toBe("V02");
+    expect(mockCreateNoteEventRow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: "INVESTMENT_NOTE_CERTIFICATE_PUBLISHED",
+        metadata: expect.objectContaining({
+          version: "V02",
+          previousVersion: "V01",
+          source: "ADMIN_PUBLISH",
+        }),
+      })
+    );
   });
 
   it("does not allow reissue unless the latest version is READY", async () => {

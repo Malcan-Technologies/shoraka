@@ -357,6 +357,22 @@ adminNotesRouter.get(
 );
 
 adminNotesRouter.post(
+  "/:id/investment-note-certificate/generate",
+  requirePermission("notes.disbursement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { generateAdminInvestmentNoteCertificate } = await import(
+        "./investment-note-certificate/service"
+      );
+      send(res, await generateAdminInvestmentNoteCertificate(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
   "/:id/investment-note-certificate/retry",
   requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -388,6 +404,22 @@ adminNotesRouter.post(
   }
 );
 
+adminNotesRouter.post(
+  "/:id/investment-note-certificate/publish",
+  requirePermission("notes.disbursement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { publishAdminInvestmentNoteCertificate } = await import(
+        "./investment-note-certificate/service"
+      );
+      send(res, await publishAdminInvestmentNoteCertificate(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 adminNotesRouter.get(
   "/:id/settlement-hibah-receipt",
   requirePermission("notes.view"),
@@ -398,6 +430,22 @@ adminNotesRouter.get(
         "./settlement-hibah-receipt/service"
       );
       send(res, await getAdminSettlementHibahReceipt(id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/settlement-hibah-receipt/generate",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { generateAdminSettlementHibahReceipt } = await import(
+        "./settlement-hibah-receipt/service"
+      );
+      send(res, await generateAdminSettlementHibahReceipt(id, getActor(req, res, "ADMIN")));
     } catch (error) {
       next(error);
     }
@@ -436,6 +484,22 @@ adminNotesRouter.post(
   }
 );
 
+adminNotesRouter.post(
+  "/:id/settlement-hibah-receipt/publish",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { publishAdminSettlementHibahReceipt } = await import(
+        "./settlement-hibah-receipt/service"
+      );
+      send(res, await publishAdminSettlementHibahReceipt(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 adminNotesRouter.get(
   "/:id/investment-settlement-confirmations",
   requirePermission("notes.view"),
@@ -446,6 +510,49 @@ adminNotesRouter.get(
         "./investment-settlement-confirmation/service"
       );
       send(res, await getAdminInvestmentSettlementConfirmations(id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/investment-settlement-confirmations/generate",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { generateAllAdminInvestmentSettlementConfirmations } = await import(
+        "./investment-settlement-confirmation/service"
+      );
+      send(
+        res,
+        await generateAllAdminInvestmentSettlementConfirmations(id, getActor(req, res, "ADMIN"))
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/investment-settlement-confirmations/:investorOrganizationId/generate",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const investorOrganizationId = z.string().min(1).parse(req.params.investorOrganizationId);
+      const { generateAdminInvestmentSettlementConfirmation } = await import(
+        "./investment-settlement-confirmation/service"
+      );
+      send(
+        res,
+        await generateAdminInvestmentSettlementConfirmation(
+          id,
+          investorOrganizationId,
+          getActor(req, res, "ADMIN")
+        )
+      );
     } catch (error) {
       next(error);
     }
@@ -465,6 +572,54 @@ adminNotesRouter.post(
       send(
         res,
         await retryAdminInvestmentSettlementConfirmation(
+          id,
+          investorOrganizationId,
+          getActor(req, res, "ADMIN")
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/investment-settlement-confirmations/:investorOrganizationId/reissue",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const investorOrganizationId = z.string().min(1).parse(req.params.investorOrganizationId);
+      const { reissueAdminInvestmentSettlementConfirmation } = await import(
+        "./investment-settlement-confirmation/service"
+      );
+      send(
+        res,
+        await reissueAdminInvestmentSettlementConfirmation(
+          id,
+          investorOrganizationId,
+          getActor(req, res, "ADMIN")
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/investment-settlement-confirmations/:investorOrganizationId/publish",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const investorOrganizationId = z.string().min(1).parse(req.params.investorOrganizationId);
+      const { publishAdminInvestmentSettlementConfirmation } = await import(
+        "./investment-settlement-confirmation/service"
+      );
+      send(
+        res,
+        await publishAdminInvestmentSettlementConfirmation(
           id,
           investorOrganizationId,
           getActor(req, res, "ADMIN")

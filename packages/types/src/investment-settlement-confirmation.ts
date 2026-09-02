@@ -15,7 +15,9 @@ export type InvestmentSettlementConfirmationStatus = "PENDING" | "READY" | "FAIL
 
 export type InvestmentSettlementConfirmationGenerationSource =
   | "SETTLEMENT_POSTED"
-  | "ADMIN_RETRY";
+  | "ADMIN_GENERATE"
+  | "ADMIN_RETRY"
+  | "ADMIN_REISSUE";
 
 export type InvestmentSettlementConfirmationDateSource =
   | "ACTUAL_SETTLEMENT_DATE"
@@ -43,24 +45,34 @@ export type InvestmentSettlementConfirmationDisplay = {
 
 export type InvestmentSettlementConfirmationPdfPayload = InvestmentSettlementConfirmationDisplay & {
   status: InvestmentSettlementConfirmationStatus | "NONE";
+  isCurrent: boolean;
   generationError: string | null;
   generatedAt: string | null;
+  canGenerate: boolean;
   canRetry: boolean;
+  canRegenerate: boolean;
+  canPublish: boolean;
   viewUrl: string | null;
   downloadUrl: string | null;
   pdfExpiresIn: number | null;
   pdfContentType: "application/pdf";
   pdfFileName: string | null;
   pdfSha256: string | null;
+  reviewVersion: import("./official-document-version").OfficialDocumentReviewVersion | null;
 };
 
 export type AdminInvestmentSettlementConfirmationItem = {
   investorOrganizationId: string;
   investorReference: string;
-  status: InvestmentSettlementConfirmationStatus;
+  version: string;
+  status: InvestmentSettlementConfirmationStatus | "NONE";
+  isCurrent: boolean;
   generationError: string | null;
   generatedAt: string | null;
+  canGenerate: boolean;
   canRetry: boolean;
+  canRegenerate: boolean;
+  canPublish: boolean;
   viewUrl: string | null;
   downloadUrl: string | null;
   pdfExpiresIn: number | null;
@@ -68,6 +80,7 @@ export type AdminInvestmentSettlementConfirmationItem = {
   pdfFileName: string | null;
   pdfSha256: string | null;
   totalCreditedToWallet: number;
+  reviewVersion: import("./official-document-version").OfficialDocumentReviewVersion | null;
 };
 
 export type AdminInvestmentSettlementConfirmationsPayload = {
@@ -78,5 +91,6 @@ export type AdminInvestmentSettlementConfirmationsPayload = {
   readyCount: number;
   pendingCount: number;
   failedCount: number;
+  canGenerateAll: boolean;
   confirmations: AdminInvestmentSettlementConfirmationItem[];
 };

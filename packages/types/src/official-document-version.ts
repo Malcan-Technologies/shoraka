@@ -1,5 +1,19 @@
 /** Official artefact versions are stored as V01, V02, … */
 
+export type OfficialDocumentReviewVersion = {
+  version: string;
+  status: "PENDING" | "READY" | "FAILED";
+  generationError: string | null;
+  generatedAt: string | null;
+  canRetry: boolean;
+  canPublish: boolean;
+  viewUrl: string | null;
+  downloadUrl: string | null;
+  pdfExpiresIn: number | null;
+  pdfFileName: string | null;
+  pdfSha256: string | null;
+};
+
 export function parseOfficialDocumentVersionNumber(version: string): number {
   const match = /^V(\d+)$/i.exec(version.trim());
   return match ? Number(match[1]) : 0;

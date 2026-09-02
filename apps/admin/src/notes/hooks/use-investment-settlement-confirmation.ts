@@ -9,6 +9,11 @@ export function investmentSettlementConfirmationsKey(noteId?: string) {
   return [...notesKeys.detail(noteId), "investment-settlement-confirmations"] as const;
 }
 
+type ConfirmationPdfTarget = {
+  investorOrganizationId: string;
+  target?: "current" | "review";
+};
+
 async function openSignedPdfInNewTab(loadUrl: () => Promise<string>) {
   const tab = window.open("about:blank", "_blank");
   if (!tab) {
@@ -23,16 +28,25 @@ async function openSignedPdfInNewTab(loadUrl: () => Promise<string>) {
   }
 }
 
+function resolveConfirmationTarget(
+  input: string | ConfirmationPdfTarget
+): ConfirmationPdfTarget {
+  return typeof input === "string" ? { investorOrganizationId: input, target: "current" } : input;
+}
+
 export function useAdminInvestmentSettlementConfirmations(noteId?: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   return useQuery({
     queryKey: investmentSettlementConfirmationsKey(noteId),
     enabled: Boolean(noteId),
-    refetchInterval: (query) =>
-      (query.state.data?.pendingCount ?? 0) > 0 || (query.state.data?.failedCount ?? 0) > 0
-        ? 5000
-        : false,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      if (data.pendingCount > 0) return 5000;
+      if (data.confirmations.some((row) => row.reviewVersion?.status === "PENDING")) return 5000;
+      return false;
+    },
     queryFn: async () => {
       if (!noteId) throw new Error("Note ID is required");
       const response = await apiClient.getAdminInvestmentSettlementConfirmations(noteId);
@@ -46,17 +60,77 @@ export function useOpenAdminInvestmentSettlementConfirmation(noteId?: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   return useMutation({
-    mutationFn: async (investorOrganizationId: string) => {
+    mutationFn: async (input: string | ConfirmationPdfTarget) => {
       if (!noteId) throw new Error("Note ID is required");
+      const { investorOrganizationId, target = "current" } = resolveConfirmationTarget(input);
       await openSignedPdfInNewTab(async () => {
         const res = await apiClient.getAdminInvestmentSettlementConfirmations(noteId);
         if (!res.success) throw new Error(res.error.message);
         const item = res.data.confirmations.find(
           (row) => row.investorOrganizationId === investorOrganizationId
         );
-        if (!item?.viewUrl) throw new Error("Settlement confirmation is not available");
-        return item.viewUrl;
+        const url = target === "review" ? item?.reviewVersion?.viewUrl : item?.viewUrl;
+        if (!url) throw new Error("Settlement confirmation is not available");
+        return url;
       });
+    },
+  });
+}
+
+export function useDownloadAdminInvestmentSettlementConfirmation(noteId?: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  return useMutation({
+    mutationFn: async (input: string | ConfirmationPdfTarget) => {
+      if (!noteId) throw new Error("Note ID is required");
+      const { investorOrganizationId, target = "current" } = resolveConfirmationTarget(input);
+      await openSignedPdfInNewTab(async () => {
+        const res = await apiClient.getAdminInvestmentSettlementConfirmations(noteId);
+        if (!res.success) throw new Error(res.error.message);
+        const item = res.data.confirmations.find(
+          (row) => row.investorOrganizationId === investorOrganizationId
+        );
+        const url = target === "review" ? item?.reviewVersion?.downloadUrl : item?.downloadUrl;
+        if (!url) throw new Error("Settlement confirmation is not available");
+        return url;
+      });
+    },
+  });
+}
+
+export function useGenerateAdminInvestmentSettlementConfirmation(noteId?: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (investorOrganizationId: string) => {
+      if (!noteId) throw new Error("Note ID is required");
+      const res = await apiClient.generateAdminInvestmentSettlementConfirmation(
+        noteId,
+        investorOrganizationId
+      );
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+    onSuccess: (data: AdminInvestmentSettlementConfirmationsPayload) => {
+      qc.setQueryData(investmentSettlementConfirmationsKey(noteId), data);
+    },
+  });
+}
+
+export function useGenerateAllAdminInvestmentSettlementConfirmations(noteId?: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const res = await apiClient.generateAllAdminInvestmentSettlementConfirmations(noteId);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+    onSuccess: (data: AdminInvestmentSettlementConfirmationsPayload) => {
+      qc.setQueryData(investmentSettlementConfirmationsKey(noteId), data);
     },
   });
 }
@@ -69,6 +143,46 @@ export function useRetryAdminInvestmentSettlementConfirmation(noteId?: string) {
     mutationFn: async (investorOrganizationId: string) => {
       if (!noteId) throw new Error("Note ID is required");
       const res = await apiClient.retryAdminInvestmentSettlementConfirmation(
+        noteId,
+        investorOrganizationId
+      );
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+    onSuccess: (data: AdminInvestmentSettlementConfirmationsPayload) => {
+      qc.setQueryData(investmentSettlementConfirmationsKey(noteId), data);
+    },
+  });
+}
+
+export function useReissueAdminInvestmentSettlementConfirmation(noteId?: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (investorOrganizationId: string) => {
+      if (!noteId) throw new Error("Note ID is required");
+      const res = await apiClient.reissueAdminInvestmentSettlementConfirmation(
+        noteId,
+        investorOrganizationId
+      );
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+    onSuccess: (data: AdminInvestmentSettlementConfirmationsPayload) => {
+      qc.setQueryData(investmentSettlementConfirmationsKey(noteId), data);
+    },
+  });
+}
+
+export function usePublishAdminInvestmentSettlementConfirmation(noteId?: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (investorOrganizationId: string) => {
+      if (!noteId) throw new Error("Note ID is required");
+      const res = await apiClient.publishAdminInvestmentSettlementConfirmation(
         noteId,
         investorOrganizationId
       );

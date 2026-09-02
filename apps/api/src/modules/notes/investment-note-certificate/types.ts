@@ -16,7 +16,11 @@ export const ELIGIBLE_INVESTMENT_STATUSES = ["CONFIRMED", "SETTLED"] as const;
 
 export type CertificateAudience = InvestmentNoteCertificateAudience;
 
-export type CertificateGenerationSource = "DISBURSEMENT_COMPLETED" | "ADMIN_RETRY" | "ADMIN_REISSUE";
+export type CertificateGenerationSource =
+  | "DISBURSEMENT_COMPLETED"
+  | "ADMIN_GENERATE"
+  | "ADMIN_RETRY"
+  | "ADMIN_REISSUE";
 
 export type CertificateSnapshotInvestor = {
   investorOrganizationId: string;

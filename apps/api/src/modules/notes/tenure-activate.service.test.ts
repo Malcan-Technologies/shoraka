@@ -458,11 +458,7 @@ describe("NoteService markWithdrawalCompleted issuer disbursement notifications"
       })
     );
     expect(notifyInvestorCashWithdrawalCompleted).not.toHaveBeenCalled();
-    expect(scheduleInvestmentNoteCertificateGeneration).toHaveBeenCalledWith({
-      noteId: "note_1",
-      source: "DISBURSEMENT_COMPLETED",
-      actor,
-    });
+    expect(scheduleInvestmentNoteCertificateGeneration).not.toHaveBeenCalled();
   });
 
   it("does not notify investors for residual or admin withdrawals", async () => {

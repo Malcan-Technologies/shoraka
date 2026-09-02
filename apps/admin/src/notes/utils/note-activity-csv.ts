@@ -59,10 +59,14 @@ const EVENT_LABELS: Record<string, string> = {
   SHORAKA_ORDER_SUBMITTED: "Tawarruq Order Submitted",
   SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate Retrieved",
   INVESTMENT_NOTE_CERTIFICATE_GENERATED: "Investment Note Certificate Generated",
-  INVESTMENT_NOTE_CERTIFICATE_REISSUED: "Investment Note Certificate Reissued",
+  INVESTMENT_NOTE_CERTIFICATE_REISSUED: "Investment Note Certificate Regenerated",
+  INVESTMENT_NOTE_CERTIFICATE_PUBLISHED: "Investment Note Certificate Published",
   SETTLEMENT_HIBAH_RECEIPT_GENERATED: "Settlement & Hibah Receipt Generated",
-  SETTLEMENT_HIBAH_RECEIPT_REISSUED: "Settlement & Hibah Receipt Reissued",
+  SETTLEMENT_HIBAH_RECEIPT_REISSUED: "Settlement & Hibah Receipt Regenerated",
+  SETTLEMENT_HIBAH_RECEIPT_PUBLISHED: "Settlement & Hibah Receipt Published",
   INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED: "Investment Settlement Confirmation Generated",
+  INVESTMENT_SETTLEMENT_CONFIRMATION_REISSUED: "Investment Settlement Confirmation Regenerated",
+  INVESTMENT_SETTLEMENT_CONFIRMATION_PUBLISHED: "Investment Settlement Confirmation Published",
 };
 
 const RESIDUAL_RETURN_EVENT_LABELS: Record<string, string> = {

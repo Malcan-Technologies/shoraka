@@ -5,6 +5,7 @@ const notesService = readFileSync(join(__dirname, "../service.ts"), "utf8");
 const controller = readFileSync(join(__dirname, "../controller.ts"), "utf8");
 const confirmationService = readFileSync(join(__dirname, "./service.ts"), "utf8");
 const confirmationHtml = readFileSync(join(__dirname, "./confirmation-html.ts"), "utf8");
+const snapshot = readFileSync(join(__dirname, "./snapshot.ts"), "utf8");
 const notifications = readFileSync(
   join(__dirname, "../../notification/note-lifecycle-notifications.ts"),
   "utf8"
@@ -18,15 +19,10 @@ const postIdx = notesService.indexOf("async postSettlement");
 const trusteeIdx = notesService.indexOf("async markSettlementTrusteeInstructionCompleted");
 
 describe("investment settlement confirmation trigger sites", () => {
-  it("schedules after postSettlement commit without waiting for trustee or REPAID", () => {
+  it("does not schedule after postSettlement", () => {
     const postBlock = notesService.slice(postIdx, trusteeIdx);
-    expect(postBlock).toContain("scheduleInvestmentSettlementConfirmations");
-    expect(postBlock).toContain("SETTLEMENT_POSTED");
+    expect(postBlock).not.toContain("scheduleInvestmentSettlementConfirmations");
     expect(postBlock).toContain("notifyNoteSettlementPosted");
-    const scheduleIdx = postBlock.indexOf("scheduleInvestmentSettlementConfirmations");
-    const trusteeGate = postBlock.lastIndexOf("if (!needsTrusteeInstruction)");
-    expect(scheduleIdx).toBeGreaterThan(-1);
-    expect(scheduleIdx).toBeLessThan(trusteeGate);
   });
 
   it("does not schedule from payment submit, preview, or approve", () => {
@@ -44,6 +40,13 @@ describe("investment settlement confirmation trigger sites", () => {
   it("exposes investor and admin routes and no issuer route", () => {
     expect(controller).toContain('"/investments/:investmentId/settlement-confirmation"');
     expect(controller).toContain('"/:id/investment-settlement-confirmations"');
+    expect(controller).toContain('"/:id/investment-settlement-confirmations/generate"');
+    expect(controller).toContain(
+      '"/:id/investment-settlement-confirmations/:investorOrganizationId/generate"'
+    );
+    expect(controller).toContain(
+      '"/:id/investment-settlement-confirmations/:investorOrganizationId/publish"'
+    );
     expect(controller).not.toContain("issuerNotesRouter.get(\"/notes/:id/investment-settlement-confirmation");
   });
 
@@ -65,5 +68,13 @@ describe("investment settlement confirmation trigger sites", () => {
     expect(notifications).not.toContain("scheduleInvestmentSettlementConfirmations");
     expect(notifications).not.toContain("INVESTMENT_SETTLEMENT_CONFIRMATION");
     expect(registry).toContain("NOTE_SETTLEMENT_POSTED");
+  });
+
+  it("keeps wallet payout eligibility and does not add trustee status", () => {
+    expect(snapshot).toContain("NOTE_INVESTMENT_RELEASE");
+    expect(snapshot).toContain("SETTLEMENT_PAYOUT");
+    expect(snapshot).toContain("certificatePartyDisplayReference");
+    expect(snapshot).not.toContain("trustee");
+    expect(confirmationService).not.toContain("trustee");
   });
 });

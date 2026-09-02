@@ -968,10 +968,22 @@ export class ApiClient {
     return this.get(`/v1/admin/notes/${id}/investment-note-certificate`);
   }
 
+  async generateAdminInvestmentNoteCertificate(
+    id: string
+  ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
+    return this.post(`/v1/admin/notes/${id}/investment-note-certificate/generate`, {});
+  }
+
   async retryAdminInvestmentNoteCertificate(
     id: string
   ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
     return this.post(`/v1/admin/notes/${id}/investment-note-certificate/retry`, {});
+  }
+
+  async publishAdminInvestmentNoteCertificate(
+    id: string
+  ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
+    return this.post(`/v1/admin/notes/${id}/investment-note-certificate/publish`, {});
   }
 
   async getAdminSettlementHibahReceipt(
@@ -980,10 +992,22 @@ export class ApiClient {
     return this.get(`/v1/admin/notes/${id}/settlement-hibah-receipt`);
   }
 
+  async generateAdminSettlementHibahReceipt(
+    id: string
+  ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
+    return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/generate`, {});
+  }
+
   async retryAdminSettlementHibahReceipt(
     id: string
   ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
     return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/retry`, {});
+  }
+
+  async publishAdminSettlementHibahReceipt(
+    id: string
+  ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
+    return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/publish`, {});
   }
 
   async getAdminInvestmentSettlementConfirmations(
@@ -992,12 +1016,48 @@ export class ApiClient {
     return this.get(`/v1/admin/notes/${id}/investment-settlement-confirmations`);
   }
 
+  async generateAdminInvestmentSettlementConfirmation(
+    id: string,
+    investorOrganizationId: string
+  ): Promise<ApiResponse<AdminInvestmentSettlementConfirmationsPayload> | ApiError> {
+    return this.post(
+      `/v1/admin/notes/${id}/investment-settlement-confirmations/${investorOrganizationId}/generate`,
+      {}
+    );
+  }
+
+  async generateAllAdminInvestmentSettlementConfirmations(
+    id: string
+  ): Promise<ApiResponse<AdminInvestmentSettlementConfirmationsPayload> | ApiError> {
+    return this.post(`/v1/admin/notes/${id}/investment-settlement-confirmations/generate`, {});
+  }
+
   async retryAdminInvestmentSettlementConfirmation(
     id: string,
     investorOrganizationId: string
   ): Promise<ApiResponse<AdminInvestmentSettlementConfirmationsPayload> | ApiError> {
     return this.post(
       `/v1/admin/notes/${id}/investment-settlement-confirmations/${investorOrganizationId}/retry`,
+      {}
+    );
+  }
+
+  async reissueAdminInvestmentSettlementConfirmation(
+    id: string,
+    investorOrganizationId: string
+  ): Promise<ApiResponse<AdminInvestmentSettlementConfirmationsPayload> | ApiError> {
+    return this.post(
+      `/v1/admin/notes/${id}/investment-settlement-confirmations/${investorOrganizationId}/reissue`,
+      {}
+    );
+  }
+
+  async publishAdminInvestmentSettlementConfirmation(
+    id: string,
+    investorOrganizationId: string
+  ): Promise<ApiResponse<AdminInvestmentSettlementConfirmationsPayload> | ApiError> {
+    return this.post(
+      `/v1/admin/notes/${id}/investment-settlement-confirmations/${investorOrganizationId}/publish`,
       {}
     );
   }
