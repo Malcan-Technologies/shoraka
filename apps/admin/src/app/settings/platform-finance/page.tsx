@@ -34,6 +34,7 @@ import {
 } from "@/lib/trustee-letter-settings";
 import { notesKeys } from "@/notes/query-keys";
 import { TrusteeLetterEmailFields } from "./trustee-letter-email-fields";
+import { validateCompanyStampFile } from "@/lib/company-stamp-file";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -423,6 +424,11 @@ export default function PlatformFinanceSettingsPage() {
       });
       if (!response.success) throw new Error(response.error.message);
       await uploadFileToS3(response.data.uploadUrl, input.file);
+      const confirmed = await apiClient.confirmPlatformFinanceDocumentStampUpload({
+        purpose: input.purpose,
+        s3Key: response.data.s3Key,
+      });
+      if (!confirmed.success) throw new Error(confirmed.error.message);
       return { ...response.data, purpose: input.purpose, file: input.file };
     },
     onSuccess: ({ s3Key, purpose, file }) => {
@@ -477,25 +483,18 @@ export default function PlatformFinanceSettingsPage() {
     await signatureUploadMutation.mutateAsync(file);
   };
 
-  const validateStampFile = (file: File): boolean => {
-    if (!ALLOWED_SIGNATURE_CONTENT_TYPES.includes(file.type.toLowerCase())) {
-      toast.error("Only PNG, JPG/JPEG, or WEBP images are allowed.");
-      return false;
-    }
-    if (file.size > MAX_SIGNATURE_FILE_SIZE_BYTES) {
-      toast.error("Company stamp must be 5MB or less.");
-      return false;
-    }
-    return true;
-  };
-
   const handleStampFileChange = async (
     event: React.ChangeEvent<HTMLInputElement>,
     purpose: "CERTIFICATE_COMPANY_STAMP" | "RECEIPT_COMPANY_STAMP"
   ) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || !validateStampFile(file)) return;
+    if (!file) return;
+    const rejection = await validateCompanyStampFile(file);
+    if (rejection) {
+      toast.error(rejection);
+      return;
+    }
     await stampUploadMutation.mutateAsync({ purpose, file });
   };
 
@@ -848,6 +847,10 @@ export default function PlatformFinanceSettingsPage() {
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Company Stamp</label>
+                      <p className="text-xs text-muted-foreground">
+                        Upload a cropped PNG, JPG, or WEBP company stamp. Full-page screenshots are
+                        not accepted.
+                      </p>
                       <input
                         ref={certificateStampInputRef}
                         type="file"
@@ -859,11 +862,13 @@ export default function PlatformFinanceSettingsPage() {
                       />
                       <div className="rounded-xl border p-4">
                         {certificateStampPreviewUrl ? (
-                          <img
-                            src={certificateStampPreviewUrl}
-                            alt="Islamic Investment Note Certificate company stamp preview"
-                            className="max-h-24 w-auto rounded-md border bg-background p-2"
-                          />
+                          <div className="flex h-24 w-40 items-center justify-center overflow-hidden rounded-md border bg-background p-2">
+                            <img
+                              src={certificateStampPreviewUrl}
+                              alt="Islamic Investment Note Certificate company stamp preview"
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          </div>
                         ) : (
                           <p className="text-sm text-muted-foreground">No company stamp uploaded.</p>
                         )}
@@ -915,6 +920,10 @@ export default function PlatformFinanceSettingsPage() {
                         <label className="text-sm font-medium">
                           Settlement & Hibah Receipt Company Stamp
                         </label>
+                        <p className="text-xs text-muted-foreground">
+                          Upload a cropped PNG, JPG, or WEBP company stamp. Full-page screenshots are
+                          not accepted.
+                        </p>
                         <input
                           ref={receiptStampInputRef}
                           type="file"
@@ -926,11 +935,13 @@ export default function PlatformFinanceSettingsPage() {
                         />
                         <div className="rounded-xl border p-4">
                           {receiptStampPreviewUrl ? (
-                            <img
-                              src={receiptStampPreviewUrl}
-                              alt="Settlement and Hibah Receipt company stamp preview"
-                              className="max-h-24 w-auto rounded-md border bg-background p-2"
-                            />
+                            <div className="flex h-24 w-40 items-center justify-center overflow-hidden rounded-md border bg-background p-2">
+                              <img
+                                src={receiptStampPreviewUrl}
+                                alt="Settlement and Hibah Receipt company stamp preview"
+                                className="max-h-full max-w-full object-contain"
+                              />
+                            </div>
                           ) : (
                             <p className="text-sm text-muted-foreground">
                               No company stamp uploaded.

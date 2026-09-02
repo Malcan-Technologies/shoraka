@@ -122,6 +122,8 @@ import type {
   TrusteeSignatureUploadUrlResponse,
   DocumentStampUploadUrlRequest,
   DocumentStampUploadUrlResponse,
+  DocumentStampConfirmRequest,
+  DocumentStampConfirmResponse,
   IssuerPaymentEvidenceUploadUrlRequest,
   IssuerPaymentEvidenceUploadUrlResponse,
   RecordNotePaymentInput,
@@ -1661,6 +1663,15 @@ export class ApiClient {
   ): Promise<ApiResponse<DocumentStampUploadUrlResponse> | ApiError> {
     return this.post<DocumentStampUploadUrlResponse>(
       "/v1/admin/platform-finance-settings/document-stamp/upload-url",
+      data
+    );
+  }
+
+  async confirmPlatformFinanceDocumentStampUpload(
+    data: DocumentStampConfirmRequest
+  ): Promise<ApiResponse<DocumentStampConfirmResponse> | ApiError> {
+    return this.post<DocumentStampConfirmResponse>(
+      "/v1/admin/platform-finance-settings/document-stamp/confirm",
       data
     );
   }

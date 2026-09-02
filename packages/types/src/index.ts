@@ -502,6 +502,7 @@ export * from "./onboarding-readiness";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
 export * from "./notes";
+export * from "./company-stamp-image";
 export * from "./official-document-version";
 export * from "./investment-note-certificate";
 export * from "./settlement-hibah-receipt";

@@ -47,6 +47,7 @@ import {
   getInvestorWithdrawalsQuerySchema,
   requestTrusteeSignatureUploadUrlSchema,
   requestDocumentStampUploadUrlSchema,
+  confirmDocumentStampUploadSchema,
   requestIssuerPaymentEvidenceUploadUrlSchema,
   waiveNoteFacilityFeeCollectionSchema,
   disbursementValueDateBodySchema,
@@ -1433,6 +1434,18 @@ platformFinanceSettingsRouter.post(
     try {
       const input = requestDocumentStampUploadUrlSchema.parse(req.body);
       send(res, await noteService.requestDocumentStampUploadUrl(input));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+platformFinanceSettingsRouter.post(
+  "/document-stamp/confirm",
+  requirePermission("platform_settings.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const input = confirmDocumentStampUploadSchema.parse(req.body);
+      send(res, await noteService.confirmDocumentStampUpload(input));
     } catch (error) {
       next(error);
     }

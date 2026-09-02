@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { isNoteMoneyAmount } from "@cashsouk/types";
+import {
+  COMPANY_STAMP_ALLOWED_CONTENT_TYPES,
+  COMPANY_STAMP_MAX_FILE_SIZE_BYTES,
+  COMPANY_STAMP_TOO_LARGE_MESSAGE,
+  COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE,
+  isNoteMoneyAmount,
+} from "@cashsouk/types";
 import {
   NoteFundingStatus,
   NoteLedgerAccountType,
@@ -332,7 +338,19 @@ export const requestTrusteeSignatureUploadUrlSchema = z.object({
   fileSize: z.number().int().positive().max(5 * 1024 * 1024),
 });
 
-export const requestDocumentStampUploadUrlSchema = requestTrusteeSignatureUploadUrlSchema.extend({
+export const requestDocumentStampUploadUrlSchema = z.object({
+  fileName: z.string().min(1),
+  contentType: z.enum(COMPANY_STAMP_ALLOWED_CONTENT_TYPES, {
+    errorMap: () => ({ message: COMPANY_STAMP_UNSUPPORTED_TYPE_MESSAGE }),
+  }),
+  fileSize: z.number().int().positive().max(COMPANY_STAMP_MAX_FILE_SIZE_BYTES, {
+    message: COMPANY_STAMP_TOO_LARGE_MESSAGE,
+  }),
+  purpose: z.enum(["CERTIFICATE_COMPANY_STAMP", "RECEIPT_COMPANY_STAMP"]),
+});
+
+export const confirmDocumentStampUploadSchema = z.object({
+  s3Key: z.string().min(1),
   purpose: z.enum(["CERTIFICATE_COMPANY_STAMP", "RECEIPT_COMPANY_STAMP"]),
 });
 

@@ -10,6 +10,12 @@ jest.mock("../../lib/prisma", () => ({
   },
 }));
 
+jest.mock("./document-authorisation/stamp-image-persist", () => ({
+  assertIncomingDocumentAuthorisationStamps: jest.fn().mockResolvedValue(undefined),
+  assertCompanyStampS3Object: jest.fn(),
+  assertDocumentStampKeyMatchesPurpose: jest.fn(),
+}));
+
 jest.mock("../../lib/audit", () => {
   const actual = jest.requireActual("../../lib/audit") as Record<string, unknown>;
   return {
@@ -19,7 +25,9 @@ jest.mock("../../lib/audit", () => {
 });
 
 import { prisma } from "../../lib/prisma";
+import { AppError } from "../../lib/http/error-handler";
 import { NoteService } from "./service";
+import { assertIncomingDocumentAuthorisationStamps } from "./document-authorisation/stamp-image-persist";
 
 const previousRow = {
   id: "pfs-1",
@@ -100,6 +108,7 @@ describe("NoteService updatePlatformFinanceSettings audit", () => {
     (prisma.platformFinanceSetting.upsert as jest.Mock).mockResolvedValue(nextRow);
     (prisma.platformFinanceSetting.findUniqueOrThrow as jest.Mock).mockResolvedValue(nextRow);
     mockCreateSecurityLogRow.mockResolvedValue({ id: "sec-1" });
+    (assertIncomingDocumentAuthorisationStamps as jest.Mock).mockResolvedValue(undefined);
   });
 
   it("keeps the settings write and records before/after values for the acting admin", async () => {
@@ -166,9 +175,34 @@ describe("NoteService updatePlatformFinanceSettings audit", () => {
       })
     );
     expect(result.documentAuthorisationConfig).toEqual(documentAuthorisationConfig);
+    expect(assertIncomingDocumentAuthorisationStamps).toHaveBeenCalled();
     const payload = mockCreateSecurityLogRow.mock.calls[0][0];
     expect(payload.metadata.nextValues.documentAuthorisationConfig.authorisedSignatoryName).toBe(
       "Sarah"
     );
+  });
+
+  it("does not persist Document Authorisation when stamp byte validation fails", async () => {
+    (assertIncomingDocumentAuthorisationStamps as jest.Mock).mockRejectedValue(
+      new AppError(400, "INVALID_COMPANY_STAMP", "Please upload a cropped company stamp image rather than a full-page screenshot.")
+    );
+    const service = new NoteService();
+    await expect(
+      service.updatePlatformFinanceSettings(
+        {
+          documentAuthorisationConfig: {
+            authorisedSignatoryName: "Sarah",
+            useSameCompanyStamp: true,
+            certificateCompanyStamp: {
+              s3Key: "stamps/wide.png",
+              fileName: "wide.png",
+              contentType: "image/png",
+            },
+          },
+        },
+        actor
+      )
+    ).rejects.toMatchObject({ code: "INVALID_COMPANY_STAMP" });
+    expect(prisma.platformFinanceSetting.upsert).not.toHaveBeenCalled();
   });
 });
