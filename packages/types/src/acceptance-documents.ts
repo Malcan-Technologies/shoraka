@@ -249,3 +249,16 @@ export function parseAcceptanceDocumentsConfig(
   if (!Array.isArray(list)) return [];
   return list.map((row) => parseWorkflowDocumentRow(row));
 }
+
+/**
+ * Review Offer reuses the supporting-documents upload UI. Return the flat
+ * acceptance list in the same [key, rows] shape — do not use
+ * supportingDocumentCategoryEntries, which only knows Legal/Financial/etc.
+ */
+export function acceptanceDocumentCategoryEntries(
+  config: unknown
+): Array<[typeof ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY, unknown[]]> {
+  const list = asRecord(config)?.[ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY];
+  if (!Array.isArray(list) || list.length === 0) return [];
+  return [[ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY, list]];
+}

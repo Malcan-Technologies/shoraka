@@ -14,6 +14,10 @@ import { assertRequiredSupportingDocumentsPresent } from "../supporting-docs-wor
 import { buildApplicationRevisionSnapshot } from "../revision-snapshot";
 import { summarizeResubmitSnapshotDiff } from "../../application-revision-diff";
 import { Prisma } from "@prisma/client";
+import {
+  getFacilityLockedCategoriesFromWorkflow,
+  readFinancingStructureType,
+} from "@cashsouk/types";
 import { upsertLatestOrganizationFinancialStatementsFromApplication } from "../issuer-organization-financial-statements";
 import { createApplicationLog } from "../logs/repository";
 import { ActivityPortal, ApplicationLogEventType, type IssuerActivityLogContext } from "../logs/types";
@@ -158,9 +162,14 @@ export async function resubmitApplication(
   if (resubmitProductId) {
     const resubmitProduct = await prisma.product.findUnique({ where: { id: resubmitProductId } });
     if (resubmitProduct?.workflow) {
+      const skipCategoryKeys =
+        readFinancingStructureType(application.financing_structure) === "existing_contract"
+          ? getFacilityLockedCategoriesFromWorkflow(resubmitProduct.workflow)
+          : [];
       assertRequiredSupportingDocumentsPresent(
         resubmitProduct.workflow as unknown[],
-        application.supporting_documents
+        application.supporting_documents,
+        { skipCategoryKeys }
       );
       resubmitProductWorkflow = resubmitProduct.workflow as Prisma.JsonValue;
     }

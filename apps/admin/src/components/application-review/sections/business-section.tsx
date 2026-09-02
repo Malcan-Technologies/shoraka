@@ -2068,7 +2068,7 @@ export function BusinessSection({
               ) : (
                 " in the originating application"
               )}
-              . Screen and amend them there. This view is read-only.
+              .
             </div>
           ) : null}
           <ReviewFieldBlock title="Why Are You Raising Funds?">

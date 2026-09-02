@@ -10,6 +10,19 @@ Implementation reference:
 
 ---
 
+## Facility-locked categories (drawdowns)
+
+Product workflow can mark a supporting-document **category** as **Lock at facility**. On an **existing-contract** drawdown:
+
+- Files and per-document review statuses are inherited from the originating facility application.
+- The issuer cannot upload, replace, or remove those files.
+- Admin cannot re-review those items on the drawdown (they stay as approved on the facility).
+- Submit and section-status derivation ignore locked categories on the drawdown, so remaining drawdown documents are still reviewed as usual.
+
+Config is stored on the supporting-documents step as `category_settings: { legal_docs: { lock_at_facility: true } }`. Older products may still have `facility_locked_categories: ["legal_docs"]`; both forms are read. This flag is not a document category.
+
+---
+
 ## Per-document item states
 
 Each uploaded document entry has a **scope key** `supporting_documents:…` and a review row with `item_type = document`.

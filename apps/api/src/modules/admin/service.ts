@@ -134,6 +134,9 @@ import {
   type InvoiceOfferFeeScheduleWriteMode,
   type ReviewItemType,
   canonicalDownloadFilenameToken,
+  FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE,
+  getFacilityLockedCategoriesFromWorkflow,
+  isFacilityLockedSupportingDocumentItem,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { assertIssuerMarcAssessmentComplete, getCurrentMarcAssessment } from "../paymaster/service";
@@ -223,7 +226,7 @@ import {
   resolveApplicationStatusFromOfferAcceptancePhase,
   resolveInvoiceCentricApplicationStatus,
 } from "../applications/offer-application-status";
-import { loadInheritedAcceptanceForExistingContract, attachInheritedFacilityGuarantors } from "../../lib/contract-originating-application";
+import { loadInheritedAcceptanceForExistingContract, attachInheritedFacilityGuarantors, attachInheritedFacilitySupportingDocuments } from "../../lib/contract-originating-application";
 import { signingService } from "../signing/service";
 import {
   AUDIT_ACTOR_TYPE,
@@ -6814,8 +6817,14 @@ export class AdminService {
       prisma,
       applicationWithIssuerExtras
     );
+    const applicationWithInheritedSupportingDocuments =
+      await attachInheritedFacilitySupportingDocuments(
+        prisma,
+        applicationWithInheritedGuarantors,
+        sectionPolicy.productWorkflow
+      );
     const applicationWithDisplayReference = {
-      ...applicationWithInheritedGuarantors,
+      ...applicationWithInheritedSupportingDocuments,
       displayReference: applicationWithIssuerExtras.display_reference ?? null,
       issuer_organization: issuerOrgWithDisplayReference,
       contract: contractWithDisplayReference,
@@ -6852,6 +6861,10 @@ export class AdminService {
       product_workflow: sectionPolicy.productWorkflow,
       inherited_acceptance: inheritedAcceptance,
       inherited_guarantors: applicationWithInheritedGuarantors.inherited_guarantors,
+      facility_locked_supporting_categories:
+        applicationWithInheritedSupportingDocuments.facility_locked_supporting_categories,
+      inherited_supporting_documents:
+        applicationWithInheritedSupportingDocuments.inherited_supporting_documents,
     };
   }
 
@@ -8385,6 +8398,24 @@ export class AdminService {
         "INVALID_ACTION",
         "Acceptance was completed in the originating application and cannot be modified on a drawdown application"
       );
+    }
+  }
+
+  private async assertSupportingDocumentItemNotFacilityLocked(
+    application: {
+      financing_type?: unknown;
+      financing_structure?: unknown;
+      product_version?: number | null;
+    },
+    itemType: string,
+    itemId: string
+  ): Promise<void> {
+    if (itemType !== "document") return;
+    if (!isExistingContractFinancing(application.financing_structure)) return;
+    const policy = await this.getReviewSectionPolicy(application);
+    const locked = getFacilityLockedCategoriesFromWorkflow(policy.productWorkflow);
+    if (isFacilityLockedSupportingDocumentItem(itemId, locked)) {
+      throw new AppError(400, "INVALID_ACTION", FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE);
     }
   }
 
@@ -9994,6 +10025,7 @@ export class AdminService {
     }
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.assertSupportingDocumentItemNotFacilityLocked(application, itemType, itemId);
     this.validateReviewItemExists(application, itemType, itemId);
     await this.ensureUnderReview(
       repository,
@@ -10452,6 +10484,7 @@ export class AdminService {
     logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.assertSupportingDocumentItemNotFacilityLocked(application, itemType, itemId);
     this.validateReviewItemExists(application, itemType, itemId);
     if (isAcceptanceHubReviewItem(itemType, itemId)) {
       this.assertAcceptanceReviewNotInherited(application);
@@ -10554,6 +10587,7 @@ export class AdminService {
     logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.assertSupportingDocumentItemNotFacilityLocked(application, itemType, itemId);
     this.validateReviewItemExists(application, itemType, itemId);
     await this.ensureUnderReview(
       repository,
@@ -10684,6 +10718,7 @@ export class AdminService {
     logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.assertSupportingDocumentItemNotFacilityLocked(application, itemType, itemId);
     this.validateReviewItemExists(application, itemType, itemId);
     await this.ensureUnderReview(
       repository,

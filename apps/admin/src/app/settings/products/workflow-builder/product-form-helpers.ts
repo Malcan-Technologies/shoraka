@@ -17,6 +17,8 @@ import {
   parsePositiveRmAmount,
   validateSigningTemplateConfig,
   workflowAcceptanceDocumentsIncludeGeneratedType,
+  SUPPORTING_DOC_CATEGORY_KEYS,
+  SUPPORTING_DOC_CATEGORY_LABELS,
 } from "@cashsouk/types";
 import { isDeclarationHtmlEmpty } from "@cashsouk/ui/declaration-rich-text";
 import { parseMoney } from "@cashsouk/ui";
@@ -29,13 +31,7 @@ export const BUSINESS_DETAILS_STEP_KEY = "business_details";
 export const DECLARATIONS_STEP_KEY = "declarations";
 export const INVOICE_DETAILS_STEP_KEY = "invoice_details";
 
-export const SUPPORTING_DOC_CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
-export const SUPPORTING_DOC_CATEGORY_LABELS: Record<string, string> = {
-  financial_docs: "Financial Docs",
-  legal_docs: "Legal Docs",
-  compliance_docs: "Compliance Docs",
-  others: "Others",
-};
+export { SUPPORTING_DOC_CATEGORY_KEYS, SUPPORTING_DOC_CATEGORY_LABELS };
 
 /** A workflow step. config shape depends on step type. */
 export type Step = { id?: string; name?: string; config?: Record<string, unknown> };

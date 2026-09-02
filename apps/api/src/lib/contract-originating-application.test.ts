@@ -5,7 +5,9 @@ import {
 } from "@cashsouk/types";
 import {
   attachInheritedFacilityGuarantors,
+  attachInheritedFacilitySupportingDocuments,
   loadInheritedGuarantorsForExistingContract,
+  loadInheritedSupportingDocumentsForExistingContract,
 } from "./contract-originating-application";
 
 describe("contract originating application helpers", () => {
@@ -111,5 +113,108 @@ describe("inherited facility guarantors", () => {
     expect(result.inherited_guarantors).toBeNull();
     expect(result.application_guarantors).toEqual(local);
     expect(db.application.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+describe("inherited facility supporting documents", () => {
+  const originDocs = {
+    categories: [
+      {
+        name: "Legal Docs",
+        documents: [
+          {
+            title: "Deed of Assignment",
+            workflow_document_index: 0,
+            file: { s3_key: "facility/doa.pdf", file_name: "doa.pdf" },
+          },
+        ],
+      },
+    ],
+  };
+  const originReviewItems = [
+    {
+      item_type: "document",
+      item_id: "supporting_documents:legal_docs:0:Deed_of_Assignment",
+      status: "APPROVED",
+    },
+  ];
+  const workflow = [
+    {
+      id: "supporting_documents_1",
+      config: {
+        facility_locked_categories: ["legal_docs"],
+        legal_docs: [{ name: "Deed of Assignment" }],
+        financial_docs: [{ name: "Latest Management Account" }],
+      },
+    },
+  ];
+
+  function mockDocsDb() {
+    return {
+      application: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "origin-app",
+          supporting_documents: originDocs,
+          application_review_items: originReviewItems,
+        }),
+      },
+      product: {
+        findFirst: jest.fn().mockResolvedValue({ workflow }),
+      },
+    };
+  }
+
+  it("overlays locked facility documents onto an existing_contract drawdown", async () => {
+    const db = mockDocsDb();
+    const result = await attachInheritedFacilitySupportingDocuments(db as never, {
+      financing_type: { product_id: "prod_1" },
+      product_version: 2,
+      financing_structure: { structure_type: "existing_contract" },
+      contract_id: "con-1",
+      contract: { status: "APPROVED", originating_application_id: "origin-app" },
+      supporting_documents: {
+        categories: [
+          {
+            name: "Financial Docs",
+            documents: [{ title: "Latest Management Account", file: { s3_key: "drawdown/mgmt.pdf" } }],
+          },
+        ],
+      },
+      application_review_items: [],
+    });
+
+    expect(result.facility_locked_supporting_categories).toEqual(["legal_docs"]);
+    expect(result.inherited_supporting_documents?.source_application_id).toBe("origin-app");
+    const categories = (result.supporting_documents as { categories: Array<{ name: string }> }).categories;
+    expect(categories.some((cat) => cat.name === "Legal Docs")).toBe(true);
+    expect(result.application_review_items).toEqual(originReviewItems);
+  });
+
+  it("does not overlay supporting documents on a new facility application", async () => {
+    const db = mockDocsDb();
+    const localDocs = { categories: [] };
+    const result = await attachInheritedFacilitySupportingDocuments(db as never, {
+      financing_type: { product_id: "prod_1" },
+      product_version: 2,
+      financing_structure: { structure_type: "new_contract" },
+      contract_id: "con-1",
+      contract: { status: "APPROVED", originating_application_id: "origin-app" },
+      supporting_documents: localDocs,
+      application_review_items: [],
+    });
+    expect(result.facility_locked_supporting_categories).toEqual([]);
+    expect(result.inherited_supporting_documents).toBeNull();
+    expect(result.supporting_documents).toBe(localDocs);
+    expect(db.application.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("loads origin supporting documents when an originating application id is known", async () => {
+    const db = mockDocsDb();
+    const result = await loadInheritedSupportingDocumentsForExistingContract(db as never, {
+      contractId: "con-1",
+      originatingApplicationId: "origin-app",
+    });
+    expect(result?.source_application_id).toBe("origin-app");
+    expect(result?.review_items).toEqual(originReviewItems);
   });
 });

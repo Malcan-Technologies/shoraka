@@ -34,6 +34,7 @@ import {
   fileNameToSupportingDocTypeToken,
   getGuarantorAgreementAllowedTypesFromProductWorkflow,
   getSupportingDocAllowedTypesFromProductWorkflow,
+  assertSupportingDocCategoryNotFacilityLocked,
 } from "./supporting-docs-workflow";
 import {
   resolveAcceptanceDocumentAllowedTypes,
@@ -109,7 +110,9 @@ import {
 import { applyContractCapacityChange, lockContractRow } from "../../lib/refresh-contract-facility";
 import {
   attachInheritedFacilityGuarantors,
+  attachInheritedFacilitySupportingDocuments,
   loadInheritedGuarantorsForExistingContract,
+  loadInheritedSupportingDocumentsForExistingContract,
 } from "../../lib/contract-originating-application";
 import { assertFacilityFeeUpfrontSettled } from "../../lib/facility-fee-upfront-guard";
 import {
@@ -142,6 +145,11 @@ import {
   roundNoteMoney,
   isInheritedFacilityGuarantorReview,
   FACILITY_GUARANTORS_REQUIRED,
+  FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE,
+  collectSupportingDocumentS3Keys,
+  facilityLockedSupportingDocumentsChanged,
+  getFacilityLockedCategoriesFromWorkflow,
+  stripFacilityLockedSupportingDocuments,
 } from "@cashsouk/types";
 import {
   consumeOfferAcceptOtpInTx,
@@ -946,13 +954,16 @@ export class ApplicationService {
     });
     return overlayReadCapacityOnApplicationContract(
       prisma,
-      await attachInheritedFacilityGuarantors(
+      await attachInheritedFacilitySupportingDocuments(
         prisma,
-        enrichApplicationOriginationFields(
-          application as Parameters<typeof enrichApplicationOriginationFields>[0] & {
-            display_reference?: string | null;
-          },
-          envelopes
+        await attachInheritedFacilityGuarantors(
+          prisma,
+          enrichApplicationOriginationFields(
+            application as Parameters<typeof enrichApplicationOriginationFields>[0] & {
+              display_reference?: string | null;
+            },
+            envelopes
+          )
         )
       )
     );
@@ -1344,6 +1355,34 @@ export class ApplicationService {
             application.financing_type
           ) as Prisma.InputJsonValue)
         : dataToStore;
+    }
+
+    if (fieldName === "supporting_documents") {
+      const structureType = readFinancingStructureType(application.financing_structure);
+      if (structureType === "existing_contract") {
+        const workflow = await this.getProductWorkflowForApplication(application);
+        const locked = getFacilityLockedCategoriesFromWorkflow(workflow);
+        if (locked.length > 0) {
+          const origin = application.contract_id
+            ? await loadInheritedSupportingDocumentsForExistingContract(prisma, {
+                contractId: application.contract_id,
+                originatingApplicationId:
+                  (application as { contract?: { originating_application_id?: string | null } }).contract
+                    ?.originating_application_id ?? null,
+              })
+            : null;
+          if (
+            facilityLockedSupportingDocumentsChanged(
+              input.data,
+              origin?.supporting_documents,
+              locked
+            )
+          ) {
+            throw new AppError(403, "EDIT_NOT_ALLOWED", FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE);
+          }
+          dataToStore = stripFacilityLockedSupportingDocuments(input.data, locked) as Prisma.InputJsonValue;
+        }
+      }
     }
 
     const updateData: Prisma.ApplicationUpdateInput = {
@@ -1839,6 +1878,11 @@ export class ApplicationService {
     } else if (isSupportingDocsWorkflowUpload) {
       workflow = await this.getProductWorkflowForApplication(application);
       this.verifyApplicationEditable(application);
+      assertSupportingDocCategoryNotFacilityLocked(
+        workflow,
+        readFinancingStructureType(application?.financing_structure),
+        params.supportingDocCategoryKey!
+      );
     } else if (isGuarantorAgreementUpload) {
       workflow = await this.getProductWorkflowForApplication(application);
       this.verifyApplicationEditable(application);
@@ -1926,6 +1970,25 @@ export class ApplicationService {
     const application = await this.repository.findById(applicationId);
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    if (readFinancingStructureType(application.financing_structure) === "existing_contract") {
+      const workflow = await this.getProductWorkflowForApplication(application);
+      const locked = getFacilityLockedCategoriesFromWorkflow(workflow);
+      if (locked.length > 0 && application.contract_id) {
+        const origin = await loadInheritedSupportingDocumentsForExistingContract(prisma, {
+          contractId: application.contract_id,
+          originatingApplicationId:
+            (application as { contract?: { originating_application_id?: string | null } }).contract
+              ?.originating_application_id ?? null,
+        });
+        const originKeys = new Set(
+          collectSupportingDocumentS3Keys(origin?.supporting_documents, locked)
+        );
+        if (originKeys.has(s3Key)) {
+          throw new AppError(403, "EDIT_NOT_ALLOWED", FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE);
+        }
+      }
     }
 
     const status = (application as { status?: string }).status;
@@ -2084,9 +2147,14 @@ export class ApplicationService {
       if (submitProductId) {
         const submitProduct = await this.productRepository.findById(submitProductId);
         if (submitProduct?.workflow) {
+          const skipCategoryKeys =
+            readFinancingStructureType(application.financing_structure) === "existing_contract"
+              ? getFacilityLockedCategoriesFromWorkflow(submitProduct.workflow)
+              : [];
           assertRequiredSupportingDocumentsPresent(
             submitProduct.workflow,
-            application.supporting_documents
+            application.supporting_documents,
+            { skipCategoryKeys }
           );
           submitProductWorkflow = submitProduct.workflow as Prisma.JsonValue;
         }

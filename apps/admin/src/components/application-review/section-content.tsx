@@ -105,6 +105,12 @@ export type ReviewApplicationView = {
     source_product_id?: string | null;
     application_guarantors: unknown[];
   } | null;
+  facility_locked_supporting_categories?: string[];
+  inherited_supporting_documents?: {
+    source_application_id: string;
+    supporting_documents: unknown;
+    review_items: { item_type: string; item_id: string; status: string }[];
+  } | null;
   issuer_organization_id?: string;
   issuer_organization?: {
     id?: string;
@@ -429,6 +435,7 @@ export function SectionContent({
           supportingDocumentsStepConfig={
             sectionComparison ? supportingDocumentsStepConfig ?? null : null
           }
+          facilityLockedCategoryKeys={app.facility_locked_supporting_categories ?? []}
         />
       );
     case "acceptance_documents": {

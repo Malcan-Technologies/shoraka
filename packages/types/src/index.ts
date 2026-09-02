@@ -262,6 +262,16 @@ export interface Application {
     application_guarantors: unknown[];
   } | null;
   supporting_documents?: JsonValue | null;
+  /**
+   * Existing-contract drawdowns: supporting-document category keys locked at facility
+   * (copied from the originating application and not editable on this app).
+   */
+  facility_locked_supporting_categories?: string[];
+  inherited_supporting_documents?: {
+    source_application_id: string;
+    supporting_documents: unknown;
+    review_items: Array<{ item_type: string; item_id: string; status: string }>;
+  } | null;
   /** Offer-acceptance uploads (e.g. Board Resolution); separate from supporting_documents. */
   acceptance_documents?: JsonValue | null;
   /** Present on GET /applications/:id when review rows are loaded. */
@@ -542,6 +552,7 @@ export * from "./acceptance-documents";
 export * from "./generated-documents";
 export * from "./workflow-document-row";
 export * from "./supporting-document-row";
+export * from "./supporting-documents-workflow";
 export * from "./guarantor-agreement-config";
 export * from "./offer-acceptance";
 export * from "./authorized-parties";

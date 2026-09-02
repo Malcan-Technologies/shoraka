@@ -20,6 +20,7 @@ import {
   ArrowTopRightOnSquareIcon,
   ChevronDownIcon,
   DocumentArrowDownIcon,
+  LockClosedIcon,
 } from "@heroicons/react/24/outline";
 import {
   SUPPORTING_DOC_CATEGORY_KEYS,
@@ -39,6 +40,7 @@ import {
   type SupportingDocRowRequirementMeta,
 } from "./supporting-documents-admin-meta";
 import { SupportingDocRequirementBadges } from "./supporting-doc-requirement-badges";
+import { isFacilityLockedSupportingDocumentItem } from "@cashsouk/types";
 
 /**
  * Same footprint as Business/Contract View–Download (`rounded-lg h-9 gap-1` + size sm → text-xs).
@@ -292,6 +294,8 @@ export interface DocumentListProps {
   /** Product supporting_documents step config (for Required/Optional + Single/Multiple hints). */
   supportingDocumentsStepConfig?: Record<string, unknown> | null;
   documentKind?: "supporting" | "acceptance";
+  /** Drawdown apps: categories inherited from the facility and not re-reviewable here. */
+  facilityLockedCategoryKeys?: string[];
 }
 
 export function DocumentList({
@@ -311,6 +315,7 @@ export function DocumentList({
   lockItemPrimaryReviewActions = false,
   supportingDocumentsStepConfig = null,
   documentKind = "supporting",
+  facilityLockedCategoryKeys = [],
 }: DocumentListProps) {
   const categoryGroups = React.useMemo(
     () =>
@@ -344,6 +349,7 @@ export function DocumentList({
     requirementMeta,
   }: DocItem) => {
     const status = getItemStatus(key);
+    const itemLocked = isFacilityLockedSupportingDocumentItem(key, facilityLockedCategoryKeys);
     const canViewSingle = Boolean(s3Key && onViewDocument);
     const canViewMultiple = Boolean(onViewDocument && files.length > 1);
     const canDownloadSingle = Boolean(s3Key && onDownloadDocument);
@@ -455,7 +461,7 @@ export function DocumentList({
                 </DropdownMenu>
               </div>
             ) : null}
-            {isReviewable ? (
+            {isReviewable && !itemLocked ? (
               <div className="shrink-0">
                 <ItemActionDropdown
                   itemId={key}
@@ -525,6 +531,12 @@ export function DocumentList({
                 <ChevronDownIcon className="h-4 w-4 shrink-0 transition-transform group-data-[state=closed]:rotate-[-90deg]" />
                 <DocumentArrowDownIcon className="h-4 w-4 text-muted-foreground shrink-0" />
                 {categoryLabel}
+                {facilityLockedCategoryKeys.includes(categoryKey) ? (
+                  <span className="ml-auto inline-flex items-center gap-1 text-xs font-normal text-muted-foreground">
+                    <LockClosedIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    Locked at facility
+                  </span>
+                ) : null}
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
