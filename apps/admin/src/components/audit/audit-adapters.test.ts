@@ -264,6 +264,46 @@ describe("note Event Details nested snapshots", () => {
       ])
     );
   });
+
+  it("surfaces settlement hibah receipt number, hibah amount and PDF hash", () => {
+    const detail = noteEventToAuditDetail(
+      {
+        id: "evt-hibah",
+        noteId: "note-1",
+        eventType: "SETTLEMENT_HIBAH_RECEIPT_GENERATED",
+        actorUserId: "admin-1",
+        actorName: "Ada",
+        actorRole: "ADMIN",
+        portal: "ADMIN",
+        correlationId: null,
+        createdAt: "2026-09-02T00:00:00.000Z",
+        metadata: {
+          receiptNumber: "SET-ARF-202608-A52",
+          version: "V01",
+          settlementId: "set-1",
+          settlementReference: "SET-ARF-202608-A52",
+          snapshotSha256: "snap",
+          pdfSha256: "pdf",
+          hibahAmount: 1750,
+          source: "SETTLEMENT_COMPLETED",
+        },
+      },
+      "Settlement & Hibah Receipt Generated"
+    );
+    expect(detail.target?.extra).toEqual(
+      expect.arrayContaining([
+        { label: "Receipt number", value: "SET-ARF-202608-A52" },
+        { label: "Version", value: "V01" },
+        { label: "Hibah amount", value: "1750" },
+      ])
+    );
+    expect(detail.technical).toEqual(
+      expect.arrayContaining([
+        { label: "Snapshot SHA-256", value: "snap" },
+        { label: "PDF SHA-256", value: "pdf" },
+      ])
+    );
+  });
 });
 
 describe("contract activity Event Details", () => {

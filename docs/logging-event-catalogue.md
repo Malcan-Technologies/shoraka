@@ -140,6 +140,7 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `SECTION_REVIEWED_PENDING` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `SECTION_REVIEWED_REJECTED` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `SETTLEMENT_APPROVED` | ADMIN_ACTIVITY | LIVE | note_events | no |
+| `SETTLEMENT_HIBAH_RECEIPT_GENERATED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `SETTLEMENT_POSTED` | NOTE_TIMELINE | LIVE | note_events | yes |
 | `SETTLEMENT_PREVIEWED` | FORENSIC_ONLY | HISTORICAL_READER | note_events | no |
 | `SETTLEMENT_TRUSTEE_EMAIL_SENT` | ADMIN_ACTIVITY | LIVE | note_events | no |

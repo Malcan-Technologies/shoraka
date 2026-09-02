@@ -237,6 +237,9 @@ export const EVENT_CATALOGUE: Record<string, EventCatalogueEntry> = {
   INVESTMENT_NOTE_CERTIFICATE_GENERATED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "note_events", {
     notes: "Islamic Investment Note Certificate artefact set READY. Not issuer/investor Activity.",
   }),
+  SETTLEMENT_HIBAH_RECEIPT_GENERATED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "note_events", {
+    notes: "Issuer Settlement & Hibah Receipt PDF READY. Not issuer/investor Activity.",
+  }),
   ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "note_events"),
   PAYMENT_APPROVED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "note_events"),
   PAYMENT_REJECTED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "note_events"),

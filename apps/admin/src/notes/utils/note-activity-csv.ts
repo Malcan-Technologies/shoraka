@@ -59,6 +59,7 @@ const EVENT_LABELS: Record<string, string> = {
   SHORAKA_ORDER_SUBMITTED: "Tawarruq Order Submitted",
   SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate Retrieved",
   INVESTMENT_NOTE_CERTIFICATE_GENERATED: "Investment Note Certificate Generated",
+  SETTLEMENT_HIBAH_RECEIPT_GENERATED: "Settlement & Hibah Receipt Generated",
 };
 
 const RESIDUAL_RETURN_EVENT_LABELS: Record<string, string> = {
@@ -96,7 +97,7 @@ export function formatNoteActivityEventLabel(
 
 function noteEventAmount(metadata: Record<string, unknown> | null | undefined): string | number | null {
   if (!metadata) return null;
-  for (const key of ["amount", "investmentAmount", "withdrawalAmount"]) {
+  for (const key of ["amount", "investmentAmount", "withdrawalAmount", "hibahAmount"]) {
     const value = metadata[key];
     if (typeof value === "number" && Number.isFinite(value)) return value;
     if (typeof value === "string" && value.trim()) return value.trim();

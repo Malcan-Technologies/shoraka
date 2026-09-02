@@ -129,6 +129,8 @@ import {
   workflowToneToStatusToken,
 } from "@/notes/utils/workflow-status-tokens";
 import { ActualSettlementDateField } from "@/notes/components/actual-settlement-date-field";
+import { SettlementHibahReceiptCard } from "@/notes/components/settlement-hibah-receipt-card";
+import { useAdminSettlementHibahReceipt } from "@/notes/hooks/use-settlement-hibah-receipt";
 import {
   actualSettlementDateError,
   defaultActualSettlementDate,
@@ -570,6 +572,11 @@ export function SettlementPanel({
   const markDefault = useMarkNoteDefault();
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
+  const postedSettlementId =
+    note.settlements.find((settlement) => settlement.status === "POSTED")?.id ?? null;
+  const { data: hibahReceipt } = useAdminSettlementHibahReceipt(
+    postedSettlementId ? note.id : undefined
+  );
 
   const settlementAmount = getSettlementAmount(note);
   const localPreviewSettlement = preview
@@ -2778,6 +2785,16 @@ export function SettlementPanel({
               </div>
             )}
           </div>
+
+          {postedSettlementId && hibahReceipt ? (
+            <SettlementHibahReceiptCard
+              noteId={note.id}
+              payload={{
+                ...hibahReceipt,
+                canRetry: hibahReceipt.canRetry && canSettlement,
+              }}
+            />
+          ) : null}
 
           {showSettlementTrusteeWorkflow ? (
             persistedPostedSettlement ? (

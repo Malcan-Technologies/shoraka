@@ -114,6 +114,34 @@ export function useViewIssuerInvestmentNoteCertificate(noteId: string | null) {
   });
 }
 
+export function useIssuerSettlementHibahReceipt(noteId?: string) {
+  const apiClient = useIssuerNotesApiClient();
+  return useQuery({
+    queryKey: [...issuerNotesKeys.detail(noteId), "settlement-hibah-receipt"] as const,
+    enabled: Boolean(noteId),
+    refetchInterval: (query) => (query.state.data?.status === "PENDING" ? 5000 : false),
+    queryFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const response = await apiClient.getIssuerSettlementHibahReceipt(noteId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+}
+
+export function useViewIssuerSettlementHibahReceipt(noteId: string | null) {
+  const apiClient = useIssuerNotesApiClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const response = await apiClient.getIssuerSettlementHibahReceipt(noteId);
+      if (!response.success) throw new Error(response.error.message);
+      if (!response.data.viewUrl) throw new Error("Settlement & Hibah Receipt is not available");
+      return response.data;
+    },
+  });
+}
+
 export function useSubmitIssuerPayment(noteId: string) {
   const apiClient = useIssuerNotesApiClient();
   const queryClient = useQueryClient();

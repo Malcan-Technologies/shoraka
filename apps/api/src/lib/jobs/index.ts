@@ -10,6 +10,7 @@ import { runGatewayStuckOrderPollerJob } from "./gateway-stuck-order-poller";
 import { runGatewaySettlementReconForConfiguredAccounts } from "./gateway-settlement-recon";
 import { runGatewayReceiptRetryJob } from "./gateway-receipt-retry";
 import { runInvestmentNoteCertificateRetryJob } from "./investment-note-certificate-retry";
+import { runSettlementHibahReceiptRetryJob } from "./settlement-hibah-receipt-retry";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
 
 const notificationService = new NotificationService();
@@ -138,6 +139,17 @@ export function initJobs() {
         await runInvestmentNoteCertificateRetryJob();
       } catch (error) {
         logger.error({ error }, "Failed to run investment note certificate retry job");
+      }
+    });
+  });
+
+  // Retry PENDING/FAILED Settlement & Hibah Receipt PDFs.
+  cron.schedule("*/10 * * * *", async () => {
+    await withAdvisoryLock(JOB_LOCK_KEYS.SETTLEMENT_HIBAH_RECEIPT_RETRY, async () => {
+      try {
+        await runSettlementHibahReceiptRetryJob();
+      } catch (error) {
+        logger.error({ error }, "Failed to run settlement hibah receipt retry job");
       }
     });
   });

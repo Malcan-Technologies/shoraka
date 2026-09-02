@@ -371,6 +371,38 @@ adminNotesRouter.post(
   }
 );
 
+adminNotesRouter.get(
+  "/:id/settlement-hibah-receipt",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { getAdminSettlementHibahReceipt } = await import(
+        "./settlement-hibah-receipt/service"
+      );
+      send(res, await getAdminSettlementHibahReceipt(id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/settlement-hibah-receipt/retry",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { retryAdminSettlementHibahReceipt } = await import(
+        "./settlement-hibah-receipt/service"
+      );
+      send(res, await retryAdminSettlementHibahReceipt(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 adminNotesRouter.post(
   "/:id/prospectus-review/preview",
   requirePermission("notes.manage"),
@@ -1063,6 +1095,21 @@ issuerNotesRouter.get("/notes/:id/investment-note-certificate", async (req: Requ
     send(
       res,
       await getIssuerInvestmentNoteCertificate(id, getActor(req, res, "ISSUER").userId)
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
+issuerNotesRouter.get("/notes/:id/settlement-hibah-receipt", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const { getIssuerSettlementHibahReceipt } = await import(
+      "./settlement-hibah-receipt/service"
+    );
+    send(
+      res,
+      await getIssuerSettlementHibahReceipt(id, getActor(req, res, "ISSUER").userId)
     );
   } catch (error) {
     next(error);

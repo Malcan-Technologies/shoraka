@@ -96,6 +96,7 @@ import type {
   MarketplaceNoteDetail,
   NoteDetail,
   InvestmentNoteCertificatePdfPayload,
+  SettlementHibahReceiptPdfPayload,
   NoteSettlementPreviewResult,
   NoteActionRequiredCountResponse,
   GetAdminInvestmentsParams,
@@ -967,6 +968,18 @@ export class ApiClient {
     id: string
   ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
     return this.post(`/v1/admin/notes/${id}/investment-note-certificate/retry`, {});
+  }
+
+  async getAdminSettlementHibahReceipt(
+    id: string
+  ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
+    return this.get(`/v1/admin/notes/${id}/settlement-hibah-receipt`);
+  }
+
+  async retryAdminSettlementHibahReceipt(
+    id: string
+  ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
+    return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/retry`, {});
   }
 
   async getMarketplaceNoteProspectus(
@@ -3653,6 +3666,14 @@ export class ApiClient {
   ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
     return this.get<InvestmentNoteCertificatePdfPayload>(
       `/v1/issuer/notes/${noteId}/investment-note-certificate`
+    );
+  }
+
+  async getIssuerSettlementHibahReceipt(
+    noteId: string
+  ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
+    return this.get<SettlementHibahReceiptPdfPayload>(
+      `/v1/issuer/notes/${noteId}/settlement-hibah-receipt`
     );
   }
 

@@ -952,6 +952,7 @@ model Note {
   paymaster                       Paymaster?                  @relation(fields: [paymaster_id], references: [id], onDelete: SetNull)
   assignment_notices              PaymasterAssignmentNotice[]
   investment_certificates         NoteInvestmentCertificate[]
+  settlement_hibah_receipts       SettlementHibahReceipt[]
 
   @@index([source_application_id])
   @@index([source_contract_id])
@@ -1307,6 +1308,7 @@ model NoteSettlement {
   updated_at                              DateTime                            @updatedAt
   note                                    Note                                @relation(fields: [note_id], references: [id], onDelete: Cascade)
   withdrawals                             WithdrawalInstruction[]
+  hibah_receipts                          SettlementHibahReceipt[]
 
   @@index([note_id])
   @@index([payment_id])
@@ -2440,6 +2442,37 @@ enum NoteInvestmentStatus {
   RELEASED
   CANCELLED
   SETTLED
+}
+
+enum SettlementHibahReceiptStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+/// Immutable issuer-copy Settlement & Hibah Receipt PDF (one V01 per posted settlement).
+model SettlementHibahReceipt {
+  id               String                        @id @default(cuid())
+  note_id          String
+  settlement_id    String
+  receipt_number   String
+  version          String
+  status           SettlementHibahReceiptStatus  @default(PENDING)
+  snapshot         Json
+  pdf_s3_key       String?
+  pdf_sha256       String?
+  generated_at     DateTime?
+  generation_error String?
+  created_at       DateTime                      @default(now())
+  updated_at       DateTime                      @updatedAt
+  note             Note                          @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  settlement       NoteSettlement                @relation(fields: [settlement_id], references: [id], onDelete: Cascade)
+
+  @@unique([settlement_id, version], map: "settlement_hibah_receipts_settlement_version_uidx")
+  @@index([note_id, version])
+  @@index([status])
+  @@index([receipt_number])
+  @@map("settlement_hibah_receipts")
 }
 
 enum NoteInvestmentCertificateAudience {

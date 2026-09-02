@@ -5567,6 +5567,14 @@ export class NoteService {
         issuerOrganizationId: settlement.note.issuer_organization_id,
         noteTitle: resolveNoteNotificationTitle(settlement.note),
       });
+      const { scheduleSettlementHibahReceiptGeneration } = await import(
+        "./settlement-hibah-receipt/service"
+      );
+      scheduleSettlementHibahReceiptGeneration({
+        noteId: id,
+        source: "SETTLEMENT_COMPLETED",
+        actor,
+      });
     }
     return this.getAdminNoteDetail(id);
   }
@@ -6300,6 +6308,14 @@ export class NoteService {
           noteTitle: resolveNoteNotificationTitle(note),
         });
       }
+      const { scheduleSettlementHibahReceiptGeneration } = await import(
+        "./settlement-hibah-receipt/service"
+      );
+      scheduleSettlementHibahReceiptGeneration({
+        noteId,
+        source: "SETTLEMENT_COMPLETED",
+        actor,
+      });
     }
 
     return this.getAdminNoteDetail(noteId);
@@ -7174,6 +7190,20 @@ export class NoteService {
         scheduleInvestmentNoteCertificateGeneration({
           noteId: withdrawal.note_id,
           source: "DISBURSEMENT_COMPLETED",
+          actor,
+        });
+      }
+
+      if (
+        withdrawal.withdrawal_type === WithdrawalType.ISSUER_RESIDUAL_RETURN &&
+        noteReleasedFromLegacyResidual
+      ) {
+        const { scheduleSettlementHibahReceiptGeneration } = await import(
+          "./settlement-hibah-receipt/service"
+        );
+        scheduleSettlementHibahReceiptGeneration({
+          noteId: withdrawal.note_id,
+          source: "SETTLEMENT_COMPLETED",
           actor,
         });
       }
