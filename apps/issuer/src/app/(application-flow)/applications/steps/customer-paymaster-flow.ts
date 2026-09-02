@@ -27,6 +27,12 @@ export function customerIdentityLocked(params: {
   return params.lookupStatus === "FOUND_VERIFIED";
 }
 
+export function isVerifiedPaymasterLookup(
+  lookupStatus: PaymasterLookupStatus | "idle"
+): boolean {
+  return lookupStatus === "FOUND_VERIFIED";
+}
+
 export function showCustomerMasterFields(params: {
   facilityPaymasterLocked: boolean;
   lookupStatus: PaymasterLookupStatus | "idle";
@@ -34,7 +40,11 @@ export function showCustomerMasterFields(params: {
 }): boolean {
   if (params.facilityPaymasterLocked) return true;
   if (!isTwelveDigitRegistration(params.ssmNumber)) return false;
-  return params.lookupStatus === "FOUND_VERIFIED" || params.lookupStatus === "NOT_FOUND";
+  return (
+    params.lookupStatus === "FOUND_VERIFIED" ||
+    params.lookupStatus === "FOUND_UNVERIFIED" ||
+    params.lookupStatus === "NOT_FOUND"
+  );
 }
 
 export function relatedPartyFieldsVisible(params: {
@@ -58,7 +68,11 @@ export function customerStepValid(params: {
   if (!isTwelveDigitRegistration(params.ssmNumber) || !params.country) return false;
   if (!params.name || !params.entityType) return false;
   if (params.facilityPaymasterLocked) return true;
-  return params.lookupStatus === "FOUND_VERIFIED" || params.lookupStatus === "NOT_FOUND";
+  return (
+    params.lookupStatus === "FOUND_VERIFIED" ||
+    params.lookupStatus === "FOUND_UNVERIFIED" ||
+    params.lookupStatus === "NOT_FOUND"
+  );
 }
 
 export function lookupStatusFromResult(

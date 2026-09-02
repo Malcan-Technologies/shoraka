@@ -20,6 +20,7 @@ import { PaymasterActivityPanel } from "@/paymasters/components/paymaster-activi
 import { PaymasterIdentityCard } from "@/paymasters/components/paymaster-identity-card";
 import { PaymasterLinkedRecordsPanel } from "@/paymasters/components/paymaster-linked-records-panel";
 import { PaymasterNoticesCard } from "@/paymasters/components/paymaster-notices-card";
+import { PaymasterSubmittedIdentitiesCard } from "@/paymasters/components/paymaster-submitted-identities-card";
 import { PaymasterVerificationCard } from "@/paymasters/components/paymaster-verification-card";
 import { useAdminPaymasterDetail } from "@/paymasters/hooks/use-paymasters";
 import {
@@ -164,7 +165,12 @@ export function PaymasterDetailView({ paymasterId }: { paymasterId: string }) {
         main={
           <AdminDetailTabs tabs={tabs} value={resolvedTab} onValueChange={setActiveTab}>
             <AdminDetailTabPanel value="identity" preserveMount>
-              <PaymasterIdentityCard paymaster={data} />
+              <div className="space-y-6">
+                <PaymasterIdentityCard paymaster={data} />
+                <PaymasterSubmittedIdentitiesCard
+                  identities={data.submittedApplicationIdentities ?? []}
+                />
+              </div>
             </AdminDetailTabPanel>
             <AdminDetailTabPanel value="linked-records" preserveMount>
               <PaymasterLinkedRecordsPanel paymaster={data} />

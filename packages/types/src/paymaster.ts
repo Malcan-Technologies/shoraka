@@ -98,12 +98,27 @@ export interface PaymasterNoticeHistoryRow {
   acknowledgedAt: string | null;
 }
 
+export interface PaymasterSubmittedApplicationIdentity {
+  applicationId: string;
+  applicationDisplayReference: string | null;
+  applicationProductId: string | null;
+  applicationStatus: string | null;
+  submittedAt: string | null;
+  issuerOrganizationId: string;
+  issuerName: string | null;
+  legalName: string;
+  registrationNumber: string;
+  entityType: string;
+  registrationCountry: string;
+}
+
 export interface PaymasterDetail extends PaymasterIdentity {
   source: string;
   verifiedByName: string | null;
   issuers: PaymasterIssuerLinkRow[];
   financings: PaymasterFinancingRow[];
   notices: PaymasterNoticeHistoryRow[];
+  submittedApplicationIdentities: PaymasterSubmittedApplicationIdentity[];
 }
 
 /** Identity lifecycle events stored on `application_logs` and read from Application and Paymaster Activity. */
