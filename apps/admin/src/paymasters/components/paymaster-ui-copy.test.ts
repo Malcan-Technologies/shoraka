@@ -14,12 +14,13 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     const table = readFileSync(join(__dirname, "paymasters-table.tsx"), "utf8");
     const row = readFileSync(join(__dirname, "paymasters-table-row.tsx"), "utf8");
     expect(table).toContain('label="Status"');
-    expect(table).toContain('label="Financings"');
+    expect(table).toContain('label="Facilities"');
+    expect(table).toContain('label="Notes"');
     expect(table).toContain('label="Notices"');
     expect(table).toContain("PaymastersTableRow");
     expect(row).toContain("paymasterVerificationLabel");
     expect(row).toContain("adminActionRowClass");
-    expect(row).toContain("Needs verification");
+    expect(row).toContain("View");
     expect(table).not.toMatch(/Review required/i);
     expect(table).not.toMatch(/mismatch/i);
     expect(row).not.toMatch(/mismatch/i);
