@@ -1,10 +1,14 @@
-import { isPaymasterVerified, paymasterLinkedFinancingCount, type PaymasterListItem } from "@cashsouk/types";
+import { isPaymasterVerified, type PaymasterListItem } from "@cashsouk/types";
 import { timestampOrNull, type TableSortValue } from "@/shared/admin-list/table-sort";
 
 export type PaymastersSortColumn =
   | "paymaster"
+  | "registration"
+  | "country"
+  | "entityType"
   | "issuers"
-  | "financings"
+  | "facilities"
+  | "notes"
   | "notices"
   | "lastUsed"
   | "status";
@@ -16,10 +20,18 @@ export function paymastersSortValue(
   switch (column) {
     case "paymaster":
       return item.legalName;
+    case "registration":
+      return item.registrationNumber;
+    case "country":
+      return item.registrationCountry;
+    case "entityType":
+      return item.entityType;
     case "issuers":
       return item.linkedIssuerCount;
-    case "financings":
-      return paymasterLinkedFinancingCount(item);
+    case "facilities":
+      return item.linkedFacilityCount;
+    case "notes":
+      return item.linkedNoteCount;
     case "notices":
       return item.noticeCount;
     case "lastUsed":

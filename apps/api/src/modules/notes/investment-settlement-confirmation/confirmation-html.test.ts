@@ -67,6 +67,48 @@ describe("buildInvestmentSettlementConfirmationHtml", () => {
     expect(html).not.toContain("<span>Ta’widh compensation</span>");
   });
 
+  it("prints frozen note_reference and issuer display reference, not internal ids", () => {
+    const issuerCuid = "cmknlimvf0003grp0hsbmc1dp";
+    const investorCuid = "cmkm0fc2r00059v8jzc71b39c";
+    const noteCuid = "cmtjz7ez50002ks59pu7j2xml";
+    const settlementCuid = "cmtjz7ez5settlement00001";
+    const investmentCuid = "cmtjz7ez5investment00001";
+    const walletCuid = "cmtjz7ez5wallet00000001";
+    const html = buildInvestmentSettlementConfirmationHtml(
+      snapshot({
+        noteId: noteCuid,
+        noteReference: "NOTE-ARF-202609-5O3",
+        settlementId: settlementCuid,
+        settlementReference: "SET-ARF-202609-5O3",
+        investorOrganizationId: investorCuid,
+        investorReference: "IVT-202609-A12",
+        investmentIds: [investmentCuid],
+        issuerReference: "ISS-202608-DK3",
+        walletTransactionIds: [walletCuid],
+      })
+    );
+    expect(html).toContain("Note ARF-202609-5O3");
+    expect(html).toContain("ISS-202608-DK3");
+    expect(html).toContain("10,000.00");
+    expect(html).toContain("10,637.50");
+    expect(html).not.toContain(noteCuid);
+    expect(html).not.toContain(issuerCuid);
+    expect(html).not.toContain(investorCuid);
+    expect(html).not.toContain(settlementCuid);
+    expect(html).not.toContain(investmentCuid);
+    expect(html).not.toContain(walletCuid);
+    expect(html).not.toContain("IVT-202609-A12");
+  });
+
+  it("prints an em dash when the frozen issuer reference is missing", () => {
+    const html = buildInvestmentSettlementConfirmationHtml(
+      snapshot({ issuerReference: "—" })
+    );
+    expect(html).toContain("<dt>Issuer ID</dt><dd>—</dd>");
+    expect(html).toContain("ARF-202608-A52");
+    expect(html).toContain("10,637.50");
+  });
+
   it("includes Ta’widh when the frozen snapshot says to show it", () => {
     const html = buildInvestmentSettlementConfirmationHtml(
       snapshot({

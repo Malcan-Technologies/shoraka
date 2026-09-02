@@ -1,6 +1,8 @@
 #!/usr/bin/env tsx
 /**
  * Rebuild the runtime tagged certificate DOCX from the supplied Word source.
+ * Admin/Investor keep the 7-column allocation table; issuer gets a 6-column
+ * sibling table (no Investor / Noteholder column) selected at render time.
  *
  * Usage: pnpm --filter @cashsouk/api tag-investment-note-certificate-template
  */
@@ -92,6 +94,10 @@ const INVESTOR_TOTALS: CellMap = {
   "11,6": "{sumTotalPayable}",
 };
 
+const NAME_COLUMN_INDEX = 2;
+const EMPTY_INVESTOR_ID_TOTAL_COLUMN_INDEX = 1;
+const ISSUER_ALLOCATION_WIDTHS = [450, 2500, 1620, 850, 1840, 1980];
+
 function encodeXml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -132,6 +138,80 @@ function applyCellMap(tableXml: string, map: CellMap): string {
   return tableXml.replace(/<w:tr\b[\s\S]*?<\/w:tr>/g, () => updatedRows[cursor++] ?? "");
 }
 
+function replaceRowCells(rowXml: string, cells: string[]): string {
+  let cursor = 0;
+  return rowXml.replace(/<w:tc\b[\s\S]*?<\/w:tc>/g, () => cells[cursor++] ?? "");
+}
+
+function setCellWidth(cellXml: string, width: number): string {
+  if (/<w:tcW\b[^/]*\/>/.test(cellXml)) {
+    return cellXml.replace(/<w:tcW\b[^/]*\/>/, `<w:tcW w:w="${width}" w:type="dxa"/>`);
+  }
+  return cellXml.replace(/<w:tcPr\b[^>]*>/, (open) => `${open}<w:tcW w:w="${width}" w:type="dxa"/>`);
+}
+
+function applyRowWidths(rowXml: string, widths: number[]): string {
+  const cells = matchAll(rowXml, /<w:tc\b[\s\S]*?<\/w:tc>/g);
+  if (cells.length !== widths.length) {
+    throw new Error(`Expected ${widths.length} allocation cells, found ${cells.length}`);
+  }
+  const updated = cells.map((cellXml, index) => setCellWidth(cellXml, widths[index]!));
+  return replaceRowCells(rowXml, updated);
+}
+
+function applyTableWidths(tableXml: string, widths: number[]): string {
+  const grid = `<w:tblGrid>${widths.map((width) => `<w:gridCol w:w="${width}"/>`).join("")}</w:tblGrid>`;
+  const withGrid = tableXml.replace(/<w:tblGrid\b[\s\S]*?<\/w:tblGrid>/, grid);
+  const rows = matchAll(withGrid, /<w:tr\b[\s\S]*?<\/w:tr>/g);
+  const updatedRows = rows.map((rowXml) => applyRowWidths(rowXml, widths));
+  let cursor = 0;
+  return withGrid.replace(/<w:tr\b[\s\S]*?<\/w:tr>/g, () => updatedRows[cursor++] ?? "");
+}
+
+function removeRowCell(rowXml: string, colIndex: number): string {
+  const cells = matchAll(rowXml, /<w:tc\b[\s\S]*?<\/w:tc>/g);
+  if (colIndex < 0 || colIndex >= cells.length) {
+    throw new Error(`Cannot remove allocation column ${colIndex} from a ${cells.length}-cell row`);
+  }
+  const kept = cells.filter((_, index) => index !== colIndex);
+  let sourceIndex = 0;
+  return rowXml.replace(/<w:tc\b[\s\S]*?<\/w:tc>/g, () => {
+    const index = sourceIndex++;
+    if (index === colIndex) return "";
+    return kept[index < colIndex ? index : index - 1] ?? "";
+  });
+}
+
+function conditionParagraph(tag: string): string {
+  return (
+    `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/>` +
+    `<w:rPr><w:vanish/><w:sz w:val="2"/></w:rPr></w:pPr>` +
+    `<w:r><w:rPr><w:vanish/><w:sz w:val="2"/></w:rPr>` +
+    `<w:t>${encodeXml(`{${tag}}`)}</w:t></w:r></w:p>`
+  );
+}
+
+function wrapInAudienceCondition(tableXml: string, openTag: string, closeTag: string): string {
+  return `${conditionParagraph(openTag)}${tableXml}${conditionParagraph(closeTag)}`;
+}
+
+function toIssuerAllocationTable(namedTableXml: string): string {
+  const rows = matchAll(namedTableXml, /<w:tr\b[\s\S]*?<\/w:tr>/g);
+  if (rows.length !== 3) {
+    throw new Error(`Named allocation table expected 3 rows, found ${rows.length}`);
+  }
+  const header = removeRowCell(rows[0]!, NAME_COLUMN_INDEX);
+  const loop = removeRowCell(rows[1]!, NAME_COLUMN_INDEX);
+  const total = removeRowCell(rows[2]!, EMPTY_INVESTOR_ID_TOTAL_COLUMN_INDEX);
+  const updatedRows = [header, loop, total];
+  let cursor = 0;
+  const withoutNameColumn = namedTableXml.replace(
+    /<w:tr\b[\s\S]*?<\/w:tr>/g,
+    () => updatedRows[cursor++] ?? ""
+  );
+  return applyTableWidths(withoutNameColumn, ISSUER_ALLOCATION_WIDTHS);
+}
+
 function keepInvestorHeaderLoopAndTotal(tableXml: string): string {
   const rows = matchAll(tableXml, /<w:tr\b[\s\S]*?<\/w:tr>/g);
   if (rows.length < 3) {
@@ -169,9 +249,13 @@ function tagDocumentXml(xml: string): string {
   tagged[2] = applyCellMap(tables[2]!, LINKED_SCHEDULE);
   tagged[3] = applyCellMap(tables[3]!, PAYMENT_SCHEDULE);
   tagged[7] = applyCellMap(tables[7]!, SCHEDULE_CONTROL);
-  tagged[8] = keepInvestorHeaderLoopAndTotal(
+  const namedAllocation = keepInvestorHeaderLoopAndTotal(
     applyCellMap(applyCellMap(tables[8]!, INVESTOR_LOOP), INVESTOR_TOTALS)
   );
+  const issuerAllocation = toIssuerAllocationTable(namedAllocation);
+  tagged[8] =
+    wrapInAudienceCondition(namedAllocation, "^isIssuerAudience", "/isIssuerAudience") +
+    wrapInAudienceCondition(issuerAllocation, "#isIssuerAudience", "/isIssuerAudience");
 
   let cursor = 0;
   return xml.replace(/<w:tbl\b[\s\S]*?<\/w:tbl>/g, () => tagged[cursor++] ?? "");

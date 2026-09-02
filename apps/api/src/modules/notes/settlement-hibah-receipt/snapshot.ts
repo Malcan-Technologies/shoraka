@@ -13,6 +13,7 @@ import {
 } from "@cashsouk/types";
 import { prisma } from "../../../lib/prisma";
 import { latestIncludedReceiptDate } from "../tenure-settlement";
+import { certificatePartyDisplayReference } from "../investment-note-certificate/certificate-identity";
 import {
   CERTIFICATE_FIRST_VERSION,
   investorScheduleReferenceFor,
@@ -370,7 +371,10 @@ export async function buildSettlementHibahReceiptSnapshot(
     noteId: note.id,
     noteReference: note.note_reference,
     facilityReference: nonEmpty(facility?.display_reference),
-    issuerReference: nonEmpty(issuerOrg?.display_reference) ?? note.issuer_organization_id,
+    issuerReference: certificatePartyDisplayReference(
+      issuerOrg?.display_reference,
+      note.issuer_organization_id
+    ),
     issuerLegalName,
     issuerCompanyNumber,
     paymasterName: resolvePaymasterName(note.paymaster_snapshot),

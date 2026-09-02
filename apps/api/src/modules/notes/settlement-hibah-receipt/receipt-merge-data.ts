@@ -1,5 +1,17 @@
+import { certificatePartyDisplayReference } from "../investment-note-certificate/certificate-identity";
 import type { SettlementHibahReceiptSnapshot } from "./types";
 import { formatReceiptAmount, formatReceiptCredit, formatReceiptRm } from "./receipt-format";
+
+function looksLikeRawDatabaseId(value: string): boolean {
+  return (
+    /^c[a-z0-9]{24}$/.test(value) ||
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  );
+}
+
+function printedIssuerReference(value: string): string {
+  return certificatePartyDisplayReference(value, looksLikeRawDatabaseId(value) ? value : null);
+}
 
 export type SettlementHibahReceiptDocxMergeData = {
   receiptNumber: string;
@@ -54,7 +66,7 @@ export function buildSettlementHibahReceiptDocxMergeData(
   return {
     receiptNumber: snapshot.receiptNumber,
     receiptDate: snapshot.receiptDateDisplay,
-    issuerReference: snapshot.issuerReference,
+    issuerReference: printedIssuerReference(snapshot.issuerReference),
     issuerLegalName: snapshot.issuerLegalName,
     companyRegistration: snapshot.issuerCompanyNumber,
     financingReference: financingReferenceFromSnapshot(snapshot),

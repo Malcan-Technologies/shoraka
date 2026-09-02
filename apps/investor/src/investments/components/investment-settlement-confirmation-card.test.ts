@@ -22,6 +22,10 @@ describe("investor settlement confirmation UI", () => {
     expect(card).toContain("confirmation.showTawidh");
     expect(card).toContain("PORTFOLIO_TRANSACTIONS_HREF");
     expect(card).toContain("INVESTMENT_SETTLEMENT_CONFIRMATION_PROCESSING_NOTICE");
+    expect(card).not.toContain("confirmation.noteId");
+    expect(card).not.toContain("investorOrganizationId");
+    expect(card).not.toContain("settlementId");
+    expect(card).not.toContain("walletTransactionIds");
     expect(card).not.toContain("CS-AR-2026-018");
     expect(card).not.toContain("ISS-2048");
     expect(card).not.toContain("RM 10,000.00");

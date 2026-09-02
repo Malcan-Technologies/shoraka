@@ -17,7 +17,7 @@ import { useTableSort } from "@/shared/admin-list/use-table-sort";
 import { PaymastersTableRow } from "@/paymasters/components/paymasters-table-row";
 import { paymastersSortValue } from "@/paymasters/utils/paymasters-table-sort";
 
-const COLUMN_COUNT = 7;
+const COLUMN_COUNT = 11;
 
 function TableSkeleton() {
   return (
@@ -66,7 +66,31 @@ export function PaymastersTable({
               <SortableTableHead
                 column="paymaster"
                 label="Paymaster"
-                className="min-w-[180px] max-w-[320px] text-sm font-semibold"
+                className="text-sm font-semibold"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={onSort}
+              />
+              <SortableTableHead
+                column="registration"
+                label="SSM / Registration"
+                className="text-sm font-semibold"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={onSort}
+              />
+              <SortableTableHead
+                column="country"
+                label="Country"
+                className="text-sm font-semibold"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={onSort}
+              />
+              <SortableTableHead
+                column="entityType"
+                label="Entity type"
+                className="text-sm font-semibold"
                 activeColumn={sortColumn}
                 direction={sortDirection}
                 onSort={onSort}
@@ -80,10 +104,17 @@ export function PaymastersTable({
                 onSort={onSort}
               />
               <SortableTableHead
-                column="financings"
-                label="Financings"
+                column="facilities"
+                label="Facilities"
                 className="text-sm font-semibold"
-                title="Linked facilities and notes"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={onSort}
+              />
+              <SortableTableHead
+                column="notes"
+                label="Notes"
+                className="text-sm font-semibold"
                 activeColumn={sortColumn}
                 direction={sortDirection}
                 onSort={onSort}

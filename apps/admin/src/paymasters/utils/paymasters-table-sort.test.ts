@@ -34,14 +34,14 @@ describe("paymasters table sort", () => {
     expect(sorted.map((row) => row.id)).toEqual(["u", "v"]);
   });
 
-  it("sorts by combined facility and note financing count", () => {
+  it("sorts by facility count", () => {
     const rows = [
       item({ id: "low", linkedFacilityCount: 0, linkedNoteCount: 1 }),
       item({ id: "high", linkedFacilityCount: 2, linkedNoteCount: 1 }),
     ];
     const sorted = sortRowsByColumn(
       rows,
-      { column: "financings", direction: "desc" },
+      { column: "facilities", direction: "desc" },
       paymastersSortValue
     );
     expect(sorted.map((row) => row.id)).toEqual(["high", "low"]);

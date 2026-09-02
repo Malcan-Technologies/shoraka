@@ -130,4 +130,44 @@ describe("renderSettlementHibahReceiptDocx", () => {
     expect(plain).toContain("Bai");
     expect(SETTLEMENT_CONFIRMATION_COPY).toContain("hibah granted");
   });
+
+  it("does not print investor-private data or raw database identifiers", () => {
+    const issuerCuid = "cmknlimvf0003grp0hsbmc1dp";
+    const noteCuid = "cmtjz7ez50002ks59pu7j2xml";
+    const settlementCuid = "cmtjz7ez5settlement00001";
+    const invoiceCuid = "cmtjz7ez5invoice00000001";
+    const paymentCuid = "cmtjz7ez5payment00000001";
+    const snapshot = sampleSettlementHibahReceiptSnapshot({
+      settlementId: settlementCuid,
+      noteId: noteCuid,
+      issuerReference: "ISS-1",
+      invoiceNumber: "INV-9",
+      paymentReference: "BANK-REF-1",
+    });
+    const plain = wordPlainText(renderedXml(snapshot));
+    expect(plain).toContain("ISS-1");
+    expect(plain).toContain("SET-ARF-202608-A52");
+    expect(plain).toContain("ARF-202608-A52");
+    expect(plain).toContain("IS-ARF-202608-A52-V01");
+    expect(plain).toContain("INV-9");
+    expect(plain).toContain("BANK-REF-1");
+    expect(plain).not.toContain("Alice");
+    expect(plain).not.toContain("IVT-");
+    expect(plain).not.toContain(issuerCuid);
+    expect(plain).not.toContain(noteCuid);
+    expect(plain).not.toContain(settlementCuid);
+    expect(plain).not.toContain(invoiceCuid);
+    expect(plain).not.toContain(paymentCuid);
+  });
+
+  it("prints an em dash instead of a raw issuer CUID", () => {
+    const issuerCuid = "cmknlimvf0003grp0hsbmc1dp";
+    const snapshot = sampleSettlementHibahReceiptSnapshot({ issuerReference: issuerCuid });
+    const data = buildSettlementHibahReceiptDocxMergeData(snapshot);
+    expect(data.issuerReference).toBe("—");
+    expect(wordPlainText(renderedXml(snapshot))).not.toContain(issuerCuid);
+    expect(data.tawidhAmount).toBe("200.00");
+    expect(data.gharamahAmount).toBe("50.00");
+    expect(data.hibahAmount).toBe("1,750.00");
+  });
 });
