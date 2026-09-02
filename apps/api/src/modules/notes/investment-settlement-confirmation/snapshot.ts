@@ -14,6 +14,7 @@ import {
   roundNoteMoney,
 } from "@cashsouk/types";
 import { prisma } from "../../../lib/prisma";
+import { certificatePartyDisplayReference } from "../investment-note-certificate/certificate-identity";
 import { isMaterialPayout, isMaterialTawidh, isPostedSettlementStatus } from "./eligibility";
 import {
   CONFIRMATION_FIRST_VERSION,
@@ -387,10 +388,14 @@ export async function buildInvestmentSettlementConfirmationSnapshot(input: {
       "INCOMPLETE_DATA"
     );
   }
-  const issuerReference =
-    nonEmpty(issuerOrg?.display_reference) ?? settlement.note.issuer_organization_id;
-  const investorReference =
-    nonEmpty(investorOrg?.display_reference) ?? input.investorOrganizationId;
+  const issuerReference = certificatePartyDisplayReference(
+    issuerOrg?.display_reference,
+    settlement.note.issuer_organization_id
+  );
+  const investorReference = certificatePartyDisplayReference(
+    investorOrg?.display_reference,
+    input.investorOrganizationId
+  );
   const settlementReference = nonEmpty(settlement.display_reference) ?? settlement.id;
   const dates = resolveConfirmationSettlementDate({
     actualSettlementDate: settlement.actual_settlement_date,

@@ -1,5 +1,22 @@
-import { ConfirmationGenerationError } from "./types";
 import {
+  InvestorBalanceTransactionSource,
+  NoteInvestmentStatus,
+  NoteSettlementStatus,
+} from "@prisma/client";
+import { ConfirmationGenerationError } from "./types";
+
+const mockPrisma: any = {
+  noteSettlement: { findUnique: jest.fn() },
+  noteInvestment: { findMany: jest.fn() },
+  investorBalanceTransaction: { findMany: jest.fn() },
+  issuerOrganization: { findUnique: jest.fn() },
+  investorOrganization: { findUnique: jest.fn() },
+};
+
+jest.mock("../../../lib/prisma", () => ({ prisma: mockPrisma }));
+
+import {
+  buildInvestmentSettlementConfirmationSnapshot,
   deriveInvestorGrossAndServiceFee,
   expectedInvestorOrganizationIds,
   groupAllocationsByInvestorOrg,
@@ -151,5 +168,106 @@ describe("resolveConfirmationSettlementDate", () => {
         repaidAt: "2026-08-23T09:00:00.000Z",
       }).settlementDateSource
     ).toBe("REPAID_AT");
+  });
+});
+
+describe("buildInvestmentSettlementConfirmationSnapshot identifiers", () => {
+  const issuerCuid = "cmknlimvf0003grp0hsbmc1dp";
+  const investorCuid = "cmkm0fc2r00059v8jzc71b39c";
+  const noteCuid = "cmtjz7ez50002ks59pu7j2xml";
+  const settlementCuid = "cmtjz7ez5settlement00001";
+  const investmentCuid = "cmtjz7ez5investment00001";
+  const walletCuid = "cmtjz7ez5wallet00000001";
+
+  function postedSettlement(overrides: Record<string, unknown> = {}) {
+    return {
+      id: settlementCuid,
+      note_id: noteCuid,
+      status: NoteSettlementStatus.POSTED,
+      display_reference: "SET-ARF-202609-5O3",
+      actual_settlement_date: new Date("2026-08-20T00:00:00.000Z"),
+      posted_at: new Date("2026-08-22T09:00:00.000Z"),
+      preview_snapshot: {
+        allocations: [
+          {
+            investmentId: investmentCuid,
+            investorOrganizationId: investorCuid,
+            principal: 10000,
+            profitNet: 850,
+            tawidhInvestorShare: 0,
+          },
+        ],
+      },
+      note: {
+        id: noteCuid,
+        note_reference: "NOTE-ARF-202609-5O3",
+        issuer_organization_id: issuerCuid,
+        service_fee_rate_percent: 15,
+        repaid_at: new Date("2026-08-22T09:00:00.000Z"),
+      },
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPrisma.noteSettlement.findUnique.mockResolvedValue(postedSettlement());
+    mockPrisma.noteInvestment.findMany.mockResolvedValue([
+      {
+        id: investmentCuid,
+        status: NoteInvestmentStatus.SETTLED,
+        investor_organization_id: investorCuid,
+      },
+    ]);
+    mockPrisma.investorBalanceTransaction.findMany.mockResolvedValue([
+      {
+        id: walletCuid,
+        amount: 10850,
+        source: InvestorBalanceTransactionSource.NOTE_INVESTMENT_RELEASE,
+        metadata: { releaseReason: "SETTLEMENT_PAYOUT", settlementId: settlementCuid },
+      },
+    ]);
+    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({
+      display_reference: "ISS-202608-DK3",
+    });
+    mockPrisma.investorOrganization.findUnique.mockResolvedValue({
+      display_reference: "IVT-202609-A12",
+    });
+  });
+
+  it("freezes note_reference and ISS-/IVT- display references, not Prisma IDs", async () => {
+    const snapshot = await buildInvestmentSettlementConfirmationSnapshot({
+      settlementId: settlementCuid,
+      investorOrganizationId: investorCuid,
+      source: "SETTLEMENT_POSTED",
+    });
+    expect(snapshot.noteReference).toBe("NOTE-ARF-202609-5O3");
+    expect(snapshot.issuerReference).toBe("ISS-202608-DK3");
+    expect(snapshot.investorReference).toBe("IVT-202609-A12");
+    expect(snapshot.noteId).toBe(noteCuid);
+    expect(snapshot.settlementId).toBe(settlementCuid);
+    expect(snapshot.investorOrganizationId).toBe(investorCuid);
+    expect(snapshot.principalReturned).toBe(10000);
+    expect(snapshot.grossProfitEarned).toBe(1000);
+    expect(snapshot.serviceFeeAmount).toBe(150);
+    expect(snapshot.netProfitCredited).toBe(850);
+    expect(snapshot.tawidhCompensation).toBe(0);
+    expect(snapshot.totalCreditedToWallet).toBe(10850);
+  });
+
+  it("does not fall back to issuer or investor CUID when display_reference is missing", async () => {
+    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({ display_reference: null });
+    mockPrisma.investorOrganization.findUnique.mockResolvedValue({ display_reference: "  " });
+    const snapshot = await buildInvestmentSettlementConfirmationSnapshot({
+      settlementId: settlementCuid,
+      investorOrganizationId: investorCuid,
+      source: "SETTLEMENT_POSTED",
+    });
+    expect(snapshot.issuerReference).toBe("—");
+    expect(snapshot.issuerReference).not.toBe(issuerCuid);
+    expect(snapshot.investorReference).toBe("—");
+    expect(snapshot.investorReference).not.toBe(investorCuid);
+    expect(snapshot.noteReference).toBe("NOTE-ARF-202609-5O3");
+    expect(snapshot.totalCreditedToWallet).toBe(10850);
   });
 });

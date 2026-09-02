@@ -509,4 +509,48 @@ describe("confirmation visibility", () => {
       getInvestorInvestmentSettlementConfirmation("inv-foreign", "investor-user")
     ).rejects.toMatchObject({ statusCode: 403 });
   });
+
+  it("returns frozen display references to the investor and omits internal ids", async () => {
+    const noteCuid = "cmtjz7ez50002ks59pu7j2xml";
+    const investorCuid = "cmkm0fc2r00059v8jzc71b39c";
+    const settlementCuid = "cmtjz7ez5settlement00001";
+    confirmationStore.rows[0] = {
+      ...confirmationStore.rows[0],
+      status: InvestmentSettlementConfirmationStatus.READY,
+      pdf_s3_key: "key.pdf",
+      pdf_sha256: "pdf-hash",
+      generated_at: new Date("2026-09-02T00:00:00.000Z"),
+      generation_error: null,
+      snapshot: sampleSnapshot({
+        noteId: noteCuid,
+        noteReference: "NOTE-ARF-202609-5O3",
+        settlementId: settlementCuid,
+        investorOrganizationId: investorCuid,
+        investorReference: "IVT-202609-A12",
+        issuerReference: "ISS-202608-DK3",
+        investmentIds: ["cmtjz7ez5investment00001"],
+        walletTransactionIds: ["cmtjz7ez5wallet00000001"],
+      }),
+    };
+    const payload = await getInvestorInvestmentSettlementConfirmation("inv-1", "investor-user");
+    expect(payload.status).toBe("READY");
+    expect(payload.noteReference).toBe("NOTE-ARF-202609-5O3");
+    expect(payload.issuerReference).toBe("ISS-202608-DK3");
+    expect(payload.principalReturned).toBe(10000);
+    expect(payload.totalCreditedToWallet).toBe(10850);
+    const serialized = JSON.stringify(payload);
+    expect(serialized).not.toContain(noteCuid);
+    expect(serialized).not.toContain(investorCuid);
+    expect(serialized).not.toContain(settlementCuid);
+    expect(payload.pdfFileName).toContain("IVT-202609-A12");
+    expect(payload.pdfFileName).not.toContain(investorCuid);
+    expect(payload).not.toHaveProperty("noteId");
+    expect(payload).not.toHaveProperty("settlementId");
+    expect(payload).not.toHaveProperty("investorOrganizationId");
+    expect(payload).not.toHaveProperty("walletTransactionIds");
+
+    const admin = await getAdminInvestmentSettlementConfirmations("note-1");
+    expect(admin.confirmations[0]?.investorReference).toBe("IVT-202609-A12");
+    expect(admin.settlementReference).toBe("SET-ARF-202608-A52");
+  });
 });
