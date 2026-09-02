@@ -15,8 +15,8 @@ import {
   systemAuditContext,
 } from "../../../lib/audit";
 import { resolveNoteEventTarget } from "../audit-fields";
-import { convertHtmlToPdf } from "../../../lib/gotenberg/convert-html-to-pdf";
-import { buildInvestmentNoteCertificateHtml } from "./certificate-html";
+import { convertDocxToPdf } from "../../../lib/gotenberg/convert-docx-to-pdf";
+import { renderInvestmentNoteCertificateDocx } from "./render-certificate-docx";
 import { buildInvestmentNoteCertificateSnapshot, parseCertificateSnapshot } from "./snapshot";
 import {
   buildCertificatePdfObjectKey,
@@ -208,11 +208,11 @@ async function generatePdfForRow(input: {
     return;
   }
 
-  const html = buildInvestmentNoteCertificateHtml(input.snapshot, {
+  const docx = renderInvestmentNoteCertificateDocx(input.snapshot, {
     audience: input.row.audience,
     investorOrganizationId: input.row.investor_organization_id,
   });
-  const pdf = await convertHtmlToPdf(html);
+  const pdf = await convertDocxToPdf(docx, { fileName: "investment-note-certificate.docx" });
   const sha256 = sha256Hex(pdf);
   const key = buildCertificatePdfObjectKey({
     noteId: input.row.note_id,

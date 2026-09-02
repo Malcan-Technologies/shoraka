@@ -7,7 +7,9 @@ import {
 import { AppError } from "../../../lib/http/error-handler";
 import type { InvestmentNoteCertificateSnapshot } from "./types";
 
+const mockConvertDocxToPdf = jest.fn();
 const mockConvertHtmlToPdf = jest.fn();
+const mockRenderDocx = jest.fn();
 const mockStoreCertificatePdf = jest.fn();
 const mockGenerateCertificatePdfViewUrl = jest.fn();
 const mockCreateNoteEventRow = jest.fn();
@@ -99,8 +101,14 @@ const mockPrisma: any = {
 };
 
 jest.mock("../../../lib/prisma", () => ({ prisma: mockPrisma }));
+jest.mock("../../../lib/gotenberg/convert-docx-to-pdf", () => ({
+  convertDocxToPdf: (...args: unknown[]) => mockConvertDocxToPdf(...args),
+}));
 jest.mock("../../../lib/gotenberg/convert-html-to-pdf", () => ({
   convertHtmlToPdf: (...args: unknown[]) => mockConvertHtmlToPdf(...args),
+}));
+jest.mock("./render-certificate-docx", () => ({
+  renderInvestmentNoteCertificateDocx: (...args: unknown[]) => mockRenderDocx(...args),
 }));
 jest.mock("./storage", () => ({
   CERTIFICATE_PDF_CONTENT_TYPE: "application/pdf",
@@ -119,12 +127,6 @@ jest.mock("./snapshot", () => ({
   buildInvestmentNoteCertificateSnapshot: (...args: unknown[]) => mockBuildSnapshot(...args),
   parseCertificateSnapshot: (value: unknown) =>
     value && typeof value === "object" && (value as any).certificate ? value : null,
-}));
-jest.mock("./certificate-html", () => ({
-  buildInvestmentNoteCertificateHtml: jest.fn(
-    (_snapshot: unknown, input: { audience: string; investorOrganizationId?: string }) =>
-      `<html>${input.audience}:${input.investorOrganizationId ?? ""}</html>`
-  ),
 }));
 jest.mock("../../../lib/audit", () => ({
   AUDIT_PORTAL: { ADMIN: "ADMIN" },
@@ -233,7 +235,12 @@ describe("generateInvestmentNoteCertificates", () => {
       funding_status: NoteFundingStatus.FUNDED,
       issuer_organization_id: "issuer-org",
     };
-    mockConvertHtmlToPdf.mockResolvedValue(Buffer.from("%PDF-cert"));
+    mockRenderDocx.mockImplementation(
+      (_snapshot: unknown, input: { audience: string; investorOrganizationId?: string | null }) =>
+        Buffer.from(`PK-docx-${input.audience}:${input.investorOrganizationId ?? ""}`)
+    );
+    mockConvertDocxToPdf.mockResolvedValue(Buffer.from("%PDF-cert"));
+    mockConvertHtmlToPdf.mockRejectedValue(new Error("Chromium must not be used for certificates"));
     mockStoreCertificatePdf.mockResolvedValue(undefined);
     mockGenerateCertificatePdfViewUrl.mockResolvedValue({
       viewUrl: "https://s3/view",
@@ -261,8 +268,19 @@ describe("generateInvestmentNoteCertificates", () => {
       source: "DISBURSEMENT_COMPLETED",
       actor: { userId: "admin-1", role: "ADMIN", portal: "ADMIN" },
     });
-    expect(mockConvertHtmlToPdf).toHaveBeenCalledTimes(4);
-    expect(mockConvertHtmlToPdf.mock.calls[0][0]).toContain("ADMIN");
+    expect(mockConvertDocxToPdf).toHaveBeenCalledTimes(4);
+    expect(mockConvertHtmlToPdf).not.toHaveBeenCalled();
+    expect(mockRenderDocx.mock.calls[0][1]).toMatchObject({ audience: "ADMIN" });
+    expect(mockConvertDocxToPdf.mock.calls[0][1]).toEqual({
+      fileName: "investment-note-certificate.docx",
+    });
+    expect(
+      mockStoreCertificatePdf.mock.calls.some(
+        (call: unknown[]) =>
+          (call[0] as { key: string }).key ===
+          "investment-note-certificates/test/note-1/V01/admin.pdf"
+      )
+    ).toBe(true);
     expect(certificateStore.rows.every((row) => row.status === "READY")).toBe(true);
     expect(mockCreateNoteEventRow).toHaveBeenCalledTimes(1);
     expect(mockCreateNoteEventRow.mock.calls[0][1].eventType).toBe(
@@ -276,19 +294,22 @@ describe("generateInvestmentNoteCertificates", () => {
       source: "DISBURSEMENT_COMPLETED",
     });
     mockBuildSnapshot.mockClear();
-    mockConvertHtmlToPdf.mockClear();
+    mockConvertDocxToPdf.mockClear();
+    mockRenderDocx.mockClear();
     await generateInvestmentNoteCertificates({
       noteId: "note-1",
       source: "DISBURSEMENT_COMPLETED",
     });
     expect(mockBuildSnapshot).not.toHaveBeenCalled();
+    expect(mockConvertDocxToPdf).not.toHaveBeenCalled();
+    expect(mockRenderDocx).not.toHaveBeenCalled();
     expect(mockConvertHtmlToPdf).not.toHaveBeenCalled();
     expect(mockCreateNoteEventRow).toHaveBeenCalledTimes(1);
     expect(certificateStore.rows).toHaveLength(4);
   });
 
   it("retries FAILED using the persisted snapshot and does not rebuild from live data", async () => {
-    mockConvertHtmlToPdf.mockRejectedValueOnce(new Error("gotenberg down"));
+    mockConvertDocxToPdf.mockRejectedValueOnce(new Error("gotenberg down"));
     await generateInvestmentNoteCertificates({
       noteId: "note-1",
       source: "DISBURSEMENT_COMPLETED",
@@ -296,14 +317,16 @@ describe("generateInvestmentNoteCertificates", () => {
     expect(
       certificateStore.rows.some((row) => row.status === NoteInvestmentCertificateStatus.FAILED)
     ).toBe(true);
+    expect(certificateStore.rows.every((row) => row.version === "V01")).toBe(true);
     mockBuildSnapshot.mockClear();
-    mockConvertHtmlToPdf.mockResolvedValue(Buffer.from("%PDF-cert"));
+    mockConvertDocxToPdf.mockResolvedValue(Buffer.from("%PDF-cert"));
     await generateInvestmentNoteCertificates({
       noteId: "note-1",
       source: "ADMIN_RETRY",
     });
     expect(mockBuildSnapshot).not.toHaveBeenCalled();
     expect(certificateStore.rows.every((row) => row.status === "READY")).toBe(true);
+    expect(certificateStore.rows.every((row) => row.version === "V01")).toBe(true);
   });
 
   it("does not allow admin retry of READY certificates", async () => {
@@ -317,7 +340,7 @@ describe("generateInvestmentNoteCertificates", () => {
   });
 
   it("Gotenberg failure marks FAILED without throwing to the caller", async () => {
-    mockConvertHtmlToPdf.mockRejectedValue(new Error("gotenberg down"));
+    mockConvertDocxToPdf.mockRejectedValue(new Error("gotenberg down"));
     await expect(
       generateInvestmentNoteCertificates({
         noteId: "note-1",
@@ -342,7 +365,12 @@ describe("audience download authorization", () => {
       funding_status: NoteFundingStatus.FUNDED,
       issuer_organization_id: "issuer-org",
     };
-    mockConvertHtmlToPdf.mockResolvedValue(Buffer.from("%PDF-cert"));
+    mockRenderDocx.mockImplementation(
+      (_snapshot: unknown, input: { audience: string; investorOrganizationId?: string | null }) =>
+        Buffer.from(`PK-docx-${input.audience}:${input.investorOrganizationId ?? ""}`)
+    );
+    mockConvertDocxToPdf.mockResolvedValue(Buffer.from("%PDF-cert"));
+    mockConvertHtmlToPdf.mockRejectedValue(new Error("Chromium must not be used for certificates"));
     mockStoreCertificatePdf.mockResolvedValue(undefined);
     mockGenerateCertificatePdfViewUrl.mockResolvedValue({
       viewUrl: "https://s3/view",
