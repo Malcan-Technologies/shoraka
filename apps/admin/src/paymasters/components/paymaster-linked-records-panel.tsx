@@ -6,14 +6,17 @@ import { format } from "date-fns";
 import { EyeIcon, LinkIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import {
+  formatApplicationReference,
   formatNamedEntityDisplay,
   toTitleCase,
   type PaymasterDetail,
   type PaymasterFinancingRow,
   type PaymasterIssuerLinkRow,
+  type PaymasterLinkedApplicationRow,
 } from "@cashsouk/types";
 import { StatusBadge } from "@cashsouk/ui";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
+import { ApplicationStatusBadge } from "@/components/application-review/application-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,14 +34,17 @@ import { cn } from "@/lib/utils";
 import {
   isPaymasterFacilityRow,
   isPaymasterNoteRow,
+  paymasterApplicationReviewHref,
   paymasterFinancingHref,
   paymasterFinancingKind,
   paymasterFinancingTitle,
+  uniquePaymasterApplicationCount,
   type PaymasterLinkedRecordFilter,
 } from "@/paymasters/utils/paymaster-linked-records";
 
 const FILTER_PILLS: { value: PaymasterLinkedRecordFilter; label: string }[] = [
   { value: "issuers", label: "Issuers" },
+  { value: "applications", label: "Applications" },
   { value: "facilities", label: "Facilities" },
   { value: "notes", label: "Notes" },
 ];
@@ -94,6 +100,92 @@ function IssuersTable({ issuers }: { issuers: PaymasterIssuerLinkRow[] }) {
                         View
                       </Link>
                     </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function ApplicationsTable({ rows }: { rows: PaymasterLinkedApplicationRow[] }) {
+  return (
+    <div className="overflow-hidden rounded-xl border">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>Application</TableHead>
+            <TableHead>Issuer</TableHead>
+            <TableHead>Product</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Updated</TableHead>
+            <TableHead>Action</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                No applications yet.
+              </TableCell>
+            </TableRow>
+          ) : (
+            rows.map((row) => {
+              const href = paymasterApplicationReviewHref(row.productId, row.id);
+              const issuerHref = row.issuerOrganizationId
+                ? orgHref("issuer", row.issuerOrganizationId)
+                : null;
+              const reference = formatApplicationReference({
+                displayReference: row.reference,
+                id: row.id,
+              });
+              return (
+                <TableRow key={row.id} className="odd:bg-muted/40 hover:bg-muted">
+                  <TableCell className="min-w-[160px] font-medium">
+                    {href ? (
+                      <Link href={href} className="text-primary underline-offset-4 hover:underline">
+                        {reference}
+                      </Link>
+                    ) : (
+                      reference
+                    )}
+                  </TableCell>
+                  <TableCell className="text-ui">
+                    {issuerHref ? (
+                      <Link
+                        href={issuerHref}
+                        className="text-primary underline-offset-4 hover:underline"
+                      >
+                        {row.issuerName || "—"}
+                      </Link>
+                    ) : (
+                      row.issuerName || "—"
+                    )}
+                  </TableCell>
+                  <TableCell className="text-ui text-muted-foreground">{row.productType}</TableCell>
+                  <TableCell>
+                    {row.status ? <ApplicationStatusBadge status={row.status} /> : "—"}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-ui text-muted-foreground">
+                    {row.updatedAt ? format(new Date(row.updatedAt), "dd MMM yyyy") : "—"}
+                  </TableCell>
+                  <TableCell>
+                    {href ? (
+                      <Button asChild variant="ghost" size="sm" className="h-8 px-2">
+                        <Link href={href}>
+                          <EyeIcon className="h-4 w-4" />
+                          View
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="sm" className="h-8 px-2" disabled>
+                        <EyeIcon className="h-4 w-4" />
+                        View
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               );
@@ -201,8 +293,10 @@ export function PaymasterLinkedRecordsPanel({ paymaster }: { paymaster: Paymaste
   const [filter, setFilter] = React.useState<PaymasterLinkedRecordFilter>("issuers");
   const facilities = paymaster.financings.filter(isPaymasterFacilityRow);
   const notes = paymaster.financings.filter(isPaymasterNoteRow);
+  const applications = paymaster.applications ?? [];
   const counts: Record<PaymasterLinkedRecordFilter, number> = {
     issuers: paymaster.issuers.length,
+    applications: uniquePaymasterApplicationCount(applications),
     facilities: facilities.length,
     notes: notes.length,
   };
@@ -212,7 +306,7 @@ export function PaymasterLinkedRecordsPanel({ paymaster }: { paymaster: Paymaste
       <AdminDetailCardHeader
         icon={LinkIcon}
         title="Linked records"
-        description="Issuers that have used this Paymaster, plus linked facilities and notes. Related-party is issuer-specific."
+        description="Issuers that have used this Paymaster, plus linked applications, facilities and notes. Related-party is issuer-specific."
       />
       <CardContent className="space-y-4 p-0 pb-4">
         <div className="flex flex-wrap gap-2 px-6">
@@ -235,6 +329,8 @@ export function PaymasterLinkedRecordsPanel({ paymaster }: { paymaster: Paymaste
         <div className="overflow-x-auto px-6">
           {filter === "issuers" ? (
             <IssuersTable issuers={paymaster.issuers} />
+          ) : filter === "applications" ? (
+            <ApplicationsTable rows={applications} />
           ) : filter === "facilities" ? (
             <FinancingsTable rows={facilities} emptyLabel="No facilities yet." />
           ) : (

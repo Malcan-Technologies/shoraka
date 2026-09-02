@@ -16,8 +16,30 @@ describe("admin Paymaster registry list", () => {
     const src = readFileSync(join(__dirname, "service.ts"), "utf8");
     expect(src).toMatch(/customer_details: true/);
     expect(src).toMatch(/originating_application:/);
+    expect(src).toMatch(/applications: collectLinkedPaymasterApplications/);
     expect(src).toMatch(/submittedApplicationIdentities:/);
-    expect(src).toMatch(/selectDifferingSubmittedApplicationIdentities/);
+    expect(src).toMatch(/selectSubmittedApplicationIdentities/);
+    expect(src).not.toMatch(/selectDifferingSubmittedApplicationIdentities/);
     expect(src).not.toMatch(/PaymasterMismatch/);
+  });
+
+  it("does not expose linked applications or submitted identities on issuer Paymaster list", () => {
+    const src = readFileSync(join(__dirname, "service.ts"), "utf8");
+    const issuerStart = src.indexOf("export async function listIssuerPaymasters");
+    const issuerEnd = src.indexOf("export async function listAdminPaymasters");
+    const issuerFn = src.slice(issuerStart, issuerEnd);
+    expect(issuerFn).toMatch(/IssuerPaymasterOption/);
+    expect(issuerFn).not.toMatch(/submittedApplicationIdentities/);
+    expect(issuerFn).not.toMatch(/collectLinkedPaymasterApplications/);
+    expect(issuerFn).not.toContain("applications:");
+  });
+
+  it("does not introduce a new Paymaster identity notification or audit event", () => {
+    const service = readFileSync(join(__dirname, "service.ts"), "utf8");
+    const identities = readFileSync(join(__dirname, "submitted-application-identities.ts"), "utf8");
+    expect(service).not.toMatch(/sendTyped|NotificationService/);
+    expect(identities).not.toMatch(/sendTyped|NotificationService/);
+    expect(identities).not.toMatch(/PAYMASTER_CREATED|PAYMASTER_LINKED_TO_ISSUER|PAYMASTER_VERIFIED|PAYMASTER_IDENTITY_RESOLVED/);
+    expect(identities).not.toMatch(/PaymasterMismatch/);
   });
 });

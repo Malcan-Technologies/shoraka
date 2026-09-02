@@ -112,10 +112,22 @@ export interface PaymasterSubmittedApplicationIdentity {
   registrationCountry: string;
 }
 
+export interface PaymasterLinkedApplicationRow {
+  id: string;
+  reference: string | null;
+  issuerOrganizationId: string;
+  issuerName: string | null;
+  productType: string;
+  status: string | null;
+  updatedAt: string | null;
+  productId: string | null;
+}
+
 export interface PaymasterDetail extends PaymasterIdentity {
   source: string;
   verifiedByName: string | null;
   issuers: PaymasterIssuerLinkRow[];
+  applications: PaymasterLinkedApplicationRow[];
   financings: PaymasterFinancingRow[];
   notices: PaymasterNoticeHistoryRow[];
   submittedApplicationIdentities: PaymasterSubmittedApplicationIdentity[];

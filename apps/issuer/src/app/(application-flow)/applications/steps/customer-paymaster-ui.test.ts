@@ -41,6 +41,7 @@ describe("issuer Customer / Paymaster UI", () => {
     expect(step).toMatch(/status === "FOUND_VERIFIED" && result\.paymaster/);
     expect(step).not.toMatch(/FOUND_UNVERIFIED" && result\.paymaster/);
     expect(step).not.toMatch(/submittedApplicationIdentities/);
+    expect(step).not.toMatch(/collectLinkedPaymasterApplications/);
     expect(step).not.toMatch(/PaymasterMismatch/);
   });
 });
