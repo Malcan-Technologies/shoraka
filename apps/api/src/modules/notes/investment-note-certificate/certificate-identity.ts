@@ -20,7 +20,7 @@ function nonEmpty(value: unknown): string | null {
  */
 export function certificatePartyDisplayReference(
   displayReference: string | null | undefined,
-  databaseId: string
+  databaseId?: string | null
 ): string {
   return snapshotBusinessReference(displayReference, databaseId) ?? MISSING;
 }
