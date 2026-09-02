@@ -154,6 +154,7 @@ export default function IssuerProfileCompletePage() {
           <FinancialsStep
             orgId={orgId}
             api={api}
+            missing={completeness?.steps.find((s) => s.id === "financials")?.missing ?? []}
             onSaved={async () => {
               await queryClient.invalidateQueries({ queryKey: ["issuer", "profile-completeness", orgId] });
             }}
@@ -447,26 +448,40 @@ function PartyForm({
       className="grid gap-4 rounded-xl border p-6 sm:grid-cols-2"
       onSubmit={async (e) => {
         e.preventDefault();
-        await onSave({
-          name: form.name || null,
-          identityPrefix: form.identityPrefix || null,
-          identityNumber: form.identityNumber || null,
-          dateOfBirth: form.dateOfBirth || null,
-          dateOfIncorporation: form.dateOfIncorporation || null,
-          gender: form.gender || null,
-          nationality: form.nationality || null,
-          countryOfIncorporation: form.countryOfIncorporation || null,
-          address: { line1: form.line1 || null, state: form.state || null, postalCode: form.postalCode || null },
-          shareType: form.shareType || null,
-          shareTypeOther: form.shareTypeOther || null,
-          shareholdingUnits: form.shareholdingUnits || null,
-          shareholdingAmount: form.shareholdingAmount || null,
-          shareholdingPercentage: form.shareholdingPercentage || null,
-          personKind: form.personKind,
-          designation: form.designation || null,
-          designationOther: form.designationOther || null,
-          appointmentDate: form.appointmentDate || null,
-        });
+        const payload: Record<string, unknown> = {};
+        if (needed.has("name")) payload.name = form.name || null;
+        if (needed.has("identityPrefix")) payload.identityPrefix = form.identityPrefix || null;
+        if (needed.has("identityNumber")) payload.identityNumber = form.identityNumber || null;
+        if (needed.has("dateOfBirth")) payload.dateOfBirth = form.dateOfBirth || null;
+        if (needed.has("dateOfIncorporation")) payload.dateOfIncorporation = form.dateOfIncorporation || null;
+        if (needed.has("gender")) payload.gender = form.gender || null;
+        if (needed.has("nationality")) payload.nationality = form.nationality || null;
+        if (needed.has("countryOfIncorporation")) payload.countryOfIncorporation = form.countryOfIncorporation || null;
+        if (
+          needed.has("address.line1") ||
+          needed.has("address.state") ||
+          needed.has("address.postalCode")
+        ) {
+          payload.address = {
+            ...(needed.has("address.line1") ? { line1: form.line1 || null } : {}),
+            ...(needed.has("address.state") ? { state: form.state || null } : {}),
+            ...(needed.has("address.postalCode") ? { postalCode: form.postalCode || null } : {}),
+          };
+        }
+        if (kind === "shareholders") {
+          if (needed.has("shareType")) payload.shareType = form.shareType || null;
+          if (needed.has("shareTypeOther")) payload.shareTypeOther = form.shareTypeOther || null;
+          if (needed.has("shareholdingUnits")) payload.shareholdingUnits = form.shareholdingUnits || null;
+          if (needed.has("shareholdingAmount")) payload.shareholdingAmount = form.shareholdingAmount || null;
+          if (needed.has("shareholdingPercentage")) payload.shareholdingPercentage = form.shareholdingPercentage || null;
+        }
+        if (kind === "board") {
+          if (needed.has("personKind")) payload.personKind = form.personKind;
+          if (needed.has("designation")) payload.designation = form.designation || null;
+          if (needed.has("designationOther")) payload.designationOther = form.designationOther || null;
+          if (needed.has("appointmentDate")) payload.appointmentDate = form.appointmentDate || null;
+        }
+        await onSave(payload);
       }}
     >
       <p className="text-ui font-medium sm:col-span-2">{party.name || party.partyKey}</p>
@@ -500,26 +515,68 @@ function PartyForm({
   );
 }
 
+const FINANCIAL_MISSING_TO_KEY: Record<string, string> = {
+  currentAssets: "bscatot",
+  nonCurrentAssets: "bsclbank",
+  currentBorrowing: "curlib_borrowing",
+  currentNonBorrowing: "curlib_non_borrowing",
+  nonCurrentLoan: "ncl_loan",
+  nonCurrentNonLoan: "ncl_non_loan",
+  equityCapital: "bsqpuc",
+  accumulatedProfit: "equity_accumulated_profit",
+  revenue: "turnover",
+  operatingCost: "operating_cost",
+  adminCost: "admin_cost",
+  interestCost: "interest_cost",
+  otherCost: "other_cost",
+  profitBeforeTax: "plnpbt",
+  profitAfterTax: "plnpat",
+  netDividend: "plnetdiv",
+};
+
 function FinancialsStep({
   orgId,
   api,
+  missing,
   onSaved,
 }: {
   orgId: string;
   api: ReturnType<typeof createApiClient>;
+  missing: ComrepProfileCompleteness["missing"];
   onSaved: () => Promise<void>;
 }) {
   const year = String(new Date().getFullYear() - 1);
-  const [fields, setFields] = React.useState<Record<string, string>>({
-    bscatot: "",
-    bsclbank: "",
-    bsqpuc: "",
-    turnover: "",
-    plnpbt: "",
-    plnpat: "",
-    plnetdiv: "",
-    ...Object.fromEntries(ISSUER_FINANCIAL_COMREP_KEYS.map((k) => [k, ""])),
-  });
+  const neededKeys = new Set(
+    missing.some((m) => m.field === "financials")
+      ? [
+          "bscatot",
+          "bsclbank",
+          "bsqpuc",
+          "turnover",
+          "plnpbt",
+          "plnpat",
+          "plnetdiv",
+          ...ISSUER_FINANCIAL_COMREP_KEYS.filter(
+            (k) =>
+              k !== "equity_share_application" &&
+              k !== "equity_share_premium" &&
+              k !== "equity_minority" &&
+              k !== "pl_minority"
+          ),
+        ]
+      : missing.map((m) => FINANCIAL_MISSING_TO_KEY[m.field]).filter((k): k is string => Boolean(k))
+  );
+  const [fields, setFields] = React.useState<Record<string, string>>({});
+  const labels: Record<string, string> = {
+    bscatot: "Current assets",
+    bsclbank: "Non-current assets",
+    bsqpuc: "Equity capital",
+    turnover: "Total revenue and income",
+    plnpbt: "Profit/loss before tax",
+    plnpat: "Profit/loss after tax",
+    plnetdiv: "Net dividend",
+    ...ISSUER_FINANCIAL_COMREP_LABELS,
+  };
   return (
     <form
       className="grid gap-4 sm:grid-cols-2"
@@ -527,7 +584,8 @@ function FinancialsStep({
         e.preventDefault();
         const payload: Record<string, string | number | null> = {};
         for (const [k, v] of Object.entries(fields)) {
-          payload[k] = v === "" ? null : v;
+          if (v === "") continue;
+          payload[k] = v;
         }
         const res = await api.patchIssuerOrgFinancials(orgId, year, payload);
         if (!res.success) throw new Error(res.error.message);
@@ -536,15 +594,13 @@ function FinancialsStep({
       }}
     >
       <p className="text-ui sm:col-span-2">Latest year ({year}). Enter figures from the audited statements or certified management accounts.</p>
-      <TextField label="Current assets" value={fields.bscatot} onChange={(v) => setFields({ ...fields, bscatot: v })} />
-      <TextField label="Non-current assets" value={fields.bsclbank} onChange={(v) => setFields({ ...fields, bsclbank: v })} />
-      <TextField label="Equity capital" value={fields.bsqpuc} onChange={(v) => setFields({ ...fields, bsqpuc: v })} />
-      <TextField label="Total revenue and income" value={fields.turnover} onChange={(v) => setFields({ ...fields, turnover: v })} />
-      <TextField label="Profit/loss before tax" value={fields.plnpbt} onChange={(v) => setFields({ ...fields, plnpbt: v })} />
-      <TextField label="Profit/loss after tax" value={fields.plnpat} onChange={(v) => setFields({ ...fields, plnpat: v })} />
-      <TextField label="Net dividend" value={fields.plnetdiv} onChange={(v) => setFields({ ...fields, plnetdiv: v })} />
-      {ISSUER_FINANCIAL_COMREP_KEYS.filter((k) => k !== "equity_share_application" && k !== "equity_share_premium" && k !== "equity_minority" && k !== "pl_minority").map((k) => (
-        <TextField key={k} label={ISSUER_FINANCIAL_COMREP_LABELS[k]} value={fields[k] ?? ""} onChange={(v) => setFields({ ...fields, [k]: v })} />
+      {[...neededKeys].map((k) => (
+        <TextField
+          key={k}
+          label={labels[k] ?? k}
+          value={fields[k] ?? ""}
+          onChange={(v) => setFields({ ...fields, [k]: v })}
+        />
       ))}
       <div className="sm:col-span-2">
         <Button type="submit" className="h-10">Save financials</Button>

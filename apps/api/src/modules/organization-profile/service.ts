@@ -9,6 +9,8 @@ import {
   buildIssuerProfileCompleteness,
   issuerFinancialsFromYearBlock,
   latestUnauditedYearBlock,
+  isMasterFieldEmpty,
+  valuesEqualForMismatch,
   type ComrepProfileCompleteness,
   type OrganizationPartyProfileDto,
   type PartyMismatchResolveInput,
@@ -34,13 +36,44 @@ import {
   asAddress,
   asJson,
   fillEmptyMaster,
+  mergeEmptyAddress,
+  mergeObservationResolutions,
+  mergeProvidedAddressKeys,
+  OBSERVATION_RESOLVED_KEY,
   parseDateInput,
   parseFieldSources,
+  readObservationResolutions,
   serializeParty,
   stampSource,
 } from "./serialize";
 
 type Portal = "issuer" | "investor";
+
+const USER_LOCKED_ORG_FIELDS = new Set(["name"]);
+const USER_LOCKED_PARTY_FIELDS = new Set([
+  "name",
+  "identityNumber",
+  "identityPrefix",
+  "shareholdingPercentage",
+]);
+
+function assertUserMayWriteLockedField(params: {
+  source: ProfileValueSource;
+  field: string;
+  current: unknown;
+  incoming: unknown;
+  locked: Set<string>;
+}): void {
+  if (params.source !== "USER") return;
+  if (!params.locked.has(params.field)) return;
+  if (isMasterFieldEmpty(params.current)) return;
+  if (valuesEqualForMismatch(params.current, params.incoming)) return;
+  throw new AppError(
+    403,
+    "FIELD_NOT_EDITABLE",
+    `${params.field} cannot be changed by the organisation`
+  );
+}
 
 function orgWhere(portal: Portal, organizationId: string) {
   return portal === "issuer"
@@ -145,31 +178,38 @@ export async function seedMasterPartiesIfEmpty(
     : extractRegulatoryPartiesFromCorporateEntities(org.corporate_entities);
   if (candidates.length === 0) return;
 
-  await prisma.organizationPartyProfile.createMany({
-    data: candidates.map((c) => {
-      const created = candidateToCreateData(portal, organizationId, c, "MASTER_ACTIVE");
-      return {
-        party_key: created.party_key,
-        origin: created.origin,
-        membership_status: created.membership_status,
-        entity_type: created.entity_type,
-        name: created.name,
-        identity_number: created.identity_number,
-        identity_prefix: created.identity_prefix,
-        is_director: created.is_director,
-        is_shareholder: created.is_shareholder,
-        is_board: created.is_board,
-        is_management: created.is_management,
-        shareholding_percentage: created.shareholding_percentage,
-        appointment_date: created.appointment_date,
-        resignation_date: created.resignation_date,
-        address: created.address ?? Prisma.JsonNull,
-        field_sources: created.field_sources,
-        issuer_organization_id: portal === "issuer" ? organizationId : null,
-        investor_organization_id: portal === "investor" ? organizationId : null,
-      };
-    }),
-  });
+  try {
+    await prisma.organizationPartyProfile.createMany({
+      data: candidates.map((c) => {
+        const created = candidateToCreateData(portal, organizationId, c, "MASTER_ACTIVE");
+        return {
+          party_key: created.party_key,
+          origin: created.origin,
+          membership_status: created.membership_status,
+          entity_type: created.entity_type,
+          name: created.name,
+          identity_number: created.identity_number,
+          identity_prefix: created.identity_prefix,
+          is_director: created.is_director,
+          is_shareholder: created.is_shareholder,
+          is_board: created.is_board,
+          is_management: created.is_management,
+          shareholding_percentage: created.shareholding_percentage,
+          appointment_date: created.appointment_date,
+          resignation_date: created.resignation_date,
+          address: created.address ?? Prisma.JsonNull,
+          field_sources: created.field_sources,
+          issuer_organization_id: portal === "issuer" ? organizationId : null,
+          investor_organization_id: portal === "investor" ? organizationId : null,
+        };
+      }),
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function observeExternalCtosParties(
@@ -213,11 +253,17 @@ export async function observeExternalCtosParties(
       });
       continue;
     }
+    const previousObservation =
+      row.external_observation &&
+      typeof row.external_observation === "object" &&
+      !Array.isArray(row.external_observation)
+        ? (row.external_observation as Record<string, unknown>)
+        : null;
     await prisma.organizationPartyProfile.update({
       where: { id: row.id },
       data: {
         absent_from_latest_external: false,
-        external_observation: asJson(observation),
+        external_observation: asJson(mergeObservationResolutions(previousObservation, observation)),
       },
     });
   }
@@ -414,6 +460,13 @@ export async function patchOrgMasterProfile(params: {
 
   const applyScalar = <T,>(field: string, current: T, incoming: T | undefined): T => {
     if (incoming === undefined) return current;
+    assertUserMayWriteLockedField({
+      source,
+      field,
+      current,
+      incoming,
+      locked: USER_LOCKED_ORG_FIELDS,
+    });
     if (fillEmptyOnly) {
       const result = fillEmptyMaster({
         master: current,
@@ -427,6 +480,27 @@ export async function patchOrgMasterProfile(params: {
     }
     nextSources = stampSource(nextSources, field, source);
     return incoming;
+  };
+
+  const applyAddress = (
+    field: string,
+    current: unknown,
+    incoming: ProfileAddress | null | undefined
+  ): unknown => {
+    if (incoming === undefined) return current;
+    if (fillEmptyOnly) {
+      const result = mergeEmptyAddress({
+        master: current,
+        incoming,
+        sources: nextSources,
+        fieldPrefix: field,
+        source,
+      });
+      nextSources = result.sources;
+      return result.value;
+    }
+    nextSources = stampSource(nextSources, field, source);
+    return mergeProvidedAddressKeys(current, incoming);
   };
 
   if (portal === "issuer") {
@@ -494,14 +568,14 @@ export async function patchOrgMasterProfile(params: {
         ...((existing.addresses as Record<string, unknown> | undefined) ?? {}),
       };
       if (patch.registeredAddress !== undefined) {
-        addresses.registered = applyScalar(
+        addresses.registered = applyAddress(
           "registeredAddress",
           addresses.registered ?? null,
           patch.registeredAddress
         );
       }
       if (patch.businessAddress !== undefined) {
-        addresses.business = applyScalar(
+        addresses.business = applyAddress(
           "businessAddress",
           addresses.business ?? null,
           patch.businessAddress
@@ -553,11 +627,7 @@ export async function patchOrgMasterProfile(params: {
   }
   if (patch.residentialAddress !== undefined) {
     data.residential_address = asJson(
-      applyScalar(
-        "residentialAddress",
-        investor.residential_address,
-        patch.residentialAddress
-      )
+      applyAddress("residentialAddress", investor.residential_address, patch.residentialAddress)
     );
   }
   if (patch.gender !== undefined) {
@@ -584,14 +654,14 @@ export async function patchOrgMasterProfile(params: {
     const existing = (investor.corporate_onboarding_data as Record<string, unknown> | null) ?? {};
     const addresses = { ...((existing.addresses as Record<string, unknown> | undefined) ?? {}) };
     if (patch.businessAddress !== undefined) {
-      addresses.business = applyScalar(
+      addresses.business = applyAddress(
         "businessAddress",
         addresses.business ?? null,
         patch.businessAddress
       );
     }
     if (patch.registeredAddress !== undefined) {
-      addresses.registered = applyScalar(
+      addresses.registered = applyAddress(
         "registeredAddress",
         addresses.registered ?? null,
         patch.registeredAddress
@@ -629,6 +699,13 @@ export async function patchPartyProfile(params: {
   let sources = parseFieldSources(row.field_sources);
   const apply = <T,>(field: string, current: T, incoming: T | undefined): T => {
     if (incoming === undefined) return current;
+    assertUserMayWriteLockedField({
+      source: params.source,
+      field,
+      current,
+      incoming,
+      locked: USER_LOCKED_PARTY_FIELDS,
+    });
     if (params.fillEmptyOnly) {
       const result = fillEmptyMaster({
         master: current,
@@ -674,19 +751,65 @@ export async function patchPartyProfile(params: {
     );
   }
   if (p.address !== undefined) {
-    data.address = asJson(apply("address", asAddress(row.address), p.address));
+    if (params.fillEmptyOnly) {
+      const merged = mergeEmptyAddress({
+        master: row.address,
+        incoming: p.address,
+        sources,
+        fieldPrefix: "address",
+        source: params.source,
+      });
+      sources = merged.sources;
+      data.address = asJson(merged.value);
+    } else {
+      sources = stampSource(sources, "address", params.source);
+      data.address = asJson(mergeProvidedAddressKeys(row.address, p.address));
+    }
   }
-  if (p.isDirector !== undefined) data.is_director = p.isDirector;
-  if (p.isShareholder !== undefined) data.is_shareholder = p.isShareholder;
-  if (p.isBoard !== undefined) data.is_board = p.isBoard;
-  if (p.isManagement !== undefined) data.is_management = p.isManagement;
+  if (params.source === "USER") {
+    if (p.isDirector !== undefined && p.isDirector !== row.is_director) {
+      throw new AppError(403, "FIELD_NOT_EDITABLE", "isDirector cannot be changed by the organisation");
+    }
+    if (p.isShareholder !== undefined && p.isShareholder !== row.is_shareholder) {
+      throw new AppError(403, "FIELD_NOT_EDITABLE", "isShareholder cannot be changed by the organisation");
+    }
+    if (p.isBoard !== undefined && p.isBoard !== row.is_board) {
+      throw new AppError(403, "FIELD_NOT_EDITABLE", "isBoard cannot be changed by the organisation");
+    }
+    if (p.isManagement !== undefined && p.isManagement !== row.is_management) {
+      throw new AppError(403, "FIELD_NOT_EDITABLE", "isManagement cannot be changed by the organisation");
+    }
+    if (
+      p.personKind !== undefined &&
+      row.origin !== OrganizationPartyOrigin.USER_MANAGEMENT
+    ) {
+      const nextBoard = p.personKind === "BOARD";
+      const nextManagement = p.personKind === "MANAGEMENT";
+      if (nextBoard !== row.is_board || nextManagement !== row.is_management) {
+        throw new AppError(
+          403,
+          "FIELD_NOT_EDITABLE",
+          "Board and management roles cannot be changed by the organisation"
+        );
+      }
+    }
+  } else {
+    if (p.isDirector !== undefined) data.is_director = p.isDirector;
+    if (p.isShareholder !== undefined) data.is_shareholder = p.isShareholder;
+    if (p.isBoard !== undefined) data.is_board = p.isBoard;
+    if (p.isManagement !== undefined) data.is_management = p.isManagement;
+  }
   if (p.personKind === "BOARD") {
-    data.is_board = true;
-    data.is_management = false;
+    if (params.source !== "USER" || row.origin === OrganizationPartyOrigin.USER_MANAGEMENT) {
+      data.is_board = true;
+      data.is_management = false;
+    }
   }
   if (p.personKind === "MANAGEMENT") {
-    data.is_management = true;
-    data.is_board = false;
+    if (params.source !== "USER" || row.origin === OrganizationPartyOrigin.USER_MANAGEMENT) {
+      data.is_management = true;
+      data.is_board = false;
+    }
   }
   if (p.shareType !== undefined) data.share_type = apply("shareType", row.share_type, p.shareType);
   if (p.shareTypeOther !== undefined) {
@@ -808,7 +931,12 @@ export async function resolvePartyMismatch(params: {
   if (!row) throw new AppError(404, "NOT_FOUND", "Party profile not found");
   if (params.input.action === "KEEP") {
     const observation = (row.external_observation as Record<string, unknown> | null) ?? {};
-    observation[`resolved:${params.input.field}`] = "KEEP";
+    const resolved = readObservationResolutions(observation);
+    resolved[params.input.field] = {
+      action: "KEEP",
+      externalValue: observation[params.input.field],
+    };
+    observation[OBSERVATION_RESOLVED_KEY] = resolved;
     const updated = await prisma.organizationPartyProfile.update({
       where: { id: row.id },
       data: { external_observation: asJson(observation) },
@@ -893,7 +1021,12 @@ export async function patchIssuerOrgFinancials(params: {
     byYear[params.year] && typeof byYear[params.year] === "object"
       ? { ...(byYear[params.year] as Record<string, unknown>) }
       : {};
-  byYear[params.year] = { ...yearBlock, ...params.fields };
+  for (const [key, value] of Object.entries(params.fields)) {
+    const incomingEmpty = value === null || value === undefined || value === "";
+    if (incomingEmpty && !isMasterFieldEmpty(yearBlock[key])) continue;
+    if (!incomingEmpty) yearBlock[key] = value;
+  }
+  byYear[params.year] = yearBlock;
   const next = { ...current, unaudited_by_year: byYear };
   if (existing) {
     await prisma.issuerOrganizationFinancialStatement.update({

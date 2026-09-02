@@ -28,6 +28,7 @@ import {
   isCodWebhookFamilyMatch,
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
+import { preserveFilledCodMasterFacts } from "../../organization-profile/serialize";
 import { createOnboardingLogRow, persistOrganizationUpdateAndOnboardingLogs, webhookAuditContext } from "../../../lib/audit";
 
 const COD_EXACT_LOOKUP_MAX_ATTEMPTS = 3;
@@ -697,6 +698,10 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               corporateOnboardingData?.basicInfo?.ssmRegistrationNumber ||
               org.registration_number ||
               null;
+            const mergedCod = preserveFilledCodMasterFacts(
+              org.corporate_onboarding_data,
+              corporateOnboardingData
+            );
             await persistOrganizationUpdateAndOnboardingLogs({
               portalType: "investor",
               organizationId,
@@ -712,10 +717,13 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 bank_account_details: bankingDetails as Prisma.InputJsonValue,
                 wealth_declaration: transactionInfo as Prisma.InputJsonValue,
                 compliance_declaration: beneficiaryInfo as Prisma.InputJsonValue,
-                corporate_onboarding_data: corporateOnboardingData as Prisma.InputJsonValue,
+                corporate_onboarding_data: mergedCod as Prisma.InputJsonValue,
                 corporate_required_documents: corporateRequiredDocuments as Prisma.InputJsonValue,
                 corporate_entities: corporateEntities as Prisma.InputJsonValue,
-                phone_number: corporateOnboardingData?.basicInfo?.phoneNumber ?? null,
+                phone_number:
+                  org.phone_number ||
+                  corporateOnboardingData?.basicInfo?.phoneNumber ||
+                  null,
                 registration_number: ssmRegistrationNumber,
               },
               logs: [
@@ -770,6 +778,10 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               corporateOnboardingData?.basicInfo?.ssmRegistrationNumber ||
               org.registration_number ||
               null;
+            const mergedCod = preserveFilledCodMasterFacts(
+              org.corporate_onboarding_data,
+              corporateOnboardingData
+            );
             await persistOrganizationUpdateAndOnboardingLogs({
               portalType: "issuer",
               organizationId,
@@ -785,10 +797,13 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 bank_account_details: bankingDetails as Prisma.InputJsonValue,
                 wealth_declaration: transactionInfo as Prisma.InputJsonValue,
                 compliance_declaration: beneficiaryInfo as Prisma.InputJsonValue,
-                corporate_onboarding_data: corporateOnboardingData as Prisma.InputJsonValue,
+                corporate_onboarding_data: mergedCod as Prisma.InputJsonValue,
                 corporate_required_documents: corporateRequiredDocuments as Prisma.InputJsonValue,
                 corporate_entities: corporateEntities as Prisma.InputJsonValue,
-                phone_number: corporateOnboardingData?.basicInfo?.phoneNumber ?? null,
+                phone_number:
+                  org.phone_number ||
+                  corporateOnboardingData?.basicInfo?.phoneNumber ||
+                  null,
                 registration_number: ssmRegistrationNumber,
               },
               logs: [

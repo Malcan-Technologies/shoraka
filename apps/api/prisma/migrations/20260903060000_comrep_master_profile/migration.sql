@@ -1,5 +1,9 @@
 -- ComRep master profile: SC enums, issuer/investor org columns, party profiles,
 -- and operator (Shoraka) annual RMO models [01000]–[05000], [10000], [11000].
+-- Additive: new columns are nullable (or JSONB '{}') and do not rewrite CTOS/KYC JSON.
+-- Rollback: DROP the new tables/types/columns in reverse order. Existing issuer_organizations,
+-- investor_organizations, ctos_reports, director_kyc_status, and director_aml_status rows
+-- are not deleted by rolling this forward; rolling back drops only the new ComRep columns/tables.
 
 CREATE TYPE "ScCompanyCategory" AS ENUM ('TECHNOLOGY', 'NON_TECHNOLOGY');
 CREATE TYPE "ScCompanyType" AS ENUM ('SOLE_PROPRIETORSHIP', 'PARTNERSHIP', 'LLP', 'PRIVATE_LIMITED', 'PUBLIC_LIMITED', 'FOREIGN');

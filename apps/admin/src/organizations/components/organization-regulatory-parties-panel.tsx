@@ -130,9 +130,9 @@ function PartyCard({
 }) {
   const status =
     party.membershipStatus === "EXTERNAL_OBSERVED"
-      ? { key: "action" as const, label: "New from CTOS" }
-      : party.absentFromLatestExternal
-        ? { key: "action" as const, label: "Absent from latest CTOS" }
+      ? { key: "action" as const, label: "New party detected" }
+        : party.absentFromLatestExternal
+          ? { key: "action" as const, label: "Party not present in latest CTOS" }
         : party.membershipStatus === "MASTER_INACTIVE"
           ? { key: "neutral" as const, label: "Inactive" }
           : { key: "completed" as const, label: "Master" };
@@ -168,7 +168,7 @@ function PartyCard({
               {canManage ? (
                 <div className="mt-2 flex gap-2">
                   <Button className="h-10" variant="outline" onClick={() => onKeep(mismatch.field)}>
-                    Keep master
+                    Keep current
                   </Button>
                   <Button className="h-10" onClick={() => onUseExternal(mismatch.field)}>
                     Use CTOS

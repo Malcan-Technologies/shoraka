@@ -6,7 +6,12 @@ import type {
   ProfileFieldSources,
   ProfileValueSource,
 } from "@cashsouk/types";
-import { isMasterFieldEmpty, valuesEqualForMismatch } from "@cashsouk/types";
+import {
+  comrepCalendarDateKey,
+  isMasterFieldEmpty,
+  parseComrepCalendarDate,
+  valuesEqualForMismatch,
+} from "@cashsouk/types";
 
 export function asJson(value: unknown): Prisma.InputJsonValue {
   return value as unknown as Prisma.InputJsonValue;
@@ -24,10 +29,7 @@ export function toIsoDate(value: Date | null | undefined): string | null {
 
 export function parseDateInput(value: unknown): Date | null {
   if (value === null || value === undefined || value === "") return null;
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
-  if (typeof value !== "string") return null;
-  const parsed = new Date(value.trim());
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return parseComrepCalendarDate(value);
 }
 
 export function asAddress(value: unknown): ProfileAddress | null {
@@ -100,6 +102,151 @@ export function fillEmptyMaster<T>(params: {
   };
 }
 
+const ADDRESS_KEYS = ["line1", "line2", "city", "postalCode", "state", "country"] as const;
+
+/** Fill only empty address subfields so CTOS line1 does not block state/postcode. */
+export function mergeEmptyAddress(params: {
+  master: unknown;
+  incoming: unknown;
+  sources: ProfileFieldSources;
+  fieldPrefix: string;
+  source: ProfileValueSource;
+}): { value: ProfileAddress | null; sources: ProfileFieldSources; wrote: boolean } {
+  if (params.incoming === undefined) {
+    return { value: asAddress(params.master), sources: params.sources, wrote: false };
+  }
+  if (params.incoming === null) {
+    if (isMasterFieldEmpty(params.master)) {
+      return { value: null, sources: params.sources, wrote: false };
+    }
+    return { value: asAddress(params.master), sources: params.sources, wrote: false };
+  }
+  const masterAddr = asAddress(params.master) ?? {};
+  const incomingAddr = asAddress(params.incoming) ?? {};
+  const merged: ProfileAddress = { ...masterAddr };
+  let sources = params.sources;
+  let wrote = false;
+  for (const key of ADDRESS_KEYS) {
+    const result = fillEmptyMaster({
+      master: masterAddr[key] ?? null,
+      incoming: incomingAddr[key] ?? null,
+      sources,
+      field: `${params.fieldPrefix}.${key}`,
+      source: params.source,
+    });
+    merged[key] = result.value;
+    sources = result.sources;
+    wrote = wrote || result.wrote;
+  }
+  if (wrote) sources = stampSource(sources, params.fieldPrefix, params.source);
+  return { value: merged, sources, wrote };
+}
+
+/** Admin overwrite: only replace keys present on the patch so partial saves keep line1. */
+export function mergeProvidedAddressKeys(master: unknown, incoming: unknown): ProfileAddress | null {
+  if (incoming === null) return null;
+  if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
+    return asAddress(master);
+  }
+  const merged: ProfileAddress = { ...(asAddress(master) ?? {}) };
+  const rec = incoming as Record<string, unknown>;
+  for (const key of ADDRESS_KEYS) {
+    if (key in rec) {
+      const value = rec[key];
+      merged[key] = typeof value === "string" ? value : value == null ? null : String(value);
+    }
+  }
+  return merged;
+}
+
+export const OBSERVATION_RESOLVED_KEY = "_resolved";
+
+export type ObservationKeepResolution = {
+  action: "KEEP";
+  externalValue: unknown;
+};
+
+export function readObservationResolutions(
+  observation: Record<string, unknown> | null
+): Record<string, ObservationKeepResolution> {
+  if (!observation) return {};
+  const raw = observation[OBSERVATION_RESOLVED_KEY];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, ObservationKeepResolution> = {};
+  for (const [field, meta] of Object.entries(raw as Record<string, unknown>)) {
+    if (!meta || typeof meta !== "object" || Array.isArray(meta)) continue;
+    const rec = meta as { action?: unknown; externalValue?: unknown };
+    if (rec.action !== "KEEP") continue;
+    out[field] = { action: "KEEP", externalValue: rec.externalValue };
+  }
+  return out;
+}
+
+export function mergeObservationResolutions(
+  previous: Record<string, unknown> | null,
+  next: Record<string, unknown>
+): Record<string, unknown> {
+  const prev = readObservationResolutions(previous);
+  const kept: Record<string, ObservationKeepResolution> = {};
+  for (const [field, meta] of Object.entries(prev)) {
+    if (valuesEqualForMismatch(meta.externalValue, next[field])) {
+      kept[field] = meta;
+    }
+  }
+  if (Object.keys(kept).length === 0) {
+    const rest = { ...next };
+    delete rest[OBSERVATION_RESOLVED_KEY];
+    return rest;
+  }
+  return { ...next, [OBSERVATION_RESOLVED_KEY]: kept };
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+/**
+ * COD webhooks replace corporate_onboarding_data. Address/activity facts filled
+ * during secondary onboarding live in that JSON — keep filled subfields.
+ * Directors/entities in the incoming payload still replace (KYC/AML).
+ */
+export function preserveFilledCodMasterFacts(existing: unknown, incoming: unknown): unknown {
+  if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) return incoming;
+  const prev = asRecord(existing);
+  const next = { ...(incoming as Record<string, unknown>) };
+  const prevAddresses = asRecord(prev.addresses);
+  const nextAddresses = { ...asRecord(next.addresses) };
+  const emptySources = {};
+  nextAddresses.registered = mergeEmptyAddress({
+    master: prevAddresses.registered ?? null,
+    incoming: "registered" in nextAddresses ? nextAddresses.registered : undefined,
+    sources: emptySources,
+    fieldPrefix: "registeredAddress",
+    source: "REGTANK",
+  }).value;
+  nextAddresses.business = mergeEmptyAddress({
+    master: prevAddresses.business ?? null,
+    incoming: "business" in nextAddresses ? nextAddresses.business : undefined,
+    sources: emptySources,
+    fieldPrefix: "businessAddress",
+    source: "REGTANK",
+  }).value;
+  next.addresses = nextAddresses;
+
+  const prevAbout = asRecord(prev.aboutYourBusiness);
+  const nextAbout = { ...asRecord(next.aboutYourBusiness) };
+  nextAbout.whatDoesCompanyDo = fillEmptyMaster({
+    master: prevAbout.whatDoesCompanyDo ?? null,
+    incoming: nextAbout.whatDoesCompanyDo ?? null,
+    sources: emptySources,
+    field: "companyActivities",
+    source: "REGTANK",
+  }).value;
+  next.aboutYourBusiness = nextAbout;
+  return next;
+}
+
 const MISMATCH_FIELDS = [
   "name",
   "identityNumber",
@@ -137,11 +284,20 @@ export function computePartyMismatches(params: {
     appointmentDate: toIsoDate(params.master.appointmentDate)?.slice(0, 10) ?? null,
     resignationDate: toIsoDate(params.master.resignationDate)?.slice(0, 10) ?? null,
   };
+  const resolutions = readObservationResolutions(params.observation);
   for (const field of MISMATCH_FIELDS) {
     const masterValue = masterMap[field];
     const externalValue = params.observation[field];
     if (isMasterFieldEmpty(masterValue) || isMasterFieldEmpty(externalValue)) continue;
-    if (valuesEqualForMismatch(masterValue, externalValue)) continue;
+    const equal =
+      field === "appointmentDate" || field === "resignationDate"
+        ? comrepCalendarDateKey(masterValue) === comrepCalendarDateKey(externalValue)
+        : valuesEqualForMismatch(masterValue, externalValue);
+    if (equal) continue;
+    const kept = resolutions[field];
+    if (kept?.action === "KEEP" && valuesEqualForMismatch(kept.externalValue, externalValue)) {
+      continue;
+    }
     mismatches.push({
       field,
       masterValue,

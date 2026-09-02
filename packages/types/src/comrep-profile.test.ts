@@ -152,6 +152,8 @@ describe("issuer profile completeness", () => {
     });
     expect(result.complete).toBe(true);
     expect(result.percent).toBe(100);
+    expect(result.steps.find((s) => s.id === "shareholders")?.requiredCount).toBe(14);
+    expect(result.steps.find((s) => s.id === "board")?.requiredCount).toBe(12);
   });
 });
 
@@ -180,8 +182,11 @@ describe("master vs observation helpers", () => {
   it("does not treat an empty master as a mismatch equal to an external value", () => {
     expect(isMasterFieldEmpty("")).toBe(true);
     expect(isMasterFieldEmpty("Ali")).toBe(false);
-    expect(valuesEqualForMismatch("Ali", "ALI")).toBe(true);
-    expect(valuesEqualForMismatch("Ali", "Abu")).toBe(false);
+    expect(valuesEqualForMismatch("36", 36)).toBe(true);
+    expect(valuesEqualForMismatch("36.000000", 36)).toBe(true);
+    expect(valuesEqualForMismatch("36", "38")).toBe(false);
+    expect(valuesEqualForMismatch("01-12-2001", "2001-12-01")).toBe(true);
+    expect(valuesEqualForMismatch("01-12-2001", "2001-01-12")).toBe(false);
   });
 });
 

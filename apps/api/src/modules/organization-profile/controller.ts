@@ -262,6 +262,12 @@ export function createAdminOrganizationProfileRouter() {
         source: "ADMIN",
         patch,
       });
+      await logMasterProfileAudit({
+        req,
+        organizationId: req.params.id,
+        eventType: "MASTER_PARTY_UPDATED",
+        metadata: { portal, partyId: req.params.partyId, fields: Object.keys(patch) },
+      });
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {
       next(error);
@@ -339,6 +345,12 @@ export function createAdminOrganizationProfileRouter() {
         organizationId: req.params.id,
         patch,
         source: "ADMIN",
+      });
+      await logMasterProfileAudit({
+        req,
+        organizationId: req.params.id,
+        eventType: "MASTER_PARTY_CREATED",
+        metadata: { portal, partyId: data.id, partyKey: data.partyKey },
       });
       res.json({ success: true, data, correlationId: res.locals.correlationId });
     } catch (error) {

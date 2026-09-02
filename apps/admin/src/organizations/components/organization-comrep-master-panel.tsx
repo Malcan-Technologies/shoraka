@@ -117,9 +117,22 @@ export function OrganizationComrepMasterPanel({
       />
       <CardContent className="space-y-4">
         {completeness ? (
-          <p className="text-ui text-muted-foreground">
-            Completeness {completeness.percent}%{completeness.complete ? " — complete" : ` — ${completeness.missing.length} missing`}
-          </p>
+          <div className="space-y-2">
+            <p className="text-ui text-muted-foreground">
+              Completeness {completeness.percent}%
+              {completeness.complete ? " — complete" : ` — ${completeness.missing.length} missing`}
+            </p>
+            {!completeness.complete && completeness.missing.length > 0 ? (
+              <ul className="list-disc space-y-1 pl-5 text-ui text-muted-foreground">
+                {completeness.missing.slice(0, 20).map((item) => (
+                  <li key={`${item.step}-${item.field}-${item.partyKey ?? ""}`}>
+                    {item.label}
+                    {item.partyName ? ` (${item.partyName})` : ""}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           {portal === "issuer" ? (

@@ -716,11 +716,11 @@ export function buildIssuerProfileCompleteness(input: {
   financials: IssuerFinancialCompletenessInput | null | undefined;
 }): ComrepProfileCompleteness {
   const companyMissing = computeIssuerCompanyCompleteness(input.company);
-  const companyRequired = 16;
+  const companyRequired = 17;
   const shareholderMissing = input.shareholders.flatMap(computeShareholderCompleteness);
-  const shareholderFieldCount = input.shareholders.length === 0 ? 1 : input.shareholders.length * 13;
+  const shareholderFieldCount = input.shareholders.length === 0 ? 1 : input.shareholders.length * 14;
   const boardMissing = input.board.flatMap(computeBoardCompleteness);
-  const boardFieldCount = input.board.length === 0 ? 0 : input.board.length * 11;
+  const boardFieldCount = input.board.length === 0 ? 0 : input.board.length * 12;
   const financialMissing = computeIssuerFinancialCompleteness(input.financials);
   const financialRequired = 16;
 
@@ -872,7 +872,63 @@ export function latestUnauditedYearBlock(
   return block as Record<string, unknown>;
 }
 
+const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})/;
+const DMY_DATE_RE = /^(\d{2})[-/](\d{2})[-/](\d{4})$/;
+const DECIMAL_RE = /^-?\d+(\.\d+)?$/;
+
+/**
+ * CTOS appoint/resign strings are DD-MM-YYYY. Do not use `new Date("01-12-2001")`
+ * (JS treats that as 12 January).
+ */
+export function parseComrepCalendarDate(value: unknown): Date | null {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const iso = trimmed.match(ISO_DATE_RE);
+  if (iso) {
+    const d = new Date(`${iso[1]}-${iso[2]}-${iso[3]}T00:00:00.000Z`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const dmy = trimmed.match(DMY_DATE_RE);
+  if (dmy) {
+    const d = new Date(`${dmy[3]}-${dmy[2]}-${dmy[1]}T00:00:00.000Z`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+export function comrepCalendarDateKey(value: unknown): string | null {
+  const d = parseComrepCalendarDate(value);
+  if (!d) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+export function asComparableNumber(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const trimmed = value.trim().replace(/,/g, "");
+    if (!DECIMAL_RE.test(trimmed)) return null;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (value && typeof value === "object" && !(value instanceof Date) && !Array.isArray(value)) {
+    const asString = String(value);
+    if (DECIMAL_RE.test(asString)) {
+      const n = Number(asString);
+      return Number.isFinite(n) ? n : null;
+    }
+  }
+  return null;
+}
+
 export function valuesEqualForMismatch(a: unknown, b: unknown): boolean {
+  const aDate = comrepCalendarDateKey(a);
+  const bDate = comrepCalendarDateKey(b);
+  if (aDate && bDate) return aDate === bDate;
+  const aNum = asComparableNumber(a);
+  const bNum = asComparableNumber(b);
+  if (aNum != null && bNum != null) return aNum === bNum;
   const norm = (v: unknown): string => {
     if (v === null || v === undefined) return "";
     if (v instanceof Date) return v.toISOString().slice(0, 10);
@@ -890,6 +946,7 @@ export function isMasterFieldEmpty(value: unknown): boolean {
   if (typeof value === "number") return !Number.isFinite(value);
   if (value instanceof Date) return Number.isNaN(value.getTime());
   if (typeof value === "object") {
+    if (asComparableNumber(value) != null) return false;
     const obj = value as Record<string, unknown>;
     return Object.values(obj).every((v) => isMasterFieldEmpty(v));
   }

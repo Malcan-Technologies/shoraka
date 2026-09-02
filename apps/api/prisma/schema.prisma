@@ -441,6 +441,10 @@ model IssuerOrganization {
   @@map("issuer_organizations")
 }
 
+/// CashSouk master regulatory party. SQL also enforces:
+/// - XOR CHECK: exactly one of issuer_organization_id / investor_organization_id
+/// - partial unique (issuer_organization_id, party_key) WHERE issuer_organization_id IS NOT NULL
+/// - partial unique (investor_organization_id, party_key) WHERE investor_organization_id IS NOT NULL
 model OrganizationPartyProfile {
   id                          String                            @id @default(cuid())
   issuer_organization_id      String?

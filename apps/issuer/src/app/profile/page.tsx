@@ -40,6 +40,7 @@ import {
 } from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../../components/director-shareholder-alert-card";
 import { IssuerProfileCompletenessBanner } from "../../components/profile-completeness-banner";
+import { IssuerMasterPartiesCard } from "../../components/issuer-master-parties-card";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
 import { AboutYourBusinessCard } from "../../components/about-your-business-card";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
@@ -1092,6 +1093,10 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 </div>
+              ) : null}
+
+              {!isPersonal && activeOrganization?.id ? (
+                <IssuerMasterPartiesCard organizationId={activeOrganization.id} />
               ) : null}
 
               {!isPersonal && activeOrganization?.id && (
