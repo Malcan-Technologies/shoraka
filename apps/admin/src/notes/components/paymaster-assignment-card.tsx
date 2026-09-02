@@ -10,8 +10,6 @@ import {
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import {
-  ASSIGNMENT_NOTICE_LEGAL_TEMPLATE_PENDING,
-  PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE,
   type NoteDetail,
   type PaymasterAssignmentNoticeStatus,
 } from "@cashsouk/types";
@@ -38,8 +36,14 @@ import {
 } from "@/lib/admin-status-token";
 import { paymasterHref } from "@/lib/admin-directory-hrefs";
 import Link from "next/link";
-import { WorkflowStepTitle } from "@/notes/components/note-detail-ui-blocks";
-import { workflowTaskSurfaceClass } from "@/notes/utils/workflow-status-tokens";
+import {
+  CollapsibleDetailTimeline,
+  WorkflowStepTitle,
+} from "@/notes/components/note-detail-ui-blocks";
+import {
+  workflowTaskSurfaceClass,
+  type WorkflowStatusTone,
+} from "@/notes/utils/workflow-status-tokens";
 import { cn } from "@/lib/utils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -59,18 +63,36 @@ async function putFile(uploadUrl: string, file: File) {
   if (!response.ok) throw new Error("Failed to upload file");
 }
 
-function readinessCopy(status: PaymasterAssignmentNoticeStatus | null | undefined): string {
-  if (status === "ACKNOWLEDGED") return "Paymaster acknowledgement confirmed.";
+function assignmentCardTone(
+  status: PaymasterAssignmentNoticeStatus | null,
+  acknowledged: boolean
+): WorkflowStatusTone {
+  if (acknowledged || status === "ACKNOWLEDGED") return "success";
+  if (status === "FAILED") return "danger";
+  if (status === "SENT") return "warning";
+  return "active";
+}
+
+function stepDescription(
+  status: PaymasterAssignmentNoticeStatus | null | undefined,
+  acknowledged: boolean
+): string {
+  if (acknowledged || status === "ACKNOWLEDGED") {
+    return "Paymaster acknowledgement confirmed.";
+  }
   if (status === "ACKNOWLEDGEMENT_UPLOADED") {
-    return "Acknowledgement uploaded. Confirm it before disbursement.";
+    return "Confirm the uploaded acknowledgement to complete this step.";
   }
   if (status === "SENT") {
-    return "Waiting for written Paymaster acknowledgement.";
+    return "Upload the written Paymaster acknowledgement.";
   }
   if (status === "GENERATED") {
-    return "Notice generated. Mark it sent after it is delivered to the Paymaster.";
+    return "Download the notice, send it to the Paymaster, then mark it sent.";
   }
-  return "Generate the Notice of Assignment after the existing execution pack is complete.";
+  if (status === "FAILED") {
+    return "Notice generation failed. Generate it again.";
+  }
+  return "Generate the Notice of Assignment, send it to the Paymaster, then upload their written acknowledgement.";
 }
 
 export function PaymasterAssignmentCard({
@@ -91,6 +113,8 @@ export function PaymasterAssignmentCard({
 
   const notice = note.assignmentNotice ?? null;
   const acknowledged = note.paymasterAcknowledgementSatisfied === true;
+  const status = notice?.status ?? null;
+  const tone = assignmentCardTone(status, acknowledged);
   const paymasterName =
     snapshotString(note.paymasterSnapshot, "name") ?? note.paymasterName ?? "—";
   const registration =
@@ -175,7 +199,7 @@ export function PaymasterAssignmentCard({
         fileName: file.name,
       });
       if (!attached.success) throw new Error(attached.error.message);
-      toast.success("Acknowledgement uploaded. Confirm it to satisfy the disbursement prerequisite.");
+      toast.success("Acknowledgement uploaded. Confirm it to complete this step.");
       invalidate();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to upload acknowledgement");
@@ -187,68 +211,102 @@ export function PaymasterAssignmentCard({
 
   const pendingAny =
     generate.isPending || markSent.isPending || confirmAck.isPending || uploadPending;
-  const status = notice?.status ?? null;
 
   return (
-    <div className={cn("rounded-xl border p-4", workflowTaskSurfaceClass(acknowledged ? "success" : "active"))}>
+    <div className={cn("rounded-xl border p-4", workflowTaskSurfaceClass(tone))}>
       <div className="flex flex-wrap items-center gap-2">
-        <WorkflowStepTitle complete={acknowledged} completeLabel="Paymaster / Assignment complete">
-          Paymaster / Assignment
+        <WorkflowStepTitle complete={acknowledged} completeLabel="Paymaster assignment complete">
+          Paymaster assignment
         </WorkflowStepTitle>
-        {status ? (
+        {acknowledged ? null : (
           <StatusBadge
-            label={assignmentNoticeStatusLabel(status)}
-            status={assignmentNoticeStatusToken(status)}
+            label={status ? assignmentNoticeStatusLabel(status) : "Not generated"}
+            status={status ? assignmentNoticeStatusToken(status) : "action"}
           />
-        ) : null}
+        )}
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">{readinessCopy(status)}</p>
-      {!acknowledged ? (
-        <p className="mt-1 text-xs text-muted-foreground">{PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{stepDescription(status, acknowledged)}</p>
+
+      {notice?.noticeS3Key && notice.generatedAt ? (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          <DocumentTextIcon className="h-3.5 w-3.5 shrink-0" />
+          <span className="font-medium text-foreground">Notice of Assignment</span>
+          <span aria-hidden>·</span>
+          <span>{format(new Date(notice.generatedAt), "dd MMM yyyy, h:mm a")}</span>
+        </div>
       ) : null}
 
-      <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-        <div>
-          <dt className="text-muted-foreground">Paymaster</dt>
-          <dd className="font-medium">
-            {note.paymasterId ? (
-              <Link href={paymasterHref(note.paymasterId)} className="text-primary underline-offset-4 hover:underline">
-                {paymasterName}
-              </Link>
-            ) : (
-              paymasterName
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">SSM / registration</dt>
-          <dd className="font-mono">{registration}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Entity type</dt>
-          <dd>{entityType}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Country</dt>
-          <dd>{country}</dd>
-        </div>
-      </dl>
+      <div className="mt-2 rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
+        <div className="font-medium">Paymaster</div>
+        <dl className="mt-1.5 space-y-1 text-muted-foreground">
+          <div className="grid grid-cols-[minmax(0,9rem)_1fr] gap-x-3 gap-y-0.5">
+            <dt>Name</dt>
+            <dd className="font-medium text-foreground">
+              {note.paymasterId ? (
+                <Link
+                  href={paymasterHref(note.paymasterId)}
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  {paymasterName}
+                </Link>
+              ) : (
+                paymasterName
+              )}
+            </dd>
+          </div>
+          <div className="grid grid-cols-[minmax(0,9rem)_1fr] gap-x-3 gap-y-0.5">
+            <dt>SSM / registration</dt>
+            <dd className="font-medium text-foreground">{registration}</dd>
+          </div>
+          <div className="grid grid-cols-[minmax(0,9rem)_1fr] gap-x-3 gap-y-0.5">
+            <dt>Entity type</dt>
+            <dd className="font-medium text-foreground">{entityType}</dd>
+          </div>
+          <div className="grid grid-cols-[minmax(0,9rem)_1fr] gap-x-3 gap-y-0.5">
+            <dt>Country</dt>
+            <dd className="font-medium text-foreground">{country}</dd>
+          </div>
+        </dl>
+      </div>
 
-      {notice?.generatedAt ? (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Generated {format(new Date(notice.generatedAt), "dd MMM yyyy, h:mm a")}
-          {notice.sentAt ? ` · Sent ${format(new Date(notice.sentAt), "dd MMM yyyy, h:mm a")}` : ""}
-          {notice.acknowledgedAt
-            ? ` · Acknowledged ${format(new Date(notice.acknowledgedAt), "dd MMM yyyy, h:mm a")}`
-            : ""}
-        </p>
-      ) : null}
+      <CollapsibleDetailTimeline
+        rows={[
+          ...(notice?.generatedAt
+            ? [
+                {
+                  label: "Generated",
+                  value: format(new Date(notice.generatedAt), "dd MMM yyyy, h:mm a"),
+                },
+              ]
+            : []),
+          ...(notice?.sentAt
+            ? [
+                {
+                  label: "Sent",
+                  value: format(new Date(notice.sentAt), "dd MMM yyyy, h:mm a"),
+                },
+              ]
+            : []),
+          ...(notice?.acknowledgementUploadedAt
+            ? [
+                {
+                  label: "Acknowledgement uploaded",
+                  value: format(new Date(notice.acknowledgementUploadedAt), "dd MMM yyyy, h:mm a"),
+                },
+              ]
+            : []),
+          ...(notice?.acknowledgedAt
+            ? [
+                {
+                  label: "Acknowledged",
+                  value: format(new Date(notice.acknowledgedAt), "dd MMM yyyy, h:mm a"),
+                },
+              ]
+            : []),
+        ]}
+      />
 
-      {notice?.templatePending ? (
-        <p className="mt-2 text-xs text-muted-foreground">{ASSIGNMENT_NOTICE_LEGAL_TEMPLATE_PENDING}</p>
-      ) : null}
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-3">
         {!notice || notice.status === "FAILED" ? (
           <Button
             size="sm"
@@ -337,10 +395,6 @@ export function PaymasterAssignmentCard({
         ) : null}
       </div>
 
-      <p className="mt-3 text-xs font-medium">
-        Disbursement readiness: {acknowledged ? "Ready (Paymaster acknowledgement)" : "Blocked"}
-      </p>
-
       <AlertDialog open={confirmAction !== null} onOpenChange={(open) => !open && setConfirmAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -353,10 +407,10 @@ export function PaymasterAssignmentCard({
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction === "generate"
-                ? "This records assignment particulars for this financing. Approved legal wording is pending if shown on the document."
+                ? "This creates the Notice of Assignment for this financing. Download it and send it to the Paymaster."
                 : confirmAction === "sent"
                   ? "Confirm that the Notice has been sent to the Paymaster. This does not mark acknowledgement complete."
-                  : "Confirm that the uploaded written acknowledgement is accepted. This satisfies the Paymaster prerequisite for disbursement."}
+                  : "Confirm that the uploaded written acknowledgement is accepted. This completes the Paymaster step for disbursement."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

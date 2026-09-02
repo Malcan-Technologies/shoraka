@@ -577,7 +577,7 @@ export default function NoteDetailPage() {
                           <NoteWorkflowTabHeader
                             icon={BanknotesIcon}
                             title="Disbursement"
-                            description="Manage Tawarruq execution, trustee submission, and issuer payout before servicing begins."
+                            description="Manage Paymaster assignment, Tawarruq execution, trustee submission, and issuer payout before servicing begins."
                           />
                           <CardContent className="space-y-6 pt-0">
                             <PaymasterAssignmentCard
