@@ -227,6 +227,43 @@ describe("note Event Details nested snapshots", () => {
       status: "FUNDING",
     });
   });
+
+  it("surfaces investment note certificate number, version and hashes", () => {
+    const detail = noteEventToAuditDetail(
+      {
+        id: "evt-cert",
+        noteId: "note-1",
+        eventType: "INVESTMENT_NOTE_CERTIFICATE_GENERATED",
+        actorUserId: "admin-1",
+        actorName: "Ada",
+        actorRole: "ADMIN",
+        portal: "ADMIN",
+        correlationId: null,
+        createdAt: "2026-09-02T00:00:00.000Z",
+        metadata: {
+          certificateNumber: "IINC-NOTE-1",
+          version: "V01",
+          snapshotSha256: "snap",
+          adminPdfSha256: "pdf",
+          investorCount: 2,
+          source: "DISBURSEMENT_COMPLETED",
+        },
+      },
+      "Investment Note Certificate Generated"
+    );
+    expect(detail.target?.extra).toEqual(
+      expect.arrayContaining([
+        { label: "Certificate number", value: "IINC-NOTE-1" },
+        { label: "Version", value: "V01" },
+      ])
+    );
+    expect(detail.technical).toEqual(
+      expect.arrayContaining([
+        { label: "Snapshot SHA-256", value: "snap" },
+        { label: "Admin PDF SHA-256", value: "pdf" },
+      ])
+    );
+  });
 });
 
 describe("contract activity Event Details", () => {

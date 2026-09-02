@@ -29,6 +29,9 @@ describe("formatNoteActivityEventLabel", () => {
     expect(formatNoteActivityEventLabel("SHORAKA_ORDER_SUBMITTED")).toBe(
       "Tawarruq Order Submitted"
     );
+    expect(formatNoteActivityEventLabel("INVESTMENT_NOTE_CERTIFICATE_GENERATED")).toBe(
+      "Investment Note Certificate Generated"
+    );
     expect(formatNoteActivityEventLabel("WITHDRAWAL_TRUSTEE_EMAIL_SENT")).toBe(
       "Withdrawal Trustee Email Sent"
     );

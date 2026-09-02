@@ -9,6 +9,7 @@ import { runSigningReconcileJob } from "./signing-reconcile";
 import { runGatewayStuckOrderPollerJob } from "./gateway-stuck-order-poller";
 import { runGatewaySettlementReconForConfiguredAccounts } from "./gateway-settlement-recon";
 import { runGatewayReceiptRetryJob } from "./gateway-receipt-retry";
+import { runInvestmentNoteCertificateRetryJob } from "./investment-note-certificate-retry";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
 
 const notificationService = new NotificationService();
@@ -126,6 +127,17 @@ export function initJobs() {
         await runGatewayReceiptRetryJob();
       } catch (error) {
         logger.error({ error }, "Failed to run gateway receipt retry job");
+      }
+    });
+  });
+
+  // Retry PENDING/FAILED Islamic Investment Note Certificate PDFs.
+  cron.schedule("*/10 * * * *", async () => {
+    await withAdvisoryLock(JOB_LOCK_KEYS.INVESTMENT_NOTE_CERTIFICATE_RETRY, async () => {
+      try {
+        await runInvestmentNoteCertificateRetryJob();
+      } catch (error) {
+        logger.error({ error }, "Failed to run investment note certificate retry job");
       }
     });
   });

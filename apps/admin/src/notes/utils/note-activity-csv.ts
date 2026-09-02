@@ -58,6 +58,7 @@ const EVENT_LABELS: Record<string, string> = {
   FACILITY_OCCUPANCY_UPDATED: "Facility Occupancy Updated",
   SHORAKA_ORDER_SUBMITTED: "Tawarruq Order Submitted",
   SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate Retrieved",
+  INVESTMENT_NOTE_CERTIFICATE_GENERATED: "Investment Note Certificate Generated",
 };
 
 const RESIDUAL_RETURN_EVENT_LABELS: Record<string, string> = {

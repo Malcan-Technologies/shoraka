@@ -81,6 +81,34 @@ export function useOpenInvestmentProspectus() {
   };
 }
 
+export function useInvestorInvestmentNoteCertificate(investmentId?: string) {
+  const apiClient = useMarketplaceApiClient();
+  return useQuery({
+    queryKey: ["investor-investment-note-certificate", investmentId] as const,
+    enabled: Boolean(investmentId),
+    queryFn: async () => {
+      if (!investmentId) throw new Error("Investment ID is required");
+      const res = await apiClient.getInvestorInvestmentNoteCertificate(investmentId);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+  });
+}
+
+export function useOpenInvestorInvestmentNoteCertificate() {
+  const apiClient = useMarketplaceApiClient();
+  return async (investmentId: string) => {
+    await openFetchedPdfInNewTab(async () => {
+      const res = await apiClient.getInvestorInvestmentNoteCertificate(investmentId);
+      if (!res.success) throw new Error(res.error.message);
+      if (!res.data.viewUrl) {
+        throw new Error("Investment Note Certificate is not available");
+      }
+      return res.data.viewUrl;
+    });
+  };
+}
+
 export function useMarketplaceNotes({
   search = "",
   page = 1,

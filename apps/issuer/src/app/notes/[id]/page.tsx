@@ -43,6 +43,8 @@ import {
   useIssuerNotePaymentInstructions,
   useSubmitIssuerPayment,
   useViewIssuerShorakaCertificate,
+  useIssuerInvestmentNoteCertificate,
+  useViewIssuerInvestmentNoteCertificate,
 } from "@/notes/hooks/use-issuer-notes";
 import { LedgerPanel } from "@/notes/components/ledger-panel";
 import { ExcessLateChargePaymentCard } from "@/components/financing/excess-late-charge-payment-card";
@@ -320,6 +322,8 @@ export default function IssuerNoteDetailPage() {
   const submitPayment = useSubmitIssuerPayment(noteId);
   const uploadEvidenceUrl = useIssuerPaymentEvidenceUploadUrl(noteId);
   const viewShorakaCertificate = useViewIssuerShorakaCertificate(noteId);
+  const { data: investmentNoteCertificate } = useIssuerInvestmentNoteCertificate(noteId);
+  const viewInvestmentNoteCertificate = useViewIssuerInvestmentNoteCertificate(noteId);
   const [reference, setReference] = React.useState("");
   const [paymentSource, setPaymentSource] = React.useState<NotePaymentSource>(
     NotePaymentSource.ISSUER_ON_BEHALF
@@ -1039,6 +1043,37 @@ export default function IssuerNoteDetailPage() {
                       disabled={viewShorakaCertificate.isPending}
                     >
                       View Tawarruq Certificate
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {investmentNoteCertificate?.status === "READY" ? (
+                <div className="rounded-lg border bg-card p-4">
+                  <div className="text-sm font-medium">Investment Note Certificate</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Issued after successful funding and disbursement.
+                  </div>
+                  <div className="mt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={async () => {
+                        try {
+                          const result = await viewInvestmentNoteCertificate.mutateAsync();
+                          if (result.viewUrl) {
+                            window.open(result.viewUrl, "_blank", "noopener,noreferrer");
+                          }
+                        } catch (err) {
+                          toast.error(
+                            err instanceof Error ? err.message : "Failed to open certificate"
+                          );
+                        }
+                      }}
+                      disabled={viewInvestmentNoteCertificate.isPending}
+                    >
+                      View / Download
                     </Button>
                   </div>
                 </div>

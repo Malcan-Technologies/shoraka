@@ -27,6 +27,8 @@ import {
   useInvestorInvestments,
   useMarketplaceNote,
   useOpenInvestmentProspectus,
+  useOpenInvestorInvestmentNoteCertificate,
+  useInvestorInvestmentNoteCertificate,
   useOpenMarketplaceProspectus,
 } from "@/investments/hooks/use-marketplace-notes";
 import { toast } from "sonner";
@@ -92,11 +94,14 @@ export default function InvestmentDetailPage() {
   const investmentsQuery = useInvestorInvestments(orgId);
   const openInvestmentProspectus = useOpenInvestmentProspectus();
   const openMarketplaceProspectus = useOpenMarketplaceProspectus();
+  const openInvestmentNoteCertificate = useOpenInvestorInvestmentNoteCertificate();
 
   const investedNote = React.useMemo(
     () => investmentsQuery.data?.notes.find((entry) => entry.id === noteId) ?? null,
     [investmentsQuery.data?.notes, noteId]
   );
+  const investorInvestmentId = investedNote?.investorInvestmentId ?? undefined;
+  const certificateQuery = useInvestorInvestmentNoteCertificate(investorInvestmentId);
 
   const shouldFetchMarketplace =
     Boolean(noteId) &&
@@ -191,22 +196,42 @@ export default function InvestmentDetailPage() {
         }
         action={
           note ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 rounded-xl"
-              onClick={() => {
-                const investmentId = investedNote?.investorInvestmentId;
-                const open = investmentId
-                  ? () => openInvestmentProspectus(investmentId)
-                  : () => openMarketplaceProspectus(note.id);
-                void open().catch((err) =>
-                  toast.error(err instanceof Error ? err.message : "Prospectus unavailable")
-                );
-              }}
-            >
-              View prospectus
-            </Button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 rounded-xl"
+                onClick={() => {
+                  const investmentId = investedNote?.investorInvestmentId;
+                  const open = investmentId
+                    ? () => openInvestmentProspectus(investmentId)
+                    : () => openMarketplaceProspectus(note.id);
+                  void open().catch((err) =>
+                    toast.error(err instanceof Error ? err.message : "Prospectus unavailable")
+                  );
+                }}
+              >
+                View prospectus
+              </Button>
+              {isInvestedView && certificateQuery.data?.status === "READY" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 rounded-xl"
+                  onClick={() => {
+                    const investmentId = investedNote?.investorInvestmentId;
+                    if (!investmentId) return;
+                    void openInvestmentNoteCertificate(investmentId).catch((err) =>
+                      toast.error(
+                        err instanceof Error ? err.message : "Certificate unavailable"
+                      )
+                    );
+                  }}
+                >
+                  Investment Note Certificate
+                </Button>
+              ) : null}
+            </div>
           ) : null
         }
       >

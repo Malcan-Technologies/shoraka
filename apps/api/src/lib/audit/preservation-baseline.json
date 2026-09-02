@@ -44,6 +44,7 @@
     "loans",
     "note_admin_actions",
     "note_events",
+    "note_investment_certificates",
     "note_investments",
     "note_ledger_accounts",
     "note_ledger_entries",
@@ -153,6 +154,7 @@
     ],
     "noteEvent": [
       "INVESTMENT_COMMITTED",
+      "INVESTMENT_NOTE_CERTIFICATE_GENERATED",
       "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED",
       "LATE_CHARGE_APPROVED",
       "NOTE_CREATED_FROM_INVOICE",

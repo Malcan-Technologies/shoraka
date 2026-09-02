@@ -95,6 +95,7 @@ import type {
   GetAdminNotesParams,
   MarketplaceNoteDetail,
   NoteDetail,
+  InvestmentNoteCertificatePdfPayload,
   NoteSettlementPreviewResult,
   NoteActionRequiredCountResponse,
   GetAdminInvestmentsParams,
@@ -956,6 +957,18 @@ export class ApiClient {
     return this.get(`/v1/admin/notes/${id}/prospectus`);
   }
 
+  async getAdminInvestmentNoteCertificate(
+    id: string
+  ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
+    return this.get(`/v1/admin/notes/${id}/investment-note-certificate`);
+  }
+
+  async retryAdminInvestmentNoteCertificate(
+    id: string
+  ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
+    return this.post(`/v1/admin/notes/${id}/investment-note-certificate/retry`, {});
+  }
+
   async getMarketplaceNoteProspectus(
     noteId: string
   ): Promise<
@@ -1012,6 +1025,12 @@ export class ApiClient {
     | ApiError
   > {
     return this.get(`/v1/investor/investments/${investmentId}/prospectus`);
+  }
+
+  async getInvestorInvestmentNoteCertificate(
+    investmentId: string
+  ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
+    return this.get(`/v1/investor/investments/${investmentId}/investment-note-certificate`);
   }
 
   async getAdminProspectusReviewPreview(
@@ -3626,6 +3645,14 @@ export class ApiClient {
     return this.post<{ viewUrl: string; expiresIn: number }>(
       `/v1/issuer/notes/${noteId}/shoraka-certificate/view-url`,
       {}
+    );
+  }
+
+  async getIssuerInvestmentNoteCertificate(
+    noteId: string
+  ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
+    return this.get<InvestmentNoteCertificatePdfPayload>(
+      `/v1/issuer/notes/${noteId}/investment-note-certificate`
     );
   }
 

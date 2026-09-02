@@ -951,6 +951,7 @@ model Note {
   gateway_payments                GatewayPayment[]
   paymaster                       Paymaster?                  @relation(fields: [paymaster_id], references: [id], onDelete: SetNull)
   assignment_notices              PaymasterAssignmentNotice[]
+  investment_certificates         NoteInvestmentCertificate[]
 
   @@index([source_application_id])
   @@index([source_contract_id])
@@ -2439,6 +2440,46 @@ enum NoteInvestmentStatus {
   RELEASED
   CANCELLED
   SETTLED
+}
+
+enum NoteInvestmentCertificateAudience {
+  ADMIN
+  ISSUER
+  INVESTOR
+}
+
+enum NoteInvestmentCertificateStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+/// Immutable Islamic Investment Note Certificate artefacts (one row per audience/version).
+/// Postgres UNIQUE treats NULLs as distinct, so audience_scope_key encodes ADMIN | ISSUER | INVESTOR:{orgId}.
+model NoteInvestmentCertificate {
+  id                       String                              @id @default(cuid())
+  note_id                  String
+  certificate_number       String
+  version                  String
+  audience                 NoteInvestmentCertificateAudience
+  audience_scope_key       String
+  investor_organization_id String?
+  status                   NoteInvestmentCertificateStatus     @default(PENDING)
+  snapshot                 Json
+  pdf_s3_key               String?
+  pdf_sha256               String?
+  generated_at             DateTime?
+  generation_error         String?
+  created_at               DateTime                            @default(now())
+  updated_at               DateTime                            @updatedAt
+  note                     Note                                @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  @@unique([note_id, version, audience_scope_key], map: "note_investment_certificates_scope_uidx")
+  @@index([note_id, version, audience])
+  @@index([investor_organization_id])
+  @@index([status])
+  @@index([certificate_number])
+  @@map("note_investment_certificates")
 }
 
 enum InvestorBalanceTransactionDirection {

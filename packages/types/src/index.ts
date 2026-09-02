@@ -502,6 +502,7 @@ export * from "./onboarding-readiness";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
 export * from "./notes";
+export * from "./investment-note-certificate";
 export * from "./financing-tenure";
 export * from "./invoice-financing-ratio";
 export * from "./invoice-details-config";

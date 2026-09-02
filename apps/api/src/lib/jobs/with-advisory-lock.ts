@@ -9,6 +9,7 @@ export const JOB_LOCK_KEYS = {
   ACCEPTANCE_SIGNING_EXPIRY: 9_001_004,
   SIGNING_RECONCILE: 9_001_005,
   GATEWAY_RECEIPT_RETRY: 9_001_006,
+  INVESTMENT_NOTE_CERTIFICATE_RETRY: 9_001_007,
 } as const;
 
 type AdvisoryLockClient = Pick<PoolClient, "query"> & {

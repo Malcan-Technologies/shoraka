@@ -87,6 +87,33 @@ export function useViewIssuerShorakaCertificate(noteId: string | null) {
   });
 }
 
+export function useIssuerInvestmentNoteCertificate(noteId?: string) {
+  const apiClient = useIssuerNotesApiClient();
+  return useQuery({
+    queryKey: [...issuerNotesKeys.detail(noteId), "investment-note-certificate"] as const,
+    enabled: Boolean(noteId),
+    queryFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const response = await apiClient.getIssuerInvestmentNoteCertificate(noteId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+}
+
+export function useViewIssuerInvestmentNoteCertificate(noteId: string | null) {
+  const apiClient = useIssuerNotesApiClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const response = await apiClient.getIssuerInvestmentNoteCertificate(noteId);
+      if (!response.success) throw new Error(response.error.message);
+      if (!response.data.viewUrl) throw new Error("Investment Note Certificate is not available");
+      return response.data;
+    },
+  });
+}
+
 export function useSubmitIssuerPayment(noteId: string) {
   const apiClient = useIssuerNotesApiClient();
   const queryClient = useQueryClient();

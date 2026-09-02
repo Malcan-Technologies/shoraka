@@ -7167,6 +7167,17 @@ export class NoteService {
         amount: toNumber(withdrawal.amount),
       });
 
+      if (withdrawal.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {
+        const { scheduleInvestmentNoteCertificateGeneration } = await import(
+          "./investment-note-certificate/service"
+        );
+        scheduleInvestmentNoteCertificateGeneration({
+          noteId: withdrawal.note_id,
+          source: "DISBURSEMENT_COMPLETED",
+          actor,
+        });
+      }
+
       // Only the issuer financing disbursement withdrawal type represents a user-facing
       // disbursement outcome; residual return / investor withdrawal / admin adjustment do not.
       if (

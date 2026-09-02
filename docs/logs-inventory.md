@@ -321,6 +321,7 @@ Do not treat `apps/api/src/lib/audit/visibility-matrix.ts` or `docs/logging-even
 | LOG-INT-001 | Entity Onboarding Data Provider Update | `EOD_WEBHOOK` | EOD webhook with a status other than APPROVED or REJECTED | RegTank `/eodliveness` non-approve/reject status | Webhook | Organisation | eodRequestId, status | `onboarding_logs` | No current Admin UI | No | Organisation Activity query excludes this type. Approve/reject write LOG-ONB-017/018 instead |
 | LOG-INT-002 | Tawarruq Order Submitted | `SHORAKA_ORDER_SUBMITTED` | Tawarruq order submitted | Admin `POST .../shoraka/submit-order` on first trade-order create | Admin | Trade order | trade_order_id | `note_events` | Note record - Activity | No | Stored code uses SHORAKA. Admin note timeline labels Tawarruq |
 | LOG-INT-003 | Tawarruq Certificate Retrieved | `SHORAKA_CERTIFICATE_FETCHED` | Tawarruq certificate retrieved | Admin `POST .../shoraka/fetch-certificate` when provider COMPLETED | Admin | Trade order | Certificate refs | `note_events` | Note record - Activity | No | Same SHORAKA stored prefix |
+| LOG-INT-004 | Investment Note Certificate Generated | `INVESTMENT_NOTE_CERTIFICATE_GENERATED` | Islamic Investment Note Certificate PDFs stored for a funded, disbursed note | After issuer disbursement completion (or Admin retry of a failed generation) | Admin / System | Note | certificateNumber, version, snapshotSha256, investorCount, source | `note_events` | Note record - Activity | No | Written once per successful version. Not issuer/investor Activity |
 
 ## Supporting Investigation Records
 
