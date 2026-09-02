@@ -2,9 +2,9 @@
  * Convert a filled .docx to PDF via Gotenberg
  * (`GOTENBERG_URL` → POST /forms/libreoffice/convert).
  *
- * Shared by Letter of Offer, generated documents, and the Islamic
- * Investment Note Certificate. Callers must not put route suffixes in
- * GOTENBERG_URL.
+ * Shared by Letter of Offer, generated documents, the Islamic
+ * Investment Note Certificate, and the Settlement & Hibah Receipt.
+ * Callers must not put route suffixes in GOTENBERG_URL.
  */
 
 const CONVERT_TIMEOUT_MS = 90_000;

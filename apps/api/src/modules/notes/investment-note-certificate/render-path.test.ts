@@ -16,10 +16,10 @@ describe("investment note certificate render path isolation", () => {
     expect(service).not.toContain("buildInvestmentNoteCertificateHtml");
   });
 
-  it("does not change Settlement & Hibah Receipt HTML conversion", () => {
+  it("does not change Settlement & Hibah Receipt conversion helper isolation from the certificate", () => {
     const receipt = source("../settlement-hibah-receipt/service.ts");
-    expect(receipt).toContain("convertHtmlToPdf");
-    expect(receipt).toContain("buildSettlementHibahReceiptHtml");
+    expect(receipt).toContain("convertDocxToPdf");
+    expect(receipt).toContain("renderSettlementHibahReceiptDocx");
     expect(receipt).not.toContain("renderInvestmentNoteCertificateDocx");
   });
 

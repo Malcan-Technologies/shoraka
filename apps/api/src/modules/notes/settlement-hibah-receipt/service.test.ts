@@ -7,7 +7,9 @@ import {
 import { AppError } from "../../../lib/http/error-handler";
 import type { SettlementHibahReceiptSnapshot } from "./types";
 
+const mockConvertDocxToPdf = jest.fn();
 const mockConvertHtmlToPdf = jest.fn();
+const mockRenderDocx = jest.fn();
 const mockStoreReceiptPdf = jest.fn();
 const mockGenerateReceiptPdfViewUrl = jest.fn();
 const mockCreateNoteEventRow = jest.fn();
@@ -96,8 +98,14 @@ const mockPrisma: any = {
 };
 
 jest.mock("../../../lib/prisma", () => ({ prisma: mockPrisma }));
+jest.mock("../../../lib/gotenberg/convert-docx-to-pdf", () => ({
+  convertDocxToPdf: (...args: unknown[]) => mockConvertDocxToPdf(...args),
+}));
 jest.mock("../../../lib/gotenberg/convert-html-to-pdf", () => ({
   convertHtmlToPdf: (...args: unknown[]) => mockConvertHtmlToPdf(...args),
+}));
+jest.mock("./render-receipt-docx", () => ({
+  renderSettlementHibahReceiptDocx: (...args: unknown[]) => mockRenderDocx(...args),
 }));
 jest.mock("./storage", () => ({
   RECEIPT_PDF_CONTENT_TYPE: "application/pdf",
@@ -116,11 +124,6 @@ jest.mock("./snapshot", () => ({
     value && typeof value === "object" && (value as { receiptNumber?: string }).receiptNumber
       ? value
       : null,
-}));
-jest.mock("./receipt-html", () => ({
-  buildSettlementHibahReceiptHtml: jest.fn(
-    (snapshot: SettlementHibahReceiptSnapshot) => `<html>${snapshot.receiptNumber}</html>`
-  ),
 }));
 jest.mock("../../../lib/audit", () => ({
   AUDIT_PORTAL: { ADMIN: "ADMIN" },
@@ -213,7 +216,11 @@ describe("generateSettlementHibahReceipt", () => {
       status: NoteSettlementStatus.POSTED,
       display_reference: "SET-ARF-202608-A52",
     };
-    mockConvertHtmlToPdf.mockResolvedValue(Buffer.from("%PDF-hibah"));
+    mockRenderDocx.mockImplementation((snapshot: SettlementHibahReceiptSnapshot) =>
+      Buffer.from(`PK-docx-${snapshot.receiptNumber}`)
+    );
+    mockConvertDocxToPdf.mockResolvedValue(Buffer.from("%PDF-hibah"));
+    mockConvertHtmlToPdf.mockRejectedValue(new Error("Chromium must not be used for hibah receipts"));
     mockStoreReceiptPdf.mockResolvedValue(undefined);
     mockGenerateReceiptPdfViewUrl.mockResolvedValue({
       viewUrl: "https://s3/view",
@@ -243,7 +250,12 @@ describe("generateSettlementHibahReceipt", () => {
       noteId: "note-1",
       source: "SETTLEMENT_COMPLETED",
     });
-    expect(mockConvertHtmlToPdf).toHaveBeenCalledTimes(1);
+    expect(mockConvertDocxToPdf).toHaveBeenCalledTimes(1);
+    expect(mockConvertHtmlToPdf).not.toHaveBeenCalled();
+    expect(mockRenderDocx).toHaveBeenCalledTimes(1);
+    expect(mockConvertDocxToPdf.mock.calls[0][1]).toEqual({
+      fileName: "settlement-hibah-receipt.docx",
+    });
     expect(mockStoreReceiptPdf).toHaveBeenCalledTimes(1);
     expect(receiptStore.rows).toHaveLength(1);
     expect(receiptStore.rows[0].status).toBe(SettlementHibahReceiptStatus.READY);
@@ -267,20 +279,23 @@ describe("generateSettlementHibahReceipt", () => {
       noteId: "note-1",
       source: "SETTLEMENT_COMPLETED",
     });
-    mockConvertHtmlToPdf.mockClear();
+    mockConvertDocxToPdf.mockClear();
+    mockRenderDocx.mockClear();
     mockBuildSnapshot.mockClear();
     mockCreateNoteEventRow.mockClear();
     await generateSettlementHibahReceipt({
       noteId: "note-1",
       source: "ADMIN_RETRY",
     });
+    expect(mockConvertDocxToPdf).not.toHaveBeenCalled();
+    expect(mockRenderDocx).not.toHaveBeenCalled();
     expect(mockConvertHtmlToPdf).not.toHaveBeenCalled();
     expect(mockBuildSnapshot).not.toHaveBeenCalled();
     expect(mockCreateNoteEventRow).not.toHaveBeenCalled();
   });
 
   it("does not alter settlement when Gotenberg fails", async () => {
-    mockConvertHtmlToPdf.mockRejectedValue(new Error("gotenberg down"));
+    mockConvertDocxToPdf.mockRejectedValue(new Error("gotenberg down"));
     await generateSettlementHibahReceipt({
       noteId: "note-1",
       source: "SETTLEMENT_COMPLETED",
@@ -323,7 +338,8 @@ describe("generateSettlementHibahReceipt", () => {
     mockBuildSnapshot.mockResolvedValue(sampleSnapshot({ hibahAmount: 99, snapshotSha256: "new" }));
     await retryAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" });
     expect(mockBuildSnapshot).not.toHaveBeenCalled();
-    expect(mockConvertHtmlToPdf).toHaveBeenCalledTimes(1);
+    expect(mockConvertDocxToPdf).toHaveBeenCalledTimes(1);
+    expect(mockConvertHtmlToPdf).not.toHaveBeenCalled();
     expect(receiptStore.rows[0].status).toBe(SettlementHibahReceiptStatus.READY);
     expect(receiptStore.rows[0].snapshot.hibahAmount).toBe(12.34);
     expect(receiptStore.rows[0].snapshot.snapshotSha256).toBe("frozen-hash");

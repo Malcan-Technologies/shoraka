@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "prisma generate && tsx watch src/index.ts",
-    "build": "pnpm --filter @cashsouk/types build && prisma generate && tsc && cp -r src/modules/ctos/xslt dist/modules/ctos/ && mkdir -p dist/modules/applications/templates && cp -r src/modules/applications/templates/. dist/modules/applications/templates/ && mkdir -p dist/modules/notes/investment-note-certificate/templates && cp src/modules/notes/investment-note-certificate/templates/islamic-investment-note-certificate-v1.docx dist/modules/notes/investment-note-certificate/templates/",
+    "build": "pnpm --filter @cashsouk/types build && prisma generate && tsc && cp -r src/modules/ctos/xslt dist/modules/ctos/ && mkdir -p dist/modules/applications/templates && cp -r src/modules/applications/templates/. dist/modules/applications/templates/ && mkdir -p dist/modules/notes/investment-note-certificate/templates && cp src/modules/notes/investment-note-certificate/templates/islamic-investment-note-certificate-v1.docx dist/modules/notes/investment-note-certificate/templates/ && mkdir -p dist/modules/notes/settlement-hibah-receipt/templates && cp src/modules/notes/settlement-hibah-receipt/templates/settlement-hibah-receipt-v1.docx dist/modules/notes/settlement-hibah-receipt/templates/",
     "start": "node dist/index.js",
     "typecheck": "prisma generate && tsc --noEmit",
     "lint": "eslint src",
@@ -89,6 +89,8 @@
     "retag-lo-template": "tsx scripts/retag-lo-template.ts",
     "tag-investment-note-certificate-template": "tsx scripts/tag-investment-note-certificate-template.ts",
     "preview:investment-note-certificate": "tsx scripts/preview-investment-note-certificate.ts",
+    "tag-settlement-hibah-receipt-template": "tsx scripts/tag-settlement-hibah-receipt-template.ts",
+    "preview:settlement-hibah-receipt": "tsx scripts/preview-settlement-hibah-receipt.ts",
     "backfill-invoice-sub-limit": "tsx scripts/backfill-invoice-sub-limit.ts",
     "clean": "rm -rf dist"
   },
