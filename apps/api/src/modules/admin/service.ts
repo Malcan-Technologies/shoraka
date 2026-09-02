@@ -2796,6 +2796,14 @@ export class AdminService {
     directorKycStatus?: Record<string, unknown> | null;
     businessAmlStatus?: Record<string, unknown> | null;
     people?: import("@cashsouk/types").ApplicationPersonRow[];
+    dateOfIncorporation?: string | null;
+    dateOfCommencement?: string | null;
+    countryOfIncorporation?: string | null;
+    scCompanyType?: string | null;
+    companyCategory?: string | null;
+    companyEmail?: string | null;
+    scInvestorCategory?: string | null;
+    residentialAddress?: import("@cashsouk/types").ProfileAddress | null;
   } | null> {
     const org = await this.repository.getOrganizationById(portal, id);
 
@@ -3091,7 +3099,14 @@ export class AdminService {
         role: m.role,
         createdAt: m.created_at.toISOString(),
       })),
-      // Sophisticated investor status (only for investor portal, false for issuer)
+      dateOfIncorporation: org.date_of_incorporation?.toISOString() ?? null,
+      dateOfCommencement: org.date_of_commencement?.toISOString() ?? null,
+      countryOfIncorporation: org.country_of_incorporation ?? null,
+      scCompanyType: org.sc_company_type ?? null,
+      companyCategory: org.company_category ?? null,
+      companyEmail: org.company_email ?? null,
+      scInvestorCategory: org.sc_investor_category ?? null,
+      residentialAddress: (org.residential_address as import("@cashsouk/types").ProfileAddress | null) ?? null,
       isSophisticatedInvestor:
         portal === "investor" ? (org.is_sophisticated_investor ?? false) : false,
       sophisticatedInvestorReason:

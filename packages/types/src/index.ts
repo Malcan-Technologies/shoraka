@@ -552,6 +552,9 @@ export * from "./gateway-payments";
 export * from "./gateway-recon";
 export * from "./marc-credit-grade";
 export * from "./paymaster";
+export * from "./comrep-profile";
+export * from "./organization-party-profile";
+export * from "./operator-profile";
 export {
   ADMIN_PERMISSIONS,
   ADMIN_PERMISSION_GROUPS,

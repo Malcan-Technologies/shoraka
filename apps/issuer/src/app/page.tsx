@@ -19,6 +19,7 @@ import { RecentApplicationsCard } from "../components/dashboard/recent-applicati
 import { RecentFinancingCard } from "../components/dashboard/recent-financing-card";
 import { RecentActivityCard } from "../components/dashboard/recent-activity-card";
 import { NextActionBanner } from "../components/dashboard/next-action-banner";
+import { IssuerProfileCompletenessBanner } from "../components/profile-completeness-banner";
 import { WhereThingsStandCard } from "../components/dashboard/where-things-stand-card";
 import { RepaymentPerformanceCard } from "../components/repayment-performance-card";
 import { PageShell, welcomeBackTitle } from "@cashsouk/ui";
@@ -210,6 +211,11 @@ function IssuerDashboardContent() {
                 enabled={activeOrganization.onboardingStatus === "COMPLETED"}
               />
             ) : null}
+
+            <IssuerProfileCompletenessBanner
+              organizationId={activeOrganization?.id}
+              onboarded={isAccountEnabled}
+            />
 
             {nextAction ? (
               <NextActionBanner

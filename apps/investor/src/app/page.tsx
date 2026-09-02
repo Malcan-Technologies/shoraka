@@ -15,6 +15,7 @@ import { Button } from "../components/ui/button";
 import { PlusIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboarding-status-card";
 import { DepositCard } from "../components/deposit-card";
+import { InvestorProfileCompletenessBanner } from "../components/profile-completeness-banner";
 import { AccountOverviewCard } from "../components/account-overview-card";
 import { PortfolioOverviewCard } from "../components/portfolio-overview-card";
 import { DashboardInvestmentsSection } from "../components/dashboard-investments-section";
@@ -208,6 +209,11 @@ function InvestorDashboardContent() {
                   copy={INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY}
                 />
               ) : null}
+
+              <InvestorProfileCompletenessBanner
+                organizationId={activeOrganization?.id}
+                onboarded={isAccountEnabled}
+              />
 
               {activeOrganization && !allStepsComplete ? (
                 <section className="space-y-6">

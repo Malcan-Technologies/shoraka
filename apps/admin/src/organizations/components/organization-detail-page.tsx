@@ -49,9 +49,11 @@ import { OrganizationKycResponseCard } from "./organization-kyc-response-card";
 import { OrganizationLegalAcceptancesPanel } from "./organization-legal-acceptances-panel";
 import { OrganizationLinkedRecordsPanel } from "./organization-linked-records-panel";
 import { OrganizationPeoplePanel } from "./organization-people-panel";
+import { OrganizationRegulatoryPartiesPanel } from "./organization-regulatory-parties-panel";
 import { OrganizationWalletActivityPanel } from "./organization-wallet-activity-panel";
 import { CopyableText } from "./organization-profile-helpers";
 import { OrganizationProfilePanel } from "./organization-profile-panel";
+import { OrganizationComrepMasterPanel } from "./organization-comrep-master-panel";
 import { OrganizationQuickLinksCard } from "./organization-quick-links-card";
 import {
   isOrgDetailTabId,
@@ -404,6 +406,11 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                           organizationId={organizationId}
                           displayName={displayName}
                         />
+                        <OrganizationComrepMasterPanel
+                          org={org}
+                          portal={portal}
+                          organizationId={organizationId}
+                        />
                         {portal === "issuer" ? (
                           <div className="mt-6" id="marc-assessment">
                             <OrganizationMarcCard
@@ -423,6 +430,13 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                             organizationId={organizationId}
                             displayName={displayName}
                           />
+                          <div className="mt-6">
+                            <OrganizationRegulatoryPartiesPanel
+                              org={org}
+                              portal={portal}
+                              organizationId={organizationId}
+                            />
+                          </div>
                         </AdminDetailTabPanel>
                       ) : null}
                       <AdminDetailTabPanel value="linked-records" preserveMount>

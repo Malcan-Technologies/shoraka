@@ -20,80 +20,64 @@ Most of the ~150 individual gaps below collapse into seven root causes. Fixing t
 
 | # | Theme | Impact | Rough shape of the fix |
 |---|---|---|---|
-| 1 | **No operator entity registry.** The platform stores data *about* issuers and investors, but almost nothing about CashSouk itself. | Kills ~90% of the annual RMO Information Report (share capital, own shareholders, own directors, advisors, subsidiaries, own audited financials). | New `operator_*` models plus an admin "Company Profile" settings area. Low technical risk, high data-entry volume. |
+| 1 | **Operator XBRL export is not built.** Operator company data is now stored (Admin → Settings → Shoraka Profile). | Annual `[01000]`–`[05000]`, `[10000]`, `[11000]` can be entered, but nothing produces the ComRep file. | Export builder only. Out of scope until filing. |
 | 2 | **No complaints register.** | `[08000] Complaints` cannot be filed at all. | New `Complaint` model + admin CRUD. Categories are a fixed SC enum. |
 | 3 | **No legal action register.** | `[09000] Legal Action` cannot be filed at all. | New `LegalAction` model + admin CRUD. |
-| 4 | **Investor classification is a boolean.** `is_sophisticated_investor` is true/false; the SC needs Angel / Retail / Sophisticated with four Sophisticated sub-types. | Breaks investor type across three separate tabs in two reports. | Replace boolean with an enum; add the Angel means-test questions to onboarding (see §3). |
+| 4 | **Investor classification is a boolean plus a separate SC enum.** `is_sophisticated_investor` is still the product flag; `sc_investor_category` is the ComRep type and is **not** auto-set from the boolean. | Completeness requires the SC enum. Angel means-test questions are still not in onboarding. | Keep the two fields independent. Collect `sc_investor_category` in secondary onboarding / Admin. |
 | 5 | **No days-past-due (DPD) persistence.** DPD is computed at runtime for late-charge purposes only; nothing is stored or bucketed. | Breaks the entire Position Report `[02000]` and `[03000]`, and the >90 DPD default definition. | Nightly job writing a per-note position snapshot with a DPD bucket. |
 | 6 | **No reschedule & restructure (R&R) concept.** | `[04000] R&R notes` cannot be filed at all. | New `NoteRestructure` model linking original → revised campaign. |
-| 7 | **Free-text taxonomies where the SC mandates enums.** Industry, company type, designation, purpose of financing, financing type are all free text or a non-matching list. | Values cannot be mapped to SC dropdowns without manual translation each month. | Add SC-aligned enums; back-fill existing rows. |
+| 7 | **Free-text taxonomies where the SC mandates enums.** Industry, purpose of financing, and financing type remain free text. Company type, designation, share type, and investor category now have SC enums. | Remaining free-text fields still need mapping at export. | Continue adding SC-aligned enums only where the manual has a closed list. |
 
 ---
 
 ## 2. RMO Information Report (Annual)
 
-This report is about **CashSouk as a company**. It is almost entirely absent from the system.
+This report is about **CashSouk as a company**. Collection models now exist; ComRep/XBRL export does not.
 
 ### [00000] Scoping Questions & [01000] General Information — pp. 8–10
 
 | Field | PDF p. | State | Current situation | Suggested collection point |
 |---|---|---|---|---|
 | Reporting Level, Category, Sub-Category, Report Name, Type of Submission, Reporting Start/End Date | 8–9 | Missing | Submission metadata; nothing stores it. | Hardcode constants in the export builder; expose Type of Submission (New/Resubmission) and Reporting End Date as operator input at export time. |
-| RMO Company Registration Number (BRN/ROC) | 8 | Partial | Only as the `RECEIPT_MERCHANT_REGISTRATION_NUMBER` env var used for receipt PDFs. Not a first-class record. | Operator Company Profile settings page (see theme 1). |
-| Trustee Company Registration Number | 8 | Partial | `PlatformFinanceSetting.trustee_letter_config` holds trustee *name* and address, but no registration number. | Extend `trustee_letter_config`, or better, move the trustee into a proper Advisors table. |
-| Name of RMO | 9 | Partial | `trustee_letter_config.platformDisplayName` (defaults to "CashSouk Sdn Bhd") and `RECEIPT_MERCHANT_LEGAL_NAME`. Two sources that can drift. | Single operator profile record; make receipts and letters read from it. |
-| Name of Responsible Person | 9 | Missing | No concept of an SC-appointed Responsible Person. `Admin` rows are portal staff. | Operator Company Profile settings page. |
-| Contact Number (Responsible Person) | 9 | Missing | — | Same as above. |
+| RMO Company Registration Number (BRN/ROC) | 8 | Stored | `OperatorProfile.registration_number` | Admin → Settings → Shoraka Profile `[01000]`. Receipts still have a separate env var until they are pointed at this record. |
+| Trustee Company Registration Number | 8 | Stored | `OperatorProfile.trustee_registration_number` | Same page. Also still on `trustee_letter_config` for letters. |
+| Name of RMO | 9 | Stored | `OperatorProfile.name` | Same page. |
+| Name of Responsible Person | 9 | Stored | `OperatorProfile.responsible_person_name`; also a Yes/No flag on `OperatorOfficer` | Same page / `[04000]` officers. |
+| Contact Number (Responsible Person) | 9 | Stored | `OperatorProfile.responsible_person_phone` | Same page. |
 | Declaration (Yes/No) | 10 | Missing | — | Capture as a checkbox at export/submission time, with the approving user and timestamp recorded for audit. |
 
 ### [02000] Summary of Share Capital — pp. 10–12
 
-**Entire tab missing.** No operator share capital data exists anywhere.
-
-| Field | PDF p. | State | Suggested collection point |
-|---|---|---|---|
-| Paid-up capital: Ordinary / Preference / Others — number of shares and nominal value (RM) each | 10–11 | Missing | New `OperatorShareCapital` model, edited on an admin Company Profile page. Six numeric fields. |
-| Total paid-up capital (Sdn Bhd) | 11 | Missing | Derive as the sum of the three share classes rather than storing separately. |
-| LLP: Members' Capital, Members' Reserves, Subordinated Loans, Total | 11–12 | Missing | Same model. Only relevant if the operator is ever an LLP — likely leave blank per manual §2.6. |
+Stored on `OperatorShareCapital`. Ordinary / Preference / Others each have number of shares and nominal value. **Total paid-up capital** and **Total LLP** are explicit insert fields (not derived). There is no “Others specify” row on this tab in the manual.
 
 ### [03000] Shareholders / Members — pp. 12–14
 
-**Entire tab missing.** Note the platform already models issuer shareholders; this is the same shape applied to the operator.
-
-| Field | PDF p. | State | Suggested collection point |
-|---|---|---|---|
-| Name, Salutation, IC/Passport number, Date of Birth (or incorporation), Nationality, Address | 12–13 | Missing | New `OperatorShareholder` model + admin CRUD. Reuse the shareholder form components already built for issuer onboarding. |
-| Date Acquired, Date Disposal | 13–14 | Missing | Same model. |
-| Type of Shares (Ordinary/Preference/Others) + Others specify | 14 | Missing | Same model, SC enum. |
-| Shareholding Units, Amount (RM), Percentage (%) | 14 | Missing | Same model. |
+Stored on `OperatorShareholder`. Instruction covers Shareholders, Members **and beneficial owners**. `holder_type` (`SHAREHOLDER` / `MEMBER` / `BENEFICIAL_OWNER`) is separate from `entity_type` (`INDIVIDUAL` / `CORPORATE`). Beneficial Owner is an individual in ComRep (salutation applies; name column instruction). Address is a single string (residential or business). No identity-prefix column on this annual tab.
 
 ### [04000] Board of Director / Management Team — pp. 14–16
 
-**Entire tab missing.**
-
-| Field | PDF p. | State | Suggested collection point |
-|---|---|---|---|
-| Name, Salutation, Identity Number, Date of Birth, Nationality, Address | 14–15 | Missing | New `OperatorOfficer` model + admin CRUD. |
-| Board of Director vs Management Team | 14 | Missing | Two-value enum on the same model. |
-| Responsible Person flag (Yes/No) | 15 | Missing | Boolean on the same model — this also satisfies the `[01000]` Responsible Person field. |
-| Designation (+ Others specify) | 15 | Missing | SC designation enum (CEO, CCO, CFO, Secretary, Chairman ×3, Deputy Chairman ×3, Director ×3, Alternate Director, Others). |
-| Appointment Date, Resignation Date | 15–16 | Missing | Same model. |
+Stored on `OperatorOfficer` (`person_kind` Board vs Management, Responsible Person flag, SC designation enum, appointment / resignation).
 
 ### [05000] Advisor (Banker/Trustee/Auditor/Others) — pp. 16–17
 
-| Field | PDF p. | State | Current situation | Suggested collection point |
-|---|---|---|---|---|
-| Type of Advisor (8-value enum: Accounting, Auditor, Banker, Compliance & Risk, Credit Rating, Legal, Taxation, Trustee/Escrow) | 16–17 | Missing | Only the trustee exists, and only as letter-template config. | New `OperatorAdvisor` model with the SC enum; migrate `trustee_letter_config` to reference it. |
-| Advisor Name | 16 | Partial | `trustee_letter_config.trusteeName` only. | Same model. |
-| Company Registration No., Country, Address | 16 | Missing | Trustee address exists as free-text letter lines. | Same model, structured. |
-| Appointment Date, Cessation Date | 16 | Missing | — | Same model. |
+Stored on `OperatorAdvisor` with the eight SC advisor types, ROC, country, address, appointment, cessation.
+
+### [10000] Interest in Other Company — pp. 22–23
+
+Stored on `OperatorInterest`. Units and percentage only — the annual tab has **no shareholding amount**.
+
+### [11000] Financial Statement — pp. 23–25
+
+Stored on `OperatorFinancialStatement` per financial year. **Total Revenue** and **Total Cost** are explicit columns plus the component breakdowns. Do not assume totals equal the sum of components.
+
+The remaining annual gaps are `[06000]`–`[09000]` (registered users / nationality / fees / complaints / legal) and the XBRL file itself.
 
 ### [06000] Registered Users — pp. 17–19
 
 | Field | PDF p. | State | Current situation | Suggested collection point |
 |---|---|---|---|---|
 | Issuer count; Investor count; Investor signed-up-but-not-invested | 17 | Derivable | Countable from `IssuerOrganization`, `InvestorOrganization`, and `NoteInvestment`, but no query or export exists. | Add a reporting query. No schema change needed. |
-| Investor Types — Angel / Retail / Sophisticated, split by invested vs not-yet-invested | 18 | Missing | Only `is_sophisticated_investor` (boolean). No Angel concept; corporate investors are auto-flagged sophisticated with reason "Company organization". | See theme 4. Requires an enum plus new onboarding questions. |
+| Investor Types — Angel / Retail / Sophisticated, split by invested vs not-yet-invested | 18 | Partial | `sc_investor_category` is stored and required for profile completeness. It is not auto-derived from `is_sophisticated_investor`. Export still needs invested vs not-yet-invested splits. | Reporting query over the enum. |
 | Investor Age Group — 7 buckets, split by invested vs not-yet-invested | 18–19 | Derivable | `InvestorOrganization.date_of_birth` exists for personal accounts only. Bucketing logic does not exist. | Reporting query using the SC's formula (reporting year − birth year). Decide treatment of corporate investors, which have no DOB. |
 
 > **Watch the bucket boundaries.** The SC's buckets ("30–35", "35–40", "50–55", "55–60") overlap at the edges. Pick a convention (e.g. lower-bound inclusive, upper exclusive), document it, and keep it stable across periods.
@@ -131,27 +115,6 @@ This report is about **CashSouk as a company**. It is almost entirely absent fro
 |---|---|---|---|
 | Date, Case (court reference), Details, Amount (RM), Status | 21–22 | Missing | New `LegalAction` model + admin CRUD. Should cover both actions by the operator (e.g. issuer debt recovery) and against it. Worth linking optionally to a `Note` so recovery actions tie back to a defaulted campaign. |
 
-### [10000] Interest in Other Company — pp. 22–23
-
-**Entire tab missing.**
-
-| Field | PDF p. | State | Suggested collection point |
-|---|---|---|---|
-| Name, ROC, Country, Address, Acquisition Date, Disposal Date, Type of Shares (+Others), Shareholding Units, Percentage | 22–23 | Missing | New `OperatorInvestment` model + admin CRUD. Likely a very small table in practice. |
-
-### [11000] Financial Statement — pp. 23–25
-
-**Entire tab missing.** `IssuerOrganizationFinancialStatement` covers *issuers*; the operator's own statutory accounts are not stored.
-
-| Field | PDF p. | State | Suggested collection point |
-|---|---|---|---|
-| Consolidated Accounts (Y/N), Auditor's Name, Financial Year End, UnModified Reports (Y/N), Date of Tabling to Board, Currency, Number of Shares | 24 | Missing | New `OperatorFinancialStatement` model, one row per financial year, entered by finance on an admin page. |
-| Balance sheet: Total Assets, Non-Current Assets, Current Assets, Total Equity, Paid-up Capital, Share Application Account, Share Premium & Other Reserves, Accumulated Profit C/F, Minority Interest, Total Liabilities, Non-Current Liabilities, Current Liabilities | 24 | Missing | Same model. |
-| P&L: Total Revenue split by Donation / Reward / Lending / Equity Based, Fees charges, Other Revenue | 24–25 | Missing | Same model. Only "Lending Based" and "Fees charges" will be non-zero for a P2P operator. |
-| Other Income: Interest from deposit placement, Other Income | 25 | Missing | Same model. |
-| Total Cost: Staff Cost, System Cost, Promotion Activities, Other Cost | 25 | Missing | Same model. |
-| Profit/(Loss) Before Tax, Taxation, Profit/(Loss) After Tax, Minority Interest, Net Dividend | 25 | Missing | Same model. |
-
 ---
 
 ## 3. RMO-P2P Report (Monthly)
@@ -167,13 +130,13 @@ This report is about **CashSouk as a company**. It is almost entirely absent fro
 
 | Field | PDF p. | State | Current situation | Suggested collection point |
 |---|---|---|---|---|
-| Company category: Technology vs Non-Technology | 28 | Missing | Only free-text industry. "Technology (ICT)" appears in a filter list but is not a Tech/Non-Tech flag. | Derive from a mapping of the industry value, or add an explicit two-value field set during application review. A derived mapping is simpler and less error-prone. |
-| Date of Incorporation | 29 | Missing | Not extracted from RegTank COD or SSM, and not asked of the issuer. | Best source is the CTOS/SSM company report already fetched at onboarding — parse and persist it onto `IssuerOrganization`. Avoids asking the issuer for something we already buy. |
-| Date of Commencement | 29 | Missing | — | Add to the issuer application company details step. Not available from SSM. |
-| Country of Incorporation | 29 | Partial | `IssuerOrganization.country` is populated for personal onboarding, not company incorporation. Registered-address country exists in JSON. | Add an explicit field; default to Malaysia and confirm at review. |
-| Type of Company (6-value SC enum) | 29 | Partial | `corporate_onboarding_data.basicInfo.entityType` is free text from a RegTank picklist (e.g. "Private Limited Company (Sdn Bhd)"). | Add a mapping from RegTank values to the SC enum in the export layer. No new user input needed. |
-| E-mail Address (company-level) | 29 | Missing | Only contact-person email and the owner's account email exist. | Add to the company details step, or designate the contact-person email as the company email and document that decision. |
-| Company Activities | 30 | Partial | `IssuerOrganization.corporate_onboarding_data.aboutYourBusiness.whatDoesCompanyDo` is a free-text narrative (legacy copies also exist on `Application.business_details.about_your_business.what_does_company_do`); the SC wants a short activity descriptor tied to the fundraising purpose. | Reuse the campaign sector value (see below) or add a short structured field. |
+| Company category: Technology vs Non-Technology | 28 | Stored | `IssuerOrganization.company_category` | Secondary onboarding / Admin master profile. Not derived from industry text. |
+| Date of Incorporation | 29 | Stored | `IssuerOrganization.date_of_incorporation` | Same. Not copied from registered-address country or silently overwritten by later CTOS. |
+| Date of Commencement | 29 | Stored | `IssuerOrganization.date_of_commencement` | Same. |
+| Country of Incorporation | 29 | Stored | `IssuerOrganization.country_of_incorporation` | Explicit field. Not copied from registered-address country. |
+| Type of Company (6-value SC enum) | 29 | Stored | `IssuerOrganization.sc_company_type` | Same. |
+| E-mail Address (company-level) | 29 | Stored | `IssuerOrganization.company_email` | Same. |
+| Company Activities | 30 | Partial | `aboutYourBusiness.whatDoesCompanyDo` | Completeness requires this narrative; SC still wants a short activity descriptor at export. |
 
 ### [03000] Financing Details 1 — pp. 30–33
 

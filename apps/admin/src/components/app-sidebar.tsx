@@ -24,6 +24,7 @@ import {
   CreditCardIcon,
   CubeIcon,
   CalculatorIcon,
+  BuildingLibraryIcon,
   BellIcon,
   ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
@@ -298,6 +299,7 @@ const navDirectory = [
 const navSettings = [
   { title: "Products", url: "/settings/products", icon: CubeIcon },
   { title: "Platform Finance", url: "/settings/platform-finance", icon: CalculatorIcon },
+  { title: "Shoraka Profile", url: "/settings/rmo-profile", icon: BuildingLibraryIcon },
   { title: "Notifications", url: "/settings/notifications", icon: BellIcon },
   { title: "Roles", url: "/settings/roles", icon: ShieldCheckIcon },
 ] as const;
@@ -526,6 +528,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     if (item.url === "/settings/notifications") return canViewNotifications;
     if (item.url === "/settings/products") return canViewProducts;
     if (item.url === "/settings/platform-finance") return canViewPlatformFinance;
+    if (item.url === "/settings/rmo-profile") return canViewPlatformFinance;
     return false;
   });
 

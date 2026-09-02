@@ -756,6 +756,17 @@ export interface OrganizationDetailResponse {
   // Director KYC screening status — COMPANY only
   directorKycStatus?: Record<string, unknown> | null;
 
+  partyProfiles?: import("./organization-party-profile").OrganizationPartyProfileDto[];
+  profileCompleteness?: import("./comrep-profile").ComrepProfileCompleteness;
+  dateOfIncorporation?: string | null;
+  dateOfCommencement?: string | null;
+  countryOfIncorporation?: string | null;
+  scCompanyType?: string | null;
+  companyCategory?: string | null;
+  companyEmail?: string | null;
+  scInvestorCategory?: string | null;
+  residentialAddress?: import("./comrep-profile").ProfileAddress | null;
+
   // Business AML screening status — COMPANY only
   businessAmlStatus?: Record<string, unknown> | null;
 }

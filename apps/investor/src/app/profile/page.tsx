@@ -27,7 +27,13 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows } from "@cashsouk/types";
+import {
+  filterVisiblePeopleRows,
+  SC_GENDER_LABELS,
+  SC_INVESTOR_CATEGORY_LABELS,
+  type ScGender,
+  type ScInvestorCategory,
+} from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -35,6 +41,7 @@ import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
+import { InvestorProfileCompletenessBanner } from "../../components/profile-completeness-banner";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
@@ -211,6 +218,28 @@ function formatDocumentType(type: string | null | undefined): string {
     DRIVING_LICENSE: "Driving License",
   };
   return typeMap[type] || type.replace(/_/g, " ");
+}
+
+function formatProfileDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-MY", { year: "numeric", month: "long", day: "numeric" });
+}
+
+function formatGender(value: string | null | undefined): string {
+  if (!value) return "—";
+  const key = value.trim().toUpperCase();
+  if (key in SC_GENDER_LABELS) return SC_GENDER_LABELS[key as ScGender];
+  return value;
+}
+
+function formatInvestorCategory(value: string | null | undefined): string {
+  if (!value) return "—";
+  if (value in SC_INVESTOR_CATEGORY_LABELS) {
+    return SC_INVESTOR_CATEGORY_LABELS[value as ScInvestorCategory];
+  }
+  return value;
 }
 
 // Helper to extract field value from RegTank bank account details
@@ -499,6 +528,10 @@ export default function ProfilePage() {
         dateOfBirth: string | null;
         documentType: string | null;
         documentNumber: string | null;
+        scInvestorCategory?: string | null;
+        dateOfIncorporation?: string | null;
+        countryOfIncorporation?: string | null;
+        residentialAddress?: { state?: string | null; postalCode?: string | null } | null;
         phoneNumber: string | null;
         address: string | null;
         bankAccountDetails: BankAccountDetails | null;
@@ -863,6 +896,11 @@ export default function ProfilePage() {
             />
           ) : null}
 
+          <InvestorProfileCompletenessBanner
+            organizationId={activeOrganization?.id}
+            onboarded={activeOrganization?.onboardingStatus === "COMPLETED"}
+          />
+
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="grid w-full grid-cols-3 h-12 rounded-xl bg-muted p-1">
@@ -915,6 +953,57 @@ export default function ProfilePage() {
                       </Label>
                       <Input
                         value={orgData?.documentNumber || "—"}
+                        disabled
+                        className="bg-muted h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground flex items-center gap-2">
+                        <CalendarIcon className="h-4 w-4" />
+                        Date of birth
+                      </Label>
+                      <Input
+                        value={formatProfileDate(orgData?.dateOfBirth)}
+                        disabled
+                        className="bg-muted h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Gender</Label>
+                      <Input
+                        value={formatGender(orgData?.gender)}
+                        disabled
+                        className="bg-muted h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Nationality</Label>
+                      <Input
+                        value={orgData?.nationality || "—"}
+                        disabled
+                        className="bg-muted h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">State</Label>
+                      <Input
+                        value={orgData?.residentialAddress?.state || "—"}
+                        disabled
+                        className="bg-muted h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Postcode</Label>
+                      <Input
+                        value={orgData?.residentialAddress?.postalCode || "—"}
+                        disabled
+                        className="bg-muted h-11 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Type of investor</Label>
+                      <Input
+                        value={formatInvestorCategory(orgData?.scInvestorCategory)}
                         disabled
                         className="bg-muted h-11 rounded-xl"
                       />

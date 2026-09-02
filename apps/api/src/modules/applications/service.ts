@@ -161,6 +161,7 @@ import { getIssuerRecipientUserIdsForApplication } from "../notification/applica
 import { sendTypedToUsersSafe } from "../notification/send-typed-safe";
 import { parseGuarantorsFromBusinessDetails } from "../guarantors/utils";
 import { assertIssuerOrgDirectorShareholderOnboardingReady } from "./director-shareholder-onboarding-guard";
+import { assertIssuerProfileCompleteForSubmit } from "../organization-profile/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import {
   allocateDisplayReference,
@@ -1143,6 +1144,7 @@ export class ApplicationService {
       );
     }
     await assertIssuerOrgDirectorShareholderOnboardingReady(application.issuer_organization_id);
+    await assertIssuerProfileCompleteForSubmit(application.issuer_organization_id);
     const result = await amendmentResubmitApplication(
       applicationId,
       userId,
@@ -2108,6 +2110,7 @@ export class ApplicationService {
     // If submitting, perform cleanup of unused steps
     if (status === "SUBMITTED") {
       await assertIssuerOrgDirectorShareholderOnboardingReady(application.issuer_organization_id);
+      await assertIssuerProfileCompleteForSubmit(application.issuer_organization_id);
       // Get product to find active steps
       const financingType = application.financing_type as any;
       const productId = financingType?.product_id;

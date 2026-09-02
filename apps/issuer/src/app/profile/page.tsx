@@ -32,7 +32,14 @@ import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
 import { filterVisiblePeopleRows } from "@cashsouk/types";
+import {
+  SC_COMPANY_CATEGORY_LABELS,
+  SC_COMPANY_TYPE_LABELS,
+  type ScCompanyCategory,
+  type ScCompanyType,
+} from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../../components/director-shareholder-alert-card";
+import { IssuerProfileCompletenessBanner } from "../../components/profile-completeness-banner";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
 import { AboutYourBusinessCard } from "../../components/about-your-business-card";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
@@ -200,6 +207,13 @@ function formatDocumentType(type: string | null | undefined): string {
     DRIVING_LICENSE: "Driving License",
   };
   return typeMap[type] || type.replace(/_/g, " ");
+}
+
+function formatProfileDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-MY", { year: "numeric", month: "long", day: "numeric" });
 }
 
 // Helper to extract field value from RegTank bank account details
@@ -488,6 +502,12 @@ export default function ProfilePage() {
         bankAccountDetails: BankAccountDetails | null;
         onboardingStatus: string;
         onboardedAt: string | null;
+        dateOfIncorporation?: string | null;
+        dateOfCommencement?: string | null;
+        countryOfIncorporation?: string | null;
+        scCompanyType?: string | null;
+        companyCategory?: string | null;
+        companyEmail?: string | null;
         corporateOnboardingData?: {
           basicInfo?: {
             tinNumber?: string;
@@ -916,6 +936,11 @@ export default function ProfilePage() {
             />
           ) : null}
 
+          <IssuerProfileCompletenessBanner
+            organizationId={activeOrganization?.id}
+            onboarded={activeOrganization?.onboardingStatus === "COMPLETED"}
+          />
+
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid h-12 w-full grid-cols-2 rounded-xl bg-muted p-1 sm:grid-cols-4">
@@ -1015,6 +1040,59 @@ export default function ProfilePage() {
                   canEdit={isCurrentUserAdmin}
                 />
               )}
+
+              {!isPersonal ? (
+                <div className="rounded-xl border bg-card">
+                  <div className="p-6 border-b">
+                    <h2 className="text-lg font-semibold">ComRep company fields</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Required for the monthly issuer profile. Complete any missing values from Complete profile.
+                    </p>
+                  </div>
+                  <div className="p-6 grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Date of incorporation</Label>
+                      <Input value={formatProfileDate(orgData?.dateOfIncorporation)} disabled className={formInputDisabledClassName} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Date of commencement</Label>
+                      <Input value={formatProfileDate(orgData?.dateOfCommencement)} disabled className={formInputDisabledClassName} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Country of incorporation</Label>
+                      <Input value={orgData?.countryOfIncorporation || "—"} disabled className={formInputDisabledClassName} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Type of company</Label>
+                      <Input
+                        value={
+                          orgData?.scCompanyType && orgData.scCompanyType in SC_COMPANY_TYPE_LABELS
+                            ? SC_COMPANY_TYPE_LABELS[orgData.scCompanyType as ScCompanyType]
+                            : orgData?.scCompanyType || "—"
+                        }
+                        disabled
+                        className={formInputDisabledClassName}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Company category</Label>
+                      <Input
+                        value={
+                          orgData?.companyCategory && orgData.companyCategory in SC_COMPANY_CATEGORY_LABELS
+                            ? SC_COMPANY_CATEGORY_LABELS[orgData.companyCategory as ScCompanyCategory]
+                            : orgData?.companyCategory || "—"
+                        }
+                        disabled
+                        className={formInputDisabledClassName}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Company email</Label>
+                      <Input value={orgData?.companyEmail || "—"} disabled className={formInputDisabledClassName} />
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {!isPersonal && activeOrganization?.id && (
                 <div ref={aboutSectionRef}>
