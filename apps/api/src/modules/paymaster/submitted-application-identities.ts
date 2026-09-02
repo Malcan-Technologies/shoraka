@@ -1,15 +1,14 @@
 /**
- * Admin Paymaster Detail: derive submitted application identities from linked
- * contract.customer_details. Same SSM still maps to one master; these rows are
- * reference/history only.
+ * Admin Paymaster Detail: derive linked applications and submitted identities
+ * from Paymaster-linked contracts. Same SSM still maps to one master.
+ * Invoice-only applications are included via their holder contract.
  */
 
-import type { PaymasterSubmittedApplicationIdentity } from "@cashsouk/types";
-import {
-  parseSubmittedIdentity,
-  submittedIdentityConflictsWithMaster,
-  type PaymasterSubmittedIdentity,
-} from "./identity";
+import type {
+  PaymasterLinkedApplicationRow,
+  PaymasterSubmittedApplicationIdentity,
+} from "@cashsouk/types";
+import { parseSubmittedIdentity, type PaymasterSubmittedIdentity } from "./identity";
 
 export type PaymasterMasterIdentityRow = {
   legal_name: string;
@@ -24,8 +23,10 @@ export type LinkedApplicationIdentitySource = {
   applicationProductId: string | null;
   applicationStatus: string | null;
   submittedAt: string | null;
+  updatedAt: string | null;
   issuerOrganizationId: string;
   issuerName: string | null;
+  financingStructure: unknown;
   customerDetails: unknown;
 };
 
@@ -42,6 +43,22 @@ export function submittedIdentityFingerprint(identity: PaymasterSubmittedIdentit
     identity.registrationCountry.trim().toUpperCase(),
     identity.registrationNumber,
   ].join("|");
+}
+
+/** Same Facility / Invoice labels as the Admin applications list. */
+export function paymasterApplicationProductType(
+  financingStructure: unknown,
+  hasContract: boolean
+): string {
+  const structure =
+    financingStructure && typeof financingStructure === "object" && !Array.isArray(financingStructure)
+      ? (financingStructure as { structure_type?: unknown }).structure_type
+      : null;
+  if (structure === "invoice_only") return "Invoice financing";
+  if (structure === "existing_contract" || structure === "new_contract") {
+    return "Facility financing";
+  }
+  return hasContract ? "Facility financing" : "Invoice financing";
 }
 
 function asCustomerDetails(value: unknown): {
@@ -78,19 +95,14 @@ function toSubmittedRow(
   };
 }
 
-function newerSource(
-  current: LinkedApplicationIdentitySource,
-  next: LinkedApplicationIdentitySource
-): LinkedApplicationIdentitySource {
-  return (next.submittedAt ?? "") > (current.submittedAt ?? "") ? next : current;
-}
-
-type LinkedContractApplication = {
+export type LinkedContractApplication = {
   id: string;
   display_reference: string | null;
   status: string;
   submitted_at: Date | null;
+  updated_at: Date;
   financing_type: unknown;
+  financing_structure: unknown;
 };
 
 export type LinkedPaymasterContract = {
@@ -100,6 +112,13 @@ export type LinkedPaymasterContract = {
   originating_application: LinkedContractApplication | null;
   applications: LinkedContractApplication[];
 };
+
+function applicationsOnContract(contract: LinkedPaymasterContract): LinkedContractApplication[] {
+  return [
+    ...(contract.originating_application ? [contract.originating_application] : []),
+    ...contract.applications,
+  ];
+}
 
 function applicationToSource(
   application: LinkedContractApplication,
@@ -111,8 +130,10 @@ function applicationToSource(
     applicationProductId: productIdFromFinancingType(application.financing_type),
     applicationStatus: application.status,
     submittedAt: application.submitted_at?.toISOString() ?? null,
+    updatedAt: application.updated_at.toISOString(),
     issuerOrganizationId: contract.issuer_organization_id,
     issuerName: contract.issuer_organization.name,
+    financingStructure: application.financing_structure,
     customerDetails: contract.customer_details,
   };
 }
@@ -122,11 +143,7 @@ export function collectLinkedApplicationIdentitySources(
 ): LinkedApplicationIdentitySource[] {
   const sources: LinkedApplicationIdentitySource[] = [];
   for (const contract of contracts) {
-    const applications = [
-      ...(contract.originating_application ? [contract.originating_application] : []),
-      ...contract.applications,
-    ];
-    for (const application of applications) {
+    for (const application of applicationsOnContract(contract)) {
       sources.push(applicationToSource(application, contract));
     }
   }
@@ -134,19 +151,40 @@ export function collectLinkedApplicationIdentitySources(
 }
 
 /**
- * Admin reference rows for issuer-declared identities on linked applications.
- * Hidden when every submission matches the current master. Identical submissions
- * collapse to one row. Distinct identities are listed even if one matches the master.
+ * Unique issuer applications linked to this Paymaster via facility or
+ * invoice-only holder contracts. Dedupes duplicate contract joins only.
  */
-export function selectDifferingSubmittedApplicationIdentities(params: {
+export function collectLinkedPaymasterApplications(
+  contracts: LinkedPaymasterContract[]
+): PaymasterLinkedApplicationRow[] {
+  const byId = new Map<string, PaymasterLinkedApplicationRow>();
+  for (const source of collectLinkedApplicationIdentitySources(contracts)) {
+    const existing = byId.get(source.applicationId);
+    if (existing && (existing.updatedAt ?? "") >= (source.updatedAt ?? "")) continue;
+    byId.set(source.applicationId, {
+      id: source.applicationId,
+      reference: source.applicationDisplayReference,
+      issuerOrganizationId: source.issuerOrganizationId,
+      issuerName: source.issuerName,
+      productType: paymasterApplicationProductType(source.financingStructure, true),
+      status: source.applicationStatus,
+      updatedAt: source.updatedAt,
+      productId: source.applicationProductId,
+    });
+  }
+  return [...byId.values()].sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+}
+
+/**
+ * Admin reference rows for what each linked application declared.
+ * One row per application. Matching the master is still listed.
+ */
+export function selectSubmittedApplicationIdentities(params: {
   master: PaymasterMasterIdentityRow;
   sources: LinkedApplicationIdentitySource[];
 }): PaymasterSubmittedApplicationIdentity[] {
   const seenApplications = new Set<string>();
-  const groups = new Map<
-    string,
-    { identity: PaymasterSubmittedIdentity; source: LinkedApplicationIdentitySource }
-  >();
+  const rows: PaymasterSubmittedApplicationIdentity[] = [];
 
   for (const source of params.sources) {
     if (seenApplications.has(source.applicationId)) continue;
@@ -156,28 +194,8 @@ export function selectDifferingSubmittedApplicationIdentities(params: {
     if (!identity) continue;
     if (identity.registrationNumber !== params.master.registration_number) continue;
 
-    const fingerprint = submittedIdentityFingerprint(identity);
-    const existing = groups.get(fingerprint);
-    if (!existing) {
-      groups.set(fingerprint, { identity, source });
-      continue;
-    }
-    groups.set(fingerprint, {
-      identity,
-      source: newerSource(existing.source, source),
-    });
+    rows.push(toSubmittedRow(source, identity));
   }
 
-  const distinct = [...groups.values()];
-  if (distinct.length === 0) return [];
-
-  const conflicting = distinct.filter((group) =>
-    submittedIdentityConflictsWithMaster(params.master, group.identity)
-  );
-  if (conflicting.length === 0) return [];
-
-  const selected = distinct.length > 1 ? distinct : conflicting;
-  return selected
-    .map((group) => toSubmittedRow(group.source, group.identity))
-    .sort((a, b) => (b.submittedAt ?? "").localeCompare(a.submittedAt ?? ""));
+  return rows.sort((a, b) => (b.submittedAt ?? "").localeCompare(a.submittedAt ?? ""));
 }

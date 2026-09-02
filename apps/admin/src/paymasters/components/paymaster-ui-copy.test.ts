@@ -59,6 +59,19 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(detail).toContain("PaymasterSubmittedIdentitiesCard");
     expect(linked).toContain('title="Linked records"');
     expect(linked).toContain("Issuers that have used this Paymaster");
+    expect(linked).toContain('value: "issuers"');
+    expect(linked).toContain('value: "applications"');
+    expect(linked).toContain('value: "facilities"');
+    expect(linked).toContain('value: "notes"');
+    expect(linked).toMatch(
+      /value: "issuers"[\s\S]*value: "applications"[\s\S]*value: "facilities"[\s\S]*value: "notes"/
+    );
+    expect(linked).toContain("uniquePaymasterApplicationCount");
+    expect(linked).toContain("paymasterApplicationReviewHref");
+    expect(linked).toContain("No applications yet.");
+    expect(linked).toContain("No facilities yet.");
+    expect(linked).toContain("No notes yet.");
+    expect(linked).toContain("No issuer links yet.");
     expect(notices).toContain('title="Assignment notices"');
     expect(activity).toContain('title="Activity"');
     expect(activity).toContain("AdminVerticalTimeline");
@@ -121,15 +134,21 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(detail).toContain("PaymasterIdentityCard");
     expect(detail).toContain("PaymasterSubmittedIdentitiesCard");
     expect(detail).toContain("data.submittedApplicationIdentities");
+    expect(detail).toContain('label="Linked issuers"');
+    expect(detail).toContain('label="Financings"');
+    expect(detail).toContain('label="Notices"');
+    expect(detail).not.toContain('label="Applications"');
     expect(identity).toContain("Official verified identity for this SSM");
     expect(identity).toContain("Current global Paymaster record");
     expect(identity).toContain("Verification status");
     expect(identity).toContain("Verified by");
     expect(identity).toContain("Verified at");
-    expect(submitted).toContain("Submitted application identities");
+    expect(submitted).toContain("Submitted Application Identities");
     expect(submitted).toContain("not separate Paymaster records");
     expect(submitted).toContain("View");
-    expect(submitted).toContain("applicationHref");
+    expect(submitted).toContain("paymasterApplicationReviewHref");
+    expect(submitted).toContain("No submitted application identities available yet.");
+    expect(submitted).not.toMatch(/if \(identities\.length === 0\) return null/);
     expect(submitted).not.toMatch(/PaymasterMismatch/);
     expect(submitted).not.toMatch(/sendTyped|NotificationService/);
   });

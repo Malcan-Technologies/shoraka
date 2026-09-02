@@ -1,7 +1,11 @@
 import {
+  collectLinkedApplicationIdentitySources,
+  collectLinkedPaymasterApplications,
+  paymasterApplicationProductType,
   productIdFromFinancingType,
-  selectDifferingSubmittedApplicationIdentities,
+  selectSubmittedApplicationIdentities,
   submittedIdentityFingerprint,
+  type LinkedPaymasterContract,
 } from "./submitted-application-identities";
 
 const master = {
@@ -15,7 +19,9 @@ function source(overrides: {
   applicationId: string;
   applicationDisplayReference?: string | null;
   submittedAt?: string | null;
+  updatedAt?: string | null;
   issuerName?: string | null;
+  financingStructure?: unknown;
   name: string;
   entityType?: string;
   country?: string;
@@ -27,8 +33,10 @@ function source(overrides: {
     applicationProductId: "prod-1",
     applicationStatus: "SUBMITTED",
     submittedAt: overrides.submittedAt ?? "2026-09-01T00:00:00.000Z",
+    updatedAt: overrides.updatedAt ?? "2026-09-03T00:00:00.000Z",
     issuerOrganizationId: "org-1",
     issuerName: overrides.issuerName ?? "Issuer One",
+    financingStructure: overrides.financingStructure ?? { structure_type: "new_contract" },
     customerDetails: {
       name: overrides.name,
       entity_type: overrides.entityType ?? "Private Limited Company (Sdn Bhd)",
@@ -38,31 +46,62 @@ function source(overrides: {
   };
 }
 
-describe("selectDifferingSubmittedApplicationIdentities", () => {
-  it("omits submitted identities that already match the current master", () => {
-    expect(
-      selectDifferingSubmittedApplicationIdentities({
-        master,
-        sources: [
-          source({ applicationId: "app-1", name: "ABC Trading Sdn Bhd" }),
-          source({ applicationId: "app-2", name: "ABC Trading Sdn Bhd" }),
-        ],
-      })
-    ).toEqual([]);
-  });
+function contractApp(overrides: {
+  id: string;
+  display_reference?: string | null;
+  status?: string;
+  submitted_at?: Date | null;
+  updated_at?: Date;
+  structure_type?: string;
+  product_id?: string;
+}): LinkedPaymasterContract["applications"][number] {
+  return {
+    id: overrides.id,
+    display_reference: overrides.display_reference ?? overrides.id,
+    status: overrides.status ?? "SUBMITTED",
+    submitted_at: overrides.submitted_at ?? new Date("2026-09-01T00:00:00.000Z"),
+    updated_at: overrides.updated_at ?? new Date("2026-09-03T00:00:00.000Z"),
+    financing_type: { product_id: overrides.product_id ?? "prod-1" },
+    financing_structure: { structure_type: overrides.structure_type ?? "new_contract" },
+  };
+}
 
-  it("shows one row when a single application differs from the master", () => {
-    const rows = selectDifferingSubmittedApplicationIdentities({
+describe("selectSubmittedApplicationIdentities", () => {
+  it("lists matching identities so Admin can still open every application", () => {
+    const rows = selectSubmittedApplicationIdentities({
       master,
-      sources: [source({ applicationId: "app-9", applicationDisplayReference: "APP-009", name: "Other Co" })],
+      sources: [
+        source({ applicationId: "app-1", applicationDisplayReference: "APP-001", name: "ABC Trading Sdn Bhd" }),
+        source({ applicationId: "app-2", applicationDisplayReference: "APP-002", name: "ABC Trading Sdn Bhd" }),
+      ],
     });
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.applicationDisplayReference).toBe("APP-009");
-    expect(rows[0]?.legalName).toBe("Other Co");
+    expect(rows.map((row) => row.applicationDisplayReference)).toEqual(["APP-001", "APP-002"]);
+    expect(rows.every((row) => row.legalName === "ABC Trading Sdn Bhd")).toBe(true);
   });
 
-  it("lists distinct submitted identities, including the master-matching one for comparison", () => {
-    const rows = selectDifferingSubmittedApplicationIdentities({
+  it("keeps one row per application when submitted identities match each other", () => {
+    const rows = selectSubmittedApplicationIdentities({
+      master,
+      sources: [
+        source({
+          applicationId: "app-1",
+          applicationDisplayReference: "APP-001",
+          name: "Wrong Name Sdn Bhd",
+          submittedAt: "2026-08-02T00:00:00.000Z",
+        }),
+        source({
+          applicationId: "app-2",
+          applicationDisplayReference: "APP-002",
+          name: "Wrong Name Sdn Bhd",
+          submittedAt: "2026-08-01T00:00:00.000Z",
+        }),
+      ],
+    });
+    expect(rows.map((row) => row.applicationDisplayReference)).toEqual(["APP-001", "APP-002"]);
+  });
+
+  it("lists distinct submitted identities including the master-matching application", () => {
+    const rows = selectSubmittedApplicationIdentities({
       master,
       sources: [
         source({
@@ -91,34 +130,12 @@ describe("selectDifferingSubmittedApplicationIdentities", () => {
     });
   });
 
-  it("does not emit duplicate conflict rows for the same differing identity", () => {
-    const rows = selectDifferingSubmittedApplicationIdentities({
-      master,
-      sources: [
-        source({
-          applicationId: "app-1",
-          applicationDisplayReference: "APP-001",
-          name: "Wrong Name Sdn Bhd",
-          submittedAt: "2026-08-02T00:00:00.000Z",
-        }),
-        source({
-          applicationId: "app-2",
-          applicationDisplayReference: "APP-002",
-          name: "Wrong Name Sdn Bhd",
-          submittedAt: "2026-08-01T00:00:00.000Z",
-        }),
-      ],
-    });
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.applicationDisplayReference).toBe("APP-001");
-  });
-
   it("dedupes the same application appearing twice on a contract", () => {
     const duplicate = source({
       applicationId: "app-1",
       name: "Other Co Sdn Bhd",
     });
-    const rows = selectDifferingSubmittedApplicationIdentities({
+    const rows = selectSubmittedApplicationIdentities({
       master,
       sources: [duplicate, duplicate],
     });
@@ -128,7 +145,7 @@ describe("selectDifferingSubmittedApplicationIdentities", () => {
 
   it("ignores submitted identities for a different SSM", () => {
     expect(
-      selectDifferingSubmittedApplicationIdentities({
+      selectSubmittedApplicationIdentities({
         master,
         sources: [
           source({
@@ -139,6 +156,138 @@ describe("selectDifferingSubmittedApplicationIdentities", () => {
         ],
       })
     ).toEqual([]);
+  });
+
+  it("returns an empty list when there are no parseable identities", () => {
+    expect(selectSubmittedApplicationIdentities({ master, sources: [] })).toEqual([]);
+  });
+});
+
+describe("collectLinkedPaymasterApplications", () => {
+  it("includes facility and invoice-only applications as unique rows", () => {
+    const contracts: LinkedPaymasterContract[] = [
+      {
+        issuer_organization_id: "org-1",
+        customer_details: { name: "ABC Trading Sdn Bhd" },
+        issuer_organization: { name: "Toyota" },
+        originating_application: null,
+        applications: [
+          contractApp({
+            id: "app-facility",
+            display_reference: "APP-ARF-202609-2AS",
+            structure_type: "new_contract",
+            status: "CONTRACT_SENT",
+          }),
+        ],
+      },
+      {
+        issuer_organization_id: "org-2",
+        customer_details: { name: "ABC Trading Sdn Bhd" },
+        issuer_organization: { name: "ABC Sdn Bhd" },
+        originating_application: null,
+        applications: [
+          contractApp({
+            id: "app-invoice",
+            display_reference: "APP-INV-202609-XYZ",
+            structure_type: "invoice_only",
+            status: "SUBMITTED",
+            product_id: "prod-inv",
+          }),
+        ],
+      },
+    ];
+
+    const rows = collectLinkedPaymasterApplications(contracts);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.reference)).toEqual([
+      "APP-ARF-202609-2AS",
+      "APP-INV-202609-XYZ",
+    ]);
+    expect(rows[0]).toMatchObject({
+      id: "app-facility",
+      issuerName: "Toyota",
+      productType: "Facility financing",
+      status: "CONTRACT_SENT",
+      productId: "prod-1",
+    });
+    expect(rows[1]).toMatchObject({
+      id: "app-invoice",
+      issuerName: "ABC Sdn Bhd",
+      productType: "Invoice financing",
+      status: "SUBMITTED",
+      productId: "prod-inv",
+    });
+  });
+
+  it("does not require a facility record for invoice-only applications", () => {
+    const rows = collectLinkedPaymasterApplications([
+      {
+        issuer_organization_id: "org-2",
+        customer_details: { name: "ABC Trading Sdn Bhd" },
+        issuer_organization: { name: "ABC Sdn Bhd" },
+        originating_application: null,
+        applications: [
+          contractApp({
+            id: "app-invoice",
+            display_reference: "APP-INV-1",
+            structure_type: "invoice_only",
+          }),
+        ],
+      },
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.productType).toBe("Invoice financing");
+    expect(rows[0]?.id).toBe("app-invoice");
+  });
+
+  it("dedupes originating_application and applications joins for the same application", () => {
+    const application = contractApp({
+      id: "app-1",
+      display_reference: "APP-001",
+      structure_type: "existing_contract",
+    });
+    const rows = collectLinkedPaymasterApplications([
+      {
+        issuer_organization_id: "org-1",
+        customer_details: {},
+        issuer_organization: { name: "Toyota" },
+        originating_application: application,
+        applications: [application],
+      },
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.id).toBe("app-1");
+    expect(rows[0]?.productType).toBe("Facility financing");
+  });
+});
+
+describe("collectLinkedApplicationIdentitySources", () => {
+  it("walks originating and linked applications on the holder or facility contract", () => {
+    const sources = collectLinkedApplicationIdentitySources([
+      {
+        issuer_organization_id: "org-1",
+        customer_details: { name: "ABC Trading Sdn Bhd", ssm_number: master.registration_number },
+        issuer_organization: { name: "Toyota" },
+        originating_application: contractApp({ id: "app-origin", display_reference: "APP-ORIGIN" }),
+        applications: [contractApp({ id: "app-draw", display_reference: "APP-DRAW" })],
+      },
+    ]);
+    expect(sources.map((sourceRow) => sourceRow.applicationId)).toEqual(["app-origin", "app-draw"]);
+  });
+});
+
+describe("paymasterApplicationProductType", () => {
+  it("uses Admin applications-list labels", () => {
+    expect(paymasterApplicationProductType({ structure_type: "invoice_only" }, true)).toBe(
+      "Invoice financing"
+    );
+    expect(paymasterApplicationProductType({ structure_type: "new_contract" }, false)).toBe(
+      "Facility financing"
+    );
+    expect(paymasterApplicationProductType({ structure_type: "existing_contract" }, true)).toBe(
+      "Facility financing"
+    );
+    expect(paymasterApplicationProductType(null, false)).toBe("Invoice financing");
   });
 });
 

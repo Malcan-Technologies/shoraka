@@ -1,6 +1,7 @@
-import type { PaymasterFinancingRow } from "@cashsouk/types";
+import type { PaymasterFinancingRow, PaymasterLinkedApplicationRow } from "@cashsouk/types";
+import { applicationHref } from "@/lib/admin-directory-hrefs";
 
-export type PaymasterLinkedRecordFilter = "issuers" | "facilities" | "notes";
+export type PaymasterLinkedRecordFilter = "issuers" | "applications" | "facilities" | "notes";
 
 export function isPaymasterFacilityRow(row: PaymasterFinancingRow): boolean {
   return Boolean(row.contractId || row.contractDisplayReference);
@@ -29,4 +30,18 @@ export function paymasterFinancingHref(row: PaymasterFinancingRow): string | nul
   if (row.noteId) return `/notes/${encodeURIComponent(row.noteId)}`;
   if (row.contractId) return `/contracts/${encodeURIComponent(row.contractId)}`;
   return null;
+}
+
+export function paymasterApplicationReviewHref(
+  productId: string | null | undefined,
+  applicationId: string | null | undefined
+): string | null {
+  if (!productId || !applicationId) return null;
+  return applicationHref(productId, applicationId);
+}
+
+export function uniquePaymasterApplicationCount(
+  applications: Array<Pick<PaymasterLinkedApplicationRow, "id">>
+): number {
+  return new Set(applications.map((row) => row.id)).size;
 }
