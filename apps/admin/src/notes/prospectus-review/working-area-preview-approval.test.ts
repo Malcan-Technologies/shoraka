@@ -55,9 +55,6 @@ function completeOfficerDraft(): ProspectusReviewStoredContent {
     deedOfAssignment: "Yes",
   };
   draft.page2.creditInsights = {
-    creditScoreOptionKey: "good",
-    paymentBehaviourOptionKey: "good",
-    creditUtilisationOptionKey: "healthy",
     litigationCheckOptionKey: "clear",
     ccrisStatusOptionKey: "no_record",
   };

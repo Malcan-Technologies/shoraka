@@ -42,7 +42,6 @@ async function loadNoteForNotice(noteId: string) {
       id: true,
       note_reference: true,
       issuer_organization_id: true,
-      source_application_id: true,
       source_contract_id: true,
       source_invoice_id: true,
       paymaster_id: true,
@@ -68,7 +67,6 @@ export async function getNoteAssignmentNotice(noteId: string) {
 export async function generateNoteAssignmentNotice(noteId: string, actor: Actor) {
   const note = await loadNoteForNotice(noteId);
   const packComplete = await isExecutionPackCompleteForNote({
-    sourceApplicationId: note.source_application_id,
     sourceContractId: note.source_contract_id,
     sourceInvoiceId: note.source_invoice_id,
   });
