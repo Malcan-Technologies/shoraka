@@ -80,5 +80,14 @@ describe("Paymaster identity audit remarks", () => {
         registrationNumber: "202134567890",
       })
     ).toBe("ABC Trading Sdn Bhd (202134567890) identity reviewed internally. Unverified → Verified.");
+    expect(
+      buildPaymasterIdentityRemark({
+        eventType: ApplicationLogEventType.PAYMASTER_IDENTITY_RESOLVED,
+        legalName: "ABC Trading Sdn Bhd",
+        registrationNumber: "202134567890",
+      })
+    ).toBe(
+      "Submitted customer identity replaced with verified Paymaster ABC Trading Sdn Bhd (202134567890)."
+    );
   });
 });

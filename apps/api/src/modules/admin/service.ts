@@ -135,7 +135,7 @@ import {
   canonicalDownloadFilenameToken,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
-import { assertIssuerMarcAssessmentComplete, getCurrentMarcAssessment } from "../paymaster/service";
+import { assertApplicationPaymasterReadyForOffer, assertIssuerMarcAssessmentComplete, getCurrentMarcAssessment } from "../paymaster/service";
 import { OrganizationRepository } from "../organization/repository";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import {
@@ -8574,6 +8574,8 @@ export class AdminService {
       throw new AppError(400, "INVALID_STATE", "Application has no facility to offer");
     }
 
+    await assertApplicationPaymasterReadyForOffer(applicationId);
+
     const contractId = application.contract_id;
     await this.assertNoActiveSigningPackage(
       applicationId,
@@ -9026,6 +9028,7 @@ export class AdminService {
         ? (application as { issuer_organization_id: string }).issuer_organization_id
         : null;
     const marc = await this.assertIssuerMarcReadyForInvoiceOffer(issuerOrganizationId);
+    await assertApplicationPaymasterReadyForOffer(applicationId);
     if (!isMarcSmeGrade(riskRating)) {
       throw new AppError(400, "INVALID_INPUT", NOTE_RISK_RATING_UNASSIGNED_MESSAGE);
     }

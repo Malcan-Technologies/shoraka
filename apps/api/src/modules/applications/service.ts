@@ -87,6 +87,7 @@ import {
   acknowledgeWorkflow as amendmentAcknowledgeWorkflow,
   resubmitApplication as amendmentResubmitApplication,
 } from "./amendments/service";
+import { linkPaymasterForApplicationSubmission } from "../paymaster/service";
 import { prisma } from "../../lib/prisma";
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { logApplicationActivity } from "./logs/service";
@@ -2056,6 +2057,21 @@ export class ApplicationService {
           application_guarantors: { orderBy: { position: "asc" } },
         },
       });
+      if (appFull?.contract_id) {
+        const linkedContract = await linkPaymasterForApplicationSubmission({
+          contractId: appFull.contract_id,
+          issuerOrganizationId: application.issuer_organization_id,
+          applicationId: id,
+          actorUserId: userId,
+          auditContext: logContext?.context,
+        });
+        if (linkedContract && appFull.contract) {
+          appFull.contract = {
+            ...appFull.contract,
+            ...linkedContract,
+          } as typeof appFull.contract;
+        }
+      }
       if (appFull) {
         pendingInitialSubmitRevision = {
           snapshot: buildApplicationRevisionSnapshot({

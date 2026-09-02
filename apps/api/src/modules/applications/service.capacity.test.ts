@@ -89,6 +89,9 @@ jest.mock("./director-shareholder-onboarding-guard", () => ({
 jest.mock("./logs/service", () => ({
   logApplicationActivity: jest.fn(),
 }));
+jest.mock("../paymaster/service", () => ({
+  linkPaymasterForApplicationSubmission: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock("./amendments/service", () => ({
   getAmendmentAllowedSections: jest.fn(),
   loadAmendmentRemarks: jest.fn(),

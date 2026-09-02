@@ -777,6 +777,12 @@ export class ApiClient {
     return this.post(`/v1/admin/paymasters/${paymasterId}/verify`, body);
   }
 
+  async useVerifiedPaymasterIdentity(
+    applicationId: string
+  ): Promise<ApiResponse<{ customer_details: CustomerDetails }> | ApiError> {
+    return this.post(`/v1/admin/applications/${applicationId}/paymaster-identity/use-verified`, {});
+  }
+
   async getIssuerMarcAssessment(
     issuerOrganizationId: string
   ): Promise<ApiResponse<{ current: MarcAssessmentSnapshot | null }> | ApiError> {

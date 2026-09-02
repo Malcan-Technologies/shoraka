@@ -37,6 +37,9 @@ jest.mock("../../lib/prisma", () => ({
     $transaction: (...args: unknown[]) => mockTransaction(...args),
   },
 }));
+jest.mock("../paymaster/service", () => ({
+  linkPaymasterForApplicationSubmission: jest.fn().mockResolvedValue(undefined),
+}));
 
 import { ApplicationService } from "./service";
 

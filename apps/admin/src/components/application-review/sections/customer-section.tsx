@@ -17,6 +17,10 @@ import {
 import type { ReviewSectionId } from "../section-types";
 import { ComparisonFieldRow, ComparisonYesNoRadioRow, unknownToTriBool } from "../comparison-field-row";
 import { PaymasterVerificationPanel, type ApplicationReviewPaymaster } from "@/paymasters/components/paymaster-verification-panel";
+import {
+  shouldShowSubmittedVerifiedPaymaster,
+  SubmittedVerifiedPaymasterIdentity,
+} from "../paymaster-identity-comparison";
 import { usePermissions } from "@/hooks/use-permissions";
 
 export interface CustomerSectionProps {
@@ -119,6 +123,10 @@ export function CustomerSection({
 
   const cust = customerDetails as Record<string, unknown> | null | undefined;
   const hasData = !!cust;
+  const showIdentityComparison = shouldShowSubmittedVerifiedPaymaster({
+    customerDetails: cust,
+    paymaster,
+  });
 
   return (
     <ReviewSectionCard
@@ -136,17 +144,31 @@ export function CustomerSection({
       onRequestAmendment={onRequestAmendment}
       showApprove={true}
     >
+      {hasData && showIdentityComparison ? (
+        <SubmittedVerifiedPaymasterIdentity
+          customerDetails={cust}
+          paymaster={paymaster}
+          applicationId={applicationId}
+          canManage={canManagePaymasters}
+          actionsDisabled={!isReviewable || !!isActionLocked}
+          onRequestAmendment={() => onRequestAmendment(section)}
+        />
+      ) : null}
       {hasData ? (
         <ReviewFieldBlock title="Customer Details">
           <div className={reviewRowGridClass}>
-            <Label className={reviewLabelClass}>Customer Name</Label>
-            <div className={reviewValueClass}>{formatReviewValue(cust.name)}</div>
-            <Label className={reviewLabelClass}>Customer Entity Type</Label>
-            <div className={reviewValueClass}>{formatReviewValue(cust.entity_type)}</div>
-            <Label className={reviewLabelClass}>Customer SSM Number</Label>
-            <div className={reviewValueClass}>{formatReviewValue(cust.ssm_number)}</div>
-            <Label className={reviewLabelClass}>Customer Country</Label>
-            <div className={reviewValueClass}>{formatReviewValue(cust.country)}</div>
+            {!showIdentityComparison ? (
+              <>
+                <Label className={reviewLabelClass}>Customer Name</Label>
+                <div className={reviewValueClass}>{formatReviewValue(cust.name)}</div>
+                <Label className={reviewLabelClass}>Customer Entity Type</Label>
+                <div className={reviewValueClass}>{formatReviewValue(cust.entity_type)}</div>
+                <Label className={reviewLabelClass}>Customer SSM Number</Label>
+                <div className={reviewValueClass}>{formatReviewValue(cust.ssm_number)}</div>
+                <Label className={reviewLabelClass}>Customer Country</Label>
+                <div className={reviewValueClass}>{formatReviewValue(cust.country)}</div>
+              </>
+            ) : null}
             <Label className={reviewLabelClass}>Is Customer Related to Issuer?</Label>
             <div className={reviewValueClass}>
               {cust.is_related_party === true

@@ -105,6 +105,7 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `PAYMASTER_ACKNOWLEDGEMENT_CONFIRMED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `PAYMASTER_ACKNOWLEDGEMENT_UPLOADED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `PAYMASTER_CREATED` | ADMIN_ACTIVITY | LIVE | application_logs | no |
+| `PAYMASTER_IDENTITY_RESOLVED` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `PAYMASTER_LINKED_TO_ISSUER` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `PAYMASTER_NOTICE_GENERATED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `PAYMASTER_NOTICE_SENT` | ADMIN_ACTIVITY | LIVE | note_events | no |
