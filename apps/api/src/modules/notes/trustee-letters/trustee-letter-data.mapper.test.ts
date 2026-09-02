@@ -180,6 +180,42 @@ describe("mapDisbursementLetterData fee rows", () => {
     expect(letter.paymentRows.map((row) => row.amount)).toEqual([90_000, 2_000, 500, 800, 50]);
     expect(letter.paymentRows.slice(2).every((row) => row.accountNo === "333")).toBe(true);
   });
+
+  it("does not print the bucket label as Account Name when bank details are empty", () => {
+    const config = buildConfig();
+    config.bucketAccounts.INVESTOR_POOL = {
+      displayName: "Investor Pool",
+      bankName: "",
+      accountName: "",
+      accountNumber: "",
+      remarks: "",
+    };
+    config.bucketAccounts.OPERATING_ACCOUNT = {
+      displayName: "Operating Account",
+      bankName: "",
+      accountName: "",
+      accountNumber: "",
+      remarks: "",
+    };
+    const letter = mapDisbursementLetterData({
+      withdrawalId: "wd_empty_pool",
+      withdrawalAmount: 6_000,
+      beneficiarySnapshot: {
+        account_holder: "Toyota",
+        account_number: "1111111111",
+        bank_name: "Maybank / Malayan Banking Berhad",
+      },
+      metadata: { platformFeeAmount: 100, netIssuerDisbursement: 6_000 },
+      config,
+    });
+    expect(letter.debitAccountName).toBe("");
+    expect(letter.debitAccountNumber).toBe("");
+    expect(letter.paymentRows[1]).toMatchObject({
+      nameOfPayee: "—",
+      accountNo: "—",
+      banker: "—",
+    });
+  });
 });
 
 describe("trustee-letter Malaysia dates", () => {

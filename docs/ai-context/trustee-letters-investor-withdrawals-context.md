@@ -129,7 +129,7 @@ Save button: `Save Money Flow Accounts`
 
 In every trustee instruction PDF:
 
-- **Top block** (`Instruction of Payment` / Account No / Account Name) = **source account to debit**
+- **Top block** (`Instruction of Payment` / Account No / Account Name) = **source account to debit**. Account Name and Account No come only from Money Flow Account bank fields. Empty fields print as `—`; the internal bucket label (e.g. Investor Pool) is not used.
 - **Payment table rows** = **destination/payee accounts**
 
 ### Source account mapping

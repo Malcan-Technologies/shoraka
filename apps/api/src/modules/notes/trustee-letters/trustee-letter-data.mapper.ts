@@ -33,11 +33,15 @@ function formatShortDate(date: Date): string {
   });
 }
 
+function bankAccountName(account: TrusteeAccountDetails): string {
+  return account.accountName.trim();
+}
+
 function accountRow(account: TrusteeAccountDetails, amount: number, remarks: string): Omit<TrusteePaymentRow, "no"> {
   return {
-    nameOfPayee: account.accountName || account.displayName || "—",
-    accountNo: account.accountNumber || "—",
-    banker: account.bankName || "—",
+    nameOfPayee: bankAccountName(account) || "—",
+    accountNo: account.accountNumber.trim() || "—",
+    banker: account.bankName.trim() || "—",
     amount,
     remarks,
   };
@@ -176,8 +180,8 @@ export function mapDisbursementLetterData(input: {
     attentionPerson: letterConfig.attentionPerson,
     platformDisplayName: letterConfig.platformDisplayName,
     instructionTitle: "Instruction of Payment",
-    debitAccountNumber: debit.accountNumber,
-    debitAccountName: debit.accountName || debit.displayName || "Investor Pool Account",
+    debitAccountNumber: debit.accountNumber.trim(),
+    debitAccountName: bankAccountName(debit),
     valueDate: letterDate,
     purpose: "Disbursement to Borrower and Platform",
     openingParagraph: OPENING_PARAGRAPH,
@@ -255,9 +259,9 @@ export function mapRepaymentLetterData(input: {
   if (investorRepayment > 0.005) {
     rows.push({
       no: rowNo++,
-      nameOfPayee: investorPool.accountName || investorPool.displayName || "—",
-      accountNo: investorPool.accountNumber || "—",
-      banker: investorPool.bankName || "—",
+      nameOfPayee: bankAccountName(investorPool) || "—",
+      accountNo: investorPool.accountNumber.trim() || "—",
+      banker: investorPool.bankName.trim() || "—",
       amount: investorRepayment,
       remarks: "Repayment to Investors / Deposit Account",
     });
@@ -275,9 +279,9 @@ export function mapRepaymentLetterData(input: {
     const tawidh = bucketAccounts.TAWIDH_ACCOUNT;
     rows.push({
       no: rowNo++,
-      nameOfPayee: tawidh.accountName || tawidh.displayName || "—",
-      accountNo: tawidh.accountNumber || "—",
-      banker: tawidh.bankName || "—",
+      nameOfPayee: bankAccountName(tawidh) || "—",
+      accountNo: tawidh.accountNumber.trim() || "—",
+      banker: tawidh.bankName.trim() || "—",
       amount: input.tawidhAccountAmount,
       remarks: "Ta'widh allocation",
     });
@@ -287,9 +291,9 @@ export function mapRepaymentLetterData(input: {
     const gharamah = bucketAccounts.GHARAMAH_ACCOUNT;
     rows.push({
       no: rowNo++,
-      nameOfPayee: gharamah.accountName || gharamah.displayName || "—",
-      accountNo: gharamah.accountNumber || "—",
-      banker: gharamah.bankName || "—",
+      nameOfPayee: bankAccountName(gharamah) || "—",
+      accountNo: gharamah.accountNumber.trim() || "—",
+      banker: gharamah.bankName.trim() || "—",
       amount: input.gharamahAmount,
       remarks: "Gharamah allocation",
     });
@@ -336,8 +340,8 @@ export function mapRepaymentLetterData(input: {
     attentionPerson: letterConfig.attentionPerson,
     platformDisplayName: letterConfig.platformDisplayName,
     instructionTitle: "Instruction of Payment",
-    debitAccountNumber: debit.accountNumber,
-    debitAccountName: debit.accountName || debit.displayName || "Repayment Pool Account",
+    debitAccountNumber: debit.accountNumber.trim(),
+    debitAccountName: bankAccountName(debit),
     valueDate: letterDate,
     purpose: "Repayment to Investors and Platform",
     openingParagraph: OPENING_PARAGRAPH,
@@ -390,8 +394,8 @@ export function mapInvestorWithdrawalLetterData(input: {
     attentionPerson: letterConfig.attentionPerson,
     platformDisplayName: letterConfig.platformDisplayName,
     instructionTitle: "Instruction of Payment",
-    debitAccountNumber: debit.accountNumber,
-    debitAccountName: debit.accountName || debit.displayName || "Investor Pool Account",
+    debitAccountNumber: debit.accountNumber.trim(),
+    debitAccountName: bankAccountName(debit),
     valueDate: letterDate,
     purpose: "Withdrawal by Investors",
     openingParagraph: OPENING_PARAGRAPH,

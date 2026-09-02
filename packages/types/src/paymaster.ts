@@ -185,9 +185,6 @@ export const PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_CODE = "PAYMASTER_ACKNOWLEDGEMEN
 export const PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE =
   "Paymaster acknowledgement of the Notice of Assignment is required before disbursement.";
 
-export const ASSIGNMENT_NOTICE_LEGAL_TEMPLATE_PENDING =
-  "Approved Notice of Assignment legal wording is pending. This file records assignment particulars only and is not a substitute for the approved legal template.";
-
 export const PAYMASTER_NOT_VERIFIED_CODE = "PAYMASTER_NOT_VERIFIED";
 export const PAYMASTER_NOT_VERIFIED_MESSAGE =
   "You can only select a verified Paymaster for reuse.";
