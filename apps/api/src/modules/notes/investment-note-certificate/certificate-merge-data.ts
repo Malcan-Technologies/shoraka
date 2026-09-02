@@ -3,6 +3,7 @@ import {
   companyRegistrationForAudience,
   investorNameForAudience,
   issuerLegalNameForAudience,
+  showIssuerLegalIdentityForAudience,
   visibleCertificateInvestors,
   type CertificateRenderAudienceInput,
 } from "./certificate-audience";
@@ -68,6 +69,7 @@ export type CertificateDocxMergeData = {
   sumExpectedProfit: string;
   sumTotalPayable: string;
   isIssuerAudience: boolean;
+  showIssuerLegalIdentity: boolean;
 };
 
 /**
@@ -142,5 +144,6 @@ export function buildCertificateDocxMergeData(
     sumExpectedProfit: formatCertificateAmount(investorScoped ? sumProfit : n.contractedProfit),
     sumTotalPayable: formatCertificateAmount(investorScoped ? sumPayable : n.totalAmountPayable),
     isIssuerAudience: input.audience === "ISSUER",
+    showIssuerLegalIdentity: showIssuerLegalIdentityForAudience(input.audience),
   };
 }

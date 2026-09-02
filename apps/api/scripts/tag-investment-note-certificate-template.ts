@@ -3,6 +3,7 @@
  * Rebuild the runtime tagged certificate DOCX from the supplied Word source.
  * Admin/Investor keep the 7-column allocation table; issuer gets a 6-column
  * sibling table (no Investor / Noteholder column) selected at render time.
+ * Investor copy omits the Issuer legal name / Company no. identifier row.
  *
  * Usage: pnpm --filter @cashsouk/api tag-investment-note-certificate-template
  */
@@ -100,6 +101,56 @@ const ISSUER_ALLOCATION_WIDTHS = [450, 2500, 1620, 850, 1840, 1980];
 
 function encodeXml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function decodeXml(text: string): string {
+  return text
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&");
+}
+
+function cellPlainText(cellXml: string): string {
+  let text = "";
+  const re = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(cellXml))) {
+    text += decodeXml(match[1] ?? "");
+  }
+  return text;
+}
+
+function wrapTableRowInCondition(tableXml: string, rowIndex: number, condition: string): string {
+  const rows = matchAll(tableXml, /<w:tr\b[\s\S]*?<\/w:tr>/g);
+  if (rowIndex < 0 || rowIndex >= rows.length) {
+    throw new Error(`Cannot wrap table row ${rowIndex}; table has ${rows.length} rows`);
+  }
+  const rowXml = rows[rowIndex]!;
+  const cells = matchAll(rowXml, /<w:tc\b[\s\S]*?<\/w:tc>/g);
+  if (cells.length < 2) {
+    throw new Error(`Conditional table row ${rowIndex} expected at least 2 cells`);
+  }
+  const rowText = cells.map(cellPlainText).join(" ");
+  if (!rowText.includes("Issuer") || !rowText.includes("Company no.")) {
+    throw new Error(
+      `Expected identifiers row ${rowIndex} to be Issuer / Company no., found: ${rowText}`
+    );
+  }
+  const updatedCells = [...cells];
+  updatedCells[0] = setFirstParagraphText(cells[0]!, `{#${condition}}${cellPlainText(cells[0]!)}`);
+  updatedCells[cells.length - 1] = setFirstParagraphText(
+    cells[cells.length - 1]!,
+    `${cellPlainText(cells[cells.length - 1]!)}{/${condition}}`
+  );
+  let cellCursor = 0;
+  const wrappedRow = rowXml.replace(/<w:tc\b[\s\S]*?<\/w:tc>/g, () => updatedCells[cellCursor++] ?? "");
+  let rowCursor = 0;
+  return tableXml.replace(/<w:tr\b[\s\S]*?<\/w:tr>/g, () => {
+    const current = rowCursor++;
+    return current === rowIndex ? wrappedRow : rows[current] ?? "";
+  });
 }
 
 function matchAll(xml: string, pattern: RegExp): string[] {
@@ -244,7 +295,7 @@ function tagDocumentXml(xml: string): string {
   }
 
   const tagged = [...tables];
-  tagged[0] = applyCellMap(tables[0]!, IDENTIFIERS);
+  tagged[0] = wrapTableRowInCondition(applyCellMap(tables[0]!, IDENTIFIERS), 3, "showIssuerLegalIdentity");
   tagged[1] = applyCellMap(tables[1]!, PARTICULARS);
   tagged[2] = applyCellMap(tables[2]!, LINKED_SCHEDULE);
   tagged[3] = applyCellMap(tables[3]!, PAYMENT_SCHEDULE);

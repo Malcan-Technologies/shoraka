@@ -3,6 +3,7 @@ import {
   companyRegistrationForAudience,
   investorNameForAudience,
   issuerLegalNameForAudience,
+  showIssuerLegalIdentityForAudience,
   visibleCertificateInvestors,
 } from "./certificate-audience";
 
@@ -18,6 +19,7 @@ describe("certificate audience privacy", () => {
     ]);
     expect(issuerLegalNameForAudience(snapshot, "ADMIN")).toBe("Helios Manufacturing Sdn Bhd");
     expect(companyRegistrationForAudience(snapshot, "ADMIN")).toBe("1234567-A");
+    expect(showIssuerLegalIdentityForAudience("ADMIN")).toBe(true);
   });
 
   it("issuer copy includes investor IDs but hides investor names", () => {
@@ -28,6 +30,8 @@ describe("certificate audience privacy", () => {
       "—",
     ]);
     expect(issuerLegalNameForAudience(snapshot, "ISSUER")).toBe("Helios Manufacturing Sdn Bhd");
+    expect(companyRegistrationForAudience(snapshot, "ISSUER")).toBe("1234567-A");
+    expect(showIssuerLegalIdentityForAudience("ISSUER")).toBe(true);
   });
 
   it("investor copy is that investor's row only", () => {
@@ -41,5 +45,6 @@ describe("certificate audience privacy", () => {
     expect(investorNameForAudience(rows[0]!.investorName, "INVESTOR")).toBe("Alice Tan");
     expect(issuerLegalNameForAudience(snapshot, "INVESTOR")).toBe("—");
     expect(companyRegistrationForAudience(snapshot, "INVESTOR")).toBe("—");
+    expect(showIssuerLegalIdentityForAudience("INVESTOR")).toBe(false);
   });
 });

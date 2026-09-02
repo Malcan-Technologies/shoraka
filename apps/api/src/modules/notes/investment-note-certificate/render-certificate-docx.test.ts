@@ -76,6 +76,21 @@ function allocationRows(xml: string): string[][] {
   return rows.map(cellTexts);
 }
 
+function identifierTableXml(xml: string): string {
+  const tables = xml.match(/<w:tbl\b[\s\S]*?<\/w:tbl>/g) ?? [];
+  const table = tables.find((candidate) => {
+    const text = wordPlainText(candidate);
+    return text.includes("Certificate no.") && text.includes("Financing Note ID");
+  });
+  expect(table).toBeDefined();
+  return table ?? "";
+}
+
+function identifierRows(xml: string): string[][] {
+  const rows = identifierTableXml(xml).match(/<w:tr\b[\s\S]*?<\/w:tr>/g) ?? [];
+  return rows.map(cellTexts);
+}
+
 describe("renderInvestmentNoteCertificateDocx", () => {
   const snapshot = sampleInvestmentNoteCertificateSnapshot();
 
@@ -94,6 +109,8 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(plain).not.toContain("{#investors}");
     expect(plain).not.toContain("{/investors}");
     expect(plain).not.toContain("{issuerLegalName}");
+    expect(plain).not.toContain("{#showIssuerLegalIdentity}");
+    expect(plain).not.toContain("{/showIssuerLegalIdentity}");
     expect(plain).not.toContain("{#isIssuerAudience}");
     expect(plain).not.toContain("{^isIssuerAudience}");
     expect(plain).not.toContain("{/isIssuerAudience}");
@@ -113,6 +130,12 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(plain).toContain("IVT-B");
     expect(plain).toContain(PROSPECTUS_FIXED_SHARIAH_PRINCIPLE);
     expect(plain).toContain("Investor / Noteholder");
+    expect(identifierRows(xml)).toEqual([
+      ["Certificate no.", "IINC-NOTE-20260902-AAA", "Certificate date", "02 Sep 2026"],
+      ["Financing Note ID", "NOTE-20260902-AAA", "Campaign ID", "NOTE-20260902-AAA"],
+      ["Issuer ID", "ISS-001", "Business sector", "Manufacturing"],
+      ["Issuer", "Helios Manufacturing Sdn Bhd", "Company no.", "1234567-A"],
+    ]);
     const rows = allocationRows(xml);
     expect(rows[0]).toEqual([
       "No.",
@@ -133,11 +156,18 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     const xml = renderedXml(snapshot, { audience: "ISSUER" });
     const plain = wordPlainText(xml);
     expect(plain).toContain("Helios Manufacturing Sdn Bhd");
+    expect(plain).toContain("1234567-A");
     expect(plain).toContain("IVT-A");
     expect(plain).toContain("IVT-B");
     expect(plain).not.toContain("Alice Tan");
     expect(plain).not.toContain("Bob Lee");
     expect(plain).not.toContain("Investor / Noteholder");
+    expect(identifierRows(xml)).toEqual([
+      ["Certificate no.", "IINC-NOTE-20260902-AAA", "Certificate date", "02 Sep 2026"],
+      ["Financing Note ID", "NOTE-20260902-AAA", "Campaign ID", "NOTE-20260902-AAA"],
+      ["Issuer ID", "ISS-001", "Business sector", "Manufacturing"],
+      ["Issuer", "Helios Manufacturing Sdn Bhd", "Company no.", "1234567-A"],
+    ]);
     const rows = allocationRows(xml);
     expect(rows[0]).toEqual([
       "No.",
@@ -161,11 +191,21 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(plain).toContain("Alice Tan");
     expect(plain).toContain("IVT-A");
     expect(plain).toContain("ISS-001");
+    expect(plain).toContain("Manufacturing");
     expect(plain).toContain("Investor / Noteholder");
     expect(plain).not.toContain("Bob Lee");
     expect(plain).not.toContain("IVT-B");
     expect(plain).not.toContain("Helios Manufacturing Sdn Bhd");
     expect(plain).not.toContain("1234567-A");
+    expect(plain).not.toContain("Company no.");
+    const ids = identifierRows(xml);
+    expect(ids).toEqual([
+      ["Certificate no.", "IINC-NOTE-20260902-AAA", "Certificate date", "02 Sep 2026"],
+      ["Financing Note ID", "NOTE-20260902-AAA", "Campaign ID", "NOTE-20260902-AAA"],
+      ["Issuer ID", "ISS-001", "Business sector", "Manufacturing"],
+    ]);
+    expect(ids.flat()).not.toContain("Issuer");
+    expect(ids.flat()).not.toContain("Company no.");
     const rows = allocationRows(xml);
     expect(rows).toHaveLength(3);
     expect(rows[0]?.[1]).toBe("Investor ID");
@@ -219,7 +259,11 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(data.scheduleVersion).toBe("V01");
     expect(data.investors).toHaveLength(2);
     expect(data.isIssuerAudience).toBe(false);
+    expect(data.showIssuerLegalIdentity).toBe(true);
     expect(buildCertificateDocxMergeData(snapshot, { audience: "ISSUER" }).isIssuerAudience).toBe(
+      true
+    );
+    expect(buildCertificateDocxMergeData(snapshot, { audience: "ISSUER" }).showIssuerLegalIdentity).toBe(
       true
     );
     expect(data.sumPrincipal).toBe("80,000.00");
@@ -238,6 +282,11 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     });
     expect(data.investors).toHaveLength(1);
     expect(data.isIssuerAudience).toBe(false);
+    expect(data.showIssuerLegalIdentity).toBe(false);
+    expect(data.issuerLegalName).toBe("—");
+    expect(data.companyRegistration).toBe("—");
+    expect(data.issuerReference).toBe("ISS-001");
+    expect(data.businessSector).toBe("Manufacturing");
     expect(data.investors[0]?.investorId).toBe("IVT-A");
     expect(data.sumPrincipal).toBe("50,000.00");
     expect(data.sumSharePercent).toBe("62.50%");
