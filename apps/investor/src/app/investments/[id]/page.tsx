@@ -31,6 +31,7 @@ import {
   useOpenInvestorInvestmentNoteCertificate,
   useInvestorInvestmentNoteCertificate,
   useInvestorInvestmentSettlementConfirmation,
+  useDownloadInvestorInvestmentSettlementConfirmation,
   useOpenInvestorInvestmentSettlementConfirmation,
   useOpenMarketplaceProspectus,
 } from "@/investments/hooks/use-marketplace-notes";
@@ -107,6 +108,7 @@ export default function InvestmentDetailPage() {
   const certificateQuery = useInvestorInvestmentNoteCertificate(investorInvestmentId);
   const confirmationQuery = useInvestorInvestmentSettlementConfirmation(investorInvestmentId);
   const openSettlementConfirmation = useOpenInvestorInvestmentSettlementConfirmation();
+  const downloadSettlementConfirmation = useDownloadInvestorInvestmentSettlementConfirmation();
 
   const shouldFetchMarketplace =
     Boolean(noteId) &&
@@ -250,20 +252,28 @@ export default function InvestmentDetailPage() {
           />
         ) : null}
 
+        {isInvestedView && investedNote && hasSettledBreakdown ? (
+          <InvestmentReturnBreakdownCard note={investedNote} />
+        ) : null}
+
         {isInvestedView && investedNote && confirmationQuery.data?.status === "READY" ? (
           <InvestmentSettlementConfirmationCard
             confirmation={confirmationQuery.data}
-            downloadPending={false}
-            onDownload={() => {
+            onView={() => {
               const investmentId = investedNote.investorInvestmentId;
               if (!investmentId) return;
               void openSettlementConfirmation(investmentId).catch((err) =>
                 toast.error(err instanceof Error ? err.message : "Confirmation unavailable")
               );
             }}
+            onDownload={() => {
+              const investmentId = investedNote.investorInvestmentId;
+              if (!investmentId) return;
+              void downloadSettlementConfirmation(investmentId).catch((err) =>
+                toast.error(err instanceof Error ? err.message : "Confirmation unavailable")
+              );
+            }}
           />
-        ) : isInvestedView && investedNote && hasSettledBreakdown ? (
-          <InvestmentReturnBreakdownCard note={investedNote} />
         ) : null}
 
         {isInvestedView ? (

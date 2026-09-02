@@ -2795,7 +2795,7 @@ export function SettlementPanel({
             <InvestmentSettlementConfirmationCard
               noteId={note.id}
               payload={investorConfirmations}
-              canRetry={canSettlement}
+              canManage={canSettlement}
             />
           ) : null}
 
@@ -2804,7 +2804,17 @@ export function SettlementPanel({
               noteId={note.id}
               payload={{
                 ...hibahReceipt,
+                canGenerate: hibahReceipt.canGenerate && canSettlement,
                 canRetry: hibahReceipt.canRetry && canSettlement,
+                canRegenerate: hibahReceipt.canRegenerate && canSettlement,
+                canPublish: hibahReceipt.canPublish && canSettlement,
+                reviewVersion: hibahReceipt.reviewVersion
+                  ? {
+                      ...hibahReceipt.reviewVersion,
+                      canRetry: hibahReceipt.reviewVersion.canRetry && canSettlement,
+                      canPublish: hibahReceipt.reviewVersion.canPublish && canSettlement,
+                    }
+                  : null,
               }}
             />
           ) : null}

@@ -29,6 +29,8 @@ describe("investment note certificate render path isolation", () => {
     expect(confirmation).toContain("buildInvestmentSettlementConfirmationHtml");
     expect(confirmation).not.toContain("convertHtmlToPdf");
     expect(confirmation).not.toContain("renderInvestmentNoteCertificateDocx");
+    expect(confirmation).not.toContain("applyCompanyStampToDocx");
+    expect(confirmation).not.toContain("document-authorisation");
   });
 
   it("does not change Letter of Offer LibreOffice conversion", () => {

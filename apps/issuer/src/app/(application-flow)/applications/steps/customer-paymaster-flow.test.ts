@@ -5,6 +5,7 @@ import {
   isFacilityPaymasterLocked,
   isRelatedPartyAnswered,
   isTwelveDigitRegistration,
+  isVerifiedPaymasterLookup,
   lookupStatusFromResult,
   relatedPartyFieldsVisible,
   showCustomerMasterFields,
@@ -107,6 +108,39 @@ describe("customer SSM-first paymaster flow", () => {
     };
     expect(lookupStatusFromResult(unverified)).toBe("NOT_FOUND");
     expect(isTwelveDigitRegistration("202201234567")).toBe(true);
+    expect(isVerifiedPaymasterLookup("FOUND_UNVERIFIED")).toBe(false);
+    expect(
+      customerIdentityLocked({
+        stepEditable: true,
+        facilityPaymasterLocked: false,
+        lookupStatus: "FOUND_UNVERIFIED",
+      })
+    ).toBe(false);
+    expect(
+      showCustomerMasterFields({
+        facilityPaymasterLocked: false,
+        lookupStatus: "FOUND_UNVERIFIED",
+        ssmNumber: "202201234567",
+      })
+    ).toBe(true);
+  });
+
+  it("keeps related-party visible when verified identity is locked", () => {
+    expect(isVerifiedPaymasterLookup("FOUND_VERIFIED")).toBe(true);
+    expect(
+      relatedPartyFieldsVisible({
+        facilityPaymasterLocked: false,
+        lookupStatus: "FOUND_VERIFIED",
+        ssmNumber: "202201234567",
+      })
+    ).toBe(true);
+    expect(
+      showCustomerMasterFields({
+        facilityPaymasterLocked: false,
+        lookupStatus: "FOUND_VERIFIED",
+        ssmNumber: "202201234567",
+      })
+    ).toBe(true);
   });
 
   it("locks identity on an approved facility even before lookup", () => {

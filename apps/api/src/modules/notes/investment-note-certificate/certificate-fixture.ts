@@ -79,6 +79,10 @@ export function sampleInvestmentNoteCertificateSnapshot(
         totalPayable: 30_750,
       },
     ],
+    authorisation: {
+      authorisedSignatoryName: "",
+      companyStamp: null,
+    },
   };
 }
 

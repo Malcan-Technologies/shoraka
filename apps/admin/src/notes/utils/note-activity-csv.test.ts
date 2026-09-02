@@ -32,11 +32,29 @@ describe("formatNoteActivityEventLabel", () => {
     expect(formatNoteActivityEventLabel("INVESTMENT_NOTE_CERTIFICATE_GENERATED")).toBe(
       "Investment Note Certificate Generated"
     );
+    expect(formatNoteActivityEventLabel("INVESTMENT_NOTE_CERTIFICATE_REISSUED")).toBe(
+      "Investment Note Certificate Regenerated"
+    );
+    expect(formatNoteActivityEventLabel("INVESTMENT_NOTE_CERTIFICATE_PUBLISHED")).toBe(
+      "Investment Note Certificate Published"
+    );
     expect(formatNoteActivityEventLabel("SETTLEMENT_HIBAH_RECEIPT_GENERATED")).toBe(
       "Settlement & Hibah Receipt Generated"
     );
+    expect(formatNoteActivityEventLabel("SETTLEMENT_HIBAH_RECEIPT_REISSUED")).toBe(
+      "Settlement & Hibah Receipt Regenerated"
+    );
+    expect(formatNoteActivityEventLabel("SETTLEMENT_HIBAH_RECEIPT_PUBLISHED")).toBe(
+      "Settlement & Hibah Receipt Published"
+    );
     expect(formatNoteActivityEventLabel("INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED")).toBe(
       "Investment Settlement Confirmation Generated"
+    );
+    expect(formatNoteActivityEventLabel("INVESTMENT_SETTLEMENT_CONFIRMATION_REISSUED")).toBe(
+      "Investment Settlement Confirmation Regenerated"
+    );
+    expect(formatNoteActivityEventLabel("INVESTMENT_SETTLEMENT_CONFIRMATION_PUBLISHED")).toBe(
+      "Investment Settlement Confirmation Published"
     );
     expect(formatNoteActivityEventLabel("WITHDRAWAL_TRUSTEE_EMAIL_SENT")).toBe(
       "Withdrawal Trustee Email Sent"

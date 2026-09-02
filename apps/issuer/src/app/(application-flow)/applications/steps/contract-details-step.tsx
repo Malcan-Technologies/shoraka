@@ -21,7 +21,6 @@ import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { DateInput } from "@/app/(application-flow)/applications/components/date-input";
 import {
   Select,
@@ -32,7 +31,7 @@ import {
 } from "@/components/ui/select";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useApplication } from "@/hooks/use-applications";
-import { useContract, useCreateContract, useUpdateContract, useIssuerPaymasters, useIssuerPaymasterLookup } from "@/hooks/use-contracts";
+import { useContract, useCreateContract, useUpdateContract, useIssuerPaymasterLookup } from "@/hooks/use-contracts";
 import { ContractDetailsSkeleton } from "@/app/(application-flow)/applications/components/contract-details-skeleton";
 import { toast } from "sonner";
 import { useAuthToken, createApiClient } from "@cashsouk/config";
@@ -59,7 +58,7 @@ import {
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
-import { formatMoney, parseMoney } from "@cashsouk/ui";
+import { formatMoney, parseMoney, VerifiedBadge } from "@cashsouk/ui";
 import {
   isRequestedFacilityAtOrAboveContractValue,
   REQUESTED_FACILITY_BELOW_CONTRACT_COPY,
@@ -79,13 +78,14 @@ import {
 import { getCountries, type Country } from "react-phone-number-input";
 import phoneLabelsEn from "react-phone-number-input/locale/en.json";
 import phoneFlags from "react-phone-number-input/flags";
-import type { IssuerPaymasterOption, PaymasterLookupMatch, PaymasterLookupStatus } from "@cashsouk/types";
+import type { PaymasterLookupStatus } from "@cashsouk/types";
 import {
   customerIdentityLocked,
   customerStepValid,
   isFacilityPaymasterLocked,
   isRelatedPartyAnswered,
   isTwelveDigitRegistration,
+  isVerifiedPaymasterLookup,
   lookupStatusFromResult,
   relatedPartyFieldsVisible,
   showCustomerMasterFields,
@@ -353,7 +353,6 @@ export function ContractDetailsStep({
   const { data: application } = useApplication(applicationId);
   const issuerOrganizationId =
     (application as { issuer_organization_id?: string } | undefined)?.issuer_organization_id || "";
-  const { data: existingPaymasters = [] } = useIssuerPaymasters(issuerOrganizationId);
   const lookupPaymaster = useIssuerPaymasterLookup();
   const devTools = useDevTools();
 
@@ -401,7 +400,6 @@ export function ContractDetailsStep({
     },
   });
   const [lookupStatus, setLookupStatus] = React.useState<PaymasterLookupStatus | "idle">("idle");
-  const [lookupMatch, setLookupMatch] = React.useState<PaymasterLookupMatch | null>(null);
   const [lookupError, setLookupError] = React.useState<string | null>(null);
   const skipIdentityResetRef = React.useRef(true);
   const lastLookedUpSsmRef = React.useRef("");
@@ -477,7 +475,6 @@ export function ContractDetailsStep({
       customer: data.customer ? { ...prev.customer, ...data.customer } : prev.customer,
     }));
     setLookupStatus("NOT_FOUND");
-    setLookupMatch(null);
     setLookupError(null);
     skipIdentityResetRef.current = true;
     lastLookedUpSsmRef.current = isTwelveDigitRegistration(String(data.customer?.ssm_number ?? ""))
@@ -957,41 +954,7 @@ export function ContractDetailsStep({
     lookupStatus,
     ssmNumber: formData.customer.ssm_number,
   });
-  const showVerifiedIdentity = lookupStatus === "FOUND_VERIFIED" && !facilityPaymasterLocked;
-  const countryLabel = (code: string) =>
-    PHONE_SUPPORTED_COUNTRIES.find((c) => c.code === code)?.name ?? code;
-
-  const applyPreviousPaymaster = (option: IssuerPaymasterOption) => {
-    if (!stepIsEditable || facilityPaymasterLocked) return;
-    skipIdentityResetRef.current = false;
-    lastLookedUpSsmRef.current = option.registrationNumber;
-    setLookupError(null);
-    setLookupStatus("FOUND_VERIFIED");
-    setLookupMatch({
-      id: option.id,
-      legalName: option.legalName,
-      registrationNumber: option.registrationNumber,
-      registrationCountry: option.registrationCountry,
-      entityType: option.entityType,
-      verificationStatus: option.verificationStatus,
-    });
-    setFormData((prev) => ({
-      ...prev,
-      customer: {
-        ...prev.customer,
-        name: option.legalName,
-        entity_type: option.entityType,
-        ssm_number: option.registrationNumber,
-        country: option.registrationCountry || prev.customer.country,
-        is_related_party:
-          option.isRelatedParty == null
-            ? prev.customer.is_related_party
-            : option.isRelatedParty
-              ? "yes"
-              : "no",
-      },
-    }));
-  };
+  const showVerifiedIdentity = isVerifiedPaymasterLookup(lookupStatus) && !facilityPaymasterLocked;
 
   React.useEffect(() => {
     if (!stepIsEditable || facilityPaymasterLocked) return;
@@ -999,7 +962,6 @@ export function ContractDetailsStep({
     if (!isTwelveDigitRegistration(ssm)) {
       lookupGenerationRef.current += 1;
       setLookupStatus("idle");
-      setLookupMatch(null);
       if (lastLookedUpSsmRef.current !== "") {
         setFormData((prev) => ({
           ...prev,
@@ -1051,7 +1013,6 @@ export function ContractDetailsStep({
           const status = lookupStatusFromResult(result);
           lastLookedUpSsmRef.current = ssm;
           setLookupStatus(status);
-          setLookupMatch(status === "FOUND_VERIFIED" ? result.paymaster : null);
           if (status === "FOUND_VERIFIED" && result.paymaster) {
             setFormData((prev) => ({
               ...prev,
@@ -1067,7 +1028,6 @@ export function ContractDetailsStep({
         } catch (err) {
           if (generation !== lookupGenerationRef.current) return;
           setLookupStatus("idle");
-          setLookupMatch(null);
           setLookupError(
             err instanceof Error ? err.message : "Could not check this registration number."
           );
@@ -1140,6 +1100,10 @@ export function ContractDetailsStep({
   const labelInputClassName = cn(labelClassName, applicationFlowLabelCellAlignInputClassName);
   const labelTextareaClassName = cn(labelClassName, applicationFlowLabelCellAlignTopClassName);
   const inputClassName = cn(formInputClassName, !stepIsEditable && formInputDisabledClassName);
+  const identityInputClassName = cn(
+    inputClassName,
+    masterFieldsDisabled && formInputDisabledClassName
+  );
   const sectionGridClassName =
     "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-start";
 
@@ -1383,51 +1347,10 @@ export function ContractDetailsStep({
               {lookupPaymaster.isPending && isTwelveDigitRegistration(formData.customer.ssm_number) ? (
                 <p className="text-meta text-muted-foreground">Looking up this registration number…</p>
               ) : null}
-              {!facilityPaymasterLocked && existingPaymasters.length > 0 ? (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {existingPaymasters.map((option) => (
-                    <Button
-                      key={option.id}
-                      type="button"
-                      variant="outline"
-                      className="h-8 rounded-xl text-ui"
-                      disabled={!stepIsEditable}
-                      onClick={() => applyPreviousPaymaster(option)}
-                    >
-                      {option.legalName}
-                    </Button>
-                  ))}
-                </div>
-              ) : null}
+              {showVerifiedIdentity ? <VerifiedBadge size="sm" /> : null}
             </div>
 
-            {showVerifiedIdentity ? (
-              <>
-                <Label className={labelInputClassName}>Verified Paymaster</Label>
-                <div className="space-y-1">
-                  <p className="text-ui text-foreground">
-                    {lookupMatch?.legalName || formData.customer.name}
-                  </p>
-                  <p className="text-ui text-muted-foreground">
-                    {lookupMatch?.entityType || formData.customer.entity_type}
-                  </p>
-                  <p className="text-ui text-muted-foreground">
-                    {countryLabel(lookupMatch?.registrationCountry || formData.customer.country)}
-                  </p>
-                </div>
-              </>
-            ) : null}
-
-            {lookupStatus === "NOT_FOUND" && !facilityPaymasterLocked ? (
-              <>
-                <Label className={labelInputClassName}>Customer identity</Label>
-                <p className="text-ui text-muted-foreground">
-                  No verified Paymaster found. Enter the customer details for this application.
-                </p>
-              </>
-            ) : null}
-
-            {showMasterFields && !showVerifiedIdentity ? (
+            {showMasterFields ? (
               <>
                 <Label className={labelInputClassName}>Customer Name</Label>
                 <Input
@@ -1435,7 +1358,7 @@ export function ContractDetailsStep({
                   onChange={(e) => handleInputChange("customer", "name", e.target.value)}
                   disabled={masterFieldsDisabled}
                   placeholder="eg. Petronas Chemical Bhd"
-                  className={inputClassName}
+                  className={identityInputClassName}
                 />
 
                 <Label className={labelInputClassName}>Customer Entity Type</Label>

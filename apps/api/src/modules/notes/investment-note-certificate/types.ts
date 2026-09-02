@@ -16,7 +16,11 @@ export const ELIGIBLE_INVESTMENT_STATUSES = ["CONFIRMED", "SETTLED"] as const;
 
 export type CertificateAudience = InvestmentNoteCertificateAudience;
 
-export type CertificateGenerationSource = "DISBURSEMENT_COMPLETED" | "ADMIN_RETRY";
+export type CertificateGenerationSource =
+  | "DISBURSEMENT_COMPLETED"
+  | "ADMIN_GENERATE"
+  | "ADMIN_RETRY"
+  | "ADMIN_REISSUE";
 
 export type CertificateSnapshotInvestor = {
   investorOrganizationId: string;
@@ -26,6 +30,18 @@ export type CertificateSnapshotInvestor = {
   sharePercent: number;
   expectedGrossProfit: number;
   totalPayable: number;
+};
+
+export type FrozenCertificateCompanyStamp = {
+  s3Key: string;
+  sha256: string | null;
+  contentType: string | null;
+  fileName: string | null;
+};
+
+export type CertificateAuthorisationSnapshot = {
+  authorisedSignatoryName: string;
+  companyStamp: FrozenCertificateCompanyStamp | null;
 };
 
 export type InvestmentNoteCertificateSnapshot = {
@@ -84,6 +100,7 @@ export type InvestmentNoteCertificateSnapshot = {
     fundedPrincipal: number;
   };
   investors: CertificateSnapshotInvestor[];
+  authorisation: CertificateAuthorisationSnapshot;
 };
 
 export class CertificateGenerationError extends Error {

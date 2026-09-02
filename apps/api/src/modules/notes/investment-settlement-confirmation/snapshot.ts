@@ -441,6 +441,23 @@ export async function buildInvestmentSettlementConfirmationSnapshot(input: {
   };
 }
 
+export function reissueConfirmationSnapshotFromReady(
+  previous: InvestmentSettlementConfirmationSnapshot,
+  input: { version: string; source: ConfirmationGenerationSource }
+): InvestmentSettlementConfirmationSnapshot {
+  const withoutHash: Omit<InvestmentSettlementConfirmationSnapshot, "snapshotSha256"> = {
+    ...previous,
+    snapshotGeneratedAt: new Date().toISOString(),
+    source: input.source,
+    version: input.version,
+    templateVersion: input.version,
+  };
+  return {
+    ...withoutHash,
+    snapshotSha256: canonicalJsonSha256(withoutHash),
+  };
+}
+
 export function expectedInvestorOrganizationIds(
   allocations: SettlementAllocationRow[]
 ): string[] {

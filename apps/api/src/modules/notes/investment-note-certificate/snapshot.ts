@@ -34,8 +34,10 @@ import {
   certificateNumberFor,
   ELIGIBLE_INVESTMENT_STATUSES,
   investorScheduleReferenceFor,
+  type CertificateAuthorisationSnapshot,
   type InvestmentNoteCertificateSnapshot,
 } from "./types";
+import { freezeCertificateAuthorisation } from "../document-authorisation/config";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -143,6 +145,10 @@ function canonicalJsonSha256(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
+function emptyCertificateAuthorisation(): CertificateAuthorisationSnapshot {
+  return { authorisedSignatoryName: "", companyStamp: null };
+}
+
 function isValidPersistedSnapshot(value: unknown): value is InvestmentNoteCertificateSnapshot {
   const record = asRecord(value);
   const certificate = asRecord(record?.certificate);
@@ -157,7 +163,47 @@ function isValidPersistedSnapshot(value: unknown): value is InvestmentNoteCertif
 export function parseCertificateSnapshot(
   value: unknown
 ): InvestmentNoteCertificateSnapshot | null {
-  return isValidPersistedSnapshot(value) ? (value as InvestmentNoteCertificateSnapshot) : null;
+  if (!isValidPersistedSnapshot(value)) return null;
+  const snapshot = value as InvestmentNoteCertificateSnapshot;
+  if (snapshot.authorisation) return snapshot;
+  return {
+    ...snapshot,
+    authorisation: emptyCertificateAuthorisation(),
+  };
+}
+
+function hashSnapshot(
+  withoutHash: Omit<InvestmentNoteCertificateSnapshot, "snapshotSha256">
+): InvestmentNoteCertificateSnapshot {
+  const withEmptyHash = { ...withoutHash, snapshotSha256: "" };
+  return {
+    ...withEmptyHash,
+    snapshotSha256: canonicalJsonSha256(withEmptyHash),
+  };
+}
+
+export function reissueCertificateSnapshotFromReady(
+  previous: InvestmentNoteCertificateSnapshot,
+  input: {
+    version: string;
+    authorisedSignatoryName: string;
+    companyStamp: CertificateAuthorisationSnapshot["companyStamp"];
+    generatedAt?: Date;
+  }
+): InvestmentNoteCertificateSnapshot {
+  const generatedAt = input.generatedAt ?? new Date();
+  return hashSnapshot({
+    ...previous,
+    snapshotGeneratedAt: generatedAt.toISOString(),
+    certificate: {
+      ...previous.certificate,
+      version: input.version,
+    },
+    authorisation: {
+      authorisedSignatoryName: input.authorisedSignatoryName,
+      companyStamp: input.companyStamp,
+    },
+  });
 }
 
 /**
@@ -299,6 +345,7 @@ export async function buildInvestmentNoteCertificateSnapshot(
   const disbursementIso = isoDate(note.disbursement_value_date);
   const maturityIso = isoDate(note.maturity_date);
   const riskRating = parseInvoiceSnapshotRiskRating(note.invoice_snapshot) ?? "—";
+  const authorisation = await freezeCertificateAuthorisation();
 
   const withoutHash = {
     templateId: CERTIFICATE_TEMPLATE_ID,
@@ -365,10 +412,8 @@ export async function buildInvestmentNoteCertificateSnapshot(
       fundedPrincipal: fundedAmount,
     },
     investors: allocated,
+    authorisation,
   };
 
-  return {
-    ...withoutHash,
-    snapshotSha256: canonicalJsonSha256(withoutHash),
-  };
+  return hashSnapshot(withoutHash);
 }

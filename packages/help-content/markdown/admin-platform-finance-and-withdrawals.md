@@ -15,7 +15,7 @@ updated: 2026-08-24
 
 Open **Settings → Platform Finance** to manage platform-wide finance and trustee letter settings.
 
-The page has tabs for late payment, gateway fees, offer deadlines, trustee letters, and money-flow accounts. Edit the fields you need, then click the save button for that tab.
+The page has tabs for late payment, gateway fees, offer deadlines, trustee letters, document authorisation, and money-flow accounts. Edit the fields you need, then click the save button for that tab.
 
 ### Late Payment
 
@@ -62,6 +62,22 @@ You can configure:
 These values are used when the system generates trustee instruction PDFs. If automatic email is enabled, the submit action is **Email to Trustee**; SES acceptance is shown as delivered, and the workflow stays submitted until payment execution is confirmed. If it is disabled, the action is **Mark submitted to trustee**. After the first email is delivered, **Resend Email to Trustee** remains available until the withdrawal is completed or cancelled; it uses the latest configured recipients and updates the delivery timestamp without completing the workflow.
 
 When you finish editing, click **Save Trustee Letter**.
+
+### Document Authorisation
+
+Use this tab to set the platform-wide authorised signatory name and company stamps used on official PDFs.
+
+You can configure:
+
+- Authorised Signatory Name (Islamic Investment Note Certificate only)
+- Islamic Investment Note Certificate company stamp
+- Whether the Settlement & Hibah Receipt uses the same stamp, or a separate receipt stamp
+
+New certificates and receipts use the settings in force when that version is first generated. Changing these settings does not rewrite an already READY PDF. To apply updated signatory or stamp details, Admin can **Regenerate / Reissue** the READY document; that creates a new version and leaves the previous version stored.
+
+Investment Settlement Confirmation does not use these fields.
+
+When you finish editing, click **Save Document Authorisation**.
 
 ### Money Flow Accounts
 

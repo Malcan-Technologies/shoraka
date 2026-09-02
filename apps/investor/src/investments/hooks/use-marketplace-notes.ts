@@ -130,6 +130,20 @@ export function useOpenInvestorInvestmentSettlementConfirmation() {
     await openFetchedPdfInNewTab(async () => {
       const res = await apiClient.getInvestorInvestmentSettlementConfirmation(investmentId);
       if (!res.success) throw new Error(res.error.message);
+      if (!res.data.viewUrl) {
+        throw new Error("Settlement confirmation is not available");
+      }
+      return res.data.viewUrl;
+    });
+  };
+}
+
+export function useDownloadInvestorInvestmentSettlementConfirmation() {
+  const apiClient = useMarketplaceApiClient();
+  return async (investmentId: string) => {
+    await openFetchedPdfInNewTab(async () => {
+      const res = await apiClient.getInvestorInvestmentSettlementConfirmation(investmentId);
+      if (!res.success) throw new Error(res.error.message);
       if (!res.data.downloadUrl) {
         throw new Error("Settlement confirmation is not available");
       }

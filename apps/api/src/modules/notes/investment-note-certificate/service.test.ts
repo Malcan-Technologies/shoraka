@@ -3,6 +3,7 @@ import {
   NoteInvestmentCertificateAudience,
   NoteInvestmentCertificateStatus,
   NoteInvestmentStatus,
+  NoteStatus,
 } from "@prisma/client";
 import { AppError } from "../../../lib/http/error-handler";
 import type { InvestmentNoteCertificateSnapshot } from "./types";
@@ -14,6 +15,9 @@ const mockStoreCertificatePdf = jest.fn();
 const mockGenerateCertificatePdfViewUrl = jest.fn();
 const mockCreateNoteEventRow = jest.fn();
 const mockBuildSnapshot = jest.fn();
+const mockFreezeCertificateAuthorisation = jest.fn();
+const mockLoadFrozenStampImage = jest.fn();
+const mockReissueCertificateSnapshot = jest.fn();
 
 const certificateStore: Record<string, any[]> = { rows: [] };
 const noteEvents: any[] = [];
@@ -75,11 +79,17 @@ const mockPrisma: any = {
       Object.assign(row, data);
       return row;
     }),
-    updateMany: jest.fn(async ({ data }: any) => {
+    updateMany: jest.fn(async ({ where, data }: any) => {
+      let count = 0;
       for (const row of certificateStore.rows) {
-        if (row.status !== NoteInvestmentCertificateStatus.READY) Object.assign(row, data);
+        if (where?.note_id && row.note_id !== where.note_id) continue;
+        if (where?.version && row.version !== where.version) continue;
+        if (where?.is_current === true && row.is_current !== true) continue;
+        if (where?.is_current === false && row.is_current !== false) continue;
+        Object.assign(row, data);
+        count += 1;
       }
-      return { count: certificateStore.rows.length };
+      return { count };
     }),
   },
   noteInvestment: {
@@ -113,8 +123,8 @@ jest.mock("./render-certificate-docx", () => ({
 jest.mock("./storage", () => ({
   CERTIFICATE_PDF_CONTENT_TYPE: "application/pdf",
   buildCertificatePdfObjectKey: jest.fn(
-    ({ audience, investorOrganizationId }: any) =>
-      `investment-note-certificates/test/note-1/V01/${audience.toLowerCase()}${
+    ({ audience, investorOrganizationId, version }: any) =>
+      `investment-note-certificates/test/note-1/${version}/${audience.toLowerCase()}${
         investorOrganizationId ? `/${investorOrganizationId}` : ""
       }.pdf`
   ),
@@ -127,6 +137,13 @@ jest.mock("./snapshot", () => ({
   buildInvestmentNoteCertificateSnapshot: (...args: unknown[]) => mockBuildSnapshot(...args),
   parseCertificateSnapshot: (value: unknown) =>
     value && typeof value === "object" && (value as any).certificate ? value : null,
+  reissueCertificateSnapshotFromReady: (...args: unknown[]) =>
+    mockReissueCertificateSnapshot(...args),
+}));
+jest.mock("../document-authorisation/config", () => ({
+  freezeCertificateAuthorisation: (...args: unknown[]) =>
+    mockFreezeCertificateAuthorisation(...args),
+  loadFrozenStampImage: (...args: unknown[]) => mockLoadFrozenStampImage(...args),
 }));
 jest.mock("../../../lib/audit", () => ({
   AUDIT_PORTAL: { ADMIN: "ADMIN" },
@@ -138,13 +155,20 @@ jest.mock("../audit-fields", () => ({
 }));
 
 import {
+  generateAdminInvestmentNoteCertificate,
   generateInvestmentNoteCertificates,
   getAdminInvestmentNoteCertificate,
   getInvestorInvestmentNoteCertificate,
+  getIssuerInvestmentNoteCertificate,
+  publishAdminInvestmentNoteCertificate,
+  reissueAdminInvestmentNoteCertificate,
   retryAdminInvestmentNoteCertificate,
+  retryFailedInvestmentNoteCertificates,
 } from "./service";
 
-function sampleSnapshot(): InvestmentNoteCertificateSnapshot {
+function sampleSnapshot(
+  overrides: Partial<InvestmentNoteCertificateSnapshot> = {}
+): InvestmentNoteCertificateSnapshot {
   return {
     templateId: "islamic-investment-note-certificate-v1",
     templateVersion: "V01",
@@ -220,6 +244,16 @@ function sampleSnapshot(): InvestmentNoteCertificateSnapshot {
         totalPayable: 30.75,
       },
     ],
+    authorisation: {
+      authorisedSignatoryName: "Ahmad",
+      companyStamp: {
+        s3Key: "stamps/a.png",
+        sha256: "stamp-a",
+        contentType: "image/png",
+        fileName: "a.png",
+      },
+    },
+    ...overrides,
   };
 }
 
@@ -233,6 +267,8 @@ describe("generateInvestmentNoteCertificates", () => {
       id: "note-1",
       note_reference: "NOTE-1",
       funding_status: NoteFundingStatus.FUNDED,
+      status: NoteStatus.ACTIVE,
+      disbursement_value_date: new Date("2026-09-01"),
       issuer_organization_id: "issuer-org",
     };
     mockRenderDocx.mockImplementation(
@@ -250,6 +286,26 @@ describe("generateInvestmentNoteCertificates", () => {
       noteEvents.push({ metadata: params.metadata });
     });
     mockBuildSnapshot.mockResolvedValue(sampleSnapshot());
+    mockLoadFrozenStampImage.mockResolvedValue(null);
+    mockFreezeCertificateAuthorisation.mockResolvedValue({
+      authorisedSignatoryName: "Sarah",
+      companyStamp: {
+        s3Key: "stamps/b.png",
+        sha256: "stamp-b",
+        contentType: "image/png",
+        fileName: "b.png",
+      },
+    });
+    mockReissueCertificateSnapshot.mockImplementation((previous: any, input: any) => ({
+      ...previous,
+      snapshotGeneratedAt: "2026-09-03T00:00:00.000Z",
+      snapshotSha256: `reissue-${input.version}`,
+      certificate: { ...previous.certificate, version: input.version },
+      authorisation: {
+        authorisedSignatoryName: input.authorisedSignatoryName,
+        companyStamp: input.companyStamp,
+      },
+    }));
   });
 
   it("does not generate when funding_status is not FUNDED", async () => {
@@ -363,6 +419,8 @@ describe("audience download authorization", () => {
       id: "note-1",
       note_reference: "NOTE-1",
       funding_status: NoteFundingStatus.FUNDED,
+      status: NoteStatus.ACTIVE,
+      disbursement_value_date: new Date("2026-09-01"),
       issuer_organization_id: "issuer-org",
     };
     mockRenderDocx.mockImplementation(
@@ -377,6 +435,10 @@ describe("audience download authorization", () => {
       expiresIn: 600,
     });
     mockBuildSnapshot.mockResolvedValue(sampleSnapshot());
+    mockLoadFrozenStampImage.mockResolvedValue(null);
+    mockCreateNoteEventRow.mockImplementation(async (_db: unknown, params: any) => {
+      noteEvents.push({ metadata: params.metadata, eventType: params.eventType });
+    });
   });
 
   it("investor A cannot retrieve investor B PDF", async () => {
@@ -409,6 +471,258 @@ describe("audience download authorization", () => {
     expect(mockGenerateCertificatePdfViewUrl).toHaveBeenCalledWith(
       expect.objectContaining({ disposition: "attachment" })
     );
+    expect(payload.canRegenerate).toBe(true);
+    expect(payload.isCurrent).toBe(true);
+    expect(payload.version).toBe("V01");
+    expect(payload.reviewVersion).toBeNull();
+  });
+
+  it("lets admin generate V01 when eligible and no document exists", async () => {
+    const empty = await getAdminInvestmentNoteCertificate("note-1");
+    expect(empty.status).toBe("NONE");
+    expect(empty.canGenerate).toBe(true);
+    const payload = await generateAdminInvestmentNoteCertificate("note-1", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(payload.status).toBe("READY");
+    expect(payload.version).toBe("V01");
+    expect(payload.isCurrent).toBe(true);
+    expect(payload.canGenerate).toBe(false);
+    expect(payload.canRegenerate).toBe(true);
+    expect(mockCreateNoteEventRow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: "INVESTMENT_NOTE_CERTIFICATE_GENERATED",
+        metadata: expect.objectContaining({ source: "ADMIN_GENERATE", version: "V01" }),
+      })
+    );
+  });
+
+  it("does not allow Generate when the note is not yet issued", async () => {
+    currentNote.status = NoteStatus.PUBLISHED;
+    currentNote.disbursement_value_date = null;
+    await expect(
+      generateAdminInvestmentNoteCertificate("note-1", { userId: "admin-1" })
+    ).rejects.toMatchObject({ code: "CERTIFICATE_GENERATE_NOT_ALLOWED" });
+    expect(certificateStore.rows).toHaveLength(0);
+  });
+
+  it("does not create a document from the retry cron when none exists", async () => {
+    await retryFailedInvestmentNoteCertificates(mockPrisma);
+    expect(mockBuildSnapshot).not.toHaveBeenCalled();
+    expect(certificateStore.rows).toHaveLength(0);
+  });
+});
+
+describe("certificate regenerate / reissue", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    certificateStore.rows = [];
+    noteEvents.length = 0;
+    investments.length = 0;
+    currentNote = {
+      id: "note-1",
+      note_reference: "NOTE-1",
+      funding_status: NoteFundingStatus.FUNDED,
+      status: NoteStatus.ACTIVE,
+      disbursement_value_date: new Date("2026-09-01"),
+      issuer_organization_id: "issuer-org",
+    };
+    mockRenderDocx.mockImplementation(
+      (_snapshot: unknown, input: { audience: string; investorOrganizationId?: string | null }) =>
+        Buffer.from(`PK-docx-${input.audience}:${input.investorOrganizationId ?? ""}`)
+    );
+    mockConvertDocxToPdf.mockResolvedValue(Buffer.from("%PDF-cert"));
+    mockStoreCertificatePdf.mockResolvedValue(undefined);
+    mockGenerateCertificatePdfViewUrl.mockResolvedValue({
+      viewUrl: "https://s3/view",
+      expiresIn: 600,
+    });
+    mockCreateNoteEventRow.mockImplementation(async (_db: unknown, params: any) => {
+      noteEvents.push({ metadata: params.metadata, eventType: params.eventType });
+    });
+    mockBuildSnapshot.mockResolvedValue(sampleSnapshot());
+    mockLoadFrozenStampImage.mockResolvedValue(null);
+    mockFreezeCertificateAuthorisation.mockResolvedValue({
+      authorisedSignatoryName: "Sarah",
+      companyStamp: {
+        s3Key: "stamps/b.png",
+        sha256: "stamp-b",
+        contentType: "image/png",
+        fileName: "b.png",
+      },
+    });
+    mockReissueCertificateSnapshot.mockImplementation((previous: any, input: any) => ({
+      ...previous,
+      snapshotGeneratedAt: "2026-09-03T00:00:00.000Z",
+      snapshotSha256: `reissue-${input.version}`,
+      certificate: { ...previous.certificate, version: input.version },
+      authorisation: {
+        authorisedSignatoryName: input.authorisedSignatoryName,
+        companyStamp: input.companyStamp,
+      },
+    }));
+  });
+
+  it("first generation uses the frozen snapshot signatory and stamp", async () => {
+    await generateInvestmentNoteCertificates({
+      noteId: "note-1",
+      source: "DISBURSEMENT_COMPLETED",
+    });
+    expect(mockLoadFrozenStampImage).toHaveBeenCalledWith(
+      expect.objectContaining({ s3Key: "stamps/a.png" })
+    );
+    expect(
+      certificateStore.rows.every(
+        (row) => row.snapshot.authorisation.authorisedSignatoryName === "Ahmad"
+      )
+    ).toBe(true);
+  });
+
+  it("retries FAILED using the original snapshot after settings change", async () => {
+    mockConvertDocxToPdf.mockRejectedValueOnce(new Error("gotenberg down"));
+    await generateInvestmentNoteCertificates({
+      noteId: "note-1",
+      source: "DISBURSEMENT_COMPLETED",
+    });
+    mockBuildSnapshot.mockClear();
+    mockFreezeCertificateAuthorisation.mockResolvedValue({
+      authorisedSignatoryName: "Sarah",
+      companyStamp: { s3Key: "stamps/b.png", sha256: "b", contentType: "image/png", fileName: "b.png" },
+    });
+    mockConvertDocxToPdf.mockResolvedValue(Buffer.from("%PDF-cert"));
+    await retryAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" });
+    expect(mockBuildSnapshot).not.toHaveBeenCalled();
+    expect(mockFreezeCertificateAuthorisation).not.toHaveBeenCalled();
+    expect(mockLoadFrozenStampImage).toHaveBeenCalledWith(
+      expect.objectContaining({ s3Key: "stamps/a.png" })
+    );
+    expect(certificateStore.rows.every((row) => row.version === "V01")).toBe(true);
+    expect(
+      certificateStore.rows.every(
+        (row) => row.snapshot.authorisation.authorisedSignatoryName === "Ahmad"
+      )
+    ).toBe(true);
+  });
+
+  it("creates V02 from READY V01 without overwriting V01 financial facts", async () => {
+    await generateInvestmentNoteCertificates({
+      noteId: "note-1",
+      source: "DISBURSEMENT_COMPLETED",
+    });
+    mockCreateNoteEventRow.mockClear();
+    const payload = await reissueAdminInvestmentNoteCertificate("note-1", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    const v01 = certificateStore.rows.filter((row) => row.version === "V01");
+    const v02 = certificateStore.rows.filter((row) => row.version === "V02");
+    expect(v01).toHaveLength(4);
+    expect(v02).toHaveLength(4);
+    expect(v01.every((row) => row.status === "READY")).toBe(true);
+    expect(v01.every((row) => row.snapshot.authorisation.authorisedSignatoryName === "Ahmad")).toBe(
+      true
+    );
+    expect(v02.every((row) => row.snapshot.authorisation.authorisedSignatoryName === "Sarah")).toBe(
+      true
+    );
+    expect(v02.every((row) => row.snapshot.authorisation.companyStamp?.s3Key === "stamps/b.png")).toBe(
+      true
+    );
+    expect(v02.every((row) => row.snapshot.note.fundedAmount === 80)).toBe(true);
+    expect(v02.every((row) => row.snapshot.note.contractedProfit === 2)).toBe(true);
+    expect(payload.version).toBe("V01");
+    expect(payload.isCurrent).toBe(true);
+    expect(payload.canRegenerate).toBe(true);
+    expect(payload.reviewVersion?.version).toBe("V02");
+    expect(payload.reviewVersion?.status).toBe("READY");
+    expect(payload.reviewVersion?.canPublish).toBe(true);
+    expect(v01.every((row) => row.is_current === true)).toBe(true);
+    expect(v02.every((row) => row.is_current === false)).toBe(true);
+    expect(mockCreateNoteEventRow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: "INVESTMENT_NOTE_CERTIFICATE_REISSUED",
+        metadata: expect.objectContaining({
+          previousVersion: "V01",
+          newVersion: "V02",
+          source: "ADMIN_REISSUE",
+        }),
+      })
+    );
+  });
+
+  it("creates V03 on the next regenerate without publishing it to the issuer", async () => {
+    await generateInvestmentNoteCertificates({
+      noteId: "note-1",
+      source: "DISBURSEMENT_COMPLETED",
+    });
+    await reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" });
+    mockFreezeCertificateAuthorisation.mockResolvedValue({
+      authorisedSignatoryName: "Sarah",
+      companyStamp: { s3Key: "stamps/c.png", sha256: "c", contentType: "image/png", fileName: "c.png" },
+    });
+    await reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" });
+    expect(certificateStore.rows.some((row) => row.version === "V03")).toBe(true);
+    const issuer = await getIssuerInvestmentNoteCertificate("note-1", "issuer-user");
+    expect(issuer.version).toBe("V01");
+    expect(issuer.canRegenerate).toBe(false);
+    expect(issuer.canRetry).toBe(false);
+  });
+
+  it("publishes the regenerated version and keeps V01 as history", async () => {
+    investments.push({
+      id: "inv-1",
+      note_id: "note-1",
+      investor_organization_id: "org-a",
+    });
+    await generateInvestmentNoteCertificates({
+      noteId: "note-1",
+      source: "DISBURSEMENT_COMPLETED",
+    });
+    await reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1", role: "ADMIN" });
+    mockCreateNoteEventRow.mockClear();
+    const published = await publishAdminInvestmentNoteCertificate("note-1", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(published.version).toBe("V02");
+    expect(published.isCurrent).toBe(true);
+    expect(published.reviewVersion).toBeNull();
+    expect(certificateStore.rows.filter((row) => row.version === "V01").every((row) => row.is_current === false)).toBe(
+      true
+    );
+    expect(certificateStore.rows.filter((row) => row.version === "V02").every((row) => row.is_current === true)).toBe(
+      true
+    );
+    const issuer = await getIssuerInvestmentNoteCertificate("note-1", "issuer-user");
+    expect(issuer.version).toBe("V02");
+    const investor = await getInvestorInvestmentNoteCertificate("inv-1", "user-a");
+    expect(investor.version).toBe("V02");
+    expect(mockCreateNoteEventRow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: "INVESTMENT_NOTE_CERTIFICATE_PUBLISHED",
+        metadata: expect.objectContaining({
+          version: "V02",
+          previousVersion: "V01",
+          source: "ADMIN_PUBLISH",
+        }),
+      })
+    );
+  });
+
+  it("does not allow reissue unless the latest version is READY", async () => {
+    mockConvertDocxToPdf.mockRejectedValue(new Error("gotenberg down"));
+    await generateInvestmentNoteCertificates({
+      noteId: "note-1",
+      source: "DISBURSEMENT_COMPLETED",
+    });
+    await expect(
+      reissueAdminInvestmentNoteCertificate("note-1", { userId: "admin-1" })
+    ).rejects.toMatchObject({ code: "CERTIFICATE_REISSUE_NOT_ALLOWED" });
+    expect(certificateStore.rows.every((row) => row.version === "V01")).toBe(true);
   });
 });
 

@@ -54,6 +54,10 @@ import {
   type PaymasterSubmittedIdentity,
 } from "./identity";
 import {
+  collectLinkedApplicationIdentitySources,
+  selectDifferingSubmittedApplicationIdentities,
+} from "./submitted-application-identities";
+import {
   buildPaymasterIdentityAuditMetadata,
   writePaymasterIdentityApplicationLog,
 } from "./identity-audit";
@@ -775,8 +779,27 @@ export async function getAdminPaymasterDetail(id: string): Promise<PaymasterDeta
           issuer_organization_id: true,
           status: true,
           updated_at: true,
+          customer_details: true,
           issuer_organization: { select: { name: true } },
-          applications: { select: { id: true, display_reference: true }, take: 1 },
+          originating_application: {
+            select: {
+              id: true,
+              display_reference: true,
+              status: true,
+              submitted_at: true,
+              financing_type: true,
+            },
+          },
+          applications: {
+            select: {
+              id: true,
+              display_reference: true,
+              status: true,
+              submitted_at: true,
+              financing_type: true,
+            },
+            orderBy: { updated_at: "desc" },
+          },
         },
         take: 50,
         orderBy: { updated_at: "desc" },
@@ -869,6 +892,10 @@ export async function getAdminPaymasterDetail(id: string): Promise<PaymasterDeta
       sentAt: notice.sent_at?.toISOString() ?? null,
       acknowledgedAt: notice.acknowledged_at?.toISOString() ?? null,
     })),
+    submittedApplicationIdentities: selectDifferingSubmittedApplicationIdentities({
+      master: row,
+      sources: collectLinkedApplicationIdentitySources(row.contracts),
+    }),
   };
 }
 

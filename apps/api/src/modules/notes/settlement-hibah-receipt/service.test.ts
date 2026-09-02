@@ -14,6 +14,9 @@ const mockStoreReceiptPdf = jest.fn();
 const mockGenerateReceiptPdfViewUrl = jest.fn();
 const mockCreateNoteEventRow = jest.fn();
 const mockBuildSnapshot = jest.fn();
+const mockFreezeReceiptAuthorisation = jest.fn();
+const mockLoadFrozenStampImage = jest.fn();
+const mockReissueReceiptSnapshot = jest.fn();
 
 const receiptStore: { rows: any[] } = { rows: [] };
 const noteEvents: any[] = [];
@@ -52,6 +55,7 @@ const mockPrisma: any = {
     }),
     findMany: jest.fn(async ({ where }: any) =>
       receiptStore.rows.filter((row) => {
+        if (where.settlement_id && row.settlement_id !== where.settlement_id) return false;
         if (where.version && row.version !== where.version) return false;
         if (where.OR) {
           return where.OR.some((clause: any) => row.status === clause.status);
@@ -75,6 +79,7 @@ const mockPrisma: any = {
         generation_error: null,
         created_at: new Date(),
         updated_at: new Date(),
+        is_current: false,
         ...data,
       };
       receiptStore.rows.push(row);
@@ -84,6 +89,18 @@ const mockPrisma: any = {
       const row = receiptStore.rows.find((item) => item.id === where.id);
       Object.assign(row, data);
       return row;
+    }),
+    updateMany: jest.fn(async ({ where, data }: any) => {
+      let count = 0;
+      for (const row of receiptStore.rows) {
+        if (where?.settlement_id && row.settlement_id !== where.settlement_id) continue;
+        if (where?.version && row.version !== where.version) continue;
+        if (where?.is_current === true && row.is_current !== true) continue;
+        if (where?.is_current === false && row.is_current !== false) continue;
+        Object.assign(row, data);
+        count += 1;
+      }
+      return { count };
     }),
   },
   noteEvent: {
@@ -124,6 +141,12 @@ jest.mock("./snapshot", () => ({
     value && typeof value === "object" && (value as { receiptNumber?: string }).receiptNumber
       ? value
       : null,
+  reissueHibahReceiptSnapshotFromReady: (...args: unknown[]) =>
+    mockReissueReceiptSnapshot(...args),
+}));
+jest.mock("../document-authorisation/config", () => ({
+  freezeReceiptAuthorisation: (...args: unknown[]) => mockFreezeReceiptAuthorisation(...args),
+  loadFrozenStampImage: (...args: unknown[]) => mockLoadFrozenStampImage(...args),
 }));
 jest.mock("../../../lib/audit", () => ({
   AUDIT_PORTAL: { ADMIN: "ADMIN" },
@@ -138,10 +161,14 @@ jest.mock("../audit-fields", () => ({
 }));
 
 import {
+  generateAdminSettlementHibahReceipt,
   generateSettlementHibahReceipt,
   getAdminSettlementHibahReceipt,
   getIssuerSettlementHibahReceipt,
+  publishAdminSettlementHibahReceipt,
+  reissueAdminSettlementHibahReceipt,
   retryAdminSettlementHibahReceipt,
+  retryFailedSettlementHibahReceipts,
 } from "./service";
 
 function sampleSnapshot(
@@ -194,6 +221,15 @@ function sampleSnapshot(
     actingThrough: "Shoraka Suyula Platform Sdn Bhd as duly authorised agent for investor, issuer and platform operator",
     shariahStructure: "Bai' Al-Dayn Bi Al-Sila'",
     confirmationCopy: "Confirmation.",
+    authorisation: {
+      stampSource: "SHARED_CERTIFICATE_STAMP",
+      companyStamp: {
+        s3Key: "stamps/a.png",
+        sha256: "stamp-a",
+        contentType: "image/png",
+        fileName: "a.png",
+      },
+    },
     ...overrides,
   };
 }
@@ -230,6 +266,27 @@ describe("generateSettlementHibahReceipt", () => {
       noteEvents.push({ metadata: params.metadata, targetId: params.targetId });
     });
     mockBuildSnapshot.mockResolvedValue(sampleSnapshot());
+    mockLoadFrozenStampImage.mockResolvedValue(null);
+    mockFreezeReceiptAuthorisation.mockResolvedValue({
+      stampSource: "SEPARATE_RECEIPT_STAMP",
+      companyStamp: {
+        s3Key: "stamps/b.png",
+        sha256: "stamp-b",
+        contentType: "image/png",
+        fileName: "b.png",
+      },
+    });
+    mockReissueReceiptSnapshot.mockImplementation((previous: any, input: any) => ({
+      ...previous,
+      snapshotGeneratedAt: "2026-09-03T00:00:00.000Z",
+      snapshotSha256: `reissue-${input.version}`,
+      source: "ADMIN_REISSUE",
+      version: input.version,
+      authorisation: {
+        stampSource: input.stampSource,
+        companyStamp: input.companyStamp,
+      },
+    }));
   });
 
   it("does not generate when the note is still ACTIVE after posting", async () => {
@@ -397,6 +454,7 @@ describe("receipt visibility", () => {
     expect(payload.status).toBe("FAILED");
     expect(payload.generationError).toBe("gotenberg down");
     expect(payload.canRetry).toBe(true);
+    expect(payload.canRegenerate).toBe(false);
   });
 
   it("lets the owning issuer view without technical errors", async () => {
@@ -404,6 +462,7 @@ describe("receipt visibility", () => {
     expect(payload.status).toBe("FAILED");
     expect(payload.generationError).toBeNull();
     expect(payload.canRetry).toBe(false);
+    expect(payload.canRegenerate).toBe(false);
   });
 
   it("forbids another issuer", async () => {
@@ -411,5 +470,201 @@ describe("receipt visibility", () => {
     await expect(getIssuerSettlementHibahReceipt("note-1", "other-user")).rejects.toMatchObject({
       statusCode: 403,
     });
+  });
+});
+
+describe("receipt regenerate / reissue", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    receiptStore.rows = [];
+    noteEvents.length = 0;
+    issuerAllowed = true;
+    currentNote = {
+      id: "note-1",
+      status: NoteStatus.REPAID,
+      servicing_status: NoteServicingStatus.SETTLED,
+      issuer_organization_id: "issuer-org",
+    };
+    postedSettlement = {
+      id: "set-1",
+      note_id: "note-1",
+      status: NoteSettlementStatus.POSTED,
+      display_reference: "SET-ARF-202608-A52",
+    };
+    mockRenderDocx.mockImplementation((snapshot: SettlementHibahReceiptSnapshot) =>
+      Buffer.from(`PK-docx-${snapshot.receiptNumber}`)
+    );
+    mockConvertDocxToPdf.mockResolvedValue(Buffer.from("%PDF-hibah"));
+    mockStoreReceiptPdf.mockResolvedValue(undefined);
+    mockGenerateReceiptPdfViewUrl.mockResolvedValue({
+      viewUrl: "https://s3/view",
+      expiresIn: 600,
+    });
+    mockCreateNoteEventRow.mockImplementation(async (_db: unknown, params: any) => {
+      noteEvents.push({ metadata: params.metadata, eventType: params.eventType });
+    });
+    mockBuildSnapshot.mockResolvedValue(sampleSnapshot());
+    mockLoadFrozenStampImage.mockResolvedValue(null);
+    mockFreezeReceiptAuthorisation.mockResolvedValue({
+      stampSource: "SEPARATE_RECEIPT_STAMP",
+      companyStamp: {
+        s3Key: "stamps/b.png",
+        sha256: "stamp-b",
+        contentType: "image/png",
+        fileName: "b.png",
+      },
+    });
+    mockReissueReceiptSnapshot.mockImplementation((previous: any, input: any) => ({
+      ...previous,
+      snapshotGeneratedAt: "2026-09-03T00:00:00.000Z",
+      snapshotSha256: `reissue-${input.version}`,
+      source: "ADMIN_REISSUE",
+      version: input.version,
+      authorisation: {
+        stampSource: input.stampSource,
+        companyStamp: input.companyStamp,
+      },
+    }));
+  });
+
+  it("first generation uses the frozen selected stamp", async () => {
+    await generateSettlementHibahReceipt({
+      noteId: "note-1",
+      source: "SETTLEMENT_COMPLETED",
+    });
+    expect(mockLoadFrozenStampImage).toHaveBeenCalledWith(
+      expect.objectContaining({ s3Key: "stamps/a.png" })
+    );
+    expect(receiptStore.rows[0].snapshot.authorisation.stampSource).toBe(
+      "SHARED_CERTIFICATE_STAMP"
+    );
+  });
+
+  it("retries FAILED using the original snapshot after settings change", async () => {
+    const frozen = sampleSnapshot({ hibahAmount: 12.34, snapshotSha256: "frozen-hash" });
+    receiptStore.rows.push({
+      id: "row-1",
+      note_id: "note-1",
+      settlement_id: "set-1",
+      receipt_number: "SET-ARF-202608-A52",
+      version: "V01",
+      status: SettlementHibahReceiptStatus.FAILED,
+      snapshot: frozen,
+      pdf_s3_key: null,
+      pdf_sha256: null,
+      generated_at: null,
+      generation_error: "previous failure",
+    });
+    mockBuildSnapshot.mockResolvedValue(sampleSnapshot({ hibahAmount: 99, snapshotSha256: "new" }));
+    await retryAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" });
+    expect(mockBuildSnapshot).not.toHaveBeenCalled();
+    expect(mockFreezeReceiptAuthorisation).not.toHaveBeenCalled();
+    expect(mockLoadFrozenStampImage).toHaveBeenCalledWith(
+      expect.objectContaining({ s3Key: "stamps/a.png" })
+    );
+    expect(receiptStore.rows).toHaveLength(1);
+    expect(receiptStore.rows[0].snapshot.hibahAmount).toBe(12.34);
+    expect(receiptStore.rows[0].snapshot.authorisation.companyStamp?.s3Key).toBe("stamps/a.png");
+  });
+
+  it("creates V02 from READY V01 without overwriting V01 financial facts", async () => {
+    await generateSettlementHibahReceipt({
+      noteId: "note-1",
+      source: "SETTLEMENT_COMPLETED",
+    });
+    mockCreateNoteEventRow.mockClear();
+    const payload = await reissueAdminSettlementHibahReceipt("note-1", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(receiptStore.rows).toHaveLength(2);
+    const v01 = receiptStore.rows.find((row) => row.version === "V01");
+    const v02 = receiptStore.rows.find((row) => row.version === "V02");
+    expect(v01?.status).toBe(SettlementHibahReceiptStatus.READY);
+    expect(v01?.snapshot.authorisation.companyStamp?.s3Key).toBe("stamps/a.png");
+    expect(v01?.snapshot.hibahAmount).toBe(2_000);
+    expect(v02?.snapshot.authorisation.companyStamp?.s3Key).toBe("stamps/b.png");
+    expect(v02?.snapshot.authorisation.stampSource).toBe("SEPARATE_RECEIPT_STAMP");
+    expect(v02?.snapshot.hibahAmount).toBe(2_000);
+    expect(v02?.snapshot.grossReceiptAmount).toBe(100_000);
+    expect(payload.version).toBe("V01");
+    expect(payload.isCurrent).toBe(true);
+    expect(payload.canRegenerate).toBe(true);
+    expect(payload.reviewVersion?.version).toBe("V02");
+    expect(payload.reviewVersion?.canPublish).toBe(true);
+    expect(v01?.is_current).toBe(true);
+    expect(v02?.is_current).toBe(false);
+    expect(mockCreateNoteEventRow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: "SETTLEMENT_HIBAH_RECEIPT_REISSUED",
+        metadata: expect.objectContaining({
+          previousVersion: "V01",
+          newVersion: "V02",
+          source: "ADMIN_REISSUE",
+        }),
+      })
+    );
+  });
+
+  it("creates V03 on the next regenerate without publishing it to the issuer", async () => {
+    await generateSettlementHibahReceipt({
+      noteId: "note-1",
+      source: "SETTLEMENT_COMPLETED",
+    });
+    await reissueAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" });
+    await reissueAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" });
+    expect(receiptStore.rows.map((row) => row.version).sort()).toEqual(["V01", "V02", "V03"]);
+    const issuer = await getIssuerSettlementHibahReceipt("note-1", "issuer-user");
+    expect(issuer.version).toBe("V01");
+    expect(issuer.canRegenerate).toBe(false);
+  });
+
+  it("publishes the regenerated receipt and keeps V01 as history", async () => {
+    await generateSettlementHibahReceipt({
+      noteId: "note-1",
+      source: "SETTLEMENT_COMPLETED",
+    });
+    await reissueAdminSettlementHibahReceipt("note-1", { userId: "admin-1", role: "ADMIN" });
+    mockCreateNoteEventRow.mockClear();
+    const published = await publishAdminSettlementHibahReceipt("note-1", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(published.version).toBe("V02");
+    expect(published.isCurrent).toBe(true);
+    const issuer = await getIssuerSettlementHibahReceipt("note-1", "issuer-user");
+    expect(issuer.version).toBe("V02");
+    expect(receiptStore.rows.find((row) => row.version === "V01")?.is_current).toBe(false);
+    expect(mockCreateNoteEventRow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: "SETTLEMENT_HIBAH_RECEIPT_PUBLISHED",
+        metadata: expect.objectContaining({
+          version: "V02",
+          previousVersion: "V01",
+          source: "ADMIN_PUBLISH",
+        }),
+      })
+    );
+  });
+
+  it("lets admin generate V01 when the note is fully settled", async () => {
+    const empty = await getAdminSettlementHibahReceipt("note-1");
+    expect(empty.status).toBe("NONE");
+    expect(empty.canGenerate).toBe(true);
+    const payload = await generateAdminSettlementHibahReceipt("note-1", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(payload.version).toBe("V01");
+    expect(payload.isCurrent).toBe(true);
+    expect(payload.canGenerate).toBe(false);
+  });
+
+  it("does not create a receipt from the retry cron when none exists", async () => {
+    await retryFailedSettlementHibahReceipts(mockPrisma);
+    expect(mockBuildSnapshot).not.toHaveBeenCalled();
+    expect(receiptStore.rows).toHaveLength(0);
   });
 });

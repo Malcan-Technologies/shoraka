@@ -18,18 +18,24 @@ export function visibleCertificateInvestors(
   return snapshot.investors;
 }
 
+export function showIssuerLegalIdentityForAudience(audience: CertificateAudience): boolean {
+  return audience !== "INVESTOR";
+}
+
 export function issuerLegalNameForAudience(
   snapshot: InvestmentNoteCertificateSnapshot,
   audience: CertificateAudience
 ): string {
-  return audience === "INVESTOR" ? HIDDEN : snapshot.note.issuerLegalName;
+  return showIssuerLegalIdentityForAudience(audience) ? snapshot.note.issuerLegalName : HIDDEN;
 }
 
 export function companyRegistrationForAudience(
   snapshot: InvestmentNoteCertificateSnapshot,
   audience: CertificateAudience
 ): string {
-  return audience === "INVESTOR" ? HIDDEN : snapshot.note.companyRegistrationNumber;
+  return showIssuerLegalIdentityForAudience(audience)
+    ? snapshot.note.companyRegistrationNumber
+    : HIDDEN;
 }
 
 export function investorNameForAudience(name: string, audience: CertificateAudience): string {

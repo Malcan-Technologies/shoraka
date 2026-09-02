@@ -47,6 +47,7 @@ const previousRow = {
   },
   platform_accounts_config: null,
   ledger_bucket_accounts_config: null,
+  document_authorisation_config: null,
   updated_by_user_id: "admin_old",
   updated_at: new Date("2026-01-01T00:00:00.000Z"),
 };
@@ -131,5 +132,43 @@ describe("NoteService updatePlatformFinanceSettings audit", () => {
       "trustee@ops.example"
     );
     expect(payload.metadata.previousValues.trusteeLetterConfig.trusteeName).toBe("Trustee Co");
+  });
+
+  it("persists Document Authorisation settings and includes them in the audit snapshot", async () => {
+    const documentAuthorisationConfig = {
+      authorisedSignatoryName: "Sarah",
+      useSameCompanyStamp: false,
+      certificateCompanyStamp: { s3Key: "stamps/cert.png", fileName: "cert.png", contentType: "image/png" },
+      receiptCompanyStamp: { s3Key: "stamps/receipt.png", fileName: "receipt.png", contentType: "image/png" },
+    };
+    const saved = {
+      ...nextRow,
+      document_authorisation_config: documentAuthorisationConfig,
+    };
+    (prisma.platformFinanceSetting.upsert as jest.Mock).mockResolvedValue(saved);
+    (prisma.platformFinanceSetting.findUnique as jest.Mock)
+      .mockReset()
+      .mockResolvedValueOnce(previousRow)
+      .mockResolvedValue(saved);
+    (prisma.platformFinanceSetting.findUniqueOrThrow as jest.Mock).mockResolvedValue(saved);
+
+    const service = new NoteService();
+    const result = await service.updatePlatformFinanceSettings(
+      { documentAuthorisationConfig },
+      actor
+    );
+
+    expect(prisma.platformFinanceSetting.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          document_authorisation_config: documentAuthorisationConfig,
+        }),
+      })
+    );
+    expect(result.documentAuthorisationConfig).toEqual(documentAuthorisationConfig);
+    const payload = mockCreateSecurityLogRow.mock.calls[0][0];
+    expect(payload.metadata.nextValues.documentAuthorisationConfig.authorisedSignatoryName).toBe(
+      "Sarah"
+    );
   });
 });

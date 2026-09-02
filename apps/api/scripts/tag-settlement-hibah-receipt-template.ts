@@ -120,9 +120,24 @@ function tagDocumentXml(xml: string): string {
   tagged[2] = applyCellMap(tables[2]!, APPLICATION);
   tagged[3] = applyCellMap(tables[3]!, HIBAH_REFUND);
   tagged[4] = applyCellMap(tables[4]!, RECONCILIATION);
+  tagged[6] = tagReceiptStampTable(tables[6]!);
 
   let cursor = 0;
   return xml.replace(/<w:tbl\b[\s\S]*?<\/w:tbl>/g, () => tagged[cursor++] ?? "");
+}
+
+function tagReceiptStampTable(tableXml: string): string {
+  const cells = matchAll(tableXml, /<w:tc\b[\s\S]*?<\/w:tc>/g);
+  if (cells.length < 1) {
+    throw new Error("Receipt stamp table is missing cells");
+  }
+  const stampCell = cells[0]!.replace(
+    ">________________________<",
+    ">§COMPANY_STAMP_IMAGE§<"
+  );
+  let cursor = 0;
+  const updated = [stampCell, ...cells.slice(1)];
+  return tableXml.replace(/<w:tc\b[\s\S]*?<\/w:tc>/g, () => updated[cursor++] ?? "");
 }
 
 function main(): void {

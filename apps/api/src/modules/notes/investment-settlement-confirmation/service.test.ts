@@ -65,9 +65,13 @@ const mockPrisma: any = {
       return confirmationStore.rows.filter((row) => {
         if (where.settlement_id && row.settlement_id !== where.settlement_id) return false;
         if (where.version && row.version !== where.version) return false;
-        if (where.investor_organization_id?.in) {
-          return where.investor_organization_id.in.includes(row.investor_organization_id);
+        if (typeof where.investor_organization_id === "string") {
+          if (row.investor_organization_id !== where.investor_organization_id) return false;
         }
+        if (where.investor_organization_id?.in) {
+          if (!where.investor_organization_id.in.includes(row.investor_organization_id)) return false;
+        }
+        if (where.is_current === true && row.is_current !== true) return false;
         if (where.status?.not) return row.status !== where.status.not;
         if (where.OR) {
           return where.OR.some((clause: any) => row.status === clause.status);
@@ -90,6 +94,7 @@ const mockPrisma: any = {
         pdf_sha256: null,
         generated_at: null,
         generation_error: null,
+        is_current: false,
         ...data,
       };
       confirmationStore.rows.push(row);
@@ -99,6 +104,20 @@ const mockPrisma: any = {
       const row = confirmationStore.rows.find((item) => item.id === where.id);
       Object.assign(row, data);
       return row;
+    }),
+    updateMany: jest.fn(async ({ where, data }: any) => {
+      let count = 0;
+      for (const row of confirmationStore.rows) {
+        if (where?.settlement_id && row.settlement_id !== where.settlement_id) continue;
+        if (where?.investor_organization_id && row.investor_organization_id !== where.investor_organization_id) {
+          continue;
+        }
+        if (where?.version && row.version !== where.version) continue;
+        if (where?.is_current === true && row.is_current !== true) continue;
+        Object.assign(row, data);
+        count += 1;
+      }
+      return { count };
     }),
   },
   noteEvent: {
@@ -118,6 +137,13 @@ const mockPrisma: any = {
       if (!investorAllowed) return null;
       if (where.id === "org-a") return { id: "org-a" };
       return null;
+    }),
+    findMany: jest.fn(async ({ where }: any) => {
+      const ids: string[] = where?.id?.in ?? [];
+      return ids.map((id) => ({
+        id,
+        display_reference: id === "org-a" ? "IVT-A" : `IVT-${id}`,
+      }));
     }),
   },
   investorBalance: {
@@ -173,10 +199,15 @@ jest.mock("../audit-fields", () => ({
 
 import { buildInvestmentSettlementConfirmationHtml } from "./confirmation-html";
 import {
+  generateAdminInvestmentSettlementConfirmation,
+  generateAllAdminInvestmentSettlementConfirmations,
   generateInvestmentSettlementConfirmations,
   getAdminInvestmentSettlementConfirmations,
   getInvestorInvestmentSettlementConfirmation,
+  publishAdminInvestmentSettlementConfirmation,
+  reissueAdminInvestmentSettlementConfirmation,
   retryAdminInvestmentSettlementConfirmation,
+  retryFailedInvestmentSettlementConfirmations,
 } from "./service";
 
 function sampleSnapshot(
@@ -489,12 +520,12 @@ describe("confirmation visibility", () => {
     expect(payload.confirmations[0]?.canRetry).toBe(true);
   });
 
-  it("lets the owning investor read their aggregated confirmation without errors", async () => {
+  it("lets the owning investor see only a current READY confirmation", async () => {
     const payload = await getInvestorInvestmentSettlementConfirmation("inv-1", "investor-user");
-    expect(payload.status).toBe("FAILED");
+    expect(payload.status).toBe("NONE");
     expect(payload.generationError).toBeNull();
     expect(payload.canRetry).toBe(false);
-    expect(payload.noteReference).toBe("ARF-202608-A52");
+    expect(payload.noteReference).toBe("");
   });
 
   it("forbids another investor organization", async () => {
@@ -517,6 +548,7 @@ describe("confirmation visibility", () => {
     confirmationStore.rows[0] = {
       ...confirmationStore.rows[0],
       status: InvestmentSettlementConfirmationStatus.READY,
+      is_current: true,
       pdf_s3_key: "key.pdf",
       pdf_sha256: "pdf-hash",
       generated_at: new Date("2026-09-02T00:00:00.000Z"),
@@ -554,3 +586,179 @@ describe("confirmation visibility", () => {
     expect(admin.settlementReference).toBe("SET-ARF-202608-A52");
   });
 });
+
+describe("confirmation generate, regenerate and publish", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    confirmationStore.rows = [];
+    noteEvents.length = 0;
+    investorAllowed = true;
+    currentNote = { id: "note-1" };
+    postedSettlement = {
+      id: "set-1",
+      note_id: "note-1",
+      status: NoteSettlementStatus.POSTED,
+      display_reference: "SET-ARF-202608-A52",
+      preview_snapshot: previewSnapshot,
+    };
+    mockRenderConfirmationPdf.mockResolvedValue(Buffer.from("%PDF-conf"));
+    mockConvertHtmlToPdf.mockRejectedValue(new Error("Gotenberg HTML helper must not be called"));
+    mockStorePdf.mockResolvedValue(undefined);
+    mockGenerateViewUrl.mockResolvedValue({ viewUrl: "https://s3/view", expiresIn: 600 });
+    mockCreateNoteEventRow.mockImplementation(async (_db: unknown, params: any) => {
+      noteEvents.push({ metadata: params.metadata, eventType: params.eventType });
+    });
+    mockBuildSnapshot.mockImplementation(async ({ investorOrganizationId }: any) =>
+      sampleSnapshot({ investorOrganizationId })
+    );
+  });
+
+  it("lists eligible investors as not generated after settlement is posted", async () => {
+    const payload = await getAdminInvestmentSettlementConfirmations("note-1");
+    expect(payload.confirmations).toHaveLength(1);
+    expect(payload.confirmations[0]?.status).toBe("NONE");
+    expect(payload.confirmations[0]?.canGenerate).toBe(true);
+    expect(payload.canGenerateAll).toBe(false);
+  });
+
+  it("lets admin generate V01 and marks it current", async () => {
+    const payload = await generateAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(payload.confirmations[0]?.status).toBe("READY");
+    expect(payload.confirmations[0]?.version).toBe("V01");
+    expect(payload.confirmations[0]?.isCurrent).toBe(true);
+    expect(payload.confirmations[0]?.canGenerate).toBe(false);
+    expect(payload.confirmations[0]?.canRegenerate).toBe(true);
+    expect(confirmationStore.rows[0]?.is_current).toBe(true);
+  });
+
+  it("does not create missing rows from the retry cron", async () => {
+    const result = await retryFailedInvestmentSettlementConfirmations(mockPrisma);
+    expect(result.attempted).toBe(0);
+    expect(mockBuildSnapshot).not.toHaveBeenCalled();
+    expect(confirmationStore.rows).toHaveLength(0);
+  });
+
+  it("creates unpublished V02 on regenerate and keeps V01 current for the investor", async () => {
+    await generateAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    const admin = await reissueAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(admin.confirmations[0]?.version).toBe("V01");
+    expect(admin.confirmations[0]?.isCurrent).toBe(true);
+    expect(admin.confirmations[0]?.reviewVersion?.version).toBe("V02");
+    expect(admin.confirmations[0]?.reviewVersion?.canPublish).toBe(true);
+    expect(mockCreateNoteEventRow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: "INVESTMENT_SETTLEMENT_CONFIRMATION_REISSUED",
+        metadata: expect.objectContaining({
+          version: "V02",
+          previousVersion: "V01",
+          source: "ADMIN_REISSUE",
+        }),
+      })
+    );
+    const investor = await getInvestorInvestmentSettlementConfirmation("inv-1", "investor-user");
+    expect(investor.version).toBe("V01");
+    expect(investor.status).toBe("READY");
+  });
+
+  it("publishes V02 so the investor receives the new version", async () => {
+    await generateAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    await reissueAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    mockCreateNoteEventRow.mockClear();
+    const published = await publishAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(published.confirmations[0]?.version).toBe("V02");
+    expect(published.confirmations[0]?.isCurrent).toBe(true);
+    const investor = await getInvestorInvestmentSettlementConfirmation("inv-1", "investor-user");
+    expect(investor.version).toBe("V02");
+    expect(mockCreateNoteEventRow).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: "INVESTMENT_SETTLEMENT_CONFIRMATION_PUBLISHED",
+        metadata: expect.objectContaining({
+          version: "V02",
+          previousVersion: "V01",
+          source: "ADMIN_PUBLISH",
+        }),
+      })
+    );
+  });
+
+  it("creates unpublished V03 on the next regenerate", async () => {
+    await generateAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    await reissueAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    await publishAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    const admin = await reissueAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(admin.confirmations[0]?.version).toBe("V02");
+    expect(admin.confirmations[0]?.isCurrent).toBe(true);
+    expect(admin.confirmations[0]?.reviewVersion?.version).toBe("V03");
+    expect(admin.confirmations[0]?.reviewVersion?.canPublish).toBe(true);
+    const investor = await getInvestorInvestmentSettlementConfirmation("inv-1", "investor-user");
+    expect(investor.version).toBe("V02");
+  });
+
+  it("generate all skips investors that already have a confirmation", async () => {
+    postedSettlement.preview_snapshot = {
+      allocations: [
+        ...previewSnapshot.allocations,
+        {
+          investmentId: "inv-2",
+          investorOrganizationId: "org-b",
+          principal: 5000,
+          profitNet: 400,
+          tawidhInvestorShare: 0,
+        },
+      ],
+    };
+    await generateAdminInvestmentSettlementConfirmation("note-1", "org-a", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    mockBuildSnapshot.mockClear();
+    const payload = await generateAllAdminInvestmentSettlementConfirmations("note-1", {
+      userId: "admin-1",
+      role: "ADMIN",
+    });
+    expect(payload.confirmations).toHaveLength(2);
+    expect(payload.confirmations.find((row) => row.investorOrganizationId === "org-a")?.version).toBe(
+      "V01"
+    );
+    expect(payload.confirmations.find((row) => row.investorOrganizationId === "org-b")?.status).toBe(
+      "READY"
+    );
+    expect(mockBuildSnapshot).toHaveBeenCalledTimes(1);
+    expect(mockBuildSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ investorOrganizationId: "org-b" })
+    );
+  });
+});
+

@@ -11,4 +11,13 @@ describe("admin Paymaster registry list", () => {
     expect(src).toMatch(/contracts: true/);
     expect(src).toMatch(/assignment_notices: true/);
   });
+
+  it("derives submitted application identities from linked contract customer_details", () => {
+    const src = readFileSync(join(__dirname, "service.ts"), "utf8");
+    expect(src).toMatch(/customer_details: true/);
+    expect(src).toMatch(/originating_application:/);
+    expect(src).toMatch(/submittedApplicationIdentities:/);
+    expect(src).toMatch(/selectDifferingSubmittedApplicationIdentities/);
+    expect(src).not.toMatch(/PaymasterMismatch/);
+  });
 });

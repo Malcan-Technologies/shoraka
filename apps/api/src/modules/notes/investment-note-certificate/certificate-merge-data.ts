@@ -3,6 +3,7 @@ import {
   companyRegistrationForAudience,
   investorNameForAudience,
   issuerLegalNameForAudience,
+  showIssuerLegalIdentityForAudience,
   visibleCertificateInvestors,
   type CertificateRenderAudienceInput,
 } from "./certificate-audience";
@@ -68,6 +69,10 @@ export type CertificateDocxMergeData = {
   sumExpectedProfit: string;
   sumTotalPayable: string;
   isIssuerAudience: boolean;
+  showIssuerLegalIdentity: boolean;
+  authorisedSignatoryName: string;
+  signatoryNameAndDate: string;
+  signatoryDate: string;
 };
 
 /**
@@ -88,6 +93,8 @@ export function buildCertificateDocxMergeData(
   const sumProfit = investors.reduce((sum, row) => sum + row.expectedGrossProfit, 0);
   const sumPayable = investors.reduce((sum, row) => sum + row.totalPayable, 0);
   const investorScoped = input.audience === "INVESTOR";
+  const authorisedSignatoryName = snapshot.authorisation?.authorisedSignatoryName?.trim() ?? "";
+  const signatoryDate = cert.certificateDateDisplay;
 
   return {
     certificateNumber: cert.certificateNumber,
@@ -142,5 +149,11 @@ export function buildCertificateDocxMergeData(
     sumExpectedProfit: formatCertificateAmount(investorScoped ? sumProfit : n.contractedProfit),
     sumTotalPayable: formatCertificateAmount(investorScoped ? sumPayable : n.totalAmountPayable),
     isIssuerAudience: input.audience === "ISSUER",
+    showIssuerLegalIdentity: showIssuerLegalIdentityForAudience(input.audience),
+    authorisedSignatoryName,
+    signatoryDate,
+    signatoryNameAndDate: authorisedSignatoryName
+      ? `${authorisedSignatoryName} / ${signatoryDate}`
+      : signatoryDate,
   };
 }

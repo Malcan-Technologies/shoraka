@@ -13,24 +13,23 @@ const trusteeIdx = notesService.indexOf("async markSettlementTrusteeInstructionC
 const markIdx = notesService.indexOf("async markWithdrawalCompleted");
 
 describe("settlement hibah receipt trigger sites", () => {
-  it("schedules after postSettlement when posting also settles the note", () => {
+  it("does not schedule after postSettlement", () => {
     const postBlock = notesService.slice(postIdx, trusteeIdx);
-    expect(postBlock).toContain("scheduleSettlementHibahReceiptGeneration");
-    expect(postBlock).toContain("SETTLEMENT_COMPLETED");
+    expect(postBlock).not.toContain("scheduleSettlementHibahReceiptGeneration");
     expect(postBlock).toContain("if (!needsTrusteeInstruction)");
   });
 
-  it("schedules after trustee completion when that step marks the note repaid", () => {
+  it("does not schedule after trustee completion", () => {
     const trusteeBlock = notesService.slice(trusteeIdx, markIdx);
-    expect(trusteeBlock).toContain("scheduleSettlementHibahReceiptGeneration");
+    expect(trusteeBlock).not.toContain("scheduleSettlementHibahReceiptGeneration");
     expect(trusteeBlock).toContain("if (noteMarkedRepaid)");
   });
 
-  it("schedules after legacy issuer residual completion when that releases the note", () => {
+  it("does not schedule after legacy issuer residual completion", () => {
     const markBlock = notesService.slice(markIdx);
     expect(markBlock).toContain("WithdrawalType.ISSUER_RESIDUAL_RETURN");
     expect(markBlock).toContain("noteReleasedFromLegacyResidual");
-    expect(markBlock).toContain("scheduleSettlementHibahReceiptGeneration");
+    expect(markBlock).not.toContain("scheduleSettlementHibahReceiptGeneration");
   });
 
   it("does not schedule from payment submit, preview, or approve", () => {
@@ -54,6 +53,21 @@ describe("settlement hibah receipt trigger sites", () => {
     expect(controller).toContain('requirePermission("notes.settlement.manage")');
     expect(controller).toContain('"/:id/settlement-hibah-receipt"');
     expect(controller).toContain('"/notes/:id/settlement-hibah-receipt"');
+  });
+
+  it("exposes Admin generate, retry, reissue and publish with settlement permission", () => {
+    expect(controller).toContain('"/:id/settlement-hibah-receipt/generate"');
+    expect(controller).toContain('"/:id/settlement-hibah-receipt/reissue"');
+    expect(controller).toContain('"/:id/settlement-hibah-receipt/publish"');
+    for (const route of ["generate", "retry", "reissue", "publish"] as const) {
+      const idx = controller.indexOf(`"/:id/settlement-hibah-receipt/${route}"`);
+      const block = controller.slice(idx - 120, idx + 400);
+      expect(block).toContain('requirePermission("notes.settlement.manage")');
+    }
+    const investorStart = controller.indexOf("investorNotesRouter.use");
+    const issuerStart = controller.indexOf("issuerNotesRouter.use");
+    expect(controller.slice(investorStart, issuerStart)).not.toContain("hibah-receipt/reissue");
+    expect(controller.slice(issuerStart)).not.toContain("settlement-hibah-receipt/reissue");
   });
 
   it("converts via LibreOffice DOCX and never uses Chromium HTML or Playwright", () => {

@@ -305,6 +305,43 @@ describe("note Event Details nested snapshots", () => {
     );
   });
 
+  it("surfaces reissue previous/new version and snapshot hashes", () => {
+    const detail = noteEventToAuditDetail(
+      {
+        id: "evt-reissue",
+        noteId: "note-1",
+        eventType: "INVESTMENT_NOTE_CERTIFICATE_REISSUED",
+        actorUserId: "admin-1",
+        actorName: "Ada",
+        actorRole: "ADMIN",
+        portal: "ADMIN",
+        correlationId: null,
+        createdAt: "2026-09-03T00:00:00.000Z",
+        metadata: {
+          documentType: "INVESTMENT_NOTE_CERTIFICATE",
+          previousVersion: "V01",
+          newVersion: "V02",
+          source: "ADMIN_REISSUE",
+          oldSnapshotSha256: "old-snap",
+          newSnapshotSha256: "new-snap",
+        },
+      },
+      "Investment Note Certificate Reissued"
+    );
+    expect(detail.target?.extra).toEqual(
+      expect.arrayContaining([
+        { label: "Previous version", value: "V01" },
+        { label: "New version", value: "V02" },
+      ])
+    );
+    expect(detail.technical).toEqual(
+      expect.arrayContaining([
+        { label: "Old snapshot SHA-256", value: "old-snap" },
+        { label: "New snapshot SHA-256", value: "new-snap" },
+      ])
+    );
+  });
+
   it("surfaces investor settlement confirmation count and hashes", () => {
     const detail = noteEventToAuditDetail(
       {

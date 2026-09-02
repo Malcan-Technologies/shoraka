@@ -76,6 +76,21 @@ function allocationRows(xml: string): string[][] {
   return rows.map(cellTexts);
 }
 
+function identifierTableXml(xml: string): string {
+  const tables = xml.match(/<w:tbl\b[\s\S]*?<\/w:tbl>/g) ?? [];
+  const table = tables.find((candidate) => {
+    const text = wordPlainText(candidate);
+    return text.includes("Certificate no.") && text.includes("Financing Note ID");
+  });
+  expect(table).toBeDefined();
+  return table ?? "";
+}
+
+function identifierRows(xml: string): string[][] {
+  const rows = identifierTableXml(xml).match(/<w:tr\b[\s\S]*?<\/w:tr>/g) ?? [];
+  return rows.map(cellTexts);
+}
+
 describe("renderInvestmentNoteCertificateDocx", () => {
   const snapshot = sampleInvestmentNoteCertificateSnapshot();
 
@@ -94,9 +109,13 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(plain).not.toContain("{#investors}");
     expect(plain).not.toContain("{/investors}");
     expect(plain).not.toContain("{issuerLegalName}");
+    expect(plain).not.toContain("{#showIssuerLegalIdentity}");
+    expect(plain).not.toContain("{/showIssuerLegalIdentity}");
     expect(plain).not.toContain("{#isIssuerAudience}");
     expect(plain).not.toContain("{^isIssuerAudience}");
     expect(plain).not.toContain("{/isIssuerAudience}");
+    expect(plain).not.toContain("{signatoryNameAndDate}");
+    expect(plain).not.toContain("§COMPANY_STAMP_IMAGE§");
   });
 
   it("admin copy includes issuer identity and all investor names", () => {
@@ -113,6 +132,12 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(plain).toContain("IVT-B");
     expect(plain).toContain(PROSPECTUS_FIXED_SHARIAH_PRINCIPLE);
     expect(plain).toContain("Investor / Noteholder");
+    expect(identifierRows(xml)).toEqual([
+      ["Certificate no.", "IINC-NOTE-20260902-AAA", "Certificate date", "02 Sep 2026"],
+      ["Financing Note ID", "NOTE-20260902-AAA", "Campaign ID", "NOTE-20260902-AAA"],
+      ["Issuer ID", "ISS-001", "Business sector", "Manufacturing"],
+      ["Issuer", "Helios Manufacturing Sdn Bhd", "Company no.", "1234567-A"],
+    ]);
     const rows = allocationRows(xml);
     expect(rows[0]).toEqual([
       "No.",
@@ -133,11 +158,18 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     const xml = renderedXml(snapshot, { audience: "ISSUER" });
     const plain = wordPlainText(xml);
     expect(plain).toContain("Helios Manufacturing Sdn Bhd");
+    expect(plain).toContain("1234567-A");
     expect(plain).toContain("IVT-A");
     expect(plain).toContain("IVT-B");
     expect(plain).not.toContain("Alice Tan");
     expect(plain).not.toContain("Bob Lee");
     expect(plain).not.toContain("Investor / Noteholder");
+    expect(identifierRows(xml)).toEqual([
+      ["Certificate no.", "IINC-NOTE-20260902-AAA", "Certificate date", "02 Sep 2026"],
+      ["Financing Note ID", "NOTE-20260902-AAA", "Campaign ID", "NOTE-20260902-AAA"],
+      ["Issuer ID", "ISS-001", "Business sector", "Manufacturing"],
+      ["Issuer", "Helios Manufacturing Sdn Bhd", "Company no.", "1234567-A"],
+    ]);
     const rows = allocationRows(xml);
     expect(rows[0]).toEqual([
       "No.",
@@ -149,6 +181,7 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     ]);
     expect(rows).toHaveLength(4);
     expect(rows[1]).toHaveLength(6);
+    expect(rows[1]?.[2]).not.toBe("—");
     expect(rows.at(-1)).toEqual(["", "TOTAL", "80,000.00", "100.00%", "2,000.00", "82,000.00"]);
     const widths = allocationGridWidths(xml);
     expect(widths).toEqual([450, 2500, 1620, 850, 1840, 1980]);
@@ -161,11 +194,21 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(plain).toContain("Alice Tan");
     expect(plain).toContain("IVT-A");
     expect(plain).toContain("ISS-001");
+    expect(plain).toContain("Manufacturing");
     expect(plain).toContain("Investor / Noteholder");
     expect(plain).not.toContain("Bob Lee");
     expect(plain).not.toContain("IVT-B");
     expect(plain).not.toContain("Helios Manufacturing Sdn Bhd");
     expect(plain).not.toContain("1234567-A");
+    expect(plain).not.toContain("Company no.");
+    const ids = identifierRows(xml);
+    expect(ids).toEqual([
+      ["Certificate no.", "IINC-NOTE-20260902-AAA", "Certificate date", "02 Sep 2026"],
+      ["Financing Note ID", "NOTE-20260902-AAA", "Campaign ID", "NOTE-20260902-AAA"],
+      ["Issuer ID", "ISS-001", "Business sector", "Manufacturing"],
+    ]);
+    expect(ids.flat()).not.toContain("Issuer");
+    expect(ids.flat()).not.toContain("Company no.");
     const rows = allocationRows(xml);
     expect(rows).toHaveLength(3);
     expect(rows[0]?.[1]).toBe("Investor ID");
@@ -219,7 +262,11 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(data.scheduleVersion).toBe("V01");
     expect(data.investors).toHaveLength(2);
     expect(data.isIssuerAudience).toBe(false);
+    expect(data.showIssuerLegalIdentity).toBe(true);
     expect(buildCertificateDocxMergeData(snapshot, { audience: "ISSUER" }).isIssuerAudience).toBe(
+      true
+    );
+    expect(buildCertificateDocxMergeData(snapshot, { audience: "ISSUER" }).showIssuerLegalIdentity).toBe(
       true
     );
     expect(data.sumPrincipal).toBe("80,000.00");
@@ -238,6 +285,11 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     });
     expect(data.investors).toHaveLength(1);
     expect(data.isIssuerAudience).toBe(false);
+    expect(data.showIssuerLegalIdentity).toBe(false);
+    expect(data.issuerLegalName).toBe("—");
+    expect(data.companyRegistration).toBe("—");
+    expect(data.issuerReference).toBe("ISS-001");
+    expect(data.businessSector).toBe("Manufacturing");
     expect(data.investors[0]?.investorId).toBe("IVT-A");
     expect(data.sumPrincipal).toBe("50,000.00");
     expect(data.sumSharePercent).toBe("62.50%");
@@ -300,5 +352,41 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(buildCertificateDocxMergeData(missing, { audience: "ADMIN" }).companyRegistration).toBe(
       "—"
     );
+  });
+
+  it("fills automatic certificate date and leaves a missing signatory name blank", () => {
+    const data = buildCertificateDocxMergeData(snapshot, { audience: "ADMIN" });
+    expect(data.signatoryDate).toBe("02 Sep 2026");
+    expect(data.authorisedSignatoryName).toBe("");
+    expect(data.signatoryNameAndDate).toBe("02 Sep 2026");
+    const plain = wordPlainText(renderedXml(snapshot, { audience: "ADMIN" }));
+    expect(plain).toContain("02 Sep 2026");
+    expect(plain).toContain("Company Stamp");
+  });
+
+  it("renders the authorised signatory name with the automatic date", () => {
+    const named = sampleInvestmentNoteCertificateSnapshot();
+    named.authorisation.authorisedSignatoryName = "Ahmad";
+    const data = buildCertificateDocxMergeData(named, { audience: "ADMIN" });
+    expect(data.signatoryNameAndDate).toBe("Ahmad / 02 Sep 2026");
+    const plain = wordPlainText(renderedXml(named, { audience: "ADMIN" }));
+    expect(plain).toContain("Ahmad / 02 Sep 2026");
+  });
+
+  it("embeds a company stamp image when provided", () => {
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFhAH+plp0OQAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    const docx = renderInvestmentNoteCertificateDocx(
+      snapshot,
+      { audience: "ADMIN" },
+      { bytes: png, contentType: "image/png" }
+    );
+    const zip = new PizZip(docx);
+    expect(zip.file("word/media/company-stamp.png")).toBeTruthy();
+    const xml = zip.file("word/document.xml")?.asText() ?? "";
+    expect(xml).toContain("<w:drawing>");
+    expect(xml).not.toContain("§COMPANY_STAMP_IMAGE§");
   });
 });
