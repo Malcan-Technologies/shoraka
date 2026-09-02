@@ -23,10 +23,11 @@ describe("settlement hibah receipt render path isolation", () => {
     expect(certificate).not.toContain("renderSettlementHibahReceiptDocx");
   });
 
-  it("does not change Investment Settlement Confirmation HTML conversion", () => {
+  it("does not change Investment Settlement Confirmation Playwright conversion", () => {
     const confirmation = source("../investment-settlement-confirmation/service.ts");
-    expect(confirmation).toContain("convertHtmlToPdf");
+    expect(confirmation).toContain("renderConfirmationHtmlToPdfBuffer");
     expect(confirmation).toContain("buildInvestmentSettlementConfirmationHtml");
+    expect(confirmation).not.toContain("convertHtmlToPdf");
     expect(confirmation).not.toContain("renderSettlementHibahReceiptDocx");
   });
 });

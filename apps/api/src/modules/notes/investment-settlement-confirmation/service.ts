@@ -23,8 +23,8 @@ import {
   systemAuditContext,
 } from "../../../lib/audit";
 import { resolveNoteEventTarget } from "../audit-fields";
-import { convertHtmlToPdf, HtmlToPdfError } from "../../../lib/gotenberg/convert-html-to-pdf";
 import { buildInvestmentSettlementConfirmationHtml } from "./confirmation-html";
+import { renderConfirmationHtmlToPdfBuffer } from "./render-confirmation-html-to-pdf";
 import {
   buildInvestmentSettlementConfirmationSnapshot,
   expectedInvestorOrganizationIds,
@@ -300,11 +300,10 @@ async function generatePdfForRow(input: {
   const html = buildInvestmentSettlementConfirmationHtml(frozen);
   let pdf: Buffer;
   try {
-    pdf = await convertHtmlToPdf(html);
+    pdf = await renderConfirmationHtmlToPdfBuffer(html);
   } catch (error) {
-    const message =
-      error instanceof HtmlToPdfError ? error.message : error instanceof Error ? error.message : String(error);
-    throw new ConfirmationGenerationError(message, "GOTENBERG_FAILED");
+    const message = error instanceof Error ? error.message : String(error);
+    throw new ConfirmationGenerationError(message, "PLAYWRIGHT_FAILED");
   }
   const sha256 = sha256Hex(pdf);
   const key = buildConfirmationPdfObjectKey({

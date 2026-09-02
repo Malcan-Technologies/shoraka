@@ -23,10 +23,11 @@ describe("investment note certificate render path isolation", () => {
     expect(receipt).not.toContain("renderInvestmentNoteCertificateDocx");
   });
 
-  it("does not change Investment Settlement Confirmation HTML conversion", () => {
+  it("does not change Investment Settlement Confirmation Playwright conversion", () => {
     const confirmation = source("../investment-settlement-confirmation/service.ts");
-    expect(confirmation).toContain("convertHtmlToPdf");
+    expect(confirmation).toContain("renderConfirmationHtmlToPdfBuffer");
     expect(confirmation).toContain("buildInvestmentSettlementConfirmationHtml");
+    expect(confirmation).not.toContain("convertHtmlToPdf");
     expect(confirmation).not.toContain("renderInvestmentNoteCertificateDocx");
   });
 

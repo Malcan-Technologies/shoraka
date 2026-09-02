@@ -91,6 +91,7 @@
     "preview:investment-note-certificate": "tsx scripts/preview-investment-note-certificate.ts",
     "tag-settlement-hibah-receipt-template": "tsx scripts/tag-settlement-hibah-receipt-template.ts",
     "preview:settlement-hibah-receipt": "tsx scripts/preview-settlement-hibah-receipt.ts",
+    "preview:investment-settlement-confirmation": "tsx scripts/preview-investment-settlement-confirmation.ts",
     "backfill-invoice-sub-limit": "tsx scripts/backfill-invoice-sub-limit.ts",
     "clean": "rm -rf dist"
   },

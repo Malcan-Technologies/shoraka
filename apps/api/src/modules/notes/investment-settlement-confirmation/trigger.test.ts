@@ -47,11 +47,14 @@ describe("investment settlement confirmation trigger sites", () => {
     expect(controller).not.toContain("issuerNotesRouter.get(\"/notes/:id/investment-settlement-confirmation");
   });
 
-  it("reuses the existing Gotenberg HTML helper and never converts DOCX", () => {
-    expect(confirmationService).toContain('from "../../../lib/gotenberg/convert-html-to-pdf"');
+  it("reuses the Prospectus Playwright HTML helper and never converts DOCX or Gotenberg HTML", () => {
+    expect(confirmationService).toContain("renderConfirmationHtmlToPdfBuffer");
+    expect(confirmationService).toContain("./render-confirmation-html-to-pdf");
+    expect(confirmationService).not.toContain("convert-html-to-pdf");
+    expect(confirmationService).not.toContain("convertHtmlToPdf");
     expect(confirmationService).not.toContain("convert-docx-to-pdf");
-    expect(confirmationService).not.toContain("playwright");
     expect(confirmationHtml).not.toContain("playwright");
+    expect(confirmationHtml).not.toContain("gotenberg");
   });
 
   it("does not mutate notes, wallets, settlement math, or notifications", () => {
