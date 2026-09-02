@@ -349,11 +349,6 @@ export const requestDocumentStampUploadUrlSchema = z.object({
   purpose: z.enum(["CERTIFICATE_COMPANY_STAMP", "RECEIPT_COMPANY_STAMP"]),
 });
 
-export const confirmDocumentStampUploadSchema = z.object({
-  s3Key: z.string().min(1),
-  purpose: z.enum(["CERTIFICATE_COMPANY_STAMP", "RECEIPT_COMPANY_STAMP"]),
-});
-
 export const requestIssuerPaymentEvidenceUploadUrlSchema = z.object({
   fileName: z.string().min(1).max(255),
   contentType: z.enum(["application/pdf", "image/jpeg", "image/png"]),

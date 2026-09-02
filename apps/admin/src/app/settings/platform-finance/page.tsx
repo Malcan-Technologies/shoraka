@@ -424,11 +424,6 @@ export default function PlatformFinanceSettingsPage() {
       });
       if (!response.success) throw new Error(response.error.message);
       await uploadFileToS3(response.data.uploadUrl, input.file);
-      const confirmed = await apiClient.confirmPlatformFinanceDocumentStampUpload({
-        purpose: input.purpose,
-        s3Key: response.data.s3Key,
-      });
-      if (!confirmed.success) throw new Error(confirmed.error.message);
       return { ...response.data, purpose: input.purpose, file: input.file };
     },
     onSuccess: ({ s3Key, purpose, file }) => {
@@ -490,7 +485,7 @@ export default function PlatformFinanceSettingsPage() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    const rejection = await validateCompanyStampFile(file);
+    const rejection = validateCompanyStampFile(file);
     if (rejection) {
       toast.error(rejection);
       return;
@@ -848,8 +843,7 @@ export default function PlatformFinanceSettingsPage() {
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Company Stamp</label>
                       <p className="text-xs text-muted-foreground">
-                        Upload a cropped PNG, JPG, or WEBP company stamp. Full-page screenshots are
-                        not accepted.
+                        Upload a PNG, JPG, or WEBP company stamp image (maximum 5 MB).
                       </p>
                       <input
                         ref={certificateStampInputRef}
@@ -921,8 +915,7 @@ export default function PlatformFinanceSettingsPage() {
                           Settlement & Hibah Receipt Company Stamp
                         </label>
                         <p className="text-xs text-muted-foreground">
-                          Upload a cropped PNG, JPG, or WEBP company stamp. Full-page screenshots are
-                          not accepted.
+                          Upload a PNG, JPG, or WEBP company stamp image (maximum 5 MB).
                         </p>
                         <input
                           ref={receiptStampInputRef}

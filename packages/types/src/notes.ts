@@ -874,15 +874,6 @@ export interface DocumentStampUploadUrlRequest extends TrusteeSignatureUploadUrl
 
 export interface DocumentStampUploadUrlResponse extends TrusteeSignatureUploadUrlResponse {}
 
-export interface DocumentStampConfirmRequest {
-  s3Key: string;
-  purpose: DocumentStampUploadPurpose;
-}
-
-export interface DocumentStampConfirmResponse {
-  s3Key: string;
-}
-
 export interface IssuerPaymentEvidenceUploadUrlRequest {
   fileName: string;
   contentType: "application/pdf" | "image/jpeg" | "image/png";

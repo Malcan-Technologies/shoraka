@@ -214,7 +214,6 @@ import type {
   updatePlatformFinanceSettingsSchema,
   requestTrusteeSignatureUploadUrlSchema,
   requestDocumentStampUploadUrlSchema,
-  confirmDocumentStampUploadSchema,
   requestIssuerPaymentEvidenceUploadUrlSchema,
   createInvestorWithdrawalSchema,
   getInvestorWithdrawalsQuerySchema,
@@ -246,12 +245,6 @@ import type {
   TrusteeLetterConfig,
   DocumentAuthorisationConfig,
 } from "@cashsouk/types";
-import { parseDocumentAuthorisationConfig } from "./document-authorisation/config";
-import {
-  assertDocumentStampKeyMatchesPurpose,
-  assertIncomingDocumentAuthorisationStamps,
-  assertCompanyStampS3Object,
-} from "./document-authorisation/stamp-image-persist";
 import { randomUUID } from "crypto";
 import type { z } from "zod";
 import {
@@ -6376,12 +6369,6 @@ export class NoteService {
     const previousRow = await prisma.platformFinanceSetting.findUnique({
       where: { key: "DEFAULT" },
     });
-    if (input.documentAuthorisationConfig != null) {
-      await assertIncomingDocumentAuthorisationStamps({
-        next: input.documentAuthorisationConfig,
-        previous: parseDocumentAuthorisationConfig(previousRow?.document_authorisation_config),
-      });
-    }
     await prisma.platformFinanceSetting.upsert({
       where: { key: "DEFAULT" },
       create: {
@@ -6570,14 +6557,6 @@ export class NoteService {
       contentLength: input.fileSize,
     });
     return { uploadUrl, s3Key, expiresIn };
-  }
-
-  async confirmDocumentStampUpload(
-    input: z.infer<typeof confirmDocumentStampUploadSchema>
-  ) {
-    assertDocumentStampKeyMatchesPurpose(input.s3Key, input.purpose);
-    await assertCompanyStampS3Object(input.s3Key);
-    return { s3Key: input.s3Key };
   }
 
   async requestIssuerPaymentEvidenceUploadUrl(

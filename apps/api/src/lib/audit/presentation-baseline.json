@@ -49,7 +49,7 @@
     "packages/types/src/signing-envelopes.ts": "bc70595d5d21f3805cb4b66d58ce83b199d1465dee4cc8d647c00e92fa7c090b",
     "packages/types/src/index.ts": "2858e3528321edd4ca02eb88d8e815c1fd00c68ba0ca61df7cb55c5e6ea50747",
     "packages/types/src/rbac.ts": "5f5fddc0abaad68ad94f6f1eb6a6a2e79bdb6d63a4065f99e9fc425212e47c01",
-    "packages/config/src/api-client.ts": "72e2bc8d847d996e42ae0b5a820311a7e6aea29c1f16bf197a4f524822f875ae",
+    "packages/config/src/api-client.ts": "803b261969793b59713bc797d345877af075df4bfeac215ffa5190af7ac9ace4",
     "packages/ui/src/components/activity-feed.tsx": "db3bc9cf27a5680d30fabb9c3e5b661925807e3e059fdb226e23b6c0388ffafd",
     "packages/ui/src/components/activity-item.tsx": "b6df745842acaa59d8df91adc4cabbe744bf60b15847fe7c497972eecaecdcc6",
     "packages/ui/src/components/activity-badge.tsx": "ca0e879de350498dc2e252be0aa2df179b9beaf11f4f226bf502a6411e458297",

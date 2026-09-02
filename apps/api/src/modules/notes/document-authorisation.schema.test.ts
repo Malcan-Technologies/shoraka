@@ -3,7 +3,6 @@ import { join } from "node:path";
 import {
   documentAuthorisationConfigSchema,
   requestDocumentStampUploadUrlSchema,
-  confirmDocumentStampUploadSchema,
   requestTrusteeSignatureUploadUrlSchema,
   updatePlatformFinanceSettingsSchema,
 } from "./schemas";
@@ -69,7 +68,7 @@ describe("documentAuthorisationConfig schema", () => {
 });
 
 describe("requestDocumentStampUploadUrlSchema", () => {
-  it("accepts PNG, JPEG, and WEBP stamp uploads", () => {
+  it("accepts PNG, JPEG, JPG, and WEBP stamp uploads", () => {
     expect(
       requestDocumentStampUploadUrlSchema.parse({
         purpose: "CERTIFICATE_COMPANY_STAMP",
@@ -89,11 +88,32 @@ describe("requestDocumentStampUploadUrlSchema", () => {
     expect(
       requestDocumentStampUploadUrlSchema.parse({
         purpose: "CERTIFICATE_COMPANY_STAMP",
+        fileName: "stamp.jpg",
+        contentType: "image/jpg",
+        fileSize: 2048,
+      }).contentType
+    ).toBe("image/jpg");
+    expect(
+      requestDocumentStampUploadUrlSchema.parse({
+        purpose: "CERTIFICATE_COMPANY_STAMP",
         fileName: "stamp.webp",
         contentType: "image/webp",
         fileSize: 2048,
       }).contentType
     ).toBe("image/webp");
+  });
+
+  it("accepts files at the 5 MB cap with no aspect or pixel-dimension fields", () => {
+    const parsed = requestDocumentStampUploadUrlSchema.parse({
+      purpose: "CERTIFICATE_COMPANY_STAMP",
+      fileName: "wide-or-tall.png",
+      contentType: "image/png",
+      fileSize: 5 * 1024 * 1024,
+    });
+    expect(parsed.fileSize).toBe(5 * 1024 * 1024);
+    expect(parsed).not.toHaveProperty("width");
+    expect(parsed).not.toHaveProperty("height");
+    expect(parsed).not.toHaveProperty("aspectRatio");
   });
 
   it("rejects oversized files with the company-stamp size message", () => {
@@ -142,23 +162,6 @@ describe("requestTrusteeSignatureUploadUrlSchema", () => {
   });
 });
 
-describe("confirmDocumentStampUploadSchema", () => {
-  it("accepts certificate and receipt confirmations", () => {
-    expect(
-      confirmDocumentStampUploadSchema.parse({
-        purpose: "CERTIFICATE_COMPANY_STAMP",
-        s3Key: "platform-finance/document-stamps/certificate/a.png",
-      }).purpose
-    ).toBe("CERTIFICATE_COMPANY_STAMP");
-    expect(
-      confirmDocumentStampUploadSchema.parse({
-        purpose: "RECEIPT_COMPANY_STAMP",
-        s3Key: "platform-finance/document-stamps/receipt/b.png",
-      }).purpose
-    ).toBe("RECEIPT_COMPANY_STAMP");
-  });
-});
-
 describe("document authorisation permissions", () => {
   it("guards settings and stamp upload with platform_settings.manage", () => {
     const controller = readFileSync(join(__dirname, "controller.ts"), "utf8");
@@ -167,10 +170,6 @@ describe("document authorisation permissions", () => {
     expect(controller.slice(stampIdx - 80, stampIdx + 80)).toContain(
       'requirePermission("platform_settings.manage")'
     );
-    const confirmIdx = controller.indexOf('"/document-stamp/confirm"');
-    expect(confirmIdx).toBeGreaterThan(0);
-    expect(controller.slice(confirmIdx - 80, confirmIdx + 80)).toContain(
-      'requirePermission("platform_settings.manage")'
-    );
+    expect(controller).not.toContain('"/document-stamp/confirm"');
   });
 });
