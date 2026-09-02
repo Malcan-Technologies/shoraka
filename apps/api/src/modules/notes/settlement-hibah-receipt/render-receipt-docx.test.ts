@@ -43,6 +43,7 @@ describe("renderSettlementHibahReceiptDocx", () => {
     expect(plain).not.toContain("{hibahAmount}");
     expect(plain).not.toContain("{issuerLegalName}");
     expect(plain).not.toContain("SR-YYYY-0000");
+    expect(plain).not.toContain("§COMPANY_STAMP_IMAGE§");
   });
 
   it("fills frozen identifiers, invoice, paymaster and dates", () => {
@@ -169,5 +170,21 @@ describe("renderSettlementHibahReceiptDocx", () => {
     expect(data.tawidhAmount).toBe("200.00");
     expect(data.gharamahAmount).toBe("50.00");
     expect(data.hibahAmount).toBe("1,750.00");
+  });
+
+  it("embeds the selected company stamp when provided", () => {
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFhAH+plp0OQAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    const docx = renderSettlementHibahReceiptDocx(sampleSettlementHibahReceiptSnapshot(), {
+      bytes: png,
+      contentType: "image/png",
+    });
+    const zip = new PizZip(docx);
+    expect(zip.file("word/media/company-stamp.png")).toBeTruthy();
+    const xml = zip.file("word/document.xml")?.asText() ?? "";
+    expect(xml).toContain("<w:drawing>");
+    expect(xml).not.toContain("§COMPANY_STAMP_IMAGE§");
   });
 });

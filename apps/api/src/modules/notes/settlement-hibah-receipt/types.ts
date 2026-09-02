@@ -1,6 +1,7 @@
 import {
   SETTLEMENT_HIBAH_RECEIPT_TEMPLATE_ID,
   SETTLEMENT_HIBAH_RECEIPT_VERSION_V01,
+  type DocumentStampSource,
   type SettlementHibahReceiptGenerationSource,
 } from "@cashsouk/types";
 
@@ -20,6 +21,18 @@ export const SETTLEMENT_CONFIRMATION_COPY =
 export type ReceiptGenerationSource = SettlementHibahReceiptGenerationSource;
 
 export type ClearedValueDateSource = "ACTUAL_SETTLEMENT_DATE" | "INCLUDED_PAYMENT_RECEIPT_DATE";
+
+export type FrozenReceiptCompanyStamp = {
+  s3Key: string;
+  sha256: string | null;
+  contentType: string | null;
+  fileName: string | null;
+};
+
+export type ReceiptAuthorisationSnapshot = {
+  stampSource: DocumentStampSource;
+  companyStamp: FrozenReceiptCompanyStamp | null;
+};
 
 export type SettlementHibahReceiptSnapshot = {
   templateId: string;
@@ -68,6 +81,7 @@ export type SettlementHibahReceiptSnapshot = {
   actingThrough: typeof HIBAH_ACTING_THROUGH;
   shariahStructure: string;
   confirmationCopy: typeof SETTLEMENT_CONFIRMATION_COPY;
+  authorisation: ReceiptAuthorisationSnapshot;
 };
 
 export class ReceiptGenerationError extends Error {

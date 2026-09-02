@@ -32,8 +32,14 @@ describe("formatNoteActivityEventLabel", () => {
     expect(formatNoteActivityEventLabel("INVESTMENT_NOTE_CERTIFICATE_GENERATED")).toBe(
       "Investment Note Certificate Generated"
     );
+    expect(formatNoteActivityEventLabel("INVESTMENT_NOTE_CERTIFICATE_REISSUED")).toBe(
+      "Investment Note Certificate Reissued"
+    );
     expect(formatNoteActivityEventLabel("SETTLEMENT_HIBAH_RECEIPT_GENERATED")).toBe(
       "Settlement & Hibah Receipt Generated"
+    );
+    expect(formatNoteActivityEventLabel("SETTLEMENT_HIBAH_RECEIPT_REISSUED")).toBe(
+      "Settlement & Hibah Receipt Reissued"
     );
     expect(formatNoteActivityEventLabel("INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED")).toBe(
       "Investment Settlement Confirmation Generated"

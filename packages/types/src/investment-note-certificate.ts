@@ -9,7 +9,8 @@ export type InvestmentNoteCertificateStatus = "PENDING" | "READY" | "FAILED";
 
 export type InvestmentNoteCertificateGenerationSource =
   | "DISBURSEMENT_COMPLETED"
-  | "ADMIN_RETRY";
+  | "ADMIN_RETRY"
+  | "ADMIN_REISSUE";
 
 export type InvestmentNoteCertificatePdfPayload = {
   certificateNumber: string;
@@ -19,6 +20,7 @@ export type InvestmentNoteCertificatePdfPayload = {
   generatedAt: string | null;
   investorCount: number;
   canRetry: boolean;
+  canReissue: boolean;
   viewUrl: string | null;
   downloadUrl: string | null;
   pdfExpiresIn: number | null;

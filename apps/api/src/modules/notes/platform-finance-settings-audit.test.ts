@@ -35,6 +35,10 @@ const sampleRow = {
   ledger_bucket_accounts_config: {
     INVESTOR_POOL: { accountName: "Pool", accountNumber: "999", apiKey: "sk-live-not-for-logs" },
   },
+  document_authorisation_config: {
+    authorisedSignatoryName: "Ahmad",
+    useSameCompanyStamp: true,
+  },
 };
 
 describe("platform finance settings audit snapshot", () => {
@@ -53,6 +57,10 @@ describe("platform finance settings audit snapshot", () => {
 
     expect(redacted.gracePeriodDays).toBe(7);
     expect(redacted.offerDeadlineReminderHour).toBe(9);
+    expect(redacted.documentAuthorisationConfig).toEqual({
+      authorisedSignatoryName: "Ahmad",
+      useSameCompanyStamp: true,
+    });
     expect(trustee.trusteeName).toBe("Trustee Co");
     expect(trustee.trusteeEmail).toBe("trustee@ops.example");
     expect(trustee.trusteeCcEmails).toEqual(["cc@ops.example"]);

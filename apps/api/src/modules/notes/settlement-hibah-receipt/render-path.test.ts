@@ -29,5 +29,8 @@ describe("settlement hibah receipt render path isolation", () => {
     expect(confirmation).toContain("buildInvestmentSettlementConfirmationHtml");
     expect(confirmation).not.toContain("convertHtmlToPdf");
     expect(confirmation).not.toContain("renderSettlementHibahReceiptDocx");
+    expect(confirmation).not.toContain("applyCompanyStampToDocx");
+    expect(confirmation).not.toContain("reissueAdmin");
+    expect(confirmation).not.toContain("document-authorisation");
   });
 });

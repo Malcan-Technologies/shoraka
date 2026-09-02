@@ -56,6 +56,17 @@ describe("settlement hibah receipt trigger sites", () => {
     expect(controller).toContain('"/notes/:id/settlement-hibah-receipt"');
   });
 
+  it("exposes Admin reissue with settlement permission and no issuer/investor reissue", () => {
+    expect(controller).toContain('"/:id/settlement-hibah-receipt/reissue"');
+    const reissueIdx = controller.indexOf('"/:id/settlement-hibah-receipt/reissue"');
+    const reissueBlock = controller.slice(reissueIdx - 120, reissueIdx + 400);
+    expect(reissueBlock).toContain('requirePermission("notes.settlement.manage")');
+    const investorStart = controller.indexOf("investorNotesRouter.use");
+    const issuerStart = controller.indexOf("issuerNotesRouter.use");
+    expect(controller.slice(investorStart, issuerStart)).not.toContain("hibah-receipt/reissue");
+    expect(controller.slice(issuerStart)).not.toContain("settlement-hibah-receipt/reissue");
+  });
+
   it("converts via LibreOffice DOCX and never uses Chromium HTML or Playwright", () => {
     expect(hibahService).toContain('from "../../../lib/gotenberg/convert-docx-to-pdf"');
     expect(hibahService).toContain("renderSettlementHibahReceiptDocx");

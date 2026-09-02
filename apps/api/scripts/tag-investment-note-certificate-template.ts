@@ -307,9 +307,28 @@ function tagDocumentXml(xml: string): string {
   tagged[8] =
     wrapInAudienceCondition(namedAllocation, "^isIssuerAudience", "/isIssuerAudience") +
     wrapInAudienceCondition(issuerAllocation, "#isIssuerAudience", "/isIssuerAudience");
+  tagged[6] = tagAuthorisationTable(tables[6]!);
 
   let cursor = 0;
   return xml.replace(/<w:tbl\b[\s\S]*?<\/w:tbl>/g, () => tagged[cursor++] ?? "");
+}
+
+function tagAuthorisationTable(tableXml: string): string {
+  const cells = matchAll(tableXml, /<w:tc\b[\s\S]*?<\/w:tc>/g);
+  if (cells.length !== 2) {
+    throw new Error(`Certificate authorisation table expected 2 cells, found ${cells.length}`);
+  }
+  const nameCell = cells[0]!.replace(
+    "Name / Date: __________________",
+    "Name / Date: {signatoryNameAndDate}"
+  );
+  const stampCell = cells[1]!.replace(
+    ">________________________<",
+    ">§COMPANY_STAMP_IMAGE§<"
+  );
+  let cursor = 0;
+  const updated = [nameCell, stampCell];
+  return tableXml.replace(/<w:tc\b[\s\S]*?<\/w:tc>/g, () => updated[cursor++] ?? "");
 }
 
 function main(): void {

@@ -24,9 +24,19 @@ jest.mock("../investment-note-certificate/snapshot", () => ({
   },
 }));
 
+const mockFreezeReceiptAuthorisation = jest.fn(async () => ({
+  stampSource: "SHARED_CERTIFICATE_STAMP",
+  companyStamp: null,
+}));
+
+jest.mock("../document-authorisation/config", () => ({
+  freezeReceiptAuthorisation: (...args: unknown[]) => mockFreezeReceiptAuthorisation(...args),
+}));
+
 import {
   buildSettlementHibahReceiptSnapshot,
   reconcileHibahReceiptAmounts,
+  reissueHibahReceiptSnapshotFromReady,
 } from "./snapshot";
 
 function money(value: number) {
@@ -123,6 +133,10 @@ describe("buildSettlementHibahReceiptSnapshot", () => {
     mockPrisma.issuerOrganization.findUnique.mockResolvedValue({ display_reference: "ISS-1" });
     mockPrisma.contract.findUnique.mockResolvedValue({ display_reference: "FAC-1" });
     mockPrisma.noteInvestmentCertificate.findFirst.mockResolvedValue(null);
+    mockFreezeReceiptAuthorisation.mockResolvedValue({
+      stampSource: "SHARED_CERTIFICATE_STAMP",
+      companyStamp: null,
+    });
   });
 
   it("prints frozen settlement amounts and zeros unpaid fees / prior credits", async () => {
@@ -266,5 +280,89 @@ describe("buildSettlementHibahReceiptSnapshot", () => {
     await expect(
       buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED")
     ).rejects.toMatchObject({ code: "NOT_ELIGIBLE" });
+  });
+
+  it("freezes the shared certificate stamp when that option is selected", async () => {
+    mockFreezeReceiptAuthorisation.mockResolvedValue({
+      stampSource: "SHARED_CERTIFICATE_STAMP",
+      companyStamp: {
+        s3Key: "stamps/cert.png",
+        sha256: "cert",
+        contentType: "image/png",
+        fileName: "cert.png",
+      },
+    });
+    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED");
+    expect(snapshot.authorisation.stampSource).toBe("SHARED_CERTIFICATE_STAMP");
+    expect(snapshot.authorisation.companyStamp?.s3Key).toBe("stamps/cert.png");
+  });
+
+  it("freezes the separate receipt stamp when that option is selected", async () => {
+    mockFreezeReceiptAuthorisation.mockResolvedValue({
+      stampSource: "SEPARATE_RECEIPT_STAMP",
+      companyStamp: {
+        s3Key: "stamps/receipt.png",
+        sha256: "receipt",
+        contentType: "image/png",
+        fileName: "receipt.png",
+      },
+    });
+    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED");
+    expect(snapshot.authorisation.stampSource).toBe("SEPARATE_RECEIPT_STAMP");
+    expect(snapshot.authorisation.companyStamp?.s3Key).toBe("stamps/receipt.png");
+  });
+
+  it("does not block generation when the selected stamp is missing", async () => {
+    mockFreezeReceiptAuthorisation.mockResolvedValue({
+      stampSource: "SHARED_CERTIFICATE_STAMP",
+      companyStamp: null,
+    });
+    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED");
+    expect(snapshot.authorisation.companyStamp).toBeNull();
+    expect(snapshot.grossReceiptAmount).toBe(105_000);
+  });
+});
+
+describe("reissueHibahReceiptSnapshotFromReady", () => {
+  it("copies financial facts and only refreshes stamp authorisation plus version", () => {
+    const previous = {
+      receiptNumber: "SET-1",
+      version: "V01",
+      receiptDate: "2026-09-02T00:00:00.000Z",
+      snapshotGeneratedAt: "2026-09-02T00:00:00.000Z",
+      snapshotSha256: "v01-hash",
+      source: "SETTLEMENT_COMPLETED",
+      grossReceiptAmount: 105_000,
+      investorPrincipal: 100_000,
+      investorProfitGross: 3_000,
+      tawidhAmount: 200,
+      gharamahAmount: 50,
+      hibahAmount: 1_750,
+      paymentReference: "BANK-1",
+      authorisation: {
+        stampSource: "SHARED_CERTIFICATE_STAMP",
+        companyStamp: { s3Key: "stamps/a.png", sha256: "a", contentType: "image/png", fileName: "a.png" },
+      },
+    } as any;
+    const next = reissueHibahReceiptSnapshotFromReady(previous, {
+      version: "V02",
+      stampSource: "SEPARATE_RECEIPT_STAMP",
+      companyStamp: {
+        s3Key: "stamps/b.png",
+        sha256: "b",
+        contentType: "image/png",
+        fileName: "b.png",
+      },
+      generatedAt: new Date("2026-09-03T00:00:00.000Z"),
+    });
+    expect(next.version).toBe("V02");
+    expect(next.source).toBe("ADMIN_REISSUE");
+    expect(next.receiptDate).toBe("2026-09-02T00:00:00.000Z");
+    expect(next.grossReceiptAmount).toBe(105_000);
+    expect(next.hibahAmount).toBe(1_750);
+    expect(next.paymentReference).toBe("BANK-1");
+    expect(next.authorisation.stampSource).toBe("SEPARATE_RECEIPT_STAMP");
+    expect(next.authorisation.companyStamp?.s3Key).toBe("stamps/b.png");
+    expect(next.snapshotSha256).not.toBe(previous.snapshotSha256);
   });
 });

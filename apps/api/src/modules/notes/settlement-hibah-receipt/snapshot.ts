@@ -30,9 +30,11 @@ import {
   SETTLEMENT_STATUS_LABEL,
   formatPaymentReferences,
   type ClearedValueDateSource,
+  type ReceiptAuthorisationSnapshot,
   type ReceiptGenerationSource,
   type SettlementHibahReceiptSnapshot,
 } from "./types";
+import { freezeReceiptAuthorisation } from "../document-authorisation/config";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -153,6 +155,13 @@ export function reconcileHibahReceiptAmounts(input: {
   return { totalApplied, totalAllocated };
 }
 
+function emptyReceiptAuthorisation(): ReceiptAuthorisationSnapshot {
+  return {
+    stampSource: "SHARED_CERTIFICATE_STAMP",
+    companyStamp: null,
+  };
+}
+
 function isValidPersistedSnapshot(value: unknown): value is SettlementHibahReceiptSnapshot {
   const record = asRecord(value);
   return Boolean(
@@ -167,7 +176,45 @@ function isValidPersistedSnapshot(value: unknown): value is SettlementHibahRecei
 export function parseHibahReceiptSnapshot(
   value: unknown
 ): SettlementHibahReceiptSnapshot | null {
-  return isValidPersistedSnapshot(value) ? (value as SettlementHibahReceiptSnapshot) : null;
+  if (!isValidPersistedSnapshot(value)) return null;
+  const snapshot = value as SettlementHibahReceiptSnapshot;
+  if (snapshot.authorisation) return snapshot;
+  return {
+    ...snapshot,
+    authorisation: emptyReceiptAuthorisation(),
+  };
+}
+
+function hashReceiptSnapshot(
+  withoutHash: Omit<SettlementHibahReceiptSnapshot, "snapshotSha256">
+): SettlementHibahReceiptSnapshot {
+  const withEmptyHash = { ...withoutHash, snapshotSha256: "" };
+  return {
+    ...withEmptyHash,
+    snapshotSha256: canonicalJsonSha256(withEmptyHash),
+  };
+}
+
+export function reissueHibahReceiptSnapshotFromReady(
+  previous: SettlementHibahReceiptSnapshot,
+  input: {
+    version: string;
+    stampSource: ReceiptAuthorisationSnapshot["stampSource"];
+    companyStamp: ReceiptAuthorisationSnapshot["companyStamp"];
+    generatedAt?: Date;
+  }
+): SettlementHibahReceiptSnapshot {
+  const generatedAt = input.generatedAt ?? new Date();
+  return hashReceiptSnapshot({
+    ...previous,
+    snapshotGeneratedAt: generatedAt.toISOString(),
+    source: "ADMIN_REISSUE",
+    version: input.version,
+    authorisation: {
+      stampSource: input.stampSource,
+      companyStamp: input.companyStamp,
+    },
+  });
 }
 
 function resolveInvoiceFaceValue(note: {
@@ -355,6 +402,7 @@ export async function buildSettlementHibahReceiptSnapshot(
   }
   const clearedDisplay = displayUtcDate(clearedDate);
   const maturityIso = isoDate(note.maturity_date);
+  const authorisation = await freezeReceiptAuthorisation();
 
   const withoutHash = {
     templateId: RECEIPT_TEMPLATE_ID,
@@ -406,10 +454,8 @@ export async function buildSettlementHibahReceiptSnapshot(
     actingThrough: HIBAH_ACTING_THROUGH,
     shariahStructure: PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
     confirmationCopy: SETTLEMENT_CONFIRMATION_COPY,
+    authorisation,
   };
 
-  return {
-    ...withoutHash,
-    snapshotSha256: canonicalJsonSha256(withoutHash),
-  };
+  return hashReceiptSnapshot(withoutHash);
 }

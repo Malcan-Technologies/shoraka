@@ -1455,6 +1455,7 @@ model PlatformFinanceSetting {
   trustee_letter_config               Json?
   platform_accounts_config            Json?
   ledger_bucket_accounts_config       Json?
+  document_authorisation_config       Json?
   created_at                          DateTime @default(now())
   updated_at                          DateTime @updatedAt
 

@@ -114,6 +114,8 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(plain).not.toContain("{#isIssuerAudience}");
     expect(plain).not.toContain("{^isIssuerAudience}");
     expect(plain).not.toContain("{/isIssuerAudience}");
+    expect(plain).not.toContain("{signatoryNameAndDate}");
+    expect(plain).not.toContain("§COMPANY_STAMP_IMAGE§");
   });
 
   it("admin copy includes issuer identity and all investor names", () => {
@@ -349,5 +351,41 @@ describe("renderInvestmentNoteCertificateDocx", () => {
     expect(buildCertificateDocxMergeData(missing, { audience: "ADMIN" }).companyRegistration).toBe(
       "—"
     );
+  });
+
+  it("fills automatic certificate date and leaves a missing signatory name blank", () => {
+    const data = buildCertificateDocxMergeData(snapshot, { audience: "ADMIN" });
+    expect(data.signatoryDate).toBe("02 Sep 2026");
+    expect(data.authorisedSignatoryName).toBe("");
+    expect(data.signatoryNameAndDate).toBe("02 Sep 2026");
+    const plain = wordPlainText(renderedXml(snapshot, { audience: "ADMIN" }));
+    expect(plain).toContain("02 Sep 2026");
+    expect(plain).toContain("Company Stamp");
+  });
+
+  it("renders the authorised signatory name with the automatic date", () => {
+    const named = sampleInvestmentNoteCertificateSnapshot();
+    named.authorisation.authorisedSignatoryName = "Ahmad";
+    const data = buildCertificateDocxMergeData(named, { audience: "ADMIN" });
+    expect(data.signatoryNameAndDate).toBe("Ahmad / 02 Sep 2026");
+    const plain = wordPlainText(renderedXml(named, { audience: "ADMIN" }));
+    expect(plain).toContain("Ahmad / 02 Sep 2026");
+  });
+
+  it("embeds a company stamp image when provided", () => {
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFhAH+plp0OQAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    const docx = renderInvestmentNoteCertificateDocx(
+      snapshot,
+      { audience: "ADMIN" },
+      { bytes: png, contentType: "image/png" }
+    );
+    const zip = new PizZip(docx);
+    expect(zip.file("word/media/company-stamp.png")).toBeTruthy();
+    const xml = zip.file("word/document.xml")?.asText() ?? "";
+    expect(xml).toContain("<w:drawing>");
+    expect(xml).not.toContain("§COMPANY_STAMP_IMAGE§");
   });
 });

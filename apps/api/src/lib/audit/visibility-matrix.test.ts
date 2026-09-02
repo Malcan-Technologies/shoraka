@@ -75,6 +75,15 @@ describe("visibility matrix", () => {
     expect(EVENT_CATALOGUE.SETTLEMENT_HIBAH_RECEIPT_GENERATED.table).toBe("note_events");
   });
 
+  it("keeps certificate and receipt reissue as Admin Activity only", () => {
+    expect(EVENT_CATALOGUE.INVESTMENT_NOTE_CERTIFICATE_REISSUED.layer).toBe(
+      EVENT_LAYER.ADMIN_ACTIVITY
+    );
+    expect(EVENT_CATALOGUE.INVESTMENT_NOTE_CERTIFICATE_REISSUED.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.SETTLEMENT_HIBAH_RECEIPT_REISSUED.layer).toBe(EVENT_LAYER.ADMIN_ACTIVITY);
+    expect(EVENT_CATALOGUE.SETTLEMENT_HIBAH_RECEIPT_REISSUED.userVisible).toBe(false);
+  });
+
   it("keeps Investment Settlement Confirmation generated as Admin Activity only", () => {
     expect(EVENT_CATALOGUE.INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED.layer).toBe(
       EVENT_LAYER.ADMIN_ACTIVITY

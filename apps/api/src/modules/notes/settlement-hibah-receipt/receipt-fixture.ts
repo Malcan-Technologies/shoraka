@@ -56,6 +56,10 @@ export function sampleSettlementHibahReceiptSnapshot(
     actingThrough: HIBAH_ACTING_THROUGH,
     shariahStructure: PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
     confirmationCopy: SETTLEMENT_CONFIRMATION_COPY,
+    authorisation: {
+      stampSource: "SHARED_CERTIFICATE_STAMP",
+      companyStamp: null,
+    },
     ...overrides,
   };
 }

@@ -120,6 +120,8 @@ import type {
   PlatformFinanceSetting,
   TrusteeSignatureUploadUrlRequest,
   TrusteeSignatureUploadUrlResponse,
+  DocumentStampUploadUrlRequest,
+  DocumentStampUploadUrlResponse,
   IssuerPaymentEvidenceUploadUrlRequest,
   IssuerPaymentEvidenceUploadUrlResponse,
   RecordNotePaymentInput,
@@ -1343,6 +1345,27 @@ export class ApiClient {
       "/v1/admin/platform-finance-settings/trustee-signature/upload-url",
       data
     );
+  }
+
+  async requestPlatformFinanceDocumentStampUploadUrl(
+    data: DocumentStampUploadUrlRequest
+  ): Promise<ApiResponse<DocumentStampUploadUrlResponse> | ApiError> {
+    return this.post<DocumentStampUploadUrlResponse>(
+      "/v1/admin/platform-finance-settings/document-stamp/upload-url",
+      data
+    );
+  }
+
+  async reissueAdminInvestmentNoteCertificate(
+    id: string
+  ): Promise<ApiResponse<InvestmentNoteCertificatePdfPayload> | ApiError> {
+    return this.post(`/v1/admin/notes/${id}/investment-note-certificate/reissue`, {});
+  }
+
+  async reissueAdminSettlementHibahReceipt(
+    id: string
+  ): Promise<ApiResponse<SettlementHibahReceiptPdfPayload> | ApiError> {
+    return this.post(`/v1/admin/notes/${id}/settlement-hibah-receipt/reissue`, {});
   }
 
   async getAdminInvestorWithdrawals(params?: {

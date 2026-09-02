@@ -213,6 +213,7 @@ import type {
   updateNoteDraftSchema,
   updatePlatformFinanceSettingsSchema,
   requestTrusteeSignatureUploadUrlSchema,
+  requestDocumentStampUploadUrlSchema,
   requestIssuerPaymentEvidenceUploadUrlSchema,
   createInvestorWithdrawalSchema,
   getInvestorWithdrawalsQuerySchema,
@@ -242,6 +243,7 @@ import type {
   LedgerBucketAccountsConfig,
   PlatformAccountsConfig,
   TrusteeLetterConfig,
+  DocumentAuthorisationConfig,
 } from "@cashsouk/types";
 import { randomUUID } from "crypto";
 import type { z } from "zod";
@@ -6377,6 +6379,8 @@ export class NoteService {
         (settings.platform_accounts_config as PlatformAccountsConfig | null) ?? null,
       ledgerBucketAccountsConfig:
         (settings.ledger_bucket_accounts_config as LedgerBucketAccountsConfig | null) ?? null,
+      documentAuthorisationConfig:
+        (settings.document_authorisation_config as DocumentAuthorisationConfig | null) ?? null,
       updatedByUserId: settings.updated_by_user_id,
       updatedAt: settings.updated_at.toISOString(),
     };
@@ -6451,6 +6455,10 @@ export class NoteService {
           input.ledgerBucketAccountsConfig != null
             ? (input.ledgerBucketAccountsConfig as Prisma.InputJsonValue)
             : undefined,
+        document_authorisation_config:
+          input.documentAuthorisationConfig != null
+            ? (input.documentAuthorisationConfig as Prisma.InputJsonValue)
+            : undefined,
         updated_by_user_id: actor.userId,
       },
       update: {
@@ -6512,6 +6520,10 @@ export class NoteService {
           input.ledgerBucketAccountsConfig != null
             ? (input.ledgerBucketAccountsConfig as Prisma.InputJsonValue)
             : undefined,
+        document_authorisation_config:
+          input.documentAuthorisationConfig != null
+            ? (input.documentAuthorisationConfig as Prisma.InputJsonValue)
+            : undefined,
         updated_by_user_id: actor.userId,
       },
     });
@@ -6545,6 +6557,24 @@ export class NoteService {
     const extension = signatureImageExtensionForContentType(input.contentType);
     const date = new Date().toISOString().split("T")[0];
     const key = `platform-finance/trustee-signatures/v1-${date}-${randomUUID()}.${extension}`;
+    const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
+      key,
+      contentType: input.contentType,
+      contentLength: input.fileSize,
+    });
+    return { uploadUrl, s3Key, expiresIn };
+  }
+
+  async requestDocumentStampUploadUrl(
+    input: z.infer<typeof requestDocumentStampUploadUrlSchema>
+  ) {
+    const extension = signatureImageExtensionForContentType(input.contentType);
+    const date = new Date().toISOString().split("T")[0];
+    const folder =
+      input.purpose === "RECEIPT_COMPANY_STAMP"
+        ? "platform-finance/document-stamps/receipt"
+        : "platform-finance/document-stamps/certificate";
+    const key = `${folder}/v1-${date}-${randomUUID()}.${extension}`;
     const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
       key,
       contentType: input.contentType,

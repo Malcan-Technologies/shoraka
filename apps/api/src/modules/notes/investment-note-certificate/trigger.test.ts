@@ -28,3 +28,19 @@ describe("investment note certificate trigger sites", () => {
     expect(shoraka).not.toContain("investment-note-certificate");
   });
 });
+
+describe("investment note certificate admin reissue route", () => {
+  const controller = readFileSync(join(__dirname, "../controller.ts"), "utf8");
+
+  it("exposes Admin reissue with disbursement permission and no issuer/investor reissue", () => {
+    expect(controller).toContain('"/:id/investment-note-certificate/reissue"');
+    const reissueIdx = controller.indexOf('"/:id/investment-note-certificate/reissue"');
+    const reissueBlock = controller.slice(reissueIdx - 120, reissueIdx + 400);
+    expect(reissueBlock).toContain('requirePermission("notes.disbursement.manage")');
+    expect(controller).not.toContain('"/notes/:id/investment-note-certificate/reissue"');
+    const investorStart = controller.indexOf("investorNotesRouter.use");
+    const issuerStart = controller.indexOf("issuerNotesRouter.use");
+    expect(controller.slice(investorStart, issuerStart)).not.toContain("/reissue");
+    expect(controller.slice(issuerStart)).not.toContain("investment-note-certificate/reissue");
+  });
+});

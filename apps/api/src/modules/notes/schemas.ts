@@ -275,6 +275,21 @@ export const trusteeLetterConfigSchema = z
     };
   });
 
+const documentStampFieldsSchema = z
+  .object({
+    s3Key: z.string().min(1).optional(),
+    fileName: z.string().min(1).max(255).optional(),
+    contentType: z.enum(["image/png", "image/jpeg", "image/jpg", "image/webp"]).optional(),
+  })
+  .optional();
+
+export const documentAuthorisationConfigSchema = z.object({
+  authorisedSignatoryName: z.string().max(200).optional().default(""),
+  useSameCompanyStamp: z.boolean().optional().default(true),
+  certificateCompanyStamp: documentStampFieldsSchema,
+  receiptCompanyStamp: documentStampFieldsSchema,
+});
+
 export const updatePlatformFinanceSettingsSchema = z.object({
   gracePeriodDays: z.number().int().min(0).max(60).optional(),
   arrearsThresholdDays: z.number().int().min(0).max(120).optional(),
@@ -308,12 +323,17 @@ export const updatePlatformFinanceSettingsSchema = z.object({
   trusteeLetterConfig: trusteeLetterConfigSchema.optional(),
   platformAccountsConfig: z.record(z.unknown()).optional(),
   ledgerBucketAccountsConfig: z.record(z.unknown()).optional(),
+  documentAuthorisationConfig: documentAuthorisationConfigSchema.optional(),
 });
 
 export const requestTrusteeSignatureUploadUrlSchema = z.object({
   fileName: z.string().min(1),
   contentType: z.enum(["image/png", "image/jpeg", "image/jpg", "image/webp"]),
   fileSize: z.number().int().positive().max(5 * 1024 * 1024),
+});
+
+export const requestDocumentStampUploadUrlSchema = requestTrusteeSignatureUploadUrlSchema.extend({
+  purpose: z.enum(["CERTIFICATE_COMPANY_STAMP", "RECEIPT_COMPANY_STAMP"]),
 });
 
 export const requestIssuerPaymentEvidenceUploadUrlSchema = z.object({

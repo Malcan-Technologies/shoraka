@@ -1192,6 +1192,9 @@ export default function IssuerNoteDetailPage() {
                   <div className="text-sm font-medium">Settlement & Hibah Receipt</div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     Issuer copy confirming this financing is fully settled.
+                    {settlementHibahReceipt.version
+                      ? ` Version ${settlementHibahReceipt.version}.`
+                      : ""}
                   </div>
                   <div className="mt-3">
                     <Button

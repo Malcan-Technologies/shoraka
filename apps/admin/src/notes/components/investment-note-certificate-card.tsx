@@ -1,16 +1,29 @@
 "use client";
 
-import { ArrowPathIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
+import { useState } from "react";
+import { ArrowDownTrayIcon, ArrowPathIcon, ArrowTopRightOnSquareIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import type { InvestmentNoteCertificatePdfPayload } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 import { ADMIN_ACTION_SURFACE_CLASS } from "@/lib/admin-status-token";
 import { workflowToneToStatusToken, type WorkflowStatusTone } from "@/notes/utils/workflow-status-tokens";
 import {
+  useDownloadAdminInvestmentNoteCertificate,
   useOpenAdminInvestmentNoteCertificate,
+  useReissueAdminInvestmentNoteCertificate,
   useRetryAdminInvestmentNoteCertificate,
 } from "@/notes/hooks/use-investment-note-certificate";
 
@@ -62,7 +75,11 @@ type Props = {
 export function InvestmentNoteCertificateCard({ noteId, payload }: Props) {
   const model = statusModel(payload);
   const openPdf = useOpenAdminInvestmentNoteCertificate(noteId);
+  const downloadPdf = useDownloadAdminInvestmentNoteCertificate(noteId);
   const retry = useRetryAdminInvestmentNoteCertificate(noteId);
+  const reissue = useReissueAdminInvestmentNoteCertificate(noteId);
+  const [reissueOpen, setReissueOpen] = useState(false);
+  const showPdfActions = Boolean(payload.viewUrl || payload.downloadUrl);
 
   return (
     <Card
@@ -82,23 +99,45 @@ export function InvestmentNoteCertificateCard({ noteId, payload }: Props) {
                 label={model.label}
                 status={workflowToneToStatusToken(model.tone)}
               />
+              {payload.version && payload.status !== "NONE" ? (
+                <span className="text-meta text-muted-foreground">Version {payload.version}</span>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {payload.status === "READY" ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  void openPdf.mutateAsync().catch((err) => {
-                    toast.error(err instanceof Error ? err.message : "Certificate is not available");
-                  });
-                }}
-                disabled={openPdf.isPending}
-              >
-                View / Download
-              </Button>
+            {showPdfActions ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={() => {
+                    void openPdf.mutateAsync().catch((err) => {
+                      toast.error(err instanceof Error ? err.message : "Certificate is not available");
+                    });
+                  }}
+                  disabled={openPdf.isPending || downloadPdf.isPending}
+                >
+                  <ArrowTopRightOnSquareIcon className="h-4 w-4" aria-hidden />
+                  View
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={() => {
+                    void downloadPdf.mutateAsync().catch((err) => {
+                      toast.error(err instanceof Error ? err.message : "Certificate is not available");
+                    });
+                  }}
+                  disabled={openPdf.isPending || downloadPdf.isPending}
+                >
+                  <ArrowDownTrayIcon className="h-4 w-4" aria-hidden />
+                  Download
+                </Button>
+              </>
             ) : null}
             {payload.canRetry ? (
               <Button
@@ -116,10 +155,47 @@ export function InvestmentNoteCertificateCard({ noteId, payload }: Props) {
                 Retry
               </Button>
             ) : null}
+            {payload.canReissue ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => setReissueOpen(true)}
+                disabled={reissue.isPending}
+              >
+                <ArrowPathIcon className="h-4 w-4" aria-hidden />
+                Regenerate / Reissue
+              </Button>
+            ) : null}
           </div>
         </div>
         <p className="text-meta text-muted-foreground">{model.description}</p>
       </CardHeader>
+      <AlertDialog open={reissueOpen} onOpenChange={setReissueOpen}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate / Reissue certificate?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Generate a new version using the latest Document Authorisation settings? The existing
+              version will remain unchanged.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl"
+              onClick={() => {
+                void reissue.mutateAsync().catch((err) => {
+                  toast.error(err instanceof Error ? err.message : "Regenerate / Reissue failed");
+                });
+              }}
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

@@ -8,6 +8,7 @@ import {
 } from "./certificate-merge-data";
 import type { CertificateRenderAudienceInput } from "./certificate-audience";
 import type { InvestmentNoteCertificateSnapshot } from "./types";
+import { applyCompanyStampToDocx } from "../document-authorisation/docx-stamp-image";
 
 const TEMPLATE_FILENAME = "islamic-investment-note-certificate-v1.docx";
 
@@ -46,7 +47,9 @@ function renderMergeData(data: CertificateDocxMergeData): Buffer {
 
 export function renderInvestmentNoteCertificateDocx(
   snapshot: InvestmentNoteCertificateSnapshot,
-  input: CertificateRenderAudienceInput
+  input: CertificateRenderAudienceInput,
+  stampImage?: { bytes: Buffer; contentType?: string | null } | null
 ): Buffer {
-  return renderMergeData(buildCertificateDocxMergeData(snapshot, input));
+  const rendered = renderMergeData(buildCertificateDocxMergeData(snapshot, input));
+  return applyCompanyStampToDocx(rendered, stampImage ?? null);
 }

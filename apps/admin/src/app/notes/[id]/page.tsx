@@ -610,6 +610,8 @@ export default function NoteDetailPage() {
                                   ...investmentNoteCertificate,
                                   canRetry:
                                     investmentNoteCertificate.canRetry && canDisbursement,
+                                  canReissue:
+                                    investmentNoteCertificate.canReissue && canDisbursement,
                                 }}
                               />
                             ) : null}

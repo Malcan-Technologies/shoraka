@@ -46,6 +46,7 @@ import {
   createInvestorWithdrawalSchema,
   getInvestorWithdrawalsQuerySchema,
   requestTrusteeSignatureUploadUrlSchema,
+  requestDocumentStampUploadUrlSchema,
   requestIssuerPaymentEvidenceUploadUrlSchema,
   waiveNoteFacilityFeeCollectionSchema,
   disbursementValueDateBodySchema,
@@ -371,6 +372,22 @@ adminNotesRouter.post(
   }
 );
 
+adminNotesRouter.post(
+  "/:id/investment-note-certificate/reissue",
+  requirePermission("notes.disbursement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { reissueAdminInvestmentNoteCertificate } = await import(
+        "./investment-note-certificate/service"
+      );
+      send(res, await reissueAdminInvestmentNoteCertificate(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 adminNotesRouter.get(
   "/:id/settlement-hibah-receipt",
   requirePermission("notes.view"),
@@ -397,6 +414,22 @@ adminNotesRouter.post(
         "./settlement-hibah-receipt/service"
       );
       send(res, await retryAdminSettlementHibahReceipt(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/settlement-hibah-receipt/reissue",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { reissueAdminSettlementHibahReceipt } = await import(
+        "./settlement-hibah-receipt/service"
+      );
+      send(res, await reissueAdminSettlementHibahReceipt(id, getActor(req, res, "ADMIN")));
     } catch (error) {
       next(error);
     }
@@ -1233,6 +1266,18 @@ platformFinanceSettingsRouter.post(
     try {
       const input = requestTrusteeSignatureUploadUrlSchema.parse(req.body);
       send(res, await noteService.requestTrusteeSignatureUploadUrl(input));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+platformFinanceSettingsRouter.post(
+  "/document-stamp/upload-url",
+  requirePermission("platform_settings.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const input = requestDocumentStampUploadUrlSchema.parse(req.body);
+      send(res, await noteService.requestDocumentStampUploadUrl(input));
     } catch (error) {
       next(error);
     }

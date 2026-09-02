@@ -2805,6 +2805,7 @@ export function SettlementPanel({
               payload={{
                 ...hibahReceipt,
                 canRetry: hibahReceipt.canRetry && canSettlement,
+                canReissue: hibahReceipt.canReissue && canSettlement,
               }}
             />
           ) : null}

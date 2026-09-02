@@ -66,6 +66,9 @@ export function IssuerInvestmentNoteCertificateCard({
       <div className="flex flex-wrap items-center gap-2">
         <div className="text-sm font-medium">Investment Note Certificate</div>
         <StatusBadge label={model.label} status={model.status} />
+        {payload.version ? (
+          <span className="text-xs text-muted-foreground">Version {payload.version}</span>
+        ) : null}
       </div>
       <div className="mt-1 text-xs text-muted-foreground">{model.description}</div>
       {payload.status === "READY" ? (

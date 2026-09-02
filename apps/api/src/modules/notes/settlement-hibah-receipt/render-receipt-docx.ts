@@ -7,6 +7,7 @@ import {
   type SettlementHibahReceiptDocxMergeData,
 } from "./receipt-merge-data";
 import type { SettlementHibahReceiptSnapshot } from "./types";
+import { applyCompanyStampToDocx } from "../document-authorisation/docx-stamp-image";
 
 const TEMPLATE_FILENAME = "settlement-hibah-receipt-v1.docx";
 
@@ -44,7 +45,9 @@ function renderMergeData(data: SettlementHibahReceiptDocxMergeData): Buffer {
 }
 
 export function renderSettlementHibahReceiptDocx(
-  snapshot: SettlementHibahReceiptSnapshot
+  snapshot: SettlementHibahReceiptSnapshot,
+  stampImage?: { bytes: Buffer; contentType?: string | null } | null
 ): Buffer {
-  return renderMergeData(buildSettlementHibahReceiptDocxMergeData(snapshot));
+  const rendered = renderMergeData(buildSettlementHibahReceiptDocxMergeData(snapshot));
+  return applyCompanyStampToDocx(rendered, stampImage ?? null);
 }

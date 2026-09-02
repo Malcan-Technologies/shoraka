@@ -9,10 +9,10 @@ export function settlementHibahReceiptKey(noteId?: string) {
   return [...notesKeys.detail(noteId), "settlement-hibah-receipt"] as const;
 }
 
-async function openSignedPdfInNewTab(loadUrl: () => Promise<string>) {
+async function openSignedPdfInNewTab(loadUrl: () => Promise<string>, blockedMessage: string) {
   const tab = window.open("about:blank", "_blank");
   if (!tab) {
-    throw new Error("Pop-up blocked. Allow pop-ups for this site to view the receipt PDF.");
+    throw new Error(blockedMessage);
   }
   tab.opener = null;
   try {
@@ -50,7 +50,23 @@ export function useOpenAdminSettlementHibahReceipt(noteId?: string) {
         if (!res.success) throw new Error(res.error.message);
         if (!res.data.viewUrl) throw new Error("Settlement & Hibah Receipt is not available");
         return res.data.viewUrl;
-      });
+      }, "Pop-up blocked. Allow pop-ups for this site to view the receipt PDF.");
+    },
+  });
+}
+
+export function useDownloadAdminSettlementHibahReceipt(noteId?: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  return useMutation({
+    mutationFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      await openSignedPdfInNewTab(async () => {
+        const res = await apiClient.getAdminSettlementHibahReceipt(noteId);
+        if (!res.success) throw new Error(res.error.message);
+        if (!res.data.downloadUrl) throw new Error("Settlement & Hibah Receipt is not available");
+        return res.data.downloadUrl;
+      }, "Pop-up blocked. Allow pop-ups for this site to download the receipt PDF.");
     },
   });
 }
@@ -63,6 +79,23 @@ export function useRetryAdminSettlementHibahReceipt(noteId?: string) {
     mutationFn: async () => {
       if (!noteId) throw new Error("Note ID is required");
       const res = await apiClient.retryAdminSettlementHibahReceipt(noteId);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+    onSuccess: (data: SettlementHibahReceiptPdfPayload) => {
+      qc.setQueryData(settlementHibahReceiptKey(noteId), data);
+    },
+  });
+}
+
+export function useReissueAdminSettlementHibahReceipt(noteId?: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const res = await apiClient.reissueAdminSettlementHibahReceipt(noteId);
       if (!res.success) throw new Error(res.error.message);
       return res.data;
     },

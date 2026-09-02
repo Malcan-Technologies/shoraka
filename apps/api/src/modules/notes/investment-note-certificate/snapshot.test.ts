@@ -11,11 +11,28 @@ const mockPrisma: any = {
 
 jest.mock("../../../lib/prisma", () => ({ prisma: mockPrisma }));
 
-import { buildInvestmentNoteCertificateSnapshot } from "./snapshot";
+const mockFreezeCertificateAuthorisation = jest.fn(async () => ({
+  authorisedSignatoryName: "",
+  companyStamp: null,
+}));
+
+jest.mock("../document-authorisation/config", () => ({
+  freezeCertificateAuthorisation: (...args: unknown[]) =>
+    mockFreezeCertificateAuthorisation(...args),
+}));
+
+import {
+  buildInvestmentNoteCertificateSnapshot,
+  reissueCertificateSnapshotFromReady,
+} from "./snapshot";
 
 describe("buildInvestmentNoteCertificateSnapshot", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFreezeCertificateAuthorisation.mockResolvedValue({
+      authorisedSignatoryName: "",
+      companyStamp: null,
+    });
   });
 
   it("refuses incomplete tenure/maturity/disbursement instead of fabricating dates", async () => {
@@ -305,5 +322,111 @@ describe("buildInvestmentNoteCertificateSnapshot", () => {
 
     const snapshot = await buildInvestmentNoteCertificateSnapshot("note-1");
     expect(snapshot.note.companyRegistrationNumber).toBe("123412341234");
+  });
+
+  it("freezes the latest authorised signatory name and stamp into the snapshot", async () => {
+    mockPrisma.note.findUnique.mockResolvedValue({
+      id: "note-1",
+      note_reference: "NOTE-1",
+      funding_status: NoteFundingStatus.FUNDED,
+      issuer_organization_id: "iss-1",
+      issuer_snapshot: { name: "Helios", registration_number: "123", industry: "Mfg" },
+      paymaster_snapshot: { name: "Paymaster Co" },
+      purpose_snapshot: { financing_for: "Working capital" },
+      invoice_snapshot: {
+        details: { value: 100_000, number: "INV-1" },
+        offer_details: { risk_rating: "SME-4" },
+      },
+      requested_amount: 100_000,
+      target_amount: 100_000,
+      funded_amount: 80_000,
+      profit_rate_percent: 12,
+      tenure_days: 90,
+      disbursement_value_date: new Date("2026-09-01T00:00:00.000Z"),
+      maturity_date: new Date("2026-11-30T00:00:00.000Z"),
+      funding_closed_at: new Date("2026-08-01T00:00:00.000Z"),
+    });
+    mockPrisma.noteInvestment.findMany.mockResolvedValue([
+      { investor_organization_id: "org-a", amount: 80_000, status: NoteInvestmentStatus.CONFIRMED },
+    ]);
+    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({ display_reference: "ISS-1" });
+    mockPrisma.investorOrganization.findMany.mockResolvedValue([
+      {
+        id: "org-a",
+        type: "PERSONAL",
+        name: "Alice Tan",
+        legal_name_on_id: "Alice Tan",
+        first_name: "Alice",
+        middle_name: null,
+        last_name: "Tan",
+        corporate_onboarding_data: null,
+        display_reference: "IVT-A",
+      },
+    ]);
+    mockFreezeCertificateAuthorisation.mockResolvedValue({
+      authorisedSignatoryName: "Ahmad",
+      companyStamp: {
+        s3Key: "stamps/a.png",
+        sha256: "stamp-a",
+        contentType: "image/png",
+        fileName: "a.png",
+      },
+    });
+    const snapshot = await buildInvestmentNoteCertificateSnapshot("note-1");
+    expect(snapshot.authorisation.authorisedSignatoryName).toBe("Ahmad");
+    expect(snapshot.authorisation.companyStamp?.s3Key).toBe("stamps/a.png");
+    expect(snapshot.certificate.certificateDateDisplay.length).toBeGreaterThan(0);
+    expect(snapshot.certificate.certificateDate).toBe(snapshot.snapshotGeneratedAt);
+  });
+});
+
+describe("reissueCertificateSnapshotFromReady", () => {
+  it("copies financial facts and only refreshes authorisation plus version", () => {
+    const previous = {
+      templateId: "islamic-investment-note-certificate-v1",
+      templateVersion: "V01",
+      snapshotGeneratedAt: "2026-09-02T00:00:00.000Z",
+      snapshotSha256: "v01-hash",
+      certificate: {
+        certificateNumber: "IINC-NOTE-1",
+        version: "V01",
+        certificateDate: "2026-09-02T00:00:00.000Z",
+        certificateDateDisplay: "02 Sep 2026",
+      },
+      note: {
+        noteId: "note-1",
+        fundedAmount: 80_000,
+        profitRatePercent: 12,
+        contractedProfit: 2_000,
+        totalAmountPayable: 82_000,
+        tenureDays: 90,
+      },
+      investorSchedule: { fundedPrincipal: 80_000 },
+      investors: [{ principal: 80_000, sharePercent: 100, expectedGrossProfit: 2_000 }],
+      authorisation: {
+        authorisedSignatoryName: "Ahmad",
+        companyStamp: { s3Key: "stamps/a.png", sha256: "a", contentType: "image/png", fileName: "a.png" },
+      },
+    } as any;
+    const next = reissueCertificateSnapshotFromReady(previous, {
+      version: "V02",
+      authorisedSignatoryName: "Sarah",
+      companyStamp: {
+        s3Key: "stamps/b.png",
+        sha256: "b",
+        contentType: "image/png",
+        fileName: "b.png",
+      },
+      generatedAt: new Date("2026-09-03T00:00:00.000Z"),
+    });
+    expect(next.certificate.version).toBe("V02");
+    expect(next.certificate.certificateDate).toBe("2026-09-02T00:00:00.000Z");
+    expect(next.authorisation.authorisedSignatoryName).toBe("Sarah");
+    expect(next.authorisation.companyStamp?.s3Key).toBe("stamps/b.png");
+    expect(next.note.fundedAmount).toBe(80_000);
+    expect(next.note.contractedProfit).toBe(2_000);
+    expect(next.note.totalAmountPayable).toBe(82_000);
+    expect(next.investors).toEqual(previous.investors);
+    expect(next.snapshotSha256).not.toBe(previous.snapshotSha256);
   });
 });
