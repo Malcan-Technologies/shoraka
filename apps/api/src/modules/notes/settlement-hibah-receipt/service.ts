@@ -16,8 +16,8 @@ import {
   systemAuditContext,
 } from "../../../lib/audit";
 import { resolveNoteEventTarget } from "../audit-fields";
-import { convertHtmlToPdf } from "../../../lib/gotenberg/convert-html-to-pdf";
-import { buildSettlementHibahReceiptHtml } from "./receipt-html";
+import { convertDocxToPdf } from "../../../lib/gotenberg/convert-docx-to-pdf";
+import { renderSettlementHibahReceiptDocx } from "./render-receipt-docx";
 import {
   buildSettlementHibahReceiptSnapshot,
   parseHibahReceiptSnapshot,
@@ -218,8 +218,8 @@ async function generatePdfForRow(input: {
   }
 
   const frozen = parseHibahReceiptSnapshot(input.row.snapshot) ?? input.snapshot;
-  const html = buildSettlementHibahReceiptHtml(frozen);
-  const pdf = await convertHtmlToPdf(html);
+  const docx = renderSettlementHibahReceiptDocx(frozen);
+  const pdf = await convertDocxToPdf(docx, { fileName: "settlement-hibah-receipt.docx" });
   const sha256 = sha256Hex(pdf);
   const key = buildReceiptPdfObjectKey({
     noteId: input.row.note_id,

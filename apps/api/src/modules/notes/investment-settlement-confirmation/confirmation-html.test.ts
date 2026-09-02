@@ -54,6 +54,9 @@ describe("buildInvestmentSettlementConfirmationHtml", () => {
     expect(html).toContain(INVESTMENT_SETTLEMENT_CONFIRMATION_INTRO);
     expect(html).toContain(INVESTMENT_SETTLEMENT_CONFIRMATION_PROCESSING_NOTICE);
     expect(html).toContain("10,000.00");
+    expect(html).toContain("10,637.50");
+    expect(html).toContain("Total credited to wallet");
+    expect(html).toContain("Processing notice:");
     expect(html).not.toContain("CS-AR-2026-018");
     expect(html).not.toContain("ISS-2048");
     expect(html).not.toContain("Download confirmation");

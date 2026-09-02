@@ -717,8 +717,17 @@ export async function listAdminPaymasters(input: {
       skip: (input.page - 1) * input.pageSize,
       take: input.pageSize,
       include: {
-        _count: { select: { issuer_links: true, notes: true } },
-        issuer_links: { select: { last_used_at: true }, orderBy: { last_used_at: "desc" }, take: 1 },
+        _count: {
+          select: { issuer_links: true, notes: true, contracts: true, assignment_notices: true },
+        },
+        issuer_links: {
+          select: {
+            last_used_at: true,
+            issuer_organization: { select: { name: true } },
+          },
+          orderBy: { last_used_at: "desc" },
+          take: 1,
+        },
       },
     }),
   ]);
@@ -731,7 +740,10 @@ export async function listAdminPaymasters(input: {
       ...mapIdentityFields(row),
       linkedIssuerCount: row._count.issuer_links,
       linkedNoteCount: row._count.notes,
+      linkedFacilityCount: row._count.contracts,
+      noticeCount: row._count.assignment_notices,
       lastUsedAt: row.issuer_links[0]?.last_used_at.toISOString() ?? null,
+      latestIssuerName: row.issuer_links[0]?.issuer_organization.name ?? null,
     })),
   };
 }

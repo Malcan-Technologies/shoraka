@@ -9,6 +9,7 @@ import {
 } from "@cashsouk/types";
 import type { InvestmentSettlementConfirmationSnapshot } from "./types";
 
+const mockRenderConfirmationPdf = jest.fn();
 const mockConvertHtmlToPdf = jest.fn();
 const mockStorePdf = jest.fn();
 const mockGenerateViewUrl = jest.fn();
@@ -125,6 +126,9 @@ const mockPrisma: any = {
 };
 
 jest.mock("../../../lib/prisma", () => ({ prisma: mockPrisma }));
+jest.mock("./render-confirmation-html-to-pdf", () => ({
+  renderConfirmationHtmlToPdfBuffer: (...args: unknown[]) => mockRenderConfirmationPdf(...args),
+}));
 jest.mock("../../../lib/gotenberg/convert-html-to-pdf", () => ({
   convertHtmlToPdf: (...args: unknown[]) => mockConvertHtmlToPdf(...args),
   HtmlToPdfError: class HtmlToPdfError extends Error {},
@@ -167,6 +171,7 @@ jest.mock("../audit-fields", () => ({
   }),
 }));
 
+import { buildInvestmentSettlementConfirmationHtml } from "./confirmation-html";
 import {
   generateInvestmentSettlementConfirmations,
   getAdminInvestmentSettlementConfirmations,
@@ -238,7 +243,8 @@ describe("generateInvestmentSettlementConfirmations", () => {
       display_reference: "SET-ARF-202608-A52",
       preview_snapshot: previewSnapshot,
     };
-    mockConvertHtmlToPdf.mockResolvedValue(Buffer.from("%PDF-conf"));
+    mockRenderConfirmationPdf.mockResolvedValue(Buffer.from("%PDF-conf"));
+    mockConvertHtmlToPdf.mockRejectedValue(new Error("Gotenberg HTML helper must not be called"));
     mockStorePdf.mockResolvedValue(undefined);
     mockGenerateViewUrl.mockResolvedValue({ viewUrl: "https://s3/view", expiresIn: 600 });
     mockCreateNoteEventRow.mockImplementation(async (_db: unknown, params: any) => {
@@ -264,7 +270,16 @@ describe("generateInvestmentSettlementConfirmations", () => {
       settlementId: "set-1",
       source: "SETTLEMENT_POSTED",
     });
-    expect(mockConvertHtmlToPdf).toHaveBeenCalledTimes(1);
+    expect(mockRenderConfirmationPdf).toHaveBeenCalledTimes(1);
+    expect(mockRenderConfirmationPdf).toHaveBeenCalledWith("<html>ARF-202608-A52</html>");
+    expect(mockConvertHtmlToPdf).not.toHaveBeenCalled();
+    expect(buildInvestmentSettlementConfirmationHtml).toHaveBeenCalledWith(
+      expect.objectContaining({
+        noteReference: "ARF-202608-A52",
+        principalReturned: 10000,
+        snapshotSha256: "snap-hash",
+      })
+    );
     expect(confirmationStore.rows).toHaveLength(1);
     expect(confirmationStore.rows[0].status).toBe(InvestmentSettlementConfirmationStatus.READY);
     expect(confirmationStore.rows[0].investor_organization_id).toBe("org-a");
@@ -354,9 +369,9 @@ describe("generateInvestmentSettlementConfirmations", () => {
         },
       ],
     };
-    mockConvertHtmlToPdf
+    mockRenderConfirmationPdf
       .mockResolvedValueOnce(Buffer.from("%PDF-a"))
-      .mockRejectedValueOnce(new Error("gotenberg down"));
+      .mockRejectedValueOnce(new Error("playwright down"));
     await generateInvestmentSettlementConfirmations({
       settlementId: "set-1",
       source: "SETTLEMENT_POSTED",
@@ -372,24 +387,25 @@ describe("generateInvestmentSettlementConfirmations", () => {
       settlementId: "set-1",
       source: "SETTLEMENT_POSTED",
     });
-    mockConvertHtmlToPdf.mockClear();
+    mockRenderConfirmationPdf.mockClear();
     mockBuildSnapshot.mockClear();
     mockCreateNoteEventRow.mockClear();
     await generateInvestmentSettlementConfirmations({
       settlementId: "set-1",
       source: "ADMIN_RETRY",
     });
-    expect(mockConvertHtmlToPdf).not.toHaveBeenCalled();
+    expect(mockRenderConfirmationPdf).not.toHaveBeenCalled();
     expect(mockBuildSnapshot).not.toHaveBeenCalled();
   });
 
-  it("does not alter settlement or wallets when Gotenberg fails", async () => {
-    mockConvertHtmlToPdf.mockRejectedValue(new Error("gotenberg down"));
+  it("does not alter settlement or wallets when Playwright fails", async () => {
+    mockRenderConfirmationPdf.mockRejectedValue(new Error("playwright down"));
     await generateInvestmentSettlementConfirmations({
       settlementId: "set-1",
       source: "SETTLEMENT_POSTED",
     });
     expect(confirmationStore.rows[0].status).toBe(InvestmentSettlementConfirmationStatus.FAILED);
+    expect(confirmationStore.rows[0].generation_error).toBe("playwright down");
     expect(noteUpdate).not.toHaveBeenCalled();
     expect(settlementUpdate).not.toHaveBeenCalled();
     expect(walletUpdate).not.toHaveBeenCalled();
@@ -416,8 +432,14 @@ describe("generateInvestmentSettlementConfirmations", () => {
       role: "ADMIN",
     });
     expect(mockBuildSnapshot).not.toHaveBeenCalled();
+    expect(buildInvestmentSettlementConfirmationHtml).toHaveBeenCalledWith(
+      expect.objectContaining({ principalReturned: 12.34, snapshotSha256: "frozen-hash" })
+    );
     expect(confirmationStore.rows[0].status).toBe(InvestmentSettlementConfirmationStatus.READY);
     expect(confirmationStore.rows[0].snapshot.principalReturned).toBe(12.34);
+    expect(confirmationStore.rows[0].pdf_s3_key).toBe(
+      "investment-settlement-confirmations/test/note-1/set-1/org-a/V01.pdf"
+    );
   });
 
   it("rejects admin retry unless the row is FAILED", async () => {

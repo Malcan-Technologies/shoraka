@@ -44,7 +44,17 @@ export interface PaymasterIdentity extends PaymasterMasterIdentity {
 export interface PaymasterListItem extends PaymasterIdentity {
   linkedIssuerCount: number;
   linkedNoteCount: number;
+  linkedFacilityCount: number;
+  noticeCount: number;
   lastUsedAt: string | null;
+  latestIssuerName: string | null;
+}
+
+export function paymasterLinkedFinancingCount(item: {
+  linkedFacilityCount: number;
+  linkedNoteCount: number;
+}): number {
+  return item.linkedFacilityCount + item.linkedNoteCount;
 }
 
 export interface PaymasterIssuerLinkRow {

@@ -4,7 +4,6 @@ import { join } from "node:path";
 const notesService = readFileSync(join(__dirname, "../service.ts"), "utf8");
 const controller = readFileSync(join(__dirname, "../controller.ts"), "utf8");
 const hibahService = readFileSync(join(__dirname, "./service.ts"), "utf8");
-const receiptHtml = readFileSync(join(__dirname, "./receipt-html.ts"), "utf8");
 
 const recordIdx = notesService.indexOf("async recordPayment");
 const previewIdx = notesService.indexOf("async previewSettlement");
@@ -57,11 +56,11 @@ describe("settlement hibah receipt trigger sites", () => {
     expect(controller).toContain('"/notes/:id/settlement-hibah-receipt"');
   });
 
-  it("reuses the existing Gotenberg HTML helper and never converts DOCX", () => {
-    expect(hibahService).toContain('from "../../../lib/gotenberg/convert-html-to-pdf"');
-    expect(hibahService).not.toContain("convert-docx-to-pdf");
+  it("converts via LibreOffice DOCX and never uses Chromium HTML or Playwright", () => {
+    expect(hibahService).toContain('from "../../../lib/gotenberg/convert-docx-to-pdf"');
+    expect(hibahService).toContain("renderSettlementHibahReceiptDocx");
+    expect(hibahService).not.toContain("convert-html-to-pdf");
     expect(hibahService).not.toContain("playwright");
-    expect(receiptHtml).not.toContain("playwright");
   });
 
   it("does not mutate notes, wallets, or settlement math from the receipt module", () => {

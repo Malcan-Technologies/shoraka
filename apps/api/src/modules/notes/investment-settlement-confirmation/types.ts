@@ -58,7 +58,7 @@ export class ConfirmationGenerationError extends Error {
       | "INCOMPLETE_DATA"
       | "NOT_ELIGIBLE"
       | "RECONCILIATION_FAILED"
-      | "GOTENBERG_FAILED"
+      | "PLAYWRIGHT_FAILED"
       | "S3_FAILED"
   ) {
     super(message);
