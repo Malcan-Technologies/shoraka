@@ -17,6 +17,8 @@ describe("certificatePartyDisplayReference", () => {
     expect(certificatePartyDisplayReference("  ", investorCuid)).toBe("—");
     expect(certificatePartyDisplayReference(issuerCuid, issuerCuid)).toBe("—");
     expect(certificatePartyDisplayReference(investorCuid, investorCuid)).toBe("—");
+    expect(certificatePartyDisplayReference(null)).toBe("—");
+    expect(certificatePartyDisplayReference("ISS-202608-DK3")).toBe("ISS-202608-DK3");
   });
 });
 

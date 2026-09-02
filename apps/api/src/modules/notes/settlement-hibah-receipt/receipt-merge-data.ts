@@ -10,10 +10,10 @@ function looksLikeRawDatabaseId(value: string): boolean {
 }
 
 function printedIssuerReference(value: string): string {
-  return certificatePartyDisplayReference(
-    value,
-    looksLikeRawDatabaseId(value) ? value : ""
-  );
+  if (looksLikeRawDatabaseId(value)) {
+    return certificatePartyDisplayReference(value, value);
+  }
+  return certificatePartyDisplayReference(value);
 }
 
 export type SettlementHibahReceiptDocxMergeData = {
