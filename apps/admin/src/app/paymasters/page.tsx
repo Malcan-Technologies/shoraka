@@ -9,7 +9,7 @@ import { ListToolbar } from "@/shared/admin-list/components/list-toolbar";
 import { PaymastersTable } from "@/paymasters/components/paymasters-table";
 import { paymastersKeys, useAdminPaymasters } from "@/paymasters/hooks/use-paymasters";
 import { paymasterHref } from "@/lib/admin-directory-hrefs";
-import type { PaymasterVerificationStatus } from "@cashsouk/types";
+import type { PaymasterListItem, PaymasterVerificationStatus } from "@cashsouk/types";
 
 export default function PaymastersPage() {
   const queryClient = useQueryClient();
@@ -31,54 +31,68 @@ export default function PaymastersPage() {
     pageSize,
   });
 
+  const handleReload = () => {
+    queryClient.invalidateQueries({ queryKey: paymastersKeys.all });
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setVerificationFilters([]);
+    setCurrentPage(1);
+  };
+
+  const handleViewDetails = (item: PaymasterListItem) => {
+    router.push(paymasterHref(item.id));
+  };
+
   return (
     <RequirePermission permission="paymasters.view">
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="w-full space-y-6 px-2 py-8 md:px-4">
-          <section className="space-y-4">
-            <AdminPageHeader
-              title="Paymasters"
-              description="Reusable customer and obligor records created from issuer Customer Details. Verify identity here; Notice of Assignment is managed on the related Note."
-            />
-            {error ? (
-              <div className="py-8 text-center text-destructive">
-                Error loading paymasters: {error instanceof Error ? error.message : "Unknown error"}
-              </div>
-            ) : null}
-            <ListToolbar
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              searchPlaceholder="Search name or SSM"
-              statusFilters={verificationFilters}
-              onStatusFiltersChange={setVerificationFilters}
-              statusOptions={[
-                { value: "VERIFIED", label: "Verified" },
-                { value: "UNVERIFIED", label: "Unverified" },
-              ]}
-              statusFilterMode="single"
-              totalCount={data?.total ?? 0}
-              filteredCount={data?.total ?? 0}
-              itemLabelSingular="paymaster"
-              itemLabelPlural="paymasters"
-              onClearFilters={() => {
-                setSearchQuery("");
-                setVerificationFilters([]);
-              }}
-              onRefresh={() => queryClient.invalidateQueries({ queryKey: paymastersKeys.all })}
-              isLoading={isLoading}
-            />
-            <PaymastersTable
-              items={data?.items ?? []}
-              loading={isLoading}
-              currentPage={currentPage}
-              pageSize={pageSize}
-              total={data?.total ?? 0}
-              onPageChange={setCurrentPage}
-              onViewDetails={(item) => router.push(paymasterHref(item.id))}
-            />
-          </section>
+      <>
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+          <div className="w-full space-y-6 px-2 py-8 md:px-4">
+            <section className="space-y-4">
+              <AdminPageHeader
+                title="Paymasters"
+                description="Reusable customer and obligor records created from issuer Customer Details. Verify identity here; Notice of Assignment is managed on the related Note."
+              />
+              {error ? (
+                <div className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">
+                  Error loading paymasters:{" "}
+                  {error instanceof Error ? error.message : "Unknown error"}
+                </div>
+              ) : null}
+              <ListToolbar
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                searchPlaceholder="Search name or SSM"
+                statusFilters={verificationFilters}
+                onStatusFiltersChange={setVerificationFilters}
+                statusOptions={[
+                  { value: "VERIFIED", label: "Verified" },
+                  { value: "UNVERIFIED", label: "Unverified" },
+                ]}
+                statusFilterMode="single"
+                totalCount={data?.total ?? 0}
+                filteredCount={data?.total ?? 0}
+                itemLabelSingular="paymaster"
+                itemLabelPlural="paymasters"
+                onClearFilters={handleClearFilters}
+                onRefresh={handleReload}
+                isLoading={isLoading}
+              />
+              <PaymastersTable
+                items={data?.items ?? []}
+                loading={isLoading}
+                currentPage={currentPage}
+                pageSize={pageSize}
+                total={data?.total ?? 0}
+                onPageChange={setCurrentPage}
+                onViewDetails={handleViewDetails}
+              />
+            </section>
+          </div>
         </div>
-      </div>
+      </>
     </RequirePermission>
   );
 }

@@ -5,6 +5,7 @@ import {
   PAYMASTER_NOT_LINKED_MESSAGE,
   PAYMASTER_NOT_VERIFIED_FOR_OFFER_MESSAGE,
   paymasterIdentityOfferBlockReason,
+  paymasterLinkedFinancingCount,
   submittedIdentityDiffersFromVerified,
 } from "./paymaster";
 
@@ -79,5 +80,11 @@ describe("submitted vs verified Paymaster identity", () => {
       })
     ).toBe(PAYMASTER_IDENTITY_UNRESOLVED_MESSAGE);
     expect(paymasterIdentityOfferBlockReason({ submitted: matching, paymaster: verified })).toBeNull();
+  });
+});
+
+describe("paymasterLinkedFinancingCount", () => {
+  it("adds facilities and notes the way Paymaster Detail counts Financings", () => {
+    expect(paymasterLinkedFinancingCount({ linkedFacilityCount: 2, linkedNoteCount: 1 })).toBe(3);
   });
 });

@@ -10,11 +10,19 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(source).not.toMatch(/mismatchPending|mismatch_pending/);
   });
 
-  it("Registry table keeps verification and drops mismatch columns", () => {
-    const source = readFileSync(join(__dirname, "paymasters-table.tsx"), "utf8");
-    expect(source).toContain("Verification");
-    expect(source).not.toMatch(/Review required/i);
-    expect(source).not.toMatch(/mismatch/i);
+  it("Registry table keeps verification status and drops mismatch columns", () => {
+    const table = readFileSync(join(__dirname, "paymasters-table.tsx"), "utf8");
+    const row = readFileSync(join(__dirname, "paymasters-table-row.tsx"), "utf8");
+    expect(table).toContain('label="Status"');
+    expect(table).toContain('label="Financings"');
+    expect(table).toContain('label="Notices"');
+    expect(table).toContain("PaymastersTableRow");
+    expect(row).toContain("paymasterVerificationLabel");
+    expect(row).toContain("adminActionRowClass");
+    expect(row).toContain("Needs verification");
+    expect(table).not.toMatch(/Review required/i);
+    expect(table).not.toMatch(/mismatch/i);
+    expect(row).not.toMatch(/mismatch/i);
   });
 
   it("Paymaster Detail keeps verification status/by/at and has no mismatch section", () => {
