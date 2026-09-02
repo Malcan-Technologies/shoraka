@@ -9607,6 +9607,12 @@ export class AdminService {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     if (section === "financial") {
       this.assertFinancialReviewDirectorShareholderAmlApproved(application);
+      const issuerOrganizationId =
+        typeof (application as { issuer_organization_id?: unknown }).issuer_organization_id ===
+        "string"
+          ? (application as { issuer_organization_id: string }).issuer_organization_id
+          : null;
+      await this.assertIssuerMarcReadyForInvoiceOffer(issuerOrganizationId);
     }
     await this.ensureUnderReview(
       repository,

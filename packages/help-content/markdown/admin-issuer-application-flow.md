@@ -5,7 +5,7 @@ category: Application Review
 tags:
   - admin
 order: 10
-updated: 2026-08-24
+updated: 2026-09-02
 ---
 
 ## Purpose
@@ -30,6 +30,7 @@ Use this guide when reviewing issuer financing applications in the admin portal.
 - Invoice details: invoice documents, requested financing amount, invoice due date, financing tenure (30 to 180 days, 15-day steps), and financing ratio. Financing cannot exceed **80%** of invoice value. The invoice due date is a source-invoice fact, not the public note maturity.
 - Company and business details: issuer profile, operating context, and repayment information.
 - Financial statements and CTOS data: uploaded unaudited figures compared with pulled CTOS financials where available.
+- Issuer MARC credit assessment: score, derived grade, PD, and report. Invoice offers default to this grade, so Financial cannot be approved until it is complete.
 - Directors, shareholders, and guarantors: ownership, controller, KYC/KYB, and AML status.
 - Supporting documents: uploaded evidence reviewed at document-item level.
 - Declarations: final confirmations submitted by the issuer.
@@ -53,7 +54,8 @@ Use the Financial tab to compare issuer-provided financials with CTOS data and t
 - Pull the organization CTOS report when the latest report is missing or stale.
 - Use subject CTOS reports for individual directors or corporate parties when a party-level report is needed.
 - Review KYC/KYB status for directors and shareholders shown from the latest CTOS company data and RegTank onboarding records.
-- **Financial** section **Approve** stays disabled until every **visible** director/shareholder has onboarding at **WAIT_FOR_APPROVAL** / **APPROVED** **and** **AML** screening is **cleared** for each row (same rules as the amber banner on that section). Follow on-screen messaging if approve is blocked.
+- **Financial** section **Approve** stays disabled until the issuer has a complete **MARC** assessment (score, derived grade, PD, report, and report date). Invoice offers default to that grade.
+- **Financial** section **Approve** also stays disabled until every **visible** director/shareholder has onboarding at **WAIT_FOR_APPROVAL** / **APPROVED** **and** **AML** screening is **cleared** for each row (same rules as the amber banner on that section). Follow on-screen messaging if approve is blocked.
 - If a director, shareholder, or controller changed, pull the latest CTOS/company data and make sure the relevant party appears with the correct role and ID before approving.
 
 Director and shareholder rows are matched by normalized IC or SSM numbers. Directors are always included. Individual shareholders are included when they hold at least 5%. Corporate shareholders are shown as corporate parties. If a party has not completed onboarding, the issuer must provide or update the email and send the RegTank onboarding link from the issuer profile. Approved party onboarding is locked.

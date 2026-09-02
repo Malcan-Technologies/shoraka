@@ -48,6 +48,7 @@ import {
   resolveCtosTotalAssets,
   resolveCtosTotalLiabilities,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
+  isCompleteIssuerMarcAssessment,
   isMarcSmeGrade,
   MARC_ASSESSMENT_REQUIRED_MESSAGE,
   marcOfficialRiskProfile,
@@ -859,12 +860,13 @@ export function ApplicationFinancialReviewContent({
         {(() => {
           const marc = app.issuer_organization?.marcAssessment ?? null;
           const grade = isMarcSmeGrade(marc?.creditGrade) ? marc.creditGrade : null;
-          if (!marc || !grade) {
+          if (!marc || !isCompleteIssuerMarcAssessment(marc) || !grade) {
             return (
               <div className="space-y-3">
                 <p className={reviewEmptyStateClass}>{MARC_ASSESSMENT_REQUIRED_MESSAGE}</p>
                 <p className={reviewEmptyStateClass}>
-                  MARC assessment has not been completed for this issuer.
+                  Complete the issuer MARC assessment before approving Financial. Invoice offers
+                  default to this grade.
                 </p>
                 {issuerOrgId ? (
                   <Button asChild variant="outline" size="sm" className="rounded-lg">
