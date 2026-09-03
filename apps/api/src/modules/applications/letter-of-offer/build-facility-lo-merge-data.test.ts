@@ -208,6 +208,18 @@ describe("buildCorporateGuarantorPages", () => {
     expect(pages[2]?.signatory_rows).toEqual([row("S9")]);
   });
 
+  it("keeps all signatories in one block when the page cap is raised", () => {
+    const names = Array.from({ length: 9 }, (_, i) => ({
+      name: `S${i + 1}`,
+      nric: "",
+      capacity: "",
+    }));
+    const pages = buildCorporateGuarantorPages([{ name: "HoldCo", ssm: "1", signatories: names }], 100);
+    expect(pages).toHaveLength(1);
+    expect(pages[0]?.is_first_page).toBe(true);
+    expect(pages[0]?.signatory_rows).toHaveLength(5);
+  });
+
   it("keeps a blank box when a company has zero signatories", () => {
     const pages = buildCorporateGuarantorPages([{ name: "HoldCo", ssm: "1", signatories: [] }]);
     expect(pages).toHaveLength(1);

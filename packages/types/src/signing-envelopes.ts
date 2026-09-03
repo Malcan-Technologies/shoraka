@@ -123,8 +123,11 @@ export type SigningPackageOfferKind = "contract" | "invoice";
 /** Product template upload category key for signing package documents. */
 export const SIGNING_TEMPLATE_DOCUMENT_CATEGORY_KEY = "signing_template_document";
 
-/** System template key for the placeholder guarantor agreement document. */
+/** System template key for the CA-signed Joint and Several Guarantee (JSG). */
 export const GUARANTOR_AGREEMENT_TEMPLATE_KEY = "guarantor_agreement";
+
+/** System template key for the CA-signed Deed of Assignment. */
+export const DEED_OF_ASSIGNMENT_TEMPLATE_KEY = "deed_of_assignment";
 
 /**
  * Legacy shape: post-application supporting docs used to be linked into the
@@ -414,6 +417,16 @@ export function resolveSigningTemplateFromWorkflow(workflow: unknown): SigningTe
 /** True when the workflow defines at least one signing-package document. */
 export function workflowHasSigningPackage(workflow: unknown): boolean {
   return resolveSigningTemplateFromWorkflow(workflow).documents.length > 0;
+}
+
+/** True when the frozen/live workflow signing package includes this document key. */
+export function workflowDeclaresSigningDocumentKey(
+  workflow: unknown,
+  documentKey: string
+): boolean {
+  return resolveSigningTemplateFromWorkflow(workflow).documents.some(
+    (document) => document.key === documentKey
+  );
 }
 
 /**
@@ -832,6 +845,8 @@ export interface SigningDocumentDto {
   status: SigningDocumentStatus;
   /** True when a signed PDF is stored server-side. Raw S3 keys are never exposed to clients. */
   has_signed_pdf: boolean;
+  /** Product signing-package document key, when this row was materialized from a template. */
+  template_ref?: string | null;
   supporting_doc_step_key?: string | null;
 }
 

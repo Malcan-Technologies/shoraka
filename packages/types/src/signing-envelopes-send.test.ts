@@ -1,6 +1,7 @@
 import {
   hasEnvelopeBlockingNewSend,
   signingEnvelopeBlocksNewSend,
+  workflowDeclaresSigningDocumentKey,
   type SigningEnvelopeStatus,
 } from "./signing-envelopes";
 
@@ -27,5 +28,33 @@ describe("hasEnvelopeBlockingNewSend", () => {
 
   it("is true when any live or completed package exists", () => {
     expect(hasEnvelopeBlockingNewSend([{ status: "VOIDED" }, { status: "SENT" }])).toBe(true);
+  });
+});
+
+describe("workflowDeclaresSigningDocumentKey", () => {
+  const workflow = [
+    {
+      id: "financing_type",
+      config: {
+        signing_packages: {
+          enabled: true,
+          roles: [{ key: "guarantor", label: "Guarantor" }],
+          documents: [
+            {
+              key: "guarantor_agreement",
+              name: "Guarantor Agreement",
+              source: "TEMPLATE",
+              order: 0,
+              signer_role_keys: ["guarantor"],
+            },
+          ],
+        },
+      },
+    },
+  ];
+
+  it("finds Guarantor Agreement on the signing package", () => {
+    expect(workflowDeclaresSigningDocumentKey(workflow, "guarantor_agreement")).toBe(true);
+    expect(workflowDeclaresSigningDocumentKey(workflow, "offer_letter")).toBe(false);
   });
 });

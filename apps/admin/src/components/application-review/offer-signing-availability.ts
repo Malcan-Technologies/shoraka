@@ -1,6 +1,9 @@
-import type { SigningEnvelopeDto } from "@cashsouk/types";
+import {
+  isPrimarySignedOfferDocument,
+  type SigningEnvelopeDto,
+} from "@cashsouk/types";
 
-/** Envelope fields needed to decide if a signed offer-letter PDF can be fetched. */
+/** Envelope fields needed to decide if a signed offer PDF can be fetched. */
 export type SignedOfferEnvelope = Pick<
   SigningEnvelopeDto,
   "status" | "contract_id" | "invoice_id" | "documents"
@@ -8,14 +11,12 @@ export type SignedOfferEnvelope = Pick<
 
 /**
  * Same rule as admin/issuer signed-letter blob endpoints:
- * COMPLETED envelope with a GENERATED_OFFER_LETTER that has a stored signed PDF.
+ * COMPLETED envelope with a Facility Agreement or legacy Offer Letter that has a stored signed PDF.
  * Offer status APPROVED alone is not enough (e.g. contract-linked invoices skip envelopes).
  */
 function envelopeHasSignedOfferLetter(envelope: SignedOfferEnvelope): boolean {
   if (envelope.status !== "COMPLETED") return false;
-  return envelope.documents.some(
-    (document) => document.source === "GENERATED_OFFER_LETTER" && document.has_signed_pdf
-  );
+  return envelope.documents.some((document) => isPrimarySignedOfferDocument(document));
 }
 
 export function isSignedContractOfferLetterAvailable(input: {

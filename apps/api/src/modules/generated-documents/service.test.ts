@@ -3,7 +3,22 @@ jest.mock("../applications/letter-of-offer/render-facility-lo-docx", () => ({
   renderFacilityLoDocx: jest.fn(),
 }));
 jest.mock("../applications/letter-of-offer/build-facility-lo-merge-data");
+jest.mock("../applications/joint-several-guarantee/render-jsg-docx", () => ({
+  readJsgTemplateBytes: jest.fn(),
+  renderJsgDocx: jest.fn(),
+}));
+jest.mock("../applications/joint-several-guarantee/build-jsg-merge-data");
 jest.mock("../applications/letter-of-offer/convert-docx-to-pdf");
+jest.mock("../applications/deed-of-assignment/render-doa-docx", () => ({
+  readDeedOfAssignmentTemplateBytes: jest.fn(),
+  renderDeedOfAssignmentDocx: jest.fn(),
+}));
+jest.mock("../applications/deed-of-assignment/build-doa-merge-data");
+jest.mock("../applications/facility-agreement/render-fa-docx", () => ({
+  readFacilityAgreementTemplateBytes: jest.fn(),
+  renderFacilityAgreementDocx: jest.fn(),
+}));
+jest.mock("../applications/facility-agreement/build-fa-merge-data");
 jest.mock("../applications/repository");
 jest.mock("../products/repository");
 jest.mock("../organization/repository");
@@ -28,8 +43,18 @@ import { ProductRepository } from "../products/repository";
 import { OrganizationRepository } from "../organization/repository";
 import * as buildMerge from "../applications/letter-of-offer/build-facility-lo-merge-data";
 import * as renderDocx from "../applications/letter-of-offer/render-facility-lo-docx";
+import * as buildJsgMerge from "../applications/joint-several-guarantee/build-jsg-merge-data";
+import * as renderJsg from "../applications/joint-several-guarantee/render-jsg-docx";
 import * as convertPdf from "../applications/letter-of-offer/convert-docx-to-pdf";
+import * as buildDoaMerge from "../applications/deed-of-assignment/build-doa-merge-data";
+import * as renderDoa from "../applications/deed-of-assignment/render-doa-docx";
+import * as buildFaMerge from "../applications/facility-agreement/build-fa-merge-data";
+import * as renderFa from "../applications/facility-agreement/render-fa-docx";
 import { createFacilityLoFixture } from "../applications/letter-of-offer/facility-lo-fixture";
+import { createJsgFixture } from "../applications/joint-several-guarantee/jsg-fixture";
+import { createDeedOfAssignmentFixture } from "../applications/deed-of-assignment/doa-fixture";
+import { createFacilityAgreementFixture } from "../applications/facility-agreement/fa-fixture";
+import { prisma } from "../../lib/prisma";
 
 describe("workflowDeclaresGeneratedDocumentType", () => {
   const workflow = [
@@ -56,6 +81,104 @@ describe("workflowDeclaresGeneratedDocumentType", () => {
       false
     );
   });
+
+  it("returns true when the signing package includes Guarantor Agreement (JSG)", () => {
+    const jsgWorkflow = [
+      {
+        id: "financing_type",
+        config: {
+          signing_packages: {
+            enabled: true,
+            roles: [{ key: "guarantor", label: "Guarantor" }],
+            documents: [
+              {
+                key: "guarantor_agreement",
+                name: "Guarantor Agreement",
+                source: "TEMPLATE",
+                order: 0,
+                signer_role_keys: ["guarantor"],
+              },
+            ],
+          },
+        },
+      },
+    ];
+    expect(workflowDeclaresGeneratedDocumentType(jsgWorkflow, "arf_joint_several_guarantee")).toBe(
+      true
+    );
+    expect(workflowDeclaresGeneratedDocumentType(jsgWorkflow, "arf_contract_facility_lo")).toBe(
+      false
+    );
+  });
+
+  it("does not treat business_details guarantor agreement as JSG", () => {
+    const businessDetailsWorkflow = [
+      {
+        id: "business_details",
+        config: {
+          guarantor_agreement: {
+            name: "Guarantor agreement",
+            generated_document_type: "arf_joint_several_guarantee",
+          },
+        },
+      },
+    ];
+    expect(
+      workflowDeclaresGeneratedDocumentType(businessDetailsWorkflow, "arf_joint_several_guarantee")
+    ).toBe(false);
+  });
+
+  it("returns true when the signing package includes Deed of Assignment", () => {
+    const doaWorkflow = [
+      {
+        id: "financing_type",
+        config: {
+          signing_packages: {
+            enabled: true,
+            roles: [{ key: "issuer_director", label: "Director" }],
+            documents: [
+              {
+                key: "deed_of_assignment",
+                name: "Deed of Assignment",
+                source: "TEMPLATE",
+                order: 0,
+                signer_role_keys: ["issuer_director"],
+              },
+            ],
+          },
+        },
+      },
+    ];
+    expect(workflowDeclaresGeneratedDocumentType(doaWorkflow, "arf_deed_of_assignment")).toBe(true);
+    expect(workflowDeclaresGeneratedDocumentType(doaWorkflow, "arf_joint_several_guarantee")).toBe(
+      false
+    );
+  });
+
+  it("returns true when the signing package includes Facility Agreement", () => {
+    const faWorkflow = [
+      {
+        id: "financing_type",
+        config: {
+          signing_packages: {
+            enabled: true,
+            roles: [{ key: "issuer_director", label: "Director" }],
+            documents: [
+              {
+                key: "facility_agreement",
+                name: "Facility Agreement",
+                source: "TEMPLATE",
+                order: 0,
+                signer_role_keys: ["issuer_director"],
+              },
+            ],
+          },
+        },
+      },
+    ];
+    expect(workflowDeclaresGeneratedDocumentType(faWorkflow, "arf_facility_agreement")).toBe(true);
+    expect(workflowDeclaresGeneratedDocumentType(faWorkflow, "arf_deed_of_assignment")).toBe(false);
+  });
 });
 
 describe("GeneratedDocumentsService.generateDocument", () => {
@@ -71,6 +194,66 @@ describe("GeneratedDocumentsService.generateDocument", () => {
             generated_document_type: "arf_contract_facility_lo",
           },
         ],
+      },
+    },
+  ];
+  const jsgWorkflow = [
+    {
+      id: "financing_type",
+      config: {
+        signing_packages: {
+          enabled: true,
+          roles: [{ key: "guarantor", label: "Guarantor" }],
+          documents: [
+            {
+              key: "guarantor_agreement",
+              name: "Guarantor Agreement",
+              source: "TEMPLATE",
+              order: 0,
+              signer_role_keys: ["guarantor"],
+            },
+          ],
+        },
+      },
+    },
+  ];
+  const doaWorkflow = [
+    {
+      id: "financing_type",
+      config: {
+        signing_packages: {
+          enabled: true,
+          roles: [{ key: "issuer_director", label: "Director" }],
+          documents: [
+            {
+              key: "deed_of_assignment",
+              name: "Deed of Assignment",
+              source: "TEMPLATE",
+              order: 0,
+              signer_role_keys: ["issuer_director"],
+            },
+          ],
+        },
+      },
+    },
+  ];
+  const faWorkflow = [
+    {
+      id: "financing_type",
+      config: {
+        signing_packages: {
+          enabled: true,
+          roles: [{ key: "issuer_director", label: "Director" }],
+          documents: [
+            {
+              key: "facility_agreement",
+              name: "Facility Agreement",
+              source: "TEMPLATE",
+              order: 0,
+              signer_role_keys: ["issuer_director"],
+            },
+          ],
+        },
       },
     },
   ];
@@ -148,6 +331,23 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     jest.spyOn(buildMerge, "buildFacilityLoMergeData").mockReturnValue(createFacilityLoFixture());
     jest.spyOn(renderDocx, "readFacilityLoTemplateBytes").mockReturnValue(Buffer.from("template"));
     jest.spyOn(renderDocx, "renderFacilityLoDocx").mockReturnValue(Buffer.from("docx"));
+    jest.spyOn(buildJsgMerge, "buildJsgMergeData").mockReturnValue(createJsgFixture());
+    jest.spyOn(renderJsg, "readJsgTemplateBytes").mockReturnValue(Buffer.from("jsg-template"));
+    jest.spyOn(renderJsg, "renderJsgDocx").mockReturnValue(Buffer.from("jsg-docx"));
+    jest.spyOn(buildDoaMerge, "buildDeedOfAssignmentMergeData").mockReturnValue(
+      createDeedOfAssignmentFixture()
+    );
+    jest
+      .spyOn(renderDoa, "readDeedOfAssignmentTemplateBytes")
+      .mockReturnValue(Buffer.from("doa-template"));
+    jest.spyOn(renderDoa, "renderDeedOfAssignmentDocx").mockReturnValue(Buffer.from("doa-docx"));
+    jest
+      .spyOn(buildFaMerge, "buildFacilityAgreementMergeData")
+      .mockReturnValue(createFacilityAgreementFixture());
+    jest
+      .spyOn(renderFa, "readFacilityAgreementTemplateBytes")
+      .mockReturnValue(Buffer.from("fa-template"));
+    jest.spyOn(renderFa, "renderFacilityAgreementDocx").mockReturnValue(Buffer.from("fa-docx"));
     jest.spyOn(convertPdf, "convertDocxToPdf").mockResolvedValue(Buffer.from("%PDF-mock"));
   });
 
@@ -302,6 +502,242 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     ).rejects.toMatchObject({
       statusCode: 400,
       code: "GENERATED_DOCUMENT_DATA_INCOMPLETE",
+    });
+  });
+
+  it("returns JSG PDF when the signing package includes Guarantor Agreement", async () => {
+    productRepository.findByBaseAndVersion.mockResolvedValue({
+      workflow: jsgWorkflow,
+    } as never);
+
+    const result = await service.generateDocument({
+      applicationId,
+      typeKey: "arf_joint_several_guarantee",
+      format: "pdf",
+      userId,
+    });
+
+    expect(result.contentType).toBe("application/pdf");
+    expect(result.filename).toMatch(/^ARF-JSG-.+\.pdf$/);
+    expect(result.filename.endsWith(".pdf")).toBe(true);
+    expect(buildJsgMerge.buildJsgMergeData).toHaveBeenCalled();
+    expect(renderJsg.renderJsgDocx).toHaveBeenCalled();
+    expect(convertPdf.convertDocxToPdf).toHaveBeenCalled();
+  });
+
+  it("rejects JSG when the product does not configure it", async () => {
+    await expect(
+      service.generateDocument({
+        applicationId,
+        typeKey: "arf_joint_several_guarantee",
+        format: "pdf",
+        userId,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "GENERATED_DOCUMENT_NOT_CONFIGURED",
+    });
+  });
+
+  it("rejects JSG when authorised representatives have not been saved", async () => {
+    productRepository.findByBaseAndVersion.mockResolvedValue({
+      workflow: jsgWorkflow,
+    } as never);
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      contract: {
+        ...baseApplication.contract,
+        offer_details: {
+          offered_facility: 100000,
+          sent_at: "2026-08-01T00:00:00.000Z",
+        },
+      },
+    } as never);
+
+    await expect(
+      service.generateDocument({
+        applicationId,
+        typeKey: "arf_joint_several_guarantee",
+        format: "pdf",
+        userId,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "GENERATED_DOCUMENT_DATA_INCOMPLETE",
+    });
+  });
+
+  it("returns Deed of Assignment PDF when the signing package includes it", async () => {
+    productRepository.findByBaseAndVersion.mockResolvedValue({
+      workflow: doaWorkflow,
+    } as never);
+
+    const result = await service.generateDocument({
+      applicationId,
+      typeKey: "arf_deed_of_assignment",
+      format: "pdf",
+      userId,
+    });
+
+    expect(result.contentType).toBe("application/pdf");
+    expect(result.filename).toMatch(/^ARF-DOA-.+\.pdf$/);
+    expect(buildDoaMerge.buildDeedOfAssignmentMergeData).toHaveBeenCalled();
+    expect(renderDoa.renderDeedOfAssignmentDocx).toHaveBeenCalled();
+    expect(convertPdf.convertDocxToPdf).toHaveBeenCalled();
+  });
+
+  it("rejects Deed of Assignment when the product does not configure it", async () => {
+    await expect(
+      service.generateDocument({
+        applicationId,
+        typeKey: "arf_deed_of_assignment",
+        format: "pdf",
+        userId,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "GENERATED_DOCUMENT_NOT_CONFIGURED",
+    });
+  });
+
+  it("rejects Deed of Assignment when authorised representatives have not been saved", async () => {
+    productRepository.findByBaseAndVersion.mockResolvedValue({
+      workflow: doaWorkflow,
+    } as never);
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      contract: {
+        ...baseApplication.contract,
+        offer_details: {
+          offered_facility: 100000,
+          sent_at: "2026-08-01T00:00:00.000Z",
+        },
+      },
+    } as never);
+
+    await expect(
+      service.generateDocument({
+        applicationId,
+        typeKey: "arf_deed_of_assignment",
+        format: "pdf",
+        userId,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "GENERATED_DOCUMENT_DATA_INCOMPLETE",
+    });
+  });
+
+  it("returns Facility Agreement PDF for a contract offer", async () => {
+    productRepository.findByBaseAndVersion.mockResolvedValue({
+      workflow: faWorkflow,
+    } as never);
+
+    const result = await service.generateDocument({
+      applicationId,
+      typeKey: "arf_facility_agreement",
+      format: "pdf",
+      userId,
+      contractId: "contract_1",
+    });
+
+    expect(result.contentType).toBe("application/pdf");
+    expect(result.filename).toMatch(/^ARF-FA-.+\.pdf$/);
+    expect(buildFaMerge.buildFacilityAgreementMergeData).toHaveBeenCalledWith(
+      expect.objectContaining({ offerKind: "contract" })
+    );
+    expect(renderFa.renderFacilityAgreementDocx).toHaveBeenCalled();
+    expect(prisma.generatedDocumentEvidence.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          document_type: "arf_facility_agreement",
+          contract_id: "contract_1",
+          invoice_id: null,
+        }),
+      })
+    );
+  });
+
+  it("returns Facility Agreement PDF for an invoice offer and stores invoice evidence", async () => {
+    productRepository.findByBaseAndVersion.mockResolvedValue({
+      workflow: faWorkflow,
+    } as never);
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      contract: {
+        ...baseApplication.contract,
+        offer_details: null,
+      },
+      invoices: [
+        {
+          id: "inv_1",
+          display_reference: "INV-REF-1",
+          offer_details: {
+            offered_amount: 180000,
+            platform_fee_rate_percent: 1.5,
+            sent_at: "2026-08-20T00:00:00.000Z",
+            offer_acceptance: baseApplication.contract.offer_details.offer_acceptance,
+          },
+        },
+      ],
+    } as never);
+
+    const result = await service.generateDocument({
+      applicationId,
+      typeKey: "arf_facility_agreement",
+      format: "pdf",
+      userId,
+      invoiceId: "inv_1",
+    });
+
+    expect(result.contentType).toBe("application/pdf");
+    expect(buildFaMerge.buildFacilityAgreementMergeData).toHaveBeenCalledWith(
+      expect.objectContaining({ offerKind: "invoice" })
+    );
+    expect(prisma.generatedDocumentEvidence.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          document_type: "arf_facility_agreement",
+          invoice_id: "inv_1",
+        }),
+      })
+    );
+  });
+
+  it("rejects Facility Agreement when no offer has been sent", async () => {
+    productRepository.findByBaseAndVersion.mockResolvedValue({
+      workflow: faWorkflow,
+    } as never);
+    applicationRepository.findById.mockResolvedValue({
+      ...baseApplication,
+      contract: { ...baseApplication.contract, offer_details: null },
+      invoices: [],
+    } as never);
+
+    await expect(
+      service.generateDocument({
+        applicationId,
+        typeKey: "arf_facility_agreement",
+        format: "pdf",
+        userId,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "GENERATED_DOCUMENT_REQUIRES_NOT_MET",
+    });
+  });
+
+  it("rejects Facility Agreement when the product does not configure it", async () => {
+    await expect(
+      service.generateDocument({
+        applicationId,
+        typeKey: "arf_facility_agreement",
+        format: "pdf",
+        userId,
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "GENERATED_DOCUMENT_NOT_CONFIGURED",
     });
   });
 });

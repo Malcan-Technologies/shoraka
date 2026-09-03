@@ -342,9 +342,14 @@ export function pairSignatoryRows(
 
 /** Chunk each company's signatories into pages of up to 4 (rows of 2). */
 export function buildCorporateGuarantorPages(
-  companies: ContractFacilityLoCorporateGuarantor[]
+  companies: ContractFacilityLoCorporateGuarantor[],
+  signatoriesPerPage = FACILITY_LO_CORPORATE_SIGNATORIES_PER_PAGE
 ): FacilityLoCorporateGuarantorPage[] {
-  const rowsPerPage = FACILITY_LO_CORPORATE_SIGNATORIES_PER_PAGE / 2;
+  const perPage =
+    Number.isFinite(signatoriesPerPage) && signatoriesPerPage > 0
+      ? signatoriesPerPage
+      : FACILITY_LO_CORPORATE_SIGNATORIES_PER_PAGE;
+  const rowsPerPage = Math.max(1, Math.ceil(perPage / 2));
   const pages: FacilityLoCorporateGuarantorPage[] = [];
 
   for (const company of companies) {

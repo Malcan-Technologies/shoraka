@@ -51,6 +51,29 @@ describe("offer-signing-availability", () => {
     ).toBe(true);
   });
 
+  it("returns true when a completed envelope has a signed Facility Agreement PDF", () => {
+    const completed = envelope({
+      status: "COMPLETED",
+      contract_id: "c1",
+      documents: [
+        {
+          id: "d1",
+          name: "Facility Agreement",
+          description: null,
+          source: "TEMPLATE",
+          template_ref: "facility_agreement",
+          order: 0,
+          required: true,
+          status: "COMPLETED",
+          has_signed_pdf: true,
+        },
+      ],
+    });
+    expect(
+      isSignedContractOfferLetterAvailable({ contractId: "c1", envelopes: [completed] })
+    ).toBe(true);
+  });
+
   it("ignores incomplete envelopes and envelopes without a signed offer PDF", () => {
     const envelopes: SignedOfferEnvelope[] = [
       envelope({

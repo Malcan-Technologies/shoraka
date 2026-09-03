@@ -2748,6 +2748,39 @@ export class ApiClient {
     return response.blob();
   }
 
+  /** Admin: merged unsigned signing-package PDF with wet-ink signature boxes (no SigningCloud). */
+  async getAdminSigningDocumentPreviewBlob(
+    applicationId: string,
+    documentKey: string,
+    input?: {
+      disposition?: "inline" | "attachment";
+      invoiceId?: string | null;
+      contractId?: string | null;
+    }
+  ): Promise<{ blob: Blob; filename: string }> {
+    const params = new URLSearchParams();
+    params.set("disposition", input?.disposition ?? "inline");
+    if (input?.invoiceId) params.set("invoiceId", input.invoiceId);
+    if (input?.contractId) params.set("contractId", input.contractId);
+    const url = `${this.baseUrl}/v1/admin/signing/applications/${encodeURIComponent(
+      applicationId
+    )}/documents/${encodeURIComponent(documentKey)}/preview?${params.toString()}`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    const disposition = response.headers.get("Content-Disposition");
+    const match = disposition?.match(/filename="([^"]+)"/);
+    return {
+      blob: await response.blob(),
+      filename: match?.[1] || `${documentKey}.pdf`,
+    };
+  }
+
   /** Issuer: fetch a signed envelope document PDF (server resolves S3 key). */
   async getIssuerSignedSigningDocumentBlob(
     applicationId: string,

@@ -9,6 +9,21 @@ export const sendAdminSigningPackageSchema = z.object({
   invoiceId: z.string().min(1).nullish(),
 });
 
+export const previewSigningDocumentParamsSchema = z.object({
+  applicationId: z.string().min(1),
+  documentKey: z
+    .string()
+    .min(1)
+    .max(80)
+    .regex(/^[a-z0-9_]+$/, "documentKey must be a signing-package document key"),
+});
+
+export const previewSigningDocumentQuerySchema = z.object({
+  disposition: z.enum(["inline", "attachment"]).default("inline"),
+  contractId: z.string().min(1).optional(),
+  invoiceId: z.string().min(1).optional(),
+});
+
 export const voidEnvelopeSchema = z.object({
   reason: z.string().max(500).nullish(),
 });

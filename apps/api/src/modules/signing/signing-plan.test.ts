@@ -166,6 +166,32 @@ describe("parseSigningTemplateConfig", () => {
     expect(cfg.roles.some((role) => role.key === "guarantor")).toBe(true);
   });
 
+  it("preserves an explicit Deed of Assignment document from the product template", () => {
+    const cfg = parseSigningTemplateConfig({
+      enabled: true,
+      roles: [{ key: "issuer_director", label: "Director" }],
+      documents: [
+        {
+          key: "offer_letter",
+          name: "Offer letter",
+          source: "GENERATED_OFFER_LETTER",
+          order: 0,
+          signer_role_keys: ["issuer_director"],
+        },
+        {
+          key: "deed_of_assignment",
+          name: "Deed of Assignment",
+          source: "TEMPLATE",
+          order: 1,
+          signer_role_keys: ["issuer_director"],
+        },
+      ],
+    });
+    expect(cfg.documents.map((d) => d.key)).toEqual(["offer_letter", "deed_of_assignment"]);
+    expect(cfg.documents[1]?.source).toBe("TEMPLATE");
+    expect(cfg.documents[1]?.signer_role_keys).toEqual(["issuer_director"]);
+  });
+
   it("discards legacy supporting_docs links (post-app uploads are store-only)", () => {
     const cfg = parseSigningTemplateConfig({
       enabled: true,

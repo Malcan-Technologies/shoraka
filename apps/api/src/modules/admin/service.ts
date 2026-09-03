@@ -134,6 +134,7 @@ import {
   type InvoiceOfferFeeScheduleWriteMode,
   type ReviewItemType,
   canonicalDownloadFilenameToken,
+  pickPrimarySignedOfferDocument,
   FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE,
   getFacilityLockedCategoriesFromWorkflow,
   isFacilityLockedSupportingDocumentItem,
@@ -6969,15 +6970,12 @@ export class AdminService {
         ...(params.invoiceId ? { invoice_id: params.invoiceId } : {}),
       },
       include: {
-        documents: {
-          where: { source: "GENERATED_OFFER_LETTER" },
-          orderBy: { order: "asc" },
-        },
+        documents: { orderBy: { order: "asc" } },
       },
       orderBy: { completed_at: "desc" },
     });
 
-    const signedDocument = envelope?.documents.find((document) => document.signed_s3_key?.trim());
+    const signedDocument = pickPrimarySignedOfferDocument(envelope?.documents ?? []);
     const key = signedDocument?.signed_s3_key?.trim();
     if (!key) {
       throw new AppError(400, "INVALID_STATE", "Signed offer letter is not available");

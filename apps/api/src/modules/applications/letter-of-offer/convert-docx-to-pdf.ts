@@ -43,7 +43,7 @@ export async function convertDocxToPdf(docxBuffer: Buffer): Promise<Buffer> {
     new Blob([docxBuffer], {
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }),
-    "letter-of-offer.docx"
+    "document.docx"
   );
 
   const controller = new AbortController();
@@ -73,9 +73,10 @@ export async function convertDocxToPdf(docxBuffer: Buffer): Promise<Buffer> {
 
   if (!response.ok) {
     const detail = (await response.text()).trim().slice(0, 500);
+    const libreOfficeFailed = /uno exception|LibreOffice failed|convert to PDF/i.test(detail);
     throw new DocxToPdfError(
       `Gotenberg returned ${response.status}${detail ? `: ${detail}` : ""}`,
-      response.status >= 500 ? "GOTENBERG_UNAVAILABLE" : "CONVERSION_FAILED"
+      !libreOfficeFailed && response.status >= 500 ? "GOTENBERG_UNAVAILABLE" : "CONVERSION_FAILED"
     );
   }
 

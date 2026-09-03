@@ -53,6 +53,7 @@ import {
   type AuthorizedPartiesSnapshot,
   type AuthorizedPartiesSubmitPayload,
   canonicalDownloadFilenameToken,
+  pickPrimarySignedOfferDocument,
 } from "@cashsouk/types";
 import { patchOfferAcceptance } from "./offer-acceptance";
 import {
@@ -4258,15 +4259,12 @@ export class ApplicationService {
         ...(params.invoiceId ? { invoice_id: params.invoiceId } : {}),
       },
       include: {
-        documents: {
-          where: { source: "GENERATED_OFFER_LETTER" },
-          orderBy: { order: "asc" },
-        },
+        documents: { orderBy: { order: "asc" } },
       },
       orderBy: { completed_at: "desc" },
     });
 
-    const signedDocument = envelope?.documents.find((document) => document.signed_s3_key?.trim());
+    const signedDocument = pickPrimarySignedOfferDocument(envelope?.documents ?? []);
     const key = signedDocument?.signed_s3_key?.trim();
     if (!key) {
       throw new AppError(400, "INVALID_STATE", "Signed offer letter is not available");

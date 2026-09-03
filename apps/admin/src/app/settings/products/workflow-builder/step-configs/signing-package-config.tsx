@@ -35,18 +35,25 @@ import { PhaseDeadlineConfigEditor } from "./phase-deadline-config-editor";
 
 const SYSTEM_SIGNING_TEMPLATES = [
   {
-    templateKey: "offer_letter",
-    label: "Offer letter",
-    description: "Generated from the system offer letter template",
-    source: "GENERATED_OFFER_LETTER" as SigningDocumentSource,
-    defaultName: "Offer letter",
+    templateKey: "facility_agreement",
+    label: "Facility Agreement",
+    description: "CA-signed Facility Agreement generated from the facility or invoice offer",
+    source: "TEMPLATE" as SigningDocumentSource,
+    defaultName: "Facility Agreement",
   },
   {
     templateKey: "guarantor_agreement",
     label: "Guarantor Agreement",
-    description: "Placeholder guarantor agreement PDF until a template file is uploaded",
+    description: "CA-signed Joint and Several Guarantee generated from the facility offer",
     source: "TEMPLATE" as SigningDocumentSource,
     defaultName: "Guarantor Agreement",
+  },
+  {
+    templateKey: "deed_of_assignment",
+    label: "Deed of Assignment",
+    description: "CA-signed Deed of Assignment generated from the facility offer",
+    source: "TEMPLATE" as SigningDocumentSource,
+    defaultName: "Deed of Assignment",
   },
 ] as const;
 

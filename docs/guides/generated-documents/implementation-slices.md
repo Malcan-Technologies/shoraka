@@ -9,7 +9,7 @@ Playbook for building the generated document system (ARF-i contract facility LO 
 1. Finish one slice completely (code + automated checks + manual checks) before starting the next.
 2. One commit per slice (or one commit + follow-up fix commits if a gate fails). Do not start slice N+1 on uncommitted slice N work.
 3. If a manual check fails, fix it in the same slice — do not paper over it in a later slice.
-4. Keep out of scope: PDFKit offer letters, SigningCloud `GENERATED_OFFER_LETTER`, trustee/prospectus generators, invoice LO, Send Offer auto-generate, CMS upload of Word templates.
+4. Keep out of scope: trustee/prospectus generators, invoice LO (invoice e-sign uses Facility Agreement), Send Offer auto-generate, CMS upload of Word templates. PDFKit `GENERATED_OFFER_LETTER` remains only for in-flight envelopes.
 
 ## Slice map
 

@@ -48,7 +48,19 @@ function asNumber(value: unknown): number | null {
   return null;
 }
 
-function resolveRegisteredAddress(org: {
+function formatCodAddress(block: JsonRecord | null): string {
+  if (!block) return "";
+  return formatAddressBlock({
+    line1: asString(block.line1 ?? block.addressLine1),
+    line2: asString(block.line2 ?? block.addressLine2),
+    city: asString(block.city),
+    postcode: asString(block.postcode ?? block.postalCode),
+    state: asString(block.state),
+    country: asString(block.country),
+  });
+}
+
+export function resolveRegisteredAddress(org: {
   address?: string | null;
   corporate_onboarding_data?: unknown;
 }): string {
@@ -56,18 +68,18 @@ function resolveRegisteredAddress(org: {
   const addresses = asRecord(cod?.addresses);
   const registered =
     asRecord(addresses?.registered) ?? asRecord(addresses?.registeredAddress) ?? null;
-  if (registered) {
-    const formatted = formatAddressBlock({
-      line1: asString(registered.line1 ?? registered.addressLine1),
-      line2: asString(registered.line2 ?? registered.addressLine2),
-      city: asString(registered.city),
-      postcode: asString(registered.postcode ?? registered.postalCode),
-      state: asString(registered.state),
-      country: asString(registered.country),
-    });
-    if (formatted) return formatted;
-  }
+  const formatted = formatCodAddress(registered);
+  if (formatted) return formatted;
   return asString(org.address);
+}
+
+/** COD `addresses.business` (alias `businessAddress`). Empty when unset — not org.address. */
+export function resolveBusinessAddress(org: { corporate_onboarding_data?: unknown }): string {
+  const cod = asRecord(org.corporate_onboarding_data);
+  const addresses = asRecord(cod?.addresses);
+  const business =
+    asRecord(addresses?.business) ?? asRecord(addresses?.businessAddress) ?? null;
+  return formatCodAddress(business);
 }
 
 /** Org column first, then COD basicInfo SSM aliases (Toyota legacy shape included). */
