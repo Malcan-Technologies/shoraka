@@ -1,10 +1,12 @@
 import { ApplicationLogEventType } from "../applications/logs/types";
 import { buildPaymasterIdentityRemark } from "./identity-audit";
 import {
+  masterIdentitySnapshot,
   parseRegistrationLookup,
   parseRelatedPartyFlag,
   parseSubmittedIdentity,
   submittedIdentityConflictsWithMaster,
+  submittedIdentitySnapshot,
 } from "./identity";
 
 describe("Paymaster identity helpers", () => {
@@ -54,6 +56,34 @@ describe("Paymaster identity helpers", () => {
     });
     expect(matching && submittedIdentityConflictsWithMaster(master, matching)).toBe(false);
     expect(conflicting && submittedIdentityConflictsWithMaster(master, conflicting)).toBe(true);
+  });
+
+  it("snapshots submitted vs master identity for verification audit", () => {
+    const submitted = parseSubmittedIdentity({
+      name: "bbbb",
+      ssm_number: "999999999999",
+      country: "MY",
+      entity_type: "Federal Government Agency",
+    });
+    expect(submitted && submittedIdentitySnapshot(submitted)).toEqual({
+      name: "bbbb",
+      entity_type: "Federal Government Agency",
+      ssm_number: "999999999999",
+      country: "MY",
+    });
+    expect(
+      masterIdentitySnapshot({
+        legal_name: "yayay",
+        entity_type: "State Government",
+        registration_number: "999999999999",
+        registration_country: "MY",
+      })
+    ).toEqual({
+      name: "yayay",
+      entity_type: "State Government",
+      ssm_number: "999999999999",
+      country: "MY",
+    });
   });
 });
 
