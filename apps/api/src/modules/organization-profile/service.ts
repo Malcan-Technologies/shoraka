@@ -32,7 +32,7 @@ import {
   type ScGender,
   type ScInvestorCategory,
   type ScPersonKind,
-  resolveScInvestorCategoryForStorage,
+  isAllowedScInvestorCategory,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
@@ -574,18 +574,11 @@ export async function computeOrgProfileCompleteness(
   const name =
     [org.first_name, org.last_name].filter(Boolean).join(" ").trim() || org.name || null;
   const organizationType = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
-  const scInvestorCategory = resolveScInvestorCategoryForStorage({
+  const scInvestorCategory = isAllowedScInvestorCategory(org.sc_investor_category, {
     organizationType,
-    isSophisticated: org.is_sophisticated_investor,
-    sophisticatedReason: org.sophisticated_investor_reason,
-    existing: org.sc_investor_category,
-  });
-  if (scInvestorCategory && scInvestorCategory !== org.sc_investor_category) {
-    await prisma.investorOrganization.update({
-      where: { id: organizationId },
-      data: { sc_investor_category: scInvestorCategory },
-    });
-  }
+  })
+    ? org.sc_investor_category
+    : null;
   if (organizationType === "COMPANY") {
     const business = pickCodAddress(org.corporate_onboarding_data, "business");
     return buildInvestorProfileCompleteness({
@@ -600,8 +593,6 @@ export async function computeOrgProfileCompleteness(
         businessState: business?.state ?? null,
         businessPostalCode: business?.postalCode ?? null,
         scInvestorCategory,
-        isSophisticatedInvestor: org.is_sophisticated_investor,
-        sophisticatedInvestorReason: org.sophisticated_investor_reason,
       },
     });
   }
@@ -617,8 +608,6 @@ export async function computeOrgProfileCompleteness(
       postalCode: residential?.postalCode ?? null,
       nationality: org.nationality,
       scInvestorCategory,
-      isSophisticatedInvestor: org.is_sophisticated_investor,
-      sophisticatedInvestorReason: org.sophisticated_investor_reason,
     },
   });
 }
@@ -809,6 +798,20 @@ export async function patchOrgMasterProfile(params: {
     );
   }
   if (patch.scInvestorCategory !== undefined) {
+    if (source === "USER") {
+      throw new AppError(403, "FORBIDDEN", "SC ComRep investor type is set by CashSouk admin.");
+    }
+    const organizationType = investor.type === "COMPANY" ? "COMPANY" : "PERSONAL";
+    if (
+      patch.scInvestorCategory !== null &&
+      !isAllowedScInvestorCategory(patch.scInvestorCategory, { organizationType })
+    ) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "SC ComRep investor type is not valid for this organization."
+      );
+    }
     data.sc_investor_category = applyScalar(
       "scInvestorCategory",
       investor.sc_investor_category as ScInvestorCategory | null,

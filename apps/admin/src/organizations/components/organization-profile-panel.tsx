@@ -798,32 +798,43 @@ export function OrganizationProfilePanel({
           <AdminDetailCardHeader
             icon={IdentificationIcon}
             title="Investor classification"
-            description="CashSouk investor category on the master record"
+            description="CashSouk product status and SC ComRep reporting type are separate fields"
             actions={sectionActions("classification")}
           />
           <CardContent>
-            {editingSection === "classification" ? (
-              <EditableSelect
-                label="Type of investor"
-                value={draft.scInvestorCategory}
-                onChange={(scInvestorCategory) =>
-                  setDraft((current) => ({ ...current, scInvestorCategory }))
-                }
-                options={allowedScInvestorCategories({
-                  organizationType: org.type === "COMPANY" ? "COMPANY" : "PERSONAL",
-                  isSophisticated: org.isSophisticatedInvestor,
-                }).map((value) => ({
-                  value,
-                  label: SC_INVESTOR_CATEGORY_LABELS[value],
-                }))}
-              />
-            ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <ReadField
-                label="Type of investor"
-                value={investorCategoryLabel}
-                missing={requiredFieldKeys.has("scInvestorCategory")}
+                label="Investor Status"
+                value={
+                  org.isSophisticatedInvestor
+                    ? "Sophisticated"
+                    : org.type === "COMPANY"
+                      ? "Non-sophisticated entity"
+                      : "Retail"
+                }
               />
-            )}
+              {editingSection === "classification" ? (
+                <EditableSelect
+                  label="SC ComRep Investor Type"
+                  value={draft.scInvestorCategory}
+                  onChange={(scInvestorCategory) =>
+                    setDraft((current) => ({ ...current, scInvestorCategory }))
+                  }
+                  options={allowedScInvestorCategories({
+                    organizationType: org.type === "COMPANY" ? "COMPANY" : "PERSONAL",
+                  }).map((value) => ({
+                    value,
+                    label: SC_INVESTOR_CATEGORY_LABELS[value],
+                  }))}
+                />
+              ) : (
+                <ReadField
+                  label="SC ComRep Investor Type"
+                  value={investorCategoryLabel}
+                  missing={requiredFieldKeys.has("scInvestorCategory")}
+                />
+              )}
+            </div>
           </CardContent>
         </Card>
       ) : null}

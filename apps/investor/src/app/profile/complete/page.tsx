@@ -6,10 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import {
-  allowedScInvestorCategories,
   SC_GENDER_LABELS,
   SC_GENDERS,
-  SC_INVESTOR_CATEGORY_LABELS,
   SC_MALAYSIAN_STATES,
 } from "@cashsouk/types";
 import { OnboardingStepper, PageShell, StickyFormFooter } from "@cashsouk/ui";
@@ -59,7 +57,6 @@ export default function InvestorProfileCompletePage() {
   };
 
   const [form, setForm] = React.useState({
-    scInvestorCategory: activeOrganization?.scInvestorCategory ?? "",
     gender: "",
     nationality: activeOrganization?.nationality ?? "",
     state: activeOrganization?.residentialAddress?.state ?? "",
@@ -144,9 +141,6 @@ export default function InvestorProfileCompletePage() {
             orgId,
             isCompany
               ? {
-                  ...(needs(missing, "scInvestorCategory")
-                    ? { scInvestorCategory: form.scInvestorCategory || null }
-                    : {}),
                   ...(needs(missing, "dateOfIncorporation")
                     ? { dateOfIncorporation: form.dateOfIncorporation || null }
                     : {}),
@@ -165,9 +159,6 @@ export default function InvestorProfileCompletePage() {
                     : {}),
                 }
               : {
-                  ...(needs(missing, "scInvestorCategory")
-                    ? { scInvestorCategory: form.scInvestorCategory || null }
-                    : {}),
                   ...(needs(missing, "gender") ? { gender: form.gender || null } : {}),
                   ...(needs(missing, "nationality") ? { nationality: form.nationality || null } : {}),
                   ...(needs(missing, "state") || needs(missing, "postalCode")
@@ -196,15 +187,9 @@ export default function InvestorProfileCompletePage() {
           </p>
         </div>
         {needs(missing, "scInvestorCategory") ? (
-          <SelectField
-            label="Type of investor"
-            value={form.scInvestorCategory}
-            onChange={(value) => setForm({ ...form, scInvestorCategory: value })}
-            options={allowedScInvestorCategories({
-              organizationType: isCompany ? "COMPANY" : "PERSONAL",
-              isSophisticated: Boolean(activeOrganization?.isSophisticatedInvestor),
-            }).map((key) => ({ value: key, label: SC_INVESTOR_CATEGORY_LABELS[key] }))}
-          />
+          <p className="text-ui text-muted-foreground sm:col-span-2">
+            SC ComRep investor type is set by CashSouk admin.
+          </p>
         ) : null}
         {!isCompany && needs(missing, "gender") ? (
           <SelectField

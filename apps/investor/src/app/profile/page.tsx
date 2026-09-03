@@ -27,13 +27,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import {
-  filterVisiblePeopleRows,
-  SC_GENDER_LABELS,
-  SC_INVESTOR_CATEGORY_LABELS,
-  type ScGender,
-  type ScInvestorCategory,
-} from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -230,14 +224,6 @@ function formatGender(value: string | null | undefined): string {
   if (!value) return "—";
   const key = value.trim().toUpperCase();
   if (key in SC_GENDER_LABELS) return SC_GENDER_LABELS[key as ScGender];
-  return value;
-}
-
-function formatInvestorCategory(value: string | null | undefined): string {
-  if (!value) return "—";
-  if (value in SC_INVESTOR_CATEGORY_LABELS) {
-    return SC_INVESTOR_CATEGORY_LABELS[value as ScInvestorCategory];
-  }
   return value;
 }
 
@@ -1018,7 +1004,6 @@ export default function ProfilePage() {
                     <div className="p-6">
                       <KeyValueGrid
                         items={[
-                          { label: "Category", value: formatInvestorCategory(orgData?.scInvestorCategory) },
                           {
                             label: "Account class",
                             value: orgData?.isSophisticatedInvestor ? "Sophisticated" : "Retail",
@@ -1360,7 +1345,6 @@ export default function ProfilePage() {
                     <div className="p-6">
                       <KeyValueGrid
                         items={[
-                          { label: "Category", value: formatInvestorCategory(orgData?.scInvestorCategory) },
                           {
                             label: "Account class",
                             value: orgData?.isSophisticatedInvestor ? "Sophisticated" : "Non-sophisticated entity",

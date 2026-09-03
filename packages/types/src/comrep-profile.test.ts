@@ -1,8 +1,8 @@
 import {
+  allowedScInvestorCategories,
   buildInvestorProfileCompleteness,
   buildIssuerProfileCompleteness,
   computeIssuerCompanyCompleteness,
-  deriveScInvestorCategory,
   groupPeopleMissingByParty,
   issuerFinancialsFromYearBlock,
   issuerFlowStepComplete,
@@ -11,7 +11,6 @@ import {
   missingItemsForIssuerFlowStep,
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
-  resolveScInvestorCategoryForStorage,
   SC_SUSTAINABILITY_CATEGORIES,
   valuesEqualForMismatch,
 } from "./comrep-profile";
@@ -175,7 +174,6 @@ describe("investor personal completeness [07000]", () => {
         postalCode: "47300",
         nationality: "Malaysia",
         scInvestorCategory: "RETAIL",
-        isSophisticatedInvestor: false,
       },
     });
     expect(result.complete).toBe(true);
@@ -243,78 +241,85 @@ describe("campaign sustainability category [03000]", () => {
   });
 });
 
-describe("SC investor classification derivation", () => {
-  it("does not map sophisticated=true to one category", () => {
-    expect(
-      deriveScInvestorCategory({
-        organizationType: "PERSONAL",
-        isSophisticated: true,
-        sophisticatedReason: null,
-      }).status
-    ).toBe("ambiguous");
-    expect(
-      deriveScInvestorCategory({
-        organizationType: "COMPANY",
-        isSophisticated: true,
-        sophisticatedReason: "Company organization",
-      })
-    ).toEqual({
-      status: "ambiguous",
-      candidates: ["SOPHISTICATED_HIGH_NET_WORTH_ENTITY", "NON_SOPHISTICATED_ENTITY"],
+describe("SC ComRep investor category", () => {
+  it("lists personal and corporate options separately and does not use the product flag", () => {
+    expect(allowedScInvestorCategories({ organizationType: "PERSONAL" })).toEqual([
+      "ANGEL",
+      "RETAIL",
+      "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL",
+      "SOPHISTICATED_ACCREDITED",
+    ]);
+    expect(allowedScInvestorCategories({ organizationType: "COMPANY" })).toEqual([
+      "SOPHISTICATED_HIGH_NET_WORTH_ENTITY",
+      "NON_SOPHISTICATED_ENTITY",
+    ]);
+  });
+
+  it("requires an explicit SC category and does not auto-complete it", () => {
+    const personal = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101011234",
+        dateOfBirth: "1980-01-01",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: null,
+      },
     });
+    expect(personal.missing.map((item) => item.field)).toContain("scInvestorCategory");
+
+    const corporate = buildInvestorProfileCompleteness({
+      organizationType: "COMPANY",
+      corporate: {
+        name: "Acme Capital Sdn Bhd",
+        registrationNumber: "202401000001",
+        identityPrefix: "ROC",
+        dateOfIncorporation: "2020-01-01",
+        countryOfIncorporation: "Malaysia",
+        gender: "NOT_APPLICABLE",
+        businessState: "Selangor",
+        businessPostalCode: "47300",
+        scInvestorCategory: null,
+      },
+    });
+    expect(corporate.missing.map((item) => item.field)).toContain("scInvestorCategory");
   });
 
-  it("derives HNW individual vs accredited only from distinct reasons", () => {
-    expect(
-      deriveScInvestorCategory({
-        organizationType: "PERSONAL",
-        isSophisticated: true,
-        sophisticatedReason: "Net personal assets exceeding RM3,000,000",
-      })
-    ).toEqual({ status: "unique", category: "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL" });
-    expect(
-      deriveScInvestorCategory({
-        organizationType: "PERSONAL",
-        isSophisticated: true,
-        sophisticatedReason: "Professional qualification",
-      })
-    ).toEqual({ status: "unique", category: "SOPHISTICATED_ACCREDITED" });
-    expect(
-      deriveScInvestorCategory({
-        organizationType: "PERSONAL",
-        isSophisticated: true,
-        sophisticatedReason:
-          "Annual income exceeding RM300,000; Professional qualification",
-      }).status
-    ).toBe("ambiguous");
-  });
+  it("accepts an admin-selected category that differs from the CashSouk product flag", () => {
+    const personal = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101011234",
+        dateOfBirth: "1980-01-01",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: "ANGEL",
+      },
+    });
+    expect(personal.complete).toBe(true);
 
-  it("does not treat unsophisticated individuals as Retail automatically", () => {
-    expect(
-      deriveScInvestorCategory({
-        organizationType: "PERSONAL",
-        isSophisticated: false,
-      })
-    ).toEqual({ status: "ambiguous", candidates: ["ANGEL", "RETAIL"] });
-  });
-
-  it("derives non-sophisticated entity when a company is not product-sophisticated", () => {
-    expect(
-      resolveScInvestorCategoryForStorage({
-        organizationType: "COMPANY",
-        isSophisticated: false,
-        existing: null,
-      })
-    ).toBe("NON_SOPHISTICATED_ENTITY");
-  });
-
-  it("keeps an existing valid category instead of overwriting it", () => {
-    expect(
-      resolveScInvestorCategoryForStorage({
-        organizationType: "PERSONAL",
-        isSophisticated: false,
-        existing: "ANGEL",
-      })
-    ).toBe("ANGEL");
+    const corporate = buildInvestorProfileCompleteness({
+      organizationType: "COMPANY",
+      corporate: {
+        name: "Acme Capital Sdn Bhd",
+        registrationNumber: "202401000001",
+        identityPrefix: "ROC",
+        dateOfIncorporation: "2020-01-01",
+        countryOfIncorporation: "Malaysia",
+        gender: "NOT_APPLICABLE",
+        businessState: "Selangor",
+        businessPostalCode: "47300",
+        scInvestorCategory: "NON_SOPHISTICATED_ENTITY",
+      },
+    });
+    expect(corporate.complete).toBe(true);
   });
 });
