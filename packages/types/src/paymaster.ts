@@ -237,6 +237,15 @@ export const PAYMASTER_IDENTITY_UNRESOLVED_CODE = "PAYMASTER_IDENTITY_UNRESOLVED
 export const PAYMASTER_IDENTITY_UNRESOLVED_MESSAGE =
   "Resolve submitted vs verified Paymaster identity before sending an offer.";
 
+export const PAYMASTER_SSM_MISMATCH_CODE = "PAYMASTER_SSM_MISMATCH";
+export const PAYMASTER_SSM_MISMATCH_MESSAGE =
+  "This application's submitted SSM does not match this Paymaster. You cannot verify that identity onto a different SSM master.";
+
+export const PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_CODE =
+  "PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT";
+export const PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_MESSAGE =
+  "Different identities were submitted for this SSM. Review an application before verifying the Paymaster.";
+
 export type PaymasterIdentityFields = {
   name: string;
   entity_type: string;
@@ -264,6 +273,43 @@ export function paymasterMasterIdentityFields(paymaster: {
     ssm_number: identityText(paymaster.registrationNumber ?? paymaster.registration_number),
     country: identityText(paymaster.registrationCountry ?? paymaster.registration_country),
   };
+}
+
+export function submittedPaymasterIdentityFields(submitted?: {
+  name?: unknown;
+  entity_type?: unknown;
+  ssm_number?: unknown;
+  country?: unknown;
+} | null): PaymasterIdentityFields {
+  return {
+    name: identityText(submitted?.name),
+    entity_type: identityText(submitted?.entity_type),
+    ssm_number: identityText(submitted?.ssm_number),
+    country: identityText(submitted?.country),
+  };
+}
+
+export function paymasterSubmittedIdentityFingerprint(identity: {
+  legalName?: string | null;
+  entityType?: string | null;
+  registrationCountry?: string | null;
+  registrationNumber?: string | null;
+  name?: string | null;
+  entity_type?: string | null;
+  country?: string | null;
+  ssm_number?: string | null;
+}): string {
+  const name = identityText(identity.legalName ?? identity.name).toLowerCase();
+  const entityType = identityText(identity.entityType ?? identity.entity_type).toLowerCase();
+  const country = identityText(identity.registrationCountry ?? identity.country).toUpperCase();
+  const ssm = identityText(identity.registrationNumber ?? identity.ssm_number);
+  return [name, entityType, country, ssm].join("|");
+}
+
+export function paymasterSubmittedIdentitiesConflict(
+  identities: Array<Parameters<typeof paymasterSubmittedIdentityFingerprint>[0]>
+): boolean {
+  return new Set(identities.map(paymasterSubmittedIdentityFingerprint)).size > 1;
 }
 
 export function submittedIdentityDiffersFromVerified(params: {

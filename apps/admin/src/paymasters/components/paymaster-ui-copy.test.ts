@@ -32,12 +32,16 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     const panel = readFileSync(join(__dirname, "paymaster-verification-panel.tsx"), "utf8");
     expect(detail).toContain("PaymasterVerificationCard");
     expect(card).toContain("PaymasterVerificationPanel");
+    expect(card).toContain("submittedApplicationIdentities");
     expect(card).toContain("Internal Paymaster identity review");
     expect(detail).not.toMatch(/Keep existing identity/i);
     expect(detail).not.toMatch(/Data review/i);
     expect(panel).toContain("Verified by");
     expect(panel).toContain("Verified at");
     expect(panel).toContain("Verify Paymaster");
+    expect(panel).toContain("Paymaster Identity to Verify");
+    expect(panel).toContain("paymasterIdentityToVerify");
+    expect(panel).toContain("PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_MESSAGE");
     expect(panel).not.toMatch(/Customer details differ/i);
     expect(panel).not.toMatch(/Review Paymaster/);
     expect(panel).not.toMatch(/mismatch/i);
@@ -122,6 +126,8 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(contract).not.toMatch(/showMismatchBanner/);
     expect(panel).toContain("Verify Paymaster");
     expect(panel).toContain("applicationId");
+    expect(panel).toContain("paymasterIdentityToVerify");
+    expect(panel).toContain("Paymaster Identity to Verify");
   });
 
   it("Paymaster Detail Identity tab shows submitted application identities as Admin reference only", () => {

@@ -4,9 +4,13 @@ import {
   PAYMASTER_IDENTITY_UNRESOLVED_MESSAGE,
   PAYMASTER_NOT_LINKED_MESSAGE,
   PAYMASTER_NOT_VERIFIED_FOR_OFFER_MESSAGE,
+  PAYMASTER_SSM_MISMATCH_MESSAGE,
+  PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_MESSAGE,
   paymasterIdentityOfferBlockReason,
   paymasterLinkedFinancingCount,
+  paymasterSubmittedIdentitiesConflict,
   submittedIdentityDiffersFromVerified,
+  submittedPaymasterIdentityFields,
 } from "./paymaster";
 
 describe("Paymaster identity Activity event types", () => {
@@ -80,6 +84,61 @@ describe("submitted vs verified Paymaster identity", () => {
       })
     ).toBe(PAYMASTER_IDENTITY_UNRESOLVED_MESSAGE);
     expect(paymasterIdentityOfferBlockReason({ submitted: matching, paymaster: verified })).toBeNull();
+  });
+});
+
+describe("submitted Paymaster identity helpers", () => {
+  it("reads application customer_details as the identity to verify", () => {
+    expect(
+      submittedPaymasterIdentityFields({
+        name: "bbbb",
+        entity_type: "Federal Government Agency",
+        ssm_number: "999999999999",
+        country: "MY",
+      })
+    ).toEqual({
+      name: "bbbb",
+      entity_type: "Federal Government Agency",
+      ssm_number: "999999999999",
+      country: "MY",
+    });
+  });
+
+  it("detects conflicting submitted identities for the same SSM", () => {
+    expect(
+      paymasterSubmittedIdentitiesConflict([
+        {
+          legalName: "yayay",
+          entityType: "State Government",
+          registrationCountry: "MY",
+          registrationNumber: "999999999999",
+        },
+        {
+          legalName: "bbbb",
+          entityType: "Federal Government Agency",
+          registrationCountry: "MY",
+          registrationNumber: "999999999999",
+        },
+      ])
+    ).toBe(true);
+    expect(
+      paymasterSubmittedIdentitiesConflict([
+        {
+          legalName: "yayay",
+          entityType: "State Government",
+          registrationCountry: "MY",
+          registrationNumber: "999999999999",
+        },
+        {
+          legalName: "yayay",
+          entityType: "State Government",
+          registrationCountry: "MY",
+          registrationNumber: "999999999999",
+        },
+      ])
+    ).toBe(false);
+    expect(PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_MESSAGE).toMatch(/Review an application/);
+    expect(PAYMASTER_SSM_MISMATCH_MESSAGE).toMatch(/different SSM master/);
   });
 });
 
