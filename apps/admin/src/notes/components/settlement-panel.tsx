@@ -129,6 +129,10 @@ import {
   workflowToneToStatusToken,
 } from "@/notes/utils/workflow-status-tokens";
 import { ActualSettlementDateField } from "@/notes/components/actual-settlement-date-field";
+import { SettlementHibahReceiptCard } from "@/notes/components/settlement-hibah-receipt-card";
+import { InvestmentSettlementConfirmationCard } from "@/notes/components/investment-settlement-confirmation-card";
+import { useAdminSettlementHibahReceipt } from "@/notes/hooks/use-settlement-hibah-receipt";
+import { useAdminInvestmentSettlementConfirmations } from "@/notes/hooks/use-investment-settlement-confirmation";
 import {
   actualSettlementDateError,
   defaultActualSettlementDate,
@@ -570,6 +574,14 @@ export function SettlementPanel({
   const markDefault = useMarkNoteDefault();
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
+  const postedSettlementId =
+    note.settlements.find((settlement) => settlement.status === "POSTED")?.id ?? null;
+  const { data: hibahReceipt } = useAdminSettlementHibahReceipt(
+    postedSettlementId ? note.id : undefined
+  );
+  const { data: investorConfirmations } = useAdminInvestmentSettlementConfirmations(
+    postedSettlementId ? note.id : undefined
+  );
 
   const settlementAmount = getSettlementAmount(note);
   const localPreviewSettlement = preview
@@ -2778,6 +2790,34 @@ export function SettlementPanel({
               </div>
             )}
           </div>
+
+          {postedSettlementId && investorConfirmations ? (
+            <InvestmentSettlementConfirmationCard
+              noteId={note.id}
+              payload={investorConfirmations}
+              canManage={canSettlement}
+            />
+          ) : null}
+
+          {postedSettlementId && hibahReceipt ? (
+            <SettlementHibahReceiptCard
+              noteId={note.id}
+              payload={{
+                ...hibahReceipt,
+                canGenerate: hibahReceipt.canGenerate && canSettlement,
+                canRetry: hibahReceipt.canRetry && canSettlement,
+                canRegenerate: hibahReceipt.canRegenerate && canSettlement,
+                canPublish: hibahReceipt.canPublish && canSettlement,
+                reviewVersion: hibahReceipt.reviewVersion
+                  ? {
+                      ...hibahReceipt.reviewVersion,
+                      canRetry: hibahReceipt.reviewVersion.canRetry && canSettlement,
+                      canPublish: hibahReceipt.reviewVersion.canPublish && canSettlement,
+                    }
+                  : null,
+              }}
+            />
+          ) : null}
 
           {showSettlementTrusteeWorkflow ? (
             persistedPostedSettlement ? (

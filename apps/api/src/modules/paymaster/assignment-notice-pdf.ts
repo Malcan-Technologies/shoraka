@@ -1,5 +1,4 @@
 import PDFDocument from "pdfkit";
-import { ASSIGNMENT_NOTICE_LEGAL_TEMPLATE_PENDING } from "@cashsouk/types";
 
 export type AssignmentNoticeParticulars = {
   noticeReference: string;
@@ -13,10 +12,6 @@ export type AssignmentNoticeParticulars = {
   noteReference: string | null;
 };
 
-/**
- * Particulars-only PDF. Approved legal Notice of Assignment wording is pending;
- * this file is not a substitute for the legal template.
- */
 export async function renderAssignmentNoticeParticularsPdf(
   data: AssignmentNoticeParticulars
 ): Promise<Buffer> {
@@ -32,14 +27,8 @@ export async function renderAssignmentNoticeParticularsPdf(
 
   doc.font("Helvetica-Bold").fontSize(14).fillColor("#111").text("CashSouk", 56, y);
   y += 28;
-  doc.font("Helvetica-Bold").fontSize(16).text("Notice of Assignment — Particulars", 56, y);
-  y += 28;
-
-  doc.rect(56, y, width, 48).fill("#FEF3C7");
-  doc.fillColor("#92400E").font("Helvetica").fontSize(9).text(ASSIGNMENT_NOTICE_LEGAL_TEMPLATE_PENDING, 64, y + 10, {
-    width: width - 16,
-  });
-  y += 64;
+  doc.font("Helvetica-Bold").fontSize(16).text("Notice of Assignment", 56, y);
+  y += 36;
 
   doc.fillColor("#111").font("Helvetica").fontSize(10);
   const rows: Array<[string, string]> = [
@@ -58,14 +47,6 @@ export async function renderAssignmentNoticeParticularsPdf(
     doc.font("Helvetica").text(value, 240, y, { width: width - 184 });
     y += 18;
   }
-
-  y += 16;
-  doc.fontSize(9).fillColor("#444").text(
-    "This document records assignment particulars for operational tracking. It must not be treated as the approved legal Notice of Assignment until the legal template is attached or this file is replaced with an approved notice.",
-    56,
-    y,
-    { width }
-  );
 
   doc.end();
   return done;

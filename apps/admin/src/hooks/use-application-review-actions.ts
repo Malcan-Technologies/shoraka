@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { AdditionalFeeLine, ApiError, InvoiceOfferFeeScheduleWriteMode, MarcSmeGrade, ReviewItemType } from "@cashsouk/types";
+import type { AdditionalFeeLine, ApiError, InvoiceOfferFeeScheduleWriteMode, MarcSmeGrade, ReviewItemType, ScCompanyCategory, ScSustainabilityCategory } from "@cashsouk/types";
 import { applicationLogsKeys } from "./use-application-logs";
 import { applicationsKeys } from "@/applications/query-keys";
 import { contractsKeys } from "@/contracts/query-keys";
@@ -473,6 +473,8 @@ export function useSendInvoiceOffer() {
       offeredProfitRatePercent,
       platformFeeRatePercent,
       risk_rating,
+      company_category,
+      sustainability_category,
       financingTenureDays,
       feeScheduleMode,
       facilityFeeCollectAmount,
@@ -485,6 +487,8 @@ export function useSendInvoiceOffer() {
       offeredProfitRatePercent?: number | null;
       platformFeeRatePercent?: number | null;
       risk_rating: MarcSmeGrade;
+      company_category: ScCompanyCategory;
+      sustainability_category: ScSustainabilityCategory;
       financingTenureDays: number;
       feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode;
       facilityFeeCollectAmount?: number | null;
@@ -496,6 +500,8 @@ export function useSendInvoiceOffer() {
         offeredProfitRatePercent,
         platformFeeRatePercent,
         risk_rating,
+        company_category,
+        sustainability_category,
         financingTenureDays,
         feeScheduleMode,
         facilityFeeCollectAmount,

@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 export type NextActionBannerProps = {
   title: string;
   description?: string;
-  href: string;
+  href?: string;
+  onClick?: () => void;
   ctaLabel: string;
   tone?: "action" | "neutral";
   className?: string;
@@ -18,10 +19,18 @@ export function NextActionBanner({
   title,
   description,
   href,
+  onClick,
   ctaLabel,
   tone = "action",
   className,
 }: NextActionBannerProps) {
+  const cta = (
+    <>
+      {ctaLabel}
+      <ArrowRightIcon className="h-4 w-4" />
+    </>
+  );
+
   return (
     <div
       className={cn(
@@ -39,12 +48,21 @@ export function NextActionBanner({
           <p className="text-ui leading-6 text-muted-foreground">{description}</p>
         ) : null}
       </div>
-      <Button asChild className="h-11 shrink-0 gap-2 rounded-xl font-semibold">
-        <Link href={href}>
-          {ctaLabel}
-          <ArrowRightIcon className="h-4 w-4" />
-        </Link>
-      </Button>
+      {href ? (
+        <Button asChild className="h-11 shrink-0 gap-2 rounded-xl font-semibold">
+          <Link href={href}>
+            {cta}
+          </Link>
+        </Button>
+      ) : (
+        <Button
+          type="button"
+          className="h-11 shrink-0 gap-2 rounded-xl font-semibold"
+          onClick={onClick}
+        >
+          {cta}
+        </Button>
+      )}
     </div>
   );
 }

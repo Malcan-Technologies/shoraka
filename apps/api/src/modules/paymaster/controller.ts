@@ -21,7 +21,7 @@ import {
   getCurrentMarcAssessment,
   listAdminPaymasters,
   listIssuerPaymasters,
-  lookupPaymasterByRegistration,
+  lookupIssuerPaymasterByRegistration,
   requestIssuerMarcReportUploadUrl,
   verifyPaymaster,
 } from "./service";
@@ -71,7 +71,7 @@ export function createIssuerPaymasterRouter(): Router {
       if (!member && organization?.owner_user_id !== userId) {
         throw new AppError(403, "FORBIDDEN", "You do not have access to this organisation.");
       }
-      send(res, await lookupPaymasterByRegistration(query.registrationNumber));
+      send(res, await lookupIssuerPaymasterByRegistration(query.registrationNumber));
     } catch (error) {
       next(error);
     }

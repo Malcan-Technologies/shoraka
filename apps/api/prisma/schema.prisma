@@ -344,16 +344,26 @@ model InvestorOrganization {
   director_kyc_status           Json?
   business_aml_status           Json?
   display_reference             String?                          @unique
+  sc_investor_category          ScInvestorCategory?
+  date_of_incorporation         DateTime?
+  country_of_incorporation      String?
+  residential_address           Json?
+  profile_field_sources         Json                             @default("{}")
+  /// Set when the first CTOS or RegTank director/shareholder snapshot has been applied.
+  /// User-added people alone do not set this.
+  regulatory_structure_established_at DateTime?
   invitations                   InvestorOrganizationInvitation[]
+  party_profiles                OrganizationPartyProfile[]
   owner                         User                             @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   onboarding_logs               OnboardingLog[]
   members                       OrganizationMember[]
   regtank_onboarding            RegTankOnboarding[]              @relation("RegTankOnboardingToInvestorOrg")
   ctos_reports                  CtosReport[]
   ctos_party_supplements        CtosPartySupplement[]
-  investor_balance              InvestorBalance?
-  investor_balance_transactions InvestorBalanceTransaction[]
-  gateway_payments              GatewayPayment[]
+  investor_balance                     InvestorBalance?
+  investor_balance_transactions        InvestorBalanceTransaction[]
+  gateway_payments                     GatewayPayment[]
+  investment_settlement_confirmations  InvestmentSettlementConfirmation[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
@@ -404,6 +414,17 @@ model IssuerOrganization {
   director_kyc_status          Json?
   business_aml_status          Json?
   display_reference            String?                        @unique
+  date_of_incorporation        DateTime?
+  date_of_commencement         DateTime?
+  country_of_incorporation     String?
+  sc_company_type              ScCompanyType?
+  company_category             ScCompanyCategory?
+  company_email                String?
+  profile_field_sources        Json                           @default("{}")
+  /// Set when the first CTOS or RegTank director/shareholder snapshot has been applied.
+  /// User-added people alone do not set this.
+  regulatory_structure_established_at DateTime?
+  party_profiles               OrganizationPartyProfile[]
   applications                 Application[]
   gateway_payments             GatewayPayment[]
   contracts                    Contract[]
@@ -424,6 +445,239 @@ model IssuerOrganization {
   @@index([onboarding_status])
   @@index([display_reference])
   @@map("issuer_organizations")
+}
+
+/// CashSouk master regulatory party. SQL also enforces:
+/// - XOR CHECK: exactly one of issuer_organization_id / investor_organization_id
+/// - partial unique (issuer_organization_id, party_key) WHERE issuer_organization_id IS NOT NULL
+/// - partial unique (investor_organization_id, party_key) WHERE investor_organization_id IS NOT NULL
+model OrganizationPartyProfile {
+  id                          String                            @id @default(cuid())
+  issuer_organization_id      String?
+  investor_organization_id    String?
+  party_key                   String
+  origin                      OrganizationPartyOrigin
+  membership_status           OrganizationPartyMembershipStatus
+  entity_type                 OrganizationPartyEntityType
+  absent_from_latest_external Boolean                           @default(false)
+  name                        String?
+  salutation                  String?
+  identity_prefix             ScIdentityPrefix?
+  identity_number             String?
+  date_of_birth               DateTime?
+  date_of_incorporation       DateTime?
+  gender                      ScGender?
+  nationality                 String?
+  country_of_incorporation    String?
+  address                     Json?
+  is_director                 Boolean                           @default(false)
+  is_shareholder              Boolean                           @default(false)
+  is_board                    Boolean                           @default(false)
+  is_management               Boolean                           @default(false)
+  share_type                  ScShareType?
+  share_type_other            String?
+  shareholding_units          Decimal?                          @db.Decimal(18, 6)
+  shareholding_amount         Decimal?                          @db.Decimal(18, 6)
+  shareholding_percentage     Decimal?                          @db.Decimal(9, 6)
+  designation                 ScDesignation?
+  designation_other           String?
+  appointment_date            DateTime?
+  resignation_date            DateTime?
+  field_sources               Json                              @default("{}")
+  external_observation        Json?
+  created_at                  DateTime                          @default(now())
+  updated_at                  DateTime                          @updatedAt
+  issuer_organization         IssuerOrganization?               @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  investor_organization       InvestorOrganization?             @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+
+  @@index([issuer_organization_id])
+  @@index([investor_organization_id])
+  @@index([issuer_organization_id, membership_status])
+  @@index([investor_organization_id, membership_status])
+  @@map("organization_party_profiles")
+}
+
+model OperatorProfile {
+  id                          String                       @id @default(cuid())
+  singleton_key               String                       @unique @default("cashsouk")
+  name                        String?
+  registration_number         String?
+  trustee_registration_number String?
+  responsible_person_name     String?
+  responsible_person_phone    String?
+  created_at                  DateTime                     @default(now())
+  updated_at                  DateTime                     @updatedAt
+  share_capital               OperatorShareCapital?
+  shareholders                OperatorShareholder[]
+  officers                    OperatorOfficer[]
+  advisors                    OperatorAdvisor[]
+  interests                   OperatorInterest[]
+  financial_statements        OperatorFinancialStatement[]
+
+  @@map("operator_profiles")
+}
+
+model OperatorShareCapital {
+  id                            String          @id @default(cuid())
+  operator_profile_id           String          @unique
+  ordinary_units                Decimal?        @db.Decimal(18, 0)
+  ordinary_amount               Decimal?        @db.Decimal(18, 6)
+  preference_units              Decimal?        @db.Decimal(18, 0)
+  preference_amount             Decimal?        @db.Decimal(18, 6)
+  others_units                  Decimal?        @db.Decimal(18, 0)
+  others_amount                 Decimal?        @db.Decimal(18, 6)
+  total_paid_up_capital         Decimal?        @db.Decimal(18, 6)
+  llp_members_capital_units     Decimal?        @db.Decimal(18, 0)
+  llp_members_capital_amount    Decimal?        @db.Decimal(18, 6)
+  llp_members_reserves_units    Decimal?        @db.Decimal(18, 0)
+  llp_members_reserves_amount   Decimal?        @db.Decimal(18, 6)
+  llp_subordinated_loans_units  Decimal?        @db.Decimal(18, 0)
+  llp_subordinated_loans_amount Decimal?        @db.Decimal(18, 6)
+  total_llp                     Decimal?        @db.Decimal(18, 6)
+  created_at                    DateTime        @default(now())
+  updated_at                    DateTime        @updatedAt
+  operator_profile              OperatorProfile @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)
+
+  @@map("operator_share_capital")
+}
+
+model OperatorShareholder {
+  id                      String                      @id @default(cuid())
+  operator_profile_id     String
+  holder_type             OperatorHolderType
+  entity_type             OrganizationPartyEntityType
+  name                    String?
+  salutation              String?
+  identity_number         String?
+  date_of_birth           DateTime?
+  date_of_incorporation   DateTime?
+  nationality             String?
+  address                 String?
+  date_acquired           DateTime?
+  date_disposal           DateTime?
+  share_type              ScShareType?
+  share_type_other        String?
+  shareholding_units      Decimal?                    @db.Decimal(18, 6)
+  shareholding_amount     Decimal?                    @db.Decimal(18, 6)
+  shareholding_percentage Decimal?                    @db.Decimal(9, 6)
+  created_at              DateTime                    @default(now())
+  updated_at              DateTime                    @updatedAt
+  operator_profile        OperatorProfile             @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)
+
+  @@index([operator_profile_id])
+  @@map("operator_shareholders")
+}
+
+model OperatorOfficer {
+  id                    String          @id @default(cuid())
+  operator_profile_id   String
+  person_kind           ScPersonKind
+  name                  String?
+  salutation            String?
+  is_responsible_person Boolean         @default(false)
+  identity_number       String?
+  date_of_birth         DateTime?
+  nationality           String?
+  address               String?
+  designation           ScDesignation?
+  designation_other     String?
+  appointment_date      DateTime?
+  resignation_date      DateTime?
+  created_at            DateTime        @default(now())
+  updated_at            DateTime        @updatedAt
+  operator_profile      OperatorProfile @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)
+
+  @@index([operator_profile_id])
+  @@map("operator_officers")
+}
+
+model OperatorAdvisor {
+  id                  String              @id @default(cuid())
+  operator_profile_id String
+  advisor_type        OperatorAdvisorType
+  name                String?
+  registration_number String?
+  country             String?
+  address             String?
+  appointment_date    DateTime?
+  cessation_date      DateTime?
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @updatedAt
+  operator_profile    OperatorProfile     @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)
+
+  @@index([operator_profile_id])
+  @@map("operator_advisors")
+}
+
+model OperatorInterest {
+  id                      String          @id @default(cuid())
+  operator_profile_id     String
+  name                    String?
+  registration_number     String?
+  country                 String?
+  address                 String?
+  acquisition_date        DateTime?
+  disposal_date           DateTime?
+  share_type              ScShareType?
+  share_type_other        String?
+  shareholding_units      Decimal?        @db.Decimal(18, 6)
+  shareholding_percentage Decimal?        @db.Decimal(9, 6)
+  created_at              DateTime        @default(now())
+  updated_at              DateTime        @updatedAt
+  operator_profile        OperatorProfile @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)
+
+  @@index([operator_profile_id])
+  @@map("operator_interests")
+}
+
+model OperatorFinancialStatement {
+  id                                 String          @id @default(cuid())
+  operator_profile_id                String
+  consolidated_accounts              Boolean?
+  auditor_name                       String?
+  financial_year_end                 DateTime?
+  unmodified_reports                 Boolean?
+  date_tabled_to_board               DateTime?
+  currency                           String?
+  number_of_shares                   Decimal?        @db.Decimal(18, 0)
+  total_assets                       Decimal?        @db.Decimal(18, 6)
+  non_current_assets                 Decimal?        @db.Decimal(18, 6)
+  current_assets                     Decimal?        @db.Decimal(18, 6)
+  total_equity                       Decimal?        @db.Decimal(18, 6)
+  paid_up_capital                    Decimal?        @db.Decimal(18, 6)
+  share_application_account          Decimal?        @db.Decimal(18, 6)
+  share_premium_and_reserves         Decimal?        @db.Decimal(18, 6)
+  accumulated_profit_carried_forward Decimal?        @db.Decimal(18, 6)
+  equity_minority_interest           Decimal?        @db.Decimal(18, 6)
+  total_liabilities                  Decimal?        @db.Decimal(18, 6)
+  non_current_liabilities            Decimal?        @db.Decimal(18, 6)
+  current_liabilities                Decimal?        @db.Decimal(18, 6)
+  total_revenue                      Decimal?        @db.Decimal(18, 6)
+  revenue_donation                   Decimal?        @db.Decimal(18, 6)
+  revenue_reward                     Decimal?        @db.Decimal(18, 6)
+  revenue_lending                    Decimal?        @db.Decimal(18, 6)
+  revenue_equity                     Decimal?        @db.Decimal(18, 6)
+  revenue_fees                       Decimal?        @db.Decimal(18, 6)
+  revenue_other                      Decimal?        @db.Decimal(18, 6)
+  income_deposit_interest            Decimal?        @db.Decimal(18, 6)
+  income_other                       Decimal?        @db.Decimal(18, 6)
+  total_cost                         Decimal?        @db.Decimal(18, 6)
+  cost_staff                         Decimal?        @db.Decimal(18, 6)
+  cost_system                        Decimal?        @db.Decimal(18, 6)
+  cost_promotion                     Decimal?        @db.Decimal(18, 6)
+  cost_other                         Decimal?        @db.Decimal(18, 6)
+  profit_before_tax                  Decimal?        @db.Decimal(18, 6)
+  taxation                           Decimal?        @db.Decimal(18, 6)
+  profit_after_tax                   Decimal?        @db.Decimal(18, 6)
+  pnl_minority_interest              Decimal?        @db.Decimal(18, 6)
+  net_dividend                       Decimal?        @db.Decimal(18, 6)
+  created_at                         DateTime        @default(now())
+  updated_at                         DateTime        @updatedAt
+  operator_profile                   OperatorProfile @relation(fields: [operator_profile_id], references: [id], onDelete: Cascade)
+
+  @@index([operator_profile_id])
+  @@index([operator_profile_id, financial_year_end])
+  @@map("operator_financial_statements")
 }
 
 model IssuerOrganizationFinancialStatement {
@@ -951,6 +1205,9 @@ model Note {
   gateway_payments                GatewayPayment[]
   paymaster                       Paymaster?                  @relation(fields: [paymaster_id], references: [id], onDelete: SetNull)
   assignment_notices              PaymasterAssignmentNotice[]
+  investment_certificates               NoteInvestmentCertificate[]
+  settlement_hibah_receipts             SettlementHibahReceipt[]
+  investment_settlement_confirmations   InvestmentSettlementConfirmation[]
 
   @@index([source_application_id])
   @@index([source_contract_id])
@@ -1306,6 +1563,8 @@ model NoteSettlement {
   updated_at                              DateTime                            @updatedAt
   note                                    Note                                @relation(fields: [note_id], references: [id], onDelete: Cascade)
   withdrawals                             WithdrawalInstruction[]
+  hibah_receipts                          SettlementHibahReceipt[]
+  investment_settlement_confirmations     InvestmentSettlementConfirmation[]
 
   @@index([note_id])
   @@index([payment_id])
@@ -1449,6 +1708,7 @@ model PlatformFinanceSetting {
   trustee_letter_config               Json?
   platform_accounts_config            Json?
   ledger_bucket_accounts_config       Json?
+  document_authorisation_config       Json?
   created_at                          DateTime @default(now())
   updated_at                          DateTime @updatedAt
 
@@ -2441,6 +2701,116 @@ enum NoteInvestmentStatus {
   SETTLED
 }
 
+enum SettlementHibahReceiptStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+enum InvestmentSettlementConfirmationStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+/// Immutable investor-copy Investment Settlement Confirmation PDF
+/// (one V01 per posted settlement and investor organization).
+model InvestmentSettlementConfirmation {
+  id                       String                                    @id @default(cuid())
+  note_id                  String
+  settlement_id            String
+  investor_organization_id String
+  version                  String
+  status                   InvestmentSettlementConfirmationStatus    @default(PENDING)
+  snapshot                 Json
+  pdf_s3_key               String?
+  pdf_sha256               String?
+  generated_at             DateTime?
+  generation_error         String?
+  is_current               Boolean                                  @default(false)
+  created_at               DateTime                                  @default(now())
+  updated_at               DateTime                                  @updatedAt
+  note                     Note                                      @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  settlement               NoteSettlement                            @relation(fields: [settlement_id], references: [id], onDelete: Cascade)
+  investor_organization    InvestorOrganization                      @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+
+  @@unique([settlement_id, investor_organization_id, version], map: "investment_settlement_confirmations_scope_uidx")
+  @@index([note_id, version])
+  @@index([investor_organization_id])
+  @@index([status])
+  @@index([settlement_id, investor_organization_id, is_current])
+  @@map("investment_settlement_confirmations")
+}
+
+/// Immutable issuer-copy Settlement & Hibah Receipt PDF (one V01 per posted settlement).
+model SettlementHibahReceipt {
+  id               String                        @id @default(cuid())
+  note_id          String
+  settlement_id    String
+  receipt_number   String
+  version          String
+  status           SettlementHibahReceiptStatus  @default(PENDING)
+  snapshot         Json
+  pdf_s3_key       String?
+  pdf_sha256       String?
+  generated_at     DateTime?
+  generation_error String?
+  is_current       Boolean                       @default(false)
+  created_at       DateTime                      @default(now())
+  updated_at       DateTime                      @updatedAt
+  note             Note                          @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  settlement       NoteSettlement                @relation(fields: [settlement_id], references: [id], onDelete: Cascade)
+
+  @@unique([settlement_id, version], map: "settlement_hibah_receipts_settlement_version_uidx")
+  @@index([note_id, version])
+  @@index([status])
+  @@index([receipt_number])
+  @@index([settlement_id, is_current])
+  @@map("settlement_hibah_receipts")
+}
+
+enum NoteInvestmentCertificateAudience {
+  ADMIN
+  ISSUER
+  INVESTOR
+}
+
+enum NoteInvestmentCertificateStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+/// Immutable Islamic Investment Note Certificate artefacts (one row per audience/version).
+/// Postgres UNIQUE treats NULLs as distinct, so audience_scope_key encodes ADMIN | ISSUER | INVESTOR:{orgId}.
+model NoteInvestmentCertificate {
+  id                       String                              @id @default(cuid())
+  note_id                  String
+  certificate_number       String
+  version                  String
+  audience                 NoteInvestmentCertificateAudience
+  audience_scope_key       String
+  investor_organization_id String?
+  status                   NoteInvestmentCertificateStatus     @default(PENDING)
+  snapshot                 Json
+  pdf_s3_key               String?
+  pdf_sha256               String?
+  generated_at             DateTime?
+  generation_error         String?
+  is_current               Boolean                             @default(false)
+  created_at               DateTime                            @default(now())
+  updated_at               DateTime                            @updatedAt
+  note                     Note                                @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  @@unique([note_id, version, audience_scope_key], map: "note_investment_certificates_scope_uidx")
+  @@index([note_id, version, audience])
+  @@index([investor_organization_id])
+  @@index([status])
+  @@index([certificate_number])
+  @@index([note_id, is_current])
+  @@map("note_investment_certificates")
+}
+
 enum InvestorBalanceTransactionDirection {
   IN
   OUT
@@ -2853,4 +3223,110 @@ enum PaymasterAssignmentNoticeStatus {
   ACKNOWLEDGEMENT_UPLOADED
   ACKNOWLEDGED
   FAILED
+}
+
+enum ScCompanyCategory {
+  TECHNOLOGY
+  NON_TECHNOLOGY
+}
+
+enum ScCompanyType {
+  SOLE_PROPRIETORSHIP
+  PARTNERSHIP
+  LLP
+  PRIVATE_LIMITED
+  PUBLIC_LIMITED
+  FOREIGN
+}
+
+enum ScShareType {
+  ORDINARY
+  PREFERENCE
+  OTHERS
+}
+
+enum ScIdentityPrefix {
+  NRIC
+  PASSPORT
+  ROC
+}
+
+enum ScGender {
+  MALE
+  FEMALE
+  NOT_APPLICABLE
+}
+
+enum ScPersonKind {
+  BOARD
+  MANAGEMENT
+}
+
+enum ScDesignation {
+  CHIEF_EXECUTIVE_OFFICER
+  CHIEF_COMPLIANCE_OFFICER
+  CHIEF_FINANCIAL_OFFICER
+  SECRETARY
+  CHAIRMAN_EXECUTIVE
+  CHAIRMAN_NON_EXECUTIVE_NON_INDEPENDENT
+  CHAIRMAN_NON_EXECUTIVE_INDEPENDENT
+  DEPUTY_CHAIRMAN_EXECUTIVE
+  DEPUTY_CHAIRMAN_NON_EXECUTIVE_NON_INDEPENDENT
+  DEPUTY_CHAIRMAN_NON_EXECUTIVE_INDEPENDENT
+  DIRECTOR_EXECUTIVE
+  DIRECTOR_NON_EXECUTIVE_NON_INDEPENDENT
+  DIRECTOR_NON_EXECUTIVE_INDEPENDENT
+  ALTERNATE_DIRECTOR
+  OTHERS
+}
+
+enum ScInvestorCategory {
+  ANGEL
+  RETAIL
+  SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL
+  SOPHISTICATED_ACCREDITED
+  SOPHISTICATED_HIGH_NET_WORTH_ENTITY
+  NON_SOPHISTICATED_ENTITY
+}
+
+enum ProfileValueSource {
+  CTOS
+  REGTANK
+  USER
+  ADMIN
+  SYSTEM
+}
+
+enum OrganizationPartyOrigin {
+  CTOS_PARTY
+  REGTANK_PARTY
+  USER_ADDED
+}
+
+enum OrganizationPartyEntityType {
+  INDIVIDUAL
+  CORPORATE
+}
+
+enum OrganizationPartyMembershipStatus {
+  MASTER_ACTIVE
+  MASTER_INACTIVE
+  EXTERNAL_OBSERVED
+}
+
+enum OperatorAdvisorType {
+  ACCOUNTING
+  AUDITOR
+  BANKER
+  COMPLIANCE_AND_RISK
+  CREDIT_RATING
+  LEGAL
+  TAXATION
+  TRUSTEE_ESCROW
+}
+
+enum OperatorHolderType {
+  SHAREHOLDER
+  MEMBER
+  BENEFICIAL_OWNER
 }

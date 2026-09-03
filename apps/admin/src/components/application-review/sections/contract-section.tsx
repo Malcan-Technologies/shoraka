@@ -33,6 +33,7 @@ import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility, resol
 import {
   FACILITY_FEE_RATE_MAX_PERCENT,
   getOfferPhaseDeadlineDisplay,
+  paymasterIdentityOfferBlockReason,
   previewAcceptanceDeadlineFromWorkflow,
   REQUESTED_FACILITY_BELOW_CONTRACT_COPY,
 } from "@cashsouk/types";
@@ -74,6 +75,10 @@ import { parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics
 import type { ReviewSectionId } from "../section-types";
 import { ComparisonFieldRow, ComparisonYesNoRadioRow, unknownToTriBool } from "../comparison-field-row";
 import { PaymasterVerificationPanel, type ApplicationReviewPaymaster } from "@/paymasters/components/paymaster-verification-panel";
+import {
+  shouldShowSubmittedVerifiedPaymaster,
+  SubmittedVerifiedPaymasterIdentity,
+} from "../paymaster-identity-comparison";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
   ComparisonDocumentTitleRow,
@@ -201,6 +206,14 @@ export function ContractSection({
   const cd = contractDetails as Record<string, unknown> | null | undefined;
   const offer = offerDetails as Record<string, unknown> | null | undefined;
   const cust = liveCustomerDetails;
+  const showIdentityComparison = shouldShowSubmittedVerifiedPaymaster({
+    customerDetails: cust,
+    paymaster,
+  });
+  const paymasterOfferBlock = paymasterIdentityOfferBlockReason({
+    submitted: cust,
+    paymaster,
+  });
 
   const contractDoc = cd?.document as FileDoc | undefined;
   const requestedFacility = resolveRequestedFacility(cd);
@@ -358,6 +371,10 @@ export function ContractSection({
       setLargePrivateHighlight(true);
       return;
     }
+    if (paymasterOfferBlock) {
+      toast.error(paymasterOfferBlock);
+      return;
+    }
     setContractOfferConfirmOpen(true);
   };
 
@@ -367,6 +384,10 @@ export function ContractSection({
       console.log("Blocked: Customer type not confirmed");
       toast.error("Please confirm if customer is a large private company");
       setLargePrivateHighlight(true);
+      return;
+    }
+    if (paymasterOfferBlock) {
+      toast.error(paymasterOfferBlock);
       return;
     }
     if (!onSendOffer || !canSendContractOffer) return;
@@ -841,13 +862,28 @@ export function ContractSection({
             </ReviewFieldBlock>
           )}
 
+          {cust && showIdentityComparison ? (
+            <SubmittedVerifiedPaymasterIdentity
+              customerDetails={cust}
+              paymaster={paymaster}
+              applicationId={applicationId}
+              canManage={canManagePaymasters}
+              actionsDisabled={!isReviewable || !!isActionLocked}
+              onRequestAmendment={() => onRequestAmendment(section)}
+            />
+          ) : null}
+
           {cust && (
             <ReviewFieldBlock title="Customer Details">
               <div className={reviewRowGridClass}>
-                <Label className={reviewLabelClass}>Customer Name</Label>
-                <div className={reviewValueClass}>{formatReviewValue(cust.name)}</div>
-                <Label className={reviewLabelClass}>Customer Entity Type</Label>
-                <div className={reviewValueClass}>{formatReviewValue(cust.entity_type)}</div>
+                {!showIdentityComparison ? (
+                  <>
+                    <Label className={reviewLabelClass}>Customer Name</Label>
+                    <div className={reviewValueClass}>{formatReviewValue(cust.name)}</div>
+                    <Label className={reviewLabelClass}>Customer Entity Type</Label>
+                    <div className={reviewValueClass}>{formatReviewValue(cust.entity_type)}</div>
+                  </>
+                ) : null}
                 <Label htmlFor="customer-large-private-company" className={reviewLabelClass}>
                   Is Customer a Large Private Company?{" "}
                   <span className="text-destructive" aria-hidden="true">
@@ -900,10 +936,14 @@ export function ContractSection({
                     Required before you can send the facility offer.
                   </p>
                 </div>
-                <Label className={reviewLabelClass}>Customer SSM Number</Label>
-                <div className={reviewValueClass}>{formatReviewValue(cust.ssm_number)}</div>
-                <Label className={reviewLabelClass}>Customer Country</Label>
-                <div className={reviewValueClass}>{formatReviewValue(cust.country)}</div>
+                {!showIdentityComparison ? (
+                  <>
+                    <Label className={reviewLabelClass}>Customer SSM Number</Label>
+                    <div className={reviewValueClass}>{formatReviewValue(cust.ssm_number)}</div>
+                    <Label className={reviewLabelClass}>Customer Country</Label>
+                    <div className={reviewValueClass}>{formatReviewValue(cust.country)}</div>
+                  </>
+                ) : null}
                 <Label className={reviewLabelClass}>Is Customer Related to Issuer?</Label>
                 <div className={reviewValueClass}>
                   {cust.is_related_party === true

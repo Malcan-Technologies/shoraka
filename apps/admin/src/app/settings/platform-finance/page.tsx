@@ -5,12 +5,14 @@ import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  DocumentAuthorisationConfig,
+  DocumentAuthorisationStampFields,
   LedgerBucketAccountsConfig,
   PlatformAccountsConfig,
   TrusteeAccountDetails,
   TrusteeLetterConfig,
 } from "@cashsouk/types";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
+import { Checkbox, Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,6 +34,7 @@ import {
 } from "@/lib/trustee-letter-settings";
 import { notesKeys } from "@/notes/query-keys";
 import { TrusteeLetterEmailFields } from "./trustee-letter-email-fields";
+import { validateCompanyStampFile } from "@/lib/company-stamp-file";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -60,6 +63,11 @@ const DEFAULT_TRUSTEE_LETTER: TrusteeLetterConfig = {
   authorisedSignatoryLabel: "Authorised Signatories",
   platformDisplayName: "CashSouk Sdn Bhd",
   autoSendTrusteeEmail: false,
+};
+
+const DEFAULT_DOCUMENT_AUTHORISATION: DocumentAuthorisationConfig = {
+  authorisedSignatoryName: "",
+  useSameCompanyStamp: true,
 };
 
 const ALLOWED_SIGNATURE_CONTENT_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
@@ -184,9 +192,21 @@ export default function PlatformFinanceSettingsPage() {
     React.useState<PlatformAccountsConfig>(emptyPlatformAccounts());
   const [bucketAccounts, setBucketAccounts] =
     React.useState<LedgerBucketAccountsConfig>(emptyBucketAccounts());
+  const [documentAuthorisation, setDocumentAuthorisation] =
+    React.useState<DocumentAuthorisationConfig>(DEFAULT_DOCUMENT_AUTHORISATION);
   const signatureInputRef = React.useRef<HTMLInputElement | null>(null);
+  const certificateStampInputRef = React.useRef<HTMLInputElement | null>(null);
+  const receiptStampInputRef = React.useRef<HTMLInputElement | null>(null);
   const { data: signaturePreviewUrl } = useS3ViewUrl(
     trusteeLetter.authorisedSignatureImageKey ?? null
+  );
+  const { data: certificateStampPreviewUrl } = useS3ViewUrl(
+    documentAuthorisation.certificateCompanyStamp?.s3Key ?? null
+  );
+  const { data: receiptStampPreviewUrl } = useS3ViewUrl(
+    documentAuthorisation.useSameCompanyStamp
+      ? null
+      : documentAuthorisation.receiptCompanyStamp?.s3Key ?? null
   );
 
   const latePaymentFields: Array<{
@@ -344,6 +364,11 @@ export default function PlatformFinanceSettingsPage() {
     setTrusteeCcDraft("");
     setPlatformAccounts({ ...emptyPlatformAccounts(), ...(data.platformAccountsConfig ?? {}) });
     setBucketAccounts({ ...emptyBucketAccounts(), ...(data.ledgerBucketAccountsConfig ?? {}) });
+    setDocumentAuthorisation({
+      ...DEFAULT_DOCUMENT_AUTHORISATION,
+      ...(data.documentAuthorisationConfig ?? {}),
+      useSameCompanyStamp: data.documentAuthorisationConfig?.useSameCompanyStamp !== false,
+    });
   }, [data]);
 
   const saveMutation = useMutation({
@@ -386,6 +411,38 @@ export default function PlatformFinanceSettingsPage() {
       toast.error(error instanceof Error ? error.message : "Failed to upload signature image"),
   });
 
+  const stampUploadMutation = useMutation({
+    mutationFn: async (input: {
+      purpose: "CERTIFICATE_COMPANY_STAMP" | "RECEIPT_COMPANY_STAMP";
+      file: File;
+    }) => {
+      const response = await apiClient.requestPlatformFinanceDocumentStampUploadUrl({
+        purpose: input.purpose,
+        fileName: input.file.name,
+        contentType: input.file.type as "image/png" | "image/jpeg" | "image/jpg" | "image/webp",
+        fileSize: input.file.size,
+      });
+      if (!response.success) throw new Error(response.error.message);
+      await uploadFileToS3(response.data.uploadUrl, input.file);
+      return { ...response.data, purpose: input.purpose, file: input.file };
+    },
+    onSuccess: ({ s3Key, purpose, file }) => {
+      const stamp: DocumentAuthorisationStampFields = {
+        s3Key,
+        fileName: file.name,
+        contentType: file.type,
+      };
+      setDocumentAuthorisation((prev) =>
+        purpose === "RECEIPT_COMPANY_STAMP"
+          ? { ...prev, receiptCompanyStamp: stamp }
+          : { ...prev, certificateCompanyStamp: stamp }
+      );
+      toast.success("Company stamp uploaded");
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Failed to upload company stamp"),
+  });
+
   const disabled = isLoading || !canManage;
   const trusteeEmailValidation = validateTrusteeLetterEmailSettings({
     autoSendTrusteeEmail: trusteeLetter.autoSendTrusteeEmail === true,
@@ -421,6 +478,21 @@ export default function PlatformFinanceSettingsPage() {
     await signatureUploadMutation.mutateAsync(file);
   };
 
+  const handleStampFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+    purpose: "CERTIFICATE_COMPANY_STAMP" | "RECEIPT_COMPANY_STAMP"
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const rejection = validateCompanyStampFile(file);
+    if (rejection) {
+      toast.error(rejection);
+      return;
+    }
+    await stampUploadMutation.mutateAsync({ purpose, file });
+  };
+
   return (
     <RequirePermission permission="platform_settings.view">
       <>
@@ -428,14 +500,15 @@ export default function PlatformFinanceSettingsPage() {
         <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <AdminPageHeader
             title="Platform Finance"
-            description="Configure late-payment rules, gateway fees, trustee letters, and money-flow accounts."
+            description="Configure late-payment rules, gateway fees, trustee letters, document authorisation, and money-flow accounts."
           />
           <Tabs defaultValue="late-payment" className="space-y-6">
-            <TabsList className="grid h-auto w-full max-w-[760px] grid-cols-1 gap-2 md:grid-cols-5">
+            <TabsList className="grid h-auto w-full max-w-[960px] grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-6">
               <TabsTrigger value="late-payment">Late Payment</TabsTrigger>
               <TabsTrigger value="gateway-fees">Gateway Fees</TabsTrigger>
               <TabsTrigger value="offer-deadlines">Offer Deadlines</TabsTrigger>
               <TabsTrigger value="trustee-letter">Trustee Letter</TabsTrigger>
+              <TabsTrigger value="document-authorisation">Document Authorisation</TabsTrigger>
               <TabsTrigger value="money-flow-accounts">Money Flow Accounts</TabsTrigger>
             </TabsList>
 
@@ -734,6 +807,182 @@ export default function PlatformFinanceSettingsPage() {
                       }}
                     >
                       Save Trustee Letter
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="document-authorisation">
+              <Card className="rounded-2xl p-6 shadow-sm md:p-8">
+                <CardHeader className="px-0 pt-0">
+                  <CardTitle>Document Authorisation</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-8 px-0">
+                  <section className="space-y-4">
+                    <h3 className="text-base font-semibold">Islamic Investment Note Certificate</h3>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="authorised-signatory-name">
+                        Authorised Signatory Name
+                      </label>
+                      <Input
+                        id="authorised-signatory-name"
+                        value={documentAuthorisation.authorisedSignatoryName}
+                        disabled={disabled}
+                        maxLength={200}
+                        placeholder="e.g. Ahmad bin Ali"
+                        className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
+                        onChange={(event) =>
+                          setDocumentAuthorisation((prev) => ({
+                            ...prev,
+                            authorisedSignatoryName: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Company Stamp</label>
+                      <p className="text-xs text-muted-foreground">
+                        Upload a PNG, JPG, or WEBP company stamp image (maximum 5 MB).
+                      </p>
+                      <input
+                        ref={certificateStampInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg,image/webp"
+                        className="hidden"
+                        onChange={(event) =>
+                          void handleStampFileChange(event, "CERTIFICATE_COMPANY_STAMP")
+                        }
+                      />
+                      <div className="rounded-xl border p-4">
+                        {certificateStampPreviewUrl ? (
+                          <div className="flex h-24 w-40 items-center justify-center overflow-hidden rounded-md border bg-background p-2">
+                            <img
+                              src={certificateStampPreviewUrl}
+                              alt="Islamic Investment Note Certificate company stamp preview"
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No company stamp uploaded.</p>
+                        )}
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          {canManage ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={disabled || stampUploadMutation.isPending}
+                              onClick={() => certificateStampInputRef.current?.click()}
+                            >
+                              {stampUploadMutation.isPending
+                                ? "Uploading..."
+                                : documentAuthorisation.certificateCompanyStamp?.s3Key
+                                  ? "Replace"
+                                  : "Upload"}
+                            </Button>
+                          ) : null}
+                          {documentAuthorisation.certificateCompanyStamp?.fileName ? (
+                            <span className="text-xs text-muted-foreground">
+                              {documentAuthorisation.certificateCompanyStamp.fileName}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
+                    <h3 className="text-base font-semibold">Settlement & Hibah Receipt</h3>
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="use-same-company-stamp"
+                        checked={documentAuthorisation.useSameCompanyStamp}
+                        disabled={disabled}
+                        onCheckedChange={(checked) =>
+                          setDocumentAuthorisation((prev) => ({
+                            ...prev,
+                            useSameCompanyStamp: checked === true,
+                          }))
+                        }
+                      />
+                      <label htmlFor="use-same-company-stamp" className="text-sm font-medium leading-5">
+                        Use same company stamp as Islamic Investment Note Certificate
+                      </label>
+                    </div>
+                    {documentAuthorisation.useSameCompanyStamp ? null : (
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">
+                          Settlement & Hibah Receipt Company Stamp
+                        </label>
+                        <p className="text-xs text-muted-foreground">
+                          Upload a PNG, JPG, or WEBP company stamp image (maximum 5 MB).
+                        </p>
+                        <input
+                          ref={receiptStampInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/webp"
+                          className="hidden"
+                          onChange={(event) =>
+                            void handleStampFileChange(event, "RECEIPT_COMPANY_STAMP")
+                          }
+                        />
+                        <div className="rounded-xl border p-4">
+                          {receiptStampPreviewUrl ? (
+                            <div className="flex h-24 w-40 items-center justify-center overflow-hidden rounded-md border bg-background p-2">
+                              <img
+                                src={receiptStampPreviewUrl}
+                                alt="Settlement and Hibah Receipt company stamp preview"
+                                className="max-h-full max-w-full object-contain"
+                              />
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              No company stamp uploaded.
+                            </p>
+                          )}
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            {canManage ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                disabled={disabled || stampUploadMutation.isPending}
+                                onClick={() => receiptStampInputRef.current?.click()}
+                              >
+                                {stampUploadMutation.isPending
+                                  ? "Uploading..."
+                                  : documentAuthorisation.receiptCompanyStamp?.s3Key
+                                    ? "Replace"
+                                    : "Upload"}
+                              </Button>
+                            ) : null}
+                            {documentAuthorisation.receiptCompanyStamp?.fileName ? (
+                              <span className="text-xs text-muted-foreground">
+                                {documentAuthorisation.receiptCompanyStamp.fileName}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+
+                  <div className="flex justify-end">
+                    <Button
+                      disabled={disabled || saveMutation.isPending || stampUploadMutation.isPending}
+                      className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+                      onClick={() =>
+                        saveMutation.mutate({
+                          documentAuthorisationConfig: {
+                            authorisedSignatoryName:
+                              documentAuthorisation.authorisedSignatoryName.trim(),
+                            useSameCompanyStamp: documentAuthorisation.useSameCompanyStamp,
+                            certificateCompanyStamp: documentAuthorisation.certificateCompanyStamp,
+                            receiptCompanyStamp: documentAuthorisation.receiptCompanyStamp,
+                          },
+                        })
+                      }
+                    >
+                      Save Document Authorisation
                     </Button>
                   </div>
                 </CardContent>

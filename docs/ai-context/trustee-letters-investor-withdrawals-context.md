@@ -82,10 +82,10 @@ Stored in JSON column `trustee_letter_config` (API: `trusteeLetterConfig`).
 | Default contact person | `defaultContactPerson` |
 | Authorised signatory label | `authorisedSignatoryLabel` |
 | Platform display name | `platformDisplayName` |
-| Default value date | `defaultValueDateBehavior` (e.g. `T+1`, `same_day`) |
-| Default reference prefix | `defaultLetterRefPrefix` |
+| Default value date | unused (`defaultValueDateBehavior` leftover; PDF Value Date = letter Date) |
+| Default reference prefix | unused (`defaultLetterRefPrefix` leftover) |
 
-These populate trustee letter **header and default metadata** (trustee address block, attention, platform name, reference prefix, value date behavior, signatory label). They are **not** money-flow bank accounts.
+These populate trustee letter **header** (trustee address block, attention, platform name, signatory label). They are **not** money-flow bank accounts.
 
 Save button: `Save Trustee Letter`
 
@@ -129,7 +129,7 @@ Save button: `Save Money Flow Accounts`
 
 In every trustee instruction PDF:
 
-- **Top block** (`Instruction of Payment` / Account No / Account Name) = **source account to debit**
+- **Top block** (`Instruction of Payment` / Account No / Account Name) = **source account to debit**. Account Name and Account No come only from Money Flow Account bank fields. Empty fields print as `—`; the internal bucket label (e.g. Investor Pool) is not used.
 - **Payment table rows** = **destination/payee accounts**
 
 ### Source account mapping
@@ -158,6 +158,8 @@ Config loader: `loadTrusteeLetterConfig()` merges DB settings with mock defaults
 
 PDF renderer: `trustee-letter-pdf.renderer.ts`  
 Data mappers: `trustee-letter-data.mapper.ts`
+
+**Dates:** `Date` and `Value Date` are the same Malaysia calendar day (`Asia/Kuala_Lumpur`, e.g. `2 September 2026`). Disbursement and investor-withdrawal letters use generate time. Settlement letters use `posted_at`.
 
 ### Issuer disbursement letter
 

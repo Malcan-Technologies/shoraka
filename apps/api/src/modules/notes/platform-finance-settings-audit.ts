@@ -42,6 +42,7 @@ export function snapshotPlatformFinanceSettings(
     trustee_letter_config: unknown;
     platform_accounts_config: unknown;
     ledger_bucket_accounts_config: unknown;
+    document_authorisation_config: unknown;
   } | null
 ): Record<string, unknown> {
   if (!row) return {};
@@ -67,6 +68,7 @@ export function snapshotPlatformFinanceSettings(
     trusteeLetterConfig: row.trustee_letter_config,
     platformAccountsConfig: row.platform_accounts_config,
     ledgerBucketAccountsConfig: row.ledger_bucket_accounts_config,
+    documentAuthorisationConfig: row.document_authorisation_config,
   };
 }
 

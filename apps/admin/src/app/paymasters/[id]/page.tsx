@@ -10,8 +10,8 @@ export default function PaymasterDetailPage() {
 
   return (
     <RequirePermission permission="paymasters.view">
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="w-full space-y-6 px-2 py-8 md:px-4">
+      <div className="flex-1 overflow-y-auto">
+        <div className="w-full space-y-6 px-4 py-6 md:px-6 md:py-8 lg:px-8">
           <PaymasterDetailView paymasterId={id} />
         </div>
       </div>

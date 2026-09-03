@@ -1848,6 +1848,14 @@ export class AdminRepository {
     // Sophisticated investor status (only for investor portal)
     is_sophisticated_investor?: boolean;
     sophisticated_investor_reason?: string | null;
+    date_of_incorporation?: Date | null;
+    date_of_commencement?: Date | null;
+    country_of_incorporation?: string | null;
+    sc_company_type?: string | null;
+    company_category?: string | null;
+    company_email?: string | null;
+    sc_investor_category?: string | null;
+    residential_address?: unknown;
     // Investor wallet balance row (only for investor portal)
     investor_balance?: { available_amount: Prisma.Decimal } | null;
     owner: {

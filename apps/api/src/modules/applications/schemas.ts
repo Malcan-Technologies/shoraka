@@ -227,6 +227,19 @@ export const financialStatementsInputSchema = z.object({
   plnpat: numSchema,
   plnetdiv: numSchema,
   plyear: numSchema,
+  curlib_borrowing: z.union([z.string(), z.number()]).optional(),
+  curlib_non_borrowing: z.union([z.string(), z.number()]).optional(),
+  ncl_loan: z.union([z.string(), z.number()]).optional(),
+  ncl_non_loan: z.union([z.string(), z.number()]).optional(),
+  equity_share_application: z.union([z.string(), z.number()]).optional(),
+  equity_share_premium: z.union([z.string(), z.number()]).optional(),
+  equity_accumulated_profit: z.union([z.string(), z.number()]).optional(),
+  equity_minority: z.union([z.string(), z.number()]).optional(),
+  operating_cost: z.union([z.string(), z.number()]).optional(),
+  admin_cost: z.union([z.string(), z.number()]).optional(),
+  interest_cost: z.union([z.string(), z.number()]).optional(),
+  other_cost: z.union([z.string(), z.number()]).optional(),
+  pl_minority: z.union([z.string(), z.number()]).optional(),
 });
 
 export type FinancialStatementsStoredData = z.infer<typeof financialStatementsInputSchema>;

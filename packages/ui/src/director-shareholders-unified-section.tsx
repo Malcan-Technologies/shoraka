@@ -57,6 +57,9 @@ export interface DirectorShareholdersUnifiedSectionProps {
   focusedMatchKey?: string | null;
   /** Called after email save + onboarding send succeed (e.g. invalidate org queries). */
   onPartyOnboardingSent?: () => void | Promise<void>;
+  title?: string;
+  description?: string;
+  grouped?: boolean;
 }
 
 type AugmentedRow = DirectorShareholderDisplayRow & { __person: ApplicationPersonRow };
@@ -90,6 +93,9 @@ export function DirectorShareholdersUnifiedSection({
   autoFocusFirstEmptyEmail = false,
   focusedMatchKey = null,
   onPartyOnboardingSent,
+  title = "Directors and Shareholders",
+  description = "Directors and shareholders details",
+  grouped = true,
 }: DirectorShareholdersUnifiedSectionProps) {
   const { getAccessToken } = useAuthToken();
   const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
@@ -285,8 +291,8 @@ export function DirectorShareholdersUnifiedSection({
     <div className={cn("rounded-xl border bg-card", className)}>
       <div className="flex items-center justify-between p-6 border-b">
         <div>
-          <h2 className="text-lg font-semibold">Directors and Shareholders</h2>
-          <p className="text-ui text-muted-foreground">Directors and shareholders details</p>
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <p className="text-ui text-muted-foreground">{description}</p>
         </div>
       </div>
       <div className="p-6 space-y-6">
@@ -299,7 +305,7 @@ export function DirectorShareholdersUnifiedSection({
               ? "No directors or shareholders are available from CTOS."
               : "No directors or shareholders listed."}
           </p>
-        ) : (
+        ) : grouped ? (
           <>
             {directorLikeRows.length > 0 ? (
               <div className="space-y-4">
@@ -328,7 +334,11 @@ export function DirectorShareholdersUnifiedSection({
                 <div className="space-y-3">{corporateRows.map(renderRow)}</div>
               </div>
             ) : null}
-            {unresolvedPeople.length > 0 ? (
+          </>
+        ) : (
+          <div className="space-y-3">{verifiedRows.map(renderRow)}</div>
+        )}
+        {!emptyAll && unresolvedPeople.length > 0 ? (
               <DirectorShareholderUnresolvedIdentitySection
                 noticeTitle={UNRESOLVED_IDENTITY_RECOVERY_TITLE}
                 noticeDescription={UNRESOLVED_IDENTITY_RECOVERY_COPY}
@@ -372,8 +382,6 @@ export function DirectorShareholdersUnifiedSection({
                 }))}
               />
             ) : null}
-          </>
-        )}
       </div>
 
       <AlertDialog open={confirmRow != null} onOpenChange={(open) => !open && setConfirmRow(null)}>

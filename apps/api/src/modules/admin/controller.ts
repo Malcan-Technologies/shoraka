@@ -67,6 +67,13 @@ import {
 } from "./schemas";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
+import { auditContextFromRequest } from "../../lib/audit";
+import { applyVerifiedPaymasterIdentityToApplication } from "../paymaster/service";
+import {
+  handleCreateIssuerMarc,
+  handleGetIssuerMarc,
+  handleIssuerMarcUploadUrl,
+} from "../paymaster/controller";
 import { noteService } from "../notes/service";
 import { investorBalanceActivityQuerySchema } from "../notes/schemas";
 import {
@@ -82,9 +89,13 @@ import {
   getCtosReportByAdminOrg,
 } from "../ctos/ctos-report-service";
 import { renderCtosHtmlToPdfBuffer } from "../ctos/render-ctos-html-to-pdf";
-import { handleCreateIssuerMarc, handleGetIssuerMarc, handleIssuerMarcUploadUrl } from "../paymaster/controller";
+import { createAdminOrganizationProfileRouter } from "../organization-profile/controller";
+import { computeOrgProfileCompleteness, getIssuerFinancialSummary, listPartyProfiles } from "../organization-profile/service";
+import { createOperatorProfileRouter } from "../operator-profile/controller";
 
 const router = Router();
+router.use("/organizations", createAdminOrganizationProfileRouter());
+router.use("/operator-profile", createOperatorProfileRouter());
 const adminService = new AdminService();
 
 function getApplicationSectionManagePermission(section: string): AdminPermission | null {
@@ -671,9 +682,22 @@ router.get(
         throw new AppError(404, "NOT_FOUND", "Organization not found");
       }
 
+      const profileCompleteness = await computeOrgProfileCompleteness(portal, id);
+      const [partyProfiles, issuerFinancials] = await Promise.all([
+        listPartyProfiles(portal, id),
+        portal === "issuer" && result.type === "COMPANY"
+          ? getIssuerFinancialSummary(id)
+          : Promise.resolve(null),
+      ]);
+
       res.json({
         success: true,
-        data: result,
+        data: {
+          ...result,
+          partyProfiles,
+          profileCompleteness,
+          issuerFinancials,
+        },
         correlationId: res.locals.correlationId,
       });
     } catch (error) {
@@ -3521,6 +3545,29 @@ router.patch(
 );
 
 router.post(
+  "/applications/:id/paymaster-identity/use-verified",
+  requirePermission("paymasters.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const result = await applyVerifiedPaymasterIdentityToApplication({
+        applicationId: id,
+        actorUserId: req.user.user_id,
+        auditContext: auditContextFromRequest(req, { res }),
+      });
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
   "/applications/:id/offers/contracts/send",
   requirePermission("applications.contract.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -3598,7 +3645,11 @@ router.post(
           facilityFeeCollectAmount: validated.facilityFeeCollectAmount,
           additionalFees: validated.additionalFees,
         },
-        validated.financingTenureDays
+        validated.financingTenureDays,
+        {
+          companyCategory: validated.company_category,
+          sustainabilityCategory: validated.sustainability_category,
+        }
       );
 
       res.json({

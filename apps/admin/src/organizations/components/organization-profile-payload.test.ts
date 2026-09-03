@@ -100,7 +100,6 @@ describe("buildSectionPayload", () => {
       corporateOnboardingData: {
         website: "https://new.acme.test",
         industry: "Manufacturing",
-        entityType: "Sdn Bhd",
         numberOfEmployees: 12,
         annualRevenue: "1000000",
         tinNumber: "TIN-1",
@@ -109,6 +108,25 @@ describe("buildSectionPayload", () => {
     });
     expect(payload.corporateOnboardingData).not.toHaveProperty("personInCharge");
     expect(payload.corporateOnboardingData).not.toHaveProperty("addresses");
+  });
+
+  it("saves company type and incorporation dates on the same company-details payload", () => {
+    const org = companyOrg({
+      dateOfIncorporation: "2020-03-12T00:00:00.000Z",
+      scCompanyType: "PRIVATE_LIMITED",
+      companyCategory: "NON_TECHNOLOGY",
+      companyEmail: "ops@acme.test",
+    });
+    const draft = buildDraft(org);
+    draft.scCompanyType = "PUBLIC_LIMITED";
+    draft.dateOfCommencement = "2020-06-01";
+    draft.companyEmail = "hello@acme.test";
+
+    expect(buildSectionPayload(org, draft, "company")).toEqual({
+      scCompanyType: "PUBLIC_LIMITED",
+      dateOfCommencement: "2020-06-01",
+      companyEmail: "hello@acme.test",
+    });
   });
 
   it("sends only person-in-charge fields when the PIC card is saved", () => {
@@ -248,5 +266,35 @@ describe("buildSectionPayload", () => {
       },
     });
     expect(payload.corporateOnboardingData).not.toHaveProperty("website");
+  });
+
+  it("saves investor classification on the same profile payload", () => {
+    const org = companyOrg({
+      portal: "investor",
+      type: "PERSONAL",
+      scInvestorCategory: "RETAIL",
+    });
+    const draft = buildDraft(org);
+    draft.scInvestorCategory = "ANGEL";
+
+    expect(buildSectionPayload(org, draft, "classification")).toEqual({
+      scInvestorCategory: "ANGEL",
+    });
+  });
+
+  it("saves gender and nationality on the personal details payload", () => {
+    const org = companyOrg({
+      type: "PERSONAL",
+      gender: "MALE",
+      nationality: "Malaysian",
+    });
+    const draft = buildDraft(org);
+    draft.gender = "FEMALE";
+    draft.nationality = "Singaporean";
+
+    expect(buildSectionPayload(org, draft, "personal")).toMatchObject({
+      gender: "FEMALE",
+      nationality: "Singaporean",
+    });
   });
 });

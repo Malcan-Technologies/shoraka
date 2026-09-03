@@ -6,6 +6,9 @@ import {
   extractGovernmentId,
   filterVisiblePeopleRows,
   CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
+  canonicalPartyIdentityKey,
+  isGeneratedUserPartyKey,
+  stripGeneratedPartyKeyPrefix,
   type ApplicationPersonRow,
   type CtosPartySupplement,
   type DirectorShareholderListSource,
@@ -633,6 +636,122 @@ function buildPeopleFromUserDeclaredData(params: {
   return finalPeople;
 }
 
+export type MasterPartyPeopleSeed = {
+  partyKey: string;
+  membershipStatus: string;
+  entityType: "INDIVIDUAL" | "CORPORATE";
+  name: string | null;
+  identityNumber: string | null;
+  isDirector: boolean;
+  isShareholder: boolean;
+  shareholdingPercentage: string | number | null;
+};
+
+function sharePercentFromMaster(value: string | number | null): number | null {
+  if (value == null || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function operationalRolesForMasterParty(party: MasterPartyPeopleSeed): Array<"DIRECTOR" | "SHAREHOLDER"> {
+  const roles: Array<"DIRECTOR" | "SHAREHOLDER"> = [];
+  if (party.isDirector) roles.push("DIRECTOR");
+  const share = sharePercentFromMaster(party.shareholdingPercentage);
+  if (party.isShareholder && (party.entityType === "CORPORATE" || (share != null && share >= 5))) {
+    roles.push("SHAREHOLDER");
+  }
+  return roles;
+}
+
+function operationalMatchKeyForMasterParty(party: MasterPartyPeopleSeed): string | null {
+  const fromIdentity = canonicalPartyIdentityKey(party.identityNumber);
+  if (fromIdentity) return fromIdentity;
+  if (isGeneratedUserPartyKey(party.partyKey)) return null;
+  return (
+    canonicalPartyIdentityKey(stripGeneratedPartyKeyPrefix(party.partyKey)) ??
+    canonicalPartyIdentityKey(party.partyKey)
+  );
+}
+
+/**
+ * Fold CashSouk master parties into operational people[] so KYC email/onboarding
+ * still works for user-added directors/shareholders who are not yet in CTOS JSON.
+ * Management-only and individual shareholders under 5% stay off this list.
+ */
+export function mergeMasterPartiesIntoPeopleList(params: {
+  people: ApplicationPersonRow[];
+  masterParties: MasterPartyPeopleSeed[];
+  ctosPartySupplements?: SupplementInput[] | null;
+}): ApplicationPersonRow[] {
+  const out = [...params.people];
+  const index = new Map<string, number>();
+  out.forEach((row, i) => {
+    const key = normalizeDirectorShareholderIdKey(row.matchKey);
+    if (key) index.set(key, i);
+  });
+  const supplementByKey = buildSupplementMapByMatchKey(params.ctosPartySupplements);
+
+  for (const party of params.masterParties) {
+    if (party.membershipStatus === "MASTER_INACTIVE") continue;
+    const roles = operationalRolesForMasterParty(party);
+    if (roles.length === 0) continue;
+    const key = operationalMatchKeyForMasterParty(party);
+    if (!key) continue;
+    const share = sharePercentFromMaster(party.shareholdingPercentage);
+    const existingIndex = index.get(key);
+    if (existingIndex != null) {
+      const existing = out[existingIndex];
+      const roleSet = new Set<string>([
+        ...(existing.roles ?? []).map((r) => String(r).toUpperCase()),
+        ...roles,
+      ]);
+      out[existingIndex] = {
+        ...existing,
+        name: existing.name ?? party.name,
+        roles: Array.from(roleSet),
+        sharePercentage:
+          existing.sharePercentage != null && share != null
+            ? Math.max(existing.sharePercentage, share)
+            : existing.sharePercentage ?? share,
+      };
+      continue;
+    }
+    const bundle = supplementByKey.get(key);
+    if (bundle) {
+      out.push(
+        personRowFromSupplement({
+          matchKey: key,
+          name: party.name,
+          entityType: party.entityType,
+          roles,
+          sharePercentage: share,
+          sup: bundle.sup,
+          supplementRaw: bundle.raw,
+        })
+      );
+    } else {
+      out.push({
+        matchKey: key,
+        name: party.name,
+        entityType: party.entityType,
+        roles,
+        sharePercentage: share,
+        status: "",
+        action: null,
+        screening: null,
+        onboarding: { status: null, id: null },
+        requestId: null,
+        requestIdType: null,
+        icFrontUrl: null,
+        icBackUrl: null,
+        email: "",
+      });
+    }
+    index.set(key, out.length - 1);
+  }
+  return out;
+}
+
 export type BuildDirectorShareholderPeopleParams = {
   ctos: unknown;
   issuerDirectorKycStatus: unknown;
@@ -641,6 +760,7 @@ export type BuildDirectorShareholderPeopleParams = {
   supplement?: unknown | null;
   ctosPartySupplements?: SupplementInput[] | null;
   corporateEntities: unknown;
+  masterParties?: MasterPartyPeopleSeed[] | null;
 };
 
 export type DirectorShareholderPeopleBuildResult = {
@@ -869,8 +989,9 @@ export function buildDirectorShareholderPeopleList(
 ): DirectorShareholderPeopleBuildResult {
   const ctosSafe = normalizeCtosCompanyJson(params.ctos);
 
+  let result: DirectorShareholderPeopleBuildResult;
   if (!ctosSafe) {
-    return {
+    result = {
       people: buildPeopleFromUserDeclaredData({
         corporateEntities: params.corporateEntities,
         issuerDirectorKycStatus: params.issuerDirectorKycStatus,
@@ -880,22 +1001,31 @@ export function buildDirectorShareholderPeopleList(
       listSource: "ONBOARDING",
       ctosDirectorShareholderWarning: null,
     };
+  } else {
+    const people = buildPeopleFromCtosCompanyJson(params, ctosSafe);
+    const visible = filterVisiblePeopleRows(people);
+    result =
+      visible.length === 0
+        ? {
+            people: [],
+            listSource: "CTOS_EMPTY",
+            ctosDirectorShareholderWarning: CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
+          }
+        : {
+            people,
+            listSource: "CTOS",
+            ctosDirectorShareholderWarning: null,
+          };
   }
 
-  const people = buildPeopleFromCtosCompanyJson(params, ctosSafe);
-  const visible = filterVisiblePeopleRows(people);
-  if (visible.length === 0) {
-    return {
-      people: [],
-      listSource: "CTOS_EMPTY",
-      ctosDirectorShareholderWarning: CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
-    };
-  }
-
+  if (!params.masterParties?.length) return result;
   return {
-    people,
-    listSource: "CTOS",
-    ctosDirectorShareholderWarning: null,
+    ...result,
+    people: mergeMasterPartiesIntoPeopleList({
+      people: result.people,
+      masterParties: params.masterParties,
+      ctosPartySupplements: params.ctosPartySupplements ?? null,
+    }),
   };
 }
 

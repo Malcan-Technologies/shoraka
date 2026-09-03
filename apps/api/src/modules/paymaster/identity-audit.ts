@@ -1,6 +1,7 @@
 /**
  * Paymaster master-identity application Activity metadata.
- * Does not store full submitted conflict payloads; identity fields are the trusted master values.
+ * Create/link/verify store trusted master identity. Use Verified also records the
+ * submitted-before overlay on this application.
  */
 
 import type { Prisma } from "@prisma/client";
@@ -13,7 +14,8 @@ import { prisma } from "../../lib/prisma";
 type PaymasterIdentityEventType =
   | typeof ApplicationLogEventType.PAYMASTER_CREATED
   | typeof ApplicationLogEventType.PAYMASTER_LINKED_TO_ISSUER
-  | typeof ApplicationLogEventType.PAYMASTER_VERIFIED;
+  | typeof ApplicationLogEventType.PAYMASTER_VERIFIED
+  | typeof ApplicationLogEventType.PAYMASTER_IDENTITY_RESOLVED;
 
 export function buildPaymasterIdentityRemark(params: {
   eventType: PaymasterIdentityEventType;
@@ -26,6 +28,9 @@ export function buildPaymasterIdentityRemark(params: {
   }
   if (params.eventType === ApplicationLogEventType.PAYMASTER_LINKED_TO_ISSUER) {
     return `${identity} linked to this issuer.`;
+  }
+  if (params.eventType === ApplicationLogEventType.PAYMASTER_IDENTITY_RESOLVED) {
+    return `Submitted customer identity replaced with verified Paymaster ${identity}.`;
   }
   return `${identity} identity reviewed internally. Unverified → Verified.`;
 }

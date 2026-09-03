@@ -36,7 +36,8 @@ import { buildAdminPeopleList } from "../admin/build-people-list";
 import { filterVisiblePeopleRows, normalizeRawStatus, type ApplicationPersonRow } from "@cashsouk/types";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ApplicationLogEventType } from "../applications/logs/types";
-import { AUDIT_SOURCE, internalAuditContext } from "../../lib/audit";
+import { observeExternalCtosParties } from "../organization-profile/service";
+import { AUDIT_SOURCE, internalAuditContext } from "../../lib/audit/context";
 
 export type AdminOrgCtosPortal = "issuer" | "investor";
 
@@ -372,6 +373,18 @@ export async function fetchAndInsertCtosReport(
     },
   });
 
+  try {
+    await observeExternalCtosParties("issuer", issuerOrganizationId, row.company_json);
+  } catch (e) {
+    logger.warn(
+      {
+        issuerOrganizationId,
+        err: e instanceof Error ? e.message : String(e),
+      },
+      "Master party observation after CTOS org report failed (non-blocking)"
+    );
+  }
+
   if (orgForPeople?.owner_user_id) {
     try {
       await runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert({
@@ -533,6 +546,19 @@ export async function fetchAndInsertCtosReportForAdminOrg(
       financials_json: parsed.financials_json as unknown as Prisma.InputJsonValue,
     },
   });
+
+  try {
+    await observeExternalCtosParties(portal, organizationId, row.company_json);
+  } catch (e) {
+    logger.warn(
+      {
+        portal,
+        organizationId,
+        err: e instanceof Error ? e.message : String(e),
+      },
+      "Master party observation after admin CTOS org report failed (non-blocking)"
+    );
+  }
 
   const shouldNotifyDirectorShareholder = shouldNotifyDirectorShareholderAfterAdminOrgCtosInsert({
     portal,

@@ -52,7 +52,11 @@ import { OrganizationPeoplePanel } from "./organization-people-panel";
 import { OrganizationWalletActivityPanel } from "./organization-wallet-activity-panel";
 import { CopyableText } from "./organization-profile-helpers";
 import { OrganizationProfilePanel } from "./organization-profile-panel";
+import { OrganizationProfileOverviewCard } from "./organization-profile-overview-card";
+import { OrganizationExternalReviewSheet } from "./organization-external-review-sheet";
 import { OrganizationQuickLinksCard } from "./organization-quick-links-card";
+import { useOrganizationMasterPeople } from "@/organizations/hooks/use-organization-master-people";
+import { firstIncompleteProfileAnchor } from "@/organizations/utils/organization-profile-overview";
 import {
   isOrgDetailTabId,
   isOrgPeopleTabAvailable,
@@ -102,6 +106,9 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
   const canViewAccounts = can("users.view");
   const params = useParams();
   const organizationId = params.id as string;
+  const peopleMutations = useOrganizationMasterPeople(portal, organizationId);
+  const [reviewOpen, setReviewOpen] = React.useState(false);
+  const [highlightedPartyId, setHighlightedPartyId] = React.useState<string | null>(null);
 
   const { data: org, isLoading, error } = useOrganizationDetail(portal, organizationId, {
     enabled: canView,
@@ -397,22 +404,56 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                   main={
                     <AdminDetailTabs tabs={tabs} value={resolvedTab} onValueChange={setActiveTab}>
                       <AdminDetailTabPanel value="organization" preserveMount>
-                        <OrganizationProfilePanel
-                          key={organizationId}
-                          org={org}
-                          portal={portal}
-                          organizationId={organizationId}
-                          displayName={displayName}
-                        />
-                        {portal === "issuer" ? (
-                          <div className="mt-6" id="marc-assessment">
-                            <OrganizationMarcCard
-                              org={org}
-                              organizationId={organizationId}
-                              portal={portal}
-                            />
-                          </div>
-                        ) : null}
+                        <div className="space-y-6">
+                          <OrganizationProfileOverviewCard
+                            completeness={org.profileCompleteness}
+                            parties={org.partyProfiles}
+                            portal={portal}
+                            organizationType={org.type === "COMPANY" ? "COMPANY" : "PERSONAL"}
+                            onCompleteProfile={() => {
+                              const target = firstIncompleteProfileAnchor(
+                                org.profileCompleteness,
+                                canShowPeopleTab
+                              );
+                              if (!target) return;
+                              if (target.tab !== resolvedTab) setActiveTab(target.tab);
+                              requestAnimationFrame(() => {
+                                document.getElementById(target.anchor)?.scrollIntoView({
+                                  behavior: "smooth",
+                                  block: "start",
+                                });
+                              });
+                            }}
+                            onSectionClick={(href) => {
+                              const people = href === "#profile-people";
+                              const nextTab = people && canShowPeopleTab ? "people" : "organization";
+                              if (nextTab !== resolvedTab) setActiveTab(nextTab);
+                              requestAnimationFrame(() => {
+                                document.getElementById(href.slice(1))?.scrollIntoView({
+                                  behavior: "smooth",
+                                  block: "start",
+                                });
+                              });
+                            }}
+                            onReviewChanges={() => setReviewOpen(true)}
+                          />
+                          <OrganizationProfilePanel
+                            key={organizationId}
+                            org={org}
+                            portal={portal}
+                            organizationId={organizationId}
+                            displayName={displayName}
+                          />
+                          {portal === "issuer" ? (
+                            <div id="marc-assessment">
+                              <OrganizationMarcCard
+                                org={org}
+                                organizationId={organizationId}
+                                portal={portal}
+                              />
+                            </div>
+                          ) : null}
+                        </div>
                       </AdminDetailTabPanel>
                       {canShowPeopleTab ? (
                         <AdminDetailTabPanel value="people" preserveMount>
@@ -422,6 +463,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                             portal={portal}
                             organizationId={organizationId}
                             displayName={displayName}
+                            highlightedPartyId={highlightedPartyId}
                           />
                         </AdminDetailTabPanel>
                       ) : null}
@@ -477,6 +519,24 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
             ) : null}
           </div>
         </div>
+
+        <OrganizationExternalReviewSheet
+          open={reviewOpen}
+          onOpenChange={setReviewOpen}
+          parties={org?.partyProfiles ?? []}
+          canManage={canManage}
+          onKeep={(partyId, field) => peopleMutations.resolve.mutate({ partyId, action: "KEEP", field })}
+          onUseExternal={(partyId, field) =>
+            peopleMutations.resolve.mutate({ partyId, action: "USE_EXTERNAL", field })
+          }
+          onAdopt={(partyId) => peopleMutations.adopt.mutate(partyId)}
+          onInactivate={(partyId) => peopleMutations.inactivate.mutate(partyId)}
+          onOpenPerson={(partyId) => {
+            setReviewOpen(false);
+            setHighlightedPartyId(partyId);
+            if (canShowPeopleTab) setActiveTab("people");
+          }}
+        />
 
         <AlertDialog open={showSophisticatedDialog} onOpenChange={setShowSophisticatedDialog}>
           <AlertDialogContent>

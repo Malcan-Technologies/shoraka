@@ -1,37 +1,61 @@
 "use client";
 
-import * as React from "react";
-import Link from "next/link";
 import { format } from "date-fns";
-import {
-  BuildingOffice2Icon,
-  ClipboardDocumentListIcon,
-  DocumentTextIcon,
-  IdentificationIcon,
-} from "@heroicons/react/24/outline";
+import { BuildingOffice2Icon } from "@heroicons/react/24/outline";
+import { isPaymasterVerified } from "@cashsouk/types";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
-import { formatNamedEntityDisplay } from "@cashsouk/types";
 import {
-  AdminCollapsibleCard,
+  AdminDetailTabPanel,
+  AdminDetailTabs,
   AdminEntityHeader,
   AdminEntitySummaryCard,
+  AdminRelatedRecordsRail,
+  useAdminDetailTabState,
+  type AdminDetailTab,
 } from "@/components/admin-detail";
-import { Card, CardContent } from "@/components/ui/card";
 import { usePermissions } from "@/hooks/use-permissions";
-import { orgHref } from "@/lib/admin-directory-hrefs";
-import {
-  assignmentNoticeStatusLabel,
-  assignmentNoticeStatusToken,
-} from "@/lib/admin-status-token";
-import { useAdminPaymasterDetail } from "@/paymasters/hooks/use-paymasters";
+import { adminTabStatusLabel, getAdminStatusToken } from "@/lib/admin-status-token";
+import { CopyableText } from "@/organizations/components/organization-profile-helpers";
 import { PaymasterActivityPanel } from "@/paymasters/components/paymaster-activity-panel";
-import { PaymasterVerificationPanel } from "@/paymasters/components/paymaster-verification-panel";
+import { PaymasterIdentityCard } from "@/paymasters/components/paymaster-identity-card";
+import { PaymasterLinkedRecordsPanel } from "@/paymasters/components/paymaster-linked-records-panel";
+import { PaymasterNoticesCard } from "@/paymasters/components/paymaster-notices-card";
+import { PaymasterSubmittedIdentitiesCard } from "@/paymasters/components/paymaster-submitted-identities-card";
+import { PaymasterVerificationCard } from "@/paymasters/components/paymaster-verification-card";
+import { useAdminPaymasterDetail } from "@/paymasters/hooks/use-paymasters";
+import {
+  isPaymasterDetailTabId,
+  paymasterIdentityTabStatus,
+  type PaymasterDetailTabId,
+} from "@/paymasters/utils/paymaster-detail-tabs";
 
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+function PageSkeleton() {
   return (
-    <div className="space-y-1">
-      <div className="text-meta text-muted-foreground">{label}</div>
-      <div className="break-words text-ui font-medium">{value || "—"}</div>
+    <div className="space-y-6">
+      <Skeleton className="h-8 w-24" />
+      <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <div className="p-6 md:p-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3">
+              <Skeleton className="h-12 w-12 rounded-xl" />
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-7 w-72 max-w-full" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:flex">
+              <Skeleton className="h-20 w-full rounded-xl sm:w-48" />
+              <Skeleton className="h-20 w-full rounded-xl sm:w-48" />
+              <Skeleton className="h-20 w-full rounded-xl sm:w-48" />
+            </div>
+          </div>
+        </div>
+        <div className="border-t px-6 py-4 md:px-8">
+          <Skeleton className="h-12 w-full" />
+        </div>
+      </div>
+      <Skeleton className="h-56 w-full rounded-2xl" />
     </div>
   );
 }
@@ -41,14 +65,13 @@ export function PaymasterDetailView({ paymasterId }: { paymasterId: string }) {
   const canManage = can("paymasters.manage");
   const { data, isLoading, error } = useAdminPaymasterDetail(paymasterId);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-24 w-full rounded-2xl" />
-        <Skeleton className="h-48 w-full rounded-2xl" />
-      </div>
-    );
-  }
+  const { activeTab, setActiveTab } = useAdminDetailTabState<PaymasterDetailTabId>({
+    isValidTab: isPaymasterDetailTabId,
+    computedTab: "identity",
+  });
+  const resolvedTab: PaymasterDetailTabId = activeTab ?? "identity";
+
+  if (isLoading) return <PageSkeleton />;
   if (error || !data) {
     return (
       <p className="text-ui text-destructive">
@@ -57,139 +80,110 @@ export function PaymasterDetailView({ paymasterId }: { paymasterId: string }) {
     );
   }
 
+  const verified = isPaymasterVerified(data.verificationStatus);
+  const identityTab = paymasterIdentityTabStatus(data.verificationStatus);
+  const tabs: AdminDetailTab<PaymasterDetailTabId>[] = [
+    {
+      id: "identity",
+      label: "Identity",
+      statusToken: identityTab.statusToken,
+      statusLabel: identityTab.statusLabel,
+    },
+    {
+      id: "linked-records",
+      label: "Linked records",
+      statusToken: "neutral",
+      statusLabel: adminTabStatusLabel("neutral"),
+    },
+    {
+      id: "activity",
+      label: "Activity",
+      statusToken: "neutral",
+      statusLabel: adminTabStatusLabel("neutral"),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <AdminEntityHeader
         variant="hero"
+        tone={verified ? "success" : "action"}
         backHref="/paymasters"
         backLabel="Paymasters"
         eyebrow="Paymaster detail"
         title={data.legalName}
         subtitle={<span className="font-mono">{data.registrationNumber}</span>}
+        icon={BuildingOffice2Icon}
+        chips={
+          <>
+            <StatusBadge label="Paymaster" status="neutral" showDot={false} />
+            {data.entityType ? (
+              <StatusBadge label={data.entityType} status="submitted" showDot={false} />
+            ) : null}
+            <StatusBadge
+              label={verified ? "Verified" : "Unverified"}
+              status={getAdminStatusToken(data.verificationStatus)}
+            />
+          </>
+        }
+        summaryCards={[
+          <AdminEntitySummaryCard
+            key="issuers"
+            label="Linked issuers"
+            value={String(data.issuers.length)}
+          />,
+          <AdminEntitySummaryCard
+            key="financings"
+            label="Financings"
+            value={String(data.financings.length)}
+          />,
+          <AdminEntitySummaryCard
+            key="notices"
+            label="Notices"
+            value={String(data.notices.length)}
+          />,
+        ]}
+        metrics={[
+          { label: "Country", value: data.registrationCountry || "—" },
+          {
+            label: "SSM / registration",
+            value: data.registrationNumber ? (
+              <CopyableText
+                value={data.registrationNumber}
+                label="SSM / registration number"
+                className="font-mono"
+              />
+            ) : (
+              "—"
+            ),
+          },
+          { label: "Created", value: format(new Date(data.createdAt), "dd MMM yyyy") },
+        ]}
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <AdminEntitySummaryCard label="Linked issuers" value={String(data.issuers.length)} />
-        <AdminEntitySummaryCard label="Financings" value={String(data.financings.length)} />
-        <AdminEntitySummaryCard
-          label="Notices"
-          value={String(data.notices.length)}
-        />
-      </div>
-
-      <Card className="rounded-2xl">
-        <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
-          <DetailRow label="Legal name" value={data.legalName} />
-          <DetailRow label="SSM / registration number" value={data.registrationNumber} />
-          <DetailRow label="Country" value={data.registrationCountry} />
-          <DetailRow label="Entity type" value={data.entityType} />
-          <DetailRow
-            label="Created"
-            value={format(new Date(data.createdAt), "dd MMM yyyy, h:mm a")}
-          />
-          <DetailRow
-            label="Updated"
-            value={format(new Date(data.updatedAt), "dd MMM yyyy, h:mm a")}
-          />
-        </CardContent>
-      </Card>
-
-      <AdminCollapsibleCard
-        title="Linked issuers"
-        icon={BuildingOffice2Icon}
-        description="Issuers that have used this Paymaster. Related-party is issuer-specific."
-        defaultOpen
-      >
-        {data.issuers.length === 0 ? (
-          <p className="text-ui text-muted-foreground">No issuer links yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {data.issuers.map((issuer) => (
-              <div key={issuer.issuerOrganizationId} className="flex flex-wrap items-center justify-between gap-2 border-b pb-3 last:border-0 last:pb-0">
-                <Link
-                  href={orgHref("issuer", issuer.issuerOrganizationId)}
-                  className="text-ui font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  {formatNamedEntityDisplay(issuer.issuerName, issuer.issuerDisplayReference)}
-                </Link>
-                <span className="text-meta text-muted-foreground">
-                  Related party: {issuer.isRelatedParty == null ? "—" : issuer.isRelatedParty ? "Yes" : "No"}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </AdminCollapsibleCard>
-
-      <AdminCollapsibleCard
-        title="Financing history"
-        icon={ClipboardDocumentListIcon}
-        description="Linked applications, facilities, and notes. Track record is not calculated from this list."
-      >
-        {data.financings.length === 0 ? (
-          <p className="text-ui text-muted-foreground">No financing history yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {data.financings.map((row, index) => (
-              <div key={`${row.contractId ?? row.noteId ?? index}`} className="grid gap-1 border-b pb-3 last:border-0 last:pb-0 sm:grid-cols-3">
-                <div className="text-ui">
-                  {row.noteReference ? (
-                    <Link href={`/notes/${row.noteId}`} className="text-primary underline-offset-4 hover:underline">
-                      {row.noteReference}
-                    </Link>
-                  ) : (
-                    row.contractDisplayReference || row.applicationDisplayReference || "—"
-                  )}
-                </div>
-                <div className="text-ui text-muted-foreground">{row.status || "—"}</div>
-                <div className="text-ui text-muted-foreground">{row.issuerName || "—"}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </AdminCollapsibleCard>
-
-      <AdminCollapsibleCard
-        title="Verification"
-        icon={IdentificationIcon}
-        description="Internal Paymaster identity review. This is not an external SSM or CTOS check."
-      >
-        <PaymasterVerificationPanel
-          paymaster={data}
-          paymasterId={data.id}
-          canManage={canManage}
-          layout="detail"
-        />
-      </AdminCollapsibleCard>
-
-      <PaymasterActivityPanel paymasterId={data.id} legalName={data.legalName} />
-
-      <AdminCollapsibleCard
-        title="Assignment notices"
-        icon={DocumentTextIcon}
-        description="Read-only history. Generate and send Notices from the related Note."
-      >
-        {data.notices.length === 0 ? (
-          <p className="text-ui text-muted-foreground">No assignment notices yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {data.notices.map((notice) => (
-              <div key={notice.id} className="flex flex-wrap items-center justify-between gap-2 border-b pb-3 last:border-0 last:pb-0">
-                <div>
-                  <div className="text-ui font-medium">
-                    {notice.noteReference || notice.invoiceDisplayReference || notice.contractDisplayReference || "Notice"}
-                  </div>
-                  <div className="text-meta text-muted-foreground">{notice.issuerName || "—"}</div>
-                </div>
-                <StatusBadge
-                  label={assignmentNoticeStatusLabel(notice.status)}
-                  status={assignmentNoticeStatusToken(notice.status)}
+      <AdminRelatedRecordsRail
+        main={
+          <AdminDetailTabs tabs={tabs} value={resolvedTab} onValueChange={setActiveTab}>
+            <AdminDetailTabPanel value="identity" preserveMount>
+              <div className="space-y-6">
+                <PaymasterIdentityCard paymaster={data} />
+                <PaymasterSubmittedIdentitiesCard
+                  identities={data.submittedApplicationIdentities ?? []}
                 />
               </div>
-            ))}
-          </div>
-        )}
-      </AdminCollapsibleCard>
+            </AdminDetailTabPanel>
+            <AdminDetailTabPanel value="linked-records" preserveMount>
+              <PaymasterLinkedRecordsPanel paymaster={data} />
+            </AdminDetailTabPanel>
+            <AdminDetailTabPanel value="activity" preserveMount>
+              <PaymasterActivityPanel paymasterId={data.id} legalName={data.legalName} />
+            </AdminDetailTabPanel>
+          </AdminDetailTabs>
+        }
+      >
+        <PaymasterVerificationCard paymaster={data} canManage={canManage} />
+        <PaymasterNoticesCard notices={data.notices} />
+      </AdminRelatedRecordsRail>
     </div>
   );
 }

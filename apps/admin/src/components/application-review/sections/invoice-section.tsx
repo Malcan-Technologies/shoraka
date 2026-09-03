@@ -100,6 +100,7 @@ export interface InvoiceSectionProps {
   onAddComment?: (comment: string) => Promise<void> | void;
   onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
   suggestedMarcGrade?: string | null;
+  offerIdentityBlockReason?: string | null;
   sectionComparison?: {
     beforeInvoices: InvoiceSectionProps["invoices"];
     afterInvoices: InvoiceSectionProps["invoices"];
@@ -290,6 +291,7 @@ export function InvoiceSection({
   onAddComment,
   onViewSignedInvoiceOffer,
   suggestedMarcGrade = null,
+  offerIdentityBlockReason = null,
   sectionComparison,
   hideSectionComments = false,
   contractId,
@@ -590,6 +592,7 @@ export function InvoiceSection({
                     facilityOverLimit={contractFacility?.isOverLimit}
                     scopeKey={scopeKey}
                     suggestedMarcGrade={suggestedMarcGrade}
+                    offerIdentityBlockReason={offerIdentityBlockReason}
                   />
                 </ReviewFieldBlock>
               </TabsContent>

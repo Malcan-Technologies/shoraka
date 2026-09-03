@@ -30,7 +30,10 @@ import {
   allocateDisplayReference,
   resolveApplicationProductCode,
 } from "../../lib/display-reference";
-import { resolvePaymasterFromCustomerDetails } from "../paymaster/service";
+import {
+  persistDraftCustomerDetails,
+  shouldRetainLinkedFacilityPaymaster,
+} from "../paymaster/service";
 
 export class ContractService {
   private repository: ContractRepository;
@@ -191,7 +194,7 @@ export class ContractService {
     id: string,
     data: Prisma.ContractUpdateInput,
     userId: string,
-    options: {
+    _options: {
       selectedPaymasterId?: string | null;
       logContext?: IssuerActivityLogContext;
     } = {}
@@ -245,7 +248,6 @@ export class ContractService {
     if (nextCustomerKey && nextCustomerKey !== prevCustomerKey) keysToCleanup.push(nextCustomerKey);
 
     if (data.customer_details != null && data.customer_details !== Prisma.JsonNull) {
-      const applicationId = (contract as { applications?: Array<{ id: string }> }).applications?.[0]?.id ?? null;
       const previousCustomer =
         contract.customer_details &&
         typeof contract.customer_details === "object" &&
@@ -253,20 +255,14 @@ export class ContractService {
           ? (contract.customer_details as Record<string, unknown>)
           : null;
       const previousLpc = previousCustomer?.is_large_private_company;
-      const resolved = await resolvePaymasterFromCustomerDetails({
-        issuerOrganizationId: contract.issuer_organization_id,
+      data.customer_details = persistDraftCustomerDetails({
         customerDetails: data.customer_details as Record<string, unknown>,
-        applicationId,
-        contractId: contract.id,
-        selectedPaymasterId: options.selectedPaymasterId ?? null,
-        lockExistingPaymasterId: contract.paymaster_id,
         previousLargePrivateCompany: typeof previousLpc === "boolean" ? previousLpc : undefined,
         previousDocument: previousCustomer?.document,
-        actorUserId: userId,
-        auditContext: options.logContext?.context,
-      });
-      data.customer_details = resolved.customerDetails as Prisma.InputJsonValue;
-      data.paymaster = { connect: { id: resolved.paymasterId } };
+        retainPaymasterId: shouldRetainLinkedFacilityPaymaster(contract.status)
+          ? contract.paymaster_id
+          : null,
+      }) as Prisma.InputJsonValue;
     }
 
     try {

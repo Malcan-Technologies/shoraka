@@ -804,6 +804,7 @@ export interface PlatformFinanceSetting {
   trusteeLetterConfig: TrusteeLetterConfig | null;
   platformAccountsConfig: PlatformAccountsConfig | null;
   ledgerBucketAccountsConfig: LedgerBucketAccountsConfig | null;
+  documentAuthorisationConfig: DocumentAuthorisationConfig | null;
   updatedByUserId: string | null;
   updatedAt: string;
 }
@@ -838,6 +839,21 @@ export interface TrusteeLetterConfig {
   trusteeCcEmails?: string[];
 }
 
+export type DocumentStampSource = "SHARED_CERTIFICATE_STAMP" | "SEPARATE_RECEIPT_STAMP";
+
+export interface DocumentAuthorisationStampFields {
+  s3Key?: string;
+  fileName?: string;
+  contentType?: string;
+}
+
+export interface DocumentAuthorisationConfig {
+  authorisedSignatoryName: string;
+  useSameCompanyStamp: boolean;
+  certificateCompanyStamp?: DocumentAuthorisationStampFields;
+  receiptCompanyStamp?: DocumentAuthorisationStampFields;
+}
+
 export interface TrusteeSignatureUploadUrlRequest {
   fileName: string;
   contentType: "image/png" | "image/jpeg" | "image/jpg" | "image/webp";
@@ -849,6 +865,14 @@ export interface TrusteeSignatureUploadUrlResponse {
   s3Key: string;
   expiresIn: number;
 }
+
+export type DocumentStampUploadPurpose = "CERTIFICATE_COMPANY_STAMP" | "RECEIPT_COMPANY_STAMP";
+
+export interface DocumentStampUploadUrlRequest extends TrusteeSignatureUploadUrlRequest {
+  purpose: DocumentStampUploadPurpose;
+}
+
+export interface DocumentStampUploadUrlResponse extends TrusteeSignatureUploadUrlResponse {}
 
 export interface IssuerPaymentEvidenceUploadUrlRequest {
   fileName: string;

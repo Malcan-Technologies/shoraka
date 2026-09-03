@@ -87,6 +87,76 @@ export function useViewIssuerShorakaCertificate(noteId: string | null) {
   });
 }
 
+export function useIssuerInvestmentNoteCertificate(noteId?: string) {
+  const apiClient = useIssuerNotesApiClient();
+  return useQuery({
+    queryKey: [...issuerNotesKeys.detail(noteId), "investment-note-certificate"] as const,
+    enabled: Boolean(noteId),
+    queryFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const response = await apiClient.getIssuerInvestmentNoteCertificate(noteId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+}
+
+export function useViewIssuerInvestmentNoteCertificate(noteId: string | null) {
+  const apiClient = useIssuerNotesApiClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const response = await apiClient.getIssuerInvestmentNoteCertificate(noteId);
+      if (!response.success) throw new Error(response.error.message);
+      if (!response.data.viewUrl) throw new Error("Investment Note Certificate is not available");
+      return response.data;
+    },
+  });
+}
+
+export function useDownloadIssuerInvestmentNoteCertificate(noteId: string | null) {
+  const apiClient = useIssuerNotesApiClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const response = await apiClient.getIssuerInvestmentNoteCertificate(noteId);
+      if (!response.success) throw new Error(response.error.message);
+      if (!response.data.downloadUrl) {
+        throw new Error("Investment Note Certificate is not available");
+      }
+      return response.data;
+    },
+  });
+}
+
+export function useIssuerSettlementHibahReceipt(noteId?: string) {
+  const apiClient = useIssuerNotesApiClient();
+  return useQuery({
+    queryKey: [...issuerNotesKeys.detail(noteId), "settlement-hibah-receipt"] as const,
+    enabled: Boolean(noteId),
+    refetchInterval: (query) => (query.state.data?.status === "PENDING" ? 5000 : false),
+    queryFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const response = await apiClient.getIssuerSettlementHibahReceipt(noteId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+}
+
+export function useViewIssuerSettlementHibahReceipt(noteId: string | null) {
+  const apiClient = useIssuerNotesApiClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const response = await apiClient.getIssuerSettlementHibahReceipt(noteId);
+      if (!response.success) throw new Error(response.error.message);
+      if (!response.data.viewUrl) throw new Error("Settlement & Hibah Receipt is not available");
+      return response.data;
+    },
+  });
+}
+
 export function useSubmitIssuerPayment(noteId: string) {
   const apiClient = useIssuerNotesApiClient();
   const queryClient = useQueryClient();

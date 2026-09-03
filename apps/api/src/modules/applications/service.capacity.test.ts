@@ -86,8 +86,14 @@ jest.mock("./issuer-organization-financial-statements", () => ({
 jest.mock("./director-shareholder-onboarding-guard", () => ({
   assertIssuerOrgDirectorShareholderOnboardingReady: jest.fn(),
 }));
+jest.mock("../organization-profile/service", () => ({
+  assertIssuerProfileCompleteForSubmit: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock("./logs/service", () => ({
   logApplicationActivity: jest.fn(),
+}));
+jest.mock("../paymaster/service", () => ({
+  linkPaymasterForApplicationSubmission: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock("./amendments/service", () => ({
   getAmendmentAllowedSections: jest.fn(),

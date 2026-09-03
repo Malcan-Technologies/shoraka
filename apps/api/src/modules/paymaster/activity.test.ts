@@ -220,7 +220,12 @@ describe("listAdminPaymasterActivity", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           event_type: {
-            in: ["PAYMASTER_CREATED", "PAYMASTER_LINKED_TO_ISSUER", "PAYMASTER_VERIFIED"],
+            in: [
+              "PAYMASTER_CREATED",
+              "PAYMASTER_LINKED_TO_ISSUER",
+              "PAYMASTER_VERIFIED",
+              "PAYMASTER_IDENTITY_RESOLVED",
+            ],
           },
         }),
         orderBy: { created_at: "desc" },

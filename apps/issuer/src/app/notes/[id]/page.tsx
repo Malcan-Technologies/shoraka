@@ -43,8 +43,14 @@ import {
   useIssuerNotePaymentInstructions,
   useSubmitIssuerPayment,
   useViewIssuerShorakaCertificate,
+  useIssuerInvestmentNoteCertificate,
+  useViewIssuerInvestmentNoteCertificate,
+  useDownloadIssuerInvestmentNoteCertificate,
+  useIssuerSettlementHibahReceipt,
+  useViewIssuerSettlementHibahReceipt,
 } from "@/notes/hooks/use-issuer-notes";
 import { LedgerPanel } from "@/notes/components/ledger-panel";
+import { IssuerInvestmentNoteCertificateCard } from "@/notes/components/issuer-investment-note-certificate-card";
 import { ExcessLateChargePaymentCard } from "@/components/financing/excess-late-charge-payment-card";
 import { ExcessLateChargeReturnListener } from "@/components/excess-late-charge-return-listener";
 import {
@@ -320,6 +326,11 @@ export default function IssuerNoteDetailPage() {
   const submitPayment = useSubmitIssuerPayment(noteId);
   const uploadEvidenceUrl = useIssuerPaymentEvidenceUploadUrl(noteId);
   const viewShorakaCertificate = useViewIssuerShorakaCertificate(noteId);
+  const { data: investmentNoteCertificate } = useIssuerInvestmentNoteCertificate(noteId);
+  const viewInvestmentNoteCertificate = useViewIssuerInvestmentNoteCertificate(noteId);
+  const downloadInvestmentNoteCertificate = useDownloadIssuerInvestmentNoteCertificate(noteId);
+  const { data: settlementHibahReceipt } = useIssuerSettlementHibahReceipt(noteId);
+  const viewSettlementHibahReceipt = useViewIssuerSettlementHibahReceipt(noteId);
   const [reference, setReference] = React.useState("");
   const [paymentSource, setPaymentSource] = React.useState<NotePaymentSource>(
     NotePaymentSource.ISSUER_ON_BEHALF
@@ -1043,6 +1054,46 @@ export default function IssuerNoteDetailPage() {
                   </div>
                 </div>
               ) : null}
+
+              {investmentNoteCertificate && investmentNoteCertificate.status !== "NONE" ? (
+                <IssuerInvestmentNoteCertificateCard
+                  payload={investmentNoteCertificate}
+                  viewPending={viewInvestmentNoteCertificate.isPending}
+                  downloadPending={downloadInvestmentNoteCertificate.isPending}
+                  onView={() => {
+                    void (async () => {
+                      try {
+                        const result = await viewInvestmentNoteCertificate.mutateAsync();
+                        if (result.viewUrl) {
+                          window.open(result.viewUrl, "_blank", "noopener,noreferrer");
+                        }
+                      } catch (err) {
+                        toast.error(
+                          err instanceof Error ? err.message : "Failed to open certificate"
+                        );
+                      }
+                    })();
+                  }}
+                  onDownload={() => {
+                    void (async () => {
+                      try {
+                        const result = await downloadInvestmentNoteCertificate.mutateAsync();
+                        if (!result.downloadUrl) return;
+                        const link = document.createElement("a");
+                        link.href = result.downloadUrl;
+                        link.rel = "noopener noreferrer";
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                      } catch (err) {
+                        toast.error(
+                          err instanceof Error ? err.message : "Failed to download certificate"
+                        );
+                      }
+                    })();
+                  }}
+                />
+              ) : null}
             </CardContent>
           </Card>
         ) : null}
@@ -1136,6 +1187,47 @@ export default function IssuerNoteDetailPage() {
                   />
                 ) : null}
               </div>
+              {settlementHibahReceipt?.status === "READY" ? (
+                <div className="rounded-lg border bg-card p-4">
+                  <div className="text-sm font-medium">Settlement & Hibah Receipt</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Issuer copy confirming this financing is fully settled.
+                    {settlementHibahReceipt.version
+                      ? ` Version ${settlementHibahReceipt.version}.`
+                      : ""}
+                  </div>
+                  <div className="mt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={async () => {
+                        try {
+                          const result = await viewSettlementHibahReceipt.mutateAsync();
+                          if (result.viewUrl) {
+                            window.open(result.viewUrl, "_blank", "noopener,noreferrer");
+                          }
+                        } catch (err) {
+                          toast.error(
+                            err instanceof Error ? err.message : "Failed to open receipt"
+                          );
+                        }
+                      }}
+                      disabled={viewSettlementHibahReceipt.isPending}
+                    >
+                      View / Download
+                    </Button>
+                  </div>
+                </div>
+              ) : settlementHibahReceipt?.status === "PENDING" ||
+                settlementHibahReceipt?.status === "FAILED" ? (
+                <div className="rounded-lg border bg-card p-4">
+                  <div className="text-sm font-medium">Settlement & Hibah Receipt</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Your receipt is being prepared. Refresh this page shortly to download it.
+                  </div>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         ) : null}

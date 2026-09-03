@@ -43,6 +43,7 @@ import { logOrganizationMembershipEvent } from "./membership-audit";
 import { randomBytes } from "crypto";
 import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
 import {
+  buildDirectorShareholderDisplayRowForEmailEligibility,
   canManageDirectorShareholder,
   filterVisiblePeopleRows,
   getDirectorShareholderDisplayRows,
@@ -54,7 +55,7 @@ import {
   parseCtosPartySupplement,
   attachGovernmentIdToUnresolvedCorporateEntities,
 } from "@cashsouk/types";
-import { buildDirectorShareholderPeopleList } from "../admin/build-people-list";
+import { buildDirectorShareholderPeopleListWithMaster } from "../organization-profile/load-master-parties-for-people";
 import { RegTankAPIClient } from "../regtank/api-client";
 import { ensureRegTankFormId } from "../regtank/form-id";
 import type { RegTankIndividualOnboardingRequest } from "../regtank/types";
@@ -65,6 +66,29 @@ const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION || "ap-southeast-5",
 });
 const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || "";
+
+function resolveKycEligibleDisplayRow(params: {
+  displayRows: ReturnType<typeof getDirectorShareholderDisplayRows>;
+  partyKey: string;
+  personRow: import("@cashsouk/types").ApplicationPersonRow | undefined;
+  supplementJson: unknown;
+}) {
+  const fromCtos = params.displayRows.find(
+    (r) =>
+      r.type === "INDIVIDUAL" &&
+      (r.id === `ctos-${params.partyKey}` ||
+        normalizeDirectorShareholderIdKey(r.idNumber) === params.partyKey ||
+        normalizeDirectorShareholderIdKey(r.enquiryId) === params.partyKey)
+  );
+  if (fromCtos) return fromCtos;
+  if (!params.personRow) return null;
+  return buildDirectorShareholderDisplayRowForEmailEligibility(
+    params.personRow,
+    params.supplementJson && typeof params.supplementJson === "object"
+      ? (params.supplementJson as Record<string, unknown>)
+      : null
+  );
+}
 
 function splitForenameSurname(full: string): { forename: string; surname: string } {
   const t = full.trim() || "User";
@@ -1837,13 +1861,14 @@ export class OrganizationService {
       ctosPartySupplements: entitiesForParty.ctosPartySupplements ?? null,
       sentRowIds: null,
     });
-    const partyDisplayRow = displayRowsForParty.find(
-      (r) =>
-        r.type === "INDIVIDUAL" &&
-        (r.id === `ctos-${partyKey}` ||
-          normalizeDirectorShareholderIdKey(r.idNumber) === partyKey ||
-          normalizeDirectorShareholderIdKey(r.enquiryId) === partyKey)
-    );
+    const partyDisplayRow = resolveKycEligibleDisplayRow({
+      displayRows: displayRowsForParty,
+      partyKey,
+      personRow,
+      supplementJson: entitiesForParty.ctosPartySupplements?.find(
+        (s) => normalizeDirectorShareholderIdKey(s.partyKey) === partyKey
+      )?.onboardingJson,
+    });
     if (!partyDisplayRow || !isCtosIndividualKycEligibleRow(partyDisplayRow)) {
       throw new AppError(
         400,
@@ -2031,15 +2056,14 @@ export class OrganizationService {
       ctosPartySupplements: entities.ctosPartySupplements ?? null,
       sentRowIds: null,
     });
-    const target = rows.find(
-      (r) =>
-        r.type === "INDIVIDUAL" &&
-        (r.id === `ctos-${pk}` ||
-          normalizeDirectorShareholderIdKey(r.idNumber) === pk ||
-          normalizeDirectorShareholderIdKey(r.enquiryId) === pk)
-    );
+    const target = resolveKycEligibleDisplayRow({
+      displayRows: rows,
+      partyKey: pk,
+      personRow,
+      supplementJson: prevRoot,
+    });
     if (!target) {
-      throw new AppError(404, "NOT_FOUND", "No CTOS individual party matches this key");
+      throw new AppError(404, "NOT_FOUND", "No individual party matches this key");
     }
     if (!isCtosIndividualKycEligibleRow(target)) {
       throw new AppError(
@@ -2248,7 +2272,7 @@ export class OrganizationService {
       directorAmlStatus,
     };
     const extras = await this.getIssuerPartyListExtras(organizationId);
-    const partyBuild = buildDirectorShareholderPeopleList({
+    const partyBuild = await buildDirectorShareholderPeopleListWithMaster("issuer", organizationId, {
       ctos: extras.latestOrganizationCtosCompanyJson ?? null,
       issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
       issuerDirectorAmlStatus: organization?.director_aml_status ?? null,
@@ -2336,7 +2360,7 @@ export class OrganizationService {
     };
     if (portalType === "issuer") {
       const extras = await this.getIssuerPartyListExtras(organizationId);
-      const partyBuild = buildDirectorShareholderPeopleList({
+      const partyBuild = await buildDirectorShareholderPeopleListWithMaster("issuer", organizationId, {
         ctos: extras.latestOrganizationCtosCompanyJson ?? null,
         issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
         issuerDirectorAmlStatus: organization?.director_aml_status ?? null,
@@ -2359,7 +2383,7 @@ export class OrganizationService {
     }
     if (portalType === "investor") {
       const extras = await this.getInvestorPartyListExtras(organizationId);
-      const partyBuild = buildDirectorShareholderPeopleList({
+      const partyBuild = await buildDirectorShareholderPeopleListWithMaster("investor", organizationId, {
         ctos: extras.latestOrganizationCtosCompanyJson ?? null,
         issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
         issuerDirectorAmlStatus: organization?.director_aml_status ?? null,

@@ -18,6 +18,11 @@ import {
   FINANCING_TENURE_STEP_DAYS,
   INVOICE_OFFER_FEE_SCHEDULE_WRITE_MODES,
   MAX_INVOICE_FINANCING_RATIO_PERCENT,
+  SC_COMPANY_CATEGORIES,
+  SC_COMPANY_TYPES,
+  SC_GENDERS,
+  SC_INVESTOR_CATEGORIES,
+  SC_SUSTAINABILITY_CATEGORIES,
   isNoteMoneyAmount,
   isValidFinancingTenureDays,
   validateAdditionalFeeLines,
@@ -332,6 +337,16 @@ export const updateAdminOrganizationProfileSchema = z
         aboutYourBusiness: aboutYourBusinessSchema.optional(),
       })
       .optional(),
+    dateOfIncorporation: z.string().max(32).optional().nullable(),
+    dateOfCommencement: z.string().max(32).optional().nullable(),
+    countryOfIncorporation: z.string().max(500).optional().nullable(),
+    scCompanyType: z.enum(SC_COMPANY_TYPES).optional().nullable(),
+    companyCategory: z.enum(SC_COMPANY_CATEGORIES).optional().nullable(),
+    companyEmail: z.union([z.string().email().max(255), z.literal(""), z.null()]).optional(),
+    scInvestorCategory: z.enum(SC_INVESTOR_CATEGORIES).optional().nullable(),
+    residentialAddress: addressSchema.optional().nullable(),
+    gender: z.enum(SC_GENDERS).optional().nullable(),
+    nationality: z.string().max(500).optional().nullable(),
   })
   .strict();
 
@@ -542,6 +557,8 @@ export const sendInvoiceOfferSchema = z
     offeredProfitRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
     platformFeeRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
     risk_rating: z.enum(MARC_SME_GRADES),
+    company_category: z.enum(SC_COMPANY_CATEGORIES),
+    sustainability_category: z.enum(SC_SUSTAINABILITY_CATEGORIES),
     financingTenureDays: z.coerce
       .number({
         required_error: "Financing tenure is required.",

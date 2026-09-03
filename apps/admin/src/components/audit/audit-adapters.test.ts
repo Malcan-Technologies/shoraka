@@ -227,6 +227,152 @@ describe("note Event Details nested snapshots", () => {
       status: "FUNDING",
     });
   });
+
+  it("surfaces investment note certificate number, version and hashes", () => {
+    const detail = noteEventToAuditDetail(
+      {
+        id: "evt-cert",
+        noteId: "note-1",
+        eventType: "INVESTMENT_NOTE_CERTIFICATE_GENERATED",
+        actorUserId: "admin-1",
+        actorName: "Ada",
+        actorRole: "ADMIN",
+        portal: "ADMIN",
+        correlationId: null,
+        createdAt: "2026-09-02T00:00:00.000Z",
+        metadata: {
+          certificateNumber: "IINC-NOTE-1",
+          version: "V01",
+          snapshotSha256: "snap",
+          adminPdfSha256: "pdf",
+          investorCount: 2,
+          source: "DISBURSEMENT_COMPLETED",
+        },
+      },
+      "Investment Note Certificate Generated"
+    );
+    expect(detail.target?.extra).toEqual(
+      expect.arrayContaining([
+        { label: "Certificate number", value: "IINC-NOTE-1" },
+        { label: "Version", value: "V01" },
+      ])
+    );
+    expect(detail.technical).toEqual(
+      expect.arrayContaining([
+        { label: "Snapshot SHA-256", value: "snap" },
+        { label: "Admin PDF SHA-256", value: "pdf" },
+      ])
+    );
+  });
+
+  it("surfaces settlement hibah receipt number, hibah amount and PDF hash", () => {
+    const detail = noteEventToAuditDetail(
+      {
+        id: "evt-hibah",
+        noteId: "note-1",
+        eventType: "SETTLEMENT_HIBAH_RECEIPT_GENERATED",
+        actorUserId: "admin-1",
+        actorName: "Ada",
+        actorRole: "ADMIN",
+        portal: "ADMIN",
+        correlationId: null,
+        createdAt: "2026-09-02T00:00:00.000Z",
+        metadata: {
+          receiptNumber: "SET-ARF-202608-A52",
+          version: "V01",
+          settlementId: "set-1",
+          settlementReference: "SET-ARF-202608-A52",
+          snapshotSha256: "snap",
+          pdfSha256: "pdf",
+          hibahAmount: 1750,
+          source: "SETTLEMENT_COMPLETED",
+        },
+      },
+      "Settlement & Hibah Receipt Generated"
+    );
+    expect(detail.target?.extra).toEqual(
+      expect.arrayContaining([
+        { label: "Receipt number", value: "SET-ARF-202608-A52" },
+        { label: "Version", value: "V01" },
+        { label: "Hibah amount", value: "1750" },
+      ])
+    );
+    expect(detail.technical).toEqual(
+      expect.arrayContaining([
+        { label: "Snapshot SHA-256", value: "snap" },
+        { label: "PDF SHA-256", value: "pdf" },
+      ])
+    );
+  });
+
+  it("surfaces reissue previous/new version and snapshot hashes", () => {
+    const detail = noteEventToAuditDetail(
+      {
+        id: "evt-reissue",
+        noteId: "note-1",
+        eventType: "INVESTMENT_NOTE_CERTIFICATE_REISSUED",
+        actorUserId: "admin-1",
+        actorName: "Ada",
+        actorRole: "ADMIN",
+        portal: "ADMIN",
+        correlationId: null,
+        createdAt: "2026-09-03T00:00:00.000Z",
+        metadata: {
+          documentType: "INVESTMENT_NOTE_CERTIFICATE",
+          previousVersion: "V01",
+          newVersion: "V02",
+          source: "ADMIN_REISSUE",
+          oldSnapshotSha256: "old-snap",
+          newSnapshotSha256: "new-snap",
+        },
+      },
+      "Investment Note Certificate Reissued"
+    );
+    expect(detail.target?.extra).toEqual(
+      expect.arrayContaining([
+        { label: "Previous version", value: "V01" },
+        { label: "New version", value: "V02" },
+      ])
+    );
+    expect(detail.technical).toEqual(
+      expect.arrayContaining([
+        { label: "Old snapshot SHA-256", value: "old-snap" },
+        { label: "New snapshot SHA-256", value: "new-snap" },
+      ])
+    );
+  });
+
+  it("surfaces investor settlement confirmation count and hashes", () => {
+    const detail = noteEventToAuditDetail(
+      {
+        id: "evt-isc",
+        noteId: "note-1",
+        eventType: "INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED",
+        actorUserId: "admin-1",
+        actorName: "Ada",
+        actorRole: "ADMIN",
+        portal: "ADMIN",
+        correlationId: null,
+        createdAt: "2026-09-02T00:00:00.000Z",
+        metadata: {
+          version: "V01",
+          settlementId: "set-1",
+          settlementReference: "SET-ARF-202608-A52",
+          confirmationCount: 2,
+          snapshotSha256: "snap",
+          pdfSha256: "pdf",
+          source: "SETTLEMENT_POSTED",
+        },
+      },
+      "Investment Settlement Confirmation Generated"
+    );
+    expect(detail.target?.extra).toEqual(
+      expect.arrayContaining([
+        { label: "Version", value: "V01" },
+        { label: "Confirmation count", value: "2" },
+      ])
+    );
+  });
 });
 
 describe("contract activity Event Details", () => {

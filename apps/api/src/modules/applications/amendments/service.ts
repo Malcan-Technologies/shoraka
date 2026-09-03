@@ -21,6 +21,7 @@ import {
 import { upsertLatestOrganizationFinancialStatementsFromApplication } from "../issuer-organization-financial-statements";
 import { createApplicationLog } from "../logs/repository";
 import { ActivityPortal, ApplicationLogEventType, type IssuerActivityLogContext } from "../logs/types";
+import { linkPaymasterForApplicationSubmission } from "../../paymaster/service";
 
 export interface AmendmentAllowedSections {
   allowedSections: Set<string>;
@@ -184,6 +185,22 @@ export async function resubmitApplication(
       application_guarantors: { orderBy: { position: "asc" } },
     },
   });
+
+  if (appFullCurrent?.contract_id) {
+    const linkedContract = await linkPaymasterForApplicationSubmission({
+      contractId: appFullCurrent.contract_id,
+      issuerOrganizationId: application.issuer_organization_id,
+      applicationId,
+      actorUserId: userId,
+      auditContext: logContext?.context,
+    });
+    if (linkedContract && appFullCurrent.contract) {
+      appFullCurrent.contract = {
+        ...appFullCurrent.contract,
+        ...linkedContract,
+      } as typeof appFullCurrent.contract;
+    }
+  }
 
   const previousCycle = (application as any).review_cycle ?? 1;
   const newCycle = previousCycle + 1;

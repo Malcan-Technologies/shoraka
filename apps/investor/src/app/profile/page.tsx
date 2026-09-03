@@ -27,14 +27,14 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_GENDERS, SC_MALAYSIAN_STATES, userFacingCompleteness, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
-import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
-import { CorporateInfoCard } from "../../components/corporate-info-card";
+import { InvestorCompanyDetailsCard } from "../../components/investor-company-details-card";
+import { InvestorProfileCompletenessBanner } from "../../components/profile-completeness-banner";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
@@ -46,7 +46,10 @@ import {
   DirectorShareholderAlertCard,
   INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
   DirectorShareholdersUnifiedSection,
+  ProfileFieldGrid,
+  ProfileReadField,
   portalContentMaxWidthClassName,
+  StatusBadge,
   VerifiedBadge,
 } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
@@ -70,8 +73,6 @@ import {
   DocumentTextIcon,
   MapPinIcon,
   PhoneIcon,
-  GlobeAltIcon,
-  CalendarIcon,
   ArrowDownTrayIcon,
   UserPlusIcon,
   TrashIcon,
@@ -211,6 +212,20 @@ function formatDocumentType(type: string | null | undefined): string {
     DRIVING_LICENSE: "Driving License",
   };
   return typeMap[type] || type.replace(/_/g, " ");
+}
+
+function formatProfileDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-MY", { year: "numeric", month: "long", day: "numeric" });
+}
+
+function formatGender(value: string | null | undefined): string {
+  if (!value) return "—";
+  const key = value.trim().toUpperCase();
+  if (key in SC_GENDER_LABELS) return SC_GENDER_LABELS[key as ScGender];
+  return value;
 }
 
 // Helper to extract field value from RegTank bank account details
@@ -458,6 +473,10 @@ export default function ProfilePage() {
   // Form states for profile (phone + address)
   const [phoneNumber, setPhoneNumber] = React.useState<string | undefined>(undefined);
   const [address, setAddress] = React.useState("");
+  const [gender, setGender] = React.useState("");
+  const [nationality, setNationality] = React.useState("");
+  const [residentialState, setResidentialState] = React.useState("");
+  const [residentialPostalCode, setResidentialPostalCode] = React.useState("");
 
   // Form states for banking (matches RegTank format values)
   const [bankName, setBankName] = React.useState("");
@@ -499,6 +518,10 @@ export default function ProfilePage() {
         dateOfBirth: string | null;
         documentType: string | null;
         documentNumber: string | null;
+        scInvestorCategory?: string | null;
+        dateOfIncorporation?: string | null;
+        countryOfIncorporation?: string | null;
+        residentialAddress?: { state?: string | null; postalCode?: string | null } | null;
         phoneNumber: string | null;
         address: string | null;
         bankAccountDetails: BankAccountDetails | null;
@@ -562,6 +585,21 @@ export default function ProfilePage() {
     staleTime: 1000 * 60 * 5,
   });
 
+  const completenessQuery = useQuery({
+    queryKey: ["investor", "profile-completeness", activeOrganization?.id],
+    enabled: Boolean(activeOrganization?.id) && activeOrganization?.onboardingStatus === "COMPLETED",
+    queryFn: async () => {
+      const res = await apiClient.getProfileCompleteness("investor", activeOrganization!.id);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+  });
+  const missingFieldKeys = new Set(
+    (completenessQuery.data ? userFacingCompleteness(completenessQuery.data).missing : [])
+      .filter((item) => !item.partyKey)
+      .map((item) => item.field)
+  );
+
   const urlTab = profileTabFromSearchParam(searchParams.get("tab"));
   const focusDirectors = searchParams.get("focus") === "directors";
   const focusedPersonKey = searchParams.get("person");
@@ -591,6 +629,28 @@ export default function ProfilePage() {
     return () => window.clearTimeout(t);
   }, [focusDirectors, orgData, activeOrganization?.id]);
 
+  React.useEffect(() => {
+    const focus = searchParams.get("focus");
+    if (!focus || focus === "completeness" || focus === "directors") return;
+    const id =
+      focus === "company"
+        ? "profile-company"
+        : focus === "addresses"
+          ? "profile-addresses"
+          : focus === "address"
+            ? "profile-address"
+            : focus === "contact"
+              ? "profile-contact"
+              : focus === "personal"
+                ? "profile-personal"
+                : null;
+    if (!id) return;
+    const timeout = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => window.clearTimeout(timeout);
+  }, [searchParams, orgData, activeOrganization?.id]);
+
   const handlePartyOnboardingSent = React.useCallback(async () => {
     if (!activeOrganization?.id) return;
     await queryClient.invalidateQueries({ queryKey: ["corporate-entities", activeOrganization.id] });
@@ -603,6 +663,10 @@ export default function ProfilePage() {
     if (orgData) {
       setPhoneNumber(orgData.phoneNumber || undefined);
       setAddress(orgData.address || "");
+      setGender(orgData.gender ?? "");
+      setNationality(orgData.nationality ?? "");
+      setResidentialState(orgData.residentialAddress?.state ?? "");
+      setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
 
       // Extract values from RegTank format
       setBankName(getBankField(orgData.bankAccountDetails, "Bank"));
@@ -637,6 +701,7 @@ export default function ProfilePage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ["investor", "profile-completeness", activeOrganization?.id] });
       toast.success("Profile updated successfully");
       setIsEditingProfile(false);
       setIsEditingBanking(false);
@@ -653,11 +718,31 @@ export default function ProfilePage() {
     setTimeout(() => setIsRefreshing(false), 500);
   };
 
-  const handleSaveProfile = () => {
-    // Validate phone number if provided
+  const handleSaveProfile = async () => {
+    if (!activeOrganization) return;
     if (phoneNumber && !isValidPhoneNumber(phoneNumber)) {
       toast.error("Invalid phone number format");
       return;
+    }
+
+    if (activeOrganization.type === "PERSONAL") {
+      const master: Record<string, unknown> = {
+        gender: gender || null,
+        nationality: nationality.trim() || null,
+        residentialAddress: {
+          state: residentialState || null,
+          postalCode: residentialPostalCode.trim() || null,
+        },
+      };
+      const masterRes = await apiClient.patchMasterProfile(
+        "investor",
+        activeOrganization.id,
+        master
+      );
+      if (!masterRes.success) {
+        toast.error("Failed to update profile", { description: masterRes.error.message });
+        return;
+      }
     }
 
     updateProfileMutation.mutate({
@@ -686,6 +771,10 @@ export default function ProfilePage() {
     if (orgData) {
       setPhoneNumber(orgData.phoneNumber || undefined);
       setAddress(orgData.address || "");
+      setGender(orgData.gender ?? "");
+      setNationality(orgData.nationality ?? "");
+      setResidentialState(orgData.residentialAddress?.state ?? "");
+      setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
     }
     setIsEditingProfile(false);
   };
@@ -786,27 +875,6 @@ export default function ProfilePage() {
     setIsEditingAddresses(false);
   };
 
-  // Helper function to format address for display
-  const formatAddressDisplay = (address?: {
-    line1?: string | null;
-    line2?: string | null;
-    city?: string | null;
-    postalCode?: string | null;
-    state?: string | null;
-    country?: string | null;
-  }): string => {
-    if (!address) return "—";
-    const parts = [
-      address.line1,
-      address.line2,
-      address.city,
-      address.postalCode,
-      address.state,
-      address.country,
-    ].filter((part) => part && part.trim() !== "");
-    return parts.length > 0 ? parts.join(", ") : "—";
-  };
-
   // Show loading state
   if (isAuthenticated === null || isLoading) {
     return <ProfileSkeleton />;
@@ -863,6 +931,14 @@ export default function ProfilePage() {
             />
           ) : null}
 
+          <InvestorProfileCompletenessBanner
+            organizationId={activeOrganization?.id}
+            onboarded={activeOrganization?.onboardingStatus === "COMPLETED"}
+            organizationType={isPersonal ? "PERSONAL" : "COMPANY"}
+            expandOnPage
+            initialExpanded={searchParams.get("focus") === "completeness"}
+          />
+
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="grid w-full grid-cols-3 h-12 rounded-xl bg-muted p-1">
@@ -884,139 +960,100 @@ export default function ProfilePage() {
             <TabsContent value="profile" className="space-y-6 mt-6">
               {/* Personal Info Section (Read-only) - Only for PERSONAL accounts */}
               {isPersonal && (
-                <div className="rounded-xl border bg-card">
-                <div className="flex items-center justify-between p-6 border-b">
-                  <div>
-                    <h2 className="text-lg font-semibold">Personal info</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Your KYC-verified personal details
-                    </p>
+                <div id="profile-personal" className="scroll-mt-24 rounded-xl border bg-card">
+                  <div className="flex items-center justify-between p-6 border-b">
+                    <div>
+                      <h2 className="text-lg font-semibold">Personal Details</h2>
+                      <p className="text-sm text-muted-foreground">Identity details verified during onboarding</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <VerifiedBadge />
+                      {!isEditingProfile ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsEditingProfile(true)}
+                          className="gap-2 rounded-xl"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                          Edit
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
-                  <VerifiedBadge />
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Name</Label>
-                      <Input value={displayName} disabled className="bg-muted h-11 rounded-xl" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Document Type</Label>
-                      <Input
-                        value={formatDocumentType(orgData?.documentType)}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
+                  <div className="p-6">
+                    <ProfileFieldGrid>
+                      <ProfileReadField label="Name" value={displayName} locked />
+                      <ProfileReadField
+                        label="Identity"
+                        value={`${formatDocumentType(orgData?.documentType)} ${orgData?.documentNumber || ""}`.trim()}
+                        locked
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <IdentificationIcon className="h-4 w-4" />
-                        Document Number
-                      </Label>
-                      <Input
-                        value={orgData?.documentNumber || "—"}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <GlobeAltIcon className="h-4 w-4" />
-                        Issuing Country
-                      </Label>
-                      <Input
-                        value={orgData?.idIssuingCountry || "—"}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <ShieldCheckIcon className="h-4 w-4" />
-                        Investor Classification
-                        <InfoTooltip
-                          content={
-                            orgData?.isSophisticatedInvestor
-                              ? "Your total investment amount is unlimited."
-                              : "Your total investment amount is limited to RM 50,000. Contact us to upgrade your account."
-                          }
+                      <ProfileReadField label="Date of birth" value={formatProfileDate(orgData?.dateOfBirth)} locked />
+                      {isEditingProfile ? (
+                        <div className="space-y-2">
+                          <Label className="text-ui font-medium">Gender</Label>
+                          <Select value={gender || undefined} onValueChange={setGender}>
+                            <SelectTrigger className="h-11 text-ui">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {SC_GENDERS.filter((key) => key !== "NOT_APPLICABLE").map((key) => (
+                                <SelectItem key={key} value={key}>
+                                  {SC_GENDER_LABELS[key]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <ProfileReadField
+                          label="Gender"
+                          value={formatGender(orgData?.gender)}
+                          missing={missingFieldKeys.has("gender")}
                         />
-                      </Label>
-                      <div className="flex items-center gap-2 h-11 px-4 rounded-xl border bg-muted">
-                        {orgData?.isSophisticatedInvestor ? (
-                          <span className="text-sm font-medium text-purple-600">
-                            Sophisticated Investor
-                          </span>
-                        ) : (
-                          <span className="text-sm">Retail Investor</span>
-                        )}
-                      </div>
-                    </div>
-                    {orgData?.onboardedAt && (
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground flex items-center gap-2">
-                          <CalendarIcon className="h-4 w-4" />
-                          Member Since
-                        </Label>
-                        <Input
-                          value={new Date(orgData.onboardedAt).toLocaleDateString("en-MY", {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })}
-                          disabled
-                          className="bg-muted h-11 rounded-xl"
+                      )}
+                      {isEditingProfile ? (
+                        <div className="space-y-2">
+                          <Label className="text-ui font-medium">Nationality</Label>
+                          <Input
+                            className="h-11 text-ui"
+                            value={nationality}
+                            onChange={(event) => setNationality(event.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        <ProfileReadField
+                          label="Nationality"
+                          value={orgData?.nationality}
+                          missing={missingFieldKeys.has("nationality")}
                         />
-                      </div>
-                    )}
+                      )}
+                    </ProfileFieldGrid>
                   </div>
                 </div>
-              </div>
               )}
 
-              {/* 1. Corporate Info Section - Only for COMPANY accounts */}
-              {!isPersonal && activeOrganization?.id && (
-                <CorporateInfoCard organizationId={activeOrganization.id} />
-              )}
-
-              {!isPersonal && orgData?.corporateOnboardingData?.personInCharge && (
-                <div className="rounded-xl border bg-card">
-                  <div className="p-6 border-b">
-                    <h2 className="text-lg font-semibold">Person in Charge</h2>
-                    <p className="text-sm text-muted-foreground">Primary business contact details</p>
-                  </div>
-                  <div className="p-6 grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Name</Label>
-                      <Input value={orgData.corporateOnboardingData.personInCharge.name || ""} disabled className="bg-muted" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Position</Label>
-                      <Input value={orgData.corporateOnboardingData.personInCharge.position || ""} disabled className="bg-muted" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <EnvelopeIcon className="h-4 w-4" />
-                        Email
-                      </Label>
-                      <Input value={orgData.corporateOnboardingData.personInCharge.email || ""} disabled className="bg-muted" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <PhoneIcon className="h-4 w-4" />
-                        Contact Number
-                      </Label>
-                      <Input value={orgData.corporateOnboardingData.personInCharge.contactNumber || ""} disabled className="bg-muted" />
-                    </div>
-                  </div>
-                </div>
-              )}
+              {!isPersonal && activeOrganization?.id ? (
+                <InvestorCompanyDetailsCard
+                  organizationId={activeOrganization.id}
+                  name={activeOrganization.name}
+                  registrationNumber={activeOrganization.registrationNumber}
+                  dateOfIncorporation={
+                    orgData?.dateOfIncorporation ?? activeOrganization.dateOfIncorporation
+                  }
+                  countryOfIncorporation={
+                    orgData?.countryOfIncorporation ?? activeOrganization.countryOfIncorporation
+                  }
+                  canEdit={isCurrentUserAdmin}
+                />
+              ) : null}
 
               {/* For PERSONAL accounts: Address comes before Contact Details */}
               {isPersonal && (
                 <>
                   {/* Address Section (Editable) - Personal */}
-                  <div className="rounded-xl border bg-card">
+                  <div id="profile-address" className="scroll-mt-24 rounded-xl border bg-card">
                     <div className="flex items-center justify-between p-6 border-b">
                     <div>
                       <h2 className="text-lg font-semibold">Address</h2>
@@ -1037,24 +1074,66 @@ export default function ProfilePage() {
                     )}
                   </div>
                   <div className="p-6 space-y-4">
-                    <div className="space-y-2">
+                    {!isEditingProfile ? (
+                      <ProfileFieldGrid>
+                        <ProfileReadField
+                          className="sm:col-span-2"
+                          label="Residential address"
+                          value={address.trim() || null}
+                        />
+                        <ProfileReadField
+                          label="State"
+                          value={orgData?.residentialAddress?.state}
+                          missing={missingFieldKeys.has("state")}
+                        />
+                        <ProfileReadField
+                          label="Postcode"
+                          value={orgData?.residentialAddress?.postalCode}
+                          missing={missingFieldKeys.has("postalCode")}
+                        />
+                      </ProfileFieldGrid>
+                    ) : (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2 sm:col-span-2">
                       <Label className="flex items-center gap-2">
                         <MapPinIcon className="h-4 w-4" />
-                        Full Address
+                        Residential address
                       </Label>
                       <Textarea
                         placeholder="Enter your full address"
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
-                        disabled={!isEditingProfile}
                         rows={3}
                         maxLength={500}
-                        className={`resize-none ${!isEditingProfile ? "bg-muted" : ""}`}
+                        className="resize-none"
                       />
-                      {isEditingProfile && (
                         <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
-                      )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-ui font-medium">State</Label>
+                        <Select value={residentialState || undefined} onValueChange={setResidentialState}>
+                          <SelectTrigger className="h-11 text-ui">
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SC_MALAYSIAN_STATES.map((state) => (
+                              <SelectItem key={state} value={state}>
+                                {state}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-ui font-medium">Postcode</Label>
+                        <Input
+                          className="h-11 text-ui"
+                          value={residentialPostalCode}
+                          onChange={(event) => setResidentialPostalCode(event.target.value)}
+                        />
+                      </div>
                     </div>
+                    )}
 
                     {isEditingProfile && (
                       <div className="flex justify-end gap-2 pt-4">
@@ -1079,8 +1158,54 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                  {/* Contact Details Section (Editable) - Personal */}
                   <div className="rounded-xl border bg-card">
+                    <div className="border-b p-6">
+                      <h2 className="text-lg font-semibold">Investor Classification</h2>
+                    </div>
+                    <div className="p-6">
+                      <ProfileReadField
+                        label="Account class"
+                        value={orgData?.isSophisticatedInvestor ? "Sophisticated" : "Retail"}
+                        locked
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border bg-card">
+                    <div className="border-b p-6">
+                      <h2 className="text-lg font-semibold">KYC / AML</h2>
+                    </div>
+                    <div className="p-6">
+                      <ProfileFieldGrid>
+                        <ProfileReadField
+                          label="KYC"
+                          value={
+                            <StatusBadge
+                              status={activeOrganization.onboardingApproved ? "success" : "action"}
+                              label={activeOrganization.onboardingApproved ? "Approved" : "Pending"}
+                            />
+                          }
+                        />
+                        <ProfileReadField
+                          label="AML"
+                          value={
+                            <StatusBadge
+                              status={activeOrganization.amlApproved ? "success" : "action"}
+                              label={activeOrganization.amlApproved ? "Approved" : "Pending"}
+                            />
+                          }
+                        />
+                        <ProfileReadField
+                          label="Onboarding status"
+                          value={orgData?.onboardingStatus || "—"}
+                          locked
+                        />
+                      </ProfileFieldGrid>
+                    </div>
+                  </div>
+
+                  {/* Contact Details Section (Editable) - Personal */}
+                  <div id="profile-contact" className="scroll-mt-24 rounded-xl border bg-card">
                     <div className="flex items-center justify-between p-6 border-b">
                       <div>
                         <h2 className="text-lg font-semibold">Contact details</h2>
@@ -1165,12 +1290,12 @@ export default function ProfilePage() {
 
               {/* 2. Address/Addresses Section - For COMPANY accounts only (Personal is handled above) */}
               {!isPersonal && (
-                <div className="rounded-xl border bg-card">
+                <div id="profile-addresses" className="scroll-mt-24 rounded-xl border bg-card">
                   <div className="flex items-center justify-between p-6 border-b">
                     <div>
-                      <h2 className="text-lg font-semibold">Addresses</h2>
+                      <h2 className="text-lg font-semibold">Business Address</h2>
                       <p className="text-sm text-muted-foreground">
-                        Business and registered addresses
+                        Where the company operates
                       </p>
                     </div>
                     {!isEditingAddresses && (
@@ -1190,9 +1315,35 @@ export default function ProfilePage() {
                     <div className="space-y-4 pt-2">
                       <h3 className="text-sm font-semibold">Business Address</h3>
                       {!isEditingAddresses ? (
-                        <p className="text-sm text-muted-foreground">
-                          {formatAddressDisplay(orgData?.corporateOnboardingData?.addresses?.business)}
-                        </p>
+                        <ProfileFieldGrid>
+                          <ProfileReadField
+                            className="sm:col-span-2"
+                            label="Address"
+                            value={[
+                              orgData?.corporateOnboardingData?.addresses?.business?.line1,
+                              orgData?.corporateOnboardingData?.addresses?.business?.line2,
+                            ]
+                              .filter((part) => part && part.trim())
+                              .join(", ") || null}
+                            missing={missingFieldKeys.has("businessAddress.line1")}
+                          />
+                          <ProfileReadField
+                            label="State"
+                            value={orgData?.corporateOnboardingData?.addresses?.business?.state}
+                            missing={
+                              missingFieldKeys.has("businessState") ||
+                              missingFieldKeys.has("businessAddress.state")
+                            }
+                          />
+                          <ProfileReadField
+                            label="Postcode"
+                            value={orgData?.corporateOnboardingData?.addresses?.business?.postalCode}
+                            missing={
+                              missingFieldKeys.has("businessPostalCode") ||
+                              missingFieldKeys.has("businessAddress.postalCode")
+                            }
+                          />
+                        </ProfileFieldGrid>
                       ) : (
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2 sm:col-span-2">
@@ -1253,11 +1404,10 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    {/* Registered Address */}
+                    {isEditingAddresses ? (
                     <div className="space-y-4 pt-4 border-t">
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold">Registered Address</h3>
-                        {isEditingAddresses && (
                           <div className="flex items-center gap-2">
                             <Checkbox
                               id="sameAsBusinessAddress"
@@ -1268,14 +1418,8 @@ export default function ProfilePage() {
                               Same as business address
                             </Label>
                           </div>
-                        )}
                       </div>
-                      {!isEditingAddresses ? (
-                        <p className="text-sm text-muted-foreground">
-                          {formatAddressDisplay(orgData?.corporateOnboardingData?.addresses?.registered)}
-                        </p>
-                      ) : (
-                        !sameAsBusinessAddress && (
+                        {!sameAsBusinessAddress ? (
                           <div className="grid gap-4 sm:grid-cols-2">
                             <div className="space-y-2 sm:col-span-2">
                               <Label>Address Line 1</Label>
@@ -1332,9 +1476,9 @@ export default function ProfilePage() {
                               />
                             </div>
                           </div>
-                        )
-                      )}
+                        ) : null}
                     </div>
+                    ) : null}
 
                     {isEditingAddresses && (
                       <div className="flex justify-end gap-2 pt-4">
@@ -1360,9 +1504,58 @@ export default function ProfilePage() {
                 </div>
               )}
 
+              {!isPersonal ? (
+                <>
+                  <div className="rounded-xl border bg-card">
+                    <div className="border-b p-6">
+                      <h2 className="text-lg font-semibold">Investor Classification</h2>
+                    </div>
+                    <div className="p-6">
+                      <ProfileReadField
+                        label="Account class"
+                        value={orgData?.isSophisticatedInvestor ? "Sophisticated" : "Retail"}
+                        locked
+                      />
+                    </div>
+                  </div>
+                  <div className="rounded-xl border bg-card">
+                    <div className="border-b p-6">
+                      <h2 className="text-lg font-semibold">KYC / AML</h2>
+                    </div>
+                    <div className="p-6">
+                      <ProfileFieldGrid>
+                        <ProfileReadField
+                          label="KYC"
+                          value={
+                            <StatusBadge
+                              status={activeOrganization.onboardingApproved ? "success" : "action"}
+                              label={activeOrganization.onboardingApproved ? "Approved" : "Pending"}
+                            />
+                          }
+                        />
+                        <ProfileReadField
+                          label="AML"
+                          value={
+                            <StatusBadge
+                              status={activeOrganization.amlApproved ? "success" : "action"}
+                              label={activeOrganization.amlApproved ? "Approved" : "Pending"}
+                            />
+                          }
+                        />
+                        <ProfileReadField
+                          label="Onboarding status"
+                          value={orgData?.onboardingStatus || "—"}
+                          locked
+                        />
+                      </ProfileFieldGrid>
+                    </div>
+                  </div>
+                </>
+              ) : null}
+
               {/* 3. Contact Details Section (Editable) - For COMPANY accounts only (Personal is handled above) */}
               {!isPersonal && (
-                <div className="rounded-xl border bg-card">
+                <div id="profile-contact" className="scroll-mt-24 rounded-xl border bg-card">
                   <div className="flex items-center justify-between p-6 border-b">
                     <div>
                       <h2 className="text-lg font-semibold">Contact details</h2>
@@ -1458,6 +1651,9 @@ export default function ProfilePage() {
                     autoFocusFirstEmptyEmail={focusDirectors}
                     focusedMatchKey={focusedPersonKey}
                     onPartyOnboardingSent={handlePartyOnboardingSent}
+                    title="People"
+                    description="Directors and shareholders for this company"
+                    grouped={false}
                   />
                 </div>
               )}

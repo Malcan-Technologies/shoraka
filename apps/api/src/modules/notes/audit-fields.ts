@@ -41,6 +41,17 @@ export function resolveNoteEventTarget(
     };
   }
 
+  if (
+    eventType === "INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED" ||
+    eventType === "INVESTMENT_SETTLEMENT_CONFIRMATION_REISSUED" ||
+    eventType === "INVESTMENT_SETTLEMENT_CONFIRMATION_PUBLISHED"
+  ) {
+    return {
+      targetType: AUDIT_TARGET_TYPE.NOTE_SETTLEMENT,
+      targetId: metaString(metadata, "settlementId"),
+    };
+  }
+
   if (eventType.startsWith("SETTLEMENT_")) {
     return {
       targetType: AUDIT_TARGET_TYPE.NOTE_SETTLEMENT,

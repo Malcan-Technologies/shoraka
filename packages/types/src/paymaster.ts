@@ -44,7 +44,17 @@ export interface PaymasterIdentity extends PaymasterMasterIdentity {
 export interface PaymasterListItem extends PaymasterIdentity {
   linkedIssuerCount: number;
   linkedNoteCount: number;
+  linkedFacilityCount: number;
+  noticeCount: number;
   lastUsedAt: string | null;
+  latestIssuerName: string | null;
+}
+
+export function paymasterLinkedFinancingCount(item: {
+  linkedFacilityCount: number;
+  linkedNoteCount: number;
+}): number {
+  return item.linkedFacilityCount + item.linkedNoteCount;
 }
 
 export interface PaymasterIssuerLinkRow {
@@ -88,12 +98,39 @@ export interface PaymasterNoticeHistoryRow {
   acknowledgedAt: string | null;
 }
 
+export interface PaymasterSubmittedApplicationIdentity {
+  applicationId: string;
+  applicationDisplayReference: string | null;
+  applicationProductId: string | null;
+  applicationStatus: string | null;
+  submittedAt: string | null;
+  issuerOrganizationId: string;
+  issuerName: string | null;
+  legalName: string;
+  registrationNumber: string;
+  entityType: string;
+  registrationCountry: string;
+}
+
+export interface PaymasterLinkedApplicationRow {
+  id: string;
+  reference: string | null;
+  issuerOrganizationId: string;
+  issuerName: string | null;
+  productType: string;
+  status: string | null;
+  updatedAt: string | null;
+  productId: string | null;
+}
+
 export interface PaymasterDetail extends PaymasterIdentity {
   source: string;
   verifiedByName: string | null;
   issuers: PaymasterIssuerLinkRow[];
+  applications: PaymasterLinkedApplicationRow[];
   financings: PaymasterFinancingRow[];
   notices: PaymasterNoticeHistoryRow[];
+  submittedApplicationIdentities: PaymasterSubmittedApplicationIdentity[];
 }
 
 /** Identity lifecycle events stored on `application_logs` and read from Application and Paymaster Activity. */
@@ -101,6 +138,7 @@ export const PAYMASTER_IDENTITY_ACTIVITY_EVENT_TYPES = [
   "PAYMASTER_CREATED",
   "PAYMASTER_LINKED_TO_ISSUER",
   "PAYMASTER_VERIFIED",
+  "PAYMASTER_IDENTITY_RESOLVED",
 ] as const;
 
 export type PaymasterIdentityActivityEventType =
@@ -184,12 +222,143 @@ export const PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_CODE = "PAYMASTER_ACKNOWLEDGEMEN
 export const PAYMASTER_ACKNOWLEDGEMENT_REQUIRED_MESSAGE =
   "Paymaster acknowledgement of the Notice of Assignment is required before disbursement.";
 
-export const ASSIGNMENT_NOTICE_LEGAL_TEMPLATE_PENDING =
-  "Approved Notice of Assignment legal wording is pending. This file records assignment particulars only and is not a substitute for the approved legal template.";
-
 export const PAYMASTER_NOT_VERIFIED_CODE = "PAYMASTER_NOT_VERIFIED";
 export const PAYMASTER_NOT_VERIFIED_MESSAGE =
   "You can only select a verified Paymaster for reuse.";
+export const PAYMASTER_NOT_VERIFIED_FOR_OFFER_MESSAGE =
+  "Verify Paymaster identity before sending an offer.";
+export const PAYMASTER_NOT_VERIFIED_FOR_USE_VERIFIED_MESSAGE =
+  "Verify Paymaster identity before using the verified record.";
+
+export const PAYMASTER_NOT_LINKED_CODE = "PAYMASTER_NOT_LINKED";
+export const PAYMASTER_NOT_LINKED_MESSAGE = "This application has no linked Paymaster.";
+
+export const PAYMASTER_IDENTITY_UNRESOLVED_CODE = "PAYMASTER_IDENTITY_UNRESOLVED";
+export const PAYMASTER_IDENTITY_UNRESOLVED_MESSAGE =
+  "Resolve submitted vs verified Paymaster identity before sending an offer.";
+
+export const PAYMASTER_SSM_MISMATCH_CODE = "PAYMASTER_SSM_MISMATCH";
+export const PAYMASTER_SSM_MISMATCH_MESSAGE =
+  "This application's submitted SSM does not match this Paymaster. You cannot verify that identity onto a different SSM master.";
+
+export const PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_CODE =
+  "PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT";
+export const PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_MESSAGE =
+  "Different identities were submitted for this SSM. Review an application before verifying the Paymaster.";
+
+export type PaymasterIdentityFields = {
+  name: string;
+  entity_type: string;
+  ssm_number: string;
+  country: string;
+};
+
+function identityText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function paymasterMasterIdentityFields(paymaster: {
+  legalName?: string | null;
+  legal_name?: string | null;
+  entityType?: string | null;
+  entity_type?: string | null;
+  registrationNumber?: string | null;
+  registration_number?: string | null;
+  registrationCountry?: string | null;
+  registration_country?: string | null;
+}): PaymasterIdentityFields {
+  return {
+    name: identityText(paymaster.legalName ?? paymaster.legal_name),
+    entity_type: identityText(paymaster.entityType ?? paymaster.entity_type),
+    ssm_number: identityText(paymaster.registrationNumber ?? paymaster.registration_number),
+    country: identityText(paymaster.registrationCountry ?? paymaster.registration_country),
+  };
+}
+
+export function submittedPaymasterIdentityFields(submitted?: {
+  name?: unknown;
+  entity_type?: unknown;
+  ssm_number?: unknown;
+  country?: unknown;
+} | null): PaymasterIdentityFields {
+  return {
+    name: identityText(submitted?.name),
+    entity_type: identityText(submitted?.entity_type),
+    ssm_number: identityText(submitted?.ssm_number),
+    country: identityText(submitted?.country),
+  };
+}
+
+export function paymasterSubmittedIdentityFingerprint(identity: {
+  legalName?: string | null;
+  entityType?: string | null;
+  registrationCountry?: string | null;
+  registrationNumber?: string | null;
+  name?: string | null;
+  entity_type?: string | null;
+  country?: string | null;
+  ssm_number?: string | null;
+}): string {
+  const name = identityText(identity.legalName ?? identity.name).toLowerCase();
+  const entityType = identityText(identity.entityType ?? identity.entity_type).toLowerCase();
+  const country = identityText(identity.registrationCountry ?? identity.country).toUpperCase();
+  const ssm = identityText(identity.registrationNumber ?? identity.ssm_number);
+  return [name, entityType, country, ssm].join("|");
+}
+
+export function paymasterSubmittedIdentitiesConflict(
+  identities: Array<Parameters<typeof paymasterSubmittedIdentityFingerprint>[0]>
+): boolean {
+  return new Set(identities.map(paymasterSubmittedIdentityFingerprint)).size > 1;
+}
+
+export function submittedIdentityDiffersFromVerified(params: {
+  submitted?: {
+    name?: unknown;
+    entity_type?: unknown;
+    ssm_number?: unknown;
+    country?: unknown;
+  } | null;
+  paymaster?:
+    | (Parameters<typeof paymasterMasterIdentityFields>[0] & {
+        verificationStatus?: string | null;
+        verification_status?: string | null;
+      })
+    | null;
+}): boolean {
+  if (!params.paymaster) return false;
+  const status = params.paymaster.verificationStatus ?? params.paymaster.verification_status;
+  if (!isPaymasterVerified(status)) return false;
+  const verified = paymasterMasterIdentityFields(params.paymaster);
+  const submitted = params.submitted ?? {};
+  return (
+    identityText(submitted.name) !== verified.name ||
+    identityText(submitted.entity_type) !== verified.entity_type ||
+    identityText(submitted.ssm_number) !== verified.ssm_number ||
+    identityText(submitted.country).toUpperCase() !== verified.country.toUpperCase()
+  );
+}
+
+export function paymasterIdentityOfferBlockReason(params: {
+  submitted?: {
+    name?: unknown;
+    entity_type?: unknown;
+    ssm_number?: unknown;
+    country?: unknown;
+  } | null;
+  paymaster?:
+    | (Parameters<typeof paymasterMasterIdentityFields>[0] & {
+        verificationStatus?: string | null;
+        verification_status?: string | null;
+      })
+    | null;
+}): string | null {
+  if (!params.paymaster) return PAYMASTER_NOT_LINKED_MESSAGE;
+  const status = params.paymaster.verificationStatus ?? params.paymaster.verification_status;
+  if (!isPaymasterVerified(status)) return PAYMASTER_NOT_VERIFIED_FOR_OFFER_MESSAGE;
+  if (submittedIdentityDiffersFromVerified(params)) return PAYMASTER_IDENTITY_UNRESOLVED_MESSAGE;
+  return null;
+}
 
 export const VERIFIED_PAYMASTER_MUST_BE_SELECTED_CODE = "VERIFIED_PAYMASTER_MUST_BE_SELECTED";
 export const VERIFIED_PAYMASTER_MUST_BE_SELECTED_MESSAGE =

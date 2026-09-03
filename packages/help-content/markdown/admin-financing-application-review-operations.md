@@ -6,7 +6,7 @@ tags:
   - admin
   - operations
 order: 11
-updated: 2026-08-24
+updated: 2026-09-02
 ---
 
 ## Purpose
@@ -28,7 +28,7 @@ This document describes the admin application review workflow for issuer financi
 
 The admin UI builds tabs from the product workflow. **Financial** is always first. Other steps appear only when the product includes them, in this order when present: **Company**, **Business & Guarantor**, **Documents**, **Facility**, **Invoice**.
 
-- **Financial:** issuer-entered financials, CTOS figures where loaded, and the **Director and Shareholders** block (identity and compliance as shown). This tab uses one section-level outcome for the whole tab.
+- **Financial:** issuer-entered financials, CTOS figures where loaded, the issuer **MARC Credit Assessment**, and the **Director and Shareholders** block (identity and compliance as shown). This tab uses one section-level outcome for the whole tab.
 - **Company:** legal entity and issuer profile from onboarding (addresses, registration context, bank details, and other company fields the step collects).
 - **Business & Guarantor:** operating and trading context, repayment position where captured, guarantors and their screening, and **Declarations** when the workflow includes that confirmation. Declarations are not a separate tab.
 - **Documents:** supporting uploads. When the product uses item-level review, each file is its own row with per-row actions.
@@ -117,7 +117,8 @@ On the **Financial** tab, use **Organization CTOS** (fetch report / view report)
 - Run a fresh organization CTOS report when the snapshot is missing or stale. In the UI, use **Fetch CTOS report** and check **Last organization CTOS fetch** for recency.
 - Run subject-level CTOS for a person or entity when an individual director or corporate party needs their own enquiry. The confirm dialog describes a **CTOS enquiry** for that party.
 - Monitor **KYC** and **KYB** status as rendered for each party.
-- **Approve** on the Financial tab may stay disabled until all visible directors and shareholders are onboarding-complete (review-ready or approved) and **AML** is approved per row. An amber banner explains incomplete verification. This is stricter than **KYC** only.
+- **Approve** on the Financial tab stays disabled until the issuer has a complete **MARC** assessment (score, derived grade, PD, report, and report date). That grade is the default risk rating on later invoice offers. Complete it on the issuer organisation page.
+- **Approve** on the Financial tab may also stay disabled until all visible directors and shareholders are onboarding-complete (review-ready or approved) and **AML** is approved per row. An amber banner explains incomplete verification. This is stricter than **KYC** only.
 - If directors, shareholders, or controllers changed since the prior cycle, refresh CTOS and related data and confirm identity, role, and identifiers before approval.
 
 **Presentation rules:** director rows always appear. Individual shareholders typically appear from the product threshold (commonly 5% and above). Corporate shareholders appear as corporate parties. Incomplete party onboarding may block progress until the issuer completes the required steps from the issuer profile. After party onboarding is approved, fields are locked, and further changes require an amendment path if policy allows.
@@ -186,11 +187,13 @@ Paymaster is the reusable customer / obligor master. Same SSM number is always t
 Issuer flow:
 
 1. The issuer enters the 12-digit SSM first.
-2. If a **Verified** Paymaster exists, they must select it. Identity autofills and cannot be edited.
-3. If none exists, they enter identity. A new Paymaster is created **Unverified**.
+2. If a **Verified** Paymaster exists, identity autofills and cannot be edited.
+3. If none exists, they enter identity for this application. A Paymaster master is created **Unverified** on submit, not on draft save.
 4. Admin later verifies identity. A Verified Paymaster can be reused by other issuers.
 
 On Application Review, **Paymaster Verification** is separate from section approval, application approval, SSM onboarding, MARC, and Notice of Assignment. Use **Verify Paymaster** only after confirming legal name, registration, country, and entity type.
+
+When submitted customer identity differs from a **Verified** Paymaster, Application Review shows Submitted vs Verified. **Use Verified Paymaster** updates this application's submitted details internally and does not notify the issuer. **Request Amendment** uses the existing Facility / Customer amendment remark flow. Do not send a facility or invoice offer until identity is verified and submitted vs verified is resolved.
 
 Related-party (Yes / No) is per issuer link, not part of locked master identity. Large Private Company stays on the application / facility.
 

@@ -5,7 +5,11 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { StatusBadge } from "@cashsouk/ui";
-import { isPaymasterVerified } from "@cashsouk/types";
+import {
+  isPaymasterVerified,
+  PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_MESSAGE,
+  type PaymasterSubmittedApplicationIdentity,
+} from "@cashsouk/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +30,10 @@ import {
   reviewValueClass,
 } from "@/components/application-review/review-section-styles";
 import { useVerifyPaymaster } from "@/paymasters/hooks/use-paymasters";
+import {
+  paymasterDetailVerificationBlocked,
+  paymasterIdentityToVerify,
+} from "@/paymasters/utils/paymaster-verify-identity";
 
 export type ApplicationReviewPaymaster = {
   id?: string | null;
@@ -60,6 +68,7 @@ export function PaymasterVerificationPanel({
   paymasterId,
   customerDetails,
   applicationId,
+  submittedApplicationIdentities,
   canManage,
   layout = "review",
 }: {
@@ -67,6 +76,7 @@ export function PaymasterVerificationPanel({
   paymasterId?: string | null;
   customerDetails?: unknown;
   applicationId?: string;
+  submittedApplicationIdentities?: PaymasterSubmittedApplicationIdentity[];
   canManage: boolean;
   layout?: "review" | "detail";
 }) {
@@ -74,14 +84,11 @@ export function PaymasterVerificationPanel({
   const verifyPaymaster = useVerifyPaymaster();
   const cust = asRecord(customerDetails);
   const resolvedId = paymaster?.id || paymasterId || (typeof cust?.paymaster_id === "string" ? cust.paymaster_id : "");
-  const legalName = text(paymaster?.legalName ?? paymaster?.legal_name ?? cust?.name);
-  const registrationNumber = text(
-    paymaster?.registrationNumber ?? paymaster?.registration_number ?? cust?.ssm_number
-  );
-  const country = text(
-    paymaster?.registrationCountry ?? paymaster?.registration_country ?? cust?.country
-  );
-  const entityType = text(paymaster?.entityType ?? paymaster?.entity_type ?? cust?.entity_type);
+  const identityToVerify = paymasterIdentityToVerify({
+    applicationId,
+    customerDetails,
+    paymaster,
+  });
   const verificationStatus = String(
     paymaster?.verificationStatus ?? paymaster?.verification_status ?? "UNVERIFIED"
   ).toUpperCase();
@@ -94,6 +101,9 @@ export function PaymasterVerificationPanel({
         ? format(new Date(verifiedAtRaw), "dd MMM yyyy, h:mm a")
         : "—";
   const verifiedBy = text(paymaster?.verifiedByName, "—");
+  const fromApplicationReview = Boolean(applicationId);
+  const detailBlocked =
+    layout === "detail" && paymasterDetailVerificationBlocked(submittedApplicationIdentities);
 
   if (!resolvedId && !paymaster) {
     return layout === "detail" ? (
@@ -117,7 +127,7 @@ export function PaymasterVerificationPanel({
 
   return (
     <div className="space-y-4">
-      <div className={layout === "review" ? reviewRowGridClass : "grid gap-4 sm:grid-cols-2"}>
+      <div className={layout === "review" ? reviewRowGridClass : "grid gap-4"}>
         {layout === "review" ? (
           <>
             <Label className={reviewLabelClass}>Status</Label>
@@ -149,10 +159,16 @@ export function PaymasterVerificationPanel({
         )}
       </div>
 
-      <p className="text-meta text-muted-foreground">
-        Paymaster identity reviewed internally. This is not an external SSM or CTOS check, and it
-        does not approve the application.
-      </p>
+      {layout === "review" ? (
+        <p className="text-meta text-muted-foreground">
+          Paymaster identity reviewed internally. This is not an external SSM or CTOS check, and it
+          does not approve the application.
+        </p>
+      ) : null}
+
+      {detailBlocked ? (
+        <p className="text-ui text-muted-foreground">{PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_MESSAGE}</p>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         {resolvedId && layout !== "detail" ? (
@@ -160,7 +176,7 @@ export function PaymasterVerificationPanel({
             <Link href={paymasterHref(resolvedId)}>View Paymaster</Link>
           </Button>
         ) : null}
-        {!verified && canManage && resolvedId ? (
+        {!verified && canManage && resolvedId && !detailBlocked ? (
           <Button
             size="sm"
             className="h-8 rounded-lg text-ui"
@@ -179,25 +195,27 @@ export function PaymasterVerificationPanel({
             <AlertDialogDescription asChild>
               <div className="space-y-3 text-ui text-muted-foreground">
                 <p>
-                  Confirm these master identity details are correct. This verifies identity only and
-                  does not approve the application, invoice, Notice, or MARC assessment.
+                  {fromApplicationReview
+                    ? "This verifies the identity submitted on this application. It becomes the official Paymaster identity for this SSM. This does not approve the application, invoice, Notice, or MARC assessment."
+                    : "Confirm these master identity details are correct. This verifies identity only and does not approve the application, invoice, Notice, or MARC assessment."}
                 </p>
+                <p className="text-ui font-medium text-foreground">Paymaster Identity to Verify</p>
                 <dl className="space-y-1">
                   <div>
-                    <dt className="text-meta">Legal Name</dt>
-                    <dd className="text-foreground">{legalName}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-meta">Registration Number</dt>
-                    <dd className="font-mono text-foreground">{registrationNumber}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-meta">Country</dt>
-                    <dd className="text-foreground">{country}</dd>
+                    <dt className="text-meta">Name</dt>
+                    <dd className="text-foreground">{text(identityToVerify.name)}</dd>
                   </div>
                   <div>
                     <dt className="text-meta">Entity Type</dt>
-                    <dd className="text-foreground">{entityType}</dd>
+                    <dd className="text-foreground">{text(identityToVerify.entity_type)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-meta">SSM</dt>
+                    <dd className="font-mono text-foreground">{text(identityToVerify.ssm_number)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-meta">Country</dt>
+                    <dd className="text-foreground">{text(identityToVerify.country)}</dd>
                   </div>
                 </dl>
               </div>

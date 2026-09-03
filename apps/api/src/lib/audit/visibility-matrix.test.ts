@@ -55,9 +55,11 @@ describe("visibility matrix", () => {
     expect(EVENT_CATALOGUE.PAYMASTER_CREATED.userVisible).toBe(false);
     expect(EVENT_CATALOGUE.PAYMASTER_LINKED_TO_ISSUER.userVisible).toBe(false);
     expect(EVENT_CATALOGUE.PAYMASTER_VERIFIED.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.PAYMASTER_IDENTITY_RESOLVED.userVisible).toBe(false);
     expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_CREATED");
     expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_LINKED_TO_ISSUER");
     expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_VERIFIED");
+    expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_IDENTITY_RESOLVED");
   });
 
   it("treats occupancy dual IDs as two layers, not duplicates", () => {
@@ -65,5 +67,40 @@ describe("visibility matrix", () => {
       EVENT_LAYER.APPLICATION_TIMELINE
     );
     expect(EVENT_CATALOGUE.FACILITY_OCCUPANCY_UPDATED.layer).toBe(EVENT_LAYER.NOTE_TIMELINE);
+  });
+
+  it("keeps Settlement Hibah Receipt generated as Admin Activity only", () => {
+    expect(EVENT_CATALOGUE.SETTLEMENT_HIBAH_RECEIPT_GENERATED.layer).toBe(EVENT_LAYER.ADMIN_ACTIVITY);
+    expect(EVENT_CATALOGUE.SETTLEMENT_HIBAH_RECEIPT_GENERATED.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.SETTLEMENT_HIBAH_RECEIPT_GENERATED.table).toBe("note_events");
+  });
+
+  it("keeps certificate and receipt reissue as Admin Activity only", () => {
+    expect(EVENT_CATALOGUE.INVESTMENT_NOTE_CERTIFICATE_REISSUED.layer).toBe(
+      EVENT_LAYER.ADMIN_ACTIVITY
+    );
+    expect(EVENT_CATALOGUE.INVESTMENT_NOTE_CERTIFICATE_REISSUED.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.INVESTMENT_NOTE_CERTIFICATE_PUBLISHED.layer).toBe(
+      EVENT_LAYER.ADMIN_ACTIVITY
+    );
+    expect(EVENT_CATALOGUE.INVESTMENT_NOTE_CERTIFICATE_PUBLISHED.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.SETTLEMENT_HIBAH_RECEIPT_PUBLISHED.layer).toBe(EVENT_LAYER.ADMIN_ACTIVITY);
+    expect(EVENT_CATALOGUE.SETTLEMENT_HIBAH_RECEIPT_PUBLISHED.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.INVESTMENT_SETTLEMENT_CONFIRMATION_PUBLISHED.layer).toBe(
+      EVENT_LAYER.ADMIN_ACTIVITY
+    );
+    expect(EVENT_CATALOGUE.INVESTMENT_SETTLEMENT_CONFIRMATION_PUBLISHED.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.INVESTMENT_SETTLEMENT_CONFIRMATION_REISSUED.layer).toBe(
+      EVENT_LAYER.ADMIN_ACTIVITY
+    );
+    expect(EVENT_CATALOGUE.INVESTMENT_SETTLEMENT_CONFIRMATION_REISSUED.userVisible).toBe(false);
+  });
+
+  it("keeps Investment Settlement Confirmation generated as Admin Activity only", () => {
+    expect(EVENT_CATALOGUE.INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED.layer).toBe(
+      EVENT_LAYER.ADMIN_ACTIVITY
+    );
+    expect(EVENT_CATALOGUE.INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED.table).toBe("note_events");
   });
 });

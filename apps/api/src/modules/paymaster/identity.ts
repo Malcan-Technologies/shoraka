@@ -88,3 +88,26 @@ export function submittedIdentityConflictsWithMaster(
     existing.registration_number !== submitted.registrationNumber
   );
 }
+
+export function submittedIdentitySnapshot(submitted: PaymasterSubmittedIdentity) {
+  return {
+    name: submitted.legalName,
+    entity_type: submitted.entityType,
+    ssm_number: submitted.registrationNumber,
+    country: submitted.registrationCountry,
+  };
+}
+
+export function masterIdentitySnapshot(row: {
+  legal_name: string;
+  entity_type: string;
+  registration_number: string;
+  registration_country: string;
+}) {
+  return {
+    name: row.legal_name,
+    entity_type: row.entity_type,
+    ssm_number: row.registration_number,
+    country: row.registration_country,
+  };
+}

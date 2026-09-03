@@ -27,7 +27,10 @@ import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { buildPaymasterSnapshot } from "../paymaster/snapshot";
-import { assertPaymasterAcknowledgementForDisbursement } from "../paymaster/service";
+import {
+  assertPaymasterAcknowledgementForDisbursement,
+  isExecutionPackCompleteForNote,
+} from "../paymaster/service";
 import {
   assertInvoiceFeeScheduleChargeable,
   settleCloseFundingFacilityFees,
@@ -72,7 +75,6 @@ import {
   meetsMinimumFunding,
   normalizeNoteCapacityAmount,
   NOTE_MONEY_TOLERANCE,
-  resolveCompletedSigningEnvelopeWhere,
   roundNoteMoney,
   parseFacilityFeeCollectionWaiver,
   settleDisbursementFees,
@@ -211,6 +213,7 @@ import type {
   updateNoteDraftSchema,
   updatePlatformFinanceSettingsSchema,
   requestTrusteeSignatureUploadUrlSchema,
+  requestDocumentStampUploadUrlSchema,
   requestIssuerPaymentEvidenceUploadUrlSchema,
   createInvestorWithdrawalSchema,
   getInvestorWithdrawalsQuerySchema,
@@ -240,6 +243,7 @@ import type {
   LedgerBucketAccountsConfig,
   PlatformAccountsConfig,
   TrusteeLetterConfig,
+  DocumentAuthorisationConfig,
 } from "@cashsouk/types";
 import { randomUUID } from "crypto";
 import type { z } from "zod";
@@ -1499,26 +1503,11 @@ export class NoteService {
     if (!workflow) return;
 
     if (workflowHasSigningPackage(workflow)) {
-      let invoiceContractId: string | null = null;
-      if (note.source_invoice_id) {
-        const invoice = await prisma.invoice.findUnique({
-          where: { id: note.source_invoice_id },
-          select: { contract_id: true },
-        });
-        invoiceContractId = invoice?.contract_id ?? null;
-      }
-      const envelopeWhere = resolveCompletedSigningEnvelopeWhere({
-        sourceInvoiceId: note.source_invoice_id,
+      const packComplete = await isExecutionPackCompleteForNote({
         sourceContractId: note.source_contract_id,
-        invoiceContractId,
+        sourceInvoiceId: note.source_invoice_id,
       });
-      const completedEnvelope = envelopeWhere
-        ? await prisma.signingEnvelope.findFirst({
-            where: { status: "COMPLETED", ...envelopeWhere },
-            select: { id: true },
-          })
-        : null;
-      if (!completedEnvelope) {
+      if (!packComplete) {
         throw new AppError(
           409,
           "SIGNING_ENVELOPE_INCOMPLETE",
@@ -6366,6 +6355,8 @@ export class NoteService {
         (settings.platform_accounts_config as PlatformAccountsConfig | null) ?? null,
       ledgerBucketAccountsConfig:
         (settings.ledger_bucket_accounts_config as LedgerBucketAccountsConfig | null) ?? null,
+      documentAuthorisationConfig:
+        (settings.document_authorisation_config as DocumentAuthorisationConfig | null) ?? null,
       updatedByUserId: settings.updated_by_user_id,
       updatedAt: settings.updated_at.toISOString(),
     };
@@ -6440,6 +6431,10 @@ export class NoteService {
           input.ledgerBucketAccountsConfig != null
             ? (input.ledgerBucketAccountsConfig as Prisma.InputJsonValue)
             : undefined,
+        document_authorisation_config:
+          input.documentAuthorisationConfig != null
+            ? (input.documentAuthorisationConfig as Prisma.InputJsonValue)
+            : undefined,
         updated_by_user_id: actor.userId,
       },
       update: {
@@ -6501,6 +6496,10 @@ export class NoteService {
           input.ledgerBucketAccountsConfig != null
             ? (input.ledgerBucketAccountsConfig as Prisma.InputJsonValue)
             : undefined,
+        document_authorisation_config:
+          input.documentAuthorisationConfig != null
+            ? (input.documentAuthorisationConfig as Prisma.InputJsonValue)
+            : undefined,
         updated_by_user_id: actor.userId,
       },
     });
@@ -6534,6 +6533,24 @@ export class NoteService {
     const extension = signatureImageExtensionForContentType(input.contentType);
     const date = new Date().toISOString().split("T")[0];
     const key = `platform-finance/trustee-signatures/v1-${date}-${randomUUID()}.${extension}`;
+    const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
+      key,
+      contentType: input.contentType,
+      contentLength: input.fileSize,
+    });
+    return { uploadUrl, s3Key, expiresIn };
+  }
+
+  async requestDocumentStampUploadUrl(
+    input: z.infer<typeof requestDocumentStampUploadUrlSchema>
+  ) {
+    const extension = signatureImageExtensionForContentType(input.contentType);
+    const date = new Date().toISOString().split("T")[0];
+    const folder =
+      input.purpose === "RECEIPT_COMPANY_STAMP"
+        ? "platform-finance/document-stamps/receipt"
+        : "platform-finance/document-stamps/certificate";
+    const key = `${folder}/v1-${date}-${randomUUID()}.${extension}`;
     const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
       key,
       contentType: input.contentType,
@@ -7167,8 +7184,6 @@ export class NoteService {
         amount: toNumber(withdrawal.amount),
       });
 
-      // Only the issuer financing disbursement withdrawal type represents a user-facing
-      // disbursement outcome; residual return / investor withdrawal / admin adjustment do not.
       if (
         isIssuerFinancingDisbursement(withdrawal.withdrawal_type) &&
         noteForCapacity?.issuer_organization_id

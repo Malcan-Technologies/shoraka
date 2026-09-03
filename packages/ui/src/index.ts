@@ -312,6 +312,10 @@ export type {
 } from "./components/sticky-form-footer";
 export { KeyValueGrid } from "./components/key-value-grid";
 export type { KeyValueGridProps, KeyValueItem } from "./components/key-value-grid";
+export { ProfileReadField, ProfileFieldGrid } from "./components/profile-read-field";
+export type { ProfileReadFieldProps } from "./components/profile-read-field";
+export { ProfileCompletenessSummary } from "./components/profile-completeness-summary";
+export type { ProfileCompletenessSectionRow } from "./components/profile-completeness-summary";
 export { ProductNameWithIcon } from "./components/product-name-with-icon";
 export { ProductCatalogName } from "./components/product-catalog-name";
 export { ProductCatalogImage } from "./components/product-catalog-image";

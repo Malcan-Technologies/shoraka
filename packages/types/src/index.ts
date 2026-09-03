@@ -522,6 +522,11 @@ export * from "./onboarding-readiness";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
 export * from "./notes";
+export * from "./company-stamp-image";
+export * from "./official-document-version";
+export * from "./investment-note-certificate";
+export * from "./settlement-hibah-receipt";
+export * from "./investment-settlement-confirmation";
 export * from "./financing-tenure";
 export * from "./invoice-financing-ratio";
 export * from "./invoice-details-config";
@@ -573,6 +578,10 @@ export * from "./gateway-payments";
 export * from "./gateway-recon";
 export * from "./marc-credit-grade";
 export * from "./paymaster";
+export * from "./comrep-profile";
+export * from "./organization-party-profile";
+export * from "./organization-party-key";
+export * from "./operator-profile";
 export {
   ADMIN_PERMISSIONS,
   ADMIN_PERMISSION_GROUPS,

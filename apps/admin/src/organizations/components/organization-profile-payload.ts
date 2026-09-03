@@ -6,9 +6,13 @@ import {
 import type {
   AdminOrganizationAddressInput,
   OrganizationDetailResponse,
+  ScCompanyCategory,
+  ScCompanyType,
+  ScGender,
+  ScInvestorCategory,
   UpdateAdminOrganizationProfileInput,
 } from "@cashsouk/types";
-import { parseAboutYourBusiness } from "@cashsouk/types";
+import { parseAboutYourBusiness, SC_GENDERS } from "@cashsouk/types";
 
 function asBankAccountDetails(data: unknown): BankAccountDetails | null {
   if (typeof data !== "object" || data === null) return null;
@@ -119,6 +123,17 @@ export type OrgProfileDraft = {
   mainCustomers: string;
   singleCustomerOver50Revenue: boolean | null;
   accountingSoftware: string;
+  dateOfIncorporation: string;
+  dateOfCommencement: string;
+  countryOfIncorporation: string;
+  scCompanyType: string;
+  companyCategory: string;
+  companyEmail: string;
+  scInvestorCategory: string;
+  gender: string;
+  nationality: string;
+  residentialState: string;
+  residentialPostalCode: string;
 };
 
 export type EditableSection =
@@ -128,17 +143,32 @@ export type EditableSection =
   | "pic"
   | "personal"
   | "contact"
-  | "bank";
+  | "bank"
+  | "classification";
 
 export const SECTION_LABEL: Record<EditableSection, string> = {
-  company: "company information",
-  about: "about your business",
+  company: "company details",
+  about: "about the business",
   addresses: "addresses",
   pic: "person in charge",
   personal: "personal details",
   contact: "contact details",
   bank: "bank account details",
+  classification: "investor classification",
 };
+
+function toDateInput(value: string | null | undefined): string {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
+function asScGender(value: string | null | undefined): string {
+  const raw = (value ?? "").trim().toUpperCase();
+  if (raw === "M" || raw === "MALE") return "MALE";
+  if (raw === "F" || raw === "FEMALE") return "FEMALE";
+  if (raw === "NA" || raw === "NOT_APPLICABLE" || raw === "NOT APPLICABLE") return "NOT_APPLICABLE";
+  return SC_GENDERS.includes(raw as ScGender) ? raw : "";
+}
 
 export function buildDraft(org: OrganizationDetailResponse): OrgProfileDraft {
   const bank = asBankAccountDetails(org.bankAccountDetails);
@@ -173,6 +203,17 @@ export function buildDraft(org: OrganizationDetailResponse): OrgProfileDraft {
     mainCustomers: about.mainCustomers,
     singleCustomerOver50Revenue: about.singleCustomerOver50Revenue,
     accountingSoftware: about.accountingSoftware,
+    dateOfIncorporation: toDateInput(org.dateOfIncorporation),
+    dateOfCommencement: toDateInput(org.dateOfCommencement),
+    countryOfIncorporation: org.countryOfIncorporation ?? "",
+    scCompanyType: org.scCompanyType ?? "",
+    companyCategory: org.companyCategory ?? "",
+    companyEmail: org.companyEmail ?? "",
+    scInvestorCategory: org.scInvestorCategory ?? "",
+    gender: asScGender(org.gender),
+    nationality: org.nationality ?? "",
+    residentialState: org.residentialAddress?.state ?? "",
+    residentialPostalCode: org.residentialAddress?.postalCode ?? "",
   };
 }
 
@@ -213,43 +254,81 @@ export function buildSectionPayload(
       payload.name = emptyToNull(draft.name);
     }
     if (org.type === "COMPANY") {
+      if (emptyToNull(draft.phoneNumber) !== emptyToNull(original.phoneNumber)) {
+        payload.phoneNumber = emptyToNull(draft.phoneNumber);
+      }
       const companyChanged =
         emptyToNull(draft.website) !== emptyToNull(original.website) ||
         emptyToNull(draft.industry) !== emptyToNull(original.industry) ||
-        emptyToNull(draft.entityType) !== emptyToNull(original.entityType) ||
         (isValidEmployeeCountInput(draft.numberOfEmployees) &&
           parseEmployeeCount(draft.numberOfEmployees) !== parseEmployeeCount(original.numberOfEmployees)) ||
         emptyToNull(draft.annualRevenue) !== emptyToNull(original.annualRevenue) ||
         emptyToNull(draft.tinNumber) !== emptyToNull(original.tinNumber) ||
-        emptyToNull(draft.businessName) !== emptyToNull(original.businessName);
+        emptyToNull(draft.businessName) !== emptyToNull(original.businessName) ||
+        emptyToNull(draft.name) !== emptyToNull(original.name);
       if (companyChanged) {
         payload.corporateOnboardingData = {
           website: emptyToNull(draft.website),
           industry: emptyToNull(draft.industry),
-          entityType: emptyToNull(draft.entityType),
           numberOfEmployees: isValidEmployeeCountInput(draft.numberOfEmployees)
             ? parseEmployeeCount(draft.numberOfEmployees)
             : parseEmployeeCount(original.numberOfEmployees),
           annualRevenue: emptyToNull(draft.annualRevenue),
           tinNumber: emptyToNull(draft.tinNumber),
-          businessName: emptyToNull(draft.businessName),
+          businessName:
+            emptyToNull(draft.name) !== emptyToNull(original.name)
+              ? emptyToNull(draft.name)
+              : emptyToNull(draft.businessName),
         };
+      }
+      if (emptyToNull(draft.dateOfIncorporation) !== emptyToNull(original.dateOfIncorporation)) {
+        payload.dateOfIncorporation = emptyToNull(draft.dateOfIncorporation);
+      }
+      if (emptyToNull(draft.dateOfCommencement) !== emptyToNull(original.dateOfCommencement)) {
+        payload.dateOfCommencement = emptyToNull(draft.dateOfCommencement);
+      }
+      if (emptyToNull(draft.countryOfIncorporation) !== emptyToNull(original.countryOfIncorporation)) {
+        payload.countryOfIncorporation = emptyToNull(draft.countryOfIncorporation);
+      }
+      if (emptyToNull(draft.scCompanyType) !== emptyToNull(original.scCompanyType)) {
+        payload.scCompanyType = (emptyToNull(draft.scCompanyType) as ScCompanyType | null) ?? null;
+      }
+      if (emptyToNull(draft.companyCategory) !== emptyToNull(original.companyCategory)) {
+        payload.companyCategory = (emptyToNull(draft.companyCategory) as ScCompanyCategory | null) ?? null;
+      }
+      if (emptyToNull(draft.companyEmail) !== emptyToNull(original.companyEmail)) {
+        payload.companyEmail = emptyToNull(draft.companyEmail);
       }
     }
     return payload;
   }
 
   if (section === "addresses") {
+    if (org.type === "COMPANY") {
+      if (
+        !addressesEqual(draft.businessAddress, original.businessAddress) ||
+        !addressesEqual(draft.registeredAddress, original.registeredAddress)
+      ) {
+        payload.corporateOnboardingData = {
+          addresses: {
+            business: draftToAddress(draft.businessAddress),
+            registered: draftToAddress(draft.registeredAddress),
+          },
+        };
+      }
+      return payload;
+    }
+    if (emptyToNull(draft.address) !== emptyToNull(original.address)) {
+      payload.address = emptyToNull(draft.address);
+    }
     if (
-      org.type === "COMPANY" &&
-      (!addressesEqual(draft.businessAddress, original.businessAddress) ||
-        !addressesEqual(draft.registeredAddress, original.registeredAddress))
+      emptyToNull(draft.residentialState) !== emptyToNull(original.residentialState) ||
+      emptyToNull(draft.residentialPostalCode) !== emptyToNull(original.residentialPostalCode)
     ) {
-      payload.corporateOnboardingData = {
-        addresses: {
-          business: draftToAddress(draft.businessAddress),
-          registered: draftToAddress(draft.registeredAddress),
-        },
+      payload.residentialAddress = {
+        ...(org.residentialAddress ?? {}),
+        state: emptyToNull(draft.residentialState),
+        postalCode: emptyToNull(draft.residentialPostalCode),
       };
     }
     return payload;
@@ -309,6 +388,20 @@ export function buildSectionPayload(
     }
     if (emptyToNull(draft.middleName) !== emptyToNull(original.middleName)) {
       payload.middleName = emptyToNull(draft.middleName);
+    }
+    if (emptyToNull(draft.gender) !== emptyToNull(original.gender)) {
+      payload.gender = (emptyToNull(draft.gender) as ScGender | null) ?? null;
+    }
+    if (emptyToNull(draft.nationality) !== emptyToNull(original.nationality)) {
+      payload.nationality = emptyToNull(draft.nationality);
+    }
+    return payload;
+  }
+
+  if (section === "classification") {
+    if (emptyToNull(draft.scInvestorCategory) !== emptyToNull(original.scInvestorCategory)) {
+      payload.scInvestorCategory =
+        (emptyToNull(draft.scInvestorCategory) as ScInvestorCategory | null) ?? null;
     }
     return payload;
   }

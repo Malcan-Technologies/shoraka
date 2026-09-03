@@ -10,38 +10,73 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(source).not.toMatch(/mismatchPending|mismatch_pending/);
   });
 
-  it("Registry table keeps verification and drops mismatch columns", () => {
-    const source = readFileSync(join(__dirname, "paymasters-table.tsx"), "utf8");
-    expect(source).toContain("Verification");
-    expect(source).not.toMatch(/Review required/i);
-    expect(source).not.toMatch(/mismatch/i);
+  it("Registry table keeps verification status and drops mismatch columns", () => {
+    const table = readFileSync(join(__dirname, "paymasters-table.tsx"), "utf8");
+    const row = readFileSync(join(__dirname, "paymasters-table-row.tsx"), "utf8");
+    expect(table).toContain('label="Status"');
+    expect(table).toContain('label="Facilities"');
+    expect(table).toContain('label="Notes"');
+    expect(table).toContain('label="Notices"');
+    expect(table).toContain("PaymastersTableRow");
+    expect(row).toContain("paymasterVerificationLabel");
+    expect(row).toContain("adminActionRowClass");
+    expect(row).toContain("View");
+    expect(table).not.toMatch(/Review required/i);
+    expect(table).not.toMatch(/mismatch/i);
+    expect(row).not.toMatch(/mismatch/i);
   });
 
   it("Paymaster Detail keeps verification status/by/at and has no mismatch section", () => {
     const detail = readFileSync(join(__dirname, "paymaster-detail-view.tsx"), "utf8");
+    const card = readFileSync(join(__dirname, "paymaster-verification-card.tsx"), "utf8");
     const panel = readFileSync(join(__dirname, "paymaster-verification-panel.tsx"), "utf8");
-    expect(detail).toContain("PaymasterVerificationPanel");
-    expect(detail).toContain("Internal Paymaster identity review");
+    expect(detail).toContain("PaymasterVerificationCard");
+    expect(card).toContain("PaymasterVerificationPanel");
+    expect(card).toContain("submittedApplicationIdentities");
+    expect(card).toContain("Internal Paymaster identity review");
     expect(detail).not.toMatch(/Keep existing identity/i);
     expect(detail).not.toMatch(/Data review/i);
     expect(panel).toContain("Verified by");
     expect(panel).toContain("Verified at");
     expect(panel).toContain("Verify Paymaster");
+    expect(panel).toContain("Paymaster Identity to Verify");
+    expect(panel).toContain("paymasterIdentityToVerify");
+    expect(panel).toContain("PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_MESSAGE");
     expect(panel).not.toMatch(/Customer details differ/i);
     expect(panel).not.toMatch(/Review Paymaster/);
     expect(panel).not.toMatch(/mismatch/i);
   });
 
-  it("Paymaster Detail shows identity Activity separately from Linked issuers and notices", () => {
+  it("Paymaster Detail uses issuer-style tabs with identity Activity separate from Linked issuers and notices", () => {
     const detail = readFileSync(join(__dirname, "paymaster-detail-view.tsx"), "utf8");
+    const linked = readFileSync(join(__dirname, "paymaster-linked-records-panel.tsx"), "utf8");
+    const notices = readFileSync(join(__dirname, "paymaster-notices-card.tsx"), "utf8");
     const activity = readFileSync(join(__dirname, "paymaster-activity-panel.tsx"), "utf8");
+    expect(detail).toContain("AdminDetailTabs");
+    expect(detail).toContain("AdminRelatedRecordsRail");
+    expect(detail).toContain('id: "identity"');
+    expect(detail).toContain('id: "linked-records"');
+    expect(detail).toContain('id: "activity"');
     expect(detail).toContain("PaymasterActivityPanel");
-    expect(detail).toContain('title="Linked issuers"');
-    expect(detail).toContain("PaymasterVerificationPanel");
-    expect(detail).toContain('title="Assignment notices"');
-    expect(detail.indexOf("<PaymasterVerificationPanel")).toBeLessThan(
-      detail.indexOf("<PaymasterActivityPanel")
+    expect(detail).toContain("PaymasterVerificationCard");
+    expect(detail).toContain("PaymasterNoticesCard");
+    expect(detail).toContain("PaymasterSubmittedIdentitiesCard");
+    expect(linked).toContain('title="Linked records"');
+    expect(linked).toContain("Issuers that have used this Paymaster");
+    expect(linked).toContain('value: "issuers"');
+    expect(linked).toContain('value: "applications"');
+    expect(linked).toContain('value: "facilities"');
+    expect(linked).toContain('value: "notes"');
+    expect(linked).toMatch(
+      /value: "issuers"[\s\S]*value: "applications"[\s\S]*value: "facilities"[\s\S]*value: "notes"/
     );
+    expect(linked).toContain("uniquePaymasterApplicationCount");
+    expect(linked).toContain("paymasterApplicationReviewHref");
+    expect(linked).toContain("No applications yet.");
+    expect(linked).toContain("No facilities yet.");
+    expect(linked).toContain("No notes yet.");
+    expect(linked).toContain("No issuer links yet.");
+    expect(notices).toContain('title="Assignment notices"');
     expect(activity).toContain('title="Activity"');
     expect(activity).toContain("AdminVerticalTimeline");
     expect(activity).toContain("formatAuditEventLabel");
@@ -61,6 +96,7 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(timeline).toMatch(/PAYMASTER_CREATED:\s*"Paymaster Created"/);
     expect(timeline).toMatch(/PAYMASTER_LINKED_TO_ISSUER:\s*"Paymaster Linked to Issuer"/);
     expect(timeline).toMatch(/PAYMASTER_VERIFIED:\s*"Paymaster Identity Verified"/);
+    expect(timeline).toMatch(/PAYMASTER_IDENTITY_RESOLVED:\s*"Paymaster Identity Resolved"/);
   });
 
   it("Application Review retains Verify Paymaster without mismatch warning", () => {
@@ -72,12 +108,54 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
       join(__dirname, "../../components/application-review/sections/contract-section.tsx"),
       "utf8"
     );
+    const comparison = readFileSync(
+      join(
+        __dirname,
+        "../../components/application-review/paymaster-identity-comparison.tsx"
+      ),
+      "utf8"
+    );
     const panel = readFileSync(join(__dirname, "paymaster-verification-panel.tsx"), "utf8");
     expect(customer).toContain("Paymaster Verification");
     expect(contract).toContain("Paymaster Verification");
+    expect(customer).toContain("SubmittedVerifiedPaymasterIdentity");
+    expect(contract).toContain("SubmittedVerifiedPaymasterIdentity");
+    expect(comparison).toContain("Use Verified Paymaster");
+    expect(comparison).toContain("Request Amendment");
     expect(customer).not.toMatch(/showMismatchBanner/);
     expect(contract).not.toMatch(/showMismatchBanner/);
     expect(panel).toContain("Verify Paymaster");
     expect(panel).toContain("applicationId");
+    expect(panel).toContain("paymasterIdentityToVerify");
+    expect(panel).toContain("Paymaster Identity to Verify");
+  });
+
+  it("Paymaster Detail Identity tab shows submitted application identities as Admin reference only", () => {
+    const detail = readFileSync(join(__dirname, "paymaster-detail-view.tsx"), "utf8");
+    const identity = readFileSync(join(__dirname, "paymaster-identity-card.tsx"), "utf8");
+    const submitted = readFileSync(
+      join(__dirname, "paymaster-submitted-identities-card.tsx"),
+      "utf8"
+    );
+    expect(detail).toContain("PaymasterIdentityCard");
+    expect(detail).toContain("PaymasterSubmittedIdentitiesCard");
+    expect(detail).toContain("data.submittedApplicationIdentities");
+    expect(detail).toContain('label="Linked issuers"');
+    expect(detail).toContain('label="Financings"');
+    expect(detail).toContain('label="Notices"');
+    expect(detail).not.toContain('label="Applications"');
+    expect(identity).toContain("Official verified identity for this SSM");
+    expect(identity).toContain("Current global Paymaster record");
+    expect(identity).toContain("Verification status");
+    expect(identity).toContain("Verified by");
+    expect(identity).toContain("Verified at");
+    expect(submitted).toContain("Submitted Application Identities");
+    expect(submitted).toContain("not separate Paymaster records");
+    expect(submitted).toContain("View");
+    expect(submitted).toContain("paymasterApplicationReviewHref");
+    expect(submitted).toContain("No submitted application identities available yet.");
+    expect(submitted).not.toMatch(/if \(identities\.length === 0\) return null/);
+    expect(submitted).not.toMatch(/PaymasterMismatch/);
+    expect(submitted).not.toMatch(/sendTyped|NotificationService/);
   });
 });

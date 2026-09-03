@@ -67,6 +67,7 @@ const APPLICATION_AUDIT_EVENT_LABELS: Record<string, string> = {
   PAYMASTER_CREATED: "Paymaster Created",
   PAYMASTER_LINKED_TO_ISSUER: "Paymaster Linked to Issuer",
   PAYMASTER_VERIFIED: "Paymaster Identity Verified",
+  PAYMASTER_IDENTITY_RESOLVED: "Paymaster Identity Resolved",
   GATEWAY_PAYMENT_COMPLETED: "Payment Received Successfully",
 };
 

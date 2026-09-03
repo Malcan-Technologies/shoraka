@@ -6,8 +6,12 @@ import { ReviewSectionCard } from "../review-section-card";
 import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { ApplicationFinancialReviewComparison } from "@/components/application-financial-review-comparison";
-import { computeHasPendingDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
-// Banner is rendered inside the Director and Shareholders section.
+import {
+  shouldNotifyIssuerDirectorShareholderAfterOrgCtosFromResolvedPeopleSnapshots,
+  type ApplicationPersonRow,
+} from "@cashsouk/types";
+import { ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT } from "@/lib/admin-director-shareholder-review-message";
+import { financialSectionApproveDisabledReason } from "./financial-section-approve-gate";
 
 import * as React from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -29,10 +33,6 @@ import { cn } from "@/lib/utils";
 import { applicationsKeys } from "@/applications/query-keys";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/use-permissions";
-import {
-  shouldNotifyIssuerDirectorShareholderAfterOrgCtosFromResolvedPeopleSnapshots,
-} from "@cashsouk/types";
-import { ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT } from "@/lib/admin-director-shareholder-review-message";
 import { format } from "date-fns";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -261,7 +261,10 @@ export function FinancialSection({
   sectionComparison,
   hideSectionComments = false,
 }: FinancialSectionProps) {
-  const hasPendingDirectorShareholder = computeHasPendingDirectorShareholder(app.people);
+  const approveDisabledReason = financialSectionApproveDisabledReason({
+    people: app.people,
+    marcAssessment: app.issuer_organization?.marcAssessment ?? null,
+  });
 
   if (sectionComparison) {
     return (
@@ -289,7 +292,8 @@ export function FinancialSection({
       actionLockTooltip={actionLockTooltip}
       sectionStatus={sectionStatus}
       showApprove={true}
-      approveDisabled={hasPendingDirectorShareholder}
+      approveDisabled={Boolean(approveDisabledReason)}
+      approveDisabledReason={approveDisabledReason}
       headerRight={
         <FinancialCtosHeaderControls
           applicationId={applicationId}

@@ -78,6 +78,15 @@ export interface Organization {
   /** Company org: false when any director/shareholder AML screening is not Approved. */
   directorShareholderSubmitReady?: boolean;
   directorShareholderSubmitBlockedMessage?: string;
+  profileCompleteness?: import("@cashsouk/types").ComrepProfileCompleteness;
+  dateOfIncorporation?: string | Date | null;
+  dateOfCommencement?: string | Date | null;
+  countryOfIncorporation?: string | null;
+  scCompanyType?: string | null;
+  companyCategory?: string | null;
+  companyEmail?: string | null;
+  scInvestorCategory?: string | null;
+  residentialAddress?: import("@cashsouk/types").ProfileAddress | null;
   /** CTOS-backed party rows with AML screening (issuer company orgs). */
   people?: ApplicationPersonRow[];
   /** How `people` was built: onboarding data, CTOS, or CTOS report with no usable rows. */
