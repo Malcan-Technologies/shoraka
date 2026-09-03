@@ -25,6 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/hooks/use-permissions";
+import { ReadField } from "@/organizations/components/organization-profile-helpers";
 import { missingFieldKeys } from "@/organizations/utils/organization-profile-overview";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -125,33 +126,33 @@ export function OrganizationFinancialsPanel({
       />
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5 py-2">
-            <p className="text-meta text-muted-foreground">Latest financial year</p>
-            <p className="text-ui font-medium">{latestYear ? `FY${latestYear}` : "—"}</p>
-          </div>
-          <div className="space-y-1.5 py-2">
-            <p className="text-meta text-muted-foreground">Status</p>
-            {complete ? (
-              <StatusBadge status="success" label="Complete" />
-            ) : (
-              <StatusBadge
-                status="action"
-                label={
-                  status?.missingCount
-                    ? `${status.missingCount} missing fields`
-                    : "Missing fields"
-                }
-              />
-            )}
-          </div>
+          <ReadField label="Latest financial year" value={latestYear ? `FY${latestYear}` : null} />
+          <ReadField
+            label="Status"
+            value={
+              complete ? (
+                <StatusBadge status="success" label="Complete" />
+              ) : (
+                <StatusBadge
+                  status="action"
+                  label={
+                    status?.missingCount
+                      ? `${status.missingCount} required ${status.missingCount === 1 ? "field" : "fields"} missing`
+                      : "Required fields missing"
+                  }
+                />
+              )
+            }
+          />
         </div>
         {status?.fields ? (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {EDITABLE_KEYS.slice(0, 6).map((key) => (
-              <div key={key} className="space-y-1 py-1">
-                <p className="text-meta text-muted-foreground">{fieldLabel(key)}</p>
-                <p className="text-ui font-medium">{displayAmount(status.fields?.[key])}</p>
-              </div>
+              <ReadField
+                key={key}
+                label={fieldLabel(key)}
+                value={displayAmount(status.fields?.[key]) === "—" ? null : displayAmount(status.fields?.[key])}
+              />
             ))}
           </div>
         ) : (

@@ -3,6 +3,8 @@ import {
   buildInvestorProfileCompleteness,
   buildIssuerProfileCompleteness,
   computeIssuerCompanyCompleteness,
+  groupInvestorMissingByProfileSection,
+  groupIssuerMissingByProfileSection,
   groupPeopleMissingByParty,
   issuerFinancialsFromYearBlock,
   issuerFlowStepComplete,
@@ -351,5 +353,45 @@ describe("SC ComRep investor category", () => {
     });
     expect(corporate.complete).toBe(true);
     expect(corporate.userComplete).toBe(true);
+  });
+});
+
+describe("profile UI section grouping", () => {
+  it("groups issuer missing items by profile cards without changing labels", () => {
+    const rows = groupIssuerMissingByProfileSection([
+      { step: "company", field: "dateOfIncorporation", label: "Date of incorporation" },
+      { step: "company", field: "companyActivities", label: "Company activities" },
+      { step: "company", field: "registeredAddress.state", label: "Registered address — state" },
+      { step: "company", field: "phoneNumber", label: "Phone number" },
+      { step: "shareholders", field: "gender", label: "Gender", partyKey: "p1" },
+      { step: "financials", field: "revenue", label: "Total revenue and income" },
+    ]);
+    expect(rows.find((row) => row.id === "company")?.missingCount).toBe(1);
+    expect(rows.find((row) => row.id === "about")?.missingCount).toBe(1);
+    expect(rows.find((row) => row.id === "addresses")?.missingCount).toBe(1);
+    expect(rows.find((row) => row.id === "contact")?.missingCount).toBe(1);
+    expect(rows.find((row) => row.id === "people")?.missingCount).toBe(1);
+    expect(rows.find((row) => row.id === "financials")?.missingCount).toBe(1);
+  });
+
+  it("groups investor personal missing items onto Personal Details and Address", () => {
+    const rows = groupInvestorMissingByProfileSection(
+      [
+        { step: "identity", field: "gender", label: "Gender" },
+        { step: "identity", field: "state", label: "Address — state" },
+      ],
+      "PERSONAL"
+    );
+    expect(rows.find((row) => row.id === "personal")?.missingCount).toBe(1);
+    expect(rows.find((row) => row.id === "addresses")?.missingCount).toBe(1);
+  });
+
+  it("groups admin-only SC ComRep investor type onto classification", () => {
+    const rows = groupInvestorMissingByProfileSection(
+      [{ step: "identity", field: "scInvestorCategory", label: "SC ComRep investor type" }],
+      "PERSONAL"
+    );
+    expect(rows.find((row) => row.id === "classification")?.missingCount).toBe(1);
+    expect(rows.find((row) => row.id === "personal")?.missingCount).toBe(0);
   });
 });

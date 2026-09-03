@@ -15,7 +15,7 @@ import {
   SC_SHARE_TYPES,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
-import { KeyValueGrid } from "@cashsouk/ui";
+import { ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -74,7 +74,13 @@ export function PartyDetailFields({ party }: { party: OrganizationPartyProfileDt
       { label: "Appointment date", value: formatDate(party.appointmentDate) }
     );
   }
-  return <KeyValueGrid items={items} />;
+  return (
+    <ProfileFieldGrid>
+      {items.map((item) => (
+        <ProfileReadField key={item.label} label={item.label} value={item.value} />
+      ))}
+    </ProfileFieldGrid>
+  );
 }
 
 export function AddPersonForm({

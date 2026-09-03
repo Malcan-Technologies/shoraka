@@ -410,6 +410,123 @@ export function issuerFlowStepComplete(
   return missingItemsForIssuerFlowStep(completeness, step).length === 0;
 }
 
+export type ProfileUiSectionId =
+  | "company"
+  | "about"
+  | "addresses"
+  | "contact"
+  | "people"
+  | "financials"
+  | "personal"
+  | "identity"
+  | "classification";
+
+export type ProfileUiSectionRow = {
+  id: ProfileUiSectionId;
+  label: string;
+  href: string;
+  missingCount: number;
+  complete: boolean;
+};
+
+export const ISSUER_PROFILE_UI_SECTIONS: Array<{
+  id: ProfileUiSectionId;
+  label: string;
+  href: string;
+}> = [
+  { id: "company", label: "Company Details", href: "#profile-company" },
+  { id: "about", label: "About your business", href: "#profile-about" },
+  { id: "addresses", label: "Addresses", href: "#profile-addresses" },
+  { id: "contact", label: "Contact details", href: "#profile-contact" },
+  { id: "people", label: "People", href: "#profile-people" },
+  { id: "financials", label: "Financials", href: "#profile-financials" },
+];
+
+export function issuerUiSectionForMissing(item: ProfileMissingItem): ProfileUiSectionId {
+  if (item.step === "shareholders" || item.step === "board") return "people";
+  if (item.step === "financials") return "financials";
+  if (item.field === "companyActivities") return "about";
+  if (item.field.startsWith("registeredAddress") || item.field.startsWith("businessAddress")) {
+    return "addresses";
+  }
+  if (item.field === "phoneNumber" || item.field === "companyEmail") return "contact";
+  return "company";
+}
+
+export function groupIssuerMissingByProfileSection(
+  missing: ProfileMissingItem[]
+): ProfileUiSectionRow[] {
+  const counts = new Map<ProfileUiSectionId, number>();
+  for (const item of missing) {
+    const id = issuerUiSectionForMissing(item);
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return ISSUER_PROFILE_UI_SECTIONS.map((section) => {
+    const missingCount = counts.get(section.id) ?? 0;
+    return { ...section, missingCount, complete: missingCount === 0 };
+  });
+}
+
+export const INVESTOR_PERSONAL_UI_SECTIONS: Array<{
+  id: ProfileUiSectionId;
+  label: string;
+  href: string;
+}> = [
+  { id: "personal", label: "Personal Details", href: "#profile-personal" },
+  { id: "addresses", label: "Address", href: "#profile-address" },
+  { id: "contact", label: "Contact details", href: "#profile-contact" },
+  { id: "classification", label: "Investor classification", href: "#profile-classification" },
+];
+
+export const INVESTOR_COMPANY_UI_SECTIONS: Array<{
+  id: ProfileUiSectionId;
+  label: string;
+  href: string;
+}> = [
+  { id: "company", label: "Company Details", href: "#profile-company" },
+  { id: "addresses", label: "Business Address", href: "#profile-addresses" },
+  { id: "contact", label: "Contact details", href: "#profile-contact" },
+  { id: "classification", label: "Investor classification", href: "#profile-classification" },
+];
+
+export function investorUiSectionForMissing(
+  item: ProfileMissingItem,
+  organizationType: "PERSONAL" | "COMPANY"
+): ProfileUiSectionId {
+  if (item.field === "state" || item.field === "postalCode") return "addresses";
+  if (item.field === "businessState" || item.field === "businessPostalCode") return "addresses";
+  if (item.field === "scInvestorCategory") return "classification";
+  if (
+    organizationType === "COMPANY" &&
+    (item.field === "name" ||
+      item.field === "registrationNumber" ||
+      item.field === "identityPrefix" ||
+      item.field === "dateOfIncorporation" ||
+      item.field === "countryOfIncorporation" ||
+      item.field === "gender")
+  ) {
+    return "company";
+  }
+  return "personal";
+}
+
+export function groupInvestorMissingByProfileSection(
+  missing: ProfileMissingItem[],
+  organizationType: "PERSONAL" | "COMPANY"
+): ProfileUiSectionRow[] {
+  const catalog =
+    organizationType === "COMPANY" ? INVESTOR_COMPANY_UI_SECTIONS : INVESTOR_PERSONAL_UI_SECTIONS;
+  const counts = new Map<ProfileUiSectionId, number>();
+  for (const item of missing) {
+    const id = investorUiSectionForMissing(item, organizationType);
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return catalog.map((section) => {
+    const missingCount = counts.get(section.id) ?? 0;
+    return { ...section, missingCount, complete: missingCount === 0 };
+  });
+}
+
 export function groupPeopleMissingByParty(missing: ProfileMissingItem[]): Array<{
   partyKey: string;
   partyName: string | null;

@@ -262,7 +262,7 @@ export function OrganizationProfilePanel({
                     value={draft.name}
                     onChange={(name) => setDraft((current) => ({ ...current, name }))}
                   />
-                  <ReadField label="SSM / ROC" value={ssmNumber} />
+                  <ReadField label="SSM / ROC" value={ssmNumber} locked />
                   <EditableField
                     label="TIN"
                     value={draft.tinNumber}
@@ -346,6 +346,7 @@ export function OrganizationProfilePanel({
                     label="SSM / ROC"
                     value={ssmNumber}
                     missing={requiredFieldKeys.has("registrationNumber")}
+                    locked
                   />
                   <ReadField label="TIN" value={basic?.tinNumber} />
                   <ReadField
@@ -426,7 +427,7 @@ export function OrganizationProfilePanel({
             description="What the company does and who it serves"
             actions={sectionActions("about")}
           />
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-4">
             {editingSection === "about" ? (
               <>
                 <EditableField
@@ -468,13 +469,20 @@ export function OrganizationProfilePanel({
                   label="What Does Your Company Do?"
                   value={draft.whatDoesCompanyDo}
                   missing={requiredFieldKeys.has("companyActivities")}
+                  multiline
                 />
-                <ReadField label="Who Are Your Main Customers?" value={draft.mainCustomers} />
-                <div className="space-y-1.5 py-2">
-                  <div className="text-meta text-muted-foreground">
+                <ReadField
+                  label="Who Are Your Main Customers?"
+                  value={draft.mainCustomers}
+                  multiline
+                />
+                <div className="space-y-2">
+                  <p className="text-ui font-medium leading-none text-foreground">
                     Does Any Single Customer Make Up More Than 50% of Your Revenue?
+                  </p>
+                  <div className="flex min-h-11 items-center rounded-md border border-input bg-muted px-3">
+                    <YesNoRadioDisplay value={draft.singleCustomerOver50Revenue} />
                   </div>
-                  <YesNoRadioDisplay value={draft.singleCustomerOver50Revenue} />
                 </div>
                 <ReadField
                   label="Which Accounting Software Does the Issuer Use?"
@@ -547,29 +555,67 @@ export function OrganizationProfilePanel({
               </>
             ) : (
               <>
-                <div className="space-y-2">
-                  <p className="text-meta font-medium text-muted-foreground">Registered address</p>
-                  <p className="text-ui">
-                    {formatAddressDisplay(org.corporateOnboardingData?.addresses?.registered)}
-                  </p>
-                  {requiredFieldKeys.has("registeredAddress.line1") ||
-                  requiredFieldKeys.has("registeredAddress.state") ||
-                  requiredFieldKeys.has("registeredAddress.postalCode") ? (
-                    <p className="text-meta text-status-action-text">Required address details are missing</p>
-                  ) : null}
+                <div className="space-y-4">
+                  <p className="text-ui font-medium">Registered address</p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <ReadField
+                      className="sm:col-span-2"
+                      label="Address"
+                      value={
+                        [
+                          org.corporateOnboardingData?.addresses?.registered?.line1,
+                          org.corporateOnboardingData?.addresses?.registered?.line2,
+                        ]
+                          .filter((part) => part && part.trim())
+                          .join(", ") || null
+                      }
+                      missing={requiredFieldKeys.has("registeredAddress.line1")}
+                    />
+                    <ReadField
+                      label="State"
+                      value={org.corporateOnboardingData?.addresses?.registered?.state}
+                      missing={requiredFieldKeys.has("registeredAddress.state")}
+                    />
+                    <ReadField
+                      label="Postcode"
+                      value={org.corporateOnboardingData?.addresses?.registered?.postalCode}
+                      missing={requiredFieldKeys.has("registeredAddress.postalCode")}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2 border-t pt-6">
-                  <p className="text-meta font-medium text-muted-foreground">Business address</p>
-                  <p className="text-ui">
-                    {formatAddressDisplay(org.corporateOnboardingData?.addresses?.business)}
-                  </p>
-                  {requiredFieldKeys.has("businessAddress.line1") ||
-                  requiredFieldKeys.has("businessAddress.state") ||
-                  requiredFieldKeys.has("businessAddress.postalCode") ||
-                  requiredFieldKeys.has("businessState") ||
-                  requiredFieldKeys.has("businessPostalCode") ? (
-                    <p className="text-meta text-status-action-text">Required address details are missing</p>
-                  ) : null}
+                <div className="space-y-4 border-t pt-6">
+                  <p className="text-ui font-medium">Business address</p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <ReadField
+                      className="sm:col-span-2"
+                      label="Address"
+                      value={
+                        [
+                          org.corporateOnboardingData?.addresses?.business?.line1,
+                          org.corporateOnboardingData?.addresses?.business?.line2,
+                        ]
+                          .filter((part) => part && part.trim())
+                          .join(", ") || null
+                      }
+                      missing={requiredFieldKeys.has("businessAddress.line1")}
+                    />
+                    <ReadField
+                      label="State"
+                      value={org.corporateOnboardingData?.addresses?.business?.state}
+                      missing={
+                        requiredFieldKeys.has("businessAddress.state") ||
+                        requiredFieldKeys.has("businessState")
+                      }
+                    />
+                    <ReadField
+                      label="Postcode"
+                      value={org.corporateOnboardingData?.addresses?.business?.postalCode}
+                      missing={
+                        requiredFieldKeys.has("businessAddress.postalCode") ||
+                        requiredFieldKeys.has("businessPostalCode")
+                      }
+                    />
+                  </div>
                 </div>
               </>
             )}
@@ -704,7 +750,7 @@ export function OrganizationProfilePanel({
                         onChange={(phoneNumber) => setDraft((current) => ({ ...current, phoneNumber }))}
                       />
                     ) : null}
-                    <ReadField label="Email" value={org.owner.email} />
+                    <ReadField label="Email" value={org.owner.email} locked />
                     {org.type === "COMPANY" ? (
                       <div className="sm:col-span-2">
                         <EditableField
@@ -721,7 +767,7 @@ export function OrganizationProfilePanel({
                     {org.type !== "COMPANY" ? (
                       <ReadField label="Phone Number" value={org.phoneNumber} />
                     ) : null}
-                    <ReadField label="Email" value={org.owner.email} />
+                    <ReadField label="Email" value={org.owner.email} locked />
                     {org.type === "COMPANY" ? (
                       <div className="sm:col-span-2">
                         <ReadField label="Address" value={org.address} />
@@ -848,21 +894,25 @@ export function OrganizationProfilePanel({
           />
           <CardContent>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5 py-2">
-                <p className="text-meta text-muted-foreground">Onboarding</p>
-                <StatusBadge
-                  label={onboardingPresentation.label}
-                  status={onboardingPresentation.status}
-                />
-              </div>
-              {org.kycResponse?.status ? (
-                <div className="space-y-1.5 py-2">
-                  <p className="text-meta text-muted-foreground">Screening status</p>
+              <ReadField
+                label="Onboarding"
+                value={
                   <StatusBadge
-                    label={org.kycResponse.status}
-                    status={kycAmlScreeningStatusToken(org.kycResponse.status)}
+                    label={onboardingPresentation.label}
+                    status={onboardingPresentation.status}
                   />
-                </div>
+                }
+              />
+              {org.kycResponse?.status ? (
+                <ReadField
+                  label="Screening status"
+                  value={
+                    <StatusBadge
+                      label={org.kycResponse.status}
+                      status={kycAmlScreeningStatusToken(org.kycResponse.status)}
+                    />
+                  }
+                />
               ) : (
                 <ReadField label="Screening status" value={null} />
               )}

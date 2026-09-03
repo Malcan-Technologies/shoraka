@@ -408,6 +408,8 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                           <OrganizationProfileOverviewCard
                             completeness={org.profileCompleteness}
                             parties={org.partyProfiles}
+                            portal={portal}
+                            organizationType={org.type === "COMPANY" ? "COMPANY" : "PERSONAL"}
                             onCompleteProfile={() => {
                               const target = firstIncompleteProfileAnchor(
                                 org.profileCompleteness,
@@ -417,6 +419,17 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                               if (target.tab !== resolvedTab) setActiveTab(target.tab);
                               requestAnimationFrame(() => {
                                 document.getElementById(target.anchor)?.scrollIntoView({
+                                  behavior: "smooth",
+                                  block: "start",
+                                });
+                              });
+                            }}
+                            onSectionClick={(href) => {
+                              const people = href === "#profile-people";
+                              const nextTab = people && canShowPeopleTab ? "people" : "organization";
+                              if (nextTab !== resolvedTab) setActiveTab(nextTab);
+                              requestAnimationFrame(() => {
+                                document.getElementById(href.slice(1))?.scrollIntoView({
                                   behavior: "smooth",
                                   block: "start",
                                 });

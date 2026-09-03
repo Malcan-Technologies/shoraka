@@ -243,7 +243,7 @@ function EditApplicationPageBody() {
       action: {
         label: "Complete profile",
         onClick: () => {
-          router.push("/profile/complete");
+          router.push("/profile?focus=completeness");
         },
       },
     });

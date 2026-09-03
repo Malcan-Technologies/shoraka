@@ -129,18 +129,39 @@ export function ReadField({
   value,
   missing = false,
   hint,
+  locked = false,
+  multiline = false,
+  className,
 }: {
   label: string;
   value: React.ReactNode;
   missing?: boolean;
   hint?: React.ReactNode;
+  locked?: boolean;
+  multiline?: boolean;
+  className?: string;
 }) {
   const empty = value === null || value === undefined || value === "";
   return (
-    <div className="space-y-1.5 py-2">
-      <div className="text-meta text-muted-foreground">{label}</div>
-      <div className="break-words text-ui font-medium">{empty ? "—" : value}</div>
+    <div className={cn("space-y-2", className)}>
+      <p className="text-ui font-medium leading-none text-foreground">{label}</p>
+      <div
+        className={cn(
+          "w-full rounded-md border px-3 text-ui",
+          multiline ? "min-h-[120px] whitespace-pre-wrap py-2.5" : "flex min-h-11 items-center",
+          missing
+            ? "border-status-action-text/40 bg-[hsl(var(--status-action-bg)/0.35)] text-foreground"
+            : "border-input bg-muted text-foreground"
+        )}
+      >
+        <span className={cn("min-w-0 break-words", empty && "text-muted-foreground")}>
+          {empty ? "—" : value}
+        </span>
+      </div>
       {missing ? <p className="text-meta text-status-action-text">Required</p> : null}
+      {locked && !missing ? (
+        <p className="text-meta text-muted-foreground">This field cannot be edited</p>
+      ) : null}
       {hint ? <div className="text-meta text-muted-foreground">{hint}</div> : null}
     </div>
   );
@@ -165,23 +186,23 @@ export function EditableField({
 }) {
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
-    <div className="space-y-1.5 py-2">
-      <Label htmlFor={fieldId} className="text-meta text-muted-foreground">
+    <div className="space-y-2">
+      <Label htmlFor={fieldId} className="text-ui font-medium">
         {label}
       </Label>
       {multiline ? (
         <Textarea
           id={fieldId}
-          className={cn("text-ui", inputClassName)}
+          className={cn("min-h-[120px] text-ui", inputClassName)}
           value={value}
           maxLength={maxLength}
           onChange={(event) => onChange(event.target.value)}
-          rows={3}
+          rows={5}
         />
       ) : (
         <Input
           id={fieldId}
-          className={cn("text-ui", inputClassName)}
+          className={cn("h-11 text-ui", inputClassName)}
           value={value}
           maxLength={maxLength}
           onChange={(event) => onChange(event.target.value)}
@@ -204,13 +225,13 @@ export function EditableDateField({
 }) {
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
-    <div className="space-y-1.5 py-2">
-      <Label htmlFor={fieldId} className="text-meta text-muted-foreground">
+    <div className="space-y-2">
+      <Label htmlFor={fieldId} className="text-ui font-medium">
         {label}
       </Label>
       <Input
         id={fieldId}
-        className="h-10 text-ui"
+        className="h-11 text-ui"
         type="date"
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -233,10 +254,10 @@ export function EditableSelect({
   placeholder?: string;
 }) {
   return (
-    <div className="space-y-1.5 py-2">
-      <Label className="text-meta text-muted-foreground">{label}</Label>
+    <div className="space-y-2">
+      <Label className="text-ui font-medium">{label}</Label>
       <Select value={value || undefined} onValueChange={onChange}>
-        <SelectTrigger className="h-10 text-ui">
+        <SelectTrigger className="h-11 text-ui">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
@@ -271,9 +292,9 @@ export function EditableYesNo({
   name: string;
 }) {
   return (
-    <div className="space-y-1.5 py-2">
-      <div className="text-meta text-muted-foreground">{label}</div>
-      <div className="flex h-10 items-center gap-6">
+    <div className="space-y-2">
+      <div className="text-ui font-medium">{label}</div>
+      <div className="flex min-h-11 items-center gap-6">
         {(
           [
             [true, "Yes"],

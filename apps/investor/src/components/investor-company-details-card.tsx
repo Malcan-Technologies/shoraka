@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { KeyValueGrid } from "@cashsouk/ui";
+import { ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +42,15 @@ export function InvestorCompanyDetailsCard({
   const { getAccessToken } = useAuthToken();
   const api = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
+  const completenessQuery = useQuery({
+    queryKey: ["investor", "profile-completeness", organizationId],
+    queryFn: async () => {
+      const res = await api.getProfileCompleteness("investor", organizationId);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+  });
+  const missing = new Set((completenessQuery.data?.userMissing ?? completenessQuery.data?.missing ?? []).map((item) => item.field));
   const [isEditing, setIsEditing] = React.useState(false);
   const [dateValue, setDateValue] = React.useState(toDateInput(dateOfIncorporation));
   const [country, setCountry] = React.useState(countryOfIncorporation ?? "");
@@ -71,7 +80,7 @@ export function InvestorCompanyDetailsCard({
   });
 
   return (
-    <div className="rounded-xl border bg-card">
+    <div id="profile-company" className="scroll-mt-24 rounded-xl border bg-card">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b p-6">
         <div>
           <h2 className="text-lg font-semibold">Company Details</h2>
@@ -90,64 +99,63 @@ export function InvestorCompanyDetailsCard({
           </Button>
         ) : null}
       </div>
-      <div className="p-6">
-        {isEditing ? (
-          <div className="space-y-4">
-            <KeyValueGrid
-              items={[
-                { label: "Company name", value: name || "—" },
-                { label: "ROC", value: registrationNumber || "—" },
-              ]}
-            />
-            <div className="grid gap-4 sm:grid-cols-2">
-              {dateOfIncorporation ? (
-                <div className="space-y-1.5">
-                  <p className="text-meta text-muted-foreground">Incorporation date</p>
-                  <p className="text-ui">{formatDate(dateOfIncorporation)}</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Label className="text-ui">Incorporation date</Label>
-                  <Input
-                    className="h-10 text-ui"
-                    type="date"
-                    value={dateValue}
-                    onChange={(event) => setDateValue(event.target.value)}
-                  />
-                </div>
-              )}
-              {countryOfIncorporation ? (
-                <div className="space-y-1.5">
-                  <p className="text-meta text-muted-foreground">Country</p>
-                  <p className="text-ui">{countryOfIncorporation}</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Label className="text-ui">Country</Label>
-                  <Input
-                    className="h-10 text-ui"
-                    value={country}
-                    onChange={(event) => setCountry(event.target.value)}
-                  />
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end">
-              <Button className="h-10 rounded-xl" onClick={() => save.mutate()} disabled={save.isPending}>
-                {save.isPending ? "Saving..." : "Save"}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <KeyValueGrid
-            items={[
-              { label: "Company name", value: name || "—" },
-              { label: "ROC", value: registrationNumber || "—" },
-              { label: "Incorporation date", value: formatDate(dateOfIncorporation) },
-              { label: "Country", value: countryOfIncorporation || "—" },
-            ]}
+      <div className="space-y-4 p-6">
+        <ProfileFieldGrid>
+          <ProfileReadField
+            label="Company name"
+            value={name || "—"}
+            locked
+            missing={missing.has("name")}
           />
-        )}
+          <ProfileReadField
+            label="ROC"
+            value={registrationNumber || "—"}
+            locked
+            missing={missing.has("registrationNumber")}
+          />
+          {isEditing && !dateOfIncorporation ? (
+            <div className="space-y-2">
+              <Label className="text-ui font-medium">Incorporation date</Label>
+              <Input
+                className="h-11 text-ui"
+                type="date"
+                value={dateValue}
+                onChange={(event) => setDateValue(event.target.value)}
+              />
+            </div>
+          ) : (
+            <ProfileReadField
+              label="Incorporation date"
+              value={formatDate(dateOfIncorporation)}
+              locked={Boolean(dateOfIncorporation)}
+              missing={missing.has("dateOfIncorporation")}
+            />
+          )}
+          {isEditing && !countryOfIncorporation ? (
+            <div className="space-y-2">
+              <Label className="text-ui font-medium">Country</Label>
+              <Input
+                className="h-11 text-ui"
+                value={country}
+                onChange={(event) => setCountry(event.target.value)}
+              />
+            </div>
+          ) : (
+            <ProfileReadField
+              label="Country"
+              value={countryOfIncorporation || "—"}
+              locked={Boolean(countryOfIncorporation)}
+              missing={missing.has("countryOfIncorporation")}
+            />
+          )}
+        </ProfileFieldGrid>
+        {isEditing ? (
+          <div className="flex justify-end">
+            <Button className="h-10 rounded-xl" onClick={() => save.mutate()} disabled={save.isPending}>
+              {save.isPending ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

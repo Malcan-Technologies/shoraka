@@ -45,8 +45,9 @@ import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import {
   ConfirmDialog,
-  KeyValueGrid,
   PageShell,
+  ProfileFieldGrid,
+  ProfileReadField,
   VerifiedBadge,
 } from "@cashsouk/ui";
 import {
@@ -564,14 +565,34 @@ export default function ProfilePage() {
     staleTime: 1000 * 60 * 5,
   });
 
+  const completenessQuery = useQuery({
+    queryKey: ["issuer", "profile-completeness", activeOrganization?.id],
+    enabled: !!activeOrganization?.id,
+    queryFn: async () => {
+      const result = await apiClient.getProfileCompleteness("issuer", activeOrganization!.id);
+      if (!result.success) throw new Error(result.error.message);
+      return result.data;
+    },
+  });
+  const missingFieldKeys = React.useMemo(
+    () => new Set((completenessQuery.data?.missing ?? []).map((item) => item.field)),
+    [completenessQuery.data]
+  );
+
   const searchParams = useSearchParams();
-  const focusDirectors = searchParams.get("focus") === "directors";
+  const focusDirectors = searchParams.get("focus") === "directors" || searchParams.get("focus") === "people";
   const focusContact = searchParams.get("focus") === "contact";
   const focusAbout = searchParams.get("focus") === "about";
+  const focusCompany = searchParams.get("focus") === "company";
+  const focusAddresses = searchParams.get("focus") === "addresses";
+  const focusFinancials = searchParams.get("focus") === "financials";
   const focusedPersonKey = searchParams.get("person");
   const directorsSectionRef = React.useRef<HTMLDivElement>(null);
   const contactSectionRef = React.useRef<HTMLDivElement>(null);
   const aboutSectionRef = React.useRef<HTMLDivElement>(null);
+  const companySectionRef = React.useRef<HTMLDivElement>(null);
+  const addressesSectionRef = React.useRef<HTMLDivElement>(null);
+  const financialsSectionRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (!focusDirectors) return;
@@ -605,6 +626,21 @@ export default function ProfilePage() {
     }, 200);
     return () => window.clearTimeout(t);
   }, [focusAbout, orgData, activeOrganization?.id]);
+
+  React.useEffect(() => {
+    if (!focusCompany && !focusAddresses && !focusFinancials) return;
+    setActiveTab("profile");
+    const el = focusCompany
+      ? companySectionRef.current
+      : focusAddresses
+        ? addressesSectionRef.current
+        : financialsSectionRef.current;
+    if (!el) return;
+    const t = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [focusCompany, focusAddresses, focusFinancials, orgData, activeOrganization?.id]);
 
   // Initialize form values when orgData loads
   React.useEffect(() => {
@@ -905,6 +941,8 @@ export default function ProfilePage() {
           <IssuerProfileCompletenessBanner
             organizationId={activeOrganization?.id}
             onboarded={activeOrganization?.onboardingStatus === "COMPLETED"}
+            expandOnPage
+            initialExpanded={searchParams.get("focus") === "completeness"}
           />
 
           {/* Tabs */}
@@ -942,31 +980,41 @@ export default function ProfilePage() {
                     <VerifiedBadge />
                   </div>
                   <div className="p-6">
-                    <KeyValueGrid
-                      items={[
-                        { label: "Name", value: displayName },
-                        { label: "Document type", value: formatDocumentType(orgData?.documentType) },
-                        { label: "Document number", value: orgData?.documentNumber || "—" },
-                        { label: "Issuing country", value: orgData?.idIssuingCountry || "—" },
-                        ...(orgData?.onboardedAt
-                          ? [
-                              {
-                                label: "Member since",
-                                value: new Date(orgData.onboardedAt).toLocaleDateString("en-MY", {
-                                  year: "numeric",
-                                  month: "long",
-                                  day: "numeric",
-                                }),
-                              },
-                            ]
-                          : []),
-                      ]}
-                    />
+                    <ProfileFieldGrid>
+                      <ProfileReadField label="Name" value={displayName} locked />
+                      <ProfileReadField
+                        label="Document type"
+                        value={formatDocumentType(orgData?.documentType)}
+                        locked
+                      />
+                      <ProfileReadField
+                        label="Document number"
+                        value={orgData?.documentNumber || "—"}
+                        locked
+                      />
+                      <ProfileReadField
+                        label="Issuing country"
+                        value={orgData?.idIssuingCountry || "—"}
+                        locked
+                      />
+                      {orgData?.onboardedAt ? (
+                        <ProfileReadField
+                          label="Member since"
+                          value={new Date(orgData.onboardedAt).toLocaleDateString("en-MY", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                          locked
+                        />
+                      ) : null}
+                    </ProfileFieldGrid>
                   </div>
                 </div>
               )}
 
               {!isPersonal && activeOrganization?.id ? (
+                <div ref={companySectionRef}>
                 <IssuerCompanyDetailsCard
                   organizationId={activeOrganization.id}
                   canEdit={isCurrentUserAdmin}
@@ -985,6 +1033,7 @@ export default function ProfilePage() {
                     corporateOnboardingData: orgData?.corporateOnboardingData ?? null,
                   }}
                 />
+                </div>
               ) : null}
 
               {!isPersonal && activeOrganization?.id && (
@@ -1021,8 +1070,9 @@ export default function ProfilePage() {
                   </div>
                   <div className="p-6 space-y-4">
                     {!isEditingProfile ? (
-                      <KeyValueGrid
-                        items={[{ label: "Full address", value: address.trim() || "—" }]}
+                      <ProfileReadField
+                        label="Full address"
+                        value={address.trim() || "—"}
                       />
                     ) : (
                     <div className="space-y-2">
@@ -1068,7 +1118,11 @@ export default function ProfilePage() {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-xl border bg-card">
+                <div
+                  ref={addressesSectionRef}
+                  id="profile-addresses"
+                  className="scroll-mt-24 rounded-xl border bg-card"
+                >
                   <div className="flex items-center justify-between p-6 border-b">
                     <div>
                       <h2 className="text-lg font-semibold">Addresses</h2>
@@ -1092,27 +1146,31 @@ export default function ProfilePage() {
                     <div className="space-y-4 pt-2">
                       <h3 className="text-sm font-semibold">Registered address</h3>
                       {!isEditingAddresses ? (
-                        <KeyValueGrid
-                          items={[
-                            {
-                              label: "Address",
-                              value: [
-                                orgData?.corporateOnboardingData?.addresses?.registered?.line1,
-                                orgData?.corporateOnboardingData?.addresses?.registered?.line2,
-                              ]
-                                .filter((part) => part && part.trim())
-                                .join(", ") || "—",
-                            },
-                            {
-                              label: "State",
-                              value: orgData?.corporateOnboardingData?.addresses?.registered?.state || "—",
-                            },
-                            {
-                              label: "Postcode",
-                              value: orgData?.corporateOnboardingData?.addresses?.registered?.postalCode || "—",
-                            },
-                          ]}
-                        />
+                        <ProfileFieldGrid>
+                          <ProfileReadField
+                            className="sm:col-span-2"
+                            label="Address"
+                            value={[
+                              orgData?.corporateOnboardingData?.addresses?.registered?.line1,
+                              orgData?.corporateOnboardingData?.addresses?.registered?.line2,
+                            ]
+                              .filter((part) => part && part.trim())
+                              .join(", ") || "—"}
+                            missing={missingFieldKeys.has("registeredAddress.line1")}
+                          />
+                          <ProfileReadField
+                            label="State"
+                            value={orgData?.corporateOnboardingData?.addresses?.registered?.state || "—"}
+                            missing={missingFieldKeys.has("registeredAddress.state")}
+                          />
+                          <ProfileReadField
+                            label="Postcode"
+                            value={
+                              orgData?.corporateOnboardingData?.addresses?.registered?.postalCode || "—"
+                            }
+                            missing={missingFieldKeys.has("registeredAddress.postalCode")}
+                          />
+                        </ProfileFieldGrid>
                       ) : (
                         <div className="flex items-center justify-end gap-2 pb-2">
                           <Checkbox
@@ -1182,27 +1240,31 @@ export default function ProfilePage() {
                     <div className="space-y-4 pt-4 border-t">
                       <h3 className="text-sm font-semibold">Business address</h3>
                       {!isEditingAddresses ? (
-                        <KeyValueGrid
-                          items={[
-                            {
-                              label: "Address",
-                              value: [
-                                orgData?.corporateOnboardingData?.addresses?.business?.line1,
-                                orgData?.corporateOnboardingData?.addresses?.business?.line2,
-                              ]
-                                .filter((part) => part && part.trim())
-                                .join(", ") || "—",
-                            },
-                            {
-                              label: "State",
-                              value: orgData?.corporateOnboardingData?.addresses?.business?.state || "—",
-                            },
-                            {
-                              label: "Postcode",
-                              value: orgData?.corporateOnboardingData?.addresses?.business?.postalCode || "—",
-                            },
-                          ]}
-                        />
+                        <ProfileFieldGrid>
+                          <ProfileReadField
+                            className="sm:col-span-2"
+                            label="Address"
+                            value={[
+                              orgData?.corporateOnboardingData?.addresses?.business?.line1,
+                              orgData?.corporateOnboardingData?.addresses?.business?.line2,
+                            ]
+                              .filter((part) => part && part.trim())
+                              .join(", ") || "—"}
+                            missing={missingFieldKeys.has("businessAddress.line1")}
+                          />
+                          <ProfileReadField
+                            label="State"
+                            value={orgData?.corporateOnboardingData?.addresses?.business?.state || "—"}
+                            missing={missingFieldKeys.has("businessAddress.state")}
+                          />
+                          <ProfileReadField
+                            label="Postcode"
+                            value={
+                              orgData?.corporateOnboardingData?.addresses?.business?.postalCode || "—"
+                            }
+                            missing={missingFieldKeys.has("businessAddress.postalCode")}
+                          />
+                        </ProfileFieldGrid>
                       ) : (
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2 sm:col-span-2">
@@ -1282,7 +1344,7 @@ export default function ProfilePage() {
               )}
 
               {/* 3. Contact Details Section (Editable) */}
-              <div ref={contactSectionRef} className="scroll-mt-24 rounded-xl border bg-card">
+              <div ref={contactSectionRef} id="profile-contact" className="scroll-mt-24 rounded-xl border bg-card">
                 <div className="flex items-center justify-between p-6 border-b">
                   <div>
                     <h2 className="text-lg font-semibold">Contact details</h2>
@@ -1336,17 +1398,17 @@ export default function ProfilePage() {
                       </div>
                     </div>
                     ) : (
-                      <KeyValueGrid
-                        items={[
-                          { label: "Phone number", value: phoneNumber || "—" },
-                          {
-                            label: "Email",
-                            value:
-                              activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email ||
-                              "—",
-                          },
-                        ]}
-                      />
+                      <ProfileFieldGrid>
+                        <ProfileReadField label="Phone number" value={phoneNumber || "—"} />
+                        <ProfileReadField
+                          label="Email"
+                          value={
+                            activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)
+                              ?.email || "—"
+                          }
+                          locked
+                        />
+                      </ProfileFieldGrid>
                     )
                   ) : isEditingProfile ? (
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -1397,14 +1459,20 @@ export default function ProfilePage() {
                       </div>
                     </div>
                   ) : (
-                    <KeyValueGrid
-                      items={[
-                        { label: "Name", value: contactName || "—" },
-                        { label: "Position", value: contactPosition || "—" },
-                        { label: "Email", value: contactEmail || "—" },
-                        { label: "Phone", value: contactPhone || "—" },
-                      ]}
-                    />
+                    <ProfileFieldGrid>
+                      <ProfileReadField label="Name" value={contactName || "—"} />
+                      <ProfileReadField label="Position" value={contactPosition || "—"} />
+                      <ProfileReadField
+                        label="Email"
+                        value={contactEmail || "—"}
+                        missing={missingFieldKeys.has("companyEmail")}
+                      />
+                      <ProfileReadField
+                        label="Contact Number"
+                        value={contactPhone || "—"}
+                        missing={missingFieldKeys.has("phoneNumber")}
+                      />
+                    </ProfileFieldGrid>
                   )}
 
                   {isEditingProfile && (
@@ -1453,7 +1521,9 @@ export default function ProfilePage() {
               ) : null}
 
               {!isPersonal && activeOrganization?.id ? (
-                <IssuerFinancialsCard organizationId={activeOrganization.id} />
+                <div ref={financialsSectionRef}>
+                  <IssuerFinancialsCard organizationId={activeOrganization.id} />
+                </div>
               ) : null}
 
             </TabsContent>

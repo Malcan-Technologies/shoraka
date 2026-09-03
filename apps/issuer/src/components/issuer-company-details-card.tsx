@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
@@ -9,7 +9,7 @@ import {
   SC_COMPANY_TYPES,
   type ScCompanyType,
 } from "@cashsouk/types";
-import { KeyValueGrid } from "@cashsouk/ui";
+import { ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,6 +73,19 @@ export function IssuerCompanyDetailsCard({
   const api = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
   const { corporateInfo } = useCorporateInfo(organizationId);
+  const completenessQuery = useQuery({
+    queryKey: ["issuer", "profile-completeness", organizationId],
+    queryFn: async () => {
+      const res = await api.getProfileCompleteness("issuer", organizationId);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+  });
+  const missing = new Set(
+    (completenessQuery.data?.missing ?? [])
+      .filter((item) => item.step === "company" && !item.partyKey)
+      .map((item) => item.field)
+  );
   const [isEditing, setIsEditing] = React.useState(false);
   const basic = corporateInfo?.basicInfo ?? org.corporateOnboardingData?.basicInfo;
   const [industry, setIndustry] = React.useState(basic?.industry ?? "");
@@ -158,69 +171,108 @@ export function IssuerCompanyDetailsCard({
         />
       }
     >
-      {isEditing ? (
-        <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <ReadRow label="Business Name" value={businessName} />
-            <ReadRow label="SSM / ROC" value={ssm} />
-            {org.scCompanyType ? (
-              <ReadRow label="Company Type" value={companyTypeLabel} />
-            ) : (
-              <SelectRow
-                label="Company Type"
-                value={scCompanyType}
-                onChange={setScCompanyType}
-                options={SC_COMPANY_TYPES.map((value) => ({
-                  value,
-                  label: SC_COMPANY_TYPE_LABELS[value],
-                }))}
-              />
-            )}
-            {org.dateOfIncorporation ? (
-              <ReadRow label="Date of Incorporation" value={formatDate(org.dateOfIncorporation)} />
-            ) : (
-              <InputRow
-                label="Date of Incorporation"
-                type="date"
-                value={dateOfIncorporation}
-                onChange={setDateOfIncorporation}
-              />
-            )}
-            {org.dateOfCommencement ? (
-              <ReadRow label="Date of Commencement" value={formatDate(org.dateOfCommencement)} />
-            ) : (
-              <InputRow
-                label="Date of Commencement"
-                type="date"
-                value={dateOfCommencement}
-                onChange={setDateOfCommencement}
-              />
-            )}
-            {org.countryOfIncorporation ? (
-              <ReadRow label="Country of Incorporation" value={org.countryOfIncorporation} />
-            ) : (
-              <InputRow
-                label="Country of Incorporation"
-                value={countryOfIncorporation}
-                onChange={setCountryOfIncorporation}
-              />
-            )}
-            <ReadRow label="TIN" value={basic?.tinNumber} />
+      <div className="space-y-4">
+        <ProfileFieldGrid>
+          <ProfileReadField label="Business Name" value={displayProfileValue(businessName)} locked missing={missing.has("name")} />
+          <ProfileReadField label="SSM / ROC" value={displayProfileValue(ssm)} locked missing={missing.has("registrationNumber")} />
+          {isEditing && !org.scCompanyType ? (
+            <SelectRow
+              label="Company Type"
+              value={scCompanyType}
+              onChange={setScCompanyType}
+            />
+          ) : (
+            <ProfileReadField
+              label="Company Type"
+              value={displayProfileValue(companyTypeLabel)}
+              locked={Boolean(org.scCompanyType)}
+              missing={missing.has("scCompanyType")}
+            />
+          )}
+          {isEditing && !org.dateOfIncorporation ? (
+            <InputRow
+              label="Date of Incorporation"
+              type="date"
+              value={dateOfIncorporation}
+              onChange={setDateOfIncorporation}
+            />
+          ) : (
+            <ProfileReadField
+              label="Date of Incorporation"
+              value={displayProfileValue(formatDate(org.dateOfIncorporation))}
+              locked={Boolean(org.dateOfIncorporation)}
+              missing={missing.has("dateOfIncorporation")}
+            />
+          )}
+          {isEditing && !org.dateOfCommencement ? (
+            <InputRow
+              label="Date of Commencement"
+              type="date"
+              value={dateOfCommencement}
+              onChange={setDateOfCommencement}
+            />
+          ) : (
+            <ProfileReadField
+              label="Date of Commencement"
+              value={displayProfileValue(formatDate(org.dateOfCommencement))}
+              locked={Boolean(org.dateOfCommencement)}
+              missing={missing.has("dateOfCommencement")}
+            />
+          )}
+          {isEditing && !org.countryOfIncorporation ? (
+            <InputRow
+              label="Country of Incorporation"
+              value={countryOfIncorporation}
+              onChange={setCountryOfIncorporation}
+            />
+          ) : (
+            <ProfileReadField
+              label="Country of Incorporation"
+              value={displayProfileValue(org.countryOfIncorporation)}
+              locked={Boolean(org.countryOfIncorporation)}
+              missing={missing.has("countryOfIncorporation")}
+            />
+          )}
+          <ProfileReadField label="TIN" value={displayProfileValue(basic?.tinNumber)} locked />
+          {isEditing ? (
             <InputRow label="Industry" value={industry} onChange={setIndustry} />
+          ) : (
+            <ProfileReadField label="Industry" value={displayProfileValue(basic?.industry)} />
+          )}
+          {isEditing ? (
             <InputRow label="Number of Employees" value={employees} onChange={setEmployees} />
-            <ReadRow label="Annual Revenue" value={basic?.annualRevenue} />
-            <ReadRow label="Website" value={basic?.website} />
-            {org.companyEmail ? (
-              <ReadRow label="Company Email" value={org.companyEmail} />
-            ) : (
-              <InputRow label="Company Email" value={companyEmail} onChange={setCompanyEmail} />
-            )}
-            {org.phoneNumber ? (
-              <ReadRow label="Phone" value={org.phoneNumber} />
-            ) : (
-              <InputRow label="Phone" value={phoneNumber} onChange={setPhoneNumber} />
-            )}
-          </div>
+          ) : (
+            <ProfileReadField
+              label="Number of Employees"
+              value={displayProfileValue(
+                basic?.numberOfEmployees !== undefined ? String(basic.numberOfEmployees) : null
+              )}
+            />
+          )}
+          <ProfileReadField label="Annual Revenue" value={displayProfileValue(basic?.annualRevenue)} locked />
+          <ProfileReadField label="Website" value={displayProfileValue(basic?.website)} locked />
+          {isEditing && !org.companyEmail ? (
+            <InputRow label="Company Email" value={companyEmail} onChange={setCompanyEmail} />
+          ) : (
+            <ProfileReadField
+              label="Company Email"
+              value={displayProfileValue(org.companyEmail)}
+              locked={Boolean(org.companyEmail)}
+              missing={missing.has("companyEmail")}
+            />
+          )}
+          {isEditing && !org.phoneNumber ? (
+            <InputRow label="Phone" value={phoneNumber} onChange={setPhoneNumber} />
+          ) : (
+            <ProfileReadField
+              label="Phone"
+              value={displayProfileValue(org.phoneNumber)}
+              locked={Boolean(org.phoneNumber)}
+              missing={missing.has("phoneNumber")}
+            />
+          )}
+        </ProfileFieldGrid>
+        {isEditing ? (
           <div className="flex justify-end">
             <Button
               className="h-10 rounded-xl"
@@ -230,41 +282,9 @@ export function IssuerCompanyDetailsCard({
               {save.isPending ? "Saving..." : "Save"}
             </Button>
           </div>
-        </div>
-      ) : (
-        <KeyValueGrid
-          items={[
-            { label: "Business Name", value: displayProfileValue(businessName) },
-            { label: "SSM / ROC", value: displayProfileValue(ssm) },
-            { label: "Company Type", value: displayProfileValue(companyTypeLabel) },
-            { label: "Date of Incorporation", value: displayProfileValue(formatDate(org.dateOfIncorporation)) },
-            { label: "Date of Commencement", value: displayProfileValue(formatDate(org.dateOfCommencement)) },
-            { label: "Country of Incorporation", value: displayProfileValue(org.countryOfIncorporation) },
-            { label: "TIN", value: displayProfileValue(basic?.tinNumber) },
-            { label: "Industry", value: displayProfileValue(basic?.industry) },
-            {
-              label: "Number of Employees",
-              value: displayProfileValue(
-                basic?.numberOfEmployees !== undefined ? String(basic.numberOfEmployees) : null
-              ),
-            },
-            { label: "Annual Revenue", value: displayProfileValue(basic?.annualRevenue) },
-            { label: "Website", value: displayProfileValue(basic?.website) },
-            { label: "Company Email", value: displayProfileValue(org.companyEmail) },
-            { label: "Phone", value: displayProfileValue(org.phoneNumber) },
-          ]}
-        />
-      )}
+        ) : null}
+      </div>
     </ProfileCard>
-  );
-}
-
-function ReadRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <p className="text-meta text-muted-foreground">{label}</p>
-      <p className="text-ui">{displayProfileValue(value)}</p>
-    </div>
   );
 }
 
@@ -281,8 +301,8 @@ function InputRow({
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui">{label}</Label>
-      <Input className="h-10 text-ui" type={type} value={value} onChange={(e) => onChange(e.target.value)} />
+      <Label className="text-ui font-medium">{label}</Label>
+      <Input className="h-11 text-ui" type={type} value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }
@@ -291,24 +311,22 @@ function SelectRow({
   label,
   value,
   onChange,
-  options,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui">{label}</Label>
+      <Label className="text-ui font-medium">{label}</Label>
       <Select value={value || undefined} onValueChange={onChange}>
-        <SelectTrigger className="h-10 text-ui">
+        <SelectTrigger className="h-11 text-ui">
           <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent>
-          {options.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
-              {opt.label}
+          {SC_COMPANY_TYPES.map((opt) => (
+            <SelectItem key={opt} value={opt}>
+              {SC_COMPANY_TYPE_LABELS[opt]}
             </SelectItem>
           ))}
         </SelectContent>

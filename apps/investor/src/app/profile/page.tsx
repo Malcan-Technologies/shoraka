@@ -27,7 +27,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_GENDERS, SC_MALAYSIAN_STATES, userFacingCompleteness, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -46,7 +46,8 @@ import {
   DirectorShareholderAlertCard,
   INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
   DirectorShareholdersUnifiedSection,
-  KeyValueGrid,
+  ProfileFieldGrid,
+  ProfileReadField,
   portalContentMaxWidthClassName,
   StatusBadge,
   VerifiedBadge,
@@ -472,6 +473,10 @@ export default function ProfilePage() {
   // Form states for profile (phone + address)
   const [phoneNumber, setPhoneNumber] = React.useState<string | undefined>(undefined);
   const [address, setAddress] = React.useState("");
+  const [gender, setGender] = React.useState("");
+  const [nationality, setNationality] = React.useState("");
+  const [residentialState, setResidentialState] = React.useState("");
+  const [residentialPostalCode, setResidentialPostalCode] = React.useState("");
 
   // Form states for banking (matches RegTank format values)
   const [bankName, setBankName] = React.useState("");
@@ -580,6 +585,21 @@ export default function ProfilePage() {
     staleTime: 1000 * 60 * 5,
   });
 
+  const completenessQuery = useQuery({
+    queryKey: ["investor", "profile-completeness", activeOrganization?.id],
+    enabled: Boolean(activeOrganization?.id) && activeOrganization?.onboardingStatus === "COMPLETED",
+    queryFn: async () => {
+      const res = await apiClient.getProfileCompleteness("investor", activeOrganization!.id);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+  });
+  const missingFieldKeys = new Set(
+    (completenessQuery.data ? userFacingCompleteness(completenessQuery.data).missing : [])
+      .filter((item) => !item.partyKey)
+      .map((item) => item.field)
+  );
+
   const urlTab = profileTabFromSearchParam(searchParams.get("tab"));
   const focusDirectors = searchParams.get("focus") === "directors";
   const focusedPersonKey = searchParams.get("person");
@@ -609,6 +629,28 @@ export default function ProfilePage() {
     return () => window.clearTimeout(t);
   }, [focusDirectors, orgData, activeOrganization?.id]);
 
+  React.useEffect(() => {
+    const focus = searchParams.get("focus");
+    if (!focus || focus === "completeness" || focus === "directors") return;
+    const id =
+      focus === "company"
+        ? "profile-company"
+        : focus === "addresses"
+          ? "profile-addresses"
+          : focus === "address"
+            ? "profile-address"
+            : focus === "contact"
+              ? "profile-contact"
+              : focus === "personal"
+                ? "profile-personal"
+                : null;
+    if (!id) return;
+    const timeout = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => window.clearTimeout(timeout);
+  }, [searchParams, orgData, activeOrganization?.id]);
+
   const handlePartyOnboardingSent = React.useCallback(async () => {
     if (!activeOrganization?.id) return;
     await queryClient.invalidateQueries({ queryKey: ["corporate-entities", activeOrganization.id] });
@@ -621,6 +663,10 @@ export default function ProfilePage() {
     if (orgData) {
       setPhoneNumber(orgData.phoneNumber || undefined);
       setAddress(orgData.address || "");
+      setGender(orgData.gender ?? "");
+      setNationality(orgData.nationality ?? "");
+      setResidentialState(orgData.residentialAddress?.state ?? "");
+      setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
 
       // Extract values from RegTank format
       setBankName(getBankField(orgData.bankAccountDetails, "Bank"));
@@ -655,6 +701,7 @@ export default function ProfilePage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ["investor", "profile-completeness", activeOrganization?.id] });
       toast.success("Profile updated successfully");
       setIsEditingProfile(false);
       setIsEditingBanking(false);
@@ -671,11 +718,31 @@ export default function ProfilePage() {
     setTimeout(() => setIsRefreshing(false), 500);
   };
 
-  const handleSaveProfile = () => {
-    // Validate phone number if provided
+  const handleSaveProfile = async () => {
+    if (!activeOrganization) return;
     if (phoneNumber && !isValidPhoneNumber(phoneNumber)) {
       toast.error("Invalid phone number format");
       return;
+    }
+
+    if (activeOrganization.type === "PERSONAL") {
+      const master: Record<string, unknown> = {
+        gender: gender || null,
+        nationality: nationality.trim() || null,
+        residentialAddress: {
+          state: residentialState || null,
+          postalCode: residentialPostalCode.trim() || null,
+        },
+      };
+      const masterRes = await apiClient.patchMasterProfile(
+        "investor",
+        activeOrganization.id,
+        master
+      );
+      if (!masterRes.success) {
+        toast.error("Failed to update profile", { description: masterRes.error.message });
+        return;
+      }
     }
 
     updateProfileMutation.mutate({
@@ -704,6 +771,10 @@ export default function ProfilePage() {
     if (orgData) {
       setPhoneNumber(orgData.phoneNumber || undefined);
       setAddress(orgData.address || "");
+      setGender(orgData.gender ?? "");
+      setNationality(orgData.nationality ?? "");
+      setResidentialState(orgData.residentialAddress?.state ?? "");
+      setResidentialPostalCode(orgData.residentialAddress?.postalCode ?? "");
     }
     setIsEditingProfile(false);
   };
@@ -863,6 +934,9 @@ export default function ProfilePage() {
           <InvestorProfileCompletenessBanner
             organizationId={activeOrganization?.id}
             onboarded={activeOrganization?.onboardingStatus === "COMPLETED"}
+            organizationType={isPersonal ? "PERSONAL" : "COMPANY"}
+            expandOnPage
+            initialExpanded={searchParams.get("focus") === "completeness"}
           />
 
           {/* Tabs */}
@@ -886,24 +960,76 @@ export default function ProfilePage() {
             <TabsContent value="profile" className="space-y-6 mt-6">
               {/* Personal Info Section (Read-only) - Only for PERSONAL accounts */}
               {isPersonal && (
-                <div className="rounded-xl border bg-card">
+                <div id="profile-personal" className="scroll-mt-24 rounded-xl border bg-card">
                   <div className="flex items-center justify-between p-6 border-b">
                     <div>
                       <h2 className="text-lg font-semibold">Personal Details</h2>
                       <p className="text-sm text-muted-foreground">Identity details verified during onboarding</p>
                     </div>
-                    <VerifiedBadge />
+                    <div className="flex items-center gap-2">
+                      <VerifiedBadge />
+                      {!isEditingProfile ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsEditingProfile(true)}
+                          className="gap-2 rounded-xl"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                          Edit
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="p-6">
-                    <KeyValueGrid
-                      items={[
-                        { label: "Name", value: displayName },
-                        { label: "Identity", value: `${formatDocumentType(orgData?.documentType)} ${orgData?.documentNumber || ""}`.trim() },
-                        { label: "Date of birth", value: formatProfileDate(orgData?.dateOfBirth) },
-                        { label: "Gender", value: formatGender(orgData?.gender) },
-                        { label: "Nationality", value: orgData?.nationality || "—" },
-                      ]}
-                    />
+                    <ProfileFieldGrid>
+                      <ProfileReadField label="Name" value={displayName} locked />
+                      <ProfileReadField
+                        label="Identity"
+                        value={`${formatDocumentType(orgData?.documentType)} ${orgData?.documentNumber || ""}`.trim()}
+                        locked
+                      />
+                      <ProfileReadField label="Date of birth" value={formatProfileDate(orgData?.dateOfBirth)} locked />
+                      {isEditingProfile ? (
+                        <div className="space-y-2">
+                          <Label className="text-ui font-medium">Gender</Label>
+                          <Select value={gender || undefined} onValueChange={setGender}>
+                            <SelectTrigger className="h-11 text-ui">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {SC_GENDERS.filter((key) => key !== "NOT_APPLICABLE").map((key) => (
+                                <SelectItem key={key} value={key}>
+                                  {SC_GENDER_LABELS[key]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <ProfileReadField
+                          label="Gender"
+                          value={formatGender(orgData?.gender)}
+                          missing={missingFieldKeys.has("gender")}
+                        />
+                      )}
+                      {isEditingProfile ? (
+                        <div className="space-y-2">
+                          <Label className="text-ui font-medium">Nationality</Label>
+                          <Input
+                            className="h-11 text-ui"
+                            value={nationality}
+                            onChange={(event) => setNationality(event.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        <ProfileReadField
+                          label="Nationality"
+                          value={orgData?.nationality}
+                          missing={missingFieldKeys.has("nationality")}
+                        />
+                      )}
+                    </ProfileFieldGrid>
                   </div>
                 </div>
               )}
@@ -927,7 +1053,7 @@ export default function ProfilePage() {
               {isPersonal && (
                 <>
                   {/* Address Section (Editable) - Personal */}
-                  <div className="rounded-xl border bg-card">
+                  <div id="profile-address" className="scroll-mt-24 rounded-xl border bg-card">
                     <div className="flex items-center justify-between p-6 border-b">
                     <div>
                       <h2 className="text-lg font-semibold">Address</h2>
@@ -949,15 +1075,26 @@ export default function ProfilePage() {
                   </div>
                   <div className="p-6 space-y-4">
                     {!isEditingProfile ? (
-                      <KeyValueGrid
-                        items={[
-                          { label: "Residential address", value: address.trim() || "—" },
-                          { label: "State", value: orgData?.residentialAddress?.state || "—" },
-                          { label: "Postcode", value: orgData?.residentialAddress?.postalCode || "—" },
-                        ]}
-                      />
+                      <ProfileFieldGrid>
+                        <ProfileReadField
+                          className="sm:col-span-2"
+                          label="Residential address"
+                          value={address.trim() || null}
+                        />
+                        <ProfileReadField
+                          label="State"
+                          value={orgData?.residentialAddress?.state}
+                          missing={missingFieldKeys.has("state")}
+                        />
+                        <ProfileReadField
+                          label="Postcode"
+                          value={orgData?.residentialAddress?.postalCode}
+                          missing={missingFieldKeys.has("postalCode")}
+                        />
+                      </ProfileFieldGrid>
                     ) : (
-                    <div className="space-y-2">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2 sm:col-span-2">
                       <Label className="flex items-center gap-2">
                         <MapPinIcon className="h-4 w-4" />
                         Residential address
@@ -971,6 +1108,30 @@ export default function ProfilePage() {
                         className="resize-none"
                       />
                         <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-ui font-medium">State</Label>
+                        <Select value={residentialState || undefined} onValueChange={setResidentialState}>
+                          <SelectTrigger className="h-11 text-ui">
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SC_MALAYSIAN_STATES.map((state) => (
+                              <SelectItem key={state} value={state}>
+                                {state}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-ui font-medium">Postcode</Label>
+                        <Input
+                          className="h-11 text-ui"
+                          value={residentialPostalCode}
+                          onChange={(event) => setResidentialPostalCode(event.target.value)}
+                        />
+                      </div>
                     </div>
                     )}
 
@@ -1002,13 +1163,10 @@ export default function ProfilePage() {
                       <h2 className="text-lg font-semibold">Investor Classification</h2>
                     </div>
                     <div className="p-6">
-                      <KeyValueGrid
-                        items={[
-                          {
-                            label: "Account class",
-                            value: orgData?.isSophisticatedInvestor ? "Sophisticated" : "Retail",
-                          },
-                        ]}
+                      <ProfileReadField
+                        label="Account class"
+                        value={orgData?.isSophisticatedInvestor ? "Sophisticated" : "Retail"}
+                        locked
                       />
                     </div>
                   </div>
@@ -1018,34 +1176,36 @@ export default function ProfilePage() {
                       <h2 className="text-lg font-semibold">KYC / AML</h2>
                     </div>
                     <div className="p-6">
-                      <KeyValueGrid
-                        items={[
-                          {
-                            label: "KYC",
-                            value: (
-                              <StatusBadge
-                                status={activeOrganization.onboardingApproved ? "success" : "action"}
-                                label={activeOrganization.onboardingApproved ? "Approved" : "Pending"}
-                              />
-                            ),
-                          },
-                          {
-                            label: "AML",
-                            value: (
-                              <StatusBadge
-                                status={activeOrganization.amlApproved ? "success" : "action"}
-                                label={activeOrganization.amlApproved ? "Approved" : "Pending"}
-                              />
-                            ),
-                          },
-                          { label: "Onboarding status", value: orgData?.onboardingStatus || "—" },
-                        ]}
-                      />
+                      <ProfileFieldGrid>
+                        <ProfileReadField
+                          label="KYC"
+                          value={
+                            <StatusBadge
+                              status={activeOrganization.onboardingApproved ? "success" : "action"}
+                              label={activeOrganization.onboardingApproved ? "Approved" : "Pending"}
+                            />
+                          }
+                        />
+                        <ProfileReadField
+                          label="AML"
+                          value={
+                            <StatusBadge
+                              status={activeOrganization.amlApproved ? "success" : "action"}
+                              label={activeOrganization.amlApproved ? "Approved" : "Pending"}
+                            />
+                          }
+                        />
+                        <ProfileReadField
+                          label="Onboarding status"
+                          value={orgData?.onboardingStatus || "—"}
+                          locked
+                        />
+                      </ProfileFieldGrid>
                     </div>
                   </div>
 
                   {/* Contact Details Section (Editable) - Personal */}
-                  <div className="rounded-xl border bg-card">
+                  <div id="profile-contact" className="scroll-mt-24 rounded-xl border bg-card">
                     <div className="flex items-center justify-between p-6 border-b">
                       <div>
                         <h2 className="text-lg font-semibold">Contact details</h2>
@@ -1130,7 +1290,7 @@ export default function ProfilePage() {
 
               {/* 2. Address/Addresses Section - For COMPANY accounts only (Personal is handled above) */}
               {!isPersonal && (
-                <div className="rounded-xl border bg-card">
+                <div id="profile-addresses" className="scroll-mt-24 rounded-xl border bg-card">
                   <div className="flex items-center justify-between p-6 border-b">
                     <div>
                       <h2 className="text-lg font-semibold">Business Address</h2>
@@ -1155,27 +1315,35 @@ export default function ProfilePage() {
                     <div className="space-y-4 pt-2">
                       <h3 className="text-sm font-semibold">Business Address</h3>
                       {!isEditingAddresses ? (
-                        <KeyValueGrid
-                          items={[
-                            {
-                              label: "Address",
-                              value: [
-                                orgData?.corporateOnboardingData?.addresses?.business?.line1,
-                                orgData?.corporateOnboardingData?.addresses?.business?.line2,
-                              ]
-                                .filter((part) => part && part.trim())
-                                .join(", ") || "—",
-                            },
-                            {
-                              label: "State",
-                              value: orgData?.corporateOnboardingData?.addresses?.business?.state || "—",
-                            },
-                            {
-                              label: "Postcode",
-                              value: orgData?.corporateOnboardingData?.addresses?.business?.postalCode || "—",
-                            },
-                          ]}
-                        />
+                        <ProfileFieldGrid>
+                          <ProfileReadField
+                            className="sm:col-span-2"
+                            label="Address"
+                            value={[
+                              orgData?.corporateOnboardingData?.addresses?.business?.line1,
+                              orgData?.corporateOnboardingData?.addresses?.business?.line2,
+                            ]
+                              .filter((part) => part && part.trim())
+                              .join(", ") || null}
+                            missing={missingFieldKeys.has("businessAddress.line1")}
+                          />
+                          <ProfileReadField
+                            label="State"
+                            value={orgData?.corporateOnboardingData?.addresses?.business?.state}
+                            missing={
+                              missingFieldKeys.has("businessState") ||
+                              missingFieldKeys.has("businessAddress.state")
+                            }
+                          />
+                          <ProfileReadField
+                            label="Postcode"
+                            value={orgData?.corporateOnboardingData?.addresses?.business?.postalCode}
+                            missing={
+                              missingFieldKeys.has("businessPostalCode") ||
+                              missingFieldKeys.has("businessAddress.postalCode")
+                            }
+                          />
+                        </ProfileFieldGrid>
                       ) : (
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2 sm:col-span-2">
@@ -1343,13 +1511,10 @@ export default function ProfilePage() {
                       <h2 className="text-lg font-semibold">Investor Classification</h2>
                     </div>
                     <div className="p-6">
-                      <KeyValueGrid
-                        items={[
-                          {
-                            label: "Account class",
-                            value: orgData?.isSophisticatedInvestor ? "Sophisticated" : "Non-sophisticated entity",
-                          },
-                        ]}
+                      <ProfileReadField
+                        label="Account class"
+                        value={orgData?.isSophisticatedInvestor ? "Sophisticated" : "Retail"}
+                        locked
                       />
                     </div>
                   </div>
@@ -1358,29 +1523,31 @@ export default function ProfilePage() {
                       <h2 className="text-lg font-semibold">KYC / AML</h2>
                     </div>
                     <div className="p-6">
-                      <KeyValueGrid
-                        items={[
-                          {
-                            label: "KYC",
-                            value: (
-                              <StatusBadge
-                                status={activeOrganization.onboardingApproved ? "success" : "action"}
-                                label={activeOrganization.onboardingApproved ? "Approved" : "Pending"}
-                              />
-                            ),
-                          },
-                          {
-                            label: "AML",
-                            value: (
-                              <StatusBadge
-                                status={activeOrganization.amlApproved ? "success" : "action"}
-                                label={activeOrganization.amlApproved ? "Approved" : "Pending"}
-                              />
-                            ),
-                          },
-                          { label: "Onboarding status", value: orgData?.onboardingStatus || "—" },
-                        ]}
-                      />
+                      <ProfileFieldGrid>
+                        <ProfileReadField
+                          label="KYC"
+                          value={
+                            <StatusBadge
+                              status={activeOrganization.onboardingApproved ? "success" : "action"}
+                              label={activeOrganization.onboardingApproved ? "Approved" : "Pending"}
+                            />
+                          }
+                        />
+                        <ProfileReadField
+                          label="AML"
+                          value={
+                            <StatusBadge
+                              status={activeOrganization.amlApproved ? "success" : "action"}
+                              label={activeOrganization.amlApproved ? "Approved" : "Pending"}
+                            />
+                          }
+                        />
+                        <ProfileReadField
+                          label="Onboarding status"
+                          value={orgData?.onboardingStatus || "—"}
+                          locked
+                        />
+                      </ProfileFieldGrid>
                     </div>
                   </div>
                 </>
@@ -1388,7 +1555,7 @@ export default function ProfilePage() {
 
               {/* 3. Contact Details Section (Editable) - For COMPANY accounts only (Personal is handled above) */}
               {!isPersonal && (
-                <div className="rounded-xl border bg-card">
+                <div id="profile-contact" className="scroll-mt-24 rounded-xl border bg-card">
                   <div className="flex items-center justify-between p-6 border-b">
                     <div>
                       <h2 className="text-lg font-semibold">Contact details</h2>
