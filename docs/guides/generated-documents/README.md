@@ -1,6 +1,6 @@
 # Generated documents
 
-Platform-filled Word templates (converted to PDF on download) for issuer acceptance and other workflow document rows.
+Platform-filled Word templates (converted to PDF on download) for issuer acceptance, signing-package documents, and other workflow document rows.
 
 ## Three layers
 
@@ -35,10 +35,14 @@ Details: [add-a-placeholder.md](./add-a-placeholder.md).
 
 ## Operator flow (production)
 
-1. Admin → product workflow → Acceptance document row → Template source **Generated** → pick type (e.g. ARF contract facility LO) → save/publish.
+1. Admin → product workflow → document row / signing package → pick the generated type → save/publish.
+   - Letter of Offer: Acceptance documents → Template source **Generated** (issuer download, wet ink).
+   - Facility Agreement: Signing package → add **Facility Agreement** (CA-signed issuer execution; replaces the e-sign Offer Letter).
+   - Joint and Several Guarantee: Signing package → add **Guarantor Agreement** (CA-signed when admin sends signing links).
+   - Deed of Assignment: Signing package → add **Deed of Assignment** (CA-signed by assignor `issuer_director` only).
 2. Admin sends contract offer on an application using that product version.
-3. Issuer → Review Offer / acceptance step → **Download template** → filled PDF.
-4. Issuer completes offline → uploads PDF → submits acceptance as usual.
+3. Issuer downloads the LO from Review Offer / acceptance → **Download template**, completes offline, uploads.
+4. After authorised representatives are saved, admin sends the signing package. Facility Agreement, Guarantor Agreement, and Deed of Assignment are filled from their templates and uploaded to SigningCloud.
 
 ## API (developers)
 
@@ -48,7 +52,7 @@ Details: [add-a-placeholder.md](./add-a-placeholder.md).
 | `GET /v1/applications/:id/generated-documents/:type?format=pdf\|docx` | Issuer (org member) or admin | Generate and download |
 | `GET /v1/admin/applications/:id/generated-documents/:type?format=` | Admin | Same generate path |
 
-Gates: frozen product row must declare the type; `requires` must be met (LO: contract `offer_details` present).
+Gates: frozen product must declare the type (LO: acceptance row; FA: signing-package Facility Agreement; JSG: signing-package Guarantor Agreement; Deed: signing-package Deed of Assignment); `requires` must be met (LO/JSG/Deed: contract `offer_details`; FA: contract **or** invoice offer).
 
 Demo (merge iteration only): `GET/POST /v1/admin/demos/contract-lo/*` — same tagged `.docx` + `renderFacilityLoDocx` as production; not wired to Send Offer or signing.
 
@@ -60,6 +64,9 @@ Demo (merge iteration only): `GET/POST /v1/admin/demos/contract-lo/*` — same t
 | Row field | `packages/types/src/workflow-document-row.ts` |
 | Generate service | `apps/api/src/modules/generated-documents/service.ts` |
 | LO merge/render | `apps/api/src/modules/applications/letter-of-offer/` |
+| Facility Agreement merge/render | `apps/api/src/modules/applications/facility-agreement/` |
+| JSG merge/render | `apps/api/src/modules/applications/joint-several-guarantee/` |
+| Deed of Assignment merge/render | `apps/api/src/modules/applications/deed-of-assignment/` |
 | Admin composition UI | `apps/admin/.../workflow-document-row-editor.tsx` |
 | Issuer download | `apps/issuer/src/lib/download-generated-document.ts` |
 
@@ -68,6 +75,9 @@ Demo (merge iteration only): `GET/POST /v1/admin/demos/contract-lo/*` — same t
 - New document type: [add-a-document-type.md](./add-a-document-type.md)
 - New placeholder on an existing type: [add-a-placeholder.md](./add-a-placeholder.md)
 - LO field status today: [lo-data-sources.md](./lo-data-sources.md)
+- Facility Agreement field status today: [fa-data-sources.md](./fa-data-sources.md)
+- JSG field status today: [jsg-data-sources.md](./jsg-data-sources.md)
+- Deed of Assignment field status today: [doa-data-sources.md](./doa-data-sources.md)
 - LO 19 Aug 2026 verification map: [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md)
 
 Build history (vertical slices): [implementation-slices.md](./implementation-slices.md).
@@ -76,6 +86,7 @@ Build history (vertical slices): [implementation-slices.md](./implementation-sli
 
 - CMS upload of generated Word templates
 - Auto-generate on Send Offer
-- Invoice LO
-- PDFKit offer letters, SigningCloud `GENERATED_OFFER_LETTER`, trustee/prospectus generators in this pipeline
+- Invoice LO (standalone invoice offers use the Facility Agreement for e-sign)
+- PDFKit offer letters / SigningCloud `GENERATED_OFFER_LETTER` (kept only for in-flight envelopes; new packages use Facility Agreement, JSG, and Deed of Assignment on the signing path)
+- Trustee/prospectus generators in this pipeline
 - Side-by-side historical `.docx` versions per deploy (until a type must support old forms after upgrade)

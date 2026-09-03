@@ -56,8 +56,10 @@ import {
   STEP_KEY_DISPLAY,
   enforceDeclarationsLastAndDropReview,
   FACILITY_ONLY_SUBMIT_COPY,
+  INHERITED_FACILITY_GUARANTORS_STEP_DESCRIPTION,
   filterWorkflowStepsForOrigination,
   isSplitOriginationApplication,
+  isInheritedFacilityGuarantorReview,
   mapCapacityApiError,
   type ApplicationStepKey,
   ApplicationStatus,
@@ -712,6 +714,16 @@ function EditApplicationPageBody() {
           description: FACILITY_ONLY_SUBMIT_COPY,
         };
       }
+      if (
+        currentStepKey === "business_details" &&
+        isInheritedFacilityGuarantorReview(effectiveStructureType)
+      ) {
+        const stepDisplay = STEP_KEY_DISPLAY.business_details;
+        return {
+          title: (stepDisplay.pageTitle || stepDisplay.title) as string,
+          description: INHERITED_FACILITY_GUARANTORS_STEP_DESCRIPTION,
+        };
+      }
       const stepDisplay = STEP_KEY_DISPLAY[currentStepKey];
       return {
         title: (stepDisplay.pageTitle || stepDisplay.title) as string,
@@ -1134,6 +1146,7 @@ function EditApplicationPageBody() {
           stepConfig={(currentStepConfig?.config as Record<string, unknown>) ?? undefined}
           onDataChange={handleDataChange}
           readOnly={stepReadOnly}
+          inheritFacilityGuarantors={isInheritedFacilityGuarantorReview(effectiveStructureType)}
         />
       );
     }

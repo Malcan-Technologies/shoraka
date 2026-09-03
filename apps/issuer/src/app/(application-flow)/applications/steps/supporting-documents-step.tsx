@@ -15,6 +15,7 @@ import {
   XMarkIcon,
   DocumentIcon,
   DocumentDuplicateIcon,
+  LockClosedIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -25,10 +26,15 @@ import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applicatio
 import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import {
+  acceptanceDocumentCategoryEntries,
   acceptanceDocScopeKeyMatchesRow,
+  isSupportingDocCategoryKey,
   slugForAcceptanceDocName,
+  SUPPORTING_DOC_CATEGORY_LABELS,
+  supportingDocumentCategoryEntries,
   type GeneratedDocumentTypeKey,
 } from "@cashsouk/types";
+import { StatusBadge } from "@cashsouk/ui";
 import { downloadGeneratedDocument } from "@/lib/download-generated-document";
 import {
   Dialog,
@@ -227,6 +233,17 @@ type WorkflowSupportingStepConfig = {
   config?: Record<string, unknown>;
 };
 
+function resolveSupportingDocumentsConfig(
+  stepConfig: WorkflowSupportingStepConfig | undefined
+): Record<string, unknown> | null {
+  if (!stepConfig || typeof stepConfig !== "object") return null;
+  const nested = stepConfig.config;
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    return nested;
+  }
+  return stepConfig as Record<string, unknown>;
+}
+
 type RawWorkflowDoc = {
   name?: string;
   allow_multiple?: boolean;
@@ -249,8 +266,28 @@ export type SupportingCategoryDocument = {
 export type SupportingCategory = {
   groupKey: string;
   name: string;
+  facilityLocked?: boolean;
   documents: SupportingCategoryDocument[];
 };
+
+function categoryGroupLabel(groupKey: string): string {
+  if (isSupportingDocCategoryKey(groupKey)) return SUPPORTING_DOC_CATEGORY_LABELS[groupKey];
+  return groupKey.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function workflowRowsToDocuments(docs: unknown[]): SupportingCategoryDocument[] {
+  return docs
+    .filter((doc): doc is RawWorkflowDoc => isRecord(doc) && !Array.isArray(doc))
+    .map((doc, workflowDocumentIndex) => ({
+      title: doc.name?.trim() || "—",
+      allowMultiple: doc.allow_multiple === true,
+      template: doc.template,
+      generatedDocumentType: doc.generated_document_type,
+      allowedTypes: resolveIssuerAllowedTypes(doc),
+      required: doc.required !== false,
+      workflowDocumentIndex,
+    }));
+}
 
 type SavedFileRef = {
   file_name?: string;
@@ -434,32 +471,33 @@ export function SupportingDocumentsStep({
     return [...merged.values()];
   }, [amendmentRemarks, application, isAcceptanceChangeMode]);
 
+  const lockedCategoryKeys = React.useMemo(() => {
+    const fromApi = (
+      application as { facility_locked_supporting_categories?: unknown } | undefined
+    )?.facility_locked_supporting_categories;
+    if (!Array.isArray(fromApi)) return new Set<string>();
+    return new Set(fromApi.filter((key): key is string => typeof key === "string"));
+  }, [application]);
+
   const categories = React.useMemo((): SupportingCategory[] => {
-    const config = stepConfig?.config;
+    const config = resolveSupportingDocumentsConfig(stepConfig);
+    if (!config) return [];
 
-    // Guard: no config or invalid shape
-    if (!config || typeof config !== "object") return [];
+    const groups =
+      documentStorage === "acceptance_documents"
+        ? acceptanceDocumentCategoryEntries(config)
+        : supportingDocumentCategoryEntries(config);
 
-    return Object.entries(config)
-      .filter(([key, value]) => key !== "enabled_categories" && Array.isArray(value))
+    return groups
       .map(([groupKey, docs]) => ({
         groupKey,
-        name: groupKey
-          .replace(/_/g, " ")
-          .replace(/\b\w/g, (c) => c.toUpperCase()),
-
-        documents: (docs as RawWorkflowDoc[]).map((doc, workflowDocumentIndex) => ({
-          title: doc?.name ?? "—",
-          allowMultiple: doc?.allow_multiple === true,
-          template: doc?.template,
-          generatedDocumentType: doc?.generated_document_type,
-          allowedTypes: resolveIssuerAllowedTypes(doc ?? {}),
-          required: doc?.required !== false,
-          workflowDocumentIndex,
-        })),
+        name: categoryGroupLabel(groupKey),
+        facilityLocked:
+          documentStorage !== "acceptance_documents" && lockedCategoryKeys.has(groupKey),
+        documents: workflowRowsToDocuments(docs),
       }))
       .filter((category) => category.documents.length > 0);
-  }, [stepConfig]);
+  }, [stepConfig, lockedCategoryKeys, documentStorage]);
 
 
   const [uploadedFiles, setUploadedFiles] = React.useState<Record<string, UploadRecord[]>>({});
@@ -525,6 +563,33 @@ export function SupportingDocumentsStep({
       }
     },
     [applicationId, getAccessToken]
+  );
+
+  const handleDownloadUploadedFile = React.useCallback(
+    async (s3Key: string | undefined) => {
+      const key = s3Key?.trim();
+      if (!key) return;
+      const token = await getAccessToken();
+      if (!token) {
+        toast.error("Authentication required");
+        return;
+      }
+      const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ s3Key: key }),
+      });
+      const j = await resp.json().catch(() => null);
+      if (j?.success && j.data?.downloadUrl) {
+        window.open(j.data.downloadUrl, "_blank");
+      } else {
+        toast.error("Could not download file");
+      }
+    },
+    [getAccessToken]
   );
 
 
@@ -912,7 +977,24 @@ export function SupportingDocumentsStep({
       updatedFiles[key] = sortUploadRecordsNewestFirst(normalized);
     });
 
-    const removedS3Keys = computeRemovedS3Keys(initialUploadedFiles, updatedFiles);
+    const lockedSlotKeys = new Set<string>();
+    categories.forEach((category, categoryIndex) => {
+      if (!category.facilityLocked) return;
+      category.documents.forEach((_, documentIndex) => {
+        lockedSlotKeys.add(`${categoryIndex}-${documentIndex}`);
+      });
+    });
+    const lockedS3Keys = new Set<string>();
+    for (const slot of lockedSlotKeys) {
+      for (const file of initialUploadedFiles[slot] ?? []) {
+        const key = file.s3_key?.trim();
+        if (key) lockedS3Keys.add(key);
+      }
+    }
+
+    const removedS3Keys = computeRemovedS3Keys(initialUploadedFiles, updatedFiles).filter(
+      (s3Key) => !lockedS3Keys.has(s3Key)
+    );
     for (const s3Key of removedS3Keys) {
       const response = await fetch(`${API_URL}/v1/applications/${applicationId}/document`, {
         method: "DELETE",
@@ -971,6 +1053,7 @@ export function SupportingDocumentsStep({
   const areAllFilesUploaded = React.useMemo(() => {
     if (categories.length === 0) return true;
     for (let categoryIndex = 0; categoryIndex < categories.length; categoryIndex++) {
+      if (categories[categoryIndex].facilityLocked) continue;
       for (let documentIndex = 0; documentIndex < categories[categoryIndex].documents.length; documentIndex++) {
         const docRequired = categories[categoryIndex].documents[documentIndex]?.required !== false;
         if (docRequired && !hasDocumentFile(categoryIndex, documentIndex)) {
@@ -1107,9 +1190,14 @@ export function SupportingDocumentsStep({
                       {category.name}
                     </h2>
                   </div>
-                  {requiredInCategory > 0 ? (
+                  {requiredInCategory > 0 && !category.facilityLocked ? (
                     <span className="text-sm text-muted-foreground shrink-0 tabular-nums">
                       {requiredDone}/{requiredInCategory} required completed
+                    </span>
+                  ) : category.facilityLocked ? (
+                    <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground shrink-0">
+                      <LockClosedIcon className="h-4 w-4 shrink-0" aria-hidden />
+                      Locked at facility
                     </span>
                   ) : (
                     <span className="text-sm text-muted-foreground shrink-0">Optional only</span>
@@ -1178,6 +1266,7 @@ export function SupportingDocumentsStep({
                           flaggedDocRemarks.get(rawKeyWithDoc);
                       const isEditable =
                         !readOnly &&
+                        !category.facilityLocked &&
                         (!isAcceptanceDoc || !isAcceptanceChangeMode || isItemFlagged);
                       const flaggedUpdateState =
                         isAcceptanceDoc && isAcceptanceChangeMode && isItemFlagged
@@ -1242,6 +1331,7 @@ export function SupportingDocumentsStep({
                               flaggedFileSurfaceClass
                             )}
                             trailing={
+                              isEditable ? (
                               <button
                                 type="button"
                                 disabled={!isEditable}
@@ -1258,6 +1348,18 @@ export function SupportingDocumentsStep({
                               >
                                 <XMarkIcon className="h-3 w-3" />
                               </button>
+                              ) : file.s3_key ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void handleDownloadUploadedFile(file.s3_key);
+                                  }}
+                                  className="shrink-0 p-0.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                                  aria-label={`Download ${file.name}`}
+                                >
+                                  <ArrowDownTrayIcon className="h-3 w-3" />
+                                </button>
+                              ) : null
                             }
                           />
                         );
@@ -1318,6 +1420,11 @@ export function SupportingDocumentsStep({
                                 <p className="text-meta text-muted-foreground">
                                   {formatIssuerAllowedTypesHint(document.allowedTypes ?? ["pdf"])}
                                 </p>
+                                {category.facilityLocked ? (
+                                  <div className="mt-1.5">
+                                    <StatusBadge label="Approved" status="success" />
+                                  </div>
+                                ) : null}
                               </div>
                               {isAcceptanceDoc && isAcceptanceChangeMode && isItemFlagged ? (
                                 <div className="mt-1.5 space-y-1.5">
@@ -1397,7 +1504,7 @@ export function SupportingDocumentsStep({
                                   : "flex-col gap-1 lg:self-start lg:border-t-0 lg:pt-0 lg:min-w-[12rem] lg:w-[12rem] lg:shrink-0 lg:border-l lg:border-border lg:pl-3"
                               )}
                             >
-                              {showTemplateDownload ? (
+                              {showTemplateDownload && !category.facilityLocked ? (
                                 <button
                                   type="button"
                                   disabled={!isEditable}
@@ -1462,7 +1569,7 @@ export function SupportingDocumentsStep({
                                       className="hidden"
                                     />
                                   </label>
-                                ) : (
+                                ) : category.facilityLocked ? null : (
                                   <span
                                     className={cn(docActionLinkClass, supportingDocActionOff)}
                                   >

@@ -1,3 +1,4 @@
+import { acceptanceDocumentCategoryEntries } from "@cashsouk/types";
 import {
   compareSigningOfferStepOrder,
   buildAcceptanceDocumentsStepConfig,
@@ -100,6 +101,9 @@ describe("buildAcceptanceDocumentsStepConfig", () => {
     const rows = config.config.acceptance_documents as Array<Record<string, unknown>>;
     expect(rows[0]?.generated_document_type).toBe("arf_contract_facility_lo");
     expect(rows[0]?.template).toBeUndefined();
+    expect(acceptanceDocumentCategoryEntries(config.config)).toEqual([
+      ["acceptance_documents", rows],
+    ]);
   });
 });
 

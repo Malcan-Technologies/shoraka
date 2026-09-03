@@ -68,9 +68,12 @@ import {
   GUARANTOR_COMPANY_RELATIONSHIPS,
   GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS,
   GUARANTOR_INDIVIDUAL_RELATIONSHIPS,
+  INHERITED_FACILITY_GUARANTORS_ISSUER_COPY,
+  isInheritedFacilityGuarantorReview,
+  isRegtankIso3166Code,
+  readFinancingStructureType,
   type GuarantorCompanyRelationship,
   type GuarantorIndividualRelationship,
-  isRegtankIso3166Code,
 } from "@cashsouk/types";
 import { toast } from "sonner";
 
@@ -686,6 +689,8 @@ interface BusinessDetailsStepProps {
   stepConfig?: Record<string, unknown>;
   onDataChange?: (data: Record<string, unknown>) => void;
   readOnly?: boolean;
+  /** Drawdown on an approved facility: show facility guarantors, locked. */
+  inheritFacilityGuarantors?: boolean;
 }
 
 /** Match supporting-documents-step.tsx action links (guarantor agreement row). */
@@ -996,6 +1001,8 @@ interface GuarantorCardFieldsProps {
   onDownloadAgreementTemplate: () => void | Promise<void>;
   onSelectGuarantorAgreementFiles: (files: File[]) => void;
   onClearGuarantorAgreementFile: (clientId: string) => void;
+  /** Hide upload, remove, and template actions (inherited facility guarantors). */
+  hideFileActions?: boolean;
 }
 
 function GuarantorCardFields({
@@ -1013,6 +1020,7 @@ function GuarantorCardFields({
   onDownloadAgreementTemplate,
   onSelectGuarantorAgreementFiles,
   onClearGuarantorAgreementFile,
+  hideFileActions = false,
 }: GuarantorCardFieldsProps) {
   const inputClassName = formInputClassName;
   const agreements = row.guarantorAgreements;
@@ -1349,6 +1357,7 @@ function GuarantorCardFields({
                     locked={readOnly}
                     className="min-h-9 w-full"
                     trailing={
+                      hideFileActions ? undefined : (
                       <button
                         type="button"
                         disabled={readOnly}
@@ -1363,6 +1372,7 @@ function GuarantorCardFields({
                       >
                         <XMarkIcon className="h-3 w-3" />
                       </button>
+                      )
                     }
                   />
                 ))
@@ -1373,6 +1383,7 @@ function GuarantorCardFields({
               )}
             </div>
 
+            {hideFileActions ? null : (
             <div className="flex flex-col gap-1 w-full min-w-0 border-t border-border pt-3 lg:self-start lg:border-t-0 lg:pt-0 lg:min-w-[12rem] lg:w-[12rem] lg:shrink-0 lg:border-l lg:border-border lg:pl-3">
               {agreementTemplateS3Key ? (
                 <button
@@ -1449,6 +1460,7 @@ function GuarantorCardFields({
                 )
               ) : null}
             </div>
+            )}
           </div>
         </div>
         {hasAttemptedSave && agreementRequired && !hasAgreementFiles ? (
@@ -1465,9 +1477,23 @@ export function BusinessDetailsStep({
   stepConfig,
   onDataChange,
   readOnly = false,
+  inheritFacilityGuarantors = false,
 }: BusinessDetailsStepProps) {
   const { getAccessToken } = useAuthToken();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
+  const inheritGuarantors =
+    inheritFacilityGuarantors ||
+    isInheritedFacilityGuarantorReview(
+      readFinancingStructureType(application?.financing_structure)
+    );
+  const inheritedGuarantorRows = React.useMemo(() => {
+    if (!inheritGuarantors) return [];
+    const fromInherited = guarantorsFromRelationalRows(
+      application?.inherited_guarantors?.application_guarantors
+    );
+    if (fromInherited.length > 0) return fromInherited;
+    return guarantorsFromRelationalRows(application?.application_guarantors);
+  }, [inheritGuarantors, application]);
   const devTools = useDevTools();
 
   const [whyRaisingFunds, setWhyRaisingFunds] = React.useState<WhyRaisingFunds>(defaultWhy);
@@ -1497,14 +1523,15 @@ export function BusinessDetailsStep({
   }, [onDataChange]);
 
   React.useEffect(() => {
+    const count = inheritGuarantors ? inheritedGuarantorRows.length : guarantors.length;
     setGuarantorPanelOpen((prev) => {
       const next: Record<number, boolean> = {};
-      for (let i = 0; i < guarantors.length; i++) {
+      for (let i = 0; i < count; i++) {
         if (prev[i] !== undefined) next[i] = prev[i]!;
       }
       return next;
     });
-  }, [guarantors.length]);
+  }, [guarantors.length, inheritGuarantors, inheritedGuarantorRows.length]);
 
   React.useEffect(() => {
     setHasAttemptedSave(false);
@@ -1561,6 +1588,10 @@ export function BusinessDetailsStep({
         if (mode === "strict" && sameInvoiceUsed === "yes") {
           return false;
         }
+      }
+
+      if (inheritGuarantors) {
+        return true;
       }
 
       if (guarantors.length < 1) return false;
@@ -1622,6 +1653,7 @@ export function BusinessDetailsStep({
       guarantorEmailOk,
       requiresGuarantorAgreementUpload,
       pendingGuarantorAgreements,
+      inheritGuarantors,
     ]
   );
 
@@ -1661,7 +1693,7 @@ export function BusinessDetailsStep({
 
   const handleGuarantorAgreementFilesAt = React.useCallback(
     (index: number, files: File[]) => {
-      if (files.length === 0) return;
+      if (inheritGuarantors || files.length === 0) return;
       const allowMultiple = productGuarantorAgreementConfig.allowMultiple;
       const validFiles: Array<{ file: File; client_id: string }> = [];
       for (const file of files) {
@@ -1706,10 +1738,11 @@ export function BusinessDetailsStep({
         })
       );
     },
-    [productGuarantorAgreementConfig.allowMultiple, productGuarantorAgreementConfig.allowedTypes]
+    [productGuarantorAgreementConfig.allowMultiple, productGuarantorAgreementConfig.allowedTypes, inheritGuarantors]
   );
 
   const clearGuarantorAgreementFileAt = React.useCallback((index: number, fileKey: string) => {
+    if (inheritGuarantors) return;
     setPendingGuarantorAgreements((prev) =>
       prev.filter((p) => !(p.index === index && p.client_id === fileKey))
     );
@@ -1724,7 +1757,13 @@ export function BusinessDetailsStep({
         };
       })
     );
-  }, []);
+  }, [inheritGuarantors]);
+
+  React.useEffect(() => {
+    if (!inheritGuarantors) return;
+    setGuarantors([]);
+    setPendingGuarantorAgreements([]);
+  }, [inheritGuarantors]);
 
   React.useEffect(() => {
     if (application === undefined || isInitialized) return;
@@ -1736,8 +1775,13 @@ export function BusinessDetailsStep({
       !Array.isArray(rawDetails)
         ? (rawDetails as Record<string, unknown>)
         : undefined;
-    const relational = (application as { application_guarantors?: unknown[] }).application_guarantors;
+    const relational = inheritGuarantors
+      ? []
+      : (application as { application_guarantors?: unknown[] }).application_guarantors;
     const initial = fromSnakeSaved(saved, relational);
+    if (inheritGuarantors) {
+      initial.guarantors = [];
+    }
     setWhyRaisingFunds({
       ...initial.whyRaisingFunds,
       amountRaised: initial.whyRaisingFunds.amountRaised,
@@ -1750,7 +1794,7 @@ export function BusinessDetailsStep({
     initialGuarantorRowsForAgreementCleanup.current = initial.guarantors.map((g) => ({ ...g }));
     initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
     setIsInitialized(true);
-  }, [application, isInitialized]);
+  }, [application, isInitialized, inheritGuarantors]);
 
   /* Reset P2P fields when user selects "no". */
   React.useEffect(() => {
@@ -1774,7 +1818,9 @@ export function BusinessDetailsStep({
     const initial = fromSnakeSaved(data);
     setWhyRaisingFunds(initial.whyRaisingFunds);
     setDeclarationConfirmed(initial.declarationConfirmed);
-    setGuarantors(initial.guarantors);
+    if (!inheritGuarantors) {
+      setGuarantors(initial.guarantors);
+    }
     setPendingSupportingDocuments([]);
     setPendingGuarantorAgreements([]);
     setInitialWhySupportingDocuments(initial.whyRaisingFunds.supportingDocuments);
@@ -1784,7 +1830,7 @@ export function BusinessDetailsStep({
       if (devTools.autoFillData?.stepKey === "business_details") devTools.clearAutoFill();
       else devTools.clearAutoFillForStep("business_details");
     }
-  }, [devTools]);
+  }, [devTools, inheritGuarantors]);
 
   const payload: BusinessDetailsPayload = React.useMemo(
     () => ({
@@ -2206,6 +2252,7 @@ export function BusinessDetailsStep({
 
   const replaceGuarantorRow = React.useCallback(
     (index: number, next: GuarantorRowUpdater) => {
+      if (inheritGuarantors) return;
       setGuarantors((prev) =>
         prev.map((row, i) => {
           if (i !== index) return row;
@@ -2213,7 +2260,7 @@ export function BusinessDetailsStep({
         })
       );
     },
-    []
+    [inheritGuarantors]
   );
 
   if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
@@ -2223,8 +2270,11 @@ export function BusinessDetailsStep({
   const sameInvoiceP2pBlocked =
     whyRaisingFunds.raisingOnOtherP2P === "yes" && whyRaisingFunds.sameInvoiceUsed === "yes";
   const fieldsLocked = readOnly || sameInvoiceP2pBlocked;
+  const guarantorsLocked = fieldsLocked || inheritGuarantors;
+  const displayedGuarantors = inheritGuarantors ? inheritedGuarantorRows : guarantors;
 
   const setGuarantorTypeAt = (index: number, type: "individual" | "company") => {
+    if (inheritGuarantors) return;
     const current = guarantors[index];
     const ref = current?.referenceId ?? makeClientId();
     const keepAgreements = current?.guarantorAgreements ?? [];
@@ -2587,114 +2637,130 @@ export function BusinessDetailsStep({
         <div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <h3 className={applicationFlowSectionTitleClassName}>Guarantor details</h3>
-            <Button
-              type="button"
-              variant="default"
-              className="shrink-0 w-full sm:w-auto"
-              disabled={fieldsLocked}
-              onClick={() => setGuarantors((prev) => [...prev, emptyIndividualGuarantor()])}
-            >
-              + Add guarantor
-            </Button>
+            {inheritGuarantors ? null : (
+              <Button
+                type="button"
+                variant="default"
+                className="shrink-0 w-full sm:w-auto"
+                disabled={fieldsLocked}
+                onClick={() => setGuarantors((prev) => [...prev, emptyIndividualGuarantor()])}
+              >
+                + Add guarantor
+              </Button>
+            )}
           </div>
           <div className={applicationFlowSectionDividerClassName} />
         </div>
 
-        <div className="flex flex-col gap-8 px-3">
-          {guarantors.map((row, index) => {
-            const removeButton = (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:text-destructive justify-start sm:justify-center px-0 sm:px-3"
-                disabled={fieldsLocked || guarantors.length <= 1}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setGuarantors((prev) =>
-                    prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)
-                  );
-                }}
-              >
-                <TrashIcon className="h-4 w-4 mr-1" aria-hidden />
-                Remove
-              </Button>
-            );
+        {inheritGuarantors ? (
+          <p className="text-ui text-muted-foreground px-3">
+            {INHERITED_FACILITY_GUARANTORS_ISSUER_COPY}
+          </p>
+        ) : null}
 
-            const fields = (
-              <GuarantorCardFields
-                row={row}
-                index={index}
-                readOnly={fieldsLocked}
-                hasAttemptedSave={hasAttemptedSave}
-                replaceGuarantorRow={replaceGuarantorRow}
-                setGuarantorTypeAt={setGuarantorTypeAt}
-                agreementDocumentTitle={productGuarantorAgreementConfig.title}
-                agreementAllowMultiple={productGuarantorAgreementConfig.allowMultiple}
-                agreementAccept={buildAcceptAttr(productGuarantorAgreementConfig.allowedTypes)}
-                agreementTemplateS3Key={productGuarantorAgreementConfig.template?.s3_key}
-                agreementRequired={requiresGuarantorAgreementUpload}
-                onDownloadAgreementTemplate={downloadGuarantorAgreementTemplate}
-                onSelectGuarantorAgreementFiles={(files) =>
-                  handleGuarantorAgreementFilesAt(index, files)
-                }
-                onClearGuarantorAgreementFile={(fileKey) =>
-                  clearGuarantorAgreementFileAt(index, fileKey)
-                }
-              />
-            );
+        {inheritGuarantors && displayedGuarantors.length === 0 ? (
+          <p className="text-ui text-muted-foreground px-3">
+            Guarantors from this facility will appear here once they are available.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-8 px-3">
+            {displayedGuarantors.map((row, index) => {
+              const removeButton = inheritGuarantors ? null : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive justify-start sm:justify-center px-0 sm:px-3"
+                  disabled={fieldsLocked || displayedGuarantors.length <= 1}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGuarantors((prev) =>
+                      prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)
+                    );
+                  }}
+                >
+                  <TrashIcon className="h-4 w-4 mr-1" aria-hidden />
+                  Remove
+                </Button>
+              );
 
-            const subtitle = guarantorCardSummarySubtitle(row);
-            const panelOpen =
-              guarantorPanelOpen[index] !== undefined ? guarantorPanelOpen[index]! : index === 0;
+              const fields = (
+                <GuarantorCardFields
+                  row={row}
+                  index={index}
+                  readOnly={guarantorsLocked}
+                  hasAttemptedSave={!inheritGuarantors && hasAttemptedSave}
+                  replaceGuarantorRow={replaceGuarantorRow}
+                  setGuarantorTypeAt={setGuarantorTypeAt}
+                  agreementDocumentTitle={productGuarantorAgreementConfig.title}
+                  agreementAllowMultiple={productGuarantorAgreementConfig.allowMultiple}
+                  agreementAccept={buildAcceptAttr(productGuarantorAgreementConfig.allowedTypes)}
+                  agreementTemplateS3Key={productGuarantorAgreementConfig.template?.s3_key}
+                  agreementRequired={!inheritGuarantors && requiresGuarantorAgreementUpload}
+                  onDownloadAgreementTemplate={downloadGuarantorAgreementTemplate}
+                  onSelectGuarantorAgreementFiles={(files) =>
+                    handleGuarantorAgreementFilesAt(index, files)
+                  }
+                  onClearGuarantorAgreementFile={(fileKey) =>
+                    clearGuarantorAgreementFileAt(index, fileKey)
+                  }
+                  hideFileActions={inheritGuarantors}
+                />
+              );
 
-            return (
-              <details
-                key={row.referenceId || index}
-                className="group rounded-md border border-border bg-background shadow-sm"
-                open={panelOpen}
-                onToggle={(e) => {
-                  const d = e.currentTarget;
-                  setGuarantorPanelOpen((p) => ({ ...p, [index]: d.open }));
-                }}
-              >
-                <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-md focus-visible:outline-none focus-visible:ring-0">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-4 sm:px-5 py-4 border-b border-border">
-                    <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                      <span className="shrink-0 text-base font-semibold text-foreground">
-                        Guarantor {index + 1}
-                      </span>
-                      <ChevronRightIcon
-                        className="h-5 w-5 shrink-0 text-muted-foreground group-open:rotate-90"
-                        aria-hidden
-                      />
-                      {subtitle ? (
-                        <span className="min-w-0 truncate text-sm text-muted-foreground">
-                          {subtitle}
+              const subtitle = guarantorCardSummarySubtitle(row);
+              const panelOpen =
+                guarantorPanelOpen[index] !== undefined ? guarantorPanelOpen[index]! : index === 0;
+
+              return (
+                <details
+                  key={row.referenceId || index}
+                  className="group rounded-md border border-border bg-background shadow-sm"
+                  open={panelOpen}
+                  onToggle={(e) => {
+                    const d = e.currentTarget;
+                    setGuarantorPanelOpen((p) => ({ ...p, [index]: d.open }));
+                  }}
+                >
+                  <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-md focus-visible:outline-none focus-visible:ring-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-4 sm:px-5 py-4 border-b border-border">
+                      <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                        <span className="shrink-0 text-base font-semibold text-foreground">
+                          Guarantor {index + 1}
                         </span>
-                      ) : null}
+                        <ChevronRightIcon
+                          className="h-5 w-5 shrink-0 text-muted-foreground group-open:rotate-90"
+                          aria-hidden
+                        />
+                        {subtitle ? (
+                          <span className="min-w-0 truncate text-sm text-muted-foreground">
+                            {subtitle}
+                          </span>
+                        ) : null}
+                      </div>
+                      {removeButton}
                     </div>
-                    {removeButton}
-                  </div>
-                </summary>
-                <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-4">{fields}</div>
-              </details>
-            );
-          })}
-        </div>
+                  </summary>
+                  <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-4">{fields}</div>
+                </details>
+              );
+            })}
+          </div>
+        )}
 
-        {/* Secondary add control — same handler as header; hidden until product wants dashed CTA again. */}
-        <button
-          type="button"
-          className={cn(
-            "hidden w-full rounded-md border border-dashed border-input bg-muted/20 py-3 text-sm font-semibold text-foreground shadow-sm",
-            fieldsLocked ? "opacity-50 pointer-events-none" : "hover:bg-muted/40 cursor-pointer"
-          )}
-          disabled={fieldsLocked}
-          onClick={() => setGuarantors((prev) => [...prev, emptyIndividualGuarantor()])}
-        >
-          + Add another guarantor
-        </button>
+        {inheritGuarantors ? null : (
+          <button
+            type="button"
+            className={cn(
+              "hidden w-full rounded-md border border-dashed border-input bg-muted/20 py-3 text-sm font-semibold text-foreground shadow-sm",
+              fieldsLocked ? "opacity-50 pointer-events-none" : "hover:bg-muted/40 cursor-pointer"
+            )}
+            disabled={fieldsLocked}
+            onClick={() => setGuarantors((prev) => [...prev, emptyIndividualGuarantor()])}
+          >
+            + Add another guarantor
+          </button>
+        )}
       </section>
 
       {/* ===================== DECLARATIONS ===================== */}

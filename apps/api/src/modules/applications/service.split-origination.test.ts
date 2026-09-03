@@ -29,6 +29,7 @@ jest.mock("../../lib/prisma", () => ({
     invoice: { updateMany: jest.fn() },
     applicationRevision: { create: jest.fn() },
     application: { findUnique: jest.fn() },
+    applicationGuarantor: { deleteMany: jest.fn() },
     product: { findUnique: jest.fn() },
   },
 }));
@@ -59,6 +60,7 @@ jest.mock("../paymaster/service", () => ({
 
 import { ApplicationService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
+import { prisma } from "../../lib/prisma";
 
 describe("ApplicationService split origination submit", () => {
   const service = new ApplicationService();
@@ -219,5 +221,35 @@ describe("ApplicationService split origination submit", () => {
     } catch (error) {
       expect((error as AppError).code).not.toBe("FACILITY_FEE_UPFRONT_REQUIRED");
     }
+  });
+
+  it("rejects existing-facility submit when the originating facility has no guarantors", async () => {
+    mockFindById.mockResolvedValue({
+      id: "app-draw",
+      status: "DRAFT",
+      issuer_organization_id: "org_1",
+      financing_type: { split_origination: true },
+      financing_structure: { structure_type: "existing_contract" },
+      contract_id: "con-1",
+      invoices: [{ id: "inv-1" }],
+      contract: {
+        id: "con-1",
+        status: "APPROVED",
+        issuer_organization_id: "org_1",
+        originating_application_id: "origin-app",
+        contract_details: { facility_fee_waived: true },
+      },
+    });
+    (prisma.application.findUnique as jest.Mock).mockResolvedValue({
+      id: "origin-app",
+      display_reference: "APP-FAC-1",
+      financing_type: { product_id: "prod_1" },
+      application_guarantors: [],
+    });
+
+    await expect(service.updateApplicationStatus("app-draw", "SUBMITTED", "user-1")).rejects.toMatchObject({
+      code: "FACILITY_GUARANTORS_REQUIRED",
+      statusCode: 400,
+    } satisfies Partial<AppError>);
   });
 });

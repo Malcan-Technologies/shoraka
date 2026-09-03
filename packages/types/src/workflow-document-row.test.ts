@@ -1,6 +1,9 @@
 import {
+  isPrimarySignedOfferDocument,
+  isSigningPackagePreviewDocument,
   listGeneratedDocumentTypesForContext,
   parseGeneratedDocumentTypeKey,
+  pickPrimarySignedOfferDocument,
   type GeneratedDocumentTypeKey,
 } from "./generated-documents";
 import {
@@ -22,6 +25,9 @@ import {
 } from "./supporting-document-row";
 
 const LO_KEY: GeneratedDocumentTypeKey = "arf_contract_facility_lo";
+const JSG_KEY: GeneratedDocumentTypeKey = "arf_joint_several_guarantee";
+const DOA_KEY: GeneratedDocumentTypeKey = "arf_deed_of_assignment";
+const FA_KEY: GeneratedDocumentTypeKey = "arf_facility_agreement";
 
 describe("generated document catalog", () => {
   it("lists one type for acceptance_documents", () => {
@@ -35,13 +41,76 @@ describe("generated document catalog", () => {
     expect(listGeneratedDocumentTypesForContext("supporting_documents")).toHaveLength(0);
   });
 
-  it("lists no types for guarantor_agreement until configured", () => {
+  it("lists no types for guarantor_agreement (business-details uploads stay separate)", () => {
     expect(listGeneratedDocumentTypesForContext("guarantor_agreement")).toHaveLength(0);
   });
 
-  it("parses the catalog key and rejects unknown keys", () => {
+  it("lists JSG, Deed of Assignment, and Facility Agreement for signing_packages", () => {
+    const types = listGeneratedDocumentTypesForContext("signing_packages");
+    expect(types.map((type) => type.key)).toEqual([JSG_KEY, DOA_KEY, FA_KEY]);
+    expect(types[0]?.label).toContain("Joint and Several Guarantee");
+    expect(types[1]?.label).toContain("Deed of Assignment");
+    expect(types[2]?.label).toContain("Facility Agreement");
+  });
+
+  it("parses catalog keys and rejects unknown keys", () => {
     expect(parseGeneratedDocumentTypeKey("arf_contract_facility_lo")).toBe(LO_KEY);
+    expect(parseGeneratedDocumentTypeKey("arf_joint_several_guarantee")).toBe(JSG_KEY);
+    expect(parseGeneratedDocumentTypeKey("arf_deed_of_assignment")).toBe(DOA_KEY);
+    expect(parseGeneratedDocumentTypeKey("arf_facility_agreement")).toBe(FA_KEY);
     expect(parseGeneratedDocumentTypeKey("arf_contract_facility_loo")).toBeUndefined();
+  });
+
+  it("marks generated signing-package documents as previewable", () => {
+    expect(
+      isSigningPackagePreviewDocument({ key: "deed_of_assignment", source: "TEMPLATE" })
+    ).toBe(true);
+    expect(
+      isSigningPackagePreviewDocument({ key: "guarantor_agreement", source: "TEMPLATE" })
+    ).toBe(true);
+    expect(
+      isSigningPackagePreviewDocument({ key: "facility_agreement", source: "TEMPLATE" })
+    ).toBe(true);
+    expect(
+      isSigningPackagePreviewDocument({ key: "offer_letter", source: "GENERATED_OFFER_LETTER" })
+    ).toBe(true);
+    expect(
+      isSigningPackagePreviewDocument({ key: "board_resolution", source: "ISSUER_UPLOAD" })
+    ).toBe(false);
+  });
+
+  it("prefers a signed Facility Agreement over a legacy Offer Letter", () => {
+    expect(
+      isPrimarySignedOfferDocument({
+        source: "TEMPLATE",
+        template_ref: "facility_agreement",
+        has_signed_pdf: true,
+      })
+    ).toBe(true);
+    expect(
+      isPrimarySignedOfferDocument({
+        source: "GENERATED_OFFER_LETTER",
+        has_signed_pdf: true,
+      })
+    ).toBe(true);
+
+    const picked = pickPrimarySignedOfferDocument([
+      {
+        source: "GENERATED_OFFER_LETTER",
+        signed_s3_key: "s3/legacy.pdf",
+      },
+      {
+        source: "TEMPLATE",
+        template_ref: "facility_agreement",
+        signed_s3_key: "s3/fa.pdf",
+      },
+      {
+        source: "TEMPLATE",
+        template_ref: "guarantor_agreement",
+        signed_s3_key: "s3/jsg.pdf",
+      },
+    ]);
+    expect(picked?.signed_s3_key).toBe("s3/fa.pdf");
   });
 });
 
@@ -135,9 +204,9 @@ describe("guarantor agreement row round-trip", () => {
   it("preserves generated_document_type", () => {
     const serialized = serializeGuarantorAgreementRow({
       name: "Guarantor agreement",
-      generated_document_type: LO_KEY,
+      generated_document_type: JSG_KEY,
     });
     const parsed = parseGuarantorAgreementRow(serialized);
-    expect(parsed.generated_document_type).toBe(LO_KEY);
+    expect(parsed.generated_document_type).toBe(JSG_KEY);
   });
 });

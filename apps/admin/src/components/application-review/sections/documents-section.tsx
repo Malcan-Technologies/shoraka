@@ -134,6 +134,8 @@ export interface DocumentsSectionProps {
    * Live review list intentionally does not show workflow requirement badges.
    */
   supportingDocumentsStepConfig?: Record<string, unknown> | null;
+  /** Drawdown apps: categories inherited from the facility and not re-reviewable here. */
+  facilityLockedCategoryKeys?: string[];
   /**
    * When true, render list/comments only (no Card). Used inside AcceptanceSection’s single card.
    */
@@ -165,6 +167,7 @@ export function DocumentsSection({
   sectionComparison,
   hideSectionComments = false,
   supportingDocumentsStepConfig = null,
+  facilityLockedCategoryKeys = [],
   embedded = false,
   hideDownloadAll = false,
 }: DocumentsSectionProps) {
@@ -255,6 +258,9 @@ export function DocumentsSection({
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
           lockItemPrimaryReviewActions={peerDocumentRejected}
+          facilityLockedCategoryKeys={
+            documentKind === "supporting" ? facilityLockedCategoryKeys : undefined
+          }
         />
       ) : (
         <p className={reviewEmptyStateClass}>

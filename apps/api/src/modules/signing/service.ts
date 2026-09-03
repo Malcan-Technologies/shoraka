@@ -21,12 +21,15 @@ import {
   rollupRecipientStatus,
   rollupEnvelopeStatus,
   normalizeSigningEmail,
-  GUARANTOR_AGREEMENT_TEMPLATE_KEY,
+  SIGNING_PACKAGE_GENERATED_DOCUMENT_TYPES,
+  isSigningPackagePreviewDocument,
+  pickPrimarySignedOfferDocument,
   type AssignmentStatusInput,
   ApplicationStatus,
   ContractStatus,
   InvoiceStatus,
   getOfferAcceptanceFromOfferDetails,
+  getLoAuthorizedPartiesFromAcceptance,
   offerAcceptanceAllowsCreateSigningPackage,
   offerAcceptanceAllowsSendSigningPackage,
   collectAcceptanceDocumentReviewKeys,
@@ -59,10 +62,34 @@ import { buildAdminPeopleList } from "../admin/build-people-list";
 import { assertRequiredAcceptanceDocumentsPresent } from "../applications/supporting-docs-workflow";
 import {
   generateContractOfferLetterBuffer,
-  generateGuarantorAgreementPlaceholderBuffer,
   generateInvoiceOfferLetterBuffer,
+  invoiceOfferLetterKindForContract,
   type OfferLetterSignatory,
 } from "../applications/offer-letter-pdf";
+import { generatedDocumentsService } from "../generated-documents/service";
+import {
+  buildStackedSigningCloudSignsets,
+  countPdfPages,
+} from "../applications/joint-several-guarantee/jsg-signing-signsets";
+import {
+  buildJsgSigningCloudSignsetsFromPdf,
+  JsgSigningLayoutError,
+} from "../applications/joint-several-guarantee/jsg-signing-placement";
+import {
+  buildFaSigningCloudSignsetsFromPdf,
+  FaSigningLayoutError,
+} from "../applications/facility-agreement/fa-signing-placement";
+import {
+  buildDoaSigningCloudSignsetsFromPdf,
+  DoaSigningLayoutError,
+} from "../applications/deed-of-assignment/doa-signing-placement";
+import {
+  buildWetInkPreviewFields,
+  previewFieldsFromSignsets,
+  signerNamesForPlannedDocument,
+  signingDocumentPreviewFilename,
+  stampWetInkSignatureFields,
+} from "./preview-signature-stamp";
 import { applicationService } from "../applications/service";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
@@ -428,6 +455,38 @@ export class SigningService {
     const invoice = application.invoices.find((item) => item.status === InvoiceStatus.OFFER_SENT);
     if (invoice) return { contractId: null, invoiceId: invoice.id };
     throw new AppError(400, "INVALID_STATE", "No pending offer is available for signing.");
+  }
+
+  /** Preview can run after send, so do not require the offer to still be OFFER_SENT. */
+  private resolvePreviewOfferTarget(input: {
+    application: SigningApplicationContext;
+    contractId?: string | null;
+    invoiceId?: string | null;
+  }): { contractId: string | null; invoiceId: string | null } {
+    const { application, contractId, invoiceId } = input;
+    if (contractId && invoiceId) {
+      throw new AppError(400, "VALIDATION_ERROR", "Choose either a facility or invoice offer, not both.");
+    }
+    if (invoiceId) {
+      const invoice = application.invoices.find((item) => item.id === invoiceId);
+      if (!invoice) {
+        throw new AppError(404, "INVOICE_NOT_FOUND", "Invoice not found on this application.");
+      }
+      return { contractId: null, invoiceId };
+    }
+    if (contractId) {
+      if (application.contract_id !== contractId || !application.contract) {
+        throw new AppError(400, "INVALID_STATE", "Facility offer is not available for preview.");
+      }
+      return { contractId, invoiceId: null };
+    }
+    if (application.contract?.id && application.contract.offer_details != null) {
+      return { contractId: application.contract.id, invoiceId: null };
+    }
+    const invoice =
+      application.invoices.find((item) => item.offer_details != null) ?? application.invoices[0];
+    if (invoice) return { contractId: null, invoiceId: invoice.id };
+    throw new AppError(400, "INVALID_STATE", "No offer is available to preview signing documents.");
   }
 
   private async validateAndNormalizeIssuerBindings(
@@ -1043,6 +1102,119 @@ export class SigningService {
   }
 
   /**
+   * Merged unsigned PDF for a signing-package document, with wet-ink signature
+   * boxes drawn where SigningCloud would place CA fields. Does not create an envelope.
+   */
+  async previewSigningDocument(input: {
+    applicationId: string;
+    documentKey: string;
+    userId: string;
+    contractId?: string | null;
+    invoiceId?: string | null;
+  }): Promise<{ buffer: Buffer; filename: string }> {
+    const application = await this.requireApplicationContext(input.applicationId);
+    if (!this.applicationHasOfferSent(application)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "An offer must be sent before previewing signing documents."
+      );
+    }
+    const { contractId, invoiceId } = this.resolvePreviewOfferTarget({
+      application,
+      contractId: input.contractId,
+      invoiceId: input.invoiceId,
+    });
+    if (invoiceId) {
+      const invoice = application.invoices.find((item) => item.id === invoiceId);
+      if (invoice?.contract_id) {
+        throw new AppError(
+          400,
+          "CONTRACT_LINKED_INVOICE_NO_PACKAGE",
+          "Contract-linked invoice offers do not use a signing package."
+        );
+      }
+    }
+
+    const workflow = await this.getProductWorkflowForApplication(application);
+    const packageKind: SigningPackageOfferKind = contractId ? "contract" : "invoice";
+    const template = this.readSigningTemplateFromWorkflow(workflow, packageKind);
+    const document = template.documents.find((item) => item.key === input.documentKey);
+    if (!document || !isSigningPackagePreviewDocument(document)) {
+      throw new AppError(
+        404,
+        "SIGNING_DOCUMENT_NOT_FOUND",
+        "That document is not a generated signing-package preview."
+      );
+    }
+
+    const offerDetails = contractId
+      ? application.contract?.offer_details
+      : application.invoices.find((item) => item.id === invoiceId)?.offer_details;
+    const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
+    const snapshot =
+      acceptance?.authorized_parties ?? getLoAuthorizedPartiesFromAcceptance(acceptance);
+    const bindings = snapshotSignerBindings(snapshot, template.roles);
+    const plan = buildEnvelopePlanFromTemplate(template, bindings);
+    const signerNames = signerNamesForPlannedDocument(plan, document.key);
+    const filename = signingDocumentPreviewFilename(document.name);
+
+    if (document.source === "GENERATED_OFFER_LETTER") {
+      const signatories: OfferLetterSignatory[] = signerNames.map((name) => ({ name }));
+      if (invoiceId) {
+        const invoice = application.invoices.find((item) => item.id === invoiceId);
+        if (!invoice?.offer_details || typeof invoice.offer_details !== "object") {
+          throw new AppError(400, "INVALID_STATE", "Invoice offer details are not available.");
+        }
+        const generated = await generateInvoiceOfferLetterBuffer(
+          invoice.display_reference,
+          invoice.offer_details as Record<string, unknown>,
+          signatories,
+          invoiceOfferLetterKindForContract(invoice.contract_id)
+        );
+        return { buffer: generated.pdfBuffer, filename };
+      }
+      const contract = application.contract;
+      if (!contract?.offer_details || typeof contract.offer_details !== "object") {
+        throw new AppError(400, "INVALID_STATE", "Facility offer details are not available.");
+      }
+      const generated = await generateContractOfferLetterBuffer(
+        contract.display_reference,
+        contract.offer_details as Record<string, unknown>,
+        signatories
+      );
+      return { buffer: generated.pdfBuffer, filename };
+    }
+
+    const typeKey = SIGNING_PACKAGE_GENERATED_DOCUMENT_TYPES[document.key];
+    if (!typeKey) {
+      throw new AppError(
+        422,
+        "SIGNING_DOCUMENT_NOT_SUPPORTED",
+        `Document "${document.name}" is not supported yet.`
+      );
+    }
+
+    const generated = await generatedDocumentsService.generateDocument({
+      applicationId: application.id,
+      typeKey,
+      format: "pdf",
+      userId: input.userId,
+      asAdmin: true,
+      contractId,
+      invoiceId,
+    });
+    const fields = this.usesLayoutDetectedSignatureFields(typeKey)
+      ? previewFieldsFromSignsets(
+          signerNames,
+          await this.signsetsForTemplatePdf(typeKey, generated.buffer, signerNames)
+        )
+      : buildWetInkPreviewFields(signerNames, countPdfPages(generated.buffer));
+    const stamped = await stampWetInkSignatureFields(generated.buffer, fields);
+    return { buffer: stamped, filename };
+  }
+
+  /**
    * Resolve a signed PDF for an envelope document after authz.
    * S3 keys stay server-side — clients pass documentId only.
    */
@@ -1398,7 +1570,9 @@ export class SigningService {
           envelope,
           document,
           docAssignments,
-          recipientById
+          recipientById,
+          actor?.userId ?? envelope.created_by_user_id ?? "",
+          actor?.portal !== ActivityPortal.ISSUER
         );
         unsignedS3Key = materialized.s3Key;
         signsetsByAssignmentId = materialized.signsetsByAssignmentId;
@@ -1612,55 +1786,107 @@ export class SigningService {
     return { s3Key, signsetsByAssignmentId };
   }
 
+  private usesLayoutDetectedSignatureFields(typeKey: string): boolean {
+    return (
+      typeKey === "arf_joint_several_guarantee" ||
+      typeKey === "arf_facility_agreement" ||
+      typeKey === "arf_deed_of_assignment"
+    );
+  }
+
+  private async signsetsForTemplatePdf(
+    typeKey: string,
+    pdfBuffer: Buffer,
+    signerNames: string[]
+  ) {
+    try {
+      if (typeKey === "arf_joint_several_guarantee") {
+        return await buildJsgSigningCloudSignsetsFromPdf(pdfBuffer, signerNames);
+      }
+      if (typeKey === "arf_facility_agreement") {
+        return await buildFaSigningCloudSignsetsFromPdf(pdfBuffer, signerNames);
+      }
+      if (typeKey === "arf_deed_of_assignment") {
+        return await buildDoaSigningCloudSignsetsFromPdf(pdfBuffer, signerNames);
+      }
+      return buildStackedSigningCloudSignsets(signerNames.length, countPdfPages(pdfBuffer));
+    } catch (err) {
+      if (
+        err instanceof JsgSigningLayoutError ||
+        err instanceof FaSigningLayoutError ||
+        err instanceof DoaSigningLayoutError
+      ) {
+        throw new AppError(500, "SIGNING_LAYOUT_ERROR", err.message);
+      }
+      throw err;
+    }
+  }
+
   private async materializeTemplateSigningDocument(
     envelope: SigningEnvelopeWithGraph,
     document: SigningEnvelopeWithGraph["documents"][number],
     docAssignments: SigningEnvelopeWithGraph["assignments"],
-    recipientById: Map<string, SigningEnvelopeWithGraph["recipients"][number]>
+    recipientById: Map<string, SigningEnvelopeWithGraph["recipients"][number]>,
+    createdByUserId: string,
+    asAdmin: boolean
   ): Promise<{ s3Key: string; signsetsByAssignmentId: Map<string, unknown> }> {
     if (document.unsigned_s3_key) {
       return { s3Key: document.unsigned_s3_key, signsetsByAssignmentId: new Map() };
     }
 
-    if (document.template_ref === GUARANTOR_AGREEMENT_TEMPLATE_KEY) {
-      const signatories = this.resolveOfferLetterSignatories(docAssignments, recipientById);
-      if (signatories.length === 0) {
-        throw new AppError(
-          422,
-          "SIGNING_DOCUMENT_NOT_READY",
-          "Guarantor agreement requires at least one signer."
-        );
-      }
-
-      const orderedAssignments = this.orderDocumentAssignments(docAssignments, recipientById);
-      const generated = await generateGuarantorAgreementPlaceholderBuffer(signatories);
-      if (generated.signsets.length !== orderedAssignments.length) {
-        throw new AppError(
-          500,
-          "SIGNING_LAYOUT_ERROR",
-          "Guarantor agreement signature layout does not match signer count."
-        );
-      }
-
-      const signsetsByAssignmentId = new Map<string, unknown>();
-      for (let index = 0; index < orderedAssignments.length; index += 1) {
-        const signset = generated.signsets[index];
-        const { assignment } = orderedAssignments[index];
-        signsetsByAssignmentId.set(assignment.id, signset);
-        await this.repo.setAssignmentSignset(assignment.id, signset);
-      }
-
-      const s3Key = `applications/${envelope.application_id}/signing/${envelope.id}/unsigned/${document.id}.pdf`;
-      await putS3ObjectBuffer({ key: s3Key, body: generated.pdfBuffer, contentType: "application/pdf" });
-      await this.repo.setDocumentUnsignedS3Key(document.id, s3Key);
-      return { s3Key, signsetsByAssignmentId };
+    const typeKey = SIGNING_PACKAGE_GENERATED_DOCUMENT_TYPES[document.template_ref ?? ""];
+    if (!typeKey) {
+      throw new AppError(
+        422,
+        "SIGNING_DOCUMENT_NOT_SUPPORTED",
+        `Document "${document.name}" is not supported yet.`
+      );
     }
 
-    throw new AppError(
-      422,
-      "SIGNING_DOCUMENT_NOT_SUPPORTED",
-      `Document "${document.name}" is not supported yet.`
-    );
+    const orderedAssignments = this.orderDocumentAssignments(docAssignments, recipientById);
+    if (orderedAssignments.length === 0) {
+      throw new AppError(
+        422,
+        "SIGNING_DOCUMENT_NOT_READY",
+        `${document.name} requires at least one signer.`
+      );
+    }
+
+    const generated = await generatedDocumentsService.generateDocument({
+      applicationId: envelope.application_id,
+      typeKey,
+      format: "pdf",
+      userId: createdByUserId,
+      asAdmin,
+      contractId: envelope.contract_id,
+      invoiceId: envelope.invoice_id,
+    });
+    const signerNames = orderedAssignments.map(({ recipient }) => recipient.name);
+    const signsets = await this.signsetsForTemplatePdf(typeKey, generated.buffer, signerNames);
+    if (signsets.length !== orderedAssignments.length) {
+      throw new AppError(
+        500,
+        "SIGNING_LAYOUT_ERROR",
+        `${document.name} signature layout does not match signer count.`
+      );
+    }
+
+    const signsetsByAssignmentId = new Map<string, unknown>();
+    for (let index = 0; index < orderedAssignments.length; index += 1) {
+      const signset = signsets[index];
+      const { assignment } = orderedAssignments[index];
+      signsetsByAssignmentId.set(assignment.id, signset);
+      await this.repo.setAssignmentSignset(assignment.id, signset);
+    }
+
+    const s3Key = `applications/${envelope.application_id}/signing/${envelope.id}/unsigned/${document.id}.pdf`;
+    await putS3ObjectBuffer({
+      key: s3Key,
+      body: generated.buffer,
+      contentType: "application/pdf",
+    });
+    await this.repo.setDocumentUnsignedS3Key(document.id, s3Key);
+    return { s3Key, signsetsByAssignmentId };
   }
 
   private async assertRecipientIdentityComplete(
@@ -2195,9 +2421,7 @@ export class SigningService {
 
   private async finalizeCompletedEnvelopeOffer(envelope: SigningEnvelopeWithGraph): Promise<void> {
     const initiatedByUserId = envelope.created_by_user_id;
-    const signedDocument =
-      envelope.documents.find((document) => document.source === "GENERATED_OFFER_LETTER" && document.signed_s3_key) ??
-      envelope.documents.find((document) => document.signed_s3_key);
+    const signedDocument = pickPrimarySignedOfferDocument(envelope.documents);
     if (!signedDocument?.signed_s3_key || !signedDocument.signed_file_sha256) {
       logger.warn({ envelopeId: envelope.id }, "Skipping offer finalization because no signed document is available");
       return;

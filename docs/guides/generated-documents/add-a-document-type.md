@@ -33,7 +33,7 @@ In `packages/types/src/generated-documents.ts`:
 - `key` — stable slug (never rename after first release)
 - `version: 1` on first ship
 - `label`, `description` — admin dropdown
-- `allowedContexts` — one or more of `acceptance_documents`, `supporting_documents`, `guarantor_agreement`
+- `allowedContexts` — one or more of `acceptance_documents`, `supporting_documents`, `guarantor_agreement` (business-details upload row), `signing_packages`
 - `requires` — e.g. `contract_offer_sent` when offer must be sent first
 
 Update `GeneratedDocumentTypeKey` union when adding the first key of a new slug.
@@ -57,9 +57,11 @@ When changing template or merge map for an **existing** type:
 
 If `allowedContexts` includes a context, the admin **Generated** dropdown appears automatically when the catalog lists types for that context (`workflow-document-row-editor.tsx`).
 
-## 9. Issuer download
+## 9. Issuer download / signing
 
-If the type is used on acceptance rows, issuer download already routes through `download-generated-document.ts` when `generated_document_type` is set. Supporting/guarantor rows use the same step component when configured.
+If the type is used on acceptance or supporting-document rows, issuer download routes through `download-generated-document.ts` when `generated_document_type` is set.
+
+Signing-package types (Facility Agreement, JSG, Deed of Assignment) are not an issuer download. Composition is **Add document → Facility Agreement**, **Guarantor Agreement**, or **Deed of Assignment** on the signing package. Admin send signing materializes the filled PDF and uploads it to SigningCloud.
 
 ## 10. Verify
 

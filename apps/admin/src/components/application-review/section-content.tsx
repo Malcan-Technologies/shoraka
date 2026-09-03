@@ -22,7 +22,12 @@ import type { ReviewTabDescriptor } from "./review-registry";
 import { isSignedContractOfferLetterAvailable } from "./offer-signing-availability";
 import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 import type { SendInvoiceOfferUiPayload } from "@/components/utilisation-fee-lines";
-import { parseItemScopeKey, paymasterIdentityOfferBlockReason, type ReviewItemType } from "@cashsouk/types";
+import {
+  parseItemScopeKey,
+  paymasterIdentityOfferBlockReason,
+  type ReviewItemType,
+  isInheritedFacilityGuarantorReview,
+} from "@cashsouk/types";
 
 function acceptanceHubItemType(itemId: string, itemType?: ReviewItemType): ReviewItemType {
   if (itemType === "authorized_representatives" || itemType === "document" || itemType === "invoice") {
@@ -98,6 +103,18 @@ export type ReviewApplicationView = {
     review_items: { item_type: string; item_id: string; status: string }[];
     product_workflow: unknown[] | null;
     product_version: number | null;
+  } | null;
+  inherited_guarantors?: {
+    source_application_id: string;
+    source_display_reference?: string | null;
+    source_product_id?: string | null;
+    application_guarantors: unknown[];
+  } | null;
+  facility_locked_supporting_categories?: string[];
+  inherited_supporting_documents?: {
+    source_application_id: string;
+    supporting_documents: unknown;
+    review_items: { item_type: string; item_id: string; status: string }[];
   } | null;
   issuer_organization_id?: string;
   issuer_organization?: {
@@ -305,14 +322,22 @@ export function SectionContent({
           hideSectionComments={hideSectionComments}
         />
       );
-    case "business_details":
+    case "business_details": {
+      const structureType = (app.financing_structure as { structure_type?: string } | null | undefined)
+        ?.structure_type;
+      const inheritedGuarantors = app.inherited_guarantors ?? null;
+      const isInheritedGuarantors = isInheritedFacilityGuarantorReview(structureType);
       return (
         <BusinessSection
           applicationId={app.id ?? ""}
           issuerOrganizationId={app.issuer_organization_id ?? app.issuer_organization?.id ?? null}
           issuerOrganization={app.issuer_organization}
           businessDetails={app.business_details}
-          applicationGuarantors={app.application_guarantors}
+          applicationGuarantors={
+            isInheritedGuarantors
+              ? (inheritedGuarantors?.application_guarantors ?? app.application_guarantors)
+              : app.application_guarantors
+          }
           section={section}
           isReviewable={isReviewable}
           approvePending={approveSectionPending}
@@ -323,7 +348,7 @@ export function SectionContent({
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
-          onTriggerGuarantorAml={onTriggerGuarantorAml}
+          onTriggerGuarantorAml={isInheritedGuarantors ? undefined : onTriggerGuarantorAml}
           onViewDocument={onViewDocument}
           onDownloadDocument={onDownloadDocument}
           viewDocumentPending={viewDocumentPending}
@@ -345,8 +370,18 @@ export function SectionContent({
               : undefined
           }
           hideSectionComments={hideSectionComments}
+          guarantorsReviewMode={isInheritedGuarantors ? "inherited" : "live"}
+          inheritedSourceApplication={
+            isInheritedGuarantors && inheritedGuarantors
+              ? {
+                  id: inheritedGuarantors.source_application_id,
+                  productId: inheritedGuarantors.source_product_id ?? null,
+                }
+              : undefined
+          }
         />
       );
+    }
     case "company_details":
       return (
         <CompanySection
@@ -409,6 +444,7 @@ export function SectionContent({
           supportingDocumentsStepConfig={
             sectionComparison ? supportingDocumentsStepConfig ?? null : null
           }
+          facilityLockedCategoryKeys={app.facility_locked_supporting_categories ?? []}
         />
       );
     case "acceptance_documents": {

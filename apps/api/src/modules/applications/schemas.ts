@@ -129,42 +129,72 @@ const guarantorEntrySchema = z.discriminatedUnion("guarantor_type", [
   guarantorCompanySchema,
 ]);
 
-export const businessDetailsDataSchema = z
-  .object({
-    about_your_business: aboutYourBusinessSchema.optional().default({}),
-    why_raising_funds: whyRaisingFundsSchema.optional().default({}),
-    declaration_confirmed: z.boolean(),
-    guarantors: z.array(guarantorEntrySchema).min(1, "At least one guarantor is required"),
-  })
-  .superRefine((data, ctx) => {
-    const w = data.why_raising_funds;
-    if (w?.raising_on_other_p2p === true && w?.same_invoice_used === true) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          "This invoice has already been applied on another P2P platform and cannot be submitted.",
-        path: ["why_raising_funds", "same_invoice_used"],
-      });
-    }
+function refineBusinessDetailsPayload(
+  data: {
+    why_raising_funds?: {
+      raising_on_other_p2p?: boolean;
+      same_invoice_used?: boolean | null;
+    };
+    guarantors: Array<{
+      guarantor_type: "individual" | "company";
+      relationship?: string;
+      relationship_other?: string | null;
+    }>;
+  },
+  ctx: z.RefinementCtx,
+  options: { requireGuarantors: boolean }
+) {
+  const w = data.why_raising_funds;
+  if (w?.raising_on_other_p2p === true && w?.same_invoice_used === true) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "This invoice has already been applied on another P2P platform and cannot be submitted.",
+      path: ["why_raising_funds", "same_invoice_used"],
+    });
+  }
 
-    // Guarantor relationship validation.
-    for (let i = 0; i < data.guarantors.length; i++) {
-      const g = data.guarantors[i];
-      if (g.guarantor_type === "individual") {
-        const relationship = g.relationship;
-        if (relationship === "others") {
-          const other = typeof g.relationship_other === "string" ? g.relationship_other : "";
-          if (!other.trim()) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: "Please specify how this guarantor is related",
-              path: ["guarantors", i, "relationship_other"],
-            });
-          }
+  if (options.requireGuarantors && data.guarantors.length < 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "At least one guarantor is required",
+      path: ["guarantors"],
+    });
+  }
+
+  for (let i = 0; i < data.guarantors.length; i++) {
+    const g = data.guarantors[i];
+    if (g.guarantor_type === "individual") {
+      const relationship = g.relationship;
+      if (relationship === "others") {
+        const other = typeof g.relationship_other === "string" ? g.relationship_other : "";
+        if (!other.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Please specify how this guarantor is related",
+            path: ["guarantors", i, "relationship_other"],
+          });
         }
       }
     }
-  });
+  }
+}
+
+const businessDetailsObjectSchema = z.object({
+  about_your_business: aboutYourBusinessSchema.optional().default({}),
+  why_raising_funds: whyRaisingFundsSchema.optional().default({}),
+  declaration_confirmed: z.boolean(),
+  guarantors: z.array(guarantorEntrySchema).optional().default([]),
+});
+
+export const businessDetailsDataSchema = businessDetailsObjectSchema.superRefine((data, ctx) =>
+  refineBusinessDetailsPayload(data, ctx, { requireGuarantors: true })
+);
+
+/** Drawdowns inherit facility guarantors; fundraising fields are still collected. */
+export const businessDetailsInheritedGuarantorsDataSchema = businessDetailsObjectSchema.superRefine(
+  (data, ctx) => refineBusinessDetailsPayload(data, ctx, { requireGuarantors: false })
+);
 
 const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
 

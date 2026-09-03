@@ -1033,13 +1033,20 @@ export function OfferReviewPanel({
         setIsSavingPartyDraft(false);
       }
     }
+    // Unpin and set the viewed step here. After the first Continue, peopleStepConfirmed
+    // is already true so currentSigningStepId does not change — the auto-advance effect
+    // would not run if the user came back from documents and Continue'd again.
     viewStepPinnedRef.current = false;
     setPeopleStepConfirmed(true);
+    if (hasPostDocs) {
+      setViewedStepId("documents");
+    }
   }, [
     apiClient,
     applicationId,
     guarantorDrafts,
     guarantorRows,
+    hasPostDocs,
     invalidateOfferAcceptanceQueries,
     issuerDirectors,
     issuerRepMatchKeys,

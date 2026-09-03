@@ -19,6 +19,8 @@ import {
   parsePositiveRmAmount,
   parseSigningPackagesConfig,
   readInvoiceSubLimitPerInvoiceRmFromWorkflow,
+  FACILITY_LOCKED_CATEGORIES_KEY,
+  SUPPORTING_DOC_CATEGORY_SETTINGS_KEY,
   workflowAcceptanceDocumentsIncludeGeneratedType,
   workflowUsesOfferAcceptanceFlow,
 } from "@cashsouk/types";
@@ -217,7 +219,13 @@ export function validateSupportingDocumentsConfig(workflow: unknown[]): void {
     const config = (step as { config?: Record<string, unknown> }).config;
     if (!config || typeof config !== "object") return;
     for (const [key, value] of Object.entries(config)) {
-      if (key === "enabled_categories") continue;
+      if (
+        key === "enabled_categories" ||
+        key === FACILITY_LOCKED_CATEGORIES_KEY ||
+        key === SUPPORTING_DOC_CATEGORY_SETTINGS_KEY
+      ) {
+        continue;
+      }
       if (!Array.isArray(value)) continue;
       for (let i = 0; i < value.length; i++) {
         const row = value[i];

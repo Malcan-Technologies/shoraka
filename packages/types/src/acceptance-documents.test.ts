@@ -1,4 +1,6 @@
 import {
+  ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY,
+  acceptanceDocumentCategoryEntries,
   collectAcceptanceDocumentReviewKeys,
   resolveNotePublishAcceptanceReview,
 } from "./acceptance-documents";
@@ -28,6 +30,25 @@ const uploadedDocs = {
     },
   ],
 };
+
+describe("acceptanceDocumentCategoryEntries", () => {
+  it("reads the flat acceptance list used by Review Offer", () => {
+    const rows = [{ name: "Board Resolution", required: true }];
+    expect(
+      acceptanceDocumentCategoryEntries({
+        [ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY]: rows,
+        legal_docs: [{ name: "ignored supporting category" }],
+      })
+    ).toEqual([[ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY, rows]]);
+  });
+
+  it("returns nothing when the list is missing or empty", () => {
+    expect(acceptanceDocumentCategoryEntries({})).toEqual([]);
+    expect(
+      acceptanceDocumentCategoryEntries({ [ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY]: [] })
+    ).toEqual([]);
+  });
+});
 
 describe("resolveNotePublishAcceptanceReview", () => {
   it("uses source-application uploads when present", () => {

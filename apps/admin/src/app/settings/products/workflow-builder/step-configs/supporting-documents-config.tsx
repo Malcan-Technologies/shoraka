@@ -18,7 +18,13 @@ import {
   WorkflowDocumentRowEditor,
   type WorkflowDocumentRowShape,
 } from "./workflow-document-row-editor";
-import { serializeWorkflowDocumentRow } from "@cashsouk/types";
+import {
+  FACILITY_LOCKED_CATEGORIES_KEY,
+  parseFacilityLockedCategories,
+  serializeFacilityLockedCategorySettings,
+  serializeWorkflowDocumentRow,
+  SUPPORTING_DOC_CATEGORY_SETTINGS_KEY,
+} from "@cashsouk/types";
 
 const CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
 const CATEGORY_LABELS: Record<(typeof CATEGORY_KEYS)[number], string> = {
@@ -95,26 +101,42 @@ export function SupportingDocumentsConfig({
   const [enabledCategories, setEnabledCategories] = React.useState<CategoryKey[]>(() =>
     getEnabledCategories(config)
   );
+  const [facilityLockedCategories, setFacilityLockedCategories] = React.useState<CategoryKey[]>(() =>
+    parseFacilityLockedCategories(config) as CategoryKey[]
+  );
   const [pendingFiles, setPendingFiles] = React.useState<Record<string, File>>({});
 
   React.useEffect(() => {
     setLists(getConfig(config));
     setEnabledCategories(getEnabledCategories(config));
+    setFacilityLockedCategories(parseFacilityLockedCategories(config) as CategoryKey[]);
   }, [config]);
 
   const persist = React.useCallback(
-    (nextLists: Record<CategoryKey, SupportingDocItemShape[]>, nextEnabled?: CategoryKey[]) => {
+    (
+      nextLists: Record<CategoryKey, SupportingDocItemShape[]>,
+      nextEnabled?: CategoryKey[],
+      nextLocked?: CategoryKey[]
+    ) => {
       const payload: Record<string, unknown> = { ...base };
       delete payload[ENABLED_CATEGORIES_KEY];
       const enabled = nextEnabled ?? enabledCategories;
+      const locked = (nextLocked ?? facilityLockedCategories).filter((key) => enabled.includes(key));
       CATEGORY_KEYS.forEach((key) => {
         if (enabled.includes(key)) {
           payload[key] = nextLists[key].map((row) => serializeWorkflowDocumentRow(row));
         } else delete payload[key];
       });
+      delete payload[FACILITY_LOCKED_CATEGORIES_KEY];
+      const settings = serializeFacilityLockedCategorySettings(locked);
+      if (settings) {
+        payload[SUPPORTING_DOC_CATEGORY_SETTINGS_KEY] = settings;
+      } else {
+        delete payload[SUPPORTING_DOC_CATEGORY_SETTINGS_KEY];
+      }
       onChange(payload);
     },
-    [base, onChange, enabledCategories]
+    [base, onChange, enabledCategories, facilityLockedCategories]
   );
 
   const updateCategory = (key: CategoryKey, items: SupportingDocItemShape[]) => {
@@ -143,10 +165,22 @@ export function SupportingDocumentsConfig({
 
   const removeCategory = (key: CategoryKey) => {
     const nextEnabled = enabledCategories.filter((k) => k !== key);
+    const nextLocked = facilityLockedCategories.filter((k) => k !== key);
     setEnabledCategories(nextEnabled);
+    setFacilityLockedCategories(nextLocked);
     const nextLists = { ...lists, [key]: [] };
     setLists(nextLists);
-    persist(nextLists, nextEnabled);
+    persist(nextLists, nextEnabled, nextLocked);
+  };
+
+  const setCategoryFacilityLocked = (key: CategoryKey, locked: boolean) => {
+    const nextLocked = locked
+      ? facilityLockedCategories.includes(key)
+        ? facilityLockedCategories
+        : [...facilityLockedCategories, key]
+      : facilityLockedCategories.filter((k) => k !== key);
+    setFacilityLockedCategories(nextLocked);
+    persist(lists, enabledCategories, nextLocked);
   };
 
   const addDoc = (key: CategoryKey) => {
@@ -244,6 +278,8 @@ export function SupportingDocumentsConfig({
               onTemplateSelect={(index, e) => handleTemplateSelect(key, index, e)}
               onTemplateRemove={(index) => removeTemplate(key, index)}
               onRemoveCategory={() => removeCategory(key)}
+              facilityLocked={facilityLockedCategories.includes(key)}
+              onFacilityLockedChange={(locked) => setCategoryFacilityLocked(key, locked)}
               isUploadingTemplate={false}
             />
           ))}
@@ -265,6 +301,8 @@ function CategorySection({
   onTemplateSelect,
   onTemplateRemove,
   onRemoveCategory,
+  facilityLocked,
+  onFacilityLockedChange,
   isUploadingTemplate,
 }: {
   categoryKey: CategoryKey;
@@ -278,6 +316,8 @@ function CategorySection({
   onTemplateSelect: (index: number, e: React.ChangeEvent<HTMLInputElement>) => void;
   onTemplateRemove: (index: number) => void;
   onRemoveCategory: () => void;
+  facilityLocked: boolean;
+  onFacilityLockedChange: (locked: boolean) => void;
   isUploadingTemplate: boolean;
 }) {
   return (
@@ -302,6 +342,20 @@ function CategorySection({
           </div>
         </div>
         <div className={SECTION_HEADER_DIVIDER_CLASS} />
+        <label className="mt-3 flex cursor-pointer select-none items-start gap-2 text-sm text-foreground">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-primary"
+            checked={facilityLocked}
+            onChange={(e) => onFacilityLockedChange(e.target.checked)}
+          />
+          <span>
+            Lock at facility
+            <span className="mt-0.5 block text-meta font-normal text-muted-foreground">
+              Approved files carry over to drawdowns and cannot be changed.
+            </span>
+          </span>
+        </label>
       </div>
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground leading-6">No documents in this category yet.</p>

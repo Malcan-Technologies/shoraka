@@ -89,6 +89,8 @@ describe("renderFacilityLoDocx", () => {
     expect(plain).toContain("{#corporate_guarantor_pages}");
     expect(plain).toContain("{#finance_documents_guarantors}");
     expect(plain).toContain("{left_name}");
+    expect(plain).toContain("{left_nric}");
+    expect(plain).toContain("{nric}");
     expect(xml).not.toContain("{left}");
     expect(xml).not.toContain("{right}");
     expect(xml).not.toContain("RM{financing_limit_rm}");
@@ -101,10 +103,16 @@ describe("renderFacilityLoDocx", () => {
     const repPara = paragraphContaining(xml, "{rep_line}");
     expect(repPara).toContain('<w:numId w:val="4"/>');
     expect(repPara).toContain('<w:ilvl w:val="1"/>');
-    expect(emptyParagraphsAfterLast(xml, "{company_ssm}", "{#signatory_rows}")).toBe(5);
+    expect(emptyParagraphsAfterLast(xml, "{company_ssm}", "{#signatory_rows}")).toBe(3);
     expect(emptyParagraphsBetween(xml, "Date: ______________________", SIG_LINE)).toBe(2);
+    expect(paragraphContaining(xml, "{#signatory_rows}")).toContain(SIG_LINE);
+    expect(xml).toContain("<w:cantSplit/>");
+    expect(paragraphContaining(xml, "{/signatory_rows}")).toContain("Designation :");
+    expect(paragraphContaining(xml, "{/signatory_rows}")).toContain("{/show_right}");
     expect(xml).toContain('w:val="yellow"');
     expect(runContaining(xml, "{issuer_name}")).toContain('w:val="yellow"');
+    expect(runContaining(xml, "{left_nric}")).toContain('w:val="yellow"');
+    expect(runContaining(xml, "{nric}")).toContain('w:val="yellow"');
   });
 
   it("renders a non-empty docx zip with substituted values and a Part A tick", () => {
@@ -119,6 +127,7 @@ describe("renderFacilityLoDocx", () => {
     expect(xml).toContain("RM 1,000,000.00");
     expect(runContaining(xml, "RENDERED_ISSUER_NAME_XYZ")).toContain('w:val="yellow"');
     expect(runContaining(xml, "Ali Bin Abu")).toContain('w:val="yellow"');
+    expect(runContaining(xml, "900101145678")).toContain('w:val="yellow"');
   });
 
   it("lists individuals and nested corporate representatives in Finance Documents order", () => {
@@ -171,6 +180,9 @@ describe("renderFacilityLoDocx", () => {
     expect(count(xml, "ACKNOWLEDGEMENT AND CONSENT BY GUARANTORS")).toBe(3);
     expect(count(xml, SIG_LINE)).toBe(3);
     expect(count(xml, 'w:type="page"')).toBe(TEMPLATE_PAGE_BREAKS + 2);
+    expect(text).toContain("NRIC : 900101145678");
+    expect(text).toContain("NRIC : 880202085432");
+    expect(text).toContain("NRIC : 770303123456");
     expect(xml).not.toContain("For and on behalf of HOLDCO");
   });
 
@@ -198,10 +210,50 @@ describe("renderFacilityLoDocx", () => {
     expect(text).toContain("111111-X");
     expect(count(xml, SIG_LINE)).toBe(2);
     expect(count(xml, 'w:type="page"')).toBe(TEMPLATE_PAGE_BREAKS);
+    expect(text).toContain("NRIC : 880101015555");
+    expect(text).toContain("NRIC : 770202025555");
     expect(xml).not.toContain("{left_name}");
     expect(xml).not.toContain("{right_name}");
+    expect(xml).not.toContain("{left_nric}");
+    expect(xml).not.toContain("{right_nric}");
     expect(xml).not.toContain("{left}");
     expect(xml).not.toContain("{right}");
+  });
+
+  it("keeps paired corporate signature boxes without leftover loop paragraphs", () => {
+    const data = createFacilityLoFixture();
+    data.guarantors_individual = [];
+    data.finance_documents_guarantors = [];
+    data.guarantors_corporate = [
+      {
+        name: "HoldCo Four Sig Sdn Bhd",
+        ssm: "111111-X",
+        signatories: [
+          { name: "Aini", nric: "", capacity: "director" },
+          { name: "Bala", nric: "", capacity: "director" },
+          { name: "Chen", nric: "", capacity: "director" },
+          { name: "Devi", nric: "", capacity: "director" },
+        ],
+      },
+    ];
+    const xml = renderedXml(data);
+    const designationAt = xml.indexOf("Designation :");
+    const tblStart = xml.lastIndexOf("<w:tbl", designationAt);
+    const tblEnd = xml.indexOf("</w:tbl>", designationAt);
+    const tbl = xml.slice(tblStart, tblEnd + "</w:tbl>".length);
+    const cells = tbl.match(/<w:tc[\s\S]*?<\/w:tc>/g) ?? [];
+    expect(cells).toHaveLength(4);
+    for (const cell of cells) {
+      const paras = cell.match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? [];
+      const texts = paras.map((p) =>
+        [...p.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g)].map((m) => m[1] ?? "").join("")
+      );
+      expect(texts).toHaveLength(7);
+      expect(texts.slice(0, 3).every((text) => text.length === 0)).toBe(true);
+      expect(texts[3]).toBe(SIG_LINE);
+      expect(texts[5]).toBe("NRIC : [INSERT]");
+      expect(texts.slice(3).every((text) => text.length > 0)).toBe(true);
+    }
   });
 
   it("puts the signature line before the printed signatory name", () => {

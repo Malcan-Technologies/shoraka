@@ -153,24 +153,38 @@ function pageBreakPara(): string {
   return `<w:p><w:pPr><w:spacing w:line="360" w:lineRule="auto"/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>`;
 }
 
-function signatureBoxParas(nameTag: string): string {
+function signatureBoxParas(
+  nameTag: string,
+  nricTag: string,
+  opts?: { linePrefix?: string; designationSuffix?: string }
+): string {
   return [
-    makePara("______________________________"),
+    makePara(`${opts?.linePrefix ?? ""}______________________________`),
     makePara(nameTag),
-    makePara("NRIC :"),
-    makePara("Designation :"),
+    makePara(`NRIC : ${nricTag}`),
+    makePara(`Designation :${opts?.designationSuffix ?? ""}`),
   ].join("");
 }
 
+/** Blank lines above each corporate signature line, same in both cells so columns stay aligned. */
+const CORPORATE_SIGNATURE_BLANK_PARAS = 3;
+
 function corporateSignatoryTable(): string {
   const tcPr = `<w:tcPr><w:tcW w:w="4675" w:type="dxa"/><w:tcBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/></w:tcBorders></w:tcPr>`;
+  const blanks = emptyParas(CORPORATE_SIGNATURE_BLANK_PARAS);
   return [
     `<w:tbl>`,
     `<w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="0" w:type="auto"/><w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr>`,
     `<w:tblGrid><w:gridCol w:w="4513"/><w:gridCol w:w="4513"/></w:tblGrid>`,
     `<w:tr>`,
-    `<w:tc>${tcPr}${makePara("{#signatory_rows}")}${signatureBoxParas("{left_name}")}</w:tc>`,
-    `<w:tc>${tcPr}${makePara("{#show_right}")}${signatureBoxParas("{right_name}")}${makePara("{/show_right}")}${makePara("{/signatory_rows}")}</w:tc>`,
+    `<w:trPr><w:cantSplit/></w:trPr>`,
+    // Row-loop tags must share a content paragraph. Own-paragraph tags survive
+    // table-row loops as empty lines and stagger the two columns.
+    `<w:tc>${tcPr}${blanks}${signatureBoxParas("{left_name}", "{left_nric}", { linePrefix: "{#signatory_rows}" })}</w:tc>`,
+    `<w:tc>${tcPr}${blanks}${signatureBoxParas("{right_name}", "{right_nric}", {
+      linePrefix: "{#show_right}",
+      designationSuffix: "{/show_right}{/signatory_rows}",
+    })}</w:tc>`,
     `</w:tr>`,
     `</w:tbl>`,
   ].join("");
@@ -188,7 +202,7 @@ function acknowledgementXml(): string {
     makePara(AVOIDANCE),
     makePara("Date: ______________________"),
     emptyParas(2),
-    ...[signatureBoxParas("{name}")],
+    ...[signatureBoxParas("{name}", "{nric}")],
     makePara("{@page_break}"),
     makePara("{/guarantors_individual}"),
     makePara("{/has_individual_guarantors}"),
@@ -203,7 +217,6 @@ function acknowledgementXml(): string {
     emptyParas(1),
     makePara("For and on behalf of {company_name}"),
     makePara("{company_ssm}"),
-    emptyParas(4),
     corporateSignatoryTable(),
     makePara("{@page_break}"),
     makePara("{/corporate_guarantor_pages}"),
@@ -519,7 +532,10 @@ function requiredTagsPresent(xml: string): string[] {
     "{company_ssm}",
     "{#signatory_rows}",
     "{left_name}",
+    "{left_nric}",
     "{right_name}",
+    "{right_nric}",
+    "{nric}",
     "{@page_break}",
   ];
   return required.filter((tag) => !xml.includes(tag));

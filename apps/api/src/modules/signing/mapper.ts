@@ -40,6 +40,7 @@ function mapDocument(doc: SigningDocument): SigningDocumentDto {
     status: doc.status,
     has_signed_pdf: Boolean(doc.signed_s3_key?.trim()),
     supporting_doc_step_key: readSupportingDocStepKey(doc.metadata),
+    template_ref: doc.template_ref ?? null,
   };
 }
 

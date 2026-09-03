@@ -142,7 +142,7 @@ Key behavior:
 - The edit wizard reads the product workflow and applies `enforceDeclarationsLastAndDropReview`.
 - The legacy `review_and_submit` step is dropped from visible workflow handling.
 - `declarations` is forced to the end.
-- If the selected financing structure is `existing_contract`, `contract_details` is filtered out of the visible workflow.
+- If the selected financing structure is `existing_contract`, `contract_details` is filtered out of the visible workflow. Guarantors are inherited from the originating facility application and are not collected again.
 - `last_completed_step` controls how far forward the issuer can navigate.
 - `PATCH /v1/applications/:id/step` saves each step by `stepNumber`, `stepId`, and payload.
 
@@ -163,7 +163,7 @@ Typical step sequence:
 Newly created applications stamp `split_origination: true`. The issuer chooses a goal, not an internal structure label:
 
 - `new_contract` — set up a new facility only. Invoice details are omitted. After approval, finance an invoice from the facility.
-- `existing_contract` — finance one invoice against an approved facility the issuer owns. Contract step is skipped.
+- `existing_contract` — finance one invoice against an approved facility the issuer owns. Contract step is skipped. Guarantors are inherited from the originating facility application.
 - `invoice_only` — finance one invoice without a facility.
 
 Applications without the marker keep the historical combined facility-and-invoice `new_contract` layout.
@@ -225,6 +225,7 @@ Review section policy:
 - Contract review is gated by financial, company, business, and documents approval.
 - Invoice review is gated by financial, company, business, documents, and contract/customer approval.
 - Existing-contract applications treat `contract_details` as approved in the admin UI because the contract facility was approved previously.
+- Existing-contract drawdowns inherit guarantors from the originating facility application (read-only on Business & Guarantor Details; AML/CTOS actions stay on the originating application).
 - Final application success is `COMPLETED` (there is no application `APPROVED` status). Admin cannot manually approve an application; stage sync and offer/signing flows set stage and terminal statuses.
 
 Review action behavior:

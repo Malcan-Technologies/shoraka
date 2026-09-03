@@ -76,6 +76,16 @@ export function isInheritedContractAcceptanceReview(
 }
 
 /**
+ * Drawdowns on an approved facility inherit guarantors from the originating
+ * facility application instead of collecting a second, possibly conflicting set.
+ */
+export function isInheritedFacilityGuarantorReview(
+  structureType?: string | null | undefined
+): boolean {
+  return structureType === "existing_contract";
+}
+
+/**
  * Admin Acceptance tab visibility (live ceremony or inherited read-only mirror).
  * Pass `workflowShowsAcceptanceReviewSection(workflow)` so signing-only products still get the tab.
  */

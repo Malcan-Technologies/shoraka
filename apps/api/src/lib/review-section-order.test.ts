@@ -9,6 +9,7 @@ import {
   applicationPrimaryOfferUsesContractAcceptance,
   shouldShowAcceptanceDocumentsReviewSection,
   isInheritedContractAcceptanceReview,
+  isInheritedFacilityGuarantorReview,
   workflowShowsAcceptanceReviewSection,
 } from "@cashsouk/types";
 
@@ -107,6 +108,12 @@ describe("acceptance visibility helpers", () => {
   it("flags existing_contract acceptance as inherited review", () => {
     expect(isInheritedContractAcceptanceReview("existing_contract")).toBe(true);
     expect(isInheritedContractAcceptanceReview("new_contract")).toBe(false);
+  });
+
+  it("flags existing_contract drawdowns as inheriting facility guarantors", () => {
+    expect(isInheritedFacilityGuarantorReview("existing_contract")).toBe(true);
+    expect(isInheritedFacilityGuarantorReview("new_contract")).toBe(false);
+    expect(isInheritedFacilityGuarantorReview("invoice_only")).toBe(false);
   });
 });
 

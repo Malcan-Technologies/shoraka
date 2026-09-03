@@ -108,7 +108,7 @@ Signing packages are **always required** for offer types that need an envelope �
 
 Every signer is an external party emailed an opaque link. For envelope paths, CashSouk sends the package from the admin Acceptance tab after approving authorised representatives. The issuer **Review offer** modal is the tracking surface once links are sent (progress and reminders). Acceptance documents (e.g. Board Resolution) are uploaded in Step 1.
 
-**Product snapshot:** signing package documents and acceptance-document gates come from the application's frozen product version (`application.product_version` within the product `base_id` family), not the latest live catalog row. Acceptance documents are configured on the financing-type step as `acceptance_documents`. Void + recreate rebuilds from that same frozen workflow and does not pick up later product edits. Guarantor Agreement appears only when that frozen signing template includes it (no silent auto-inject). Legacy dual `{ contract, invoice }` under `signing_packages` and flat `signing_template` are migrated in-memory to a single package until the product is re-saved.
+**Product snapshot:** signing package documents and acceptance-document gates come from the application's frozen product version (`application.product_version` within the product `base_id` family), not the latest live catalog row. Acceptance documents are configured on the financing-type step as `acceptance_documents`. Void + recreate rebuilds from that same frozen workflow and does not pick up later product edits. Facility Agreement replaces the e-sign Offer Letter on new packages (issuer CA fields only). Guarantor Agreement appears only when that frozen signing template includes it (no silent auto-inject); send then fills the Joint and Several Guarantee (JSG) PDF for CA signing. Legacy dual `{ contract, invoice }` under `signing_packages` and flat `signing_template` are migrated in-memory to a single package until the product is re-saved.
 
 Signers complete the flow at `/signing/external/[token]`:
 
@@ -124,7 +124,7 @@ Signers complete the flow at `/signing/external/[token]`:
 
 **Status source of truth:** our DB **assignment** statuses (not document status). Document stays `PENDING` until every required signer on that document is `SIGNED`. Updated from SigningCloud Detail (`signstate`: 0 pending / 1 signed / 2 rejected) on return, revisit, Refresh, and webhook. Webhook alone is not required for progress.
 
-When the envelope completes, rollup + signed PDF storage trigger offer auto-accept (`contract` / `invoice` → `APPROVED`). Signed offer letters are stored on the envelope document (`signed_s3_key`) and downloaded via:
+When the envelope completes, rollup + signed PDF storage trigger offer auto-accept (`contract` / `invoice` → `APPROVED`). The primary signed artefact is the Facility Agreement (legacy envelopes still use the PDFKit Offer Letter). Signed PDFs are stored on the envelope document (`signed_s3_key`) and downloaded via:
 
 - Issuer: `GET /v1/applications/:id/offers/contracts/signed-letter` (or invoice variant)
 - Admin: `GET /v1/admin/applications/:id/offers/contracts/signed-letter` (or invoice variant)

@@ -1,4 +1,11 @@
-import { acceptanceDocumentsReady, getStepKeyFromStepId } from "@cashsouk/types";
+import {
+  acceptanceDocumentsReady,
+  FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE,
+  getFacilityLockedCategoriesFromWorkflow,
+  getStepKeyFromStepId,
+  SUPPORTING_DOC_CATEGORY_LABELS,
+  supportingDocumentCategoryEntries,
+} from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { getFileExtension } from "../../lib/s3/client";
 
@@ -74,6 +81,18 @@ export function getSupportingDocAllowedTypesFromProductWorkflow(
   throw new AppError(400, "VALIDATION_ERROR", "Supporting documents are not configured for this product");
 }
 
+export function assertSupportingDocCategoryNotFacilityLocked(
+  workflow: unknown,
+  structureType: string | null,
+  categoryKey: string
+): void {
+  if (structureType !== "existing_contract") return;
+  const locked: readonly string[] = getFacilityLockedCategoriesFromWorkflow(workflow);
+  if (locked.includes(categoryKey)) {
+    throw new AppError(403, "EDIT_NOT_ALLOWED", FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE);
+  }
+}
+
 function supportingDocumentRowHasUploadedFile(doc: unknown): boolean {
   if (!doc || typeof doc !== "object") return false;
   const o = doc as Record<string, unknown>;
@@ -116,11 +135,12 @@ function findApplicationSupportingDocument(appDocs: unknown, workflowDocumentInd
 
 /**
  * On submit/resubmit: each required supporting-document workflow row must have at least one uploaded file (s3_key).
- * Category order matches issuer: Object.entries(config), skipping enabled_categories and non-arrays.
+ * Category order matches issuer: known supporting-document keys only.
  */
 export function assertRequiredSupportingDocumentsPresent(
   workflow: unknown,
-  applicationSupportingDocuments: unknown
+  applicationSupportingDocuments: unknown,
+  options?: { skipCategoryKeys?: readonly string[] }
 ): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
 
@@ -134,15 +154,25 @@ export function assertRequiredSupportingDocumentsPresent(
   }
   if (!config) return;
 
-  const groups = Object.entries(config).filter(
-    ([key, value]) => key !== "enabled_categories" && Array.isArray(value)
+  const skip = new Set(options?.skipCategoryKeys ?? []);
+  const groups = supportingDocumentCategoryEntries(config);
+  const appCategories = unwrapSupportingDocumentCategoriesFromApplication(
+    applicationSupportingDocuments
   );
-  const appCategories = unwrapSupportingDocumentCategoriesFromApplication(applicationSupportingDocuments);
 
   for (let catIndex = 0; catIndex < groups.length; catIndex++) {
-    const [, docs] = groups[catIndex];
+    const [key, docs] = groups[catIndex];
+    if (skip.has(key)) continue;
     const rows = docs as unknown[];
-    const appCat = appCategories[catIndex] as Record<string, unknown> | undefined;
+    const expectedName = SUPPORTING_DOC_CATEGORY_LABELS[key];
+    const appCat =
+      (appCategories.find(
+        (cat) =>
+          cat &&
+          typeof cat === "object" &&
+          String((cat as Record<string, unknown>).name ?? "") === expectedName
+      ) as Record<string, unknown> | undefined) ??
+      (appCategories[catIndex] as Record<string, unknown> | undefined);
     const appDocs = appCat?.documents;
     for (let docIndex = 0; docIndex < rows.length; docIndex++) {
       const row = rows[docIndex];
