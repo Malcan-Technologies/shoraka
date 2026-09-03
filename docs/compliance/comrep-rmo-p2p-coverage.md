@@ -19,7 +19,7 @@ Every row includes the caveats that matter when building the export, because sev
 
 | Report | Frequency | Coverage today |
 |---|---|---|
-| RMO Information Report | Annual | **Low.** Only user statistics and parts of the fee schedule. The report is about the operator company, which the platform does not model. |
+| RMO Information Report | Annual | **Collection is in place** for `[01000]`–`[05000]`, `[10000]`, `[11000]` on Admin → Shoraka → Profile. User statistics and fees remain derivable/partial. XBRL export is not built. |
 | RMO - P2P Report | Monthly | **Moderate to good.** Campaign identity, amounts, dates, rates, risk grading, settlement, and investor identity are well covered. Classification enums and issuer financial granularity are the weak points. |
 | RMO - P2P Position Report | Monthly | **Low to moderate.** The investor deposit/withdrawal tab is well covered by the wallet ledger; the outstanding and repayment-trend tabs need a position snapshot that does not exist yet. |
 
@@ -28,6 +28,20 @@ The platform's strongest area is **money movement** — the ledger, settlement, 
 ---
 
 ## 1. RMO Information Report (Annual)
+
+Operator company fields are stored on `OperatorProfile` and child models, edited at Admin → Shoraka → Profile.
+
+| Tab | Model | Notes |
+|---|---|---|
+| `[01000]` | `OperatorProfile` | Name, ROC, trustee ROC, responsible person name/phone. Declaration remains export-time. |
+| `[02000]` | `OperatorShareCapital` | Ordinary / Preference / Others units+RM; explicit `total_paid_up_capital` and `total_llp`. No “Others specify” row on this annual tab. |
+| `[03000]` | `OperatorShareholder` | `holder_type` (Shareholder / Member / Beneficial Owner) separate from `entity_type` (Individual / Corporate). |
+| `[04000]` | `OperatorOfficer` | Board vs Management, Responsible Person, SC designations. |
+| `[05000]` | `OperatorAdvisor` | Eight SC advisor types. |
+| `[10000]` | `OperatorInterest` | Units and % only. |
+| `[11000]` | `OperatorFinancialStatement` | Explicit `total_revenue` and `total_cost` plus breakdowns. |
+
+Issuer/investor **master profile** (monthly `[02000]`/`[05000]`/`[06000]`/`[07000]`/`[09000]`/`[09100]` completeness) lives on `IssuerOrganization` / `InvestorOrganization` plus `organization_party_profiles`. CashSouk DB is master; CTOS/RegTank seed once; later external values never overwrite unless Admin adopts them.
 
 ### [06000] Registered Users — pp. 17–19
 

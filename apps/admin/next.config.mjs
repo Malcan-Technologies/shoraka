@@ -54,6 +54,11 @@ const nextConfig = {
         destination: "/investors/:id",
         permanent: true,
       },
+      {
+        source: "/settings/rmo-profile",
+        destination: "/shoraka/profile",
+        permanent: true,
+      },
     ];
   },
   async headers() {

@@ -132,6 +132,12 @@ import {
   type AdditionalFeeLine,
   type InvoiceOfferFeeScheduleWriteMode,
   type ReviewItemType,
+  type ScCompanyCategory,
+  type ScSustainabilityCategory,
+  isScCompanyCategory,
+  isScSustainabilityCategory,
+  parseInvoiceOfferCompanyCategory,
+  parseInvoiceOfferSustainabilityCategory,
   canonicalDownloadFilenameToken,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
@@ -151,6 +157,7 @@ import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-e
 import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/extract-government-id";
 import { resolveCorporatePersonMergeKey } from "../regtank/helpers/corporate-person-merge-key";
 import { buildAdminPeopleList, buildDirectorShareholderPeopleList } from "./build-people-list";
+import { buildDirectorShareholderPeopleListWithMaster } from "../organization-profile/load-master-parties-for-people";
 import { notifyIssuerDirectorShareholderActionRequired } from "../notification/director-shareholder-notifications";
 import { logApplicationActivity } from "../applications/logs/service";
 import { createApplicationReviewEventRow } from "../applications/logs/review-events";
@@ -2796,6 +2803,14 @@ export class AdminService {
     directorKycStatus?: Record<string, unknown> | null;
     businessAmlStatus?: Record<string, unknown> | null;
     people?: import("@cashsouk/types").ApplicationPersonRow[];
+    dateOfIncorporation?: string | null;
+    dateOfCommencement?: string | null;
+    countryOfIncorporation?: string | null;
+    scCompanyType?: string | null;
+    companyCategory?: string | null;
+    companyEmail?: string | null;
+    scInvestorCategory?: string | null;
+    residentialAddress?: import("@cashsouk/types").ProfileAddress | null;
   } | null> {
     const org = await this.repository.getOrganizationById(portal, id);
 
@@ -3060,8 +3075,8 @@ export class AdminService {
           ? (org.business_aml_status as Record<string, unknown> | null)
           : undefined,
       ...(org.type === "COMPANY"
-        ? (() => {
-            const partyBuild = buildDirectorShareholderPeopleList({
+        ? await (async () => {
+            const partyBuild = await buildDirectorShareholderPeopleListWithMaster(portal, id, {
               ctos:
                 portal === "issuer"
                   ? (latestOrganizationCtosCompanyJson ?? null)
@@ -3091,7 +3106,14 @@ export class AdminService {
         role: m.role,
         createdAt: m.created_at.toISOString(),
       })),
-      // Sophisticated investor status (only for investor portal, false for issuer)
+      dateOfIncorporation: org.date_of_incorporation?.toISOString() ?? null,
+      dateOfCommencement: org.date_of_commencement?.toISOString() ?? null,
+      countryOfIncorporation: org.country_of_incorporation ?? null,
+      scCompanyType: org.sc_company_type ?? null,
+      companyCategory: org.company_category ?? null,
+      companyEmail: org.company_email ?? null,
+      scInvestorCategory: org.sc_investor_category ?? null,
+      residentialAddress: (org.residential_address as import("@cashsouk/types").ProfileAddress | null) ?? null,
       isSophisticatedInvestor:
         portal === "investor" ? (org.is_sophisticated_investor ?? false) : false,
       sophisticatedInvestorReason:
@@ -3453,13 +3475,25 @@ export class AdminService {
       refreshed.portal_type === "investor"
         ? refreshed.investor_organization
         : refreshed.issuer_organization;
-    const partyBuild = buildDirectorShareholderPeopleList({
-      ctos: existingResponse.latestOrganizationCtosCompanyJson,
-      issuerDirectorKycStatus: organizationForPeople?.director_kyc_status ?? null,
-      issuerDirectorAmlStatus: organizationForPeople?.director_aml_status ?? null,
-      ctosPartySupplements: organizationForPeople?.ctos_party_supplements ?? null,
-      corporateEntities: existingResponse.corporateEntities ?? null,
-    });
+    const partyBuild = orgId
+      ? await buildDirectorShareholderPeopleListWithMaster(
+          isInvestor ? "investor" : "issuer",
+          orgId,
+          {
+            ctos: existingResponse.latestOrganizationCtosCompanyJson,
+            issuerDirectorKycStatus: organizationForPeople?.director_kyc_status ?? null,
+            issuerDirectorAmlStatus: organizationForPeople?.director_aml_status ?? null,
+            ctosPartySupplements: organizationForPeople?.ctos_party_supplements ?? null,
+            corporateEntities: existingResponse.corporateEntities ?? null,
+          }
+        )
+      : buildDirectorShareholderPeopleList({
+          ctos: existingResponse.latestOrganizationCtosCompanyJson,
+          issuerDirectorKycStatus: organizationForPeople?.director_kyc_status ?? null,
+          issuerDirectorAmlStatus: organizationForPeople?.director_aml_status ?? null,
+          ctosPartySupplements: organizationForPeople?.ctos_party_supplements ?? null,
+          corporateEntities: existingResponse.corporateEntities ?? null,
+        });
 
     return {
       ...existingResponse,
@@ -6736,15 +6770,25 @@ export class AdminService {
     )
       ? (applicationWithIssuerExtras.issuer_organization as Record<string, unknown>)
       : null;
-    const partyBuild = buildDirectorShareholderPeopleList({
-      ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
-      issuerDirectorKycStatus: issuerOrgForPeople?.director_kyc_status ?? null,
-      issuerDirectorAmlStatus: issuerOrgForPeople?.director_aml_status ?? null,
-      ctosPartySupplements: Array.isArray(issuerOrgForPeople?.ctos_party_supplements)
-        ? issuerOrgForPeople.ctos_party_supplements
-        : null,
-      corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
-    });
+    const partyBuild = issuerOrgId
+      ? await buildDirectorShareholderPeopleListWithMaster("issuer", issuerOrgId, {
+          ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
+          issuerDirectorKycStatus: issuerOrgForPeople?.director_kyc_status ?? null,
+          issuerDirectorAmlStatus: issuerOrgForPeople?.director_aml_status ?? null,
+          ctosPartySupplements: Array.isArray(issuerOrgForPeople?.ctos_party_supplements)
+            ? issuerOrgForPeople.ctos_party_supplements
+            : null,
+          corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
+        })
+      : buildDirectorShareholderPeopleList({
+          ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
+          issuerDirectorKycStatus: issuerOrgForPeople?.director_kyc_status ?? null,
+          issuerDirectorAmlStatus: issuerOrgForPeople?.director_aml_status ?? null,
+          ctosPartySupplements: Array.isArray(issuerOrgForPeople?.ctos_party_supplements)
+            ? issuerOrgForPeople.ctos_party_supplements
+            : null,
+          corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
+        });
 
     let inheritedAcceptance: Awaited<
       ReturnType<typeof loadInheritedAcceptanceForExistingContract>
@@ -8992,7 +9036,11 @@ export class AdminService {
       facilityFeeCollectAmount?: number | null;
       additionalFees?: AdditionalFeeLine[];
     },
-    financingTenureDays?: number
+    financingTenureDays?: number,
+    campaignClassification?: {
+      companyCategory: ScCompanyCategory;
+      sustainabilityCategory: ScSustainabilityCategory;
+    } | null
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(
@@ -9225,6 +9273,17 @@ export class AdminService {
         { applicationId, invoiceId, riskRating, marcSuggestedGrade: marc.creditGrade },
         "Saving invoice offer risk rating"
       );
+      const companyCategory =
+        campaignClassification?.companyCategory ?? parseInvoiceOfferCompanyCategory(previousOffer);
+      const sustainabilityCategory =
+        campaignClassification?.sustainabilityCategory ??
+        parseInvoiceOfferSustainabilityCategory(previousOffer);
+      if (companyCategory && !isScCompanyCategory(companyCategory)) {
+        throw new AppError(400, "INVALID_INPUT", "Company category must be Technology or Non-Technology");
+      }
+      if (sustainabilityCategory && !isScSustainabilityCategory(sustainabilityCategory)) {
+        throw new AppError(400, "INVALID_INPUT", "Sustainability category is invalid");
+      }
       const offerDetails: Record<string, unknown> = {
         requested_amount: requestedAmount,
         offered_amount: offeredAmount,
@@ -9235,6 +9294,8 @@ export class AdminService {
         platform_fee_rate_percent: platformFeeStored,
         risk_rating: riskRating,
         marc_suggested_grade: marc.creditGrade,
+        ...(companyCategory ? { company_category: companyCategory } : {}),
+        ...(sustainabilityCategory ? { sustainability_category: sustainabilityCategory } : {}),
         ...feeSchedulePatch,
         sent_at: now,
         responded_at: null,

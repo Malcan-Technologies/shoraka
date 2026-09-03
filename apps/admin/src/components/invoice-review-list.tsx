@@ -18,11 +18,21 @@ import {
 import {
   getOfferPhaseDeadlineDisplay,
   isMarcSmeGrade,
+  isScCompanyCategory,
+  isScSustainabilityCategory,
   previewAcceptanceDeadlineFromWorkflow,
   resolveDefaultInvoiceRiskRating,
   resolveFinancingTenureDays,
   MARC_SME_GRADES,
+  parseInvoiceOfferCompanyCategory,
+  parseInvoiceOfferSustainabilityCategory,
+  SC_COMPANY_CATEGORIES,
+  SC_COMPANY_CATEGORY_LABELS,
+  SC_SUSTAINABILITY_CATEGORIES,
+  SC_SUSTAINABILITY_CATEGORY_LABELS,
   type MarcSmeGrade,
+  type ScCompanyCategory,
+  type ScSustainabilityCategory,
 } from "@cashsouk/types";
 import {
   invoiceOfferFacilityFeeCollectEnabled,
@@ -223,6 +233,8 @@ export function InvoiceList({
     additionalFees: SendInvoiceOfferUiPayload["additionalFees"];
     invoiceValue: number | null;
     risk_rating: MarcSmeGrade;
+    company_category: ScCompanyCategory;
+    sustainability_category: ScSustainabilityCategory;
     financingTenureDays: number;
     offerFingerprint: string;
   } | null>(null);
@@ -309,6 +321,12 @@ export function InvoiceList({
   const [riskRatingByInvoiceId, setRiskRatingByInvoiceId] = React.useState<
     Record<string, MarcSmeGrade | null>
   >({});
+  const [companyCategoryByInvoiceId, setCompanyCategoryByInvoiceId] = React.useState<
+    Record<string, ScCompanyCategory | null>
+  >({});
+  const [sustainabilityCategoryByInvoiceId, setSustainabilityCategoryByInvoiceId] = React.useState<
+    Record<string, ScSustainabilityCategory>
+  >({});
 
   /** Draft strings while typing financing ratio (%); committed on blur with min/max clamp. */
   const [financingRatioDraftByInvoiceId, setFinancingRatioDraftByInvoiceId] = React.useState<
@@ -369,6 +387,29 @@ export function InvoiceList({
       });
     }
   }, [initialRiskFromInvoices]);
+
+  React.useEffect(() => {
+    setCompanyCategoryByInvoiceId((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const inv of invoices) {
+        if (inv.id in next) continue;
+        next[inv.id] = parseInvoiceOfferCompanyCategory(inv.offer_details);
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+    setSustainabilityCategoryByInvoiceId((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const inv of invoices) {
+        if (inv.id in next) continue;
+        next[inv.id] = parseInvoiceOfferSustainabilityCategory(inv.offer_details) ?? "NONE";
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [invoices]);
 
   const toggleExpanded = React.useCallback((invoiceId: string) => {
     setExpandedById((prev) => ({ ...prev, [invoiceId]: !prev[invoiceId] }));
@@ -442,6 +483,10 @@ export function InvoiceList({
       alert("Please select a risk rating before sending the offer.");
       return;
     }
+    if (!invoiceOfferConfirm.company_category) {
+      alert("Please select Technology or Non-Technology for this invoice.");
+      return;
+    }
     if (
       invoiceOfferConfirmSubmitBlocked(invoiceOfferConfirmGuard) ||
       invoiceOfferConfirmExceedsCredit
@@ -455,6 +500,8 @@ export function InvoiceList({
       offeredProfitRatePercent: invoiceOfferConfirm.offeredProfitRatePercent,
       platformFeeRatePercent: invoiceOfferConfirm.platformFeeRatePercent,
       risk_rating: invoiceOfferConfirm.risk_rating,
+      company_category: invoiceOfferConfirm.company_category,
+      sustainability_category: invoiceOfferConfirm.sustainability_category,
       financingTenureDays: invoiceOfferConfirm.financingTenureDays,
       feeScheduleMode: invoiceOfferConfirm.feeScheduleMode,
       facilityFeeCollectAmount: invoiceOfferConfirm.facilityFeeCollectAmount,
@@ -837,6 +884,90 @@ export function InvoiceList({
                                     )}
                                   </div>
                                   <div className={applicationTableExpandableFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>Company category</p>
+                                    {isOfferSent ? (
+                                      <p className={applicationTableExpandableValueClass}>
+                                        {(() => {
+                                          const raw = parseInvoiceOfferCompanyCategory(inv.offer_details);
+                                          return raw
+                                            ? SC_COMPANY_CATEGORY_LABELS[raw]
+                                            : REVIEW_EMPTY_LABEL;
+                                        })()}
+                                      </p>
+                                    ) : (
+                                      <Select
+                                        value={companyCategoryByInvoiceId[inv.id] ?? undefined}
+                                        onValueChange={(value) => {
+                                          if (isScCompanyCategory(value)) {
+                                            setCompanyCategoryByInvoiceId((prev) => ({
+                                              ...prev,
+                                              [inv.id]: value,
+                                            }));
+                                          }
+                                        }}
+                                        disabled={isRowGreyedOut || isAdminRejected}
+                                      >
+                                        <SelectTrigger
+                                          aria-label="Company category"
+                                          className={OFFER_CONTROL_WIDTH_CLASS}
+                                        >
+                                          <SelectValue placeholder="Select" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {SC_COMPANY_CATEGORIES.map((value) => (
+                                            <SelectItem key={value} value={value}>
+                                              {SC_COMPANY_CATEGORY_LABELS[value]}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                  </div>
+                                  <div className={applicationTableExpandableFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>
+                                      Sustainability category
+                                    </p>
+                                    {isOfferSent ? (
+                                      <p className={applicationTableExpandableValueClass}>
+                                        {(() => {
+                                          const raw = parseInvoiceOfferSustainabilityCategory(
+                                            inv.offer_details
+                                          );
+                                          return raw
+                                            ? SC_SUSTAINABILITY_CATEGORY_LABELS[raw]
+                                            : REVIEW_EMPTY_LABEL;
+                                        })()}
+                                      </p>
+                                    ) : (
+                                      <Select
+                                        value={sustainabilityCategoryByInvoiceId[inv.id] ?? "NONE"}
+                                        onValueChange={(value) => {
+                                          if (isScSustainabilityCategory(value)) {
+                                            setSustainabilityCategoryByInvoiceId((prev) => ({
+                                              ...prev,
+                                              [inv.id]: value,
+                                            }));
+                                          }
+                                        }}
+                                        disabled={isRowGreyedOut || isAdminRejected}
+                                      >
+                                        <SelectTrigger
+                                          aria-label="Sustainability category"
+                                          className="h-9 w-full min-w-[8rem] max-w-[18rem] rounded-xl border-border bg-background text-ui"
+                                        >
+                                          <SelectValue placeholder="Select" />
+                                        </SelectTrigger>
+                                        <SelectContent className="max-h-[280px]">
+                                          {SC_SUSTAINABILITY_CATEGORIES.map((value) => (
+                                            <SelectItem key={value} value={value}>
+                                              {SC_SUSTAINABILITY_CATEGORY_LABELS[value]}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                  </div>
+                                  <div className={applicationTableExpandableFieldBlockClass}>
                                     <p className={applicationTableExpandableLabelClass}>
                                       Profit Rate
                                     </p>
@@ -1140,6 +1271,7 @@ export function InvoiceList({
                                         !!isSendInvoiceOfferPending ||
                                         offeredAmount === null ||
                                         !riskRatingByInvoiceId[inv.id] ||
+                                        !companyCategoryByInvoiceId[inv.id] ||
                                         Boolean(feeSendBlockedReason)
                                       }
                                       onClick={() => {
@@ -1148,6 +1280,13 @@ export function InvoiceList({
                                           alert("Please select a risk rating before sending the offer.");
                                           return;
                                         }
+                                        const companyCat = companyCategoryByInvoiceId[inv.id];
+                                        if (!companyCat) {
+                                          alert("Please select Technology or Non-Technology for this invoice.");
+                                          return;
+                                        }
+                                        const sustainabilityCat =
+                                          sustainabilityCategoryByInvoiceId[inv.id] ?? "NONE";
                                         const platformFeeRatePercent = resolveDrawdownFeeRateForSend({
                                           committedPercent: offered.platformFeeRatePercent,
                                           draft: platformFeeDraftByInvoiceId[inv.id],
@@ -1182,6 +1321,8 @@ export function InvoiceList({
                                           ...feeFields,
                                           invoiceValue,
                                           risk_rating: rr,
+                                          company_category: companyCat,
+                                          sustainability_category: sustainabilityCat,
                                           financingTenureDays,
                                           offerFingerprint: invoiceOfferFeeFingerprint(inv.offer_details),
                                         });
@@ -1298,6 +1439,18 @@ export function InvoiceList({
                   <span className="text-sm font-medium text-muted-foreground">Risk Rating</span>
                   <span className="text-ui font-medium tabular-nums">
                     {invoiceOfferConfirm.risk_rating}
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-medium text-muted-foreground">Company category</span>
+                  <span className="text-ui font-medium">
+                    {SC_COMPANY_CATEGORY_LABELS[invoiceOfferConfirm.company_category]}
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-medium text-muted-foreground">Sustainability</span>
+                  <span className="text-ui font-medium">
+                    {SC_SUSTAINABILITY_CATEGORY_LABELS[invoiceOfferConfirm.sustainability_category]}
                   </span>
                 </div>
                 {acceptanceDeadlinePreview ? (

@@ -5,6 +5,7 @@ import { authRouter } from "./modules/auth/controller";
 import cognitoAuthRouter from "./modules/auth/cognito.routes";
 import { adminRouter } from "./modules/admin/controller";
 import { createOrganizationRouter } from "./modules/organization/controller";
+import { createOrganizationProfileRouter } from "./modules/organization-profile/controller";
 import { regTankRouter } from "./modules/regtank/controller";
 import { regTankAdminRouter } from "./modules/regtank/admin-controller";
 import { legalDocumentAdminRouter } from "./modules/legal-documents/admin-controller";
@@ -106,6 +107,7 @@ export function registerRoutes(app: Application): void {
 
   // Organization routes
   v1Router.use("/organizations", createOrganizationRouter());
+  v1Router.use("/organizations", createOrganizationProfileRouter());
 
   v1Router.use("/applications", createApplicationRouter());
   v1Router.use(

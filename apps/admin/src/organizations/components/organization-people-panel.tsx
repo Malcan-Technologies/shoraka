@@ -2,20 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
-import {
-  normalizeDirectorShareholderIdKey,
-  type OrganizationDetailResponse,
-  type PortalType,
-} from "@cashsouk/types";
-import {
-  ArrowPathIcon,
-  UserIcon,
-  UsersIcon,
-} from "@heroicons/react/24/outline";
-import { DirectorShareholderTable } from "@/components/admin/director-shareholder-table";
+import { PlusIcon, UserIcon, UsersIcon } from "@heroicons/react/24/outline";
+import type { OrganizationDetailResponse, PortalType } from "@cashsouk/types";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,12 +19,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useRefreshCorporateEntities } from "@/hooks/use-organization-detail";
 import { usePermissions } from "@/hooks/use-permissions";
 import { accountHref } from "@/lib/admin-directory-hrefs";
-import { formatApiErrorMessage } from "@/lib/format-api-error-message";
+import { useOrganizationMasterPeople } from "@/organizations/hooks/use-organization-master-people";
+import { unifyOrganizationPeople } from "@/organizations/utils/organization-profile-overview";
 import { OrganizationCardEditActions } from "./organization-card-edit-actions";
 import { OrganizationMemberEditDialog } from "./organization-member-edit-dialog";
+import { OrganizationPersonCard } from "./organization-person-card";
+import {
+  OrganizationPersonEditorDialog,
+  partyToEditorValues,
+  type PartyEditorValues,
+} from "./organization-person-editor-dialog";
 import { EditableField, ReadField } from "./organization-profile-helpers";
 import { useUpdateOrganizationProfile } from "@/organizations/hooks/use-update-organization-profile";
 import {
@@ -45,89 +40,47 @@ import {
   type OrgProfileDraft,
 } from "./organization-profile-payload";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
 export function OrganizationPeoplePanel({
   org,
   portal,
   organizationId,
   displayName,
+  highlightedPartyId,
 }: {
   org: OrganizationDetailResponse;
   portal: PortalType;
   organizationId: string;
   displayName: string;
+  highlightedPartyId?: string | null;
 }) {
   const { can } = usePermissions();
   const canManage = can("organizations.manage");
   const canViewAccounts = can("users.view");
   const canManageUsers = can("users.manage");
-  const { getAccessToken } = useAuthToken();
-  const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
-  const queryClient = useQueryClient();
   const updateProfile = useUpdateOrganizationProfile();
-  const refreshEntities = useRefreshCorporateEntities();
+  const peopleMutations = useOrganizationMasterPeople(portal, organizationId);
 
   const [editingPic, setEditingPic] = React.useState(false);
   const [draft, setDraft] = React.useState<OrgProfileDraft>(() => buildDraft(org));
   const [showConfirm, setShowConfirm] = React.useState(false);
-  const [ctosFetchSubjectKey, setCtosFetchSubjectKey] = React.useState<string | null>(null);
   const [editingMemberId, setEditingMemberId] = React.useState<string | null>(null);
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [editingPartyId, setEditingPartyId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!editingPic) setDraft(buildDraft(org));
   }, [org, editingPic]);
 
+  React.useEffect(() => {
+    if (!highlightedPartyId) return;
+    document.getElementById(`person-${highlightedPartyId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [highlightedPartyId]);
+
   const editingMember = org.members.find((member) => member.id === editingMemberId) ?? null;
   const showPic = canManage || Boolean(org.corporateOnboardingData?.personInCharge);
   const picHasChanges = Object.keys(buildSectionPayload(org, draft, "pic")).length > 0;
-
-  const fetchSubjectCtosMutation = useMutation({
-    mutationFn: async (input: {
-      subjectRef: string;
-      subjectKind: "INDIVIDUAL" | "CORPORATE";
-      displayName: string;
-      idNumber: string;
-    }) => {
-      const idNumber = input.idNumber.trim();
-      const subjectName = input.displayName.trim();
-      if (!idNumber || !subjectName) {
-        throw new Error("Missing display name or IC/SSM");
-      }
-      const res = await apiClient.createAdminOrganizationCtosSubjectReport(
-        portal as "issuer" | "investor",
-        organizationId,
-        {
-          subjectRef: input.subjectRef,
-          subjectKind: input.subjectKind,
-          enquiryOverride: { displayName: subjectName, idNumber },
-        }
-      );
-      if (!res.success) throw new Error(formatApiErrorMessage(res.error));
-      return res.data;
-    },
-    onMutate: (input) => {
-      setCtosFetchSubjectKey(input.subjectRef);
-    },
-    onSuccess: async () => {
-      await queryClient.refetchQueries({
-        queryKey: ["admin", "organization-detail", portal, organizationId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["admin", "organization-ctos-reports-inline", portal, organizationId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["admin", "organization-ctos-reports", portal, organizationId],
-      });
-      toast.success("CTOS subject report saved.");
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || "CTOS subject request failed");
-    },
-    onSettled: () => {
-      setCtosFetchSubjectKey(null);
-    },
-  });
+  const unified = unifyOrganizationPeople(org.partyProfiles, org.people);
+  const editingParty = org.partyProfiles?.find((party) => party.id === editingPartyId) ?? null;
 
   const handleStartPicEdit = () => {
     if (updateProfile.isPending) return;
@@ -160,10 +113,116 @@ export function OrganizationPeoplePanel({
     }
   };
 
+  const saveParty = async (values: PartyEditorValues, partyId?: string) => {
+    const payload: Record<string, unknown> = {
+      name: values.name.trim(),
+      identityPrefix: values.identityPrefix || null,
+      identityNumber: values.identityNumber.trim() || null,
+      entityType: values.entityType,
+      isDirector: values.isDirector,
+      isShareholder: values.isShareholder,
+      isBoard: values.isBoard,
+      isManagement: values.isManagement,
+      shareholdingPercentage: values.shareholdingPercentage.trim() || null,
+      shareType: values.shareType || null,
+    };
+    if (partyId) {
+      await peopleMutations.patchParty.mutateAsync({ partyId, data: payload });
+      setEditingPartyId(null);
+      return;
+    }
+    await peopleMutations.createParty.mutateAsync(payload);
+    setAddOpen(false);
+  };
+
   if (org.type !== "COMPANY") return null;
 
   return (
     <div className="space-y-6">
+      <Card id="profile-people" className="rounded-2xl">
+        <AdminDetailCardHeader
+          icon={UsersIcon}
+          title="People"
+          description="Directors, shareholders, board, and management — one person, one master record"
+          actions={
+            canManage ? (
+              <Button type="button" size="sm" className="gap-1.5" onClick={() => setAddOpen(true)}>
+                <PlusIcon className="h-4 w-4" />
+                Add person
+              </Button>
+            ) : null
+          }
+        />
+        <CardContent className="space-y-6">
+          {unified.external.length > 0 ? (
+            <div className="space-y-3">
+              <h3 className="text-card-title">External changes requiring review</h3>
+              {unified.external.map((item) => (
+                <div key={item.key} id={item.party ? `person-${item.party.id}` : undefined}>
+                  <OrganizationPersonCard
+                    item={item}
+                    canManage={canManage}
+                    onView={() => item.party && setEditingPartyId(item.party.id)}
+                    onAdopt={item.party ? () => peopleMutations.adopt.mutate(item.party!.id) : undefined}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {unified.master.length === 0 && unified.peopleOnly.length === 0 ? (
+            <p className="text-ui text-muted-foreground">No people stored on the master record yet.</p>
+          ) : null}
+
+          {unified.master.map((item) => (
+            <div key={item.key} id={item.party ? `person-${item.party.id}` : undefined}>
+              <OrganizationPersonCard
+                item={item}
+                canManage={canManage}
+                onView={() => item.party && setEditingPartyId(item.party.id)}
+                onEdit={item.party ? () => setEditingPartyId(item.party!.id) : undefined}
+                onKeep={
+                  item.party
+                    ? (field) => peopleMutations.resolve.mutate({ partyId: item.party!.id, action: "KEEP", field })
+                    : undefined
+                }
+                onUseExternal={
+                  item.party
+                    ? (field) =>
+                        peopleMutations.resolve.mutate({ partyId: item.party!.id, action: "USE_EXTERNAL", field })
+                    : undefined
+                }
+                onInactivate={item.party ? () => peopleMutations.inactivate.mutate(item.party!.id) : undefined}
+                onKeepAbsent={() => toast.success("Kept on the CashSouk master list")}
+              />
+            </div>
+          ))}
+
+          {unified.peopleOnly.map((item) => (
+            <OrganizationPersonCard
+              key={item.key}
+              item={item}
+              canManage={canManage}
+              onView={() => toast.message("This person is linked from onboarding KYC and is not a separate profile.")}
+            />
+          ))}
+
+          {unified.inactive.length > 0 ? (
+            <div className="space-y-3">
+              <h3 className="text-card-title">Inactive</h3>
+              {unified.inactive.map((item) => (
+                <OrganizationPersonCard
+                  key={item.key}
+                  item={item}
+                  canManage={canManage}
+                  onView={() => item.party && setEditingPartyId(item.party.id)}
+                />
+              ))}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
       <Card className="rounded-2xl">
         <AdminDetailCardHeader icon={UsersIcon} title={`Members (${org.members.length})`} />
         <CardContent>
@@ -288,79 +347,33 @@ export function OrganizationPeoplePanel({
         </Card>
       ) : null}
 
-      <Card className="rounded-2xl">
-        <AdminDetailCardHeader
-          icon={UsersIcon}
-          title="Directors and Shareholders"
-          description="Directors and shareholders details"
-          actions={
-            canManage ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                disabled={refreshEntities.isPending}
-                onClick={() => {
-                  refreshEntities.mutate(
-                    { organizationId, portal },
-                    {
-                      onSuccess: (result) => {
-                        toast.success(result.message || "Corporate entities refreshed.");
-                      },
-                      onError: (error) => {
-                        toast.error(error instanceof Error ? error.message : "Refresh failed");
-                      },
-                    }
-                  );
-                }}
-              >
-                <ArrowPathIcon className={refreshEntities.isPending ? "animate-spin" : undefined} />
-                Refresh
-              </Button>
-            ) : null
-          }
-        />
-        <CardContent>
-          <DirectorShareholderTable
-            people={org.people ?? []}
-            directorShareholderListSource={org.directorShareholderListSource ?? null}
-            ctosDirectorShareholderWarning={org.ctosDirectorShareholderWarning ?? null}
-            portal={portal === "investor" ? "investor" : "issuer"}
-            organizationId={organizationId}
-            subjectCtosReports={org.latestOrganizationCtosSubjectReports ?? null}
-            ctosFetchPendingKey={ctosFetchSubjectKey}
-            ctosFetchPending={fetchSubjectCtosMutation.isPending}
-            canManageCtos={canManage}
-            onFetchSubjectCtos={(person) => {
-              if (!canManage) return;
-              const idKey = normalizeDirectorShareholderIdKey(person.matchKey);
-              if (!idKey) {
-                toast.error("Missing IC / SSM. Cannot fetch CTOS report.");
-                return;
-              }
-              const subjectName = person.name?.trim();
-              if (!subjectName) {
-                toast.error("Missing name. Cannot fetch CTOS report.");
-                return;
-              }
-              fetchSubjectCtosMutation.mutate({
-                subjectRef: idKey,
-                subjectKind: person.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
-                displayName: subjectName,
-                idNumber: idKey,
-              });
-            }}
-          />
-        </CardContent>
-      </Card>
-
       <OrganizationMemberEditDialog
         member={editingMember}
         open={editingMemberId != null}
         onOpenChange={(open) => {
           if (!open) setEditingMemberId(null);
         }}
+      />
+
+      <OrganizationPersonEditorDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        title="Add person"
+        description="Adds this person to the CashSouk master record used by the issuer or investor profile."
+        isSaving={peopleMutations.createParty.isPending}
+        onSave={(values) => saveParty(values)}
+      />
+
+      <OrganizationPersonEditorDialog
+        open={Boolean(editingParty)}
+        onOpenChange={(open) => {
+          if (!open) setEditingPartyId(null);
+        }}
+        title={editingParty?.name || "Person"}
+        description="Edits the same CashSouk master record the issuer or investor sees."
+        initial={editingParty ? partyToEditorValues(editingParty) : null}
+        isSaving={peopleMutations.patchParty.isPending}
+        onSave={(values) => saveParty(values, editingParty?.id)}
       />
 
       <AlertDialog

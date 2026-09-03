@@ -33,8 +33,11 @@ import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
 import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../../components/director-shareholder-alert-card";
-import { CorporateInfoCard } from "../../components/corporate-info-card";
+import { IssuerProfileCompletenessBanner } from "../../components/profile-completeness-banner";
 import { AboutYourBusinessCard } from "../../components/about-your-business-card";
+import { IssuerCompanyDetailsCard } from "../../components/issuer-company-details-card";
+import { IssuerFinancialsCard } from "../../components/issuer-financials-card";
+import { IssuerPeopleSection } from "../../components/issuer-people-section";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
 import { toast } from "sonner";
@@ -43,7 +46,8 @@ import "react-phone-number-input/style.css";
 import {
   ConfirmDialog,
   PageShell,
-  DirectorShareholdersUnifiedSection,
+  ProfileFieldGrid,
+  ProfileReadField,
   VerifiedBadge,
 } from "@cashsouk/ui";
 import {
@@ -70,8 +74,6 @@ import {
   DocumentTextIcon,
   MapPinIcon,
   PhoneIcon,
-  GlobeAltIcon,
-  CalendarIcon,
   ArrowDownTrayIcon,
   UserPlusIcon,
   TrashIcon,
@@ -488,6 +490,12 @@ export default function ProfilePage() {
         bankAccountDetails: BankAccountDetails | null;
         onboardingStatus: string;
         onboardedAt: string | null;
+        dateOfIncorporation?: string | null;
+        dateOfCommencement?: string | null;
+        countryOfIncorporation?: string | null;
+        scCompanyType?: string | null;
+        companyCategory?: string | null;
+        companyEmail?: string | null;
         corporateOnboardingData?: {
           basicInfo?: {
             tinNumber?: string;
@@ -557,14 +565,34 @@ export default function ProfilePage() {
     staleTime: 1000 * 60 * 5,
   });
 
+  const completenessQuery = useQuery({
+    queryKey: ["issuer", "profile-completeness", activeOrganization?.id],
+    enabled: !!activeOrganization?.id,
+    queryFn: async () => {
+      const result = await apiClient.getProfileCompleteness("issuer", activeOrganization!.id);
+      if (!result.success) throw new Error(result.error.message);
+      return result.data;
+    },
+  });
+  const missingFieldKeys = React.useMemo(
+    () => new Set((completenessQuery.data?.missing ?? []).map((item) => item.field)),
+    [completenessQuery.data]
+  );
+
   const searchParams = useSearchParams();
-  const focusDirectors = searchParams.get("focus") === "directors";
+  const focusDirectors = searchParams.get("focus") === "directors" || searchParams.get("focus") === "people";
   const focusContact = searchParams.get("focus") === "contact";
   const focusAbout = searchParams.get("focus") === "about";
+  const focusCompany = searchParams.get("focus") === "company";
+  const focusAddresses = searchParams.get("focus") === "addresses";
+  const focusFinancials = searchParams.get("focus") === "financials";
   const focusedPersonKey = searchParams.get("person");
   const directorsSectionRef = React.useRef<HTMLDivElement>(null);
   const contactSectionRef = React.useRef<HTMLDivElement>(null);
   const aboutSectionRef = React.useRef<HTMLDivElement>(null);
+  const companySectionRef = React.useRef<HTMLDivElement>(null);
+  const addressesSectionRef = React.useRef<HTMLDivElement>(null);
+  const financialsSectionRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (!focusDirectors) return;
@@ -598,6 +626,21 @@ export default function ProfilePage() {
     }, 200);
     return () => window.clearTimeout(t);
   }, [focusAbout, orgData, activeOrganization?.id]);
+
+  React.useEffect(() => {
+    if (!focusCompany && !focusAddresses && !focusFinancials) return;
+    setActiveTab("profile");
+    const el = focusCompany
+      ? companySectionRef.current
+      : focusAddresses
+        ? addressesSectionRef.current
+        : financialsSectionRef.current;
+    if (!el) return;
+    const t = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [focusCompany, focusAddresses, focusFinancials, orgData, activeOrganization?.id]);
 
   // Initialize form values when orgData loads
   React.useEffect(() => {
@@ -838,27 +881,6 @@ export default function ProfilePage() {
     setIsEditingAddresses(false);
   };
 
-  // Helper function to format address for display
-  const formatAddressDisplay = (address?: {
-    line1?: string | null;
-    line2?: string | null;
-    city?: string | null;
-    postalCode?: string | null;
-    state?: string | null;
-    country?: string | null;
-  }): string => {
-    if (!address) return "—";
-    const parts = [
-      address.line1,
-      address.line2,
-      address.city,
-      address.postalCode,
-      address.state,
-      address.country,
-    ].filter((part) => part && part.trim() !== "");
-    return parts.length > 0 ? parts.join(", ") : "—";
-  };
-
   // Show loading state
   if (isAuthenticated === null || isLoading) {
     return <ProfileSkeleton />;
@@ -916,6 +938,13 @@ export default function ProfilePage() {
             />
           ) : null}
 
+          <IssuerProfileCompletenessBanner
+            organizationId={activeOrganization?.id}
+            onboarded={activeOrganization?.onboardingStatus === "COMPLETED"}
+            expandOnPage
+            initialExpanded={searchParams.get("focus") === "completeness"}
+          />
+
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid h-12 w-full grid-cols-2 rounded-xl bg-muted p-1 sm:grid-cols-4">
@@ -950,71 +979,62 @@ export default function ProfilePage() {
                     </div>
                     <VerifiedBadge />
                   </div>
-                  <div className="p-6 space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground">Name</Label>
-                        <Input value={displayName} disabled className={formInputDisabledClassName} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground">Document Type</Label>
-                        <Input
-                          value={formatDocumentType(orgData?.documentType)}
-                          disabled
-                          className={formInputDisabledClassName}
+                  <div className="p-6">
+                    <ProfileFieldGrid>
+                      <ProfileReadField label="Name" value={displayName} locked />
+                      <ProfileReadField
+                        label="Document type"
+                        value={formatDocumentType(orgData?.documentType)}
+                        locked
+                      />
+                      <ProfileReadField
+                        label="Document number"
+                        value={orgData?.documentNumber || "—"}
+                        locked
+                      />
+                      <ProfileReadField
+                        label="Issuing country"
+                        value={orgData?.idIssuingCountry || "—"}
+                        locked
+                      />
+                      {orgData?.onboardedAt ? (
+                        <ProfileReadField
+                          label="Member since"
+                          value={new Date(orgData.onboardedAt).toLocaleDateString("en-MY", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                          locked
                         />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground flex items-center gap-2">
-                          <IdentificationIcon className="h-4 w-4" />
-                          Document Number
-                        </Label>
-                        <Input
-                          value={orgData?.documentNumber || "—"}
-                          disabled
-                          className={formInputDisabledClassName}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground flex items-center gap-2">
-                          <GlobeAltIcon className="h-4 w-4" />
-                          Issuing Country
-                        </Label>
-                        <Input
-                          value={orgData?.idIssuingCountry || "—"}
-                          disabled
-                          className={formInputDisabledClassName}
-                        />
-                      </div>
-                      {orgData?.onboardedAt && (
-                        <div className="space-y-2">
-                          <Label className="text-muted-foreground flex items-center gap-2">
-                            <CalendarIcon className="h-4 w-4" />
-                            Member Since
-                          </Label>
-                          <Input
-                            value={new Date(orgData.onboardedAt).toLocaleDateString("en-MY", {
-                              year: "numeric",
-                              month: "long",
-                              day: "numeric",
-                            })}
-                            disabled
-                            className={formInputDisabledClassName}
-                          />
-                        </div>
-                      )}
-                    </div>
+                      ) : null}
+                    </ProfileFieldGrid>
                   </div>
                 </div>
               )}
 
-              {/* 1. Corporate Info Section - Only for COMPANY accounts */}
-              {!isPersonal && activeOrganization?.id && (
-                <CorporateInfoCard
+              {!isPersonal && activeOrganization?.id ? (
+                <div ref={companySectionRef}>
+                <IssuerCompanyDetailsCard
                   organizationId={activeOrganization.id}
                   canEdit={isCurrentUserAdmin}
+                  org={{
+                    name: activeOrganization.name,
+                    registrationNumber: activeOrganization.registrationNumber,
+                    phoneNumber: orgData?.phoneNumber ?? activeOrganization.phoneNumber,
+                    dateOfIncorporation:
+                      orgData?.dateOfIncorporation ?? activeOrganization.dateOfIncorporation,
+                    dateOfCommencement:
+                      orgData?.dateOfCommencement ?? activeOrganization.dateOfCommencement,
+                    countryOfIncorporation:
+                      orgData?.countryOfIncorporation ?? activeOrganization.countryOfIncorporation,
+                    scCompanyType: orgData?.scCompanyType ?? activeOrganization.scCompanyType,
+                    companyEmail: orgData?.companyEmail ?? activeOrganization.companyEmail,
+                    corporateOnboardingData: orgData?.corporateOnboardingData ?? null,
+                  }}
                 />
-              )}
+                </div>
+              ) : null}
 
               {!isPersonal && activeOrganization?.id && (
                 <div ref={aboutSectionRef}>
@@ -1022,39 +1042,6 @@ export default function ProfilePage() {
                     organizationId={activeOrganization.id}
                     canEdit={isCurrentUserAdmin}
                   />
-                </div>
-              )}
-
-              {!isPersonal && orgData?.corporateOnboardingData?.personInCharge && (
-                <div className="rounded-xl border bg-card">
-                  <div className="p-6 border-b">
-                    <h2 className="text-lg font-semibold">Person in charge</h2>
-                    <p className="text-sm text-muted-foreground">Main contact for this business</p>
-                  </div>
-                  <div className="p-6 grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Name</Label>
-                      <Input value={orgData.corporateOnboardingData.personInCharge.name || ""} disabled className="bg-muted" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Position</Label>
-                      <Input value={orgData.corporateOnboardingData.personInCharge.position || ""} disabled className="bg-muted" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <EnvelopeIcon className="h-4 w-4" />
-                        Email
-                      </Label>
-                      <Input value={orgData.corporateOnboardingData.personInCharge.email || ""} disabled className="bg-muted" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <PhoneIcon className="h-4 w-4" />
-                        Contact Number
-                      </Label>
-                      <Input value={orgData.corporateOnboardingData.personInCharge.contactNumber || ""} disabled className="bg-muted" />
-                    </div>
-                  </div>
                 </div>
               )}
 
@@ -1082,6 +1069,12 @@ export default function ProfilePage() {
                     ) : null}
                   </div>
                   <div className="p-6 space-y-4">
+                    {!isEditingProfile ? (
+                      <ProfileReadField
+                        label="Full address"
+                        value={address.trim() || "—"}
+                      />
+                    ) : (
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
                         <MapPinIcon className="h-4 w-4" />
@@ -1100,6 +1093,7 @@ export default function ProfilePage() {
                         <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
                       )}
                     </div>
+                    )}
 
                     {isEditingProfile && isCurrentUserAdmin && (
                       <div className="flex justify-end gap-2 pt-4">
@@ -1124,7 +1118,11 @@ export default function ProfilePage() {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-xl border bg-card">
+                <div
+                  ref={addressesSectionRef}
+                  id="profile-addresses"
+                  className="scroll-mt-24 rounded-xl border bg-card"
+                >
                   <div className="flex items-center justify-between p-6 border-b">
                     <div>
                       <h2 className="text-lg font-semibold">Addresses</h2>
@@ -1145,13 +1143,128 @@ export default function ProfilePage() {
                     ) : null}
                   </div>
                   <div className="p-6 space-y-4">
-                    {/* Business Address */}
                     <div className="space-y-4 pt-2">
+                      <h3 className="text-sm font-semibold">Registered address</h3>
+                      {!isEditingAddresses ? (
+                        <ProfileFieldGrid>
+                          <ProfileReadField
+                            className="sm:col-span-2"
+                            label="Address"
+                            value={[
+                              orgData?.corporateOnboardingData?.addresses?.registered?.line1,
+                              orgData?.corporateOnboardingData?.addresses?.registered?.line2,
+                            ]
+                              .filter((part) => part && part.trim())
+                              .join(", ") || "—"}
+                            missing={missingFieldKeys.has("registeredAddress.line1")}
+                          />
+                          <ProfileReadField
+                            label="State"
+                            value={orgData?.corporateOnboardingData?.addresses?.registered?.state || "—"}
+                            missing={missingFieldKeys.has("registeredAddress.state")}
+                          />
+                          <ProfileReadField
+                            label="Postcode"
+                            value={
+                              orgData?.corporateOnboardingData?.addresses?.registered?.postalCode || "—"
+                            }
+                            missing={missingFieldKeys.has("registeredAddress.postalCode")}
+                          />
+                        </ProfileFieldGrid>
+                      ) : (
+                        <div className="flex items-center justify-end gap-2 pb-2">
+                          <Checkbox
+                            id="sameAsBusinessAddress"
+                            checked={sameAsBusinessAddress}
+                            onCheckedChange={(checked) => setSameAsBusinessAddress(checked === true)}
+                          />
+                          <Label htmlFor="sameAsBusinessAddress" className="text-sm font-normal cursor-pointer">
+                            Same as business address
+                          </Label>
+                        </div>
+                      )}
+                      {isEditingAddresses && !sameAsBusinessAddress ? (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2 sm:col-span-2">
+                              <Label>Address Line 1</Label>
+                              <Input
+                                value={registeredLine1}
+                                onChange={(e) => setRegisteredLine1(e.target.value)}
+                                placeholder="Street address"
+                              />
+                            </div>
+                            <div className="space-y-2 sm:col-span-2">
+                              <Label>Address Line 2</Label>
+                              <Input
+                                value={registeredLine2}
+                                onChange={(e) => setRegisteredLine2(e.target.value)}
+                                placeholder="Apartment, suite, etc. (optional)"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>City</Label>
+                              <Input
+                                value={registeredCity}
+                                onChange={(e) => setRegisteredCity(e.target.value)}
+                                placeholder="City"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Postal Code</Label>
+                              <Input
+                                value={registeredPostalCode}
+                                onChange={(e) => setRegisteredPostalCode(e.target.value)}
+                                placeholder="Postal code"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>State</Label>
+                              <Input
+                                value={registeredState}
+                                onChange={(e) => setRegisteredState(e.target.value)}
+                                placeholder="State"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Country</Label>
+                              <Input
+                                value={registeredCountry}
+                                onChange={(e) => setRegisteredCountry(e.target.value)}
+                                placeholder="Country"
+                              />
+                            </div>
+                          </div>
+                      ) : null}
+                    </div>
+
+                    <div className="space-y-4 pt-4 border-t">
                       <h3 className="text-sm font-semibold">Business address</h3>
                       {!isEditingAddresses ? (
-                        <p className="text-sm text-muted-foreground">
-                          {formatAddressDisplay(orgData?.corporateOnboardingData?.addresses?.business)}
-                        </p>
+                        <ProfileFieldGrid>
+                          <ProfileReadField
+                            className="sm:col-span-2"
+                            label="Address"
+                            value={[
+                              orgData?.corporateOnboardingData?.addresses?.business?.line1,
+                              orgData?.corporateOnboardingData?.addresses?.business?.line2,
+                            ]
+                              .filter((part) => part && part.trim())
+                              .join(", ") || "—"}
+                            missing={missingFieldKeys.has("businessAddress.line1")}
+                          />
+                          <ProfileReadField
+                            label="State"
+                            value={orgData?.corporateOnboardingData?.addresses?.business?.state || "—"}
+                            missing={missingFieldKeys.has("businessAddress.state")}
+                          />
+                          <ProfileReadField
+                            label="Postcode"
+                            value={
+                              orgData?.corporateOnboardingData?.addresses?.business?.postalCode || "—"
+                            }
+                            missing={missingFieldKeys.has("businessAddress.postalCode")}
+                          />
+                        </ProfileFieldGrid>
                       ) : (
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2 sm:col-span-2">
@@ -1206,88 +1319,6 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    {/* Registered Address */}
-                    <div className="space-y-4 pt-4 border-t">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold">Registered address</h3>
-                        {isEditingAddresses && (
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              id="sameAsBusinessAddress"
-                              checked={sameAsBusinessAddress}
-                              onCheckedChange={(checked) =>
-                                setSameAsBusinessAddress(checked === true)
-                              }
-                            />
-                            <Label
-                              htmlFor="sameAsBusinessAddress"
-                              className="text-sm font-normal cursor-pointer"
-                            >
-                              Same as business address
-                            </Label>
-                          </div>
-                        )}
-                      </div>
-                      {!isEditingAddresses ? (
-                        <p className="text-sm text-muted-foreground">
-                          {formatAddressDisplay(orgData?.corporateOnboardingData?.addresses?.registered)}
-                        </p>
-                      ) : (
-                        !sameAsBusinessAddress && (
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="space-y-2 sm:col-span-2">
-                              <Label>Address Line 1</Label>
-                              <Input
-                                value={registeredLine1}
-                                onChange={(e) => setRegisteredLine1(e.target.value)}
-                                placeholder="Street address"
-                              />
-                            </div>
-                            <div className="space-y-2 sm:col-span-2">
-                              <Label>Address Line 2</Label>
-                              <Input
-                                value={registeredLine2}
-                                onChange={(e) => setRegisteredLine2(e.target.value)}
-                                placeholder="Apartment, suite, etc. (optional)"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>City</Label>
-                              <Input
-                                value={registeredCity}
-                                onChange={(e) => setRegisteredCity(e.target.value)}
-                                placeholder="City"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Postal Code</Label>
-                              <Input
-                                value={registeredPostalCode}
-                                onChange={(e) => setRegisteredPostalCode(e.target.value)}
-                                placeholder="Postal code"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>State</Label>
-                              <Input
-                                value={registeredState}
-                                onChange={(e) => setRegisteredState(e.target.value)}
-                                placeholder="State"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Country</Label>
-                              <Input
-                                value={registeredCountry}
-                                onChange={(e) => setRegisteredCountry(e.target.value)}
-                                placeholder="Country"
-                              />
-                            </div>
-                          </div>
-                        )
-                      )}
-                    </div>
-
                     {isEditingAddresses && isCurrentUserAdmin && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
@@ -1313,7 +1344,7 @@ export default function ProfilePage() {
               )}
 
               {/* 3. Contact Details Section (Editable) */}
-              <div ref={contactSectionRef} className="scroll-mt-24 rounded-xl border bg-card">
+              <div ref={contactSectionRef} id="profile-contact" className="scroll-mt-24 rounded-xl border bg-card">
                 <div className="flex items-center justify-between p-6 border-b">
                   <div>
                     <h2 className="text-lg font-semibold">Contact details</h2>
@@ -1337,13 +1368,13 @@ export default function ProfilePage() {
                 </div>
                 <div className="p-6 space-y-4">
                   {isPersonal ? (
+                    isEditingProfile ? (
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
                           <PhoneIcon className="h-4 w-4" />
                           Phone number
                         </Label>
-                        {isEditingProfile ? (
                           <PhoneInput
                             international
                             defaultCountry="MY"
@@ -1355,38 +1386,38 @@ export default function ProfilePage() {
                               "h-11 px-4 transition-none [&_*]:transition-none [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:focus-visible:outline-none [&>input]:focus-visible:ring-0 [&_*]:focus-visible:outline-none [&_*]:focus-visible:ring-0"
                             )}
                           />
-                        ) : (
-                          <Input
-                            value={phoneNumber || "—"}
-                            disabled
-                            className={formInputDisabledClassName}
-                          />
-                        )}
                       </div>
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
                           <EnvelopeIcon className="h-4 w-4" />
                           Email
                         </Label>
-                        <Input
-                          value={
-                            activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
-                          }
-                          disabled
-                          className={formInputDisabledClassName}
-                        />
+                        <p className="text-ui">
+                            {activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"}
+                        </p>
                       </div>
                     </div>
-                  ) : (
+                    ) : (
+                      <ProfileFieldGrid>
+                        <ProfileReadField label="Phone number" value={phoneNumber || "—"} />
+                        <ProfileReadField
+                          label="Email"
+                          value={
+                            activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)
+                              ?.email || "—"
+                          }
+                          locked
+                        />
+                      </ProfileFieldGrid>
+                    )
+                  ) : isEditingProfile ? (
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label>Name</Label>
                         <Input
                           value={contactName}
                           onChange={(e) => setContactName(e.target.value)}
-                          disabled={!isEditingProfile}
                           placeholder="eg. John Doe"
-                          className={!isEditingProfile ? formInputDisabledClassName : ""}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1394,9 +1425,7 @@ export default function ProfilePage() {
                         <Input
                           value={contactPosition}
                           onChange={(e) => setContactPosition(e.target.value)}
-                          disabled={!isEditingProfile}
                           placeholder="eg. CFO"
-                          className={!isEditingProfile ? formInputDisabledClassName : ""}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1408,9 +1437,7 @@ export default function ProfilePage() {
                           type="email"
                           value={contactEmail}
                           onChange={(e) => setContactEmail(e.target.value)}
-                          disabled={!isEditingProfile}
                           placeholder="eg. name@company.com"
-                          className={!isEditingProfile ? formInputDisabledClassName : ""}
                         />
                       </div>
                       <div className="space-y-2">
@@ -1418,7 +1445,6 @@ export default function ProfilePage() {
                           <PhoneIcon className="h-4 w-4" />
                           Contact number
                         </Label>
-                        {isEditingProfile ? (
                           <PhoneInput
                             international
                             defaultCountry="MY"
@@ -1430,15 +1456,23 @@ export default function ProfilePage() {
                               "h-11 px-4 transition-none [&_*]:transition-none [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:focus-visible:outline-none [&>input]:focus-visible:ring-0 [&_*]:focus-visible:outline-none [&_*]:focus-visible:ring-0"
                             )}
                           />
-                        ) : (
-                          <Input
-                            value={contactPhone || "—"}
-                            disabled
-                            className={formInputDisabledClassName}
-                          />
-                        )}
                       </div>
                     </div>
+                  ) : (
+                    <ProfileFieldGrid>
+                      <ProfileReadField label="Name" value={contactName || "—"} />
+                      <ProfileReadField label="Position" value={contactPosition || "—"} />
+                      <ProfileReadField
+                        label="Email"
+                        value={contactEmail || "—"}
+                        missing={missingFieldKeys.has("companyEmail")}
+                      />
+                      <ProfileReadField
+                        label="Contact Number"
+                        value={contactPhone || "—"}
+                        missing={missingFieldKeys.has("phoneNumber")}
+                      />
+                    </ProfileFieldGrid>
                   )}
 
                   {isEditingProfile && (
@@ -1464,20 +1498,17 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
-              {!isPersonal && activeOrganization?.id && orgData && (
+              {!isPersonal && activeOrganization?.id && orgData ? (
                 <div ref={directorsSectionRef} className="scroll-mt-24">
-                  <DirectorShareholdersUnifiedSection
-                    portal="issuer"
+                  <IssuerPeopleSection
                     organizationId={activeOrganization.id}
                     organizationOnboardingStatus={orgData.onboardingStatus}
                     people={orgData.people ?? []}
                     directorShareholderListSource={orgData.directorShareholderListSource ?? null}
                     ctosDirectorShareholderWarning={orgData.ctosDirectorShareholderWarning ?? null}
-                    highlightActionRequiredRows
-                    autoFocusFirstEmptyEmail={focusDirectors}
                     focusedMatchKey={focusedPersonKey}
-                    onPartyOnboardingSent={async () => {
+                    canEdit={isCurrentUserAdmin}
+                    onChanged={async () => {
                       await queryClient.invalidateQueries({
                         queryKey: ["corporate-entities", activeOrganization.id],
                       });
@@ -1487,7 +1518,13 @@ export default function ProfilePage() {
                     }}
                   />
                 </div>
-              )}
+              ) : null}
+
+              {!isPersonal && activeOrganization?.id ? (
+                <div ref={financialsSectionRef}>
+                  <IssuerFinancialsCard organizationId={activeOrganization.id} />
+                </div>
+              ) : null}
 
             </TabsContent>
 

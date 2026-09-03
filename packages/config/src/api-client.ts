@@ -78,6 +78,8 @@ import type {
   WithdrawReason,
   AdminCtosReportListItem,
   MarcSmeGrade,
+  ScCompanyCategory,
+  ScSustainabilityCategory,
   RecipientEkycSession,
   RecipientEkycSessionStatus,
   CreateNoteFromApplicationInput,
@@ -161,6 +163,11 @@ import type {
   PaymasterListItem,
   PaymasterLookupResult,
   PaymasterVerificationStatus,
+  ComrepProfileCompleteness,
+  IssuerOrgFinancialSummary,
+  OrganizationPartyProfileDto,
+  OperatorProfileDto,
+  PartyMismatchResolveInput,
 } from "@cashsouk/types";
 import { parseContentDispositionFilename } from "./content-disposition-filename";
 import { detectClientPortal } from "./detect-client-portal";
@@ -599,6 +606,283 @@ export class ApiClient {
       `/v1/admin/organizations/${portal}/${organizationId}/refresh-corporate-entities`,
       {}
     );
+  }
+
+  async getProfileCompleteness(
+    portal: "investor" | "issuer",
+    organizationId: string
+  ): Promise<ApiResponse<ComrepProfileCompleteness> | ApiError> {
+    return this.get<ComrepProfileCompleteness>(
+      `/v1/organizations/${portal}/${organizationId}/profile-completeness`
+    );
+  }
+
+  async getPartyProfiles(
+    portal: "investor" | "issuer",
+    organizationId: string
+  ): Promise<ApiResponse<OrganizationPartyProfileDto[]> | ApiError> {
+    return this.get<OrganizationPartyProfileDto[]>(
+      `/v1/organizations/${portal}/${organizationId}/party-profiles`
+    );
+  }
+
+  async patchMasterProfile(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<{ completeness: ComrepProfileCompleteness }> | ApiError> {
+    return this.patch<{ completeness: ComrepProfileCompleteness }>(
+      `/v1/organizations/${portal}/${organizationId}/master-profile`,
+      data
+    );
+  }
+
+  async patchPartyProfile(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.patch<OrganizationPartyProfileDto>(
+      `/v1/organizations/${portal}/${organizationId}/party-profiles/${partyId}`,
+      data
+    );
+  }
+
+  async createManagementParty(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.post<OrganizationPartyProfileDto>(
+      `/v1/organizations/${portal}/${organizationId}/party-profiles`,
+      data
+    );
+  }
+
+  async deleteManagementParty(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<{ success: true }> | ApiError> {
+    return this.delete<{ success: true }>(
+      `/v1/organizations/${portal}/${organizationId}/party-profiles/${partyId}`
+    );
+  }
+
+  async getIssuerLatestFinancialStatements(
+    organizationId: string
+  ): Promise<ApiResponse<{ financial_statements: unknown } | null> | ApiError> {
+    return this.get<{ financial_statements: unknown } | null>(
+      `/v1/organizations/issuer/${organizationId}/financial-statements/latest`
+    );
+  }
+
+  async patchIssuerOrgFinancials(
+    organizationId: string,
+    year: string,
+    fields: Record<string, string | number | null>
+  ): Promise<ApiResponse<{ completeness: ComrepProfileCompleteness }> | ApiError> {
+    return this.patch<{ completeness: ComrepProfileCompleteness }>(
+      `/v1/organizations/issuer/${organizationId}/financials`,
+      { year, fields }
+    );
+  }
+
+  async getAdminPartyProfiles(
+    portal: "investor" | "issuer",
+    organizationId: string
+  ): Promise<ApiResponse<OrganizationPartyProfileDto[]> | ApiError> {
+    return this.get<OrganizationPartyProfileDto[]>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles`
+    );
+  }
+
+  async resolvePartyMismatch(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string,
+    input: PartyMismatchResolveInput
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.post<OrganizationPartyProfileDto>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/resolve-mismatch`,
+      input
+    );
+  }
+
+  async adoptObservedParty(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.post<OrganizationPartyProfileDto>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/adopt`,
+      {}
+    );
+  }
+
+  async inactivateMasterParty(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.post<OrganizationPartyProfileDto>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}/inactivate`,
+      {}
+    );
+  }
+
+  async patchAdminMasterProfile(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<{ completeness: ComrepProfileCompleteness }> | ApiError> {
+    return this.patch<{ completeness: ComrepProfileCompleteness }>(
+      `/v1/admin/organizations/${portal}/${organizationId}/master-profile`,
+      data
+    );
+  }
+
+  async patchAdminPartyProfile(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    partyId: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.patch<OrganizationPartyProfileDto>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}`,
+      data
+    );
+  }
+
+  async createAdminPartyProfile(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.post<OrganizationPartyProfileDto>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles`,
+      data
+    );
+  }
+
+  async patchAdminIssuerFinancials(
+    organizationId: string,
+    year: string,
+    fields: Record<string, string | number | null>
+  ): Promise<
+    ApiResponse<{ completeness: ComrepProfileCompleteness; financials: IssuerOrgFinancialSummary }> | ApiError
+  > {
+    return this.patch<{ completeness: ComrepProfileCompleteness; financials: IssuerOrgFinancialSummary }>(
+      `/v1/admin/organizations/issuer/${organizationId}/financials`,
+      { year, fields }
+    );
+  }
+
+  async getOperatorProfile(): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.get<OperatorProfileDto>("/v1/admin/operator-profile");
+  }
+
+  async patchOperatorProfile(
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.patch<OperatorProfileDto>("/v1/admin/operator-profile", data);
+  }
+
+  async patchOperatorShareCapital(
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.patch<OperatorProfileDto>("/v1/admin/operator-profile/share-capital", data);
+  }
+
+  async createOperatorShareholder(
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.post<OperatorProfileDto>("/v1/admin/operator-profile/shareholders", data);
+  }
+
+  async updateOperatorShareholder(
+    id: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.patch<OperatorProfileDto>(`/v1/admin/operator-profile/shareholders/${id}`, data);
+  }
+
+  async deleteOperatorShareholder(id: string): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.delete<OperatorProfileDto>(`/v1/admin/operator-profile/shareholders/${id}`);
+  }
+
+  async createOperatorOfficer(
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.post<OperatorProfileDto>("/v1/admin/operator-profile/officers", data);
+  }
+
+  async updateOperatorOfficer(
+    id: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.patch<OperatorProfileDto>(`/v1/admin/operator-profile/officers/${id}`, data);
+  }
+
+  async deleteOperatorOfficer(id: string): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.delete<OperatorProfileDto>(`/v1/admin/operator-profile/officers/${id}`);
+  }
+
+  async createOperatorAdvisor(
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.post<OperatorProfileDto>("/v1/admin/operator-profile/advisors", data);
+  }
+
+  async updateOperatorAdvisor(
+    id: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.patch<OperatorProfileDto>(`/v1/admin/operator-profile/advisors/${id}`, data);
+  }
+
+  async deleteOperatorAdvisor(id: string): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.delete<OperatorProfileDto>(`/v1/admin/operator-profile/advisors/${id}`);
+  }
+
+  async createOperatorInterest(
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.post<OperatorProfileDto>("/v1/admin/operator-profile/interests", data);
+  }
+
+  async updateOperatorInterest(
+    id: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.patch<OperatorProfileDto>(`/v1/admin/operator-profile/interests/${id}`, data);
+  }
+
+  async deleteOperatorInterest(id: string): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.delete<OperatorProfileDto>(`/v1/admin/operator-profile/interests/${id}`);
+  }
+
+  async createOperatorFinancialStatement(
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.post<OperatorProfileDto>("/v1/admin/operator-profile/financial-statements", data);
+  }
+
+  async updateOperatorFinancialStatement(
+    id: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.patch<OperatorProfileDto>(
+      `/v1/admin/operator-profile/financial-statements/${id}`,
+      data
+    );
+  }
+
+  async deleteOperatorFinancialStatement(
+    id: string
+  ): Promise<ApiResponse<OperatorProfileDto> | ApiError> {
+    return this.delete<OperatorProfileDto>(`/v1/admin/operator-profile/financial-statements/${id}`);
   }
 
   // Admin - Onboarding Applications (Approval Queue)
@@ -1965,6 +2249,8 @@ export class ApiClient {
       offeredProfitRatePercent?: number | null;
       platformFeeRatePercent?: number | null;
       risk_rating: MarcSmeGrade;
+      company_category: ScCompanyCategory;
+      sustainability_category: ScSustainabilityCategory;
       financingTenureDays: number;
       feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode;
       facilityFeeCollectAmount?: number | null;
@@ -1979,6 +2265,8 @@ export class ApiClient {
         offeredProfitRatePercent: payload.offeredProfitRatePercent ?? null,
         platformFeeRatePercent: payload.platformFeeRatePercent ?? null,
         risk_rating: payload.risk_rating,
+        company_category: payload.company_category,
+        sustainability_category: payload.sustainability_category,
         financingTenureDays: payload.financingTenureDays,
         ...(payload.feeScheduleMode ? { feeScheduleMode: payload.feeScheduleMode } : {}),
         facilityFeeCollectAmount: payload.facilityFeeCollectAmount ?? 0,

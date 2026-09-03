@@ -7,11 +7,27 @@ describe("sendInvoiceOfferSchema", () => {
     offeredProfitRatePercent: 12,
     financingTenureDays: 90,
     expiresAt: null as string | null,
+    company_category: "TECHNOLOGY",
+    sustainability_category: "NONE",
   };
 
   it("fails when risk_rating is missing", () => {
     const parsed = sendInvoiceOfferSchema.safeParse(base);
     expect(parsed.success).toBe(false);
+  });
+
+  it("fails when campaign company or sustainability category is missing", () => {
+    expect(
+      sendInvoiceOfferSchema.safeParse({ ...base, risk_rating: "SME-3", company_category: undefined })
+        .success
+    ).toBe(false);
+    expect(
+      sendInvoiceOfferSchema.safeParse({
+        ...base,
+        risk_rating: "SME-3",
+        sustainability_category: undefined,
+      }).success
+    ).toBe(false);
   });
 
   it("fails when risk_rating is a letter grade or otherwise outside SME-1–10", () => {
@@ -66,6 +82,8 @@ describe("sendInvoiceOfferSchema fee schedule", () => {
     offeredProfitRatePercent: 12,
     financingTenureDays: 90,
     risk_rating: "SME-3",
+    company_category: "NON_TECHNOLOGY",
+    sustainability_category: "G8",
   };
 
   it("defaults collect amount and additional fees", () => {

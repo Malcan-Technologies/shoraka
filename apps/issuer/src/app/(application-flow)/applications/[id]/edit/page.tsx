@@ -69,6 +69,7 @@ import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director
 import { resolveIssuerFacilityGate } from "@/lib/facility-enabled";
 import { FACILITY_FEE_DRAWDOWN_BLOCKED_MESSAGE } from "@/lib/facility-fee-payment-ui";
 import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
+import { IssuerProfileCompletenessBanner } from "@/components/profile-completeness-banner";
 import { ProgressIndicator } from "../../components/progress-indicator";
 import {
   ApplicationFlowBlockedBackdrop,
@@ -292,6 +293,18 @@ function EditApplicationPageBody() {
     () => createApiClient(API_URL, getAccessToken),
     [API_URL, getAccessToken]
   );
+  const profileCompletenessQuery = useQuery({
+    queryKey: ["issuer", "profile-completeness", issuerOrgId],
+    enabled: Boolean(issuerOrgId),
+    queryFn: async () => {
+      const res = await apiClient.getProfileCompleteness("issuer", issuerOrgId);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+  });
+  const profileIncompleteWarning =
+    "Your profile is incomplete. You can continue with your application, but please complete the remaining profile information when possible.";
+  const showProfileIncompleteWarning = profileCompletenessQuery.data?.complete === false;
   const { data: frozenProductWorkflowData } = useQuery({
     queryKey: ["signing-product-workflow", applicationId],
     queryFn: async () => {
@@ -1927,6 +1940,10 @@ function EditApplicationPageBody() {
                 void safeNavigate(`/profile?focus=directors${personQuery}`, { leavingPage: true });
               }}
             />
+            <IssuerProfileCompletenessBanner
+              organizationId={activeOrganization.id}
+              onboarded={activeOrganization.onboardingStatus === "COMPLETED"}
+            />
           </div>
         ) : null}
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
@@ -2131,6 +2148,7 @@ function EditApplicationPageBody() {
                     : "After you submit, you will not be able to edit this application unless we request changes."}
                 </p>
                 {isFacilityOnlyJourney ? <p>{FACILITY_ONLY_SUBMIT_COPY}</p> : null}
+                {showProfileIncompleteWarning ? <p>{profileIncompleteWarning}</p> : null}
                 {showProcessingFeeInConfirm ? (
                   <p>
                     Before your application is sent for review, you will need to pay a one-time

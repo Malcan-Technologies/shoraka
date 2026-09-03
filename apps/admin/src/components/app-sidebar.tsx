@@ -24,6 +24,7 @@ import {
   CreditCardIcon,
   CubeIcon,
   CalculatorIcon,
+  BuildingLibraryIcon,
   BellIcon,
   ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
@@ -783,6 +784,28 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </SidebarMenuItem>
                   );
                 })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
+
+        {canViewPlatformFinance ? (
+          <SidebarGroup>
+            <SidebarGroupLabel>Shoraka</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/shoraka/profile" || pathname.startsWith("/shoraka/")}
+                    tooltip="Profile"
+                  >
+                    <Link href="/shoraka/profile">
+                      <BuildingLibraryIcon className="h-4 w-4" />
+                      <span>Profile</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
