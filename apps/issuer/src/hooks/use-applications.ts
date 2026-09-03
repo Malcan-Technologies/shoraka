@@ -141,7 +141,6 @@ export function useUpdateApplicationStatus() {
     },
     onError: (error: Error) => {
       if (isCapacityErrorCode(getApiMutationErrorCode(error))) return;
-      if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") return;
       toast.error("Failed to update application status", {
         description: error.message,
       });
@@ -186,7 +185,6 @@ export function useResubmitApplication() {
     },
     onError: (error: Error) => {
       if (isCapacityErrorCode(getApiMutationErrorCode(error))) return;
-      if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") return;
       toast.error("Failed to resubmit", {
         description: error.message,
       });

@@ -238,17 +238,6 @@ function EditApplicationPageBody() {
     activeOrganization?.directorShareholderSubmitBlockedMessage ??
     "Some directors or shareholders have not finished onboarding. Complete onboarding on your company profile before you submit an application.";
 
-  const notifyProfileIncomplete = React.useCallback(() => {
-    toast.error("Complete the company profile before you submit an application.", {
-      action: {
-        label: "Complete profile",
-        onClick: () => {
-          router.push("/profile?focus=completeness");
-        },
-      },
-    });
-  }, [router]);
-
   /** Handle application not found */
   React.useEffect(() => {
     if (appError) {
@@ -313,8 +302,9 @@ function EditApplicationPageBody() {
       return res.data;
     },
   });
-  const profileCompleteForSubmit =
-    profileCompletenessQuery.data == null || profileCompletenessQuery.data.complete;
+  const profileIncompleteWarning =
+    "Your profile is incomplete. You can continue with your application, but please complete the remaining profile information when possible.";
+  const showProfileIncompleteWarning = profileCompletenessQuery.data?.complete === false;
   const { data: frozenProductWorkflowData } = useQuery({
     queryKey: ["signing-product-workflow", applicationId],
     queryFn: async () => {
@@ -1313,10 +1303,6 @@ function EditApplicationPageBody() {
       toast.error(directorPartySubmitBlockedMessage);
       return;
     }
-    if (!devPreviewAmendment && profileCompletenessQuery.data?.complete === false) {
-      notifyProfileIncomplete();
-      return;
-    }
     if (existingFacilityFeeBlocksSubmit) {
       toast.error(FACILITY_FEE_DRAWDOWN_BLOCKED_MESSAGE);
       return;
@@ -1336,14 +1322,10 @@ function EditApplicationPageBody() {
       await finalizeApplicationSubmit(wasAmendmentResubmit);
       successPendingNav = true;
     } catch (error) {
-      if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") {
-        notifyProfileIncomplete();
-      } else {
-        toast.error(
-          mapCapacityApiError(error) ??
-            (wasAmendmentResubmit ? "Failed to resubmit application" : "Failed to submit application")
-        );
-      }
+      toast.error(
+        mapCapacityApiError(error) ??
+          (wasAmendmentResubmit ? "Failed to resubmit application" : "Failed to submit application")
+      );
     } finally {
       if (!successPendingNav) {
         isSubmittingRef.current = false;
@@ -1365,10 +1347,6 @@ function EditApplicationPageBody() {
     }
     if (!devPreviewAmendment && !directorPartySubmitReady) {
       toast.error(directorPartySubmitBlockedMessage);
-      return;
-    }
-    if (!devPreviewAmendment && profileCompletenessQuery.data?.complete === false) {
-      notifyProfileIncomplete();
       return;
     }
     if (existingFacilityFeeBlocksSubmit) {
@@ -1410,12 +1388,8 @@ function EditApplicationPageBody() {
 
       await finalizeApplicationSubmit(application?.status === "AMENDMENT_REQUESTED");
       holdSubmitting = true;
-    } catch (error) {
-      if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") {
-        notifyProfileIncomplete();
-      } else {
-        toast.error("Failed to prepare submission");
-      }
+    } catch {
+      toast.error("Failed to prepare submission");
     } finally {
       if (!holdSubmitting) {
         isSubmittingRef.current = false;
@@ -1438,10 +1412,6 @@ function EditApplicationPageBody() {
       toast.error(directorPartySubmitBlockedMessage);
       return;
     }
-    if (profileCompletenessQuery.data?.complete === false) {
-      notifyProfileIncomplete();
-      return;
-    }
     if (existingFacilityFeeBlocksSubmit) {
       toast.error(FACILITY_FEE_DRAWDOWN_BLOCKED_MESSAGE);
       return;
@@ -1460,15 +1430,13 @@ function EditApplicationPageBody() {
       if (getApiMutationErrorCode(error) === "PROCESSING_FEE_REQUIRED") {
         toast.info("We are still confirming your payment. Please wait a moment and try again.");
         setShowProcessingFeeStep(true);
-      } else if (getApiMutationErrorCode(error) === "PROFILE_INCOMPLETE") {
-        notifyProfileIncomplete();
       } else {
         toast.error("Failed to submit application");
       }
       isSubmittingRef.current = false;
       setIsSubmittingApplication(false);
     }
-  }, [finalizeApplicationSubmit, notifyProfileIncomplete]);
+  }, [finalizeApplicationSubmit]);
 
 
 
@@ -2129,7 +2097,6 @@ function EditApplicationPageBody() {
                       !allAmendmentStepsAcknowledged) ||
                     (!devPreviewAmendment && !isCurrentStepValid) ||
                     (!devPreviewAmendment && !directorPartySubmitReady) ||
-                    (!devPreviewAmendment && !profileCompleteForSubmit) ||
                     !isStepMapped
                   : updateStepMutation.isPending ||
                     updateStatusMutation.isPending ||
@@ -2181,6 +2148,7 @@ function EditApplicationPageBody() {
                     : "After you submit, you will not be able to edit this application unless we request changes."}
                 </p>
                 {isFacilityOnlyJourney ? <p>{FACILITY_ONLY_SUBMIT_COPY}</p> : null}
+                {showProfileIncompleteWarning ? <p>{profileIncompleteWarning}</p> : null}
                 {showProcessingFeeInConfirm ? (
                   <p>
                     Before your application is sent for review, you will need to pay a one-time

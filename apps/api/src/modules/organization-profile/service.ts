@@ -1472,13 +1472,10 @@ export async function patchIssuerOrgFinancials(params: {
   });
 }
 
-export async function assertIssuerProfileCompleteForSubmit(issuerOrganizationId: string): Promise<void> {
-  const completeness = await computeOrgProfileCompleteness("issuer", issuerOrganizationId);
-  if (!completeness.complete) {
-    throw new AppError(
-      400,
-      "PROFILE_INCOMPLETE",
-      "Complete the company profile before you submit an application."
-    );
-  }
-}
+/**
+ * First production rollout: ComRep profile completeness is informational only.
+ * Do not throw PROFILE_INCOMPLETE here — issuers may create, save, and submit
+ * applications with an incomplete master profile. Re-enable the gate when
+ * operational data collection is proven.
+ */
+export async function assertIssuerProfileCompleteForSubmit(_issuerOrganizationId: string): Promise<void> {}
