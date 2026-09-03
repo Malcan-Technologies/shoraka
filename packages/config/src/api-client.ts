@@ -162,6 +162,7 @@ import type {
   PaymasterLookupResult,
   PaymasterVerificationStatus,
   ComrepProfileCompleteness,
+  IssuerOrgFinancialSummary,
   OrganizationPartyProfileDto,
   OperatorProfileDto,
   PartyMismatchResolveInput,
@@ -741,6 +742,30 @@ export class ApiClient {
     return this.patch<OrganizationPartyProfileDto>(
       `/v1/admin/organizations/${portal}/${organizationId}/party-profiles/${partyId}`,
       data
+    );
+  }
+
+  async createAdminPartyProfile(
+    portal: "investor" | "issuer",
+    organizationId: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<OrganizationPartyProfileDto> | ApiError> {
+    return this.post<OrganizationPartyProfileDto>(
+      `/v1/admin/organizations/${portal}/${organizationId}/party-profiles`,
+      data
+    );
+  }
+
+  async patchAdminIssuerFinancials(
+    organizationId: string,
+    year: string,
+    fields: Record<string, string | number | null>
+  ): Promise<
+    ApiResponse<{ completeness: ComrepProfileCompleteness; financials: IssuerOrgFinancialSummary }> | ApiError
+  > {
+    return this.patch<{ completeness: ComrepProfileCompleteness; financials: IssuerOrgFinancialSummary }>(
+      `/v1/admin/organizations/issuer/${organizationId}/financials`,
+      { year, fields }
     );
   }
 

@@ -4,6 +4,7 @@ import {
   computeIssuerCompanyCompleteness,
   issuerFinancialsFromYearBlock,
   isMasterFieldEmpty,
+  latestUnauditedYearKey,
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
   valuesEqualForMismatch,
@@ -194,5 +195,15 @@ describe("operator annual [03000] holder type", () => {
   it("keeps regulatory role separate from individual vs corporate", () => {
     expect(OPERATOR_HOLDER_TYPES).toEqual(["SHAREHOLDER", "MEMBER", "BENEFICIAL_OWNER"]);
     expect(ORGANIZATION_PARTY_ENTITY_TYPES).toEqual(["INDIVIDUAL", "CORPORATE"]);
+  });
+});
+
+describe("latestUnauditedYearKey", () => {
+  it("picks the newest year from unaudited_by_year", () => {
+    expect(
+      latestUnauditedYearKey({
+        unaudited_by_year: { "2023": { turnover: 1 }, "2025": { turnover: 2 } },
+      })
+    ).toBe("2025");
   });
 });

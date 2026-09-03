@@ -8,6 +8,7 @@ import {
   computeOrgProfileCompleteness,
   createUserAddedParty,
   deleteManagementParty,
+  getIssuerFinancialSummary,
   inactivateMasterParty,
   listPartyProfiles,
   patchIssuerOrgFinancials,
@@ -365,6 +366,38 @@ export function createAdminOrganizationProfileRouter() {
         metadata: { portal, partyId: data.id, partyKey: data.partyKey },
       });
       res.json({ success: true, data, correlationId: res.locals.correlationId });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/:portal/:id/financials", requirePermission("organizations.manage"), async (req, res, next) => {
+    try {
+      const portal = portalFromParams(req);
+      if (portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "Financial statements are only stored for issuers");
+      }
+      const body = financialYearPatchSchema.parse(req.body);
+      await patchIssuerOrgFinancials({
+        organizationId: req.params.id,
+        year: body.year,
+        fields: body.fields,
+      });
+      await logMasterProfileAudit({
+        req,
+        organizationId: req.params.id,
+        eventType: "MASTER_FINANCIALS_UPDATED",
+        metadata: { portal, year: body.year, fields: Object.keys(body.fields) },
+      });
+      const [completeness, financials] = await Promise.all([
+        computeOrgProfileCompleteness("issuer", req.params.id),
+        getIssuerFinancialSummary(req.params.id),
+      ]);
+      res.json({
+        success: true,
+        data: { completeness, financials },
+        correlationId: res.locals.correlationId,
+      });
     } catch (error) {
       next(error);
     }

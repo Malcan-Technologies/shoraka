@@ -7,9 +7,58 @@ import {
   AUDIT_ACTOR_TYPE,
   AUDIT_PORTAL,
   AUDIT_SOURCE,
+  AUDIT_TARGET_TYPE,
+  createSecurityLogRow,
   persistOrganizationUpdateAndOnboardingLogs,
 } from "../../lib/audit";
+import { patchOrgMasterProfile, type OrgMasterPatch } from "../organization-profile/service";
 import { buildOrganizationProfileAuditEvidence } from "./organization-profile-audit";
+
+const MASTER_ONLY_KEYS = [
+  "dateOfIncorporation",
+  "dateOfCommencement",
+  "countryOfIncorporation",
+  "scCompanyType",
+  "companyCategory",
+  "companyEmail",
+  "scInvestorCategory",
+  "residentialAddress",
+  "gender",
+  "nationality",
+] as const;
+
+export function extractMasterProfilePatch(
+  input: UpdateAdminOrganizationProfileInput
+): OrgMasterPatch {
+  const patch: OrgMasterPatch = {};
+  for (const key of MASTER_ONLY_KEYS) {
+    if (input[key] !== undefined) {
+      (patch as Record<string, unknown>)[key] = input[key];
+    }
+  }
+  if (input.name !== undefined) patch.name = input.name;
+  if (input.phoneNumber !== undefined) patch.phoneNumber = input.phoneNumber;
+  const addresses = input.corporateOnboardingData?.addresses;
+  if (addresses?.registered !== undefined) patch.registeredAddress = addresses.registered;
+  if (addresses?.business !== undefined) patch.businessAddress = addresses.business;
+  const activities = input.corporateOnboardingData?.aboutYourBusiness?.whatDoesCompanyDo;
+  if (activities !== undefined) patch.companyActivities = activities;
+  return patch;
+}
+
+export function stripMasterOnlyProfileFields(
+  input: UpdateAdminOrganizationProfileInput
+): UpdateAdminOrganizationProfileInput {
+  const operational: UpdateAdminOrganizationProfileInput = { ...input };
+  for (const key of MASTER_ONLY_KEYS) {
+    delete operational[key];
+  }
+  return operational;
+}
+
+function hasDefinedProfileFields(input: object): boolean {
+  return Object.values(input).some((value) => value !== undefined);
+}
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
@@ -108,8 +157,11 @@ export async function updateAdminOrganizationProfile(params: {
   };
 }): Promise<{ success: true }> {
   const { portal, organizationId, adminUserId, input, requestMeta } = params;
-  const hasField = Object.values(input).some((value) => value !== undefined);
-  if (!hasField) {
+  const masterPatch = extractMasterProfilePatch(input);
+  const operational = stripMasterOnlyProfileFields(input);
+  const hasMaster = hasDefinedProfileFields(masterPatch);
+  const hasOperational = hasDefinedProfileFields(operational);
+  if (!hasOperational && !hasMaster) {
     throw new AppError(400, "VALIDATION_ERROR", "No profile fields to update");
   }
 
@@ -153,26 +205,29 @@ export async function updateAdminOrganizationProfile(params: {
   }
 
   const updateData: Record<string, unknown> = {};
-  if (input.name !== undefined) updateData.name = input.name;
-  if (input.phoneNumber !== undefined) updateData.phone_number = input.phoneNumber;
-  if (input.address !== undefined) updateData.address = input.address;
-  if (input.firstName !== undefined) updateData.first_name = input.firstName;
-  if (input.lastName !== undefined) updateData.last_name = input.lastName;
-  if (input.middleName !== undefined) updateData.middle_name = input.middleName;
-  if (input.bankAccountDetails !== undefined) {
-    updateData.bank_account_details = input.bankAccountDetails;
-  }
-  if (input.corporateOnboardingData !== undefined) {
-    if (org.type !== "COMPANY") {
-      throw new AppError(400, "VALIDATION_ERROR", "Corporate fields can only be updated for company organizations");
+  if (hasOperational) {
+    if (operational.name !== undefined) updateData.name = operational.name;
+    if (operational.phoneNumber !== undefined) updateData.phone_number = operational.phoneNumber;
+    if (operational.address !== undefined) updateData.address = operational.address;
+    if (operational.firstName !== undefined) updateData.first_name = operational.firstName;
+    if (operational.lastName !== undefined) updateData.last_name = operational.lastName;
+    if (operational.middleName !== undefined) updateData.middle_name = operational.middleName;
+    if (operational.bankAccountDetails !== undefined) {
+      updateData.bank_account_details = operational.bankAccountDetails;
     }
-    updateData.corporate_onboarding_data = mergeCorporateOnboardingData(
-      org.corporate_onboarding_data,
-      input.corporateOnboardingData
-    );
+    if (operational.corporateOnboardingData !== undefined) {
+      if (org.type !== "COMPANY") {
+        throw new AppError(400, "VALIDATION_ERROR", "Corporate fields can only be updated for company organizations");
+      }
+      updateData.corporate_onboarding_data = mergeCorporateOnboardingData(
+        org.corporate_onboarding_data,
+        operational.corporateOnboardingData
+      );
+    }
   }
 
-  const { bankFieldsChanged } = summarizeProfilePatch(input);
+  const { bankFieldsChanged } = summarizeProfilePatch(operational);
+  const masterFieldNames = Object.keys(masterPatch);
   const evidence = buildOrganizationProfileAuditEvidence({
     previous: {
       name: org.name,
@@ -184,61 +239,98 @@ export async function updateAdminOrganizationProfile(params: {
       corporateOnboardingData: org.corporate_onboarding_data,
     },
     next: {
-      name: input.name !== undefined ? input.name : org.name,
-      phoneNumber: input.phoneNumber !== undefined ? input.phoneNumber : org.phone_number,
-      address: input.address !== undefined ? input.address : org.address,
-      firstName: input.firstName !== undefined ? input.firstName : org.first_name,
-      lastName: input.lastName !== undefined ? input.lastName : org.last_name,
-      middleName: input.middleName !== undefined ? input.middleName : org.middle_name,
+      name: operational.name !== undefined ? operational.name : org.name,
+      phoneNumber: operational.phoneNumber !== undefined ? operational.phoneNumber : org.phone_number,
+      address: operational.address !== undefined ? operational.address : org.address,
+      firstName: operational.firstName !== undefined ? operational.firstName : org.first_name,
+      lastName: operational.lastName !== undefined ? operational.lastName : org.last_name,
+      middleName: operational.middleName !== undefined ? operational.middleName : org.middle_name,
       corporateOnboardingData:
         (updateData.corporate_onboarding_data as unknown) ?? org.corporate_onboarding_data,
     },
-    corporatePatch: input.corporateOnboardingData,
+    corporatePatch: operational.corporateOnboardingData,
     bankFieldsChanged,
     organizationReference: org.display_reference,
   });
+  const updatedFields = Array.from(new Set([...evidence.updatedFields, ...masterFieldNames]));
 
-  await persistOrganizationUpdateAndOnboardingLogs({
-    portalType: portal,
-    organizationId,
-    data: updateData,
-    logs: [
-      {
-        userId: org.owner_user_id,
-        investorOrganizationId: portal === "investor" ? organizationId : null,
-        issuerOrganizationId: portal === "issuer" ? organizationId : null,
-        organizationName: (input.name ?? org.name) || undefined,
-        role: portal === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
-        eventType: "PROFILE_UPDATED",
-        portal: AUDIT_PORTAL.ADMIN,
-        ipAddress: requestMeta.ipAddress,
-        userAgent: requestMeta.userAgent,
-        deviceInfo: requestMeta.deviceInfo,
-        deviceType: requestMeta.deviceType,
-        metadata: {
-          updatedBy: adminUserId,
-          updatedFields: evidence.updatedFields,
-          bankFieldsChanged: evidence.bankFieldsChanged,
-          previousValues: evidence.previousValues,
-          nextValues: evidence.nextValues,
-          subjectPortal: portal,
-          ...(evidence.organizationReference
-            ? { organizationReference: evidence.organizationReference }
-            : {}),
-        },
-        actorUserId: adminUserId,
-        context: {
-          actorType: AUDIT_ACTOR_TYPE.ADMIN,
-          actorUserId: adminUserId,
-          source: AUDIT_SOURCE.API,
+  if (Object.keys(updateData).length > 0) {
+    await persistOrganizationUpdateAndOnboardingLogs({
+      portalType: portal,
+      organizationId,
+      data: updateData,
+      logs: [
+        {
+          userId: org.owner_user_id,
+          investorOrganizationId: portal === "investor" ? organizationId : null,
+          issuerOrganizationId: portal === "issuer" ? organizationId : null,
+          organizationName: (operational.name ?? org.name) || undefined,
+          role: portal === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
+          eventType: "PROFILE_UPDATED",
           portal: AUDIT_PORTAL.ADMIN,
-          ipAddress: requestMeta.ipAddress ?? null,
-          userAgent: requestMeta.userAgent ?? null,
-          correlationId: null,
+          ipAddress: requestMeta.ipAddress,
+          userAgent: requestMeta.userAgent,
+          deviceInfo: requestMeta.deviceInfo,
+          deviceType: requestMeta.deviceType,
+          metadata: {
+            updatedBy: adminUserId,
+            updatedFields,
+            bankFieldsChanged: evidence.bankFieldsChanged,
+            previousValues: evidence.previousValues,
+            nextValues: evidence.nextValues,
+            subjectPortal: portal,
+            ...(evidence.organizationReference
+              ? { organizationReference: evidence.organizationReference }
+              : {}),
+          },
+          actorUserId: adminUserId,
+          context: {
+            actorType: AUDIT_ACTOR_TYPE.ADMIN,
+            actorUserId: adminUserId,
+            source: AUDIT_SOURCE.API,
+            portal: AUDIT_PORTAL.ADMIN,
+            ipAddress: requestMeta.ipAddress ?? null,
+            userAgent: requestMeta.userAgent ?? null,
+            correlationId: null,
+          },
         },
+      ],
+    });
+  } else if (hasMaster) {
+    await createSecurityLogRow({
+      userId: adminUserId,
+      eventType: "PROFILE_UPDATED",
+      portal: AUDIT_PORTAL.ADMIN,
+      targetType: AUDIT_TARGET_TYPE.ORGANIZATION,
+      targetId: organizationId,
+      ipAddress: requestMeta.ipAddress,
+      userAgent: requestMeta.userAgent,
+      metadata: {
+        updatedBy: adminUserId,
+        updatedFields,
+        subjectPortal: portal,
       },
-    ],
-  });
+      context: {
+        actorType: AUDIT_ACTOR_TYPE.ADMIN,
+        actorUserId: adminUserId,
+        source: AUDIT_SOURCE.API,
+        portal: AUDIT_PORTAL.ADMIN,
+        ipAddress: requestMeta.ipAddress ?? null,
+        userAgent: requestMeta.userAgent ?? null,
+        correlationId: null,
+      },
+    });
+  }
+
+  if (hasMaster) {
+    await patchOrgMasterProfile({
+      portal,
+      organizationId,
+      actorUserId: adminUserId,
+      source: "ADMIN",
+      patch: masterPatch,
+    });
+  }
 
   return { success: true };
 }

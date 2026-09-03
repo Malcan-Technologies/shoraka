@@ -6,10 +6,23 @@ import { toast } from "sonner";
 import { BANK_ACCOUNT_TYPES, MALAYSIAN_BANKS, malaysianBankLabel } from "@cashsouk/config";
 import {
   ABOUT_YOUR_BUSINESS_LIMITS,
+  SC_COMPANY_CATEGORIES,
+  SC_COMPANY_CATEGORY_LABELS,
+  SC_COMPANY_TYPE_LABELS,
+  SC_COMPANY_TYPES,
+  SC_GENDER_LABELS,
+  SC_GENDERS,
+  SC_INVESTOR_CATEGORIES,
+  SC_INVESTOR_CATEGORY_LABELS,
+  SC_MALAYSIAN_STATES,
   type OrganizationDetailResponse,
   type PortalType,
+  type ScCompanyCategory,
+  type ScCompanyType,
+  type ScGender,
+  type ScInvestorCategory,
 } from "@cashsouk/types";
-import { YesNoRadioDisplay } from "@cashsouk/ui";
+import { StatusBadge, YesNoRadioDisplay } from "@cashsouk/ui";
 import {
   ArrowTopRightOnSquareIcon,
   BanknotesIcon,
@@ -48,19 +61,26 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
+import { kycAmlScreeningRiskToken, kycAmlScreeningStatusToken } from "@/lib/kyc-aml-screening-badge-classes";
+import { getOrganizationOnboardingPresentation } from "@/lib/organization-status";
 import { OrganizationCardEditActions } from "./organization-card-edit-actions";
 import { useUpdateOrganizationProfile } from "@/organizations/hooks/use-update-organization-profile";
 import {
   EditableAddressFields,
+  EditableDateField,
   EditableField,
+  EditableSelect,
   EditableYesNo,
   formatAddressDisplay,
+  formatMasterDate,
   hasJsonContent,
   isUrl,
   JsonFields,
   ReadField,
   shortenUrl,
 } from "./organization-profile-helpers";
+import { missingFieldKeys } from "@/organizations/utils/organization-profile-overview";
+import { OrganizationFinancialsPanel } from "./organization-financials-panel";
 import {
   addressesEqual,
   buildDraft,
@@ -153,14 +173,41 @@ export function OrganizationProfilePanel({
 
   const hasPersonal = Boolean(org.firstName || org.lastName || org.nationality || org.dateOfBirth);
   const hasContact = Boolean(org.phoneNumber || org.address || org.owner.email);
-  const showPersonal = canManage || hasPersonal;
+  const showPersonal =
+    org.type === "COMPANY"
+      ? portal === "issuer" && (canManage || hasPersonal)
+      : canManage || hasPersonal;
   const showContact = canManage || hasContact;
+  const showClassification = portal === "investor";
+  const showAbout = org.type === "COMPANY" && portal === "issuer";
+  const showPersonalAddress =
+    org.type !== "COMPANY" && (canManage || Boolean(org.address || org.residentialAddress?.state));
   const basic = org.corporateOnboardingData?.basicInfo;
   const ssmNumber = org.registrationNumber || basic?.ssmRegisterNumber;
   const hasAddresses =
     Boolean(org.corporateOnboardingData?.addresses?.business) ||
     Boolean(org.corporateOnboardingData?.addresses?.registered);
   const showAddresses = org.type === "COMPANY" && (canManage || hasAddresses);
+  const requiredFieldKeys = new Set([
+    ...missingFieldKeys(org.profileCompleteness, "company"),
+    ...missingFieldKeys(org.profileCompleteness, "identity"),
+  ]);
+  const companyTypeLabel =
+    org.scCompanyType && org.scCompanyType in SC_COMPANY_TYPE_LABELS
+      ? SC_COMPANY_TYPE_LABELS[org.scCompanyType as ScCompanyType]
+      : basic?.entityType ?? null;
+  const companyCategoryLabel =
+    org.companyCategory && org.companyCategory in SC_COMPANY_CATEGORY_LABELS
+      ? SC_COMPANY_CATEGORY_LABELS[org.companyCategory as ScCompanyCategory]
+      : null;
+  const investorCategoryLabel =
+    org.scInvestorCategory && org.scInvestorCategory in SC_INVESTOR_CATEGORY_LABELS
+      ? SC_INVESTOR_CATEGORY_LABELS[org.scInvestorCategory as ScInvestorCategory]
+      : null;
+  const genderLabel =
+    draft.gender && draft.gender in SC_GENDER_LABELS
+      ? SC_GENDER_LABELS[draft.gender as ScGender]
+      : org.gender;
   const hasDocumentInfo = Boolean(
     org.documentType || org.documentNumber || org.idIssuingCountry || org.kycId
   );
@@ -184,6 +231,9 @@ export function OrganizationProfilePanel({
   ].filter((card) => hasJsonContent(card.data as Record<string, unknown> | null));
 
   const complianceData = org.complianceDeclaration as Record<string, unknown> | null;
+  const onboardingPresentation = getOrganizationOnboardingPresentation(org.onboardingStatus, {
+    completedLabel: "Onboarded",
+  });
   const sectionHasChanges = editingSection
     ? Object.keys(buildSectionPayload(org, draft, editingSection)).length > 0
     : false;
@@ -203,11 +253,11 @@ export function OrganizationProfilePanel({
   return (
     <div className="space-y-6">
       {org.type === "COMPANY" ? (
-        <Card className="rounded-2xl">
+        <Card id="profile-company" className="rounded-2xl">
           <AdminDetailCardHeader
             icon={BuildingOffice2Icon}
-            title="Company Info"
-            description="Business and registration details"
+            title="Company Details"
+            description="CashSouk master company record"
             actions={sectionActions("company")}
           />
           <CardContent>
@@ -215,15 +265,56 @@ export function OrganizationProfilePanel({
               {editingSection === "company" ? (
                 <>
                   <EditableField
-                    label="Company Name"
+                    label="Business Name"
                     value={draft.name}
                     onChange={(name) => setDraft((current) => ({ ...current, name }))}
                   />
-                  <ReadField label="Registration Number (SSM)" value={ssmNumber} />
+                  <ReadField label="SSM / ROC" value={ssmNumber} />
                   <EditableField
-                    label="TIN Number"
+                    label="TIN"
                     value={draft.tinNumber}
                     onChange={(tinNumber) => setDraft((current) => ({ ...current, tinNumber }))}
+                  />
+                  <EditableSelect
+                    label="Company Type"
+                    value={draft.scCompanyType}
+                    onChange={(scCompanyType) => setDraft((current) => ({ ...current, scCompanyType }))}
+                    options={SC_COMPANY_TYPES.map((value) => ({
+                      value,
+                      label: SC_COMPANY_TYPE_LABELS[value],
+                    }))}
+                  />
+                  <EditableSelect
+                    label="Company Category"
+                    value={draft.companyCategory}
+                    onChange={(companyCategory) => setDraft((current) => ({ ...current, companyCategory }))}
+                    options={SC_COMPANY_CATEGORIES.map((value) => ({
+                      value,
+                      label: SC_COMPANY_CATEGORY_LABELS[value],
+                    }))}
+                  />
+                  <EditableDateField
+                    label="Date of Incorporation"
+                    value={draft.dateOfIncorporation}
+                    onChange={(dateOfIncorporation) =>
+                      setDraft((current) => ({ ...current, dateOfIncorporation }))
+                    }
+                  />
+                  {portal === "issuer" ? (
+                    <EditableDateField
+                      label="Date of Commencement"
+                      value={draft.dateOfCommencement}
+                      onChange={(dateOfCommencement) =>
+                        setDraft((current) => ({ ...current, dateOfCommencement }))
+                      }
+                    />
+                  ) : null}
+                  <EditableField
+                    label="Country of Incorporation"
+                    value={draft.countryOfIncorporation}
+                    onChange={(countryOfIncorporation) =>
+                      setDraft((current) => ({ ...current, countryOfIncorporation }))
+                    }
                   />
                   <EditableField
                     label="Industry"
@@ -231,17 +322,7 @@ export function OrganizationProfilePanel({
                     onChange={(industry) => setDraft((current) => ({ ...current, industry }))}
                   />
                   <EditableField
-                    label="Entity Type"
-                    value={draft.entityType}
-                    onChange={(entityType) => setDraft((current) => ({ ...current, entityType }))}
-                  />
-                  <EditableField
-                    label="Business Name"
-                    value={draft.businessName}
-                    onChange={(businessName) => setDraft((current) => ({ ...current, businessName }))}
-                  />
-                  <EditableField
-                    label="Number of Employees"
+                    label="Employees"
                     value={draft.numberOfEmployees}
                     onChange={(numberOfEmployees) =>
                       setDraft((current) => ({ ...current, numberOfEmployees }))
@@ -257,17 +338,62 @@ export function OrganizationProfilePanel({
                     value={draft.website}
                     onChange={(website) => setDraft((current) => ({ ...current, website }))}
                   />
+                  {portal === "issuer" ? (
+                    <EditableField
+                      label="Company Email"
+                      value={draft.companyEmail}
+                      onChange={(companyEmail) => setDraft((current) => ({ ...current, companyEmail }))}
+                    />
+                  ) : null}
+                  <EditableField
+                    label="Phone"
+                    value={draft.phoneNumber}
+                    onChange={(phoneNumber) => setDraft((current) => ({ ...current, phoneNumber }))}
+                  />
                 </>
               ) : (
                 <>
-                  <ReadField label="Company Name" value={org.name} />
-                  <ReadField label="Registration Number (SSM)" value={ssmNumber} />
-                  <ReadField label="TIN Number" value={basic?.tinNumber} />
-                  <ReadField label="Industry" value={basic?.industry} />
-                  <ReadField label="Entity Type" value={basic?.entityType} />
-                  <ReadField label="Business Name" value={basic?.businessName} />
                   <ReadField
-                    label="Number of Employees"
+                    label="Business Name"
+                    value={org.name}
+                    missing={requiredFieldKeys.has("name")}
+                  />
+                  <ReadField
+                    label="SSM / ROC"
+                    value={ssmNumber}
+                    missing={requiredFieldKeys.has("registrationNumber")}
+                  />
+                  <ReadField label="TIN" value={basic?.tinNumber} />
+                  <ReadField
+                    label="Company Type"
+                    value={companyTypeLabel}
+                    missing={requiredFieldKeys.has("scCompanyType")}
+                  />
+                  <ReadField
+                    label="Company Category"
+                    value={companyCategoryLabel}
+                    missing={requiredFieldKeys.has("companyCategory")}
+                  />
+                  <ReadField
+                    label="Date of Incorporation"
+                    value={formatMasterDate(org.dateOfIncorporation)}
+                    missing={requiredFieldKeys.has("dateOfIncorporation")}
+                  />
+                  {portal === "issuer" ? (
+                    <ReadField
+                      label="Date of Commencement"
+                      value={formatMasterDate(org.dateOfCommencement)}
+                      missing={requiredFieldKeys.has("dateOfCommencement")}
+                    />
+                  ) : null}
+                  <ReadField
+                    label="Country of Incorporation"
+                    value={org.countryOfIncorporation}
+                    missing={requiredFieldKeys.has("countryOfIncorporation")}
+                  />
+                  <ReadField label="Industry" value={basic?.industry} />
+                  <ReadField
+                    label="Employees"
                     value={
                       basic?.numberOfEmployees !== undefined ? String(basic.numberOfEmployees) : null
                     }
@@ -294,6 +420,18 @@ export function OrganizationProfilePanel({
                       ) : null
                     }
                   />
+                  {portal === "issuer" ? (
+                    <ReadField
+                      label="Company Email"
+                      value={org.companyEmail}
+                      missing={requiredFieldKeys.has("companyEmail")}
+                    />
+                  ) : null}
+                  <ReadField
+                    label="Phone"
+                    value={org.phoneNumber}
+                    missing={requiredFieldKeys.has("phoneNumber")}
+                  />
                 </>
               )}
             </div>
@@ -301,11 +439,11 @@ export function OrganizationProfilePanel({
         </Card>
       ) : null}
 
-      {org.type === "COMPANY" ? (
-        <Card className="rounded-2xl">
+      {showAbout ? (
+        <Card id="profile-about" className="rounded-2xl">
           <AdminDetailCardHeader
             icon={BriefcaseIcon}
-            title="About Your Business"
+            title="About the Business"
             description="What the company does and who it serves"
             actions={sectionActions("about")}
           />
@@ -347,7 +485,11 @@ export function OrganizationProfilePanel({
               </>
             ) : (
               <>
-                <ReadField label="What Does Your Company Do?" value={draft.whatDoesCompanyDo} />
+                <ReadField
+                  label="What Does Your Company Do?"
+                  value={draft.whatDoesCompanyDo}
+                  missing={requiredFieldKeys.has("companyActivities")}
+                />
                 <ReadField label="Who Are Your Main Customers?" value={draft.mainCustomers} />
                 <div className="space-y-1.5 py-2">
                   <div className="text-meta text-muted-foreground">
@@ -366,7 +508,7 @@ export function OrganizationProfilePanel({
       ) : null}
 
       {showAddresses ? (
-        <Card className="rounded-2xl">
+        <Card id="profile-addresses" className="rounded-2xl">
           <AdminDetailCardHeader
             icon={BuildingOffice2Icon}
             title="Addresses"
@@ -427,21 +569,37 @@ export function OrganizationProfilePanel({
             ) : (
               <>
                 <div className="space-y-2">
-                  <p className="text-meta font-medium text-muted-foreground">Business address</p>
-                  <p className="text-ui">
-                    {formatAddressDisplay(org.corporateOnboardingData?.addresses?.business)}
-                  </p>
-                </div>
-                <div className="space-y-2 border-t pt-6">
                   <p className="text-meta font-medium text-muted-foreground">Registered address</p>
                   <p className="text-ui">
                     {formatAddressDisplay(org.corporateOnboardingData?.addresses?.registered)}
                   </p>
+                  {requiredFieldKeys.has("registeredAddress.line1") ||
+                  requiredFieldKeys.has("registeredAddress.state") ||
+                  requiredFieldKeys.has("registeredAddress.postalCode") ? (
+                    <p className="text-meta text-status-action-text">Required address details are missing</p>
+                  ) : null}
+                </div>
+                <div className="space-y-2 border-t pt-6">
+                  <p className="text-meta font-medium text-muted-foreground">Business address</p>
+                  <p className="text-ui">
+                    {formatAddressDisplay(org.corporateOnboardingData?.addresses?.business)}
+                  </p>
+                  {requiredFieldKeys.has("businessAddress.line1") ||
+                  requiredFieldKeys.has("businessAddress.state") ||
+                  requiredFieldKeys.has("businessAddress.postalCode") ||
+                  requiredFieldKeys.has("businessState") ||
+                  requiredFieldKeys.has("businessPostalCode") ? (
+                    <p className="text-meta text-status-action-text">Required address details are missing</p>
+                  ) : null}
                 </div>
               </>
             )}
           </CardContent>
         </Card>
+      ) : null}
+
+      {portal === "issuer" && org.type === "COMPANY" ? (
+        <OrganizationFinancialsPanel org={org} organizationId={organizationId} />
       ) : null}
 
       <div
@@ -450,10 +608,10 @@ export function OrganizationProfilePanel({
         }
       >
         {showPersonal ? (
-          <Card className="rounded-2xl">
+          <Card id="profile-personal" className="rounded-2xl">
             <AdminDetailCardHeader
               icon={IdentificationIcon}
-              title={org.type === "COMPANY" ? "Personal Details (KYC)" : "Personal info"}
+              title={org.type === "COMPANY" ? "Personal Details (KYC)" : "Personal details"}
               description="Identity details verified during onboarding"
               actions={sectionActions("personal")}
             />
@@ -483,26 +641,63 @@ export function OrganizationProfilePanel({
                       value={draft.middleName}
                       onChange={(middleName) => setDraft((current) => ({ ...current, middleName }))}
                     />
-                    <ReadField label="Gender" value={org.gender} />
+                    <ReadField
+                      label="Identity"
+                      value={[org.documentType, org.documentNumber].filter(Boolean).join(" · ") || null}
+                      missing={
+                        requiredFieldKeys.has("identityNumber") || requiredFieldKeys.has("identityPrefix")
+                      }
+                    />
+                    <EditableSelect
+                      label="Gender"
+                      value={draft.gender}
+                      onChange={(gender) => setDraft((current) => ({ ...current, gender }))}
+                      options={SC_GENDERS.filter(
+                        (value) => org.type === "COMPANY" || value !== "NOT_APPLICABLE"
+                      ).map((value) => ({ value, label: SC_GENDER_LABELS[value] }))}
+                    />
                     <ReadField
                       label="Date of Birth"
                       value={org.dateOfBirth ? format(new Date(org.dateOfBirth), "PP") : null}
+                      missing={requiredFieldKeys.has("dateOfBirth")}
                     />
-                    <ReadField label="Nationality" value={org.nationality} />
+                    <EditableField
+                      label="Nationality"
+                      value={draft.nationality}
+                      onChange={(nationality) => setDraft((current) => ({ ...current, nationality }))}
+                    />
                     <ReadField label="Country" value={org.country} />
                   </>
                 ) : (
                   <>
-                    {org.type !== "COMPANY" ? <ReadField label="Name" value={org.name} /> : null}
+                    {org.type !== "COMPANY" ? (
+                      <ReadField label="Name" value={org.name} missing={requiredFieldKeys.has("name")} />
+                    ) : null}
                     <ReadField label="First Name" value={org.firstName} />
                     <ReadField label="Last Name" value={org.lastName} />
                     <ReadField label="Middle Name" value={org.middleName} />
-                    <ReadField label="Gender" value={org.gender} />
+                    <ReadField
+                      label="Identity"
+                      value={[org.documentType, org.documentNumber].filter(Boolean).join(" · ") || null}
+                      missing={
+                        requiredFieldKeys.has("identityNumber") || requiredFieldKeys.has("identityPrefix")
+                      }
+                    />
+                    <ReadField
+                      label="Gender"
+                      value={genderLabel}
+                      missing={requiredFieldKeys.has("gender")}
+                    />
                     <ReadField
                       label="Date of Birth"
                       value={org.dateOfBirth ? format(new Date(org.dateOfBirth), "PP") : null}
+                      missing={requiredFieldKeys.has("dateOfBirth")}
                     />
-                    <ReadField label="Nationality" value={org.nationality} />
+                    <ReadField
+                      label="Nationality"
+                      value={org.nationality}
+                      missing={requiredFieldKeys.has("nationality")}
+                    />
                     <ReadField label="Country" value={org.country} />
                   </>
                 )}
@@ -523,28 +718,36 @@ export function OrganizationProfilePanel({
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {editingSection === "contact" ? (
                   <>
-                    <EditableField
-                      label="Phone Number"
-                      value={draft.phoneNumber}
-                      onChange={(phoneNumber) => setDraft((current) => ({ ...current, phoneNumber }))}
-                    />
-                    <ReadField label="Email" value={org.owner.email} />
-                    <div className="sm:col-span-2">
+                    {org.type !== "COMPANY" ? (
                       <EditableField
-                        label="Address"
-                        value={draft.address}
-                        multiline
-                        onChange={(address) => setDraft((current) => ({ ...current, address }))}
+                        label="Phone Number"
+                        value={draft.phoneNumber}
+                        onChange={(phoneNumber) => setDraft((current) => ({ ...current, phoneNumber }))}
                       />
-                    </div>
+                    ) : null}
+                    <ReadField label="Email" value={org.owner.email} />
+                    {org.type === "COMPANY" ? (
+                      <div className="sm:col-span-2">
+                        <EditableField
+                          label="Address"
+                          value={draft.address}
+                          multiline
+                          onChange={(address) => setDraft((current) => ({ ...current, address }))}
+                        />
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <>
-                    <ReadField label="Phone Number" value={org.phoneNumber} />
+                    {org.type !== "COMPANY" ? (
+                      <ReadField label="Phone Number" value={org.phoneNumber} />
+                    ) : null}
                     <ReadField label="Email" value={org.owner.email} />
-                    <div className="sm:col-span-2">
-                      <ReadField label="Address" value={org.address} />
-                    </div>
+                    {org.type === "COMPANY" ? (
+                      <div className="sm:col-span-2">
+                        <ReadField label="Address" value={org.address} />
+                      </div>
+                    ) : null}
                   </>
                 )}
               </div>
@@ -552,6 +755,137 @@ export function OrganizationProfilePanel({
           </Card>
         ) : null}
       </div>
+
+      {showPersonalAddress ? (
+        <Card id="profile-address" className="rounded-2xl">
+          <AdminDetailCardHeader
+            icon={BuildingOffice2Icon}
+            title="Address"
+            description="Residential address on the CashSouk master record"
+            actions={sectionActions("addresses")}
+          />
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {editingSection === "addresses" ? (
+                <>
+                  <div className="sm:col-span-2">
+                    <EditableField
+                      label="Residential Address"
+                      value={draft.address}
+                      multiline
+                      onChange={(address) => setDraft((current) => ({ ...current, address }))}
+                    />
+                  </div>
+                  <EditableSelect
+                    label="State"
+                    value={draft.residentialState}
+                    onChange={(residentialState) =>
+                      setDraft((current) => ({ ...current, residentialState }))
+                    }
+                    options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
+                  />
+                  <EditableField
+                    label="Postcode"
+                    value={draft.residentialPostalCode}
+                    onChange={(residentialPostalCode) =>
+                      setDraft((current) => ({ ...current, residentialPostalCode }))
+                    }
+                  />
+                </>
+              ) : (
+                <>
+                  <div className="sm:col-span-2">
+                    <ReadField label="Residential Address" value={org.address} />
+                  </div>
+                  <ReadField
+                    label="State"
+                    value={org.residentialAddress?.state}
+                    missing={requiredFieldKeys.has("state")}
+                  />
+                  <ReadField
+                    label="Postcode"
+                    value={org.residentialAddress?.postalCode}
+                    missing={requiredFieldKeys.has("postalCode")}
+                  />
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {showClassification ? (
+        <Card id="profile-classification" className="rounded-2xl">
+          <AdminDetailCardHeader
+            icon={IdentificationIcon}
+            title="Investor classification"
+            description="CashSouk investor category on the master record"
+            actions={sectionActions("classification")}
+          />
+          <CardContent>
+            {editingSection === "classification" ? (
+              <EditableSelect
+                label="Type of investor"
+                value={draft.scInvestorCategory}
+                onChange={(scInvestorCategory) =>
+                  setDraft((current) => ({ ...current, scInvestorCategory }))
+                }
+                options={SC_INVESTOR_CATEGORIES.map((value) => ({
+                  value,
+                  label: SC_INVESTOR_CATEGORY_LABELS[value],
+                }))}
+              />
+            ) : (
+              <ReadField
+                label="Type of investor"
+                value={investorCategoryLabel}
+                missing={requiredFieldKeys.has("scInvestorCategory")}
+              />
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {portal === "investor" ? (
+        <Card id="profile-kyc" className="rounded-2xl">
+          <AdminDetailCardHeader
+            icon={ShieldCheckIcon}
+            title="KYC / AML"
+            description="Onboarding and screening status on this organization"
+          />
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5 py-2">
+                <p className="text-meta text-muted-foreground">Onboarding</p>
+                <StatusBadge
+                  label={onboardingPresentation.label}
+                  status={onboardingPresentation.status}
+                />
+              </div>
+              {org.kycResponse?.status ? (
+                <div className="space-y-1.5 py-2">
+                  <p className="text-meta text-muted-foreground">Screening status</p>
+                  <StatusBadge
+                    label={org.kycResponse.status}
+                    status={kycAmlScreeningStatusToken(org.kycResponse.status)}
+                  />
+                </div>
+              ) : (
+                <ReadField label="Screening status" value={null} />
+              )}
+              {org.kycResponse?.riskLevel ? (
+                <div className="space-y-1.5 py-2">
+                  <p className="text-meta text-muted-foreground">Risk level</p>
+                  <StatusBadge
+                    label={org.kycResponse.riskLevel}
+                    status={kycAmlScreeningRiskToken(org.kycResponse.riskLevel)}
+                  />
+                </div>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="rounded-2xl">
         <AdminDetailCardHeader

@@ -90,7 +90,7 @@ import {
 } from "../ctos/ctos-report-service";
 import { renderCtosHtmlToPdfBuffer } from "../ctos/render-ctos-html-to-pdf";
 import { createAdminOrganizationProfileRouter } from "../organization-profile/controller";
-import { computeOrgProfileCompleteness, listPartyProfiles } from "../organization-profile/service";
+import { computeOrgProfileCompleteness, getIssuerFinancialSummary, listPartyProfiles } from "../organization-profile/service";
 import { createOperatorProfileRouter } from "../operator-profile/controller";
 
 const router = Router();
@@ -682,9 +682,12 @@ router.get(
         throw new AppError(404, "NOT_FOUND", "Organization not found");
       }
 
-      const [partyProfiles, profileCompleteness] = await Promise.all([
+      const profileCompleteness = await computeOrgProfileCompleteness(portal, id);
+      const [partyProfiles, issuerFinancials] = await Promise.all([
         listPartyProfiles(portal, id),
-        computeOrgProfileCompleteness(portal, id),
+        portal === "issuer" && result.type === "COMPANY"
+          ? getIssuerFinancialSummary(id)
+          : Promise.resolve(null),
       ]);
 
       res.json({
@@ -693,6 +696,7 @@ router.get(
           ...result,
           partyProfiles,
           profileCompleteness,
+          issuerFinancials,
         },
         correlationId: res.locals.correlationId,
       });

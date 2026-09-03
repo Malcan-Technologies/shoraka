@@ -861,9 +861,7 @@ export function issuerFinancialsFromYearBlock(
   };
 }
 
-export function latestUnauditedYearBlock(
-  financialStatements: unknown
-): Record<string, unknown> | null {
+export function latestUnauditedYearKey(financialStatements: unknown): string | null {
   if (!financialStatements || typeof financialStatements !== "object") return null;
   const record = financialStatements as { unaudited_by_year?: unknown };
   const byYear = record.unaudited_by_year;
@@ -872,10 +870,28 @@ export function latestUnauditedYearBlock(
     .map((y) => Number(y))
     .filter((y) => Number.isFinite(y))
     .sort((a, b) => b - a);
-  if (years.length === 0) return null;
-  const block = (byYear as Record<string, unknown>)[String(years[0])];
+  return years.length === 0 ? null : String(years[0]);
+}
+
+export function latestUnauditedYearBlock(
+  financialStatements: unknown
+): Record<string, unknown> | null {
+  const yearKey = latestUnauditedYearKey(financialStatements);
+  if (!yearKey || !financialStatements || typeof financialStatements !== "object") return null;
+  const byYear = (financialStatements as { unaudited_by_year?: Record<string, unknown> })
+    .unaudited_by_year;
+  if (!byYear || typeof byYear !== "object") return null;
+  const block = byYear[yearKey];
   if (!block || typeof block !== "object") return null;
   return block as Record<string, unknown>;
+}
+
+export interface IssuerOrgFinancialSummary {
+  latestYear: string | null;
+  complete: boolean;
+  missingCount: number;
+  missing: ProfileMissingItem[];
+  fields: Record<string, unknown> | null;
 }
 
 const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})/;

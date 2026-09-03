@@ -8,8 +8,10 @@ import {
 import {
   buildInvestorProfileCompleteness,
   buildIssuerProfileCompleteness,
+  computeIssuerFinancialCompleteness,
   issuerFinancialsFromYearBlock,
   latestUnauditedYearBlock,
+  latestUnauditedYearKey,
   isMasterFieldEmpty,
   valuesEqualForMismatch,
   canonicalPartyIdentityKey,
@@ -19,6 +21,7 @@ import {
   partySeenInExternalKeys,
   USER_GENERATED_PARTY_KEY_PREFIX,
   type ComrepProfileCompleteness,
+  type IssuerOrgFinancialSummary,
   type OrganizationPartyProfileDto,
   type PartyMismatchResolveInput,
   type ProfileAddress,
@@ -1386,6 +1389,25 @@ export async function inactivateMasterParty(params: {
     data: { membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE },
   });
   return serializeParty(updated);
+}
+
+export async function getIssuerFinancialSummary(
+  organizationId: string
+): Promise<IssuerOrgFinancialSummary> {
+  const existing = await prisma.issuerOrganizationFinancialStatement.findUnique({
+    where: { issuer_organization_id: organizationId },
+  });
+  const statements = existing?.financial_statements ?? null;
+  const latestYear = latestUnauditedYearKey(statements);
+  const yearBlock = latestUnauditedYearBlock(statements);
+  const missing = computeIssuerFinancialCompleteness(issuerFinancialsFromYearBlock(yearBlock));
+  return {
+    latestYear,
+    complete: missing.length === 0 && yearBlock != null,
+    missingCount: missing.length,
+    missing,
+    fields: yearBlock,
+  };
 }
 
 export async function patchIssuerOrgFinancials(params: {

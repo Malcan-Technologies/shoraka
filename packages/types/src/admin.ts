@@ -758,6 +758,7 @@ export interface OrganizationDetailResponse {
 
   partyProfiles?: import("./organization-party-profile").OrganizationPartyProfileDto[];
   profileCompleteness?: import("./comrep-profile").ComrepProfileCompleteness;
+  issuerFinancials?: import("./comrep-profile").IssuerOrgFinancialSummary | null;
   dateOfIncorporation?: string | null;
   dateOfCommencement?: string | null;
   countryOfIncorporation?: string | null;
@@ -856,6 +857,16 @@ export interface UpdateAdminOrganizationProfileInput {
     displayArea: string;
   } | null;
   corporateOnboardingData?: UpdateAdminOrganizationCorporateOnboardingInput;
+  dateOfIncorporation?: string | null;
+  dateOfCommencement?: string | null;
+  countryOfIncorporation?: string | null;
+  scCompanyType?: import("./comrep-profile").ScCompanyType | null;
+  companyCategory?: import("./comrep-profile").ScCompanyCategory | null;
+  companyEmail?: string | null;
+  scInvestorCategory?: import("./comrep-profile").ScInvestorCategory | null;
+  residentialAddress?: AdminOrganizationAddressInput | null;
+  gender?: import("./comrep-profile").ScGender | null;
+  nationality?: string | null;
 }
 
 // Onboarding Applications Types (Admin Approval Queue)

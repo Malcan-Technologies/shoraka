@@ -1,5 +1,10 @@
 import { updateAdminOrganizationProfileSchema } from "./schemas";
-import { mergeCorporateOnboardingData, summarizeProfilePatch } from "./organization-admin-profile";
+import {
+  extractMasterProfilePatch,
+  mergeCorporateOnboardingData,
+  stripMasterOnlyProfileFields,
+  summarizeProfilePatch,
+} from "./organization-admin-profile";
 
 describe("updateAdminOrganizationProfileSchema", () => {
   it("accepts allowed profile fields", () => {
@@ -17,6 +22,18 @@ describe("updateAdminOrganizationProfileSchema", () => {
     });
     expect(parsed.name).toBe("Acme Sdn Bhd");
     expect(parsed.corporateOnboardingData?.website).toBe("https://acme.example");
+  });
+
+  it("accepts CashSouk master profile fields on the same organization patch", () => {
+    const parsed = updateAdminOrganizationProfileSchema.parse({
+      name: "Acme Sdn Bhd",
+      companyEmail: "ops@acme.example",
+      scCompanyType: "PRIVATE_LIMITED",
+      companyCategory: "NON_TECHNOLOGY",
+      dateOfIncorporation: "2020-03-12",
+    });
+    expect(parsed.companyEmail).toBe("ops@acme.example");
+    expect(parsed.scCompanyType).toBe("PRIVATE_LIMITED");
   });
 
   it("rejects locked identity fields", () => {
@@ -78,5 +95,46 @@ describe("summarizeProfilePatch", () => {
     });
     expect(summary.updatedFields).toEqual(["name", "bankAccountDetails"]);
     expect(summary.bankFieldsChanged).toBe(true);
+  });
+});
+
+describe("extractMasterProfilePatch", () => {
+  it("routes company-type fields onto the CashSouk master patch", () => {
+    const patch = extractMasterProfilePatch({
+      name: "Acme Sdn Bhd",
+      phoneNumber: "+60123456789",
+      scCompanyType: "PRIVATE_LIMITED",
+      companyCategory: "NON_TECHNOLOGY",
+      dateOfIncorporation: "2020-03-12",
+      companyEmail: "ops@acme.example",
+      corporateOnboardingData: {
+        website: "https://acme.example",
+        addresses: {
+          registered: { line1: "1 Jalan Test", state: "Selangor", postalCode: "50000" },
+        },
+        aboutYourBusiness: { whatDoesCompanyDo: "Makes parts" },
+      },
+    });
+    expect(patch.name).toBe("Acme Sdn Bhd");
+    expect(patch.scCompanyType).toBe("PRIVATE_LIMITED");
+    expect(patch.registeredAddress).toEqual({
+      line1: "1 Jalan Test",
+      state: "Selangor",
+      postalCode: "50000",
+    });
+    expect(patch.companyActivities).toBe("Makes parts");
+  });
+
+  it("strips master-only keys from the operational organization payload", () => {
+    const operational = stripMasterOnlyProfileFields({
+      name: "Acme Sdn Bhd",
+      scCompanyType: "PRIVATE_LIMITED",
+      companyEmail: "ops@acme.example",
+      corporateOnboardingData: { website: "https://acme.example" },
+    });
+    expect(operational.name).toBe("Acme Sdn Bhd");
+    expect(operational.scCompanyType).toBeUndefined();
+    expect(operational.companyEmail).toBeUndefined();
+    expect(operational.corporateOnboardingData?.website).toBe("https://acme.example");
   });
 });
