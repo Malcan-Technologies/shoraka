@@ -329,12 +329,23 @@ export interface ProfileFieldSource {
 
 export type ProfileFieldSources = Record<string, ProfileFieldSource>;
 
+export type ProfileMissingOwner = "USER" | "ADMIN" | "SYSTEM";
+
 export interface ProfileMissingItem {
   step: ComrepProfileStepId;
   field: string;
   label: string;
   partyKey?: string;
   partyName?: string | null;
+  owner?: ProfileMissingOwner;
+}
+
+export function isUserActionableMissingItem(item: ProfileMissingItem): boolean {
+  return (item.owner ?? "USER") === "USER";
+}
+
+export function userActionableMissing(missing: ProfileMissingItem[]): ProfileMissingItem[] {
+  return missing.filter(isUserActionableMissingItem);
 }
 
 export const ISSUER_PROFILE_STEP_IDS = [
@@ -348,6 +359,9 @@ export type IssuerProfileStepId = (typeof ISSUER_PROFILE_STEP_IDS)[number];
 
 export const INVESTOR_PROFILE_STEP_IDS = ["identity", "review"] as const;
 export type InvestorProfileStepId = (typeof INVESTOR_PROFILE_STEP_IDS)[number];
+/** Identity required fields: 8 USER-owned + Admin-owned `scInvestorCategory`. */
+export const INVESTOR_IDENTITY_REQUIRED_COUNT = 9;
+export const INVESTOR_ADMIN_IDENTITY_REQUIRED_COUNT = 1;
 
 export type ComrepProfileStepId = IssuerProfileStepId | InvestorProfileStepId;
 
@@ -447,6 +461,23 @@ export interface ComrepProfileCompleteness {
   percent: number;
   steps: ComrepProfileStepCompleteness[];
   missing: ProfileMissingItem[];
+  /** USER-actionable completeness. Admin-only gaps such as `scInvestorCategory` are excluded. */
+  userComplete?: boolean;
+  userPercent?: number;
+  userMissing?: ProfileMissingItem[];
+}
+
+export function userFacingCompleteness(completeness: ComrepProfileCompleteness): {
+  complete: boolean;
+  percent: number;
+  missing: ProfileMissingItem[];
+} {
+  const missing = completeness.userMissing ?? userActionableMissing(completeness.missing);
+  return {
+    complete: completeness.userComplete ?? missing.length === 0,
+    percent: completeness.userPercent ?? completeness.percent,
+    missing,
+  };
 }
 
 export interface IssuerCompanyCompletenessInput {
@@ -619,7 +650,8 @@ function pushMissing(
   step: ComrepProfileStepId,
   field: string,
   label: string,
-  party?: { partyKey: string; partyName?: string | null }
+  party?: { partyKey: string; partyName?: string | null },
+  owner: ProfileMissingOwner = "USER"
 ): void {
   missing.push({
     step,
@@ -627,6 +659,7 @@ function pushMissing(
     label,
     partyKey: party?.partyKey,
     partyName: party?.partyName ?? null,
+    owner,
   });
 }
 
@@ -637,7 +670,32 @@ function pushMissingInvestorCategory(
   existing: ScInvestorCategory | null | undefined
 ): void {
   if (isAllowedScInvestorCategory(existing, { organizationType })) return;
-  pushMissing(missing, step, "scInvestorCategory", "SC ComRep investor type");
+  pushMissing(missing, step, "scInvestorCategory", "SC ComRep investor type", undefined, "ADMIN");
+}
+
+function withUserFacingCompleteness(
+  completeness: Omit<ComrepProfileCompleteness, "userComplete" | "userPercent" | "userMissing">
+): ComrepProfileCompleteness {
+  const userMissing = userActionableMissing(completeness.missing);
+  if (completeness.portal === "issuer") {
+    return {
+      ...completeness,
+      userComplete: completeness.complete,
+      userPercent: completeness.percent,
+      userMissing,
+    };
+  }
+  const identityRequired = completeness.steps.find((step) => step.id === "identity")?.requiredCount ?? 9;
+  const userRequiredCount = Math.max(0, identityRequired - INVESTOR_ADMIN_IDENTITY_REQUIRED_COUNT);
+  const userFilledCount = Math.max(0, userRequiredCount - userMissing.length);
+  const userPercent =
+    userRequiredCount === 0 ? 100 : Math.round((userFilledCount / userRequiredCount) * 100);
+  return {
+    ...completeness,
+    userComplete: userMissing.length === 0,
+    userPercent: Math.min(100, userPercent),
+    userMissing,
+  };
 }
 
 export function computeIssuerCompanyCompleteness(
@@ -908,6 +966,7 @@ export function buildIssuerProfileCompleteness(input: {
             step: "shareholders" as const,
             field: "shareholders",
             label: "At least one shareholder",
+            owner: "USER" as const,
           },
         ]
       : shareholderMissing;
@@ -943,7 +1002,7 @@ export function buildIssuerProfileCompleteness(input: {
   const filledTotal = steps.reduce((n, s) => n + s.filledCount, 0);
   const percent = requiredTotal === 0 ? 0 : Math.round((filledTotal / requiredTotal) * 100);
 
-  return {
+  return withUserFacingCompleteness({
     portal: "issuer",
     organizationType: "COMPANY",
     complete: allMissing.length === 0,
@@ -960,7 +1019,7 @@ export function buildIssuerProfileCompleteness(input: {
       },
     ],
     missing: allMissing,
-  };
+  });
 }
 
 export function buildInvestorProfileCompleteness(input: {
@@ -972,10 +1031,10 @@ export function buildInvestorProfileCompleteness(input: {
     input.organizationType === "COMPANY"
       ? computeInvestorCorporateCompleteness(input.corporate ?? ({} as InvestorCorporateCompletenessInput))
       : computeInvestorPersonalCompleteness(input.personal ?? ({} as InvestorPersonalCompletenessInput));
-  const requiredCount = missing.length === 0 ? (input.organizationType === "COMPANY" ? 9 : 9) : 9;
+  const requiredCount = INVESTOR_IDENTITY_REQUIRED_COUNT;
   const filledCount = Math.max(0, requiredCount - missing.length);
   const percent = Math.round((filledCount / requiredCount) * 100);
-  return {
+  return withUserFacingCompleteness({
     portal: "investor",
     organizationType: input.organizationType,
     complete: missing.length === 0,
@@ -999,7 +1058,7 @@ export function buildInvestorProfileCompleteness(input: {
       },
     ],
     missing,
-  };
+  });
 }
 
 export function issuerFinancialsFromYearBlock(

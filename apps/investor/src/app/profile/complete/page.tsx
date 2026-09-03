@@ -9,6 +9,7 @@ import {
   SC_GENDER_LABELS,
   SC_GENDERS,
   SC_MALAYSIAN_STATES,
+  userFacingCompleteness,
 } from "@cashsouk/types";
 import { OnboardingStepper, PageShell, StickyFormFooter } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
@@ -83,7 +84,7 @@ export default function InvestorProfileCompletePage() {
     );
   }
 
-  if (completenessQuery.data?.complete) {
+  if (completenessQuery.data && userFacingCompleteness(completenessQuery.data).complete) {
     return (
       <PageShell title="Complete your profile">
         <p className="text-ui">Your profile is complete.</p>
@@ -94,8 +95,9 @@ export default function InvestorProfileCompletePage() {
     );
   }
 
-  const missing = completenessQuery.data?.missing ?? [];
-  const identityComplete = completenessQuery.data?.steps.find((item) => item.id === "identity")?.complete ?? false;
+  const user = completenessQuery.data ? userFacingCompleteness(completenessQuery.data) : null;
+  const missing = user?.missing ?? [];
+  const identityComplete = missing.filter((item) => item.step === "identity").length === 0;
 
   return (
     <PageShell title="Complete your profile">
@@ -110,7 +112,7 @@ export default function InvestorProfileCompletePage() {
           {
             id: "review",
             label: "Review",
-            isCompleted: completenessQuery.data?.complete ?? false,
+            isCompleted: user?.complete ?? false,
             isCurrent: step === "review",
           },
         ]}
@@ -186,11 +188,6 @@ export default function InvestorProfileCompletePage() {
             {missing.length === 0 ? "This step is complete." : "Missing information"}
           </p>
         </div>
-        {needs(missing, "scInvestorCategory") ? (
-          <p className="text-ui text-muted-foreground sm:col-span-2">
-            SC ComRep investor type is set by CashSouk admin.
-          </p>
-        ) : null}
         {!isCompany && needs(missing, "gender") ? (
           <SelectField
             label="Gender"

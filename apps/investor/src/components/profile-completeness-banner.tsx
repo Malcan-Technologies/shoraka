@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { userFacingCompleteness } from "@cashsouk/types";
 import { Button } from "./ui/button";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -27,10 +28,12 @@ export function InvestorProfileCompletenessBanner({
     },
   });
 
-  if (!onboarded || !query.data || query.data.complete) return null;
+  if (!onboarded || !query.data) return null;
+  const user = userFacingCompleteness(query.data);
+  if (user.complete) return null;
 
-  const remaining = query.data.missing.length;
-  const percent = query.data.percent;
+  const remaining = user.missing.length;
+  const percent = user.percent;
 
   return (
     <div

@@ -177,6 +177,7 @@ describe("investor personal completeness [07000]", () => {
       },
     });
     expect(result.complete).toBe(true);
+    expect(result.userComplete).toBe(true);
     expect(result.missing.some((m) => m.field === "address.line1")).toBe(false);
   });
 });
@@ -255,7 +256,7 @@ describe("SC ComRep investor category", () => {
     ]);
   });
 
-  it("requires an explicit SC category and does not auto-complete it", () => {
+  it("requires an explicit SC category for full ComRep completeness, not user completeness", () => {
     const personal = buildInvestorProfileCompleteness({
       organizationType: "PERSONAL",
       personal: {
@@ -270,7 +271,11 @@ describe("SC ComRep investor category", () => {
         scInvestorCategory: null,
       },
     });
+    expect(personal.complete).toBe(false);
+    expect(personal.userComplete).toBe(true);
+    expect(personal.userMissing).toEqual([]);
     expect(personal.missing.map((item) => item.field)).toContain("scInvestorCategory");
+    expect(personal.missing.find((item) => item.field === "scInvestorCategory")?.owner).toBe("ADMIN");
 
     const corporate = buildInvestorProfileCompleteness({
       organizationType: "COMPANY",
@@ -286,7 +291,30 @@ describe("SC ComRep investor category", () => {
         scInvestorCategory: null,
       },
     });
+    expect(corporate.complete).toBe(false);
+    expect(corporate.userComplete).toBe(true);
     expect(corporate.missing.map((item) => item.field)).toContain("scInvestorCategory");
+  });
+
+  it("keeps user completeness incomplete when an investor-editable field is missing", () => {
+    const personal = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101011234",
+        dateOfBirth: "1980-01-01",
+        gender: null,
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: "RETAIL",
+      },
+    });
+    expect(personal.complete).toBe(false);
+    expect(personal.userComplete).toBe(false);
+    expect(personal.userMissing.map((item) => item.field)).toEqual(["gender"]);
+    expect(personal.userMissing[0]?.owner ?? "USER").toBe("USER");
   });
 
   it("accepts an admin-selected category that differs from the CashSouk product flag", () => {
@@ -305,6 +333,7 @@ describe("SC ComRep investor category", () => {
       },
     });
     expect(personal.complete).toBe(true);
+    expect(personal.userComplete).toBe(true);
 
     const corporate = buildInvestorProfileCompleteness({
       organizationType: "COMPANY",
@@ -321,5 +350,6 @@ describe("SC ComRep investor category", () => {
       },
     });
     expect(corporate.complete).toBe(true);
+    expect(corporate.userComplete).toBe(true);
   });
 });
