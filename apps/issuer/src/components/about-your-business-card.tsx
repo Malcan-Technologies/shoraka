@@ -7,6 +7,7 @@ import {
   type AboutYourBusiness,
 } from "@cashsouk/types";
 import { BriefcaseIcon, PencilIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { KeyValueGrid } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -178,6 +179,35 @@ export function AboutYourBusinessCard({
           </div>
         ) : null}
       </div>
+      {fieldsLocked ? (
+        <div className="p-6">
+          <KeyValueGrid
+            items={[
+              {
+                label: "What does your company do?",
+                value: draft.whatDoesCompanyDo.trim() || "—",
+              },
+              {
+                label: "Who are your main customers?",
+                value: draft.mainCustomers.trim() || "—",
+              },
+              {
+                label: "Any single customer over 50% of revenue?",
+                value:
+                  draft.singleCustomerOver50Revenue === true
+                    ? "Yes"
+                    : draft.singleCustomerOver50Revenue === false
+                      ? "No"
+                      : "—",
+              },
+              {
+                label: "Accounting software",
+                value: draft.accountingSoftware.trim() || "—",
+              },
+            ]}
+          />
+        </div>
+      ) : (
       <div className="space-y-6 p-6">
         <div className="space-y-2">
           <Label htmlFor="profile-what-does-company-do" className={formLabelClassName}>
@@ -252,6 +282,7 @@ export function AboutYourBusinessCard({
           />
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -668,6 +668,14 @@ export class ApiClient {
     );
   }
 
+  async getIssuerLatestFinancialStatements(
+    organizationId: string
+  ): Promise<ApiResponse<{ financial_statements: unknown } | null> | ApiError> {
+    return this.get<{ financial_statements: unknown } | null>(
+      `/v1/organizations/issuer/${organizationId}/financial-statements/latest`
+    );
+  }
+
   async patchIssuerOrgFinancials(
     organizationId: string,
     year: string,

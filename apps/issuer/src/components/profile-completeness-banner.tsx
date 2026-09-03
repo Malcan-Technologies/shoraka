@@ -27,10 +27,13 @@ export function IssuerProfileCompletenessBanner({
 
   if (!onboarded || !query.data || query.data.complete) return null;
 
+  const remaining = query.data.missing.length;
+  const percent = query.data.percent;
+
   return (
     <NextActionBanner
-      title="Complete your company profile"
-      description="You can create a financing application now, but you cannot submit it until these ComRep fields are complete."
+      title="Complete your profile"
+      description={`${percent}% complete. ${remaining} ${remaining === 1 ? "item remaining" : "items remaining"}. You can create a financing application now, but you cannot submit it until these fields are complete.`}
       href="/profile/complete"
       ctaLabel="Complete profile"
     />

@@ -1,19 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import {
-  createApiClient,
-  useAuthToken,
-  useOrganization,
-} from "@cashsouk/config";
-import {
+  groupPeopleMissingByParty,
   ISSUER_FINANCIAL_COMREP_KEYS,
   ISSUER_FINANCIAL_COMREP_LABELS,
-  ISSUER_PROFILE_STEP_IDS,
-  ISSUER_PROFILE_STEP_LABELS,
+  ISSUER_PROFILE_FLOW_STEP_IDS,
+  ISSUER_PROFILE_FLOW_STEP_LABELS,
+  issuerFlowStepComplete,
+  missingItemsForIssuerFlowStep,
   SC_COMPANY_CATEGORIES,
   SC_COMPANY_CATEGORY_LABELS,
   SC_COMPANY_TYPE_LABELS,
@@ -30,13 +30,11 @@ import {
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
   type ComrepProfileCompleteness,
+  type IssuerProfileFlowStepId,
   type OrganizationPartyProfileDto,
+  type ProfileMissingItem,
 } from "@cashsouk/types";
-import {
-  OnboardingStepper,
-  PageShell,
-  StickyFormFooter,
-} from "@cashsouk/ui";
+import { OnboardingStepper, PageShell, StickyFormFooter } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,8 +49,13 @@ import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/iss
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+function isFlowStep(value: string | null): value is IssuerProfileFlowStepId {
+  return Boolean(value && (ISSUER_PROFILE_FLOW_STEP_IDS as readonly string[]).includes(value));
+}
+
 export default function IssuerProfileCompletePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { activeOrganization, refreshOrganizations } = useOrganization();
   const { getAccessToken } = useAuthToken();
   const api = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
@@ -79,22 +82,30 @@ export default function IssuerProfileCompletePage() {
   });
 
   const completeness = completenessQuery.data;
-  const incompleteSteps = ISSUER_PROFILE_STEP_IDS.filter((id) => {
-    if (id === "review") return false;
-    const step = completeness?.steps.find((s) => s.id === id);
-    return !step?.complete;
-  });
-  const [stepIndex, setStepIndex] = React.useState(0);
-  React.useEffect(() => {
-    setStepIndex(0);
-  }, [incompleteSteps.join("|")]);
+  const requestedStep = searchParams.get("step");
+  const firstIncomplete =
+    ISSUER_PROFILE_FLOW_STEP_IDS.find(
+      (id) => id !== "review" && !issuerFlowStepComplete(completeness, id)
+    ) ?? "review";
+  const [step, setStep] = React.useState<IssuerProfileFlowStepId>(
+    isFlowStep(requestedStep) ? requestedStep : firstIncomplete
+  );
 
-  const currentStepId = incompleteSteps[stepIndex] ?? "review";
-  const stepperSteps = ISSUER_PROFILE_STEP_IDS.map((id) => ({
+  React.useEffect(() => {
+    if (isFlowStep(requestedStep)) setStep(requestedStep);
+  }, [requestedStep]);
+
+  const goToStep = (id: IssuerProfileFlowStepId) => {
+    setStep(id);
+    router.replace(`/profile/complete?step=${id}`, { scroll: false });
+  };
+
+  const stepIndex = ISSUER_PROFILE_FLOW_STEP_IDS.indexOf(step);
+  const stepperSteps = ISSUER_PROFILE_FLOW_STEP_IDS.map((id) => ({
     id,
-    label: ISSUER_PROFILE_STEP_LABELS[id],
-    isCompleted: completeness?.steps.find((s) => s.id === id)?.complete ?? false,
-    isCurrent: id === currentStepId,
+    label: ISSUER_PROFILE_FLOW_STEP_LABELS[id],
+    isCompleted: issuerFlowStepComplete(completeness, id),
+    isCurrent: id === step,
   }));
 
   const saveMaster = useMutation({
@@ -112,36 +123,86 @@ export default function IssuerProfileCompletePage() {
   });
 
   if (!orgId) {
-    return <PageShell title="Complete profile"><p className="text-ui">Select an organization first.</p></PageShell>;
+    return (
+      <PageShell title="Complete your profile">
+        <p className="text-ui">Select an organization first.</p>
+      </PageShell>
+    );
+  }
+
+  if (completenessQuery.isLoading) {
+    return (
+      <PageShell title="Complete your profile">
+        <p className="text-ui text-muted-foreground">Loading…</p>
+      </PageShell>
+    );
   }
 
   if (completeness?.complete) {
     return (
-      <PageShell title="Complete profile">
+      <PageShell title="Complete your profile">
         <div className={`${issuerPageGutterClassName} ${issuerMainContentClassName} space-y-6`}>
-          <p className="text-ui">Company profile is complete.</p>
-          <Button className="h-10" onClick={() => router.push("/profile")}>Back to profile</Button>
+          <p className="text-ui">Your profile is complete.</p>
+          <Button className="h-10" onClick={() => router.push("/profile")}>
+            Back to profile
+          </Button>
         </div>
       </PageShell>
     );
   }
 
+  const companyMissing = missingItemsForIssuerFlowStep(completeness, "company");
+  const peopleMissing = missingItemsForIssuerFlowStep(completeness, "people");
+  const financialMissing = missingItemsForIssuerFlowStep(completeness, "financials");
+
   return (
-    <PageShell title="Complete profile">
+    <PageShell title="Complete your profile">
       <div className={`${issuerPageGutterClassName} ${issuerMainContentClassName} space-y-8 pb-28`}>
-        <OnboardingStepper steps={stepperSteps} />
-        {currentStepId === "company" ? (
+        <div className="grid gap-2 sm:grid-cols-4">
+          {ISSUER_PROFILE_FLOW_STEP_IDS.map((id) => {
+            const count =
+              id === "company"
+                ? companyMissing.length
+                : id === "people"
+                  ? peopleMissing.length
+                  : id === "financials"
+                    ? financialMissing.length
+                    : completeness?.missing.length ?? 0;
+            return (
+              <button
+                key={id}
+                type="button"
+                className={`rounded-xl border px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  id === step ? "border-primary bg-primary/5" : "bg-card"
+                }`}
+                onClick={() => goToStep(id)}
+              >
+                <p className="text-ui font-medium">{ISSUER_PROFILE_FLOW_STEP_LABELS[id]}</p>
+                <p className="text-meta text-muted-foreground">
+                  {id === "review"
+                    ? completeness?.complete
+                      ? "Ready"
+                      : "Remaining items"
+                    : count === 0
+                      ? "Complete"
+                      : `${count} missing`}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+        <OnboardingStepper steps={stepperSteps} onStepClick={(id) => isFlowStep(id) && goToStep(id)} />
+        {step === "company" ? (
           <CompanyStep
             org={activeOrganization}
-            missing={completeness?.steps.find((s) => s.id === "company")?.missing ?? []}
+            missing={companyMissing}
             onSave={(data) => saveMaster.mutateAsync(data)}
           />
         ) : null}
-        {currentStepId === "shareholders" || currentStepId === "board" ? (
-          <PartyStep
-            kind={currentStepId}
-            parties={(partiesQuery.data ?? []).filter((p) => p.membershipStatus === "MASTER_ACTIVE")}
-            completeness={completeness}
+        {step === "people" ? (
+          <PeopleStep
+            parties={(partiesQuery.data ?? []).filter((party) => party.membershipStatus === "MASTER_ACTIVE")}
+            missing={peopleMissing}
             orgId={orgId}
             api={api}
             onSaved={async () => {
@@ -150,32 +211,40 @@ export default function IssuerProfileCompletePage() {
             }}
           />
         ) : null}
-        {currentStepId === "financials" ? (
+        {step === "financials" ? (
           <FinancialsStep
             orgId={orgId}
             api={api}
-            missing={completeness?.steps.find((s) => s.id === "financials")?.missing ?? []}
+            missing={financialMissing}
             onSaved={async () => {
               await queryClient.invalidateQueries({ queryKey: ["issuer", "profile-completeness", orgId] });
             }}
           />
         ) : null}
-        {currentStepId === "review" ? (
+        {step === "review" ? (
           <div className="space-y-4">
-            <p className="text-ui">Review the remaining missing items, then finish.</p>
-            <ul className="list-disc space-y-1 pl-5 text-ui">
-              {(completeness?.missing ?? []).map((item) => (
-                <li key={`${item.step}-${item.field}-${item.partyKey ?? ""}`}>
-                  {item.label}
-                  {item.partyName ? ` (${item.partyName})` : ""}
-                </li>
-              ))}
-            </ul>
+            <h2 className="text-section-title">Review</h2>
+            {(completeness?.missing ?? []).length === 0 ? (
+              <p className="text-ui">All required profile fields are complete.</p>
+            ) : (
+              <ul className="list-disc space-y-1 pl-5 text-ui">
+                {(completeness?.missing ?? []).map((item) => (
+                  <li key={`${item.step}-${item.field}-${item.partyKey ?? ""}`}>
+                    {item.label}
+                    {item.partyName ? ` (${item.partyName})` : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         ) : null}
         <StickyFormFooter
           back={
-            <Button className="h-10" variant="outline" onClick={() => (stepIndex === 0 ? router.push("/profile") : setStepIndex((i) => i - 1))}>
+            <Button
+              className="h-10"
+              variant="outline"
+              onClick={() => (stepIndex <= 0 ? router.push("/profile") : goToStep(ISSUER_PROFILE_FLOW_STEP_IDS[stepIndex - 1]!))}
+            >
               Back
             </Button>
           }
@@ -183,14 +252,14 @@ export default function IssuerProfileCompletePage() {
             <Button
               className="h-10"
               onClick={() => {
-                if (stepIndex >= incompleteSteps.length - 1) {
+                if (stepIndex >= ISSUER_PROFILE_FLOW_STEP_IDS.length - 1) {
                   router.push("/profile");
                   return;
                 }
-                setStepIndex((i) => i + 1);
+                goToStep(ISSUER_PROFILE_FLOW_STEP_IDS[stepIndex + 1]!);
               }}
             >
-              {stepIndex >= incompleteSteps.length - 1 ? "Finish" : "Continue"}
+              {stepIndex >= ISSUER_PROFILE_FLOW_STEP_IDS.length - 1 ? "Finish" : "Continue"}
             </Button>
           }
         />
@@ -205,7 +274,7 @@ function CompanyStep({
   onSave,
 }: {
   org: ReturnType<typeof useOrganization>["activeOrganization"];
-  missing: ComrepProfileCompleteness["missing"];
+  missing: ProfileMissingItem[];
   onSave: (data: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [form, setForm] = React.useState({
@@ -217,122 +286,241 @@ function CompanyStep({
     companyEmail: org?.companyEmail ?? "",
     phoneNumber: org?.phoneNumber ?? "",
     companyActivities: "",
-    registeredState: "",
-    registeredPostalCode: "",
+    registeredState: org?.residentialAddress?.state ?? "",
+    registeredPostalCode: org?.residentialAddress?.postalCode ?? "",
     registeredLine1: "",
     businessState: "",
     businessPostalCode: "",
     businessLine1: "",
   });
-  const needed = new Set(missing.map((m) => m.field));
+  const needed = new Set(missing.map((item) => item.field));
   return (
     <form
-      className="grid gap-4 sm:grid-cols-2"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        await onSave({
-          dateOfIncorporation: form.dateOfIncorporation || null,
-          dateOfCommencement: form.dateOfCommencement || null,
-          countryOfIncorporation: form.countryOfIncorporation || null,
-          scCompanyType: form.scCompanyType || null,
-          companyCategory: form.companyCategory || null,
-          companyEmail: form.companyEmail || null,
-          phoneNumber: form.phoneNumber || null,
-          companyActivities: form.companyActivities || null,
-          registeredAddress: {
-            line1: form.registeredLine1 || null,
-            state: form.registeredState || null,
-            postalCode: form.registeredPostalCode || null,
-          },
-          businessAddress: {
-            line1: form.businessLine1 || null,
-            state: form.businessState || null,
-            postalCode: form.businessPostalCode || null,
-          },
-        });
+      className="space-y-6"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        const payload: Record<string, unknown> = {};
+        if (needed.has("dateOfIncorporation")) payload.dateOfIncorporation = form.dateOfIncorporation || null;
+        if (needed.has("dateOfCommencement")) payload.dateOfCommencement = form.dateOfCommencement || null;
+        if (needed.has("countryOfIncorporation")) payload.countryOfIncorporation = form.countryOfIncorporation || null;
+        if (needed.has("scCompanyType")) payload.scCompanyType = form.scCompanyType || null;
+        if (needed.has("companyCategory")) payload.companyCategory = form.companyCategory || null;
+        if (needed.has("companyEmail")) payload.companyEmail = form.companyEmail || null;
+        if (needed.has("phoneNumber")) payload.phoneNumber = form.phoneNumber || null;
+        if (needed.has("companyActivities")) payload.companyActivities = form.companyActivities || null;
+        if (
+          needed.has("registeredAddress.line1") ||
+          needed.has("registeredAddress.state") ||
+          needed.has("registeredAddress.postalCode")
+        ) {
+          payload.registeredAddress = {
+            ...(needed.has("registeredAddress.line1") ? { line1: form.registeredLine1 || null } : {}),
+            ...(needed.has("registeredAddress.state") ? { state: form.registeredState || null } : {}),
+            ...(needed.has("registeredAddress.postalCode") ? { postalCode: form.registeredPostalCode || null } : {}),
+          };
+        }
+        if (
+          needed.has("businessAddress.line1") ||
+          needed.has("businessAddress.state") ||
+          needed.has("businessAddress.postalCode")
+        ) {
+          payload.businessAddress = {
+            ...(needed.has("businessAddress.line1") ? { line1: form.businessLine1 || null } : {}),
+            ...(needed.has("businessAddress.state") ? { state: form.businessState || null } : {}),
+            ...(needed.has("businessAddress.postalCode") ? { postalCode: form.businessPostalCode || null } : {}),
+          };
+        }
+        await onSave(payload);
       }}
     >
-      {show(needed, "dateOfIncorporation") ? <DateField label="Date of incorporation" value={form.dateOfIncorporation} onChange={(v) => setForm({ ...form, dateOfIncorporation: v })} /> : null}
-      {show(needed, "dateOfCommencement") ? <DateField label="Date of commencement" value={form.dateOfCommencement} onChange={(v) => setForm({ ...form, dateOfCommencement: v })} /> : null}
-      {show(needed, "countryOfIncorporation") ? <TextField label="Country of incorporation" value={form.countryOfIncorporation} onChange={(v) => setForm({ ...form, countryOfIncorporation: v })} /> : null}
-      {show(needed, "scCompanyType") ? (
-        <SelectField label="Type of company" value={form.scCompanyType} onChange={(v) => setForm({ ...form, scCompanyType: v })} options={SC_COMPANY_TYPES.map((k) => ({ value: k, label: SC_COMPANY_TYPE_LABELS[k] }))} />
-      ) : null}
-      {show(needed, "companyCategory") ? (
-        <SelectField label="Company category" value={form.companyCategory} onChange={(v) => setForm({ ...form, companyCategory: v })} options={SC_COMPANY_CATEGORIES.map((k) => ({ value: k, label: SC_COMPANY_CATEGORY_LABELS[k] }))} />
-      ) : null}
-      {show(needed, "companyEmail") ? <TextField label="E-mail address" value={form.companyEmail} onChange={(v) => setForm({ ...form, companyEmail: v })} /> : null}
-      {show(needed, "phoneNumber") ? <TextField label="Phone number" value={form.phoneNumber} onChange={(v) => setForm({ ...form, phoneNumber: v })} /> : null}
-      {show(needed, "companyActivities") ? <TextField label="Company activities" value={form.companyActivities} onChange={(v) => setForm({ ...form, companyActivities: v })} /> : null}
-      {show(needed, "registeredAddress.line1") ? <TextField label="Registered address" value={form.registeredLine1} onChange={(v) => setForm({ ...form, registeredLine1: v })} /> : null}
-      {show(needed, "registeredAddress.state") ? <SelectField label="Registered address — state" value={form.registeredState} onChange={(v) => setForm({ ...form, registeredState: v })} options={SC_MALAYSIAN_STATES.map((s) => ({ value: s, label: s }))} /> : null}
-      {show(needed, "registeredAddress.postalCode") ? <TextField label="Registered address — postcode" value={form.registeredPostalCode} onChange={(v) => setForm({ ...form, registeredPostalCode: v })} /> : null}
-      {show(needed, "businessAddress.line1") ? <TextField label="Business address" value={form.businessLine1} onChange={(v) => setForm({ ...form, businessLine1: v })} /> : null}
-      {show(needed, "businessAddress.state") ? <SelectField label="Business address — state" value={form.businessState} onChange={(v) => setForm({ ...form, businessState: v })} options={SC_MALAYSIAN_STATES.map((s) => ({ value: s, label: s }))} /> : null}
-      {show(needed, "businessAddress.postalCode") ? <TextField label="Business address — postcode" value={form.businessPostalCode} onChange={(v) => setForm({ ...form, businessPostalCode: v })} /> : null}
-      {needed.size === 0 ? <p className="text-ui sm:col-span-2">This step is complete.</p> : null}
-      <div className="sm:col-span-2">
-        <Button type="submit" className="h-10">Save company details</Button>
+      <div>
+        <h2 className="text-section-title">Company</h2>
+        <p className="text-ui text-muted-foreground">
+          {needed.size === 0 ? "This step is complete." : "Missing information"}
+        </p>
       </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {show(needed, "dateOfIncorporation") ? (
+          <DateField
+            label="Date of incorporation"
+            value={form.dateOfIncorporation}
+            onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
+          />
+        ) : null}
+        {show(needed, "dateOfCommencement") ? (
+          <DateField
+            label="Date of commencement"
+            value={form.dateOfCommencement}
+            onChange={(value) => setForm({ ...form, dateOfCommencement: value })}
+          />
+        ) : null}
+        {show(needed, "countryOfIncorporation") ? (
+          <TextField
+            label="Country of incorporation"
+            value={form.countryOfIncorporation}
+            onChange={(value) => setForm({ ...form, countryOfIncorporation: value })}
+          />
+        ) : null}
+        {show(needed, "scCompanyType") ? (
+          <SelectField
+            label="Type of company"
+            value={form.scCompanyType}
+            onChange={(value) => setForm({ ...form, scCompanyType: value })}
+            options={SC_COMPANY_TYPES.map((key) => ({ value: key, label: SC_COMPANY_TYPE_LABELS[key] }))}
+          />
+        ) : null}
+        {show(needed, "companyCategory") ? (
+          <SelectField
+            label="Company category"
+            value={form.companyCategory}
+            onChange={(value) => setForm({ ...form, companyCategory: value })}
+            options={SC_COMPANY_CATEGORIES.map((key) => ({ value: key, label: SC_COMPANY_CATEGORY_LABELS[key] }))}
+          />
+        ) : null}
+        {show(needed, "companyEmail") ? (
+          <TextField label="Company email" value={form.companyEmail} onChange={(value) => setForm({ ...form, companyEmail: value })} />
+        ) : null}
+        {show(needed, "phoneNumber") ? (
+          <TextField label="Phone number" value={form.phoneNumber} onChange={(value) => setForm({ ...form, phoneNumber: value })} />
+        ) : null}
+        {show(needed, "companyActivities") ? (
+          <TextField
+            label="Company activities"
+            value={form.companyActivities}
+            onChange={(value) => setForm({ ...form, companyActivities: value })}
+          />
+        ) : null}
+        {show(needed, "registeredAddress.line1") ? (
+          <TextField
+            label="Registered address"
+            value={form.registeredLine1}
+            onChange={(value) => setForm({ ...form, registeredLine1: value })}
+          />
+        ) : null}
+        {show(needed, "registeredAddress.state") ? (
+          <SelectField
+            label="Registered address — state"
+            value={form.registeredState}
+            onChange={(value) => setForm({ ...form, registeredState: value })}
+            options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
+          />
+        ) : null}
+        {show(needed, "registeredAddress.postalCode") ? (
+          <TextField
+            label="Registered address — postcode"
+            value={form.registeredPostalCode}
+            onChange={(value) => setForm({ ...form, registeredPostalCode: value })}
+          />
+        ) : null}
+        {show(needed, "businessAddress.line1") ? (
+          <TextField
+            label="Business address"
+            value={form.businessLine1}
+            onChange={(value) => setForm({ ...form, businessLine1: value })}
+          />
+        ) : null}
+        {show(needed, "businessAddress.state") ? (
+          <SelectField
+            label="Business address — state"
+            value={form.businessState}
+            onChange={(value) => setForm({ ...form, businessState: value })}
+            options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
+          />
+        ) : null}
+        {show(needed, "businessAddress.postalCode") ? (
+          <TextField
+            label="Business address — postcode"
+            value={form.businessPostalCode}
+            onChange={(value) => setForm({ ...form, businessPostalCode: value })}
+          />
+        ) : null}
+      </div>
+      {needed.size > 0 ? (
+        <Button type="submit" className="h-10">
+          Save
+        </Button>
+      ) : null}
     </form>
   );
 }
 
-function PartyStep({
-  kind,
+function PeopleStep({
   parties,
-  completeness,
+  missing,
   orgId,
   api,
   onSaved,
 }: {
-  kind: "shareholders" | "board";
   parties: OrganizationPartyProfileDto[];
-  completeness?: ComrepProfileCompleteness;
+  missing: ProfileMissingItem[];
   orgId: string;
   api: ReturnType<typeof createApiClient>;
   onSaved: () => Promise<void>;
 }) {
-  const filtered = parties.filter((p) => (kind === "shareholders" ? p.isShareholder : p.isBoard || p.isManagement || p.isDirector));
+  const groups = groupPeopleMissingByParty(missing);
+  const needsShareholder = missing.some((item) => item.field === "shareholders" && !item.partyKey);
+  const personGroups = groups.filter((group) => group.partyKey);
+
   return (
     <div className="space-y-6">
-      {filtered.length === 0 ? (
+      <div>
+        <h2 className="text-section-title">People</h2>
         <p className="text-ui text-muted-foreground">
-          {kind === "shareholders"
-            ? "No shareholders are on the CashSouk master list yet. Add them from Profile if the company structure has changed."
-            : "No board or management members on the master list yet. Add them from Profile."}
+          {personGroups.length === 0 && !needsShareholder
+            ? "This step is complete."
+            : `${personGroups.length} ${personGroups.length === 1 ? "person needs" : "people need"} information`}
         </p>
+      </div>
+      {needsShareholder ? (
+        <div className="space-y-3 rounded-xl border p-6">
+          <p className="text-ui">No shareholder is currently listed.</p>
+          <Button asChild className="h-10">
+            <Link href="/profile#profile-people">Go to Profile → Add person</Link>
+          </Button>
+        </div>
       ) : null}
-      {filtered.map((party) => (
-        <PartyForm
-          key={party.id}
-          party={party}
-          kind={kind}
-          missing={(completeness?.missing ?? []).filter((m) => m.partyKey === party.partyKey && m.step === kind)}
-          onSave={async (data) => {
-            const res = await api.patchPartyProfile("issuer", orgId, party.id, data);
-            if (!res.success) throw new Error(res.error.message);
-            toast.success("Saved");
-            await onSaved();
-          }}
-        />
-      ))}
+      {personGroups.map((group) => {
+        const party = parties.find((row) => row.partyKey === group.partyKey);
+        if (!party) {
+          return (
+            <div key={group.partyKey} className="rounded-xl border p-6">
+              <p className="text-ui font-medium">{group.partyName || group.partyKey}</p>
+              <ul className="mt-2 list-disc pl-5 text-ui text-muted-foreground">
+                {group.items.map((item) => (
+                  <li key={item.field}>{item.label}</li>
+                ))}
+              </ul>
+            </div>
+          );
+        }
+        return (
+          <PartyForm
+            key={party.id}
+            party={party}
+            missing={group.items}
+            onSave={async (data) => {
+              const res = await api.patchPartyProfile("issuer", orgId, party.id, data);
+              if (!res.success) throw new Error(res.error.message);
+              toast.success("Saved");
+              await onSaved();
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
 
 function PartyForm({
   party,
-  kind,
   missing,
   onSave,
 }: {
   party: OrganizationPartyProfileDto;
-  kind: "shareholders" | "board";
-  missing: ComrepProfileCompleteness["missing"];
+  missing: ProfileMissingItem[];
   onSave: (data: Record<string, unknown>) => Promise<void>;
 }) {
-  const needed = new Set(missing.map((m) => m.field));
+  const needed = new Set(missing.map((item) => item.field));
   const [form, setForm] = React.useState({
     name: party.name ?? "",
     identityPrefix: party.identityPrefix ?? "",
@@ -358,8 +546,8 @@ function PartyForm({
   return (
     <form
       className="grid gap-4 rounded-xl border p-6 sm:grid-cols-2"
-      onSubmit={async (e) => {
-        e.preventDefault();
+      onSubmit={async (event) => {
+        event.preventDefault();
         const payload: Record<string, unknown> = {};
         if (needed.has("name")) payload.name = form.name || null;
         if (needed.has("identityPrefix")) payload.identityPrefix = form.identityPrefix || null;
@@ -369,30 +557,22 @@ function PartyForm({
         if (needed.has("gender")) payload.gender = form.gender || null;
         if (needed.has("nationality")) payload.nationality = form.nationality || null;
         if (needed.has("countryOfIncorporation")) payload.countryOfIncorporation = form.countryOfIncorporation || null;
-        if (
-          needed.has("address.line1") ||
-          needed.has("address.state") ||
-          needed.has("address.postalCode")
-        ) {
+        if (needed.has("address.line1") || needed.has("address.state") || needed.has("address.postalCode")) {
           payload.address = {
             ...(needed.has("address.line1") ? { line1: form.line1 || null } : {}),
             ...(needed.has("address.state") ? { state: form.state || null } : {}),
             ...(needed.has("address.postalCode") ? { postalCode: form.postalCode || null } : {}),
           };
         }
-        if (kind === "shareholders") {
-          if (needed.has("shareType")) payload.shareType = form.shareType || null;
-          if (needed.has("shareTypeOther")) payload.shareTypeOther = form.shareTypeOther || null;
-          if (needed.has("shareholdingUnits")) payload.shareholdingUnits = form.shareholdingUnits || null;
-          if (needed.has("shareholdingAmount")) payload.shareholdingAmount = form.shareholdingAmount || null;
-          if (needed.has("shareholdingPercentage")) payload.shareholdingPercentage = form.shareholdingPercentage || null;
-        }
-        if (kind === "board") {
-          if (needed.has("personKind")) payload.personKind = form.personKind;
-          if (needed.has("designation")) payload.designation = form.designation || null;
-          if (needed.has("designationOther")) payload.designationOther = form.designationOther || null;
-          if (needed.has("appointmentDate")) payload.appointmentDate = form.appointmentDate || null;
-        }
+        if (needed.has("shareType")) payload.shareType = form.shareType || null;
+        if (needed.has("shareTypeOther")) payload.shareTypeOther = form.shareTypeOther || null;
+        if (needed.has("shareholdingUnits")) payload.shareholdingUnits = form.shareholdingUnits || null;
+        if (needed.has("shareholdingAmount")) payload.shareholdingAmount = form.shareholdingAmount || null;
+        if (needed.has("shareholdingPercentage")) payload.shareholdingPercentage = form.shareholdingPercentage || null;
+        if (needed.has("personKind")) payload.personKind = form.personKind;
+        if (needed.has("designation")) payload.designation = form.designation || null;
+        if (needed.has("designationOther")) payload.designationOther = form.designationOther || null;
+        if (needed.has("appointmentDate")) payload.appointmentDate = form.appointmentDate || null;
         await onSave(payload);
       }}
     >
@@ -400,29 +580,133 @@ function PartyForm({
       {needed.size === 0 ? (
         <p className="text-ui text-muted-foreground sm:col-span-2">No missing fields for this person.</p>
       ) : null}
-      {show(needed, "name") ? <TextField label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} /> : null}
-      {show(needed, "identityPrefix") ? <SelectField label="Identity prefix" value={form.identityPrefix} onChange={(v) => setForm({ ...form, identityPrefix: v })} options={SC_IDENTITY_PREFIXES.map((k) => ({ value: k, label: SC_IDENTITY_PREFIX_LABELS[k] }))} /> : null}
-      {show(needed, "identityNumber") ? <TextField label="Identity number" value={form.identityNumber} onChange={(v) => setForm({ ...form, identityNumber: v })} /> : null}
-      {show(needed, "dateOfBirth") ? <DateField label="Date of birth" value={form.dateOfBirth} onChange={(v) => setForm({ ...form, dateOfBirth: v })} /> : null}
-      {show(needed, "dateOfIncorporation") ? <DateField label="Date of incorporation" value={form.dateOfIncorporation} onChange={(v) => setForm({ ...form, dateOfIncorporation: v })} /> : null}
-      {show(needed, "gender") ? <SelectField label="Gender" value={form.gender} onChange={(v) => setForm({ ...form, gender: v })} options={SC_GENDERS.map((k) => ({ value: k, label: SC_GENDER_LABELS[k] }))} /> : null}
-      {show(needed, "nationality") ? <TextField label="Nationality" value={form.nationality} onChange={(v) => setForm({ ...form, nationality: v })} /> : null}
-      {show(needed, "countryOfIncorporation") ? <TextField label="Country of incorporation" value={form.countryOfIncorporation} onChange={(v) => setForm({ ...form, countryOfIncorporation: v })} /> : null}
-      {show(needed, "address.line1") ? <TextField label="Address" value={form.line1} onChange={(v) => setForm({ ...form, line1: v })} /> : null}
-      {show(needed, "address.state") ? <SelectField label="State" value={form.state} onChange={(v) => setForm({ ...form, state: v })} options={SC_MALAYSIAN_STATES.map((s) => ({ value: s, label: s }))} /> : null}
-      {show(needed, "address.postalCode") ? <TextField label="Postcode" value={form.postalCode} onChange={(v) => setForm({ ...form, postalCode: v })} /> : null}
-      {kind === "shareholders" && show(needed, "shareType") ? <SelectField label="Type of shares" value={form.shareType} onChange={(v) => setForm({ ...form, shareType: v })} options={SC_SHARE_TYPES.map((k) => ({ value: k, label: SC_SHARE_TYPE_LABELS[k] }))} /> : null}
-      {kind === "shareholders" && show(needed, "shareTypeOther") ? <TextField label="Type of shares — others" value={form.shareTypeOther} onChange={(v) => setForm({ ...form, shareTypeOther: v })} /> : null}
-      {kind === "shareholders" && show(needed, "shareholdingUnits") ? <TextField label="Shareholding units" value={form.shareholdingUnits} onChange={(v) => setForm({ ...form, shareholdingUnits: v })} /> : null}
-      {kind === "shareholders" && show(needed, "shareholdingAmount") ? <TextField label="Shareholding amount" value={form.shareholdingAmount} onChange={(v) => setForm({ ...form, shareholdingAmount: v })} /> : null}
-      {kind === "shareholders" && show(needed, "shareholdingPercentage") ? <TextField label="Shareholding percentage" value={form.shareholdingPercentage} onChange={(v) => setForm({ ...form, shareholdingPercentage: v })} /> : null}
-      {kind === "board" && show(needed, "personKind") ? <SelectField label="Board / management" value={form.personKind} onChange={(v) => setForm({ ...form, personKind: v })} options={SC_PERSON_KINDS.map((k) => ({ value: k, label: SC_PERSON_KIND_LABELS[k] }))} /> : null}
-      {kind === "board" && show(needed, "designation") ? <SelectField label="Designation" value={form.designation} onChange={(v) => setForm({ ...form, designation: v })} options={SC_DESIGNATIONS.map((k) => ({ value: k, label: SC_DESIGNATION_LABELS[k] }))} /> : null}
-      {kind === "board" && show(needed, "designationOther") ? <TextField label="Designation — others" value={form.designationOther} onChange={(v) => setForm({ ...form, designationOther: v })} /> : null}
-      {kind === "board" && show(needed, "appointmentDate") ? <DateField label="Appointment date" value={form.appointmentDate} onChange={(v) => setForm({ ...form, appointmentDate: v })} /> : null}
-      <div className="sm:col-span-2">
-        <Button type="submit" className="h-10">Save</Button>
-      </div>
+      {show(needed, "name") ? <TextField label="Name" value={form.name} onChange={(value) => setForm({ ...form, name: value })} /> : null}
+      {show(needed, "identityPrefix") ? (
+        <SelectField
+          label="Identity prefix"
+          value={form.identityPrefix}
+          onChange={(value) => setForm({ ...form, identityPrefix: value })}
+          options={SC_IDENTITY_PREFIXES.map((key) => ({ value: key, label: SC_IDENTITY_PREFIX_LABELS[key] }))}
+        />
+      ) : null}
+      {show(needed, "identityNumber") ? (
+        <TextField label="Identity number" value={form.identityNumber} onChange={(value) => setForm({ ...form, identityNumber: value })} />
+      ) : null}
+      {show(needed, "dateOfBirth") ? (
+        <DateField label="Date of birth" value={form.dateOfBirth} onChange={(value) => setForm({ ...form, dateOfBirth: value })} />
+      ) : null}
+      {show(needed, "dateOfIncorporation") ? (
+        <DateField
+          label="Date of incorporation"
+          value={form.dateOfIncorporation}
+          onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
+        />
+      ) : null}
+      {show(needed, "gender") ? (
+        <SelectField
+          label="Gender"
+          value={form.gender}
+          onChange={(value) => setForm({ ...form, gender: value })}
+          options={SC_GENDERS.map((key) => ({ value: key, label: SC_GENDER_LABELS[key] }))}
+        />
+      ) : null}
+      {show(needed, "nationality") ? (
+        <TextField label="Nationality" value={form.nationality} onChange={(value) => setForm({ ...form, nationality: value })} />
+      ) : null}
+      {show(needed, "countryOfIncorporation") ? (
+        <TextField
+          label="Country of incorporation"
+          value={form.countryOfIncorporation}
+          onChange={(value) => setForm({ ...form, countryOfIncorporation: value })}
+        />
+      ) : null}
+      {show(needed, "address.line1") ? (
+        <TextField label="Address" value={form.line1} onChange={(value) => setForm({ ...form, line1: value })} />
+      ) : null}
+      {show(needed, "address.state") ? (
+        <SelectField
+          label="State"
+          value={form.state}
+          onChange={(value) => setForm({ ...form, state: value })}
+          options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
+        />
+      ) : null}
+      {show(needed, "address.postalCode") ? (
+        <TextField label="Postcode" value={form.postalCode} onChange={(value) => setForm({ ...form, postalCode: value })} />
+      ) : null}
+      {show(needed, "shareType") ? (
+        <SelectField
+          label="Type of shares"
+          value={form.shareType}
+          onChange={(value) => setForm({ ...form, shareType: value })}
+          options={SC_SHARE_TYPES.map((key) => ({ value: key, label: SC_SHARE_TYPE_LABELS[key] }))}
+        />
+      ) : null}
+      {show(needed, "shareTypeOther") ? (
+        <TextField
+          label="Type of shares — others"
+          value={form.shareTypeOther}
+          onChange={(value) => setForm({ ...form, shareTypeOther: value })}
+        />
+      ) : null}
+      {show(needed, "shareholdingUnits") ? (
+        <TextField
+          label="Units"
+          value={form.shareholdingUnits}
+          onChange={(value) => setForm({ ...form, shareholdingUnits: value })}
+        />
+      ) : null}
+      {show(needed, "shareholdingAmount") ? (
+        <TextField
+          label="Amount"
+          value={form.shareholdingAmount}
+          onChange={(value) => setForm({ ...form, shareholdingAmount: value })}
+        />
+      ) : null}
+      {show(needed, "shareholdingPercentage") ? (
+        <TextField
+          label="Percentage"
+          value={form.shareholdingPercentage}
+          onChange={(value) => setForm({ ...form, shareholdingPercentage: value })}
+        />
+      ) : null}
+      {show(needed, "personKind") ? (
+        <SelectField
+          label="Board / management"
+          value={form.personKind}
+          onChange={(value) => setForm({ ...form, personKind: value })}
+          options={SC_PERSON_KINDS.map((key) => ({ value: key, label: SC_PERSON_KIND_LABELS[key] }))}
+        />
+      ) : null}
+      {show(needed, "designation") ? (
+        <SelectField
+          label="Designation"
+          value={form.designation}
+          onChange={(value) => setForm({ ...form, designation: value })}
+          options={SC_DESIGNATIONS.map((key) => ({ value: key, label: SC_DESIGNATION_LABELS[key] }))}
+        />
+      ) : null}
+      {show(needed, "designationOther") ? (
+        <TextField
+          label="Designation — others"
+          value={form.designationOther}
+          onChange={(value) => setForm({ ...form, designationOther: value })}
+        />
+      ) : null}
+      {show(needed, "appointmentDate") ? (
+        <DateField
+          label="Appointment date"
+          value={form.appointmentDate}
+          onChange={(value) => setForm({ ...form, appointmentDate: value })}
+        />
+      ) : null}
+      {needed.size > 0 ? (
+        <div className="sm:col-span-2">
+          <Button type="submit" className="h-10">
+            Save
+          </Button>
+        </div>
+      ) : null}
     </form>
   );
 }
@@ -459,7 +743,7 @@ function FinancialsStep({
 }) {
   const year = String(new Date().getFullYear() - 1);
   const neededKeys = new Set(
-    missing.some((m) => m.field === "financials")
+    missing.some((item) => item.field === "financials")
       ? [
           "bscatot",
           "bsclbank",
@@ -469,14 +753,14 @@ function FinancialsStep({
           "plnpat",
           "plnetdiv",
           ...ISSUER_FINANCIAL_COMREP_KEYS.filter(
-            (k) =>
-              k !== "equity_share_application" &&
-              k !== "equity_share_premium" &&
-              k !== "equity_minority" &&
-              k !== "pl_minority"
+            (key) =>
+              key !== "equity_share_application" &&
+              key !== "equity_share_premium" &&
+              key !== "equity_minority" &&
+              key !== "pl_minority"
           ),
         ]
-      : missing.map((m) => FINANCIAL_MISSING_TO_KEY[m.field]).filter((k): k is string => Boolean(k))
+      : missing.map((item) => FINANCIAL_MISSING_TO_KEY[item.field]).filter((key): key is string => Boolean(key))
   );
   const [fields, setFields] = React.useState<Record<string, string>>({});
   const labels: Record<string, string> = {
@@ -492,12 +776,12 @@ function FinancialsStep({
   return (
     <form
       className="grid gap-4 sm:grid-cols-2"
-      onSubmit={async (e) => {
-        e.preventDefault();
+      onSubmit={async (event) => {
+        event.preventDefault();
         const payload: Record<string, string | number | null> = {};
-        for (const [k, v] of Object.entries(fields)) {
-          if (v === "") continue;
-          payload[k] = v;
+        for (const [key, value] of Object.entries(fields)) {
+          if (value === "") continue;
+          payload[key] = value;
         }
         const res = await api.patchIssuerOrgFinancials(orgId, year, payload);
         if (!res.success) throw new Error(res.error.message);
@@ -505,18 +789,27 @@ function FinancialsStep({
         await onSaved();
       }}
     >
-      <p className="text-ui sm:col-span-2">Latest year ({year}). Enter figures from the audited statements or certified management accounts.</p>
-      {[...neededKeys].map((k) => (
+      <div className="sm:col-span-2">
+        <h2 className="text-section-title">Financials</h2>
+        <p className="text-ui text-muted-foreground">
+          Latest year ({year}). {neededKeys.size === 0 ? "This step is complete." : "Missing information"}
+        </p>
+      </div>
+      {[...neededKeys].map((key) => (
         <TextField
-          key={k}
-          label={labels[k] ?? k}
-          value={fields[k] ?? ""}
-          onChange={(v) => setFields({ ...fields, [k]: v })}
+          key={key}
+          label={labels[key] ?? key}
+          value={fields[key] ?? ""}
+          onChange={(value) => setFields({ ...fields, [key]: value })}
         />
       ))}
-      <div className="sm:col-span-2">
-        <Button type="submit" className="h-10">Save financials</Button>
-      </div>
+      {neededKeys.size > 0 ? (
+        <div className="sm:col-span-2">
+          <Button type="submit" className="h-10">
+            Save
+          </Button>
+        </div>
+      ) : null}
     </form>
   );
 }
@@ -531,20 +824,20 @@ function toDate(value: unknown): string {
   return String(value).slice(0, 10);
 }
 
-function TextField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <div className="space-y-2">
       <Label className="text-ui">{label}</Label>
-      <Input className="h-10 text-ui" value={value} onChange={(e) => onChange(e.target.value)} />
+      <Input className="h-10 text-ui" value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   );
 }
 
-function DateField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <div className="space-y-2">
       <Label className="text-ui">{label}</Label>
-      <Input className="h-10 text-ui" type="date" value={value} onChange={(e) => onChange(e.target.value)} />
+      <Input className="h-10 text-ui" type="date" value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   );
 }
@@ -557,7 +850,7 @@ function SelectField({
 }: {
   label: string;
   value: string;
-  onChange: (v: string) => void;
+  onChange: (value: string) => void;
   options: Array<{ value: string; label: string }>;
 }) {
   return (

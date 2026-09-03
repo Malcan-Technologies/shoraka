@@ -26,6 +26,7 @@ export type OnboardingStepperStep = {
   isCompleted: boolean;
   isCurrent: boolean;
   isRejected?: boolean;
+  href?: string;
 };
 
 const ADMIN_PENDING_STATUSES: OnboardingStatus[] = [

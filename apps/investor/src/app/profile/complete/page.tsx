@@ -1,14 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import {
   SC_GENDER_LABELS,
   SC_GENDERS,
-  SC_IDENTITY_PREFIX_LABELS,
   SC_INVESTOR_CATEGORIES,
   SC_INVESTOR_CATEGORY_LABELS,
   SC_MALAYSIAN_STATES,
@@ -27,8 +26,11 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+type InvestorFlowStep = "identity" | "review";
+
 export default function InvestorProfileCompletePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { activeOrganization, refreshOrganizations } = useOrganization();
   const { getAccessToken } = useAuthToken();
   const api = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
@@ -45,6 +47,17 @@ export default function InvestorProfileCompletePage() {
     },
   });
 
+  const requested = searchParams.get("step");
+  const [step, setStep] = React.useState<InvestorFlowStep>(requested === "review" ? "review" : "identity");
+  React.useEffect(() => {
+    if (requested === "identity" || requested === "review") setStep(requested);
+  }, [requested]);
+
+  const goToStep = (id: InvestorFlowStep) => {
+    setStep(id);
+    router.replace(`/profile/complete?step=${id}`, { scroll: false });
+  };
+
   const [form, setForm] = React.useState({
     scInvestorCategory: activeOrganization?.scInvestorCategory ?? "",
     gender: "",
@@ -59,7 +72,7 @@ export default function InvestorProfileCompletePage() {
 
   if (!orgId) {
     return (
-      <PageShell title="Complete profile">
+      <PageShell title="Complete your profile">
         <p className="text-ui">Select an organization first.</p>
       </PageShell>
     );
@@ -67,7 +80,7 @@ export default function InvestorProfileCompletePage() {
 
   if (completenessQuery.isLoading) {
     return (
-      <PageShell title="Complete profile">
+      <PageShell title="Complete your profile">
         <p className="text-ui text-muted-foreground">Loading…</p>
       </PageShell>
     );
@@ -75,7 +88,7 @@ export default function InvestorProfileCompletePage() {
 
   if (completenessQuery.data?.complete) {
     return (
-      <PageShell title="Complete profile">
+      <PageShell title="Complete your profile">
         <p className="text-ui">Your profile is complete.</p>
         <Button className="mt-4 h-10" onClick={() => router.push("/profile")}>
           Back to profile
@@ -85,120 +98,179 @@ export default function InvestorProfileCompletePage() {
   }
 
   const missing = completenessQuery.data?.missing ?? [];
+  const identityComplete = completenessQuery.data?.steps.find((item) => item.id === "identity")?.complete ?? false;
 
   return (
-    <PageShell title="Complete profile" description="A few ComRep fields are still missing from your CashSouk profile.">
+    <PageShell title="Complete your profile">
       <OnboardingStepper
         steps={[
           {
             id: "identity",
             label: "Identity",
-            isCompleted: completenessQuery.data?.steps.find((s) => s.id === "identity")?.complete ?? false,
-            isCurrent: true,
+            isCompleted: identityComplete,
+            isCurrent: step === "identity",
           },
           {
             id: "review",
             label: "Review",
             isCompleted: completenessQuery.data?.complete ?? false,
-            isCurrent: false,
+            isCurrent: step === "review",
           },
         ]}
+        onStepClick={(id) => {
+          if (id === "identity" || id === "review") goToStep(id);
+        }}
       />
+      {step === "review" ? (
+        <div className="mt-8 space-y-4">
+          <h2 className="text-section-title">Review</h2>
+          {missing.length === 0 ? (
+            <p className="text-ui">All required profile fields are complete.</p>
+          ) : (
+            <ul className="list-disc space-y-1 pl-5 text-ui">
+              {missing.map((item) => (
+                <li key={item.field}>{item.label}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
       <form
         className="mt-8 grid max-w-3xl gap-4 sm:grid-cols-2"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const res = await api.patchMasterProfile("investor", orgId, isCompany
-            ? {
-                scInvestorCategory: form.scInvestorCategory || null,
-                gender: "NOT_APPLICABLE",
-                dateOfIncorporation: form.dateOfIncorporation || null,
-                countryOfIncorporation: form.countryOfIncorporation || null,
-                businessAddress: {
-                  state: form.businessState || null,
-                  postalCode: form.businessPostalCode || null,
-                },
-              }
-            : {
-                scInvestorCategory: form.scInvestorCategory || null,
-                gender: form.gender || null,
-                nationality: form.nationality || null,
-                residentialAddress: {
-                  state: form.state || null,
-                  postalCode: form.postalCode || null,
-                },
-              });
+        onSubmit={async (event) => {
+          event.preventDefault();
+          const res = await api.patchMasterProfile(
+            "investor",
+            orgId,
+            isCompany
+              ? {
+                  ...(needs(missing, "scInvestorCategory")
+                    ? { scInvestorCategory: form.scInvestorCategory || null }
+                    : {}),
+                  ...(needs(missing, "dateOfIncorporation")
+                    ? { dateOfIncorporation: form.dateOfIncorporation || null }
+                    : {}),
+                  ...(needs(missing, "countryOfIncorporation")
+                    ? { countryOfIncorporation: form.countryOfIncorporation || null }
+                    : {}),
+                  ...(needs(missing, "businessState") || needs(missing, "businessPostalCode")
+                    ? {
+                        businessAddress: {
+                          ...(needs(missing, "businessState") ? { state: form.businessState || null } : {}),
+                          ...(needs(missing, "businessPostalCode")
+                            ? { postalCode: form.businessPostalCode || null }
+                            : {}),
+                        },
+                      }
+                    : {}),
+                }
+              : {
+                  ...(needs(missing, "scInvestorCategory")
+                    ? { scInvestorCategory: form.scInvestorCategory || null }
+                    : {}),
+                  ...(needs(missing, "gender") ? { gender: form.gender || null } : {}),
+                  ...(needs(missing, "nationality") ? { nationality: form.nationality || null } : {}),
+                  ...(needs(missing, "state") || needs(missing, "postalCode")
+                    ? {
+                        residentialAddress: {
+                          ...(needs(missing, "state") ? { state: form.state || null } : {}),
+                          ...(needs(missing, "postalCode") ? { postalCode: form.postalCode || null } : {}),
+                        },
+                      }
+                    : {}),
+                }
+          );
           if (!res.success) {
             toast.error(res.error.message);
             return;
           }
           await refreshOrganizations();
           toast.success("Saved");
-          router.push("/profile");
+          goToStep("review");
         }}
       >
+        <div className="sm:col-span-2">
+          <h2 className="text-section-title">Identity</h2>
+          <p className="text-ui text-muted-foreground">
+            {missing.length === 0 ? "This step is complete." : "Missing information"}
+          </p>
+        </div>
         {needs(missing, "scInvestorCategory") ? (
           <SelectField
             label="Type of investor"
             value={form.scInvestorCategory}
-            onChange={(v) => setForm({ ...form, scInvestorCategory: v })}
-            options={SC_INVESTOR_CATEGORIES.map((k) => ({ value: k, label: SC_INVESTOR_CATEGORY_LABELS[k] }))}
+            onChange={(value) => setForm({ ...form, scInvestorCategory: value })}
+            options={SC_INVESTOR_CATEGORIES.map((key) => ({ value: key, label: SC_INVESTOR_CATEGORY_LABELS[key] }))}
           />
         ) : null}
         {!isCompany && needs(missing, "gender") ? (
           <SelectField
             label="Gender"
             value={form.gender}
-            onChange={(v) => setForm({ ...form, gender: v })}
-            options={SC_GENDERS.filter((g) => g !== "NOT_APPLICABLE").map((k) => ({
-              value: k,
-              label: SC_GENDER_LABELS[k],
+            onChange={(value) => setForm({ ...form, gender: value })}
+            options={SC_GENDERS.filter((gender) => gender !== "NOT_APPLICABLE").map((key) => ({
+              value: key,
+              label: SC_GENDER_LABELS[key],
             }))}
           />
         ) : null}
         {!isCompany && needs(missing, "nationality") ? (
-          <TextField label="Nationality" value={form.nationality} onChange={(v) => setForm({ ...form, nationality: v })} />
+          <TextField
+            label="Nationality"
+            value={form.nationality}
+            onChange={(value) => setForm({ ...form, nationality: value })}
+          />
         ) : null}
         {!isCompany && needs(missing, "state") ? (
           <SelectField
             label="State"
             value={form.state}
-            onChange={(v) => setForm({ ...form, state: v })}
-            options={SC_MALAYSIAN_STATES.map((s) => ({ value: s, label: s }))}
+            onChange={(value) => setForm({ ...form, state: value })}
+            options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
           />
         ) : null}
         {!isCompany && needs(missing, "postalCode") ? (
-          <TextField label="Postcode" value={form.postalCode} onChange={(v) => setForm({ ...form, postalCode: v })} />
+          <TextField
+            label="Postcode"
+            value={form.postalCode}
+            onChange={(value) => setForm({ ...form, postalCode: value })}
+          />
         ) : null}
         {isCompany && needs(missing, "dateOfIncorporation") ? (
           <div className="space-y-2">
             <Label className="text-ui">Date of incorporation</Label>
-            <Input className="h-10 text-ui" type="date" value={form.dateOfIncorporation} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, dateOfIncorporation: e.target.value })} />
+            <Input
+              className="h-10 text-ui"
+              type="date"
+              value={form.dateOfIncorporation}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                setForm({ ...form, dateOfIncorporation: event.target.value })
+              }
+            />
           </div>
         ) : null}
         {isCompany && needs(missing, "countryOfIncorporation") ? (
-          <TextField label="Country of incorporation" value={form.countryOfIncorporation} onChange={(v) => setForm({ ...form, countryOfIncorporation: v })} />
+          <TextField
+            label="Country of incorporation"
+            value={form.countryOfIncorporation}
+            onChange={(value) => setForm({ ...form, countryOfIncorporation: value })}
+          />
         ) : null}
         {isCompany && needs(missing, "businessState") ? (
           <SelectField
             label="Business address — state"
             value={form.businessState}
-            onChange={(v) => setForm({ ...form, businessState: v })}
-            options={SC_MALAYSIAN_STATES.map((s) => ({ value: s, label: s }))}
+            onChange={(value) => setForm({ ...form, businessState: value })}
+            options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
           />
         ) : null}
         {isCompany && needs(missing, "businessPostalCode") ? (
-          <TextField label="Business address — postcode" value={form.businessPostalCode} onChange={(v) => setForm({ ...form, businessPostalCode: v })} />
+          <TextField
+            label="Business address — postcode"
+            value={form.businessPostalCode}
+            onChange={(value) => setForm({ ...form, businessPostalCode: value })}
+          />
         ) : null}
-        {isCompany ? (
-          <p className="text-ui text-muted-foreground sm:col-span-2">
-            Identity prefix is ROC for companies. Gender is stored as Not Applicable.
-          </p>
-        ) : (
-          <p className="text-ui text-muted-foreground sm:col-span-2">
-            Identity prefix: {SC_IDENTITY_PREFIX_LABELS[activeOrganization?.documentType?.toUpperCase().includes("PASSPORT") ? "PASSPORT" : "NRIC"]}
-          </p>
-        )}
         <StickyFormFooter
           className="sm:col-span-2"
           back={
@@ -213,12 +285,27 @@ export default function InvestorProfileCompletePage() {
           }
         />
       </form>
+      )}
+      {step === "review" ? (
+        <StickyFormFooter
+          back={
+            <Button type="button" className="h-10" variant="outline" onClick={() => goToStep("identity")}>
+              Back
+            </Button>
+          }
+          primary={
+            <Button type="button" className="h-10" onClick={() => router.push("/profile")}>
+              Finish
+            </Button>
+          }
+        />
+      ) : null}
     </PageShell>
   );
 }
 
 function needs(missing: Array<{ field: string }>, field: string) {
-  return missing.some((m) => m.field === field);
+  return missing.some((item) => item.field === field);
 }
 
 function toDate(value: unknown): string {
@@ -226,11 +313,11 @@ function toDate(value: unknown): string {
   return String(value).slice(0, 10);
 }
 
-function TextField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <div className="space-y-2">
       <Label className="text-ui">{label}</Label>
-      <Input className="h-10 text-ui" value={value} onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)} />
+      <Input className="h-10 text-ui" value={value} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange(event.target.value)} />
     </div>
   );
 }
@@ -243,7 +330,7 @@ function SelectField({
 }: {
   label: string;
   value: string;
-  onChange: (v: string) => void;
+  onChange: (value: string) => void;
   options: Array<{ value: string; label: string }>;
 }) {
   return (

@@ -35,12 +35,11 @@ import {
   type ScInvestorCategory,
 } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
-import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
-import { CorporateInfoCard } from "../../components/corporate-info-card";
+import { InvestorCompanyDetailsCard } from "../../components/investor-company-details-card";
 import { InvestorProfileCompletenessBanner } from "../../components/profile-completeness-banner";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { ConfirmDialog } from "../../components/confirm-dialog";
@@ -53,7 +52,9 @@ import {
   DirectorShareholderAlertCard,
   INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
   DirectorShareholdersUnifiedSection,
+  KeyValueGrid,
   portalContentMaxWidthClassName,
+  StatusBadge,
   VerifiedBadge,
 } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
@@ -77,8 +78,6 @@ import {
   DocumentTextIcon,
   MapPinIcon,
   PhoneIcon,
-  GlobeAltIcon,
-  CalendarIcon,
   ArrowDownTrayIcon,
   UserPlusIcon,
   TrashIcon,
@@ -819,27 +818,6 @@ export default function ProfilePage() {
     setIsEditingAddresses(false);
   };
 
-  // Helper function to format address for display
-  const formatAddressDisplay = (address?: {
-    line1?: string | null;
-    line2?: string | null;
-    city?: string | null;
-    postalCode?: string | null;
-    state?: string | null;
-    country?: string | null;
-  }): string => {
-    if (!address) return "—";
-    const parts = [
-      address.line1,
-      address.line2,
-      address.city,
-      address.postalCode,
-      address.state,
-      address.country,
-    ].filter((part) => part && part.trim() !== "");
-    return parts.length > 0 ? parts.join(", ") : "—";
-  };
-
   // Show loading state
   if (isAuthenticated === null || isLoading) {
     return <ProfileSkeleton />;
@@ -923,183 +901,41 @@ export default function ProfilePage() {
               {/* Personal Info Section (Read-only) - Only for PERSONAL accounts */}
               {isPersonal && (
                 <div className="rounded-xl border bg-card">
-                <div className="flex items-center justify-between p-6 border-b">
-                  <div>
-                    <h2 className="text-lg font-semibold">Personal info</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Your KYC-verified personal details
-                    </p>
+                  <div className="flex items-center justify-between p-6 border-b">
+                    <div>
+                      <h2 className="text-lg font-semibold">Personal Details</h2>
+                      <p className="text-sm text-muted-foreground">Identity details verified during onboarding</p>
+                    </div>
+                    <VerifiedBadge />
                   </div>
-                  <VerifiedBadge />
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Name</Label>
-                      <Input value={displayName} disabled className="bg-muted h-11 rounded-xl" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Document Type</Label>
-                      <Input
-                        value={formatDocumentType(orgData?.documentType)}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <IdentificationIcon className="h-4 w-4" />
-                        Document Number
-                      </Label>
-                      <Input
-                        value={orgData?.documentNumber || "—"}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <CalendarIcon className="h-4 w-4" />
-                        Date of birth
-                      </Label>
-                      <Input
-                        value={formatProfileDate(orgData?.dateOfBirth)}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Gender</Label>
-                      <Input
-                        value={formatGender(orgData?.gender)}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Nationality</Label>
-                      <Input
-                        value={orgData?.nationality || "—"}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">State</Label>
-                      <Input
-                        value={orgData?.residentialAddress?.state || "—"}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Postcode</Label>
-                      <Input
-                        value={orgData?.residentialAddress?.postalCode || "—"}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Type of investor</Label>
-                      <Input
-                        value={formatInvestorCategory(orgData?.scInvestorCategory)}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <GlobeAltIcon className="h-4 w-4" />
-                        Issuing Country
-                      </Label>
-                      <Input
-                        value={orgData?.idIssuingCountry || "—"}
-                        disabled
-                        className="bg-muted h-11 rounded-xl"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <ShieldCheckIcon className="h-4 w-4" />
-                        Investor Classification
-                        <InfoTooltip
-                          content={
-                            orgData?.isSophisticatedInvestor
-                              ? "Your total investment amount is unlimited."
-                              : "Your total investment amount is limited to RM 50,000. Contact us to upgrade your account."
-                          }
-                        />
-                      </Label>
-                      <div className="flex items-center gap-2 h-11 px-4 rounded-xl border bg-muted">
-                        {orgData?.isSophisticatedInvestor ? (
-                          <span className="text-sm font-medium text-purple-600">
-                            Sophisticated Investor
-                          </span>
-                        ) : (
-                          <span className="text-sm">Retail Investor</span>
-                        )}
-                      </div>
-                    </div>
-                    {orgData?.onboardedAt && (
-                      <div className="space-y-2">
-                        <Label className="text-muted-foreground flex items-center gap-2">
-                          <CalendarIcon className="h-4 w-4" />
-                          Member Since
-                        </Label>
-                        <Input
-                          value={new Date(orgData.onboardedAt).toLocaleDateString("en-MY", {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })}
-                          disabled
-                          className="bg-muted h-11 rounded-xl"
-                        />
-                      </div>
-                    )}
+                  <div className="p-6">
+                    <KeyValueGrid
+                      items={[
+                        { label: "Name", value: displayName },
+                        { label: "Identity", value: `${formatDocumentType(orgData?.documentType)} ${orgData?.documentNumber || ""}`.trim() },
+                        { label: "Date of birth", value: formatProfileDate(orgData?.dateOfBirth) },
+                        { label: "Gender", value: formatGender(orgData?.gender) },
+                        { label: "Nationality", value: orgData?.nationality || "—" },
+                      ]}
+                    />
                   </div>
                 </div>
-              </div>
               )}
 
-              {/* 1. Corporate Info Section - Only for COMPANY accounts */}
-              {!isPersonal && activeOrganization?.id && (
-                <CorporateInfoCard organizationId={activeOrganization.id} />
-              )}
-
-              {!isPersonal && orgData?.corporateOnboardingData?.personInCharge && (
-                <div className="rounded-xl border bg-card">
-                  <div className="p-6 border-b">
-                    <h2 className="text-lg font-semibold">Person in Charge</h2>
-                    <p className="text-sm text-muted-foreground">Primary business contact details</p>
-                  </div>
-                  <div className="p-6 grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Name</Label>
-                      <Input value={orgData.corporateOnboardingData.personInCharge.name || ""} disabled className="bg-muted" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Position</Label>
-                      <Input value={orgData.corporateOnboardingData.personInCharge.position || ""} disabled className="bg-muted" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <EnvelopeIcon className="h-4 w-4" />
-                        Email
-                      </Label>
-                      <Input value={orgData.corporateOnboardingData.personInCharge.email || ""} disabled className="bg-muted" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground flex items-center gap-2">
-                        <PhoneIcon className="h-4 w-4" />
-                        Contact Number
-                      </Label>
-                      <Input value={orgData.corporateOnboardingData.personInCharge.contactNumber || ""} disabled className="bg-muted" />
-                    </div>
-                  </div>
-                </div>
-              )}
+              {!isPersonal && activeOrganization?.id ? (
+                <InvestorCompanyDetailsCard
+                  organizationId={activeOrganization.id}
+                  name={activeOrganization.name}
+                  registrationNumber={activeOrganization.registrationNumber}
+                  dateOfIncorporation={
+                    orgData?.dateOfIncorporation ?? activeOrganization.dateOfIncorporation
+                  }
+                  countryOfIncorporation={
+                    orgData?.countryOfIncorporation ?? activeOrganization.countryOfIncorporation
+                  }
+                  canEdit={isCurrentUserAdmin}
+                />
+              ) : null}
 
               {/* For PERSONAL accounts: Address comes before Contact Details */}
               {isPersonal && (
@@ -1126,24 +962,31 @@ export default function ProfilePage() {
                     )}
                   </div>
                   <div className="p-6 space-y-4">
+                    {!isEditingProfile ? (
+                      <KeyValueGrid
+                        items={[
+                          { label: "Residential address", value: address.trim() || "—" },
+                          { label: "State", value: orgData?.residentialAddress?.state || "—" },
+                          { label: "Postcode", value: orgData?.residentialAddress?.postalCode || "—" },
+                        ]}
+                      />
+                    ) : (
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
                         <MapPinIcon className="h-4 w-4" />
-                        Full Address
+                        Residential address
                       </Label>
                       <Textarea
                         placeholder="Enter your full address"
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
-                        disabled={!isEditingProfile}
                         rows={3}
                         maxLength={500}
-                        className={`resize-none ${!isEditingProfile ? "bg-muted" : ""}`}
+                        className="resize-none"
                       />
-                      {isEditingProfile && (
                         <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
-                      )}
                     </div>
+                    )}
 
                     {isEditingProfile && (
                       <div className="flex justify-end gap-2 pt-4">
@@ -1167,6 +1010,54 @@ export default function ProfilePage() {
                     )}
                   </div>
                 </div>
+
+                  <div className="rounded-xl border bg-card">
+                    <div className="border-b p-6">
+                      <h2 className="text-lg font-semibold">Investor Classification</h2>
+                    </div>
+                    <div className="p-6">
+                      <KeyValueGrid
+                        items={[
+                          { label: "Category", value: formatInvestorCategory(orgData?.scInvestorCategory) },
+                          {
+                            label: "Account class",
+                            value: orgData?.isSophisticatedInvestor ? "Sophisticated" : "Retail",
+                          },
+                        ]}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border bg-card">
+                    <div className="border-b p-6">
+                      <h2 className="text-lg font-semibold">KYC / AML</h2>
+                    </div>
+                    <div className="p-6">
+                      <KeyValueGrid
+                        items={[
+                          {
+                            label: "KYC",
+                            value: (
+                              <StatusBadge
+                                status={activeOrganization.onboardingApproved ? "success" : "action"}
+                                label={activeOrganization.onboardingApproved ? "Approved" : "Pending"}
+                              />
+                            ),
+                          },
+                          {
+                            label: "AML",
+                            value: (
+                              <StatusBadge
+                                status={activeOrganization.amlApproved ? "success" : "action"}
+                                label={activeOrganization.amlApproved ? "Approved" : "Pending"}
+                              />
+                            ),
+                          },
+                          { label: "Onboarding status", value: orgData?.onboardingStatus || "—" },
+                        ]}
+                      />
+                    </div>
+                  </div>
 
                   {/* Contact Details Section (Editable) - Personal */}
                   <div className="rounded-xl border bg-card">
@@ -1257,9 +1148,9 @@ export default function ProfilePage() {
                 <div className="rounded-xl border bg-card">
                   <div className="flex items-center justify-between p-6 border-b">
                     <div>
-                      <h2 className="text-lg font-semibold">Addresses</h2>
+                      <h2 className="text-lg font-semibold">Business Address</h2>
                       <p className="text-sm text-muted-foreground">
-                        Business and registered addresses
+                        Where the company operates
                       </p>
                     </div>
                     {!isEditingAddresses && (
@@ -1279,9 +1170,27 @@ export default function ProfilePage() {
                     <div className="space-y-4 pt-2">
                       <h3 className="text-sm font-semibold">Business Address</h3>
                       {!isEditingAddresses ? (
-                        <p className="text-sm text-muted-foreground">
-                          {formatAddressDisplay(orgData?.corporateOnboardingData?.addresses?.business)}
-                        </p>
+                        <KeyValueGrid
+                          items={[
+                            {
+                              label: "Address",
+                              value: [
+                                orgData?.corporateOnboardingData?.addresses?.business?.line1,
+                                orgData?.corporateOnboardingData?.addresses?.business?.line2,
+                              ]
+                                .filter((part) => part && part.trim())
+                                .join(", ") || "—",
+                            },
+                            {
+                              label: "State",
+                              value: orgData?.corporateOnboardingData?.addresses?.business?.state || "—",
+                            },
+                            {
+                              label: "Postcode",
+                              value: orgData?.corporateOnboardingData?.addresses?.business?.postalCode || "—",
+                            },
+                          ]}
+                        />
                       ) : (
                         <div className="grid gap-4 sm:grid-cols-2">
                           <div className="space-y-2 sm:col-span-2">
@@ -1342,11 +1251,10 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    {/* Registered Address */}
+                    {isEditingAddresses ? (
                     <div className="space-y-4 pt-4 border-t">
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold">Registered Address</h3>
-                        {isEditingAddresses && (
                           <div className="flex items-center gap-2">
                             <Checkbox
                               id="sameAsBusinessAddress"
@@ -1357,14 +1265,8 @@ export default function ProfilePage() {
                               Same as business address
                             </Label>
                           </div>
-                        )}
                       </div>
-                      {!isEditingAddresses ? (
-                        <p className="text-sm text-muted-foreground">
-                          {formatAddressDisplay(orgData?.corporateOnboardingData?.addresses?.registered)}
-                        </p>
-                      ) : (
-                        !sameAsBusinessAddress && (
+                        {!sameAsBusinessAddress ? (
                           <div className="grid gap-4 sm:grid-cols-2">
                             <div className="space-y-2 sm:col-span-2">
                               <Label>Address Line 1</Label>
@@ -1421,9 +1323,9 @@ export default function ProfilePage() {
                               />
                             </div>
                           </div>
-                        )
-                      )}
+                        ) : null}
                     </div>
+                    ) : null}
 
                     {isEditingAddresses && (
                       <div className="flex justify-end gap-2 pt-4">
@@ -1448,6 +1350,57 @@ export default function ProfilePage() {
                   </div>
                 </div>
               )}
+
+              {!isPersonal ? (
+                <>
+                  <div className="rounded-xl border bg-card">
+                    <div className="border-b p-6">
+                      <h2 className="text-lg font-semibold">Investor Classification</h2>
+                    </div>
+                    <div className="p-6">
+                      <KeyValueGrid
+                        items={[
+                          { label: "Category", value: formatInvestorCategory(orgData?.scInvestorCategory) },
+                          {
+                            label: "Account class",
+                            value: orgData?.isSophisticatedInvestor ? "Sophisticated" : "Non-sophisticated entity",
+                          },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                  <div className="rounded-xl border bg-card">
+                    <div className="border-b p-6">
+                      <h2 className="text-lg font-semibold">KYC / AML</h2>
+                    </div>
+                    <div className="p-6">
+                      <KeyValueGrid
+                        items={[
+                          {
+                            label: "KYC",
+                            value: (
+                              <StatusBadge
+                                status={activeOrganization.onboardingApproved ? "success" : "action"}
+                                label={activeOrganization.onboardingApproved ? "Approved" : "Pending"}
+                              />
+                            ),
+                          },
+                          {
+                            label: "AML",
+                            value: (
+                              <StatusBadge
+                                status={activeOrganization.amlApproved ? "success" : "action"}
+                                label={activeOrganization.amlApproved ? "Approved" : "Pending"}
+                              />
+                            ),
+                          },
+                          { label: "Onboarding status", value: orgData?.onboardingStatus || "—" },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : null}
 
               {/* 3. Contact Details Section (Editable) - For COMPANY accounts only (Personal is handled above) */}
               {!isPersonal && (
@@ -1547,6 +1500,9 @@ export default function ProfilePage() {
                     autoFocusFirstEmptyEmail={focusDirectors}
                     focusedMatchKey={focusedPersonKey}
                     onPartyOnboardingSent={handlePartyOnboardingSent}
+                    title="People"
+                    description="Directors and shareholders for this company"
+                    grouped={false}
                   />
                 </div>
               )}

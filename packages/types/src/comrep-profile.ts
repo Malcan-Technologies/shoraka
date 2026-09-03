@@ -262,6 +262,73 @@ export const INVESTOR_PROFILE_STEP_LABELS: Record<InvestorProfileStepId, string>
   review: "Review",
 };
 
+/** User-facing complete-profile steps. Completeness still scores shareholders + board separately. */
+export const ISSUER_PROFILE_FLOW_STEP_IDS = ["company", "people", "financials", "review"] as const;
+export type IssuerProfileFlowStepId = (typeof ISSUER_PROFILE_FLOW_STEP_IDS)[number];
+
+export const ISSUER_PROFILE_FLOW_STEP_LABELS: Record<IssuerProfileFlowStepId, string> = {
+  company: "Company",
+  people: "People",
+  financials: "Financials",
+  review: "Review",
+};
+
+export function missingItemsForIssuerFlowStep(
+  completeness: ComrepProfileCompleteness | null | undefined,
+  step: IssuerProfileFlowStepId
+): ProfileMissingItem[] {
+  const missing = completeness?.missing ?? [];
+  if (step === "review") return missing;
+  if (step === "people") {
+    return missing.filter((item) => item.step === "shareholders" || item.step === "board");
+  }
+  return missing.filter((item) => item.step === step);
+}
+
+export function issuerFlowStepComplete(
+  completeness: ComrepProfileCompleteness | null | undefined,
+  step: IssuerProfileFlowStepId
+): boolean {
+  if (!completeness) return false;
+  if (step === "review") return completeness.complete;
+  return missingItemsForIssuerFlowStep(completeness, step).length === 0;
+}
+
+export function groupPeopleMissingByParty(missing: ProfileMissingItem[]): Array<{
+  partyKey: string;
+  partyName: string | null;
+  items: ProfileMissingItem[];
+}> {
+  const groups = new Map<string, { partyKey: string; partyName: string | null; items: ProfileMissingItem[] }>();
+  const ungrouped: ProfileMissingItem[] = [];
+  for (const item of missing) {
+    if (!item.partyKey) {
+      ungrouped.push(item);
+      continue;
+    }
+    const existing = groups.get(item.partyKey);
+    if (existing) {
+      existing.items.push(item);
+      if (!existing.partyName && item.partyName) existing.partyName = item.partyName;
+    } else {
+      groups.set(item.partyKey, {
+        partyKey: item.partyKey,
+        partyName: item.partyName ?? null,
+        items: [item],
+      });
+    }
+  }
+  const result = [...groups.values()];
+  if (ungrouped.length > 0) {
+    result.unshift({
+      partyKey: "",
+      partyName: null,
+      items: ungrouped,
+    });
+  }
+  return result;
+}
+
 export interface ComrepProfileStepCompleteness {
   id: ComrepProfileStepId;
   label: string;

@@ -2,9 +2,12 @@ import {
   buildInvestorProfileCompleteness,
   buildIssuerProfileCompleteness,
   computeIssuerCompanyCompleteness,
+  groupPeopleMissingByParty,
   issuerFinancialsFromYearBlock,
+  issuerFlowStepComplete,
   isMasterFieldEmpty,
   latestUnauditedYearKey,
+  missingItemsForIssuerFlowStep,
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
   valuesEqualForMismatch,
@@ -205,5 +208,28 @@ describe("latestUnauditedYearKey", () => {
         unaudited_by_year: { "2023": { turnover: 1 }, "2025": { turnover: 2 } },
       })
     ).toBe("2025");
+  });
+});
+
+describe("issuer profile flow grouping", () => {
+  const completeness = {
+    portal: "issuer" as const,
+    organizationType: "COMPANY" as const,
+    complete: false,
+    percent: 70,
+    steps: [],
+    missing: [
+      { step: "company" as const, field: "companyEmail", label: "E-mail address" },
+      { step: "shareholders" as const, field: "shareType", label: "Type of shares", partyKey: "a", partyName: "Max" },
+      { step: "board" as const, field: "designation", label: "Designation", partyKey: "b", partyName: "Sarah" },
+      { step: "financials" as const, field: "revenue", label: "Total revenue" },
+    ],
+  };
+
+  it("maps shareholder and board gaps onto one People step", () => {
+    const people = missingItemsForIssuerFlowStep(completeness, "people");
+    expect(people).toHaveLength(2);
+    expect(issuerFlowStepComplete(completeness, "company")).toBe(false);
+    expect(groupPeopleMissingByParty(people).map((g) => g.partyName)).toEqual(["Max", "Sarah"]);
   });
 });

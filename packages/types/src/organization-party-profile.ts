@@ -74,3 +74,23 @@ export interface OrganizationMasterProfileDto {
   residentialAddress: ProfileAddress | null;
   fieldSources: ProfileFieldSources;
 }
+
+export function formatPartySharePercent(value: string | number | null | undefined): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "number" ? value : Number(String(value).replace(/%/g, "").trim());
+  if (!Number.isFinite(n)) return `${value}`.trim();
+  const label = Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, "");
+  return `${label}%`;
+}
+
+export function formatPartyRoleLine(party: OrganizationPartyProfileDto): string {
+  const parts: string[] = [];
+  if (party.isDirector) parts.push("Director");
+  if (party.isBoard) parts.push("Board");
+  if (party.isManagement) parts.push("Management");
+  if (party.isShareholder) {
+    const pct = formatPartySharePercent(party.shareholdingPercentage);
+    parts.push(pct ? `Shareholder ${pct}` : "Shareholder");
+  }
+  return parts.join(" · ") || (party.entityType === "CORPORATE" ? "Company" : "Person");
+}

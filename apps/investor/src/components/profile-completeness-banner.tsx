@@ -29,6 +29,9 @@ export function InvestorProfileCompletenessBanner({
 
   if (!onboarded || !query.data || query.data.complete) return null;
 
+  const remaining = query.data.missing.length;
+  const percent = query.data.percent;
+
   return (
     <div
       className="flex flex-col gap-4 rounded-xl border border-status-action-text/15 bg-[hsl(var(--status-action-bg)/0.45)] px-5 py-5 text-foreground sm:flex-row sm:items-center sm:justify-between"
@@ -37,7 +40,8 @@ export function InvestorProfileCompletenessBanner({
       <div className="min-w-0 space-y-1">
         <p className="text-ui font-semibold leading-7">Complete your profile</p>
         <p className="text-ui leading-6 text-muted-foreground">
-          A few ComRep fields are still missing. This does not block investing or deposits.
+          {percent}% complete. {remaining} {remaining === 1 ? "item remaining" : "items remaining"}. This does not
+          block investing or deposits.
         </p>
       </div>
       <Button asChild className="h-11 shrink-0 gap-2 rounded-xl font-semibold">
