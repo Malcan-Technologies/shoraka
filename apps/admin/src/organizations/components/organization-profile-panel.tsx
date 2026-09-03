@@ -6,18 +6,15 @@ import { toast } from "sonner";
 import { BANK_ACCOUNT_TYPES, MALAYSIAN_BANKS, malaysianBankLabel } from "@cashsouk/config";
 import {
   ABOUT_YOUR_BUSINESS_LIMITS,
-  SC_COMPANY_CATEGORIES,
-  SC_COMPANY_CATEGORY_LABELS,
   SC_COMPANY_TYPE_LABELS,
   SC_COMPANY_TYPES,
   SC_GENDER_LABELS,
   SC_GENDERS,
-  SC_INVESTOR_CATEGORIES,
+  allowedScInvestorCategories,
   SC_INVESTOR_CATEGORY_LABELS,
   SC_MALAYSIAN_STATES,
   type OrganizationDetailResponse,
   type PortalType,
-  type ScCompanyCategory,
   type ScCompanyType,
   type ScGender,
   type ScInvestorCategory,
@@ -196,10 +193,6 @@ export function OrganizationProfilePanel({
     org.scCompanyType && org.scCompanyType in SC_COMPANY_TYPE_LABELS
       ? SC_COMPANY_TYPE_LABELS[org.scCompanyType as ScCompanyType]
       : basic?.entityType ?? null;
-  const companyCategoryLabel =
-    org.companyCategory && org.companyCategory in SC_COMPANY_CATEGORY_LABELS
-      ? SC_COMPANY_CATEGORY_LABELS[org.companyCategory as ScCompanyCategory]
-      : null;
   const investorCategoryLabel =
     org.scInvestorCategory && org.scInvestorCategory in SC_INVESTOR_CATEGORY_LABELS
       ? SC_INVESTOR_CATEGORY_LABELS[org.scInvestorCategory as ScInvestorCategory]
@@ -284,15 +277,6 @@ export function OrganizationProfilePanel({
                       label: SC_COMPANY_TYPE_LABELS[value],
                     }))}
                   />
-                  <EditableSelect
-                    label="Company Category"
-                    value={draft.companyCategory}
-                    onChange={(companyCategory) => setDraft((current) => ({ ...current, companyCategory }))}
-                    options={SC_COMPANY_CATEGORIES.map((value) => ({
-                      value,
-                      label: SC_COMPANY_CATEGORY_LABELS[value],
-                    }))}
-                  />
                   <EditableDateField
                     label="Date of Incorporation"
                     value={draft.dateOfIncorporation}
@@ -368,11 +352,6 @@ export function OrganizationProfilePanel({
                     label="Company Type"
                     value={companyTypeLabel}
                     missing={requiredFieldKeys.has("scCompanyType")}
-                  />
-                  <ReadField
-                    label="Company Category"
-                    value={companyCategoryLabel}
-                    missing={requiredFieldKeys.has("companyCategory")}
                   />
                   <ReadField
                     label="Date of Incorporation"
@@ -830,7 +809,10 @@ export function OrganizationProfilePanel({
                 onChange={(scInvestorCategory) =>
                   setDraft((current) => ({ ...current, scInvestorCategory }))
                 }
-                options={SC_INVESTOR_CATEGORIES.map((value) => ({
+                options={allowedScInvestorCategories({
+                  organizationType: org.type === "COMPANY" ? "COMPANY" : "PERSONAL",
+                  isSophisticated: org.isSophisticatedInvestor,
+                }).map((value) => ({
                   value,
                   label: SC_INVESTOR_CATEGORY_LABELS[value],
                 }))}

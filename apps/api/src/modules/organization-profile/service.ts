@@ -32,6 +32,7 @@ import {
   type ScGender,
   type ScInvestorCategory,
   type ScPersonKind,
+  resolveScInvestorCategoryForStorage,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
@@ -551,7 +552,6 @@ export async function computeOrgProfileCompleteness(
         name,
         registrationNumber: roc,
         organizationId: org.id,
-        companyCategory: org.company_category,
         dateOfIncorporation: org.date_of_incorporation,
         dateOfCommencement: org.date_of_commencement,
         countryOfIncorporation: org.country_of_incorporation,
@@ -573,7 +573,20 @@ export async function computeOrgProfileCompleteness(
   const residential = asAddress(org.residential_address);
   const name =
     [org.first_name, org.last_name].filter(Boolean).join(" ").trim() || org.name || null;
-  if (org.type === "COMPANY") {
+  const organizationType = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
+  const scInvestorCategory = resolveScInvestorCategoryForStorage({
+    organizationType,
+    isSophisticated: org.is_sophisticated_investor,
+    sophisticatedReason: org.sophisticated_investor_reason,
+    existing: org.sc_investor_category,
+  });
+  if (scInvestorCategory && scInvestorCategory !== org.sc_investor_category) {
+    await prisma.investorOrganization.update({
+      where: { id: organizationId },
+      data: { sc_investor_category: scInvestorCategory },
+    });
+  }
+  if (organizationType === "COMPANY") {
     const business = pickCodAddress(org.corporate_onboarding_data, "business");
     return buildInvestorProfileCompleteness({
       organizationType: "COMPANY",
@@ -586,7 +599,9 @@ export async function computeOrgProfileCompleteness(
         gender: "NOT_APPLICABLE",
         businessState: business?.state ?? null,
         businessPostalCode: business?.postalCode ?? null,
-        scInvestorCategory: org.sc_investor_category,
+        scInvestorCategory,
+        isSophisticatedInvestor: org.is_sophisticated_investor,
+        sophisticatedInvestorReason: org.sophisticated_investor_reason,
       },
     });
   }
@@ -601,7 +616,9 @@ export async function computeOrgProfileCompleteness(
       state: residential?.state ?? null,
       postalCode: residential?.postalCode ?? null,
       nationality: org.nationality,
-      scInvestorCategory: org.sc_investor_category,
+      scInvestorCategory,
+      isSophisticatedInvestor: org.is_sophisticated_investor,
+      sophisticatedInvestorReason: org.sophisticated_investor_reason,
     },
   });
 }

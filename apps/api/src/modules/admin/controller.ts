@@ -3645,7 +3645,11 @@ router.post(
           facilityFeeCollectAmount: validated.facilityFeeCollectAmount,
           additionalFees: validated.additionalFees,
         },
-        validated.financingTenureDays
+        validated.financingTenureDays,
+        {
+          companyCategory: validated.company_category,
+          sustainabilityCategory: validated.sustainability_category,
+        }
       );
 
       res.json({

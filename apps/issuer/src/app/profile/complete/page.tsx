@@ -14,8 +14,6 @@ import {
   ISSUER_PROFILE_FLOW_STEP_LABELS,
   issuerFlowStepComplete,
   missingItemsForIssuerFlowStep,
-  SC_COMPANY_CATEGORIES,
-  SC_COMPANY_CATEGORY_LABELS,
   SC_COMPANY_TYPE_LABELS,
   SC_COMPANY_TYPES,
   SC_DESIGNATION_LABELS,
@@ -282,7 +280,6 @@ function CompanyStep({
     dateOfCommencement: toDate(org?.dateOfCommencement),
     countryOfIncorporation: org?.countryOfIncorporation ?? "",
     scCompanyType: org?.scCompanyType ?? "",
-    companyCategory: org?.companyCategory ?? "",
     companyEmail: org?.companyEmail ?? "",
     phoneNumber: org?.phoneNumber ?? "",
     companyActivities: "",
@@ -304,7 +301,6 @@ function CompanyStep({
         if (needed.has("dateOfCommencement")) payload.dateOfCommencement = form.dateOfCommencement || null;
         if (needed.has("countryOfIncorporation")) payload.countryOfIncorporation = form.countryOfIncorporation || null;
         if (needed.has("scCompanyType")) payload.scCompanyType = form.scCompanyType || null;
-        if (needed.has("companyCategory")) payload.companyCategory = form.companyCategory || null;
         if (needed.has("companyEmail")) payload.companyEmail = form.companyEmail || null;
         if (needed.has("phoneNumber")) payload.phoneNumber = form.phoneNumber || null;
         if (needed.has("companyActivities")) payload.companyActivities = form.companyActivities || null;
@@ -367,14 +363,6 @@ function CompanyStep({
             value={form.scCompanyType}
             onChange={(value) => setForm({ ...form, scCompanyType: value })}
             options={SC_COMPANY_TYPES.map((key) => ({ value: key, label: SC_COMPANY_TYPE_LABELS[key] }))}
-          />
-        ) : null}
-        {show(needed, "companyCategory") ? (
-          <SelectField
-            label="Company category"
-            value={form.companyCategory}
-            onChange={(value) => setForm({ ...form, companyCategory: value })}
-            options={SC_COMPANY_CATEGORIES.map((key) => ({ value: key, label: SC_COMPANY_CATEGORY_LABELS[key] }))}
           />
         ) : null}
         {show(needed, "companyEmail") ? (

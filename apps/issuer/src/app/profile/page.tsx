@@ -981,7 +981,6 @@ export default function ProfilePage() {
                     countryOfIncorporation:
                       orgData?.countryOfIncorporation ?? activeOrganization.countryOfIncorporation,
                     scCompanyType: orgData?.scCompanyType ?? activeOrganization.scCompanyType,
-                    companyCategory: orgData?.companyCategory ?? activeOrganization.companyCategory,
                     companyEmail: orgData?.companyEmail ?? activeOrganization.companyEmail,
                     corporateOnboardingData: orgData?.corporateOnboardingData ?? null,
                   }}

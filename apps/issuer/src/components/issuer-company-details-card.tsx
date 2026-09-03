@@ -5,11 +5,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
-  SC_COMPANY_CATEGORIES,
-  SC_COMPANY_CATEGORY_LABELS,
   SC_COMPANY_TYPE_LABELS,
   SC_COMPANY_TYPES,
-  type ScCompanyCategory,
   type ScCompanyType,
 } from "@cashsouk/types";
 import { KeyValueGrid } from "@cashsouk/ui";
@@ -48,7 +45,6 @@ export type IssuerCompanyDetailsOrg = {
   dateOfCommencement?: string | Date | null;
   countryOfIncorporation?: string | null;
   scCompanyType?: string | null;
-  companyCategory?: string | null;
   companyEmail?: string | null;
   corporateOnboardingData?: {
     basicInfo?: {
@@ -89,7 +85,6 @@ export function IssuerCompanyDetailsCard({
     org.countryOfIncorporation ?? ""
   );
   const [scCompanyType, setScCompanyType] = React.useState(org.scCompanyType ?? "");
-  const [companyCategory, setCompanyCategory] = React.useState(org.companyCategory ?? "");
   const [companyEmail, setCompanyEmail] = React.useState(org.companyEmail ?? "");
   const [phoneNumber, setPhoneNumber] = React.useState(org.phoneNumber ?? "");
 
@@ -101,7 +96,6 @@ export function IssuerCompanyDetailsCard({
     setDateOfCommencement(toDateInput(org.dateOfCommencement));
     setCountryOfIncorporation(org.countryOfIncorporation ?? "");
     setScCompanyType(org.scCompanyType ?? "");
-    setCompanyCategory(org.companyCategory ?? "");
     setCompanyEmail(org.companyEmail ?? "");
     setPhoneNumber(org.phoneNumber ?? "");
   }, [basic, isEditing, org]);
@@ -110,10 +104,6 @@ export function IssuerCompanyDetailsCard({
     org.scCompanyType && org.scCompanyType in SC_COMPANY_TYPE_LABELS
       ? SC_COMPANY_TYPE_LABELS[org.scCompanyType as ScCompanyType]
       : basic?.entityType ?? null;
-  const companyCategoryLabel =
-    org.companyCategory && org.companyCategory in SC_COMPANY_CATEGORY_LABELS
-      ? SC_COMPANY_CATEGORY_LABELS[org.companyCategory as ScCompanyCategory]
-      : null;
   const ssm = org.registrationNumber || basic?.ssmRegisterNumber;
   const businessName = org.name || basic?.businessName;
 
@@ -126,7 +116,6 @@ export function IssuerCompanyDetailsCard({
         master.countryOfIncorporation = countryOfIncorporation.trim();
       }
       if (!org.scCompanyType && scCompanyType) master.scCompanyType = scCompanyType;
-      if (!org.companyCategory && companyCategory) master.companyCategory = companyCategory;
       if (!org.companyEmail && companyEmail.trim()) master.companyEmail = companyEmail.trim();
       if (!org.phoneNumber && phoneNumber.trim()) master.phoneNumber = phoneNumber.trim();
 
@@ -184,19 +173,6 @@ export function IssuerCompanyDetailsCard({
                 options={SC_COMPANY_TYPES.map((value) => ({
                   value,
                   label: SC_COMPANY_TYPE_LABELS[value],
-                }))}
-              />
-            )}
-            {org.companyCategory ? (
-              <ReadRow label="Company Category" value={companyCategoryLabel} />
-            ) : (
-              <SelectRow
-                label="Company Category"
-                value={companyCategory}
-                onChange={setCompanyCategory}
-                options={SC_COMPANY_CATEGORIES.map((value) => ({
-                  value,
-                  label: SC_COMPANY_CATEGORY_LABELS[value],
                 }))}
               />
             )}
@@ -261,7 +237,6 @@ export function IssuerCompanyDetailsCard({
             { label: "Business Name", value: displayProfileValue(businessName) },
             { label: "SSM / ROC", value: displayProfileValue(ssm) },
             { label: "Company Type", value: displayProfileValue(companyTypeLabel) },
-            { label: "Company Category", value: displayProfileValue(companyCategoryLabel) },
             { label: "Date of Incorporation", value: displayProfileValue(formatDate(org.dateOfIncorporation)) },
             { label: "Date of Commencement", value: displayProfileValue(formatDate(org.dateOfCommencement)) },
             { label: "Country of Incorporation", value: displayProfileValue(org.countryOfIncorporation) },

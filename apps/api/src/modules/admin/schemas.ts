@@ -22,6 +22,7 @@ import {
   SC_COMPANY_TYPES,
   SC_GENDERS,
   SC_INVESTOR_CATEGORIES,
+  SC_SUSTAINABILITY_CATEGORIES,
   isNoteMoneyAmount,
   isValidFinancingTenureDays,
   validateAdditionalFeeLines,
@@ -556,6 +557,8 @@ export const sendInvoiceOfferSchema = z
     offeredProfitRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
     platformFeeRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
     risk_rating: z.enum(MARC_SME_GRADES),
+    company_category: z.enum(SC_COMPANY_CATEGORIES),
+    sustainability_category: z.enum(SC_SUSTAINABILITY_CATEGORIES),
     financingTenureDays: z.coerce
       .number({
         required_error: "Financing tenure is required.",

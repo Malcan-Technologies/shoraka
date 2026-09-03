@@ -132,6 +132,12 @@ import {
   type AdditionalFeeLine,
   type InvoiceOfferFeeScheduleWriteMode,
   type ReviewItemType,
+  type ScCompanyCategory,
+  type ScSustainabilityCategory,
+  isScCompanyCategory,
+  isScSustainabilityCategory,
+  parseInvoiceOfferCompanyCategory,
+  parseInvoiceOfferSustainabilityCategory,
   canonicalDownloadFilenameToken,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
@@ -9030,7 +9036,11 @@ export class AdminService {
       facilityFeeCollectAmount?: number | null;
       additionalFees?: AdditionalFeeLine[];
     },
-    financingTenureDays?: number
+    financingTenureDays?: number,
+    campaignClassification?: {
+      companyCategory: ScCompanyCategory;
+      sustainabilityCategory: ScSustainabilityCategory;
+    } | null
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(
@@ -9263,6 +9273,17 @@ export class AdminService {
         { applicationId, invoiceId, riskRating, marcSuggestedGrade: marc.creditGrade },
         "Saving invoice offer risk rating"
       );
+      const companyCategory =
+        campaignClassification?.companyCategory ?? parseInvoiceOfferCompanyCategory(previousOffer);
+      const sustainabilityCategory =
+        campaignClassification?.sustainabilityCategory ??
+        parseInvoiceOfferSustainabilityCategory(previousOffer);
+      if (companyCategory && !isScCompanyCategory(companyCategory)) {
+        throw new AppError(400, "INVALID_INPUT", "Company category must be Technology or Non-Technology");
+      }
+      if (sustainabilityCategory && !isScSustainabilityCategory(sustainabilityCategory)) {
+        throw new AppError(400, "INVALID_INPUT", "Sustainability category is invalid");
+      }
       const offerDetails: Record<string, unknown> = {
         requested_amount: requestedAmount,
         offered_amount: offeredAmount,
@@ -9273,6 +9294,8 @@ export class AdminService {
         platform_fee_rate_percent: platformFeeStored,
         risk_rating: riskRating,
         marc_suggested_grade: marc.creditGrade,
+        ...(companyCategory ? { company_category: companyCategory } : {}),
+        ...(sustainabilityCategory ? { sustainability_category: sustainabilityCategory } : {}),
         ...feeSchedulePatch,
         sent_at: now,
         responded_at: null,

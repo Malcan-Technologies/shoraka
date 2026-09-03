@@ -299,7 +299,6 @@ const navDirectory = [
 const navSettings = [
   { title: "Products", url: "/settings/products", icon: CubeIcon },
   { title: "Platform Finance", url: "/settings/platform-finance", icon: CalculatorIcon },
-  { title: "Shoraka Profile", url: "/settings/rmo-profile", icon: BuildingLibraryIcon },
   { title: "Notifications", url: "/settings/notifications", icon: BellIcon },
   { title: "Roles", url: "/settings/roles", icon: ShieldCheckIcon },
 ] as const;
@@ -528,7 +527,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     if (item.url === "/settings/notifications") return canViewNotifications;
     if (item.url === "/settings/products") return canViewProducts;
     if (item.url === "/settings/platform-finance") return canViewPlatformFinance;
-    if (item.url === "/settings/rmo-profile") return canViewPlatformFinance;
     return false;
   });
 
@@ -786,6 +784,28 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </SidebarMenuItem>
                   );
                 })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
+
+        {canViewPlatformFinance ? (
+          <SidebarGroup>
+            <SidebarGroupLabel>Shoraka</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/shoraka/profile" || pathname.startsWith("/shoraka/")}
+                    tooltip="Profile"
+                  >
+                    <Link href="/shoraka/profile">
+                      <BuildingLibraryIcon className="h-4 w-4" />
+                      <span>Profile</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

@@ -144,3 +144,202 @@ export interface OperatorFinancialStatementDto {
   pnlMinorityInterest: string | null;
   netDividend: string | null;
 }
+
+export const OPERATOR_PROFILE_SECTION_IDS = [
+  "general",
+  "shareCapital",
+  "shareholders",
+  "officers",
+  "advisors",
+  "interests",
+  "financials",
+] as const;
+export type OperatorProfileSectionId = (typeof OPERATOR_PROFILE_SECTION_IDS)[number];
+
+export const OPERATOR_PROFILE_SECTION_LABELS: Record<OperatorProfileSectionId, string> = {
+  general: "General Information",
+  shareCapital: "Share Capital",
+  shareholders: "Shareholders / Members / Beneficial Owners",
+  officers: "Board & Management",
+  advisors: "Advisers",
+  interests: "Interests in Other Companies",
+  financials: "Financial Statements",
+};
+
+export type OperatorProfileMissingItem = {
+  section: OperatorProfileSectionId;
+  field: string;
+  label: string;
+};
+
+export type OperatorProfileSectionCompleteness = {
+  id: OperatorProfileSectionId;
+  label: string;
+  complete: boolean;
+  requiredCount: number;
+  filledCount: number;
+  missing: OperatorProfileMissingItem[];
+};
+
+export type OperatorProfileCompleteness = {
+  complete: boolean;
+  percent: number;
+  sections: OperatorProfileSectionCompleteness[];
+  missing: OperatorProfileMissingItem[];
+};
+
+function operatorHasText(value: string | null | undefined): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function operatorSection(
+  id: OperatorProfileSectionId,
+  missing: OperatorProfileMissingItem[],
+  requiredCount: number
+): OperatorProfileSectionCompleteness {
+  const filledCount = Math.max(0, requiredCount - missing.length);
+  return {
+    id,
+    label: OPERATOR_PROFILE_SECTION_LABELS[id],
+    complete: missing.length === 0 && requiredCount > 0,
+    requiredCount,
+    filledCount,
+    missing,
+  };
+}
+
+export function buildOperatorProfileCompleteness(
+  profile: OperatorProfileDto
+): OperatorProfileCompleteness {
+  const generalMissing: OperatorProfileMissingItem[] = [];
+  if (!operatorHasText(profile.name)) {
+    generalMissing.push({ section: "general", field: "name", label: "RMO / operator name" });
+  }
+  if (!operatorHasText(profile.registrationNumber)) {
+    generalMissing.push({
+      section: "general",
+      field: "registrationNumber",
+      label: "Company registration number",
+    });
+  }
+  if (!operatorHasText(profile.responsiblePersonName)) {
+    generalMissing.push({
+      section: "general",
+      field: "responsiblePersonName",
+      label: "Responsible person",
+    });
+  }
+  if (!operatorHasText(profile.responsiblePersonPhone)) {
+    generalMissing.push({
+      section: "general",
+      field: "responsiblePersonPhone",
+      label: "Responsible person contact",
+    });
+  }
+
+  const capitalMissing: OperatorProfileMissingItem[] = [];
+  if (!operatorHasText(profile.shareCapital?.totalPaidUpCapital)) {
+    capitalMissing.push({
+      section: "shareCapital",
+      field: "totalPaidUpCapital",
+      label: "Total paid-up capital",
+    });
+  }
+
+  const shareholderMissing: OperatorProfileMissingItem[] = [];
+  if (profile.shareholders.length === 0) {
+    shareholderMissing.push({
+      section: "shareholders",
+      field: "shareholders",
+      label: "At least one shareholder, member, or beneficial owner",
+    });
+  } else {
+    for (const row of profile.shareholders) {
+      if (!operatorHasText(row.name)) {
+        shareholderMissing.push({
+          section: "shareholders",
+          field: `shareholders.${row.id}.name`,
+          label: "Holder name",
+        });
+      }
+    }
+  }
+
+  const officerMissing: OperatorProfileMissingItem[] = [];
+  if (profile.officers.length === 0) {
+    officerMissing.push({
+      section: "officers",
+      field: "officers",
+      label: "At least one board or management person",
+    });
+  } else if (!profile.officers.some((row) => row.isResponsiblePerson)) {
+    officerMissing.push({
+      section: "officers",
+      field: "responsiblePerson",
+      label: "Responsible person on board / management",
+    });
+  }
+
+  const financialMissing: OperatorProfileMissingItem[] = [];
+  if (profile.financialStatements.length === 0) {
+    financialMissing.push({
+      section: "financials",
+      field: "financialStatements",
+      label: "At least one financial statement",
+    });
+  }
+
+  const sections: OperatorProfileSectionCompleteness[] = [
+    operatorSection("general", generalMissing, 4),
+    operatorSection("shareCapital", capitalMissing, 1),
+    {
+      id: "shareholders",
+      label: OPERATOR_PROFILE_SECTION_LABELS.shareholders,
+      complete: shareholderMissing.length === 0,
+      requiredCount: profile.shareholders.length === 0 ? 1 : profile.shareholders.length,
+      filledCount: Math.max(
+        0,
+        (profile.shareholders.length === 0 ? 1 : profile.shareholders.length) -
+          shareholderMissing.length
+      ),
+      missing: shareholderMissing,
+    },
+    {
+      id: "officers",
+      label: OPERATOR_PROFILE_SECTION_LABELS.officers,
+      complete: officerMissing.length === 0,
+      requiredCount: 1,
+      filledCount: officerMissing.length === 0 ? 1 : 0,
+      missing: officerMissing,
+    },
+    {
+      id: "advisors",
+      label: OPERATOR_PROFILE_SECTION_LABELS.advisors,
+      complete: true,
+      requiredCount: 0,
+      filledCount: 0,
+      missing: [],
+    },
+    {
+      id: "interests",
+      label: OPERATOR_PROFILE_SECTION_LABELS.interests,
+      complete: true,
+      requiredCount: 0,
+      filledCount: 0,
+      missing: [],
+    },
+    operatorSection("financials", financialMissing, 1),
+  ];
+
+  const missing = sections.flatMap((section) => section.missing);
+  const requiredTotal = sections.reduce((sum, section) => sum + section.requiredCount, 0);
+  const filledTotal = sections.reduce((sum, section) => sum + section.filledCount, 0);
+  const percent = requiredTotal === 0 ? 0 : Math.round((filledTotal / requiredTotal) * 100);
+
+  return {
+    complete: missing.length === 0,
+    percent: Math.min(100, percent),
+    sections,
+    missing,
+  };
+}

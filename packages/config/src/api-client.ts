@@ -78,6 +78,8 @@ import type {
   WithdrawReason,
   AdminCtosReportListItem,
   MarcSmeGrade,
+  ScCompanyCategory,
+  ScSustainabilityCategory,
   RecipientEkycSession,
   RecipientEkycSessionStatus,
   CreateNoteFromApplicationInput,
@@ -2247,6 +2249,8 @@ export class ApiClient {
       offeredProfitRatePercent?: number | null;
       platformFeeRatePercent?: number | null;
       risk_rating: MarcSmeGrade;
+      company_category: ScCompanyCategory;
+      sustainability_category: ScSustainabilityCategory;
       financingTenureDays: number;
       feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode;
       facilityFeeCollectAmount?: number | null;
@@ -2261,6 +2265,8 @@ export class ApiClient {
         offeredProfitRatePercent: payload.offeredProfitRatePercent ?? null,
         platformFeeRatePercent: payload.platformFeeRatePercent ?? null,
         risk_rating: payload.risk_rating,
+        company_category: payload.company_category,
+        sustainability_category: payload.sustainability_category,
         financingTenureDays: payload.financingTenureDays,
         ...(payload.feeScheduleMode ? { feeScheduleMode: payload.feeScheduleMode } : {}),
         facilityFeeCollectAmount: payload.facilityFeeCollectAmount ?? 0,

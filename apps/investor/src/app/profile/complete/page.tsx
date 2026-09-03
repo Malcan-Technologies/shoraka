@@ -6,9 +6,9 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import {
+  allowedScInvestorCategories,
   SC_GENDER_LABELS,
   SC_GENDERS,
-  SC_INVESTOR_CATEGORIES,
   SC_INVESTOR_CATEGORY_LABELS,
   SC_MALAYSIAN_STATES,
 } from "@cashsouk/types";
@@ -200,7 +200,10 @@ export default function InvestorProfileCompletePage() {
             label="Type of investor"
             value={form.scInvestorCategory}
             onChange={(value) => setForm({ ...form, scInvestorCategory: value })}
-            options={SC_INVESTOR_CATEGORIES.map((key) => ({ value: key, label: SC_INVESTOR_CATEGORY_LABELS[key] }))}
+            options={allowedScInvestorCategories({
+              organizationType: isCompany ? "COMPANY" : "PERSONAL",
+              isSophisticated: Boolean(activeOrganization?.isSophisticatedInvestor),
+            }).map((key) => ({ value: key, label: SC_INVESTOR_CATEGORY_LABELS[key] }))}
           />
         ) : null}
         {!isCompany && needs(missing, "gender") ? (

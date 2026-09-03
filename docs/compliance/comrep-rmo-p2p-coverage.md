@@ -19,7 +19,7 @@ Every row includes the caveats that matter when building the export, because sev
 
 | Report | Frequency | Coverage today |
 |---|---|---|
-| RMO Information Report | Annual | **Collection is in place** for `[01000]`–`[05000]`, `[10000]`, `[11000]` on Admin → Shoraka Profile. User statistics and fees remain derivable/partial. XBRL export is not built. |
+| RMO Information Report | Annual | **Collection is in place** for `[01000]`–`[05000]`, `[10000]`, `[11000]` on Admin → Shoraka → Profile. User statistics and fees remain derivable/partial. XBRL export is not built. |
 | RMO - P2P Report | Monthly | **Moderate to good.** Campaign identity, amounts, dates, rates, risk grading, settlement, and investor identity are well covered. Classification enums and issuer financial granularity are the weak points. |
 | RMO - P2P Position Report | Monthly | **Low to moderate.** The investor deposit/withdrawal tab is well covered by the wallet ledger; the outstanding and repayment-trend tabs need a position snapshot that does not exist yet. |
 
@@ -29,7 +29,7 @@ The platform's strongest area is **money movement** — the ledger, settlement, 
 
 ## 1. RMO Information Report (Annual)
 
-Operator company fields are stored on `OperatorProfile` and child models, edited at Admin → Settings → Shoraka Profile.
+Operator company fields are stored on `OperatorProfile` and child models, edited at Admin → Shoraka → Profile.
 
 | Tab | Model | Notes |
 |---|---|---|

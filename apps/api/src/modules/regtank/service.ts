@@ -15,7 +15,7 @@ import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { OrganizationRepository } from "../organization/repository";
 import { getRegTankConfig } from "../../config/regtank";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
-import { normalizeRawStatus } from "@cashsouk/types";
+import { normalizeRawStatus, resolveScInvestorCategoryForStorage } from "@cashsouk/types";
 import {
   decideIndividualApprovedOutcome,
   getIndividualWaitForApprovalUpdate,
@@ -2295,6 +2295,7 @@ export class RegTankService {
             owner_user_id: true,
             is_sophisticated_investor: true,
             sophisticated_investor_reason: true,
+            sc_investor_category: true,
           },
         });
 
@@ -2318,6 +2319,14 @@ export class RegTankService {
           "Determined sophisticated investor status"
         );
 
+        const organizationType = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
+        const derivedScInvestorCategory = resolveScInvestorCategoryForStorage({
+          organizationType,
+          isSophisticated: sophisticatedResult.isSophisticated,
+          sophisticatedReason: sophisticatedResult.reason,
+          existing: org.sc_investor_category,
+        });
+
         await persistOrganizationUpdateAndOnboardingLogs({
           portalType: "investor",
           organizationId,
@@ -2325,6 +2334,9 @@ export class RegTankService {
             ...updateData,
             is_sophisticated_investor: sophisticatedResult.isSophisticated,
             sophisticated_investor_reason: sophisticatedResult.reason,
+            ...(derivedScInvestorCategory && derivedScInvestorCategory !== org.sc_investor_category
+              ? { sc_investor_category: derivedScInvestorCategory }
+              : {}),
           },
           logs: sophisticatedResult.isSophisticated
             ? [

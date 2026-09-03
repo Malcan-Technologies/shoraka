@@ -2,6 +2,7 @@ import {
   buildInvestorProfileCompleteness,
   buildIssuerProfileCompleteness,
   computeIssuerCompanyCompleteness,
+  deriveScInvestorCategory,
   groupPeopleMissingByParty,
   issuerFinancialsFromYearBlock,
   issuerFlowStepComplete,
@@ -10,6 +11,8 @@ import {
   missingItemsForIssuerFlowStep,
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
+  resolveScInvestorCategoryForStorage,
+  SC_SUSTAINABILITY_CATEGORIES,
   valuesEqualForMismatch,
 } from "./comrep-profile";
 
@@ -19,7 +22,6 @@ describe("issuer company completeness [02000]", () => {
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
       organizationId: "org_1",
-      companyCategory: "TECHNOLOGY",
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
@@ -38,7 +40,6 @@ describe("issuer company completeness [02000]", () => {
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
       organizationId: "org_1",
-      companyCategory: "NON_TECHNOLOGY",
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
@@ -50,6 +51,7 @@ describe("issuer company completeness [02000]", () => {
       companyActivities: "Construction",
     });
     expect(missing.map((m) => m.field)).not.toContain("website");
+    expect(missing.map((m) => m.field)).not.toContain("companyCategory");
     expect(missing).toHaveLength(0);
   });
 });
@@ -61,7 +63,6 @@ describe("issuer profile completeness", () => {
         name: "Acme Sdn Bhd",
         registrationNumber: "1234567A",
         organizationId: "org_1",
-        companyCategory: "TECHNOLOGY",
         dateOfIncorporation: "2020-01-01",
         dateOfCommencement: "2020-02-01",
         countryOfIncorporation: "Malaysia",
@@ -88,7 +89,6 @@ describe("issuer profile completeness", () => {
         name: "Master Name",
         registrationNumber: "1234567A",
         organizationId: "org_1",
-        companyCategory: "TECHNOLOGY",
         dateOfIncorporation: "2020-01-01",
         dateOfCommencement: "2020-02-01",
         countryOfIncorporation: "Malaysia",
@@ -175,6 +175,7 @@ describe("investor personal completeness [07000]", () => {
         postalCode: "47300",
         nationality: "Malaysia",
         scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: false,
       },
     });
     expect(result.complete).toBe(true);
@@ -231,5 +232,89 @@ describe("issuer profile flow grouping", () => {
     expect(people).toHaveLength(2);
     expect(issuerFlowStepComplete(completeness, "company")).toBe(false);
     expect(groupPeopleMissingByParty(people).map((g) => g.partyName)).toEqual(["Max", "Sarah"]);
+  });
+});
+
+describe("campaign sustainability category [03000]", () => {
+  it("includes None and G1–G17", () => {
+    expect(SC_SUSTAINABILITY_CATEGORIES[0]).toBe("NONE");
+    expect(SC_SUSTAINABILITY_CATEGORIES).toHaveLength(18);
+    expect(SC_SUSTAINABILITY_CATEGORIES[17]).toBe("G17");
+  });
+});
+
+describe("SC investor classification derivation", () => {
+  it("does not map sophisticated=true to one category", () => {
+    expect(
+      deriveScInvestorCategory({
+        organizationType: "PERSONAL",
+        isSophisticated: true,
+        sophisticatedReason: null,
+      }).status
+    ).toBe("ambiguous");
+    expect(
+      deriveScInvestorCategory({
+        organizationType: "COMPANY",
+        isSophisticated: true,
+        sophisticatedReason: "Company organization",
+      })
+    ).toEqual({
+      status: "ambiguous",
+      candidates: ["SOPHISTICATED_HIGH_NET_WORTH_ENTITY", "NON_SOPHISTICATED_ENTITY"],
+    });
+  });
+
+  it("derives HNW individual vs accredited only from distinct reasons", () => {
+    expect(
+      deriveScInvestorCategory({
+        organizationType: "PERSONAL",
+        isSophisticated: true,
+        sophisticatedReason: "Net personal assets exceeding RM3,000,000",
+      })
+    ).toEqual({ status: "unique", category: "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL" });
+    expect(
+      deriveScInvestorCategory({
+        organizationType: "PERSONAL",
+        isSophisticated: true,
+        sophisticatedReason: "Professional qualification",
+      })
+    ).toEqual({ status: "unique", category: "SOPHISTICATED_ACCREDITED" });
+    expect(
+      deriveScInvestorCategory({
+        organizationType: "PERSONAL",
+        isSophisticated: true,
+        sophisticatedReason:
+          "Annual income exceeding RM300,000; Professional qualification",
+      }).status
+    ).toBe("ambiguous");
+  });
+
+  it("does not treat unsophisticated individuals as Retail automatically", () => {
+    expect(
+      deriveScInvestorCategory({
+        organizationType: "PERSONAL",
+        isSophisticated: false,
+      })
+    ).toEqual({ status: "ambiguous", candidates: ["ANGEL", "RETAIL"] });
+  });
+
+  it("derives non-sophisticated entity when a company is not product-sophisticated", () => {
+    expect(
+      resolveScInvestorCategoryForStorage({
+        organizationType: "COMPANY",
+        isSophisticated: false,
+        existing: null,
+      })
+    ).toBe("NON_SOPHISTICATED_ENTITY");
+  });
+
+  it("keeps an existing valid category instead of overwriting it", () => {
+    expect(
+      resolveScInvestorCategoryForStorage({
+        organizationType: "PERSONAL",
+        isSophisticated: false,
+        existing: "ANGEL",
+      })
+    ).toBe("ANGEL");
   });
 });

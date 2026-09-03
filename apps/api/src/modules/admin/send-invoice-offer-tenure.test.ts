@@ -198,6 +198,30 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
     expect(offer.financing_tenure_days).toBe(105);
   });
 
+  it("stamps campaign Technology/Non-Technology and sustainability onto offer_details", async () => {
+    await service.sendInvoiceOffer(
+      "app-1",
+      "inv-1",
+      40_000,
+      70,
+      12,
+      0,
+      "SME-3",
+      "admin-1",
+      undefined,
+      undefined,
+      105,
+      { companyCategory: "TECHNOLOGY", sustainabilityCategory: "G9" }
+    );
+
+    const offer = lastTx?.invoice.updateMany.mock.calls[0]?.[0]?.data?.offer_details as Record<
+      string,
+      unknown
+    >;
+    expect(offer.company_category).toBe("TECHNOLOGY");
+    expect(offer.sustainability_category).toBe("G9");
+  });
+
   it("rejects an offer tenure shorter than days remaining to the due date", async () => {
     await expect(
       service.sendInvoiceOffer(

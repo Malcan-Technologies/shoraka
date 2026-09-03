@@ -7,6 +7,29 @@
 export const SC_COMPANY_CATEGORIES = ["TECHNOLOGY", "NON_TECHNOLOGY"] as const;
 export type ScCompanyCategory = (typeof SC_COMPANY_CATEGORIES)[number];
 
+/** ComRep [03000] Sustainability Category of the Campaign (UN SDG). */
+export const SC_SUSTAINABILITY_CATEGORIES = [
+  "NONE",
+  "G1",
+  "G2",
+  "G3",
+  "G4",
+  "G5",
+  "G6",
+  "G7",
+  "G8",
+  "G9",
+  "G10",
+  "G11",
+  "G12",
+  "G13",
+  "G14",
+  "G15",
+  "G16",
+  "G17",
+] as const;
+export type ScSustainabilityCategory = (typeof SC_SUSTAINABILITY_CATEGORIES)[number];
+
 export const SC_COMPANY_TYPES = [
   "SOLE_PROPRIETORSHIP",
   "PARTNERSHIP",
@@ -127,6 +150,51 @@ export const SC_COMPANY_CATEGORY_LABELS: Record<ScCompanyCategory, string> = {
   NON_TECHNOLOGY: "Non-Technology",
 };
 
+export const SC_SUSTAINABILITY_CATEGORY_LABELS: Record<ScSustainabilityCategory, string> = {
+  NONE: "00 – None",
+  G1: "G1 – No Poverty",
+  G2: "G2 – Zero Hunger",
+  G3: "G3 – Good Health and Well-being",
+  G4: "G4 – Quality education",
+  G5: "G5 – Gender Equality",
+  G6: "G6 – Clean water",
+  G7: "G7 – Affordable and Clean Energy",
+  G8: "G8 – Decent Work and Economic Growth",
+  G9: "G9 – Industry, Innovation and Infrastructure",
+  G10: "G10 – Reduced Inequalities",
+  G11: "G11 – Sustainable Cities and Communities",
+  G12: "G12 – Responsible Consumption and Production",
+  G13: "G13 – Climate Action",
+  G14: "G14 – Life Below Water",
+  G15: "G15 – Life on Land",
+  G16: "G16 – Peace, Justice and Strong Institutions",
+  G17: "G17 – Partnerships for the Goals",
+};
+
+export function isScCompanyCategory(value: unknown): value is ScCompanyCategory {
+  return typeof value === "string" && (SC_COMPANY_CATEGORIES as readonly string[]).includes(value);
+}
+
+export function isScSustainabilityCategory(value: unknown): value is ScSustainabilityCategory {
+  return (
+    typeof value === "string" && (SC_SUSTAINABILITY_CATEGORIES as readonly string[]).includes(value)
+  );
+}
+
+export function parseInvoiceOfferCompanyCategory(offer: unknown): ScCompanyCategory | null {
+  if (!offer || typeof offer !== "object") return null;
+  const raw = (offer as Record<string, unknown>).company_category;
+  return isScCompanyCategory(raw) ? raw : null;
+}
+
+export function parseInvoiceOfferSustainabilityCategory(
+  offer: unknown
+): ScSustainabilityCategory | null {
+  if (!offer || typeof offer !== "object") return null;
+  const raw = (offer as Record<string, unknown>).sustainability_category;
+  return isScSustainabilityCategory(raw) ? raw : null;
+}
+
 export const SC_COMPANY_TYPE_LABELS: Record<ScCompanyType, string> = {
   SOLE_PROPRIETORSHIP: "Sole proprietorship",
   PARTNERSHIP: "Partnership",
@@ -185,6 +253,117 @@ export const SC_INVESTOR_CATEGORY_LABELS: Record<ScInvestorCategory, string> = {
   SOPHISTICATED_HIGH_NET_WORTH_ENTITY: "Sophisticated – High net worth entity",
   NON_SOPHISTICATED_ENTITY: "Non-sophisticated entity",
 };
+
+export const SC_INVESTOR_CATEGORIES_PERSONAL = [
+  "ANGEL",
+  "RETAIL",
+  "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL",
+  "SOPHISTICATED_ACCREDITED",
+] as const satisfies readonly ScInvestorCategory[];
+
+export const SC_INVESTOR_CATEGORIES_CORPORATE = [
+  "SOPHISTICATED_HIGH_NET_WORTH_ENTITY",
+  "NON_SOPHISTICATED_ENTITY",
+] as const satisfies readonly ScInvestorCategory[];
+
+export type SophisticatedQualificationKind = "HNW" | "ACCREDITED" | "COMPANY";
+
+export function isScInvestorCategory(value: unknown): value is ScInvestorCategory {
+  return typeof value === "string" && (SC_INVESTOR_CATEGORIES as readonly string[]).includes(value);
+}
+
+export function sophisticatedQualificationKindsFromReason(
+  reason: string | null | undefined
+): Set<SophisticatedQualificationKind> {
+  const kinds = new Set<SophisticatedQualificationKind>();
+  const text = (reason ?? "").toLowerCase();
+  if (!text.trim()) return kinds;
+  if (text.includes("company organization")) kinds.add("COMPANY");
+  if (
+    text.includes("net personal assets") ||
+    text.includes("annual income") ||
+    text.includes("investment portfolio")
+  ) {
+    kinds.add("HNW");
+  }
+  if (text.includes("professional qualification") || text.includes("capital market experience")) {
+    kinds.add("ACCREDITED");
+  }
+  return kinds;
+}
+
+export function allowedScInvestorCategories(input: {
+  organizationType: "PERSONAL" | "COMPANY";
+  isSophisticated: boolean;
+}): ScInvestorCategory[] {
+  if (input.organizationType === "COMPANY") {
+    return [...SC_INVESTOR_CATEGORIES_CORPORATE];
+  }
+  if (input.isSophisticated) {
+    return ["SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL", "SOPHISTICATED_ACCREDITED"];
+  }
+  return ["ANGEL", "RETAIL"];
+}
+
+export function isAllowedScInvestorCategory(
+  category: unknown,
+  input: { organizationType: "PERSONAL" | "COMPANY"; isSophisticated: boolean }
+): category is ScInvestorCategory {
+  return (
+    isScInvestorCategory(category) && allowedScInvestorCategories(input).includes(category)
+  );
+}
+
+export type ScInvestorCategoryDerivation =
+  | { status: "unique"; category: ScInvestorCategory }
+  | { status: "ambiguous"; candidates: ScInvestorCategory[] };
+
+/**
+ * Maps onboarding sophisticated-status evidence to a ComRep investor category
+ * only when the mapping is unique. Does not treat `isSophisticated === true`
+ * as a single SC category.
+ */
+export function deriveScInvestorCategory(input: {
+  organizationType: "PERSONAL" | "COMPANY";
+  isSophisticated: boolean;
+  sophisticatedReason?: string | null;
+}): ScInvestorCategoryDerivation {
+  const candidates = allowedScInvestorCategories(input);
+  if (input.organizationType === "COMPANY") {
+    if (!input.isSophisticated) {
+      return { status: "unique", category: "NON_SOPHISTICATED_ENTITY" };
+    }
+    return { status: "ambiguous", candidates };
+  }
+
+  if (!input.isSophisticated) {
+    return { status: "ambiguous", candidates };
+  }
+
+  const kinds = sophisticatedQualificationKindsFromReason(input.sophisticatedReason);
+  const hnw = kinds.has("HNW");
+  const accredited = kinds.has("ACCREDITED");
+  if (hnw && !accredited) {
+    return { status: "unique", category: "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL" };
+  }
+  if (accredited && !hnw) {
+    return { status: "unique", category: "SOPHISTICATED_ACCREDITED" };
+  }
+  return { status: "ambiguous", candidates };
+}
+
+export function resolveScInvestorCategoryForStorage(input: {
+  organizationType: "PERSONAL" | "COMPANY";
+  isSophisticated: boolean;
+  sophisticatedReason?: string | null;
+  existing?: ScInvestorCategory | string | null;
+}): ScInvestorCategory | null {
+  if (isAllowedScInvestorCategory(input.existing, input)) {
+    return input.existing;
+  }
+  const derived = deriveScInvestorCategory(input);
+  return derived.status === "unique" ? derived.category : null;
+}
 
 export const OPERATOR_ADVISOR_TYPE_LABELS: Record<OperatorAdvisorType, string> = {
   ACCOUNTING: "Accounting",
@@ -351,7 +530,6 @@ export interface IssuerCompanyCompletenessInput {
   name: string | null | undefined;
   registrationNumber: string | null | undefined;
   organizationId: string | null | undefined;
-  companyCategory: ScCompanyCategory | null | undefined;
   dateOfIncorporation: string | Date | null | undefined;
   dateOfCommencement: string | Date | null | undefined;
   countryOfIncorporation: string | null | undefined;
@@ -432,6 +610,8 @@ export interface InvestorPersonalCompletenessInput {
   postalCode: string | null | undefined;
   nationality: string | null | undefined;
   scInvestorCategory: ScInvestorCategory | null | undefined;
+  isSophisticatedInvestor: boolean;
+  sophisticatedInvestorReason?: string | null;
 }
 
 export interface InvestorCorporateCompletenessInput {
@@ -444,6 +624,8 @@ export interface InvestorCorporateCompletenessInput {
   businessState: string | null | undefined;
   businessPostalCode: string | null | undefined;
   scInvestorCategory: ScInvestorCategory | null | undefined;
+  isSophisticatedInvestor: boolean;
+  sophisticatedInvestorReason?: string | null;
 }
 
 export const ISSUER_FINANCIAL_COMREP_KEYS = [
@@ -529,6 +711,20 @@ function pushMissing(
   });
 }
 
+function pushMissingInvestorCategory(
+  missing: ProfileMissingItem[],
+  step: ComrepProfileStepId,
+  input: {
+    organizationType: "PERSONAL" | "COMPANY";
+    isSophisticated: boolean;
+    sophisticatedReason?: string | null;
+    existing: ScInvestorCategory | null | undefined;
+  }
+): void {
+  if (resolveScInvestorCategoryForStorage(input)) return;
+  pushMissing(missing, step, "scInvestorCategory", "Type of investor");
+}
+
 export function computeIssuerCompanyCompleteness(
   input: IssuerCompanyCompletenessInput
 ): ProfileMissingItem[] {
@@ -537,9 +733,6 @@ export function computeIssuerCompanyCompleteness(
   if (!hasText(input.name)) pushMissing(missing, step, "name", "Name of issuer");
   if (!hasText(input.registrationNumber)) pushMissing(missing, step, "registrationNumber", "Issuer ROC");
   if (!hasText(input.organizationId)) pushMissing(missing, step, "organizationId", "Issuer ID");
-  if (!hasText(input.companyCategory)) {
-    pushMissing(missing, step, "companyCategory", "Company category");
-  }
   if (!hasDate(input.dateOfIncorporation)) {
     pushMissing(missing, step, "dateOfIncorporation", "Date of incorporation");
   }
@@ -726,9 +919,12 @@ export function computeInvestorPersonalCompleteness(
   if (!hasText(input.state)) pushMissing(missing, step, "state", "Address — state");
   if (!hasText(input.postalCode)) pushMissing(missing, step, "postalCode", "Address — postcode");
   if (!hasText(input.nationality)) pushMissing(missing, step, "nationality", "Nationality");
-  if (!hasText(input.scInvestorCategory)) {
-    pushMissing(missing, step, "scInvestorCategory", "Type of investor");
-  }
+  pushMissingInvestorCategory(missing, step, {
+    organizationType: "PERSONAL",
+    isSophisticated: input.isSophisticatedInvestor,
+    sophisticatedReason: input.sophisticatedInvestorReason,
+    existing: input.scInvestorCategory,
+  });
   return missing;
 }
 
@@ -759,9 +955,12 @@ export function computeInvestorCorporateCompleteness(
   if (!hasText(input.businessPostalCode)) {
     pushMissing(missing, step, "businessPostalCode", "Business address — postcode");
   }
-  if (!hasText(input.scInvestorCategory)) {
-    pushMissing(missing, step, "scInvestorCategory", "Type of investor");
-  }
+  pushMissingInvestorCategory(missing, step, {
+    organizationType: "COMPANY",
+    isSophisticated: input.isSophisticatedInvestor,
+    sophisticatedReason: input.sophisticatedInvestorReason,
+    existing: input.scInvestorCategory,
+  });
   return missing;
 }
 
@@ -789,7 +988,7 @@ export function buildIssuerProfileCompleteness(input: {
   financials: IssuerFinancialCompletenessInput | null | undefined;
 }): ComrepProfileCompleteness {
   const companyMissing = computeIssuerCompanyCompleteness(input.company);
-  const companyRequired = 17;
+  const companyRequired = 16;
   const shareholderMissing = input.shareholders.flatMap(computeShareholderCompleteness);
   const shareholderFieldCount = input.shareholders.length === 0 ? 1 : input.shareholders.length * 14;
   const boardMissing = input.board.flatMap(computeBoardCompleteness);
