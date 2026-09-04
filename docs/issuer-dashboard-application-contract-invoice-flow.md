@@ -38,8 +38,8 @@ Contract JSON fields:
 - `offer_details` (nullable JSON): set when offers are sent/accepted/rejected.
 
 Important distinction:
-- “Invoice-only” does not necessarily mean “no Contract row”.
-- It means “no contract offer/facility logic” for the financing lifecycle.
+- `invoice_only` still links a holder Contract on the application for `customer_details` / `paymaster_id`. The holder may be `SUBMITTED`.
+- The holder is not a facility: excluded from issuer, admin, paymaster, and org facility lists and metrics; no facility offer/capacity actions or facility-detail links.
 
 ## 4. What Invoice means
 
@@ -62,14 +62,15 @@ Confirmed from code (issuer UI):
 - `invoice_details` step creates invoices without passing a `contract_id`.
 
 Confirmed from code (backend):
-- When `financing_structure.structure_type === "invoice_only"` is saved:
-  - application disconnects any existing `contract_id`
-  - and it clears `contract_id` on DRAFT invoices (only DRAFT invoices).
+- Application still links a holder Contract for `customer_details` / `paymaster_id` (holder may be `SUBMITTED`).
+- `Invoice.contract_id` must be null. Create/update with a non-null value returns 400 `STANDALONE_INVOICE_NO_FACILITY`.
+- Invoice offer capacity does not fall back to `Application.contract_id`.
+- Switching to `invoice_only` unlinks a previous facility; structure change is blocked once invoices are past DRAFT.
 
 Confirmed expected data shape:
 - `Application.financing_structure.structure_type = "invoice_only"`
+- `Application.contract_id` = holder Contract (customer/paymaster only)
 - `Invoice.contract_id = null`
-- Contract row may still exist, but it is used as a “holder” for `customer_details` (and `contract_details` is cleared/null).
 
 ## 6. Financing structure: New contract
 
@@ -137,24 +138,17 @@ Confirmed from code:
   - `new_contract` / `existing_contract`: passes `contractId` = `application.contract_id` when creating/updating invoices.
 
 Therefore:
-- For normal UI flows, `Invoice.contract_id === null` reliably means “standalone invoice financing”.
-- `Invoice.contract_id !== null` reliably means “contract-linked invoice”.
+- `Invoice.contract_id === null` is the enforced standalone-invoice shape (`invoice_only` rejects a non-null value with 400 `STANDALONE_INVOICE_NO_FACILITY`).
+- `Invoice.contract_id !== null` means a contract-linked invoice.
+- Occupancy/capacity for `invoice_only` uses only `Invoice.contract_id` (null); it does not fall back to `Application.contract_id`.
 
-Assumption / edge-case risk (needs business confirmation):
-- If someone switches `financing_structure` after invoices exist, the backend only clears `contract_id` for DRAFT invoices (not for already SUBMITTED/APPROVED invoices).
-- In rare “structure changed after offers” data, some invoices might keep `contract_id` even if the UI later treats them as invoice-only.
+## 10. How issuer dashboard groups Contract Financing vs Invoice Financing
 
-## 10. How issuer dashboard should group Contract Financing vs Invoice Financing
-
-Recommended dashboard rule (aligned to the product expectation in this issue):
+Confirmed from code:
 
 ### Main Contract Financing section
-- Show contracts that are part of real contract-based financing flows.
-- Strong suggestion: group by `Application.financing_structure` (exclude `invoice_only` holder contract cards).
-
-Status:
-- Not confirmed in issuer-dashboard code yet (the current code includes any `application.contract` that exists).
-- This guide focuses on invoice duplication; changing contract-card grouping is a separate decision.
+- Show real facilities only.
+- Exclude `invoice_only` holder contracts (`isStandaloneHolderContract`: every linked application is `invoice_only`).
 
 ### Main Invoice Financing section
 - Show standalone invoice cards only:
@@ -168,69 +162,42 @@ Status:
 ## 11. How contract detail page should show invoices
 
 Confirmed from code:
-- Contract detail endpoint (`GET /v1/issuer/dashboard/contracts/:contractId`) builds:
+- Holder contracts 404 (`CONTRACT_NOT_FOUND`).
+- Real-facility detail builds:
   - `contract` from `full.contracts`
   - `invoices` from `full.invoices.filter(i.contractId === contractId)`
 
 So:
-- contract detail naturally shows contract-linked invoices (and keeps Note info that is attached by invoice id).
+- contract detail shows contract-linked invoices (and keeps Note info attached by invoice id).
 
 ## 12. How invoices later become Notes
 
 Confirmed from code (note creation logic):
 - When creating a Note from an approved invoice, the note stores:
   - `note.source_invoice_id = invoice.id`
-  - `note.source_contract_id = invoice.contract_id ?? application.contract_id`
+  - `note.source_contract_id` = occupancy contract id (`Invoice.contract_id`, else `Application.contract_id` unless the application is `invoice_only`)
+- For a valid standalone invoice, `source_contract_id` is null. Paymaster, customer, and contract snapshots are still written from the holder as required.
+- Existing notes are not backfilled.
 
-Implication for this ticket:
-- Notes are attached by invoice id in the issuer-dashboard service.
-- So filtering main-dashboard invoices must not break contract detail fetching, otherwise Note info could go missing from contract detail UI.
+Notes stay attached by invoice id in the issuer-dashboard service, so main-list filtering must not drop contract-detail invoice fetches.
 
 ## 13. Current API behavior (issuer dashboard)
 
 Confirmed from code (issuer-dashboard service):
 
 ### `GET /v1/issuer/dashboard`
-- `contracts[]`:
-  - loops applications
-  - pushes a contract card when `application.contract` exists
-- `invoices[]`:
-  - loops applications
-  - pushes ALL invoices for that application
-  - does not filter by `invoice.contract_id`
+- `contracts[]`: one card per real facility; omits standalone holder contracts.
+- `invoices[]`: standalone invoices (`invoice.contract_id === null`). Contract-linked invoices are omitted from the main list.
 
 ### `GET /v1/issuer/dashboard/contracts/:contractId`
-- calls `getDashboard()`
-- filters `full.invoices` to only those with `i.contractId === contractId`
-- returns `{ contract: row, invoices }`
+- 404 `CONTRACT_NOT_FOUND` for a standalone holder.
+- otherwise returns `{ contract: row, invoices }` where invoices have `i.contractId === contractId`.
 
-## 14. Recommended dashboard listing rule
+## 14. Dashboard listing rule
 
-Goal:
-- Avoid duplicate invoice cards:
-  - Contract detail should still show contract-linked invoices
-  - Main invoice list should NOT show contract-linked invoices
+1. Contract Financing: real facilities only (holders excluded).
+2. Contract detail: invoices where `invoice.contract_id` matches the contract. Holder detail is 404.
+3. Main Invoice Financing: invoices where `invoice.contract_id` is null.
 
-Recommended rule (simple English):
-1. Contract detail page: show invoices where `invoice.contract_id` matches the contract.
-2. Main Invoice Financing section: show only invoices where `invoice.contract_id` is null.
-
-Why this matches code reality:
-- Invoice-only UI creates invoices without `contract_id`.
-- Contract-based UI creates invoices with `contract_id`.
-
-## 15. Open questions / Needs business confirmation
-
-1. Should “Contract Financing” cards show for `invoice_only` applications?
-   - Confirmed from code: `invoice_only` still runs `contract_details` step and can create a Contract row as a holder for `customer_details`.
-   - Current issuer-dashboard code may show contract cards anytime `application.contract` exists.
-   - Needs business decision: are holder contracts supposed to appear in “Contract Financing” cards?
-
-2. Edge-case data cleanup:
-   - If an issuer changes structure after invoices are SUBMITTED/APPROVED, the backend only clears contract_id on DRAFT invoices when switching to `invoice_only`.
-   - Should we treat those still-linked invoices as “standalone” or “contract-linked” for dashboard display?
-
-3. Contract detail “customer / paymaster name” source:
-   - Today, invoice customer name uses `application.contract.customer_details`.
-   - Needs confirmation if invoice-only should show customer name even when contract_details are cleared.
+Customer / paymaster display for standalone invoices still reads the holder’s `customer_details` / `paymaster_id`.
 

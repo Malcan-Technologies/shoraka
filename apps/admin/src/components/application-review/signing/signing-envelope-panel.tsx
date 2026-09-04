@@ -29,6 +29,7 @@ import {
   getOfferAcceptanceStatusPresentation,
   getOfferPhaseDeadlineDisplay,
   hasEnvelopeBlockingNewSend,
+  isInvoiceOnlyFinancingStructure,
   resolveSigningDeadlineFromWorkflow,
   resolveSigningTemplateFromWorkflow,
   isSigningPackagePreviewDocument,
@@ -195,7 +196,7 @@ export function SigningEnvelopePanel({
     acceptance.status !== "SIGNING_IN_PROGRESS" &&
     acceptance.status !== "COMPLETED";
 
-  const isInvoiceOnly = structureType === "invoice_only";
+  const isInvoiceOnly = isInvoiceOnlyFinancingStructure({ structure_type: structureType });
   const noOfferYetHint = isInvoiceOnly
     ? "Send an offer from Invoice to start acceptance."
     : "Send an offer from Facility to start acceptance.";

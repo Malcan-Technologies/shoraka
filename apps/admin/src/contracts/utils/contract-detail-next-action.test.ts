@@ -5,8 +5,12 @@ import {
   CONTRACT_REFERENCE_TAB_TOKEN,
   contractApplicationsNeedingAction,
   isContractDetailTabId,
+  isVisibleContractDetailTabId,
   resolveContractApplicationsTabToken,
+  resolveContractDetailHeroNav,
   resolveContractDetailNextAction,
+  resolveContractDetailTitle,
+  STANDALONE_HOLDER_HIDDEN_TAB_IDS,
   resolveContractDocumentsTabToken,
   resolveContractFacilityOfferTabToken,
   resolveContractNotesTabToken,
@@ -40,6 +44,70 @@ describe("isContractDetailTabId", () => {
     expect(isContractDetailTabId("activity")).toBe(true);
     expect(isContractDetailTabId("ledger")).toBe(false);
     expect(isContractDetailTabId("")).toBe(false);
+  });
+});
+
+describe("isVisibleContractDetailTabId", () => {
+  it("hides facility and drawdown tabs on standalone holders", () => {
+    expect([...STANDALONE_HOLDER_HIDDEN_TAB_IDS]).toEqual(["facility-offer", "notes"]);
+    expect(isVisibleContractDetailTabId("overview", { isStandaloneHolder: true })).toBe(true);
+    expect(isVisibleContractDetailTabId("applications", { isStandaloneHolder: true })).toBe(true);
+    expect(isVisibleContractDetailTabId("documents", { isStandaloneHolder: true })).toBe(true);
+    expect(isVisibleContractDetailTabId("activity", { isStandaloneHolder: true })).toBe(true);
+    expect(isVisibleContractDetailTabId("facility-offer", { isStandaloneHolder: true })).toBe(
+      false
+    );
+    expect(isVisibleContractDetailTabId("notes", { isStandaloneHolder: true })).toBe(false);
+    expect(isVisibleContractDetailTabId("facility-offer")).toBe(true);
+    expect(isVisibleContractDetailTabId("notes", { isStandaloneHolder: false })).toBe(true);
+    expect(isVisibleContractDetailTabId("ledger", { isStandaloneHolder: true })).toBe(false);
+  });
+});
+
+describe("resolveContractDetailHeroNav", () => {
+  it("keeps facility navigation for real facilities", () => {
+    expect(resolveContractDetailHeroNav(false)).toEqual({
+      backHref: "/contracts",
+      backLabel: "Facilities",
+      eyebrow: "Facility detail",
+    });
+  });
+
+  it("routes standalone holders back to Applications as a customer record", () => {
+    expect(resolveContractDetailHeroNav(true)).toEqual({
+      backHref: "/applications",
+      backLabel: "Applications",
+      eyebrow: "Standalone invoice customer",
+    });
+  });
+});
+
+describe("resolveContractDetailTitle", () => {
+  it("falls back to the customer name for standalone holders", () => {
+    expect(
+      resolveContractDetailTitle({
+        title: "  ",
+        isStandaloneHolder: true,
+        customerName: " Acme Trading ",
+      })
+    ).toBe("Acme Trading");
+    expect(
+      resolveContractDetailTitle({
+        title: null,
+        isStandaloneHolder: true,
+        customerName: null,
+      })
+    ).toBe("Untitled customer");
+    expect(resolveContractDetailTitle({ title: null, isStandaloneHolder: false })).toBe(
+      "Untitled facility"
+    );
+    expect(
+      resolveContractDetailTitle({
+        title: "Named facility",
+        isStandaloneHolder: true,
+        customerName: "Acme Trading",
+      })
+    ).toBe("Named facility");
   });
 });
 
@@ -114,6 +182,15 @@ describe("resolveContractDetailNextAction", () => {
     expect(nextAction?.title).toBe("2 applications on this facility need review");
     expect(nextAction?.tabId).toBe("applications");
   });
+
+  it("uses customer wording for standalone holder applications", () => {
+    expect(
+      resolveContractDetailNextAction(
+        { applications: [application("SUBMITTED")] },
+        { isStandaloneHolder: true }
+      )?.title
+    ).toBe("An application for this customer needs review");
+  });
 });
 
 describe("contract detail default tab", () => {
@@ -124,7 +201,8 @@ describe("contract detail default tab", () => {
 
   it("defaults to Overview unless ?tab= already names a valid tab", () => {
     expect(viewSource).toContain('computedTab: data ? "overview" : null');
-    expect(viewSource).toContain("const resolvedTab: ContractDetailTabId = activeTab ?? \"overview\"");
+    expect(viewSource).toContain("isVisibleContractDetailTabId(activeTab, { isStandaloneHolder })");
+    expect(viewSource).toContain(': "overview"');
     expect(viewSource).not.toContain("computedTab: data ? nextAction?.tabId");
   });
 
@@ -137,6 +215,28 @@ describe("contract detail default tab", () => {
     expect(viewSource).toContain("resolveContractFacilityFeeWaitingNote");
     expect(viewSource).toContain("facilityFeeWaitingNote");
     expect(viewSource).toContain("Open Facility & Offer");
+  });
+
+  it("treats standalone holders as customer records, not facilities", () => {
+    expect(viewSource).toContain("isStandaloneHolder");
+    expect(viewSource).toContain(
+      "Customer record for standalone invoice applications; not a facility."
+    );
+    expect(viewSource).toContain("isVisibleContractDetailTabId");
+    expect(viewSource).toContain("resolveContractDetailTitle");
+    expect(viewSource).toContain("resolveContractDetailHeroNav");
+    expect(viewSource).toContain("Standalone invoice applications");
+    expect(viewSource).toContain("metrics={data.isStandaloneHolder ? [] : headerMetrics}");
+    expect(viewSource).toContain("data.isStandaloneHolder ? null : (");
+    expect(viewSource).toContain("backHref={heroNav.backHref}");
+    expect(viewSource).toContain("backLabel={heroNav.backLabel}");
+    expect(viewSource).toContain("eyebrow={heroNav.eyebrow}");
+    expect(viewSource).not.toContain('eyebrow="Facility detail"');
+    expect(viewSource).not.toContain('backHref="/contracts"');
+    expect(viewSource).toContain('role="alert"');
+    expect(viewSource).toContain("!data.isStandaloneHolder ? (");
+    expect(viewSource).toContain('value="facility-offer"');
+    expect(viewSource).toContain('value="notes"');
   });
 
   it("does not preserve-mount contract panels", () => {
@@ -158,13 +258,13 @@ describe("contract detail default tab", () => {
     expect(viewSource).toContain("AdminEntitySummaryCard");
     expect(viewSource).toContain("getContractHeaderEndDate");
     expect(viewSource).toContain("getContractHeaderMetrics");
-    expect(viewSource).toContain("metrics={headerMetrics}");
+    expect(viewSource).toContain("metrics={data.isStandaloneHolder ? [] : headerMetrics}");
     expect(viewSource).toContain("formatContractFacilityNoteCount");
     expect(viewSource).toContain('setActiveTab("notes")');
     expect(viewSource).not.toContain("Approved Facility");
-    expect(viewSource).not.toContain("title=\"Contract information\"");
-    expect(viewSource).not.toContain("label=\"Created\"");
-    expect(viewSource).not.toContain("label=\"Last updated\"");
+    expect(viewSource).not.toContain('title="Contract information"');
+    expect(viewSource).not.toContain('label="Created"');
+    expect(viewSource).not.toContain('label="Last updated"');
   });
 });
 
@@ -194,12 +294,12 @@ describe("contract tab dots", () => {
   });
 
   it("treats an unsent offer as waiting when the contract still needs work elsewhere", () => {
-    expect(
-      resolveContractFacilityOfferTabToken({ status: "SUBMITTED", offerDetails: null })
-    ).toBe("submitted");
-    expect(
-      resolveContractFacilityOfferTabToken({ status: "DRAFT", offerDetails: null })
-    ).toBe("neutral");
+    expect(resolveContractFacilityOfferTabToken({ status: "SUBMITTED", offerDetails: null })).toBe(
+      "submitted"
+    );
+    expect(resolveContractFacilityOfferTabToken({ status: "DRAFT", offerDetails: null })).toBe(
+      "neutral"
+    );
     expect(
       resolveContractFacilityOfferTabToken({
         status: "OFFER_SENT",
@@ -216,9 +316,9 @@ describe("contract tab dots", () => {
 
   it("dots Drawdowns from the highest child-note status", () => {
     expect(resolveContractNotesTabToken([])).toBe("neutral");
-    expect(
-      resolveContractNotesTabToken([{ status: "REPAID" }, { status: "FUNDING" }])
-    ).toBe("action");
+    expect(resolveContractNotesTabToken([{ status: "REPAID" }, { status: "FUNDING" }])).toBe(
+      "action"
+    );
     expect(resolveContractNotesTabToken([{ status: "PUBLISHED" }])).toBe("submitted");
   });
 

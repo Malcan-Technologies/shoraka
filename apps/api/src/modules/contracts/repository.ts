@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma";
 import { Contract, Prisma, ContractStatus } from "@prisma/client";
+import { realFacilityContractWhere } from "../../lib/standalone-holder-contract";
 
 export class ContractRepository {
   async create(data: {
@@ -66,6 +67,7 @@ export class ContractRepository {
       where: {
         issuer_organization_id: organizationId,
         status: "APPROVED",
+        AND: [realFacilityContractWhere()],
       },
       orderBy: { created_at: "desc" },
     });

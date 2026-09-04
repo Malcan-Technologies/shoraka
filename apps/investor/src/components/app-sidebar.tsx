@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@cashsouk/ui";
 import {
   formatCurrency,
+  HELP_CENTER_URL,
   useOrganization,
   isAddingNewOrganizationRoute,
   canAccessApplicantAccount,
@@ -19,6 +20,7 @@ import {
   UserCircleIcon,
   ClockIcon,
   QuestionMarkCircleIcon,
+  ArrowTopRightOnSquareIcon,
   ArrowTrendingUpIcon,
   ChartBarSquareIcon,
   LockClosedIcon,
@@ -436,15 +438,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenuItem>
 
               <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname === "/help" || pathname.startsWith("/help/")}
-                  tooltip="Help"
-                >
-                  <Link href="/help">
+                <SidebarMenuButton asChild tooltip="Help (opens in a new tab)">
+                  <a
+                    href={HELP_CENTER_URL}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    aria-label="Help (opens in a new tab)"
+                  >
                     <QuestionMarkCircleIcon className="h-4 w-4" />
                     <span>Help</span>
-                  </Link>
+                    <ArrowTopRightOnSquareIcon
+                      className="ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                      aria-hidden
+                    />
+                  </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

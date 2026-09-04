@@ -8,8 +8,10 @@ describe("admin Paymaster registry list", () => {
     expect(src).toMatch(/linkedNoteCount: row\._count\.notes/);
     expect(src).toMatch(/noticeCount: row\._count\.assignment_notices/);
     expect(src).toMatch(/latestIssuerName: row\.issuer_links\[0\]\?\.issuer_organization\.name/);
-    expect(src).toMatch(/contracts: true/);
+    expect(src).toMatch(/contracts: \{ where: realFacilityContractWhere\(\) \}/);
     expect(src).toMatch(/assignment_notices: true/);
+    expect(src).toMatch(/filter\(\(contract\) => !isStandaloneHolderContract\(contract\)\)/);
+    expect(src).toMatch(/applications: collectLinkedPaymasterApplications\(row\.contracts\)/);
   });
 
   it("derives submitted application identities from linked contract customer_details", () => {

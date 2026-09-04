@@ -37,6 +37,7 @@ jest.mock("../../lib/prisma", () => ({
 }));
 
 import { AppError } from "../../lib/http/error-handler";
+import { realFacilityContractWhere } from "../../lib/standalone-holder-contract";
 import { listOrganizationLinkedRecords } from "./organization-linked-records";
 
 describe("listOrganizationLinkedRecords", () => {
@@ -156,6 +157,46 @@ describe("listOrganizationLinkedRecords", () => {
     expect(mockApplicationFindMany).not.toHaveBeenCalled();
     expect(mockContractFindMany).not.toHaveBeenCalled();
     expect(mockNoteFindMany).not.toHaveBeenCalled();
+  });
+
+  it("excludes standalone holder contracts from issuer facility rows and counts", async () => {
+    mockContractCount.mockResolvedValue(2);
+    mockContractFindMany.mockResolvedValue([
+      {
+        id: "facility-1",
+        display_reference: "CTR-F",
+        status: "APPROVED",
+        updated_at: new Date("2026-02-01T00:00:00.000Z"),
+        contract_details: { title: "Facility", number: "F-1", approved_facility: 100000 },
+      },
+    ]);
+
+    const result = await listOrganizationLinkedRecords("issuer", "iss-1", {
+      type: "contracts",
+      page: 1,
+      pageSize: 20,
+    });
+
+    const facilityWhere = {
+      issuer_organization_id: "iss-1",
+      ...realFacilityContractWhere(),
+    };
+    expect(mockContractCount).toHaveBeenCalledWith({ where: facilityWhere });
+    expect(mockContractFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: facilityWhere,
+      })
+    );
+    expect(result?.counts.contracts).toBe(2);
+    expect(result?.items).toEqual([
+      expect.objectContaining({
+        type: "contract",
+        id: "facility-1",
+        title: "Facility",
+        contractNumber: "F-1",
+        amount: 100000,
+      }),
+    ]);
   });
 
   it("rejects investor application requests", async () => {

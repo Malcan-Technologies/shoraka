@@ -5,7 +5,7 @@ category: Application Review
 tags:
   - admin
 order: 10
-updated: 2026-09-02
+updated: 2026-09-03
 ---
 
 ## Purpose
@@ -47,6 +47,12 @@ The admin portal unlocks review work in stages:
 
 Documents and invoices are reviewed item by item. The overall Documents and Invoice sections update from those item statuses, so approve or amend the specific document or invoice rather than relying on a broad section action.
 
+## Financing Structure Differences
+
+- **New facility:** review the Facility tab and send a facility offer. This application does not include an invoice; the issuer applies for invoice financing later against the approved facility.
+- **Invoice under an approved facility:** the existing facility is inherited and cannot be replaced during review. Review the invoice item, facility capacity impact, and invoice offer. Acceptance uses the approved-facility authorisation and emailed verification-code flow.
+- **Standalone invoice:** the Facility tab becomes **Customer**. Review and approve, reject, or request amendments to customer/paymaster details there, then review the invoice item. Do not send a facility offer or apply facility capacity. The internal customer holder is not a facility and does not appear in Facilities, facility metrics, or facility links.
+
 ## CTOS, KYC, and Director Checks
 
 Use the Financial tab to compare issuer-provided financials with CTOS data and to review directors, shareholders, and controllers.
@@ -83,7 +89,7 @@ Once sent, the application becomes Amendment Requested. The issuer can edit only
 
 ### Send Facility Offer
 
-Use a facility offer when the application requires a facility-level approval. Before sending:
+Use a facility offer only for a new-facility application. Standalone invoice applications use Customer review and must never receive a facility offer. Before sending:
 
 - Confirm the customer or paymaster details.
 - Confirm Paymaster identity on **Paymaster Verification** if it is still Unverified. Verification does not approve the application or send the offer.
@@ -100,7 +106,7 @@ Use an invoice offer when an individual invoice is ready for approval. Before se
 - Review invoice value, requested financing ratio, requested amount, financing tenure, profit rate, and risk rating.
 - You may adjust the issuer’s tenure in the final offer. Tenure must be 30 to 180 days in 15-day steps and must cover the time until the invoice due date. Offered financing cannot exceed **80%** of invoice value. After listing, profit days and the settlement worked example are in **Note Money Flow and Servicing Guide**.
 - Make sure the offered amount does not exceed the requested amount.
-- Make sure offered financing fits **remaining credit** and invoice face fits **remaining allocation**. Pending invoices already occupy remaining credit (shown as **Reserved**). There is no over-limit override.
+- For an invoice under a facility, make sure offered financing fits **remaining credit** and invoice face fits **remaining allocation**. Pending facility invoices already occupy remaining credit (shown as **Reserved**). There is no over-limit override. Standalone invoices do not use facility capacity.
 - Reset rejected invoices to pending before sending an offer. Resend after expiry re-reserves under the same lock. A 14-day marketplace failure releases both ledgers.
 
 Once sent, an invoice on an **approved facility** does not go through signing again. The issuer must tick both confirmations, then confirm the full authorisation, before Accept is available. Utilisation terms are on the offer letter and behind a link on the offer. In the issuer portal, someone from the organisation chooses the director or authorised signatory who is accepting. A 6-digit code is emailed to that person. The offer is accepted only after the code is entered. Decline does not need the confirmations or a code. New facility offers and invoice-only offers still use the usual signing steps.

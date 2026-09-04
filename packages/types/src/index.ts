@@ -530,6 +530,7 @@ export * from "./investment-settlement-confirmation";
 export * from "./financing-tenure";
 export * from "./invoice-financing-ratio";
 export * from "./invoice-details-config";
+export * from "./product-workflow-rules";
 export * from "./disbursement-value-date";
 export * from "./actual-settlement-date";
 export * from "./tenure-profit";
@@ -583,6 +584,7 @@ export * from "./comrep-profile";
 export * from "./organization-party-profile";
 export * from "./organization-party-key";
 export * from "./operator-profile";
+export * from "./support";
 export {
   ADMIN_PERMISSIONS,
   ADMIN_PERMISSION_GROUPS,

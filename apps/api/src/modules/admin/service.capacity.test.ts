@@ -11,10 +11,16 @@ const mockApply = jest.fn(async () => ({
   },
   snapshot: null,
 }));
+const mockAssertPaymasterReadyForOffer = jest.fn().mockResolvedValue(undefined);
 
 jest.mock("../../lib/refresh-contract-facility", () => ({
   applyContractCapacityChange: (...args: unknown[]) => mockApply(...args),
   lockContractRow: jest.fn(),
+}));
+jest.mock("../paymaster/service", () => ({
+  ...jest.requireActual("../paymaster/service"),
+  assertApplicationPaymasterReadyForOffer: (...args: unknown[]) =>
+    mockAssertPaymasterReadyForOffer(...args),
 }));
 
 jest.mock("./repository", () => ({
@@ -49,6 +55,7 @@ jest.mock("../../lib/http/request-utils", () => ({
 jest.mock("../../lib/prisma", () => ({
   prisma: {
     invoice: { findUnique: jest.fn() },
+    signingEnvelope: { findFirst: jest.fn() },
     application: {
       findUnique: jest.fn().mockResolvedValue({
         contract: {
@@ -78,7 +85,7 @@ jest.mock("../applications/logs/service", () => ({
 import { addMytCalendarDays, mytCalendarParts } from "@cashsouk/types";
 import { AdminService } from "./service";
 import { prisma } from "../../lib/prisma";
-import { ApplicationStatus } from "@prisma/client";
+import { ApplicationStatus, Prisma } from "@prisma/client";
 
 function invoiceDueDateWithinTenure(): string {
   const parts = addMytCalendarDays(mytCalendarParts(new Date()), 60);
@@ -116,9 +123,7 @@ describe("AdminService capacity offer paths", () => {
     (service as unknown as { clearItemRemarks: jest.Mock }).clearItemRemarks = jest.fn();
     (
       service as unknown as { assertIssuerMarcReadyForInvoiceOffer: jest.Mock }
-    ).assertIssuerMarcReadyForInvoiceOffer = jest
-      .fn()
-      .mockResolvedValue({ creditGrade: "SME-3" });
+    ).assertIssuerMarcReadyForInvoiceOffer = jest.fn().mockResolvedValue({ creditGrade: "SME-3" });
   });
 
   it("send and resend invoice offers hard-block over-limit writes under the lock", async () => {
@@ -126,9 +131,7 @@ describe("AdminService capacity offer paths", () => {
       id: "app-1",
       status: ApplicationStatus.INVOICE_PENDING,
       contract_id: "contract-1",
-      invoices: [
-        { id: "inv-1", details: invoiceOfferDetails },
-      ],
+      invoices: [{ id: "inv-1", details: invoiceOfferDetails }],
     };
     (service as unknown as { prepareForReviewAction: jest.Mock }).prepareForReviewAction = jest
       .fn()
@@ -170,6 +173,62 @@ describe("AdminService capacity offer paths", () => {
       expect.any(Function),
       expect.objectContaining({ assertWrite: true })
     );
+  });
+
+  it("does not use a standalone holder for invoice offer occupancy", async () => {
+    const application = {
+      id: "app-1",
+      status: ApplicationStatus.INVOICE_PENDING,
+      contract_id: "holder-1",
+      financing_structure: { structure_type: "invoice_only" },
+      invoices: [{ id: "inv-1", contract_id: "legacy-holder-1", details: invoiceOfferDetails }],
+    };
+    (service as unknown as { prepareForReviewAction: jest.Mock }).prepareForReviewAction = jest
+      .fn()
+      .mockResolvedValue({ repository, application });
+    (service as unknown as { ensureUnderReview: jest.Mock }).ensureUnderReview = jest.fn();
+    (service as unknown as { resolveInvoiceScopeKeyById: jest.Mock }).resolveInvoiceScopeKeyById =
+      jest.fn().mockReturnValue("invoice_details:0:INV-1");
+    (
+      service as unknown as { ensureInvoiceOfferItemActionAllowed: jest.Mock }
+    ).ensureInvoiceOfferItemActionAllowed = jest.fn();
+    (
+      service as unknown as { assertNoActiveSigningPackage: jest.Mock }
+    ).assertNoActiveSigningPackage = jest.fn();
+    (
+      service as unknown as { loadApplicationProductWorkflow: jest.Mock }
+    ).loadApplicationProductWorkflow = jest.fn().mockResolvedValue([]);
+    (prisma.invoice.findUnique as jest.Mock).mockResolvedValue({
+      status: "SUBMITTED",
+      contract_id: null,
+    });
+    (prisma.$transaction as jest.Mock).mockResolvedValue({
+      invoiceNumber: "INV-1",
+      requestedAmount: 50_000,
+      previousVersion: 0,
+      platformFeeStored: 0,
+      feeScheduleMode: "v1",
+      facilityFeeCollectAmount: 0,
+      additionalFees: [],
+      acceptanceExpiresAt: null,
+    });
+
+    await service.sendInvoiceOffer(
+      "app-1",
+      "inv-1",
+      40_000,
+      70,
+      12,
+      0,
+      "SME-3",
+      "admin-1",
+      undefined,
+      undefined,
+      90
+    );
+
+    expect(mockApply).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalled();
   });
 
   it("retracting an invoice offer recomputes occupancy through apply", async () => {
@@ -334,6 +393,132 @@ describe("AdminService capacity offer paths", () => {
     await service.resetSectionReviewToPending("app-1", "contract_details", "admin-1");
 
     expect(mockApply).toHaveBeenCalledWith("contract-1", prisma, expect.any(Function));
+  });
+
+  it("resets invoice_only Customer despite a legacy holder OFFER_SENT without capacity", async () => {
+    const contractUpdate = jest.fn().mockResolvedValue({});
+    const application = {
+      id: "app-1",
+      status: ApplicationStatus.UNDER_REVIEW,
+      contract_id: "holder-1",
+      financing_structure: { structure_type: "invoice_only" },
+      invoices: [],
+      contract: { status: "OFFER_SENT", offer_details: { offered_facility: 80_000 } },
+      application_reviews: [{ section: "contract_details", status: "APPROVED" }],
+    };
+    (service as unknown as { prepareForReviewAction: jest.Mock }).prepareForReviewAction = jest
+      .fn()
+      .mockResolvedValue({ repository, application });
+    (service as unknown as { ensureUnderReview: jest.Mock }).ensureUnderReview = jest.fn();
+    (
+      service as unknown as { assertNoActiveSigningPackage: jest.Mock }
+    ).assertNoActiveSigningPackage = jest.fn();
+    (
+      service as unknown as { assertResetReviewToPendingAllowed: jest.Mock }
+    ).assertResetReviewToPendingAllowed = jest.fn();
+    (prisma.$transaction as jest.Mock).mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn({
+        contract: {
+          findUnique: jest.fn().mockResolvedValue({ status: "OFFER_SENT" }),
+          update: contractUpdate,
+        },
+      })
+    );
+
+    await expect(
+      service.resetSectionReviewToPending("app-1", "contract_details", "admin-1")
+    ).resolves.toEqual({ id: "app-1" });
+
+    expect(mockApply).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(contractUpdate).toHaveBeenCalledWith({
+      where: { id: "holder-1" },
+      data: {
+        status: "SUBMITTED",
+        offer_details: Prisma.JsonNull,
+      },
+    });
+    expect(repository.resetSectionReviewToPending).toHaveBeenCalledWith(
+      "app-1",
+      "contract_details"
+    );
+    expect(repository.updateApplicationStatus).toHaveBeenCalledWith(
+      "app-1",
+      ApplicationStatus.UNDER_REVIEW
+    );
+    expect(
+      (service as unknown as { sendIssuerNotification: jest.Mock }).sendIssuerNotification
+    ).not.toHaveBeenCalled();
+    expect(
+      (service as unknown as { assertNoActiveSigningPackage: jest.Mock })
+        .assertNoActiveSigningPackage
+    ).not.toHaveBeenCalled();
+  });
+
+  it("rejects sendContractOffer on invoice_only before paymaster or capacity writes", async () => {
+    const application = {
+      id: "app-1",
+      status: ApplicationStatus.UNDER_REVIEW,
+      contract_id: "holder-1",
+      financing_structure: { structure_type: "invoice_only" },
+      invoices: [],
+    };
+    (service as unknown as { prepareForReviewAction: jest.Mock }).prepareForReviewAction = jest
+      .fn()
+      .mockResolvedValue({ repository, application });
+    (service as unknown as { ensureUnderReview: jest.Mock }).ensureUnderReview = jest.fn();
+
+    await expect(service.sendContractOffer("app-1", 80_000, 1, 0, "admin-1")).rejects.toMatchObject(
+      {
+        statusCode: 400,
+        code: "INVALID_ACTION",
+      }
+    );
+
+    expect(mockAssertPaymasterReadyForOffer).not.toHaveBeenCalled();
+    expect(mockApply).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("checks invoice signing packages instead of the holder on invoice_only acceptance actions", async () => {
+    (prisma.signingEnvelope.findFirst as jest.Mock).mockResolvedValue({
+      id: "envelope-1",
+      status: "IN_PROGRESS",
+    });
+
+    await expect(
+      (
+        service as unknown as {
+          assertNoActiveSigningPackageForAcceptanceActions: (
+            applicationId: string,
+            application: unknown,
+            actionLabel: string
+          ) => Promise<void>;
+        }
+      ).assertNoActiveSigningPackageForAcceptanceActions(
+        "app-1",
+        {
+          contract_id: "holder-1",
+          financing_structure: { structure_type: "invoice_only" },
+          invoices: [{ id: "inv-1", status: "OFFER_SENT", contract_id: "legacy-holder-1" }],
+        },
+        "changing acceptance documents"
+      )
+    ).rejects.toMatchObject({ code: "ACTIVE_SIGNING_PACKAGE" });
+
+    expect(prisma.signingEnvelope.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          application_id: "app-1",
+          invoice_id: "inv-1",
+        }),
+      })
+    );
+    expect(prisma.signingEnvelope.findFirst).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ contract_id: "holder-1" }),
+      })
+    );
   });
 
   it("caps sendInvoiceOffer against canonical requested financing, not face times ratio", () => {

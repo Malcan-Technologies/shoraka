@@ -39,6 +39,7 @@ import {
   lockContractRow,
   refreshContractFacilityForNote,
 } from "../../lib/refresh-contract-facility";
+import { resolveInvoiceOccupancyContractId } from "../../lib/standalone-holder-contract";
 import { assertFacilityIsEnabled } from "../applications/split-origination-guards";
 import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import {
@@ -2438,6 +2439,7 @@ export class NoteService {
       contract_id: string | null;
       product_version: number | null;
       financing_type: Prisma.JsonValue | null;
+      financing_structure: Prisma.JsonValue | null;
       business_details: Prisma.JsonValue | null;
       issuer_organization: {
         id: string;
@@ -2574,10 +2576,14 @@ export class NoteService {
           document: customerDetails?.document,
         })
       : customerDetails;
+    const sourceFacilityId = resolveInvoiceOccupancyContractId({
+      invoiceContractId: invoice.contract_id,
+      application,
+    });
 
     const note = await prisma
       .$transaction(async (tx) => {
-        await assertSourceFacilityEnabled(tx, sourceContract?.id ?? invoice.contract_id);
+        await assertSourceFacilityEnabled(tx, sourceFacilityId);
         const noteId = generateNoteEntityId();
         const noteCreatedAt = new Date();
         const canonicalReference = await allocateDisplayReference(
@@ -2597,7 +2603,7 @@ export class NoteService {
             id: noteId,
             created_at: noteCreatedAt,
             source_application_id: application.id,
-            source_contract_id: invoice.contract_id ?? application.contract_id,
+            source_contract_id: sourceFacilityId,
             source_invoice_id: invoice.id,
             issuer_organization_id: application.issuer_organization_id,
             title:

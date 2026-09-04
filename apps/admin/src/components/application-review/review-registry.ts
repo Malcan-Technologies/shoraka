@@ -2,6 +2,7 @@ import {
   getReviewSectionOrder,
   getReviewSectionPrerequisites,
   getStepKeyFromStepId,
+  isInvoiceOnlyFinancingStructure,
   isPrerequisiteSectionSatisfied,
   REVIEW_SECTION_ORDER,
   shouldShowAcceptanceDocumentsReviewSection,
@@ -201,7 +202,7 @@ export function getTabUnlockTooltip(
     }
     if (commercialMissing.includes("contract_details")) {
       // Invoice-only: contract_details is Customer (manual approve). Facility: Send Offer.
-      const isInvoiceOnly = structureType === "invoice_only";
+      const isInvoiceOnly = isInvoiceOnlyFinancingStructure({ structure_type: structureType });
       parts.push(
         isInvoiceOnly ? "Approve Customer section first" : "Send offer from Facility first"
       );

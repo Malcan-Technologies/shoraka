@@ -1,5 +1,6 @@
 import { DEV_TUNNEL_ORIGINS } from "../../packages/config/dev-tunnel-origins.cjs";
 import { NEXT_DEV_EXPERIMENTAL } from "../../packages/config/next-dev-experimental.cjs";
+import { PLAIN_CSP } from "../../packages/config/plain-csp-origins.cjs";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -33,11 +34,11 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com https://static.cloudflareinsights.com blob:",
-              "style-src 'self' 'unsafe-inline' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com",
+              `script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com https://static.cloudflareinsights.com ${PLAIN_CSP.scripts} blob:`,
+              `style-src 'self' 'unsafe-inline' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com ${PLAIN_CSP.styles}`,
               "img-src 'self' data: https:",
               "font-src 'self' data: https:",
-              "connect-src 'self' https://*.amazoncognito.com https://cognito-idp.ap-southeast-5.amazonaws.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com https://api.cashsouk.com https://*.truestack.my http://localhost:4000 http://localhost:3000",
+              `connect-src 'self' https://*.amazoncognito.com https://cognito-idp.ap-southeast-5.amazonaws.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com https://api.cashsouk.com https://*.truestack.my http://localhost:4000 http://localhost:3000 ${PLAIN_CSP.connect}`,
               "frame-src 'self' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com",
               "form-action 'self' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com",
             ].join("; "),

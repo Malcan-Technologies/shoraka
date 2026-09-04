@@ -6,6 +6,7 @@ import type {
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
+import { realFacilityContractWhere } from "../../lib/standalone-holder-contract";
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
@@ -157,9 +158,13 @@ export async function listOrganizationLinkedRecords(
     return { items, pagination: pagination(query.page, query.pageSize, totalCount), counts };
   }
 
+  const facilityWhere = {
+    issuer_organization_id: organizationId,
+    ...realFacilityContractWhere(),
+  };
   const [applicationCount, contractCount, noteCount] = await Promise.all([
     prisma.application.count({ where: { issuer_organization_id: organizationId } }),
-    prisma.contract.count({ where: { issuer_organization_id: organizationId } }),
+    prisma.contract.count({ where: facilityWhere }),
     prisma.note.count({ where: { issuer_organization_id: organizationId } }),
   ]);
   const counts: OrganizationLinkedRecordsCounts = {
@@ -208,7 +213,7 @@ export async function listOrganizationLinkedRecords(
     const [totalCount, rows] = await Promise.all([
       Promise.resolve(contractCount),
       prisma.contract.findMany({
-        where: { issuer_organization_id: organizationId },
+        where: facilityWhere,
         orderBy: { updated_at: "desc" },
         skip,
         take: query.pageSize,

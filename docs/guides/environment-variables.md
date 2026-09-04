@@ -115,6 +115,20 @@ Server-only. All SigningCloud settings use the `SC_*` prefix. Webhook auth uses 
 
 ECS injects these from `BACKEND_ENV` via `infra/ecs-task-definition-api.json`. Add the JSON key in Secrets Manager before deploying a revision that references it.
 
+### Plain (support)
+
+Server-only on the API. The chat app id and Help Center URL are also exposed to issuer, investor, and landing so the widget can load. Admin has no Plain vars (no chat widget). Never put `PLAIN_API_KEY` or `PLAIN_CHAT_SECRET` in a `NEXT_PUBLIC_*` variable.
+
+| Variable | Where | Description |
+|---|---|---|
+| `PLAIN_API_KEY` | API | Machine-user GraphQL key (`plainApiKey_…`) |
+| `PLAIN_CHAT_APP_ID` | API | Chat app id (`liveChatApp_…`) |
+| `PLAIN_CHAT_SECRET` | API | HMAC secret for signed-in `emailHash` |
+| `NEXT_PUBLIC_PLAIN_CHAT_APP_ID` | Issuer / investor / landing | Same chat app id as above |
+| `NEXT_PUBLIC_HELP_CENTER_URL` | Issuer / investor / landing | Hosted Help Center (`https://help.cashsouk.com`) |
+
+Generate `PLAIN_CHAT_SECRET` in Plain under Settings → Chat. API key permissions should include at least `helpCenter:read`, `helpCenter:edit`, `customer:read`, `customer:create`, `thread:read`, and `chatApp:read`. See [Plain support](./plain-support.md).
+
 ### Payment Gateway (Curlec / Razorpay Malaysia)
 
 Server-only — never expose key secrets or webhook secrets to clients. Loaded by `apps/api/src/config/curlec.ts`.

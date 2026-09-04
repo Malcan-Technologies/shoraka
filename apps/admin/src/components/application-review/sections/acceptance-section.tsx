@@ -11,6 +11,7 @@ import {
   getOfferAcceptanceFromOfferDetails,
   getOfferAcceptanceStatusPresentation,
   getOfferPhaseDeadlineDisplay,
+  isInvoiceOnlyFinancingStructure,
   isOfferAcceptanceDocumentsVisibleToAdmin,
   workflowHasAcceptanceDocuments,
   type ReviewItemType,
@@ -144,7 +145,7 @@ function OfferAcceptanceBlock({
   onResetItemToPending?: (itemId: string, itemType?: ReviewItemType) => void;
 }) {
   const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
-  const isInvoiceOnly = structureType === "invoice_only";
+  const isInvoiceOnly = isInvoiceOnlyFinancingStructure({ structure_type: structureType });
   const emptyHint = isInvoiceOnly
     ? "Send an offer from Invoice to start acceptance."
     : "Send an offer from Facility to start acceptance.";
@@ -232,7 +233,9 @@ export function AcceptanceSection({
   remainingAllocation,
 }: AcceptanceSectionProps) {
   const isInheritedAcceptance = acceptanceReviewMode === "inherited";
+  const isInvoiceOnly = isInvoiceOnlyFinancingStructure({ structure_type: structureType });
   const showSigningHub = typeof applicationId === "string" && applicationId.length > 0;
+  const showHolderCapacity = !isInvoiceOnly && (remainingCredit != null || remainingAllocation != null);
   const {
     signedDocumentPending,
     handleViewSignedDocument,
@@ -306,7 +309,7 @@ export function AcceptanceSection({
             . This view is read-only.
           </div>
         ) : null}
-        {remainingCredit != null || remainingAllocation != null ? (
+        {showHolderCapacity ? (
           <div className="grid gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3 sm:grid-cols-2">
             <div>
               <p className="text-meta text-muted-foreground">{REMAINING_CREDIT_LABEL}</p>

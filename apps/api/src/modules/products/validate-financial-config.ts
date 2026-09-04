@@ -1,11 +1,8 @@
 /**
  * Validates product financial configuration before DB insert/update.
  * Prevents invalid configs (offer expiry, financing ratios) from corrupting the database.
- *
- * Invoice maturity helpers below align with @cashsouk/config offer-resolvers (parse / month rules).
  */
 
-import { addMonths, isBefore, parseISO, startOfDay, isValid } from "date-fns";
 import {
   ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY,
   ACCEPTANCE_DEADLINE_WORKFLOW_KEY,
@@ -13,11 +10,15 @@ import {
   assertPhaseDeadlineConfigValid,
   DEFAULT_MAX_INVOICE_FINANCING_RATIO_PERCENT,
   DEFAULT_MIN_INVOICE_FINANCING_RATIO_PERCENT,
+  findInvoiceDetailsConfig,
   getStepKeyFromStepId,
+  maturityMeetsMinimumMonthsFrom,
   MAX_INVOICE_FINANCING_RATIO_PERCENT,
+  parseInvoiceMaturityDate,
   parsePhaseDeadlineConfig,
   parsePositiveRmAmount,
   parseSigningPackagesConfig,
+  readInvoiceProductRules,
   readInvoiceSubLimitPerInvoiceRmFromWorkflow,
   FACILITY_LOCKED_CATEGORIES_KEY,
   SUPPORTING_DOC_CATEGORY_SETTINGS_KEY,
@@ -71,11 +72,25 @@ function validateMandatoryWorkflowStepSet(workflow: unknown[]): void {
   }
 }
 
-function getInvoiceDetailsConfig(workflow: unknown[]): Record<string, unknown> | null {
-  const step = workflow.find((s) => stepIdStartsWith(s, "invoice_details"));
-  if (!step) return null;
-  const config = (step as { config?: unknown }).config;
-  return config && typeof config === "object" ? (config as Record<string, unknown>) : null;
+function assertPositiveRmLimitPair(
+  minRaw: unknown,
+  maxRaw: unknown,
+  invalidMessage: string,
+  minExceedsMaxMessage: string
+): { min: number | null; max: number | null } {
+  const parse = (value: unknown): { provided: boolean; amount: number | null } => {
+    if (value == null || value === "") return { provided: false, amount: null };
+    return { provided: true, amount: parsePositiveRmAmount(value) };
+  };
+  const min = parse(minRaw);
+  const max = parse(maxRaw);
+  if ((min.provided && min.amount == null) || (max.provided && max.amount == null)) {
+    throw new AppError(400, "VALIDATION_ERROR", invalidMessage);
+  }
+  if (min.amount != null && max.amount != null && min.amount > max.amount) {
+    throw new AppError(400, "VALIDATION_ERROR", minExceedsMaxMessage);
+  }
+  return { min: min.amount, max: max.amount };
 }
 
 const DEFAULT_MIN_FINANCING_RATIO = DEFAULT_MIN_INVOICE_FINANCING_RATIO_PERCENT;
@@ -139,7 +154,7 @@ export function applyFinancialDefaults(workflow: unknown[]): void {
  * min_financing_ratio_percent >= 0, max_financing_ratio_percent <= 80, min <= max.
  */
 export function validateWorkflowFinancialConfig(workflow: unknown[]): void {
-  const config = getInvoiceDetailsConfig(Array.isArray(workflow) ? workflow : []);
+  const config = findInvoiceDetailsConfig(workflow);
   if (!config) return;
 
   const toNum = (v: unknown): number | null => {
@@ -165,6 +180,19 @@ export function validateWorkflowFinancialConfig(workflow: unknown[]): void {
     throw new AppError(400, "VALIDATION_ERROR", "Invalid financing ratio configuration");
   }
 
+  const { max: maxFinancing } = assertPositiveRmLimitPair(
+    config.min_invoice_value,
+    config.max_invoice_value,
+    "Financing amount limits must be positive RM amounts",
+    "Minimum financing amount cannot exceed maximum financing amount"
+  );
+  assertPositiveRmLimitPair(
+    config.min_invoice_face_value,
+    config.max_invoice_face_value,
+    "Invoice value limits must be positive RM amounts",
+    "Minimum invoice value cannot exceed maximum invoice value"
+  );
+
   const subLimit = parsePositiveRmAmount(config.sub_limit_per_invoice_rm);
   if (
     config.sub_limit_per_invoice_rm != null &&
@@ -172,6 +200,13 @@ export function validateWorkflowFinancialConfig(workflow: unknown[]): void {
     subLimit == null
   ) {
     throw new AppError(400, "VALIDATION_ERROR", "Invoice sub-limit must be a positive RM amount");
+  }
+  if (maxFinancing != null && subLimit != null && maxFinancing > subLimit) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Maximum financing amount cannot exceed the sub-limit per invoice"
+    );
   }
 
   const parseMonth = (v: unknown): number | null => {
@@ -394,50 +429,14 @@ function validateInvoiceSubLimitForGeneratedLo(workflow: unknown[]): void {
   }
 }
 
-// --- Invoice maturity (runtime checks; mirrors packages/config offer-resolvers) ---
-
-export function parseInvoiceMaturityDate(value: string | undefined | null): Date | null {
-  if (value == null || typeof value !== "string" || !value.trim()) return null;
-  const trimmed = value.trim();
-  const iso = trimmed.length === 10 ? parseISO(`${trimmed}T00:00:00`) : parseISO(trimmed);
-  if (!isValid(iso)) return null;
-  return startOfDay(iso);
-}
-
-export function maturityMeetsMinimumMonthsFrom(
-  maturityDate: Date,
-  referenceDate: Date,
-  minMonths: number | null | undefined
-): boolean {
-  if (minMonths == null || !Number.isFinite(minMonths) || minMonths <= 0) return true;
-  const months = Math.min(120, Math.max(0, Math.floor(minMonths)));
-  if (months === 0) return true;
-  const minAllowed = addMonths(startOfDay(referenceDate), months);
-  return !isBefore(startOfDay(maturityDate), minAllowed);
-}
-
 export function readInvoiceMaturityMonthsFromWorkflow(workflow: unknown): {
   minMonthsApplicationToMaturity: number | null;
   minMonthsReviewToMaturity: number | null;
 } {
-  const config = getInvoiceDetailsConfig(Array.isArray(workflow) ? workflow : []);
-  if (!config) {
-    return { minMonthsApplicationToMaturity: null, minMonthsReviewToMaturity: null };
-  }
-  const parse = (v: unknown): number | null => {
-    if (v == null || v === "") return null;
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-    if (typeof v === "string") {
-      const n = parseInt(v, 10);
-      return !Number.isNaN(n) ? n : null;
-    }
-    return null;
-  };
-  const application = parse(config.min_months_application_to_maturity);
-  const review = parse(config.min_months_review_to_maturity);
+  const rules = readInvoiceProductRules(workflow);
   return {
-    minMonthsApplicationToMaturity: application != null && application > 0 ? application : null,
-    minMonthsReviewToMaturity: review != null && review > 0 ? review : null,
+    minMonthsApplicationToMaturity: rules.minMonthsApplicationToMaturity,
+    minMonthsReviewToMaturity: rules.minMonthsReviewToMaturity,
   };
 }
 

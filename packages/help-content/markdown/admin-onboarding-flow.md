@@ -34,7 +34,7 @@ High-level issuer flow:
 6. Admin approves, requests follow-up, or rejects the onboarding.
 7. Once approved, the issuer can create financing applications.
 
-Issuer financing applications have a separate RM 50 application fee at submission. This fee is planned for implementation after the payment gateway is ready.
+Issuer financing applications have a separate RM 50 application fee, paid by FPX on the first submission. Resubmitting after an amendment request does not charge the fee again.
 
 ## Investor Onboarding
 
@@ -71,8 +71,7 @@ For investor onboarding, verify:
 ## Important Distinctions
 
 - Issuer onboarding fee: RM 150, paid before issuer onboarding begins.
-- Issuer application fee: RM 50, paid when submitting each financing application after payment gateway support is ready.
+- Issuer application fee: RM 50, paid by FPX on the first submission of each financing application.
 - Investor onboarding fee: none.
 - Investor activation deposit: minimum RM 100 after onboarding approval. This deposit can be used for investments.
 - Application fees, onboarding fees, and investor deposits must not be mixed with note repayment or investor settlement accounting.
-

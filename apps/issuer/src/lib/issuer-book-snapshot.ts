@@ -166,8 +166,12 @@ function isRealFacility(
   contract: IssuerDashboardContract,
   applications: readonly NormalizedApplication[]
 ): boolean {
-  const linked = applications.filter((app) => app.contractId === contract.id);
-  if (linked.some((app) => app.type === "Facility financing")) return true;
+  const linked = applications.filter(
+    (app) => app.contractId === contract.id || app.id === contract.applicationId
+  );
+  if (linked.length > 0) {
+    return linked.some((app) => app.type === "Facility financing");
+  }
   const approved = parseAmount(contract.approvedFacilityAmount);
   return approved != null && approved > 0;
 }
@@ -211,7 +215,9 @@ export function classifyLiveInvoice(
   return "inReview";
 }
 
-function buildIncoming(applications: readonly NormalizedApplication[]): IncomingApplicationsSnapshot {
+function buildIncoming(
+  applications: readonly NormalizedApplication[]
+): IncomingApplicationsSnapshot {
   const open = applications.filter(isOpenApplication);
   let needsYouCount = 0;
   let draftCount = 0;
@@ -356,7 +362,9 @@ export function formatRaisingDeadline(iso: string | null, now: Date = new Date()
 export function buildIssuerBookSnapshot(input: BuildIssuerBookSnapshotInput): IssuerBookSnapshot {
   const now = input.now ?? new Date();
   const incoming = buildIncoming(input.applications);
-  const facilities = input.contracts.filter((contract) => isBookFacility(contract, input.applications));
+  const facilities = input.contracts.filter((contract) =>
+    isBookFacility(contract, input.applications)
+  );
   const realFacilityIds = new Set(facilities.map((c) => c.id));
 
   const notesByInvoiceId = new Map<string, NoteListItem>();

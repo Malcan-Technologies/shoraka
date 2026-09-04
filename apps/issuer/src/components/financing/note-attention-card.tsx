@@ -1,6 +1,6 @@
 "use client";
 
-import { NoteStatusBadge, ProductCatalogName } from "@cashsouk/ui";
+import { NoteStatusBadge, ProductCatalogName, StatusBadge } from "@cashsouk/ui";
 import type { NoteListItem } from "@cashsouk/types";
 import {
   isIssuerNoteInArrears,
@@ -53,7 +53,9 @@ export function NoteAttentionCard({ note }: { note: NoteListItem }) {
             contractId={note.sourceContractId}
             displayReference={note.sourceContractDisplayReference}
           />
-        ) : null
+        ) : (
+          <StatusBadge label="On its own" status="neutral" showDot={false} />
+        )
       }
       ctaHref={
         outstandingExcessLateCharges(note) > 0

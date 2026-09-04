@@ -29,7 +29,9 @@ export function issuerApplicationActionHref(app: NormalizedApplication): string 
 
   if (needsOfferReview) {
     const params = new URLSearchParams({ tab: "offer" });
-    if (app.contractStatus !== "OFFER_SENT" && invoiceOffer) {
+    const facilityOfferOpen =
+      app.type === "Facility financing" && app.contractStatus === "OFFER_SENT";
+    if (!facilityOfferOpen && invoiceOffer) {
       params.set("invoiceId", invoiceOffer.id);
     }
     return `/applications/${app.id}?${params.toString()}`;

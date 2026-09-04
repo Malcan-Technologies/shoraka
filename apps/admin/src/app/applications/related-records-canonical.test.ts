@@ -22,4 +22,10 @@ describe("application related records canonical references", () => {
     expect(source).not.toContain("${note.note_reference} (${note.id})");
     expect(source).not.toContain("${app.issuer_organization.name} (${app.issuer_organization_id})");
   });
+
+  it("hides Facility Reference for standalone invoice applications", () => {
+    expect(source).toContain("isInvoiceOnlyFinancingStructure");
+    expect(source).toContain("{!isInvoiceOnly ? (");
+    expect(source).toContain('label="Facility Reference"');
+  });
 });

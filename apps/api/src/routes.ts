@@ -28,6 +28,7 @@ import { createSigningAdminRouter, createSigningRouter } from "./modules/signing
 import { activityRouter } from "./modules/activity/controller";
 import { createS3Router } from "./modules/s3/controller";
 import { notificationRouter } from "./modules/notification/controller";
+import { supportRouter } from "./modules/support/controller";
 import {
   adminInvestmentsRouter,
   adminNotesRouter,
@@ -223,6 +224,7 @@ export function registerRoutes(app: Application): void {
 
   // Notification routes
   v1Router.use("/notifications", requireAuth, notificationRouter);
+  v1Router.use("/support", supportRouter);
 
   app.use("/v1", v1Router);
 }

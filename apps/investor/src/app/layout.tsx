@@ -17,6 +17,7 @@ import { Toaster } from "../components/ui/sonner";
 import { Providers } from "../lib/providers";
 import { AuthGuard } from "../components/auth-guard";
 import { DepositReturnListener } from "../components/deposit-return-listener";
+import { SupportChat } from "../components/support-chat";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </SidebarInset>
             </SidebarProvider>
             <Toaster />
+            <SupportChat />
             <Suspense fallback={null}>
               <DepositReturnListener />
             </Suspense>

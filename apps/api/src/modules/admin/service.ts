@@ -103,6 +103,7 @@ import {
   isAcceptanceHubCompleteFromOffer,
   shouldShowAcceptanceDocumentsReviewSection,
   isFacilityOnlyNewContract,
+  isInvoiceOnlyFinancingStructure,
   INHERITED_FACILITY_GUARANTORS_AML_BLOCKED,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
@@ -146,7 +147,11 @@ import {
   isFacilityLockedSupportingDocumentItem,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
-import { assertApplicationPaymasterReadyForOffer, assertIssuerMarcAssessmentComplete, getCurrentMarcAssessment } from "../paymaster/service";
+import {
+  assertApplicationPaymasterReadyForOffer,
+  assertIssuerMarcAssessmentComplete,
+  getCurrentMarcAssessment,
+} from "../paymaster/service";
 import { OrganizationRepository } from "../organization/repository";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import {
@@ -207,12 +212,20 @@ import {
 import { invoiceOfferExceedsRequested } from "../../lib/invoice-offer";
 import { assertFacilityBelowContractValue } from "../../lib/contract-capacity-errors";
 import { applyContractCapacityChange, lockContractRow } from "../../lib/refresh-contract-facility";
+import {
+  realFacilityContractWhere,
+  resolveInvoiceOccupancyContractId,
+} from "../../lib/standalone-holder-contract";
 import { assertFacilityFeeUpfrontSettled } from "../../lib/facility-fee-upfront-guard";
 import { assertFacilityLinkedInvoiceOfferFees } from "../../lib/facility-fee-collect-reservation";
 import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { computeSupportingDocumentsSectionStatus } from "../applications/supporting-documents-section-status";
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
 import { assertMaturityForSendInvoiceOffer } from "../products/validate-financial-config";
+import {
+  assertContractMeetsProductRules,
+  assertInvoiceMeetsProductRules,
+} from "../../lib/product-rule-guard";
 import { assertOfferFinancingTenure } from "../../lib/financing-tenure-guard";
 import { extractSubmittedAtFromWebhookPayloads } from "./extract-submitted-at";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
@@ -234,7 +247,11 @@ import {
   resolveApplicationStatusFromOfferAcceptancePhase,
   resolveInvoiceCentricApplicationStatus,
 } from "../applications/offer-application-status";
-import { loadInheritedAcceptanceForExistingContract, attachInheritedFacilityGuarantors, attachInheritedFacilitySupportingDocuments } from "../../lib/contract-originating-application";
+import {
+  loadInheritedAcceptanceForExistingContract,
+  attachInheritedFacilityGuarantors,
+  attachInheritedFacilitySupportingDocuments,
+} from "../../lib/contract-originating-application";
 import { signingService } from "../signing/service";
 import {
   AUDIT_ACTOR_TYPE,
@@ -698,8 +715,7 @@ export class AdminService {
       recipientUserIds,
       typeId,
       enrichedPayload,
-      (userId) =>
-        `app:${applicationId}:notif:${String(typeId)}:user:${userId}:${idempotencySuffix}`
+      (userId) => `app:${applicationId}:notif:${String(typeId)}:user:${userId}:${idempotencySuffix}`
     );
 
     await this.notificationService.logTypedSystemBatch(typeId, enrichedPayload, results, {
@@ -731,6 +747,36 @@ export class AdminService {
         "Facility offer was finalized by issuer and cannot be modified"
       );
     }
+  }
+
+  private ensureFacilityOfferActionAllowed(application: {
+    contract_id?: string | null;
+    contract?: { status?: string | null } | null;
+    financing_structure?: unknown;
+  }): void {
+    this.ensureContractOfferActionAllowed(application);
+    if (isInvoiceOnlyFinancingStructure(application.financing_structure)) {
+      throw new AppError(
+        400,
+        "INVALID_ACTION",
+        "Standalone invoice applications do not have facility offers."
+      );
+    }
+  }
+
+  private getInvoiceOccupancyContractId(
+    application: {
+      contract_id?: string | null;
+      financing_structure?: unknown;
+      invoices?: Array<{ id: string; contract_id?: string | null }>;
+    } | null,
+    invoiceId: string | null | undefined
+  ): string | null {
+    if (!application) return null;
+    const invoiceContractId = invoiceId
+      ? application.invoices?.find((invoice) => invoice.id === invoiceId)?.contract_id
+      : null;
+    return resolveInvoiceOccupancyContractId({ invoiceContractId, application });
   }
 
   /**
@@ -2890,7 +2936,11 @@ export class AdminService {
     if (portal === "issuer") {
       const [approvedContracts, activeNotesSum] = await Promise.all([
         prisma.contract.findMany({
-          where: { issuer_organization_id: id, status: "APPROVED" },
+          where: {
+            issuer_organization_id: id,
+            status: "APPROVED",
+            AND: [realFacilityContractWhere()],
+          },
           select: { status: true, contract_details: true },
         }),
         prisma.note.aggregate({
@@ -3118,7 +3168,8 @@ export class AdminService {
       companyCategory: org.company_category ?? null,
       companyEmail: org.company_email ?? null,
       scInvestorCategory: org.sc_investor_category ?? null,
-      residentialAddress: (org.residential_address as import("@cashsouk/types").ProfileAddress | null) ?? null,
+      residentialAddress:
+        (org.residential_address as import("@cashsouk/types").ProfileAddress | null) ?? null,
       isSophisticatedInvestor:
         portal === "investor" ? (org.is_sophisticated_investor ?? false) : false,
       sophisticatedInvestorReason:
@@ -3128,8 +3179,7 @@ export class AdminService {
       investedAmount,
       approvedFacilityAmount,
       activeNotesAmount,
-      marcAssessment:
-        portal === "issuer" ? await getCurrentMarcAssessment(org.id) : null,
+      marcAssessment: portal === "issuer" ? await getCurrentMarcAssessment(org.id) : null,
       // Build RegTank portal URL from latest onboarding record
       regtankRequestId: org.regtank_onboarding?.[0]?.request_id ?? null,
       codRequestId,
@@ -4593,7 +4643,11 @@ export class AdminService {
       orgAfterAmlStatus = orgAfterAml?.onboarding_status ?? orgAfterAmlStatus;
 
       if (isCorporateOnboarding) {
-        await this.regTankRepository.updateStatus(onboarding.request_id, { status: "APPROVED" }, tx);
+        await this.regTankRepository.updateStatus(
+          onboarding.request_id,
+          { status: "APPROVED" },
+          tx
+        );
       }
 
       await createOnboardingLogRow(
@@ -6026,65 +6080,65 @@ export class AdminService {
     }
 
     if (statusUpper === "LIVENESS_PASSED" || statusUpper === "WAIT_FOR_APPROVAL") {
-          const update = getIndividualWaitForApprovalUpdate({
-            currentOnboardingStatus: org.onboarding_status,
-          });
-          if (update) {
-            const adminContext = adminAuditContextFromRequest(req, adminUserId);
-            await prisma.$transaction(async (tx) => {
-              if (isInvestor) {
-                await this.organizationRepository.updateInvestorOrganizationOnboarding(
-                  org.id,
-                  OnboardingStatus.PENDING_APPROVAL,
-                  { resetCompanySsmGateFromRegtankWebhook: true },
-                  tx
-                );
-              } else {
-                await this.organizationRepository.updateIssuerOrganizationOnboarding(
-                  org.id,
-                  OnboardingStatus.PENDING_APPROVAL,
-                  { resetCompanySsmGateFromRegtankWebhook: true },
-                  tx
-                );
-              }
-              await createOnboardingLogRow(
-                {
-                  userId: onboarding.user_id,
-                  role: isInvestor ? UserRole.INVESTOR : UserRole.ISSUER,
-                  eventType: "ONBOARDING_STATUS_UPDATED",
-                  portal: AUDIT_PORTAL.ADMIN,
-                  organizationName: org.name || undefined,
-                  investorOrganizationId: isInvestor ? org.id : undefined,
-                  issuerOrganizationId: isInvestor ? undefined : org.id,
-                  context: adminContext,
-                  actorUserId: adminUserId,
-                  metadata: {
-                    organizationId: org.id,
-                    requestId: onboarding.request_id,
-                    previousStatus: org.onboarding_status,
-                    newStatus: OnboardingStatus.PENDING_APPROVAL,
-                    trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH",
-                    subjectPortal: onboarding.portal_type,
-                  },
-                },
-                tx
-              );
-            });
-          }
-        } else if (statusUpper === "APPROVED") {
-          try {
-            await this.regTankService.handleWebhookUpdate(
-              {
-                requestId: onboarding.request_id,
-                status: "APPROVED",
-                referenceId: onboarding.reference_id,
-              },
-              {
-                context: adminAuditContextFromRequest(req, adminUserId),
-                portal: AUDIT_PORTAL.ADMIN,
-                actorUserId: adminUserId,
-              }
+      const update = getIndividualWaitForApprovalUpdate({
+        currentOnboardingStatus: org.onboarding_status,
+      });
+      if (update) {
+        const adminContext = adminAuditContextFromRequest(req, adminUserId);
+        await prisma.$transaction(async (tx) => {
+          if (isInvestor) {
+            await this.organizationRepository.updateInvestorOrganizationOnboarding(
+              org.id,
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true },
+              tx
             );
+          } else {
+            await this.organizationRepository.updateIssuerOrganizationOnboarding(
+              org.id,
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true },
+              tx
+            );
+          }
+          await createOnboardingLogRow(
+            {
+              userId: onboarding.user_id,
+              role: isInvestor ? UserRole.INVESTOR : UserRole.ISSUER,
+              eventType: "ONBOARDING_STATUS_UPDATED",
+              portal: AUDIT_PORTAL.ADMIN,
+              organizationName: org.name || undefined,
+              investorOrganizationId: isInvestor ? org.id : undefined,
+              issuerOrganizationId: isInvestor ? undefined : org.id,
+              context: adminContext,
+              actorUserId: adminUserId,
+              metadata: {
+                organizationId: org.id,
+                requestId: onboarding.request_id,
+                previousStatus: org.onboarding_status,
+                newStatus: OnboardingStatus.PENDING_APPROVAL,
+                trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH",
+                subjectPortal: onboarding.portal_type,
+              },
+            },
+            tx
+          );
+        });
+      }
+    } else if (statusUpper === "APPROVED") {
+      try {
+        await this.regTankService.handleWebhookUpdate(
+          {
+            requestId: onboarding.request_id,
+            status: "APPROVED",
+            referenceId: onboarding.reference_id,
+          },
+          {
+            context: adminAuditContextFromRequest(req, adminUserId),
+            portal: AUDIT_PORTAL.ADMIN,
+            actorUserId: adminUserId,
+          }
+        );
       } catch (error) {
         partialFailures.push("APPROVED_SYNC");
         warnings.push(
@@ -6553,7 +6607,11 @@ export class AdminService {
           );
         } catch (notificationError) {
           logger.error(
-            { error: notificationError, contractId, applicationId: updated.originatingApplicationId },
+            {
+              error: notificationError,
+              contractId,
+              applicationId: updated.originatingApplicationId,
+            },
             "Failed to send facility disabled notification to issuer"
           );
         }
@@ -7934,8 +7992,7 @@ export class AdminService {
 
     const reviewRows =
       application.application_review_items?.filter(
-        (r) =>
-          r.item_type === "document" || r.item_type === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE
+        (r) => r.item_type === "document" || r.item_type === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE
       ) ?? [];
     let target = computeSupportingDocumentsSectionStatus(
       [...docKeys, ...partyKeys],
@@ -8149,10 +8206,7 @@ export class AdminService {
       };
     }
 
-    const docKeys = collectAcceptanceDocumentReviewKeys(
-      workflow,
-      application.acceptance_documents
-    );
+    const docKeys = collectAcceptanceDocumentReviewKeys(workflow, application.acceptance_documents);
     const partyKeys = collectAuthorizedRepresentativeReviewKeys(
       this.getPrimaryOfferAcceptance(application)?.authorized_parties
     );
@@ -8161,8 +8215,7 @@ export class AdminService {
       reviewRows
         .filter(
           (row) =>
-            row.item_type === "document" ||
-            row.item_type === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE
+            row.item_type === "document" || row.item_type === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE
         )
         .map((row) => [row.item_id, row.status])
     );
@@ -8219,7 +8272,10 @@ export class AdminService {
         return null;
       }
 
-      if (current.status === "APPROVED_FOR_SIGNING" && (docKeys.length > 0 || partyKeys.length > 0)) {
+      if (
+        current.status === "APPROVED_FOR_SIGNING" &&
+        (docKeys.length > 0 || partyKeys.length > 0)
+      ) {
         return "PENDING_ADMIN_REVIEW";
       }
       return null;
@@ -8550,7 +8606,9 @@ export class AdminService {
 
     const invoiceNumber = matchedInvoice.details?.number;
     const cashSoukReference =
-      matchedInvoice.displayReference?.trim() || matchedInvoice.display_reference?.trim() || undefined;
+      matchedInvoice.displayReference?.trim() ||
+      matchedInvoice.display_reference?.trim() ||
+      undefined;
     return {
       invoiceId: matchedInvoice.id,
       invoiceNumber:
@@ -8631,9 +8689,7 @@ export class AdminService {
       eventType: "CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED",
       metadata: {
         contract_id: contractId,
-        ...(contract.display_reference
-          ? { contractReference: contract.display_reference }
-          : {}),
+        ...(contract.display_reference ? { contractReference: contract.display_reference } : {}),
         previousValues: { is_large_private_company: previousValue ?? null },
         nextValues: { is_large_private_company: isLargePrivateCompany },
       },
@@ -8660,7 +8716,7 @@ export class AdminService {
       application.status as ApplicationStatus,
       application
     );
-    this.ensureContractOfferActionAllowed(application);
+    this.ensureFacilityOfferActionAllowed(application);
 
     if (!application.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no facility to offer");
@@ -8749,6 +8805,7 @@ export class AdminService {
         approvedFacility: offeredFacility,
         contractId,
       });
+      assertContractMeetsProductRules(workflow, contractDetails);
 
       const previousOffer =
         (lockedContract.offer_details as Record<string, unknown> | null) ?? null;
@@ -8927,7 +8984,7 @@ export class AdminService {
     logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
-    this.ensureContractOfferActionAllowed(application);
+    this.ensureFacilityOfferActionAllowed(application);
 
     if (!application.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no facility to extend");
@@ -9214,6 +9271,18 @@ export class AdminService {
         throw new AppError(400, "INVALID_INPUT", INVOICE_FINANCING_RATIO_CAP_MESSAGE);
       }
 
+      assertInvoiceMeetsProductRules(workflow, details, {
+        mode: "admin_offer",
+        hasFacility: Boolean(
+          resolveInvoiceOccupancyContractId({
+            invoiceContractId: lockedInvoice.contract_id,
+            application,
+          })
+        ),
+        offeredAmount,
+        offeredRatioPercent,
+      });
+
       const requestedAmount = resolveRequestedInvoiceFinancing(details);
       if (!(requestedAmount > 0)) {
         throw new AppError(400, "INVALID_STATE", "Invoice requested financing is invalid");
@@ -9327,7 +9396,11 @@ export class AdminService {
         campaignClassification?.sustainabilityCategory ??
         parseInvoiceOfferSustainabilityCategory(previousOffer);
       if (companyCategory && !isScCompanyCategory(companyCategory)) {
-        throw new AppError(400, "INVALID_INPUT", "Company category must be Technology or Non-Technology");
+        throw new AppError(
+          400,
+          "INVALID_INPUT",
+          "Company category must be Technology or Non-Technology"
+        );
       }
       if (sustainabilityCategory && !isScSustainabilityCategory(sustainabilityCategory)) {
         throw new AppError(400, "INVALID_INPUT", "Sustainability category is invalid");
@@ -9446,7 +9519,10 @@ export class AdminService {
         acceptanceExpiresAt,
       };
     };
-    const occupancyContractId = invoiceForSend?.contract_id ?? application.contract_id ?? null;
+    const occupancyContractId = resolveInvoiceOccupancyContractId({
+      invoiceContractId: invoiceForSend?.contract_id,
+      application,
+    });
     const invoiceOfferMeta = occupancyContractId
       ? (
           await applyContractCapacityChange(occupancyContractId, prisma, sendInvoiceOfferInTx, {
@@ -9975,8 +10051,19 @@ export class AdminService {
     );
     const oldStatus = existing?.status ?? "PENDING";
     let didRetractContractOffer = false;
+    const isInvoiceOnlyHolder = isInvoiceOnlyFinancingStructure(application.financing_structure);
+    const isFacilityOfferRetraction =
+      section === "contract_details" &&
+      Boolean(application.contract_id) &&
+      !isInvoiceOnlyHolder &&
+      (oldStatus === "OFFER_SENT" ||
+        application.contract?.status === "OFFER_SENT" ||
+        application.contract?.status === "OFFER_EXPIRED");
+    if (isFacilityOfferRetraction) {
+      this.ensureFacilityOfferActionAllowed(application);
+    }
 
-    if (section === "contract_details" && application.contract_id) {
+    if (section === "contract_details" && application.contract_id && !isInvoiceOnlyHolder) {
       await this.assertNoActiveSigningPackage(
         applicationId,
         { contractId: application.contract_id },
@@ -9987,7 +10074,7 @@ export class AdminService {
     await repository.resetSectionReviewToPending(applicationId, section);
     if (section === "contract_details" && application.contract_id) {
       const contractId = application.contract_id;
-      await applyContractCapacityChange(contractId, prisma, async (tx) => {
+      const persistContractReset = async (tx: Prisma.TransactionClient) => {
         const contract = await tx.contract.findUnique({
           where: { id: contractId },
           select: { status: true },
@@ -9995,15 +10082,22 @@ export class AdminService {
         const updateData: Prisma.ContractUpdateInput = {
           status: "SUBMITTED",
         };
-        didRetractContractOffer = oldStatus === "OFFER_SENT" || contract?.status === "OFFER_SENT";
-        if (didRetractContractOffer) {
+        const hadStaleContractOffer =
+          oldStatus === "OFFER_SENT" || contract?.status === "OFFER_SENT";
+        didRetractContractOffer = !isInvoiceOnlyHolder && hadStaleContractOffer;
+        if (hadStaleContractOffer) {
           updateData.offer_details = Prisma.JsonNull;
         }
         await tx.contract.update({
           where: { id: contractId },
           data: updateData,
         });
-      });
+      };
+      if (isInvoiceOnlyHolder) {
+        await prisma.$transaction(persistContractReset);
+      } else {
+        await applyContractCapacityChange(contractId, prisma, persistContractReset);
+      }
     }
     if (didRetractContractOffer && section === "contract_details") {
       const contractReference = this.getContractReference(
@@ -10162,8 +10256,10 @@ export class AdminService {
         const invoiceForRetract = (
           application.invoices as Array<{ id: string; contract_id?: string | null }> | undefined
         )?.find((inv) => inv.id === invoiceId);
-        const occupancyContractId =
-          invoiceForRetract?.contract_id ?? application.contract_id ?? null;
+        const occupancyContractId = resolveInvoiceOccupancyContractId({
+          invoiceContractId: invoiceForRetract?.contract_id,
+          application,
+        });
         if (occupancyContractId) {
           await applyContractCapacityChange(occupancyContractId, prisma, persistRetract, {
             assertWrite: false,
@@ -10323,13 +10419,15 @@ export class AdminService {
     applicationId: string,
     application: {
       contract_id?: string | null;
+      financing_structure?: unknown;
       invoices?: Array<{ id: string; status: string; contract_id?: string | null }>;
     },
     actionLabel: string
   ): Promise<void> {
     const blockingStatuses = ["SENT", "IN_PROGRESS", "COMPLETED"] as const;
+    const isInvoiceOnly = isInvoiceOnlyFinancingStructure(application.financing_structure);
 
-    if (application.contract_id) {
+    if (application.contract_id && !isInvoiceOnly) {
       const sentOrCompleted = await prisma.signingEnvelope.findFirst({
         where: {
           application_id: applicationId,
@@ -10351,7 +10449,7 @@ export class AdminService {
     }
 
     for (const invoice of application.invoices ?? []) {
-      if (invoice.contract_id) continue;
+      if (invoice.contract_id && !isInvoiceOnly) continue;
       if (invoice.status !== "OFFER_SENT") continue;
       const sentOrCompleted = await prisma.signingEnvelope.findFirst({
         where: {
@@ -10615,10 +10713,7 @@ export class AdminService {
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
 
     let nextApp = await repository.getApplicationById(applicationId);
-    if (
-      (itemType === "document" || itemType === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE) &&
-      nextApp
-    ) {
+    if ((itemType === "document" || itemType === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE) && nextApp) {
       await this.syncDocumentDerivedSectionsFromItems(
         repository,
         applicationId,
@@ -10732,18 +10827,16 @@ export class AdminService {
           });
         }
       };
-      if (application.contract_id) {
-        await applyContractCapacityChange(application.contract_id, prisma, persistReject);
+      const occupancyContractId = this.getInvoiceOccupancyContractId(application, invoiceId);
+      if (occupancyContractId) {
+        await applyContractCapacityChange(occupancyContractId, prisma, persistReject);
       } else {
         await prisma.$transaction(persistReject);
       }
     }
 
     let nextApp = await repository.getApplicationById(applicationId);
-    if (
-      (itemType === "document" || itemType === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE) &&
-      nextApp
-    ) {
+    if ((itemType === "document" || itemType === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE) && nextApp) {
       await this.syncDocumentDerivedSectionsFromItems(
         repository,
         applicationId,
@@ -10864,8 +10957,9 @@ export class AdminService {
           });
         }
       };
-      if (application.contract_id) {
-        await applyContractCapacityChange(application.contract_id, prisma, persistAmendment);
+      const occupancyContractId = this.getInvoiceOccupancyContractId(application, invoiceId);
+      if (occupancyContractId) {
+        await applyContractCapacityChange(occupancyContractId, prisma, persistAmendment);
       } else {
         await prisma.$transaction(persistAmendment);
       }
@@ -10876,10 +10970,7 @@ export class AdminService {
       ? this.getPrimaryOfferAcceptanceStatus(application)
       : null;
 
-    if (
-      (itemType === "document" || itemType === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE) &&
-      nextApp
-    ) {
+    if ((itemType === "document" || itemType === AUTHORIZED_REPRESENTATIVES_ITEM_TYPE) && nextApp) {
       await this.syncDocumentDerivedSectionsFromItems(
         repository,
         applicationId,
@@ -10899,9 +10990,7 @@ export class AdminService {
     }
 
     if (isAcceptanceHubItem) {
-      const acceptancePhaseAfter = this.getPrimaryOfferAcceptanceStatus(
-        nextApp ?? application
-      );
+      const acceptancePhaseAfter = this.getPrimaryOfferAcceptanceStatus(nextApp ?? application);
       if (shouldNotifyAcceptanceDocumentChanges(acceptancePhaseBefore, acceptancePhaseAfter)) {
         try {
           const submittedAt =
@@ -11047,8 +11136,9 @@ export class AdminService {
             });
           }
         };
-        if (application.contract_id) {
-          await applyContractCapacityChange(application.contract_id, prisma, persistAmendment);
+        const occupancyContractId = this.getInvoiceOccupancyContractId(application, invoiceId);
+        if (occupancyContractId) {
+          await applyContractCapacityChange(occupancyContractId, prisma, persistAmendment);
         } else {
           await prisma.$transaction(persistAmendment);
         }
@@ -11240,8 +11330,9 @@ export class AdminService {
               data: { status: "SUBMITTED" },
             });
           };
-          if (application?.contract_id) {
-            await applyContractCapacityChange(application.contract_id, prisma, persistReset);
+          const occupancyContractId = this.getInvoiceOccupancyContractId(application, invoiceId);
+          if (occupancyContractId) {
+            await applyContractCapacityChange(occupancyContractId, prisma, persistReset);
           } else {
             await prisma.$transaction(persistReset);
           }

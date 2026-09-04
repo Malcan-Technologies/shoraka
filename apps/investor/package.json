@@ -14,7 +14,6 @@
   "dependencies": {
     "@aws-amplify/auth": "^6.0.0",
     "@cashsouk/config": "workspace:*",
-    "@cashsouk/help-content": "workspace:^",
     "@cashsouk/styles": "workspace:*",
     "@cashsouk/types": "workspace:*",
     "@cashsouk/ui": "workspace:*",

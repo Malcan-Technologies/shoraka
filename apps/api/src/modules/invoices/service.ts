@@ -30,6 +30,7 @@ import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { ProductRepository } from "../products/repository";
 import { assertMaturityForApplication } from "../products/validate-financial-config";
+import { assertInvoiceMeetsProductRules } from "../../lib/product-rule-guard";
 import { assertInvoiceFinancingTenure } from "../../lib/financing-tenure-guard";
 import { shouldPreserveApplicationDocumentsInS3 } from "../applications/amendment-preserve-s3";
 import {
@@ -60,8 +61,8 @@ export class InvoiceService {
 
   /**
    * existing_contract invoices always persist the application's selected approved
-   * facility. Caller contractId is accepted only when it matches. invoice_only and
-   * legacy combined applications keep the caller-supplied contractId (or omit it).
+   * facility. Caller contractId is accepted only when it matches. invoice_only
+   * invoices reject facility linkage; legacy combined applications keep the caller value.
    */
   private async resolveCreateInvoiceContractId(args: {
     callerContractId: string | undefined;
@@ -86,6 +87,13 @@ export class InvoiceService {
     };
   }): Promise<string | null | undefined> {
     const structureType = readFinancingStructureType(args.application.financing_structure);
+    if (structureType === "invoice_only" && args.callerContractId != null) {
+      throw new AppError(
+        400,
+        "STANDALONE_INVOICE_NO_FACILITY",
+        "Standalone invoices cannot be linked to a facility."
+      );
+    }
     if (structureType !== "existing_contract") {
       return args.callerContractId;
     }
@@ -278,12 +286,19 @@ export class InvoiceService {
     details: any,
     userId: string
   ): Promise<Invoice> {
-    await this.verifyApplicationAccess(applicationId, userId);
+    const application = await this.verifyApplicationAccess(applicationId, userId);
 
     const workflow = await this.loadWorkflowForApplication(applicationId);
     if (workflow) {
       assertMaturityForApplication(workflow, details as Record<string, unknown>);
     }
+    const createStructureType = readFinancingStructureType(application?.financing_structure);
+    assertInvoiceMeetsProductRules(workflow, details as Record<string, unknown>, {
+      mode: "issuer_request",
+      hasFacility:
+        createStructureType !== "invoice_only" &&
+        Boolean(contractId ?? (application as { contract_id?: string | null } | null)?.contract_id),
+    });
     assertInvoiceFinancingTenure(details as Record<string, unknown>);
 
     const s3Key = details?.document?.s3_key;
@@ -442,6 +457,25 @@ export class InvoiceService {
     const applicationRow = applicationId
       ? await this.applicationRepository.findById(applicationId)
       : null;
+    const structureType = readFinancingStructureType(applicationRow?.financing_structure);
+    if (structureType === "invoice_only" && contractId != null) {
+      throw new AppError(
+        400,
+        "STANDALONE_INVOICE_NO_FACILITY",
+        "Standalone invoices cannot be linked to a facility."
+      );
+    }
+    if (
+      structureType === "existing_contract" &&
+      contractId !== undefined &&
+      contractId !== (applicationRow as { contract_id?: string | null } | null)?.contract_id
+    ) {
+      throw new AppError(
+        400,
+        "FACILITY_CONTRACT_MISMATCH",
+        "This invoice must use the approved facility selected on the application."
+      );
+    }
     const preserveInvoiceDocsInAmendment = shouldPreserveApplicationDocumentsInS3(
       (applicationRow as { status?: string } | null)?.status
     );
@@ -457,6 +491,10 @@ export class InvoiceService {
       contractId !== undefined
         ? contractId
         : (invoice as { contract_id?: string | null }).contract_id;
+    assertInvoiceMeetsProductRules(workflow, updatedDetails as Record<string, unknown>, {
+      mode: "issuer_request",
+      hasFacility: structureType !== "invoice_only" && Boolean(effectiveContractId),
+    });
     await this.assertUniqueInvoiceNumberOnFacility({
       contractId: effectiveContractId,
       details: updatedDetails,
@@ -477,15 +515,20 @@ export class InvoiceService {
     }
 
     const isNewDocumentUpload = nextS3Key && nextS3Key !== prevS3Key;
-    const capacityContractIds = this.reservedContractIds(
-      invoice.status,
-      invoice.contract_id,
-      effectiveContractId,
-      (applicationRow as { contract_id?: string | null } | null)?.contract_id
-    );
+    const capacityContractIds =
+      structureType === "invoice_only"
+        ? []
+        : this.reservedContractIds(
+            invoice.status,
+            invoice.contract_id,
+            effectiveContractId,
+            (applicationRow as { contract_id?: string | null } | null)?.contract_id
+          );
 
     try {
-      const persistInvoiceInTx = async (tx: { invoice: { update: typeof prisma.invoice.update } }) => {
+      const persistInvoiceInTx = async (tx: {
+        invoice: { update: typeof prisma.invoice.update };
+      }) => {
         return tx.invoice.update({
           where: { id },
           data: updatePayload,
@@ -561,7 +604,10 @@ export class InvoiceService {
       invoice.contract_id ??
       (application as { contract_id?: string | null } | null)?.contract_id ??
       null;
-    const capacityContractIds = this.reservedContractIds(invoice.status, previousContractId);
+    const capacityContractIds =
+      readFinancingStructureType(application?.financing_structure) === "invoice_only"
+        ? []
+        : this.reservedContractIds(invoice.status, previousContractId);
 
     if (capacityContractIds.length > 0) {
       await applyContractCapacityChanges(capacityContractIds, prisma, async (tx) => {
@@ -705,10 +751,16 @@ export class InvoiceService {
     }
 
     const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
-    const capacityContractIds = this.facilityContractIds(
-      invoice.contract_id,
-      (invoice as { application?: { contract_id?: string | null } }).application?.contract_id
-    );
+    const invoiceApplication = (
+      invoice as {
+        application?: { contract_id?: string | null; financing_structure?: unknown };
+      }
+    ).application;
+    const isInvoiceOnly =
+      readFinancingStructureType(invoiceApplication?.financing_structure) === "invoice_only";
+    const capacityContractIds = isInvoiceOnly
+      ? []
+      : this.facilityContractIds(invoice.contract_id, invoiceApplication?.contract_id);
 
     const persistWithdraw = (tx?: { invoice: { update: typeof prisma.invoice.update } }) =>
       (tx ?? prisma).invoice.update({
@@ -747,13 +799,12 @@ export class InvoiceService {
 
       const allInvoices = await this.repository.findByApplicationId(invoice.application_id);
       const app = await this.applicationRepository.findById(invoice.application_id);
-      const contract = app?.contract_id
-        ? await this.contractRepository.findById(app.contract_id)
-        : null;
+      const isInvoiceOnly = readFinancingStructureType(app?.financing_structure) === "invoice_only";
+      const contract =
+        !isInvoiceOnly && app?.contract_id
+          ? await this.contractRepository.findById(app.contract_id)
+          : null;
       const currentStatus = (app?.status as ApplicationStatus) ?? ApplicationStatus.DRAFT;
-      const isInvoiceOnly =
-        (app?.financing_structure as { structure_type?: string } | null)?.structure_type ===
-        "invoice_only";
       const newStatus = computeApplicationStatus(
         contract ? { status: contract.status as ContractStatus } : null,
         allInvoices.map((i) => ({ status: i.status as InvoiceStatus })),

@@ -9,6 +9,7 @@ import {
   conservativeMigrationWindowLifetimeRemaining,
   conservativeMigrationWindowLifetimeUsed,
   hasCompletedCapacitySnapshot,
+  isInvoiceOnlyFinancingStructure,
 } from "@cashsouk/types";
 import {
   parseFacilityAmount,
@@ -207,6 +208,7 @@ export function resolveAdminReviewTabCapacity(input: {
   contractSectionStatus?: string;
 }): AdminReviewTabCapacityProps | null {
   if (!input.app.contract) return null;
+  if (isInvoiceOnlyFinancingStructure(input.app.financing_structure)) return null;
   const capacity = resolveAdminReviewCapacity({
     contractDetails: contractDetailsRecord(input.app.contract.contract_details),
     invoices: reviewOccupancyInvoices(input.app),

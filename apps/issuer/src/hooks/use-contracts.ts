@@ -1,7 +1,14 @@
 import { createApiClient, getReviewDetailRefreshPolicy, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ContractDetails, CustomerDetails, IssuerPaymasterOption, PaymasterLookupResult } from "@cashsouk/types";
+import {
+  readProductLimitViolationMessage,
+  type ContractDetails,
+  type CustomerDetails,
+  type IssuerPaymasterOption,
+  type PaymasterLookupResult,
+} from "@cashsouk/types";
 import { toast } from "sonner";
+import { ApiMutationError } from "@/hooks/use-applications";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -123,7 +130,7 @@ export function useUpdateContract() {
     }) => {
       const response = await apiClient.updateContract(id, data);
       if (!response.success) {
-        throw new Error(response.error.message);
+        throw new ApiMutationError(response.error.message, response.error.code);
       }
       return response.data;
     },
@@ -133,6 +140,7 @@ export function useUpdateContract() {
       queryClient.invalidateQueries({ queryKey: ["issuer-paymasters"] });
     },
     onError: (error: Error) => {
+      if (readProductLimitViolationMessage(error)) return;
       toast.error("Failed to update facility", {
         description: error.message,
       });

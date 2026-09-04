@@ -46,7 +46,7 @@ import { OPENING_APPLICATION_COPY } from "@cashsouk/types";
  * 3. Click "Continue" creates application in DB
  * 4. Redirect to /applications/{id}/edit?step=2
  */
-export default function NewApplicationPage() {
+function NewApplicationPageBody() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const prefillContractId = searchParams.get("contractId");
@@ -370,7 +370,9 @@ export default function NewApplicationPage() {
         <div className="max-w-7xl mx-auto w-full px-4 py-8">
           {/* Page Title */}
           <div className="mb-6">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{OPENING_APPLICATION_COPY.title}</h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+              {OPENING_APPLICATION_COPY.title}
+            </h1>
             <p className="text-ui leading-7 text-muted-foreground mt-1">
               {prefillContractId
                 ? OPENING_APPLICATION_COPY.prefilledFacilityDescription
@@ -472,5 +474,21 @@ export default function NewApplicationPage() {
         }}
       />
     </div>
+  );
+}
+
+export default function NewApplicationPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4">
+          <div className="mx-auto w-full max-w-7xl px-2 py-4 sm:px-4 sm:py-8">
+            <FinancingTypeSkeleton />
+          </div>
+        </main>
+      }
+    >
+      <NewApplicationPageBody />
+    </React.Suspense>
   );
 }

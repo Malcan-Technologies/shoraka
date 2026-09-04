@@ -10,12 +10,15 @@ import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
 import { applyContractCapacityChange } from "../../../lib/refresh-contract-facility";
 import { ApplicationRepository } from "../repository";
+import { ProductRepository } from "../../products/repository";
 import { assertRequiredSupportingDocumentsPresent } from "../supporting-docs-workflow";
+import { assertProductRulesForSubmit } from "../product-rules-on-submit";
 import { buildApplicationRevisionSnapshot } from "../revision-snapshot";
 import { summarizeResubmitSnapshotDiff } from "../../application-revision-diff";
 import { Prisma } from "@prisma/client";
 import {
   getFacilityLockedCategoriesFromWorkflow,
+  isInvoiceOnlyFinancingStructure,
   readFinancingStructureType,
 } from "@cashsouk/types";
 import { upsertLatestOrganizationFinancialStatementsFromApplication } from "../issuer-organization-financial-statements";
@@ -161,17 +164,38 @@ export async function resubmitApplication(
   const resubmitProductId = financingTypeResubmit?.product_id;
   let resubmitProductWorkflow: Prisma.JsonValue | undefined;
   if (resubmitProductId) {
-    const resubmitProduct = await prisma.product.findUnique({ where: { id: resubmitProductId } });
+    const productVersion = (application as { product_version?: number | null }).product_version;
+    const productRepo = new ProductRepository();
+    const resubmitProduct =
+      productVersion != null
+        ? await productRepo.findByBaseAndVersion(resubmitProductId, productVersion)
+        : await productRepo.findById(resubmitProductId);
     if (resubmitProduct?.workflow) {
+      const frozenWorkflow = (resubmitProduct.workflow as unknown[]) ?? [];
       const skipCategoryKeys =
         readFinancingStructureType(application.financing_structure) === "existing_contract"
-          ? getFacilityLockedCategoriesFromWorkflow(resubmitProduct.workflow)
+          ? getFacilityLockedCategoriesFromWorkflow(frozenWorkflow)
           : [];
       assertRequiredSupportingDocumentsPresent(
-        resubmitProduct.workflow as unknown[],
+        frozenWorkflow,
         application.supporting_documents,
         { skipCategoryKeys }
       );
+      assertProductRulesForSubmit(frozenWorkflow, {
+        invoices: ((application as { invoices?: Array<{
+          status?: string | null;
+          details?: unknown;
+          contract_id?: string | null;
+        }> }).invoices ?? []).filter(
+          (invoice) => invoice.status === "DRAFT" || invoice.status === "AMENDMENT_REQUESTED"
+        ),
+        contract: (application as { contract?: { status?: string | null; contract_details?: unknown } | null })
+          .contract ?? null,
+        applicationContractId:
+          (application as { contract_id?: string | null }).contract_id ?? null,
+        structureType: readFinancingStructureType(application.financing_structure),
+        checkContract: requiredSectionKeys.has("contract_details"),
+      });
       resubmitProductWorkflow = resubmitProduct.workflow as Prisma.JsonValue;
     }
   }
@@ -237,7 +261,9 @@ export async function resubmitApplication(
       : null;
 
   let createdRevisionId: string | null = null;
-  const resubmitContractId = appFullCurrent?.contract_id ?? null;
+  const resubmitContractId = isInvoiceOnlyFinancingStructure(appFullCurrent?.financing_structure)
+    ? null
+    : appFullCurrent?.contract_id ?? null;
 
   const persistResubmit = async (tx: Prisma.TransactionClient) => {
     await tx.applicationReviewRemark.deleteMany({

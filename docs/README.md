@@ -19,6 +19,7 @@ Step-by-step guides for common tasks:
 - **[Database Workflow](./guides/database-workflow.md)** - Working with Prisma
 - **[Authentication](./guides/authentication.md)** - Auth implementation (planned)
 - **[Environment Variables](./guides/environment-variables.md)** - Configuration reference
+- **[Plain Support](./guides/plain-support.md)** - Help Center, chat widget, and article publishing
 - **[Notification Testing Guide](./guides/notifications/notification-testing-guide.md)** - Notification trigger map and test steps
 
 ### 📋 Application Flow
@@ -58,6 +59,7 @@ Understanding the codebase and infrastructure:
 - **[Project Structure](./architecture/project-structure.md)** - Monorepo organization
 - **[AWS Infrastructure](./architecture/aws-infrastructure.md)** - Cloud architecture (internal)
 - **[External Penetration Test Brief](./architecture/external-pentest-brief.md)** - Public attack-surface brief for external pentest
+- **[Grey-box testing modules](./architecture/grey-box-testing-modules.md)** - Module-by-module briefing for grey-box pentest
 
 ### 🚀 Deployment (For Developers & DevOps)
 

@@ -10,6 +10,7 @@ import {
   filterWorkflowStepsForOrigination,
   isEditableReservedInvoiceStatus,
   isFacilityOnlyNewContract,
+  isInvoiceOnlyFinancingStructure,
   isLegacyCombinedNewContract,
   resolveAdminContractApplicationKind,
   isRequestedFacilityAtOrAboveContractValue,
@@ -39,6 +40,13 @@ const workflow = [
 ];
 
 describe("split origination discriminator", () => {
+  it("recognizes only the invoice-only financing structure", () => {
+    expect(isInvoiceOnlyFinancingStructure({ structure_type: "invoice_only" })).toBe(true);
+    expect(isInvoiceOnlyFinancingStructure({ structure_type: "new_contract" })).toBe(false);
+    expect(isInvoiceOnlyFinancingStructure({ structure_type: "unsupported" })).toBe(false);
+    expect(isInvoiceOnlyFinancingStructure(null)).toBe(false);
+  });
+
   it("treats only explicitly marked applications as split", () => {
     expect(isSplitOriginationApplication({ product_id: "p1", split_origination: true })).toBe(true);
     expect(isSplitOriginationApplication({ product_id: "p1" })).toBe(false);

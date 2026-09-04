@@ -184,6 +184,12 @@ export {
   type HelpArticleSummaryViewModel,
   type HelpArticleViewModel,
 } from "./help";
+export { PlainChatWidget, type PlainChatWidgetProps } from "./support/plain-chat-widget";
+export type {
+  PlainChatApi,
+  PlainCustomerDetails,
+  PlainInitConfig,
+} from "./support/plain-chat-config";
 export {
   Sidebar,
   SidebarContent,

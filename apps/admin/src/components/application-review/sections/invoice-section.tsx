@@ -29,6 +29,8 @@ import {
   formatFinancingTenureDaysLabel,
   parseFinancingTenureDays,
   isValidFinancingTenureDays,
+  readInvoiceProductRules,
+  type InvoiceProductRules,
 } from "@cashsouk/types";
 import { parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics";
 import type { SendInvoiceOfferUiPayload } from "@/components/utilisation-fee-lines";
@@ -85,7 +87,7 @@ export interface InvoiceSectionProps {
   onViewDocument: (s3Key: string) => void;
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
   viewDocumentPending: boolean;
-  invoiceRatioLimits?: { min: number; max: number };
+  invoiceProductRules?: InvoiceProductRules;
   platformFeeRateCapPercent?: number | null;
   minMonthsReviewToMaturityForOffer?: number | null;
   /** Frozen product workflow — Send Offer acceptance-deadline preview. */
@@ -277,7 +279,7 @@ export function InvoiceSection({
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending,
-  invoiceRatioLimits,
+  invoiceProductRules,
   platformFeeRateCapPercent,
   minMonthsReviewToMaturityForOffer,
   productWorkflow,
@@ -427,7 +429,7 @@ export function InvoiceSection({
     ? activeInvoiceTab
     : defaultTabId;
 
-  const ratioLimits = invoiceRatioLimits ?? { min: 60, max: 80 };
+  const resolvedInvoiceProductRules = invoiceProductRules ?? readInvoiceProductRules([]);
 
   return (
     <ReviewSectionCard title="Invoice" icon={DocumentTextIcon} hideSectionActions>
@@ -559,27 +561,30 @@ export function InvoiceSection({
                     viewDocumentPending={viewDocumentPending}
                   />
                 </ReviewFieldBlock>
-                <FacilityImpact
-                  contractId={contractId}
-                  contractHref={contractHref}
-                  contractLabel={contractLabel}
-                  financingAmount={
-                    resolveOfferedAmount(inv.offer_details as Record<string, unknown> | null) ||
-                    resolveRequestedInvoiceAmount(inv.details as Record<string, unknown> | undefined)
-                  }
-                  invoiceFace={parseFacilityAmount(
-                    (inv.details as Record<string, unknown> | undefined)?.value
-                  )}
-                  invoiceStatus={inv.status}
-                />
+                {contractId ? (
+                  <FacilityImpact
+                    contractId={contractId}
+                    contractHref={contractHref}
+                    contractLabel={contractLabel}
+                    financingAmount={
+                      resolveOfferedAmount(inv.offer_details as Record<string, unknown> | null) ||
+                      resolveRequestedInvoiceAmount(inv.details as Record<string, unknown> | undefined)
+                    }
+                    invoiceFace={parseFacilityAmount(
+                      (inv.details as Record<string, unknown> | undefined)?.value
+                    )}
+                    invoiceStatus={inv.status}
+                  />
+                ) : null}
                 <ReviewFieldBlock title="Offer to issuer">
                   <InvoiceOfferPanel
                     invoice={inv}
                     applicationId={applicationId}
+                    facilityContractId={contractId}
                     reviewItemStatus={status}
                     isRowGreyedOut={isRowGreyedOut}
                     isAdminRejected={isAdminRejected}
-                    invoiceRatioLimits={ratioLimits}
+                    invoiceProductRules={resolvedInvoiceProductRules}
                     platformFeeRateCapPercent={platformFeeRateCapPercent}
                     minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
                     productWorkflow={productWorkflow}

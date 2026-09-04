@@ -5,7 +5,12 @@ import {
   useAuthToken,
 } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ApplicationStatus, isCapacityErrorCode, WithdrawReason } from "@cashsouk/types";
+import {
+  ApplicationStatus,
+  isCapacityErrorCode,
+  readProductLimitViolationMessage,
+  WithdrawReason,
+} from "@cashsouk/types";
 import type {
   Application,
   CreateApplicationInput,
@@ -141,6 +146,7 @@ export function useUpdateApplicationStatus() {
     },
     onError: (error: Error) => {
       if (isCapacityErrorCode(getApiMutationErrorCode(error))) return;
+      if (readProductLimitViolationMessage(error)) return;
       toast.error("Failed to update application status", {
         description: error.message,
       });
@@ -185,6 +191,7 @@ export function useResubmitApplication() {
     },
     onError: (error: Error) => {
       if (isCapacityErrorCode(getApiMutationErrorCode(error))) return;
+      if (readProductLimitViolationMessage(error)) return;
       toast.error("Failed to resubmit", {
         description: error.message,
       });

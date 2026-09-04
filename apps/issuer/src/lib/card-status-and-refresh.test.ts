@@ -17,7 +17,12 @@ jest.mock("@cashsouk/config", () => ({
   },
 }));
 
-import { getCardStatus, resolveNormalizedInvoiceBadgeKey } from "@/app/(application-management)/applications/status";
+import {
+  countPendingIssuerOfferReviewItems,
+  getCardStatus,
+  resolveNormalizedInvoiceBadgeKey,
+  type NormalizedApplication,
+} from "@/app/(application-management)/applications/status";
 import {
   getLiveSigningEnvelopeRefetchInterval,
   getReviewDetailRefreshPolicy,
@@ -92,6 +97,28 @@ describe("getCardStatus offer awaiting review", () => {
     });
     expect(result.badgeKey).toBe("offer_sent");
     expect(result.showReviewOffer).toBe(true);
+  });
+
+  it("does not count a leftover holder OFFER_SENT on invoice financing", () => {
+    const count = countPendingIssuerOfferReviewItems({
+      type: "Invoice financing",
+      contractId: "holder_ctr",
+      contractStatus: "OFFER_SENT",
+      cardStatus: {
+        badgeKey: "offer_sent",
+        displayLabel: "Offer Received",
+        showReviewOffer: true,
+        showMakeAmendments: false,
+      },
+      invoices: [
+        {
+          id: "inv_1",
+          status: "OFFER_SENT",
+          canReviewOffer: true,
+        },
+      ],
+    } as NormalizedApplication);
+    expect(count).toBe(1);
   });
 });
 

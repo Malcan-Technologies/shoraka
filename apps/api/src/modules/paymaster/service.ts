@@ -39,6 +39,10 @@ import {
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import {
+  isStandaloneHolderContract,
+  realFacilityContractWhere,
+} from "../../lib/standalone-holder-contract";
+import {
   createOnboardingLogRow,
   type AuditRequestContext,
 } from "../../lib/audit";
@@ -850,7 +854,12 @@ export async function listAdminPaymasters(input: {
       take: input.pageSize,
       include: {
         _count: {
-          select: { issuer_links: true, notes: true, contracts: true, assignment_notices: true },
+          select: {
+            issuer_links: true,
+            notes: true,
+            contracts: { where: realFacilityContractWhere() },
+            assignment_notices: true,
+          },
         },
         issuer_links: {
           select: {
@@ -978,21 +987,23 @@ export async function getAdminPaymasterDetail(id: string): Promise<PaymasterDeta
     })),
     applications: collectLinkedPaymasterApplications(row.contracts),
     financings: [
-      ...row.contracts.map((contract) => ({
-        applicationId: contract.applications[0]?.id ?? null,
-        applicationDisplayReference: contract.applications[0]?.display_reference ?? null,
-        contractId: contract.id,
-        contractDisplayReference: contract.display_reference,
-        invoiceId: null,
-        invoiceDisplayReference: null,
-        noteId: null,
-        noteReference: null,
-        issuerOrganizationId: contract.issuer_organization_id,
-        issuerName: contract.issuer_organization.name,
-        status: contract.status,
-        amount: null,
-        updatedAt: contract.updated_at.toISOString(),
-      })),
+      ...row.contracts
+        .filter((contract) => !isStandaloneHolderContract(contract))
+        .map((contract) => ({
+          applicationId: contract.applications[0]?.id ?? null,
+          applicationDisplayReference: contract.applications[0]?.display_reference ?? null,
+          contractId: contract.id,
+          contractDisplayReference: contract.display_reference,
+          invoiceId: null,
+          invoiceDisplayReference: null,
+          noteId: null,
+          noteReference: null,
+          issuerOrganizationId: contract.issuer_organization_id,
+          issuerName: contract.issuer_organization.name,
+          status: contract.status,
+          amount: null,
+          updatedAt: contract.updated_at.toISOString(),
+        })),
       ...row.notes.map((note) => ({
         applicationId: null,
         applicationDisplayReference: null,

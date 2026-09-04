@@ -6,7 +6,7 @@ tags:
   - admin
   - operations
 order: 11
-updated: 2026-09-02
+updated: 2026-09-03
 ---
 
 ## Purpose
@@ -32,7 +32,7 @@ The admin UI builds tabs from the product workflow. **Financial** is always firs
 - **Company:** legal entity and issuer profile from onboarding (addresses, registration context, bank details, and other company fields the step collects).
 - **Business & Guarantor:** operating and trading context, repayment position where captured, guarantors and their screening, and **Declarations** when the workflow includes that confirmation. Declarations are not a separate tab.
 - **Documents:** supporting uploads. When the product uses item-level review, each file is its own row with per-row actions.
-- **Facility:** facility and customer data for the product (new facility, existing facility, or invoice-only path). For invoice-only structures the content centers on customer or paymaster fields. Facility offers and signing run from this tab when the product requires them.
+- **Facility / Customer:** facility and customer data for the product. New-facility applications use **Facility** and can proceed to a facility offer. Invoice-only applications use **Customer** for customer/paymaster review only; they have no facility offer, capacity, or facility link. Existing-facility applications inherit the approved facility.
 - **Invoice:** each invoice as its own row where applicable (attachments, amounts, financing tenure, ratio limits, and other invoice fields the product defines). Per-row review and invoice offers follow the product rules. Tenure is 30 to 180 days in 15-day steps; you may adjust it in the final offer. Financing cannot exceed **80%** of invoice value. The invoice due date is a source-invoice fact, not the public note maturity. After listing, profit days and the settlement worked example are in **Note Money Flow and Servicing Guide**.
 
 ## Sections and Line Items
@@ -67,6 +67,12 @@ If a tab is locked, complete and approve the upstream tabs in the order shown by
 ## Facility and Invoice Tabs: Offers and Completion
 
 For facility and invoice stages, completion is driven by offers, not only by the same pattern as a purely internal approve action on static data tabs.
+
+Structure-specific behavior:
+
+- **New facility:** approve the Facility review and send a facility offer. Invoices are financed later through a separate application against the approved facility.
+- **Invoice under an approved facility:** review the invoice and its capacity impact. The inherited facility remains the source of remaining credit and allocation.
+- **Standalone invoice:** approve, reject, reset, or request amendments from the Customer section and invoice item as appropriate. Send only the invoice offer. The internal customer holder is not shown or managed as a facility and does not participate in capacity.
 
 Typical sequence:
 
@@ -134,6 +140,7 @@ Confirm screening outcome on the guarantor record before relying on guarantor su
 
 ## Preconditions for Sending a Facility Offer
 
+- The application is a new-facility application, not a standalone invoice.
 - Customer or paymaster details are accurate.
 - Large private company indicator is correct where the product collects it.
 - Offered facility does not exceed the requested facility and is strictly less than contract value.
@@ -145,7 +152,7 @@ After issuer acceptance or signature, the facility becomes the reference for lat
 
 - Validate amount, ratio, financing tenure, profit rate, and risk attributes as shown.
 - Offered amount does not exceed requested amount.
-- Offered financing must fit remaining credit; invoice face must fit remaining allocation. **Reserved** pending invoices already occupy the line. The send control is disabled when the offer would go over-limit — there is no override.
+- For an invoice under a facility, offered financing must fit remaining credit and invoice face must fit remaining allocation. **Reserved** pending facility invoices already occupy the line. The send control is disabled when the offer would go over-limit — there is no override. Standalone invoices do not consume or display facility capacity.
 - Tenure is 30 to 180 days in 15-day steps, covers the time until the invoice due date, and may be adjusted in the final offer.
 - If the invoice was previously rejected, return it to pending when the portal allows, before sending a new offer.
 

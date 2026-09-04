@@ -36,6 +36,15 @@ describe("admin dual-limit surfaces", () => {
     expect(source).not.toMatch(/value \* ratio/);
   });
 
+  it("does not render facility impact without a real facility contractId", () => {
+    const source = fs.readFileSync(
+      path.join(__dirname, "sections/invoice-section.tsx"),
+      "utf8"
+    );
+    expect(source).toContain("{contractId ? (");
+    expect(source).toContain("<FacilityImpact");
+  });
+
   it("blocks invoice offer overrides in the offer panel", () => {
     const source = fs.readFileSync(path.join(__dirname, "../invoice-offer-panel.tsx"), "utf8");
     expect(source).not.toContain("You can still send it");

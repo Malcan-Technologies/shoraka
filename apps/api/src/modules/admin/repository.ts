@@ -47,6 +47,10 @@ import {
 } from "./contract-capacity-dto";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 import {
+  isStandaloneHolderContract,
+  realFacilityContractWhere,
+} from "../../lib/standalone-holder-contract";
+import {
   aggregateApplicationNavCounts,
   type ApplicationNavCountItem,
 } from "./application-nav-counts";
@@ -2104,15 +2108,20 @@ export class AdminRepository {
   }> {
     const ACTION_REQUIRED = ["SUBMITTED", "AMENDMENT_REQUESTED"] as const;
     const REJECTED_OR_WITHDRAWN = ["REJECTED", "WITHDRAWN"] as const;
+    const realFacility = realFacilityContractWhere();
 
     const [total, actionRequired, draft, offerSent, approved, rejectedOrWithdrawn] =
       await Promise.all([
-        prisma.contract.count(),
-        prisma.contract.count({ where: { status: { in: [...ACTION_REQUIRED] } } }),
-        prisma.contract.count({ where: { status: "DRAFT" } }),
-        prisma.contract.count({ where: { status: "OFFER_SENT" } }),
-        prisma.contract.count({ where: { status: "APPROVED" } }),
-        prisma.contract.count({ where: { status: { in: [...REJECTED_OR_WITHDRAWN] } } }),
+        prisma.contract.count({ where: realFacility }),
+        prisma.contract.count({
+          where: { AND: [realFacility, { status: { in: [...ACTION_REQUIRED] } }] },
+        }),
+        prisma.contract.count({ where: { AND: [realFacility, { status: "DRAFT" }] } }),
+        prisma.contract.count({ where: { AND: [realFacility, { status: "OFFER_SENT" }] } }),
+        prisma.contract.count({ where: { AND: [realFacility, { status: "APPROVED" }] } }),
+        prisma.contract.count({
+          where: { AND: [realFacility, { status: { in: [...REJECTED_OR_WITHDRAWN] } }] },
+        }),
       ]);
 
     return { total, actionRequired, draft, offerSent, approved, rejectedOrWithdrawn };
@@ -2462,7 +2471,9 @@ export class AdminRepository {
     const { page, pageSize, search, status, statuses } = params;
     const skip = (page - 1) * pageSize;
 
-    const where: Prisma.ContractWhereInput = {};
+    const where: Prisma.ContractWhereInput = {
+      AND: [realFacilityContractWhere()],
+    };
 
     where.contract_details = { not: Prisma.DbNull };
 
@@ -2546,6 +2557,7 @@ export class AdminRepository {
 
   async getContractById(id: string): Promise<{
     id: string;
+    isStandaloneHolder: boolean;
     displayReference: string | null;
     contractNumber: string | null;
     title: string | null;
@@ -2790,6 +2802,7 @@ export class AdminRepository {
 
     return {
       id: contract.id,
+      isStandaloneHolder: isStandaloneHolderContract(contract),
       displayReference: contract.display_reference ?? null,
       contractNumber:
         typeof contractDetails.number === "string" && contractDetails.number.trim().length > 0

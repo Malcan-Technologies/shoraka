@@ -9,6 +9,7 @@ import { Providers } from "../lib/providers";
 import { AuthGuard } from "../components/auth-guard";
 import { PortalChrome } from "../components/portal-chrome";
 import { OnboardingFeeReturnListener } from "../components/onboarding-fee-return-listener";
+import { SupportChat } from "../components/support-chat";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthGuard>
             <PortalChrome>{children}</PortalChrome>
             <Toaster />
+            <SupportChat />
             <Suspense fallback={null}>
               <OnboardingFeeReturnListener />
             </Suspense>

@@ -8,19 +8,23 @@ The step is a stacked form (same shell as Facility Details), not a spreadsheet. 
 
 ## Validation Summary
 
-| #   | Validation                 | Applies to                                                         | Description                                                                                                                                                        |
-| --- | -------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Partial invoice            | All                                                                | All 4 required fields must be filled or the invoice must be empty.                                                                                                 |
-| 2   | Duplicate invoice numbers  | All                                                                | Invoice numbers must be unique on this application and on the same facility (non-withdrawn).                                                                       |
-| 3   | Product config             | All                                                                | Product config must exist.                                                                                                                                         |
-| 4   | Invalid date format        | All                                                                | Maturity date must be parseable.                                                                                                                                   |
-| 5   | Past maturity date         | All                                                                | Maturity date must be today or future.                                                                                                                             |
-| 6   | Contract date window       | new_contract, existing_contract                                    | Maturity date ≥ contract start date.                                                                                                                               |
-| 7   | Min/max financing amount   | All                                                                | Per-invoice financing amount within product limits.                                                                                                                |
-| 8   | At least one valid invoice | invoice_only, existing_contract                                    | Exactly one complete valid invoice required (max one per application).                                                                                             |
-| 9   | Financing ratio 60–80%     | All                                                                | Financing ratio must be between 60% and 80%.                                                                                                                       |
-| 10  | Dual facility limits       | existing_contract (split); legacy new_contract + existing_contract | Draft overage is a saveable warning. Submit and reserved amendment edits are hard-blocked on remaining credit (financing) and remaining allocation (invoice face). |
-| 11  | Max one invoice            | All                                                                | Each application allows at most one invoice (legacy files may still show more as extra tabs).                                                                      |
+| #   | Validation                   | Applies to                                                         | Description                                                                                                                                                        | Server-enforced |
+| --- | ---------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| 1   | Partial invoice              | All                                                                | All 4 required fields must be filled or the invoice must be empty.                                                                                                 | Client          |
+| 2   | Duplicate invoice numbers    | All                                                                | Invoice numbers must be unique on this application and on the same facility (non-withdrawn).                                                                       | Create/update   |
+| 3   | Product config               | All                                                                | Product config must exist.                                                                                                                                         | Create/update   |
+| 4   | Invalid date format          | All                                                                | Maturity date must be parseable.                                                                                                                                   | Create/update, submit, amendment resubmit |
+| 5   | Past maturity date           | All                                                                | Maturity date must be today or future.                                                                                                                             | Create/update, submit, amendment resubmit |
+| 6   | Contract date window         | new_contract, existing_contract                                    | Maturity date ≥ contract start date.                                                                                                                               | As today (facility invoices) |
+| 7a  | Min/max invoice value        | All                                                                | Invoice face value within `min_invoice_face_value` / `max_invoice_face_value`.                                                                                     | Create/update, submit, amendment resubmit |
+| 7b  | Min/max financing amount     | All                                                                | Financing amount (`value × ratio`) within `min_invoice_value` / `max_invoice_value`.                                                                               | Create/update, submit, amendment resubmit |
+| 7c  | Facility sub-limit           | Facility invoices only                                             | Financing amount ≤ `sub_limit_per_invoice_rm`. Skipped for `invoice_only`.                                                                                         | Create/update, submit, amendment resubmit |
+| 8   | At least one valid invoice   | invoice_only, existing_contract                                    | Exactly one complete valid invoice required (max one per application).                                                                                             | Submit          |
+| 9   | Financing ratio              | All                                                                | Financing ratio must be within the product band (default 60–80%).                                                                                                  | Create/update, submit, amendment resubmit |
+| 10  | Dual facility limits         | existing_contract (split); legacy new_contract + existing_contract | Draft overage is a saveable warning. Submit and reserved amendment edits are hard-blocked on remaining credit (financing) and remaining allocation (invoice face). | As today        |
+| 11  | Max one invoice              | All                                                                | Each application allows at most one invoice (legacy files may still show more as extra tabs).                                                                      | Create/update   |
+
+Contract duration (`min_contract_months`) is enforced on facility save and submit. All server checks use the frozen `product_version` workflow. Limit failures return `PRODUCT_LIMIT_VIOLATION`.
 
 ---
 
@@ -29,9 +33,9 @@ The step is a stacked form (same shell as Facility Details), not a spreadsheet. 
 ### invoice_only
 
 - No contract, no facility, no other-invoice tabs.
-- Validations: 1–5, 7–9, 11.
+- Validations: 1–5, 7a–7b, 8–9, 11.
 - **Exactly one invoice** on this application.
-- Skipped: 6 (contract window), 10 (facility limit).
+- Skipped: 6 (contract window), 7c (facility sub-limit), 10 (facility limit).
 
 ### new_contract
 
@@ -84,7 +88,16 @@ The due date must also be within **180 days** of today. Financing tenure cannot 
 
 Invoice maturity date must be on or after the contract start date.
 
-### 7. Min/max financing amount (product config)
+### 7a. Min/max invoice value (face)
+
+**Applies to:** All.
+
+Invoice face value is `details.value`.
+
+- If `min_invoice_face_value` is configured: face ≥ min.
+- If `max_invoice_face_value` is configured: face ≤ max.
+
+### 7b. Min/max financing amount (product config)
 
 **Applies to:** All.
 
@@ -93,7 +106,17 @@ Per-invoice financing amount = `value × (financing_ratio_percent / 100)`.
 - If `min_invoice_value` is configured: financing amount ≥ min.
 - If `max_invoice_value` is configured: financing amount ≤ max.
 
-Config comes from the product workflow invoice step.
+### 7c. Facility sub-limit per invoice
+
+**Applies to:** Facility invoices (`new_contract`, `existing_contract`). **Skipped for:** `invoice_only`.
+
+If `sub_limit_per_invoice_rm` is configured, financing amount cannot exceed that cap.
+
+Config comes from the frozen product workflow invoice step.
+
+### Admin offers
+
+Offered amount and ratio are bound by product min/max financing, the facility sub-limit (facility invoices only), and the ratio band. A submitted invoice that is already outside those limits shows a warning; admin can still size the offer down within limits. Send-offer is blocked when the offer itself violates the rules. The API returns `PRODUCT_LIMIT_VIOLATION` from send-invoice-offer and send-contract-offer.
 
 ### 8. At least one valid invoice
 

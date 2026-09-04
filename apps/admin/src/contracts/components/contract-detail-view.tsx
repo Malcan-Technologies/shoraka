@@ -3,7 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { formatCurrency } from "@cashsouk/config";
-import { formatContractReference, formatNamedEntityDisplay, resolveProductImageS3KeyFromWorkflow } from "@cashsouk/types";
+import {
+  formatContractReference,
+  formatNamedEntityDisplay,
+  resolveProductImageS3KeyFromWorkflow,
+} from "@cashsouk/types";
 import { useProduct } from "@/app/settings/products/hooks/use-products";
 import { productName } from "@/app/settings/products/product-utils";
 import { Skeleton, StatusBadge } from "@cashsouk/ui";
@@ -15,6 +19,7 @@ import {
   ClipboardDocumentListIcon,
   DocumentDuplicateIcon,
   DocumentTextIcon,
+  InformationCircleIcon,
   PaperAirplaneIcon,
   PaperClipIcon,
   QueueListIcon,
@@ -78,8 +83,11 @@ import {
 import {
   CONTRACT_REFERENCE_TAB_TOKEN,
   isContractDetailTabId,
+  isVisibleContractDetailTabId,
   resolveContractApplicationsTabToken,
+  resolveContractDetailHeroNav,
   resolveContractDetailNextAction,
+  resolveContractDetailTitle,
   resolveContractDocumentsTabToken,
   resolveContractFacilityOfferTabToken,
   resolveContractNotesTabToken,
@@ -217,8 +225,9 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
   const canManageFacility = can("contracts.manage");
   const { data, isLoading, error } = useContractDetail(contractId);
   const catalogProductId =
-    data?.applications.find((application) => application.kind === "facility" && application.productId)
-      ?.productId ??
+    data?.applications.find(
+      (application) => application.kind === "facility" && application.productId
+    )?.productId ??
     data?.applications.find((application) => application.productId)?.productId ??
     null;
   const { data: catalogProduct } = useProduct(catalogProductId);
@@ -226,14 +235,30 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
     useAdminS3DocumentViewDownload();
 
   const nextAction = React.useMemo(
-    () => (data ? resolveContractDetailNextAction(data) : null),
+    () =>
+      data
+        ? resolveContractDetailNextAction(data, {
+            isStandaloneHolder: data.isStandaloneHolder,
+          })
+        : null,
     [data]
   );
+  const isStandaloneHolder = Boolean(data?.isStandaloneHolder);
   const { activeTab, setActiveTab } = useAdminDetailTabState<ContractDetailTabId>({
     isValidTab: isContractDetailTabId,
     computedTab: data ? "overview" : null,
   });
-  const resolvedTab: ContractDetailTabId = activeTab ?? "overview";
+  const resolvedTab: ContractDetailTabId =
+    activeTab && isVisibleContractDetailTabId(activeTab, { isStandaloneHolder })
+      ? activeTab
+      : "overview";
+
+  React.useEffect(() => {
+    if (!isStandaloneHolder || activeTab == null) return;
+    if (!isVisibleContractDetailTabId(activeTab, { isStandaloneHolder: true })) {
+      setActiveTab("overview");
+    }
+  }, [activeTab, isStandaloneHolder, setActiveTab]);
 
   const tabs = React.useMemo<AdminDetailTab<ContractDetailTabId>[]>(() => {
     if (!data) return [];
@@ -243,7 +268,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
     const notesToken = resolveContractNotesTabToken(data.notes);
     const document = data.contractDetails?.document as { s3_key?: string } | undefined;
     const documentsToken = resolveContractDocumentsTabToken(Boolean(document?.s3_key));
-    return [
+    const allTabs: AdminDetailTab<ContractDetailTabId>[] = [
       {
         id: "overview",
         label: "Overview",
@@ -280,6 +305,9 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
         statusToken: CONTRACT_REFERENCE_TAB_TOKEN,
       },
     ];
+    return data.isStandaloneHolder
+      ? allTabs.filter((tab) => isVisibleContractDetailTabId(tab.id, { isStandaloneHolder: true }))
+      : allTabs;
   }, [data]);
 
   if (isLoading) return <ContractDetailSkeleton />;
@@ -287,17 +315,22 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
   if (error) {
     return (
       <div className="rounded-2xl border bg-card p-6 text-ui text-destructive">
-        {error instanceof Error ? error.message : "Failed to load facility details"}
+        {error instanceof Error ? error.message : "Failed to load customer or facility details"}
       </div>
     );
   }
 
   if (!data) return null;
+  const heroNav = resolveContractDetailHeroNav(data.isStandaloneHolder);
   const catalogName = catalogProduct ? productName(catalogProduct) : null;
   const catalogProductLabel = catalogName && catalogName !== "—" ? catalogName : null;
 
-  const facilityApplications = data.applications.filter((application) => application.kind === "facility");
-  const invoiceApplications = data.applications.filter((application) => application.kind === "invoice");
+  const facilityApplications = data.applications.filter(
+    (application) => application.kind === "facility"
+  );
+  const invoiceApplications = data.applications.filter(
+    (application) => application.kind === "invoice"
+  );
 
   const contractDetails = data.contractDetails;
   const customerDetails = data.customerDetails;
@@ -324,7 +357,8 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
 
   const contractExtraKeys = contractDynamicKeys(contractDetails, CONTRACT_CURATED_KEYS);
   const customerExtraKeys = contractDynamicKeys(customerDetails, CUSTOMER_CURATED_KEYS);
-  const hasExtraFields = contractExtraKeys.length > 0 || customerExtraKeys.length > 0;
+  const hasExtraFields =
+    customerExtraKeys.length > 0 || (!data.isStandaloneHolder && contractExtraKeys.length > 0);
 
   const contractDocument = (contractDetails?.document ?? undefined) as ContractFileDoc | undefined;
   const offerAcceptance = data.offerDetails?.offer_acceptance as
@@ -336,10 +370,14 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
       <AdminEntityHeader
         variant="hero"
         tone={getAdminStatusToken(data.status)}
-        backHref="/contracts"
-        backLabel="Facilities"
-        eyebrow="Facility detail"
-        title={data.title?.trim() || "Untitled facility"}
+        backHref={heroNav.backHref}
+        backLabel={heroNav.backLabel}
+        eyebrow={heroNav.eyebrow}
+        title={resolveContractDetailTitle({
+          title: data.title,
+          isStandaloneHolder: data.isStandaloneHolder,
+          customerName: customerDetails?.name,
+        })}
         identityExtra={
           <AdminProductIdentity
             name={catalogProductLabel}
@@ -380,7 +418,9 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
           <>
             <ApplicationStatusBadge status={data.status} />
             {/* The reference falls back to the contract number, so only chip it when it adds something. */}
-            {data.contractNumber && data.contractNumber !== contractReference ? (
+            {!data.isStandaloneHolder &&
+            data.contractNumber &&
+            data.contractNumber !== contractReference ? (
               <StatusBadge
                 label={`Facility no. ${data.contractNumber}`}
                 status="neutral"
@@ -389,87 +429,113 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
             ) : null}
           </>
         }
-        summaryCards={[
-          <AdminEntitySummaryCard
-            key="end-date"
-            label="End date"
-            value={getContractHeaderEndDate(contractDetails)}
-          />,
-          <AdminEntitySummaryCard
-            key="notes"
-            label="Drawdowns"
-            value={
-              <button
-                type="button"
-                className="appearance-none bg-transparent p-0 text-inherit underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                onClick={() => setActiveTab("notes")}
-                aria-label={formatContractFacilityNoteCount(data.notes.length)}
-              >
-                {data.notes.length}
-              </button>
-            }
-          />,
-        ]}
-        metrics={headerMetrics}
+        summaryCards={
+          data.isStandaloneHolder
+            ? [
+                <AdminEntitySummaryCard
+                  key="applications"
+                  label="Applications"
+                  value={data.applications.length}
+                />,
+              ]
+            : [
+                <AdminEntitySummaryCard
+                  key="end-date"
+                  label="End date"
+                  value={getContractHeaderEndDate(contractDetails)}
+                />,
+                <AdminEntitySummaryCard
+                  key="notes"
+                  label="Drawdowns"
+                  value={
+                    <button
+                      type="button"
+                      className="appearance-none bg-transparent p-0 text-inherit underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      onClick={() => setActiveTab("notes")}
+                      aria-label={formatContractFacilityNoteCount(data.notes.length)}
+                    >
+                      {data.notes.length}
+                    </button>
+                  }
+                />,
+              ]
+        }
+        metrics={data.isStandaloneHolder ? [] : headerMetrics}
         visualization={
-          <div className="space-y-3">
-            {facility.isOverLimit ? (
-              <StatusBadge label={OVER_LIMIT_LABEL} status="rejected" />
-            ) : null}
-            <AdminMetricProgress
-              variant="hero"
-              percent={facility.utilizationPercent ?? 0}
-              leftLabel="Utilized + reserved"
-              leftValue={formatCurrency(facility.occupied)}
-              leftHint={
-                facility.approved > 0
-                  ? `of ${formatCurrency(facility.approved)} approved. ${CREDIT_FACILITY_HELPER}`
-                  : "No approved facility"
-              }
-              rightLabel={REMAINING_CREDIT_LABEL}
-              rightValue={formatCurrency(facility.available)}
-              rightHint={
-                compactReservedLine(facility.pending, formatCurrency) ??
-                (facility.utilizationPercent == null
-                  ? undefined
-                  : `${facility.utilizationPercent.toFixed(1)}% drawn`)
-              }
-              barClassName={getContractUtilizationProgressClass(
-                facility.utilizationPercent,
-                facility.approved > 0
-              )}
-              accentClassName={getContractUtilizationAccentClass(
-                facility.utilizationPercent,
-                facility.approved > 0
-              )}
-              footer={
-                compactRemainingAllocationLine(facility, formatCurrency) ??
-                (facility.lifetimeCap > 0 ? CONTRACT_ALLOCATION_HELPER : undefined)
-              }
-            />
-            {facility.lifetimeCap > 0 ? (
+          data.isStandaloneHolder ? null : (
+            <div className="space-y-3">
+              {facility.isOverLimit ? (
+                <StatusBadge label={OVER_LIMIT_LABEL} status="rejected" />
+              ) : null}
               <AdminMetricProgress
                 variant="hero"
-                percent={facility.allocationPercent ?? 0}
-                leftLabel="Allocation used"
-                leftValue={formatCurrency(facility.lifetimeUsed)}
-                leftHint={`of ${formatCurrency(facility.lifetimeCap)} contract value. ${CONTRACT_ALLOCATION_HELPER}`}
-                rightLabel={REMAINING_ALLOCATION_LABEL}
-                rightValue={formatCurrency(facility.lifetimeRemaining)}
+                percent={facility.utilizationPercent ?? 0}
+                leftLabel="Utilized + reserved"
+                leftValue={formatCurrency(facility.occupied)}
+                leftHint={
+                  facility.approved > 0
+                    ? `of ${formatCurrency(facility.approved)} approved. ${CREDIT_FACILITY_HELPER}`
+                    : "No approved facility"
+                }
+                rightLabel={REMAINING_CREDIT_LABEL}
+                rightValue={formatCurrency(facility.available)}
+                rightHint={
+                  compactReservedLine(facility.pending, formatCurrency) ??
+                  (facility.utilizationPercent == null
+                    ? undefined
+                    : `${facility.utilizationPercent.toFixed(1)}% drawn`)
+                }
                 barClassName={getContractUtilizationProgressClass(
-                  facility.allocationPercent,
-                  facility.lifetimeCap > 0
+                  facility.utilizationPercent,
+                  facility.approved > 0
                 )}
                 accentClassName={getContractUtilizationAccentClass(
-                  facility.allocationPercent,
-                  facility.lifetimeCap > 0
+                  facility.utilizationPercent,
+                  facility.approved > 0
                 )}
+                footer={
+                  compactRemainingAllocationLine(facility, formatCurrency) ??
+                  (facility.lifetimeCap > 0 ? CONTRACT_ALLOCATION_HELPER : undefined)
+                }
               />
-            ) : null}
-          </div>
+              {facility.lifetimeCap > 0 ? (
+                <AdminMetricProgress
+                  variant="hero"
+                  percent={facility.allocationPercent ?? 0}
+                  leftLabel="Allocation used"
+                  leftValue={formatCurrency(facility.lifetimeUsed)}
+                  leftHint={`of ${formatCurrency(facility.lifetimeCap)} contract value. ${CONTRACT_ALLOCATION_HELPER}`}
+                  rightLabel={REMAINING_ALLOCATION_LABEL}
+                  rightValue={formatCurrency(facility.lifetimeRemaining)}
+                  barClassName={getContractUtilizationProgressClass(
+                    facility.allocationPercent,
+                    facility.lifetimeCap > 0
+                  )}
+                  accentClassName={getContractUtilizationAccentClass(
+                    facility.allocationPercent,
+                    facility.lifetimeCap > 0
+                  )}
+                />
+              ) : null}
+            </div>
+          )
         }
       />
 
+      {data.isStandaloneHolder ? (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3 text-ui"
+        >
+          <InformationCircleIcon
+            className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
+          <p className="text-foreground">
+            Customer record for standalone invoice applications; not a facility.
+          </p>
+        </div>
+      ) : null}
       {nextAction ? (
         <AdminNextActionBanner
           title={nextAction.title}
@@ -478,7 +544,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
           onClick={() => setActiveTab(nextAction.tabId)}
         />
       ) : null}
-      {facilityFeeWaitingNote ? (
+      {!data.isStandaloneHolder && facilityFeeWaitingNote ? (
         <AdminNextActionBanner
           title={facilityFeeWaitingNote.title}
           description={facilityFeeWaitingNote.description}
@@ -493,7 +559,11 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
         <AdminDetailTabPanel value="overview">
           <ContractFieldsCard
             title="Customer information"
-            description="Entity on record for this facility."
+            description={
+              data.isStandaloneHolder
+                ? "Customer or paymaster recorded for the standalone invoice application."
+                : "Entity on record for this facility."
+            }
             icon={BuildingOffice2Icon}
           >
             <div>
@@ -519,10 +589,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
                 label="Related party"
                 value={
                   typeof customerDetails?.is_related_party === "boolean"
-                    ? formatContractFieldValue(
-                        "is_related_party",
-                        customerDetails.is_related_party
-                      )
+                    ? formatContractFieldValue("is_related_party", customerDetails.is_related_party)
                     : CONTRACT_EMPTY_LABEL
                 }
               />
@@ -532,19 +599,20 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
           {hasExtraFields ? (
             <AdminCollapsibleCard
               title="Additional fields"
-              description="Remaining fields exactly as submitted on the facility and customer records."
+              description={
+                data.isStandaloneHolder
+                  ? "Remaining fields exactly as submitted on the customer record."
+                  : "Remaining fields exactly as submitted on the facility and customer records."
+              }
               icon={QueueListIcon}
             >
               <div className="grid gap-x-8 sm:grid-cols-2">
-                {contractExtraKeys.length > 0 ? (
+                {!data.isStandaloneHolder && contractExtraKeys.length > 0 ? (
                   <div>
                     <p className="text-meta font-medium uppercase tracking-wider text-muted-foreground">
                       Facility
                     </p>
-                    <ContractDynamicRows
-                      data={contractDetails}
-                      exclude={CONTRACT_CURATED_KEYS}
-                    />
+                    <ContractDynamicRows data={contractDetails} exclude={CONTRACT_CURATED_KEYS} />
                   </div>
                 ) : null}
                 {customerExtraKeys.length > 0 ? (
@@ -552,10 +620,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
                     <p className="text-meta font-medium uppercase tracking-wider text-muted-foreground">
                       Customer
                     </p>
-                    <ContractDynamicRows
-                      data={customerDetails}
-                      exclude={CUSTOMER_CURATED_KEYS}
-                    />
+                    <ContractDynamicRows data={customerDetails} exclude={CUSTOMER_CURATED_KEYS} />
                   </div>
                 ) : null}
               </div>
@@ -563,223 +628,246 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
           ) : null}
         </AdminDetailTabPanel>
 
-        <AdminDetailTabPanel value="facility-offer">
-          <ContractFacilitySummary
-            contractFacility={facility.approved}
-            availableFacility={facility.available}
-            utilizedFacility={facility.utilized}
-            pendingFacility={facility.pending}
-            lifetimeCap={facility.lifetimeCap}
-            lifetimeUsed={facility.lifetimeUsed}
-            lifetimeRemaining={facility.lifetimeRemaining}
-          />
-          <ContractFieldsCard
-            title="Line of credit"
-            description="Approved line, live utilization, and reserved invoices."
-            icon={BanknotesIcon}
-          >
-            <div>
-              <ContractDetailRow
-                label="Approved facility"
-                value={formatCurrency(facility.approved)}
-              />
-              <ContractDetailRow
-                label="Utilized (live)"
-                value={formatCurrency(facility.utilized)}
-              />
-              <ContractDetailRow
-                label="Reserved"
-                value={formatCurrency(facility.pending)}
-              />
-              <ContractDetailRow
-                label={REMAINING_CREDIT_LABEL}
-                value={formatCurrency(facility.available)}
-              />
-            </div>
-            <div>
-              <ContractDetailRow
-                label="Utilization"
-                value={
-                  facility.utilizationPercent == null
-                    ? "No approved facility"
-                    : `${facility.utilizationPercent.toFixed(1)}%`
-                }
-              />
-              <ContractDetailRow
-                label={REMAINING_ALLOCATION_LABEL}
-                value={
-                  facility.lifetimeCap > 0
-                    ? formatCurrency(facility.lifetimeRemaining)
-                    : CONTRACT_EMPTY_LABEL
-                }
-              />
-            </div>
-          </ContractFieldsCard>
-          <ContractFacilityFeePanel
-            contractId={data.id}
-            facilityFeeRatePercent={facilityFeeRatePercent}
-            ledger={facilityFeeLedger}
-            canManage={canManageFacility}
-          />
-
-          <Card className="rounded-2xl">
-            <AdminDetailCardHeader
-              icon={PaperAirplaneIcon}
-              title="Offer"
-              description="Facility offers are sent from the linked application review, then tracked here."
+        {!data.isStandaloneHolder ? (
+          <AdminDetailTabPanel value="facility-offer">
+            <ContractFacilitySummary
+              contractFacility={facility.approved}
+              availableFacility={facility.available}
+              utilizedFacility={facility.utilized}
+              pendingFacility={facility.pending}
+              lifetimeCap={facility.lifetimeCap}
+              lifetimeUsed={facility.lifetimeUsed}
+              lifetimeRemaining={facility.lifetimeRemaining}
             />
-            <CardContent className="pt-0">
-              {!hasContractOfferData(data.offerDetails) ? (
-                <ContractEmptyState
-                  title="No offer sent yet"
-                  description="Facility offers are sent from the linked application review, then tracked here."
+            <ContractFieldsCard
+              title="Line of credit"
+              description="Approved line, live utilization, and reserved invoices."
+              icon={BanknotesIcon}
+            >
+              <div>
+                <ContractDetailRow
+                  label="Approved facility"
+                  value={formatCurrency(facility.approved)}
                 />
-              ) : (
-                <>
-                  <div className="grid gap-x-8 sm:grid-cols-2">
-                    <div>
-                      <ContractDetailRow
-                        label="Sent at"
-                        value={formatContractFieldValue("sent_at", data.offerDetails?.sent_at)}
-                      />
-                      <ContractDetailRow
-                        label="Sent by"
-                        value={data.offerSentByUserName ?? CONTRACT_EMPTY_LABEL}
-                      />
-                      <ContractDetailRow
-                        label="Accept by"
-                        value={
-                          offerAcceptance?.acceptance_expires_at
-                            ? formatContractFieldValue(
-                                "acceptance_expires_at",
-                                offerAcceptance.acceptance_expires_at
-                              )
-                            : CONTRACT_EMPTY_LABEL
-                        }
-                      />
-                      <ContractDetailRow
-                        label="Complete signing by"
-                        value={
-                          offerAcceptance?.signing_expires_at
-                            ? formatContractFieldValue(
-                                "signing_expires_at",
-                                offerAcceptance.signing_expires_at
-                              )
-                            : CONTRACT_EMPTY_LABEL
-                        }
-                      />
-                    </div>
-                    <div>
-                      <ContractDetailRow
-                        label="Requested facility"
-                        value={formatContractFieldValue(
-                          "requested_facility",
-                          data.offerDetails?.requested_facility
-                        )}
-                      />
-                      <ContractDetailRow
-                        label="Offered facility"
-                        value={formatContractFieldValue(
-                          "offered_facility",
-                          data.offerDetails?.offered_facility
-                        )}
-                      />
-                      <ContractDetailRow
-                        label="Facility fee rate"
-                        value={formatContractFieldValue(
-                          "facility_fee_rate_percent",
-                          data.offerDetails?.facility_fee_rate_percent
-                        )}
-                      />
-                      <ContractDetailRow
-                        label="Upfront via payment gateway"
-                        value={formatContractFieldValue(
-                          "facility_fee_upfront_collect_amount",
-                          data.offerDetails?.facility_fee_upfront_collect_amount ?? 0
-                        )}
-                      />
-                      <ContractDetailRow
-                        label="Responded at"
-                        value={
-                          data.offerDetails?.responded_at
-                            ? formatContractFieldValue(
-                                "responded_at",
-                                data.offerDetails.responded_at
-                              )
-                            : "No response yet"
-                        }
-                      />
-                      <ContractDetailRow
-                        label="Responded by"
-                        value={data.offerRespondedByUserName ?? "No response yet"}
-                      />
-                    </div>
-                  </div>
-                  <ContractDynamicRows data={data.offerDetails} exclude={OFFER_CURATED_KEYS} />
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </AdminDetailTabPanel>
+                <ContractDetailRow
+                  label="Utilized (live)"
+                  value={formatCurrency(facility.utilized)}
+                />
+                <ContractDetailRow label="Reserved" value={formatCurrency(facility.pending)} />
+                <ContractDetailRow
+                  label={REMAINING_CREDIT_LABEL}
+                  value={formatCurrency(facility.available)}
+                />
+              </div>
+              <div>
+                <ContractDetailRow
+                  label="Utilization"
+                  value={
+                    facility.utilizationPercent == null
+                      ? "No approved facility"
+                      : `${facility.utilizationPercent.toFixed(1)}%`
+                  }
+                />
+                <ContractDetailRow
+                  label={REMAINING_ALLOCATION_LABEL}
+                  value={
+                    facility.lifetimeCap > 0
+                      ? formatCurrency(facility.lifetimeRemaining)
+                      : CONTRACT_EMPTY_LABEL
+                  }
+                />
+              </div>
+            </ContractFieldsCard>
+            <ContractFacilityFeePanel
+              contractId={data.id}
+              facilityFeeRatePercent={facilityFeeRatePercent}
+              ledger={facilityFeeLedger}
+              canManage={canManageFacility}
+            />
 
-        <AdminDetailTabPanel value="applications">
-          <div className="space-y-6">
             <Card className="rounded-2xl">
               <AdminDetailCardHeader
-                icon={BanknotesIcon}
-                title="Facility application"
-                description="The application that set up this facility and its credit limit."
+                icon={PaperAirplaneIcon}
+                title="Offer"
+                description="Facility offers are sent from the linked application review, then tracked here."
               />
-              <CardContent className={facilityApplications.length === 0 ? undefined : "p-0"}>
-                <ContractApplicationsTable
-                  applications={facilityApplications}
-                  requestedColumnLabel="Requested facility"
-                  emptyTitle="No facility application"
-                  emptyDescription="The originating application for this facility is not linked yet."
-                />
+              <CardContent className="pt-0">
+                {!hasContractOfferData(data.offerDetails) ? (
+                  <ContractEmptyState
+                    title="No offer sent yet"
+                    description="Facility offers are sent from the linked application review, then tracked here."
+                  />
+                ) : (
+                  <>
+                    <div className="grid gap-x-8 sm:grid-cols-2">
+                      <div>
+                        <ContractDetailRow
+                          label="Sent at"
+                          value={formatContractFieldValue("sent_at", data.offerDetails?.sent_at)}
+                        />
+                        <ContractDetailRow
+                          label="Sent by"
+                          value={data.offerSentByUserName ?? CONTRACT_EMPTY_LABEL}
+                        />
+                        <ContractDetailRow
+                          label="Accept by"
+                          value={
+                            offerAcceptance?.acceptance_expires_at
+                              ? formatContractFieldValue(
+                                  "acceptance_expires_at",
+                                  offerAcceptance.acceptance_expires_at
+                                )
+                              : CONTRACT_EMPTY_LABEL
+                          }
+                        />
+                        <ContractDetailRow
+                          label="Complete signing by"
+                          value={
+                            offerAcceptance?.signing_expires_at
+                              ? formatContractFieldValue(
+                                  "signing_expires_at",
+                                  offerAcceptance.signing_expires_at
+                                )
+                              : CONTRACT_EMPTY_LABEL
+                          }
+                        />
+                      </div>
+                      <div>
+                        <ContractDetailRow
+                          label="Requested facility"
+                          value={formatContractFieldValue(
+                            "requested_facility",
+                            data.offerDetails?.requested_facility
+                          )}
+                        />
+                        <ContractDetailRow
+                          label="Offered facility"
+                          value={formatContractFieldValue(
+                            "offered_facility",
+                            data.offerDetails?.offered_facility
+                          )}
+                        />
+                        <ContractDetailRow
+                          label="Facility fee rate"
+                          value={formatContractFieldValue(
+                            "facility_fee_rate_percent",
+                            data.offerDetails?.facility_fee_rate_percent
+                          )}
+                        />
+                        <ContractDetailRow
+                          label="Upfront via payment gateway"
+                          value={formatContractFieldValue(
+                            "facility_fee_upfront_collect_amount",
+                            data.offerDetails?.facility_fee_upfront_collect_amount ?? 0
+                          )}
+                        />
+                        <ContractDetailRow
+                          label="Responded at"
+                          value={
+                            data.offerDetails?.responded_at
+                              ? formatContractFieldValue(
+                                  "responded_at",
+                                  data.offerDetails.responded_at
+                                )
+                              : "No response yet"
+                          }
+                        />
+                        <ContractDetailRow
+                          label="Responded by"
+                          value={data.offerRespondedByUserName ?? "No response yet"}
+                        />
+                      </div>
+                    </div>
+                    <ContractDynamicRows data={data.offerDetails} exclude={OFFER_CURATED_KEYS} />
+                  </>
+                )}
               </CardContent>
             </Card>
+          </AdminDetailTabPanel>
+        ) : null}
+
+        <AdminDetailTabPanel value="applications">
+          {data.isStandaloneHolder ? (
             <Card className="rounded-2xl">
               <AdminDetailCardHeader
                 icon={ClipboardDocumentListIcon}
-                title="Invoice applications"
-                description="Invoice financing drawn against this facility after it was approved."
+                title="Standalone invoice applications"
+                description="Invoice-only applications associated with this customer record."
               />
               <CardContent className={invoiceApplications.length === 0 ? undefined : "p-0"}>
                 <ContractApplicationsTable
                   applications={invoiceApplications}
                   requestedColumnLabel="Requested financing"
-                  emptyTitle="No invoice applications"
-                  emptyDescription="Invoice applications drawn against this facility will appear here once the issuer submits them."
+                  emptyTitle="No standalone invoice applications"
+                  emptyDescription="Standalone invoice applications associated with this customer will appear here."
                 />
               </CardContent>
             </Card>
-          </div>
+          ) : (
+            <div className="space-y-6">
+              <Card className="rounded-2xl">
+                <AdminDetailCardHeader
+                  icon={BanknotesIcon}
+                  title="Facility application"
+                  description="The application that set up this facility and its credit limit."
+                />
+                <CardContent className={facilityApplications.length === 0 ? undefined : "p-0"}>
+                  <ContractApplicationsTable
+                    applications={facilityApplications}
+                    requestedColumnLabel="Requested facility"
+                    emptyTitle="No facility application"
+                    emptyDescription="The originating application for this facility is not linked yet."
+                  />
+                </CardContent>
+              </Card>
+              <Card className="rounded-2xl">
+                <AdminDetailCardHeader
+                  icon={ClipboardDocumentListIcon}
+                  title="Invoice applications"
+                  description="Invoice financing drawn against this facility after it was approved."
+                />
+                <CardContent className={invoiceApplications.length === 0 ? undefined : "p-0"}>
+                  <ContractApplicationsTable
+                    applications={invoiceApplications}
+                    requestedColumnLabel="Requested financing"
+                    emptyTitle="No invoice applications"
+                    emptyDescription="Invoice applications drawn against this facility will appear here once the issuer submits them."
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </AdminDetailTabPanel>
 
-        <AdminDetailTabPanel value="notes">
-          <Card className="rounded-2xl">
-            <AdminDetailCardHeader
-              icon={DocumentDuplicateIcon}
-              title="Drawdowns"
-              description={
-                data.notes.length === 0
-                  ? "No drawdowns have used this line of credit"
-                  : `${data.notes.length} ${data.notes.length === 1 ? "drawdown" : "drawdowns"} issued from invoices under this facility`
-              }
-            />
-            <CardContent className={data.notes.length === 0 ? undefined : "p-0"}>
-              <ContractNotesTable notes={data.notes} />
-            </CardContent>
-          </Card>
-        </AdminDetailTabPanel>
+        {!data.isStandaloneHolder ? (
+          <AdminDetailTabPanel value="notes">
+            <Card className="rounded-2xl">
+              <AdminDetailCardHeader
+                icon={DocumentDuplicateIcon}
+                title="Drawdowns"
+                description={
+                  data.notes.length === 0
+                    ? "No drawdowns have used this line of credit"
+                    : `${data.notes.length} ${data.notes.length === 1 ? "drawdown" : "drawdowns"} issued from invoices under this facility`
+                }
+              />
+              <CardContent className={data.notes.length === 0 ? undefined : "p-0"}>
+                <ContractNotesTable notes={data.notes} />
+              </CardContent>
+            </Card>
+          </AdminDetailTabPanel>
+        ) : null}
 
         <AdminDetailTabPanel value="documents">
           <Card className="rounded-2xl">
             <AdminDetailCardHeader
               icon={PaperClipIcon}
               title="Documents"
-              description="Evidence uploaded with the facility submission."
+              description={
+                data.isStandaloneHolder
+                  ? "Evidence uploaded with the standalone invoice customer submission."
+                  : "Evidence uploaded with the facility submission."
+              }
             />
             <CardContent className="pt-0">
               {contractDocument?.s3_key ? (

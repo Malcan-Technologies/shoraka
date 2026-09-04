@@ -14,6 +14,8 @@ import { formatMoney } from "@cashsouk/ui";
 import { MoneyInput } from "@cashsouk/ui";
 
 export interface InvoiceDetailsConfigShape {
+  min_invoice_face_value?: string | null;
+  max_invoice_face_value?: string | null;
   min_invoice_value?: string | null;
   max_invoice_value?: string | null;
   sub_limit_per_invoice_rm?: string | null;
@@ -34,6 +36,20 @@ function getConfig(
   const c = config as Record<string, unknown> | undefined;
 
   return {
+    min_invoice_face_value:
+      typeof c?.min_invoice_face_value === "string"
+        ? c.min_invoice_face_value
+        : typeof c?.min_invoice_face_value === "number"
+          ? formatMoney(c.min_invoice_face_value)
+          : null,
+
+    max_invoice_face_value:
+      typeof c?.max_invoice_face_value === "string"
+        ? c.max_invoice_face_value
+        : typeof c?.max_invoice_face_value === "number"
+          ? formatMoney(c.max_invoice_face_value)
+          : null,
+
     min_invoice_value:
       typeof c?.min_invoice_value === "string"
         ? c.min_invoice_value
@@ -106,6 +122,44 @@ export function InvoiceDetailsConfig({
 
   return (
     <div className={cn("grid pt-2 text-sm leading-6 min-w-0", SECTION_GAP)}>
+      <div className={cn("grid min-w-0", FIELD_GAP)}>
+        <Label className="text-sm font-medium">
+          Minimum invoice value (RM)
+        </Label>
+        <MoneyInput
+          value={current.min_invoice_face_value ?? ""}
+          onValueChange={(v) =>
+            update({ min_invoice_face_value: v || null })
+          }
+          placeholder="Leave blank for no minimum"
+          maxIntDigits={12}
+          allowEmpty
+          inputClassName={INPUT_CLASS}
+        />
+        <p className="text-xs text-muted-foreground">
+          Invoice face value the issuer submits. Leave blank for no limit.
+        </p>
+      </div>
+
+      <div className={cn("grid min-w-0", FIELD_GAP)}>
+        <Label className="text-sm font-medium">
+          Maximum invoice value (RM)
+        </Label>
+        <MoneyInput
+          value={current.max_invoice_face_value ?? ""}
+          onValueChange={(v) =>
+            update({ max_invoice_face_value: v || null })
+          }
+          placeholder="Leave blank for no maximum"
+          maxIntDigits={12}
+          allowEmpty
+          inputClassName={INPUT_CLASS}
+        />
+        <p className="text-xs text-muted-foreground">
+          Invoice face value the issuer submits. Leave blank for no limit.
+        </p>
+      </div>
+
       {/* MIN */}
       <div className={cn("grid min-w-0", FIELD_GAP)}>
         <Label className="text-sm font-medium">
@@ -122,7 +176,7 @@ export function InvoiceDetailsConfig({
           inputClassName={INPUT_CLASS}
         />
         <p className="text-xs text-muted-foreground">
-          Leave blank for no minimum limit.
+          Financing amount = invoice value × financing ratio. Leave blank for no minimum.
         </p>
       </div>
 
@@ -142,7 +196,7 @@ export function InvoiceDetailsConfig({
           inputClassName={INPUT_CLASS}
         />
         <p className="text-xs text-muted-foreground">
-          Leave blank for no maximum limit.
+          Financing amount = invoice value × financing ratio. Leave blank for no maximum.
         </p>
       </div>
 
@@ -161,7 +215,7 @@ export function InvoiceDetailsConfig({
           inputClassName={INPUT_CLASS}
         />
         <p className="text-xs text-muted-foreground">
-          Ceiling printed on the Letter of Offer (Schedule A). Required for ARF facility LO products.
+          Ceiling printed on the Letter of Offer (Schedule A). Also caps financing per invoice on a facility. Required for ARF facility LO products.
         </p>
       </div>
 
