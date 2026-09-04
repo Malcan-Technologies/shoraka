@@ -565,6 +565,7 @@ export * from "./contract-facility-lo";
 export * from "./joint-several-guarantee";
 export * from "./deed-of-assignment";
 export * from "./facility-agreement";
+export * from "./malaysian-banks";
 export * from "./facility-agreement-signing-migration";
 export * from "./offer-accept-otp";
 export * from "./utilisation-offer-terms";

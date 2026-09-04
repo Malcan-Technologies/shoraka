@@ -14,6 +14,7 @@ import {
   getIssuerAuthorizedParty,
   getLoAuthorizedPartiesFromAcceptance,
   getOfferAcceptanceFromOfferDetails,
+  malaysianBankSwift,
   readInvoiceSubLimitPerInvoiceRmFromWorkflow,
 } from "@cashsouk/types";
 
@@ -64,13 +65,13 @@ function readIssuerBank(org: {
   bank_account_details?: unknown;
 }): {
   issuer_bank_name: string;
-  issuer_bank_branch: string;
+  issuer_bank_account_number: string;
   issuer_bank_account_name: string;
   issuer_bank_swift: string;
 } {
   const empty = {
     issuer_bank_name: "",
-    issuer_bank_branch: "",
+    issuer_bank_account_number: "",
     issuer_bank_account_name: "",
     issuer_bank_swift: "",
   };
@@ -81,10 +82,11 @@ function readIssuerBank(org: {
     const bankName = asString(details.bank_name);
     return {
       issuer_bank_name: bankName,
-      issuer_bank_branch: asString(details.branch),
+      issuer_bank_account_number: asString(details.account_number),
       issuer_bank_account_name:
         asString(details.account_holder) || (bankName ? asString(org.name) : ""),
-      issuer_bank_swift: asString(details.swift_code) || asString(details.swift),
+      issuer_bank_swift:
+        asString(details.swift_code) || asString(details.swift) || malaysianBankSwift(bankName),
     };
   }
 
@@ -92,12 +94,17 @@ function readIssuerBank(org: {
   const bankName = readBankField(content, "Bank") || readBankField(content, "bankName");
   return {
     issuer_bank_name: bankName,
-    issuer_bank_branch: readBankField(content, "Branch") || readBankField(content, "Bank branch"),
+    issuer_bank_account_number:
+      readBankField(content, "Bank account number") || readBankField(content, "Account number"),
     issuer_bank_account_name:
       readBankField(content, "Account name") ||
       readBankField(content, "Account holder") ||
       (bankName ? asString(org.name) : ""),
-    issuer_bank_swift: readBankField(content, "SWIFT Code") || readBankField(content, "SWIFT"),
+    issuer_bank_swift:
+      readBankField(content, "SWIFT Code") ||
+      readBankField(content, "SWIFT") ||
+      readBankField(content, "swiftCode") ||
+      malaysianBankSwift(bankName),
   };
 }
 
@@ -131,6 +138,8 @@ export type BuildFacilityAgreementMergeInput = {
   } | null;
   productWorkflow?: unknown;
   trusteeDisclosureEmail?: string | null;
+  /** When the Facility Agreement is generated. Defaults to now (Asia/Kuala_Lumpur). */
+  generatedAt?: string | Date | null;
 };
 
 export function buildFacilityAgreementMergeData(
@@ -152,7 +161,7 @@ export function buildFacilityAgreementMergeData(
     drawdown_fee: "",
     trustee_disclosure_email: "",
     issuer_bank_name: "",
-    issuer_bank_branch: "",
+    issuer_bank_account_number: "",
     issuer_bank_account_name: "",
     issuer_bank_swift: "",
     guarantors_individual: [],
@@ -198,6 +207,7 @@ export function buildFacilityAgreementMergeData(
   return {
     ...base,
     ...emptyMissing,
+    facility_agreement_date: formatLetterDate(input.generatedAt ?? new Date()),
     letter_date: letterDate,
     our_reference:
       input.offerKind === "invoice"

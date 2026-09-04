@@ -22,6 +22,7 @@ export function assertFacilityAgreementMergeReady(input: {
 
   if (!input.sentAt.trim()) missing.push("offer send date");
   if (!data.letter_date.trim()) missing.push("letter date");
+  if (!data.facility_agreement_date.trim()) missing.push("facility agreement date");
   if (!data.issuer_name.trim()) missing.push("issuer name");
   if (!data.issuer_registration_number.trim()) missing.push("issuer registration number");
   if (!data.financing_limit_rm.trim()) missing.push("financing limit");

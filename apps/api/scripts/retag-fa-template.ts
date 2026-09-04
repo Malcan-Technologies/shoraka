@@ -6,6 +6,7 @@
  * original ISSUER heading, SIGNED BY line, and “for and on behalf of” lines
  * are kept (the execution brace drawing is removed). Each signatory sits beside one wet-ink witness (JSG two-column
  * table), with page breaks so ISSUER execution is not shared with Schedule 1.
+ * Schedules 4 to 9 are copied unchanged from the clean copy (no merge tags).
  *
  * Usage: pnpm --filter @cashsouk/api retag-fa-template
  */
@@ -223,21 +224,8 @@ function stripFloatingDrawings(xml: string): string {
 }
 
 type WalkState = {
-  region:
-    | "preamble"
-    | "schedule1"
-    | "schedule2"
-    | "schedule4"
-    | "schedule5"
-    | "schedule6"
-    | "schedule7"
-    | "schedule8"
-    | "schedule9";
+  region: "preamble" | "schedule1" | "schedule2";
   pendingBullet: string | null;
-  pendingEmpty: string | null;
-  schedule5IssuedBy: boolean;
-  schedule4Behalf: boolean;
-  schedule6Inserts: number;
 };
 
 function tagIssuerPartyLine(text: string, includeEmail: boolean): string {
@@ -276,36 +264,7 @@ function transformParagraph(pXml: string, state: WalkState): string {
     return pXml;
   }
   if (compact.startsWith("SCHEDULE 4")) {
-    state.region = "schedule4";
-    return pXml;
-  }
-  if (compact.startsWith("SCHEDULE 5")) {
-    state.region = "schedule5";
-    return pXml;
-  }
-  if (compact.startsWith("SCHEDULE 6")) {
-    state.region = "schedule6";
-    return pXml;
-  }
-  if (compact.startsWith("SCHEDULE 7")) {
-    state.region = "schedule7";
-    return pXml;
-  }
-  if (compact.startsWith("SCHEDULE 8")) {
-    state.region = "schedule8";
-    return pXml;
-  }
-  if (compact.startsWith("SCHEDULE 9")) {
-    state.region = "schedule9";
-    return pXml;
-  }
-
-  if (state.pendingEmpty) {
-    const tag = state.pendingEmpty;
-    state.pendingEmpty = null;
-    if (!compact) {
-      return rewriteParagraphText(pXml, `{${tag}}`);
-    }
+    throw new Error("SCHEDULE 4 reached rewriteBodyParagraphs; split the clean copy first");
   }
 
   if (state.pendingBullet) {
@@ -402,7 +361,7 @@ function transformParagraph(pXml: string, state: WalkState): string {
       return pXml;
     }
     if (compact === "Bank Branch") {
-      state.pendingBullet = "{issuer_bank_branch}";
+      state.pendingBullet = "";
       return pXml;
     }
     if (compact === "Account Name") {
@@ -420,107 +379,6 @@ function transformParagraph(pXml: string, state: WalkState): string {
     }
   }
 
-  if (state.region === "schedule4") {
-    if (/^From\s*:$/.test(compact)) {
-      return rewriteParagraphText(pXml, "From : {issuer_name}");
-    }
-    if (compact === "[ISSUER NAME]") {
-      return rewriteParagraphText(pXml, "{issuer_name}");
-    }
-    if (compact.includes("Agreement dated") && compact.includes("(the")) {
-      return rewriteParagraphText(
-        pXml,
-        text.replace("Agreement dated", "Agreement dated {facility_agreement_date} ")
-      );
-    }
-    if (compact === "For and on behalf of") {
-      state.schedule4Behalf = true;
-      return pXml;
-    }
-    if (state.schedule4Behalf && (compact === "[ ]" || compact === "[]")) {
-      state.schedule4Behalf = false;
-      return rewriteParagraphText(pXml, "{issuer_name}");
-    }
-  }
-
-  if (state.region === "schedule5") {
-    if (compact === "issued by") {
-      state.schedule5IssuedBy = true;
-      return pXml;
-    }
-    if (state.schedule5IssuedBy && (compact === "[ ]" || compact === "[]")) {
-      state.schedule5IssuedBy = false;
-      return rewriteParagraphText(pXml, "{issuer_name}");
-    }
-    if (/\[Issuer['’]s Address\]/i.test(compact)) {
-      return rewriteParagraphText(pXml, "{issuer_address}");
-    }
-    if (compact.includes("Facility Agreement dated") && compact.includes("as the Issuer")) {
-      let next = text.replace(
-        "Facility Agreement dated",
-        "Facility Agreement dated {facility_agreement_date} "
-      );
-      next = next.replace(/\(i\)\s*as the Issuer/, "(i) {issuer_name} as the Issuer");
-      return rewriteParagraphText(pXml, next);
-    }
-  }
-
-  if (state.region === "schedule6") {
-    if (/^From\s*:$/.test(compact)) {
-      return rewriteParagraphText(pXml, "From : {issuer_name}");
-    }
-    if (/Letter of Offer dated/.test(compact)) {
-      return rewriteParagraphText(
-        pXml,
-        text.replace(/dated [.…]+/, "dated {letter_date}")
-      );
-    }
-    if (/Account Receivable Financing-i Agreement dated/.test(compact)) {
-      return rewriteParagraphText(
-        pXml,
-        text.replace(/dated [.…]+/, "dated {facility_agreement_date}")
-      );
-    }
-    if (compact === "[insert]") {
-      state.schedule6Inserts += 1;
-      if (state.schedule6Inserts === 1) {
-        return rewriteParagraphText(pXml, "{issuer_name}");
-      }
-      if (state.schedule6Inserts === 2) {
-        return rewriteParagraphText(pXml, "{issuer_registration_number}");
-      }
-    }
-  }
-
-  if (state.region === "schedule7" || state.region === "schedule8") {
-    if (compact.startsWith("Issuer") && compact.includes("[●]")) {
-      return rewriteParagraphText(pXml, text.replace("[●]", "{issuer_name}"));
-    }
-    if (compact.startsWith("Facility") && !compact.startsWith("Facility Agreement") && compact.includes("[●]")) {
-      return rewriteParagraphText(pXml, text.replace("[●]", "{facility_description}"));
-    }
-    if (compact.startsWith("Facility Agreement") && compact.includes("[●]")) {
-      return rewriteParagraphText(pXml, text.replace("[●]", "{facility_agreement_date}"));
-    }
-    if (compact.startsWith("Letter of Offer dated") && compact.includes("[●]")) {
-      return rewriteParagraphText(pXml, text.replace("[●]", "{letter_date}"));
-    }
-  }
-
-  if (state.region === "schedule9") {
-    if (compact === "DAY AND YEAR OF THE FACILITY AGREEMENT") {
-      state.pendingEmpty = "facility_agreement_date";
-      return pXml;
-    }
-    if (compact === "NAME AND PARTICULAR OF THE ISSUER") {
-      state.pendingEmpty = "issuer_name";
-      return pXml;
-    }
-    if (compact === "THIS SALE CONTRACT is made on") {
-      return rewriteParagraphText(pXml, `${text} {facility_agreement_date}`);
-    }
-  }
-
   return pXml;
 }
 
@@ -528,12 +386,29 @@ function rewriteBodyParagraphs(xml: string): string {
   const state: WalkState = {
     region: "preamble",
     pendingBullet: null,
-    pendingEmpty: null,
-    schedule5IssuedBy: false,
-    schedule4Behalf: false,
-    schedule6Inserts: 0,
   };
   return mapWordParagraphs(xml, (pXml) => transformParagraph(pXml, state));
+}
+
+function insertAccountNumberBankRow(xml: string): string {
+  const rowRe = /<w:tr\b[\s\S]*?<\/w:tr>/g;
+  let inserted = false;
+  const next = xml.replace(rowRe, (row) => {
+    const cells = [...row.matchAll(/<w:tc\b[\s\S]*?<\/w:tc>/g)].map((cell) =>
+      compactParagraphText(paragraphPlainText(cell[0]))
+    );
+    if (cells[1] !== "Account Name") return row;
+    if (inserted) return row;
+    inserted = true;
+    const cloned = row
+      .replace(">Account Name</w:t>", ">Account Number</w:t>")
+      .replaceAll("{issuer_bank_account_name}", "{issuer_bank_account_number}");
+    return cloned + row;
+  });
+  if (!inserted) {
+    throw new Error("Could not insert Account Number row before Account Name");
+  }
+  return next;
 }
 
 function rebuildIssuerExecution(xml: string): string {
@@ -621,19 +496,17 @@ function valueTagsMissingHighlight(xml: string): string[] {
 function requiredTagsPresent(xml: string): string[] {
   const required = [
     "{facility_agreement_date}",
-    "{letter_date}",
     "{issuer_name}",
     "{issuer_registration_number}",
     "{issuer_address}",
     "{issuer_email}",
-    "{facility_description}",
     "{financing_limit_rm}",
     "{sub_limit_per_invoice_rm}",
     "{facility_fee_rate_percent}",
     "{drawdown_fee}",
     "{trustee_disclosure_email}",
     "{issuer_bank_name}",
-    "{issuer_bank_branch}",
+    "{issuer_bank_account_number}",
     "{issuer_bank_account_name}",
     "{issuer_bank_swift}",
     "{#guarantors_individual}",
@@ -693,38 +566,69 @@ function leftoverPlaceholders(xml: string): string[] {
   return found;
 }
 
+function splitAtSchedule4(xml: string): { before: string; fromSchedule4: string } {
+  const matches = [...xml.matchAll(WORD_PARAGRAPH_RE)];
+  for (const match of matches) {
+    const compact = compactParagraphText(paragraphPlainText(match[0]));
+    if (compact.startsWith("SCHEDULE 4") && match.index != null) {
+      return {
+        before: xml.slice(0, match.index),
+        fromSchedule4: xml.slice(match.index),
+      };
+    }
+  }
+  throw new Error("Could not find SCHEDULE 4 heading");
+}
+
+function mergeTagsInXml(xml: string): string[] {
+  const text = xml.replace(/<[^>]+>/g, "");
+  return [...new Set(text.match(/\{[#/]?[A-Za-z][A-Za-z0-9_]*\}/g) ?? [])];
+}
+
 function main(): void {
   if (!fs.existsSync(CLEAN_COPY)) {
     throw new Error(`Clean copy not found: ${CLEAN_COPY}`);
   }
 
   const cleanZip = new PizZip(fs.readFileSync(CLEAN_COPY));
-  let documentXml = cleanZip.file("word/document.xml")?.asText();
-  if (!documentXml) throw new Error("Clean copy is missing word/document.xml");
+  const cleanXml = cleanZip.file("word/document.xml")?.asText();
+  if (!cleanXml) throw new Error("Clean copy is missing word/document.xml");
 
-  documentXml = stripYellowHighlights(documentXml);
-  documentXml = rewriteBodyParagraphs(documentXml);
-  documentXml = rebuildIssuerExecution(documentXml);
-  documentXml = ensureYellowOnValueTagRuns(documentXml);
+  const { before, fromSchedule4 } = splitAtSchedule4(cleanXml);
+  if (!fromSchedule4.includes("SCHEDULE 9")) {
+    throw new Error("Clean copy slice after SCHEDULE 4 is missing SCHEDULE 9");
+  }
 
-  const missing = requiredTagsPresent(documentXml);
+  let taggedHead = stripYellowHighlights(before);
+  taggedHead = rewriteBodyParagraphs(taggedHead);
+  taggedHead = insertAccountNumberBankRow(taggedHead);
+  taggedHead = rebuildIssuerExecution(taggedHead);
+  taggedHead = ensureYellowOnValueTagRuns(taggedHead);
+
+  const missing = requiredTagsPresent(taggedHead);
   if (missing.length > 0) {
     throw new Error(`Tagged document.xml is missing: ${missing.join(", ")}`);
   }
-  if (!documentXml.includes('w:val="yellow"')) {
+  if (!taggedHead.includes('w:val="yellow"')) {
     throw new Error("Tagged document has no yellow highlighting on merge tags");
   }
-  const unhighlighted = valueTagsMissingHighlight(documentXml);
+  const unhighlighted = valueTagsMissingHighlight(taggedHead);
   if (unhighlighted.length > 0) {
     throw new Error(`Value merge tags missing yellow highlight: ${unhighlighted.join(", ")}`);
   }
-  const leftovers = leftoverPlaceholders(documentXml);
+  const leftovers = leftoverPlaceholders(taggedHead);
   if (leftovers.length > 0) {
-    throw new Error(`Leftover placeholders in document.xml: ${leftovers.join(", ")}`);
+    throw new Error(`Leftover placeholders before SCHEDULE 4: ${leftovers.join(", ")}`);
   }
-  if (!documentXml.includes("INVESTOR") || !documentXml.includes("AGENT")) {
+  const scheduleTags = mergeTagsInXml(fromSchedule4);
+  if (scheduleTags.length > 0) {
+    throw new Error(`Schedules 4–9 must stay untagged: ${scheduleTags.join(", ")}`);
+  }
+  if (!taggedHead.includes("INVESTOR") || !taggedHead.includes("AGENT")) {
     throw new Error("Investor/Agent execution blocks were removed");
   }
+
+  const documentXml = taggedHead + fromSchedule4;
   assertDocumentXmlWellFormed(documentXml);
 
   const out = new PizZip(fs.readFileSync(CLEAN_COPY));

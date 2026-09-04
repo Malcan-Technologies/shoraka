@@ -3,7 +3,7 @@ import type { FacilityAgreementMergeData } from "./fa-merge.types";
 /** Default values for Facility Agreement render tests (not production generate). */
 export function createFacilityAgreementFixture(): FacilityAgreementMergeData {
   return {
-    facility_agreement_date: "{facility_agreement_date}",
+    facility_agreement_date: "4 September 2026",
     letter_date: "19 August 2026",
     our_reference: "contract_demo_001",
     issuer_name: "DEMO ISSUER SDN. BHD.",
@@ -18,9 +18,9 @@ export function createFacilityAgreementFixture(): FacilityAgreementMergeData {
     drawdown_fee: "{drawdown_fee}",
     trustee_disclosure_email: "trustee@example.com",
     issuer_bank_name: "Maybank",
-    issuer_bank_branch: "{issuer_bank_branch}",
+    issuer_bank_account_number: "1234567890",
     issuer_bank_account_name: "DEMO ISSUER SDN. BHD.",
-    issuer_bank_swift: "{issuer_bank_swift}",
+    issuer_bank_swift: "MBBEMYKL",
     guarantors_individual: [
       {
         name: "Ali Bin Abu",

@@ -78,7 +78,15 @@ describe("renderFacilityAgreementDocx", () => {
     const plain = wordPlainText(xml);
 
     expect(plain).toContain("{facility_agreement_date}");
-    expect(plain).toContain("{letter_date}");
+    expect(plain).toContain("{issuer_bank_account_number}");
+    expect(plain).toContain("Account Number");
+    expect(plain).toContain("Bank Branch");
+    expect(plain).not.toContain("{issuer_bank_branch}");
+    const accountNumberRow = [...xml.matchAll(/<w:tr\b[\s\S]*?<\/w:tr>/g)].find((row) =>
+      row[0].includes(">Account Number</w:t>")
+    )?.[0];
+    expect(accountNumberRow).toContain("{issuer_bank_account_number}");
+    expect(accountNumberRow).not.toContain("Account Name");
     expect(plain).toContain("{issuer_name}");
     expect(plain).toContain("{financing_limit_rm}");
     expect(plain).toContain("{#guarantors_individual}");
@@ -115,12 +123,14 @@ describe("renderFacilityAgreementDocx", () => {
     const plain = wordPlainText(xml);
 
     expect(plain).toContain(data.issuer_name);
-    expect(plain).toContain(data.letter_date);
+    expect(plain).toContain(data.facility_agreement_date);
+    expect(plain).toContain(data.issuer_bank_account_number);
+    expect(plain).toContain(data.issuer_bank_swift);
+    expect(plain).toContain("Bank Branch");
     expect(plain).toContain("Ali Bin Abu");
     expect(plain).toContain("Siti Binti Ahmad");
     expect(plain).toContain("HOLDCO ONE SDN. BHD.");
     expect(plain).toContain("Name of Witness:");
-    expect(plain).toContain("{facility_agreement_date}");
     expect(plain).toContain("{drawdown_fee}");
     expect(plain).not.toContain("{#issuer_signatories}");
   });
@@ -128,10 +138,33 @@ describe("renderFacilityAgreementDocx", () => {
   it("prints merge tags when scalars are empty", () => {
     const data = createFacilityAgreementFixture();
     data.issuer_name = "";
-    data.facility_description = "";
+    data.financing_limit_rm = "";
     const xml = renderedXml(data);
     const plain = wordPlainText(xml);
     expect(plain).toContain("{issuer_name}");
-    expect(plain).toContain("{facility_description}");
+    expect(plain).toContain("{financing_limit_rm}");
+  });
+
+  it("leaves Schedules 4 to 9 as in the clean copy, with no merge tags", () => {
+    const zip = new PizZip(readFacilityAgreementTemplateBytes());
+    const xml = zip.file("word/document.xml")?.asText() ?? "";
+    const plain = wordPlainText(xml);
+    const scheduleStart = plain.indexOf("SCHEDULE 4");
+    expect(scheduleStart).toBeGreaterThan(-1);
+    const schedules = plain.slice(scheduleStart);
+
+    expect(schedules).toContain("SCHEDULE 9");
+    expect(schedules).not.toMatch(/\{[#/]?[A-Za-z][A-Za-z0-9_]*\}/);
+    expect(schedules).toContain("[ISSUER NAME]");
+    expect(schedules).toContain("[Issuer’s Address]");
+    expect(schedules).toContain("Issuer : [●]");
+    expect(schedules).toContain("Facility: [●]");
+    expect(schedules).toContain("[ISSUER]");
+
+    const rendered = wordPlainText(renderedXml(createFacilityAgreementFixture()));
+    const renderedSchedules = rendered.slice(rendered.indexOf("SCHEDULE 4"));
+    expect(renderedSchedules).toContain("[ISSUER NAME]");
+    expect(renderedSchedules).toContain("Issuer : [●]");
+    expect(renderedSchedules).not.toContain(createFacilityAgreementFixture().issuer_name);
   });
 });

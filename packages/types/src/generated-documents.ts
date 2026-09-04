@@ -70,7 +70,7 @@ export const GENERATED_DOCUMENT_TYPES: Record<
   },
   arf_facility_agreement: {
     key: "arf_facility_agreement",
-    version: 1,
+    version: 6,
     label: "ARF Facility Agreement",
     description:
       "CA-signed facility agreement that replaces the signing-package Offer Letter.",
