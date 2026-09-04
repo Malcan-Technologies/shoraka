@@ -269,6 +269,18 @@
         {
           "name": "GOTENBERG_URL",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:GOTENBERG_URL::"
+        },
+        {
+          "name": "PLAIN_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:PLAIN_API_KEY::"
+        },
+        {
+          "name": "PLAIN_CHAT_APP_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:PLAIN_CHAT_APP_ID::"
+        },
+        {
+          "name": "PLAIN_CHAT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:PLAIN_CHAT_SECRET::"
         }
       ]
     }
