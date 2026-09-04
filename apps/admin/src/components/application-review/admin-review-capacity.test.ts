@@ -305,6 +305,28 @@ describe("resolveAdminReviewTabCapacity", () => {
     expect(props!.invoice.isOverLimit).toBe(true);
   });
 
+  it("skips holder capacity for invoice_only applications", () => {
+    const props = resolveAdminReviewTabCapacity({
+      contractSectionStatus: "APPROVED",
+      app: {
+        id: "app-invoice-only",
+        financing_structure: { structure_type: "invoice_only" },
+        invoices: [pendingThisApp],
+        contract: {
+          status: "SUBMITTED",
+          contract_details: {
+            value: 500_000,
+            approved_facility: 100_000,
+            available_facility: 100_000,
+            utilized_facility: 0,
+          },
+          invoices: [pendingThisApp],
+        },
+      },
+    });
+    expect(props).toBeNull();
+  });
+
   it("keeps new_contract preapproval requested labels off the approved ceiling", () => {
     const preapprovalDetails = {
       value: 500_000,
@@ -337,9 +359,22 @@ describe("resolveAdminReviewTabCapacity", () => {
     expect(source).toContain("adminReviewTabCapacity?.acceptance");
     expect(source).toContain("adminReviewTabCapacity?.contract");
     expect(source).toContain("adminReviewTabCapacity.invoice");
+    expect(source).toContain("isInvoiceOnlyFinancingStructure");
+    expect(source).toContain("facilityContractId");
     expect(source).not.toContain("parseFacilityAmount");
     expect(source).not.toContain("resolveAdminReviewFacilityOccupancy");
     expect(resolver).toContain("contractStatus: input.app.contract.status");
+    expect(resolver).toContain("isInvoiceOnlyFinancingStructure(input.app.financing_structure)");
     expect(resolver).not.toContain("resolveRequestedFacility");
+  });
+
+  it("skips acceptance holder-capacity fields for invoice_only", () => {
+    const acceptance = fs.readFileSync(
+      path.join(__dirname, "sections/acceptance-section.tsx"),
+      "utf8"
+    );
+    expect(acceptance).toContain("isInvoiceOnlyFinancingStructure");
+    expect(acceptance).toContain("showHolderCapacity");
+    expect(acceptance).toContain("REMAINING_CREDIT_LABEL");
   });
 });

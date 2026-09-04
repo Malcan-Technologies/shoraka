@@ -21,4 +21,9 @@ describe("landing marketing footer legal links", () => {
     expect(source).toContain("COMPANY.email");
     expect(source).toContain("All rights reserved");
   });
+
+  it("links Help Center off-site in a new tab", () => {
+    expect(source).toContain("HELP_CENTER_URL");
+    expect(source).toContain('target="_blank"');
+  });
 });

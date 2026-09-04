@@ -1290,6 +1290,7 @@ export interface AdminContractActivityEvent {
 
 export interface AdminContractDetail {
   id: string;
+  isStandaloneHolder: boolean;
   displayReference: string | null;
   contractNumber: string | null;
   title: string | null;

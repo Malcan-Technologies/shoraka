@@ -71,13 +71,18 @@ import {
   ApiResponse,
   ApiError,
   dualLimitOverageCopy,
+  findInvoiceDetailsConfig,
   isEditableReservedInvoiceStatus,
   isValidFinancingTenureDays,
   mapCapacityApiError,
+  maturityMeetsMinimumMonthsFrom,
   parseFinancingTenureDays,
   previewDualLimits,
+  readInvoiceProductRules,
+  readProductLimitViolationMessage,
   resolveInvoiceFinancingRatioBounds,
   validateFinancingTenureAgainstDueDate,
+  validateInvoiceAgainstProductRules,
 } from "@cashsouk/types";
 import { InvoiceErrorCard } from "../components/amendments";
 import { StatusBadge } from "@/app/(application-flow)/applications/components/invoice-status-badge";
@@ -106,6 +111,11 @@ import {
   isInvoiceFormRowPartial,
   isInvoiceStepContinueReady,
 } from "@/app/(application-flow)/applications/lib/invoice-form-row";
+import {
+  buildFinancingAmountHint,
+  buildInvoiceValueHint,
+  buildInvoiceValueTooltip,
+} from "@/app/(application-flow)/applications/lib/product-rule-hints";
 
 const valueClassName = "text-ui leading-7 text-foreground font-medium";
 
@@ -123,21 +133,6 @@ const MAX_ONE_INVOICE_MESSAGE =
   "Applications allow only one invoice. Remove extra invoices or start a new application for another invoice.";
 
 import { parseISO, parse, isValid, format } from "date-fns";
-import { maturityMeetsMinimumMonthsFrom } from "@cashsouk/config";
-
-/**
- * PRODUCT CONFIG EXTRACTION
- *
- * Reads invoice validation config from product workflow.
- * Config must be provided by admin; no fallbacks.
- */
-interface InvoiceConfig {
-  min_invoice_value?: number | null;
-  max_invoice_value?: number | null;
-  min_financing_ratio_percent?: number | null;
-  max_financing_ratio_percent?: number | null;
-  min_months_application_to_maturity?: number | null;
-}
 
 type ApplicationHydrated = Omit<Application, "financing_structure" | "financing_type"> & {
   financing_structure?: { structure_type?: string } | null;
@@ -149,101 +144,6 @@ type ApplicationHydrated = Omit<Application, "financing_structure" | "financing_
 
 function isApiSuccess<T>(r: ApiResponse<T> | ApiError): r is ApiResponse<T> {
   return r.success === true;
-}
-
-function pickInvoiceConfigFromWorkflow(workflow: unknown[]): Record<string, unknown> | null {
-  const invoiceStep = workflow.find((step) => {
-    if (!step || typeof step !== "object") return false;
-    const s = step as { id?: unknown; name?: unknown; config?: unknown };
-    const idPart = s.id;
-    const namePart = s.name;
-    const idMatch =
-      (typeof idPart === "string" && idPart.includes("invoice_details")) ||
-      Boolean(
-        idPart &&
-          typeof idPart === "object" &&
-          "includes" in idPart &&
-          typeof (idPart as { includes: (sub: string) => boolean }).includes === "function" &&
-          (idPart as { includes: (sub: string) => boolean }).includes("invoice_details")
-      );
-    const nameMatch =
-      (typeof namePart === "string" && namePart.includes("invoice")) ||
-      Boolean(
-        namePart &&
-          typeof namePart === "object" &&
-          "includes" in namePart &&
-          typeof (namePart as { includes: (sub: string) => boolean }).includes === "function" &&
-          (namePart as { includes: (sub: string) => boolean }).includes("invoice")
-      );
-    return idMatch || nameMatch;
-  });
-  if (!invoiceStep || typeof invoiceStep !== "object") return null;
-  const raw = (invoiceStep as { config?: unknown }).config;
-  if (raw == null) return {};
-  if (typeof raw !== "object" || Array.isArray(raw)) return null;
-  return raw as Record<string, unknown>;
-}
-
-function pickInvoiceWorkflowConfig(product: Product | null): Record<string, unknown> | null {
-  if (!product) return null;
-  const workflow = Array.isArray(product.workflow) ? product.workflow : [];
-  return pickInvoiceConfigFromWorkflow(workflow);
-}
-
-/**
- * Resolve invoice config from product.
- * Prefer frozenWorkflow (application.product_version) when provided; otherwise:
- * 1) looking up application.financing_type.product_id in the provided products array
- * 2) falling back to application.product if present
- */
-function getProductInvoiceConfig(
-  application: ApplicationHydrated | null,
-  products: Product[] = [],
-  frozenWorkflow?: unknown[] | null
-): InvoiceConfig | null {
-  try {
-    let config: Record<string, unknown> | null = null;
-    if (Array.isArray(frozenWorkflow) && frozenWorkflow.length > 0) {
-      config = pickInvoiceConfigFromWorkflow(frozenWorkflow);
-    } else {
-      const ft = application?.financing_type as { product_id?: string } | undefined;
-      const productId = ft?.product_id;
-      let product: Product | null = null;
-      if (productId) {
-        product = products.find((p) => p.id === productId) ?? null;
-      }
-      if (!product && application?.product) product = application.product;
-      config = pickInvoiceWorkflowConfig(product);
-    }
-    if (config == null || Object.keys(config).length === 0) return null;
-    const minRatio = config.min_financing_ratio_percent;
-    const maxRatio = config.max_financing_ratio_percent;
-    const hasValidRatioConfig =
-      typeof minRatio === "number" &&
-      Number.isFinite(minRatio) &&
-      typeof maxRatio === "number" &&
-      Number.isFinite(maxRatio) &&
-      minRatio <= maxRatio &&
-      minRatio >= 1;
-    if (!hasValidRatioConfig) return null;
-    const ratioBounds = resolveInvoiceFinancingRatioBounds(minRatio, maxRatio);
-    const rawMonths = config.min_months_application_to_maturity;
-    const applicationMonths =
-      typeof rawMonths === "number" && Number.isFinite(rawMonths) && rawMonths > 0
-        ? Math.floor(rawMonths)
-        : null;
-    const minInv = config.min_invoice_value;
-    const maxInv = config.max_invoice_value;
-    return {
-      min_invoice_value: typeof minInv === "number" && Number.isFinite(minInv) ? minInv : null,
-      max_invoice_value: typeof maxInv === "number" && Number.isFinite(maxInv) ? maxInv : null,
-      min_financing_ratio_percent: ratioBounds.min,
-      max_financing_ratio_percent: ratioBounds.max,
-      min_months_application_to_maturity: applicationMonths,
-    };
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -502,8 +402,31 @@ export default function InvoiceDetailsStep({
     return new Set(otherFacilityInvoices.map((inv) => inv.number.trim()).filter(Boolean));
   }, [otherFacilityInvoices]);
 
+  const structureType =
+    effectiveStructureType ?? application?.financing_structure?.structure_type;
+  const isInvoiceOnly = structureType === "invoice_only";
+  const hasFacility = !isInvoiceOnly && Boolean(application?.contract_id ?? application?.contract?.id);
+
+  const products = productsData?.products || [];
+  const productId = application?.financing_type?.product_id;
+  let resolvedProduct: Product | null = null;
+  if (productId) {
+    resolvedProduct = products.find((p) => p.id === productId) ?? null;
+  }
+  if (!resolvedProduct && application?.product) resolvedProduct = application.product;
+  const productWorkflow =
+    Array.isArray(frozenProductWorkflow) && frozenProductWorkflow.length > 0
+      ? frozenProductWorkflow
+      : resolvedProduct?.workflow;
+  const productRules =
+    productWorkflow && findInvoiceDetailsConfig(productWorkflow)
+      ? readInvoiceProductRules(productWorkflow)
+      : null;
+  const { min: displayMinRatio, max: displayMaxRatio } =
+    productRules?.ratio ?? resolveInvoiceFinancingRatioBounds(null, null);
+
   const addInvoice = () => {
-    const defaultRatio = productConfig?.min_financing_ratio_percent ?? 60;
+    const defaultRatio = productRules?.ratio.min ?? resolveInvoiceFinancingRatioBounds(null, null).min;
     const id = crypto.randomUUID();
     setInvoices((s) => {
       if (s.length >= 1) return s;
@@ -642,9 +565,9 @@ export default function InvoiceDetailsStep({
    * 1. Invalid date format
    * 2. Past maturity date
    * 3. Contract date window (if contract exists)
-   * 4. Min invoice value
+   * 4. Product invoice / financing / ratio limits
    */
-  const validateInvoiceConstraints = (inv: LocalInvoice, productConfig: InvoiceConfig | null): string => {
+  const validateInvoiceConstraints = (inv: LocalInvoice): string => {
     // debug removed
     // Ignore empty rows
     if (isRowEmpty(inv)) return "";
@@ -657,77 +580,68 @@ export default function InvoiceDetailsStep({
       return `Invoice ${inv.number}: Invalid date.`;
     }
 
-    if (!maturityDate) return "";
+    if (maturityDate) {
+      // must be at least today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (maturityDate < today) {
+        return `Invoice ${inv.number}: Maturity date cannot be in the past.`;
+      }
 
-    // must be at least today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (maturityDate < today) {
-      return `Invoice ${inv.number}: Maturity date cannot be in the past.`;
-    }
-
-    if (
-      productConfig?.min_months_application_to_maturity != null &&
-      productConfig.min_months_application_to_maturity > 0
-    ) {
       if (
-        !maturityMeetsMinimumMonthsFrom(
-          maturityDate,
-          today,
-          productConfig.min_months_application_to_maturity
-        )
+        productRules?.minMonthsApplicationToMaturity != null &&
+        productRules.minMonthsApplicationToMaturity > 0
       ) {
-        return `Invoice ${inv.number}: Maturity date must be at least ${productConfig.min_months_application_to_maturity} month(s) after today.`;
-      }
-    }
-
-    // contract window check (only for contract-based structures)
-    if (!isInvoiceOnly && application?.contract?.contract_details?.start_date) {
-      // Debug logs: show raw and parsed dates and comparison result
-      // These logs help diagnose cases where maturity dates appear before contract start but aren't caught.
-      // Example reproduction: contract start = "12/2/2026", maturity = "1/2/2026"
-      // (Logs intentionally minimal; only invoice number and date values)
-      const contractStart = parseDateString(application.contract.contract_details?.start_date);
-
-      if (contractStart && maturityDate < contractStart) {
-        return `Invoice ${inv.number}: Maturity date must be on or after contract start date.`;
-      }
-    }
-
-    const tenureResult = validateFinancingTenureAgainstDueDate({
-      tenureDays: inv.financing_tenure_days,
-      maturityDate: inv.maturity_date,
-    });
-    if (!tenureResult.ok) {
-      return `Invoice ${inv.number}: ${tenureResult.message}`;
-    }
-
-    // min/max invoice value checks only if productConfig provided
-    // debug removed
-    if (productConfig) {
-      // debug removed
-      const invoiceValue = parseMoney(inv.value);
-      const minR = productConfig.min_financing_ratio_percent ?? 60;
-      const ratio = (inv.financing_ratio_percent ?? minR) / 100;
-      const financingAmount = invoiceValue * ratio;
-
-      const minValue = productConfig.min_invoice_value;
-      const maxValue = productConfig.max_invoice_value;
-
-      if (typeof minValue === "number") {
-        if (financingAmount < minValue) {
-          return `Invoice ${inv.number}: Financing amount must be at least RM ${formatMoney(minValue)}.`;
+        if (
+          !maturityMeetsMinimumMonthsFrom(
+            maturityDate,
+            today,
+            productRules.minMonthsApplicationToMaturity
+          )
+        ) {
+          return `Invoice ${inv.number}: Maturity date must be at least ${productRules.minMonthsApplicationToMaturity} month(s) after today.`;
         }
       }
 
-      if (typeof maxValue === "number") {
-        if (financingAmount > maxValue) {
-          return `Invoice ${inv.number}: Financing amount cannot exceed RM ${formatMoney(maxValue)}.`;
+      // contract window check (only for contract-based structures)
+      if (!isInvoiceOnly && application?.contract?.contract_details?.start_date) {
+        // Debug logs: show raw and parsed dates and comparison result
+        // These logs help diagnose cases where maturity dates appear before contract start but aren't caught.
+        // Example reproduction: contract start = "12/2/2026", maturity = "1/2/2026"
+        // (Logs intentionally minimal; only invoice number and date values)
+        const contractStart = parseDateString(application.contract.contract_details?.start_date);
+
+        if (contractStart && maturityDate < contractStart) {
+          return `Invoice ${inv.number}: Maturity date must be on or after contract start date.`;
         }
+      }
+
+      const tenureResult = validateFinancingTenureAgainstDueDate({
+        tenureDays: inv.financing_tenure_days,
+        maturityDate: inv.maturity_date,
+      });
+      if (!tenureResult.ok) {
+        return `Invoice ${inv.number}: ${tenureResult.message}`;
       }
     }
 
-
+    if (productRules) {
+      const invoiceFace = parseMoney(inv.value);
+      const ratio = inv.financing_ratio_percent ?? productRules.ratio.min;
+      const financingAmount = invoiceFace * (ratio / 100);
+      const [firstViolation] = validateInvoiceAgainstProductRules(
+        productRules,
+        {
+          invoiceFace,
+          financingAmount,
+          ratioPercent: inv.financing_ratio_percent ?? null,
+        },
+        { mode: "issuer_request", hasFacility }
+      );
+      if (firstViolation) {
+        return `Invoice ${inv.number}: ${firstViolation.message}`;
+      }
+    }
 
     return "";
   };
@@ -760,8 +674,6 @@ export default function InvoiceDetailsStep({
         ? parseMoney(String(cd.lifetime_remaining))
         : null;
 
-  const structureType =
-    effectiveStructureType ?? application?.financing_structure?.structure_type;
   const hasApprovedFacility = approvedFacility > 0;
 
   let facilityLimit = 0;
@@ -783,7 +695,6 @@ export default function InvoiceDetailsStep({
     !isLoadingInvoices &&
     !isLoadingApplication;
 
-  const isInvoiceOnly = structureType === "invoice_only";
   const isExistingContract = structureType === "existing_contract";
   const existingFacilityGate = isExistingContract
     ? resolveIssuerFacilityGate({
@@ -804,22 +715,6 @@ export default function InvoiceDetailsStep({
   const maxInvoicesReached = invoices.length >= 1;
   const isGrandfatherMultiInvoice = invoices.length > 1;
   const canRemoveInvoiceRow = isGrandfatherMultiInvoice || structureType === "new_contract";
-
-  let productConfig: InvoiceConfig | null = null;
-  try {
-    productConfig = getProductInvoiceConfig(
-      application,
-      productsData?.products || [],
-      frozenProductWorkflow
-    );
-  } catch (error: unknown) {
-    validationError = error instanceof Error ? error.message : "Product configuration error";
-  }
-
-  const { min: displayMinRatio, max: displayMaxRatio } = resolveInvoiceFinancingRatioBounds(
-    productConfig?.min_financing_ratio_percent,
-    productConfig?.max_financing_ratio_percent
-  );
 
   const totalFinancingAmount = invoices.reduce((acc, inv) => {
     const value = parseMoney(inv.value);
@@ -855,7 +750,7 @@ export default function InvoiceDetailsStep({
       : null;
 
   if (shouldRunValidation) {
-    if (!productConfig && application?.financing_type?.product_id) {
+    if (!productRules && application?.financing_type?.product_id) {
       validationError = "Product configuration is incomplete. Min and max financing ratio must be set in the product workflow.";
     }
     if (!validationError && hasPartialRows) {
@@ -870,7 +765,7 @@ export default function InvoiceDetailsStep({
     // debug removed
     if (!validationError) {
       for (const inv of invoices) {
-        const constraintError = validateInvoiceConstraints(inv, productConfig);
+        const constraintError = validateInvoiceConstraints(inv);
         if (constraintError) {
           validationError = constraintError;
           break;
@@ -882,20 +777,6 @@ export default function InvoiceDetailsStep({
       const hasAtLeastOneValidInvoice = invoices.some((inv) => !isRowEmpty(inv) && validateRow(inv));
       if (!hasAtLeastOneValidInvoice) {
         validationError = "Please add at least one valid invoice with all fields filled (invoice number, value, maturity date, financing tenure, document).";
-      }
-    }
-
-    /** Financing ratio from product config applies to all structures including invoice_only. */
-    if (!validationError && productConfig) {
-      const { min: minR, max: maxR } = resolveInvoiceFinancingRatioBounds(
-        productConfig.min_financing_ratio_percent,
-        productConfig.max_financing_ratio_percent
-      );
-      const invalidRatioInvoice = invoices.find(
-        (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < minR || inv.financing_ratio_percent! > maxR)
-      );
-      if (invalidRatioInvoice) {
-        validationError = `Financing ratio must be between ${minR}% and ${maxR}%.`;
       }
     }
 
@@ -942,8 +823,8 @@ export default function InvoiceDetailsStep({
         errors.number = "This invoice number is already used on this facility";
       }
       const constraintError =
-        hasSubmitted || (hasDate && hasTenure)
-          ? validateInvoiceConstraints(inv, productConfig)
+        hasSubmitted || looksFilled || (hasDate && hasTenure)
+          ? validateInvoiceConstraints(inv)
           : "";
       if (constraintError) {
         if (constraintError.includes("more than")) {
@@ -958,25 +839,19 @@ export default function InvoiceDetailsStep({
           constraintError.includes("due date")
         ) {
           errors.maturity_date = constraintError;
+        } else if (constraintError.includes("Invoice value")) {
+          errors.value = constraintError;
+        } else if (constraintError.includes("Financing ratio")) {
+          errors.financing_ratio_percent = constraintError;
         } else if (constraintError.includes("Financing amount")) {
           errors.financing_amount = constraintError;
-        }
-      }
-      if (productConfig && (hasSubmitted || looksFilled)) {
-        const { min: minR, max: maxR } = resolveInvoiceFinancingRatioBounds(
-          productConfig.min_financing_ratio_percent,
-          productConfig.max_financing_ratio_percent
-        );
-        const ratio = inv.financing_ratio_percent ?? minR;
-        if (ratio < minR || ratio > maxR) {
-          errors.financing_ratio_percent = `Financing ratio must be between ${minR}% and ${maxR}%.`;
         }
       }
       map[inv.id] = errors;
     }
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasSubmitted, invoices, selectedFiles, productConfig, otherFacilityNumbers]);
+  }, [hasSubmitted, invoices, selectedFiles, productRules, otherFacilityNumbers]);
 
   const saveFunction = async () => {
     setHasSubmitted(true);
@@ -986,7 +861,7 @@ export default function InvoiceDetailsStep({
      *
      * If there are validation errors, show toast and prevent save.
      */
-    if (!productConfig) {
+    if (!productRules) {
       toast.error(
         application?.financing_type?.product_id
           ? "Product configuration is incomplete. Min and max financing ratio must be set in the product workflow."
@@ -1074,9 +949,12 @@ export default function InvoiceDetailsStep({
           const isMaxInvoices = createResp.error.code === "MAX_INVOICES_REACHED";
           const isDuplicate = createResp.error.code === "DUPLICATE_INVOICE_NUMBER";
           const capacityMessage = mapCapacityApiError(createResp.error);
-          if (capacityMessage) setCapacityServerError(capacityMessage);
+          const limitMessage = readProductLimitViolationMessage(createResp.error);
+          if (limitMessage) setCapacityServerError(limitMessage);
+          else if (capacityMessage) setCapacityServerError(capacityMessage);
           toast.error(
-            capacityMessage ??
+            limitMessage ??
+              capacityMessage ??
               (isMaxInvoices
                 ? createResp.error.message || MAX_ONE_INVOICE_MESSAGE
                 : createResp.error.message || "Failed to create invoice")
@@ -1129,8 +1007,12 @@ export default function InvoiceDetailsStep({
         const updateResp = await apiClient.updateInvoice(invoiceId, updatePayload);
         if (!updateResp.success) {
           const capacityMessage = mapCapacityApiError(updateResp.error);
-          if (capacityMessage) setCapacityServerError(capacityMessage);
-          toast.error(capacityMessage ?? (updateResp.error.message || "Failed to update invoice"));
+          const limitMessage = readProductLimitViolationMessage(updateResp.error);
+          if (limitMessage) setCapacityServerError(limitMessage);
+          else if (capacityMessage) setCapacityServerError(capacityMessage);
+          toast.error(
+            limitMessage ?? capacityMessage ?? (updateResp.error.message || "Failed to update invoice")
+          );
           throw new Error(
             updateResp.error.code === "DUPLICATE_INVOICE_NUMBER"
               ? "VALIDATION_DUPLICATE_INVOICE_NUMBER"
@@ -1401,17 +1283,23 @@ export default function InvoiceDetailsStep({
       "If you edit this amount, the financing ratio will update automatically.",
     ];
     const limits: string[] = [];
-    if (typeof productConfig?.min_invoice_value === "number") {
-      limits.push(`Min RM ${formatMoney(productConfig.min_invoice_value)}`);
+    if (productRules?.minFinancingAmount != null) {
+      limits.push(`Min RM ${formatMoney(productRules.minFinancingAmount)}`);
     }
-    if (typeof productConfig?.max_invoice_value === "number") {
-      limits.push(`Max RM ${formatMoney(productConfig.max_invoice_value)}`);
+    if (productRules?.maxFinancingAmount != null) {
+      limits.push(`Max RM ${formatMoney(productRules.maxFinancingAmount)}`);
+    }
+    if (hasFacility && productRules?.subLimitPerInvoiceRm != null) {
+      limits.push(`Facility sub-limit RM ${formatMoney(productRules.subLimitPerInvoiceRm)} per invoice`);
     }
     if (limits.length > 0) {
       lines.push(`Per invoice financing limit:\n${limits.join("\n")}`);
     }
     return lines.join("\n\n");
   })();
+  const invoiceValueTooltip = buildInvoiceValueTooltip(productRules);
+  const invoiceValueHint = buildInvoiceValueHint(productRules);
+  const financingAmountHint = buildFinancingAmountHint(productRules, hasFacility);
 
   function isThisInvoiceEditable(inv: LocalInvoice, invIndex: number): boolean {
     const isInvFlagged = invoicesWithRemarks.has(invIndex);
@@ -1636,6 +1524,9 @@ export default function InvoiceDetailsStep({
                     isEditable={false}
                     helperText={OTHER_FACILITY_INVOICE_HELPER}
                     financingAmountTooltip={financingAmountTooltip}
+                    invoiceValueTooltip={invoiceValueTooltip}
+                    invoiceValueHint={invoiceValueHint}
+                    financingAmountHint={financingAmountHint}
                   />
                 </TabsContent>
               ))}
@@ -1656,6 +1547,9 @@ export default function InvoiceDetailsStep({
                       fieldErrors={fieldErrorsByInvoiceId[inv.id]}
                       financingAmountDraft={financingAmountDraftById[inv.id]}
                       financingAmountTooltip={financingAmountTooltip}
+                      invoiceValueTooltip={invoiceValueTooltip}
+                      invoiceValueHint={invoiceValueHint}
+                      financingAmountHint={financingAmountHint}
                       onNumberChange={(value) => updateInvoiceField(inv.id, "number", value)}
                       onMaturityDateChange={(value) =>
                         updateInvoiceField(inv.id, "maturity_date", value)
@@ -1718,7 +1612,7 @@ export default function InvoiceDetailsStep({
             (inv) =>
               Boolean(String(inv.maturity_date).trim()) &&
               inv.financing_tenure_days != null &&
-              Boolean(validateInvoiceConstraints(inv, productConfig))
+              Boolean(validateInvoiceConstraints(inv))
           ) ? (
             <div className="mx-3 bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
               <XMarkIcon className="h-5 w-5" />

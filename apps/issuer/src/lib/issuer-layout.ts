@@ -13,7 +13,6 @@ export const issuerPageGutterClassName = portalPageGutterClassName;
 
 /**
  * Centered content width for non-full-bleed issuer pages.
- * Help Center is full-bleed; do not reuse this for `/help`.
  * @see portalContentMaxWidthClassName in @cashsouk/ui
  */
 export const issuerContentMaxWidthClassName = portalContentMaxWidthClassName;

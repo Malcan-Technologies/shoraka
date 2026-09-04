@@ -148,12 +148,67 @@ describe("NoteService createFromInvoiceSource display reference", () => {
     expect(mockTx.note.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          note_reference: expect.stringMatching(/^NOTE-ARF-202608-[A-Z0-9]{3}$/),
+          note_reference: expect.stringMatching(/^NOTE-ARF-\d{6}-[A-Z0-9]{3}$/),
         }),
       })
     );
     expect(mockTx.note.update).not.toHaveBeenCalled();
     expect(result.noteReference).toBe("NOTE-ARF-202608-BX5");
+  });
+
+  it("keeps the holder snapshot but creates standalone notes without a source facility", async () => {
+    mockNoteRepository.findBySource.mockResolvedValue(null);
+    const service = new NoteService();
+
+    await (service as any).createFromInvoiceSource({
+      application: {
+        id: "app_1",
+        issuer_organization_id: "org_1",
+        contract_id: "holder_1",
+        product_version: 2,
+        financing_type: { product_id: "prod_1", product_code: "ARF" },
+        financing_structure: { structure_type: "invoice_only" },
+        business_details: null,
+        issuer_organization: {
+          id: "org_1",
+          name: "Issuer Co",
+          type: "COMPANY",
+          registration_number: "123",
+          country: "MY",
+          corporate_onboarding_data: null,
+        },
+      },
+      invoice: {
+        id: "inv_1",
+        application_id: "app_1",
+        contract_id: null,
+        details: { number: "INV-556728", value: 12500, maturity_date: "2026-12-10" },
+        offer_details: {
+          offered_amount: 10000,
+          offered_profit_rate_percent: 10,
+          financing_tenure_days: 90,
+        },
+        status: InvoiceStatus.APPROVED,
+      },
+      sourceContract: {
+        id: "holder_1",
+        status: "SUBMITTED",
+        contract_details: null,
+        offer_details: null,
+        customer_details: { name: "Customer Co" },
+      },
+      actor: { userId: "admin_1", role: "ADMIN", portal: "ADMIN" },
+    });
+
+    expect(mockTx.contract.findUnique).not.toHaveBeenCalled();
+    expect(mockTx.note.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          source_contract_id: null,
+          contract_snapshot: expect.objectContaining({ id: "holder_1" }),
+        }),
+      })
+    );
   });
 
   it("copies frozen offer tenure, leaves maturity null, and keeps invoice due in the snapshot", async () => {

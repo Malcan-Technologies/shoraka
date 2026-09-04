@@ -32,6 +32,13 @@ describe("issuer invoice details capacity copy", () => {
     expect(source).not.toContain("!hasPartialRows && !validationError && !requiresFacilityFeePayment");
   });
 
+  it("enforces product workflow rules through the shared types module", () => {
+    expect(source).toContain("readInvoiceProductRules");
+    expect(source).toContain("validateInvoiceAgainstProductRules");
+    expect(source).toContain("readProductLimitViolationMessage");
+    expect(source).not.toContain("pickInvoiceConfigFromWorkflow");
+  });
+
   it("uses draft saveable warnings and reserved hard errors on the dual-limit preview", () => {
     expect(source).toContain('dualLimitOverageCopy(dualLimitPreview, "draft")');
     expect(source).toContain('dualLimitOverageCopy(dualLimitPreview, "reserved")');

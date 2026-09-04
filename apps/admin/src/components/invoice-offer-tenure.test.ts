@@ -10,6 +10,8 @@ describe("admin invoice offer tenure", () => {
     expect(source).toContain("sendOfferBlockedByTenure");
     expect(source).toContain("tenureValidation.message");
     expect(source).toContain("sendOfferBlockedByMaturity");
+    expect(source).toContain("validateInvoiceAgainstProductRules");
+    expect(source).toContain("readProductLimitViolationMessage");
     expect(source.indexOf("sendOfferBlockedByTenure")).toBeLessThan(
       source.indexOf("sendOfferBlockedByMaturity")
     );

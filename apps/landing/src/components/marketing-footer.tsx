@@ -14,6 +14,7 @@ import {
   openPublicLegalPdf,
   useLandingFooterLegalLinks,
 } from "@cashsouk/ui";
+import { HELP_CENTER_URL } from "@cashsouk/config";
 import {
   BuildingLibraryIcon,
   ChatBubbleLeftRightIcon,
@@ -134,6 +135,9 @@ export function MarketingFooter() {
               <Link href="/get-started" className="hover:opacity-90">
                 Start investing
               </Link>
+              <a href={HELP_CENTER_URL} target="_blank" rel="noreferrer noopener" className="hover:opacity-90">
+                Help Center
+              </a>
             </nav>
 
             <DropdownMenu>

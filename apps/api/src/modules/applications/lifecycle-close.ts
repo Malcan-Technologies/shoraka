@@ -10,6 +10,7 @@ import {
   ContractStatus,
   getOfferAcceptanceFromOfferDetails,
   InvoiceStatus,
+  isInvoiceOnlyFinancingStructure,
 } from "@cashsouk/types";
 import type { Prisma } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
@@ -135,9 +136,12 @@ export async function closeApplicationAsRejected(applicationId: string): Promise
 
   const preview = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { contract_id: true },
+    select: { contract_id: true, financing_structure: true },
   });
-  if (preview?.contract_id) {
+  if (
+    preview?.contract_id &&
+    !isInvoiceOnlyFinancingStructure(preview.financing_structure)
+  ) {
     await applyContractCapacityChange(preview.contract_id, prisma, rejectInTx, {
       assertWrite: true,
     });

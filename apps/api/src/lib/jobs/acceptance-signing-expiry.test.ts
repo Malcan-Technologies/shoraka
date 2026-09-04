@@ -181,7 +181,7 @@ describe("runAcceptanceSigningExpiryJob", () => {
           id: "invoice-1",
           offer_details: offerDetails,
           application_id: "app-inv-1",
-          contract_id: null,
+          contract_id: "legacy-holder-1",
           product_id: "prod-1",
           product_version: 1,
           financing_structure: { structure_type: "invoice_only" },
@@ -230,6 +230,7 @@ describe("runAcceptanceSigningExpiryJob", () => {
         }),
       })
     );
+    expect(applyContractCapacityChange).not.toHaveBeenCalled();
   });
 
   it("re-reserves expiry release through applyContractCapacityChange when the invoice is facility-tied", async () => {

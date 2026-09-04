@@ -23,10 +23,13 @@ import { isSignedContractOfferLetterAvailable } from "./offer-signing-availabili
 import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 import type { SendInvoiceOfferUiPayload } from "@/components/utilisation-fee-lines";
 import {
+  isInvoiceOnlyFinancingStructure,
   parseItemScopeKey,
   paymasterIdentityOfferBlockReason,
   type ReviewItemType,
   isInheritedFacilityGuarantorReview,
+  type ContractProductRules,
+  type InvoiceProductRules,
 } from "@cashsouk/types";
 
 function acceptanceHubItemType(itemId: string, itemType?: ReviewItemType): ReviewItemType {
@@ -188,8 +191,10 @@ export interface SectionContentProps {
   sendContractOfferPending?: boolean;
   sendInvoiceOfferPending?: boolean;
   onAddSectionComment?: (section: ReviewSectionId, comment: string) => Promise<void> | void;
-  /** Min/max financing ratio (%) from product config. Used by invoice review Offered by CashSouk. */
-  invoiceRatioLimits?: { min: number; max: number };
+  /** Frozen product invoice limits. Used by invoice review Offered by CashSouk. */
+  invoiceProductRules?: InvoiceProductRules;
+  /** Frozen product contract duration minimum. Used by facility review. */
+  contractProductRules?: ContractProductRules;
   /** Platform finance setting for the maximum platform fee rate (%) allowed on invoice offers. */
   platformFeeRateCapPercent?: number | null;
   /** Product-level default Facility Fee rate (%). Used only to prefill Facility Offer UI. */
@@ -248,7 +253,8 @@ export function SectionContent({
   sendContractOfferPending,
   sendInvoiceOfferPending,
   onAddSectionComment,
-  invoiceRatioLimits,
+  invoiceProductRules,
+  contractProductRules,
   platformFeeRateCapPercent,
   productDefaultFacilityFeeRatePercent,
   minMonthsReviewToMaturityForOffer,
@@ -524,8 +530,7 @@ export function SectionContent({
       );
     }
     case "contract_details": {
-      const structureType = (app.financing_structure as { structure_type?: string } | null | undefined)?.structure_type;
-      const isInvoiceOnly = structureType === "invoice_only";
+      const isInvoiceOnly = isInvoiceOnlyFinancingStructure(app.financing_structure);
       if (isInvoiceOnly) {
         return (
           <CustomerSection
@@ -571,6 +576,7 @@ export function SectionContent({
           paymaster={app.contract?.paymaster}
           paymasterId={app.contract?.paymaster_id ?? app.contract?.paymaster?.id}
           productDefaultFacilityFeeRatePercent={productDefaultFacilityFeeRatePercent}
+          contractProductRules={contractProductRules}
           productWorkflow={productWorkflow}
           section={section}
           isReviewable={isReviewable}
@@ -617,6 +623,7 @@ export function SectionContent({
       );
     }
     case "invoice_details": {
+      const isInvoiceOnly = isInvoiceOnlyFinancingStructure(app.financing_structure);
       const appInvoices = app.invoices ?? [];
       const contract = app.contract as {
         invoices?: { id: string; application_id: string; details?: unknown; status?: string; offer_details?: unknown }[];
@@ -624,24 +631,29 @@ export function SectionContent({
       const contractInvoices = contract?.invoices ?? [];
       const applicationId = (app as { id?: string }).id;
       const otherContractInvoices =
-        applicationId && app.contract && contractInvoices.length > 0
+        !isInvoiceOnly && applicationId && app.contract && contractInvoices.length > 0
           ? contractInvoices.filter((inv) => inv.application_id !== applicationId)
           : [];
+      const facilityContractId = isInvoiceOnly ? null : (app.contract?.id ?? null);
       const contractFacility =
-        app.contract && adminReviewTabCapacity ? adminReviewTabCapacity.invoice : undefined;
+        !isInvoiceOnly && app.contract && adminReviewTabCapacity ? adminReviewTabCapacity.invoice : undefined;
       return (
         <InvoiceSection
           applicationId={signingApplicationId}
           invoices={appInvoices}
           otherFacilityInvoices={otherContractInvoices}
           contractFacility={contractFacility}
-          contractId={app.contract?.id ?? null}
-          contractHref={app.contract?.id ? `/contracts/${encodeURIComponent(app.contract.id)}` : null}
+          contractId={facilityContractId}
+          contractHref={
+            facilityContractId ? `/contracts/${encodeURIComponent(facilityContractId)}` : null
+          }
           contractLabel={
-            typeof (app.contract as { displayReference?: string | null } | null)?.displayReference ===
-            "string"
-              ? (app.contract as { displayReference?: string | null }).displayReference
-              : null
+            isInvoiceOnly
+              ? null
+              : typeof (app.contract as { displayReference?: string | null } | null)?.displayReference ===
+                  "string"
+                ? (app.contract as { displayReference?: string | null }).displayReference
+                : null
           }
           reviewItems={reviewItems}
           isReviewable={isReviewable}
@@ -651,7 +663,7 @@ export function SectionContent({
           onViewDocument={onViewDocument}
           onDownloadDocument={onDownloadDocument}
           viewDocumentPending={viewDocumentPending}
-          invoiceRatioLimits={invoiceRatioLimits}
+          invoiceProductRules={invoiceProductRules}
           platformFeeRateCapPercent={platformFeeRateCapPercent}
           onApproveItem={(id) => onApproveItem(id, "invoice")}
           onRejectItem={(id) => onRejectItem(id, "invoice")}

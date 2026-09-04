@@ -19,12 +19,7 @@ import {
   StatusBadge,
 } from "@cashsouk/ui";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
-import {
-  createApiClient,
-  formatCurrency,
-  useAuthToken,
-  useOrganization,
-} from "@cashsouk/config";
+import { createApiClient, formatCurrency, useAuthToken, useOrganization } from "@cashsouk/config";
 import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -69,6 +64,11 @@ import {
   getIssuerPlainStatusLabel,
   issuerWithdrawBlockedReason,
 } from "@/app/(application-management)/applications/components/issuer-status-display";
+import {
+  hasIssuerFacilityOffer,
+  isIssuerFacilityFinancing,
+  resolveOfferReviewContractId,
+} from "./application-detail-facility";
 
 const DETAIL_TABS = ["summary", "offer", "invoices", "documents", "timeline"] as const;
 type DetailTab = (typeof DETAIL_TABS)[number];
@@ -77,7 +77,7 @@ function isDetailTab(value: string | null): value is DetailTab {
   return !!value && (DETAIL_TABS as readonly string[]).includes(value);
 }
 
-export default function ApplicationDetailPage() {
+function ApplicationDetailPageBody() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -122,13 +122,13 @@ export default function ApplicationDetailPage() {
   const hasOffer =
     !!application &&
     (application.cardStatus.showReviewOffer ||
-      application.contractStatus === "OFFER_SENT" ||
+      hasIssuerFacilityOffer(application) ||
       application.invoices.some((inv) => inv.status === "OFFER_SENT" || inv.canReviewOffer) ||
-      application.signedContractOfferLetterAvailable ||
+      (isIssuerFacilityFinancing(application) && application.signedContractOfferLetterAvailable) ||
       application.invoices.some((inv) => inv.signedOfferLetterAvailable));
 
   const pendingOfferCount = application
-    ? (application.contractStatus === "OFFER_SENT" ? 1 : 0) +
+    ? (hasIssuerFacilityOffer(application) ? 1 : 0) +
       application.invoices.filter((inv) => inv.status === "OFFER_SENT" || inv.canReviewOffer).length
     : 0;
 
@@ -205,7 +205,7 @@ export default function ApplicationDetailPage() {
     const isOfferInvoice = (inv: NormalizedInvoice) =>
       inv.status === "OFFER_SENT" || inv.canReviewOffer;
     const firstInvoiceOffer = application.invoices.find(isOfferInvoice) ?? null;
-    const contractOfferAvailable = application.contractStatus === "OFFER_SENT";
+    const contractOfferAvailable = hasIssuerFacilityOffer(application);
 
     if (invoiceIdFromUrl) {
       const inv = application.invoices.find((i) => i.id === invoiceIdFromUrl) ?? null;
@@ -279,7 +279,13 @@ export default function ApplicationDetailPage() {
 
   if (isLoading) {
     return (
-      <div className={cn(issuerMainContentClassName, issuerPageGutterClassName, issuerContentMaxWidthClassName)}>
+      <div
+        className={cn(
+          issuerMainContentClassName,
+          issuerPageGutterClassName,
+          issuerContentMaxWidthClassName
+        )}
+      >
         <LoadingState variant="detail" />
       </div>
     );
@@ -287,7 +293,13 @@ export default function ApplicationDetailPage() {
 
   if (error || !application) {
     return (
-      <div className={cn(issuerMainContentClassName, issuerPageGutterClassName, issuerContentMaxWidthClassName)}>
+      <div
+        className={cn(
+          issuerMainContentClassName,
+          issuerPageGutterClassName,
+          issuerContentMaxWidthClassName
+        )}
+      >
         <EmptyState
           variant="no-data"
           title="Application not found"
@@ -304,20 +316,22 @@ export default function ApplicationDetailPage() {
 
   const displayId = formatApplicationDisplayId(application.id, application.displayReference);
   const isDraft = application.status === "draft";
-  const hasContract = application.type === "Facility financing";
+  const isFacilityFinancing = isIssuerFacilityFinancing(application);
   const statusLabel = application.facilityInForceNoInvoices
     ? "Facility approved"
     : getIssuerPlainStatusLabel(
-    application.cardStatus.badgeKey,
-    application.cardStatus.badgeKey === "withdrawn" ||
-      application.cardStatus.badgeKey === "declined" ||
-      application.cardStatus.badgeKey === "offer_expired"
-      ? application.withdrawReason
-      : undefined
-  );
+        application.cardStatus.badgeKey,
+        application.cardStatus.badgeKey === "withdrawn" ||
+          application.cardStatus.badgeKey === "declined" ||
+          application.cardStatus.badgeKey === "offer_expired"
+          ? application.withdrawReason
+          : undefined
+      );
 
   const showViewSignedContract =
-    application.signedContractOfferLetterAvailable && !!application.signedContractOfferLetterS3Key;
+    isFacilityFinancing &&
+    application.signedContractOfferLetterAvailable &&
+    !!application.signedContractOfferLetterS3Key;
   const withdrawDisabled = cancelApplication.isPending || !application.canWithdraw;
   const withdrawBlockedReason = issuerWithdrawBlockedReason({
     canWithdraw: application.canWithdraw,
@@ -338,20 +352,20 @@ export default function ApplicationDetailPage() {
 
   const offerType: "contract" | "invoice" = reviewableSelectedInvoice
     ? "invoice"
-    : application.contractStatus === "OFFER_SENT"
+    : hasIssuerFacilityOffer(application)
       ? "contract"
       : application.invoices.some(isMountedOfferInvoice)
         ? "invoice"
-        : "contract";
+        : isFacilityFinancing
+          ? "contract"
+          : "invoice";
 
   const offerInvoice =
     offerType === "invoice"
-      ? reviewableSelectedInvoice ??
-        application.invoices.find(isMountedOfferInvoice) ??
-        null
+      ? (reviewableSelectedInvoice ?? application.invoices.find(isMountedOfferInvoice) ?? null)
       : null;
 
-  const canShowContractOfferPanel = application.contractStatus === "OFFER_SENT";
+  const canShowContractOfferPanel = hasIssuerFacilityOffer(application);
   const canShowInvoiceOfferPanel = offerInvoice?.status === "OFFER_SENT";
   const staleInvoiceIdInUrl =
     !!invoiceIdFromUrl &&
@@ -372,7 +386,13 @@ export default function ApplicationDetailPage() {
 
   if (isDraft) {
     return (
-      <div className={cn(issuerMainContentClassName, issuerPageGutterClassName, issuerContentMaxWidthClassName)}>
+      <div
+        className={cn(
+          issuerMainContentClassName,
+          issuerPageGutterClassName,
+          issuerContentMaxWidthClassName
+        )}
+      >
         {activeOrganization?.type === "COMPANY" && dsOnboardingPending ? (
           <DirectorShareholderAlertCard
             visiblePeople={visiblePeopleForDsGating}
@@ -423,10 +443,14 @@ export default function ApplicationDetailPage() {
                   label: "Financing type",
                   value: application.type === "Generic" ? "Not chosen yet" : application.type,
                 },
-                {
-                  label: "Contract title",
-                  value: application.contractTitle ?? "—",
-                },
+                ...(isFacilityFinancing
+                  ? [
+                      {
+                        label: "Contract title",
+                        value: application.contractTitle ?? "—",
+                      },
+                    ]
+                  : []),
                 {
                   label: "Invoice",
                   value:
@@ -466,7 +490,13 @@ export default function ApplicationDetailPage() {
   }
 
   return (
-    <div className={cn(issuerMainContentClassName, issuerPageGutterClassName, issuerContentMaxWidthClassName)}>
+    <div
+      className={cn(
+        issuerMainContentClassName,
+        issuerPageGutterClassName,
+        issuerContentMaxWidthClassName
+      )}
+    >
       {activeOrganization?.type === "COMPANY" && dsOnboardingPending ? (
         <DirectorShareholderAlertCard
           visiblePeople={visiblePeopleForDsGating}
@@ -617,7 +647,7 @@ export default function ApplicationDetailPage() {
             <CardContent>
               <KeyValueGrid
                 items={[
-                  ...(hasContract && application.contractTitle
+                  ...(isFacilityFinancing && application.contractTitle
                     ? [{ label: "Contract title", value: application.contractTitle }]
                     : []),
                   { label: "Customer", value: application.customer },
@@ -630,92 +660,96 @@ export default function ApplicationDetailPage() {
                           application.invoices[0]!.number?.trim() ||
                           "—",
                   },
-                  {
-                    label: "Contract value",
-                    value:
-                      application.contractValue != null
-                        ? formatCurrency(application.contractValue)
-                        : "—",
-                  },
-                  {
-                    label: "Financing applied",
-                    value:
-                      application.facilityApplied != null
-                        ? formatCurrency(application.facilityApplied)
-                        : "—",
-                  },
-                  {
-                    label: "Approved facility",
-                    value:
-                      application.approvedFacilityAmount != null
-                        ? application.approvedFacility
-                        : "—",
-                  },
-                  {
-                    label: (
-                      <span className="inline-flex items-center gap-1.5">
-                        Facility fee rate
-                        <InfoTooltip
-                          content="The facility fee is owed in full when the facility offer is accepted (maximum 1%). CashSouk collects it at its discretion."
-                          iconClassName="h-3.5 w-3.5 shrink-0"
-                        />
-                      </span>
-                    ),
-                    value:
-                      application.approvedFacilityAmount != null &&
-                      application.facilityFeeRatePercent != null &&
-                      application.facilityFeeRatePercent > 0
-                        ? `${application.facilityFeeRatePercent}%`
-                        : "—",
-                  },
-                  {
-                    label: "Facility fee owed",
-                    value:
-                      application.approvedFacilityAmount != null &&
-                      application.facilityFeeCapAmount != null
-                        ? formatCurrency(application.facilityFeeCapAmount)
-                        : "—",
-                  },
-                  {
-                    label: "Facility fee charged",
-                    value:
-                      application.approvedFacilityAmount != null &&
-                      application.facilityFeeCapAmount != null
-                        ? formatCurrency(application.facilityFeePaidAmount ?? 0)
-                        : "—",
-                  },
-                  {
-                    label: "Facility fee waived",
-                    value: application.facilityFeeWaived
-                      ? application.facilityFeeWaivedAmount != null
-                        ? formatCurrency(application.facilityFeeWaivedAmount)
-                        : "Waived"
-                      : "—",
-                  },
-                  {
-                    label: "Facility fee remaining",
-                    value:
-                      application.approvedFacilityAmount != null &&
-                      application.facilityFeeCapAmount != null
-                        ? formatCurrency(application.facilityFeeRemainingAmount ?? 0)
-                        : "—",
-                  },
-                  {
-                    label: "Upfront facility fee requested",
-                    value:
-                      application.approvedFacilityAmount != null &&
-                      application.facilityFeeUpfrontAmount != null
-                        ? formatCurrency(application.facilityFeeUpfrontAmount)
-                        : "—",
-                  },
-                  {
-                    label: "Upfront facility fee outstanding",
-                    value:
-                      application.approvedFacilityAmount != null &&
-                      application.facilityFeeUpfrontOutstanding != null
-                        ? formatCurrency(application.facilityFeeUpfrontOutstanding)
-                        : "—",
-                  },
+                  ...(isFacilityFinancing
+                    ? [
+                        {
+                          label: "Contract value",
+                          value:
+                            application.contractValue != null
+                              ? formatCurrency(application.contractValue)
+                              : "—",
+                        },
+                        {
+                          label: "Financing applied",
+                          value:
+                            application.facilityApplied != null
+                              ? formatCurrency(application.facilityApplied)
+                              : "—",
+                        },
+                        {
+                          label: "Approved facility",
+                          value:
+                            application.approvedFacilityAmount != null
+                              ? application.approvedFacility
+                              : "—",
+                        },
+                        {
+                          label: (
+                            <span className="inline-flex items-center gap-1.5">
+                              Facility fee rate
+                              <InfoTooltip
+                                content="The facility fee is owed in full when the facility offer is accepted (maximum 1%). CashSouk collects it at its discretion."
+                                iconClassName="h-3.5 w-3.5 shrink-0"
+                              />
+                            </span>
+                          ),
+                          value:
+                            application.approvedFacilityAmount != null &&
+                            application.facilityFeeRatePercent != null &&
+                            application.facilityFeeRatePercent > 0
+                              ? `${application.facilityFeeRatePercent}%`
+                              : "—",
+                        },
+                        {
+                          label: "Facility fee owed",
+                          value:
+                            application.approvedFacilityAmount != null &&
+                            application.facilityFeeCapAmount != null
+                              ? formatCurrency(application.facilityFeeCapAmount)
+                              : "—",
+                        },
+                        {
+                          label: "Facility fee charged",
+                          value:
+                            application.approvedFacilityAmount != null &&
+                            application.facilityFeeCapAmount != null
+                              ? formatCurrency(application.facilityFeePaidAmount ?? 0)
+                              : "—",
+                        },
+                        {
+                          label: "Facility fee waived",
+                          value: application.facilityFeeWaived
+                            ? application.facilityFeeWaivedAmount != null
+                              ? formatCurrency(application.facilityFeeWaivedAmount)
+                              : "Waived"
+                            : "—",
+                        },
+                        {
+                          label: "Facility fee remaining",
+                          value:
+                            application.approvedFacilityAmount != null &&
+                            application.facilityFeeCapAmount != null
+                              ? formatCurrency(application.facilityFeeRemainingAmount ?? 0)
+                              : "—",
+                        },
+                        {
+                          label: "Upfront facility fee requested",
+                          value:
+                            application.approvedFacilityAmount != null &&
+                            application.facilityFeeUpfrontAmount != null
+                              ? formatCurrency(application.facilityFeeUpfrontAmount)
+                              : "—",
+                        },
+                        {
+                          label: "Upfront facility fee outstanding",
+                          value:
+                            application.approvedFacilityAmount != null &&
+                            application.facilityFeeUpfrontOutstanding != null
+                              ? formatCurrency(application.facilityFeeUpfrontOutstanding)
+                              : "—",
+                        },
+                      ]
+                    : []),
                   {
                     label: "Submitted",
                     value: application.submittedAt
@@ -726,7 +760,7 @@ export default function ApplicationDetailPage() {
                     label: "Last updated",
                     value: format(new Date(application.updatedAt), "d MMM yyyy, h:mm a"),
                   },
-                  ...(application.facilityEnabled === false
+                  ...(isFacilityFinancing && application.facilityEnabled === false
                     ? [
                         {
                           label: "Facility status",
@@ -738,7 +772,7 @@ export default function ApplicationDetailPage() {
                     : []),
                 ]}
               />
-              {application.contractId ? (
+              {isFacilityFinancing && application.contractId ? (
                 <div className="mt-4 space-y-2">
                   {application.facilityFeeUpfrontOutstanding != null &&
                   application.facilityFeeUpfrontOutstanding > 0 ? (
@@ -771,11 +805,11 @@ export default function ApplicationDetailPage() {
                     type={offerType}
                     applicationId={application.id}
                     issuerOrganizationId={application.issuerOrganizationId}
-                    contractId={
-                      offerType === "contract"
-                        ? application.contractId ?? undefined
-                        : offerInvoice?.contractId ?? application.contractId ?? undefined
-                    }
+                    contractId={resolveOfferReviewContractId({
+                      offerType,
+                      application,
+                      invoice: offerInvoice,
+                    })}
                     contractDisplayReference={application.contractDisplayReference}
                     invoice={offerType === "invoice" ? offerInvoice : undefined}
                     requiresInvoiceSigning
@@ -831,7 +865,7 @@ export default function ApplicationDetailPage() {
                       Offers to review
                     </p>
                     <nav className="flex flex-col gap-1" aria-label="Select offer">
-                      {application.contractStatus === "OFFER_SENT" ? (
+                      {hasIssuerFacilityOffer(application) ? (
                         <button
                           type="button"
                           onClick={() => selectOfferInvoice(null)}
@@ -943,9 +977,7 @@ export default function ApplicationDetailPage() {
                     className="flex flex-wrap items-center justify-between gap-3 px-6 py-3"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-ui font-medium text-foreground">
-                        {doc.name}
-                      </p>
+                      <p className="truncate text-ui font-medium text-foreground">{doc.name}</p>
                       <p className="text-ui text-muted-foreground">{doc.source}</p>
                     </div>
                     <Button
@@ -995,10 +1027,7 @@ export default function ApplicationDetailPage() {
                             aria-hidden
                           />
                           {!isLast ? (
-                            <span
-                              className="mt-1 w-px flex-1 bg-border"
-                              aria-hidden
-                            />
+                            <span className="mt-1 w-px flex-1 bg-border" aria-hidden />
                           ) : null}
                         </div>
                         <div className={cn("min-w-0 flex-1", !isLast && "pb-6")}>
@@ -1059,5 +1088,25 @@ export default function ApplicationDetailPage() {
         }}
       />
     </div>
+  );
+}
+
+export default function ApplicationDetailPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div
+          className={cn(
+            issuerMainContentClassName,
+            issuerPageGutterClassName,
+            issuerContentMaxWidthClassName
+          )}
+        >
+          <LoadingState variant="detail" />
+        </div>
+      }
+    >
+      <ApplicationDetailPageBody />
+    </React.Suspense>
   );
 }

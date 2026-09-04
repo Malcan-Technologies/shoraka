@@ -60,7 +60,10 @@ import {
 } from "@/app/(application-flow)/applications/components/form-control";
 import { formatMoney, parseMoney, VerifiedBadge } from "@cashsouk/ui";
 import {
+  contractEndDateMeetsMinimumMonths,
   isRequestedFacilityAtOrAboveContractValue,
+  readContractProductRules,
+  readProductLimitViolationMessage,
   REQUESTED_FACILITY_BELOW_CONTRACT_COPY,
 } from "@cashsouk/types";
 import { MoneyInput } from "@cashsouk/ui";
@@ -162,25 +165,18 @@ function isStartBeforeEnd(start?: string, end?: string) {
 
 function isEndDateTooSoon(startDate?: string, endDate?: string, minMonths?: number) {
   if (!endDate) return false;
-  if (!minMonths || minMonths <= 0) return false;
 
   const parsedEnd = parseApplicationFlowDate(endDate);
   if (!parsedEnd) return false;
 
-  const today = new Date();
-  let baseDate = today;
+  const parsedStart = startDate ? parseApplicationFlowDate(startDate) : null;
 
-  if (startDate) {
-    const parsedStart = parseApplicationFlowDate(startDate);
-    if (parsedStart && parsedStart > today) {
-      baseDate = parsedStart;
-    }
-  }
-
-  const minAllowedEndDate = new Date(baseDate);
-  minAllowedEndDate.setMonth(minAllowedEndDate.getMonth() + minMonths);
-
-  return parsedEnd < minAllowedEndDate;
+  return !contractEndDateMeetsMinimumMonths({
+    startDate: parsedStart,
+    endDate: parsedEnd,
+    minMonths: minMonths ?? null,
+    referenceDate: new Date(),
+  });
 }
 
 function formatApplicationFlowDateDisplay(d: Date): string {
@@ -193,27 +189,7 @@ function formatApplicationFlowDateDisplay(d: Date): string {
 
 /** Read product-level min_contract_months from product workflow (if present). */
 function getProductMinContractMonths(workflow: unknown[] | null | undefined): number | null {
-  if (!workflow?.length) return null;
-  try {
-    const contractStep = workflow.find((step) => {
-      if (typeof step !== "object" || step === null) return false;
-      const s = step as { id?: string; name?: string; config?: Record<string, unknown> };
-      return (
-        s.id?.includes?.("contract_details") === true ||
-        s.name?.toLowerCase?.()?.includes?.("contract") === true
-      );
-    }) as { config?: Record<string, unknown> } | undefined;
-
-    const config = contractStep?.config || {};
-    const val = config.min_contract_months ?? config.minContractMonths;
-
-    if (typeof val === "number") return val;
-    if (typeof val === "string" && /^\d+$/.test(val)) return parseInt(val, 10);
-
-    return null;
-  } catch {
-    return null;
-  }
+  return readContractProductRules(workflow).minContractMonths;
 }
 
 /* ================================================================
@@ -419,6 +395,7 @@ export function ContractDetailsStep({
 
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
   const [financingError, setFinancingError] = React.useState<string | null>(null);
+  const [contractLimitError, setContractLimitError] = React.useState<string | null>(null);
   // --------------------------------------------------
   // Product-level contract rule (computed once)
   // --------------------------------------------------
@@ -431,6 +408,10 @@ export function ContractDetailsStep({
   React.useEffect(() => {
     setFinancingError(null);
   }, [formData.contract.financing]);
+
+  React.useEffect(() => {
+    setContractLimitError(null);
+  }, [formData.contract.start_date, formData.contract.end_date]);
 
   /** Apply dev-tools Auto Fill when requested (single step or Fill Entire Application). */
   React.useEffect(() => {
@@ -589,6 +570,7 @@ export function ContractDetailsStep({
     setHasSubmitted(true);
     const validationErrors: string[] = [];
     setFinancingError(null);
+    setContractLimitError(null);
 
     if (!isInvoiceOnly) {
       if (productMinMonths == null) {
@@ -732,10 +714,19 @@ export function ContractDetailsStep({
       if (existingContractDetails != null && Object.keys(existingContractDetails).length > 0) {
         updatePayload.contract_details = null;
       }
-      await updateContractMutation.mutateAsync({
-        id: effectiveContractId,
-        data: updatePayload,
-      });
+      try {
+        await updateContractMutation.mutateAsync({
+          id: effectiveContractId,
+          data: updatePayload,
+        });
+      } catch (err) {
+        const limitMessage = readProductLimitViolationMessage(err);
+        if (limitMessage) {
+          setContractLimitError(limitMessage);
+          toast.error(limitMessage);
+        }
+        throw err;
+      }
       setPendingFiles({});
       return { contract_details: undefined, customer_details: updatedCustomerDetails };
     }
@@ -776,13 +767,22 @@ export function ContractDetailsStep({
       document: updatedFormData.contract.document || undefined,
     };
 
-    await updateContractMutation.mutateAsync({
-      id: effectiveContractId,
-      data: {
-        contract_details: updatedContractDetails,
-        customer_details: updatedCustomerDetails,
-      },
-    });
+    try {
+      await updateContractMutation.mutateAsync({
+        id: effectiveContractId,
+        data: {
+          contract_details: updatedContractDetails,
+          customer_details: updatedCustomerDetails,
+        },
+      });
+    } catch (err) {
+      const limitMessage = readProductLimitViolationMessage(err);
+      if (limitMessage) {
+        setContractLimitError(limitMessage);
+        toast.error(limitMessage);
+      }
+      throw err;
+    }
 
     setPendingFiles({});
     return {
@@ -1067,16 +1067,17 @@ export function ContractDetailsStep({
     (!formData.contract.start_date || !isApplicationFlowDateValid(formData.contract.start_date));
 
   const isEndInvalid =
-    hasSubmitted &&
-    (!formData.contract.end_date ||
-      !isApplicationFlowDateValid(formData.contract.end_date) ||
-      !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) ||
-      (productMinMonths != null &&
-        isEndDateTooSoon(
-          formData.contract.start_date,
-          formData.contract.end_date,
-          productMinMonths
-        )));
+    Boolean(contractLimitError) ||
+    (hasSubmitted &&
+      (!formData.contract.end_date ||
+        !isApplicationFlowDateValid(formData.contract.end_date) ||
+        !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) ||
+        (productMinMonths != null &&
+          isEndDateTooSoon(
+            formData.contract.start_date,
+            formData.contract.end_date,
+            productMinMonths
+          ))));
 
   /* ================================================================
      RENDER
@@ -1273,12 +1274,15 @@ export function ContractDetailsStep({
                     formData.contract.end_date,
                     productMinMonths ?? undefined
                   ) && (
-                    <p className="text-xs text-destructive">
+                    <p className="text-ui text-destructive">
                       {productMinMonths != null
                         ? `Contract must run at least ${productMinMonths} months from the later of today or the start date. Extend the end date, or in Financing structure choose Invoice-only if you are financing without a long-term contract.`
                         : "Contract end date is before the minimum period allowed for this product. Extend the end date, or in Financing structure choose Invoice-only if you are financing without a long-term contract."}
                     </p>
                   )}
+                {contractLimitError ? (
+                  <p className="text-ui text-destructive">{contractLimitError}</p>
+                ) : null}
               </div>
 
               <Label className={labelTextareaClassName}>Upload Contract</Label>

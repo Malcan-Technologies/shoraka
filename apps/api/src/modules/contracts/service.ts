@@ -13,7 +13,10 @@ import {
   parseScopeKey,
   buildOriginationPhaseInput,
   resolveOriginationPhase,
+  readFinancingStructureType,
 } from "@cashsouk/types";
+import { ProductRepository } from "../products/repository";
+import { assertContractMeetsProductRules } from "../../lib/product-rule-guard";
 import { computeApplicationStatus } from "../applications/lifecycle";
 import { prisma } from "../../lib/prisma";
 import {
@@ -44,6 +47,21 @@ export class ContractService {
     this.repository = new ContractRepository();
     this.applicationRepository = new ApplicationRepository();
     this.organizationRepository = new OrganizationRepository();
+  }
+
+  private async loadWorkflowForApplication(application: {
+    financing_type?: unknown;
+    product_version?: number | null;
+  } | null): Promise<unknown | null> {
+    const productId = (application?.financing_type as { product_id?: string } | null)?.product_id;
+    if (!productId) return null;
+    const productRepo = new ProductRepository();
+    const productVersion = application?.product_version;
+    const product =
+      productVersion != null
+        ? await productRepo.findByBaseAndVersion(productId, productVersion)
+        : await productRepo.findById(productId);
+    return product?.workflow ?? null;
   }
 
   private async verifyContractAccess(contractId: string, userId: string): Promise<Contract> {
@@ -205,10 +223,11 @@ export class ContractService {
     /** Enforce amendment boundaries: if application is in AMENDMENT_REQUESTED, contract edits
      * are only allowed if there is an active REQUEST_AMENDMENT remark for contract_details. */
     const applicationId = (contract as any)?.applications?.[0]?.id;
+    let application: Awaited<ReturnType<ApplicationRepository["findById"]>> | null = null;
     if (applicationId) {
-      const application = await this.applicationRepository.findById(applicationId);
-      const structure = application?.financing_structure as { structure_type?: string } | null;
-      if (structure?.structure_type === "invoice_only") {
+      application = await this.applicationRepository.findById(applicationId);
+      const structureType = readFinancingStructureType(application?.financing_structure);
+      if (structureType === "invoice_only") {
         const isClearingContractDetails = data.contract_details === Prisma.JsonNull || data.contract_details === null;
         if (!isClearingContractDetails && data.contract_details != null) {
           throw new AppError(400, "VALIDATION_ERROR", "Facility financing fields are not allowed for invoice-only structure.");
@@ -230,6 +249,21 @@ export class ContractService {
           throw new AppError(403, "AMENDMENT_BOUNDARY", "Facility edits are locked during amendment unless facility details are requested for amendment.");
         }
       }
+    }
+
+    const isClearingContractDetails =
+      data.contract_details === Prisma.JsonNull || data.contract_details === null;
+    if (
+      !isClearingContractDetails &&
+      data.contract_details != null &&
+      readFinancingStructureType(application?.financing_structure) !== "invoice_only"
+    ) {
+      const workflow = await this.loadWorkflowForApplication(application);
+      assertContractMeetsProductRules(
+        workflow,
+        data.contract_details as Record<string, unknown>,
+        { referenceDate: new Date() }
+      );
     }
 
     const extractS3Key = (obj: unknown): string | null => {

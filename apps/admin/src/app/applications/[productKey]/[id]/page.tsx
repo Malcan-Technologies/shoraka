@@ -61,24 +61,23 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
-import {
-  createApiClient,
-  useAuthToken,
-  readInvoiceMaturityMonthsFromWorkflow,
-} from "@cashsouk/config";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   computeHasPendingDirectorShareholder,
   formatApplicationReference,
   formatContractReference,
   formatNamedEntityDisplay,
   formatNoteReference,
+  isInvoiceOnlyFinancingStructure,
   getSectionForScopeKey,
   getOfferAcceptanceFromOfferDetails,
   buildOriginationPhaseInput,
   canRejectApplication,
   isCompletedWithNoApprovedInvoices,
   resolveOriginationPhase,
-  resolveInvoiceFinancingRatioBounds,
+  readInvoiceProductRules,
+  readContractProductRules,
+  readProductLimitViolationMessage,
   type ApplicationPersonRow,
   type ReviewItemType,
 } from "@cashsouk/types";
@@ -432,7 +431,7 @@ export default function DynamicApplicationDetailPage() {
     return normalized.length > 0 ? set : null;
   }, [app]);
   const structureType = (app?.financing_structure as { structure_type?: string } | null | undefined)?.structure_type;
-  const isInvoiceOnly = structureType === "invoice_only";
+  const isInvoiceOnly = isInvoiceOnlyFinancingStructure(app?.financing_structure);
 
   // Prefer frozen product_version workflow from detail; live catalog can drift after re-version.
   const reviewProductWorkflow = React.useMemo((): unknown[] | undefined => {
@@ -442,30 +441,15 @@ export default function DynamicApplicationDetailPage() {
     return Array.isArray(live) ? live : undefined;
   }, [app, currentProduct]);
 
-  const invoiceRatioLimits = React.useMemo(() => {
-    const workflow = (reviewProductWorkflow ?? []) as {
-      id?: string;
-      name?: string;
-      config?: Record<string, unknown>;
-    }[];
-    const invoiceStep = workflow.find(
-      (s) => s.id?.includes?.("invoice_details") || s.name?.toLowerCase?.().includes?.("invoice")
-    );
-    const config = invoiceStep?.config ?? {};
-    const min =
-      typeof config.min_financing_ratio_percent === "number"
-        ? config.min_financing_ratio_percent
-        : undefined;
-    const max =
-      typeof config.max_financing_ratio_percent === "number"
-        ? config.max_financing_ratio_percent
-        : undefined;
-    return resolveInvoiceFinancingRatioBounds(min, max);
-  }, [reviewProductWorkflow]);
-
-  const minMonthsReviewToMaturityForOffer = React.useMemo(() => {
-    return readInvoiceMaturityMonthsFromWorkflow(reviewProductWorkflow ?? []).minMonthsReviewToMaturity;
-  }, [reviewProductWorkflow]);
+  const invoiceProductRules = React.useMemo(
+    () => readInvoiceProductRules(reviewProductWorkflow ?? []),
+    [reviewProductWorkflow]
+  );
+  const contractProductRules = React.useMemo(
+    () => readContractProductRules(reviewProductWorkflow ?? []),
+    [reviewProductWorkflow]
+  );
+  const minMonthsReviewToMaturityForOffer = invoiceProductRules.minMonthsReviewToMaturity;
 
   const effectiveTabDescriptors = React.useMemo(
     () => getEffectiveReviewTabDescriptors(reviewProductWorkflow, app ?? null),
@@ -1072,11 +1056,13 @@ export default function DynamicApplicationDetailPage() {
                                 }
                               } catch (err) {
                                 toast.error(
-                                  mapAdminCapacityActionError(
-                                    err,
-                                    "Failed to send facility offer"
-                                  ).message
+                                  readProductLimitViolationMessage(err) ??
+                                    mapAdminCapacityActionError(
+                                      err,
+                                      "Failed to send facility offer"
+                                    ).message
                                 );
+                                throw err;
                               }
                             }}
                             onSendInvoiceOffer={async ({
@@ -1117,16 +1103,19 @@ export default function DynamicApplicationDetailPage() {
                                 }
                               } catch (err) {
                                 toast.error(
-                                  mapAdminCapacityActionError(
-                                    err,
-                                    "Failed to send invoice offer"
-                                  ).message
+                                  readProductLimitViolationMessage(err) ??
+                                    mapAdminCapacityActionError(
+                                      err,
+                                      "Failed to send invoice offer"
+                                    ).message
                                 );
+                                throw err;
                               }
                             }}
                             sendContractOfferPending={sendContractOffer.isPending}
                             sendInvoiceOfferPending={sendInvoiceOffer.isPending}
-                            invoiceRatioLimits={invoiceRatioLimits}
+                            invoiceProductRules={invoiceProductRules}
+                            contractProductRules={contractProductRules}
                             platformFeeRateCapPercent={platformFeeRateCapPercent}
                             productDefaultFacilityFeeRatePercent={productDefaultFacilityFeeRatePercent}
                             minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
@@ -1168,12 +1157,14 @@ export default function DynamicApplicationDetailPage() {
                         }
                         display={issuerOrganizationLabel}
                       />
-                      <RelatedRecordLink
-                        label="Facility Reference"
-                        value={applicationContractId}
-                        href={applicationContractId ? `/contracts/${encodeURIComponent(applicationContractId)}` : null}
-                        display={facilityReferenceLabel}
-                      />
+                      {!isInvoiceOnly ? (
+                        <RelatedRecordLink
+                          label="Facility Reference"
+                          value={applicationContractId}
+                          href={applicationContractId ? `/contracts/${encodeURIComponent(applicationContractId)}` : null}
+                          display={facilityReferenceLabel}
+                        />
+                      ) : null}
                       {linkedNotes.length > 0 ? (
                         linkedNotes.map((note) => (
                           <RelatedRecordLink

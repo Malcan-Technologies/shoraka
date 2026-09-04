@@ -12,10 +12,7 @@ import {
   type NormalizedApplication,
 } from "@/app/(application-management)/applications/status";
 import { badgeKeyToStatusToken } from "@/app/(application-management)/applications/components/issuer-status-display";
-import {
-  actionsRequiredLabel,
-  issuerApplicationActionHref,
-} from "@/lib/issuer-pending-actions";
+import { actionsRequiredLabel, issuerApplicationActionHref } from "@/lib/issuer-pending-actions";
 import { RecentSectionHeader } from "@/components/dashboard/recent-section-header";
 import { ApplyForFinancingButton } from "@/components/apply-for-financing-button";
 import { formatApplicationReference } from "@cashsouk/types";
@@ -37,16 +34,14 @@ function displayId(app: NormalizedApplication): string {
 }
 
 export function RecentApplicationsCard() {
-  const { applications, isLoading } = useApplicationsData();
+  const { applications, isLoading, error } = useApplicationsData();
 
-  const prioritized = applications
-    .slice()
-    .sort((a, b) => {
-      const ai = isIssuerApplicationActionable(a) ? 0 : 1;
-      const bi = isIssuerApplicationActionable(b) ? 0 : 1;
-      if (ai !== bi) return ai - bi;
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-    });
+  const prioritized = applications.slice().sort((a, b) => {
+    const ai = isIssuerApplicationActionable(a) ? 0 : 1;
+    const bi = isIssuerApplicationActionable(b) ? 0 : 1;
+    if (ai !== bi) return ai - bi;
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  });
 
   const visible = prioritized.slice(0, MAX_ROWS);
   const actionableCount = countIssuerApplicationsNeedingAction(applications);
@@ -67,6 +62,10 @@ export function RecentApplicationsCard() {
       <div className="flex flex-1 flex-col px-5 pb-5 pt-4 md:px-6 md:pb-6 md:pt-5">
         {isLoading ? (
           <p className="py-4 text-body leading-7 text-muted-foreground">Loading…</p>
+        ) : error ? (
+          <p role="alert" className="py-4 text-body leading-7 text-destructive">
+            Could not load applications. Refresh the page to try again.
+          </p>
         ) : visible.length === 0 ? (
           <p className="py-4 text-body leading-7 text-muted-foreground">
             No applications yet.{" "}
@@ -102,7 +101,10 @@ export function RecentApplicationsCard() {
                       status={badgeKeyToStatusToken(app.cardStatus.badgeKey)}
                       className="shrink-0"
                     />
-                    <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <ArrowRightIcon
+                      className="h-4 w-4 shrink-0 text-muted-foreground"
+                      aria-hidden
+                    />
                   </Link>
                 </li>
               );
@@ -113,4 +115,3 @@ export function RecentApplicationsCard() {
     </Card>
   );
 }
-

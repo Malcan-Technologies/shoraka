@@ -1,11 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  DocumentTextIcon,
-  ExclamationTriangleIcon,
-  LinkIcon,
-} from "@heroicons/react/24/outline";
+import { DocumentTextIcon, ExclamationTriangleIcon, LinkIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import {
   formatIssuerFinancingTenure,
@@ -14,7 +10,7 @@ import {
   resolveNoteTimingDisplay,
   type NoteListItem,
 } from "@cashsouk/types";
-import { NoteStatusBadge, ProductCatalogName } from "@cashsouk/ui";
+import { NoteStatusBadge, ProductCatalogName, StatusBadge } from "@cashsouk/ui";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { Button } from "@/components/ui/button";
 import { issuerSettlementPayoutSummaryFromResidualStatus } from "@/notes/lib/settlement-payout-summary-presenter";
@@ -37,10 +33,7 @@ import {
   issuerCampaignCloseLabel,
   issuerCampaignDaysLeftLabel,
 } from "./marketplace-campaign";
-import {
-  isIssuerNoteActionable,
-  isIssuerNoteInArrears,
-} from "@/lib/issuer-financing-actionable";
+import { isIssuerNoteActionable, isIssuerNoteInArrears } from "@/lib/issuer-financing-actionable";
 import { FacilityTiedLink } from "./facility-tied-link";
 
 function daysPastMaturity(maturityDate: string | null | undefined): number | null {
@@ -219,12 +212,7 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
           <div className="flex shrink-0 items-center justify-center sm:w-[11rem] sm:justify-start">
-            <FinancingDonut
-              size="lg"
-              centerLabel="Funded"
-              percent={progress}
-              tone={donutTone}
-            />
+            <FinancingDonut size="lg" centerLabel="Funded" percent={progress} tone={donutTone} />
           </div>
 
           <div className="min-w-0 flex-1 space-y-3">
@@ -234,10 +222,7 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
               <FinancingKpiTile
                 label="Risk"
                 labelExtra={
-                  <InfoTooltip
-                    content={RISK_TOOLTIP_TEXT}
-                    iconClassName="h-3.5 w-3.5 shrink-0"
-                  />
+                  <InfoTooltip content={RISK_TOOLTIP_TEXT} iconClassName="h-3.5 w-3.5 shrink-0" />
                 }
                 value={grade ?? EM_DASH}
                 valueClassName={riskLetterToneClass(grade)}
@@ -265,10 +250,17 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
                     size="xs"
                   />
                 </LabelValue>
-                <FacilityTiedLink
-                  contractId={note.sourceContractId}
-                  displayReference={note.sourceContractDisplayReference}
-                />
+                {note.sourceContractId ? (
+                  <FacilityTiedLink
+                    contractId={note.sourceContractId}
+                    displayReference={note.sourceContractDisplayReference}
+                  />
+                ) : (
+                  <p className="flex items-center gap-2 text-ui leading-7 text-foreground">
+                    <span className="font-normal text-muted-foreground">Facility:</span>
+                    <StatusBadge label="On its own" status="neutral" showDot={false} />
+                  </p>
+                )}
                 {note.sourceInvoiceId ? (
                   <p className="text-ui leading-7 text-foreground">
                     <span className="font-normal text-muted-foreground">Invoice: </span>

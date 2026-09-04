@@ -260,4 +260,35 @@ describe("InvoiceService split origination create", () => {
       data: expect.objectContaining({ contract_id: undefined }),
     });
   });
+
+  it("rejects a facility link on an invoice-only invoice", async () => {
+    mockTx.application.findUnique.mockResolvedValue({
+      id: "app_invoice_only",
+      financing_type: { split_origination: true, product_code: "ARF" },
+      financing_structure: { structure_type: "invoice_only" },
+      issuer_organization_id: "org_1",
+      contract_id: "holder_1",
+      product_version: 1,
+    });
+
+    const service = new InvoiceService();
+    (service as unknown as { verifyApplicationAccess: jest.Mock }).verifyApplicationAccess = jest
+      .fn()
+      .mockResolvedValue({ id: "app_invoice_only" });
+    (service as unknown as { loadWorkflowForApplication: jest.Mock }).loadWorkflowForApplication =
+      jest.fn().mockResolvedValue(null);
+
+    await expect(
+      service.createInvoice(
+        "app_invoice_only",
+        "holder_1",
+        { number: "INV-1", value: 1000 },
+        "user_1"
+      )
+    ).rejects.toMatchObject({
+      code: "STANDALONE_INVOICE_NO_FACILITY",
+      statusCode: 400,
+    } satisfies Partial<AppError>);
+    expect(mockTx.invoice.create).not.toHaveBeenCalled();
+  });
 });

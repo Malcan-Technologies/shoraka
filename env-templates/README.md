@@ -53,4 +53,5 @@ done
 - For AWS deployment, environment variables are injected via SSM/Secrets Manager (no files needed)
 - Templates are safe to commit as they contain no secrets
 - API Curlec credentials use account-specific `CURLEC_OPERATING_*` and `CURLEC_INVESTOR_POOL_*` vars plus shared `CURLEC_API_BASE_URL`.
+- Plain support uses `PLAIN_API_KEY`, `PLAIN_CHAT_APP_ID`, and `PLAIN_CHAT_SECRET` on the API. Issuer, investor, and landing also set `NEXT_PUBLIC_PLAIN_CHAT_APP_ID` and `NEXT_PUBLIC_HELP_CENTER_URL`. Admin has no Plain vars (no chat widget). Do not put the API key or chat secret in `NEXT_PUBLIC_*` vars.
 

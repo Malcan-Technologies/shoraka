@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { sumApprovedFacilityAmount } from "./organization-header-metrics";
 
 describe("sumApprovedFacilityAmount", () => {
@@ -17,5 +19,11 @@ describe("sumApprovedFacilityAmount", () => {
     expect(
       sumApprovedFacilityAmount([{ status: "DRAFT", contract_details: { approved_facility: 10 } }])
     ).toBe(0);
+  });
+
+  it("filters standalone holders before loading issuer header facilities", () => {
+    const serviceSource = fs.readFileSync(path.join(__dirname, "service.ts"), "utf8");
+
+    expect(serviceSource).toContain("AND: [realFacilityContractWhere()]");
   });
 });

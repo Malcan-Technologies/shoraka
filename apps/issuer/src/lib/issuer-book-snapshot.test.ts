@@ -194,28 +194,46 @@ const now = new Date(2026, 7, 20);
 
 describe("isOpenApplication", () => {
   it("keeps draft, review, and action states", () => {
-    expect(isOpenApplication(makeApp({ cardStatus: {
-      badgeKey: "draft",
-      displayLabel: "Draft",
-      showReviewOffer: false,
-      showMakeAmendments: false,
-    } }))).toBe(true);
+    expect(
+      isOpenApplication(
+        makeApp({
+          cardStatus: {
+            badgeKey: "draft",
+            displayLabel: "Draft",
+            showReviewOffer: false,
+            showMakeAmendments: false,
+          },
+        })
+      )
+    ).toBe(true);
     expect(isOpenApplication(makeApp())).toBe(true);
   });
 
   it("excludes closed and expired applications", () => {
-    expect(isOpenApplication(makeApp({ cardStatus: {
-      badgeKey: "completed",
-      displayLabel: "Completed",
-      showReviewOffer: false,
-      showMakeAmendments: false,
-    } }))).toBe(false);
-    expect(isOpenApplication(makeApp({ cardStatus: {
-      badgeKey: "offer_expired",
-      displayLabel: "Offer Expired",
-      showReviewOffer: false,
-      showMakeAmendments: false,
-    } }))).toBe(false);
+    expect(
+      isOpenApplication(
+        makeApp({
+          cardStatus: {
+            badgeKey: "completed",
+            displayLabel: "Completed",
+            showReviewOffer: false,
+            showMakeAmendments: false,
+          },
+        })
+      )
+    ).toBe(false);
+    expect(
+      isOpenApplication(
+        makeApp({
+          cardStatus: {
+            badgeKey: "offer_expired",
+            displayLabel: "Offer Expired",
+            showReviewOffer: false,
+            showMakeAmendments: false,
+          },
+        })
+      )
+    ).toBe(false);
   });
 });
 
@@ -390,10 +408,10 @@ describe("buildIssuerBookSnapshot", () => {
         makeContract({
           id: "holder",
           applicationId: "inv_only",
-          approvedFacilityAmount: null,
+          approvedFacilityAmount: "999999",
           utilizedFacilityAmount: null,
           availableFacilityAmount: null,
-          contractStatus: "DRAFT",
+          contractStatus: "APPROVED",
         }),
       ],
       invoices: [makeInvoice({ id: "stand", contractId: null, invoiceStatus: "SUBMITTED" })],
@@ -522,6 +540,25 @@ describe("buildIssuerBookSnapshot", () => {
     expect(snapshot.facilityBook?.invoices.repaid).toBe(1);
   });
 
+  it("excludes normalized invoice_only apps that no longer carry a holder contractId", () => {
+    const snapshot = buildIssuerBookSnapshot({
+      applications: [makeApp({ id: "inv_only", type: "Invoice financing", contractId: null })],
+      contracts: [
+        makeContract({
+          id: "holder",
+          applicationId: "inv_only",
+          approvedFacilityAmount: null,
+          contractStatus: "DRAFT",
+        }),
+      ],
+      invoices: [makeInvoice({ id: "stand", contractId: null, invoiceStatus: "OFFER_SENT" })],
+      notes: [],
+      now,
+    });
+    expect(snapshot.facilityBook).toBeNull();
+    expect(snapshot.invoiceBook?.invoices.inReview).toBe(1);
+  });
+
   it("treats invoices on a holder contract as standalone", () => {
     const snapshot = buildIssuerBookSnapshot({
       applications: [makeApp({ type: "Invoice financing", contractId: "holder" })],
@@ -572,9 +609,7 @@ describe("buildIssuerBookSnapshot", () => {
 
   it("keeps an accepted line in the facility book while the facility itself is in amendment", () => {
     const snapshot = buildIssuerBookSnapshot({
-      applications: [
-        makeApp({ id: "app_fac", type: "Facility financing", contractId: "con_1" }),
-      ],
+      applications: [makeApp({ id: "app_fac", type: "Facility financing", contractId: "con_1" })],
       contracts: [
         makeContract({
           contractStatus: "AMENDMENT_REQUESTED",

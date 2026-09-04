@@ -56,10 +56,7 @@ import {
   pickPrimarySignedOfferDocument,
 } from "@cashsouk/types";
 import { patchOfferAcceptance } from "./offer-acceptance";
-import {
-  assertAcceptanceDeadlineOpen,
-  assertSigningDeadlineOpen,
-} from "../../lib/phase-deadlines";
+import { assertAcceptanceDeadlineOpen, assertSigningDeadlineOpen } from "../../lib/phase-deadlines";
 import {
   assertAcceptanceDocumentIndexEditableInChangesRequested,
   collectFlaggedAcceptanceDocumentIndices,
@@ -81,6 +78,7 @@ import {
   type ApplicationGuarantorForParties,
 } from "./authorized-parties";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
+import { assertProductRulesForSubmit } from "./product-rules-on-submit";
 import { upsertLatestOrganizationFinancialStatementsFromApplication } from "./issuer-organization-financial-statements";
 import { deleteS3Object } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
@@ -94,7 +92,11 @@ import { linkPaymasterForApplicationSubmission } from "../paymaster/service";
 import { prisma } from "../../lib/prisma";
 import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { logApplicationActivity } from "./logs/service";
-import { ActivityPortal, ApplicationLogEventType, type IssuerActivityLogContext } from "./logs/types";
+import {
+  ActivityPortal,
+  ApplicationLogEventType,
+  type IssuerActivityLogContext,
+} from "./logs/types";
 import { assertApplicationProcessingFeePaid } from "../payment/processing-fee-service";
 import {
   generateContractOfferLetterStream,
@@ -143,6 +145,7 @@ import {
   parseFiniteNumber,
   parseInvoiceFeeSchedule,
   buildUtilisationOfferConsentAcknowledgement,
+  isInvoiceOnlyFinancingStructure,
   readFinancingStructureType,
   roundNoteMoney,
   isInheritedFacilityGuarantorReview,
@@ -153,6 +156,7 @@ import {
   getFacilityLockedCategoriesFromWorkflow,
   stripFacilityLockedSupportingDocuments,
 } from "@cashsouk/types";
+import { resolveInvoiceOccupancyContractId } from "../../lib/standalone-holder-contract";
 import {
   consumeOfferAcceptOtpInTx,
   incrementOfferAcceptOtpAttempts,
@@ -1371,8 +1375,8 @@ export class ApplicationService {
             ? await loadInheritedSupportingDocumentsForExistingContract(prisma, {
                 contractId: application.contract_id,
                 originatingApplicationId:
-                  (application as { contract?: { originating_application_id?: string | null } }).contract
-                    ?.originating_application_id ?? null,
+                  (application as { contract?: { originating_application_id?: string | null } })
+                    .contract?.originating_application_id ?? null,
               })
             : null;
           if (
@@ -1382,9 +1386,16 @@ export class ApplicationService {
               locked
             )
           ) {
-            throw new AppError(403, "EDIT_NOT_ALLOWED", FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE);
+            throw new AppError(
+              403,
+              "EDIT_NOT_ALLOWED",
+              FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE
+            );
           }
-          dataToStore = stripFacilityLockedSupportingDocuments(input.data, locked) as Prisma.InputJsonValue;
+          dataToStore = stripFacilityLockedSupportingDocuments(
+            input.data,
+            locked
+          ) as Prisma.InputJsonValue;
         }
       }
     }
@@ -1789,8 +1800,9 @@ export class ApplicationService {
       }
     };
 
-    const capacityContractId =
-      contract?.id ?? (application as { contract_id?: string | null }).contract_id;
+    const capacityContractId = isInvoiceOnlyFinancingStructure(application.financing_structure)
+      ? null
+      : (contract?.id ?? (application as { contract_id?: string | null }).contract_id);
     if (capacityContractId) {
       await applyContractCapacityChange(capacityContractId, prisma, withdrawInTx, {
         assertWrite: true,
@@ -2097,6 +2109,7 @@ export class ApplicationService {
       snapshot: Prisma.InputJsonValue;
       reviewCycle: number;
     } | null = null;
+    let frozenSubmitWorkflow: unknown[] | undefined;
 
     // Snapshot initial-submit revision data before writes. Persist it in the same
     // transaction as capacity reservation / status changes so a rejected capacity
@@ -2131,9 +2144,8 @@ export class ApplicationService {
           ? await loadInheritedGuarantorsForExistingContract(prisma, {
               contractId: application.contract_id,
               originatingApplicationId:
-                (
-                  submitContract as { originating_application_id?: string | null } | null
-                )?.originating_application_id ?? null,
+                (submitContract as { originating_application_id?: string | null } | null)
+                  ?.originating_application_id ?? null,
             })
           : null;
         if (!inheritedGuarantors || inheritedGuarantors.application_guarantors.length === 0) {
@@ -2149,19 +2161,30 @@ export class ApplicationService {
       const submitProductId = financingTypeSubmit?.product_id;
       let submitProductWorkflow: Prisma.JsonValue | undefined;
       if (submitProductId) {
-        const submitProduct = await this.productRepository.findById(submitProductId);
-        if (submitProduct?.workflow) {
-          const skipCategoryKeys =
-            readFinancingStructureType(application.financing_structure) === "existing_contract"
-              ? getFacilityLockedCategoriesFromWorkflow(submitProduct.workflow)
-              : [];
-          assertRequiredSupportingDocumentsPresent(
-            submitProduct.workflow,
-            application.supporting_documents,
-            { skipCategoryKeys }
-          );
-          submitProductWorkflow = submitProduct.workflow as Prisma.JsonValue;
-        }
+        frozenSubmitWorkflow = await this.getProductWorkflowForApplication(application);
+        const skipCategoryKeys =
+          readFinancingStructureType(application.financing_structure) === "existing_contract"
+            ? getFacilityLockedCategoriesFromWorkflow(frozenSubmitWorkflow)
+            : [];
+        assertRequiredSupportingDocumentsPresent(
+          frozenSubmitWorkflow,
+          application.supporting_documents,
+          { skipCategoryKeys }
+        );
+        assertProductRulesForSubmit(frozenSubmitWorkflow, {
+          invoices: (application as { invoices?: Array<{
+            status?: string | null;
+            details?: unknown;
+            contract_id?: string | null;
+          }> }).invoices ?? [],
+          contract: submitContract,
+          applicationContractId:
+            submitContract?.id ??
+            (application as { contract_id?: string | null }).contract_id ??
+            null,
+          structureType: readFinancingStructureType(application.financing_structure),
+        });
+        submitProductWorkflow = frozenSubmitWorkflow as Prisma.JsonValue;
       }
       const appFull = await prisma.application.findUnique({
         where: { id },
@@ -2229,11 +2252,9 @@ export class ApplicationService {
       const productId = financingType?.product_id;
 
       if (productId) {
-        const product = await this.productRepository.findById(productId);
-        if (product) {
-          const workflow = Array.isArray(product.workflow)
-            ? (product.workflow as { id?: unknown }[])
-            : [];
+        const workflow = (frozenSubmitWorkflow ??
+          (await this.getProductWorkflowForApplication(application))) as { id?: unknown }[];
+        if (workflow) {
           /** Canonical keys only (same as issuer getStepKeyFromStepId); contract/invoice data live on relations, not JSON columns. */
           const activeStepKeys = new Set<string>();
           for (const step of workflow) {
@@ -2360,9 +2381,11 @@ export class ApplicationService {
         );
       };
 
-      const contractId = application.contract_id;
-      if (contractId) {
-        await applyContractCapacityChange(contractId, prisma, persistSubmittedApplication, {
+      const capacityContractId = isInvoiceOnlyFinancingStructure(application.financing_structure)
+        ? null
+        : application.contract_id;
+      if (capacityContractId) {
+        await applyContractCapacityChange(capacityContractId, prisma, persistSubmittedApplication, {
           assertWrite: true,
         });
       } else {
@@ -2532,11 +2555,7 @@ export class ApplicationService {
     nextParties: AuthorizedPartiesSnapshot["parties"],
     guarantors: ApplicationGuarantorForParties[]
   ): Promise<void> {
-    const remaps = authorizedRepresentativeReviewItemIdRemap(
-      previous,
-      nextParties,
-      guarantors
-    );
+    const remaps = authorizedRepresentativeReviewItemIdRemap(previous, nextParties, guarantors);
     for (const { from, to } of remaps) {
       const fromWhere = {
         application_id_item_type_item_id: {
@@ -2667,10 +2686,12 @@ export class ApplicationService {
     tx: Prisma.TransactionClient,
     applicationId: string,
     authorizedParties: AuthorizedPartiesSnapshot,
-    previousAcceptance: {
-      status?: string | null;
-      authorized_parties?: AuthorizedPartiesSnapshot | null;
-    } | null
+    previousAcceptance:
+      | {
+          status?: string | null;
+          authorized_parties?: AuthorizedPartiesSnapshot | null;
+        }
+      | null
       | undefined,
     guarantors: ApplicationGuarantorForParties[]
   ): Promise<void> {
@@ -2708,6 +2729,16 @@ export class ApplicationService {
    * Persist authorised-representative drafts on a contract offer without changing
    * acceptance status. Required before Letter of Offer download.
    */
+  private assertFacilityOfferApplication(application: { financing_structure?: unknown }): void {
+    if (isInvoiceOnlyFinancingStructure(application.financing_structure)) {
+      throw new AppError(
+        400,
+        "INVALID_ACTION",
+        "Standalone invoice applications do not have facility offers."
+      );
+    }
+  }
+
   async saveContractAuthorizedPartiesDraft(
     applicationId: string,
     userId: string,
@@ -2718,6 +2749,7 @@ export class ApplicationService {
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
+    this.assertFacilityOfferApplication(application);
     if (!application.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
@@ -2809,6 +2841,7 @@ export class ApplicationService {
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
+    this.assertFacilityOfferApplication(application);
     if (!application.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
@@ -2830,11 +2863,7 @@ export class ApplicationService {
     const guarantors = applicationGuarantorsForParties(
       (application as { application_guarantors?: unknown }).application_guarantors
     );
-    assertAuthorizedPartiesValid(
-      authorizedPartiesPayload.parties,
-      directorPool,
-      guarantors
-    );
+    assertAuthorizedPartiesValid(authorizedPartiesPayload.parties, directorPool, guarantors);
 
     const now = new Date().toISOString();
     const authorizedParties = stampAuthorizedPartiesSnapshot({
@@ -3014,11 +3043,7 @@ export class ApplicationService {
     const guarantors = applicationGuarantorsForParties(
       (application as { application_guarantors?: unknown }).application_guarantors
     );
-    assertAuthorizedPartiesValid(
-      authorizedPartiesPayload.parties,
-      directorPool,
-      guarantors
-    );
+    assertAuthorizedPartiesValid(authorizedPartiesPayload.parties, directorPool, guarantors);
 
     const now = new Date().toISOString();
     const authorizedParties = stampAuthorizedPartiesSnapshot({
@@ -3217,6 +3242,7 @@ export class ApplicationService {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
 
+    this.assertFacilityOfferApplication(application);
     if (!application.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
@@ -3774,7 +3800,10 @@ export class ApplicationService {
     if (!invoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
     }
-    const occupancyContractId = invoice.contract_id ?? application.contract_id;
+    const occupancyContractId = resolveInvoiceOccupancyContractId({
+      invoiceContractId: invoice.contract_id,
+      application,
+    });
     await this.assertPhasedOfferDirectAcceptBlocked({
       application,
       action,
@@ -3788,7 +3817,7 @@ export class ApplicationService {
       invoiceId
     );
     const workflow = await this.getProductWorkflowForApplication(application);
-    const isInvoiceOnlyPrimary = !application.contract_id;
+    const isInvoiceOnlyPrimary = isInvoiceOnlyFinancingStructure(application.financing_structure);
     const respondInvoiceInTx = async (tx: Prisma.TransactionClient) => {
       const lockedInvoiceRows = await tx.$queryRaw<
         {
@@ -3813,7 +3842,10 @@ export class ApplicationService {
       }
 
       if (action === "accept") {
-        const acceptContractId = dbInvoice.contract_id ?? occupancyContractId;
+        const acceptContractId = resolveInvoiceOccupancyContractId({
+          invoiceContractId: dbInvoice.contract_id,
+          application,
+        });
         if (acceptContractId) {
           await lockContractRow(tx, acceptContractId);
           const contract = await tx.contract.findUnique({
@@ -3995,9 +4027,10 @@ export class ApplicationService {
       const updatedInvoices = await tx.invoice.findMany({
         where: { application_id: applicationId },
       });
-      const updatedContract = application.contract_id
-        ? await tx.contract.findUnique({ where: { id: application.contract_id } })
-        : null;
+      const updatedContract =
+        !isInvoiceOnlyPrimary && application.contract_id
+          ? await tx.contract.findUnique({ where: { id: application.contract_id } })
+          : null;
       const invoiceStatuses = updatedInvoices.map((invoice) => invoice.status as InvoiceStatus);
       const allInvoicesOfferedOrResolved =
         invoiceStatuses.length > 0 &&
@@ -4167,6 +4200,7 @@ export class ApplicationService {
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
+    this.assertFacilityOfferApplication(application);
     if (!application.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
@@ -4358,6 +4392,7 @@ export class ApplicationService {
     if (!application?.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
+    this.assertFacilityOfferApplication(application);
 
     const key = await this.resolveSignedOfferLetterS3KeyFromEnvelope({
       applicationId,

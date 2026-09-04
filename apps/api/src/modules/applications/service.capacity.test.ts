@@ -16,7 +16,9 @@ const runApply = async (_id: string, _db: unknown, mutate: (tx: unknown) => Prom
       update: jest.fn(),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
     },
+    applicationGuarantor: { deleteMany: jest.fn() },
     signingEnvelope: { findMany: jest.fn().mockResolvedValue([]) },
     applicationReview: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     applicationReviewItem: { upsert: jest.fn() },
@@ -49,8 +51,14 @@ jest.mock("./repository", () => ({
   })),
 }));
 
+const mockFindByBaseAndVersion = jest.fn();
+const mockFindProductById = jest.fn();
+
 jest.mock("../products/repository", () => ({
-  ProductRepository: jest.fn().mockImplementation(() => ({ findById: jest.fn() })),
+  ProductRepository: jest.fn().mockImplementation(() => ({
+    findById: (...args: unknown[]) => mockFindProductById(...args),
+    findByBaseAndVersion: (...args: unknown[]) => mockFindByBaseAndVersion(...args),
+  })),
 }));
 jest.mock("../organization/repository", () => ({
   OrganizationRepository: jest.fn().mockImplementation(() => ({})),
@@ -66,7 +74,7 @@ jest.mock("../../lib/prisma", () => ({
     $transaction: jest.fn(),
     invoice: { updateMany: jest.fn() },
     applicationRevision: { create: jest.fn() },
-    application: { findUnique: jest.fn() },
+    application: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     product: { findUnique: jest.fn() },
     signingEnvelope: { findMany: jest.fn().mockResolvedValue([]) },
   },
@@ -95,6 +103,12 @@ jest.mock("./logs/service", () => ({
 jest.mock("../paymaster/service", () => ({
   linkPaymasterForApplicationSubmission: jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock("../../lib/contract-originating-application", () => ({
+  ...jest.requireActual("../../lib/contract-originating-application"),
+  loadInheritedGuarantorsForExistingContract: jest.fn().mockResolvedValue({
+    application_guarantors: [{ id: "guarantor-1" }],
+  }),
+}));
 jest.mock("./amendments/service", () => ({
   getAmendmentAllowedSections: jest.fn(),
   loadAmendmentRemarks: jest.fn(),
@@ -116,6 +130,8 @@ describe("ApplicationService capacity reservations", () => {
     jest.clearAllMocks();
     mockApply.mockImplementation(runApply);
     mockVerifyAccess.mockResolvedValue(undefined);
+    mockFindProductById.mockResolvedValue({ workflow: [] });
+    mockFindByBaseAndVersion.mockResolvedValue({ workflow: [] });
     (service as unknown as { verifyApplicationAccess: jest.Mock }).verifyApplicationAccess =
       mockVerifyAccess;
     (service as unknown as { verifyApplicationEditable: jest.Mock }).verifyApplicationEditable =
@@ -140,6 +156,27 @@ describe("ApplicationService capacity reservations", () => {
       expect.any(Function),
       expect.objectContaining({ assertWrite: true })
     );
+  });
+
+  it("submits an invoice-only application without refreshing holder capacity", async () => {
+    mockFindById.mockResolvedValue({
+      id: "app-1",
+      status: "DRAFT",
+      contract_id: "holder-1",
+      issuer_organization_id: "org-1",
+      financing_type: { product_id: "prod-1" },
+      financing_structure: { structure_type: "invoice_only" },
+      invoices: [{ id: "inv-1", status: "DRAFT", contract_id: null }],
+    });
+    (prisma.$transaction as jest.Mock).mockImplementation(
+      async (mutate: (tx: unknown) => Promise<unknown>) =>
+        (await runApply("holder-1", prisma, mutate)).result
+    );
+
+    await service.updateApplicationStatus("app-1", "SUBMITTED", "user-1");
+
+    expect(mockApply).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalled();
   });
 
   it("does not persist revision or financial-statement prefill when capacity rejects", async () => {
@@ -238,6 +275,32 @@ describe("ApplicationService capacity reservations", () => {
       expect.any(Function),
       expect.objectContaining({ assertWrite: true })
     );
+  });
+
+  it("rejects respondToContractOffer on invoice_only before applyContractCapacityChange", async () => {
+    mockFindById.mockResolvedValue({
+      id: "app-1",
+      status: "CONTRACT_SENT",
+      contract_id: "holder-1",
+      financing_structure: { structure_type: "invoice_only" },
+    });
+
+    await expect(service.respondToContractOffer("app-1", "accept", "user-1")).rejects.toMatchObject(
+      {
+        statusCode: 400,
+        code: "INVALID_ACTION",
+      }
+    );
+    expect(mockApply).not.toHaveBeenCalled();
+
+    mockApply.mockClear();
+    await expect(
+      service.respondToContractOffer("app-1", "reject", "user-1", "too expensive")
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "INVALID_ACTION",
+    });
+    expect(mockApply).not.toHaveBeenCalled();
   });
 
   it("stamps facility_fee_upfront_amount from the offer on accept", async () => {
@@ -365,6 +428,62 @@ describe("ApplicationService capacity reservations", () => {
       expect.any(Function),
       expect.objectContaining({ assertWrite: true })
     );
+  });
+
+  it("accepts and rejects standalone invoice offers without refreshing holder capacity", async () => {
+    mockFindById.mockResolvedValue({
+      id: "app-1",
+      status: "INVOICES_SENT",
+      contract_id: "holder-1",
+      invoices: [
+        {
+          id: "inv-1",
+          contract_id: "legacy-holder-1",
+          details: { number: "INV-1" },
+        },
+      ],
+      financing_structure: { structure_type: "invoice_only" },
+    });
+    (
+      service as unknown as { resolveInvoiceReviewItemKeyById: jest.Mock }
+    ).resolveInvoiceReviewItemKeyById = jest.fn().mockResolvedValue("invoice_details:0:INV-1");
+    (
+      service as unknown as { getProductWorkflowForApplication: jest.Mock }
+    ).getProductWorkflowForApplication = jest.fn().mockResolvedValue([]);
+    (service as unknown as { sendIssuerNotification: jest.Mock }).sendIssuerNotification =
+      jest.fn();
+    (prisma.$transaction as jest.Mock).mockImplementation(
+      async (mutate: (tx: unknown) => Promise<unknown>) =>
+        mutate({
+          $queryRaw: jest.fn().mockResolvedValue([
+            {
+              status: "OFFER_SENT",
+              offer_details: { offered_amount: 40_000, requested_amount: 50_000 },
+              contract_id: "legacy-holder-1",
+            },
+          ]),
+          invoice: {
+            findMany: jest.fn().mockResolvedValue([{ status: "APPROVED" }]),
+            update: jest.fn(),
+            count: jest.fn().mockResolvedValue(1),
+          },
+          application: { update: jest.fn() },
+          applicationReview: { upsert: jest.fn() },
+          applicationReviewItem: { upsert: jest.fn() },
+        })
+    );
+
+    await expect(
+      service.respondToInvoiceOffer("app-1", "inv-1", "accept", "user-1", undefined, {
+        signingCompletion: { signedOfferLetterS3Key: "s3", signedFileSha256: "abc" },
+      })
+    ).resolves.toBeDefined();
+    expect(mockApply).not.toHaveBeenCalled();
+
+    await expect(
+      service.respondToInvoiceOffer("app-1", "inv-1", "reject", "user-1")
+    ).resolves.toBeDefined();
+    expect(mockApply).not.toHaveBeenCalled();
   });
 
   it("rejects accepting a facility-linked invoice offer while upfront is outstanding", async () => {
@@ -561,5 +680,124 @@ describe("ApplicationService capacity reservations", () => {
       expect.any(Function),
       expect.objectContaining({ assertWrite: true })
     );
+  });
+
+  it("withdraws an invoice-only application without refreshing holder capacity", async () => {
+    const application = {
+      id: "app-1",
+      status: "SUBMITTED",
+      contract_id: "holder-1",
+      contract: { id: "holder-1", status: "SUBMITTED", offer_details: null },
+      invoices: [{ id: "inv-1", status: "SUBMITTED", offer_details: null }],
+      financing_structure: { structure_type: "invoice_only" },
+    };
+    mockFindById.mockResolvedValue(application);
+    (service as unknown as { sendIssuerNotification: jest.Mock }).sendIssuerNotification =
+      jest.fn();
+    (prisma.$transaction as jest.Mock).mockImplementation(
+      async (mutate: (tx: unknown) => Promise<unknown>) =>
+        mutate({
+          signingEnvelope: { findMany: jest.fn().mockResolvedValue([]) },
+          application: {
+            findUnique: jest.fn().mockResolvedValue(application),
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          },
+          invoice: {
+            update: jest.fn(),
+            findMany: jest.fn().mockResolvedValue([{ id: "inv-1", status: "WITHDRAWN" }]),
+          },
+          contract: {
+            update: jest.fn(),
+            findUnique: jest.fn().mockResolvedValue({ id: "holder-1", status: "WITHDRAWN" }),
+          },
+        })
+    );
+
+    await service.cancelApplication("app-1", "user-1");
+
+    expect(mockApply).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalled();
+  });
+});
+
+const restrictiveInvoiceWorkflow = [
+  {
+    id: "invoice_details",
+    config: { min_invoice_face_value: 50_000, max_financing_ratio_percent: 70 },
+  },
+];
+
+describe("ApplicationService submit product rules", () => {
+  const service = new ApplicationService();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockApply.mockImplementation(runApply);
+    mockVerifyAccess.mockResolvedValue(undefined);
+    mockFindProductById.mockResolvedValue({ workflow: [] });
+    mockFindByBaseAndVersion.mockResolvedValue({ workflow: [] });
+    (prisma.application.findUnique as jest.Mock).mockResolvedValue(undefined);
+    (service as unknown as { verifyApplicationAccess: jest.Mock }).verifyApplicationAccess =
+      mockVerifyAccess;
+    (service as unknown as { verifyApplicationEditable: jest.Mock }).verifyApplicationEditable =
+      jest.fn();
+  });
+
+  it("blocks submit when a DRAFT invoice violates the frozen workflow", async () => {
+    mockFindById.mockResolvedValue({
+      id: "app-1",
+      status: "DRAFT",
+      contract_id: "contract-1",
+      issuer_organization_id: "org-1",
+      financing_type: { product_id: "prod-1" },
+      product_version: 2,
+      financing_structure: { structure_type: "existing_contract" },
+      invoices: [
+        {
+          id: "inv-1",
+          status: "DRAFT",
+          contract_id: "contract-1",
+          details: { value: 10_000, applied_financing: 6_000, financing_ratio_percent: 60 },
+        },
+      ],
+      contract: { id: "contract-1", status: "APPROVED", issuer_organization_id: "org-1" },
+    });
+    mockFindByBaseAndVersion.mockResolvedValue({ workflow: restrictiveInvoiceWorkflow });
+
+    await expect(service.updateApplicationStatus("app-1", "SUBMITTED", "user-1")).rejects.toMatchObject({
+      statusCode: 400,
+      code: "PRODUCT_LIMIT_VIOLATION",
+    });
+    expect(mockFindByBaseAndVersion).toHaveBeenCalledWith("prod-1", 2);
+    expect(mockFindProductById).not.toHaveBeenCalled();
+    expect(mockApply).not.toHaveBeenCalled();
+  });
+
+  it("skips locked invoice rows and still submits", async () => {
+    mockFindById.mockResolvedValue({
+      id: "app-1",
+      status: "DRAFT",
+      contract_id: "contract-1",
+      issuer_organization_id: "org-1",
+      financing_type: { product_id: "prod-1" },
+      product_version: 2,
+      financing_structure: { structure_type: "existing_contract" },
+      invoices: [
+        {
+          id: "inv-1",
+          status: "SUBMITTED",
+          contract_id: "contract-1",
+          details: { value: 10_000, applied_financing: 6_000, financing_ratio_percent: 60 },
+        },
+      ],
+      contract: { id: "contract-1", status: "APPROVED", issuer_organization_id: "org-1" },
+    });
+    mockFindByBaseAndVersion.mockResolvedValue({ workflow: restrictiveInvoiceWorkflow });
+
+    await service.updateApplicationStatus("app-1", "SUBMITTED", "user-1");
+
+    expect(mockApply).toHaveBeenCalled();
+    expect(mockFindByBaseAndVersion).toHaveBeenCalledWith("prod-1", 2);
+    expect(mockFindProductById).not.toHaveBeenCalled();
   });
 });

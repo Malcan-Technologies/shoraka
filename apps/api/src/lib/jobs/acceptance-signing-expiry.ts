@@ -38,6 +38,7 @@ import {
   resolveInvoiceScopeKeyForId,
 } from "../../modules/applications/invoice-review-scope";
 import { applyContractCapacityChange } from "../refresh-contract-facility";
+import { resolveInvoiceOccupancyContractId } from "../standalone-holder-contract";
 
 const SYSTEM_USER_ID = "SYS";
 const CRON_CORRELATION_ID = "cron:acceptance-signing-expiry";
@@ -462,13 +463,23 @@ async function expireOffer(params: {
 
   let occupancyContractId: string | null = null;
   if (row.kind === "invoice") {
-    occupancyContractId = row.contract_id ?? null;
-    if (!occupancyContractId) {
+    occupancyContractId = resolveInvoiceOccupancyContractId({
+      invoiceContractId: row.contract_id,
+      application: {
+        financing_structure: row.financing_structure,
+      },
+    });
+    if (!occupancyContractId && !row.contract_id) {
       const application = await prisma.application.findUnique({
         where: { id: row.application_id },
         select: { contract_id: true },
       });
-      occupancyContractId = application?.contract_id ?? null;
+      occupancyContractId = resolveInvoiceOccupancyContractId({
+        application: {
+          contract_id: application?.contract_id,
+          financing_structure: row.financing_structure,
+        },
+      });
     }
   }
 

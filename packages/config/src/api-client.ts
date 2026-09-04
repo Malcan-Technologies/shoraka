@@ -1,6 +1,7 @@
 import type {
   ApiResponse,
   ApiError,
+  SupportChatIdentity,
   SigningEnvelopeDto,
   ExternalSigningSessionDto,
   GetUsersParams,
@@ -495,6 +496,10 @@ export class ApiClient {
       method: "PATCH",
       body: JSON.stringify(body ?? {}),
     });
+  }
+
+  async getSupportChatIdentity(): Promise<ApiResponse<SupportChatIdentity> | ApiError> {
+    return this.request<SupportChatIdentity>("/v1/support/chat-identity");
   }
 
   async getRecipientEkycSessionStatus(

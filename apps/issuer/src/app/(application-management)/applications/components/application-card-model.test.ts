@@ -297,6 +297,26 @@ describe("getApplicationCardPrimaryAction", () => {
     expect(action.label).toBe("Review Facility Offer");
   });
 
+  it("keeps invoice wording when invoice_only still has a leftover holder OFFER_SENT", () => {
+    const action = getApplicationCardPrimaryAction(
+      makeApp({
+        type: "Invoice financing",
+        contractId: "holder_ctr",
+        contractStatus: "OFFER_SENT",
+        invoices: [
+          makeInvoice({
+            status: "OFFER_SENT",
+            offerStatus: "Offer received",
+            canReviewOffer: true,
+            offeredAmount: 22,
+          }),
+        ],
+      })
+    );
+    expect(action.label).toBe("Review Invoice Offer");
+    expect(action.offerScope).toBe("invoice");
+  });
+
   it("uses invoice wording on a facility application once the facility offer is done", () => {
     const action = getApplicationCardPrimaryAction(
       makeApp({

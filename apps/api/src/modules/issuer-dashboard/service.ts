@@ -12,6 +12,7 @@ import { countNoteInvestors, resolveFacilityFeeBalance } from "@cashsouk/types";
 import { facilityFeeUpfrontDto } from "../../lib/facility-fee-upfront-guard";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
+import { isStandaloneHolderContract } from "../../lib/standalone-holder-contract";
 import { OrganizationRepository } from "../organization/repository";
 import {
   mapIssuerDisbursementBreakdown,
@@ -388,6 +389,7 @@ export class IssuerDashboardService {
     }
 
     for (const [, appsForContract] of applicationsByContractId) {
+      if (isStandaloneHolderContract({ applications: appsForContract })) continue;
       appsForContract.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
       const primaryApp = appsForContract[0];
       const c = primaryApp.contract!;
@@ -661,8 +663,12 @@ export class IssuerDashboardService {
     await assertIssuerOrganizationAccess(organizationId, userId);
     const contract = await prisma.contract.findFirst({
       where: { id: contractId, issuer_organization_id: organizationId },
+      select: {
+        id: true,
+        applications: { select: { financing_structure: true } },
+      },
     });
-    if (!contract) {
+    if (!contract || isStandaloneHolderContract(contract)) {
       throw new AppError(404, "CONTRACT_NOT_FOUND", "Facility not found");
     }
     // Include contract-linked invoices so contract detail can still show the full invoice list.

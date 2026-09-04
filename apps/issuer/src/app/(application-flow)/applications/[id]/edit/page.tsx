@@ -61,6 +61,7 @@ import {
   isSplitOriginationApplication,
   isInheritedFacilityGuarantorReview,
   mapCapacityApiError,
+  readProductLimitViolationMessage,
   type ApplicationStepKey,
   ApplicationStatus,
   type Contract,
@@ -1335,10 +1336,28 @@ function EditApplicationPageBody() {
       await finalizeApplicationSubmit(wasAmendmentResubmit);
       successPendingNav = true;
     } catch (error) {
-      toast.error(
-        mapCapacityApiError(error) ??
-          (wasAmendmentResubmit ? "Failed to resubmit application" : "Failed to submit application")
-      );
+      const limitMessage = readProductLimitViolationMessage(error);
+      if (limitMessage) {
+        toast.error(limitMessage);
+        const targetKey = limitMessage.startsWith("Facility")
+          ? "contract_details"
+          : "invoice_details";
+        const stepNumber =
+          effectiveWorkflow.findIndex((step) => {
+            const key = getStepKeyFromStepId(String((step as { id?: unknown }).id ?? ""));
+            return key === targetKey;
+          }) + 1;
+        if (stepNumber > 0) {
+          void safeNavigate(`/applications/${applicationId}/edit?step=${stepNumber}`, {
+            leavingPage: false,
+          });
+        }
+      } else {
+        toast.error(
+          mapCapacityApiError(error) ??
+            (wasAmendmentResubmit ? "Failed to resubmit application" : "Failed to submit application")
+        );
+      }
     } finally {
       if (!successPendingNav) {
         isSubmittingRef.current = false;

@@ -46,6 +46,10 @@ export function readFinancingStructureType(value: unknown): FinancingStructureTy
   return isFinancingStructureType(type) ? type : null;
 }
 
+export function isInvoiceOnlyFinancingStructure(value: unknown): boolean {
+  return readFinancingStructureType(value) === "invoice_only";
+}
+
 export function isSplitOriginationApplication(financingType: unknown): boolean {
   if (!financingType || typeof financingType !== "object" || Array.isArray(financingType)) {
     return false;

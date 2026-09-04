@@ -138,6 +138,9 @@ export interface InvoiceFormFieldsProps {
   onFileSelect?: (file: File) => void;
   onRemoveFile?: () => void;
   financingAmountTooltip?: string;
+  invoiceValueTooltip?: string;
+  invoiceValueHint?: string;
+  financingAmountHint?: string;
 }
 
 export function InvoiceFormFields({
@@ -160,6 +163,9 @@ export function InvoiceFormFields({
   onFileSelect,
   onRemoveFile,
   financingAmountTooltip,
+  invoiceValueTooltip,
+  invoiceValueHint,
+  financingAmountHint,
 }: InvoiceFormFieldsProps) {
   const inputClassName = cn(formInputClassName, !isEditable && formInputDisabledClassName);
   const numberId = `invoice-number-${invoice.id}`;
@@ -290,7 +296,7 @@ export function InvoiceFormFields({
           <FieldError message={tenureError} />
         </div>
 
-        <LabelWithTooltip label="Invoice value" />
+        <LabelWithTooltip label="Invoice value" tooltip={invoiceValueTooltip} />
         <div className="space-y-1">
           <MoneyInput
             value={invoice.value}
@@ -300,6 +306,9 @@ export function InvoiceFormFields({
             disabled={!isEditable}
             inputClassName={withFieldError(inputClassName, Boolean(fieldErrors?.value))}
           />
+          {invoiceValueHint ? (
+            <p className="text-meta text-muted-foreground">{invoiceValueHint}</p>
+          ) : null}
           <FieldError message={fieldErrors?.value} />
         </div>
 
@@ -365,6 +374,9 @@ export function InvoiceFormFields({
             )}
           />
           <p className="text-meta text-muted-foreground tabular-nums">Based on {ratioNum}% ratio</p>
+          {financingAmountHint ? (
+            <p className="text-meta text-muted-foreground">{financingAmountHint}</p>
+          ) : null}
           <FieldError message={fieldErrors?.financing_amount} />
         </div>
 

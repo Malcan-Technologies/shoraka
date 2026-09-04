@@ -3,6 +3,19 @@
  *
  * Facility flow (contract_details vs offer_details): see docs/guides/application-flow/contract-offer-facility-flow.md
  *
+ * Current invoice_only holder invariant
+ * -------------------------------------
+ * - Application still links a holder Contract used only for customer_details / paymaster_id.
+ *   The holder may be SUBMITTED; it is not a facility.
+ * - Holders are excluded from issuer, admin, paymaster, and org facility lists and metrics.
+ *   No facility offer, capacity actions, or facility-detail links.
+ * - Invoice.contract_id must be null. Create/update with a non-null value returns
+ *   400 STANDALONE_INVOICE_NO_FACILITY.
+ * - Invoice offer occupancy/capacity does not fall back to Application.contract_id.
+ * - Notes created from a valid standalone invoice set source_contract_id = null and
+ *   still persist paymaster / customer / contract snapshots as required.
+ *   Existing notes are not backfilled. No schema change.
+ *
  * What existed (before invoice APIs removal)
  * -----------------------------------------
  *
@@ -78,7 +91,9 @@
  9) Places to inspect (code references)
  - apps/api/src/modules/invoices/ (service/controller/repository/schemas) [REMOVED]
  - apps/api/src/modules/applications/service.ts
-   - financing_structure handling (link/unlink contract; previously cleared invoice contract_id on invoice-only)
+   - financing_structure handling (link/unlink contract; invoice_only rejects Invoice.contract_id)
+ - apps/api/src/lib/standalone-holder-contract.ts
+   - holder vs facility predicate and occupancy contract-id resolution
  - apps/api/src/modules/applications/repository.ts (previously included invoices relation)
  - packages/config/src/api-client.ts (client methods for /v1/invoices) [updated/removed]
  - apps/issuer/src/app/(application-flow)/applications/steps/invoice-details-step.tsx (UI implementation, files upload flow)

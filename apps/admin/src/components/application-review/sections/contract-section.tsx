@@ -28,14 +28,18 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePatchContractCustomerLargePrivate } from "@/hooks/use-application-review-actions";
-import { format } from "date-fns";
+import { format, isValid, parse, startOfDay } from "date-fns";
 import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility, resolveApprovedFacility } from "@cashsouk/config";
 import {
   FACILITY_FEE_RATE_MAX_PERCENT,
   getOfferPhaseDeadlineDisplay,
+  parseInvoiceMaturityDate,
   paymasterIdentityOfferBlockReason,
   previewAcceptanceDeadlineFromWorkflow,
+  readProductLimitViolationMessage,
   REQUESTED_FACILITY_BELOW_CONTRACT_COPY,
+  validateContractAgainstProductRules,
+  type ContractProductRules,
 } from "@cashsouk/types";
 import {
   buildSendContractOfferPayload,
@@ -49,6 +53,7 @@ import {
   validateFacilityFeeUpfrontCollectAmount,
 } from "@/lib/facility-fee-offer-preview";
 import { ReviewFieldLabel } from "../review-field-label";
+import { ProductRuleWarningNotice } from "../product-rule-warning-notice";
 import {
   OFFERED_FACILITY_BELOW_CONTRACT_COPY,
   REMAINING_ALLOCATION_LABEL,
@@ -94,6 +99,14 @@ interface FileDoc {
 /** Same width for Offered Facility (money) and large-private select in Contract review. */
 const contractReviewControlWidthClass = "w-full min-w-0 max-w-[280px]";
 
+function parseContractReviewDate(value: unknown): Date | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const iso = parseInvoiceMaturityDate(value);
+  if (iso) return iso;
+  const parsed = parse(value.trim(), "d/M/yyyy", new Date());
+  return isValid(parsed) ? startOfDay(parsed) : null;
+}
+
 export interface ContractSectionProps {
   /** Used to PATCH `customer_details.is_large_private_company` (empty when comparison-only UI). */
   applicationId?: string;
@@ -124,6 +137,7 @@ export interface ContractSectionProps {
   productDefaultFacilityFeeRatePercent?: number | null;
   /** Frozen product workflow — used for Send Offer acceptance-deadline preview. */
   productWorkflow?: unknown;
+  contractProductRules?: ContractProductRules;
   isSendOfferPending?: boolean;
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
@@ -176,6 +190,7 @@ export function ContractSection({
   onSendOffer,
   productDefaultFacilityFeeRatePercent,
   productWorkflow,
+  contractProductRules,
   isSendOfferPending,
   onViewDocument,
   onDownloadDocument,
@@ -287,7 +302,17 @@ export function ContractSection({
     seedFacilityFeeUpfront
   );
   const [contractOfferConfirmOpen, setContractOfferConfirmOpen] = React.useState(false);
+  const [productLimitSendError, setProductLimitSendError] = React.useState<string | null>(null);
   const acceptanceDeadlinePreview = previewAcceptanceDeadlineFromWorkflow(productWorkflow);
+  const contractStartDate = parseContractReviewDate(cd?.start_date);
+  const contractEndDate = parseContractReviewDate(cd?.end_date);
+  const contractDurationViolations = contractProductRules
+    ? validateContractAgainstProductRules(contractProductRules, {
+        startDate: contractStartDate,
+        endDate: contractEndDate,
+      })
+    : [];
+  const contractDurationWarning = contractDurationViolations[0]?.message ?? null;
 
   React.useEffect(() => {
     setOfferedFacilityInput(persistedOffered > 0 ? formatMoney(persistedOffered) : "");
@@ -409,8 +434,15 @@ export function ContractSection({
       facilityFeeRatePercent: facilityFeeRatePercentParsed,
       upfrontCollectAmount,
     });
-    await onSendOffer(payload);
-    setContractOfferConfirmOpen(false);
+    try {
+      await onSendOffer(payload);
+      setProductLimitSendError(null);
+      setContractOfferConfirmOpen(false);
+    } catch (err) {
+      const productMessage = readProductLimitViolationMessage(err);
+      if (productMessage) setProductLimitSendError(productMessage);
+      setContractOfferConfirmOpen(false);
+    }
   };
 
   const persistLargePrivate = React.useCallback(
@@ -645,6 +677,9 @@ export function ContractSection({
         <>
           <ReviewFieldBlock title="Offer to Issuer">
             <div className="space-y-4">
+              {contractDurationWarning ? (
+                <ProductRuleWarningNotice message={contractDurationWarning} />
+              ) : null}
               <div className={reviewRowGridClass}>
                 <Label className={reviewLabelClass}>Requested Facility</Label>
                 <div className={reviewValueClass}>
@@ -717,6 +752,11 @@ export function ContractSection({
                       {facilityOfferBlockReason === REQUESTED_FACILITY_BELOW_CONTRACT_COPY
                         ? REQUESTED_FACILITY_BELOW_CONTRACT_COPY
                         : OFFERED_FACILITY_BELOW_CONTRACT_COPY}
+                    </p>
+                  ) : null}
+                  {productLimitSendError ? (
+                    <p role="alert" className="text-ui text-destructive">
+                      {productLimitSendError}
                     </p>
                   ) : null}
                   {remainingCredit != null || remainingAllocation != null ? (
@@ -840,6 +880,14 @@ export function ContractSection({
                 <div className={reviewValueClass}>{formatReviewDate(cd.start_date as string)}</div>
                 <Label className={reviewLabelClass}>Contract End Date</Label>
                 <div className={reviewValueClass}>{formatReviewDate(cd.end_date as string)}</div>
+                {contractProductRules?.minContractMonths != null ? (
+                  <>
+                    <Label className={reviewLabelClass}>Minimum facility duration</Label>
+                    <div className={reviewValueClass}>
+                      {contractProductRules.minContractMonths} months
+                    </div>
+                  </>
+                ) : null}
                 {approvedShown > 0 ? (
                   <>
                     <Label className={reviewLabelClass}>Approved Facility</Label>

@@ -3,6 +3,7 @@
  * WHERE USED: application detail page, ResubmitComparisonModal
  */
 
+import { isInvoiceOnlyFinancingStructure } from "@cashsouk/types";
 import {
   getReviewTabDescriptorsFromWorkflow,
   getReviewTabLabel,
@@ -62,7 +63,7 @@ export function getEffectiveReviewTabDescriptors(
     descriptors = tabDescriptors;
   }
 
-  const isInvoiceOnly = structureType === "invoice_only";
+  const isInvoiceOnly = isInvoiceOnlyFinancingStructure(app.financing_structure);
   const invoiceCount = (Array.isArray(app.invoices) ? app.invoices : []).length;
   const isContractOnlyNoInvoices =
     (structureType === "new_contract" || structureType === "existing_contract") && invoiceCount === 0;

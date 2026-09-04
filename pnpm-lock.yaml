@@ -449,9 +449,15 @@ importers:
       globals:
         specifier: ^16.0.0
         version: 16.4.0
+      gray-matter:
+        specifier: ^4.0.3
+        version: 4.0.3
       jest:
         specifier: ^29.7.0
         version: 29.7.0(@types/node@20.19.24)
+      marked:
+        specifier: ^16.4.2
+        version: 16.4.2
       prisma:
         specifier: ^5.7.1
         version: 5.22.0

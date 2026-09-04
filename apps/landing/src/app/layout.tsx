@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import { HELP_CENTER_URL } from "@cashsouk/config";
+import { PlainChatWidget } from "@cashsouk/ui";
 import "@cashsouk/styles/globals.css";
 import "./globals.css";
 import "../lib/amplify-config"; // Initialize Amplify
@@ -24,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="theme-user">
       <body className={inter.className}>
         {children}
+        <PlainChatWidget appId={process.env.NEXT_PUBLIC_PLAIN_CHAT_APP_ID} helpCenterUrl={HELP_CENTER_URL} />
         <Toaster position="top-center" richColors />
       </body>
     </html>

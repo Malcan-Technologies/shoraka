@@ -157,6 +157,7 @@ export type ApplicationCardPrimaryAction = {
 export function applicationOfferReviewScope(
   app: NormalizedApplication
 ): "contract" | "invoice" {
+  if (app.type !== "Facility financing") return "invoice";
   return app.contractStatus === "OFFER_SENT" ? "contract" : "invoice";
 }
 

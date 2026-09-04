@@ -14,11 +14,7 @@ import {
   Pagination,
   type FilterChip,
 } from "@cashsouk/ui";
-import {
-  createApiClient,
-  useOrganization,
-  useAuthToken,
-} from "@cashsouk/config";
+import { createApiClient, useOrganization, useAuthToken } from "@cashsouk/config";
 import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { useIssuerProducts } from "@/hooks/use-products";
 import { buildProductDisplayMap } from "@/lib/product-display";
@@ -37,12 +33,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
-import {
-  STATUS,
-  FILTER_STATUSES,
-  FINANCING_TYPES,
-  isIssuerApplicationActionable,
-} from "./status";
+import { STATUS, FILTER_STATUSES, FINANCING_TYPES, isIssuerApplicationActionable } from "./status";
 import {
   applicationMatchesListSearch,
   ISSUER_APPLICATIONS_SEARCH_PLACEHOLDER,
@@ -65,7 +56,7 @@ export default function ApplicationsPage() {
     NormalizedApplication[] | null
   >(null);
 
-  const { applications, isLoading } = useApplicationsData({
+  const { applications, isLoading, error } = useApplicationsData({
     debugShowSkeleton,
     debugMockApplications,
   });
@@ -171,8 +162,7 @@ export default function ApplicationsPage() {
       list = list.filter((a) => statusFilters.includes(a.status));
     }
     if (financingFilter !== "all") {
-      const match =
-        financingFilter === "contract" ? "Facility financing" : "Invoice financing";
+      const match = financingFilter === "contract" ? "Facility financing" : "Invoice financing";
       list = list.filter((a) => a.type === match);
     }
     if (submittedFilter !== "all") {
@@ -450,6 +440,11 @@ export default function ApplicationsPage() {
           <div className="space-y-6">
             {isLoading ? (
               <LoadingState variant="cards" />
+            ) : error ? (
+              <EmptyState
+                title="Could not load applications"
+                message={error.message || "Please refresh the page and try again."}
+              />
             ) : totalCount === 0 ? (
               <EmptyState
                 variant="no-data"
@@ -479,229 +474,228 @@ export default function ApplicationsPage() {
                   </section>
                 ) : null}
 
-            <ListToolbar
-              searchValue={search}
-              onSearchChange={(value) => {
-                setSearch(value);
-                setPage(1);
-              }}
-              searchPlaceholder={ISSUER_APPLICATIONS_SEARCH_PLACEHOLDER}
-              appliedFilters={appliedFilters}
-              onClearFilters={clearAllFilters}
-              onReload={() => {
-                void queryClient.invalidateQueries({ queryKey: ["applications"] });
-              }}
-              isLoading={isLoading}
-              countLabel={countLabel}
-              filterGroups={
-                <>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <ListToolbarFilterTrigger
-                        label="Status"
-                        count={statusFilters.length}
-                      />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56 p-1">
-                      <DropdownMenuLabel>Status</DropdownMenuLabel>
-                      <DropdownMenuItem
-                        className="relative cursor-pointer pl-8"
+                <ListToolbar
+                  searchValue={search}
+                  onSearchChange={(value) => {
+                    setSearch(value);
+                    setPage(1);
+                  }}
+                  searchPlaceholder={ISSUER_APPLICATIONS_SEARCH_PLACEHOLDER}
+                  appliedFilters={appliedFilters}
+                  onClearFilters={clearAllFilters}
+                  onReload={() => {
+                    void queryClient.invalidateQueries({ queryKey: ["applications"] });
+                  }}
+                  isLoading={isLoading}
+                  countLabel={countLabel}
+                  filterGroups={
+                    <>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <ListToolbarFilterTrigger label="Status" count={statusFilters.length} />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 p-1">
+                          <DropdownMenuLabel>Status</DropdownMenuLabel>
+                          <DropdownMenuItem
+                            className="relative cursor-pointer pl-8"
+                            onClick={() => {
+                              setStatusFilters([]);
+                              setPage(1);
+                            }}
+                          >
+                            {statusFilters.length === 0 ? (
+                              <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                                <span className="h-2 w-2 rounded-full bg-foreground" />
+                              </span>
+                            ) : null}
+                            All statuses
+                          </DropdownMenuItem>
+                          {FILTER_STATUSES.map((key) => (
+                            <DropdownMenuItem
+                              key={`status-${key}`}
+                              className="relative cursor-pointer pl-8"
+                              onClick={() => {
+                                setStatusFilters((prev) =>
+                                  prev.includes(key)
+                                    ? prev.filter((s) => s !== key)
+                                    : [...prev, key]
+                                );
+                                setPage(1);
+                              }}
+                            >
+                              {statusFilters.includes(key) ? (
+                                <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                                  <span className="h-2 w-2 rounded-full bg-foreground" />
+                                </span>
+                              ) : null}
+                              {STATUS[key]?.label ?? key}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <ListToolbarFilterTrigger
+                            label="Filters"
+                            count={
+                              [
+                                submittedFilter !== "all",
+                                financingFilter !== "all",
+                                offerExpiryFilter !== "all",
+                              ].filter(Boolean).length
+                            }
+                          />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56 p-0">
+                          <div className="p-1">
+                            <DropdownMenuLabel>Financing structure</DropdownMenuLabel>
+                            {[
+                              { value: "all", label: "All" },
+                              ...FINANCING_TYPES.map(({ value, label }) => ({ value, label })),
+                            ].map((opt) => (
+                              <DropdownMenuItem
+                                key={`fin-${opt.value}`}
+                                className="relative pl-8"
+                                onClick={() => {
+                                  setFinancingFilter(opt.value);
+                                  setPage(1);
+                                }}
+                              >
+                                {financingFilter === opt.value ? (
+                                  <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                                    <span className="h-2 w-2 rounded-full bg-foreground" />
+                                  </span>
+                                ) : null}
+                                {opt.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </div>
+                          <DropdownMenuSeparator />
+                          <div className="p-1">
+                            <DropdownMenuLabel>Submitted in</DropdownMenuLabel>
+                            {[
+                              { value: "all", label: "All time" },
+                              { value: "7d", label: "Last 7 days" },
+                              { value: "30d", label: "Last 30 days" },
+                              { value: "90d", label: "Last 90 days" },
+                            ].map((opt) => (
+                              <DropdownMenuItem
+                                key={`sub-${opt.value}`}
+                                className="relative pl-8"
+                                onClick={() => {
+                                  setSubmittedFilter(opt.value);
+                                  setPage(1);
+                                }}
+                              >
+                                {submittedFilter === opt.value ? (
+                                  <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                                    <span className="h-2 w-2 rounded-full bg-foreground" />
+                                  </span>
+                                ) : null}
+                                {opt.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </div>
+                          <DropdownMenuSeparator />
+                          <div className="p-1">
+                            <DropdownMenuLabel>Offer expiring</DropdownMenuLabel>
+                            {[
+                              { value: "all", label: "All" },
+                              { value: "3d", label: "3 days" },
+                              { value: "7d", label: "7 days" },
+                              { value: "14d", label: "14 days" },
+                            ].map((opt) => (
+                              <DropdownMenuItem
+                                key={`expiry-${opt.value}`}
+                                className="relative pl-8"
+                                onClick={() => {
+                                  setOfferExpiryFilter(opt.value);
+                                  setPage(1);
+                                }}
+                              >
+                                {offerExpiryFilter === opt.value ? (
+                                  <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                                    <span className="h-2 w-2 rounded-full bg-foreground" />
+                                  </span>
+                                ) : null}
+                                {opt.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </div>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </>
+                  }
+                />
+
+                {restTotal === 0 && hasFilters ? (
+                  <EmptyState
+                    variant="no-results"
+                    title="No matching applications"
+                    message={
+                      searchQuery
+                        ? `No applications match “${searchQuery}”. Try a reference, customer name, or invoice number.`
+                        : "Try a different search or clear your filters."
+                    }
+                    action={
+                      <Button
+                        variant="outline"
+                        className="rounded-xl"
                         onClick={() => {
-                          setStatusFilters([]);
-                          setPage(1);
+                          if (searchQuery && !hasNonSearchFilters) {
+                            setSearch("");
+                            setPage(1);
+                            return;
+                          }
+                          clearAllFilters();
                         }}
                       >
-                        {statusFilters.length === 0 ? (
-                          <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                            <span className="h-2 w-2 rounded-full bg-foreground" />
-                          </span>
-                        ) : null}
-                        All statuses
-                      </DropdownMenuItem>
-                      {FILTER_STATUSES.map((key) => (
-                        <DropdownMenuItem
-                          key={`status-${key}`}
-                          className="relative cursor-pointer pl-8"
-                          onClick={() => {
-                            setStatusFilters((prev) =>
-                              prev.includes(key) ? prev.filter((s) => s !== key) : [...prev, key]
-                            );
-                            setPage(1);
-                          }}
-                        >
-                          {statusFilters.includes(key) ? (
-                            <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                              <span className="h-2 w-2 rounded-full bg-foreground" />
-                            </span>
-                          ) : null}
-                          {STATUS[key]?.label ?? key}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <ListToolbarFilterTrigger
-                        label="Filters"
-                        count={
-                          [
-                            submittedFilter !== "all",
-                            financingFilter !== "all",
-                            offerExpiryFilter !== "all",
-                          ].filter(Boolean).length
-                        }
-                      />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56 p-0">
-                      <div className="p-1">
-                        <DropdownMenuLabel>Financing structure</DropdownMenuLabel>
-                        {[
-                          { value: "all", label: "All" },
-                          ...FINANCING_TYPES.map(({ value, label }) => ({ value, label })),
-                        ].map((opt) => (
-                          <DropdownMenuItem
-                            key={`fin-${opt.value}`}
-                            className="relative pl-8"
-                            onClick={() => {
-                              setFinancingFilter(opt.value);
-                              setPage(1);
-                            }}
-                          >
-                            {financingFilter === opt.value ? (
-                              <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                                <span className="h-2 w-2 rounded-full bg-foreground" />
-                              </span>
-                            ) : null}
-                            {opt.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </div>
-                      <DropdownMenuSeparator />
-                      <div className="p-1">
-                        <DropdownMenuLabel>Submitted in</DropdownMenuLabel>
-                        {[
-                          { value: "all", label: "All time" },
-                          { value: "7d", label: "Last 7 days" },
-                          { value: "30d", label: "Last 30 days" },
-                          { value: "90d", label: "Last 90 days" },
-                        ].map((opt) => (
-                          <DropdownMenuItem
-                            key={`sub-${opt.value}`}
-                            className="relative pl-8"
-                            onClick={() => {
-                              setSubmittedFilter(opt.value);
-                              setPage(1);
-                            }}
-                          >
-                            {submittedFilter === opt.value ? (
-                              <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                                <span className="h-2 w-2 rounded-full bg-foreground" />
-                              </span>
-                            ) : null}
-                            {opt.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </div>
-                      <DropdownMenuSeparator />
-                      <div className="p-1">
-                        <DropdownMenuLabel>Offer expiring</DropdownMenuLabel>
-                        {[
-                          { value: "all", label: "All" },
-                          { value: "3d", label: "3 days" },
-                          { value: "7d", label: "7 days" },
-                          { value: "14d", label: "14 days" },
-                        ].map((opt) => (
-                          <DropdownMenuItem
-                            key={`expiry-${opt.value}`}
-                            className="relative pl-8"
-                            onClick={() => {
-                              setOfferExpiryFilter(opt.value);
-                              setPage(1);
-                            }}
-                          >
-                            {offerExpiryFilter === opt.value ? (
-                              <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                                <span className="h-2 w-2 rounded-full bg-foreground" />
-                              </span>
-                            ) : null}
-                            {opt.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </div>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </>
-              }
-            />
-
-            {restTotal === 0 && hasFilters ? (
-              <EmptyState
-                variant="no-results"
-                title="No matching applications"
-                message={
-                  searchQuery
-                    ? `No applications match “${searchQuery}”. Try a reference, customer name, or invoice number.`
-                    : "Try a different search or clear your filters."
-                }
-                action={
-                  <Button
-                    variant="outline"
-                    className="rounded-xl"
-                    onClick={() => {
-                      if (searchQuery && !hasNonSearchFilters) {
-                        setSearch("");
-                        setPage(1);
-                        return;
-                      }
-                      clearAllFilters();
-                    }}
-                  >
-                    {searchQuery && !hasNonSearchFilters ? "Clear search" : "Clear filters"}
-                  </Button>
-                }
-              />
-            ) : (
-              <div className="space-y-8">
-                {paginatedRest.length > 0 ? (
-                  <section className="space-y-3">
-                    <h2 className="text-base font-semibold text-foreground">
-                      {needsAttention.length > 0 ? "All applications" : "Applications"}
-                    </h2>
-                    <div className="space-y-3">
-                      {paginatedRest.map((app) => (
-                        <ApplicationSlimCard
-                          key={app.id}
-                          application={app}
-                          productImageS3Key={
-                            productDisplayMap.get(app.productId ?? "")?.imageS3Key ?? null
-                          }
-                          onViewSignedContractOffer={handleDocumentDownload}
-                          onCancelApplication={handleWithdrawApplicationClick}
-                          onDeleteDraft={handleDeleteDraftClick}
-                          isCancelApplicationPending={cancelApplication.isPending}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                ) : null}
-
-                {restTotal > 0 ? (
-                  <Pagination
-                    page={page}
-                    pageSize={perPage}
-                    total={restTotal}
-                    onPageChange={setPage}
-                    onPageSizeChange={(size) => {
-                      setPerPage(size);
-                      setPage(1);
-                    }}
-                    pageSizeOptions={PER_PAGE_OPTIONS}
-                    itemLabel="applications"
+                        {searchQuery && !hasNonSearchFilters ? "Clear search" : "Clear filters"}
+                      </Button>
+                    }
                   />
-                ) : null}
-              </div>
-            )}
+                ) : (
+                  <div className="space-y-8">
+                    {paginatedRest.length > 0 ? (
+                      <section className="space-y-3">
+                        <h2 className="text-base font-semibold text-foreground">
+                          {needsAttention.length > 0 ? "All applications" : "Applications"}
+                        </h2>
+                        <div className="space-y-3">
+                          {paginatedRest.map((app) => (
+                            <ApplicationSlimCard
+                              key={app.id}
+                              application={app}
+                              productImageS3Key={
+                                productDisplayMap.get(app.productId ?? "")?.imageS3Key ?? null
+                              }
+                              onViewSignedContractOffer={handleDocumentDownload}
+                              onCancelApplication={handleWithdrawApplicationClick}
+                              onDeleteDraft={handleDeleteDraftClick}
+                              isCancelApplicationPending={cancelApplication.isPending}
+                            />
+                          ))}
+                        </div>
+                      </section>
+                    ) : null}
+
+                    {restTotal > 0 ? (
+                      <Pagination
+                        page={page}
+                        pageSize={perPage}
+                        total={restTotal}
+                        onPageChange={setPage}
+                        onPageSizeChange={(size) => {
+                          setPerPage(size);
+                          setPage(1);
+                        }}
+                        pageSizeOptions={PER_PAGE_OPTIONS}
+                        itemLabel="applications"
+                      />
+                    ) : null}
+                  </div>
+                )}
               </>
             )}
           </div>

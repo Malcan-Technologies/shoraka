@@ -51,6 +51,8 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
     const stepKey = getStepKeyFromStepId(step.id ?? "");
 
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
+      const minFaceRaw = config.min_invoice_face_value;
+      const maxFaceRaw = config.max_invoice_face_value;
       const minRaw = config.min_invoice_value;
       const maxRaw = config.max_invoice_value;
       const subLimitRaw = config.sub_limit_per_invoice_rm;
@@ -82,6 +84,20 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
 
       config = {
         ...config,
+        min_invoice_face_value:
+          typeof minFaceRaw === "number"
+            ? minFaceRaw
+            : typeof minFaceRaw === "string" && minFaceRaw.trim() !== ""
+              ? parseMoney(minFaceRaw)
+              : null,
+
+        max_invoice_face_value:
+          typeof maxFaceRaw === "number"
+            ? maxFaceRaw
+            : typeof maxFaceRaw === "string" && maxFaceRaw.trim() !== ""
+              ? parseMoney(maxFaceRaw)
+              : null,
+
         min_invoice_value:
           typeof minRaw === "number"
             ? minRaw
@@ -171,12 +187,16 @@ export function normalizeWorkflow(workflow: Step[]): Step[] {
   return workflow.map((step) => {
     const stepKey = getStepKeyFromStepId(step.id ?? "");
     const config = ((step as Step).config ?? {}) as {
+      min_invoice_face_value?: string | number | null;
+      max_invoice_face_value?: string | number | null;
       min_invoice_value?: string | number | null;
       max_invoice_value?: string | number | null;
       sub_limit_per_invoice_rm?: string | number | null;
     } & Record<string, unknown>;
 
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
+      const minFaceRaw = config.min_invoice_face_value;
+      const maxFaceRaw = config.max_invoice_face_value;
       const minRaw = config.min_invoice_value;
       const maxRaw = config.max_invoice_value;
       const subLimitRaw = config.sub_limit_per_invoice_rm;
@@ -185,6 +205,10 @@ export function normalizeWorkflow(workflow: Step[]): Step[] {
         ...step,
         config: {
           ...config,
+          min_invoice_face_value:
+            minFaceRaw == null || minFaceRaw === "" ? null : parseMoney(minFaceRaw),
+          max_invoice_face_value:
+            maxFaceRaw == null || maxFaceRaw === "" ? null : parseMoney(maxFaceRaw),
           min_invoice_value:
             minRaw == null || minRaw === "" ? null : parseMoney(minRaw),
           max_invoice_value:
@@ -309,14 +333,30 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
     }
 
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
+      const minFaceRaw = config.min_invoice_face_value;
+      const maxFaceRaw = config.max_invoice_face_value;
       const minRaw = config.min_invoice_value;
       const maxRaw = config.max_invoice_value;
       const subLimitRaw = config.sub_limit_per_invoice_rm;
       const minRatioRaw = config.min_financing_ratio_percent;
       const maxRatioRaw = config.max_financing_ratio_percent;
 
+      let minFaceValue: number | null = null;
+      let maxFaceValue: number | null = null;
       let minValue: number | null = null;
       let maxValue: number | null = null;
+
+      if (typeof minFaceRaw === "number") {
+        minFaceValue = minFaceRaw;
+      } else if (typeof minFaceRaw === "string" && minFaceRaw.trim() !== "") {
+        minFaceValue = parseMoney(minFaceRaw);
+      }
+
+      if (typeof maxFaceRaw === "number") {
+        maxFaceValue = maxFaceRaw;
+      } else if (typeof maxFaceRaw === "string" && maxFaceRaw.trim() !== "") {
+        maxFaceValue = parseMoney(maxFaceRaw);
+      }
 
       if (typeof minRaw === "number") {
         minValue = minRaw;
@@ -348,6 +388,25 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
         }
       }
 
+      if (minFaceValue != null && minFaceValue < 0) {
+        errors.push(`${stepLabel}: minimum invoice value cannot be negative`);
+        stepIdsWithErrors.add(stepId);
+      }
+
+      if (maxFaceValue != null && maxFaceValue < 0) {
+        errors.push(`${stepLabel}: maximum invoice value cannot be negative`);
+        stepIdsWithErrors.add(stepId);
+      }
+
+      if (
+        minFaceValue != null &&
+        maxFaceValue != null &&
+        minFaceValue > maxFaceValue
+      ) {
+        errors.push(`${stepLabel}: minimum invoice value cannot exceed maximum invoice value`);
+        stepIdsWithErrors.add(stepId);
+      }
+
       if (minValue != null && minValue < 0) {
         errors.push(`${stepLabel}: minimum financing amount cannot be negative`);
         stepIdsWithErrors.add(stepId);
@@ -363,7 +422,16 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
         maxValue != null &&
         minValue > maxValue
       ) {
-        errors.push(`${stepLabel}: minimum cannot exceed maximum`);
+        errors.push(`${stepLabel}: minimum financing amount cannot exceed maximum financing amount`);
+        stepIdsWithErrors.add(stepId);
+      }
+
+      if (
+        maxValue != null &&
+        subLimitValue != null &&
+        maxValue > subLimitValue
+      ) {
+        errors.push(`${stepLabel}: maximum financing amount cannot exceed the sub-limit per invoice`);
         stepIdsWithErrors.add(stepId);
       }
 

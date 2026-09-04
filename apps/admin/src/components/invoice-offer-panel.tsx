@@ -28,13 +28,16 @@ import {
   parseInvoiceOfferCompanyCategory,
   parseInvoiceOfferSustainabilityCategory,
   previewAcceptanceDeadlineFromWorkflow,
+  readProductLimitViolationMessage,
   resolveDefaultInvoiceRiskRating,
   resolveFinancingTenureDays,
   validateFinancingTenureAgainstDueDate,
+  validateInvoiceAgainstProductRules,
   SC_COMPANY_CATEGORIES,
   SC_COMPANY_CATEGORY_LABELS,
   SC_SUSTAINABILITY_CATEGORIES,
   SC_SUSTAINABILITY_CATEGORY_LABELS,
+  type InvoiceProductRules,
   type MarcSmeGrade,
   type ScCompanyCategory,
   type ScSustainabilityCategory,
@@ -72,7 +75,8 @@ import { REVIEW_EMPTY_LABEL, reviewLabelClass, reviewRowGridClass, reviewValueCl
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@cashsouk/ui";
+import { formatMoney, Slider } from "@cashsouk/ui";
+import { ProductRuleWarningNotice } from "@/components/application-review/product-rule-warning-notice";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -104,6 +108,24 @@ function toNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function formatInvoiceOfferLimitsHelper(
+  rules: InvoiceProductRules,
+  hasFacility: boolean
+): string | null {
+  const parts: string[] = [];
+  if (rules.minFinancingAmount != null) {
+    parts.push(`Min RM ${formatMoney(rules.minFinancingAmount)}`);
+  }
+  if (rules.maxFinancingAmount != null) {
+    parts.push(`Max RM ${formatMoney(rules.maxFinancingAmount)}`);
+  }
+  if (hasFacility && rules.subLimitPerInvoiceRm != null) {
+    parts.push(`Facility sub-limit RM ${formatMoney(rules.subLimitPerInvoiceRm)}`);
+  }
+  if (parts.length === 0) return null;
+  return `Product limits: ${parts.join(" · ")}`;
+}
+
 export interface InvoiceOfferPanelInvoice {
   id: string;
   displayReference?: string | null;
@@ -121,7 +143,7 @@ export interface InvoiceOfferPanelProps {
   reviewItemStatus: string;
   isRowGreyedOut: boolean;
   isAdminRejected: boolean;
-  invoiceRatioLimits: { min: number; max: number };
+  invoiceProductRules: InvoiceProductRules;
   platformFeeRateCapPercent?: number | null;
   minMonthsReviewToMaturityForOffer?: number | null;
   productWorkflow?: unknown;
@@ -136,15 +158,23 @@ export interface InvoiceOfferPanelProps {
   suggestedMarcGrade?: string | null;
   /** When set, Send Offer toasts this reason instead of opening confirm. */
   offerIdentityBlockReason?: string | null;
+  /**
+   * Application-level facility resolved by the caller: a contract id when the
+   * invoice sits on a facility, `null` for standalone invoices (whose holder
+   * contract must not trigger the sub-limit). Mirrors the API's occupancy rule.
+   * When omitted, falls back to the invoice row's own contract link.
+   */
+  facilityContractId?: string | null;
 }
 
 export function InvoiceOfferPanel({
   invoice,
   applicationId,
+  facilityContractId,
   reviewItemStatus,
   isRowGreyedOut,
   isAdminRejected,
-  invoiceRatioLimits,
+  invoiceProductRules,
   platformFeeRateCapPercent,
   minMonthsReviewToMaturityForOffer,
   productWorkflow,
@@ -197,6 +227,10 @@ export function InvoiceOfferPanel({
     const cap = platformFeeRateCapPercent ?? 3;
     return Number.isFinite(cap) && cap >= 0 ? Math.round(cap * 100) / 100 : 3;
   }, [platformFeeRateCapPercent]);
+  const invoiceRatioLimits = invoiceProductRules.ratio;
+  const hasFacility =
+    facilityContractId === undefined ? Boolean(invoice.contract_id) : facilityContractId != null;
+  const limitsHelper = formatInvoiceOfferLimitsHelper(invoiceProductRules, hasFacility);
 
   const initialOffered = React.useMemo(() => {
     const offer = invoice.offer_details as
@@ -362,6 +396,26 @@ export function InvoiceOfferPanel({
         minMonthsReviewToMaturityForOffer
       ));
   const exceedsIssuerRequest = invoiceOfferExceedsRequested(offeredAmount, issuerFinancingAmount);
+  const requestViolations = validateInvoiceAgainstProductRules(
+    invoiceProductRules,
+    {
+      invoiceFace: invoiceValue ?? 0,
+      financingAmount: issuerFinancingAmount ?? 0,
+      ratioPercent: financingRatio,
+    },
+    { mode: "issuer_request", hasFacility }
+  );
+  const offerViolations = validateInvoiceAgainstProductRules(
+    invoiceProductRules,
+    {
+      invoiceFace: invoiceValue ?? 0,
+      financingAmount: offeredAmount ?? 0,
+      ratioPercent: offered.ratio,
+    },
+    { mode: "admin_offer", hasFacility }
+  );
+  const offerViolationMessage = offerViolations[0]?.message ?? null;
+  const [productLimitSendError, setProductLimitSendError] = React.useState<string | null>(null);
   const reservedInvoice = isReservedCapacityInvoiceStatus(invoice.status);
   const offerDisable = resolveInvoiceOfferDisable({
     isAdminRejected,
@@ -473,21 +527,28 @@ export function InvoiceOfferPanel({
     if (offerDisable.disabled || invoiceOfferConfirmBlocked || !applicationId) {
       return;
     }
-    await onSendInvoiceOffer({
-      invoiceId: invoiceOfferConfirm.invoiceId,
-      offeredAmount: invoiceOfferConfirm.offeredAmount,
-      offeredRatioPercent: invoiceOfferConfirm.offeredRatioPercent,
-      offeredProfitRatePercent: invoiceOfferConfirm.offeredProfitRatePercent,
-      platformFeeRatePercent: invoiceOfferConfirm.platformFeeRatePercent,
-      risk_rating: invoiceOfferConfirm.risk_rating,
-      company_category: invoiceOfferConfirm.company_category,
-      sustainability_category: invoiceOfferConfirm.sustainability_category,
-      financingTenureDays: invoiceOfferConfirm.financingTenureDays,
-      feeScheduleMode: invoiceOfferConfirm.feeScheduleMode,
-      facilityFeeCollectAmount: invoiceOfferConfirm.facilityFeeCollectAmount,
-      additionalFees: invoiceOfferConfirm.additionalFees,
-    });
-    closeInvoiceOfferConfirm();
+    try {
+      await onSendInvoiceOffer({
+        invoiceId: invoiceOfferConfirm.invoiceId,
+        offeredAmount: invoiceOfferConfirm.offeredAmount,
+        offeredRatioPercent: invoiceOfferConfirm.offeredRatioPercent,
+        offeredProfitRatePercent: invoiceOfferConfirm.offeredProfitRatePercent,
+        platformFeeRatePercent: invoiceOfferConfirm.platformFeeRatePercent,
+        risk_rating: invoiceOfferConfirm.risk_rating,
+        company_category: invoiceOfferConfirm.company_category,
+        sustainability_category: invoiceOfferConfirm.sustainability_category,
+        financingTenureDays: invoiceOfferConfirm.financingTenureDays,
+        feeScheduleMode: invoiceOfferConfirm.feeScheduleMode,
+        facilityFeeCollectAmount: invoiceOfferConfirm.facilityFeeCollectAmount,
+        additionalFees: invoiceOfferConfirm.additionalFees,
+      });
+      setProductLimitSendError(null);
+      closeInvoiceOfferConfirm();
+    } catch (err) {
+      const productMessage = readProductLimitViolationMessage(err);
+      if (productMessage) setProductLimitSendError(productMessage);
+      closeInvoiceOfferConfirm();
+    }
   }, [
     onSendInvoiceOffer,
     invoiceOfferConfirm,
@@ -504,6 +565,11 @@ export function InvoiceOfferPanel({
 
   return (
     <div className="space-y-4">
+      {!isOfferSent && requestViolations[0] ? (
+        <ProductRuleWarningNotice
+          message={`Submitted request is outside product limits: ${requestViolations[0].message} Size the offer within limits or request an amendment.`}
+        />
+      ) : null}
       <div className={cn(reviewRowGridClass, "items-start")}>
         <Label className={reviewLabelClass}>Risk rating</Label>
         {isOfferSent ? (
@@ -799,6 +865,9 @@ export function InvoiceOfferPanel({
           >
             {offeredAmount !== null ? formatCurrency(offeredAmount) : REVIEW_EMPTY_LABEL}
           </div>
+          {!isOfferSent && limitsHelper ? (
+            <p className="text-meta text-muted-foreground tabular-nums">{limitsHelper}</p>
+          ) : null}
           {!isOfferSent && exceedsIssuerRequest ? (
             <p
               role="alert"
@@ -874,11 +943,19 @@ export function InvoiceOfferPanel({
               offerDisable.disabled ||
               Boolean(feeSendBlockedReason) ||
               sendOfferBlockedByTenure ||
+              Boolean(offerViolationMessage) ||
               financingTenureDays == null ||
               !companyCategory
             }
             onClick={() => {
-              if (offerDisable.disabled || feeSendBlockedReason || sendOfferBlockedByTenure) return;
+              if (
+                offerDisable.disabled ||
+                feeSendBlockedReason ||
+                sendOfferBlockedByTenure ||
+                offerViolationMessage
+              ) {
+                return;
+              }
               if (offerIdentityBlockReason) {
                 alert(offerIdentityBlockReason);
                 return;
@@ -934,11 +1011,19 @@ export function InvoiceOfferPanel({
           >
             {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
           </Button>
-          {offerDisable.message &&
-          offerDisable.reason !== "rejected" &&
-          offerDisable.reason !== "maturity" &&
-          offerDisable.reason !== "missing_risk" &&
-          offerDisable.reason !== "missing_amount" ? (
+          {offerViolationMessage ? (
+            <p role="alert" className="text-ui leading-snug text-destructive">
+              {offerViolationMessage}
+            </p>
+          ) : productLimitSendError ? (
+            <p role="alert" className="text-ui leading-snug text-destructive">
+              {productLimitSendError}
+            </p>
+          ) : offerDisable.message &&
+            offerDisable.reason !== "rejected" &&
+            offerDisable.reason !== "maturity" &&
+            offerDisable.reason !== "missing_risk" &&
+            offerDisable.reason !== "missing_amount" ? (
             <p role="alert" className="text-sm leading-snug text-destructive">
               {offerDisable.message}
             </p>

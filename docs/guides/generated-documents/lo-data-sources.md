@@ -17,7 +17,7 @@ Older editable discussion table: [arf-letter-of-offer-placeholder-map.md](../app
 | Guarantors | Ordered live `application_guarantors` | Individuals and companies. Finance Documents uses `{#finance_documents_guarantors}` with nested `{rep_line}` for corporate authorised representatives (`a. b. c.` under roman `i. ii. iii.`). Missing identity parts print `[INSERT NAME]` / `[INSERT]`. An empty list prints one placeholder line. |
 | Corporate signatories | `offer_acceptance.authorized_parties` or `authorized_parties_draft` | Name, NRIC, and capacity. While Step 1 is editable the saved draft is used; after submit the canonical snapshot is. Draft must be saved before LO download |
 | Tenure / payment / max invoice tenure | `FINANCING_TENURE_MAX_DAYS` (180) | Same value in all three merge fields |
-| Invoice sub-limit | Frozen product `invoice_details.sub_limit_per_invoice_rm` | Also fills `part_b_financing_amount_rm`. Generation fails if unset |
+| Invoice sub-limit | Frozen product `invoice_details.sub_limit_per_invoice_rm` | Also fills `part_b_financing_amount_rm`. Generation fails if unset. Also enforced as a per-invoice financing cap on facility drawdowns and admin offers. |
 | Facility Type checkboxes | `financing_structure.structure_type` | Part A for `new_contract`; Part B for `invoice_only` / `existing_contract` |
 | Assigned contract | `contract_details` + `customer_details` | Date, counterparty, description/number |
 | Offer validity phrase | `acceptance_expires_at` vs `sent_at` | Used in **both** acceptance/lapse clauses |

@@ -142,6 +142,27 @@ describe("AdminService — signing deadline extended notifications", () => {
 
       await expect(service.extendContractSigningDeadline("app-1", "admin-1")).resolves.toBeTruthy();
     });
+
+    it("rejects facility deadline actions for invoice-only applications", async () => {
+      (
+        service as unknown as { prepareForReviewAction: jest.Mock }
+      ).prepareForReviewAction.mockResolvedValue({
+        repository: { getApplicationById: jest.fn() },
+        application: {
+          id: "app-1",
+          contract_id: "holder-1",
+          financing_structure: { structure_type: "invoice_only" },
+        },
+      });
+
+      await expect(
+        service.extendContractSigningDeadline("app-1", "admin-1")
+      ).rejects.toMatchObject({
+        code: "INVALID_ACTION",
+        statusCode: 400,
+      });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
   });
 
   describe("extendInvoiceSigningDeadline", () => {

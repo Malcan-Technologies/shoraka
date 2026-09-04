@@ -1,6 +1,6 @@
 import { ALL_HELP_ARTICLES } from "./generated/help-articles";
 
-export type HelpPortal = "admin" | "issuer" | "investor";
+export type HelpPortal = "admin";
 
 export type HelpArticle = {
   slug: string;
@@ -16,9 +16,7 @@ export type HelpArticle = {
 export type HelpArticleMeta = Omit<HelpArticle, "content">;
 
 function articleMatchesPortal(slug: string, portal: HelpPortal): boolean {
-  if (portal === "admin") return slug.startsWith("admin-");
-  if (portal === "issuer") return slug.startsWith("issuer-");
-  return slug.startsWith("investor-");
+  return portal === "admin" && slug.startsWith("admin-");
 }
 
 export function getHelpArticles(portal: HelpPortal): HelpArticleMeta[] {

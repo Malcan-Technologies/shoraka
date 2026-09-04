@@ -30,12 +30,18 @@ import {
   offerAcceptanceAllowsIssuerReviewCta,
   type OfferAcceptanceStatus,
   isCompletedWithNoApprovedInvoices,
+  isInvoiceOnlyFinancingStructure,
   resolveFacilityFeeUpfront,
   resolveFinancingTenureDays,
 } from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { getOfferStatus, getOfferPhaseDeadlineDisplay } from "@/lib/offer-utils";
-import { getCardStatus, APPLICATION_STATUS_PRIORITY, type NormalizedApplication, type NormalizedInvoice } from "./status";
+import {
+  getCardStatus,
+  APPLICATION_STATUS_PRIORITY,
+  type NormalizedApplication,
+  type NormalizedInvoice,
+} from "./status";
 import { numberOrNull } from "@/lib/facility-fee-display";
 import { resolveIssuerFacilityFeeBalance, resolveIssuerFacilityGate } from "@/lib/facility-enabled";
 
@@ -141,15 +147,22 @@ function sanitizeInvoiceScopePart(v: string | number): string {
 }
 
 /** Invoice item reject remarks use scope_key like admin `collectInvoiceScopeKeys` / `resolveInvoiceScopeKeyById`. */
-function invoiceRejectScopeKeysFromDetails(details: Record<string, unknown>, invoiceIndex: number): string[] {
+function invoiceRejectScopeKeysFromDetails(
+  details: Record<string, unknown>,
+  invoiceIndex: number
+): string[] {
   const nNum = details.number;
   const nInv = details.invoice_number;
   const keys = new Set<string>();
   if (nNum != null) {
-    keys.add(`invoice_details:${invoiceIndex}:${sanitizeInvoiceScopePart(nNum as string | number)}`);
+    keys.add(
+      `invoice_details:${invoiceIndex}:${sanitizeInvoiceScopePart(nNum as string | number)}`
+    );
   }
   if (nInv != null) {
-    keys.add(`invoice_details:${invoiceIndex}:${sanitizeInvoiceScopePart(nInv as string | number)}`);
+    keys.add(
+      `invoice_details:${invoiceIndex}:${sanitizeInvoiceScopePart(nInv as string | number)}`
+    );
   }
   keys.add(`invoice_details:${invoiceIndex}:${sanitizeInvoiceScopePart(invoiceIndex + 1)}`);
   return [...keys];
@@ -213,22 +226,29 @@ function prepareInvoice(
   const canReviewOffer =
     offerStatus === "Offer received" &&
     offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus as OfferAcceptanceStatus | null) &&
-    (structureType === "invoice_only" || contractStatus === "APPROVED" || !contractStatus);
+    (isInvoiceOnlyFinancingStructure({ structure_type: structureType }) ||
+      contractStatus === "APPROVED" ||
+      !contractStatus);
 
   const offeredAmount = resolveOfferedAmount(api.offer_details);
   const profitRateVal = resolveOfferedProfitRate(api.offer_details);
   const hasOffer = api.status === "OFFER_SENT" || api.status === "APPROVED";
-  const financingOffered =
-    hasOffer && offeredAmount > 0 ? formatCurrency(offeredAmount) : "—";
+  const financingOffered = hasOffer && offeredAmount > 0 ? formatCurrency(offeredAmount) : "—";
   const profitRate =
     hasOffer && profitRateVal != null && profitRateVal > 0 ? `${profitRateVal}%` : "—";
   const platformFeePct = resolveOfferedPlatformFeeRatePercent(api.offer_details);
   const platformFee = hasOffer ? `${platformFeePct}%` : "—";
 
   const invoiceValue =
-    typeof details.value === "number" ? details.value : typeof details.invoice_value === "number" ? details.invoice_value : null;
+    typeof details.value === "number"
+      ? details.value
+      : typeof details.invoice_value === "number"
+        ? details.invoice_value
+        : null;
   const appliedFinancing = resolveRequestedInvoiceAmount(details);
-  const contractId = api.contract_id ?? (api as unknown as { contract_id?: string }).contract_id ?? null;
+  const contractId = isInvoiceOnlyFinancingStructure({ structure_type: structureType })
+    ? null
+    : (api.contract_id ?? (api as unknown as { contract_id?: string }).contract_id ?? null);
 
   return {
     id: api.id,
@@ -261,7 +281,8 @@ function prepareInvoice(
 
 export function prepareApplication(api: ApiApplication): NormalizedApplication {
   const contract = api.contract;
-  const contractStatus = contract?.status ?? null;
+  const isInvoiceOnly = isInvoiceOnlyFinancingStructure(api.financing_structure);
+  const contractStatus = isInvoiceOnly ? null : (contract?.status ?? null);
   const invoices = api.invoices ?? [];
 
   /** Withdraw reason: from contract or first withdrawn invoice (needed before getCardStatus). */
@@ -314,18 +335,33 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     }
   }
 
-  const structureType = (api.financing_structure as { structure_type?: string } | undefined)?.structure_type;
+  const structureType = (api.financing_structure as { structure_type?: string } | undefined)
+    ?.structure_type;
   let type: "Facility financing" | "Invoice financing" | "Generic" = "Generic";
   if (api.status === "DRAFT" && !structureType) type = "Generic";
   else if (structureType === "invoice_only") type = "Invoice financing";
-  else if (structureType === "existing_contract" || structureType === "new_contract") type = "Facility financing";
+  else if (structureType === "existing_contract" || structureType === "new_contract")
+    type = "Facility financing";
   else type = contract ? "Facility financing" : "Invoice financing";
 
   const contractDetails = (contract?.contract_details ?? {}) as Record<string, unknown>;
   const customerDetails = (contract?.customer_details ?? {}) as Record<string, unknown>;
   const companyDetails = api.company_details ?? {};
-  const customer = String(customerDetails.customer_name ?? customerDetails.name ?? companyDetails.customer_name ?? companyDetails.company_name ?? "—") || "—";
-  const contractTitle = (contractDetails.title ? String(contractDetails.title) : contractDetails.contract_title ? String(contractDetails.contract_title) : null) as string | null;
+  const customer =
+    String(
+      customerDetails.customer_name ??
+        customerDetails.name ??
+        companyDetails.customer_name ??
+        companyDetails.company_name ??
+        "—"
+    ) || "—";
+  const contractTitle = (
+    contractDetails.title
+      ? String(contractDetails.title)
+      : contractDetails.contract_title
+        ? String(contractDetails.contract_title)
+        : null
+  ) as string | null;
 
   let contractValue: number | null = null;
   const requestedApplied = resolveRequestedFacility({
@@ -359,7 +395,8 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
 
   const facilityFeeRatePercent = numberOrNull(
     contractDetails.facility_fee_rate_percent ??
-      (contract?.offer_details as Record<string, unknown> | null | undefined)?.facility_fee_rate_percent
+      (contract?.offer_details as Record<string, unknown> | null | undefined)
+        ?.facility_fee_rate_percent
   );
   const feeBalance = resolveIssuerFacilityFeeBalance({
     contractDetails: {
@@ -396,7 +433,8 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     (approvedFacilityAmount != null ? facilityFeeUpfront.outstanding : null);
   const facilityFeePaidAmount = feeBalance.paid;
   const facilityFeeCapAmount =
-    approvedFacilityAmount != null && (feeBalance.totalOwed > 0 || (facilityFeeRatePercent ?? 0) > 0)
+    approvedFacilityAmount != null &&
+    (feeBalance.totalOwed > 0 || (facilityFeeRatePercent ?? 0) > 0)
       ? feeBalance.totalOwed
       : null;
 
@@ -453,9 +491,7 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
       showReviewOffer: false,
       showMakeAmendments: false,
     };
-  } else if (
-    invoices.some((i) => String(i.status ?? "").toUpperCase() === "OFFER_EXPIRED")
-  ) {
+  } else if (invoices.some((i) => String(i.status ?? "").toUpperCase() === "OFFER_EXPIRED")) {
     cardStatus = {
       badgeKey: "offer_expired",
       displayLabel: "Offer Expired",
@@ -464,10 +500,12 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     };
   }
 
-  const facilityInForceNoInvoices = isCompletedWithNoApprovedInvoices(
-    String(api.status ?? "DRAFT"),
-    invoices.map((invoice) => String(invoice.status ?? ""))
-  );
+  const facilityInForceNoInvoices =
+    !isInvoiceOnly &&
+    isCompletedWithNoApprovedInvoices(
+      String(api.status ?? "DRAFT"),
+      invoices.map((invoice) => String(invoice.status ?? ""))
+    );
   if (facilityInForceNoInvoices) {
     cardStatus = {
       ...cardStatus,
@@ -477,44 +515,50 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
 
   return {
     id: api.id,
-    displayReference: api.displayReference ?? (api as { display_reference?: string | null }).display_reference ?? null,
+    displayReference:
+      api.displayReference ??
+      (api as { display_reference?: string | null }).display_reference ??
+      null,
     type,
     status: cardStatus.badgeKey,
     cardStatus,
-    contractTitle,
-    contractId: contractId ? String(contractId) : null,
-    contractDisplayReference:
-      (contract as ApiContract | null | undefined)?.displayReference ??
-      (contract as ApiContract | null | undefined)?.display_reference ??
-      null,
+    contractTitle: isInvoiceOnly ? null : contractTitle,
+    contractId: isInvoiceOnly || !contractId ? null : String(contractId),
+    contractDisplayReference: isInvoiceOnly
+      ? null
+      : ((contract as ApiContract | null | undefined)?.displayReference ??
+        (contract as ApiContract | null | undefined)?.display_reference ??
+        null),
     customer,
     applicationDate: created.toISOString().slice(0, 10),
     submittedAt,
-    contractValue,
-    facilityApplied,
-    offeredFacilityAmount,
-    approvedFacility,
-    approvedFacilityAmount,
-    facilityFeeRatePercent,
-    facilityFeeCapAmount,
-    facilityFeePaidAmount,
-    facilityFeeWaived: feeBalance.waived,
-    facilityFeeWaivedAmount: feeBalance.waivedAmount,
-    facilityFeeRemainingAmount: feeBalance.remaining,
-    facilityFeeUpfrontAmount,
-    facilityFeeUpfrontOutstanding,
-    facilityEnabled: facilityGate.enabled,
-    facilityDisabledReason: facilityGate.disabledReason,
+    contractValue: isInvoiceOnly ? null : contractValue,
+    facilityApplied: isInvoiceOnly ? null : facilityApplied,
+    offeredFacilityAmount: isInvoiceOnly ? null : offeredFacilityAmount,
+    approvedFacility: isInvoiceOnly ? "N/A" : approvedFacility,
+    approvedFacilityAmount: isInvoiceOnly ? null : approvedFacilityAmount,
+    facilityFeeRatePercent: isInvoiceOnly ? null : facilityFeeRatePercent,
+    facilityFeeCapAmount: isInvoiceOnly ? null : facilityFeeCapAmount,
+    facilityFeePaidAmount: isInvoiceOnly ? null : facilityFeePaidAmount,
+    facilityFeeWaived: isInvoiceOnly ? false : feeBalance.waived,
+    facilityFeeWaivedAmount: isInvoiceOnly ? null : feeBalance.waivedAmount,
+    facilityFeeRemainingAmount: isInvoiceOnly ? null : feeBalance.remaining,
+    facilityFeeUpfrontAmount: isInvoiceOnly ? null : facilityFeeUpfrontAmount,
+    facilityFeeUpfrontOutstanding: isInvoiceOnly ? null : facilityFeeUpfrontOutstanding,
+    facilityEnabled: isInvoiceOnly ? undefined : facilityGate.enabled,
+    facilityDisabledReason: isInvoiceOnly ? null : facilityGate.disabledReason,
     updatedAt: updated.toISOString(),
-    invoices: invoices.map((inv, idx) => prepareInvoice(inv, contractStatus, structureType, idx, reviewRemarks)),
+    invoices: invoices.map((inv, idx) =>
+      prepareInvoice(inv, contractStatus, structureType, idx, reviewRemarks)
+    ),
     contractStatus,
     issuerOrganizationId,
     productId,
     supportingDocuments: api.supporting_documents ?? null,
     withdrawReason,
     expiresAt,
-    signedContractOfferLetterAvailable,
-    signedContractOfferLetterS3Key,
+    signedContractOfferLetterAvailable: isInvoiceOnly ? false : signedContractOfferLetterAvailable,
+    signedContractOfferLetterS3Key: isInvoiceOnly ? null : signedContractOfferLetterS3Key,
     offerPhaseDeadline,
     offerAcceptanceStatus: primaryOfferAcceptanceStatus,
     applicationStatus: String(api.status ?? "DRAFT").toUpperCase(),
@@ -540,9 +584,11 @@ export function useApplicationsData(options?: UseApplicationsDataOptions): {
 } {
   const { debugShowSkeleton = false, debugMockApplications } = options ?? {};
   const { activeOrganization } = useOrganization();
-  const { data: apiApplications = [], isLoading, error } = useOrganizationApplications(
-    debugMockApplications ? undefined : activeOrganization?.id
-  );
+  const {
+    data: apiApplications = [],
+    isLoading,
+    error,
+  } = useOrganizationApplications(debugMockApplications ? undefined : activeOrganization?.id);
 
   const applications = useMemo(() => {
     if (debugShowSkeleton) {
