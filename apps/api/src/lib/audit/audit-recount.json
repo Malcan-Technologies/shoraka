@@ -1,19 +1,27 @@
 {
-  "liveEvents": 151,
-  "historicalReaders": 11,
+  "liveEvents": 158,
+  "historicalReaders": 12,
   "devOnly": 7,
-  "catalogueSize": 169,
-  "writerHits": 104,
-  "unknown": 0,
-  "unknownEvents": [],
+  "catalogueSize": 177,
+  "writerHits": 118,
+  "unknown": 7,
+  "unknownEvents": [
+    "MASTER_FINANCIALS_UPDATED",
+    "MASTER_PARTY_ADOPTED",
+    "MASTER_PARTY_CREATED",
+    "MASTER_PARTY_INACTIVATED",
+    "MASTER_PARTY_MISMATCH_RESOLVED",
+    "MASTER_PARTY_UPDATED",
+    "MASTER_PROFILE_UPDATED"
+  ],
   "byLifecycle": {
-    "LIVE": 151,
-    "HISTORICAL_READER": 11,
+    "LIVE": 158,
+    "HISTORICAL_READER": 12,
     "DEV_ONLY": 7
   },
   "byLayer": {
     "APPLICATION_TIMELINE": 33,
-    "ADMIN_ACTIVITY": 66,
+    "ADMIN_ACTIVITY": 74,
     "ORG_ACTIVITY": 16,
     "FORENSIC_ONLY": 9,
     "NOTE_TIMELINE": 13,
@@ -22,9 +30,9 @@
     "LEGAL_ONLY": 10
   },
   "byTable": {
-    "application_logs": 54,
+    "application_logs": 55,
     "onboarding_logs": 35,
-    "note_events": 43,
+    "note_events": 50,
     "product_logs": 5,
     "gateway_payment_events": 9,
     "access_logs": 3,

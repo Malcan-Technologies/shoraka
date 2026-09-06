@@ -13,7 +13,10 @@ import {
 } from "@cashsouk/types";
 import { prisma } from "../../../lib/prisma";
 import { latestIncludedReceiptDate } from "../tenure-settlement";
-import { certificatePartyDisplayReference } from "../investment-note-certificate/certificate-identity";
+import {
+  certificatePartyDisplayReference,
+  resolveCertificateCompanyRegistration,
+} from "../investment-note-certificate/certificate-identity";
 import {
   CERTIFICATE_FIRST_VERSION,
   investorScheduleReferenceFor,
@@ -361,7 +364,11 @@ export async function buildSettlementHibahReceiptSnapshot(
   const [issuerOrg, facility, readyCertificate] = await Promise.all([
     prisma.issuerOrganization.findUnique({
       where: { id: note.issuer_organization_id },
-      select: { display_reference: true },
+      select: {
+        display_reference: true,
+        registration_number: true,
+        corporate_onboarding_data: true,
+      },
     }),
     note.source_contract_id
       ? prisma.contract.findUnique({
@@ -392,7 +399,10 @@ export async function buildSettlementHibahReceiptSnapshot(
 
   const issuerSnapshot = asRecord(note.issuer_snapshot);
   const issuerLegalName = nonEmpty(issuerSnapshot?.name) ?? "—";
-  const issuerCompanyNumber = nonEmpty(issuerSnapshot?.registration_number) ?? "—";
+  const issuerCompanyNumber = resolveCertificateCompanyRegistration({
+    issuerSnapshot,
+    issuerOrganization: issuerOrg,
+  });
   const clearedIso = isoDate(clearedDate);
   if (!clearedIso) {
     throw new ReceiptGenerationError(

@@ -130,7 +130,11 @@ describe("buildSettlementHibahReceiptSnapshot", () => {
         receipt_date: new Date("2026-08-10T00:00:00.000Z"),
       },
     ]);
-    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({ display_reference: "ISS-1" });
+    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({
+      display_reference: "ISS-1",
+      registration_number: null,
+      corporate_onboarding_data: null,
+    });
     mockPrisma.contract.findUnique.mockResolvedValue({ display_reference: "FAC-1" });
     mockPrisma.noteInvestmentCertificate.findFirst.mockResolvedValue(null);
     mockFreezeReceiptAuthorisation.mockResolvedValue({
@@ -262,6 +266,94 @@ describe("buildSettlementHibahReceiptSnapshot", () => {
     mockPrisma.noteInvestmentCertificate.findFirst.mockResolvedValue(null);
     const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED");
     expect(snapshot.investorScheduleReference).toBe("IS-ARF-202608-A52-V01");
+  });
+
+  it("uses issuer_snapshot.registration_number when present", async () => {
+    mockPrisma.note.findUnique.mockResolvedValue(
+      baseNote({
+        issuer_snapshot: { name: "Toyota", registration_number: "1111111111" },
+      })
+    );
+    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({
+      display_reference: "ISS-1",
+      registration_number: "9999999999",
+      corporate_onboarding_data: { basicInfo: { ssmRegistrationNumber: "8888888888" } },
+    });
+    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED");
+    expect(snapshot.issuerCompanyNumber).toBe("1111111111");
+    expect(snapshot.paymentReference).toBe("BANK-REF-1");
+  });
+
+  it("falls back to issuer organization registration_number", async () => {
+    mockPrisma.note.findUnique.mockResolvedValue(
+      baseNote({
+        issuer_snapshot: { name: "Toyota", registration_number: null },
+      })
+    );
+    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({
+      display_reference: "ISS-1",
+      registration_number: "202401054321",
+      corporate_onboarding_data: { basicInfo: { ssmRegistrationNumber: "8888888888" } },
+    });
+    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED");
+    expect(snapshot.issuerCompanyNumber).toBe("202401054321");
+  });
+
+  it("falls back to COD SSM registration when the org column is empty", async () => {
+    mockPrisma.note.findUnique.mockResolvedValue(
+      baseNote({
+        issuer_snapshot: { name: "Toyota", registration_number: null },
+      })
+    );
+    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({
+      display_reference: "ISS-1",
+      registration_number: null,
+      corporate_onboarding_data: { basicInfo: { ssmRegistrationNumber: "123412341234" } },
+    });
+    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED");
+    expect(snapshot.issuerCompanyNumber).toBe("123412341234");
+  });
+
+  it("prints an em dash when no company registration exists", async () => {
+    mockPrisma.note.findUnique.mockResolvedValue(
+      baseNote({
+        issuer_snapshot: { name: "Toyota", registration_number: null },
+      })
+    );
+    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({
+      display_reference: "ISS-1",
+      registration_number: null,
+      corporate_onboarding_data: { basicInfo: {} },
+    });
+    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED");
+    expect(snapshot.issuerCompanyNumber).toBe("—");
+  });
+
+  it("does not use bank account numbers as Company no.", async () => {
+    mockPrisma.note.findUnique.mockResolvedValue(
+      baseNote({
+        issuer_snapshot: {
+          name: "Toyota",
+          registration_number: null,
+          bank_account_number: "1234567890",
+          account_number: "9876543210",
+        },
+        paymaster_snapshot: { name: "Paymaster Co", registration_number: "PM-999", account_number: "5555555555" },
+      })
+    );
+    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({
+      display_reference: "ISS-1",
+      registration_number: null,
+      corporate_onboarding_data: {
+        basicInfo: { bankAccountNumber: "111122223333" },
+        bankDetails: { accountNumber: "444455556666" },
+      },
+    });
+    const snapshot = await buildSettlementHibahReceiptSnapshot("note-1", "SETTLEMENT_COMPLETED");
+    expect(snapshot.issuerCompanyNumber).toBe("—");
+    expect(snapshot.issuerCompanyNumber).not.toBe("1234567890");
+    expect(snapshot.issuerCompanyNumber).not.toBe("5555555555");
+    expect(snapshot.paymentReference).toBe("BANK-REF-1");
   });
 
   it("does not freeze the issuer organization CUID as Issuer ID", async () => {

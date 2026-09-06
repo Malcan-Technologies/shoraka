@@ -12,6 +12,34 @@ export type PaymasterAssignmentNoticeStatus =
 export const PAYMASTER_VERIFICATION_STATUSES = ["UNVERIFIED", "VERIFIED"] as const;
 export type PaymasterVerificationStatus = (typeof PAYMASTER_VERIFICATION_STATUSES)[number];
 
+/** Official Paymaster entity types. Same list as issuer Customer / Paymaster. */
+export const PAYMASTER_ENTITY_TYPES = [
+  "Sole Proprietor",
+  "Partnership",
+  "Private Limited Company (Sdn Bhd)",
+  "Public Limited Company (Bhd)",
+  "Federal Government",
+  "State Government",
+  "Federal Government Agency",
+  "State Government Agency",
+  "Unlisted Public Company",
+] as const;
+export type PaymasterEntityType = (typeof PAYMASTER_ENTITY_TYPES)[number];
+
+export function isPaymasterEntityType(value: string): value is PaymasterEntityType {
+  return (PAYMASTER_ENTITY_TYPES as readonly string[]).includes(value);
+}
+
+export function isIsoCountryCode(value: string): boolean {
+  return /^[A-Z]{2}$/.test(value);
+}
+
+export type PaymasterOfficialIdentityInput = {
+  legalName: string;
+  country: string;
+  entityType: string;
+};
+
 export const PAYMASTER_LOOKUP_STATUSES = [
   "FOUND_VERIFIED",
   "FOUND_UNVERIFIED",
@@ -137,6 +165,7 @@ export interface PaymasterDetail extends PaymasterIdentity {
 export const PAYMASTER_IDENTITY_ACTIVITY_EVENT_TYPES = [
   "PAYMASTER_CREATED",
   "PAYMASTER_LINKED_TO_ISSUER",
+  "PAYMASTER_IDENTITY_UPDATED",
   "PAYMASTER_VERIFIED",
   "PAYMASTER_IDENTITY_RESOLVED",
 ] as const;
@@ -227,15 +256,13 @@ export const PAYMASTER_NOT_VERIFIED_MESSAGE =
   "You can only select a verified Paymaster for reuse.";
 export const PAYMASTER_NOT_VERIFIED_FOR_OFFER_MESSAGE =
   "Verify Paymaster identity before sending an offer.";
-export const PAYMASTER_NOT_VERIFIED_FOR_USE_VERIFIED_MESSAGE =
-  "Verify Paymaster identity before using the verified record.";
 
 export const PAYMASTER_NOT_LINKED_CODE = "PAYMASTER_NOT_LINKED";
 export const PAYMASTER_NOT_LINKED_MESSAGE = "This application has no linked Paymaster.";
 
 export const PAYMASTER_IDENTITY_UNRESOLVED_CODE = "PAYMASTER_IDENTITY_UNRESOLVED";
 export const PAYMASTER_IDENTITY_UNRESOLVED_MESSAGE =
-  "Resolve submitted vs verified Paymaster identity before sending an offer.";
+  "This application's Paymaster identity must match the official verified Paymaster before sending an offer.";
 
 export const PAYMASTER_SSM_MISMATCH_CODE = "PAYMASTER_SSM_MISMATCH";
 export const PAYMASTER_SSM_MISMATCH_MESSAGE =
@@ -370,6 +397,6 @@ export const RELATED_PARTY_REQUIRED_MESSAGE =
 
 export const PAYMASTER_IDENTITY_IMMUTABLE_CODE = "PAYMASTER_IDENTITY_IMMUTABLE";
 export const PAYMASTER_IDENTITY_IMMUTABLE_MESSAGE =
-  "Verified Paymaster identity cannot be changed.";
+  "Issuer applications cannot change the official Paymaster identity.";
 export const PAYMASTER_EXISTING_IDENTITY_IMMUTABLE_MESSAGE =
-  "Existing Paymaster identity cannot be changed.";
+  "Existing Paymaster identity cannot be changed by the issuer.";

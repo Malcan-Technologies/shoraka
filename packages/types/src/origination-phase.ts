@@ -219,6 +219,52 @@ export function canResetReviewToPending(
   return false;
 }
 
+/**
+ * Commercial offer / legal process has started, so Paymaster SSM switching must stay frozen.
+ * Unlike {@link resolveOriginationPhase}, application `AMENDMENT_REQUESTED` does not override
+ * an already-sent offer, signing ceremony, or approved facility.
+ */
+export function isPaymasterSwitchingFrozen(input: OriginationPhaseInput): boolean {
+  const app = norm(input.applicationStatus);
+  if (CLOSED_APPLICATION_STATUSES.has(app) || app === "OFFER_EXPIRED") {
+    return true;
+  }
+  if (hasEntityApproved(input) || hasCompletedSigningEnvelope(input)) {
+    return true;
+  }
+  const acceptance = norm(input.offerAcceptanceStatus);
+  if (
+    SIGNING_APPLICATION_STATUSES.has(app) ||
+    acceptance === "SIGNING_IN_PROGRESS" ||
+    acceptance === "APPROVED_FOR_SIGNING"
+  ) {
+    return true;
+  }
+  if (OFFER_LIVE_APPLICATION_STATUSES.has(app) || hasEntityOfferLive(input)) {
+    return true;
+  }
+  const contract = norm(input.contractStatus);
+  return (
+    contract === "OFFER_SENT" ||
+    contract === "OFFER_EXPIRED" ||
+    contract === "APPROVED" ||
+    contract === "REJECTED" ||
+    contract === "WITHDRAWN"
+  );
+}
+
+/**
+ * Issuer SSM / Paymaster switching is locked after the facility leaves draft/amendment,
+ * or once {@link isPaymasterSwitchingFrozen} is true (invoice offers on a still-draft holder).
+ */
+export function isPaymasterSsmSwitchingLocked(input: OriginationPhaseInput): boolean {
+  const contract = norm(input.contractStatus);
+  if (contract && contract !== "DRAFT" && contract !== "AMENDMENT_REQUESTED") {
+    return true;
+  }
+  return isPaymasterSwitchingFrozen(input);
+}
+
 /** Facility approved but every invoice declined/withdrawn — still COMPLETED, not a financed drawdown. */
 export function isCompletedWithNoApprovedInvoices(
   applicationStatus: string,

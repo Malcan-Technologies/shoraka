@@ -1,12 +1,10 @@
 "use client";
 
-import { toast } from "sonner";
 import {
   paymasterMasterIdentityFields,
   submittedIdentityDiffersFromVerified,
 } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
-import { useVerifiedPaymasterIdentity } from "@/paymasters/hooks/use-paymasters";
 import type { ApplicationReviewPaymaster } from "@/paymasters/components/paymaster-verification-panel";
 import { ComparisonFieldRow } from "./comparison-field-row";
 import { ReviewFieldBlock } from "./review-field-block";
@@ -36,38 +34,29 @@ export function shouldShowSubmittedVerifiedPaymaster(params: {
 export function SubmittedVerifiedPaymasterIdentity({
   customerDetails,
   paymaster,
-  applicationId,
-  canManage,
   actionsDisabled,
   onRequestAmendment,
 }: {
   customerDetails?: unknown;
   paymaster?: ApplicationReviewPaymaster | null;
   applicationId?: string;
-  canManage: boolean;
+  canManage?: boolean;
   actionsDisabled?: boolean;
   onRequestAmendment: () => void;
 }) {
-  const useVerified = useVerifiedPaymasterIdentity();
   const submitted = asRecord(customerDetails) ?? {};
   const verified = paymaster ? paymasterMasterIdentityFields(paymaster) : null;
-
-  const onUseVerified = async () => {
-    if (!applicationId) return;
-    try {
-      await useVerified.mutateAsync({ applicationId });
-      toast.success("Submitted customer identity now matches the verified Paymaster.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not use the verified Paymaster.");
-    }
-  };
 
   return (
     <ReviewFieldBlock title="Paymaster identity">
       <div className="space-y-2">
         <div className={comparisonSplitRowGridClass}>
-          <p className={`${reviewLabelClass} ${comparisonSplitBeforeColClass}`}>Submitted</p>
-          <p className={`${reviewLabelClass} ${comparisonSplitAfterColClass}`}>Verified Paymaster</p>
+          <p className={`${reviewLabelClass} ${comparisonSplitBeforeColClass}`}>
+            Originally submitted by issuer
+          </p>
+          <p className={`${reviewLabelClass} ${comparisonSplitAfterColClass}`}>
+            Official Paymaster Identity
+          </p>
         </div>
         <ComparisonFieldRow
           label="Customer Name"
@@ -95,21 +84,11 @@ export function SubmittedVerifiedPaymasterIdentity({
         />
       </div>
       <div className="flex flex-wrap gap-2 pt-2">
-        {canManage && applicationId ? (
-          <Button
-            type="button"
-            className="h-10 rounded-xl text-ui"
-            disabled={actionsDisabled || useVerified.isPending}
-            onClick={() => void onUseVerified()}
-          >
-            {useVerified.isPending ? "Updating…" : "Use Verified Paymaster"}
-          </Button>
-        ) : null}
         <Button
           type="button"
           variant="outline"
           className="h-10 rounded-xl text-ui"
-          disabled={actionsDisabled || useVerified.isPending}
+          disabled={actionsDisabled}
           onClick={onRequestAmendment}
         >
           Request Amendment

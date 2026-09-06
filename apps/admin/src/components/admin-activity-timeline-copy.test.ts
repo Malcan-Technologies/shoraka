@@ -41,6 +41,7 @@ describe("admin activity timeline signing-package copy", () => {
   it("labels Paymaster identity events with business titles, not raw codes", () => {
     expect(source).toMatch(/PAYMASTER_CREATED:\s*"Paymaster Created"/);
     expect(source).toMatch(/PAYMASTER_LINKED_TO_ISSUER:\s*"Paymaster Linked to Issuer"/);
+    expect(source).toMatch(/PAYMASTER_IDENTITY_UPDATED:\s*"Paymaster Identity Updated"/);
     expect(source).toMatch(/PAYMASTER_VERIFIED:\s*"Paymaster Identity Verified"/);
     expect(source).toMatch(/PAYMASTER_IDENTITY_RESOLVED:\s*"Paymaster Identity Resolved"/);
     expect(source).not.toMatch(/PAYMASTER_VERIFIED:\s*"Paymaster Verified"/);

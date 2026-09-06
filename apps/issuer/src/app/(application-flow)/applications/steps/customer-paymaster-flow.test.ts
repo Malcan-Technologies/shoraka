@@ -6,7 +6,9 @@ import {
   isRelatedPartyAnswered,
   isTwelveDigitRegistration,
   isVerifiedPaymasterLookup,
+  linkedPaymasterSameSsm,
   lookupStatusFromResult,
+  readLinkedPaymasterFromContract,
   relatedPartyFieldsVisible,
   showCustomerMasterFields,
 } from "./customer-paymaster-flow";
@@ -73,6 +75,109 @@ describe("customer SSM-first paymaster flow", () => {
     ).toBe(false);
   });
 
+  it("keeps verified identity locked during amendment of the same SSM", () => {
+    expect(isFacilityPaymasterLocked("AMENDMENT_REQUESTED")).toBe(false);
+    expect(
+      customerIdentityLocked({
+        stepEditable: true,
+        facilityPaymasterLocked: false,
+        lookupStatus: "FOUND_VERIFIED",
+      })
+    ).toBe(true);
+  });
+
+  it("locks verified identity immediately even while lookup is idle or failed", () => {
+    expect(
+      customerIdentityLocked({
+        stepEditable: true,
+        facilityPaymasterLocked: false,
+        lookupStatus: "idle",
+        linkedVerifiedSameSsm: true,
+      })
+    ).toBe(true);
+    expect(
+      customerIdentityLocked({
+        stepEditable: true,
+        facilityPaymasterLocked: false,
+        lookupStatus: "NOT_FOUND",
+        linkedVerifiedSameSsm: true,
+      })
+    ).toBe(true);
+    expect(
+      showCustomerMasterFields({
+        facilityPaymasterLocked: false,
+        lookupStatus: "idle",
+        ssmNumber: "202201234567",
+        linkedSameSsm: true,
+      })
+    ).toBe(true);
+    expect(
+      customerStepValid({
+        lookupStatus: "idle",
+        facilityPaymasterLocked: false,
+        name: "Verified Co",
+        entityType: "Private Limited Company (Sdn Bhd)",
+        ssmNumber: "202201234567",
+        country: "MY",
+        relatedParty: "no",
+        linkedSameSsm: true,
+      })
+    ).toBe(true);
+  });
+
+  it("does not lock identity for an unverified linked Paymaster while lookup is idle", () => {
+    expect(
+      customerIdentityLocked({
+        stepEditable: true,
+        facilityPaymasterLocked: false,
+        lookupStatus: "idle",
+        linkedVerifiedSameSsm: false,
+      })
+    ).toBe(false);
+  });
+
+  it("unlocks verified identity only after a deliberate SSM switch", () => {
+    expect(
+      linkedPaymasterSameSsm({
+        linkedRegistrationNumber: "202201234567",
+        ssmNumber: "202201234567",
+      })
+    ).toBe(true);
+    expect(
+      linkedPaymasterSameSsm({
+        linkedRegistrationNumber: "202201234567",
+        ssmNumber: "111111111111",
+      })
+    ).toBe(false);
+    expect(
+      customerIdentityLocked({
+        stepEditable: true,
+        facilityPaymasterLocked: false,
+        lookupStatus: "idle",
+        linkedVerifiedSameSsm: false,
+      })
+    ).toBe(false);
+  });
+
+  it("reads linked verified Paymaster from the contract payload", () => {
+    expect(
+      readLinkedPaymasterFromContract({
+        paymaster: {
+          verification_status: "VERIFIED",
+          registration_number: "202201234567",
+        },
+      })
+    ).toEqual({ verified: true, registrationNumber: "202201234567" });
+    expect(
+      readLinkedPaymasterFromContract({
+        paymaster: {
+          verificationStatus: "UNVERIFIED",
+          registrationNumber: "202201234567",
+        },
+      })
+    ).toEqual({ verified: false, registrationNumber: "202201234567" });
+  });
+
   it("locks master identity after a verified lookup", () => {
     expect(
       customerIdentityLocked({
@@ -94,7 +199,7 @@ describe("customer SSM-first paymaster flow", () => {
     ).toBe(true);
   });
 
-  it("treats unverified lookup as not found for issuer identity", () => {
+  it("treats unverified lookup as found without locking identity fields", () => {
     const unverified: PaymasterLookupResult = {
       status: "FOUND_UNVERIFIED",
       paymaster: {
@@ -106,7 +211,7 @@ describe("customer SSM-first paymaster flow", () => {
         verificationStatus: "UNVERIFIED",
       },
     };
-    expect(lookupStatusFromResult(unverified)).toBe("NOT_FOUND");
+    expect(lookupStatusFromResult(unverified)).toBe("FOUND_UNVERIFIED");
     expect(isTwelveDigitRegistration("202201234567")).toBe(true);
     expect(isVerifiedPaymasterLookup("FOUND_UNVERIFIED")).toBe(false);
     expect(
@@ -158,5 +263,24 @@ describe("customer SSM-first paymaster flow", () => {
         relatedParty: "yes",
       })
     ).toBe(true);
+  });
+
+  it("locks SSM after offer even when the holder contract is still draft", () => {
+    expect(
+      isFacilityPaymasterLocked("DRAFT", {
+        applicationStatus: "INVOICES_SENT",
+        invoiceStatuses: ["OFFER_SENT"],
+      })
+    ).toBe(true);
+    expect(
+      isFacilityPaymasterLocked("OFFER_SENT", {
+        applicationStatus: "CONTRACT_SENT",
+      })
+    ).toBe(true);
+    expect(
+      isFacilityPaymasterLocked("AMENDMENT_REQUESTED", {
+        applicationStatus: "AMENDMENT_REQUESTED",
+      })
+    ).toBe(false);
   });
 });

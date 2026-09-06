@@ -12,6 +12,7 @@ import {
   marcUploadUrlSchema,
   paymasterIdParamSchema,
   issuerPaymasterLookupQuerySchema,
+  updatePaymasterBodySchema,
   verifyPaymasterBodySchema,
 } from "./schemas";
 import { listAdminPaymasterActivity } from "./activity";
@@ -23,6 +24,7 @@ import {
   listIssuerPaymasters,
   lookupIssuerPaymasterByRegistration,
   requestIssuerMarcReportUploadUrl,
+  updatePaymasterIdentity,
   verifyPaymaster,
 } from "./service";
 import {
@@ -153,6 +155,32 @@ adminPaymasterRouter.get(
   }
 );
 
+adminPaymasterRouter.patch(
+  "/:id",
+  requirePermission("paymasters.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = paymasterIdParamSchema.parse(req.params);
+      const body = updatePaymasterBodySchema.parse(req.body ?? {});
+      send(
+        res,
+        await updatePaymasterIdentity({
+          paymasterId: id,
+          actorUserId: getUserId(req),
+          identity: {
+            legalName: body.legalName,
+            country: body.country,
+            entityType: body.entityType,
+          },
+          auditContext: auditContextFromRequest(req, { res }),
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 adminPaymasterRouter.post(
   "/:id/verify",
   requirePermission("paymasters.manage"),
@@ -160,12 +188,21 @@ adminPaymasterRouter.post(
     try {
       const { id } = paymasterIdParamSchema.parse(req.params);
       const body = verifyPaymasterBodySchema.parse(req.body ?? {});
+      const identity =
+        body.legalName != null && body.country != null && body.entityType != null
+          ? {
+              legalName: body.legalName,
+              country: body.country,
+              entityType: body.entityType,
+            }
+          : null;
       send(
         res,
         await verifyPaymaster({
           paymasterId: id,
           actorUserId: getUserId(req),
           applicationId: body.applicationId,
+          identity,
           auditContext: auditContextFromRequest(req, { res }),
         })
       );

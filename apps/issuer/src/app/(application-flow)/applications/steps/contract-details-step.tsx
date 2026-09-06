@@ -82,6 +82,7 @@ import { getCountries, type Country } from "react-phone-number-input";
 import phoneLabelsEn from "react-phone-number-input/locale/en.json";
 import phoneFlags from "react-phone-number-input/flags";
 import type { PaymasterLookupStatus } from "@cashsouk/types";
+import { PAYMASTER_ENTITY_TYPES } from "@cashsouk/types";
 import {
   customerIdentityLocked,
   customerStepValid,
@@ -89,7 +90,9 @@ import {
   isRelatedPartyAnswered,
   isTwelveDigitRegistration,
   isVerifiedPaymasterLookup,
+  linkedPaymasterSameSsm,
   lookupStatusFromResult,
+  readLinkedPaymasterFromContract,
   relatedPartyFieldsVisible,
   showCustomerMasterFields,
   type YesNo,
@@ -134,17 +137,7 @@ export function generateMockData(): Record<string, unknown> {
   };
 }
 
-const ENTITY_TYPES = [
-  "Sole Proprietor",
-  "Partnership",
-  "Private Limited Company (Sdn Bhd)",
-  "Public Limited Company (Bhd)",
-  "Federal Government",
-  "State Government",
-  "Federal Government Agency",
-  "State Government Agency",
-  "Unlisted Public Company",
-];
+const ENTITY_TYPES = [...PAYMASTER_ENTITY_TYPES];
 
 /* ================================================================
    VALIDATION HELPERS
@@ -342,7 +335,14 @@ export function ContractDetailsStep({
   lookupMutateRef.current = lookupPaymaster.mutateAsync;
 
   const contractStatus = (contract as { status?: string } | null | undefined)?.status;
-  const facilityPaymasterLocked = isFacilityPaymasterLocked(contractStatus);
+  const invoiceStatuses = (
+    (application as { invoices?: Array<{ status?: string }> } | undefined)?.invoices ?? []
+  ).map((invoice) => invoice.status ?? "");
+  const facilityPaymasterLocked = isFacilityPaymasterLocked(contractStatus, {
+    applicationStatus: (application as { status?: string } | undefined)?.status,
+    invoiceStatuses,
+  });
+  const linkedPaymaster = readLinkedPaymasterFromContract(contract);
   const stepIsEditable = React.useMemo(() => {
     if (readOnly) return false;
     if (!isAmendmentMode) return true;
@@ -537,11 +537,18 @@ export function ContractDetailsStep({
 
     const savedSsm = String(customerDetails.ssm_number ?? "");
     skipIdentityResetRef.current = true;
-    if (isFacilityPaymasterLocked((contract as { status?: string } | null)?.status)) {
+    if (
+      isFacilityPaymasterLocked((contract as { status?: string } | null)?.status, {
+        applicationStatus: (application as { status?: string } | undefined)?.status,
+        invoiceStatuses: (
+          (application as { invoices?: Array<{ status?: string }> } | undefined)?.invoices ?? []
+        ).map((invoice) => invoice.status ?? ""),
+      })
+    ) {
       setLookupStatus("idle");
       lastLookedUpSsmRef.current = isTwelveDigitRegistration(savedSsm) ? savedSsm : "";
     } else if (isTwelveDigitRegistration(savedSsm) && customerDetails.name) {
-      setLookupStatus("NOT_FOUND");
+      setLookupStatus("idle");
       lastLookedUpSsmRef.current = "";
     } else {
       setLookupStatus("idle");
@@ -907,6 +914,10 @@ export function ContractDetailsStep({
       ssmNumber: formData.customer.ssm_number,
       country: formData.customer.country,
       relatedParty: formData.customer.is_related_party,
+      linkedSameSsm: linkedPaymasterSameSsm({
+        linkedRegistrationNumber: linkedPaymaster?.registrationNumber,
+        ssmNumber: formData.customer.ssm_number,
+      }),
     });
 
     const isValid = isInvoiceOnly
@@ -936,25 +947,34 @@ export function ContractDetailsStep({
       saveFunction: saveFunctionRef.current || undefined,
       _saveFunctionRef: saveFunctionRef, // internal fallback for debugging/tests
     });
-  }, [formData, pendingFiles, isInvoiceOnly, lookupStatus, facilityPaymasterLocked, contract]);
+  }, [formData, pendingFiles, isInvoiceOnly, lookupStatus, facilityPaymasterLocked, contract, linkedPaymaster]);
 
+  const linkedSameSsm = linkedPaymasterSameSsm({
+    linkedRegistrationNumber: linkedPaymaster?.registrationNumber,
+    ssmNumber: formData.customer.ssm_number,
+  });
+  const linkedVerifiedSameSsm = Boolean(linkedPaymaster?.verified && linkedSameSsm);
   const masterFieldsDisabled = customerIdentityLocked({
     stepEditable: stepIsEditable,
     facilityPaymasterLocked,
     lookupStatus,
+    linkedVerifiedSameSsm,
   });
   const ssmLocked = !stepIsEditable || facilityPaymasterLocked;
   const showMasterFields = showCustomerMasterFields({
     facilityPaymasterLocked,
     lookupStatus,
     ssmNumber: formData.customer.ssm_number,
+    linkedSameSsm,
   });
   const showRelatedParty = relatedPartyFieldsVisible({
     facilityPaymasterLocked,
     lookupStatus,
     ssmNumber: formData.customer.ssm_number,
+    linkedSameSsm,
   });
-  const showVerifiedIdentity = isVerifiedPaymasterLookup(lookupStatus) && !facilityPaymasterLocked;
+  const showVerifiedIdentity =
+    (linkedVerifiedSameSsm || isVerifiedPaymasterLookup(lookupStatus)) && !facilityPaymasterLocked;
 
   React.useEffect(() => {
     if (!stepIsEditable || facilityPaymasterLocked) return;
@@ -1352,6 +1372,12 @@ export function ContractDetailsStep({
                 <p className="text-meta text-muted-foreground">Looking up this registration number…</p>
               ) : null}
               {showVerifiedIdentity ? <VerifiedBadge size="sm" /> : null}
+              {lookupStatus === "FOUND_UNVERIFIED" && !facilityPaymasterLocked ? (
+                <p className="text-meta text-muted-foreground">
+                  An existing unverified Paymaster was found for this SSM. Enter the customer
+                  details for this application. CashSouk will confirm the official identity.
+                </p>
+              ) : null}
             </div>
 
             {showMasterFields ? (
@@ -1381,7 +1407,7 @@ export function ContractDetailsStep({
                   </SelectTrigger>
                   <SelectContent>
                     {formData.customer.entity_type &&
-                    !ENTITY_TYPES.includes(formData.customer.entity_type) ? (
+                    !(ENTITY_TYPES as readonly string[]).includes(formData.customer.entity_type) ? (
                       <SelectItem value={formData.customer.entity_type}>
                         {formData.customer.entity_type}
                       </SelectItem>

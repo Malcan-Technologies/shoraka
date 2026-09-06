@@ -161,6 +161,16 @@ describe("renderSettlementHibahReceiptDocx", () => {
     expect(plain).not.toContain(paymentCuid);
   });
 
+  it("prints the frozen Company no. in the generated DOCX", () => {
+    const snapshot = sampleSettlementHibahReceiptSnapshot({
+      issuerCompanyNumber: "1111111111",
+    });
+    const data = buildSettlementHibahReceiptDocxMergeData(snapshot);
+    expect(data.companyRegistration).toBe("1111111111");
+    expect(wordPlainText(renderedXml(snapshot))).toContain("1111111111");
+    expect(data.paymentReference).toBe("BANK-REF-1");
+  });
+
   it("prints an em dash instead of a raw issuer CUID", () => {
     const issuerCuid = "cmknlimvf0003grp0hsbmc1dp";
     const snapshot = sampleSettlementHibahReceiptSnapshot({ issuerReference: issuerCuid });

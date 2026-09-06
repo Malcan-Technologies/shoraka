@@ -1,7 +1,7 @@
 /**
  * Paymaster master-identity application Activity metadata.
- * Create/link/verify store trusted master identity. Use Verified also records the
- * submitted-before overlay on this application.
+ * Create/link/verify/update store trusted master identity. Historical
+ * PAYMASTER_IDENTITY_RESOLVED rows still render; there is no live writer.
  */
 
 import type { Prisma } from "@prisma/client";
@@ -14,6 +14,7 @@ import { prisma } from "../../lib/prisma";
 type PaymasterIdentityEventType =
   | typeof ApplicationLogEventType.PAYMASTER_CREATED
   | typeof ApplicationLogEventType.PAYMASTER_LINKED_TO_ISSUER
+  | typeof ApplicationLogEventType.PAYMASTER_IDENTITY_UPDATED
   | typeof ApplicationLogEventType.PAYMASTER_VERIFIED
   | typeof ApplicationLogEventType.PAYMASTER_IDENTITY_RESOLVED;
 
@@ -28,6 +29,9 @@ export function buildPaymasterIdentityRemark(params: {
   }
   if (params.eventType === ApplicationLogEventType.PAYMASTER_LINKED_TO_ISSUER) {
     return `${identity} linked to this issuer.`;
+  }
+  if (params.eventType === ApplicationLogEventType.PAYMASTER_IDENTITY_UPDATED) {
+    return `${identity} official identity updated.`;
   }
   if (params.eventType === ApplicationLogEventType.PAYMASTER_IDENTITY_RESOLVED) {
     return `Submitted customer identity replaced with verified Paymaster ${identity}.`;
@@ -72,7 +76,7 @@ export async function writePaymasterIdentityApplicationLog(
   params: {
     eventType: PaymasterIdentityEventType;
     actorUserId: string;
-    applicationId: string;
+    applicationId?: string | null;
     portal: ActivityPortal;
     paymasterId: string;
     metadata: Record<string, unknown>;
@@ -90,7 +94,7 @@ export async function writePaymasterIdentityApplicationLog(
   await logApplicationActivity(
     {
       userId: params.actorUserId,
-      applicationId: params.applicationId,
+      applicationId: params.applicationId?.trim() || null,
       entityId: params.paymasterId,
       eventType: params.eventType,
       portal: params.portal,
