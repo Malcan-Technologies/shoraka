@@ -223,6 +223,7 @@ describe("listAdminPaymasterActivity", () => {
             in: [
               "PAYMASTER_CREATED",
               "PAYMASTER_LINKED_TO_ISSUER",
+              "PAYMASTER_IDENTITY_UPDATED",
               "PAYMASTER_VERIFIED",
               "PAYMASTER_IDENTITY_RESOLVED",
             ],
@@ -288,5 +289,7 @@ describe("Paymaster Activity reader does not notify or write", () => {
     expect(src).toMatch(/\/:id\/activity/);
     expect(src).toMatch(/listAdminPaymasterActivity/);
     expect(src).toMatch(/paymasters\.view/);
+    expect(src).toMatch(/updatePaymasterIdentity/);
+    expect(src).toMatch(/paymasters\.manage/);
   });
 });

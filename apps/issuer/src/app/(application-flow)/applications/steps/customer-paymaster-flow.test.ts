@@ -94,7 +94,7 @@ describe("customer SSM-first paymaster flow", () => {
     ).toBe(true);
   });
 
-  it("treats unverified lookup as not found for issuer identity", () => {
+  it("treats unverified lookup as found without locking identity fields", () => {
     const unverified: PaymasterLookupResult = {
       status: "FOUND_UNVERIFIED",
       paymaster: {
@@ -106,7 +106,7 @@ describe("customer SSM-first paymaster flow", () => {
         verificationStatus: "UNVERIFIED",
       },
     };
-    expect(lookupStatusFromResult(unverified)).toBe("NOT_FOUND");
+    expect(lookupStatusFromResult(unverified)).toBe("FOUND_UNVERIFIED");
     expect(isTwelveDigitRegistration("202201234567")).toBe(true);
     expect(isVerifiedPaymasterLookup("FOUND_UNVERIFIED")).toBe(false);
     expect(

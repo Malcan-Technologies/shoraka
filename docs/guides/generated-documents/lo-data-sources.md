@@ -19,7 +19,7 @@ Older editable discussion table: [arf-letter-of-offer-placeholder-map.md](../app
 | Tenure / payment / max invoice tenure | `FINANCING_TENURE_MAX_DAYS` (180) | Same value in all three merge fields |
 | Invoice sub-limit | Frozen product `invoice_details.sub_limit_per_invoice_rm` | Also fills `part_b_financing_amount_rm`. Generation fails if unset. Also enforced as a per-invoice financing cap on facility drawdowns and admin offers. |
 | Facility Type checkboxes | `financing_structure.structure_type` | Part A for `new_contract`; Part B for `invoice_only` / `existing_contract` |
-| Assigned contract | `contract_details` + `customer_details` | Date, counterparty, description/number |
+| Assigned contract | `contract_details` + `customer_details` | Date, counterparty, description/number. Uses this application's current `customer_details` (after Use Verified if Admin applied it), not a live Paymaster rewrite. |
 | Offer validity phrase | `acceptance_expires_at` vs `sent_at` | Used in **both** acceptance/lapse clauses |
 | Transaction docs days | Frozen product `signing_deadline.days` (default 14) | Not timestamp subtraction |
 | Grace period | `PlatformFinanceSetting.grace_period_days` | When settings row exists |

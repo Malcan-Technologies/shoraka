@@ -82,6 +82,7 @@ import { getCountries, type Country } from "react-phone-number-input";
 import phoneLabelsEn from "react-phone-number-input/locale/en.json";
 import phoneFlags from "react-phone-number-input/flags";
 import type { PaymasterLookupStatus } from "@cashsouk/types";
+import { PAYMASTER_ENTITY_TYPES } from "@cashsouk/types";
 import {
   customerIdentityLocked,
   customerStepValid,
@@ -134,17 +135,7 @@ export function generateMockData(): Record<string, unknown> {
   };
 }
 
-const ENTITY_TYPES = [
-  "Sole Proprietor",
-  "Partnership",
-  "Private Limited Company (Sdn Bhd)",
-  "Public Limited Company (Bhd)",
-  "Federal Government",
-  "State Government",
-  "Federal Government Agency",
-  "State Government Agency",
-  "Unlisted Public Company",
-];
+const ENTITY_TYPES = [...PAYMASTER_ENTITY_TYPES];
 
 /* ================================================================
    VALIDATION HELPERS
@@ -1352,6 +1343,12 @@ export function ContractDetailsStep({
                 <p className="text-meta text-muted-foreground">Looking up this registration number…</p>
               ) : null}
               {showVerifiedIdentity ? <VerifiedBadge size="sm" /> : null}
+              {lookupStatus === "FOUND_UNVERIFIED" && !facilityPaymasterLocked ? (
+                <p className="text-meta text-muted-foreground">
+                  An existing unverified Paymaster was found for this SSM. Enter the customer
+                  details for this application. CashSouk will confirm the official identity.
+                </p>
+              ) : null}
             </div>
 
             {showMasterFields ? (
@@ -1381,7 +1378,7 @@ export function ContractDetailsStep({
                   </SelectTrigger>
                   <SelectContent>
                     {formData.customer.entity_type &&
-                    !ENTITY_TYPES.includes(formData.customer.entity_type) ? (
+                    !(ENTITY_TYPES as readonly string[]).includes(formData.customer.entity_type) ? (
                       <SelectItem value={formData.customer.entity_type}>
                         {formData.customer.entity_type}
                       </SelectItem>

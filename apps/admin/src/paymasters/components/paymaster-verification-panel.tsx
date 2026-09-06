@@ -3,23 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { toast } from "sonner";
 import { StatusBadge } from "@cashsouk/ui";
-import {
-  isPaymasterVerified,
-  PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_MESSAGE,
-  type PaymasterSubmittedApplicationIdentity,
-} from "@cashsouk/types";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { isPaymasterVerified } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { paymasterHref } from "@/lib/admin-directory-hrefs";
@@ -29,11 +14,7 @@ import {
   reviewRowGridClass,
   reviewValueClass,
 } from "@/components/application-review/review-section-styles";
-import { useVerifyPaymaster } from "@/paymasters/hooks/use-paymasters";
-import {
-  paymasterDetailVerificationBlocked,
-  paymasterIdentityToVerify,
-} from "@/paymasters/utils/paymaster-verify-identity";
+import { PaymasterOfficialIdentityDialog } from "@/paymasters/components/paymaster-official-identity-dialog";
 
 export type ApplicationReviewPaymaster = {
   id?: string | null;
@@ -68,7 +49,6 @@ export function PaymasterVerificationPanel({
   paymasterId,
   customerDetails,
   applicationId,
-  submittedApplicationIdentities,
   canManage,
   layout = "review",
 }: {
@@ -76,19 +56,13 @@ export function PaymasterVerificationPanel({
   paymasterId?: string | null;
   customerDetails?: unknown;
   applicationId?: string;
-  submittedApplicationIdentities?: PaymasterSubmittedApplicationIdentity[];
   canManage: boolean;
   layout?: "review" | "detail";
 }) {
-  const [confirmOpen, setConfirmOpen] = React.useState(false);
-  const verifyPaymaster = useVerifyPaymaster();
+  const [verifyOpen, setVerifyOpen] = React.useState(false);
   const cust = asRecord(customerDetails);
-  const resolvedId = paymaster?.id || paymasterId || (typeof cust?.paymaster_id === "string" ? cust.paymaster_id : "");
-  const identityToVerify = paymasterIdentityToVerify({
-    applicationId,
-    customerDetails,
-    paymaster,
-  });
+  const resolvedId =
+    paymaster?.id || paymasterId || (typeof cust?.paymaster_id === "string" ? cust.paymaster_id : "");
   const verificationStatus = String(
     paymaster?.verificationStatus ?? paymaster?.verification_status ?? "UNVERIFIED"
   ).toUpperCase();
@@ -101,29 +75,16 @@ export function PaymasterVerificationPanel({
         ? format(new Date(verifiedAtRaw), "dd MMM yyyy, h:mm a")
         : "—";
   const verifiedBy = text(paymaster?.verifiedByName, "—");
-  const fromApplicationReview = Boolean(applicationId);
-  const detailBlocked =
-    layout === "detail" && paymasterDetailVerificationBlocked(submittedApplicationIdentities);
+  const dialogPaymaster = {
+    ...paymaster,
+    id: resolvedId || paymaster?.id,
+  };
 
   if (!resolvedId && !paymaster) {
     return layout === "detail" ? (
       <p className="text-ui text-muted-foreground">No Paymaster identity is linked yet.</p>
     ) : null;
   }
-
-  const onConfirm = async () => {
-    if (!resolvedId) return;
-    try {
-      await verifyPaymaster.mutateAsync({
-        paymasterId: resolvedId,
-        applicationId,
-      });
-      toast.success("Paymaster identity reviewed");
-      setConfirmOpen(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not verify Paymaster");
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -161,13 +122,9 @@ export function PaymasterVerificationPanel({
 
       {layout === "review" ? (
         <p className="text-meta text-muted-foreground">
-          Paymaster identity reviewed internally. This is not an external SSM or CTOS check, and it
-          does not approve the application.
+          Official Paymaster identity is confirmed on the Paymaster master. This is not an external
+          SSM or CTOS check, and it does not approve the application.
         </p>
-      ) : null}
-
-      {detailBlocked ? (
-        <p className="text-ui text-muted-foreground">{PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_MESSAGE}</p>
       ) : null}
 
       <div className="flex flex-wrap gap-2">
@@ -176,65 +133,24 @@ export function PaymasterVerificationPanel({
             <Link href={paymasterHref(resolvedId)}>View Paymaster</Link>
           </Button>
         ) : null}
-        {!verified && canManage && resolvedId && !detailBlocked ? (
+        {!verified && canManage && resolvedId ? (
           <Button
             size="sm"
             className="h-8 rounded-lg text-ui"
-            disabled={verifyPaymaster.isPending}
-            onClick={() => setConfirmOpen(true)}
+            onClick={() => setVerifyOpen(true)}
           >
             Verify Paymaster
           </Button>
         ) : null}
       </div>
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent className="rounded-xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Verify Paymaster identity?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3 text-ui text-muted-foreground">
-                <p>
-                  {fromApplicationReview
-                    ? "This verifies the identity submitted on this application. It becomes the official Paymaster identity for this SSM. This does not approve the application, invoice, Notice, or MARC assessment."
-                    : "Confirm these master identity details are correct. This verifies identity only and does not approve the application, invoice, Notice, or MARC assessment."}
-                </p>
-                <p className="text-ui font-medium text-foreground">Paymaster Identity to Verify</p>
-                <dl className="space-y-1">
-                  <div>
-                    <dt className="text-meta">Name</dt>
-                    <dd className="text-foreground">{text(identityToVerify.name)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-meta">Entity Type</dt>
-                    <dd className="text-foreground">{text(identityToVerify.entity_type)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-meta">SSM</dt>
-                    <dd className="font-mono text-foreground">{text(identityToVerify.ssm_number)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-meta">Country</dt>
-                    <dd className="text-foreground">{text(identityToVerify.country)}</dd>
-                  </div>
-                </dl>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={verifyPaymaster.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={verifyPaymaster.isPending}
-              onClick={(event) => {
-                event.preventDefault();
-                void onConfirm();
-              }}
-            >
-              {verifyPaymaster.isPending ? "Verifying…" : "Verify Paymaster"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <PaymasterOfficialIdentityDialog
+        mode="verify"
+        open={verifyOpen}
+        onOpenChange={setVerifyOpen}
+        paymaster={dialogPaymaster}
+        applicationId={applicationId}
+      />
     </div>
   );
 }

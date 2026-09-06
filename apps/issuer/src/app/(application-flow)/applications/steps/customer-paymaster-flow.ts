@@ -79,6 +79,5 @@ export function lookupStatusFromResult(
   result: PaymasterLookupResult | null
 ): PaymasterLookupStatus | "idle" {
   if (!result) return "idle";
-  if (result.status === "FOUND_VERIFIED") return "FOUND_VERIFIED";
-  return "NOT_FOUND";
+  return result.status;
 }

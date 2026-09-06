@@ -29,6 +29,26 @@ export function paymasterActivityCompactDetails(
 ): { key: string; label: string; value: string }[] {
   const rows: { key: string; label: string; value: string }[] = [];
 
+  if (event.eventType === "PAYMASTER_IDENTITY_UPDATED") {
+    const previous =
+      event.metadata && typeof event.metadata.previous === "object" && event.metadata.previous
+        ? (event.metadata.previous as Record<string, unknown>)
+        : {};
+    const next =
+      event.metadata && typeof event.metadata.new === "object" && event.metadata.new
+        ? (event.metadata.new as Record<string, unknown>)
+        : {};
+    const pushDiff = (key: string, label: string) => {
+      const from = typeof previous[key] === "string" ? previous[key].trim() : "";
+      const to = typeof next[key] === "string" ? next[key].trim() : "";
+      if (from && to && from !== to) rows.push({ key, label, value: `${from} → ${to}` });
+    };
+    pushDiff("legalName", "Legal name");
+    pushDiff("country", "Country");
+    pushDiff("entityType", "Entity type");
+    return rows;
+  }
+
   if (event.eventType === "PAYMASTER_VERIFIED") {
     if (event.previousStatus && event.newStatus) {
       rows.push({

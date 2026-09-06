@@ -2,6 +2,9 @@ import { ApplicationLogEventType } from "../applications/logs/types";
 import { buildPaymasterIdentityRemark } from "./identity-audit";
 import {
   masterIdentitySnapshot,
+  officialIdentityChanged,
+  officialIdentityChangeMetadata,
+  parseIsoCountryCode,
   parseRegistrationLookup,
   parseRelatedPartyFlag,
   parseSubmittedIdentity,
@@ -58,6 +61,37 @@ describe("Paymaster identity helpers", () => {
     expect(conflicting && submittedIdentityConflictsWithMaster(master, conflicting)).toBe(true);
   });
 
+  it("detects official identity changes by exact trimmed values", () => {
+    const existing = {
+      legal_name: "ABC Trading Sdn Bhd",
+      entity_type: "Private Limited Company (Sdn Bhd)",
+      registration_country: "MY",
+    };
+    expect(
+      officialIdentityChanged(existing, {
+        legalName: "ABC Trading Sdn. Bhd.",
+        entityType: existing.entity_type,
+        registrationCountry: "MY",
+      })
+    ).toBe(true);
+    expect(
+      officialIdentityChanged(existing, {
+        legalName: existing.legal_name,
+        entityType: existing.entity_type,
+        registrationCountry: "MY",
+      })
+    ).toBe(false);
+    expect(parseIsoCountryCode("my")).toBe("MY");
+    expect(parseIsoCountryCode("")).toBeNull();
+    expect(
+      officialIdentityChangeMetadata(existing, {
+        legalName: "ABC Trading Sdn. Bhd.",
+        entityType: existing.entity_type,
+        registrationCountry: "MY",
+      }).changedFields
+    ).toEqual(["legalName"]);
+  });
+
   it("snapshots submitted vs master identity for verification audit", () => {
     const submitted = parseSubmittedIdentity({
       name: "bbbb",
@@ -103,6 +137,13 @@ describe("Paymaster identity audit remarks", () => {
         registrationNumber: "202134567890",
       })
     ).toBe("ABC Trading Sdn Bhd (202134567890) linked to this issuer.");
+    expect(
+      buildPaymasterIdentityRemark({
+        eventType: ApplicationLogEventType.PAYMASTER_IDENTITY_UPDATED,
+        legalName: "ABC Trading Sdn Bhd",
+        registrationNumber: "202134567890",
+      })
+    ).toBe("ABC Trading Sdn Bhd (202134567890) official identity updated.");
     expect(
       buildPaymasterIdentityRemark({
         eventType: ApplicationLogEventType.PAYMASTER_VERIFIED,

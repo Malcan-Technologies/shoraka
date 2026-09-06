@@ -53,7 +53,7 @@ export default function PaymastersPage() {
             <section className="space-y-4">
               <AdminPageHeader
                 title="Paymasters"
-                description="Reusable customer and obligor records created from issuer Customer Details. Verify identity here; Notice of Assignment is managed on the related Note."
+                description="Official Paymaster identity records. A master is created on application submit when the SSM is new. Admin confirms and can later correct legal name, country, and entity type. Notice of Assignment is managed on the related Note."
               />
               {error ? (
                 <div className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">

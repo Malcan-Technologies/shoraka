@@ -54,10 +54,12 @@ describe("visibility matrix", () => {
   it("keeps Paymaster identity events as admin-only activity", () => {
     expect(EVENT_CATALOGUE.PAYMASTER_CREATED.userVisible).toBe(false);
     expect(EVENT_CATALOGUE.PAYMASTER_LINKED_TO_ISSUER.userVisible).toBe(false);
+    expect(EVENT_CATALOGUE.PAYMASTER_IDENTITY_UPDATED.userVisible).toBe(false);
     expect(EVENT_CATALOGUE.PAYMASTER_VERIFIED.userVisible).toBe(false);
     expect(EVENT_CATALOGUE.PAYMASTER_IDENTITY_RESOLVED.userVisible).toBe(false);
     expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_CREATED");
     expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_LINKED_TO_ISSUER");
+    expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_IDENTITY_UPDATED");
     expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_VERIFIED");
     expect(userVisibleApplicationEventTypes()).not.toContain("PAYMASTER_IDENTITY_RESOLVED");
   });

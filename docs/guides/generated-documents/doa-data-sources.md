@@ -19,7 +19,7 @@ SigningCloud recipients are the configured **issuer_director** assignor signator
 | `assignor_contact_number` | `contact_person.contact`, else org `phone_number` |
 | `assignor_signatories[]` | All issuer authorised representatives (`Director` / `Authorised Signatory`). One execution block per person. |
 | `trust_bank_name`, `trust_account_name`, `trust_account_number` | `PlatformFinanceSetting.ledger_bucket_accounts_config.REPAYMENT_POOL` (`bankName`, `accountName`/`displayName`, `accountNumber`) |
-| `debtor_company_name`, `debtor_registration_number` | `contract.customer_details.name` and `ssm_number` |
+| `debtor_company_name`, `debtor_registration_number` | `contract.customer_details.name` and `ssm_number` (application working copy; later Admin Paymaster edits do not rewrite this) |
 | `transaction_documents[]` | Application invoices (`invoice_number` / `number` / `display_reference`, issued date, value, due/maturity). Debtor name is reused on each row. |
 
 ## Visible tags (not collected at facility time)

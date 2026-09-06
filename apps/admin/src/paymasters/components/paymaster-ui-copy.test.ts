@@ -30,18 +30,20 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     const detail = readFileSync(join(__dirname, "paymaster-detail-view.tsx"), "utf8");
     const card = readFileSync(join(__dirname, "paymaster-verification-card.tsx"), "utf8");
     const panel = readFileSync(join(__dirname, "paymaster-verification-panel.tsx"), "utf8");
+    const identity = readFileSync(join(__dirname, "paymaster-identity-card.tsx"), "utf8");
     expect(detail).toContain("PaymasterVerificationCard");
     expect(card).toContain("PaymasterVerificationPanel");
-    expect(card).toContain("submittedApplicationIdentities");
     expect(card).toContain("Internal Paymaster identity review");
+    expect(identity).toContain("Edit Paymaster Details");
+    expect(identity).toContain("PaymasterOfficialIdentityDialog");
     expect(detail).not.toMatch(/Keep existing identity/i);
     expect(detail).not.toMatch(/Data review/i);
     expect(panel).toContain("Verified by");
     expect(panel).toContain("Verified at");
     expect(panel).toContain("Verify Paymaster");
-    expect(panel).toContain("Paymaster Identity to Verify");
-    expect(panel).toContain("paymasterIdentityToVerify");
-    expect(panel).toContain("PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_MESSAGE");
+    expect(panel).toContain("PaymasterOfficialIdentityDialog");
+    expect(panel).not.toContain("paymasterIdentityToVerify");
+    expect(panel).not.toContain("PAYMASTER_SUBMITTED_IDENTITIES_CONFLICT_MESSAGE");
     expect(panel).not.toMatch(/Customer details differ/i);
     expect(panel).not.toMatch(/Review Paymaster/);
     expect(panel).not.toMatch(/mismatch/i);
@@ -83,7 +85,7 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(activity).toContain("events.map");
     expect(activity).toContain("orgHref");
     expect(activity).toContain("applicationHref");
-    expect(activity).toMatch(/created, issuer-link, and identity-verified/);
+    expect(activity).toMatch(/created, linked, identity-updated, and identity-verified/);
     expect(activity).not.toMatch(/PAYMASTER_NOTICE|acknowledgement|Notice of Assignment/i);
     expect(activity).not.toMatch(/sendTyped|NotificationService/);
   });
@@ -95,6 +97,7 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     );
     expect(timeline).toMatch(/PAYMASTER_CREATED:\s*"Paymaster Created"/);
     expect(timeline).toMatch(/PAYMASTER_LINKED_TO_ISSUER:\s*"Paymaster Linked to Issuer"/);
+    expect(timeline).toMatch(/PAYMASTER_IDENTITY_UPDATED:\s*"Paymaster Identity Updated"/);
     expect(timeline).toMatch(/PAYMASTER_VERIFIED:\s*"Paymaster Identity Verified"/);
     expect(timeline).toMatch(/PAYMASTER_IDENTITY_RESOLVED:\s*"Paymaster Identity Resolved"/);
   });
@@ -120,14 +123,20 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(contract).toContain("Paymaster Verification");
     expect(customer).toContain("SubmittedVerifiedPaymasterIdentity");
     expect(contract).toContain("SubmittedVerifiedPaymasterIdentity");
-    expect(comparison).toContain("Use Verified Paymaster");
+    expect(comparison).toContain("Use Verified Paymaster Details");
+    expect(comparison).toContain("Submitted by Issuer");
+    expect(comparison).toContain("Official Paymaster Identity");
+    expect(comparison).toContain("useVerifiedDisabled");
+    expect(customer).toContain("useVerifiedDisabled={paymasterUseVerifiedDisabled");
+    expect(contract).toContain("useVerifiedDisabled={paymasterUseVerifiedDisabled");
     expect(comparison).toContain("Request Amendment");
     expect(customer).not.toMatch(/showMismatchBanner/);
     expect(contract).not.toMatch(/showMismatchBanner/);
     expect(panel).toContain("Verify Paymaster");
     expect(panel).toContain("applicationId");
-    expect(panel).toContain("paymasterIdentityToVerify");
-    expect(panel).toContain("Paymaster Identity to Verify");
+    expect(panel).toContain("PaymasterOfficialIdentityDialog");
+    expect(panel).not.toContain("paymasterIdentityToVerify");
+    expect(panel).not.toContain("Paymaster Identity to Verify");
   });
 
   it("Paymaster Detail Identity tab shows submitted application identities as Admin reference only", () => {
@@ -145,7 +154,7 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(detail).toContain('label="Notices"');
     expect(detail).not.toContain('label="Applications"');
     expect(identity).toContain("Official verified identity for this SSM");
-    expect(identity).toContain("Current global Paymaster record");
+    expect(identity).toContain("Admin-managed official identity for this SSM");
     expect(identity).toContain("Verification status");
     expect(identity).toContain("Verified by");
     expect(identity).toContain("Verified at");

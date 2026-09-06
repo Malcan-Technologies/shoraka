@@ -1065,9 +1065,21 @@ export class ApiClient {
     return this.get(`/v1/admin/paymasters/${id}/activity`);
   }
 
+  async updateAdminPaymaster(
+    paymasterId: string,
+    body: { legalName: string; country: string; entityType: string }
+  ): Promise<ApiResponse<PaymasterDetail> | ApiError> {
+    return this.patch(`/v1/admin/paymasters/${paymasterId}`, body);
+  }
+
   async verifyAdminPaymaster(
     paymasterId: string,
-    body: { applicationId?: string } = {}
+    body: {
+      applicationId?: string;
+      legalName?: string;
+      country?: string;
+      entityType?: string;
+    } = {}
   ): Promise<ApiResponse<PaymasterDetail> | ApiError> {
     return this.post(`/v1/admin/paymasters/${paymasterId}/verify`, body);
   }

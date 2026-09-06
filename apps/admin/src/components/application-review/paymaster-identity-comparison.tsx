@@ -23,6 +23,8 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+export { paymasterUseVerifiedDisabled } from "./paymaster-use-verified";
+
 export function shouldShowSubmittedVerifiedPaymaster(params: {
   customerDetails?: unknown;
   paymaster?: ApplicationReviewPaymaster | null;
@@ -39,6 +41,7 @@ export function SubmittedVerifiedPaymasterIdentity({
   applicationId,
   canManage,
   actionsDisabled,
+  useVerifiedDisabled,
   onRequestAmendment,
 }: {
   customerDetails?: unknown;
@@ -46,6 +49,7 @@ export function SubmittedVerifiedPaymasterIdentity({
   applicationId?: string;
   canManage: boolean;
   actionsDisabled?: boolean;
+  useVerifiedDisabled?: boolean;
   onRequestAmendment: () => void;
 }) {
   const useVerified = useVerifiedPaymasterIdentity();
@@ -56,7 +60,7 @@ export function SubmittedVerifiedPaymasterIdentity({
     if (!applicationId) return;
     try {
       await useVerified.mutateAsync({ applicationId });
-      toast.success("Submitted customer identity now matches the verified Paymaster.");
+      toast.success("This application's customer details now use the official Paymaster identity.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not use the verified Paymaster.");
     }
@@ -66,8 +70,12 @@ export function SubmittedVerifiedPaymasterIdentity({
     <ReviewFieldBlock title="Paymaster identity">
       <div className="space-y-2">
         <div className={comparisonSplitRowGridClass}>
-          <p className={`${reviewLabelClass} ${comparisonSplitBeforeColClass}`}>Submitted</p>
-          <p className={`${reviewLabelClass} ${comparisonSplitAfterColClass}`}>Verified Paymaster</p>
+          <p className={`${reviewLabelClass} ${comparisonSplitBeforeColClass}`}>
+            Submitted by Issuer
+          </p>
+          <p className={`${reviewLabelClass} ${comparisonSplitAfterColClass}`}>
+            Official Paymaster Identity
+          </p>
         </div>
         <ComparisonFieldRow
           label="Customer Name"
@@ -99,10 +107,10 @@ export function SubmittedVerifiedPaymasterIdentity({
           <Button
             type="button"
             className="h-10 rounded-xl text-ui"
-            disabled={actionsDisabled || useVerified.isPending}
+            disabled={actionsDisabled || useVerifiedDisabled || useVerified.isPending}
             onClick={() => void onUseVerified()}
           >
-            {useVerified.isPending ? "Updating…" : "Use Verified Paymaster"}
+            {useVerified.isPending ? "Updating…" : "Use Verified Paymaster Details"}
           </Button>
         ) : null}
         <Button

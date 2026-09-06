@@ -20,6 +20,7 @@ import { PaymasterVerificationPanel, type ApplicationReviewPaymaster } from "@/p
 import {
   shouldShowSubmittedVerifiedPaymaster,
   SubmittedVerifiedPaymasterIdentity,
+  paymasterUseVerifiedDisabled,
 } from "../paymaster-identity-comparison";
 import { usePermissions } from "@/hooks/use-permissions";
 
@@ -151,6 +152,11 @@ export function CustomerSection({
           applicationId={applicationId}
           canManage={canManagePaymasters}
           actionsDisabled={!isReviewable || !!isActionLocked}
+          useVerifiedDisabled={paymasterUseVerifiedDisabled({
+            isReviewable,
+            isActionLocked: !!isActionLocked,
+            sectionStatus,
+          })}
           onRequestAmendment={() => onRequestAmendment(section)}
         />
       ) : null}

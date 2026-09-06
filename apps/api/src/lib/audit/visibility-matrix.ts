@@ -112,6 +112,9 @@ export const EVENT_CATALOGUE: Record<string, EventCatalogueEntry> = {
   PAYMASTER_LINKED_TO_ISSUER: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs", {
     notes: "New IssuerPaymasterLink on an existing master. Not written for last_used_at updates or the originating create.",
   }),
+  PAYMASTER_IDENTITY_UPDATED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs", {
+    notes: "Admin updated official Paymaster legal name, country, or entity type. SSM is locked. Not customer visible.",
+  }),
   PAYMASTER_VERIFIED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs", {
     notes: "Admin identity review UNVERIFIED → VERIFIED. Display as Paymaster Identity Verified. Not application approval.",
   }),

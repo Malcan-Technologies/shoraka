@@ -30,6 +30,62 @@ export function normalizeLegalName(value: unknown): string {
   return value.trim();
 }
 
+export function parseIsoCountryCode(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(trimmed) ? trimmed : null;
+}
+
+export type PaymasterOfficialIdentity = {
+  legalName: string;
+  registrationCountry: string;
+  entityType: string;
+};
+
+export function officialIdentityChanged(
+  existing: {
+    legal_name: string;
+    entity_type: string;
+    registration_country: string;
+  },
+  next: PaymasterOfficialIdentity
+): boolean {
+  return (
+    existing.legal_name.trim() !== next.legalName ||
+    existing.entity_type.trim() !== next.entityType ||
+    existing.registration_country.trim().toUpperCase() !== next.registrationCountry
+  );
+}
+
+export function officialIdentityChangeMetadata(
+  existing: {
+    legal_name: string;
+    entity_type: string;
+    registration_country: string;
+  },
+  next: PaymasterOfficialIdentity
+): { previous: Record<string, string>; next: Record<string, string>; changedFields: string[] } {
+  const previous: Record<string, string> = {};
+  const changed: Record<string, string> = {};
+  const changedFields: string[] = [];
+  if (existing.legal_name.trim() !== next.legalName) {
+    previous.legalName = existing.legal_name;
+    changed.legalName = next.legalName;
+    changedFields.push("legalName");
+  }
+  if (existing.registration_country.trim().toUpperCase() !== next.registrationCountry) {
+    previous.country = existing.registration_country;
+    changed.country = next.registrationCountry;
+    changedFields.push("country");
+  }
+  if (existing.entity_type.trim() !== next.entityType) {
+    previous.entityType = existing.entity_type;
+    changed.entityType = next.entityType;
+    changedFields.push("entityType");
+  }
+  return { previous, next: changed, changedFields };
+}
+
 export function namesDiffer(a: string, b: string): boolean {
   return a.trim().toLowerCase() !== b.trim().toLowerCase();
 }

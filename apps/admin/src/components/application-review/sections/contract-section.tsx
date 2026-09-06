@@ -81,6 +81,7 @@ import type { ReviewSectionId } from "../section-types";
 import { ComparisonFieldRow, ComparisonYesNoRadioRow, unknownToTriBool } from "../comparison-field-row";
 import { PaymasterVerificationPanel, type ApplicationReviewPaymaster } from "@/paymasters/components/paymaster-verification-panel";
 import {
+  paymasterUseVerifiedDisabled,
   shouldShowSubmittedVerifiedPaymaster,
   SubmittedVerifiedPaymasterIdentity,
 } from "../paymaster-identity-comparison";
@@ -917,6 +918,11 @@ export function ContractSection({
               applicationId={applicationId}
               canManage={canManagePaymasters}
               actionsDisabled={!isReviewable || !!isActionLocked}
+              useVerifiedDisabled={paymasterUseVerifiedDisabled({
+                isReviewable,
+                isActionLocked: !!isActionLocked,
+                sectionStatus,
+              })}
               onRequestAmendment={() => onRequestAmendment(section)}
             />
           ) : null}
