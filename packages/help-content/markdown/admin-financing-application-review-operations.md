@@ -215,13 +215,19 @@ The official Paymaster identity automatically becomes the current working identi
 
 Completed, approved-and-frozen, already-signed, facility-established, and note-created applications stay historical. Existing revision snapshots, Note `paymaster_snapshot`, published Prospectus, and already-generated documents are not rewritten.
 
-If current working identity still differs from the official master (typically a frozen application), Application Review can show **Originally submitted by issuer** next to **Official Paymaster Identity** for reference. **Request Amendment** uses the existing Facility / Customer amendment remark flow.
+If current working identity still differs from the official master (typically a frozen application), Application Review can show **Originally submitted by issuer** next to **Official Paymaster Identity** for reference. **Request Amendment** uses the existing Facility / Customer amendment remark flow. After a commercial offer, signing, or approved facility, that amendment path cannot reopen Paymaster / SSM switching.
 
 Do not send a facility or invoice offer until the Paymaster is verified. After verification, eligible working applications already match the official identity, so the offer identity gate should pass without a separate resolve step.
 
 ### Amendment
 
-If the same Verified Paymaster remains linked, the issuer sees the current official locked identity when they return to the application. The old submitted name is not restored into the form. A different SSM means a different Paymaster; the old master's SSM is never changed. If the new SSM is already Verified, that official identity is used. If it is Unverified, the application may keep issuer-submitted working identity until Admin verifies that master.
+Verified Paymaster identity is Admin-controlled. During a Customer / Facility amendment the issuer may change SSM only while the application lifecycle still allows Paymaster switching (before offer, signing, or an established facility). Legal name, country, and entity type stay locked for the currently linked Verified Paymaster, including while lookup is loading or if lookup fails. Related-party remains issuer-editable.
+
+Unverified Paymaster identity edits on amendment apply only to this application's working `customer_details`. They do not overwrite the Unverified master.
+
+If the same Verified Paymaster remains linked, the issuer sees the current official locked identity when they return to the application. The old submitted name is not restored into the form. A different SSM means a different Paymaster; the old master's SSM is never changed. If the new SSM is already Verified, that official identity is used. If it is Unverified, the application may keep issuer-submitted working identity until Admin verifies that master. A completely new SSM creates a new Unverified master on resubmit. Same SSM never creates a duplicate master.
+
+Post-offer and frozen stages (`OFFER_SENT`, `CONTRACT_SENT`, signing, `APPROVED`, established facility) do not allow normal Paymaster switching.
 
 Related-party (Yes / No) is per issuer link, not part of locked master identity. Large Private Company stays on the application / facility.
 

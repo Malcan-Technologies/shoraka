@@ -22,6 +22,7 @@ export class ContractRepository {
         applications: true,
         issuer_organization: true,
         invoices: true,
+        paymaster: true,
       },
     });
   }

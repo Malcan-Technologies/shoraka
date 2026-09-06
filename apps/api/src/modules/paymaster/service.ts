@@ -17,6 +17,7 @@ import {
   isCompleteIssuerMarcAssessment,
   isInvoiceOnlyFinancingStructure,
   isPaymasterEntityType,
+  isPaymasterSsmSwitchingLocked,
   isPaymasterVerified,
   readFinancingStructureType,
   resolveCompletedSigningEnvelopeWhere,
@@ -236,6 +237,47 @@ export function shouldRetainLinkedFacilityPaymaster(contractStatus: string | nul
   return contractStatus != null && contractStatus !== "DRAFT" && contractStatus !== "AMENDMENT_REQUESTED";
 }
 
+export function shouldLockPaymasterSwitching(params: {
+  contractStatus?: string | null;
+  applicationStatus?: string | null;
+  invoiceStatuses?: readonly string[];
+  offerAcceptanceStatus?: string | null;
+  signingEnvelopeStatuses?: readonly string[];
+}): boolean {
+  return isPaymasterSsmSwitchingLocked({
+    applicationStatus: params.applicationStatus ?? "",
+    contractStatus: params.contractStatus,
+    invoiceStatuses: params.invoiceStatuses,
+    offerAcceptanceStatus: params.offerAcceptanceStatus,
+    signingEnvelopeStatuses: params.signingEnvelopeStatuses,
+  });
+}
+
+export function resolvePersistedDraftIdentity(params: {
+  submitted: PaymasterSubmittedIdentity;
+  previousIdentity?: PaymasterSubmittedIdentity | null;
+  officialVerifiedIdentity?: PaymasterSubmittedIdentity | null;
+  lockSwitching: boolean;
+}): PaymasterSubmittedIdentity {
+  if (params.lockSwitching && params.previousIdentity) {
+    const locked = params.previousIdentity;
+    if (
+      params.officialVerifiedIdentity &&
+      params.officialVerifiedIdentity.registrationNumber === locked.registrationNumber
+    ) {
+      return params.officialVerifiedIdentity;
+    }
+    return locked;
+  }
+  if (
+    params.officialVerifiedIdentity &&
+    params.officialVerifiedIdentity.registrationNumber === params.submitted.registrationNumber
+  ) {
+    return params.officialVerifiedIdentity;
+  }
+  return params.submitted;
+}
+
 /** Application statuses where customer_details is still current working origination data. */
 export const PAYMASTER_WORKING_IDENTITY_APPLICATION_STATUSES = new Set([
   "DRAFT",
@@ -404,6 +446,9 @@ export function persistDraftCustomerDetails(params: {
   previousLargePrivateCompany?: boolean;
   previousDocument?: unknown;
   retainPaymasterId?: string | null;
+  previousIdentity?: PaymasterSubmittedIdentity | null;
+  officialVerifiedIdentity?: PaymasterSubmittedIdentity | null;
+  lockSwitching?: boolean;
 }): CustomerDetailsJson {
   const submitted = requireSubmittedIdentity(params.customerDetails);
   const isRelatedParty = requireRelatedParty(params.customerDetails.is_related_party);
@@ -413,8 +458,14 @@ export function persistDraftCustomerDetails(params: {
   });
   const document =
     params.customerDetails.document != null ? params.customerDetails.document : params.previousDocument;
-  return buildSubmittedCustomerDetails({
+  const identity = resolvePersistedDraftIdentity({
     submitted,
+    previousIdentity: params.previousIdentity,
+    officialVerifiedIdentity: params.officialVerifiedIdentity,
+    lockSwitching: Boolean(params.lockSwitching ?? params.retainPaymasterId),
+  });
+  return buildSubmittedCustomerDetails({
+    submitted: identity,
     isRelatedParty,
     isLargePrivateCompany,
     document,
@@ -643,9 +694,22 @@ export async function linkPaymasterForApplicationSubmission(params: {
     throw new AppError(400, "VALIDATION_ERROR", "Customer details are required before submitting.");
   }
   const previousLpc = previousCustomer.is_large_private_company;
+  const application = await prisma.application.findUnique({
+    where: { id: params.applicationId },
+    select: {
+      status: true,
+      invoices: { select: { status: true } },
+    },
+  });
   const lockExistingPaymasterId =
     params.lockExistingPaymasterId?.trim() ||
-    (shouldRetainLinkedFacilityPaymaster(contract.status) ? contract.paymaster_id : null);
+    (shouldLockPaymasterSwitching({
+      contractStatus: contract.status,
+      applicationStatus: application?.status,
+      invoiceStatuses: (application?.invoices ?? []).map((invoice) => invoice.status),
+    })
+      ? contract.paymaster_id
+      : null);
   const resolved = await resolvePaymasterFromCustomerDetails({
     issuerOrganizationId: params.issuerOrganizationId,
     customerDetails: previousCustomer,

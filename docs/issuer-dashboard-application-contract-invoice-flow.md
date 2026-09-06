@@ -48,6 +48,7 @@ Confirmed from code:
 - If the SSM already exists (Unverified or Verified), submit reuses that master and does not overwrite official identity. An Unverified master keeps this application's issuer-submitted `customer_details` until Admin verifies. A Verified master stamps official identity onto working `customer_details`.
 - Issuer lookup of a Verified SSM autofills official identity and locks those fields. An existing Unverified SSM is recognised so a duplicate master cannot be created; the issuer still types this application's submitted details.
 - Admin Paymaster Detail is the official identity. Admin can edit legal name, country, and entity type. SSM is locked. Verify can confirm/edit those fields in one action. After verification (or a later Verified edit), eligible working applications automatically use the official identity. Completed and frozen applications stay historical.
+- Amendment of a Verified Paymaster keeps legal name, country, and entity type locked even if lookup is still loading or fails. SSM may change only before offer / signing / an established facility. A different SSM switches Paymaster; the old master's SSM is never modified. Unverified identity edits stay on this application and do not overwrite the master.
 - Origination documents (letter of offer, deed of assignment, application summary) use this application's current `customer_details`. Note `paymaster_snapshot` and published prospectus stay frozen after they are written. Notice generation can use the live master.
 
 ## 4. What Invoice means

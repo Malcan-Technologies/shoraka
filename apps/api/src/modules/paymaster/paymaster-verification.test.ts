@@ -67,6 +67,8 @@ import {
   lookupPaymasterByRegistration,
   persistDraftCustomerDetails,
   resolvePaymasterFromCustomerDetails,
+  resolvePersistedDraftIdentity,
+  shouldLockPaymasterSwitching,
   shouldRetainLinkedFacilityPaymaster,
   updatePaymasterIdentity,
   verifyPaymaster,
@@ -272,6 +274,97 @@ describe("Paymaster verification and SSM-first reuse", () => {
     expect(prisma.issuerPaymasterLink.create).not.toHaveBeenCalled();
   });
 
+  it("verified amendment persist keeps official identity and related-party from the issuer", () => {
+    const stored = persistDraftCustomerDetails({
+      previousIdentity: {
+        legalName: "Official Co Sdn Bhd",
+        entityType: "Private Limited Company (Sdn Bhd)",
+        registrationNumber: "202201234567",
+        registrationCountry: "MY",
+      },
+      officialVerifiedIdentity: {
+        legalName: "Official Co Sdn Bhd",
+        entityType: "Private Limited Company (Sdn Bhd)",
+        registrationNumber: "202201234567",
+        registrationCountry: "MY",
+      },
+      customerDetails: {
+        name: "Tampered Name",
+        entity_type: "Partnership",
+        ssm_number: "202201234567",
+        country: "SG",
+        is_related_party: true,
+      },
+    });
+    expect(stored.name).toBe("Official Co Sdn Bhd");
+    expect(stored.entity_type).toBe("Private Limited Company (Sdn Bhd)");
+    expect(stored.country).toBe("MY");
+    expect(stored.ssm_number).toBe("202201234567");
+    expect(stored.is_related_party).toBe(true);
+  });
+
+  it("unverified amendment persist writes application identity without a master update", () => {
+    const stored = persistDraftCustomerDetails({
+      previousIdentity: {
+        legalName: "Draft Co Sdn Bhd",
+        entityType: "Private Limited Company (Sdn Bhd)",
+        registrationNumber: "202201234567",
+        registrationCountry: "MY",
+      },
+      customerDetails: {
+        name: "Issuer Typed Name",
+        entity_type: "Partnership",
+        ssm_number: "202201234567",
+        country: "MY",
+        is_related_party: false,
+      },
+    });
+    expect(stored.name).toBe("Issuer Typed Name");
+    expect(stored.entity_type).toBe("Partnership");
+    expect(prisma.paymaster.update).not.toHaveBeenCalled();
+  });
+
+  it("frozen persist keeps the previous SSM instead of switching Paymaster", () => {
+    const stored = persistDraftCustomerDetails({
+      lockSwitching: true,
+      retainPaymasterId: "pm_old",
+      previousIdentity: {
+        legalName: "Old Co",
+        entityType: "Private Limited Company (Sdn Bhd)",
+        registrationNumber: "111111111111",
+        registrationCountry: "MY",
+      },
+      customerDetails: {
+        name: "New Co",
+        entity_type: "Partnership",
+        ssm_number: "202201234567",
+        country: "SG",
+        is_related_party: true,
+      },
+    });
+    expect(stored.ssm_number).toBe("111111111111");
+    expect(stored.name).toBe("Old Co");
+    expect(stored.paymaster_id).toBe("pm_old");
+    expect(stored.is_related_party).toBe(true);
+    expect(
+      resolvePersistedDraftIdentity({
+        lockSwitching: false,
+        submitted: {
+          legalName: "New Co",
+          entityType: "Partnership",
+          registrationNumber: "202201234567",
+          registrationCountry: "SG",
+        },
+        officialVerifiedIdentity: {
+          legalName: "Official New",
+          entityType: "Private Limited Company (Sdn Bhd)",
+          registrationNumber: "202201234567",
+          registrationCountry: "MY",
+        },
+      }).legalName
+    ).toBe("Official New");
+  });
+
   it("draft persist keeps an approved-facility Paymaster id and Admin LPC", () => {
     const stored = persistDraftCustomerDetails({
       previousLargePrivateCompany: true,
@@ -289,6 +382,20 @@ describe("Paymaster verification and SSM-first reuse", () => {
     expect(shouldRetainLinkedFacilityPaymaster("APPROVED")).toBe(true);
     expect(shouldRetainLinkedFacilityPaymaster("DRAFT")).toBe(false);
     expect(shouldRetainLinkedFacilityPaymaster("AMENDMENT_REQUESTED")).toBe(false);
+    expect(shouldLockPaymasterSwitching({ contractStatus: "AMENDMENT_REQUESTED" })).toBe(false);
+    expect(
+      shouldLockPaymasterSwitching({
+        contractStatus: "DRAFT",
+        applicationStatus: "INVOICES_SENT",
+        invoiceStatuses: ["OFFER_SENT"],
+      })
+    ).toBe(true);
+    expect(
+      shouldLockPaymasterSwitching({
+        contractStatus: "OFFER_SENT",
+        applicationStatus: "CONTRACT_SENT",
+      })
+    ).toBe(true);
     expect(
       isPaymasterWorkingIdentityEligible({
         applicationStatus: "UNDER_REVIEW",
@@ -1457,6 +1564,45 @@ describe("Paymaster verification and SSM-first reuse", () => {
     expect(prisma.issuerPaymasterLink.deleteMany).not.toHaveBeenCalled();
   });
 
+  it("does not retarget Paymaster after an invoice offer even if the holder is still draft", async () => {
+    const previous = paymasterRow({ id: "pm_old", registration_number: "111111111111" });
+    const next = paymasterRow({ id: "pm_new", registration_number: "202201234567" });
+    (prisma.contract.findUnique as jest.Mock).mockResolvedValue({
+      id: "ctr-1",
+      status: "DRAFT",
+      paymaster_id: previous.id,
+      customer_details: matchingDetails(next, { is_related_party: false }),
+    });
+    (prisma.application.findUnique as jest.Mock).mockResolvedValue({
+      status: "INVOICES_SENT",
+      invoices: [{ status: "OFFER_SENT" }],
+    });
+    (prisma.paymaster.findUnique as jest.Mock).mockImplementation(
+      async (args: { where?: { id?: string; registration_number?: string } }) => {
+        if (args?.where?.id === previous.id) return previous;
+        if (args?.where?.registration_number === next.registration_number) return next;
+        return null;
+      }
+    );
+    (prisma.contract.update as jest.Mock).mockResolvedValue({ id: "ctr-1" });
+
+    await linkPaymasterForApplicationSubmission({
+      contractId: "ctr-1",
+      issuerOrganizationId,
+      applicationId,
+      actorUserId,
+    });
+
+    expect(prisma.contract.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymaster: { connect: { id: "pm_old" } },
+        }),
+      })
+    );
+    expect(prisma.paymaster.update).not.toHaveBeenCalled();
+  });
+
   it("does not retarget Paymaster when the facility is locked", async () => {
     const previous = paymasterRow({ id: "pm_old", registration_number: "111111111111" });
     const next = paymasterRow({ id: "pm_new", registration_number: "202201234567" });
@@ -1569,11 +1715,16 @@ describe("Paymaster identity writers stay notification-free and separate from ap
     expect(contractSrc).not.toMatch(/resolvePaymasterFromCustomerDetails/);
     expect(applicationSrc).toMatch(/linkPaymasterForApplicationSubmission/);
     expect(amendmentSrc).toMatch(/linkPaymasterForApplicationSubmission/);
+    expect(contractSrc).toMatch(/shouldLockPaymasterSwitching/);
+    expect(contractSrc).toMatch(/officialVerifiedIdentity/);
   });
 
   it("does not verify a Paymaster when an application or section is approved", () => {
     const adminSrc = readFileSync(join(__dirname, "../admin/service.ts"), "utf8");
     expect(adminSrc).not.toMatch(/verifyPaymaster/);
     expect(adminSrc).not.toMatch(/verification_status:\s*"VERIFIED"/);
+    expect(adminSrc).toMatch(/ensureCustomerPaymasterAmendmentAllowed/);
+    expect(adminSrc).toMatch(/isPaymasterSwitchingFrozen/);
+    expect(adminSrc).toMatch(/Paymaster cannot be changed after a commercial offer or signed facility/);
   });
 });

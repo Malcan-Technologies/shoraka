@@ -14,6 +14,7 @@ import {
   buildOriginationPhaseInput,
   resolveOriginationPhase,
   readFinancingStructureType,
+  isPaymasterVerified,
 } from "@cashsouk/types";
 import { ProductRepository } from "../products/repository";
 import { assertContractMeetsProductRules } from "../../lib/product-rule-guard";
@@ -35,8 +36,9 @@ import {
 } from "../../lib/display-reference";
 import {
   persistDraftCustomerDetails,
-  shouldRetainLinkedFacilityPaymaster,
+  shouldLockPaymasterSwitching,
 } from "../paymaster/service";
+import { parseSubmittedIdentity } from "../paymaster/identity";
 
 export class ContractService {
   private repository: ContractRepository;
@@ -289,13 +291,43 @@ export class ContractService {
           ? (contract.customer_details as Record<string, unknown>)
           : null;
       const previousLpc = previousCustomer?.is_large_private_company;
+      const previousIdentity = previousCustomer ? parseSubmittedIdentity(previousCustomer) : null;
+      const lockSwitching = shouldLockPaymasterSwitching({
+        contractStatus: contract.status,
+        applicationStatus: application?.status,
+        invoiceStatuses: (
+          (application as { invoices?: Array<{ status?: string | null }> } | null)?.invoices ?? []
+        ).map((invoice) => invoice.status ?? ""),
+      });
+      let officialVerifiedIdentity = null;
+      if (contract.paymaster_id) {
+        const linked = await prisma.paymaster.findUnique({
+          where: { id: contract.paymaster_id },
+          select: {
+            legal_name: true,
+            entity_type: true,
+            registration_number: true,
+            registration_country: true,
+            verification_status: true,
+          },
+        });
+        if (linked && isPaymasterVerified(linked.verification_status)) {
+          officialVerifiedIdentity = {
+            legalName: linked.legal_name,
+            entityType: linked.entity_type,
+            registrationNumber: linked.registration_number,
+            registrationCountry: linked.registration_country,
+          };
+        }
+      }
       data.customer_details = persistDraftCustomerDetails({
         customerDetails: data.customer_details as Record<string, unknown>,
         previousLargePrivateCompany: typeof previousLpc === "boolean" ? previousLpc : undefined,
         previousDocument: previousCustomer?.document,
-        retainPaymasterId: shouldRetainLinkedFacilityPaymaster(contract.status)
-          ? contract.paymaster_id
-          : null,
+        previousIdentity,
+        officialVerifiedIdentity,
+        lockSwitching,
+        retainPaymasterId: lockSwitching ? contract.paymaster_id : null,
       }) as Prisma.InputJsonValue;
     }
 

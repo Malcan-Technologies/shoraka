@@ -93,6 +93,7 @@ Use a facility offer only for a new-facility application. Standalone invoice app
 
 - Confirm the customer or paymaster details. Eligible working applications use official Paymaster identity automatically after verification.
 - Confirm official Paymaster identity on **Paymaster Verification** or Paymaster Detail if it is still Unverified. Admin can correct legal name, country, and entity type in the Verify modal. SSM is locked. Verification does not approve the application or send the offer. After verification, unfinished applications linked to that Paymaster pick up the official identity automatically.
+- Request amendment on Customer / Facility only while Paymaster switching is still allowed. After a commercial offer or signed facility, SSM cannot be changed through normal amendment.
 - Confirm whether the customer is a large private company.
 - Make sure the offered facility does not exceed the requested facility and is strictly less than contract value.
 - Make sure the offer has not already been accepted or signed.
@@ -131,7 +132,7 @@ Issuers can download an **application summary** PDF from the application and lat
 - Keep amendment remarks specific and tied to the exact section, document, or invoice that needs attention.
 - Use amendments for fixable issues and rejection for issues that should stop the application.
 - Pull and review fresh CTOS data before approving financials when director, shareholder, or company information changed.
-- Confirm paymaster/customer details before sending commercial offers. Official identity is managed on Paymaster Detail. After verification, eligible working applications already use that identity.
+- Confirm paymaster/customer details before sending commercial offers. Official identity is managed on Paymaster Detail. After verification, eligible working applications already use that identity. After an offer or signed facility, do not reopen Paymaster / SSM switching through amendment.
 - Check guarantor AML status before relying on guarantor support.
 - Use invoice offers for invoice-level approval and facility offers for facility-level approval.
 - Do not send offers until upstream sections are approved and the relevant tab is unlocked.

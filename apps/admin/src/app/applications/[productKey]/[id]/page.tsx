@@ -74,6 +74,7 @@ import {
   buildOriginationPhaseInput,
   canRejectApplication,
   isCompletedWithNoApprovedInvoices,
+  isPaymasterSwitchingFrozen,
   resolveOriginationPhase,
   readInvoiceProductRules,
   readContractProductRules,
@@ -610,6 +611,30 @@ export default function DynamicApplicationDetailPage() {
       })
     );
   }, [app, signingEnvelopes]);
+  const paymasterSwitchingFrozen = React.useMemo(() => {
+    if (!app) return false;
+    const invoices = (app.invoices ?? []) as Array<{
+      status?: string;
+      contract_id?: string | null;
+      offer_details?: unknown;
+    }>;
+    const standalone = invoices.find((invoice) => !invoice.contract_id);
+    const offerAcceptanceStatus =
+      getOfferAcceptanceFromOfferDetails(
+        (app.contract as { offer_details?: unknown } | null)?.offer_details
+      )?.status ??
+      getOfferAcceptanceFromOfferDetails(standalone?.offer_details)?.status ??
+      null;
+    return isPaymasterSwitchingFrozen(
+      buildOriginationPhaseInput({
+        applicationStatus: app.status,
+        contract: app.contract as { status?: string | null } | null,
+        invoices,
+        offerAcceptanceStatus,
+        signingEnvelopes,
+      })
+    );
+  }, [app, signingEnvelopes]);
   const canPhaseReject = canRejectApplication(originationPhase);
   const facilityInForceNoInvoices = isCompletedWithNoApprovedInvoices(
     String(app?.status ?? ""),
@@ -928,12 +953,15 @@ export default function DynamicApplicationDetailPage() {
                         tabPrerequisitesFromApi,
                         structureType
                       );
+                      const paymasterAmendmentLocked =
+                        descriptor.reviewSection === "contract_details" && paymasterSwitchingFrozen;
                       const actionLocked =
                         applicationWithdrawn ||
                         isContractExistingContract ||
                         isAcceptanceExistingContract ||
                         !tabUnlocked ||
-                        !canManageSection;
+                        !canManageSection ||
+                        paymasterAmendmentLocked;
                       const actionLockTooltip = actionLocked
                         ? !canManageSection
                           ? "You do not have permission to perform this action."
@@ -943,7 +971,9 @@ export default function DynamicApplicationDetailPage() {
                               ? "Facility was approved in a prior application"
                               : isAcceptanceExistingContract
                                 ? "Acceptance was completed when the linked facility was approved"
-                                : getTabUnlockTooltip(
+                                : paymasterAmendmentLocked
+                                  ? "Paymaster cannot be changed after a commercial offer or signed facility"
+                                  : getTabUnlockTooltip(
                                   descriptor.reviewSection,
                                   sectionStatusMap,
                                   availableReviewSections,

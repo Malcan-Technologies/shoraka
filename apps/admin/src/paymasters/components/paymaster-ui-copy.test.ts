@@ -137,6 +137,30 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(panel).toContain("PaymasterOfficialIdentityDialog");
     expect(panel).not.toContain("paymasterIdentityToVerify");
     expect(panel).not.toContain("Paymaster Identity to Verify");
+    const reviewPage = readFileSync(
+      join(__dirname, "../../app/applications/[productKey]/[id]/page.tsx"),
+      "utf8"
+    );
+    expect(reviewPage).toContain("isPaymasterSwitchingFrozen");
+    expect(reviewPage).toContain("paymasterSwitchingFrozen");
+    expect(reviewPage).toContain(
+      "Paymaster cannot be changed after a commercial offer or signed facility"
+    );
+  });
+
+  it("keeps SSM read-only on Edit Paymaster and Verify Paymaster", () => {
+    const fields = readFileSync(
+      join(__dirname, "paymaster-official-identity-fields.tsx"),
+      "utf8"
+    );
+    const dialog = readFileSync(
+      join(__dirname, "paymaster-official-identity-dialog.tsx"),
+      "utf8"
+    );
+    expect(fields).toContain('id="paymaster-official-ssm"');
+    expect(fields).toMatch(/id="paymaster-official-ssm"[\s\S]*disabled[\s\S]*readOnly/);
+    expect(dialog).toContain("SSM cannot be changed");
+    expect(dialog).not.toMatch(/registrationNumber:\s*value\.registrationNumber/);
   });
 
   it("Paymaster Detail Identity tab shows submitted application identities as Admin reference only", () => {

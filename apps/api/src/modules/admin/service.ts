@@ -120,6 +120,7 @@ import {
   canRejectApplication,
   canResetReviewToPending,
   resolveOriginationPhase,
+  isPaymasterSwitchingFrozen,
   buildInvoiceFeeScheduleOfferPatch,
   computeFacilityFeeTotalOwed,
   NOTE_DEFAULT_MINIMUM_FUNDING_PERCENT,
@@ -745,6 +746,56 @@ export class AdminService {
         400,
         "OFFER_FINALIZED",
         "Facility offer was finalized by issuer and cannot be modified"
+      );
+    }
+  }
+
+  private customerPaymasterAmendmentFrozen(application: {
+    status: string;
+    financing_structure?: unknown;
+    contract?: { status?: string | null; offer_details?: unknown } | null;
+    invoices?: Array<{
+      status?: string | null;
+      contract_id?: string | null;
+      offer_details?: unknown;
+    }>;
+    signing_envelopes?: Array<{ status?: string | null }>;
+  }): boolean {
+    return isPaymasterSwitchingFrozen(
+      buildOriginationPhaseInput({
+        applicationStatus: application.status,
+        contract: application.contract,
+        invoices: application.invoices,
+        offerAcceptanceStatus: extractPrimaryOfferAcceptanceStatus({
+          financing_structure: application.financing_structure as {
+            structure_type?: string;
+          } | null,
+          contract: application.contract,
+          invoices: application.invoices,
+        }),
+        signingEnvelopes: application.signing_envelopes,
+      })
+    );
+  }
+
+  private ensureCustomerPaymasterAmendmentAllowed(application: {
+    status: string;
+    contract_id?: string | null;
+    financing_structure?: unknown;
+    contract?: { status?: string | null; offer_details?: unknown } | null;
+    invoices?: Array<{
+      status?: string | null;
+      contract_id?: string | null;
+      offer_details?: unknown;
+    }>;
+    signing_envelopes?: Array<{ status?: string | null }>;
+  }): void {
+    this.ensureContractOfferActionAllowed(application);
+    if (this.customerPaymasterAmendmentFrozen(application)) {
+      throw new AppError(
+        400,
+        "OFFER_FINALIZED",
+        "Paymaster cannot be changed after a commercial offer or signed facility"
       );
     }
   }
@@ -10570,7 +10621,7 @@ export class AdminService {
       );
     }
     if (section === "contract_details") {
-      this.ensureContractOfferActionAllowed(application);
+      this.ensureCustomerPaymasterAmendmentAllowed(application);
     }
     if (section === "invoice_details") {
       await this.ensureInvoiceSectionActionAllowed(applicationId);
@@ -11078,7 +11129,7 @@ export class AdminService {
         );
       }
       if (scopeKey === "contract_details") {
-        this.ensureContractOfferActionAllowed(application);
+        this.ensureCustomerPaymasterAmendmentAllowed(application);
       }
       if (scopeKey === "invoice_details") {
         await this.ensureInvoiceSectionActionAllowed(applicationId);
@@ -11420,6 +11471,10 @@ export class AdminService {
     const hasContractDetails = pending.some(
       (p) => p.scope === "section" && p.scope_key === "contract_details"
     );
+
+    if (hasContractDetails) {
+      this.ensureCustomerPaymasterAmendmentAllowed(application);
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.applicationReviewRemark.updateMany({
