@@ -3,6 +3,7 @@ import {
   buildInvestorProfileCompleteness,
   buildIssuerProfileCompleteness,
   computeIssuerCompanyCompleteness,
+  computeIssuerFinancialCompleteness,
   groupInvestorMissingByProfileSection,
   groupIssuerMissingByProfileSection,
   groupPeopleMissingByParty,
@@ -13,9 +14,14 @@ import {
   missingItemsForIssuerFlowStep,
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
+  parseInvoiceOfferCampaignSector,
   SC_SUSTAINABILITY_CATEGORIES,
   valuesEqualForMismatch,
 } from "./comrep-profile";
+import {
+  ISSUER_PROFILE_BALANCE_SHEET_KEYS,
+  ISSUER_PROFILE_PNL_KEYS,
+} from "./financial-field-labels";
 
 describe("issuer company completeness [02000]", () => {
   it("requires registered and business line1, state, and postcode", () => {
@@ -258,7 +264,7 @@ describe("SC ComRep investor category", () => {
     ]);
   });
 
-  it("requires an explicit SC category for full ComRep completeness, not user completeness", () => {
+  it("requires an explicit SC category for user completeness now that investors can set it", () => {
     const personal = buildInvestorProfileCompleteness({
       organizationType: "PERSONAL",
       personal: {
@@ -274,10 +280,10 @@ describe("SC ComRep investor category", () => {
       },
     });
     expect(personal.complete).toBe(false);
-    expect(personal.userComplete).toBe(true);
-    expect(personal.userMissing).toEqual([]);
+    expect(personal.userComplete).toBe(false);
+    expect(personal.userMissing.map((item) => item.field)).toEqual(["scInvestorCategory"]);
     expect(personal.missing.map((item) => item.field)).toContain("scInvestorCategory");
-    expect(personal.missing.find((item) => item.field === "scInvestorCategory")?.owner).toBe("ADMIN");
+    expect(personal.missing.find((item) => item.field === "scInvestorCategory")?.owner).toBe("USER");
 
     const corporate = buildInvestorProfileCompleteness({
       organizationType: "COMPANY",
@@ -294,8 +300,10 @@ describe("SC ComRep investor category", () => {
       },
     });
     expect(corporate.complete).toBe(false);
-    expect(corporate.userComplete).toBe(true);
+    expect(corporate.userComplete).toBe(false);
+    expect(corporate.userMissing.map((item) => item.field)).toEqual(["scInvestorCategory"]);
     expect(corporate.missing.map((item) => item.field)).toContain("scInvestorCategory");
+    expect(corporate.missing.find((item) => item.field === "scInvestorCategory")?.owner).toBe("USER");
   });
 
   it("keeps user completeness incomplete when an investor-editable field is missing", () => {
@@ -319,7 +327,7 @@ describe("SC ComRep investor category", () => {
     expect(personal.userMissing[0]?.owner ?? "USER").toBe("USER");
   });
 
-  it("accepts an admin-selected category that differs from the CashSouk product flag", () => {
+  it("accepts an SC category that differs from the CashSouk product flag", () => {
     const personal = buildInvestorProfileCompleteness({
       organizationType: "PERSONAL",
       personal: {
@@ -366,10 +374,10 @@ describe("profile UI section grouping", () => {
       { step: "shareholders", field: "gender", label: "Gender", partyKey: "p1" },
       { step: "financials", field: "revenue", label: "Total revenue and income" },
     ]);
-    expect(rows.find((row) => row.id === "company")?.missingCount).toBe(1);
+    expect(rows.find((row) => row.id === "company")?.missingCount).toBe(2);
     expect(rows.find((row) => row.id === "about")?.missingCount).toBe(1);
     expect(rows.find((row) => row.id === "addresses")?.missingCount).toBe(1);
-    expect(rows.find((row) => row.id === "contact")?.missingCount).toBe(1);
+    expect(rows.find((row) => row.id === "contact")?.missingCount).toBe(0);
     expect(rows.find((row) => row.id === "people")?.missingCount).toBe(1);
     expect(rows.find((row) => row.id === "financials")?.missingCount).toBe(1);
   });
@@ -386,12 +394,55 @@ describe("profile UI section grouping", () => {
     expect(rows.find((row) => row.id === "addresses")?.missingCount).toBe(1);
   });
 
-  it("groups admin-only SC ComRep investor type onto classification", () => {
+  it("groups SC ComRep investor type onto classification", () => {
     const rows = groupInvestorMissingByProfileSection(
       [{ step: "identity", field: "scInvestorCategory", label: "SC ComRep investor type" }],
       "PERSONAL"
     );
     expect(rows.find((row) => row.id === "classification")?.missingCount).toBe(1);
     expect(rows.find((row) => row.id === "personal")?.missingCount).toBe(0);
+  });
+});
+
+describe("campaign SC enums", () => {
+  it("parses campaign sector from offer_details without treating issuer industry as equivalent", () => {
+    expect(parseInvoiceOfferCampaignSector({ campaign_sector: "MANUFACTURING" })).toBe("MANUFACTURING");
+    expect(parseInvoiceOfferCampaignSector({ industry: "Manufacturing" })).toBeNull();
+    expect(parseInvoiceOfferCampaignSector({ company_category: "TECHNOLOGY" })).toBeNull();
+  });
+});
+
+describe("issuer profile financial editor keys", () => {
+  it("exposes stored SC master keys including previously missing equity and P&L minority fields", () => {
+    expect(ISSUER_PROFILE_BALANCE_SHEET_KEYS).toEqual(
+      expect.arrayContaining([
+        "equity_share_application",
+        "equity_share_premium",
+        "equity_minority",
+      ])
+    );
+    expect(ISSUER_PROFILE_PNL_KEYS).toEqual(expect.arrayContaining(["pl_minority"]));
+  });
+
+  it("does not make share application, share premium, or minority interest mandatory", () => {
+    const filled = issuerFinancialsFromYearBlock({
+      bscatot: 1,
+      bsclbank: 1,
+      curlib_borrowing: 1,
+      curlib_non_borrowing: 1,
+      ncl_loan: 1,
+      ncl_non_loan: 1,
+      bsqpuc: 1,
+      equity_accumulated_profit: 1,
+      turnover: 1,
+      operating_cost: 1,
+      admin_cost: 1,
+      interest_cost: 1,
+      other_cost: 1,
+      plnpbt: 1,
+      plnpat: 1,
+      plnetdiv: 1,
+    });
+    expect(computeIssuerFinancialCompleteness(filled).map((item) => item.field)).toEqual([]);
   });
 });

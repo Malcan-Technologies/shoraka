@@ -20,6 +20,7 @@ import {
   MAX_INVOICE_FINANCING_RATIO_PERCENT,
   SC_COMPANY_CATEGORIES,
   SC_COMPANY_TYPES,
+  SC_CAMPAIGN_SECTORS,
   SC_GENDERS,
   SC_INVESTOR_CATEGORIES,
   SC_SUSTAINABILITY_CATEGORIES,
@@ -558,6 +559,7 @@ export const sendInvoiceOfferSchema = z
     platformFeeRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
     risk_rating: z.enum(MARC_SME_GRADES),
     company_category: z.enum(SC_COMPANY_CATEGORIES),
+    campaign_sector: z.enum(SC_CAMPAIGN_SECTORS),
     sustainability_category: z.enum(SC_SUSTAINABILITY_CATEGORIES),
     financingTenureDays: z.coerce
       .number({

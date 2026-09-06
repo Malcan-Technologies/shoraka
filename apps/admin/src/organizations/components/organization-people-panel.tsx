@@ -116,6 +116,7 @@ export function OrganizationPeoplePanel({
   const saveParty = async (values: PartyEditorValues, partyId?: string) => {
     const payload: Record<string, unknown> = {
       name: values.name.trim(),
+      salutation: values.salutation.trim() || null,
       identityPrefix: values.identityPrefix || null,
       identityNumber: values.identityNumber.trim() || null,
       entityType: values.entityType,
@@ -123,8 +124,29 @@ export function OrganizationPeoplePanel({
       isShareholder: values.isShareholder,
       isBoard: values.isBoard,
       isManagement: values.isManagement,
+      gender: values.entityType === "CORPORATE" ? "NOT_APPLICABLE" : values.gender || null,
+      nationality: values.nationality.trim() || null,
+      countryOfIncorporation: values.countryOfIncorporation.trim() || null,
+      dateOfBirth: values.dateOfBirth || null,
+      dateOfIncorporation: values.dateOfIncorporation || null,
+      address:
+        values.line1 || values.line2 || values.state || values.postalCode
+          ? {
+              line1: values.line1.trim() || null,
+              line2: values.line2.trim() || null,
+              state: values.state || null,
+              postalCode: values.postalCode.trim() || null,
+            }
+          : null,
       shareholdingPercentage: values.shareholdingPercentage.trim() || null,
       shareType: values.shareType || null,
+      shareTypeOther: values.shareType === "OTHERS" ? values.shareTypeOther.trim() || null : null,
+      shareholdingUnits: values.shareholdingUnits.trim() || null,
+      shareholdingAmount: values.shareholdingAmount.trim() || null,
+      designation: values.designation || null,
+      designationOther: values.designation === "OTHERS" ? values.designationOther.trim() || null : null,
+      appointmentDate: values.appointmentDate || null,
+      resignationDate: values.resignationDate || null,
     };
     if (partyId) {
       await peopleMutations.patchParty.mutateAsync({ partyId, data: payload });

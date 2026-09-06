@@ -216,7 +216,7 @@ export default function RmoProfilePage() {
           <AdminDetailCardHeader
             icon={ClipboardDocumentCheckIcon}
             title="Profile completeness"
-            description="Required operator fields for the Shoraka master record"
+            description="Core operator identity for the Shoraka master record. Optional ComRep columns such as salutation, resignation, disposal, and unused P&L components do not block this score. Filing export is separate."
           />
           <CardContent>
             <ProfileCompletenessSummary

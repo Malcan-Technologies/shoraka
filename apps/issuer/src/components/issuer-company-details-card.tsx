@@ -100,6 +100,7 @@ export function IssuerCompanyDetailsCard({
   const [scCompanyType, setScCompanyType] = React.useState(org.scCompanyType ?? "");
   const [companyEmail, setCompanyEmail] = React.useState(org.companyEmail ?? "");
   const [phoneNumber, setPhoneNumber] = React.useState(org.phoneNumber ?? "");
+  const [website, setWebsite] = React.useState(basic?.website ?? "");
 
   React.useEffect(() => {
     if (isEditing) return;
@@ -111,6 +112,7 @@ export function IssuerCompanyDetailsCard({
     setScCompanyType(org.scCompanyType ?? "");
     setCompanyEmail(org.companyEmail ?? "");
     setPhoneNumber(org.phoneNumber ?? "");
+    setWebsite(basic?.website ?? "");
   }, [basic, isEditing, org]);
 
   const companyTypeLabel =
@@ -144,6 +146,7 @@ export function IssuerCompanyDetailsCard({
       const corp = await api.patch(`/v1/organizations/issuer/${organizationId}/corporate-info`, {
         industry: industry.trim() || null,
         numberOfEmployees: nextEmployees,
+        website: website.trim() || null,
       });
       if (!corp.success) throw new Error(corp.error.message);
     },
@@ -250,7 +253,11 @@ export function IssuerCompanyDetailsCard({
             />
           )}
           <ProfileReadField label="Annual Revenue" value={displayProfileValue(basic?.annualRevenue)} locked />
-          <ProfileReadField label="Website" value={displayProfileValue(basic?.website)} locked />
+          {isEditing ? (
+            <InputRow label="Website" value={website} onChange={setWebsite} />
+          ) : (
+            <ProfileReadField label="Website" value={displayProfileValue(basic?.website)} />
+          )}
           {isEditing && !org.companyEmail ? (
             <InputRow label="Company Email" value={companyEmail} onChange={setCompanyEmail} />
           ) : (

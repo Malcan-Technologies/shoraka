@@ -136,10 +136,13 @@ import {
   type InvoiceOfferFeeScheduleWriteMode,
   type ReviewItemType,
   type ScCompanyCategory,
+  type ScCampaignSector,
   type ScSustainabilityCategory,
   isScCompanyCategory,
+  isScCampaignSector,
   isScSustainabilityCategory,
   parseInvoiceOfferCompanyCategory,
+  parseInvoiceOfferCampaignSector,
   parseInvoiceOfferSustainabilityCategory,
   canonicalDownloadFilenameToken,
   pickPrimarySignedOfferDocument,
@@ -9196,6 +9199,7 @@ export class AdminService {
     campaignClassification?: {
       companyCategory: ScCompanyCategory;
       sustainabilityCategory: ScSustainabilityCategory;
+      campaignSector?: ScCampaignSector | null;
     } | null
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
@@ -9446,12 +9450,17 @@ export class AdminService {
       const sustainabilityCategory =
         campaignClassification?.sustainabilityCategory ??
         parseInvoiceOfferSustainabilityCategory(previousOffer);
+      const campaignSector =
+        campaignClassification?.campaignSector ?? parseInvoiceOfferCampaignSector(previousOffer);
       if (companyCategory && !isScCompanyCategory(companyCategory)) {
         throw new AppError(
           400,
           "INVALID_INPUT",
           "Company category must be Technology or Non-Technology"
         );
+      }
+      if (campaignSector && !isScCampaignSector(campaignSector)) {
+        throw new AppError(400, "INVALID_INPUT", "Campaign sector is invalid");
       }
       if (sustainabilityCategory && !isScSustainabilityCategory(sustainabilityCategory)) {
         throw new AppError(400, "INVALID_INPUT", "Sustainability category is invalid");
@@ -9467,6 +9476,7 @@ export class AdminService {
         risk_rating: riskRating,
         marc_suggested_grade: marc.creditGrade,
         ...(companyCategory ? { company_category: companyCategory } : {}),
+        ...(campaignSector ? { campaign_sector: campaignSector } : {}),
         ...(sustainabilityCategory ? { sustainability_category: sustainabilityCategory } : {}),
         ...feeSchedulePatch,
         sent_at: now,

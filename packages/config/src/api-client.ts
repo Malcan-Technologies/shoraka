@@ -79,6 +79,7 @@ import type {
   WithdrawReason,
   AdminCtosReportListItem,
   MarcSmeGrade,
+  ScCampaignSector,
   ScCompanyCategory,
   ScSustainabilityCategory,
   RecipientEkycSession,
@@ -2261,6 +2262,7 @@ export class ApiClient {
       platformFeeRatePercent?: number | null;
       risk_rating: MarcSmeGrade;
       company_category: ScCompanyCategory;
+      campaign_sector: ScCampaignSector;
       sustainability_category: ScSustainabilityCategory;
       financingTenureDays: number;
       feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode;
@@ -2277,6 +2279,7 @@ export class ApiClient {
         platformFeeRatePercent: payload.platformFeeRatePercent ?? null,
         risk_rating: payload.risk_rating,
         company_category: payload.company_category,
+        campaign_sector: payload.campaign_sector,
         sustainability_category: payload.sustainability_category,
         financingTenureDays: payload.financingTenureDays,
         ...(payload.feeScheduleMode ? { feeScheduleMode: payload.feeScheduleMode } : {}),

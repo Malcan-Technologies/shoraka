@@ -18,19 +18,24 @@ import {
 import {
   getOfferPhaseDeadlineDisplay,
   isMarcSmeGrade,
+  isScCampaignSector,
   isScCompanyCategory,
   isScSustainabilityCategory,
   previewAcceptanceDeadlineFromWorkflow,
   resolveDefaultInvoiceRiskRating,
   resolveFinancingTenureDays,
   MARC_SME_GRADES,
+  parseInvoiceOfferCampaignSector,
   parseInvoiceOfferCompanyCategory,
   parseInvoiceOfferSustainabilityCategory,
+  SC_CAMPAIGN_SECTORS,
+  SC_CAMPAIGN_SECTOR_LABELS,
   SC_COMPANY_CATEGORIES,
   SC_COMPANY_CATEGORY_LABELS,
   SC_SUSTAINABILITY_CATEGORIES,
   SC_SUSTAINABILITY_CATEGORY_LABELS,
   type MarcSmeGrade,
+  type ScCampaignSector,
   type ScCompanyCategory,
   type ScSustainabilityCategory,
 } from "@cashsouk/types";
@@ -234,6 +239,7 @@ export function InvoiceList({
     invoiceValue: number | null;
     risk_rating: MarcSmeGrade;
     company_category: ScCompanyCategory;
+    campaign_sector: ScCampaignSector;
     sustainability_category: ScSustainabilityCategory;
     financingTenureDays: number;
     offerFingerprint: string;
@@ -323,6 +329,9 @@ export function InvoiceList({
   >({});
   const [companyCategoryByInvoiceId, setCompanyCategoryByInvoiceId] = React.useState<
     Record<string, ScCompanyCategory | null>
+  >({});
+  const [campaignSectorByInvoiceId, setCampaignSectorByInvoiceId] = React.useState<
+    Record<string, ScCampaignSector | null>
   >({});
   const [sustainabilityCategoryByInvoiceId, setSustainabilityCategoryByInvoiceId] = React.useState<
     Record<string, ScSustainabilityCategory>
@@ -487,6 +496,10 @@ export function InvoiceList({
       alert("Please select Technology or Non-Technology for this invoice.");
       return;
     }
+    if (!invoiceOfferConfirm.campaign_sector) {
+      alert("Please select the SC Campaign Sector for this invoice.");
+      return;
+    }
     if (
       invoiceOfferConfirmSubmitBlocked(invoiceOfferConfirmGuard) ||
       invoiceOfferConfirmExceedsCredit
@@ -501,6 +514,7 @@ export function InvoiceList({
       platformFeeRatePercent: invoiceOfferConfirm.platformFeeRatePercent,
       risk_rating: invoiceOfferConfirm.risk_rating,
       company_category: invoiceOfferConfirm.company_category,
+      campaign_sector: invoiceOfferConfirm.campaign_sector,
       sustainability_category: invoiceOfferConfirm.sustainability_category,
       financingTenureDays: invoiceOfferConfirm.financingTenureDays,
       feeScheduleMode: invoiceOfferConfirm.feeScheduleMode,
@@ -924,6 +938,46 @@ export function InvoiceList({
                                     )}
                                   </div>
                                   <div className={applicationTableExpandableFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>Campaign sector</p>
+                                    {isOfferSent ? (
+                                      <p className={applicationTableExpandableValueClass}>
+                                        {(() => {
+                                          const raw = parseInvoiceOfferCampaignSector(inv.offer_details);
+                                          return raw
+                                            ? SC_CAMPAIGN_SECTOR_LABELS[raw]
+                                            : REVIEW_EMPTY_LABEL;
+                                        })()}
+                                      </p>
+                                    ) : (
+                                      <Select
+                                        value={campaignSectorByInvoiceId[inv.id] ?? undefined}
+                                        onValueChange={(value) => {
+                                          if (isScCampaignSector(value)) {
+                                            setCampaignSectorByInvoiceId((prev) => ({
+                                              ...prev,
+                                              [inv.id]: value,
+                                            }));
+                                          }
+                                        }}
+                                        disabled={isRowGreyedOut || isAdminRejected}
+                                      >
+                                        <SelectTrigger
+                                          aria-label="Campaign sector"
+                                          className="h-9 w-full min-w-[8rem] max-w-[18rem] rounded-xl border-border bg-background text-ui"
+                                        >
+                                          <SelectValue placeholder="Select SC sector" />
+                                        </SelectTrigger>
+                                        <SelectContent className="max-h-[280px]">
+                                          {SC_CAMPAIGN_SECTORS.map((value) => (
+                                            <SelectItem key={value} value={value}>
+                                              {SC_CAMPAIGN_SECTOR_LABELS[value]}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                  </div>
+                                  <div className={applicationTableExpandableFieldBlockClass}>
                                     <p className={applicationTableExpandableLabelClass}>
                                       Sustainability category
                                     </p>
@@ -1272,6 +1326,7 @@ export function InvoiceList({
                                         offeredAmount === null ||
                                         !riskRatingByInvoiceId[inv.id] ||
                                         !companyCategoryByInvoiceId[inv.id] ||
+                                        !campaignSectorByInvoiceId[inv.id] ||
                                         Boolean(feeSendBlockedReason)
                                       }
                                       onClick={() => {
@@ -1283,6 +1338,11 @@ export function InvoiceList({
                                         const companyCat = companyCategoryByInvoiceId[inv.id];
                                         if (!companyCat) {
                                           alert("Please select Technology or Non-Technology for this invoice.");
+                                          return;
+                                        }
+                                        const campaignSector = campaignSectorByInvoiceId[inv.id];
+                                        if (!campaignSector) {
+                                          alert("Please select the SC Campaign Sector for this invoice.");
                                           return;
                                         }
                                         const sustainabilityCat =
@@ -1322,6 +1382,7 @@ export function InvoiceList({
                                           invoiceValue,
                                           risk_rating: rr,
                                           company_category: companyCat,
+                                          campaign_sector: campaignSector,
                                           sustainability_category: sustainabilityCat,
                                           financingTenureDays,
                                           offerFingerprint: invoiceOfferFeeFingerprint(inv.offer_details),
@@ -1445,6 +1506,12 @@ export function InvoiceList({
                   <span className="text-sm font-medium text-muted-foreground">Company category</span>
                   <span className="text-ui font-medium">
                     {SC_COMPANY_CATEGORY_LABELS[invoiceOfferConfirm.company_category]}
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-medium text-muted-foreground">Campaign sector</span>
+                  <span className="text-ui font-medium">
+                    {SC_CAMPAIGN_SECTOR_LABELS[invoiceOfferConfirm.campaign_sector]}
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
