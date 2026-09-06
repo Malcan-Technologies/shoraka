@@ -35,13 +35,14 @@ async function logMasterProfileAudit(params: {
   organizationId: string;
   eventType: string;
   metadata: Record<string, unknown>;
+  portal?: "ADMIN" | "INVESTOR" | "ISSUER";
 }) {
   const userId = params.req.user?.user_id;
   if (!userId) return;
   await createSecurityLogRow({
     userId,
     eventType: params.eventType,
-    portal: "ADMIN",
+    portal: params.portal ?? "ADMIN",
     targetType: AUDIT_TARGET_TYPE.ORGANIZATION,
     targetId: params.organizationId,
     correlationId: typeof params.req.headers["x-correlation-id"] === "string"
@@ -114,6 +115,13 @@ export function createOrganizationProfileRouter() {
           patch,
           fillEmptyOnly: true,
         });
+        await logMasterProfileAudit({
+          req,
+          organizationId: id,
+          eventType: "MASTER_PROFILE_UPDATED",
+          portal: portal === "issuer" ? AUDIT_PORTAL.ISSUER : AUDIT_PORTAL.INVESTOR,
+          metadata: { portal, source: "USER", fields: Object.keys(patch) },
+        });
         const completeness = await computeOrgProfileCompleteness(portal, id);
         res.json({ success: true, data: { completeness }, correlationId: res.locals.correlationId });
       } catch (error) {
@@ -138,6 +146,13 @@ export function createOrganizationProfileRouter() {
           source: "USER",
           patch,
           fillEmptyOnly: true,
+        });
+        await logMasterProfileAudit({
+          req,
+          organizationId: id,
+          eventType: "MASTER_PARTY_UPDATED",
+          portal: portal === "issuer" ? AUDIT_PORTAL.ISSUER : AUDIT_PORTAL.INVESTOR,
+          metadata: { portal, source: "USER", partyId, fields: Object.keys(patch) },
         });
         res.json({ success: true, data, correlationId: res.locals.correlationId });
       } catch (error) {

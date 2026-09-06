@@ -3624,6 +3624,7 @@ router.post(
         {
           companyCategory: validated.company_category,
           sustainabilityCategory: validated.sustainability_category,
+          campaignSector: validated.campaign_sector,
         }
       );
 

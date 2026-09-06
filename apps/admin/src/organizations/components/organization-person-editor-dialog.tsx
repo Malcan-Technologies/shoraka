@@ -4,8 +4,13 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { OrganizationPartyProfileDto } from "@cashsouk/types";
 import {
+  SC_DESIGNATION_LABELS,
+  SC_DESIGNATIONS,
+  SC_GENDER_LABELS,
+  SC_GENDERS,
   SC_IDENTITY_PREFIX_LABELS,
   SC_IDENTITY_PREFIXES,
+  SC_MALAYSIAN_STATES,
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
 } from "@cashsouk/types";
@@ -30,6 +35,7 @@ import {
 
 export type PartyEditorValues = {
   name: string;
+  salutation: string;
   identityPrefix: string;
   identityNumber: string;
   entityType: "INDIVIDUAL" | "CORPORATE";
@@ -37,13 +43,30 @@ export type PartyEditorValues = {
   isShareholder: boolean;
   isBoard: boolean;
   isManagement: boolean;
+  gender: string;
+  nationality: string;
+  countryOfIncorporation: string;
+  dateOfBirth: string;
+  dateOfIncorporation: string;
+  line1: string;
+  line2: string;
+  state: string;
+  postalCode: string;
   shareholdingPercentage: string;
   shareType: string;
+  shareTypeOther: string;
+  shareholdingUnits: string;
+  shareholdingAmount: string;
+  designation: string;
+  designationOther: string;
+  appointmentDate: string;
+  resignationDate: string;
 };
 
 export function partyToEditorValues(party: OrganizationPartyProfileDto): PartyEditorValues {
   return {
     name: party.name ?? "",
+    salutation: party.salutation ?? "",
     identityPrefix: party.identityPrefix ?? "",
     identityNumber: party.identityNumber ?? "",
     entityType: party.entityType,
@@ -51,13 +74,30 @@ export function partyToEditorValues(party: OrganizationPartyProfileDto): PartyEd
     isShareholder: party.isShareholder,
     isBoard: party.isBoard,
     isManagement: party.isManagement,
+    gender: party.gender ?? "",
+    nationality: party.nationality ?? "",
+    countryOfIncorporation: party.countryOfIncorporation ?? "",
+    dateOfBirth: party.dateOfBirth?.slice(0, 10) ?? "",
+    dateOfIncorporation: party.dateOfIncorporation?.slice(0, 10) ?? "",
+    line1: party.address?.line1 ?? "",
+    line2: party.address?.line2 ?? "",
+    state: party.address?.state ?? "",
+    postalCode: party.address?.postalCode ?? "",
     shareholdingPercentage: party.shareholdingPercentage ?? "",
     shareType: party.shareType ?? "",
+    shareTypeOther: party.shareTypeOther ?? "",
+    shareholdingUnits: party.shareholdingUnits ?? "",
+    shareholdingAmount: party.shareholdingAmount ?? "",
+    designation: party.designation ?? "",
+    designationOther: party.designationOther ?? "",
+    appointmentDate: party.appointmentDate?.slice(0, 10) ?? "",
+    resignationDate: party.resignationDate?.slice(0, 10) ?? "",
   };
 }
 
 const emptyValues: PartyEditorValues = {
   name: "",
+  salutation: "",
   identityPrefix: "NRIC",
   identityNumber: "",
   entityType: "INDIVIDUAL",
@@ -65,8 +105,24 @@ const emptyValues: PartyEditorValues = {
   isShareholder: false,
   isBoard: false,
   isManagement: false,
+  gender: "",
+  nationality: "",
+  countryOfIncorporation: "",
+  dateOfBirth: "",
+  dateOfIncorporation: "",
+  line1: "",
+  line2: "",
+  state: "",
+  postalCode: "",
   shareholdingPercentage: "",
   shareType: "ORDINARY",
+  shareTypeOther: "",
+  shareholdingUnits: "",
+  shareholdingAmount: "",
+  designation: "",
+  designationOther: "",
+  appointmentDate: "",
+  resignationDate: "",
 };
 
 export function OrganizationPersonEditorDialog({
@@ -95,22 +151,25 @@ export function OrganizationPersonEditorDialog({
   const set = <K extends keyof PartyEditorValues>(key: K, value: PartyEditorValues[K]) => {
     setValues((current) => ({ ...current, [key]: value }));
   };
+  const corporate = values.entityType === "CORPORATE";
+  const showShare = corporate || values.isShareholder;
+  const showOfficer = !corporate && (values.isDirector || values.isBoard || values.isManagement);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Name" value={values.name} onChange={(name) => set("name", name)} />
+          <Field label="Salutation" value={values.salutation} onChange={(salutation) => set("salutation", salutation)} />
           <div className="space-y-1.5">
             <Label className="text-ui">Entity</Label>
             <Select
               value={values.entityType}
               onValueChange={(entityType: "INDIVIDUAL" | "CORPORATE") => {
-                set("entityType", entityType);
                 if (entityType === "CORPORATE") {
                   setValues((current) => ({
                     ...current,
@@ -120,8 +179,11 @@ export function OrganizationPersonEditorDialog({
                     isBoard: false,
                     isManagement: false,
                     isShareholder: true,
+                    gender: "NOT_APPLICABLE",
                   }));
+                  return;
                 }
+                set("entityType", entityType);
               }}
             >
               <SelectTrigger className="h-10 text-ui">
@@ -133,32 +195,30 @@ export function OrganizationPersonEditorDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label className="text-ui">Identity type</Label>
-              <Select
-                value={values.identityPrefix || undefined}
-                onValueChange={(identityPrefix) => set("identityPrefix", identityPrefix)}
-              >
-                <SelectTrigger className="h-10 text-ui">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {SC_IDENTITY_PREFIXES.map((prefix) => (
-                    <SelectItem key={prefix} value={prefix}>
-                      {SC_IDENTITY_PREFIX_LABELS[prefix]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Field
-              label="Identity number"
-              value={values.identityNumber}
-              onChange={(identityNumber) => set("identityNumber", identityNumber)}
-            />
+          <div className="space-y-1.5">
+            <Label className="text-ui">Identity type</Label>
+            <Select
+              value={values.identityPrefix || undefined}
+              onValueChange={(identityPrefix) => set("identityPrefix", identityPrefix)}
+            >
+              <SelectTrigger className="h-10 text-ui">
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                {SC_IDENTITY_PREFIXES.map((prefix) => (
+                  <SelectItem key={prefix} value={prefix}>
+                    {SC_IDENTITY_PREFIX_LABELS[prefix]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <fieldset className="space-y-2">
+          <Field
+            label="Identity number"
+            value={values.identityNumber}
+            onChange={(identityNumber) => set("identityNumber", identityNumber)}
+          />
+          <fieldset className="space-y-2 sm:col-span-2">
             <legend className="text-ui">Roles</legend>
             {(
               [
@@ -173,26 +233,80 @@ export function OrganizationPersonEditorDialog({
                   type="checkbox"
                   className="h-4 w-4 rounded border-input"
                   checked={values[key]}
-                  disabled={values.entityType === "CORPORATE" && key !== "isShareholder"}
+                  disabled={corporate && key !== "isShareholder"}
                   onChange={(event) => set(key, event.target.checked)}
                 />
                 {label}
               </label>
             ))}
           </fieldset>
-          {values.isShareholder ? (
-            <div className="grid gap-4 sm:grid-cols-2">
+          {corporate ? (
+            <>
               <Field
-                label="Shareholding %"
-                value={values.shareholdingPercentage}
-                onChange={(shareholdingPercentage) => set("shareholdingPercentage", shareholdingPercentage)}
+                type="date"
+                label="Date of incorporation"
+                value={values.dateOfIncorporation}
+                onChange={(dateOfIncorporation) => set("dateOfIncorporation", dateOfIncorporation)}
               />
+              <Field
+                label="Country of incorporation"
+                value={values.countryOfIncorporation}
+                onChange={(countryOfIncorporation) => set("countryOfIncorporation", countryOfIncorporation)}
+              />
+            </>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-ui">Gender</Label>
+                <Select value={values.gender || undefined} onValueChange={(gender) => set("gender", gender)}>
+                  <SelectTrigger className="h-10 text-ui">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SC_GENDERS.map((gender) => (
+                      <SelectItem key={gender} value={gender}>
+                        {SC_GENDER_LABELS[gender]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Field
+                type="date"
+                label="Date of birth"
+                value={values.dateOfBirth}
+                onChange={(dateOfBirth) => set("dateOfBirth", dateOfBirth)}
+              />
+              <Field
+                label="Nationality"
+                value={values.nationality}
+                onChange={(nationality) => set("nationality", nationality)}
+              />
+            </>
+          )}
+          <Field label="Address" value={values.line1} onChange={(line1) => set("line1", line1)} />
+          <Field label="Address line 2" value={values.line2} onChange={(line2) => set("line2", line2)} />
+          <div className="space-y-1.5">
+            <Label className="text-ui">State</Label>
+            <Select value={values.state || undefined} onValueChange={(state) => set("state", state)}>
+              <SelectTrigger className="h-10 text-ui">
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                {SC_MALAYSIAN_STATES.map((state) => (
+                  <SelectItem key={state} value={state}>
+                    {state}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Field label="Postcode" value={values.postalCode} onChange={(postalCode) => set("postalCode", postalCode)} />
+          {showShare ? (
+            <>
               <div className="space-y-1.5">
                 <Label className="text-ui">Share type</Label>
-                <Select
-                  value={values.shareType || undefined}
-                  onValueChange={(shareType) => set("shareType", shareType)}
-                >
+                <Select value={values.shareType || undefined} onValueChange={(shareType) => set("shareType", shareType)}>
                   <SelectTrigger className="h-10 text-ui">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
@@ -205,7 +319,70 @@ export function OrganizationPersonEditorDialog({
                   </SelectContent>
                 </Select>
               </div>
-            </div>
+              {values.shareType === "OTHERS" ? (
+                <Field
+                  label="Other share type"
+                  value={values.shareTypeOther}
+                  onChange={(shareTypeOther) => set("shareTypeOther", shareTypeOther)}
+                />
+              ) : null}
+              <Field
+                label="Shareholding units"
+                value={values.shareholdingUnits}
+                onChange={(shareholdingUnits) => set("shareholdingUnits", shareholdingUnits)}
+              />
+              <Field
+                label="Shareholding amount"
+                value={values.shareholdingAmount}
+                onChange={(shareholdingAmount) => set("shareholdingAmount", shareholdingAmount)}
+              />
+              <Field
+                label="Shareholding %"
+                value={values.shareholdingPercentage}
+                onChange={(shareholdingPercentage) => set("shareholdingPercentage", shareholdingPercentage)}
+              />
+            </>
+          ) : null}
+          {showOfficer ? (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-ui">Designation</Label>
+                <Select
+                  value={values.designation || undefined}
+                  onValueChange={(designation) => set("designation", designation)}
+                >
+                  <SelectTrigger className="h-10 text-ui">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SC_DESIGNATIONS.map((designation) => (
+                      <SelectItem key={designation} value={designation}>
+                        {SC_DESIGNATION_LABELS[designation]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {values.designation === "OTHERS" ? (
+                <Field
+                  label="Other designation"
+                  value={values.designationOther}
+                  onChange={(designationOther) => set("designationOther", designationOther)}
+                />
+              ) : null}
+              <Field
+                type="date"
+                label="Appointment date"
+                value={values.appointmentDate}
+                onChange={(appointmentDate) => set("appointmentDate", appointmentDate)}
+              />
+              <Field
+                type="date"
+                label="Resignation date"
+                value={values.resignationDate}
+                onChange={(resignationDate) => set("resignationDate", resignationDate)}
+              />
+            </>
           ) : null}
         </div>
         <DialogFooter>
@@ -240,15 +417,22 @@ function Field({
   label,
   value,
   onChange,
+  type = "text",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  type?: "text" | "date";
 }) {
   return (
     <div className="space-y-1.5">
       <Label className="text-ui">{label}</Label>
-      <Input className="h-10 text-ui" value={value} onChange={(event) => onChange(event.target.value)} />
+      <Input
+        className="h-10 text-ui"
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </div>
   );
 }

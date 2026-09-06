@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   GUARANTOR_COMPANY_RELATIONSHIPS,
   GUARANTOR_INDIVIDUAL_RELATIONSHIPS,
+  SC_FUND_RAISING_PURPOSES,
   UTILISATION_OFFER_CONSENT_IDS,
   areUtilisationOfferConsentsComplete,
   isRegtankIso3166Code,
@@ -51,29 +52,41 @@ const aboutYourBusinessSchema = z.object({
   single_customer_over_50_revenue: yesNoBooleanSchema,
 });
 
-const whyRaisingFundsSchema = z.object({
-  financing_for: z.string().max(400).optional().default(""),
-  how_funds_used: z.string().max(400).optional().default(""),
-  business_plan: z.string().max(1000).optional().default(""),
-  risks_delay_repayment: z.string().max(400).optional().default(""),
-  backup_plan: z.string().max(400).optional().default(""),
-  raising_on_other_p2p: yesNoBooleanSchema,
-  platform_name: z.string().max(200).nullable().optional(),
-  amount_raised: z.union([z.string(), z.number()]).nullable().optional(),
-  same_invoice_used: z.boolean().nullable().optional(),
-  accounting_software: z.string().max(200).optional().default(""),
-  supporting_documents: z
-    .array(
-      z.object({
-        file_name: z.string().min(1),
-        file_size: z.number().int().nonnegative(),
-        s3_key: z.string().min(1),
-        uploaded_at: z.string().optional(),
-      })
-    )
-    .optional()
-    .default([]),
-});
+export const whyRaisingFundsSchema = z
+  .object({
+    financing_for: z.string().max(400).optional().default(""),
+    how_funds_used: z.string().max(400).optional().default(""),
+    business_plan: z.string().max(1000).optional().default(""),
+    risks_delay_repayment: z.string().max(400).optional().default(""),
+    backup_plan: z.string().max(400).optional().default(""),
+    raising_on_other_p2p: yesNoBooleanSchema,
+    platform_name: z.string().max(200).nullable().optional(),
+    amount_raised: z.union([z.string(), z.number()]).nullable().optional(),
+    same_invoice_used: z.boolean().nullable().optional(),
+    accounting_software: z.string().max(200).optional().default(""),
+    sc_purpose_of_fund_raising: z.enum(SC_FUND_RAISING_PURPOSES).optional().nullable(),
+    sc_purpose_other: z.string().max(400).optional().default(""),
+    supporting_documents: z
+      .array(
+        z.object({
+          file_name: z.string().min(1),
+          file_size: z.number().int().nonnegative(),
+          s3_key: z.string().min(1),
+          uploaded_at: z.string().optional(),
+        })
+      )
+      .optional()
+      .default([]),
+  })
+  .superRefine((value, ctx) => {
+    if (value.sc_purpose_of_fund_raising === "OTHERS" && !value.sc_purpose_other.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["sc_purpose_other"],
+        message: "Describe the other purpose of fund raising",
+      });
+    }
+  });
 
 const guarantorAgreementSchema = z
   .object({

@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   FINANCIAL_FIELD_LABELS,
+  ISSUER_PROFILE_BALANCE_SHEET_KEYS,
+  ISSUER_PROFILE_PNL_KEYS,
   type IssuerOrgFinancialSummary,
   type OrganizationDetailResponse,
 } from "@cashsouk/types";
@@ -30,24 +32,7 @@ import { missingFieldKeys } from "@/organizations/utils/organization-profile-ove
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-const EDITABLE_KEYS = [
-  "bscatot",
-  "bsclbank",
-  "curlib_borrowing",
-  "curlib_non_borrowing",
-  "ncl_loan",
-  "ncl_non_loan",
-  "bsqpuc",
-  "equity_accumulated_profit",
-  "turnover",
-  "operating_cost",
-  "admin_cost",
-  "interest_cost",
-  "other_cost",
-  "plnpbt",
-  "plnpat",
-  "plnetdiv",
-] as const;
+const EDITABLE_KEYS = [...ISSUER_PROFILE_BALANCE_SHEET_KEYS, ...ISSUER_PROFILE_PNL_KEYS] as const;
 
 function fieldLabel(key: string): string {
   return FINANCIAL_FIELD_LABELS[key] ?? key;
@@ -180,20 +165,43 @@ export function OrganizationFinancialsPanel({
                 : "Enter figures for the latest financial year."}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {EDITABLE_KEYS.map((key) => (
-              <div key={key} className="space-y-1.5">
-                <Label className="text-ui">{fieldLabel(key)}</Label>
-                <Input
-                  className="h-10 text-ui"
-                  value={draft[key] ?? ""}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, [key]: event.target.value }))
-                  }
-                  disabled={!canManage}
-                />
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <h3 className="text-card-title">Balance sheet</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {ISSUER_PROFILE_BALANCE_SHEET_KEYS.map((key) => (
+                  <div key={key} className="space-y-1.5">
+                    <Label className="text-ui">{fieldLabel(key)}</Label>
+                    <Input
+                      className="h-10 text-ui"
+                      value={draft[key] ?? ""}
+                      onChange={(event) =>
+                        setDraft((current) => ({ ...current, [key]: event.target.value }))
+                      }
+                      disabled={!canManage}
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-card-title">Profit and loss</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {ISSUER_PROFILE_PNL_KEYS.map((key) => (
+                  <div key={key} className="space-y-1.5">
+                    <Label className="text-ui">{fieldLabel(key)}</Label>
+                    <Input
+                      className="h-10 text-ui"
+                      value={draft[key] ?? ""}
+                      onChange={(event) =>
+                        setDraft((current) => ({ ...current, [key]: event.target.value }))
+                      }
+                      disabled={!canManage}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" className="h-10" onClick={() => setOpen(false)}>

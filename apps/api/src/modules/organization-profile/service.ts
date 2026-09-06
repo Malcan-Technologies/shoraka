@@ -61,6 +61,8 @@ import {
 type Portal = "issuer" | "investor";
 
 const USER_LOCKED_ORG_FIELDS = new Set(["name"]);
+/** Shared master fields the investor/issuer may change even when already filled (fill-empty-only still applies to other USER writes). */
+const USER_OVERWRITE_ORG_FIELDS = new Set(["scInvestorCategory"]);
 const USER_LOCKED_PARTY_FIELDS = new Set([
   "name",
   "identityNumber",
@@ -646,7 +648,7 @@ export async function patchOrgMasterProfile(params: {
       incoming,
       locked: USER_LOCKED_ORG_FIELDS,
     });
-    if (fillEmptyOnly) {
+    if (fillEmptyOnly && !USER_OVERWRITE_ORG_FIELDS.has(field)) {
       const result = fillEmptyMaster({
         master: current,
         incoming,
@@ -798,9 +800,6 @@ export async function patchOrgMasterProfile(params: {
     );
   }
   if (patch.scInvestorCategory !== undefined) {
-    if (source === "USER") {
-      throw new AppError(403, "FORBIDDEN", "SC ComRep investor type is set by CashSouk admin.");
-    }
     const organizationType = investor.type === "COMPANY" ? "COMPANY" : "PERSONAL";
     if (
       patch.scInvestorCategory !== null &&
@@ -1080,14 +1079,18 @@ function stampProvidedPartyFields(
     if (filled) sources = stampSource(sources, field, source);
   };
   mark("name", Boolean(patch.name?.trim()));
+  mark("salutation", Boolean(patch.salutation?.trim()));
   mark("identityNumber", Boolean(patch.identityNumber?.trim()));
   mark("identityPrefix", Boolean(patch.identityPrefix));
   mark("shareholdingPercentage", patch.shareholdingPercentage != null && patch.shareholdingPercentage !== "");
   mark("shareholdingUnits", patch.shareholdingUnits != null && patch.shareholdingUnits !== "");
   mark("shareholdingAmount", patch.shareholdingAmount != null && patch.shareholdingAmount !== "");
   mark("shareType", Boolean(patch.shareType));
+  mark("shareTypeOther", Boolean(patch.shareTypeOther?.trim()));
   mark("appointmentDate", Boolean(patch.appointmentDate));
+  mark("resignationDate", Boolean(patch.resignationDate));
   mark("designation", Boolean(patch.designation));
+  mark("designationOther", Boolean(patch.designationOther?.trim()));
   mark("nationality", Boolean(patch.nationality?.trim()));
   mark("gender", Boolean(patch.gender));
   mark("dateOfBirth", Boolean(patch.dateOfBirth));
@@ -1201,6 +1204,7 @@ export async function createUserAddedParty(params: {
         is_shareholder: nextShareholder,
         is_board: nextBoard,
         is_management: nextManagement,
+        salutation: fill(existing.salutation, params.patch.salutation ?? null),
         gender: fill(existing.gender, params.patch.gender ?? null),
         nationality: fill(existing.nationality, params.patch.nationality ?? null),
         country_of_incorporation: fill(
@@ -1231,6 +1235,7 @@ export async function createUserAddedParty(params: {
         designation: fill(existing.designation, params.patch.designation ?? null),
         designation_other: fill(existing.designation_other, params.patch.designationOther ?? null),
         appointment_date: fill(existing.appointment_date, parseDateInput(params.patch.appointmentDate)),
+        resignation_date: fill(existing.resignation_date, parseDateInput(params.patch.resignationDate)),
         field_sources: asJson({ ...parseFieldSources(existing.field_sources), ...fieldSources }),
         ...(existing.party_key !== partyKey &&
         !existingRows.some((row) => row.id !== existing.id && row.party_key === partyKey)
@@ -1257,13 +1262,17 @@ export async function createUserAddedParty(params: {
       membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
       entity_type: entityType,
       name: params.patch.name ?? null,
+      salutation: params.patch.salutation ?? null,
       identity_number: identity,
       identity_prefix: params.patch.identityPrefix ?? (entityType === "CORPORATE" ? "ROC" : null),
       is_director: roles.isDirector,
       is_shareholder: roles.isShareholder,
       is_board: roles.isBoard,
       is_management: roles.isManagement,
-      gender: params.patch.gender ?? null,
+      gender:
+        entityType === OrganizationPartyEntityType.CORPORATE
+          ? (params.patch.gender ?? "NOT_APPLICABLE")
+          : (params.patch.gender ?? null),
       nationality: params.patch.nationality ?? null,
       country_of_incorporation: params.patch.countryOfIncorporation ?? null,
       date_of_birth: parseDateInput(params.patch.dateOfBirth),
@@ -1277,6 +1286,7 @@ export async function createUserAddedParty(params: {
       designation: params.patch.designation ?? null,
       designation_other: params.patch.designationOther ?? null,
       appointment_date: parseDateInput(params.patch.appointmentDate),
+      resignation_date: parseDateInput(params.patch.resignationDate),
       field_sources: asJson(fieldSources),
     },
   });
