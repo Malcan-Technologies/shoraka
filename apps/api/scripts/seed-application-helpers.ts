@@ -140,6 +140,8 @@ export function buildBusinessDetails(): Record<string, unknown> {
     },
     why_raising_funds: {
       financing_for: "Working capital to fulfill a new contract with a major client.",
+      sc_purpose_of_fund_raising: "WORKING_CAPITAL",
+      sc_purpose_other: "",
       how_funds_used: "60% for inventory, 25% for payroll, 15% for equipment maintenance.",
       business_plan: "Expand capacity by 20% in the next 12 months.",
       risks_delay_repayment: "Supply chain delays may affect delivery. We maintain buffer stock.",

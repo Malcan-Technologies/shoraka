@@ -110,6 +110,7 @@ const MAX_CHARS_OTHER_BUSINESS_TEXTAREA = 400;
 type YesNo = "yes" | "no";
 
 interface WhyRaisingFunds {
+  /** Legacy JSON `financing_for` — round-tripped for submitted applications; not shown in the current form. */
   financingFor: string;
   scPurposeOfFundRaising: ScFundRaisingPurpose | "";
   scPurposeOther: string;
@@ -1574,7 +1575,6 @@ export function BusinessDetailsStep({
   const evaluateBusinessDetails = React.useCallback(
     (mode: "presence" | "strict") => {
       const {
-        financingFor,
         scPurposeOfFundRaising,
         scPurposeOther,
         howFundsUsed,
@@ -1588,7 +1588,6 @@ export function BusinessDetailsStep({
       } = whyRaisingFunds;
 
       if (
-        !financingFor.trim() ||
         !scPurposeOfFundRaising ||
         (scPurposeOfFundRaising === "OTHERS" && !scPurposeOther.trim()) ||
         !howFundsUsed.trim() ||
@@ -2344,27 +2343,8 @@ export function BusinessDetailsStep({
 
         <div className={rowGridClassName}>
           <div className="contents">
-            <Label htmlFor="financing-for" className={labelTextareaClassName}>
-              What is this financing for?
-            </Label>
-            <TextareaWithCharCount
-              id="financing-for"
-              value={whyRaisingFunds.financingFor}
-              onChange={(e) =>
-                setWhyRaisingFunds((prev) => ({
-                  ...prev,
-                  financingFor: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
-                }))
-              }
-              placeholder="Add details"
-              maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
-              className={textareaClassName}
-              countLabel={`${whyRaisingFunds.financingFor.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
-              disabled={fieldsLocked}
-            />
-
             <Label htmlFor="sc-purpose-of-fund-raising" className={labelTextareaClassName}>
-              Purpose of fund raising (SC)
+              Purpose of Fund Raising
             </Label>
             <Select
               value={whyRaisingFunds.scPurposeOfFundRaising || undefined}

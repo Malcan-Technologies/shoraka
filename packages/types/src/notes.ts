@@ -2,6 +2,7 @@ import type { MarcSmeGrade } from "./marc-credit-grade";
 import type { FacilityFeeCollectionWaiver, InvoiceFeeSchedule } from "./fee-schedule";
 import type { ProfitWindowClassification } from "./tenure-profit";
 import type { ExcessLateChargesDto } from "./excess-late-charges";
+import { formatScPurposeOfFundRaisingDisplay } from "./comrep-profile";
 
 /** Display label for a stored note reference (e.g. NOTE-20260512-ABC → Note 20260512-ABC). */
 export function formatNoteReferenceDisplay(reference: string | null | undefined): string {
@@ -22,9 +23,17 @@ function trimmedText(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-/** Frozen `notes.purpose_snapshot.financing_for` — investor-visible purpose of financing. */
+/**
+ * Frozen note purpose: legacy `financing_for` when present, else SC Purpose of Fund Raising.
+ */
 export function resolvePurposeOfFinancing(purposeSnapshot: unknown): string | null {
-  return trimmedText(asRecord(purposeSnapshot)?.financing_for);
+  const record = asRecord(purposeSnapshot);
+  const legacy = trimmedText(record?.financing_for);
+  if (legacy) return legacy;
+  return formatScPurposeOfFundRaisingDisplay(
+    record?.sc_purpose_of_fund_raising,
+    record?.sc_purpose_other
+  );
 }
 
 /** Frozen `notes.contract_snapshot.contract_details.description`. */

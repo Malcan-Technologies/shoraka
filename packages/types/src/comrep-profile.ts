@@ -282,6 +282,45 @@ export function isScFundRaisingPurpose(value: unknown): value is ScFundRaisingPu
   );
 }
 
+function trimmedPurposeText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * User-facing Purpose of Fund Raising from the SC enum.
+ * When Others, appends the specified free-text if present.
+ */
+export function formatScPurposeOfFundRaisingDisplay(
+  purpose: unknown,
+  other?: unknown
+): string | null {
+  if (!isScFundRaisingPurpose(purpose)) return null;
+  const label = SC_FUND_RAISING_PURPOSE_LABELS[purpose];
+  if (purpose !== "OTHERS") return label;
+  const otherText = trimmedPurposeText(other);
+  return otherText ? `${label}: ${otherText}` : label;
+}
+
+/**
+ * Application/review purpose string: SC enum when present, else legacy `financing_for`.
+ * Never concatenates both — the SC field replaced the free-text purpose question.
+ */
+export function resolveApplicationPurposeOfFundRaising(why: unknown): string | null {
+  const record =
+    why && typeof why === "object" && !Array.isArray(why)
+      ? (why as Record<string, unknown>)
+      : null;
+  if (!record) return null;
+  const sc = formatScPurposeOfFundRaisingDisplay(
+    record.sc_purpose_of_fund_raising ?? record.scPurposeOfFundRaising,
+    record.sc_purpose_other ?? record.scPurposeOther
+  );
+  if (sc) return sc;
+  return trimmedPurposeText(record.financing_for ?? record.financingFor);
+}
+
 export const SC_COMPANY_TYPE_LABELS: Record<ScCompanyType, string> = {
   SOLE_PROPRIETORSHIP: "Sole proprietorship",
   PARTNERSHIP: "Partnership",

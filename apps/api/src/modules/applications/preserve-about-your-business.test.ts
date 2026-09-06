@@ -39,4 +39,24 @@ describe("preserveLegacyAboutYourBusinessFields", () => {
     expect(preserved.about_your_business).toEqual({ what_does_company_do: "" });
     expect((preserved.why_raising_funds as Record<string, unknown>).accounting_software).toBe("");
   });
+
+  it("keeps existing financing_for when the current payload would store an empty string", () => {
+    const preserved = preserveLegacyAboutYourBusinessFields(
+      {
+        why_raising_funds: { financing_for: "", sc_purpose_of_fund_raising: "WORKING_CAPITAL" },
+      },
+      {
+        why_raising_funds: { financing_for: "", sc_purpose_of_fund_raising: "WORKING_CAPITAL" },
+      },
+      {
+        why_raising_funds: { financing_for: "Working capital" },
+      }
+    );
+    expect((preserved.why_raising_funds as Record<string, unknown>).financing_for).toBe(
+      "Working capital"
+    );
+    expect((preserved.why_raising_funds as Record<string, unknown>).sc_purpose_of_fund_raising).toBe(
+      "WORKING_CAPITAL"
+    );
+  });
 });

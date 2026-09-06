@@ -71,6 +71,8 @@ import {
   GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
   GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS,
   INHERITED_FACILITY_GUARANTORS_ADMIN_COPY,
+  isScFundRaisingPurpose,
+  SC_FUND_RAISING_PURPOSE_LABELS,
   type GuarantorCompanyRelationship,
   type GuarantorIndividualRelationship,
 } from "@cashsouk/types";
@@ -474,7 +476,8 @@ interface RelationalGuarantorEntry {
 /** Normalized view model for Business Details review. Supports snake_case and camelCase from API/DB. */
 interface BusinessDetailsView {
   whyRaisingFunds: {
-    financingFor: string;
+    purposeOfFundRaising: string;
+    purposeOther: string | null;
     howFundsUsed: string;
     businessPlan: string;
     risksDelayRepayment: string;
@@ -491,6 +494,25 @@ interface BusinessDetailsView {
 
 function reviewStr(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
+}
+
+function parsePurposeOfFundRaising(w: Record<string, unknown> | undefined): {
+  purposeOfFundRaising: string;
+  purposeOther: string | null;
+} {
+  const scRaw = w?.sc_purpose_of_fund_raising ?? w?.scPurposeOfFundRaising;
+  const scOther = reviewStr(w?.sc_purpose_other ?? w?.scPurposeOther);
+  if (isScFundRaisingPurpose(scRaw)) {
+    return {
+      purposeOfFundRaising: SC_FUND_RAISING_PURPOSE_LABELS[scRaw],
+      purposeOther: scRaw === "OTHERS" ? scOther || REVIEW_EMPTY_LABEL : null,
+    };
+  }
+  const legacy = reviewStr(w?.financing_for ?? w?.financingFor);
+  return {
+    purposeOfFundRaising: legacy || REVIEW_EMPTY_LABEL,
+    purposeOther: null,
+  };
 }
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
@@ -1027,7 +1049,7 @@ export function parseBusinessDetails(raw: unknown, relationalGuarantors?: Guaran
 
   return {
     whyRaisingFunds: {
-      financingFor: str(w?.financing_for ?? w?.financingFor) || REVIEW_EMPTY_LABEL,
+      ...parsePurposeOfFundRaising(w),
       howFundsUsed: str(w?.how_funds_used ?? w?.howFundsUsed) || REVIEW_EMPTY_LABEL,
       businessPlan: str(w?.business_plan ?? w?.businessPlan) || REVIEW_EMPTY_LABEL,
       risksDelayRepayment: str(w?.risks_delay_repayment ?? w?.risksDelayRepayment) || REVIEW_EMPTY_LABEL,
@@ -1915,12 +1937,21 @@ export function BusinessSection({
           <ReviewFieldBlock title="Why Are You Raising Funds?">
           <div className="space-y-2">
             <ComparisonFieldRow
-              label="What Is This Financing For?"
-              before={b.whyRaisingFunds.financingFor}
-              after={a.whyRaisingFunds.financingFor}
+              label="Purpose of Fund Raising"
+              before={b.whyRaisingFunds.purposeOfFundRaising}
+              after={a.whyRaisingFunds.purposeOfFundRaising}
               changed={isPathChanged("business_details")}
               multiline
             />
+            {b.whyRaisingFunds.purposeOther != null || a.whyRaisingFunds.purposeOther != null ? (
+              <ComparisonFieldRow
+                label="Other purpose"
+                before={b.whyRaisingFunds.purposeOther ?? REVIEW_EMPTY_LABEL}
+                after={a.whyRaisingFunds.purposeOther ?? REVIEW_EMPTY_LABEL}
+                changed={isPathChanged("business_details")}
+                multiline
+              />
+            ) : null}
             <ComparisonFieldRow
               label="How Will the Funds Be Used?"
               before={b.whyRaisingFunds.howFundsUsed}
@@ -2073,8 +2104,14 @@ export function BusinessSection({
           ) : null}
           <ReviewFieldBlock title="Why Are You Raising Funds?">
             <div className={reviewRowGridClass}>
-              <Label className={reviewLabelClass}>What Is This Financing For?</Label>
-              <ReviewValue value={view.whyRaisingFunds.financingFor} multiline />
+              <Label className={reviewLabelClass}>Purpose of Fund Raising</Label>
+              <ReviewValue value={view.whyRaisingFunds.purposeOfFundRaising} multiline />
+              {view.whyRaisingFunds.purposeOther != null ? (
+                <>
+                  <Label className={reviewLabelClass}>Other purpose</Label>
+                  <ReviewValue value={view.whyRaisingFunds.purposeOther} multiline />
+                </>
+              ) : null}
               <Label className={reviewLabelClass}>How Will the Funds Be Used?</Label>
               <ReviewValue value={view.whyRaisingFunds.howFundsUsed} multiline />
               <Label className={reviewLabelClass}>Tell Us About Your Business Plan</Label>
