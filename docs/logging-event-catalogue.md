@@ -51,7 +51,11 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `GENERATED_DOCUMENT_EVIDENCE` | LEGAL_ONLY | LIVE | generated_document_evidence | no |
 | `INVESTMENT_COMMITTED` | NOTE_TIMELINE | LIVE | note_events | yes |
 | `INVESTMENT_NOTE_CERTIFICATE_GENERATED` | ADMIN_ACTIVITY | LIVE | note_events | no |
+| `INVESTMENT_NOTE_CERTIFICATE_PUBLISHED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `INVESTMENT_NOTE_CERTIFICATE_REISSUED` | ADMIN_ACTIVITY | LIVE | note_events | no |
+| `INVESTMENT_SETTLEMENT_CONFIRMATION_GENERATED` | ADMIN_ACTIVITY | LIVE | note_events | no |
+| `INVESTMENT_SETTLEMENT_CONFIRMATION_PUBLISHED` | ADMIN_ACTIVITY | LIVE | note_events | no |
+| `INVESTMENT_SETTLEMENT_CONFIRMATION_REISSUED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `INVITATION_REVOKED` | SECURITY_ONLY | LIVE | security_logs | no |
 | `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `INVOICE_OFFER_ACCEPTANCE_RESUBMITTED` | APPLICATION_TIMELINE | LIVE | application_logs | yes |
@@ -107,7 +111,7 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `PAYMASTER_ACKNOWLEDGEMENT_CONFIRMED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `PAYMASTER_ACKNOWLEDGEMENT_UPLOADED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `PAYMASTER_CREATED` | ADMIN_ACTIVITY | LIVE | application_logs | no |
-| `PAYMASTER_IDENTITY_RESOLVED` | ADMIN_ACTIVITY | LIVE | application_logs | no |
+| `PAYMASTER_IDENTITY_RESOLVED` | ADMIN_ACTIVITY | HISTORICAL_READER | application_logs | no |
 | `PAYMASTER_IDENTITY_UPDATED` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `PAYMASTER_LINKED_TO_ISSUER` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `PAYMASTER_NOTICE_GENERATED` | ADMIN_ACTIVITY | LIVE | note_events | no |
@@ -143,6 +147,7 @@ Generated from `apps/api/src/lib/audit/visibility-matrix.ts`. Historical and DEV
 | `SECTION_REVIEWED_REJECTED` | ADMIN_ACTIVITY | LIVE | application_logs | no |
 | `SETTLEMENT_APPROVED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `SETTLEMENT_HIBAH_RECEIPT_GENERATED` | ADMIN_ACTIVITY | LIVE | note_events | no |
+| `SETTLEMENT_HIBAH_RECEIPT_PUBLISHED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `SETTLEMENT_HIBAH_RECEIPT_REISSUED` | ADMIN_ACTIVITY | LIVE | note_events | no |
 | `SETTLEMENT_POSTED` | NOTE_TIMELINE | LIVE | note_events | yes |
 | `SETTLEMENT_PREVIEWED` | FORENSIC_ONLY | HISTORICAL_READER | note_events | no |

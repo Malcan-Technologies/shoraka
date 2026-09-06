@@ -123,13 +123,13 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(contract).toContain("Paymaster Verification");
     expect(customer).toContain("SubmittedVerifiedPaymasterIdentity");
     expect(contract).toContain("SubmittedVerifiedPaymasterIdentity");
-    expect(comparison).toContain("Use Verified Paymaster Details");
-    expect(comparison).toContain("Submitted by Issuer");
+    expect(comparison).toContain("Originally submitted by issuer");
     expect(comparison).toContain("Official Paymaster Identity");
-    expect(comparison).toContain("useVerifiedDisabled");
-    expect(customer).toContain("useVerifiedDisabled={paymasterUseVerifiedDisabled");
-    expect(contract).toContain("useVerifiedDisabled={paymasterUseVerifiedDisabled");
     expect(comparison).toContain("Request Amendment");
+    expect(comparison).not.toContain("Use Verified Paymaster Details");
+    expect(comparison).not.toContain("useVerifiedDisabled");
+    expect(customer).not.toContain("useVerifiedDisabled");
+    expect(contract).not.toContain("useVerifiedDisabled");
     expect(customer).not.toMatch(/showMismatchBanner/);
     expect(contract).not.toMatch(/showMismatchBanner/);
     expect(panel).toContain("Verify Paymaster");

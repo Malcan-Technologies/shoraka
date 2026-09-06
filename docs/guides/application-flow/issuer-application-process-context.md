@@ -351,7 +351,7 @@ Issuer dashboard status display is derived from a combination of:
 - There is no repayment, paymaster payment, settlement, refund, late-fee, or accounting ledger model.
 - Existing `Loan` and `Investment` models are not wired into active routes.
 - Monetary values in active application, contract, and invoice flows are often JSON/number based rather than decimal-ledger based.
-- Paymaster official identity is the `Paymaster` master (SSM-keyed). Applications still keep issuer-submitted identity on `Contract.customer_details`.
+- Paymaster official identity is the `Paymaster` master (SSM-keyed). Applications keep issuer-submitted identity in revision history. Eligible working applications use the official identity automatically after Admin verifies or later corrects the master.
 - Signing flow is split across two issuer offer modal implementations.
 - Some existing docs have minor drift from the current file structure; use the code paths in this document as the current anchors.
 

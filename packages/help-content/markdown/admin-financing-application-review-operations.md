@@ -189,7 +189,7 @@ Invoice-only products omit facility stages and move from **invoice pending** to 
 
 ## Paymaster identity
 
-The Paymaster Detail page is the Admin-managed official identity for that SSM. Same SSM number is always the same master. SSM cannot be changed. Applications keep the issuer's originally submitted identity on `customer_details` for review and history.
+The Paymaster Detail page is the Admin-managed official identity for that SSM. Same SSM number is always the same master. SSM cannot be changed. The issuer's originally submitted identity remains in application revision history.
 
 Issuer flow:
 
@@ -199,13 +199,33 @@ Issuer flow:
 4. If none exists, they enter identity for this application. A Paymaster master is created **Unverified** on submit, not on draft save.
 5. Admin confirms the official identity from Paymaster Detail or the Application Review shortcut. A Verified Paymaster can be reused by other issuers. Admin can still correct legal name, country, and entity type after it is Verified.
 
-On Application Review, **Paymaster Verification** is separate from section approval, application approval, SSM onboarding, MARC, and Notice of Assignment. **Verify Paymaster** opens the same identity form as Paymaster Detail. Admin decides the official fields; the application's submitted values are reference only.
+On Application Review, **Paymaster Verification** is separate from section approval, application approval, SSM onboarding, MARC, and Notice of Assignment. **Verify Paymaster** opens the same identity form as Paymaster Detail. Admin decides the official fields.
 
-When submitted customer identity differs from the official Paymaster identity, Application Review shows **Submitted by Issuer** vs **Official Paymaster Identity**. **Use Verified Paymaster Details** updates this application's current working details internally and does not notify the issuer. It is available only while that review section is still open (pending or amendment requested). Historical revision snapshots stay unchanged. **Request Amendment** uses the existing Facility / Customer amendment remark flow. Do not send a facility or invoice offer until identity is verified and this application uses the official identity.
+### Before verification
+
+Applications may contain issuer-submitted Paymaster identity. The working copy on an Unverified master stays as submitted until Admin verifies.
+
+### Verification
+
+Admin confirms official identity on Paymaster Detail or the shared Verify modal. Legal name, country, and entity type are editable. SSM is read-only. Confirming updates and verifies in one transaction when the master is still Unverified.
+
+### After verification
+
+The official Paymaster identity automatically becomes the current working identity for eligible active applications linked to that Paymaster (draft if already linked, submitted / under review, pending or amendment-requested review, and other still-editable origination states). Admins do not update each application by hand. Related-party, large-private-company, and customer document fields are preserved.
+
+Completed, approved-and-frozen, already-signed, facility-established, and note-created applications stay historical. Existing revision snapshots, Note `paymaster_snapshot`, published Prospectus, and already-generated documents are not rewritten.
+
+If current working identity still differs from the official master (typically a frozen application), Application Review can show **Originally submitted by issuer** next to **Official Paymaster Identity** for reference. **Request Amendment** uses the existing Facility / Customer amendment remark flow.
+
+Do not send a facility or invoice offer until the Paymaster is verified. After verification, eligible working applications already match the official identity, so the offer identity gate should pass without a separate resolve step.
+
+### Amendment
+
+If the same Verified Paymaster remains linked, the issuer sees the current official locked identity when they return to the application. The old submitted name is not restored into the form. A different SSM means a different Paymaster; the old master's SSM is never changed. If the new SSM is already Verified, that official identity is used. If it is Unverified, the application may keep issuer-submitted working identity until Admin verifies that master.
 
 Related-party (Yes / No) is per issuer link, not part of locked master identity. Large Private Company stays on the application / facility.
 
-The Paymasters register lists identity and Verified / Unverified status. It is not a mismatch inbox. Edit Paymaster Details and Verify Paymaster both change only the official master. They do not rewrite historical snapshots or send customer notifications.
+The Paymasters register lists identity and Verified / Unverified status. It is not a mismatch inbox. Edit Paymaster Details and Verify Paymaster change the official master and overlay that identity onto eligible working applications. They do not rewrite historical snapshots or send customer notifications.
 - Confirm guarantor screening before treating guarantor support as established.
 - Use invoice offers for invoice-level commercial approval and facility offers for facility-level approval.
 - Do not send offers until upstream sections are approved and the relevant tab is unlocked.

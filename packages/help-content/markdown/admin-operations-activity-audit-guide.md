@@ -314,7 +314,7 @@ Payment Amount Mismatch may appear as Payment Currency Mismatch when the currenc
 | Tawarruq Order Submitted | Note → Activity | Not customer visible | None | None |
 | Tawarruq Certificate Retrieved | Note → Activity | Not customer visible | None | None |
 
-Paymaster identity create, link, Admin edit, verify, and Use Verified are Admin/internal. They do not send typed notifications. **Paymaster Identity Updated** appears on Paymaster Activity, and on Application Activity only when the edit came from Application Review.
+Paymaster identity create, link, Admin edit, and verify are Admin/internal. They do not send typed notifications. After verification or a later Verified-master edit, eligible working applications use the official identity automatically; that overlay does not write a per-application Activity event. Historical **Paymaster Identity Resolved** rows still render. **Paymaster Identity Updated** appears on Paymaster Activity, and on Application Activity only when the edit came from Application Review.
 
 ### Legal
 

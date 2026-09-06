@@ -1,7 +1,7 @@
 /**
  * Paymaster master-identity application Activity metadata.
- * Create/link/verify store trusted master identity. Use Verified also records the
- * submitted-before overlay on this application.
+ * Create/link/verify/update store trusted master identity. Historical
+ * PAYMASTER_IDENTITY_RESOLVED rows still render; there is no live writer.
  */
 
 import type { Prisma } from "@prisma/client";

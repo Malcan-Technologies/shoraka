@@ -118,20 +118,3 @@ export function useUpdatePaymasterIdentity() {
     },
   });
 }
-
-export function useVerifiedPaymasterIdentity() {
-  const { getAccessToken } = useAuthToken();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (params: { applicationId: string }) => {
-      const response = await apiClient.useVerifiedPaymasterIdentity(params.applicationId);
-      if (!response.success) throw new Error(response.error.message);
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: paymastersKeys.all });
-      queryClient.invalidateQueries({ queryKey: applicationsKeys.all });
-    },
-  });
-}

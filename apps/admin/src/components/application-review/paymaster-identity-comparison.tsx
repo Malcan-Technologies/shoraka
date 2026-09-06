@@ -1,12 +1,10 @@
 "use client";
 
-import { toast } from "sonner";
 import {
   paymasterMasterIdentityFields,
   submittedIdentityDiffersFromVerified,
 } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
-import { useVerifiedPaymasterIdentity } from "@/paymasters/hooks/use-paymasters";
 import type { ApplicationReviewPaymaster } from "@/paymasters/components/paymaster-verification-panel";
 import { ComparisonFieldRow } from "./comparison-field-row";
 import { ReviewFieldBlock } from "./review-field-block";
@@ -23,8 +21,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-export { paymasterUseVerifiedDisabled } from "./paymaster-use-verified";
-
 export function shouldShowSubmittedVerifiedPaymaster(params: {
   customerDetails?: unknown;
   paymaster?: ApplicationReviewPaymaster | null;
@@ -38,40 +34,25 @@ export function shouldShowSubmittedVerifiedPaymaster(params: {
 export function SubmittedVerifiedPaymasterIdentity({
   customerDetails,
   paymaster,
-  applicationId,
-  canManage,
   actionsDisabled,
-  useVerifiedDisabled,
   onRequestAmendment,
 }: {
   customerDetails?: unknown;
   paymaster?: ApplicationReviewPaymaster | null;
   applicationId?: string;
-  canManage: boolean;
+  canManage?: boolean;
   actionsDisabled?: boolean;
-  useVerifiedDisabled?: boolean;
   onRequestAmendment: () => void;
 }) {
-  const useVerified = useVerifiedPaymasterIdentity();
   const submitted = asRecord(customerDetails) ?? {};
   const verified = paymaster ? paymasterMasterIdentityFields(paymaster) : null;
-
-  const onUseVerified = async () => {
-    if (!applicationId) return;
-    try {
-      await useVerified.mutateAsync({ applicationId });
-      toast.success("This application's customer details now use the official Paymaster identity.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not use the verified Paymaster.");
-    }
-  };
 
   return (
     <ReviewFieldBlock title="Paymaster identity">
       <div className="space-y-2">
         <div className={comparisonSplitRowGridClass}>
           <p className={`${reviewLabelClass} ${comparisonSplitBeforeColClass}`}>
-            Submitted by Issuer
+            Originally submitted by issuer
           </p>
           <p className={`${reviewLabelClass} ${comparisonSplitAfterColClass}`}>
             Official Paymaster Identity
@@ -103,21 +84,11 @@ export function SubmittedVerifiedPaymasterIdentity({
         />
       </div>
       <div className="flex flex-wrap gap-2 pt-2">
-        {canManage && applicationId ? (
-          <Button
-            type="button"
-            className="h-10 rounded-xl text-ui"
-            disabled={actionsDisabled || useVerifiedDisabled || useVerified.isPending}
-            onClick={() => void onUseVerified()}
-          >
-            {useVerified.isPending ? "Updating…" : "Use Verified Paymaster Details"}
-          </Button>
-        ) : null}
         <Button
           type="button"
           variant="outline"
           className="h-10 rounded-xl text-ui"
-          disabled={actionsDisabled || useVerified.isPending}
+          disabled={actionsDisabled}
           onClick={onRequestAmendment}
         >
           Request Amendment

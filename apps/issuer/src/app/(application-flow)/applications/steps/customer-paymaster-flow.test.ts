@@ -73,6 +73,17 @@ describe("customer SSM-first paymaster flow", () => {
     ).toBe(false);
   });
 
+  it("keeps verified identity locked during amendment of the same SSM", () => {
+    expect(isFacilityPaymasterLocked("AMENDMENT_REQUESTED")).toBe(false);
+    expect(
+      customerIdentityLocked({
+        stepEditable: true,
+        facilityPaymasterLocked: false,
+        lookupStatus: "FOUND_VERIFIED",
+      })
+    ).toBe(true);
+  });
+
   it("locks master identity after a verified lookup", () => {
     expect(
       customerIdentityLocked({

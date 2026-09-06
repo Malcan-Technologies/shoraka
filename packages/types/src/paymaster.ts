@@ -256,19 +256,13 @@ export const PAYMASTER_NOT_VERIFIED_MESSAGE =
   "You can only select a verified Paymaster for reuse.";
 export const PAYMASTER_NOT_VERIFIED_FOR_OFFER_MESSAGE =
   "Verify Paymaster identity before sending an offer.";
-export const PAYMASTER_NOT_VERIFIED_FOR_USE_VERIFIED_MESSAGE =
-  "Verify Paymaster identity before using the verified record.";
 
 export const PAYMASTER_NOT_LINKED_CODE = "PAYMASTER_NOT_LINKED";
 export const PAYMASTER_NOT_LINKED_MESSAGE = "This application has no linked Paymaster.";
 
 export const PAYMASTER_IDENTITY_UNRESOLVED_CODE = "PAYMASTER_IDENTITY_UNRESOLVED";
 export const PAYMASTER_IDENTITY_UNRESOLVED_MESSAGE =
-  "Use the official Paymaster identity on this application before sending an offer.";
-
-export const PAYMASTER_IDENTITY_SECTION_LOCKED_CODE = "PAYMASTER_IDENTITY_SECTION_LOCKED";
-export const PAYMASTER_IDENTITY_SECTION_LOCKED_MESSAGE =
-  "Use Verified Paymaster Details is only available while this review section is still open.";
+  "This application's Paymaster identity must match the official verified Paymaster before sending an offer.";
 
 export const PAYMASTER_SSM_MISMATCH_CODE = "PAYMASTER_SSM_MISMATCH";
 export const PAYMASTER_SSM_MISMATCH_MESSAGE =
