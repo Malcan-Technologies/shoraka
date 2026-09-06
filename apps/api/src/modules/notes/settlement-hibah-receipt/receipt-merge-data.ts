@@ -1,13 +1,9 @@
-import { certificatePartyDisplayReference } from "../investment-note-certificate/certificate-identity";
+import {
+  certificatePartyDisplayReference,
+  looksLikeRawDatabaseId,
+} from "../investment-note-certificate/certificate-identity";
 import type { SettlementHibahReceiptSnapshot } from "./types";
 import { formatReceiptAmount, formatReceiptCredit, formatReceiptRm } from "./receipt-format";
-
-function looksLikeRawDatabaseId(value: string): boolean {
-  return (
-    /^c[a-z0-9]{24}$/.test(value) ||
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
-  );
-}
 
 function printedIssuerReference(value: string): string {
   if (looksLikeRawDatabaseId(value)) {

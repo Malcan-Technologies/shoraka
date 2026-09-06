@@ -14,15 +14,29 @@ function nonEmpty(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+/** Prisma CUID (25) or UUID — never a public ISS-/IVT- display reference. */
+export function looksLikeRawDatabaseId(value: string): boolean {
+  return (
+    /^c[a-z0-9]{24}$/.test(value) ||
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  );
+}
+
+function isAllocatedOrgDisplayReference(value: string): boolean {
+  return /^(ISS|IVT)-/.test(value) && !looksLikeRawDatabaseId(value);
+}
+
 /**
  * Customer-facing party ID: allocated ISS-/IVT- display_reference only.
- * Never freeze a Prisma/CUID primary key into the certificate.
+ * Never freeze a Prisma/CUID primary key, UUID, or other internal id.
  */
 export function certificatePartyDisplayReference(
   displayReference: string | null | undefined,
   databaseId?: string | null
 ): string {
-  return snapshotBusinessReference(displayReference, databaseId) ?? MISSING;
+  const ref = snapshotBusinessReference(displayReference, databaseId);
+  if (!ref || !isAllocatedOrgDisplayReference(ref)) return MISSING;
+  return ref;
 }
 
 function resolveCodSsm(corporateOnboardingData: unknown): string | null {

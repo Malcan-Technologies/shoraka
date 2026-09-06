@@ -109,6 +109,23 @@ describe("buildInvestmentSettlementConfirmationHtml", () => {
     expect(html).toContain("10,637.50");
   });
 
+  it("does not print a raw issuer org id in merge HTML when the snapshot used ISS- or —", () => {
+    const issuerCuid = "cmknlimvf0003grp0hsbmc1dp";
+    const uuid = "550e8400-e29b-41d4-a716-446655440000";
+    const withIss = buildInvestmentSettlementConfirmationHtml(
+      snapshot({ issuerReference: "ISS-202608-DK3" })
+    );
+    const withMissing = buildInvestmentSettlementConfirmationHtml(
+      snapshot({ issuerReference: "—" })
+    );
+    expect(withIss).toContain("<dt>Issuer ID</dt><dd>ISS-202608-DK3</dd>");
+    expect(withMissing).toContain("<dt>Issuer ID</dt><dd>—</dd>");
+    expect(withIss).not.toContain(issuerCuid);
+    expect(withIss).not.toContain(uuid);
+    expect(withMissing).not.toContain(issuerCuid);
+    expect(withMissing).not.toContain(uuid);
+  });
+
   it("includes Ta’widh when the frozen snapshot says to show it", () => {
     const html = buildInvestmentSettlementConfirmationHtml(
       snapshot({
