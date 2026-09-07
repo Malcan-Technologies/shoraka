@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import {
   firstIssueMessage,
   issuesByField,
+  issuerShareholdingThresholdIssue,
+  formatPartyRoleLine,
   monthlyIssuerPersonCopy,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
@@ -22,7 +24,7 @@ import {
   validateIssuerPersonForm,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
-import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
+import { ComRepFieldLabel, PartyProfileDetailFields, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -35,76 +37,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-function formatDate(value: string | null | undefined): string {
-  if (!value) return "—";
-  return value.slice(0, 10);
-}
-
-export function PartyDetailFields({ party }: { party: OrganizationPartyProfileDto }) {
-  const officer = party.isDirector || party.isBoard || party.isManagement;
-  const copy = monthlyIssuerPersonCopy({ shareholder: party.isShareholder, officer });
-  const shareType =
-    party.shareType && party.shareType in SC_SHARE_TYPE_LABELS
-      ? SC_SHARE_TYPE_LABELS[party.shareType]
-      : party.shareType;
-  const designation =
-    party.designation && party.designation in SC_DESIGNATION_LABELS
-      ? SC_DESIGNATION_LABELS[party.designation]
-      : party.designation;
-  const gender =
-    party.gender && party.gender in SC_GENDER_LABELS ? SC_GENDER_LABELS[party.gender] : party.gender;
-  const prefix =
-    party.identityPrefix && party.identityPrefix in copy.identityPrefixLabels
-      ? copy.identityPrefixLabels[party.identityPrefix as keyof typeof copy.identityPrefixLabels]
-      : party.identityPrefix;
-  const dateValue =
-    party.entityType === "CORPORATE" ? formatDate(party.dateOfIncorporation) : formatDate(party.dateOfBirth);
-  const nationalityValue =
-    party.entityType === "CORPORATE" ? party.countryOfIncorporation : party.nationality;
-  const personKindValue = [
-    party.isBoard ? SC_MONTHLY_PERSON_KIND_LABELS.BOARD : null,
-    party.isManagement ? SC_MONTHLY_PERSON_KIND_LABELS.MANAGEMENT : null,
-  ]
-    .filter(Boolean)
-    .join("; ");
-
-  const items: Array<{ label: string; value: string; help?: string }> = [
-    { label: copy.salutation.label, value: party.salutation || "—", help: copy.salutation.help },
-    { label: copy.identityPrefix.label, value: prefix || "—" },
-    { label: copy.identity.label, value: party.identityNumber || "—", help: copy.identity.help },
-    { label: copy.gender.label, value: gender || "—", help: copy.gender.help },
-    { label: copy.nationality.label, value: nationalityValue || "—", help: copy.nationality.help },
-    { label: copy.dateOfBirth.label, value: dateValue, help: copy.dateOfBirth.help },
-    { label: copy.address.label, value: party.address?.line1 || "—" },
-    { label: "Address line 2", value: party.address?.line2 || "—" },
-    { label: copy.addressState.label, value: party.address?.state || "—", help: copy.addressState.help },
-    { label: copy.addressPostcode.label, value: party.address?.postalCode || "—", help: copy.addressPostcode.help },
-  ];
-  if (party.isShareholder) {
-    items.push(
-      { label: SC_MONTHLY_SHAREHOLDER.typeOfShares.label, value: shareType || "—" },
-      { label: SC_MONTHLY_SHAREHOLDER.typeOfSharesOthers.label, value: party.shareTypeOther || "—" },
-      { label: SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label, value: party.shareholdingUnits || "—" },
-      { label: SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label, value: party.shareholdingAmount || "—" },
-      { label: SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label, value: party.shareholdingPercentage || "—" }
-    );
-  }
-  if (officer) {
-    items.push(
-      { label: SC_MONTHLY_BOARD.boardOfDirectorManagementTeam.label, value: personKindValue || "—" },
-      { label: SC_MONTHLY_BOARD.designation.label, value: designation || "—" },
-      { label: SC_MONTHLY_BOARD.designationOthers.label, value: party.designationOther || "—", help: SC_MONTHLY_BOARD.designationOthers.help },
-      { label: SC_MONTHLY_BOARD.appointmentDate.label, value: formatDate(party.appointmentDate) },
-      { label: SC_MONTHLY_BOARD.resignationDate.label, value: formatDate(party.resignationDate), help: SC_MONTHLY_BOARD.resignationDate.help }
-    );
-  }
-  return (
-    <ProfileFieldGrid>
-      {items.map((item) => (
-        <ProfileReadField key={item.label} label={item.label} value={item.value} help={item.help} />
-      ))}
-    </ProfileFieldGrid>
-  );
+export function PartyDetailFields({
+  party,
+  person,
+}: {
+  party: OrganizationPartyProfileDto;
+  person?: import("@cashsouk/types").ApplicationPersonRow | null;
+}) {
+  return <PartyProfileDetailFields party={party} person={person ?? null} />;
 }
 
 export function AddPersonForm({
@@ -160,6 +100,10 @@ export function AddPersonForm({
       className="grid gap-4 sm:grid-cols-2"
       onSubmit={async (event) => {
         event.preventDefault();
+        if (!corporate && !isDirector && !isShareholder && !isBoard && !isManagement) {
+          toast.error("Select at least one role");
+          return;
+        }
         const officer = isDirector || isBoard || isManagement;
         const issues = validateIssuerPersonForm({
           entityType,
@@ -186,6 +130,12 @@ export function AddPersonForm({
           designationOther: form.designationOther,
           appointmentDate: form.appointmentDate,
         });
+        if (corporate || isShareholder) {
+          const shareIssue = issuerShareholdingThresholdIssue(form.shareholdingPercentage, {
+            required: true,
+          });
+          if (shareIssue) issues.push(shareIssue);
+        }
         if (issues.length > 0) {
           setFieldErrors(issuesByField(issues));
           toast.error(firstIssueMessage(issues));
@@ -515,8 +465,13 @@ export function PartyFillEmptyForm({
     appointmentDate: party.appointmentDate?.slice(0, 10) ?? "",
     resignationDate: party.resignationDate?.slice(0, 10) ?? "",
   });
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const officer = party.isDirector || party.isBoard || party.isManagement;
+  const corporate = party.entityType === "CORPORATE";
   const copy = monthlyIssuerPersonCopy({ shareholder: party.isShareholder, officer });
+  const identityLocked =
+    copy.identityPrefixLabels[party.identityPrefix as keyof typeof copy.identityPrefixLabels] ??
+    party.identityPrefix;
 
   return (
     <form
@@ -533,28 +488,43 @@ export function PartyFillEmptyForm({
           gender: form.gender || party.gender,
           nationality: form.nationality || party.nationality,
           countryOfIncorporation: form.countryOfIncorporation || party.countryOfIncorporation,
-          line1: form.line1 || party.address?.line1,
-          state: form.state || party.address?.state,
-          postalCode: form.postalCode || party.address?.postalCode,
+          line1: form.line1,
+          state: form.state,
+          postalCode: form.postalCode,
           isShareholder: party.isShareholder,
           isOfficer: officer,
-          shareType: form.shareType || party.shareType,
-          shareTypeOther: form.shareTypeOther || party.shareTypeOther,
-          shareholdingUnits: form.shareholdingUnits || party.shareholdingUnits,
-          shareholdingAmount: form.shareholdingAmount || party.shareholdingAmount,
-          shareholdingPercentage: form.shareholdingPercentage || party.shareholdingPercentage,
+          shareType: form.shareType,
+          shareTypeOther: form.shareTypeOther,
+          shareholdingUnits: form.shareholdingUnits,
+          shareholdingAmount: form.shareholdingAmount,
+          shareholdingPercentage: form.shareholdingPercentage,
           personKind: party.isBoard ? "BOARD" : party.isManagement ? "MANAGEMENT" : "BOARD",
-          designation: form.designation || party.designation,
-          designationOther: form.designationOther || party.designationOther,
-          appointmentDate: form.appointmentDate || party.appointmentDate,
+          designation: form.designation,
+          designationOther: form.designationOther,
+          appointmentDate: form.appointmentDate,
         });
+        if (party.isShareholder) {
+          const shareIssue = issuerShareholdingThresholdIssue(form.shareholdingPercentage, {
+            required: true,
+          });
+          if (shareIssue) issues.push(shareIssue);
+        }
         if (issues.length > 0) {
+          setFieldErrors(issuesByField(issues));
           toast.error(firstIssueMessage(issues));
           return;
         }
-        const data: Record<string, unknown> = {};
+        setFieldErrors({});
+        const data: Record<string, unknown> = {
+          address: {
+            line1: form.line1 || null,
+            line2: form.line2 || null,
+            state: form.state || null,
+            postalCode: form.postalCode || null,
+          },
+        };
         if (!party.salutation && form.salutation) data.salutation = form.salutation;
-        if (party.entityType === "CORPORATE" && party.gender !== "NOT_APPLICABLE") {
+        if (corporate && party.gender !== "NOT_APPLICABLE") {
           data.gender = "NOT_APPLICABLE";
         } else if (!party.gender && form.gender) {
           data.gender = form.gender;
@@ -567,33 +537,31 @@ export function PartyFillEmptyForm({
         if (!party.countryOfIncorporation && form.countryOfIncorporation) {
           data.countryOfIncorporation = form.countryOfIncorporation;
         }
-        if (!party.address?.line1 || !party.address?.line2 || !party.address?.state || !party.address?.postalCode) {
-          data.address = {
-            line1: form.line1 || party.address?.line1 || null,
-            line2: form.line2 || party.address?.line2 || null,
-            state: form.state || party.address?.state || null,
-            postalCode: form.postalCode || party.address?.postalCode || null,
-          };
-        }
         if (party.isShareholder) {
-          if (!party.shareType && form.shareType) data.shareType = form.shareType;
-          if (!party.shareTypeOther && form.shareTypeOther) data.shareTypeOther = form.shareTypeOther;
-          if (!party.shareholdingUnits && form.shareholdingUnits) data.shareholdingUnits = form.shareholdingUnits;
-          if (!party.shareholdingAmount && form.shareholdingAmount) data.shareholdingAmount = form.shareholdingAmount;
-          if (!party.shareholdingPercentage && form.shareholdingPercentage) {
-            data.shareholdingPercentage = form.shareholdingPercentage;
-          }
+          data.shareType = form.shareType || null;
+          data.shareTypeOther = form.shareType === "OTHERS" ? form.shareTypeOther || null : null;
+          data.shareholdingUnits = form.shareholdingUnits || null;
+          data.shareholdingAmount = form.shareholdingAmount || null;
+          data.shareholdingPercentage = form.shareholdingPercentage || null;
         }
-        if (party.isDirector || party.isBoard || party.isManagement) {
-          if (!party.designation && form.designation) data.designation = form.designation;
-          if (!party.designationOther && form.designationOther) data.designationOther = form.designationOther;
-          if (!party.appointmentDate && form.appointmentDate) data.appointmentDate = form.appointmentDate;
-          if (!party.resignationDate && form.resignationDate) data.resignationDate = form.resignationDate;
+        if (officer) {
+          data.designation = form.designation || null;
+          data.designationOther = form.designation === "OTHERS" ? form.designationOther || null : null;
+          data.appointmentDate = form.appointmentDate || null;
+          data.resignationDate = form.resignationDate || null;
         }
         await save.mutateAsync(data);
       }}
     >
-      {!party.salutation && party.entityType !== "CORPORATE" ? (
+      <ProfileReadField label={copy.name.label} value={party.name} locked help={copy.name.help} />
+      <ProfileReadField
+        label={copy.identity.label}
+        value={[identityLocked, party.identityNumber].filter(Boolean).join(" ")}
+        locked
+        help={copy.identity.help}
+      />
+      <ProfileReadField label="Roles" value={formatPartyRoleLine(party)} locked />
+      {!corporate && !party.salutation ? (
         <TextField
           label={copy.salutation.label}
           value={form.salutation}
@@ -601,144 +569,171 @@ export function PartyFillEmptyForm({
           help={copy.salutation.help}
         />
       ) : null}
-      {party.entityType !== "CORPORATE" && !party.gender ? (
+      {!corporate && !party.gender ? (
         <SelectField
           label={copy.gender.label}
           value={form.gender}
           onChange={(value) => setForm({ ...form, gender: value })}
           options={SC_INDIVIDUAL_GENDERS.map((key) => ({ value: key, label: SC_GENDER_LABELS[key] }))}
           help={copy.gender.help}
+          error={fieldErrors.gender}
+        />
+      ) : !corporate && party.gender ? (
+        <ProfileReadField
+          label={copy.gender.label}
+          value={SC_GENDER_LABELS[party.gender as keyof typeof SC_GENDER_LABELS] ?? party.gender}
+          locked
         />
       ) : null}
-      {!party.nationality && party.entityType !== "CORPORATE" ? (
+      {!corporate && !party.nationality ? (
         <CountryField
           label={copy.nationality.label}
           value={form.nationality}
           onChange={(value) => setForm({ ...form, nationality: value })}
           help={copy.nationality.help}
+          error={fieldErrors.nationality}
         />
+      ) : !corporate && party.nationality ? (
+        <ProfileReadField label={copy.nationality.label} value={party.nationality} locked />
       ) : null}
-      {party.entityType !== "CORPORATE" && !party.dateOfBirth ? (
+      {!corporate && !party.dateOfBirth ? (
         <DateField
           label={copy.dateOfBirth.label}
           value={form.dateOfBirth}
           onChange={(value) => setForm({ ...form, dateOfBirth: value })}
           help={copy.dateOfBirth.help}
+          error={fieldErrors.dateOfBirth}
+        />
+      ) : !corporate && party.dateOfBirth ? (
+        <ProfileReadField
+          label={copy.dateOfBirth.label}
+          value={party.dateOfBirth.slice(0, 10)}
+          locked
+          help={copy.dateOfBirth.help}
         />
       ) : null}
-      {party.entityType === "CORPORATE" && !party.dateOfIncorporation ? (
+      {corporate && !party.dateOfIncorporation ? (
         <DateField
           label={copy.dateOfBirth.label}
           value={form.dateOfIncorporation}
           onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
           help={copy.dateOfBirth.help}
+          error={fieldErrors.dateOfIncorporation}
+        />
+      ) : corporate && party.dateOfIncorporation ? (
+        <ProfileReadField
+          label={copy.dateOfBirth.label}
+          value={party.dateOfIncorporation.slice(0, 10)}
+          locked
         />
       ) : null}
-      {party.entityType === "CORPORATE" && !party.countryOfIncorporation ? (
+      {corporate && !party.countryOfIncorporation ? (
         <CountryField
           label={copy.nationality.label}
           value={form.countryOfIncorporation}
           onChange={(value) => setForm({ ...form, countryOfIncorporation: value })}
           help={copy.nationality.help}
+          error={fieldErrors.countryOfIncorporation}
         />
+      ) : corporate && party.countryOfIncorporation ? (
+        <ProfileReadField label={copy.nationality.label} value={party.countryOfIncorporation} locked />
       ) : null}
-      {!party.address?.line1 ? (
-        <TextField label={copy.address.label} value={form.line1} onChange={(value) => setForm({ ...form, line1: value })} />
+      <TextField
+        label={copy.address.label}
+        value={form.line1}
+        onChange={(value) => setForm({ ...form, line1: value })}
+        error={fieldErrors["address.line1"]}
+      />
+      <TextField
+        label="Address line 2"
+        value={form.line2}
+        onChange={(value) => setForm({ ...form, line2: value })}
+      />
+      <SelectField
+        label={copy.addressState.label}
+        value={form.state}
+        onChange={(value) => setForm({ ...form, state: value })}
+        options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
+        help={copy.addressState.help}
+        error={fieldErrors["address.state"]}
+      />
+      <TextField
+        label={copy.addressPostcode.label}
+        value={form.postalCode}
+        onChange={(value) => setForm({ ...form, postalCode: value })}
+        help={copy.addressPostcode.help}
+        error={fieldErrors["address.postalCode"]}
+      />
+      {party.isShareholder ? (
+        <>
+          <SelectField
+            label={SC_MONTHLY_SHAREHOLDER.typeOfShares.label}
+            value={form.shareType}
+            onChange={(value) => setForm({ ...form, shareType: value })}
+            options={SC_SHARE_TYPES.map((key) => ({ value: key, label: SC_SHARE_TYPE_LABELS[key] }))}
+            error={fieldErrors.shareType}
+          />
+          {form.shareType === "OTHERS" ? (
+            <TextField
+              label={SC_MONTHLY_SHAREHOLDER.typeOfSharesOthers.label}
+              value={form.shareTypeOther}
+              onChange={(value) => setForm({ ...form, shareTypeOther: value })}
+              required
+              error={fieldErrors.shareTypeOther}
+            />
+          ) : null}
+          <TextField
+            label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
+            value={form.shareholdingUnits}
+            onChange={(value) => setForm({ ...form, shareholdingUnits: value })}
+            error={fieldErrors.shareholdingUnits}
+          />
+          <TextField
+            label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
+            value={form.shareholdingAmount}
+            onChange={(value) => setForm({ ...form, shareholdingAmount: value })}
+            error={fieldErrors.shareholdingAmount}
+          />
+          <TextField
+            label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
+            value={form.shareholdingPercentage}
+            onChange={(value) => setForm({ ...form, shareholdingPercentage: value })}
+            error={fieldErrors.shareholdingPercentage}
+          />
+        </>
       ) : null}
-      {!party.address?.line2 ? (
-        <TextField
-          label="Address line 2"
-          value={form.line2}
-          onChange={(value) => setForm({ ...form, line2: value })}
-        />
-      ) : null}
-      {!party.address?.state ? (
-        <SelectField
-          label={copy.addressState.label}
-          value={form.state}
-          onChange={(value) => setForm({ ...form, state: value })}
-          options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
-          help={copy.addressState.help}
-        />
-      ) : null}
-      {!party.address?.postalCode ? (
-        <TextField
-          label={copy.addressPostcode.label}
-          value={form.postalCode}
-          onChange={(value) => setForm({ ...form, postalCode: value })}
-          help={copy.addressPostcode.help}
-        />
-      ) : null}
-      {party.isShareholder && !party.shareType ? (
-        <SelectField
-          label={SC_MONTHLY_SHAREHOLDER.typeOfShares.label}
-          value={form.shareType}
-          onChange={(value) => setForm({ ...form, shareType: value })}
-          options={SC_SHARE_TYPES.map((key) => ({ value: key, label: SC_SHARE_TYPE_LABELS[key] }))}
-        />
-      ) : null}
-      {party.isShareholder && (party.shareType === "OTHERS" || form.shareType === "OTHERS") && !party.shareTypeOther ? (
-        <TextField
-          label={SC_MONTHLY_SHAREHOLDER.typeOfSharesOthers.label}
-          value={form.shareTypeOther}
-          onChange={(value) => setForm({ ...form, shareTypeOther: value })}
-          required
-        />
-      ) : null}
-      {party.isShareholder && !party.shareholdingUnits ? (
-        <TextField
-          label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
-          value={form.shareholdingUnits}
-          onChange={(value) => setForm({ ...form, shareholdingUnits: value })}
-        />
-      ) : null}
-      {party.isShareholder && !party.shareholdingAmount ? (
-        <TextField
-          label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
-          value={form.shareholdingAmount}
-          onChange={(value) => setForm({ ...form, shareholdingAmount: value })}
-        />
-      ) : null}
-      {party.isShareholder && !party.shareholdingPercentage ? (
-        <TextField
-          label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
-          value={form.shareholdingPercentage}
-          onChange={(value) => setForm({ ...form, shareholdingPercentage: value })}
-        />
-      ) : null}
-      {(party.isDirector || party.isBoard || party.isManagement) && !party.designation ? (
-        <SelectField
-          label={SC_MONTHLY_BOARD.designation.label}
-          value={form.designation}
-          onChange={(value) => setForm({ ...form, designation: value })}
-          options={SC_DESIGNATIONS.map((key) => ({ value: key, label: SC_DESIGNATION_LABELS[key] }))}
-        />
-      ) : null}
-      {(party.isDirector || party.isBoard || party.isManagement) &&
-      (party.designation === "OTHERS" || form.designation === "OTHERS") &&
-      !party.designationOther ? (
-        <TextField
-          label={SC_MONTHLY_BOARD.designationOthers.label}
-          value={form.designationOther}
-          onChange={(value) => setForm({ ...form, designationOther: value })}
-          required
-          help={SC_MONTHLY_BOARD.designationOthers.help}
-        />
-      ) : null}
-      {(party.isDirector || party.isBoard || party.isManagement) && !party.appointmentDate ? (
-        <DateField
-          label={SC_MONTHLY_BOARD.appointmentDate.label}
-          value={form.appointmentDate}
-          onChange={(value) => setForm({ ...form, appointmentDate: value })}
-        />
-      ) : null}
-      {(party.isDirector || party.isBoard || party.isManagement) && !party.resignationDate ? (
-        <DateField
-          label={SC_MONTHLY_BOARD.resignationDate.label}
-          value={form.resignationDate}
-          onChange={(value) => setForm({ ...form, resignationDate: value })}
-          help={SC_MONTHLY_BOARD.resignationDate.help}
-        />
+      {officer ? (
+        <>
+          <SelectField
+            label={SC_MONTHLY_BOARD.designation.label}
+            value={form.designation}
+            onChange={(value) => setForm({ ...form, designation: value })}
+            options={SC_DESIGNATIONS.map((key) => ({ value: key, label: SC_DESIGNATION_LABELS[key] }))}
+            error={fieldErrors.designation}
+          />
+          {form.designation === "OTHERS" ? (
+            <TextField
+              label={SC_MONTHLY_BOARD.designationOthers.label}
+              value={form.designationOther}
+              onChange={(value) => setForm({ ...form, designationOther: value })}
+              required
+              help={SC_MONTHLY_BOARD.designationOthers.help}
+              error={fieldErrors.designationOther}
+            />
+          ) : null}
+          <DateField
+            label={SC_MONTHLY_BOARD.appointmentDate.label}
+            value={form.appointmentDate}
+            onChange={(value) => setForm({ ...form, appointmentDate: value })}
+            error={fieldErrors.appointmentDate}
+          />
+          <DateField
+            label={SC_MONTHLY_BOARD.resignationDate.label}
+            value={form.resignationDate}
+            onChange={(value) => setForm({ ...form, resignationDate: value })}
+            help={SC_MONTHLY_BOARD.resignationDate.help}
+          />
+        </>
       ) : null}
       <div className="flex gap-2 sm:col-span-2">
         <Button type="submit" className="h-10" disabled={save.isPending}>

@@ -587,6 +587,7 @@ export * from "./comrep-requiredness";
 export * from "./sc-appendix-a-countries";
 export * from "./organization-party-profile";
 export * from "./organization-party-key";
+export * from "./issuer-shareholder-threshold";
 export * from "./operator-profile";
 export * from "./support";
 export {

@@ -13,6 +13,7 @@ import {
   type DirectorShareholderDisplayRow,
   type GetDirectorShareholderDisplayRowsInput,
 } from "./director-shareholder-display";
+import { issuerShareholdingMeetsMinimum } from "./issuer-shareholder-threshold";
 import { getCtosPartySupplementFlatRead } from "./ctos-party-supplement-json";
 import { normalizeRawStatus } from "./status-normalization";
 import { isReadyOnboardingStatus } from "./onboarding-readiness";
@@ -21,7 +22,7 @@ import { isReadyOnboardingStatus } from "./onboarding-readiness";
 export type DirectorShareholderListSource = "ONBOARDING" | "CTOS" | "CTOS_EMPTY";
 
 export const CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING =
-  "CTOS returned no director/shareholder data." as const;
+  "The latest external information did not include directors or shareholders. Current profile people are kept until you choose to update them." as const;
 
 export function resolveDirectorShareholderCtosEmptyWarning(input: {
   directorShareholderListSource?: DirectorShareholderListSource | null;
@@ -193,8 +194,7 @@ export function filterVisiblePeopleRows<T extends PeopleRolesRowInput>(peopleRow
       const hasDirector = roles.includes("DIRECTOR");
       const hasShareholder = roles.includes("SHAREHOLDER");
       const sharePct = p.sharePercentage;
-      const shareholderAllowed =
-        !hasShareholder || sharePct === null || typeof sharePct !== "number" || sharePct >= 5;
+      const shareholderAllowed = !hasShareholder || issuerShareholdingMeetsMinimum(sharePct);
 
       const nextRoles = roles.filter((role) => {
         if (role === "DIRECTOR") return true;
@@ -363,7 +363,7 @@ export function requiresOnboardingEmail(p: ApplicationPersonRow): boolean {
   const isDirector = roles.includes("DIRECTOR");
   const isShareholder = roles.includes("SHAREHOLDER");
   const share = Number(p.sharePercentage ?? 0);
-  return isDirector || (isShareholder && share >= 5);
+  return isDirector || (isShareholder && issuerShareholdingMeetsMinimum(share));
 }
 
 /** AML terminal: no resend/notify/email edit while cleared or hard-rejected. */
@@ -471,7 +471,7 @@ export function buildDirectorShareholderDisplayRowForEmailEligibility(
     sharePct != null && Number.isFinite(sharePct) ? `${sharePct}% ownership` : null;
   const email = String(p.email ?? "").trim() || flat.email.trim();
   const draftEligible =
-    p.entityType === "INDIVIDUAL" && (isDirector || (isShareholder && (sharePct ?? 0) >= 5));
+    p.entityType === "INDIVIDUAL" && (isDirector || (isShareholder && issuerShareholdingMeetsMinimum(sharePct)));
   return {
     id: isMissingGovernmentIdPerson(p)
       ? `unresolved:${String(p.requestId ?? "").trim() || "unknown"}:${rolesU.sort().join("+") || "party"}`

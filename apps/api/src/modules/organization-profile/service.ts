@@ -34,6 +34,9 @@ import {
   type ScPersonKind,
   applyPartyComrepSemantics,
   isAllowedScInvestorCategory,
+  issuerShareholdingThresholdIssue,
+  isIssuerShareholderOnlyBelowMinimum,
+  issuerActiveShareholderFlags,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
@@ -64,11 +67,19 @@ type Portal = "issuer" | "investor";
 const USER_LOCKED_ORG_FIELDS = new Set(["name"]);
 /** Shared master fields the investor/issuer may change even when already filled (fill-empty-only still applies to other USER writes). */
 const USER_OVERWRITE_ORG_FIELDS = new Set(["scInvestorCategory", "companyEmail", "phoneNumber"]);
-const USER_LOCKED_PARTY_FIELDS = new Set([
-  "name",
-  "identityNumber",
-  "identityPrefix",
+/** Verified identity fields stay locked once filled. ComRep collection fields may be corrected. */
+const USER_LOCKED_PARTY_FIELDS = new Set(["name", "identityNumber", "identityPrefix"]);
+const USER_OVERWRITE_PARTY_FIELDS = new Set([
   "shareholdingPercentage",
+  "shareholdingUnits",
+  "shareholdingAmount",
+  "shareType",
+  "shareTypeOther",
+  "designation",
+  "designationOther",
+  "appointmentDate",
+  "resignationDate",
+  "address",
 ]);
 
 function assertUserMayWriteLockedField(params: {
@@ -93,6 +104,48 @@ function orgWhere(portal: Portal, organizationId: string) {
   return portal === "issuer"
     ? { issuer_organization_id: organizationId, investor_organization_id: null }
     : { investor_organization_id: organizationId, issuer_organization_id: null };
+}
+
+function assertIssuerShareholderThreshold(params: {
+  isShareholder: boolean;
+  percentage: unknown;
+}): void {
+  if (!params.isShareholder) return;
+  const issue = issuerShareholdingThresholdIssue(params.percentage, { required: true });
+  if (issue) throw new AppError(400, "VALIDATION_ERROR", issue.message);
+}
+
+function gateShareholderCandidate(candidate: RegulatoryPartyCandidate): {
+  candidate: RegulatoryPartyCandidate;
+  observedOnly: boolean;
+} {
+  if (!candidate.isShareholder) {
+    return { candidate, observedOnly: false };
+  }
+  if (
+    isIssuerShareholderOnlyBelowMinimum({
+      isShareholder: true,
+      isDirector: candidate.isDirector,
+      isBoard: candidate.isBoard,
+      shareholdingPercentage: candidate.shareholdingPercentage,
+    })
+  ) {
+    return { candidate, observedOnly: true };
+  }
+  const gated = issuerActiveShareholderFlags({
+    isShareholder: candidate.isShareholder,
+    isDirector: candidate.isDirector,
+    isBoard: candidate.isBoard,
+    shareholdingPercentage: candidate.shareholdingPercentage,
+  });
+  return {
+    candidate: {
+      ...candidate,
+      isShareholder: gated.isShareholder,
+      shareholdingPercentage: gated.isShareholder ? candidate.shareholdingPercentage : null,
+    },
+    observedOnly: false,
+  };
 }
 
 async function assertOrgExists(portal: Portal, organizationId: string) {
@@ -219,13 +272,14 @@ async function fillEmptyPartyFromCandidate(
   data.name = apply("name", row.name, candidate.name);
   data.identity_number = apply("identityNumber", row.identity_number, candidate.identityNumber);
   data.identity_prefix = apply("identityPrefix", row.identity_prefix, candidate.identityPrefix);
-  data.shareholding_percentage = apply(
-    "shareholdingPercentage",
-    row.shareholding_percentage,
-    candidate.shareholdingPercentage != null
-      ? new Prisma.Decimal(candidate.shareholdingPercentage)
-      : null
-  );
+  const incomingShare =
+    candidate.shareholdingPercentage != null &&
+    issuerShareholdingThresholdIssue(candidate.shareholdingPercentage, { required: true })
+      ? null
+      : candidate.shareholdingPercentage != null
+        ? new Prisma.Decimal(candidate.shareholdingPercentage)
+        : null;
+  data.shareholding_percentage = apply("shareholdingPercentage", row.shareholding_percentage, incomingShare);
   data.appointment_date = apply(
     "appointmentDate",
     row.appointment_date,
@@ -274,21 +328,34 @@ async function applyInitialRegulatoryCandidates(
   });
 
   for (const candidate of candidates) {
-    const row = findExistingPartyForIdentityKey(existing, candidate.partyKey);
+    const gated = gateShareholderCandidate(candidate);
+    const row = findExistingPartyForIdentityKey(existing, candidate.partyKey, {
+      entityType: candidate.entityType,
+    });
     if (!row) continue;
-    const updated = await fillEmptyPartyFromCandidate(row, candidate, existing);
+    const updated = await fillEmptyPartyFromCandidate(row, gated.candidate, existing);
     const idx = existing.findIndex((p) => p.id === row.id);
     if (idx >= 0) existing[idx] = updated;
   }
 
-  const toCreate = candidates.filter((c) => !findExistingPartyForIdentityKey(existing, c.partyKey));
+  const toCreate = candidates.filter(
+    (c) => !findExistingPartyForIdentityKey(existing, c.partyKey, { entityType: c.entityType })
+  );
   if (toCreate.length === 0) return;
 
   try {
     await prisma.organizationPartyProfile.createMany({
-      data: toCreate.map((c) =>
-        candidateToCreateManyRow(portal, organizationId, c, "MASTER_ACTIVE")
-      ),
+      data: toCreate.map((c) => {
+        const gated = gateShareholderCandidate(c);
+        return candidateToCreateManyRow(
+          portal,
+          organizationId,
+          gated.observedOnly ? c : gated.candidate,
+          gated.observedOnly
+            ? OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED
+            : OrganizationPartyMembershipStatus.MASTER_ACTIVE
+        );
+      }),
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -402,14 +469,29 @@ export async function observeExternalCtosParties(
 
   for (const [partyKey, observation] of snapshot) {
     seen.add(partyKey);
-    const row = findExistingPartyForIdentityKey(existing, partyKey);
+    const row = findExistingPartyForIdentityKey(existing, partyKey, {
+      entityType: typeof observation.entityType === "string" ? observation.entityType : null,
+    });
     if (!row) {
       const candidate = candidates.find((p) => p.partyKey === partyKey);
       if (!candidate) continue;
+      const gated = gateShareholderCandidate(candidate);
+      const membership = established
+        ? OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED
+        : gated.observedOnly
+          ? OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED
+          : unmatchedMembership;
       const created = await prisma.organizationPartyProfile.create({
         data: {
-          ...candidateToCreateData(portal, organizationId, candidate, unmatchedMembership),
-          membership_status: unmatchedMembership,
+          ...candidateToCreateData(
+            portal,
+            organizationId,
+            gated.observedOnly || membership === OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED
+              ? candidate
+              : gated.candidate,
+            membership
+          ),
+          membership_status: membership,
           external_observation: asJson(observation),
         },
       });
@@ -899,6 +981,18 @@ export async function patchPartyProfile(params: {
     throw new AppError(400, "INVALID_PARTY_STATUS", "Observed parties must be adopted before editing");
   }
 
+  const nextShareholder =
+    params.patch.isShareholder !== undefined ? params.patch.isShareholder : row.is_shareholder;
+  if (params.patch.shareholdingPercentage !== undefined || params.patch.isShareholder === true) {
+    assertIssuerShareholderThreshold({
+      isShareholder: nextShareholder,
+      percentage:
+        params.patch.shareholdingPercentage !== undefined
+          ? params.patch.shareholdingPercentage
+          : row.shareholding_percentage,
+    });
+  }
+
   let sources = parseFieldSources(row.field_sources);
   const apply = <T,>(field: string, current: T, incoming: T | undefined): T => {
     if (incoming === undefined) return current;
@@ -909,7 +1003,7 @@ export async function patchPartyProfile(params: {
       incoming,
       locked: USER_LOCKED_PARTY_FIELDS,
     });
-    if (params.fillEmptyOnly) {
+    if (params.fillEmptyOnly && !USER_OVERWRITE_PARTY_FIELDS.has(field)) {
       const result = fillEmptyMaster({
         master: current,
         incoming,
@@ -1007,7 +1101,7 @@ export async function patchPartyProfile(params: {
     );
   }
   if (p.address !== undefined) {
-    if (params.fillEmptyOnly) {
+    if (params.fillEmptyOnly && !USER_OVERWRITE_PARTY_FIELDS.has("address")) {
       const merged = mergeEmptyAddress({
         master: row.address,
         incoming: p.address,
@@ -1240,6 +1334,11 @@ export async function createUserAddedParty(params: {
     }
   }
 
+  assertIssuerShareholderThreshold({
+    isShareholder: roles.isShareholder,
+    percentage: params.patch.shareholdingPercentage,
+  });
+
   const appliedCreate = applyPartyComrepSemantics({
     entityType: entityType === OrganizationPartyEntityType.CORPORATE ? "CORPORATE" : "INDIVIDUAL",
     isOfficer: roles.isDirector || roles.isBoard || roles.isManagement,
@@ -1267,7 +1366,9 @@ export async function createUserAddedParty(params: {
   const existingRows = await prisma.organizationPartyProfile.findMany({
     where: orgWhere(params.portal, params.organizationId),
   });
-  const existing = identityKey ? findExistingPartyForIdentityKey(existingRows, identityKey) : undefined;
+  const existing = identityKey
+    ? findExistingPartyForIdentityKey(existingRows, identityKey, { entityType })
+    : undefined;
   const partyKey = identityKey ?? `${USER_GENERATED_PARTY_KEY_PREFIX}${crypto.randomUUID()}`;
   const fieldSources = stampProvidedPartyFields(params.patch, params.source);
   const email = (params.patch.email ?? "").trim();
@@ -1282,6 +1383,17 @@ export async function createUserAddedParty(params: {
       if (!isMasterFieldEmpty(current)) return current;
       return incoming;
     };
+    const nextShareholdingPercentage = fill(
+      existing.shareholding_percentage,
+      decimalOrNull(params.patch.shareholdingPercentage)
+    );
+    const gatedShare = issuerActiveShareholderFlags({
+      isShareholder: nextShareholder,
+      isDirector: nextDirector,
+      isBoard: nextBoard,
+      isManagement: nextManagement,
+      shareholdingPercentage: nextShareholdingPercentage,
+    });
     const updated = await prisma.organizationPartyProfile.update({
       where: { id: existing.id },
       data: {
@@ -1290,7 +1402,7 @@ export async function createUserAddedParty(params: {
         identity_number: fill(existing.identity_number, identity),
         identity_prefix: fill(existing.identity_prefix, appliedCreate.identityPrefix),
         is_director: nextDirector,
-        is_shareholder: nextShareholder,
+        is_shareholder: gatedShare.isShareholder,
         is_board: nextBoard,
         is_management: nextManagement,
         salutation: fill(existing.salutation, appliedCreate.salutation),
@@ -1317,10 +1429,7 @@ export async function createUserAddedParty(params: {
           existing.shareholding_amount,
           decimalOrNull(params.patch.shareholdingAmount)
         ),
-        shareholding_percentage: fill(
-          existing.shareholding_percentage,
-          decimalOrNull(params.patch.shareholdingPercentage)
-        ),
+        shareholding_percentage: gatedShare.isShareholder ? nextShareholdingPercentage : null,
         designation: fill(existing.designation, params.patch.designation ?? null),
         designation_other: fill(existing.designation_other, appliedCreate.designationOther),
         appointment_date: fill(existing.appointment_date, parseDateInput(params.patch.appointmentDate)),
@@ -1484,9 +1593,37 @@ export async function adoptObservedParty(params: {
   if (row.membership_status !== OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) {
     throw new AppError(400, "INVALID_PARTY_STATUS", "Only newly observed parties can be adopted");
   }
+  if (
+    isIssuerShareholderOnlyBelowMinimum({
+      isShareholder: row.is_shareholder,
+      isDirector: row.is_director,
+      isBoard: row.is_board,
+      isManagement: row.is_management,
+      shareholdingPercentage: row.shareholding_percentage,
+    })
+  ) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      issuerShareholdingThresholdIssue(row.shareholding_percentage, { required: true })?.message ??
+        "Shareholding Percentage must be at least 5%."
+    );
+  }
+  const gated = issuerActiveShareholderFlags({
+    isShareholder: row.is_shareholder,
+    isDirector: row.is_director,
+    isBoard: row.is_board,
+    isManagement: row.is_management,
+    shareholdingPercentage: row.shareholding_percentage,
+  });
   const updated = await prisma.organizationPartyProfile.update({
     where: { id: row.id },
-    data: { membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE },
+    data: {
+      membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
+      ...( !gated.isShareholder && row.is_shareholder
+        ? { is_shareholder: false, shareholding_percentage: null }
+        : {}),
+    },
   });
   return serializeParty(updated);
 }

@@ -9,6 +9,8 @@ import {
   canonicalPartyIdentityKey,
   isGeneratedUserPartyKey,
   stripGeneratedPartyKeyPrefix,
+  isMissingGovernmentIdPerson,
+  issuerShareholdingMeetsMinimum,
   type ApplicationPersonRow,
   type CtosPartySupplement,
   type DirectorShareholderListSource,
@@ -526,7 +528,7 @@ function buildPeopleFromUserDeclaredData(params: {
     const sharePct = typeof r.sharePercentage === "number" ? r.sharePercentage : null;
     const roles: Array<"DIRECTOR" | "SHAREHOLDER"> = [];
     if (r.isDirector) roles.push("DIRECTOR");
-    if (r.isShareholder && sharePct != null && sharePct >= 5) roles.push("SHAREHOLDER");
+    if (r.isShareholder && issuerShareholdingMeetsMinimum(sharePct)) roles.push("SHAREHOLDER");
 
     // Display-only unresolved identity: no trusted matchKey; never merge by name/email/EOD.
     if (r.identityWarning === "MISSING_GOVERNMENT_ID") {
@@ -653,11 +655,12 @@ function sharePercentFromMaster(value: string | number | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function operationalRolesForMasterParty(party: MasterPartyPeopleSeed): Array<"DIRECTOR" | "SHAREHOLDER"> {
+function operationalRolesForMasterParty(
+  party: MasterPartyPeopleSeed
+): Array<"DIRECTOR" | "SHAREHOLDER"> {
   const roles: Array<"DIRECTOR" | "SHAREHOLDER"> = [];
   if (party.isDirector) roles.push("DIRECTOR");
-  const share = sharePercentFromMaster(party.shareholdingPercentage);
-  if (party.isShareholder && (party.entityType === "CORPORATE" || (share != null && share >= 5))) {
+  if (party.isShareholder && issuerShareholdingMeetsMinimum(party.shareholdingPercentage)) {
     roles.push("SHAREHOLDER");
   }
   return roles;
@@ -676,7 +679,8 @@ function operationalMatchKeyForMasterParty(party: MasterPartyPeopleSeed): string
 /**
  * Fold CashSouk master parties into operational people[] so KYC email/onboarding
  * still works for user-added directors/shareholders who are not yet in CTOS JSON.
- * Management-only and individual shareholders under 5% stay off this list.
+ * Management-only, EXTERNAL_OBSERVED, and shareholders under 5% stay off this list.
+ * Individual and company shareholders both need the 5% floor.
  */
 export function mergeMasterPartiesIntoPeopleList(params: {
   people: ApplicationPersonRow[];
@@ -692,7 +696,7 @@ export function mergeMasterPartiesIntoPeopleList(params: {
   const supplementByKey = buildSupplementMapByMatchKey(params.ctosPartySupplements);
 
   for (const party of params.masterParties) {
-    if (party.membershipStatus === "MASTER_INACTIVE") continue;
+    if (party.membershipStatus !== "MASTER_ACTIVE") continue;
     const roles = operationalRolesForMasterParty(party);
     if (roles.length === 0) continue;
     const key = operationalMatchKeyForMasterParty(party);
@@ -762,6 +766,30 @@ export type BuildDirectorShareholderPeopleParams = {
   corporateEntities: unknown;
   masterParties?: MasterPartyPeopleSeed[] | null;
 };
+
+function retainMasterActiveOperationalPeople(
+  people: ApplicationPersonRow[],
+  masterParties: MasterPartyPeopleSeed[] | null | undefined
+): ApplicationPersonRow[] {
+  if (!masterParties?.length) return people;
+  const hasStructuredMaster = masterParties.some(
+    (party) =>
+      party.membershipStatus === "MASTER_ACTIVE" || party.membershipStatus === "EXTERNAL_OBSERVED"
+  );
+  if (!hasStructuredMaster) return people;
+  const activeKeys = new Set(
+    masterParties
+      .filter((party) => party.membershipStatus === "MASTER_ACTIVE")
+      .map((party) => operationalMatchKeyForMasterParty(party))
+      .filter((key): key is string => Boolean(key))
+  );
+  return people.filter((row) => {
+    if (isMissingGovernmentIdPerson(row)) return true;
+    const key = normalizeDirectorShareholderIdKey(row.matchKey);
+    if (!key) return true;
+    return activeKeys.has(key);
+  });
+}
 
 export type DirectorShareholderPeopleBuildResult = {
   people: ApplicationPersonRow[];
@@ -876,7 +904,7 @@ function buildPeopleFromCtosCompanyJson(
     if (!p.matchKey) continue;
     const role = p.type === "DIRECTOR" || p.type === "SHAREHOLDER" ? p.type : "DIRECTOR";
     const incomingSharePercentage = typeof p.sharePercentage === "number" ? p.sharePercentage : null;
-    if (role === "SHAREHOLDER" && (incomingSharePercentage === null || incomingSharePercentage < 5)) {
+    if (role === "SHAREHOLDER" && !issuerShareholdingMeetsMinimum(incomingSharePercentage)) {
       continue;
     }
     if (!peopleMap.has(p.matchKey)) {
@@ -1019,10 +1047,11 @@ export function buildDirectorShareholderPeopleList(
   }
 
   if (!params.masterParties?.length) return result;
+  const people = retainMasterActiveOperationalPeople(result.people, params.masterParties);
   return {
     ...result,
     people: mergeMasterPartiesIntoPeopleList({
-      people: result.people,
+      people,
       masterParties: params.masterParties,
       ctosPartySupplements: params.ctosPartySupplements ?? null,
     }),

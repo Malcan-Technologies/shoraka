@@ -3304,7 +3304,7 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
     }
 
-    const people = buildAdminPeopleList({
+    const partyBuild = await buildDirectorShareholderPeopleListWithMaster("issuer", issuerOrganizationId, {
       ctos: extras.latestOrganizationCtosCompanyJson ?? null,
       issuerDirectorKycStatus: fullOrg.director_kyc_status ?? null,
       issuerDirectorAmlStatus: fullOrg.director_aml_status ?? null,
@@ -3314,7 +3314,7 @@ export class AdminService {
       })),
       corporateEntities: fullOrg.corporate_entities ?? null,
     });
-    const visible = filterVisiblePeopleRows(people);
+    const visible = filterVisiblePeopleRows(partyBuild.people);
     const want = normalizeDirectorShareholderIdKey(input.partyKey);
     if (!want) {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
@@ -6344,14 +6344,14 @@ export class AdminService {
           return;
         }
         const extras = await orgService.getIssuerPartyListExtras(oid);
-        const people = buildAdminPeopleList({
+        const partyBuild = await buildDirectorShareholderPeopleListWithMaster("issuer", oid, {
           ctos: extras.latestOrganizationCtosCompanyJson ?? null,
           issuerDirectorKycStatus: org.director_kyc_status ?? null,
           issuerDirectorAmlStatus: org.director_aml_status ?? null,
           ctosPartySupplements: extras.ctosPartySupplements,
           corporateEntities: org.corporate_entities ?? null,
         });
-        const pending = computeHasPendingDirectorShareholder(people);
+        const pending = computeHasPendingDirectorShareholder(partyBuild.people);
         pendingByOrg.set(oid, pending);
       })
     );
@@ -7424,7 +7424,8 @@ export class AdminService {
     }
   }
 
-  private assertFinancialReviewDirectorShareholderAmlApproved(application: {
+  private async assertFinancialReviewDirectorShareholderAmlApproved(application: {
+    issuer_organization_id?: string;
     issuer_organization?: {
       corporate_entities?: unknown;
       director_kyc_status?: unknown;
@@ -7432,14 +7433,15 @@ export class AdminService {
       latest_organization_ctos_company_json?: unknown;
       ctos_party_supplements?: { party_key: string; onboarding_json?: unknown }[];
     } | null;
-  }): void {
+  }): Promise<void> {
     const issuerOrg = application.issuer_organization;
-    if (!issuerOrg) return;
+    const orgId = application.issuer_organization_id;
+    if (!issuerOrg || !orgId) return;
 
     const supplements = Array.isArray(issuerOrg.ctos_party_supplements)
       ? issuerOrg.ctos_party_supplements
       : [];
-    const people = buildAdminPeopleList({
+    const partyBuild = await buildDirectorShareholderPeopleListWithMaster("issuer", orgId, {
       ctos: issuerOrg.latest_organization_ctos_company_json ?? null,
       issuerDirectorKycStatus: issuerOrg.director_kyc_status ?? null,
       issuerDirectorAmlStatus: issuerOrg.director_aml_status ?? null,
@@ -7449,7 +7451,7 @@ export class AdminService {
       })),
       corporateEntities: issuerOrg.corporate_entities ?? null,
     });
-    if (computeHasPendingDirectorShareholder(people)) {
+    if (computeHasPendingDirectorShareholder(partyBuild.people)) {
       throw new AppError(
         400,
         "DIRECTOR_SHAREHOLDER_NOT_READY",
@@ -9852,7 +9854,7 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     if (section === "financial") {
-      this.assertFinancialReviewDirectorShareholderAmlApproved(application);
+      await this.assertFinancialReviewDirectorShareholderAmlApproved(application);
       const issuerOrganizationId =
         typeof (application as { issuer_organization_id?: unknown }).issuer_organization_id ===
         "string"

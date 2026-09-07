@@ -83,7 +83,14 @@ export function formatPartySharePercent(value: string | number | null | undefine
   return `${label}%`;
 }
 
-export function formatPartyRoleLine(party: OrganizationPartyProfileDto): string {
+export function partyRoleLabels(party: {
+  isDirector: boolean;
+  isBoard: boolean;
+  isManagement: boolean;
+  isShareholder: boolean;
+  shareholdingPercentage?: string | null;
+  entityType?: OrganizationPartyEntityType;
+}): string[] {
   const parts: string[] = [];
   if (party.isDirector) parts.push("Director");
   if (party.isBoard) parts.push("Board");
@@ -92,5 +99,9 @@ export function formatPartyRoleLine(party: OrganizationPartyProfileDto): string 
     const pct = formatPartySharePercent(party.shareholdingPercentage);
     parts.push(pct ? `Shareholder ${pct}` : "Shareholder");
   }
-  return parts.join(" · ") || (party.entityType === "CORPORATE" ? "Company" : "Person");
+  return parts;
+}
+
+export function formatPartyRoleLine(party: OrganizationPartyProfileDto): string {
+  return partyRoleLabels(party).join(" · ") || (party.entityType === "CORPORATE" ? "Company" : "Person");
 }

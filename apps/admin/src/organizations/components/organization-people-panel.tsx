@@ -19,8 +19,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { usePermissions } from "@/hooks/use-permissions";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { PartyProfileDetailFields } from "@cashsouk/ui";
 import { accountHref } from "@/lib/admin-directory-hrefs";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useOrganizationMasterPeople } from "@/organizations/hooks/use-organization-master-people";
 import { unifyOrganizationPeople } from "@/organizations/utils/organization-profile-overview";
 import { OrganizationCardEditActions } from "./organization-card-edit-actions";
@@ -66,6 +74,7 @@ export function OrganizationPeoplePanel({
   const [editingMemberId, setEditingMemberId] = React.useState<string | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
   const [editingPartyId, setEditingPartyId] = React.useState<string | null>(null);
+  const [viewingPartyId, setViewingPartyId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!editingPic) setDraft(buildDraft(org));
@@ -81,6 +90,13 @@ export function OrganizationPeoplePanel({
   const picHasChanges = Object.keys(buildSectionPayload(org, draft, "pic")).length > 0;
   const unified = unifyOrganizationPeople(org.partyProfiles, org.people);
   const editingParty = org.partyProfiles?.find((party) => party.id === editingPartyId) ?? null;
+  const viewingParty = org.partyProfiles?.find((party) => party.id === viewingPartyId) ?? null;
+  const viewingPerson =
+    unified.master.find((item) => item.party?.id === viewingPartyId)?.person ??
+    unified.external.find((item) => item.party?.id === viewingPartyId)?.person ??
+    unified.inactive.find((item) => item.party?.id === viewingPartyId)?.person ??
+    unified.peopleOnly.find((item) => item.key === viewingPartyId)?.person ??
+    null;
 
   const handleStartPicEdit = () => {
     if (updateProfile.isPending) return;
@@ -184,7 +200,8 @@ export function OrganizationPeoplePanel({
                   <OrganizationPersonCard
                     item={item}
                     canManage={canManage}
-                    onView={() => item.party && setEditingPartyId(item.party.id)}
+                    enforceIssuerShareholderMinimum
+                    onView={() => item.party && setViewingPartyId(item.party.id)}
                     onAdopt={item.party ? () => peopleMutations.adopt.mutate(item.party!.id) : undefined}
                   />
                 </div>
@@ -201,7 +218,8 @@ export function OrganizationPeoplePanel({
               <OrganizationPersonCard
                 item={item}
                 canManage={canManage}
-                onView={() => item.party && setEditingPartyId(item.party.id)}
+                enforceIssuerShareholderMinimum
+                onView={() => item.party && setViewingPartyId(item.party.id)}
                 onEdit={item.party ? () => setEditingPartyId(item.party!.id) : undefined}
                 onKeep={
                   item.party
@@ -215,7 +233,7 @@ export function OrganizationPeoplePanel({
                     : undefined
                 }
                 onInactivate={item.party ? () => peopleMutations.inactivate.mutate(item.party!.id) : undefined}
-                onKeepAbsent={() => toast.success("Kept on the CashSouk master list")}
+                onKeepAbsent={() => toast.success("Kept on the current CashSouk profile")}
               />
             </div>
           ))}
@@ -225,7 +243,7 @@ export function OrganizationPeoplePanel({
               key={item.key}
               item={item}
               canManage={canManage}
-              onView={() => toast.message("This person is linked from onboarding KYC and is not a separate profile.")}
+              onView={() => setViewingPartyId(item.key)}
             />
           ))}
 
@@ -237,7 +255,7 @@ export function OrganizationPeoplePanel({
                   key={item.key}
                   item={item}
                   canManage={canManage}
-                  onView={() => item.party && setEditingPartyId(item.party.id)}
+                  onView={() => item.party && setViewingPartyId(item.party.id)}
                 />
               ))}
             </div>
@@ -381,8 +399,9 @@ export function OrganizationPeoplePanel({
         open={addOpen}
         onOpenChange={setAddOpen}
         title="Add person"
-        description="Adds this person to the CashSouk master record used by the issuer or investor profile."
+        description="Adds this person to the CashSouk company record used by the issuer or investor profile."
         isSaving={peopleMutations.createParty.isPending}
+        enforceIssuerShareholderMinimum
         onSave={(values) => saveParty(values)}
       />
 
@@ -392,11 +411,27 @@ export function OrganizationPeoplePanel({
           if (!open) setEditingPartyId(null);
         }}
         title={editingParty?.name || "Person"}
-        description="Edits the same CashSouk master record the issuer or investor sees."
+        description="Edits the same CashSouk company record the issuer or investor sees."
         initial={editingParty ? partyToEditorValues(editingParty) : null}
         isSaving={peopleMutations.patchParty.isPending}
+        enforceIssuerShareholderMinimum
         onSave={(values) => saveParty(values, editingParty?.id)}
       />
+
+      <Dialog
+        open={Boolean(viewingParty) || Boolean(viewingPerson)}
+        onOpenChange={(open) => {
+          if (!open) setViewingPartyId(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{viewingParty?.name || viewingPerson?.name || "Person"}</DialogTitle>
+            <DialogDescription>Read-only details for this person.</DialogDescription>
+          </DialogHeader>
+          <PartyProfileDetailFields party={viewingParty} person={viewingPerson} />
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={showConfirm}

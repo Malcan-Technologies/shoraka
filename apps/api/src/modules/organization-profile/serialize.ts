@@ -207,6 +207,38 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+const ORG_IDENTITY_MASTER_KEYS = [
+  "first_name",
+  "last_name",
+  "middle_name",
+  "nationality",
+  "country",
+  "id_issuing_country",
+  "gender",
+  "address",
+  "date_of_birth",
+  "document_type",
+  "document_number",
+  "phone_number",
+  "legal_name_on_id",
+] as const;
+
+/** Later RegTank extracts must not overwrite filled CashSouk identity/contact master fields. */
+export function preserveFilledOrgIdentityFields<T extends Record<string, unknown>>(
+  existing: T | null | undefined,
+  incoming: T
+): T {
+  if (!existing) return incoming;
+  const out = { ...incoming };
+  for (const key of ORG_IDENTITY_MASTER_KEYS) {
+    if (!(key in incoming)) continue;
+    if (!isMasterFieldEmpty(existing[key])) {
+      (out as Record<string, unknown>)[key] = existing[key];
+    }
+  }
+  return out;
+}
+
 /**
  * COD webhooks replace corporate_onboarding_data. Address/activity facts filled
  * during secondary onboarding live in that JSON — keep filled subfields.

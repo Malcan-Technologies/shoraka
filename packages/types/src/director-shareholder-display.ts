@@ -7,6 +7,7 @@
  */
 
 import { parseCtosPartySupplement, serializeCtosPartySupplement } from "./ctos-party-supplement-json";
+import { issuerShareholdingMeetsMinimum } from "./issuer-shareholder-threshold";
 import { effectiveCtosRegtankStatusFromOnboardingJson } from "./regtank-onboarding-status";
 import { normalizeRawStatus } from "./status-normalization";
 
@@ -68,7 +69,7 @@ export function getDisplayRoleLabel(row: {
   const shareholderLabel =
     !row.isShareholder
       ? ""
-      : Number.isFinite(share) && share >= 5
+      : issuerShareholdingMeetsMinimum(share)
         ? `Shareholder (${share}%)`
         : "Shareholder";
 
@@ -95,7 +96,7 @@ export function deriveDirectorShareholderRoles(input: {
   const isDirector =
     typeof input.designation === "string" && input.designation.toLowerCase() === "director";
   const share = Number(input.sharePercentage ?? 0);
-  const isShareholder = Number.isFinite(share) && share >= 5;
+  const isShareholder = issuerShareholdingMeetsMinimum(share);
   if (isDirector) roles.push("DIRECTOR");
   if (isShareholder) roles.push("SHAREHOLDER");
   return {
@@ -109,8 +110,7 @@ export function deriveDirectorShareholderRoles(input: {
 /**
  * Canonical person inclusion rule:
  * - Directors always included
- * - Individual shareholders included only when >= 5%
- * - Corporate shareholders always included
+ * - Shareholders (individual and company) included only when >= 5%
  */
 export function shouldIncludePerson(input: {
   type: DirectorShareholderPartyType;
@@ -118,9 +118,10 @@ export function shouldIncludePerson(input: {
   isShareholder?: boolean;
   sharePercentage?: number | null;
 }): boolean {
-  if (input.type === "COMPANY") return true;
   if (input.isDirector) return true;
-  if (input.isShareholder) return Number(input.sharePercentage ?? 0) >= 5;
+  if (input.type === "COMPANY" || input.isShareholder) {
+    return issuerShareholdingMeetsMinimum(input.sharePercentage);
+  }
   return false;
 }
 
@@ -548,7 +549,8 @@ function ctosDisplayMergeFlagsFromPositionCode(code: string | null): { isDirecto
 /**
  * CTOS company_json director row: include in unified profile lists.
  * Rows without explicit party_type I/C are excluded from CTOS display/listing.
- * Corporate parties are always listed; individuals use director OR ≥5% shareholder rule.
+ * Corporate parties stay listed as raw CTOS evidence; individuals use director OR ≥5% shareholder.
+ * Shareholder-role activation still uses the 5% floor in people[] / onboarding.
  */
 export function shouldIncludeCtosCompanyJsonDirectorEntry(
   subjectKind: "INDIVIDUAL" | "CORPORATE" | null,
@@ -560,7 +562,7 @@ export function shouldIncludeCtosCompanyJsonDirectorEntry(
   if (!code) return true;
   const { isDirector, isShareholder } = ctosDirectorShareholderFlagsFromCanonicalCode(code);
   const share = equitySharePercentageFromCtosRow(r);
-  return isDirector || (isShareholder && share >= 5);
+  return isDirector || (isShareholder && issuerShareholdingMeetsMinimum(share));
 }
 
 export interface CtosUnifiedDirectorShareholderParty {
@@ -1267,7 +1269,7 @@ function buildOnboardingDisplayRows(
   for (const p of shareholders) {
     const pr = p as Record<string, unknown>;
     const share = percentOfSharesFromOnboardingCePerson(pr);
-    if (share < 5) continue;
+    if (!issuerShareholdingMeetsMinimum(share)) continue;
 
     const icRaw = issuerIcFromCePersonFormOnly(p);
     const icKey = normalizeDirectorShareholderIdKey(icRaw);
@@ -1400,6 +1402,7 @@ function buildOnboardingDisplayRows(
     if (!regKey) continue;
 
     const share = percentOfSharesFromCorpShareholder(c);
+    if (!issuerShareholdingMeetsMinimum(share)) continue;
     const corpRole = deriveDirectorShareholderRoles({ sharePercentage: share });
     const isSh = corpRole.isShareholder;
     const roleLabel =
@@ -1648,7 +1651,7 @@ function buildCtosBackedDisplayRows(
           });
     const ctosIndividualKycEligible =
       b.type === "INDIVIDUAL" &&
-      (b.ctosIsDirector || (b.ctosIsShareholder && b.ctosSharePct >= 5));
+      (b.ctosIsDirector || (b.ctosIsShareholder && issuerShareholdingMeetsMinimum(b.ctosSharePct)));
 
     rows.push({
       id: stableId,

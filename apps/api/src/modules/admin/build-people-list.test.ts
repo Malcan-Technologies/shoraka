@@ -972,7 +972,7 @@ describe("buildUnifiedPeople", () => {
     expect(result.people.find((p) => p.matchKey === "880101011111")).toBeUndefined();
   });
 
-  it("G: CTOS-discovered EXTERNAL_OBSERVED director stays one people[] row", () => {
+  it("does not put EXTERNAL_OBSERVED CTOS people onto the operational KYC list", () => {
     const result = buildDirectorShareholderPeopleList({
       ctos: {
         directors: [
@@ -998,8 +998,7 @@ describe("buildUnifiedPeople", () => {
       ],
     });
     const rows = result.people.filter((p) => p.matchKey === "990101011111");
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.roles).toContain("DIRECTOR");
+    expect(rows).toHaveLength(0);
   });
 
   it("L: KYC supplement status attaches to a user-added master director", () => {
@@ -1077,5 +1076,75 @@ describe("buildUnifiedPeople", () => {
     });
     expect(result.listSource).toBe("ONBOARDING");
     expect(result.people).toEqual([]);
+  });
+
+  it("does not inject a company shareholder below 5% into operational people[]", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
+      masterParties: [
+        {
+          partyKey: "1234567A",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "CORPORATE",
+          name: "ABC Sdn Bhd",
+          identityNumber: "1234567A",
+          isDirector: false,
+          isShareholder: true,
+          shareholdingPercentage: "3",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "1234567A")).toBeUndefined();
+  });
+
+  it("injects a company shareholder at 5% into operational people[]", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
+      masterParties: [
+        {
+          partyKey: "1234567A",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "CORPORATE",
+          name: "ABC Sdn Bhd",
+          identityNumber: "1234567A",
+          isDirector: false,
+          isShareholder: true,
+          shareholdingPercentage: "5",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "1234567A")?.roles).toEqual(["SHAREHOLDER"]);
+  });
+
+  it("keeps director role and omits shareholder when master party is director with 3% shares", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
+      masterParties: [
+        {
+          partyKey: "880202102222",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "John",
+          identityNumber: "880202102222",
+          isDirector: true,
+          isShareholder: true,
+          shareholdingPercentage: "3",
+        },
+      ],
+    });
+    const john = result.people.find((p) => p.matchKey === "880202102222");
+    expect(john?.roles).toEqual(["DIRECTOR"]);
   });
 });

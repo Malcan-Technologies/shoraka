@@ -87,7 +87,7 @@ export function PaymasterOfficialIdentityFields({
           Country
         </Label>
         <Select
-          value={value.country}
+          value={value.country || undefined}
           onValueChange={(country) => onChange({ ...value, country })}
           disabled={disabled}
         >
@@ -109,7 +109,7 @@ export function PaymasterOfficialIdentityFields({
           Entity Type
         </Label>
         <Select
-          value={value.entityType}
+          value={value.entityType || undefined}
           onValueChange={(entityType) => onChange({ ...value, entityType })}
           disabled={disabled}
         >

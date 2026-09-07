@@ -10,7 +10,7 @@ import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import { isReadyForSubmit } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
-import { buildAdminPeopleList } from "../admin/build-people-list";
+import { buildDirectorShareholderPeopleListWithMaster } from "../organization-profile/load-master-parties-for-people";
 
 const DIRECTOR_SHAREHOLDER_PENDING_MESSAGE =
   "Director/Shareholder information updated. Please review. Complete onboarding on your company profile before you submit an application.";
@@ -44,7 +44,7 @@ export async function assertIssuerOrgDirectorShareholderOnboardingReady(
   const organizationService = new OrganizationService();
   const extras = await organizationService.getIssuerPartyListExtras(issuerOrganizationId);
 
-  const people = buildAdminPeopleList({
+  const partyBuild = await buildDirectorShareholderPeopleListWithMaster("issuer", issuerOrganizationId, {
     ctos: extras.latestOrganizationCtosCompanyJson ?? null,
     issuerDirectorKycStatus: org.director_kyc_status ?? null,
     issuerDirectorAmlStatus: org.director_aml_status ?? null,
@@ -52,7 +52,7 @@ export async function assertIssuerOrgDirectorShareholderOnboardingReady(
     corporateEntities: org.corporate_entities ?? null,
   });
 
-  if (!isReadyForSubmit(people)) {
+  if (!isReadyForSubmit(partyBuild.people)) {
     throw new AppError(400, "DIRECTOR_SHAREHOLDER_PENDING", DIRECTOR_SHAREHOLDER_PENDING_MESSAGE);
   }
 }
