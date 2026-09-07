@@ -4,6 +4,7 @@ import {
   buildIssuerProfileCompleteness,
   computeIssuerCompanyCompleteness,
   computeIssuerFinancialCompleteness,
+  ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT,
   groupInvestorMissingByProfileSection,
   groupIssuerMissingByProfileSection,
   groupPeopleMissingByParty,
@@ -44,11 +45,11 @@ describe("issuer company completeness [02000]", () => {
     expect(missing.map((m) => m.field)).toContain("businessAddress.line1");
   });
 
-  it("does not require website, city, or TIN", () => {
+  it("does not require website, city, TIN, Issuer ID, or company activities", () => {
     const missing = computeIssuerCompanyCompleteness({
       name: "Acme Sdn Bhd",
       registrationNumber: "1234567A",
-      organizationId: "org_1",
+      organizationId: null,
       dateOfIncorporation: "2020-01-01",
       dateOfCommencement: "2020-02-01",
       countryOfIncorporation: "Malaysia",
@@ -57,11 +58,31 @@ describe("issuer company completeness [02000]", () => {
       businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
       phoneNumber: "+60123456789",
       companyEmail: "ops@acme.test",
-      companyActivities: "Construction",
+      companyActivities: null,
     });
     expect(missing.map((m) => m.field)).not.toContain("website");
     expect(missing.map((m) => m.field)).not.toContain("companyCategory");
+    expect(missing.map((m) => m.field)).not.toContain("organizationId");
+    expect(missing.map((m) => m.field)).not.toContain("companyActivities");
     expect(missing).toHaveLength(0);
+  });
+
+  it("counts 14 company completeness fields when empty", () => {
+    const missing = computeIssuerCompanyCompleteness({
+      name: null,
+      registrationNumber: null,
+      organizationId: null,
+      dateOfIncorporation: null,
+      dateOfCommencement: null,
+      countryOfIncorporation: null,
+      scCompanyType: null,
+      registeredAddress: null,
+      businessAddress: null,
+      phoneNumber: null,
+      companyEmail: null,
+      companyActivities: null,
+    });
+    expect(missing).toHaveLength(ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT);
   });
 });
 

@@ -1,0 +1,12 @@
+<batch xmlns='http://ws.cmctos.com.my/ctosnet/party'>
+	<company_code>TEST452</company_code>
+	<account_no>TEST452</account_no>
+	<user_id>test452_xml</user_id>
+	<records>
+		<type>C</type>
+		<ic_lc>711168W</ic_lc>
+		<nic_br/>
+		<name>MAIN BORROWER A</name>
+		<confirm_entity>3784727</confirm_entity>
+	</records>
+</batch>

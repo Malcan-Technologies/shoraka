@@ -60,6 +60,6 @@ export function ProfileEditToggle({
 }
 
 export function displayProfileValue(value: React.ReactNode): React.ReactNode {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === "") return "";
   return value;
 }

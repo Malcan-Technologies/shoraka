@@ -27,7 +27,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_GENDERS, SC_MALAYSIAN_STATES, userFacingCompleteness, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_GENDERS, SC_MALAYSIAN_STATES, SC_MONTHLY_INVESTOR, userFacingCompleteness, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -986,13 +986,27 @@ export default function ProfilePage() {
                   </div>
                   <div className="p-6">
                     <ProfileFieldGrid>
-                      <ProfileReadField label="Name" value={displayName} locked />
                       <ProfileReadField
-                        label="Identity"
+                        label={SC_MONTHLY_INVESTOR.investorName.label}
+                        value={displayName}
+                        locked
+                        required
+                        help={SC_MONTHLY_INVESTOR.investorName.help}
+                      />
+                      <ProfileReadField
+                        label={SC_MONTHLY_INVESTOR.investorIdentification.label}
                         value={`${formatDocumentType(orgData?.documentType)} ${orgData?.documentNumber || ""}`.trim()}
                         locked
+                        required
+                        help={SC_MONTHLY_INVESTOR.investorIdentification.help}
                       />
-                      <ProfileReadField label="Date of birth" value={formatProfileDate(orgData?.dateOfBirth)} locked />
+                      <ProfileReadField
+                        label={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.label}
+                        value={formatProfileDate(orgData?.dateOfBirth)}
+                        locked
+                        required
+                        help={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.help}
+                      />
                       {isEditingProfile ? (
                         <div className="space-y-2">
                           <Label className="text-ui font-medium">Gender</Label>
@@ -1018,7 +1032,7 @@ export default function ProfilePage() {
                       )}
                       {isEditingProfile ? (
                         <div className="space-y-2">
-                          <Label className="text-ui font-medium">Nationality</Label>
+                          <Label className="text-ui font-medium">{SC_MONTHLY_INVESTOR.nationalityCountry.label}</Label>
                           <Input
                             className="h-11 text-ui"
                             value={nationality}
@@ -1027,7 +1041,7 @@ export default function ProfilePage() {
                         </div>
                       ) : (
                         <ProfileReadField
-                          label="Nationality"
+                          label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
                           value={orgData?.nationality}
                           missing={missingFieldKeys.has("nationality")}
                         />
@@ -1085,12 +1099,12 @@ export default function ProfilePage() {
                           value={address.trim() || null}
                         />
                         <ProfileReadField
-                          label="State"
+                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
                           value={orgData?.residentialAddress?.state}
                           missing={missingFieldKeys.has("state")}
                         />
                         <ProfileReadField
-                          label="Postcode"
+                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
                           value={orgData?.residentialAddress?.postalCode}
                           missing={missingFieldKeys.has("postalCode")}
                         />
@@ -1113,7 +1127,7 @@ export default function ProfilePage() {
                         <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-ui font-medium">State</Label>
+                        <Label className="text-ui font-medium">{SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}</Label>
                         <Select value={residentialState || undefined} onValueChange={setResidentialState}>
                           <SelectTrigger className="h-11 text-ui">
                             <SelectValue placeholder="Select" />
@@ -1128,7 +1142,7 @@ export default function ProfilePage() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-ui font-medium">Postcode</Label>
+                        <Label className="text-ui font-medium">{SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}</Label>
                         <Input
                           className="h-11 text-ui"
                           value={residentialPostalCode}
@@ -1325,7 +1339,7 @@ export default function ProfilePage() {
                             missing={missingFieldKeys.has("businessAddress.line1")}
                           />
                           <ProfileReadField
-                            label="State"
+                            label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
                             value={orgData?.corporateOnboardingData?.addresses?.business?.state}
                             missing={
                               missingFieldKeys.has("businessState") ||
@@ -1333,7 +1347,7 @@ export default function ProfilePage() {
                             }
                           />
                           <ProfileReadField
-                            label="Postcode"
+                            label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
                             value={orgData?.corporateOnboardingData?.addresses?.business?.postalCode}
                             missing={
                               missingFieldKeys.has("businessPostalCode") ||
@@ -1371,7 +1385,7 @@ export default function ProfilePage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>Postal Code</Label>
+                            <Label>{SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}</Label>
                             <Input
                               value={businessPostalCode}
                               onChange={(e) => setBusinessPostalCode(e.target.value)}
@@ -1380,7 +1394,7 @@ export default function ProfilePage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>State</Label>
+                            <Label>{SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}</Label>
                             <Input
                               value={businessState}
                               onChange={(e) => setBusinessState(e.target.value)}
@@ -1446,7 +1460,7 @@ export default function ProfilePage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>Postal Code</Label>
+                              <Label>{SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}</Label>
                               <Input
                                 value={registeredPostalCode}
                                 onChange={(e) => setRegisteredPostalCode(e.target.value)}
@@ -1455,7 +1469,7 @@ export default function ProfilePage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>State</Label>
+                              <Label>{SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}</Label>
                               <Input
                                 value={registeredState}
                                 onChange={(e) => setRegisteredState(e.target.value)}

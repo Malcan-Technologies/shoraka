@@ -62,7 +62,7 @@ type Portal = "issuer" | "investor";
 
 const USER_LOCKED_ORG_FIELDS = new Set(["name"]);
 /** Shared master fields the investor/issuer may change even when already filled (fill-empty-only still applies to other USER writes). */
-const USER_OVERWRITE_ORG_FIELDS = new Set(["scInvestorCategory"]);
+const USER_OVERWRITE_ORG_FIELDS = new Set(["scInvestorCategory", "companyEmail", "phoneNumber"]);
 const USER_LOCKED_PARTY_FIELDS = new Set([
   "name",
   "identityNumber",

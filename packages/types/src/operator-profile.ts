@@ -2,6 +2,7 @@ import type {
   OperatorAdvisorType,
   OperatorHolderType,
   OrganizationPartyEntityType,
+  ScCompanyType,
   ScDesignation,
   ScPersonKind,
   ScShareType,
@@ -13,6 +14,8 @@ export interface OperatorProfileDto {
   name: string | null;
   registrationNumber: string | null;
   trusteeRegistrationNumber: string | null;
+  /** SC Type of Company values used to choose the [02000] Sdn Bhd vs LLP share-capital block. */
+  scCompanyType: ScCompanyType | null;
   responsiblePersonName: string | null;
   responsiblePersonPhone: string | null;
   shareCapital: OperatorShareCapitalDto | null;
@@ -162,7 +165,7 @@ export const OPERATOR_PROFILE_SECTION_LABELS: Record<OperatorProfileSectionId, s
   shareholders: "Shareholders / Members / Beneficial Owners",
   officers: "Board & Management",
   advisors: "Advisers",
-  interests: "Interests in Other Companies",
+  interests: "Interest in Other Company",
   financials: "Financial Statements",
 };
 
@@ -192,6 +195,19 @@ function operatorHasText(value: string | null | undefined): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+/**
+ * SC [02000] Summary of Share Capital is two explicit blocks:
+ * Ordinary/Preference/Others/Total paid up capital (for Sdn Bhd), and
+ * Limited liability partnership. Other Type of Company values are not mapped.
+ */
+export function operatorShareCapitalKind(
+  scCompanyType: ScCompanyType | null | undefined
+): "SDN_BHD" | "LLP" | null {
+  if (scCompanyType === "PRIVATE_LIMITED") return "SDN_BHD";
+  if (scCompanyType === "LLP") return "LLP";
+  return null;
+}
+
 function operatorSection(
   id: OperatorProfileSectionId,
   missing: OperatorProfileMissingItem[],
@@ -213,37 +229,55 @@ export function buildOperatorProfileCompleteness(
 ): OperatorProfileCompleteness {
   const generalMissing: OperatorProfileMissingItem[] = [];
   if (!operatorHasText(profile.name)) {
-    generalMissing.push({ section: "general", field: "name", label: "RMO / operator name" });
+    generalMissing.push({ section: "general", field: "name", label: "Name of RMO" });
   }
   if (!operatorHasText(profile.registrationNumber)) {
     generalMissing.push({
       section: "general",
       field: "registrationNumber",
-      label: "Company registration number",
+      label: "Company Registration Number",
+    });
+  }
+  if (!profile.scCompanyType) {
+    generalMissing.push({
+      section: "general",
+      field: "scCompanyType",
+      label: "Type of Company",
     });
   }
   if (!operatorHasText(profile.responsiblePersonName)) {
     generalMissing.push({
       section: "general",
       field: "responsiblePersonName",
-      label: "Responsible person",
+      label: "Name of Responsible Person",
     });
   }
   if (!operatorHasText(profile.responsiblePersonPhone)) {
     generalMissing.push({
       section: "general",
       field: "responsiblePersonPhone",
-      label: "Responsible person contact",
+      label: "Contact Number",
     });
   }
 
+  const capitalKind = operatorShareCapitalKind(profile.scCompanyType);
   const capitalMissing: OperatorProfileMissingItem[] = [];
-  if (!operatorHasText(profile.shareCapital?.totalPaidUpCapital)) {
-    capitalMissing.push({
-      section: "shareCapital",
-      field: "totalPaidUpCapital",
-      label: "Total paid-up capital",
-    });
+  if (capitalKind === "SDN_BHD") {
+    if (!operatorHasText(profile.shareCapital?.totalPaidUpCapital)) {
+      capitalMissing.push({
+        section: "shareCapital",
+        field: "totalPaidUpCapital",
+        label: "Total paid up capital (for Sdn Bhd)",
+      });
+    }
+  } else if (capitalKind === "LLP") {
+    if (!operatorHasText(profile.shareCapital?.totalLlp)) {
+      capitalMissing.push({
+        section: "shareCapital",
+        field: "totalLlp",
+        label: "Total Limited Liability Partnership",
+      });
+    }
   }
 
   const shareholderMissing: OperatorProfileMissingItem[] = [];
@@ -259,14 +293,14 @@ export function buildOperatorProfileCompleteness(
         shareholderMissing.push({
           section: "shareholders",
           field: `shareholders.${row.id}.name`,
-          label: "Holder name",
+          label: "Name",
         });
       }
       if (!operatorHasText(row.identityNumber)) {
         shareholderMissing.push({
           section: "shareholders",
           field: `shareholders.${row.id}.identityNumber`,
-          label: "Holder identity number",
+          label: "IC/Passport number",
         });
       }
     }
@@ -287,14 +321,14 @@ export function buildOperatorProfileCompleteness(
         officerMissing.push({
           section: "officers",
           field: `officers.${row.id}.name`,
-          label: "Officer name",
+          label: "Name",
         });
       }
       if (!operatorHasText(row.identityNumber)) {
         officerMissing.push({
           section: "officers",
           field: `officers.${row.id}.identityNumber`,
-          label: "Officer identity number",
+          label: "Identity Number (NRIC/ Passport No.)",
         });
       }
     }
@@ -302,7 +336,7 @@ export function buildOperatorProfileCompleteness(
       officerMissing.push({
         section: "officers",
         field: "responsiblePerson",
-        label: "Responsible person on board / management",
+        label: "Responsible Person",
       });
     }
   }
@@ -314,7 +348,7 @@ export function buildOperatorProfileCompleteness(
       advisorMissing.push({
         section: "advisors",
         field: `advisors.${row.id}.name`,
-        label: "Advisor name",
+        label: "Name",
       });
     }
   }
@@ -325,7 +359,7 @@ export function buildOperatorProfileCompleteness(
       interestMissing.push({
         section: "interests",
         field: `interests.${row.id}.name`,
-        label: "Company name",
+        label: "Name",
       });
     }
   }
@@ -343,37 +377,45 @@ export function buildOperatorProfileCompleteness(
         financialMissing.push({
           section: "financials",
           field: `financialStatements.${row.id}.financialYearEnd`,
-          label: "Financial year end",
+          label: "Financial Year End (dd/mm/yyyy)",
         });
       }
       if (!operatorHasText(row.totalAssets)) {
         financialMissing.push({
           section: "financials",
           field: `financialStatements.${row.id}.totalAssets`,
-          label: "Total assets",
+          label: "Total Assets",
         });
       }
       if (!operatorHasText(row.totalRevenue)) {
         financialMissing.push({
           section: "financials",
           field: `financialStatements.${row.id}.totalRevenue`,
-          label: "Total revenue",
+          label: "Total Revenue",
         });
       }
       if (!operatorHasText(row.profitBeforeTax)) {
         financialMissing.push({
           section: "financials",
           field: `financialStatements.${row.id}.profitBeforeTax`,
-          label: "Profit before tax",
+          label: "Profit/(Loss) Before Tax",
         });
       }
     }
   }
   const financialRequired = profile.financialStatements.length === 0 ? 1 : profile.financialStatements.length * 4;
 
+  const capitalRequired = capitalKind === "SDN_BHD" || capitalKind === "LLP" ? 1 : 0;
   const sections: OperatorProfileSectionCompleteness[] = [
-    operatorSection("general", generalMissing, 4),
-    operatorSection("shareCapital", capitalMissing, 1),
+    operatorSection("general", generalMissing, 5),
+    {
+      id: "shareCapital",
+      label: OPERATOR_PROFILE_SECTION_LABELS.shareCapital,
+      complete: capitalKind !== null && capitalMissing.length === 0,
+      requiredCount: capitalRequired,
+      filledCount: Math.max(0, capitalRequired - capitalMissing.length),
+      missing: capitalMissing,
+    },
     {
       id: "shareholders",
       label: OPERATOR_PROFILE_SECTION_LABELS.shareholders,

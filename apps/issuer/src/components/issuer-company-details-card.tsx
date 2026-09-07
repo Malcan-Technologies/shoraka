@@ -7,12 +7,13 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   SC_COMPANY_TYPE_LABELS,
   SC_COMPANY_TYPES,
+  SC_MONTHLY_ISSUER,
+  scAppendixASelectValues,
   type ScCompanyType,
 } from "@cashsouk/types";
-import { ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
+import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -101,6 +102,7 @@ export function IssuerCompanyDetailsCard({
   const [companyEmail, setCompanyEmail] = React.useState(org.companyEmail ?? "");
   const [phoneNumber, setPhoneNumber] = React.useState(org.phoneNumber ?? "");
   const [website, setWebsite] = React.useState(basic?.website ?? "");
+  const [annualRevenue, setAnnualRevenue] = React.useState(basic?.annualRevenue ?? "");
 
   React.useEffect(() => {
     if (isEditing) return;
@@ -113,6 +115,7 @@ export function IssuerCompanyDetailsCard({
     setCompanyEmail(org.companyEmail ?? "");
     setPhoneNumber(org.phoneNumber ?? "");
     setWebsite(basic?.website ?? "");
+    setAnnualRevenue(basic?.annualRevenue ?? "");
   }, [basic, isEditing, org]);
 
   const companyTypeLabel =
@@ -131,8 +134,10 @@ export function IssuerCompanyDetailsCard({
         master.countryOfIncorporation = countryOfIncorporation.trim();
       }
       if (!org.scCompanyType && scCompanyType) master.scCompanyType = scCompanyType;
-      if (!org.companyEmail && companyEmail.trim()) master.companyEmail = companyEmail.trim();
-      if (!org.phoneNumber && phoneNumber.trim()) master.phoneNumber = phoneNumber.trim();
+      if (companyEmail.trim()) master.companyEmail = companyEmail.trim();
+      else if (org.companyEmail) master.companyEmail = "";
+      if (phoneNumber.trim()) master.phoneNumber = phoneNumber.trim();
+      else if (org.phoneNumber) master.phoneNumber = "";
 
       if (Object.keys(master).length > 0) {
         const res = await api.patchMasterProfile("issuer", organizationId, master);
@@ -147,6 +152,7 @@ export function IssuerCompanyDetailsCard({
         industry: industry.trim() || null,
         numberOfEmployees: nextEmployees,
         website: website.trim() || null,
+        annualRevenue: annualRevenue.trim() || null,
       });
       if (!corp.success) throw new Error(corp.error.message);
     },
@@ -176,64 +182,87 @@ export function IssuerCompanyDetailsCard({
     >
       <div className="space-y-4">
         <ProfileFieldGrid>
-          <ProfileReadField label="Business Name" value={displayProfileValue(businessName)} locked missing={missing.has("name")} />
-          <ProfileReadField label="SSM / ROC" value={displayProfileValue(ssm)} locked missing={missing.has("registrationNumber")} />
+          <ProfileReadField
+            label={SC_MONTHLY_ISSUER.nameOfIssuer.label}
+            value={displayProfileValue(businessName)}
+            locked
+            missing={missing.has("name")}
+            required
+          />
+          <ProfileReadField
+            label={SC_MONTHLY_ISSUER.issuerRoc.label}
+            value={displayProfileValue(ssm)}
+            locked
+            missing={missing.has("registrationNumber")}
+            required
+            help={SC_MONTHLY_ISSUER.issuerRoc.help}
+          />
           {isEditing && !org.scCompanyType ? (
             <SelectRow
-              label="Company Type"
+              label={SC_MONTHLY_ISSUER.typeOfCompany.label}
               value={scCompanyType}
               onChange={setScCompanyType}
+              required
             />
           ) : (
             <ProfileReadField
-              label="Company Type"
+              label={SC_MONTHLY_ISSUER.typeOfCompany.label}
               value={displayProfileValue(companyTypeLabel)}
               locked={Boolean(org.scCompanyType)}
               missing={missing.has("scCompanyType")}
+              required
             />
           )}
           {isEditing && !org.dateOfIncorporation ? (
             <InputRow
-              label="Date of Incorporation"
+              label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
               type="date"
               value={dateOfIncorporation}
               onChange={setDateOfIncorporation}
+              required
             />
           ) : (
             <ProfileReadField
-              label="Date of Incorporation"
+              label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
               value={displayProfileValue(formatDate(org.dateOfIncorporation))}
               locked={Boolean(org.dateOfIncorporation)}
               missing={missing.has("dateOfIncorporation")}
+              required
             />
           )}
           {isEditing && !org.dateOfCommencement ? (
             <InputRow
-              label="Date of Commencement"
+              label={SC_MONTHLY_ISSUER.dateOfCommencement.label}
               type="date"
               value={dateOfCommencement}
               onChange={setDateOfCommencement}
+              required
             />
           ) : (
             <ProfileReadField
-              label="Date of Commencement"
+              label={SC_MONTHLY_ISSUER.dateOfCommencement.label}
               value={displayProfileValue(formatDate(org.dateOfCommencement))}
               locked={Boolean(org.dateOfCommencement)}
               missing={missing.has("dateOfCommencement")}
+              required
             />
           )}
           {isEditing && !org.countryOfIncorporation ? (
-            <InputRow
-              label="Country of Incorporation"
+            <CountrySelectRow
+              label={SC_MONTHLY_ISSUER.countryOfIncorporation.label}
               value={countryOfIncorporation}
               onChange={setCountryOfIncorporation}
+              help={SC_MONTHLY_ISSUER.countryOfIncorporation.help}
+              required
             />
           ) : (
             <ProfileReadField
-              label="Country of Incorporation"
+              label={SC_MONTHLY_ISSUER.countryOfIncorporation.label}
               value={displayProfileValue(org.countryOfIncorporation)}
               locked={Boolean(org.countryOfIncorporation)}
               missing={missing.has("countryOfIncorporation")}
+              required
+              help={SC_MONTHLY_ISSUER.countryOfIncorporation.help}
             />
           )}
           <ProfileReadField label="TIN" value={displayProfileValue(basic?.tinNumber)} locked />
@@ -252,30 +281,57 @@ export function IssuerCompanyDetailsCard({
               )}
             />
           )}
-          <ProfileReadField label="Annual Revenue" value={displayProfileValue(basic?.annualRevenue)} locked />
           {isEditing ? (
-            <InputRow label="Website" value={website} onChange={setWebsite} />
+            <InputRow label="Annual Revenue" value={annualRevenue} onChange={setAnnualRevenue} />
           ) : (
-            <ProfileReadField label="Website" value={displayProfileValue(basic?.website)} />
+            <ProfileReadField label="Annual Revenue" value={displayProfileValue(basic?.annualRevenue)} />
           )}
-          {isEditing && !org.companyEmail ? (
-            <InputRow label="Company Email" value={companyEmail} onChange={setCompanyEmail} />
+          {isEditing ? (
+            <InputRow
+              label={SC_MONTHLY_ISSUER.website.label}
+              value={website}
+              onChange={setWebsite}
+              help={SC_MONTHLY_ISSUER.website.help}
+            />
           ) : (
             <ProfileReadField
-              label="Company Email"
-              value={displayProfileValue(org.companyEmail)}
-              locked={Boolean(org.companyEmail)}
-              missing={missing.has("companyEmail")}
+              label={SC_MONTHLY_ISSUER.website.label}
+              value={displayProfileValue(basic?.website)}
+              help={SC_MONTHLY_ISSUER.website.help}
             />
           )}
-          {isEditing && !org.phoneNumber ? (
-            <InputRow label="Phone" value={phoneNumber} onChange={setPhoneNumber} />
+          {isEditing ? (
+            <InputRow
+              label={SC_MONTHLY_ISSUER.emailAddress.label}
+              value={companyEmail}
+              onChange={setCompanyEmail}
+              help={SC_MONTHLY_ISSUER.emailAddress.help}
+              required
+            />
           ) : (
             <ProfileReadField
-              label="Phone"
+              label={SC_MONTHLY_ISSUER.emailAddress.label}
+              value={displayProfileValue(org.companyEmail)}
+              missing={missing.has("companyEmail")}
+              required
+              help={SC_MONTHLY_ISSUER.emailAddress.help}
+            />
+          )}
+          {isEditing ? (
+            <InputRow
+              label={SC_MONTHLY_ISSUER.phoneNumber.label}
+              value={phoneNumber}
+              onChange={setPhoneNumber}
+              help={SC_MONTHLY_ISSUER.phoneNumber.help}
+              required
+            />
+          ) : (
+            <ProfileReadField
+              label={SC_MONTHLY_ISSUER.phoneNumber.label}
               value={displayProfileValue(org.phoneNumber)}
-              locked={Boolean(org.phoneNumber)}
               missing={missing.has("phoneNumber")}
+              required
+              help={SC_MONTHLY_ISSUER.phoneNumber.help}
             />
           )}
         </ProfileFieldGrid>
@@ -300,16 +356,52 @@ function InputRow({
   value,
   onChange,
   type = "text",
+  help,
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
+  help?: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui font-medium">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Input className="h-11 text-ui" type={type} value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function CountrySelectRow({
+  label,
+  value,
+  onChange,
+  help,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  help?: string;
+  required?: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <ComRepFieldLabel label={label} required={required} help={help} />
+      <Select value={value || undefined} onValueChange={onChange}>
+        <SelectTrigger className="h-11 text-ui">
+          <SelectValue placeholder="Select" />
+        </SelectTrigger>
+        <SelectContent className="max-h-72">
+          {scAppendixASelectValues(value).map((country) => (
+            <SelectItem key={country} value={country}>
+              {country}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
@@ -318,14 +410,16 @@ function SelectRow({
   label,
   value,
   onChange,
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui font-medium">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} />
       <Select value={value || undefined} onValueChange={onChange}>
         <SelectTrigger className="h-11 text-ui">
           <SelectValue placeholder="Select" />

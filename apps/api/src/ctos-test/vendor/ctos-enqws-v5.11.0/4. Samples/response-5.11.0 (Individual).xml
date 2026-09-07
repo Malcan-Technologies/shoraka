@@ -1,0 +1,1036 @@
+<report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
+	<enq_report id="BB-4533-20210208123248" report_type="CTOS" title="CTOS ENQUIRY">
+		<header>
+			<user id="test452_xml">Test User</user>
+			<company id="TEST452">Test Version 4.5.2</company>
+			<account>TEST452</account>
+			<tel/>
+			<fax/>
+			<enq_date>2021-02-08</enq_date>
+			<enq_time>12:32:49</enq_time>
+			<enq_status code="1">SUCCESS</enq_status>
+		</header>
+		<summary>
+			<enq_sum ptype="I" pcode="" seq="1">
+				<name>sdsdsd</name>
+				<ic_lcno/>
+				<nic_brno>760528913131</nic_brno>
+				<stat>5110</stat>
+				<dd_index>8300</dd_index>
+				<ci>
+					<ci3>0</ci3>
+					<ci14>1</ci14>
+					<ci35>2</ci35>
+				</ci>
+				<mphone_nos/>
+				<ref_no/>
+				<dist_code>testing_Dist_Code</dist_code>
+				<purpose code="200">Credit evaluation/account opening on subject/directors/shareholder with consent /due diligence on AMLA compliance</purpose>
+				<state code=""/>
+				<country code=""/>
+				<include_consent>0</include_consent>
+				<include_ctos>1</include_ctos>
+				<include_trex>1</include_trex>
+				<include_ccris sum="1">1</include_ccris>
+				<include_dcheq>0</include_dcheq>
+				<include_ccris_supp>1</include_ccris_supp>
+				<include_fico>0</include_fico>
+				<include_sfi>0</include_sfi>
+				<include_ssm>0</include_ssm>
+				<include_ssm_retention>0</include_ssm_retention>
+				<include_angkasa>1</include_angkasa>
+				<include_ie>0</include_ie>
+				<include_ci>1</include_ci>
+				<include_etr_plus>1</include_etr_plus>
+				<include_analytical_product>TS</include_analytical_product>
+				<include_analytical_product>EWI</include_analytical_product>
+				<confirm_entity>9607177</confirm_entity>
+				<enq_status code="1">SUCCESS</enq_status>
+				<enq_code code="3">CTOS Report with BPH</enq_code>
+				<analytical_products>
+					<analytical_product>
+						<type version="1" code="TS">Telco Score</type>
+						<score>300</score>
+					</analytical_product>
+					<analytical_product>
+						<type version="2" code="EWI">Early Warning Indicator</type>
+						<score>1</score>
+						<score_reason_code code="D1">abcdefgh</score_reason_code>
+						<score_reason_code code="D2">abcdefgh</score_reason_code>
+					</analytical_product>
+				</analytical_products>
+			</enq_sum>
+		</summary>
+		<enquiry seq="1">
+			<section_summary>
+				<ctos>
+					<bankruptcy status="0"/>
+					<legal total="0" value="0"/>
+					<legal_personal_capacity total="0" value="0"/>
+					<legal_non_personal_capacity total="0" value="0"/>
+				</ctos>
+				<tr>
+					<trex_ref negative="0" positive="0"/>
+				</tr>
+				<ccris>
+					<application total="0" approved="0" pending="0"/>
+					<facility total="9" arrears="1" value="314077.00"/>
+					<special_attention accounts="0"/>
+				</ccris>
+				<dcheqs entity="0"/>
+			</section_summary>
+			<section_a data="true" title="SECTION A - IDENTITY NUMBER VERIFICATION">
+				<record rpttype="Id" seq="1">
+					<name match="0">WENDALL KOON KOON KOON</name>
+					<ic_lcno>D7605289</ic_lcno>
+					<nic_brno match="1">760528913131</nic_brno>
+					<addr date="12-06-2021">23-09 CRYSTAL APPARTMENT,MONT KIARA, KUALA LUMPUR</addr>
+					<addr_breakdown>
+						<addr1>23-09 CRYSTAL APPARTMENT</addr1>
+						<addr2/>
+						<addr3/>
+						<addr4/>
+						<city>MONT KIARA</city>
+						<state>KUALA LUMPUR</state>
+						<postcode/>
+						<country/>
+						<last_updated_date>12-06-2021</last_updated_date>
+					</addr_breakdown>
+					<ccris_addresses>
+						<ccris_address date="23-04-2020">W.P. KUALA LUMPUR</ccris_address>
+						<ccris_address date="21-04-2020">W.P. KUALA LUMPUR</ccris_address>
+					</ccris_addresses>
+					<source>NRD</source>
+					<cpo_date>14-08-2014</cpo_date>
+					<remark/>
+					<nationality>MALAYSIAN</nationality>
+					<birth_date>28-05-1976</birth_date>
+				</record>
+			</section_a>
+			<section_b title="SECTION B - INTERNAL LIST" data="true">
+				<history seq="1" rpttype="EH" year="2021">
+					<period month="1">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="2">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="3">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="4">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="5">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="6">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="7">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="8">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="9">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="10">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="11">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="12">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+				</history>
+				<history seq="2" rpttype="EH" year="2020">
+					<period month="1">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="2">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="3">
+						<entity type="FI" value="2"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="4">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="5">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="6">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="7">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="8">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="9">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="10">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="11">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+					<period month="12">
+						<entity type="FI" value="0"/>
+						<entity type="NON-FI" value="0"/>
+						<entity type="LAWYER" value="0"/>
+					</period>
+				</history>
+				<record rpttype="Sn" seq="1">
+					<title>United States Dept of the Treasury Specially Designated Nationals</title>
+					<name>WENDALL KOON KOON KOON</name>
+					<known_as/>
+					<ids>
+						<id seq="1">
+							<id>760528913131(Passport)</id>
+						</id>
+					</ids>
+				</record>
+			</section_b>
+			<section_c title="SECTION C - DIRECTORSHIPS AND BUSINESS INTERESTS" data="true">
+				<record rpttype="IF" seq="1">
+					<company_name>SUSAHJAYA M20 SDN BHD</company_name>
+					<additional_registration_no>201803081454</additional_registration_no>
+					<local>9888820</local>
+					<locala>A</locala>
+					<object>FABRICATION ENGINEERING WORK</object>
+					<incdate>15-06-2014</incdate>
+					<lastdoc>11-03-2013</lastdoc>
+					<appoint>19-05-2005</appoint>
+					<resign/>
+					<name>WENDALL KOON KOON KOON</name>
+					<ic_lcno/>
+					<nic_brno>760528913131</nic_brno>
+					<addr>374A, JALAN 7/56, PETALING JAYA, SELANGOR</addr>
+					<position>DIRECTOR  /  SHARE HOLDER</position>
+					<cpo_date>30-03-2020</cpo_date>
+					<paidup>2500000</paidup>
+					<shares>356120</shares>
+					<total_shares_percentage>26.26</total_shares_percentage>
+					<remark>TESTDATA</remark>
+					<protif_after_tax>4007022.00</protif_after_tax>
+					<latest_financial_year>31-12-2012</latest_financial_year>
+					<status>EXISTING</status>
+					<brn_ssm>9888820A</brn_ssm>
+				</record>
+				<record rpttype="IF" seq="2">
+					<company_name>WETRA FOOD INDUSTRIES SDN BHD</company_name>
+					<additional_registration_no>201703081454</additional_registration_no>
+					<local>0603163</local>
+					<locala>X</locala>
+					<object>MANUFACTURING OF FOOD AND BEVERAGES</object>
+					<incdate>11-01-2003</incdate>
+					<lastdoc>05-08-2014</lastdoc>
+					<appoint>19-05-2005</appoint>
+					<resign/>
+					<name>WENDALL KOON KOON KOON</name>
+					<ic_lcno/>
+					<nic_brno>760528913131</nic_brno>
+					<addr>374A, JALAN 7/56, PETALING JAYA, SELANGOR</addr>
+					<position>DIRECTOR  /  SHARE HOLDER</position>
+					<cpo_date>30-03-2020</cpo_date>
+					<paidup>2000000</paidup>
+					<shares>300</shares>
+					<total_shares_percentage>0.01</total_shares_percentage>
+					<remark>TESTDATA</remark>
+					<protif_after_tax/>
+					<latest_financial_year/>
+					<status>EXISTING</status>
+					<brn_ssm>603163X</brn_ssm>
+				</record>
+				<record rpttype="IF" seq="3">
+					<company_name>HIGHBURY ENTERPRISE SDN BHD</company_name>
+					<additional_registration_no>201603081454</additional_registration_no>
+					<local>0052762</local>
+					<locala>U</locala>
+					<object>AMUSEMENT AND RECREATIONAL SERVICES</object>
+					<incdate>06-10-2000</incdate>
+					<lastdoc>05-01-2007</lastdoc>
+					<appoint>19-05-2005</appoint>
+					<resign/>
+					<name>WENDALL KOON KOON KOON</name>
+					<ic_lcno/>
+					<nic_brno>760528913131</nic_brno>
+					<addr>374A, JALAN 7/56, PETALING JAYA, SELANGOR</addr>
+					<position>DIRECTOR  /  SHARE HOLDER</position>
+					<cpo_date>30-03-2020</cpo_date>
+					<paidup>4</paidup>
+					<shares>150000</shares>
+					<total_shares_percentage>100.00</total_shares_percentage>
+					<remark>TESTDATA</remark>
+					<protif_after_tax/>
+					<latest_financial_year/>
+					<status>EXISTING</status>
+					<brn_ssm>52762U</brn_ssm>
+				</record>
+				<record rpttype="IF" seq="4">
+					<company_name>ACTION WEAR (M) SDN BHD</company_name>
+					<additional_registration_no>201503081454</additional_registration_no>
+					<local>0135472</local>
+					<locala>U</locala>
+					<object>MANUFACTURING AND SELLING OF SPORTS APPAREL</object>
+					<incdate>16-02-1985</incdate>
+					<lastdoc>07-04-2009</lastdoc>
+					<appoint>19-05-2005</appoint>
+					<resign/>
+					<name>WENDALL KOON KOON KOON</name>
+					<ic_lcno/>
+					<nic_brno>760528913131</nic_brno>
+					<addr>374A, JALAN 7/56, PETALING JAYA, SELANGOR</addr>
+					<position>DIRECTOR  /  SHARE HOLDER</position>
+					<cpo_date>30-03-2020</cpo_date>
+					<paidup>2250000</paidup>
+					<shares>27</shares>
+					<total_shares_percentage>0.00</total_shares_percentage>
+					<remark>TESTDATA</remark>
+					<protif_after_tax>-5828999.00</protif_after_tax>
+					<latest_financial_year>31-12-2001</latest_financial_year>
+					<status/>
+					<brn_ssm>135472U</brn_ssm>
+				</record>
+				<record rpttype="IK" seq="5">
+					<company_name>TOP CLASSIC ENTERPRISE</company_name>
+					<additional_registration_no>201403081454</additional_registration_no>
+					<local>JM0407071V</local>
+					<object>MANAGING OPERATORS OF VESSELS OWNED BY VARIOUS SHIPPING COMPANIES</object>
+					<incdate>22-05-1959</incdate>
+					<expdate/>
+					<name>WENDALL KOON KOON KOON</name>
+					<ic_lcno/>
+					<nic_brno>760528913131</nic_brno>
+					<addr/>
+					<position>PARTNER</position>
+					<cpo_date>2020-03-30</cpo_date>
+					<remark>TEST DATA</remark>
+					<status/>
+				</record>
+			</section_c>
+			<section_d title="SECTION D" data="false"/>
+			<section_d2 title="SECTION D2 - SUBJECT AS PLAINTIFF" data="false"/>
+			<section_ccris title="SECTION CCRIS" data="true">
+				<summary entity_key="9607177" entity_warning="" fi_code="">
+					<application>
+						<approved count="0">0.00</approved>
+						<pending count="3">850000.00</pending>
+					</application>
+					<liabilities>
+						<borrower total_limit="39000.00" fec_limit="0.00">39636.00</borrower>
+						<guarantor/>
+					</liabilities>
+					<legal status="0"/>
+					<special_attention status="0"/>
+					<special_name status="0"/>
+				</summary>
+				<derivatives>
+					<application>
+						<date>01-12-1988</date>
+						<facility code="CHRGCARD">Charge Card</facility>
+					</application>
+					<facilities>
+						<secure total="0">
+							<outstanding average="0.0" limit="0">0</outstanding>
+						</secure>
+						<unsecure total="2">
+							<outstanding average="0.5" limit="101">39636</outstanding>
+						</unsecure>
+					</facilities>
+					<credit_card avg_usage_6_mths="101.63"/>
+					<oth_revolving_credits avg_usage_6_mths="0.00"/>
+					<charge_card min_usage_12_months="0" max_usage_12_months="0"/>
+					<ptptn total="0"/>
+					<local_lenders total="0"/>
+					<foreign_lenders total="0"/>
+				</derivatives>
+				<applications>
+					<application>
+						<org1/>
+						<org2/>
+						<adta_id>303790</adta_id>
+						<date>16-10-2017</date>
+						<app_type/>
+						<status code="P">Pending decision by FI</status>
+						<capacity code="Own">The loan is for this customer only</capacity>
+						<lender_type code="CB">Commercial bank and Islamic bank</lender_type>
+						<my_fgn/>
+						<amount>150000</amount>
+						<facility code=""/>
+						<property_status code="100">Primary completed</property_status>
+						<property_add1>12TH FLR,BGN MING</property_add1>
+						<property_add2>JLN BKT NANAS</property_add2>
+						<property_add3>50250 KUALA LUMPUR</property_add3>
+						<property_add4>MALAYSIA</property_add4>
+						<property_city>BKT NANAS</property_city>
+						<property_post_code>50250</property_post_code>
+						<property_state code="10">SABAH</property_state>
+						<property_country code="MY">MALAYSIA</property_country>
+					</application>
+					<application>
+						<org1/>
+						<org2/>
+						<adta_id>304478</adta_id>
+						<date>23-10-2017</date>
+						<app_type/>
+						<status code="P">Pending decision by FI</status>
+						<capacity code="Own">The loan is for this customer only</capacity>
+						<lender_type code="CB">Commercial bank and Islamic bank</lender_type>
+						<my_fgn/>
+						<amount>500000</amount>
+						<facility code="HSLNFNCE">Housing Loans/Financing</facility>
+						<property_status code="100">Primary completed</property_status>
+						<property_add1>12TH FLR,BGN MING</property_add1>
+						<property_add2>JLN BKT NANAS</property_add2>
+						<property_add3>50250 KUALA LUMPUR</property_add3>
+						<property_add4>MALAYSIA</property_add4>
+						<property_city>BKT NANAS</property_city>
+						<property_post_code>50250</property_post_code>
+						<property_state code="10">SABAH</property_state>
+						<property_country code="MY">MALAYSIA</property_country>
+					</application>
+					<application>
+						<org1/>
+						<org2/>
+						<adta_id>304485</adta_id>
+						<date>23-10-2017</date>
+						<app_type/>
+						<status code="P">Pending decision by FI</status>
+						<capacity code="Joint">This customer is a joint applicant/owner of the loan</capacity>
+						<lender_type code="CB">Commercial bank and Islamic bank</lender_type>
+						<my_fgn/>
+						<amount>200000</amount>
+						<facility code="HSLNFNCE">Housing Loans/Financing</facility>
+						<property_status code="100">Primary completed</property_status>
+						<property_add1>12TH FLR,BGN MING</property_add1>
+						<property_add2>JLN BKT NANAS</property_add2>
+						<property_add3>50250 KUALA LUMPUR</property_add3>
+						<property_add4>MALAYSIA</property_add4>
+						<property_city>BKT NANAS</property_city>
+						<property_post_code>50250</property_post_code>
+						<property_state code="10">SABAH</property_state>
+						<property_country code="MY">MALAYSIA</property_country>
+					</application>
+				</applications>
+				<accounts>
+					<account>
+						<org1/>
+						<org2/>
+						<mdta_id>4207924</mdta_id>
+						<my_fgn>M</my_fgn>
+						<approval_date>01-12-1988</approval_date>
+						<capacity code="Own">The loan is for this customer only</capacity>
+						<lender_type code="OTH">Other</lender_type>
+						<limit>0</limit>
+						<collaterals/>
+						<legal>
+							<date/>
+						</legal>
+						<sub_accounts>
+							<sub_account>
+								<facility code="CHRGCARD">Charge Card</facility>
+								<repay_term code="MTH">Monthly</repay_term>
+								<collaterals>
+									<collateral code="00">
+										<name>Clean</name>
+										<value>0</value>
+									</collateral>
+								</collaterals>
+								<cr_positions>
+									<cr_position>
+										<status code="O">Outstanding</status>
+										<balance>0</balance>
+										<position_date>30-11-2011</position_date>
+										<inst_arrears/>
+										<mon_arrears/>
+										<inst_amount/>
+										<rescheduled_date/>
+										<restructured_date/>
+									</cr_position>
+								</cr_positions>
+								<appln_dt_id>12345678901</appln_dt_id>
+							</sub_account>
+						</sub_accounts>
+					</account>
+					<account>
+						<org1/>
+						<org2/>
+						<mdta_id>4338472</mdta_id>
+						<my_fgn>M</my_fgn>
+						<approval_date>27-02-2007</approval_date>
+						<capacity code="Own">The loan is for this customer only</capacity>
+						<lender_type code="OTH">Other</lender_type>
+						<limit>39000</limit>
+						<collaterals/>
+						<legal>
+							<date/>
+						</legal>
+						<sub_accounts>
+							<sub_account>
+								<facility code="CRDTCARD">Credit Card</facility>
+								<repay_term code="MTH">Monthly</repay_term>
+								<collaterals>
+									<collateral code="00">
+										<name>Clean</name>
+										<value>0</value>
+									</collateral>
+								</collaterals>
+								<cr_positions>
+									<cr_position>
+										<status code="O">Outstanding</status>
+										<balance>39636</balance>
+										<position_date>30-11-2011</position_date>
+										<inst_arrears/>
+										<mon_arrears/>
+										<inst_amount/>
+										<rescheduled_date/>
+										<restructured_date/>
+									</cr_position>
+								</cr_positions>
+								<appln_dt_id>12345678902</appln_dt_id>
+							</sub_account>
+						</sub_accounts>
+					</account>
+				</accounts>
+				<special_attention_accs/>
+			</section_ccris>
+			<section_dcheqs title="" data="false"/>
+			<section_ccris_supp title="SECTION CCRIS SUPPLEMENTARY" data="true">
+				<addresses>
+					<address>
+						<address1/>
+						<address2/>
+						<address3/>
+						<address4/>
+						<address5/>
+						<address6>W.P. KUALA LUMPUR</address6>
+						<long_address>W.P. KUALA LUMPUR</long_address>
+						<state_code>14</state_code>
+						<country>MALAYSIA</country>
+						<post_code>56100</post_code>
+						<org code="0224"/>
+						<branch code="14030"/>
+						<application code=""/>
+						<create_date>23-04-2020</create_date>
+					</address>
+					<address>
+						<address1/>
+						<address2/>
+						<address3/>
+						<address4/>
+						<address5/>
+						<address6>W.P. KUALA LUMPUR</address6>
+						<long_address>W.P. KUALA LUMPUR</long_address>
+						<state_code>14</state_code>
+						<country>MALAYSIA</country>
+						<post_code>56000</post_code>
+						<org code="0224"/>
+						<branch code="14030"/>
+						<application code=""/>
+						<create_date>21-04-2020</create_date>
+					</address>
+				</addresses>
+				<contacts/>
+				<occupations>
+					<occupation>
+						<occ_type>113</occ_type>
+						<occupation>ADMINISTRATIVE AND COMMERCIAL MANAGERS</occupation>
+						<employer>HR</employer>
+						<from_date/>
+						<to_date/>
+						<org code="0224"/>
+						<branch code="14030"/>
+						<application code=""/>
+						<create_date>23-04-2020</create_date>
+					</occupation>
+					<occupation>
+						<occ_type>115</occ_type>
+						<occupation>LEGISLATORS AND SENIOR OFFICIALS</occupation>
+						<employer>ABC</employer>
+						<from_date/>
+						<to_date/>
+						<org code="0224"/>
+						<branch code="14030"/>
+						<application code=""/>
+						<create_date>21-04-2020</create_date>
+					</occupation>
+				</occupations>
+			</section_ccris_supp>
+			<section_angkasa title="SECTION ANGKASA" data="true">
+				<information>
+					<matched_name/>
+					<matched_new_ic/>
+					<matched_old_ic/>
+					<status/>
+					<remark/>
+					<reference_no/>
+					<salary_no/>
+				</information>
+				<monthly_deduction seq="1">
+					<itemise/>
+					<total_deduction/>
+				</monthly_deduction>
+				<pending_deduction seq="1">
+					<details/>
+					<total_pending_deduction/>
+				</pending_deduction>
+				<payment_history seq="1">
+					<payment_month/>
+					<payment_detail/>
+				</payment_history>
+			</section_angkasa>
+			<section_etr_plus title="ETR PLUS" data="true">
+				<etrPlusSummary>
+					<creditAccount>1</creditAccount>
+					<active>1</active>
+					<outStanding>1</outStanding>
+					<closed>0</closed>
+					<outStandingOverDue>0.0</outStandingOverDue>
+					<prevOutStandingOverDue>0.0</prevOutStandingOverDue>
+					<avgDueDays>60.0</avgDueDays>
+					<ontimePayPercentage>0.0</ontimePayPercentage>
+				</etrPlusSummary>
+				<etrPlusAccountProfileList>
+					<etrPlusAccountProfile>
+						<industry>Telco</industry>
+						<account>etrplusV1</account>
+						<paymentTerm>60</paymentTerm>
+						<asAtDate>2020-01-01</asAtDate>
+						<amountDue>3000.0</amountDue>
+						<withinTerm>16.67</withinTerm>
+						<age1to30>16.67</age1to30>
+						<age31to60>16.67</age31to60>
+						<age61to90>16.67</age61to90>
+						<age91to120>16.67</age91to120>
+						<ageOver120>16.67</ageOver120>
+					</etrPlusAccountProfile>
+				</etrPlusAccountProfileList>
+				<etrPlusPaymentHistoryList>
+					<etrPlusPaymentHistory>
+						<industry>Telco</industry>
+						<account>etrplusV1</account>
+						<paymentTerm>60</paymentTerm>
+						<capacity>Personal</capacity>
+						<monthDetailsList>
+							<monthDetails>
+								<month>Jul</month>
+								<year>2022</year>
+								<payment/>
+							</monthDetails>
+							<monthDetails>
+								<month>Jun</month>
+								<year>2022</year>
+								<payment/>
+							</monthDetails>
+							<monthDetails>
+								<month>May</month>
+								<year>2022</year>
+								<payment/>
+							</monthDetails>
+							<monthDetails>
+								<month>Apr</month>
+								<year>2022</year>
+								<payment/>
+							</monthDetails>
+							<monthDetails>
+								<month>Mar</month>
+								<year>2022</year>
+								<payment/>
+							</monthDetails>
+							<monthDetails>
+								<month>Feb</month>
+								<year>2022</year>
+								<payment/>
+							</monthDetails>
+							<monthDetails>
+								<month>Jan</month>
+								<year>2022</year>
+								<payment/>
+							</monthDetails>
+							<monthDetails>
+								<month>Dec</month>
+								<year>2021</year>
+								<payment/>
+							</monthDetails>
+							<monthDetails>
+								<month>Nov</month>
+								<year>2021</year>
+								<payment/>
+							</monthDetails>
+							<monthDetails>
+								<month>Oct</month>
+								<year>2021</year>
+								<payment/>
+							</monthDetails>
+							<monthDetails>
+								<month>Sep</month>
+								<year>2021</year>
+								<payment/>
+							</monthDetails>
+							<monthDetails>
+								<month>Aug</month>
+								<year>2021</year>
+								<payment/>
+							</monthDetails>
+						</monthDetailsList>
+					</etrPlusPaymentHistory>
+				</etrPlusPaymentHistoryList>
+			</section_etr_plus>
+			<section_e title="SECTION E - TRADE REFEREES" data="true">
+				<enquiry seq="1" account_no="12355566" tref_id="10178872">
+					<subject>
+						<ref_com_name>MUSIC IS LIVE SDN BHD</ref_com_name>
+						<ref_com_bus>Heaven's singing</ref_com_bus>
+						<party_type>B</party_type>
+						<ic_lcno>1124244</ic_lcno>
+						<nic_brno>200603196204</nic_brno>
+						<name>123 AUTO SDN BHD</name>
+						<address>24, BUSINESS 200603196204</address>
+						<tref_date>2021-05-05</tref_date>
+					</subject>
+					<relationship>
+						<rel_type code="1">Debtor</rel_type>
+						<rel_status code="1">Active</rel_status>
+						<account_no>121212121</account_no>
+						<rel_syear>2017</rel_syear>
+						<rel_smonth>1</rel_smonth>
+						<rel_sday>31</rel_sday>
+						<remark>note2/ref2</remark>
+					</relationship>
+					<sponsor/>
+					<account_status>
+						<account_no>121212121</account_no>
+						<statement_date>2019-09-18</statement_date>
+						<account_rating code="1">Excellent</account_rating>
+						<account_term/>
+						<account_limit>0</account_limit>
+						<account_status code="1">Active</account_status>
+						<account_ref_no>200110129</account_ref_no>
+						<debtor_name>STRANGE Business SUBJECT</debtor_name>
+						<debtor_ic_lcno>0771363</debtor_ic_lcno>
+						<debtor_nic_brno>200701013358</debtor_nic_brno>
+						<address/>
+						<debt_type code="1">Loan Extended</debt_type>
+						<last_paid_amount>10000.00</last_paid_amount>
+						<age>
+							<age_30>0.00</age_30>
+							<age_60>0.00</age_60>
+							<age_90>0.00</age_90>
+							<age_120>0.00</age_120>
+							<age_150>0.00</age_150>
+							<age_180>1000.00</age_180>
+							<age_over_180>0.00</age_over_180>
+						</age>
+					</account_status>
+					<return_cheques status="DETAILS AS PROVIDED BELOW">
+						<record seq="1">
+							<cheque_no>857454</cheque_no>
+							<cheque_acc_no>878787878787</cheque_acc_no>
+							<cheque_bank code="ABN">ABN AMBRO Bank Berhad</cheque_bank>
+							<cheque_reason code="1">Refer To Drawertest</cheque_reason>
+							<cheque_issuer code="1">Issued by self</cheque_issuer>
+							<cheque_amount>4520.00</cheque_amount>
+							<cheque_date>2020-10-14</cheque_date>
+						</record>
+						<record seq="2">
+							<cheque_no>222222</cheque_no>
+							<cheque_acc_no>878787878787</cheque_acc_no>
+							<cheque_bank code="ABN">ABN AMBRO Bank Berhad</cheque_bank>
+							<cheque_reason code="1">Refer To Drawertest</cheque_reason>
+							<cheque_issuer code="1">Issued by self</cheque_issuer>
+							<cheque_amount>4520.00</cheque_amount>
+							<cheque_date>2020-10-14</cheque_date>
+						</record>
+					</return_cheques>
+					<legal_action status="DETAILS AS PROVIDED BELOW">
+						<reminder_letter>
+							<title>Sent reminder to the subject for settlement</title>
+							<date>2020-10-13</date>
+							<reference>try</reference>
+						</reminder_letter>
+						<demand_letter_by_company>
+							<title>Issued a Letter of Demand through our solicitor</title>
+							<date>2020-10-14</date>
+							<reference>try</reference>
+						</demand_letter_by_company>
+						<demand_letter_by_lawyer>
+							<title>Issued our Letter of Demand dated</title>
+							<date>2020-10-23</date>
+							<lawyer>try try</lawyer>
+							<reference>try try</reference>
+						</demand_letter_by_lawyer>
+					</legal_action>
+					<cra_comment>
+						<cra_status_id/>
+						<cra_status/>
+						<cra_status_desc/>
+						<cra_comment>TRY</cra_comment>
+					</cra_comment>
+					<subject_comments>
+						<subject_comment>TRY</subject_comment>
+					</subject_comments>
+					<referee_contact>
+						<contact_ref>ref1</contact_ref>
+						<contact_name/>
+						<contact_add/>
+						<contact_telno>03-272288111</contact_telno>
+						<contact_nature_of_business>PROVIDING BUSINESS DECISION SUPPORT SYSTEMS</contact_nature_of_business>
+						<contact_faxno/>
+						<contact_email/>
+						<contact_type code="4">Please ask the subject to contact us.</contact_type>
+					</referee_contact>
+				</enquiry>
+				<enquiry seq="2" account_no="CM129" tref_id="10178873">
+					<subject>
+						<ref_com_name>WL WORLD TOUR SDN BHD</ref_com_name>
+						<ref_com_bus>Tourist Tour</ref_com_bus>
+						<party_type>B</party_type>
+						<ic_lcno>1124244</ic_lcno>
+						<nic_brno>200603196204</nic_brno>
+						<name>123 AUTO SDN BHD</name>
+						<address>24, BUSINESS 200603196204</address>
+						<tref_date>2021-05-05</tref_date>
+					</subject>
+					<relationship>
+						<rel_type code="1">Debtor</rel_type>
+						<rel_status code="1">Active</rel_status>
+						<account_no>121212121</account_no>
+						<rel_syear>2017</rel_syear>
+						<rel_smonth>1</rel_smonth>
+						<rel_sday>31</rel_sday>
+						<remark>note2/ref2</remark>
+					</relationship>
+					<sponsor/>
+					<account_status>
+						<account_no>121212121</account_no>
+						<statement_date>2019-09-18</statement_date>
+						<account_rating code="1">Excellent</account_rating>
+						<account_term/>
+						<account_limit>0</account_limit>
+						<account_status code="1">Active</account_status>
+						<account_ref_no>200110137</account_ref_no>
+						<debtor_name>STRANGE Business SUBJECT</debtor_name>
+						<debtor_ic_lcno>0771363</debtor_ic_lcno>
+						<debtor_nic_brno>200701013358</debtor_nic_brno>
+						<address/>
+						<debt_type code="1">Loan Extended</debt_type>
+						<last_paid_amount>10000.00</last_paid_amount>
+						<age>
+							<age_30>0.00</age_30>
+							<age_60>0.00</age_60>
+							<age_90>0.00</age_90>
+							<age_120>0.00</age_120>
+							<age_150>0.00</age_150>
+							<age_180>1000.00</age_180>
+							<age_over_180>0.00</age_over_180>
+						</age>
+					</account_status>
+					<return_cheques status="DETAILS AS PROVIDED BELOW">
+						<record seq="1">
+							<cheque_no>857454</cheque_no>
+							<cheque_acc_no>878787878787</cheque_acc_no>
+							<cheque_bank code="ABN">ABN AMBRO Bank Berhad</cheque_bank>
+							<cheque_reason code="1">Refer To Drawertest</cheque_reason>
+							<cheque_issuer code="1">Issued by self</cheque_issuer>
+							<cheque_amount>4520.00</cheque_amount>
+							<cheque_date>2020-10-14</cheque_date>
+						</record>
+						<record seq="2">
+							<cheque_no>222222</cheque_no>
+							<cheque_acc_no>878787878787</cheque_acc_no>
+							<cheque_bank code="ABN">ABN AMBRO Bank Berhad</cheque_bank>
+							<cheque_reason code="1">Refer To Drawertest</cheque_reason>
+							<cheque_issuer code="1">Issued by self</cheque_issuer>
+							<cheque_amount>4520.00</cheque_amount>
+							<cheque_date>2020-10-14</cheque_date>
+						</record>
+					</return_cheques>
+					<legal_action status="DETAILS AS PROVIDED BELOW">
+						<reminder_letter>
+							<title>Sent reminder to the subject for settlement</title>
+							<date>2020-10-13</date>
+							<reference>try</reference>
+						</reminder_letter>
+						<demand_letter_by_company>
+							<title>Issued a Letter of Demand through our solicitor</title>
+							<date>2020-10-14</date>
+							<reference>try</reference>
+						</demand_letter_by_company>
+						<demand_letter_by_lawyer>
+							<title>Issued our Letter of Demand dated</title>
+							<date>2020-10-23</date>
+							<lawyer>try try</lawyer>
+							<reference>try try</reference>
+						</demand_letter_by_lawyer>
+					</legal_action>
+					<cra_comment>
+						<cra_status_id/>
+						<cra_status/>
+						<cra_status_desc/>
+						<cra_comment>TRY</cra_comment>
+					</cra_comment>
+					<subject_comments>
+						<subject_comment>TRY</subject_comment>
+					</subject_comments>
+					<referee_contact>
+						<contact_ref>ref1</contact_ref>
+						<contact_name/>
+						<contact_add/>
+						<contact_telno>03-272288111</contact_telno>
+						<contact_nature_of_business>PROVIDING BUSINESS DECISION SUPPORT SYSTEMS</contact_nature_of_business>
+						<contact_faxno/>
+						<contact_email/>
+						<contact_type code="4">Please ask the subject to contact us.</contact_type>
+					</referee_contact>
+				</enquiry>
+				<enquiry seq="3" account_no="23456789" tref_id="10178888">
+					<subject/>
+					<relationship>
+						<rel_type code="1">Debtor</rel_type>
+						<rel_status code="1">Active</rel_status>
+						<account_no>121212121</account_no>
+						<rel_syear>2017</rel_syear>
+						<rel_smonth>1</rel_smonth>
+						<rel_sday>31</rel_sday>
+						<remark>note2/ref2</remark>
+					</relationship>
+					<sponsor/>
+					<account_status>
+						<account_no>23456789</account_no>
+						<statement_date>2019-09-18</statement_date>
+						<account_rating code="1">Excellent</account_rating>
+						<account_term/>
+						<account_limit>0</account_limit>
+						<account_status code="1">Active</account_status>
+						<account_ref_no>200110138</account_ref_no>
+						<debtor_name/>
+						<debtor_ic_lcno/>
+						<debtor_nic_brno/>
+						<address/>
+						<debt_type code="1">Loan Extended</debt_type>
+						<last_paid_amount>10000.00</last_paid_amount>
+						<age>
+							<age_30>0.00</age_30>
+							<age_60>0.00</age_60>
+							<age_90>0.00</age_90>
+							<age_120>0.00</age_120>
+							<age_150>0.00</age_150>
+							<age_180>1000.00</age_180>
+							<age_over_180>0.00</age_over_180>
+						</age>
+					</account_status>
+					<return_cheques status="DETAILS AS PROVIDED BELOW">
+						<record seq="1">
+							<cheque_no>857454</cheque_no>
+							<cheque_acc_no>878787878787</cheque_acc_no>
+							<cheque_bank code="ABN">ABN AMBRO Bank Berhad</cheque_bank>
+							<cheque_reason code="1">Refer To Drawertest</cheque_reason>
+							<cheque_issuer code="1">Issued by self</cheque_issuer>
+							<cheque_amount>4520.00</cheque_amount>
+							<cheque_date>2020-10-14</cheque_date>
+						</record>
+						<record seq="2">
+							<cheque_no>222222</cheque_no>
+							<cheque_acc_no>878787878787</cheque_acc_no>
+							<cheque_bank code="ABN">ABN AMBRO Bank Berhad</cheque_bank>
+							<cheque_reason code="1">Refer To Drawertest</cheque_reason>
+							<cheque_issuer code="1">Issued by self</cheque_issuer>
+							<cheque_amount>4520.00</cheque_amount>
+							<cheque_date>2020-10-14</cheque_date>
+						</record>
+					</return_cheques>
+					<legal_action status="DETAILS AS PROVIDED BELOW">
+						<reminder_letter>
+							<title>Sent reminder to the subject for settlement</title>
+							<date>2020-10-13</date>
+							<reference>try</reference>
+						</reminder_letter>
+						<demand_letter_by_company>
+							<title>Issued a Letter of Demand through our solicitor</title>
+							<date>2020-10-14</date>
+							<reference>try</reference>
+						</demand_letter_by_company>
+						<demand_letter_by_lawyer>
+							<title>Issued our Letter of Demand dated</title>
+							<date>2020-10-23</date>
+							<lawyer>try try</lawyer>
+							<reference>try try</reference>
+						</demand_letter_by_lawyer>
+					</legal_action>
+					<cra_comment>
+						<cra_status_id/>
+						<cra_status/>
+						<cra_status_desc/>
+						<cra_comment>TRY</cra_comment>
+					</cra_comment>
+					<subject_comments>
+						<subject_comment>TRY</subject_comment>
+					</subject_comments>
+					<referee_contact>
+						<contact_ref>ref1</contact_ref>
+						<contact_name/>
+						<contact_add/>
+						<contact_telno>03-272288111</contact_telno>
+						<contact_nature_of_business>PROVIDING BUSINESS DECISION SUPPORT SYSTEMS</contact_nature_of_business>
+						<contact_faxno/>
+						<contact_email/>
+						<contact_type code="4">Please ask the subject to contact us.</contact_type>
+					</referee_contact>
+				</enquiry>
+			</section_e>
+		</enquiry>
+	</enq_report>
+</report>

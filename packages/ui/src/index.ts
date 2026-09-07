@@ -120,6 +120,7 @@ export {
 } from "./field-tooltip-styles";
 export { NotFound } from "./components/not-found";
 export { InfoTooltip } from "./info-tooltip";
+export { ComRepFieldLabel } from "./comrep-field-label";
 export { CopyableField } from "./copyable-field";
 export { MoneyInput } from "./components/money-input";
 export { formatMoney, parseMoney, formatMoneyDisplay } from "./lib/money";

@@ -938,7 +938,7 @@ export function InvoiceList({
                                     )}
                                   </div>
                                   <div className={applicationTableExpandableFieldBlockClass}>
-                                    <p className={applicationTableExpandableLabelClass}>Campaign sector</p>
+                                    <p className={applicationTableExpandableLabelClass}>Campaign Sector</p>
                                     {isOfferSent ? (
                                       <p className={applicationTableExpandableValueClass}>
                                         {(() => {
@@ -962,7 +962,7 @@ export function InvoiceList({
                                         disabled={isRowGreyedOut || isAdminRejected}
                                       >
                                         <SelectTrigger
-                                          aria-label="Campaign sector"
+                                          aria-label="Campaign Sector"
                                           className="h-9 w-full min-w-[8rem] max-w-[18rem] rounded-xl border-border bg-background text-ui"
                                         >
                                           <SelectValue placeholder="Select SC sector" />
@@ -979,7 +979,7 @@ export function InvoiceList({
                                   </div>
                                   <div className={applicationTableExpandableFieldBlockClass}>
                                     <p className={applicationTableExpandableLabelClass}>
-                                      Sustainability category
+                                      Sustainability Category of the Campaign
                                     </p>
                                     {isOfferSent ? (
                                       <p className={applicationTableExpandableValueClass}>
@@ -1006,7 +1006,7 @@ export function InvoiceList({
                                         disabled={isRowGreyedOut || isAdminRejected}
                                       >
                                         <SelectTrigger
-                                          aria-label="Sustainability category"
+                                          aria-label="Sustainability Category of the Campaign"
                                           className="h-9 w-full min-w-[8rem] max-w-[18rem] rounded-xl border-border bg-background text-ui"
                                         >
                                           <SelectValue placeholder="Select" />
@@ -1509,7 +1509,7 @@ export function InvoiceList({
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
-                  <span className="text-sm font-medium text-muted-foreground">Campaign sector</span>
+                  <span className="text-sm font-medium text-muted-foreground">Campaign Sector</span>
                   <span className="text-ui font-medium">
                     {SC_CAMPAIGN_SECTOR_LABELS[invoiceOfferConfirm.campaign_sector]}
                   </span>

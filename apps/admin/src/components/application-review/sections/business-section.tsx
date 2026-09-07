@@ -73,6 +73,7 @@ import {
   INHERITED_FACILITY_GUARANTORS_ADMIN_COPY,
   isScFundRaisingPurpose,
   SC_FUND_RAISING_PURPOSE_LABELS,
+  SC_MONTHLY_CAMPAIGN,
   type GuarantorCompanyRelationship,
   type GuarantorIndividualRelationship,
 } from "@cashsouk/types";
@@ -1945,7 +1946,7 @@ export function BusinessSection({
             />
             {b.whyRaisingFunds.purposeOther != null || a.whyRaisingFunds.purposeOther != null ? (
               <ComparisonFieldRow
-                label="Other purpose"
+                label={SC_MONTHLY_CAMPAIGN.purposeOfFundRaisingOthers.label}
                 before={b.whyRaisingFunds.purposeOther ?? REVIEW_EMPTY_LABEL}
                 after={a.whyRaisingFunds.purposeOther ?? REVIEW_EMPTY_LABEL}
                 changed={isPathChanged("business_details")}
@@ -2108,7 +2109,7 @@ export function BusinessSection({
               <ReviewValue value={view.whyRaisingFunds.purposeOfFundRaising} multiline />
               {view.whyRaisingFunds.purposeOther != null ? (
                 <>
-                  <Label className={reviewLabelClass}>Other purpose</Label>
+                  <Label className={reviewLabelClass}>{SC_MONTHLY_CAMPAIGN.purposeOfFundRaisingOthers.label}</Label>
                   <ReviewValue value={view.whyRaisingFunds.purposeOther} multiline />
                 </>
               ) : null}

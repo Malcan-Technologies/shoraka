@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  isScIntegerWithoutDecimal,
   OPERATOR_ADVISOR_TYPES,
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
@@ -16,6 +17,23 @@ import {
 const optionalText = z.string().max(500).optional().nullable();
 const optionalDate = z.string().optional().nullable();
 const optionalDecimal = z.union([z.string(), z.number()]).optional().nullable();
+const scIntegerWithoutDecimal = z
+  .union([z.string(), z.number()])
+  .optional()
+  .nullable()
+  .refine((value) => isScIntegerWithoutDecimal(value), {
+    message: "Integer value without decimal points",
+  });
+
+/** DTO/UI `id` belongs in the URL, not the strict body. Unknown keys still fail. */
+export function parseOperatorBody<T>(schema: z.ZodType<T>, body: unknown): T {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return schema.parse(body);
+  }
+  const copy: Record<string, unknown> = { ...(body as Record<string, unknown>) };
+  delete copy.id;
+  return schema.parse(copy);
+}
 
 export const portalParamSchema = z.enum(["issuer", "investor"]);
 
@@ -99,6 +117,7 @@ export const operatorProfilePatchSchema = z
     name: optionalText,
     registrationNumber: optionalText,
     trusteeRegistrationNumber: optionalText,
+    scCompanyType: z.enum(SC_COMPANY_TYPES).optional().nullable(),
     responsiblePersonName: optionalText,
     responsiblePersonPhone: optionalText,
   })
@@ -106,18 +125,18 @@ export const operatorProfilePatchSchema = z
 
 export const operatorShareCapitalPatchSchema = z
   .object({
-    ordinaryUnits: optionalDecimal,
+    ordinaryUnits: scIntegerWithoutDecimal,
     ordinaryAmount: optionalDecimal,
-    preferenceUnits: optionalDecimal,
+    preferenceUnits: scIntegerWithoutDecimal,
     preferenceAmount: optionalDecimal,
-    othersUnits: optionalDecimal,
+    othersUnits: scIntegerWithoutDecimal,
     othersAmount: optionalDecimal,
-    totalPaidUpCapital: optionalDecimal,
-    llpMembersCapitalUnits: optionalDecimal,
+    totalPaidUpCapital: scIntegerWithoutDecimal,
+    llpMembersCapitalUnits: scIntegerWithoutDecimal,
     llpMembersCapitalAmount: optionalDecimal,
-    llpMembersReservesUnits: optionalDecimal,
+    llpMembersReservesUnits: scIntegerWithoutDecimal,
     llpMembersReservesAmount: optionalDecimal,
-    llpSubordinatedLoansUnits: optionalDecimal,
+    llpSubordinatedLoansUnits: scIntegerWithoutDecimal,
     llpSubordinatedLoansAmount: optionalDecimal,
     totalLlp: optionalDecimal,
   })

@@ -21,8 +21,8 @@ Most of the ~150 individual gaps below collapse into seven root causes. Fixing t
 | # | Theme | Impact | Rough shape of the fix |
 |---|---|---|---|
 | 1 | **Operator XBRL export is not built.** Operator company data is now stored (Admin → Shoraka → Profile). | Annual `[01000]`–`[05000]`, `[10000]`, `[11000]` can be entered, but nothing produces the ComRep file. | Export builder only. Out of scope until filing. |
-| 2 | **No complaints register.** | `[08000] Complaints` cannot be filed at all. | New `Complaint` model + admin CRUD. Categories are a fixed SC enum. |
-| 3 | **No legal action register.** | `[09000] Legal Action` cannot be filed at all. | New `LegalAction` model + admin CRUD. |
+| 2 | **No complaints register. MISSING REPORT SOURCE.** Do not add to Shoraka Profile. | `[08000] Complaints` cannot be filed at all. | New `Complaint` model + admin CRUD. Categories are a fixed SC enum. |
+| 3 | **No legal action register. MISSING REPORT SOURCE.** Do not add to Shoraka Profile. This is an RMO reporting register, not issuer CTOS litigation. | `[09000] Legal Action` cannot be filed at all. | New `LegalAction` model + admin CRUD. |
 | 4 | **Investor classification is a product flag plus a separate SC enum.** `is_sophisticated_investor` remains the unchanged CashSouk product flag. `sc_investor_category` is the ComRep reporting type and is now editable by both Investor and Admin on the same master field. It is not derived from the product flag. | Full ComRep completeness requires a valid SC enum on Profile. Product eligibility is independent. | Keep the two fields independent. |
 | 5 | **No days-past-due (DPD) persistence.** DPD is computed at runtime for late-charge purposes only; nothing is stored or bucketed. | Breaks the entire Position Report `[02000]` and `[03000]`, and the >90 DPD default definition. | Nightly job writing a per-note position snapshot with a DPD bucket. |
 | 6 | **No reschedule & restructure (R&R) concept.** | `[04000] R&R notes` cannot be filed at all. | New `NoteRestructure` model linking original → revised campaign. |
@@ -40,15 +40,16 @@ This report is about **CashSouk as a company**. Collection models now exist; Com
 |---|---|---|---|---|
 | Reporting Level, Category, Sub-Category, Report Name, Type of Submission, Reporting Start/End Date | 8–9 | Missing | Submission metadata; nothing stores it. | Hardcode constants in the export builder; expose Type of Submission (New/Resubmission) and Reporting End Date as operator input at export time. |
 | RMO Company Registration Number (BRN/ROC) | 8 | Stored | `OperatorProfile.registration_number` | Admin → Shoraka → Profile `[01000]`. Receipts still have a separate env var until they are pointed at this record. |
-| Trustee Company Registration Number | 8 | Stored | `OperatorProfile.trustee_registration_number` | Same page. Also still on `trustee_letter_config` for letters. |
+| Trustee Company Registration Number | 8 | Stored | `OperatorProfile.trustee_registration_number`. Admin may pre-fill it on Shoraka Profile. It does **not** block ordinary profile completeness. SC uses it only when Reporting Level is Company(Trustee), which is filing-time. | Same page. Also still on `trustee_letter_config` for letters. |
 | Name of RMO | 9 | Stored | `OperatorProfile.name` | Same page. |
 | Name of Responsible Person | 9 | Stored | `OperatorProfile.responsible_person_name`; also a Yes/No flag on `OperatorOfficer` | Same page / `[04000]` officers. |
 | Contact Number (Responsible Person) | 9 | Stored | `OperatorProfile.responsible_person_phone` | Same page. |
+| Type of Company (Shoraka Profile only) | — | Stored | `OperatorProfile.sc_company_type`. This is **not** an [01000] ComRep column. It is a CashSouk discriminator so Admin can show the Sdn Bhd block or the Limited Liability Partnership block from [02000]. Public Limited / Foreign / Sole proprietorship / Partnership are stored but are not mapped to either share-capital block. | Admin → Shoraka → Profile General. |
 | Declaration (Yes/No) | 10 | Missing | — | Capture as a checkbox at export/submission time, with the approving user and timestamp recorded for audit. |
 
 ### [02000] Summary of Share Capital — pp. 10–12
 
-Stored on `OperatorShareCapital`. Ordinary / Preference / Others each have number of shares and nominal value. **Total paid-up capital** and **Total LLP** are explicit insert fields (not derived). There is no “Others specify” row on this tab in the manual.
+Stored on `OperatorShareCapital`. The UI shows the Sdn Bhd block or the Limited Liability Partnership block from `OperatorProfile.sc_company_type` (`PRIVATE_LIMITED` or `LLP`). Ordinary / Preference / Others each have number of shares and nominal value. **Total paid-up capital** and **Total Limited Liability Partnership** are explicit insert fields (not derived). There is no “Others specify” row on this tab in the manual. LLP capital contribution is referred to as shares, as the manual states. Other Type of Company values are not mapped to either block.
 
 ### [03000] Shareholders / Members — pp. 12–14
 
@@ -74,6 +75,8 @@ The remaining annual gaps are `[06000]`–`[09000]` (registered users / national
 
 ### [06000] Registered Users — pp. 17–19
 
+**Do not add to Shoraka Profile.** These are report-time aggregate counts derived from Investor Profile, investor DOB, investor classification, onboarding/signup status, and investment history.
+
 | Field | PDF p. | State | Current situation | Suggested collection point |
 |---|---|---|---|---|
 | Issuer count; Investor count; Investor signed-up-but-not-invested | 17 | Derivable | Countable from `IssuerOrganization`, `InvestorOrganization`, and `NoteInvestment`, but no query or export exists. | Add a reporting query. No schema change needed. |
@@ -84,14 +87,28 @@ The remaining annual gaps are `[06000]`–`[09000]` (registered users / national
 
 ### [06100] Nationality of Investor — pp. 19–20
 
+**Do not add to Shoraka Profile.** This is a report-time aggregate derived from Investor Profile nationality/country and whether the investor has invested.
+
 | Field | PDF p. | State | Current situation | Suggested collection point |
 |---|---|---|---|---|
 | Number of Investor, by Country | 19 | Derivable | `InvestorOrganization.nationality` is populated by RegTank for personal accounts; corporate country sits in `corporate_onboarding_data.addresses.*.country`. | Reporting query. Normalise both sources and map to the SC's Appendix A country names. |
 | Investor Category (signed up and invested / yet to invest) | 19 | Derivable | Join against `NoteInvestment`. | Same query. |
 
-> Country names must match **Appendix A** (pp. 63–65) exactly. We have `REGTANK_ISO3166_COUNTRIES` in `packages/types`, but its spellings are ISO, not the SC's. A mapping table will be needed.
+> Country names must match **Appendix A** (pp. 63–65) exactly. Stored operator country fields use the printed Appendix A names (`SC_APPENDIX_A_COUNTRIES`). The published v1.0 PDF/DOCX duplicates the first Appendix A page and omits Costa Rica–Ireland / Portugal–Tuvalu (including Singapore). Those names are not invented. A mapping from RegTank ISO spellings is still needed at export.
+
+---
+
+### Unresolved mapping (do not infer)
+
+- Issuer [02000] Company Activities vs profile “What does your company do?” vs campaign Purpose of Fund Raising.
+- Position Report annual 3-way investor category for Non-Sophisticated Entity.
+- Type of Investment Note, Shariah Adviser, Type of Financing, Security Type, Repayment Type as product-config vs issuer questions.
+- SARANA, Campaign Extension Date, Financing Security.
+- Appendix A missing middle page in the published v1.0 file.
 
 ### [07000] Fees and Charges to Users — p. 20
+
+**Do not add to Shoraka Profile.** This belongs to fee configuration/reporting data.
 
 | Field | PDF p. | State | Current situation | Suggested collection point |
 |---|---|---|---|---|
@@ -99,7 +116,7 @@ The remaining annual gaps are `[06000]`–`[09000]` (registered users / national
 
 ### [08000] Complaints — pp. 20–21
 
-**Entire tab missing.** There is no complaints, ticketing, or support-case model anywhere in the codebase. The only matches for "complaint" relate to AWS SES bounce handling.
+**MISSING REPORT SOURCE. Do not add to Shoraka Profile.** Entire tab missing. There is no complaints, ticketing, or support-case model anywhere in the codebase. The only matches for "complaint" relate to AWS SES bounce handling.
 
 | Field | PDF p. | State | Suggested collection point |
 |---|---|---|---|
@@ -109,7 +126,7 @@ The remaining annual gaps are `[06000]`–`[09000]` (registered users / national
 
 ### [09000] Legal Action — pp. 21–22
 
-**Entire tab missing.** `CtosReport.legal_json` holds *issuer* credit-bureau litigation data, which is a different thing entirely.
+**MISSING REPORT SOURCE. Do not add to Shoraka Profile.** Entire tab missing. `CtosReport.legal_json` holds *issuer* credit-bureau litigation data, which is a different thing entirely. This annual table is an RMO reporting register.
 
 | Field | PDF p. | State | Suggested collection point |
 |---|---|---|---|
@@ -136,7 +153,7 @@ The remaining annual gaps are `[06000]`–`[09000]` (registered users / national
 | Country of Incorporation | 29 | Stored | `IssuerOrganization.country_of_incorporation` | Explicit field. Not copied from registered-address country. |
 | Type of Company (6-value SC enum) | 29 | Stored | `IssuerOrganization.sc_company_type` | Same. |
 | E-mail Address (company-level) | 29 | Stored | `IssuerOrganization.company_email` | Same. |
-| Company Activities | 30 | Partial | `aboutYourBusiness.whatDoesCompanyDo` | Completeness requires this narrative; SC still wants a short activity descriptor at export. |
+| Company Activities | 30 | Needs confirmation | Profile still stores `aboutYourBusiness.whatDoesCompanyDo` as the business narrative. SC wording is activity based on the purpose of the issuer’s fundraising. That is not silently mapped to the profile narrative or to campaign Purpose of Fund Raising. | Export mapping needs compliance confirmation. |
 
 ### [03000] Financing Details 1 — pp. 30–33
 
