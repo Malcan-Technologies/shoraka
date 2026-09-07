@@ -161,6 +161,13 @@ describe("Admin Paymaster UI copy after mismatch removal", () => {
     expect(fields).toMatch(/id="paymaster-official-ssm"[\s\S]*disabled[\s\S]*readOnly/);
     expect(dialog).toContain("SSM cannot be changed");
     expect(dialog).not.toMatch(/registrationNumber:\s*value\.registrationNumber/);
+    const countryOptions = readFileSync(
+      join(__dirname, "../utils/paymaster-country-options.ts"),
+      "utf8"
+    );
+    expect(countryOptions).not.toMatch(/supportedValuesOf\(\s*["']region["']\s*\)/);
+    expect(fields).toContain("value.country || undefined");
+    expect(fields).toContain("value.entityType || undefined");
   });
 
   it("Paymaster Detail Identity tab shows submitted application identities as Admin reference only", () => {

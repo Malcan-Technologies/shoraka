@@ -1,6 +1,7 @@
 export type PaymasterCountryOption = { code: string; name: string };
 
-const FALLBACK_COUNTRY_CODES = [
+/** ISO codes for Paymaster registration country. Browsers reject Intl.supportedValuesOf with a region key. */
+const PAYMASTER_COUNTRY_CODES = [
   "MY",
   "SG",
   "ID",
@@ -17,19 +18,29 @@ const FALLBACK_COUNTRY_CODES = [
   "US",
 ];
 
+function regionDisplayNames(): Intl.DisplayNames | null {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "region" });
+  } catch {
+    return null;
+  }
+}
+
+function countryName(code: string, display: Intl.DisplayNames | null): string {
+  if (!display) return code;
+  try {
+    return display.of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
 export function paymasterCountryOptions(currentCode?: string): PaymasterCountryOption[] {
-  const display = new Intl.DisplayNames(["en"], { type: "region" });
-  const supportedValuesOf = (
-    Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] }
-  ).supportedValuesOf;
-  const supported =
-    typeof supportedValuesOf === "function"
-      ? supportedValuesOf("region").filter((code) => /^[A-Z]{2}$/.test(code))
-      : FALLBACK_COUNTRY_CODES;
-  const codes = new Set(supported);
+  const display = regionDisplayNames();
+  const codes = new Set(PAYMASTER_COUNTRY_CODES);
   const current = currentCode?.trim().toUpperCase();
   if (current && /^[A-Z]{2}$/.test(current)) codes.add(current);
   return [...codes]
-    .map((code) => ({ code, name: display.of(code) ?? code }))
+    .map((code) => ({ code, name: countryName(code, display) }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
