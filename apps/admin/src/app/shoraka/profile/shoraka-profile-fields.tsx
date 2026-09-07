@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ComRepFieldLabel } from "@cashsouk/ui";
+import { ComRepFieldLabel, ProfilePhoneInput } from "@cashsouk/ui";
 import { scAppendixASelectValues, type OperatorProfileDto } from "@cashsouk/types";
 
 export function toDateInput(value: string | null | undefined): string {
@@ -60,6 +60,8 @@ export function ShorakaField({
   required = false,
   integer = false,
   error,
+  maxLength,
+  inputMode,
 }: {
   label: string;
   value: string;
@@ -70,6 +72,8 @@ export function ShorakaField({
   required?: boolean;
   integer?: boolean;
   error?: string;
+  maxLength?: number;
+  inputMode?: "numeric" | "decimal" | "tel" | "email" | "text";
 }) {
   return (
     <div className="space-y-2">
@@ -77,13 +81,41 @@ export function ShorakaField({
       <Input
         className="h-11 text-ui"
         type={type}
-        inputMode={integer ? "numeric" : undefined}
+        inputMode={inputMode ?? (integer ? "numeric" : undefined)}
+        maxLength={maxLength ?? (type === "date" ? undefined : 500)}
         value={value}
         onChange={(e) =>
           onChange(integer ? e.target.value.replace(/[^\d]/g, "") : e.target.value)
         }
         disabled={disabled}
+        aria-invalid={Boolean(error)}
       />
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
+    </div>
+  );
+}
+
+export function ShorakaPhoneField({
+  label,
+  value,
+  onChange,
+  disabled,
+  help,
+  required = false,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  help?: string;
+  required?: boolean;
+  error?: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <ComRepFieldLabel label={label} required={required} help={help} />
+      <ProfilePhoneInput value={value} onChange={onChange} disabled={disabled} error={Boolean(error)} />
       {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );

@@ -2,7 +2,14 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { firstIssueMessage, issuesByField, omitRecordId, type ComrepFieldIssue } from "@cashsouk/types";
+import {
+  firstIssueMessage,
+  humanizeApiValidationMessage,
+  isProfileValidationError,
+  issuesByField,
+  omitRecordId,
+  type ComrepFieldIssue,
+} from "@cashsouk/types";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import { EmptyState, Tabs, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
@@ -163,7 +170,11 @@ export function ShorakaRecordSection<T extends { id?: string }>({
                                 await onDelete(row.id);
                                 toast.success("Removed");
                               } catch (err) {
-                                toast.error(err instanceof Error ? err.message : "Failed");
+                                toast.error(
+                                  err instanceof Error
+                                    ? humanizeApiValidationMessage(err.message)
+                                    : "Failed"
+                                );
                               }
                             }}
                           >
@@ -218,7 +229,14 @@ export function ShorakaRecordSection<T extends { id?: string }>({
                         setEditing(null);
                         toast.success("Saved");
                       } catch (err) {
-                        toast.error(err instanceof Error ? err.message : "Failed");
+                        if (isProfileValidationError(err) && Object.keys(err.fieldErrors).length > 0) {
+                          setErrors(err.fieldErrors);
+                        }
+                        toast.error(
+                          err instanceof Error
+                            ? humanizeApiValidationMessage(err.message)
+                            : "Failed"
+                        );
                       } finally {
                         setSaving(false);
                       }

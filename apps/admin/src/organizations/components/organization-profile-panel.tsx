@@ -17,6 +17,10 @@ import {
   SC_MONTHLY_ISSUER,
   displayScCompanyTypeLabel,
   firstIssueMessage,
+  humanizeApiValidationMessage,
+  isProfileValidationError,
+  issuesByField,
+  restrictScPostcodeInput,
   shouldShowOrganizationPersonalKycCard,
   validateInvestorPersonalForm,
   validateIssuerAddressForm,
@@ -73,6 +77,7 @@ import {
   EditableAddressFields,
   EditableDateField,
   EditableField,
+  EditablePhoneField,
   EditableSelect,
   EditableYesNo,
   formatAddressDisplay,
@@ -114,6 +119,7 @@ export function OrganizationProfilePanel({
   const [draft, setDraft] = React.useState<OrgProfileDraft>(() => buildDraft(org));
   const [showConfirm, setShowConfirm] = React.useState(false);
   const [sameAsBusiness, setSameAsBusiness] = React.useState(false);
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
     if (!editingSection) setDraft(buildDraft(org));
@@ -124,6 +130,7 @@ export function OrganizationProfilePanel({
     const nextDraft = buildDraft(org);
     setDraft(nextDraft);
     setEditingSection(section);
+    setFieldErrors({});
     if (section === "addresses") {
       setSameAsBusiness(
         addressesEqual(nextDraft.businessAddress, nextDraft.registeredAddress) &&
@@ -136,6 +143,7 @@ export function OrganizationProfilePanel({
     setDraft(buildDraft(org));
     setEditingSection(null);
     setSameAsBusiness(false);
+    setFieldErrors({});
   };
 
   const requestSave = () => {
@@ -155,6 +163,7 @@ export function OrganizationProfilePanel({
         phoneNumber: draft.phoneNumber,
       });
       if (issues.length > 0) {
+        setFieldErrors(issuesByField(issues));
         toast.error(firstIssueMessage(issues));
         return;
       }
@@ -169,6 +178,7 @@ export function OrganizationProfilePanel({
         businessPostalCode: draft.businessAddress.postalCode,
       });
       if (issues.length > 0) {
+        setFieldErrors(issuesByField(issues));
         toast.error(firstIssueMessage(issues));
         return;
       }
@@ -181,6 +191,7 @@ export function OrganizationProfilePanel({
         postalCode: draft.residentialPostalCode,
       });
       if (issues.length > 0) {
+        setFieldErrors(issuesByField(issues));
         toast.error(firstIssueMessage(issues));
         return;
       }
@@ -212,9 +223,15 @@ export function OrganizationProfilePanel({
       toast.success("Organization profile updated");
       setShowConfirm(false);
       setEditingSection(null);
+      setFieldErrors({});
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update organization");
-    }
+      if (isProfileValidationError(error) && Object.keys(error.fieldErrors).length > 0) {
+        setFieldErrors(error.fieldErrors);
+        setShowConfirm(false);
+      }
+      toast.error(
+        error instanceof Error ? humanizeApiValidationMessage(error.message) : "Failed to update organization"
+      );
   };
 
   const hasPersonal = Boolean(org.firstName || org.lastName || org.nationality || org.dateOfBirth);
@@ -375,8 +392,12 @@ export function OrganizationProfilePanel({
                     label="Employees"
                     value={draft.numberOfEmployees}
                     onChange={(numberOfEmployees) =>
-                      setDraft((current) => ({ ...current, numberOfEmployees }))
+                      setDraft((current) => ({
+                        ...current,
+                        numberOfEmployees: numberOfEmployees.replace(/\D/g, ""),
+                      }))
                     }
+                    inputMode="numeric"
                   />
                   <EditableField
                     label="Annual Revenue (RM)"
@@ -394,13 +415,16 @@ export function OrganizationProfilePanel({
                       value={draft.companyEmail}
                       onChange={(companyEmail) => setDraft((current) => ({ ...current, companyEmail }))}
                       required
+                      maxLength={255}
+                      error={fieldErrors.companyEmail}
                     />
                   ) : null}
-                  <EditableField
+                  <EditablePhoneField
                     label={phoneLabel}
                     value={draft.phoneNumber}
                     onChange={(phoneNumber) => setDraft((current) => ({ ...current, phoneNumber }))}
                     required={issuerCompany}
+                    error={fieldErrors.phoneNumber}
                   />
                 </>
               ) : (
@@ -594,6 +618,11 @@ export function OrganizationProfilePanel({
                       registeredAddress: sameAsBusiness ? businessAddress : current.registeredAddress,
                     }));
                   }}
+                  errors={{
+                    line1: fieldErrors["businessAddress.line1"],
+                    state: fieldErrors["businessAddress.state"],
+                    postalCode: fieldErrors["businessAddress.postalCode"],
+                  }}
                 />
                 <div className="space-y-4 border-t pt-6">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -631,6 +660,11 @@ export function OrganizationProfilePanel({
                       onChange={(registeredAddress) =>
                         setDraft((current) => ({ ...current, registeredAddress }))
                       }
+                      errors={{
+                        line1: fieldErrors["registeredAddress.line1"],
+                        state: fieldErrors["registeredAddress.state"],
+                        postalCode: fieldErrors["registeredAddress.postalCode"],
+                      }}
                     />
                   )}
                 </div>
@@ -835,10 +869,11 @@ export function OrganizationProfilePanel({
                 {editingSection === "contact" ? (
                   <>
                     {org.type !== "COMPANY" ? (
-                      <EditableField
+                      <EditablePhoneField
                         label="Phone Number"
                         value={draft.phoneNumber}
                         onChange={(phoneNumber) => setDraft((current) => ({ ...current, phoneNumber }))}
+                        error={fieldErrors.phoneNumber}
                       />
                     ) : null}
                     <ReadField label="Account owner email" value={org.owner.email} locked />
@@ -889,8 +924,15 @@ export function OrganizationProfilePanel({
                     label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
                     value={draft.residentialPostalCode}
                     onChange={(residentialPostalCode) =>
-                      setDraft((current) => ({ ...current, residentialPostalCode }))
+                      setDraft((current) => ({
+                        ...current,
+                        residentialPostalCode: restrictScPostcodeInput(
+                          draft.residentialState,
+                          residentialPostalCode
+                        ),
+                      }))
                     }
+                    error={fieldErrors.postalCode}
                   />
                 </>
               ) : (

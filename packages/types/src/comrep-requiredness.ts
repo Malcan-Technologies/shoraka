@@ -19,6 +19,7 @@ import {
   SC_PERSON_KINDS,
   SC_SHARE_TYPES,
 } from "./comrep-profile";
+import { isValidProfilePhone } from "./profile-phone";
 
 export const SC_OUTSIDE_MALAYSIA = "Outside Malaysia";
 
@@ -81,6 +82,50 @@ export function requiredEmailIssue(value: unknown, field: string, label: string)
   if (!text) return { field, label, message: `${label} is required.` };
   if (!isValidEmail(text)) return { field, label, message: `Enter a valid e-mail address.` };
   return null;
+}
+
+export function optionalEmailIssue(value: unknown, field: string, label: string): ComrepFieldIssue | null {
+  if (isBlank(value)) return null;
+  return requiredEmailIssue(value, field, label);
+}
+
+export function phoneInvalidMessage(label: string): string {
+  return /contact/i.test(label) ? "Enter a valid contact number." : "Enter a valid phone number.";
+}
+
+export function phoneFormatIssue(value: unknown, field: string, label: string): ComrepFieldIssue | null {
+  if (isBlank(value)) return null;
+  const text = typeof value === "string" ? value : String(value);
+  if (isValidProfilePhone(text)) return null;
+  return { field, label, message: phoneInvalidMessage(label) };
+}
+
+export function requiredPhoneIssue(value: unknown, field: string, label: string): ComrepFieldIssue | null {
+  const blank = requiredTextIssue(value, field, label);
+  if (blank) return blank;
+  return phoneFormatIssue(value, field, label);
+}
+
+export function optionalIdentityFormatIssue(
+  value: unknown,
+  kind: "NRIC" | "ROC" | "PASSPORT",
+  field: string,
+  label: string
+): ComrepFieldIssue | null {
+  if (isBlank(value)) return null;
+  return identityFormatIssue(value, kind, field, label);
+}
+
+function percentCapIssue(value: unknown, field: string, label: string): ComrepFieldIssue | null {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value <= 100) return null;
+  } else if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value.replace(/%/g, "").replace(/,/g, "").trim());
+    if (!Number.isFinite(parsed) || parsed <= 100) return null;
+  } else {
+    return null;
+  }
+  return { field, label, message: "Enter a percentage of 100 or less." };
 }
 
 export function requiredDateIssue(value: unknown, field: string, label: string): ComrepFieldIssue | null {
@@ -359,7 +404,7 @@ export function validateIssuerCompanyForm(input: {
     requiredTextIssue(input.countryOfIncorporation, "countryOfIncorporation", "Country of Incorporation")
   );
   push(issues, requiredEmailIssue(input.companyEmail, "companyEmail", "E-mail Address"));
-  push(issues, requiredTextIssue(input.phoneNumber, "phoneNumber", "Phone Number"));
+  push(issues, requiredPhoneIssue(input.phoneNumber, "phoneNumber", "Phone Number"));
   return issues;
 }
 
@@ -442,6 +487,7 @@ export function validateInvestorCorporateForm(input: {
 export function validateOperatorGeneral(input: {
   name?: unknown;
   registrationNumber?: unknown;
+  trusteeRegistrationNumber?: unknown;
   scCompanyType?: unknown;
   responsiblePersonName?: unknown;
   responsiblePersonPhone?: unknown;
@@ -457,7 +503,16 @@ export function validateOperatorGeneral(input: {
     issues,
     requiredTextIssue(input.responsiblePersonName, "responsiblePersonName", "Name of Responsible Person")
   );
-  push(issues, requiredTextIssue(input.responsiblePersonPhone, "responsiblePersonPhone", "Contact Number"));
+  push(issues, requiredPhoneIssue(input.responsiblePersonPhone, "responsiblePersonPhone", "Contact Number"));
+  push(
+    issues,
+    optionalIdentityFormatIssue(
+      input.trusteeRegistrationNumber,
+      "ROC",
+      "trusteeRegistrationNumber",
+      "Trustee Company Registration Number"
+    )
+  );
   return issues;
 }
 
@@ -472,7 +527,20 @@ export function validateOperatorGeneralPatch(patch: Record<string, unknown>): Co
   }
   push(issues, rejectClearedRequiredEnum(patch, "scCompanyType", SC_COMPANY_TYPES, "Type of Company"));
   push(issues, rejectClearedRequiredText(patch, "responsiblePersonName", "Name of Responsible Person"));
-  push(issues, rejectClearedRequiredText(patch, "responsiblePersonPhone", "Contact Number"));
+  if (present(patch, "responsiblePersonPhone")) {
+    push(issues, requiredPhoneIssue(patch.responsiblePersonPhone, "responsiblePersonPhone", "Contact Number"));
+  }
+  if (present(patch, "trusteeRegistrationNumber")) {
+    push(
+      issues,
+      optionalIdentityFormatIssue(
+        patch.trusteeRegistrationNumber,
+        "ROC",
+        "trusteeRegistrationNumber",
+        "Trustee Company Registration Number"
+      )
+    );
+  }
   return issues;
 }
 
@@ -484,7 +552,9 @@ export function validateIssuerMasterPatch(
   if (portal === "issuer") {
     push(issues, rejectClearedRequiredText(patch, "name", "Name of Issuer"));
     push(issues, rejectClearedRequiredEmail(patch, "companyEmail", "E-mail Address"));
-    push(issues, rejectClearedRequiredText(patch, "phoneNumber", "Phone Number"));
+    if (present(patch, "phoneNumber")) {
+      push(issues, requiredPhoneIssue(patch.phoneNumber, "phoneNumber", "Phone Number"));
+    }
     push(
       issues,
       rejectClearedRequiredDate(patch, "dateOfIncorporation", "Date of Incorporation (dd/mm/yyyy)")
@@ -666,6 +736,10 @@ export function validateOperatorShareholder(input: {
     issues,
     requiredNumberIssue(input.shareholdingPercentage, "shareholdingPercentage", "Shareholding Percentage (%)")
   );
+  push(
+    issues,
+    percentCapIssue(input.shareholdingPercentage, "shareholdingPercentage", "Shareholding Percentage (%)")
+  );
   return issues;
 }
 
@@ -763,6 +837,10 @@ export function validateOperatorInterest(input: {
     issues,
     requiredNumberIssue(input.shareholdingPercentage, "shareholdingPercentage", "Shareholding Percentage (%)")
   );
+  push(
+    issues,
+    percentCapIssue(input.shareholdingPercentage, "shareholdingPercentage", "Shareholding Percentage (%)")
+  );
   return issues;
 }
 
@@ -837,6 +915,7 @@ export function validateIssuerPersonForm(input: {
   name?: unknown;
   identityPrefix?: unknown;
   identityNumber?: unknown;
+  email?: unknown;
   dateOfBirth?: unknown;
   dateOfIncorporation?: unknown;
   gender?: unknown;
@@ -889,6 +968,9 @@ export function validateIssuerPersonForm(input: {
       ? "PASSPORT"
       : "NRIC";
   push(issues, identityFormatIssue(input.identityNumber, identityKind, "identityNumber", identityLabel));
+  if (!corporate) {
+    push(issues, optionalEmailIssue(input.email, "email", "Email"));
+  }
   if (corporate) {
     push(issues, requiredDateIssue(input.dateOfIncorporation, "dateOfIncorporation", dobLabel));
     push(issues, requiredTextIssue(input.countryOfIncorporation, "countryOfIncorporation", nationalityLabel));
@@ -913,6 +995,10 @@ export function validateIssuerPersonForm(input: {
     push(
       issues,
       requiredNumberIssue(input.shareholdingPercentage, "shareholdingPercentage", "Shareholding Percentage (%)")
+    );
+    push(
+      issues,
+      percentCapIssue(input.shareholdingPercentage, "shareholdingPercentage", "Shareholding Percentage (%)")
     );
   }
   if (officer) {

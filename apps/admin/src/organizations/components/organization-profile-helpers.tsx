@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { ComRepFieldLabel } from "@cashsouk/ui";
+import { ComRepFieldLabel, ProfilePhoneInput } from "@cashsouk/ui";
 import {
   ArrowTopRightOnSquareIcon,
   ClipboardDocumentCheckIcon,
@@ -21,7 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { AdminOrganizationAddressInput } from "@cashsouk/types";
-import { PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING } from "@cashsouk/types";
+import { PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING, restrictScPostcodeInput } from "@cashsouk/types";
 
 export function DetailRow({
   label,
@@ -186,6 +186,8 @@ export function EditableField({
   inputClassName,
   help,
   required = false,
+  error,
+  inputMode,
 }: {
   label: string;
   value: string;
@@ -196,6 +198,8 @@ export function EditableField({
   inputClassName?: string;
   help?: string;
   required?: boolean;
+  error?: string;
+  inputMode?: "numeric" | "decimal" | "email" | "tel" | "text";
 }) {
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
@@ -209,6 +213,7 @@ export function EditableField({
           maxLength={maxLength}
           onChange={(event) => onChange(event.target.value)}
           rows={5}
+          aria-invalid={Boolean(error)}
         />
       ) : (
         <Input
@@ -216,9 +221,39 @@ export function EditableField({
           className={cn("h-11 text-ui", inputClassName)}
           value={value}
           maxLength={maxLength}
+          inputMode={inputMode}
           onChange={(event) => onChange(event.target.value)}
+          aria-invalid={Boolean(error)}
         />
       )}
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
+    </div>
+  );
+}
+
+export function EditablePhoneField({
+  label,
+  value,
+  onChange,
+  id,
+  help,
+  required = false,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  id?: string;
+  help?: string;
+  required?: boolean;
+  error?: string;
+}) {
+  const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
+  return (
+    <div className="space-y-2">
+      <ComRepFieldLabel htmlFor={fieldId} label={label} required={required} help={help} />
+      <ProfilePhoneInput id={fieldId} value={value} onChange={onChange} error={Boolean(error)} />
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -717,6 +752,7 @@ export function EditableAddressFields({
   lineLabel = "Address Line 1",
   stateLabel = "State",
   postcodeLabel = "Postal Code",
+  errors,
 }: {
   label: string;
   value: AddressDraft;
@@ -724,6 +760,7 @@ export function EditableAddressFields({
   lineLabel?: string;
   stateLabel?: string;
   postcodeLabel?: string;
+  errors?: { line1?: string; state?: string; postalCode?: string };
 }) {
   const prefix = label.toLowerCase().replace(/\s+/g, "-");
   return (
@@ -736,6 +773,8 @@ export function EditableAddressFields({
             label={lineLabel}
             value={value.line1}
             onChange={(line1) => onChange({ ...value, line1 })}
+            maxLength={500}
+            error={errors?.line1}
           />
         </div>
         <div className="sm:col-span-2">
@@ -744,6 +783,7 @@ export function EditableAddressFields({
             label="Address Line 2"
             value={value.line2}
             onChange={(line2) => onChange({ ...value, line2 })}
+            maxLength={500}
           />
         </div>
         <EditableField
@@ -756,13 +796,18 @@ export function EditableAddressFields({
           id={`${prefix}-postal`}
           label={postcodeLabel}
           value={value.postalCode}
-          onChange={(postalCode) => onChange({ ...value, postalCode })}
+          onChange={(postalCode) =>
+            onChange({ ...value, postalCode: restrictScPostcodeInput(value.state, postalCode) })
+          }
+          inputMode={value.state === "Outside Malaysia" ? "text" : "numeric"}
+          error={errors?.postalCode}
         />
         <EditableField
           id={`${prefix}-state`}
           label={stateLabel}
           value={value.state}
           onChange={(state) => onChange({ ...value, state })}
+          error={errors?.state}
         />
         <EditableField
           id={`${prefix}-country`}

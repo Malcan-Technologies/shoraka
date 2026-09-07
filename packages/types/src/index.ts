@@ -585,6 +585,8 @@ export * from "./comrep-field-copy";
 export * from "./comrep-normalization";
 export * from "./comrep-semantic-rules";
 export * from "./comrep-requiredness";
+export * from "./profile-phone";
+export * from "./api-validation-message";
 export * from "./sc-appendix-a-countries";
 export * from "./organization-party-profile";
 export * from "./organization-party-key";

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { PortalType, UpdateAdminOrganizationProfileInput } from "@cashsouk/types";
+import { profileValidationErrorFromApi } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -21,7 +22,7 @@ export function useUpdateOrganizationProfile() {
     }) => {
       const response = await apiClient.updateAdminOrganizationProfile(portal, id, data);
       if (!response.success) {
-        throw new Error(response.error.message);
+        throw profileValidationErrorFromApi(response.error);
       }
       return response.data;
     },

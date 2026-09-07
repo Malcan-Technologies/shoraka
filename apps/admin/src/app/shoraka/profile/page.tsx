@@ -39,6 +39,10 @@ import {
   SC_SHARE_TYPES,
   firstIssueMessage,
   issuesByField,
+  isMalaysiaCountryName,
+  isProfileValidationError,
+  profileValidationErrorFromApi,
+  restrictScIdentityInput,
   validateOperatorAdvisor,
   validateOperatorFinancialStatement,
   validateOperatorGeneral,
@@ -74,6 +78,7 @@ import {
   ShorakaCountrySelect,
   ShorakaEnumSelect,
   ShorakaField,
+  ShorakaPhoneField,
   ShorakaYesNo,
   toDateInput,
 } from "./shoraka-profile-fields";
@@ -135,7 +140,7 @@ export default function RmoProfilePage() {
     queryKey: ["admin", "operator-profile"],
     queryFn: async () => {
       const res = await api.getOperatorProfile();
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
       return res.data;
     },
   });
@@ -150,20 +155,25 @@ export default function RmoProfilePage() {
         responsiblePersonName: next.responsiblePersonName,
         responsiblePersonPhone: next.responsiblePersonPhone,
       });
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
       return res.data;
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["admin", "operator-profile"], data);
       toast.success("Shoraka profile saved");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => {
+      if (isProfileValidationError(err) && Object.keys(err.fieldErrors).length > 0) {
+        setSectionErrors(err.fieldErrors);
+      }
+      toast.error(err.message);
+    },
   });
 
   const capitalMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
       const res = await api.patchOperatorShareCapital(body);
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
       return res.data;
     },
     onSuccess: (data) => {
@@ -310,6 +320,7 @@ export default function RmoProfilePage() {
                       const issues = validateOperatorGeneral({
                         name: draft.name,
                         registrationNumber: draft.registrationNumber,
+                        trusteeRegistrationNumber: draft.trusteeRegistrationNumber,
                         scCompanyType: draft.scCompanyType,
                         responsiblePersonName: draft.responsiblePersonName,
                         responsiblePersonPhone: draft.responsiblePersonPhone,
@@ -339,7 +350,9 @@ export default function RmoProfilePage() {
                     <ShorakaField
                       label={SC_ANNUAL_GENERAL.companyRegistrationNumber.label}
                       value={draft.registrationNumber ?? ""}
-                      onChange={(v) => setDraft({ ...draft, registrationNumber: v })}
+                      onChange={(v) =>
+                        setDraft({ ...draft, registrationNumber: restrictScIdentityInput("ROC", v) })
+                      }
                       help={SC_ANNUAL_GENERAL.companyRegistrationNumber.help}
                       required
                       error={sectionErrors.registrationNumber}
@@ -357,8 +370,14 @@ export default function RmoProfilePage() {
                     <ShorakaField
                       label={SC_ANNUAL_GENERAL.trusteeCompanyRegistrationNumber.label}
                       value={draft.trusteeRegistrationNumber ?? ""}
-                      onChange={(v) => setDraft({ ...draft, trusteeRegistrationNumber: v })}
+                      onChange={(v) =>
+                        setDraft({
+                          ...draft,
+                          trusteeRegistrationNumber: restrictScIdentityInput("ROC", v),
+                        })
+                      }
                       help={SC_ANNUAL_GENERAL.trusteeCompanyRegistrationNumber.help}
+                      error={sectionErrors.trusteeRegistrationNumber}
                     />
                     <ShorakaField
                       label={SC_ANNUAL_GENERAL.nameOfResponsiblePerson.label}
@@ -368,7 +387,7 @@ export default function RmoProfilePage() {
                       required
                       error={sectionErrors.responsiblePersonName}
                     />
-                    <ShorakaField
+                    <ShorakaPhoneField
                       label={SC_ANNUAL_GENERAL.contactNumber.label}
                       value={draft.responsiblePersonPhone ?? ""}
                       onChange={(v) => setDraft({ ...draft, responsiblePersonPhone: v })}
@@ -793,17 +812,17 @@ export default function RmoProfilePage() {
                 }
                 onCreate={async (body) => {
                   const res = await api.createOperatorShareholder(shorakaShareholderPayload(body));
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onUpdate={async (id, body) => {
                   const res = await api.updateOperatorShareholder(id, shorakaShareholderPayload(body));
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onDelete={async (id) => {
                   const res = await api.deleteOperatorShareholder(id);
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 validate={(row) =>
@@ -878,7 +897,19 @@ export default function RmoProfilePage() {
                     <ShorakaField
                       label={SC_ANNUAL_SHAREHOLDER.icPassportNumber.label}
                       value={row.identityNumber ?? ""}
-                      onChange={(v) => set({ ...row, identityNumber: v })}
+                      onChange={(v) =>
+                        set({
+                          ...row,
+                          identityNumber: restrictScIdentityInput(
+                            row.entityType === "CORPORATE"
+                              ? "ROC"
+                              : isMalaysiaCountryName(row.nationality)
+                                ? "NRIC"
+                                : "PASSPORT",
+                            v
+                          ),
+                        })
+                      }
                       disabled={disabled}
                       required
                       help={SC_ANNUAL_SHAREHOLDER.icPassportNumber.help}
@@ -965,6 +996,7 @@ export default function RmoProfilePage() {
                       onChange={(v) => set({ ...row, shareholdingUnits: v })}
                       disabled={disabled}
                       required
+                      integer
                       error={errors.shareholdingUnits}
                     />
                     <ShorakaField
@@ -978,9 +1010,12 @@ export default function RmoProfilePage() {
                     <ShorakaField
                       label={SC_ANNUAL_SHAREHOLDER.shareholdingPercentage.label}
                       value={row.shareholdingPercentage ?? ""}
-                      onChange={(v) => set({ ...row, shareholdingPercentage: v })}
+                      onChange={(v) =>
+                        set({ ...row, shareholdingPercentage: v.replace(/[^\d.]/g, "") })
+                      }
                       disabled={disabled}
                       required
+                      inputMode="decimal"
                       error={errors.shareholdingPercentage}
                     />
                   </>
@@ -1021,17 +1056,17 @@ export default function RmoProfilePage() {
                 }
                 onCreate={async (body) => {
                   const res = await api.createOperatorOfficer(shorakaOfficerPayload(body));
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onUpdate={async (id, body) => {
                   const res = await api.updateOperatorOfficer(id, shorakaOfficerPayload(body));
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onDelete={async (id) => {
                   const res = await api.deleteOperatorOfficer(id);
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 validate={(row) =>
@@ -1087,7 +1122,15 @@ export default function RmoProfilePage() {
                     <ShorakaField
                       label={SC_ANNUAL_OFFICER.identityNumber.label}
                       value={row.identityNumber ?? ""}
-                      onChange={(v) => set({ ...row, identityNumber: v })}
+                      onChange={(v) =>
+                        set({
+                          ...row,
+                          identityNumber: restrictScIdentityInput(
+                            isMalaysiaCountryName(row.nationality) ? "NRIC" : "PASSPORT",
+                            v
+                          ),
+                        })
+                      }
                       disabled={disabled}
                       required
                       help={SC_ANNUAL_OFFICER.identityNumber.help}
@@ -1199,17 +1242,17 @@ export default function RmoProfilePage() {
                 }
                 onCreate={async (body) => {
                   const res = await api.createOperatorAdvisor(shorakaAdvisorPayload(body));
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onUpdate={async (id, body) => {
                   const res = await api.updateOperatorAdvisor(id, shorakaAdvisorPayload(body));
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onDelete={async (id) => {
                   const res = await api.deleteOperatorAdvisor(id);
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 validate={(row) =>
@@ -1246,7 +1289,9 @@ export default function RmoProfilePage() {
                     <ShorakaField
                       label={SC_ANNUAL_ADVISOR.companyRegistrationNo.label}
                       value={row.registrationNumber ?? ""}
-                      onChange={(v) => set({ ...row, registrationNumber: v })}
+                      onChange={(v) =>
+                        set({ ...row, registrationNumber: restrictScIdentityInput("ROC", v) })
+                      }
                       disabled={disabled}
                       help={SC_ANNUAL_ADVISOR.companyRegistrationNo.help}
                       required
@@ -1323,17 +1368,17 @@ export default function RmoProfilePage() {
                 }
                 onCreate={async (body) => {
                   const res = await api.createOperatorInterest(shorakaInterestPayload(body));
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onUpdate={async (id, body) => {
                   const res = await api.updateOperatorInterest(id, shorakaInterestPayload(body));
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onDelete={async (id) => {
                   const res = await api.deleteOperatorInterest(id);
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 validate={(row) =>
@@ -1363,7 +1408,9 @@ export default function RmoProfilePage() {
                     <ShorakaField
                       label={SC_ANNUAL_INTEREST.roc.label}
                       value={row.registrationNumber ?? ""}
-                      onChange={(v) => set({ ...row, registrationNumber: v })}
+                      onChange={(v) =>
+                        set({ ...row, registrationNumber: restrictScIdentityInput("ROC", v) })
+                      }
                       disabled={disabled}
                       help={SC_ANNUAL_INTEREST.roc.help}
                       required
@@ -1433,14 +1480,18 @@ export default function RmoProfilePage() {
                       onChange={(v) => set({ ...row, shareholdingUnits: v })}
                       disabled={disabled}
                       required
+                      integer
                       error={errors.shareholdingUnits}
                     />
                     <ShorakaField
                       label={SC_ANNUAL_INTEREST.shareholdingPercentage.label}
                       value={row.shareholdingPercentage ?? ""}
-                      onChange={(v) => set({ ...row, shareholdingPercentage: v })}
+                      onChange={(v) =>
+                        set({ ...row, shareholdingPercentage: v.replace(/[^\d.]/g, "") })
+                      }
                       disabled={disabled}
                       required
+                      inputMode="decimal"
                       error={errors.shareholdingPercentage}
                     />
                   </>
@@ -1488,17 +1539,17 @@ export default function RmoProfilePage() {
                 }
                 onCreate={async (body) => {
                   const res = await api.createOperatorFinancialStatement(shorakaFinancialPayload(body));
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onUpdate={async (id, body) => {
                   const res = await api.updateOperatorFinancialStatement(id, shorakaFinancialPayload(body));
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 onDelete={async (id) => {
                   const res = await api.deleteOperatorFinancialStatement(id);
-                  if (!res.success) throw new Error(res.error.message);
+                  if (!res.success) throw profileValidationErrorFromApi(res.error);
                   queryClient.setQueryData(["admin", "operator-profile"], res.data);
                 }}
                 validate={(row) =>

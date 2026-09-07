@@ -1,6 +1,9 @@
 import { z } from "zod";
-import { isValidPhoneNumber } from "libphonenumber-js";
-import { validateIssuerAddressForm } from "@cashsouk/types";
+import {
+  isValidProfilePhone,
+  storedProfilePhone,
+  validateIssuerAddressForm,
+} from "@cashsouk/types";
 
 export const createOrganizationSchema = z.object({
   type: z.enum(["PERSONAL", "COMPANY"]),
@@ -98,26 +101,28 @@ const contactPersonSchema = z.object({
     .optional()
     .nullable()
     .refine((val) => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), {
-      message: "Invalid email",
+      message: "Enter a valid e-mail address.",
     }),
   contact: z
     .string()
-    .refine((val) => !val || isValidPhoneNumber(val), {
-      message: "Invalid phone number format",
+    .refine((val) => !val || isValidProfilePhone(val), {
+      message: "Enter a valid contact number.",
     })
     .optional()
-    .nullable(),
+    .nullable()
+    .transform((val) => (val == null || val === "" ? val : (storedProfilePhone(val) as typeof val))),
 });
 
 // Update organization profile schema (for editable fields only)
 export const updateOrganizationProfileSchema = z.object({
   phoneNumber: z
     .string()
-    .refine((val) => !val || isValidPhoneNumber(val), {
-      message: "Invalid phone number format",
+    .refine((val) => !val || isValidProfilePhone(val), {
+      message: "Enter a valid phone number.",
     })
     .optional()
-    .nullable(),
+    .nullable()
+    .transform((val) => (val == null || val === "" ? val : (storedProfilePhone(val) as typeof val))),
   address: z.string().max(500).optional().nullable(),
   bankAccountDetails: bankAccountDetailsSchema.optional().nullable(),
   contactPerson: contactPersonSchema.optional().nullable(),

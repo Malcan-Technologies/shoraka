@@ -249,6 +249,7 @@ export function buildOperatorProfileCompleteness(
     validateOperatorGeneral({
       name: profile.name,
       registrationNumber: profile.registrationNumber,
+      trusteeRegistrationNumber: profile.trusteeRegistrationNumber,
       scCompanyType: profile.scCompanyType,
       responsiblePersonName: profile.responsiblePersonName,
       responsiblePersonPhone: profile.responsiblePersonPhone,

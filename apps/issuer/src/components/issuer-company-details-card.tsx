@@ -10,11 +10,14 @@ import {
   SC_MONTHLY_ISSUER,
   displayScCompanyTypeLabel,
   firstIssueMessage,
+  humanizeApiValidationMessage,
+  isProfileValidationError,
   issuesByField,
+  profileValidationErrorFromApi,
   scAppendixASelectValues,
   validateIssuerCompanyForm,
 } from "@cashsouk/types";
-import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
+import { ComRepFieldLabel, ProfileFieldGrid, ProfilePhoneInput, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -158,7 +161,7 @@ export function IssuerCompanyDetailsCard({
       if (!org.scCompanyType) master.scCompanyType = scCompanyType;
 
       const res = await api.patchMasterProfile("issuer", organizationId, master);
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
 
       const nextEmployees = employees.trim() === "" ? null : Number(employees);
       if (employees.trim() !== "" && !Number.isInteger(nextEmployees)) {
@@ -170,7 +173,7 @@ export function IssuerCompanyDetailsCard({
         website: website.trim() || null,
         annualRevenue: annualRevenue.trim() || null,
       });
-      if (!corp.success) throw new Error(corp.error.message);
+      if (!corp.success) throw profileValidationErrorFromApi(corp.error);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["corporate-info", organizationId] });
@@ -179,7 +182,12 @@ export function IssuerCompanyDetailsCard({
       toast.success("Company details updated");
       setIsEditing(false);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => {
+      if (isProfileValidationError(err) && Object.keys(err.fieldErrors).length > 0) {
+        setFieldErrors(err.fieldErrors);
+      }
+      toast.error(humanizeApiValidationMessage(err.message));
+    },
   });
 
   return (
@@ -312,7 +320,12 @@ export function IssuerCompanyDetailsCard({
             <ProfileReadField label="Industry" value={displayProfileValue(basic?.industry)} />
           )}
           {isEditing ? (
-            <InputRow label="Number of Employees" value={employees} onChange={setEmployees} />
+            <InputRow
+              label="Number of Employees"
+              value={employees}
+              onChange={(value) => setEmployees(value.replace(/\D/g, ""))}
+              inputMode="numeric"
+            />
           ) : (
             <ProfileReadField
               label="Number of Employees"
@@ -351,6 +364,8 @@ export function IssuerCompanyDetailsCard({
               }}
               help={SC_MONTHLY_ISSUER.emailAddress.help}
               required
+              maxLength={255}
+              type="email"
               error={fieldErrors.companyEmail}
             />
           ) : (
@@ -363,18 +378,25 @@ export function IssuerCompanyDetailsCard({
             />
           )}
           {isEditing ? (
-            <InputRow
-              id="field-phoneNumber"
-              label={SC_MONTHLY_ISSUER.phoneNumber.label}
-              value={phoneNumber}
-              onChange={(value) => {
-                setPhoneNumber(value);
-                setFieldErrors((current) => ({ ...current, phoneNumber: "" }));
-              }}
-              help={SC_MONTHLY_ISSUER.phoneNumber.help}
-              required
-              error={fieldErrors.phoneNumber}
-            />
+            <div className="space-y-2">
+              <ComRepFieldLabel
+                label={SC_MONTHLY_ISSUER.phoneNumber.label}
+                required
+                help={SC_MONTHLY_ISSUER.phoneNumber.help}
+              />
+              <ProfilePhoneInput
+                id="field-phoneNumber"
+                value={phoneNumber}
+                onChange={(value) => {
+                  setPhoneNumber(value);
+                  setFieldErrors((current) => ({ ...current, phoneNumber: "" }));
+                }}
+                error={Boolean(fieldErrors.phoneNumber)}
+              />
+              {fieldErrors.phoneNumber ? (
+                <p className="text-meta text-destructive">{fieldErrors.phoneNumber}</p>
+              ) : null}
+            </div>
           ) : (
             <ProfileReadField
               label={SC_MONTHLY_ISSUER.phoneNumber.label}
@@ -410,6 +432,8 @@ function InputRow({
   help,
   required = false,
   error,
+  maxLength,
+  inputMode,
 }: {
   id?: string;
   label: string;
@@ -419,6 +443,8 @@ function InputRow({
   help?: string;
   required?: boolean;
   error?: string;
+  maxLength?: number;
+  inputMode?: "numeric" | "decimal" | "email" | "tel" | "text";
 }) {
   return (
     <div className="space-y-2">
@@ -428,6 +454,8 @@ function InputRow({
         className="h-11 text-ui"
         type={type}
         value={value}
+        maxLength={maxLength}
+        inputMode={inputMode}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={Boolean(error)}
       />

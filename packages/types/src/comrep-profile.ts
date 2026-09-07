@@ -1,3 +1,5 @@
+import { normalizeProfilePhone } from "./profile-phone";
+
 /**
  * SC ComRep enumerations and CashSouk master-profile completeness.
  * Annual RMO Information Report tables are [01000]–[11000]; issuer/investor
@@ -955,6 +957,14 @@ function hasText(value: unknown): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function hasValidEmailValue(value: unknown): boolean {
+  return hasText(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
+}
+
+function hasValidPhoneValue(value: unknown): boolean {
+  return hasText(value) && normalizeProfilePhone(String(value)) != null;
+}
+
 function hasDate(value: unknown): boolean {
   if (value instanceof Date) return !Number.isNaN(value.getTime());
   if (typeof value !== "string") return false;
@@ -1094,8 +1104,8 @@ export function computeIssuerCompanyCompleteness(
   if (!hasRequiredPostcodeValue(input.businessAddress?.postalCode, input.businessAddress?.state)) {
     pushMissing(missing, step, "businessAddress.postalCode", "Business Address - Postcode");
   }
-  if (!hasText(input.phoneNumber)) pushMissing(missing, step, "phoneNumber", "Phone Number");
-  if (!hasText(input.companyEmail)) pushMissing(missing, step, "companyEmail", "E-mail Address");
+  if (!hasValidPhoneValue(input.phoneNumber)) pushMissing(missing, step, "phoneNumber", "Phone Number");
+  if (!hasValidEmailValue(input.companyEmail)) pushMissing(missing, step, "companyEmail", "E-mail Address");
   return missing;
 }
 
