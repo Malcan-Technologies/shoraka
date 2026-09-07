@@ -2,7 +2,10 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 describe("issuer person forms", () => {
-  const source = readFileSync(join(__dirname, "issuer-person-forms.tsx"), "utf8");
+  const source = readFileSync(
+    join(__dirname, "../../../../packages/ui/src/portal-person-forms.tsx"),
+    "utf8"
+  );
 
   it("validates the 5% shareholder floor on add and edit", () => {
     expect(source).toContain("issuerShareholdingThresholdIssue");

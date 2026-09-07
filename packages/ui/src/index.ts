@@ -75,6 +75,18 @@ export {
 export { Input } from "./components/input";
 export { Label } from "./components/label";
 export {
+  Dialog,
+  DialogPortal,
+  DialogOverlay,
+  DialogTrigger,
+  DialogClose,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "./components/dialog";
+export {
   Field,
   FieldGroup,
   FieldLabel,
@@ -329,6 +341,10 @@ export {
 export type { PartyProfileDetailItem } from "./party-profile-detail-fields";
 export { ProfileCompletenessSummary } from "./components/profile-completeness-summary";
 export type { ProfileCompletenessSectionRow } from "./components/profile-completeness-summary";
+export { PortalPeopleSection } from "./portal-people-section";
+export type { PortalPeoplePortal } from "./portal-people-section";
+export { AddPersonForm, PartyFillEmptyForm } from "./portal-person-forms";
+export type { AddPersonInitial } from "./portal-person-forms";
 export { ProductNameWithIcon } from "./components/product-name-with-icon";
 export { ProductCatalogName } from "./components/product-catalog-name";
 export { ProductCatalogImage } from "./components/product-catalog-image";

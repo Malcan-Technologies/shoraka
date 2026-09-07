@@ -45,6 +45,7 @@ import {
   adoptObservedParty,
   assertIssuerProfileCompleteForSubmit,
   createUserAddedParty,
+  inactivateMasterParty,
   observeExternalCtosParties,
   patchPartyProfile,
   resolvePartyMismatch,
@@ -839,7 +840,7 @@ describe("user-added master parties", () => {
     expect(parties).toHaveLength(0);
   });
 
-  it("reuses a CTOS-observed party when the same identity is added manually", async () => {
+  it("does not auto-adopt a CTOS-observed person when the same identity is added manually", async () => {
     parties.push(
       row({
         id: "p-obs",
@@ -853,26 +854,30 @@ describe("user-added master parties", () => {
         shareholding_percentage: null,
       })
     );
-    const updated = await createUserAddedParty({
-      portal: "issuer",
-      organizationId: "org-1",
-      source: "USER",
-      patch: {
-        name: "Sarah Tan",
-        identityNumber: "900101-10-1234",
-        identityPrefix: "NRIC",
-        isDirector: true,
-        isShareholder: true,
-        shareholdingPercentage: "10",
-        shareType: "ORDINARY",
-      },
+    await expect(
+      createUserAddedParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        source: "USER",
+        patch: {
+          name: "Sarah Tan",
+          identityNumber: "900101-10-1234",
+          identityPrefix: "NRIC",
+          isDirector: true,
+          isShareholder: true,
+          shareholdingPercentage: "10",
+          shareType: "ORDINARY",
+        },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "INVALID_PARTY_STATUS",
+      message: "Add this CTOS person to the current profile before editing.",
     });
     expect(parties.filter((p) => canonicalKey(p.party_key) === "900101101234")).toHaveLength(1);
-    expect(updated.id).toBe("p-obs");
-    expect(updated.membershipStatus).toBe("MASTER_ACTIVE");
-    expect(updated.isDirector).toBe(true);
-    expect(updated.isShareholder).toBe(true);
-    expect(updated.shareholdingPercentage).toBe("10");
+    expect(parties.find((p) => p.id === "p-obs")?.membership_status).toBe(
+      OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED
+    );
   });
 
   it("persists salutation, share type other, and resignation date on a user-added person", async () => {
@@ -1257,6 +1262,160 @@ describe("user-added master parties", () => {
     expect(adopted.isBoard).toBe(true);
     expect(adopted.isShareholder).toBe(false);
     expect(adopted.shareholdingPercentage).toBeNull();
+  });
+
+  it("rejects editing a CTOS-observed person until Admin adds them to the current profile", async () => {
+    parties.push(
+      row({
+        id: "p-obs",
+        party_key: "900101101234",
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_director: true,
+      })
+    );
+    await expect(
+      patchPartyProfile({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyId: "p-obs",
+        source: "USER",
+        fillEmptyOnly: true,
+        patch: { nationality: "MALAYSIA" },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Add this CTOS person to the current profile before editing.",
+    });
+  });
+
+  it("does not reactivate an inactive person when the same identity is added or edited", async () => {
+    parties.push(
+      row({
+        id: "p-john",
+        party_key: "880101011111",
+        identity_number: "880101011111",
+        name: "John",
+        is_director: true,
+        is_shareholder: true,
+        is_board: true,
+        shareholding_percentage: new Prisma.Decimal("20"),
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+      })
+    );
+    await expect(
+      createUserAddedParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        source: "USER",
+        patch: {
+          name: "John",
+          identityNumber: "880101-01-1111",
+          isDirector: true,
+        },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "This person is no longer active on the current profile.",
+    });
+    await expect(
+      patchPartyProfile({
+        portal: "issuer",
+        organizationId: "org-1",
+        partyId: "p-john",
+        source: "USER",
+        fillEmptyOnly: true,
+        patch: { nationality: "MALAYSIA" },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "This person is no longer active on the current profile.",
+    });
+    expect(parties.find((p) => p.id === "p-john")?.membership_status).toBe(
+      OrganizationPartyMembershipStatus.MASTER_INACTIVE
+    );
+    expect(parties.filter((p) => canonicalKey(p.party_key) === "880101011111")).toHaveLength(1);
+  });
+
+  it("inactivate only marks membership inactive and keeps identity, roles, and observation", async () => {
+    parties.push(
+      row({
+        id: "p-john",
+        party_key: "880101011111",
+        name: "John",
+        is_director: true,
+        is_shareholder: true,
+        is_board: true,
+        shareholding_percentage: new Prisma.Decimal("20"),
+        external_observation: { name: "JOHN" },
+      })
+    );
+    const updated = await inactivateMasterParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-john",
+    });
+    expect(updated.membershipStatus).toBe("MASTER_INACTIVE");
+    const stored = parties.find((p) => p.id === "p-john");
+    expect(stored?.name).toBe("John");
+    expect(stored?.is_director).toBe(true);
+    expect(stored?.is_shareholder).toBe(true);
+    expect(stored?.is_board).toBe(true);
+    expect(Number(stored?.shareholding_percentage)).toBe(20);
+    expect(stored?.external_observation).toEqual({ name: "JOHN" });
+    expect(parties.filter((p) => p.id === "p-john")).toHaveLength(1);
+  });
+
+  it("CTOS listing an inactive person again does not reactivate them", async () => {
+    parties.push(
+      row({
+        id: "p-john",
+        party_key: "880101011111",
+        name: "John",
+        is_director: true,
+        membership_status: OrganizationPartyMembershipStatus.MASTER_INACTIVE,
+        absent_from_latest_external: true,
+      })
+    );
+    await observeExternalCtosParties("issuer", "org-1", {
+      directors: [{ party_type: "I", nic_brno: "880101011111", name: "John", position: "DO" }],
+    });
+    const john = parties.find((p) => p.id === "p-john");
+    expect(john?.membership_status).toBe("MASTER_INACTIVE");
+    expect(john?.absent_from_latest_external).toBe(false);
+    expect(parties.filter((p) => canonicalKey(p.party_key) === "880101011111")).toHaveLength(1);
+  });
+
+  it("investor edit updates the same master person and keeps unrelated roles", async () => {
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({ id: "inv-1" });
+    parties.push(
+      row({
+        id: "p-inv",
+        party_key: "550101011111",
+        identity_number: "550101011111",
+        issuer_organization_id: null,
+        investor_organization_id: "inv-1",
+        is_director: true,
+        is_shareholder: true,
+        is_board: true,
+        is_management: false,
+        shareholding_percentage: new Prisma.Decimal("10"),
+      })
+    );
+    const updated = await patchPartyProfile({
+      portal: "investor",
+      organizationId: "inv-1",
+      partyId: "p-inv",
+      source: "USER",
+      fillEmptyOnly: true,
+      patch: { shareholdingPercentage: "15" },
+    });
+    expect(updated.id).toBe("p-inv");
+    expect(updated.isDirector).toBe(true);
+    expect(updated.isBoard).toBe(true);
+    expect(updated.isShareholder).toBe(true);
+    expect(updated.isManagement).toBe(false);
+    expect(updated.shareholdingPercentage).toBe("15");
+    expect(parties.filter((p) => p.id === "p-inv")).toHaveLength(1);
   });
 });
 

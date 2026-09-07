@@ -22,7 +22,7 @@ import { isReadyOnboardingStatus } from "./onboarding-readiness";
 export type DirectorShareholderListSource = "ONBOARDING" | "CTOS" | "CTOS_EMPTY";
 
 export const CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING =
-  "The latest external information did not include directors or shareholders. Current profile people are kept until you choose to update them." as const;
+  "The latest CTOS information did not include directors or shareholders. Current profile people are kept until you choose to update them." as const;
 
 export function resolveDirectorShareholderCtosEmptyWarning(input: {
   directorShareholderListSource?: DirectorShareholderListSource | null;

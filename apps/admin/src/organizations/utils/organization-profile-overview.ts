@@ -199,8 +199,8 @@ export function formatMismatchValue(field: string, value: unknown): string {
 }
 
 export function latestCtosLabel(party: OrganizationPartyProfileDto): string {
-  if (party.membershipStatus === "EXTERNAL_OBSERVED") return "New in latest external information";
-  if (party.absentFromLatestExternal) return "Not found in latest external information";
+  if (party.membershipStatus === "EXTERNAL_OBSERVED") return "New in latest CTOS information";
+  if (party.absentFromLatestExternal) return "Not found in latest CTOS information";
   if (party.externalObservation) return "Matched";
   return "Not yet found";
 }

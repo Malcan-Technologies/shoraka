@@ -50,9 +50,9 @@ export function OrganizationExternalReviewSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex w-full flex-col overflow-y-auto sm:max-w-lg">
         <SheetHeader>
-          <SheetTitle>Review external changes</SheetTitle>
+          <SheetTitle>Review CTOS changes</SheetTitle>
           <SheetDescription>
-            External information differs from the current profile. Review the latest external
+            CTOS information differs from the current profile. Review the latest CTOS
             information before updating this profile. Current profile information is kept until you
             choose to update it.
           </SheetDescription>
@@ -60,7 +60,7 @@ export function OrganizationExternalReviewSheet({
         <div className="mt-6 space-y-6">
           {newParties.length > 0 ? (
             <section className="space-y-3">
-              <h3 className="text-card-title">New external people</h3>
+              <h3 className="text-card-title">New people from CTOS</h3>
               {newParties.map((party) => (
                 <div
                   key={party.id}
@@ -69,7 +69,7 @@ export function OrganizationExternalReviewSheet({
                   <div>
                     <p className="text-ui font-medium">{party.name || party.partyKey}</p>
                     <p className="text-meta text-muted-foreground">
-                      New person found in the latest external information.
+                      New person found in the latest CTOS information.
                     </p>
                   </div>
                   {canManage ? (
@@ -78,7 +78,7 @@ export function OrganizationExternalReviewSheet({
                         Adopt
                       </Button>
                       <Button className="h-10" variant="outline" onClick={() => onOpenChange(false)}>
-                        Keep external only
+                        Keep as CTOS only
                       </Button>
                     </div>
                   ) : null}
@@ -116,7 +116,7 @@ export function OrganizationExternalReviewSheet({
 
           {absentParties.length > 0 ? (
             <section className="space-y-3">
-              <h3 className="text-card-title">Not found in latest external information</h3>
+              <h3 className="text-card-title">Not found in latest CTOS information</h3>
               {absentParties.map((party) => (
                 <div
                   key={party.id}
@@ -126,7 +126,7 @@ export function OrganizationExternalReviewSheet({
                     <p className="text-ui font-medium">{party.name || party.partyKey}</p>
                     <p className="flex items-center gap-1.5 text-meta text-status-action-text">
                       <ExclamationTriangleIcon className="h-4 w-4" />
-                      This person was not found in the latest external information.
+                      This person was not found in the latest CTOS information.
                     </p>
                   </div>
                   {canManage ? (
@@ -145,7 +145,7 @@ export function OrganizationExternalReviewSheet({
           ) : null}
 
           {newParties.length === 0 && mismatchParties.length === 0 && absentParties.length === 0 ? (
-            <p className="text-ui text-muted-foreground">No external changes need review.</p>
+            <p className="text-ui text-muted-foreground">No CTOS changes need review.</p>
           ) : null}
         </div>
       </SheetContent>
@@ -179,13 +179,13 @@ export function MismatchBlock({
           <p className="text-ui font-medium">{master}</p>
         </div>
         <div>
-          <p className="text-meta text-muted-foreground">Latest external information</p>
+          <p className="text-meta text-muted-foreground">Latest CTOS information</p>
           <p className="text-ui text-muted-foreground">{external}</p>
         </div>
       </div>
       <p className="flex items-center gap-1.5 text-meta text-status-action-text">
         <ExclamationTriangleIcon className="h-4 w-4" />
-        External information differs from the current profile.
+        CTOS information differs from the current profile.
       </p>
       {canManage ? (
         <div className="flex flex-wrap gap-2">

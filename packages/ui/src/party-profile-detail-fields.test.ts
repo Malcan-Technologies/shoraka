@@ -104,4 +104,28 @@ describe("buildPartyProfileDetailItems", () => {
     expect(labels).not.toContain("Residential Address");
     expect(labels).not.toContain("Designation");
   });
+
+  it("says CTOS when the person is missing from or differs from the latest CTOS information", () => {
+    const absent = buildPartyProfileDetailItems({
+      party: party({ absentFromLatestExternal: true }),
+    });
+    expect(absent.find((item) => item.label === "Latest CTOS information")?.value).toBe(
+      "This person was not found in the latest CTOS information."
+    );
+    const mismatch = buildPartyProfileDetailItems({
+      party: party({
+        mismatches: [
+          {
+            field: "shareholdingPercentage",
+            masterValue: "20",
+            externalValue: "25",
+            source: "CTOS",
+          },
+        ],
+      }),
+    });
+    expect(mismatch.find((item) => item.label === "Latest CTOS information")?.value).toBe(
+      "CTOS information differs from the current profile."
+    );
+  });
 });

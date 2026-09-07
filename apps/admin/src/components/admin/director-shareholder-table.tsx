@@ -153,7 +153,7 @@ export function DirectorShareholderTable({
         ) : null}
         <p className="text-sm text-muted-foreground py-4 text-center">
           {resolvedCtosEmptyWarning
-            ? "No directors or shareholders were found in the latest external information."
+            ? "No directors or shareholders were found in the latest CTOS information."
             : "No directors or shareholders have been added yet."}
         </p>
       </div>

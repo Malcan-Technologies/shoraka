@@ -185,13 +185,13 @@ export function buildPartyProfileDetailItems(params: {
   }
   if (party?.absentFromLatestExternal) {
     items.push({
-      label: "Latest external information",
-      value: "This person was not found in the latest external information.",
+      label: "Latest CTOS information",
+      value: "This person was not found in the latest CTOS information.",
     });
   } else if (party && party.mismatches.length > 0) {
     items.push({
-      label: "Latest external information",
-      value: "External information differs from the current profile.",
+      label: "Latest CTOS information",
+      value: "CTOS information differs from the current profile.",
     });
   }
   return items.filter((item) => isPresent(item.value));

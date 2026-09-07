@@ -978,7 +978,10 @@ export async function patchPartyProfile(params: {
   });
   if (!row) throw new AppError(404, "NOT_FOUND", "Party profile not found");
   if (row.membership_status === OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) {
-    throw new AppError(400, "INVALID_PARTY_STATUS", "Adopt this person into the current profile before editing.");
+    throw new AppError(400, "INVALID_PARTY_STATUS", "Add this CTOS person to the current profile before editing.");
+  }
+  if (row.membership_status === OrganizationPartyMembershipStatus.MASTER_INACTIVE) {
+    throw new AppError(400, "INVALID_PARTY_STATUS", "This person is no longer active on the current profile.");
   }
 
   const nextShareholder =
@@ -1374,6 +1377,20 @@ export async function createUserAddedParty(params: {
   const email = (params.patch.email ?? "").trim();
 
   if (existing) {
+    if (existing.membership_status === OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) {
+      throw new AppError(
+        400,
+        "INVALID_PARTY_STATUS",
+        "Add this CTOS person to the current profile before editing."
+      );
+    }
+    if (existing.membership_status === OrganizationPartyMembershipStatus.MASTER_INACTIVE) {
+      throw new AppError(
+        400,
+        "INVALID_PARTY_STATUS",
+        "This person is no longer active on the current profile."
+      );
+    }
     const nextDirector = existing.is_director || roles.isDirector;
     const nextShareholder = existing.is_shareholder || roles.isShareholder;
     const nextBoard = existing.is_board || roles.isBoard;
@@ -1570,7 +1587,7 @@ export async function resolvePartyMismatch(params: {
   };
   const patchKey = fieldMap[params.input.field];
   if (!patchKey) {
-    throw new AppError(400, "VALIDATION_ERROR", "This field cannot be updated from the latest external information.");
+    throw new AppError(400, "VALIDATION_ERROR", "This field cannot be updated from CTOS.");
   }
   return patchPartyProfile({
     portal: params.portal,
@@ -1591,7 +1608,7 @@ export async function adoptObservedParty(params: {
   });
   if (!row) throw new AppError(404, "NOT_FOUND", "Party profile not found");
   if (row.membership_status !== OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) {
-    throw new AppError(400, "INVALID_PARTY_STATUS", "Only new people from external information can be added to the current profile.");
+    throw new AppError(400, "INVALID_PARTY_STATUS", "Only new people from CTOS can be added to the current profile.");
   }
   if (
     isIssuerShareholderOnlyBelowMinimum({

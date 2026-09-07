@@ -204,7 +204,7 @@ export function OrganizationPeoplePanel({
         <CardContent className="space-y-6">
           {unified.external.length > 0 ? (
             <div className="space-y-3">
-              <h3 className="text-card-title">External changes requiring review</h3>
+              <h3 className="text-card-title">New people from CTOS</h3>
               {unified.external.map((item) => (
                 <div key={item.key} id={item.party ? `person-${item.party.id}` : undefined}>
                   <OrganizationPersonCard
@@ -268,6 +268,9 @@ export function OrganizationPeoplePanel({
           {unified.inactive.length > 0 ? (
             <div className="space-y-3">
               <h3 className="text-card-title">Inactive</h3>
+              <p className="text-meta text-muted-foreground">
+                This person is no longer active on the current profile.
+              </p>
               {unified.inactive.map((item) => (
                 <OrganizationPersonCard
                   key={item.key}

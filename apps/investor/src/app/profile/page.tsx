@@ -46,7 +46,7 @@ import {
   useHeader,
   DirectorShareholderAlertCard,
   INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
-  DirectorShareholdersUnifiedSection,
+  PortalPeopleSection,
   ProfileFieldGrid,
   ProfileReadField,
   ComRepFieldLabel,
@@ -1683,20 +1683,16 @@ export default function ProfilePage() {
               {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && orgData?.type === "COMPANY" && (
                 <div ref={directorsSectionRef} className="scroll-mt-24">
-                  <DirectorShareholdersUnifiedSection
+                  <PortalPeopleSection
                     portal="investor"
                     organizationId={activeOrganization.id}
                     organizationOnboardingStatus={orgData.onboardingStatus}
                     people={orgData.people ?? []}
                     directorShareholderListSource={orgData.directorShareholderListSource ?? null}
                     ctosDirectorShareholderWarning={orgData.ctosDirectorShareholderWarning ?? null}
-                    highlightActionRequiredRows
-                    autoFocusFirstEmptyEmail={focusDirectors}
                     focusedMatchKey={focusedPersonKey}
-                    onPartyOnboardingSent={handlePartyOnboardingSent}
-                    title="People"
-                    description="Directors and shareholders for this company"
-                    grouped={false}
+                    canEdit={isCurrentUserAdmin}
+                    onChanged={handlePartyOnboardingSent}
                   />
                 </div>
               )}
