@@ -6,14 +6,17 @@ import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   allowedScInvestorCategories,
+  isAllowedScInvestorCategory,
+  isSophisticatedInvestorSelected,
   SC_INVESTOR_CATEGORY_DEFINITIONS,
   SC_INVESTOR_CATEGORY_LABELS,
   SC_MONTHLY_INVESTOR,
-  isAllowedScInvestorCategory,
+  scInvestorCategoryAfterSophisticatedChange,
   scInvestorCategoryHelp,
+  SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE,
   type ScInvestorCategory,
 } from "@cashsouk/types";
-import { ComRepFieldLabel, ProfileReadField } from "@cashsouk/ui";
+import { ComRepFieldLabel } from "@cashsouk/ui";
 import {
   Select,
   SelectContent,
@@ -32,24 +35,61 @@ export function InvestorClassificationCard({
 }: {
   organizationId: string;
   organizationType: "PERSONAL" | "COMPANY";
-  isSophisticatedInvestor: boolean;
+  isSophisticatedInvestor: boolean | null;
   scInvestorCategory?: string | null;
 }) {
   const { getAccessToken } = useAuthToken();
   const api = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
-  const categoryScope = { organizationType, isSophisticatedInvestor };
+  const [sophisticated, setSophisticated] = React.useState<boolean | null>(
+    isSophisticatedInvestorSelected(isSophisticatedInvestor) ? isSophisticatedInvestor : null
+  );
+  const categoryScope = { organizationType, isSophisticatedInvestor: sophisticated };
   const options = allowedScInvestorCategories(categoryScope);
   const current = isAllowedScInvestorCategory(scInvestorCategory, categoryScope)
     ? scInvestorCategory
     : "";
   const [value, setValue] = React.useState(current);
+  const sophisticatedChosen = isSophisticatedInvestorSelected(sophisticated);
+
+  React.useEffect(() => {
+    setSophisticated(
+      isSophisticatedInvestorSelected(isSophisticatedInvestor) ? isSophisticatedInvestor : null
+    );
+  }, [isSophisticatedInvestor]);
 
   React.useEffect(() => {
     setValue(current);
   }, [current]);
 
-  const save = useMutation({
+  const invalidate = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
+    await queryClient.invalidateQueries({
+      queryKey: ["investor", "profile-completeness", organizationId],
+    });
+  };
+
+  const saveSophisticated = useMutation({
+    mutationFn: async (next: boolean) => {
+      const kept = scInvestorCategoryAfterSophisticatedChange(value || scInvestorCategory, {
+        organizationType,
+        isSophisticatedInvestor: next,
+      });
+      const res = await api.patchMasterProfile("investor", organizationId, {
+        isSophisticatedInvestor: next,
+      });
+      if (!res.success) throw new Error(res.error.message);
+      return kept;
+    },
+    onSuccess: async (kept) => {
+      setValue(kept ?? "");
+      await invalidate();
+      toast.success("Sophisticated Investor updated");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const saveCategory = useMutation({
     mutationFn: async (next: ScInvestorCategory) => {
       const res = await api.patchMasterProfile("investor", organizationId, {
         scInvestorCategory: next,
@@ -57,10 +97,7 @@ export function InvestorClassificationCard({
       if (!res.success) throw new Error(res.error.message);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
-      await queryClient.invalidateQueries({
-        queryKey: ["investor", "profile-completeness", organizationId],
-      });
+      await invalidate();
       toast.success("Type of Investor updated");
     },
     onError: (err: Error) => toast.error(err.message),
@@ -71,42 +108,80 @@ export function InvestorClassificationCard({
       <div className="border-b p-6">
         <h2 className="text-lg font-semibold">Investor Classification</h2>
         <p className="mt-1 text-ui text-muted-foreground">
-          Sophisticated Investor is the existing Yes/No status. Type of Investor is used for
+          Sophisticated Investor and Type of Investor are required. Type of Investor is used for
           regulatory reporting. It does not change the investor’s product eligibility.
         </p>
       </div>
       <div className="grid gap-6 p-6 sm:grid-cols-2">
-        <ProfileReadField
-          label="Sophisticated Investor"
-          value={isSophisticatedInvestor ? "Yes" : "No"}
-          locked
-        />
+        <div className="space-y-2">
+          <ComRepFieldLabel label="Sophisticated Investor" required />
+          <div className="flex min-h-10 items-center gap-6">
+            {(
+              [
+                [true, "Yes"],
+                [false, "No"],
+              ] as const
+            ).map(([optionValue, optionLabel]) => (
+              <label key={optionLabel} className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="radio"
+                  name={`sophisticated-investor-${organizationId}`}
+                  checked={sophisticated === optionValue}
+                  onChange={() => {
+                    setSophisticated(optionValue);
+                    const kept = scInvestorCategoryAfterSophisticatedChange(value, {
+                      organizationType,
+                      isSophisticatedInvestor: optionValue,
+                    });
+                    setValue(kept ?? "");
+                    saveSophisticated.mutate(optionValue);
+                  }}
+                  disabled={saveSophisticated.isPending || saveCategory.isPending}
+                  className="h-4 w-4 border-border text-primary focus-visible:ring-ring"
+                />
+                <span className="text-ui">{optionLabel}</span>
+              </label>
+            ))}
+          </div>
+        </div>
         <div className="space-y-2">
           <ComRepFieldLabel
             label={SC_MONTHLY_INVESTOR.typeOfInvestor.label}
             required
-            help={scInvestorCategoryHelp(options)}
+            help={options.length > 0 ? scInvestorCategoryHelp(options) : undefined}
           />
           <Select
             value={value || undefined}
             onValueChange={(next) => {
               if (!isAllowedScInvestorCategory(next, categoryScope)) return;
               setValue(next);
-              save.mutate(next);
+              saveCategory.mutate(next);
             }}
-            disabled={save.isPending}
+            disabled={!sophisticatedChosen || saveSophisticated.isPending || saveCategory.isPending}
           >
-            <SelectTrigger className="h-10 text-ui" aria-label={SC_MONTHLY_INVESTOR.typeOfInvestor.label}>
+            <SelectTrigger
+              className="h-10 text-ui"
+              aria-label={SC_MONTHLY_INVESTOR.typeOfInvestor.label}
+            >
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent>
               {options.map((option) => (
-                <SelectItem key={option} value={option} title={SC_INVESTOR_CATEGORY_DEFINITIONS[option]}>
+                <SelectItem
+                  key={option}
+                  value={option}
+                  title={SC_INVESTOR_CATEGORY_DEFINITIONS[option]}
+                >
                   {SC_INVESTOR_CATEGORY_LABELS[option]}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {!sophisticatedChosen ? (
+            <p className="text-meta text-muted-foreground">
+              {SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

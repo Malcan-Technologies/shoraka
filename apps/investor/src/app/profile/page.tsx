@@ -529,7 +529,7 @@ export default function ProfilePage() {
         bankAccountDetails: BankAccountDetails | null;
         onboardingStatus: string;
         onboardedAt: string | null;
-        isSophisticatedInvestor: boolean;
+        isSophisticatedInvestor: boolean | null;
         corporateOnboardingData?: {
           basicInfo?: {
             tinNumber?: string;
@@ -1226,7 +1226,7 @@ export default function ProfilePage() {
                   <InvestorClassificationCard
                     organizationId={activeOrganization.id}
                     organizationType="PERSONAL"
-                    isSophisticatedInvestor={Boolean(orgData?.isSophisticatedInvestor)}
+                    isSophisticatedInvestor={orgData?.isSophisticatedInvestor ?? null}
                     scInvestorCategory={orgData?.scInvestorCategory}
                   />
 
@@ -1568,7 +1568,7 @@ export default function ProfilePage() {
                   <InvestorClassificationCard
                     organizationId={activeOrganization.id}
                     organizationType="COMPANY"
-                    isSophisticatedInvestor={Boolean(orgData?.isSophisticatedInvestor)}
+                    isSophisticatedInvestor={orgData?.isSophisticatedInvestor ?? null}
                     scInvestorCategory={orgData?.scInvestorCategory}
                   />
                   <div className="rounded-xl border bg-card">

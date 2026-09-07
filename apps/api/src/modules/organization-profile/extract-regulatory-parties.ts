@@ -4,7 +4,13 @@
  * registered-address country or CTOS equity into units/amount.
  */
 
-import { normalizeDirectorShareholderIdKey } from "@cashsouk/types";
+import {
+  extractBusinessNameFromRegTankForm,
+  extractBusinessNumber,
+  extractGovernmentId,
+  extractPercentOfSharesFromRegTankForm,
+  normalizeDirectorShareholderIdKey,
+} from "@cashsouk/types";
 import { ctosPositionDirectorShareholderFlags } from "../regtank/helpers/ctos-position-roles";
 
 export type RegulatoryPartyCandidate = {
@@ -98,7 +104,11 @@ function mergeCandidate(
   existing.name = existing.name ?? next.name;
   existing.identityNumber = existing.identityNumber ?? next.identityNumber;
   existing.identityPrefix = existing.identityPrefix ?? next.identityPrefix;
-  existing.shareholdingPercentage = existing.shareholdingPercentage ?? next.shareholdingPercentage;
+  if (next.origin === "REGTANK_PARTY" && next.shareholdingPercentage != null) {
+    existing.shareholdingPercentage = next.shareholdingPercentage;
+  } else {
+    existing.shareholdingPercentage = existing.shareholdingPercentage ?? next.shareholdingPercentage;
+  }
   existing.addressLine1 = existing.addressLine1 ?? next.addressLine1;
   existing.appointmentDate = existing.appointmentDate ?? next.appointmentDate;
   existing.resignationDate = existing.resignationDate ?? next.resignationDate;
@@ -185,7 +195,8 @@ export function extractRegulatoryPartiesFromCorporateEntities(
     roles: { isDirector: boolean; isShareholder: boolean }
   ): void => {
     const info = isObject(row.personalInfo) ? row.personalInfo : null;
-    const id = asText(info?.governmentIdNumber);
+    const formContent = info?.formContent ?? row.formContent;
+    const id = asText(info?.governmentIdNumber) ?? extractGovernmentId(formContent);
     const partyKey = normalizeDirectorShareholderIdKey(id);
     if (!partyKey) return;
     mergeCandidate(map, {
@@ -198,7 +209,9 @@ export function extractRegulatoryPartiesFromCorporateEntities(
       isDirector: roles.isDirector,
       isShareholder: roles.isShareholder,
       isBoard: false,
-      shareholdingPercentage: parsePercent(row.sharePercentage ?? row.ownershipPercentage),
+      shareholdingPercentage:
+        parsePercent(row.sharePercentage ?? row.ownershipPercentage) ??
+        extractPercentOfSharesFromRegTankForm(formContent),
       addressLine1: null,
       appointmentDate: null,
       resignationDate: null,
@@ -215,24 +228,32 @@ export function extractRegulatoryPartiesFromCorporateEntities(
   }
   for (const c of asArray(corporateEntities.corporateShareholders)) {
     if (!isObject(c)) continue;
+    const formContent = c.formContent;
     const ssm =
       asText(c.ssmRegistrationNumber) ??
       asText(c.ssmRegisterNumber) ??
       asText(c.registrationNumber) ??
-      asText(c.brn);
+      asText(c.brn) ??
+      extractBusinessNumber(formContent);
     const partyKey = normalizeDirectorShareholderIdKey(ssm);
     if (!partyKey) continue;
     mergeCandidate(map, {
       partyKey,
       origin: "REGTANK_PARTY",
       entityType: "CORPORATE",
-      name: asText(c.businessName) ?? asText(c.name) ?? asText(c.companyName),
+      name:
+        asText(c.businessName) ??
+        asText(c.name) ??
+        asText(c.companyName) ??
+        extractBusinessNameFromRegTankForm(formContent),
       identityNumber: ssm,
       identityPrefix: "ROC",
       isDirector: false,
       isShareholder: true,
       isBoard: false,
-      shareholdingPercentage: parsePercent(c.sharePercentage ?? c.ownershipPercentage),
+      shareholdingPercentage:
+        parsePercent(c.sharePercentage ?? c.ownershipPercentage) ??
+        extractPercentOfSharesFromRegTankForm(formContent),
       addressLine1: null,
       appointmentDate: null,
       resignationDate: null,

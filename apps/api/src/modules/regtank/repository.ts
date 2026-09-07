@@ -617,7 +617,7 @@ export type OnboardingApplicationRecord = RegTankOnboarding & {
     tnc_accepted: boolean;
     ssm_approved: boolean;
     kyc_id: string | null;
-    is_sophisticated_investor: boolean;
+    is_sophisticated_investor: boolean | null;
     sophisticated_investor_reason: string | null;
     director_kyc_status?: unknown;
     director_aml_status?: unknown;

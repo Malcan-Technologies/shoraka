@@ -65,7 +65,9 @@ describe("sc_investor_category shared master field", () => {
   });
 
   it("lets a corporate investor PATCH a corporate SC category", async () => {
-    mockInvestorFindUnique.mockResolvedValue(corporateOrg());
+    mockInvestorFindUnique.mockResolvedValue(
+      corporateOrg({ is_sophisticated_investor: false, sc_investor_category: null })
+    );
     await patchOrgMasterProfile({
       portal: "investor",
       organizationId: "inv-co-1",
@@ -97,7 +99,9 @@ describe("sc_investor_category shared master field", () => {
   });
 
   it("rejects a personal-only category on a corporate investor", async () => {
-    mockInvestorFindUnique.mockResolvedValue(corporateOrg());
+    mockInvestorFindUnique.mockResolvedValue(
+      corporateOrg({ is_sophisticated_investor: true })
+    );
     await expect(
       patchOrgMasterProfile({
         portal: "investor",
@@ -147,7 +151,7 @@ describe("sc_investor_category shared master field", () => {
     expect(mockInvestorUpdate).not.toHaveBeenCalled();
   });
 
-  it("rejects company Retail and Angel", async () => {
+  it("rejects company Yes + Retail/Angel and company No + HNWE/Accredited", async () => {
     mockInvestorFindUnique.mockResolvedValue(
       corporateOrg({ is_sophisticated_investor: true, sc_investor_category: null })
     );
@@ -169,23 +173,100 @@ describe("sc_investor_category shared master field", () => {
         patch: { scInvestorCategory: "ANGEL" },
       })
     ).rejects.toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR" });
+
+    mockInvestorFindUnique.mockResolvedValue(
+      corporateOrg({ is_sophisticated_investor: false, sc_investor_category: null })
+    );
+    await expect(
+      patchOrgMasterProfile({
+        portal: "investor",
+        organizationId: "inv-co-1",
+        actorUserId: "admin-1",
+        source: "ADMIN",
+        patch: { scInvestorCategory: "SOPHISTICATED_HIGH_NET_WORTH_ENTITY" },
+      })
+    ).rejects.toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR" });
+    await expect(
+      patchOrgMasterProfile({
+        portal: "investor",
+        organizationId: "inv-co-1",
+        actorUserId: "admin-1",
+        source: "ADMIN",
+        patch: { scInvestorCategory: "SOPHISTICATED_ACCREDITED" },
+      })
+    ).rejects.toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR" });
     expect(mockInvestorUpdate).not.toHaveBeenCalled();
   });
 
-  it("does not auto-set HNWE from company is_sophisticated_investor = true", async () => {
+  it("does not auto-set Type of Investor when company Sophisticated is saved", async () => {
     mockInvestorFindUnique.mockResolvedValue(
-      corporateOrg({ is_sophisticated_investor: true, sc_investor_category: null })
+      corporateOrg({ is_sophisticated_investor: null, sc_investor_category: null })
     );
     await patchOrgMasterProfile({
       portal: "investor",
       organizationId: "inv-co-1",
       actorUserId: "admin-1",
       source: "ADMIN",
-      patch: { nationality: "Malaysia" },
+      patch: { isSophisticatedInvestor: false },
     });
     const data = mockInvestorUpdate.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    expect(data.is_sophisticated_investor).toBe(false);
     expect(data).not.toHaveProperty("sc_investor_category");
+  });
+
+  it("does not mark a company sophisticated when Type of Investor is saved", async () => {
+    mockInvestorFindUnique.mockResolvedValue(
+      corporateOrg({ is_sophisticated_investor: false, sc_investor_category: null })
+    );
+    await patchOrgMasterProfile({
+      portal: "investor",
+      organizationId: "inv-co-1",
+      actorUserId: "admin-1",
+      source: "ADMIN",
+      patch: { scInvestorCategory: "NON_SOPHISTICATED_ENTITY" },
+    });
+    const data = mockInvestorUpdate.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    expect(data.sc_investor_category).toBe("NON_SOPHISTICATED_ENTITY");
     expect(data).not.toHaveProperty("is_sophisticated_investor");
+  });
+
+  it("rejects Type of Investor when Sophisticated Investor has not been chosen", async () => {
+    mockInvestorFindUnique.mockResolvedValue(
+      corporateOrg({ is_sophisticated_investor: null, sc_investor_category: null })
+    );
+    await expect(
+      patchOrgMasterProfile({
+        portal: "investor",
+        organizationId: "inv-co-1",
+        actorUserId: "admin-1",
+        source: "ADMIN",
+        patch: { scInvestorCategory: "NON_SOPHISTICATED_ENTITY" },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "VALIDATION_ERROR",
+      message: "Select Sophisticated Investor first.",
+    });
+    expect(mockInvestorUpdate).not.toHaveBeenCalled();
+  });
+
+  it("clears Type of Investor when Sophisticated status makes it invalid", async () => {
+    mockInvestorFindUnique.mockResolvedValue(
+      personalOrg({
+        is_sophisticated_investor: true,
+        sc_investor_category: "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL",
+      })
+    );
+    await patchOrgMasterProfile({
+      portal: "investor",
+      organizationId: "inv-1",
+      actorUserId: "admin-1",
+      source: "ADMIN",
+      patch: { isSophisticatedInvestor: false },
+    });
+    const data = mockInvestorUpdate.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    expect(data.is_sophisticated_investor).toBe(false);
+    expect(data.sc_investor_category).toBeNull();
   });
 
   it("lets Admin update Type of Investor without changing is_sophisticated_investor", async () => {

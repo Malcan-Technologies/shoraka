@@ -371,6 +371,7 @@ export const updateAdminOrganizationProfileSchema = z
     companyCategory: z.enum(SC_COMPANY_CATEGORIES).optional().nullable(),
     companyEmail: z.string().max(255).optional().nullable(),
     scInvestorCategory: z.enum(SC_INVESTOR_CATEGORIES).optional().nullable(),
+    isSophisticatedInvestor: z.boolean().optional(),
     residentialAddress: addressSchema.optional().nullable(),
     gender: z.enum(SC_GENDERS).optional().nullable(),
     nationality: z.string().max(500).optional().nullable(),

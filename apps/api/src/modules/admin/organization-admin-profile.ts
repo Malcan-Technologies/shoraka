@@ -22,6 +22,7 @@ const MASTER_ONLY_KEYS = [
   "companyCategory",
   "companyEmail",
   "scInvestorCategory",
+  "isSophisticatedInvestor",
   "residentialAddress",
   "gender",
   "nationality",

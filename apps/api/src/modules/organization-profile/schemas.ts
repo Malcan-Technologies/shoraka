@@ -105,6 +105,7 @@ export const orgMasterPatchSchema = z
     companyCategory: z.enum(SC_COMPANY_CATEGORIES).optional().nullable(),
     companyEmail: z.string().max(255).optional().nullable(),
     scInvestorCategory: z.enum(SC_INVESTOR_CATEGORIES).optional().nullable(),
+    isSophisticatedInvestor: z.boolean().optional(),
     residentialAddress: addressPatchSchema.optional().nullable(),
     phoneNumber: optionalText,
     name: optionalText,

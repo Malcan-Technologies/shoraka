@@ -149,6 +149,7 @@ import {
   FACILITY_LOCKED_SUPPORTING_DOCUMENTS_MESSAGE,
   getFacilityLockedCategoriesFromWorkflow,
   isFacilityLockedSupportingDocumentItem,
+  scInvestorCategoryAfterSophisticatedChange,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import {
@@ -1290,7 +1291,7 @@ export class AdminService {
         onboarded_at: Date | null;
         created_at: Date;
         updated_at: Date;
-        is_sophisticated_investor?: boolean;
+        is_sophisticated_investor?: boolean | null;
         members: { role: string }[];
         _count: { members: number };
       },
@@ -2882,7 +2883,7 @@ export class AdminService {
       role: string;
       createdAt: string;
     }[];
-    isSophisticatedInvestor: boolean;
+    isSophisticatedInvestor: boolean | null;
     sophisticatedInvestorReason: string | null;
     walletBalance: number | null;
     investedAmount: number | null;
@@ -3273,7 +3274,7 @@ export class AdminService {
       residentialAddress:
         (org.residential_address as import("@cashsouk/types").ProfileAddress | null) ?? null,
       isSophisticatedInvestor:
-        portal === "investor" ? (org.is_sophisticated_investor ?? false) : false,
+        portal === "investor" ? (org.is_sophisticated_investor ?? null) : false,
       sophisticatedInvestorReason:
         portal === "investor" ? (org.sophisticated_investor_reason ?? null) : null,
       walletBalance:
@@ -3444,9 +3445,11 @@ export class AdminService {
       select: {
         id: true,
         name: true,
+        type: true,
         owner_user_id: true,
         is_sophisticated_investor: true,
         sophisticated_investor_reason: true,
+        sc_investor_category: true,
       },
     });
 
@@ -3454,12 +3457,21 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Investor organization not found");
     }
 
+    const organizationType = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
+    const nextCategory = scInvestorCategoryAfterSophisticatedChange(org.sc_investor_category, {
+      organizationType,
+      isSophisticatedInvestor,
+    });
+
     await persistOrganizationUpdateAndOnboardingLogs({
       portalType: "investor",
       organizationId,
       data: {
         is_sophisticated_investor: isSophisticatedInvestor,
         sophisticated_investor_reason: reason,
+        ...(nextCategory !== org.sc_investor_category
+          ? { sc_investor_category: nextCategory }
+          : {}),
       },
       logs: [
         {
@@ -3832,7 +3844,7 @@ export class AdminService {
 
     // Sophisticated investor status (only for investor portal)
     const isSophisticatedInvestor = isInvestorOrg
-      ? (investorOrg?.is_sophisticated_investor ?? false)
+      ? (investorOrg?.is_sophisticated_investor ?? null)
       : undefined;
     const sophisticatedInvestorReason = isInvestorOrg
       ? (investorOrg?.sophisticated_investor_reason ?? null)
@@ -4231,7 +4243,9 @@ export class AdminService {
           where: { id: onboarding.investor_organization_id },
           data: {
             onboarding_status: "PENDING",
-            is_sophisticated_investor: false,
+            ...(onboarding.organization_type === OrganizationType.PERSONAL
+              ? { is_sophisticated_investor: false }
+              : {}),
             onboarding_approved: false,
             aml_approved: false,
             tnc_accepted: false,

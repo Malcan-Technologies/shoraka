@@ -654,7 +654,7 @@ export interface OrganizationDetailResponse {
   members: OrganizationMemberDetail[];
 
   // Sophisticated investor status (only for investor portal)
-  isSophisticatedInvestor: boolean;
+  isSophisticatedInvestor: boolean | null;
   sophisticatedInvestorReason: string | null;
 
   // Investor wallet balance (only for investor portal; null for issuer)
@@ -864,6 +864,7 @@ export interface UpdateAdminOrganizationProfileInput {
   companyCategory?: import("./comrep-profile").ScCompanyCategory | null;
   companyEmail?: string | null;
   scInvestorCategory?: import("./comrep-profile").ScInvestorCategory | null;
+  isSophisticatedInvestor?: boolean;
   residentialAddress?: AdminOrganizationAddressInput | null;
   gender?: import("./comrep-profile").ScGender | null;
   nationality?: string | null;
@@ -975,7 +976,7 @@ export interface OnboardingApplicationResponse {
   ssmApproved: boolean;
   isCompleted: boolean;
   // Sophisticated investor status (only for investor portal)
-  isSophisticatedInvestor?: boolean;
+  isSophisticatedInvestor?: boolean | null;
   sophisticatedInvestorReason?: string | null;
   // Director KYC status (only for corporate onboarding)
   directorKycStatus?: CorporateDirectorData;

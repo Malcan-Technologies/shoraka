@@ -296,6 +296,7 @@ export function EditableSelect({
   placeholder = "Select",
   help,
   required = false,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -304,11 +305,12 @@ export function EditableSelect({
   placeholder?: string;
   help?: string;
   required?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <div className="space-y-2">
       <ComRepFieldLabel label={label} required={required} help={help} />
-      <Select value={value || undefined} onValueChange={onChange}>
+      <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger className="h-11 text-ui">
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
@@ -337,15 +339,17 @@ export function EditableYesNo({
   value,
   onChange,
   name,
+  required = false,
 }: {
   label: string;
   value: boolean | null;
   onChange: (value: boolean) => void;
   name: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <div className="text-ui font-medium">{label}</div>
+      <ComRepFieldLabel label={label} required={required} />
       <div className="flex min-h-11 items-center gap-6">
         {(
           [

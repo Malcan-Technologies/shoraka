@@ -1,6 +1,9 @@
 import {
   attachGovernmentIdToUnresolvedCorporateEntities,
+  extractBusinessNameFromRegTankForm,
+  extractBusinessNumber,
   extractGovernmentId,
+  extractPercentOfSharesFromRegTankForm,
   upsertGovernmentIdOnFormContent,
 } from "./director-shareholder-display";
 
@@ -87,5 +90,33 @@ describe("attachGovernmentIdToUnresolvedCorporateEntities", () => {
       { fieldName: "Email Address", fieldValue: "a@b.com" },
       { fieldName: "Government ID Number", fieldType: "text", fieldValue: "021116101341" },
     ]);
+  });
+});
+
+describe("RegTank KYB form field extractors", () => {
+  it("reads individual % of Shares from flat form content", () => {
+    expect(
+      extractPercentOfSharesFromRegTankForm({
+        content: [{ fieldName: "% of Shares", fieldValue: "6" }],
+      })
+    ).toBe(6);
+  });
+
+  it("reads company Business Number, name, and % of Shares from displayAreas", () => {
+    const formContent = {
+      displayAreas: [
+        {
+          displayArea: "Basic Information Setting",
+          content: [
+            { fieldName: "Business Name", fieldValue: "ApexStar Holdings Sdn. Bhd." },
+            { fieldName: "Business Number", fieldValue: "7321984G" },
+            { fieldName: "% of Shares", fieldValue: "10" },
+          ],
+        },
+      ],
+    };
+    expect(extractBusinessNumber(formContent)).toBe("7321984G");
+    expect(extractBusinessNameFromRegTankForm(formContent)).toBe("ApexStar Holdings Sdn. Bhd.");
+    expect(extractPercentOfSharesFromRegTankForm(formContent)).toBe(10);
   });
 });
