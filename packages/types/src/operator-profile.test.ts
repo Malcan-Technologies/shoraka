@@ -1,5 +1,136 @@
 import { buildOperatorProfileCompleteness, type OperatorProfileDto } from "./operator-profile";
 
+function completeShareholder(
+  overrides: Partial<OperatorProfileDto["shareholders"][number]> = {}
+): OperatorProfileDto["shareholders"][number] {
+  return {
+    id: "sh_1",
+    holderType: "SHAREHOLDER",
+    entityType: "INDIVIDUAL",
+    name: "Aisha Tan",
+    salutation: "Ms",
+    identityNumber: "800101011234",
+    dateOfBirth: "1980-01-01",
+    dateOfIncorporation: null,
+    nationality: "MALAYSIA",
+    address: "1 Jalan Ampang",
+    dateAcquired: "2020-01-01",
+    dateDisposal: null,
+    shareType: "ORDINARY",
+    shareTypeOther: null,
+    shareholdingUnits: "1000",
+    shareholdingAmount: "1000",
+    shareholdingPercentage: "100",
+    ...overrides,
+  };
+}
+
+function completeOfficer(
+  overrides: Partial<OperatorProfileDto["officers"][number]> = {}
+): OperatorProfileDto["officers"][number] {
+  return {
+    id: "of_1",
+    personKind: "BOARD",
+    name: "Aisha Tan",
+    salutation: null,
+    isResponsiblePerson: true,
+    identityNumber: "800101011234",
+    dateOfBirth: "1980-01-01",
+    nationality: "MALAYSIA",
+    address: "1 Jalan Ampang",
+    designation: "CHIEF_EXECUTIVE_OFFICER",
+    designationOther: null,
+    appointmentDate: "2020-01-01",
+    resignationDate: null,
+    ...overrides,
+  };
+}
+
+function completeSdnCapital(
+  overrides: Partial<NonNullable<OperatorProfileDto["shareCapital"]>> = {}
+): NonNullable<OperatorProfileDto["shareCapital"]> {
+  return {
+    id: "cap_1",
+    ordinaryUnits: "1000",
+    ordinaryAmount: "1000",
+    preferenceUnits: "0",
+    preferenceAmount: "0",
+    othersUnits: "0",
+    othersAmount: "0",
+    totalPaidUpCapital: "1000",
+    llpMembersCapitalUnits: null,
+    llpMembersCapitalAmount: null,
+    llpMembersReservesUnits: null,
+    llpMembersReservesAmount: null,
+    llpSubordinatedLoansUnits: null,
+    llpSubordinatedLoansAmount: null,
+    totalLlp: null,
+    ...overrides,
+  };
+}
+
+function completeFinancial(
+  overrides: Partial<OperatorProfileDto["financialStatements"][number]> = {}
+): OperatorProfileDto["financialStatements"][number] {
+  return {
+    id: "fs_1",
+    consolidatedAccounts: true,
+    auditorName: "Auditor",
+    financialYearEnd: "2025-12-31",
+    unmodifiedReports: true,
+    dateTabledToBoard: "2026-01-15",
+    currency: "MYR",
+    numberOfShares: "1000",
+    totalAssets: "1",
+    nonCurrentAssets: "0",
+    currentAssets: "1",
+    totalEquity: "1",
+    paidUpCapital: "1",
+    shareApplicationAccount: "0",
+    sharePremiumAndReserves: "0",
+    accumulatedProfitCarriedForward: "0",
+    equityMinorityInterest: "0",
+    totalLiabilities: "0",
+    nonCurrentLiabilities: "0",
+    currentLiabilities: "0",
+    totalRevenue: "1",
+    revenueDonation: "0",
+    revenueReward: "0",
+    revenueLending: "1",
+    revenueEquity: "0",
+    revenueFees: "0",
+    revenueOther: "0",
+    incomeDepositInterest: "0",
+    incomeOther: "0",
+    totalCost: "0",
+    costStaff: "0",
+    costSystem: "0",
+    costPromotion: "0",
+    costOther: "0",
+    profitBeforeTax: "1",
+    taxation: "0",
+    profitAfterTax: "1",
+    pnlMinorityInterest: "0",
+    netDividend: "0",
+    ...overrides,
+  };
+}
+
+function completeOperator(overrides: Partial<OperatorProfileDto> = {}): OperatorProfileDto {
+  return emptyProfile({
+    name: "CashSouk Sdn Bhd",
+    registrationNumber: "1234567A",
+    scCompanyType: "PRIVATE_LIMITED",
+    responsiblePersonName: "Aisha Tan",
+    responsiblePersonPhone: "+60123456789",
+    shareCapital: completeSdnCapital(),
+    shareholders: [completeShareholder()],
+    officers: [completeOfficer()],
+    financialStatements: [completeFinancial()],
+    ...overrides,
+  });
+}
+
 function emptyProfile(overrides: Partial<OperatorProfileDto> = {}): OperatorProfileDto {
   return {
     id: "op_1",
@@ -132,7 +263,15 @@ describe("operator profile completeness", () => {
       })
     );
     expect(result.missing.map((item) => item.field)).not.toContain("trusteeRegistrationNumber");
-    expect(result.complete).toBe(true);
+    expect(result.complete).toBe(false);
+    expect(result.missing.map((item) => item.field)).toEqual(
+      expect.arrayContaining([
+        "preferenceUnits",
+        "shareholders.sh_1.salutation",
+        "shareholders.sh_1.dateOfBirth",
+        "officers.of_1.dateOfBirth",
+      ])
+    );
   });
 
   it("counts Total Limited Liability Partnership for LLP and not Sdn Bhd totals", () => {
@@ -214,115 +353,10 @@ describe("operator profile completeness", () => {
   });
 
   it("is complete when required master sections are filled", () => {
-    const result = buildOperatorProfileCompleteness(
-      emptyProfile({
-        name: "CashSouk Sdn Bhd",
-        registrationNumber: "1234567-A",
-        scCompanyType: "PRIVATE_LIMITED",
-        responsiblePersonName: "Aisha Tan",
-        responsiblePersonPhone: "+60123456789",
-        shareCapital: {
-          id: "cap_1",
-          ordinaryUnits: "1000",
-          ordinaryAmount: "1000",
-          preferenceUnits: null,
-          preferenceAmount: null,
-          othersUnits: null,
-          othersAmount: null,
-          totalPaidUpCapital: "1000",
-          llpMembersCapitalUnits: null,
-          llpMembersCapitalAmount: null,
-          llpMembersReservesUnits: null,
-          llpMembersReservesAmount: null,
-          llpSubordinatedLoansUnits: null,
-          llpSubordinatedLoansAmount: null,
-          totalLlp: null,
-        },
-        shareholders: [
-          {
-            id: "sh_1",
-            holderType: "SHAREHOLDER",
-            entityType: "INDIVIDUAL",
-            name: "Aisha Tan",
-            salutation: null,
-            identityNumber: "800101011234",
-            dateOfBirth: null,
-            dateOfIncorporation: null,
-            nationality: null,
-            address: null,
-            dateAcquired: null,
-            dateDisposal: null,
-            shareType: "ORDINARY",
-            shareTypeOther: null,
-            shareholdingUnits: "1000",
-            shareholdingAmount: "1000",
-            shareholdingPercentage: "100",
-          },
-        ],
-        officers: [
-          {
-            id: "of_1",
-            personKind: "BOARD",
-            name: "Aisha Tan",
-            salutation: null,
-            isResponsiblePerson: true,
-            identityNumber: "800101011234",
-            dateOfBirth: null,
-            nationality: null,
-            address: null,
-            designation: "CHIEF_EXECUTIVE_OFFICER",
-            designationOther: null,
-            appointmentDate: null,
-            resignationDate: null,
-          },
-        ],
-        financialStatements: [
-          {
-            id: "fs_1",
-            consolidatedAccounts: true,
-            auditorName: "Auditor",
-            financialYearEnd: "2025-12-31",
-            unmodifiedReports: true,
-            dateTabledToBoard: null,
-            currency: "MYR",
-            numberOfShares: "1000",
-            totalAssets: "1",
-            nonCurrentAssets: null,
-            currentAssets: null,
-            totalEquity: "1",
-            paidUpCapital: null,
-            shareApplicationAccount: null,
-            sharePremiumAndReserves: null,
-            accumulatedProfitCarriedForward: null,
-            equityMinorityInterest: null,
-            totalLiabilities: "0",
-            nonCurrentLiabilities: null,
-            currentLiabilities: null,
-            totalRevenue: "1",
-            revenueDonation: null,
-            revenueReward: null,
-            revenueLending: null,
-            revenueEquity: null,
-            revenueFees: null,
-            revenueOther: null,
-            incomeDepositInterest: null,
-            incomeOther: null,
-            totalCost: "0",
-            costStaff: null,
-            costSystem: null,
-            costPromotion: null,
-            costOther: null,
-            profitBeforeTax: "1",
-            taxation: null,
-            profitAfterTax: "1",
-            pnlMinorityInterest: null,
-            netDividend: null,
-          },
-        ],
-      })
-    );
+    const result = buildOperatorProfileCompleteness(completeOperator());
     expect(result.complete).toBe(true);
     expect(result.percent).toBe(100);
+    expect(result.missing.map((item) => item.field)).not.toContain("trusteeRegistrationNumber");
   });
 
   it("does not treat a name-only shareholder as complete", () => {
@@ -429,112 +463,11 @@ describe("operator profile completeness", () => {
     expect(result.missing.map((item) => item.field)).toContain("financialStatements.fs_1.totalAssets");
   });
 
-  it("does not require salutation, resignation, or unused P&L components for profile completeness", () => {
+  it("does not require officer salutation or resignation, and does not require a disposal date", () => {
     const result = buildOperatorProfileCompleteness(
-      emptyProfile({
-        name: "CashSouk Sdn Bhd",
-        registrationNumber: "1234567-A",
-        scCompanyType: "PRIVATE_LIMITED",
-        responsiblePersonName: "Aisha Tan",
-        responsiblePersonPhone: "+60123456789",
-        shareCapital: {
-          id: "cap_1",
-          ordinaryUnits: "1000",
-          ordinaryAmount: "1000",
-          preferenceUnits: null,
-          preferenceAmount: null,
-          othersUnits: null,
-          othersAmount: null,
-          totalPaidUpCapital: "1000",
-          llpMembersCapitalUnits: null,
-          llpMembersCapitalAmount: null,
-          llpMembersReservesUnits: null,
-          llpMembersReservesAmount: null,
-          llpSubordinatedLoansUnits: null,
-          llpSubordinatedLoansAmount: null,
-          totalLlp: null,
-        },
-        shareholders: [
-          {
-            id: "sh_1",
-            holderType: "SHAREHOLDER",
-            entityType: "INDIVIDUAL",
-            name: "Aisha Tan",
-            salutation: null,
-            identityNumber: "800101011234",
-            dateOfBirth: null,
-            dateOfIncorporation: null,
-            nationality: null,
-            address: null,
-            dateAcquired: null,
-            dateDisposal: null,
-            shareType: "ORDINARY",
-            shareTypeOther: null,
-            shareholdingUnits: "1000",
-            shareholdingAmount: "1000",
-            shareholdingPercentage: "100",
-          },
-        ],
-        officers: [
-          {
-            id: "of_1",
-            personKind: "BOARD",
-            name: "Aisha Tan",
-            salutation: null,
-            isResponsiblePerson: true,
-            identityNumber: "800101011234",
-            dateOfBirth: null,
-            nationality: null,
-            address: null,
-            designation: "CHIEF_EXECUTIVE_OFFICER",
-            designationOther: null,
-            appointmentDate: null,
-            resignationDate: null,
-          },
-        ],
-        financialStatements: [
-          {
-            id: "fs_1",
-            consolidatedAccounts: true,
-            auditorName: "Auditor",
-            financialYearEnd: "2025-12-31",
-            unmodifiedReports: true,
-            dateTabledToBoard: null,
-            currency: "MYR",
-            numberOfShares: "1000",
-            totalAssets: "1",
-            nonCurrentAssets: null,
-            currentAssets: null,
-            totalEquity: "1",
-            paidUpCapital: null,
-            shareApplicationAccount: null,
-            sharePremiumAndReserves: null,
-            accumulatedProfitCarriedForward: null,
-            equityMinorityInterest: null,
-            totalLiabilities: "0",
-            nonCurrentLiabilities: null,
-            currentLiabilities: null,
-            totalRevenue: "1",
-            revenueDonation: null,
-            revenueReward: null,
-            revenueLending: null,
-            revenueEquity: null,
-            revenueFees: null,
-            revenueOther: null,
-            incomeDepositInterest: null,
-            incomeOther: null,
-            totalCost: "0",
-            costStaff: null,
-            costSystem: null,
-            costPromotion: null,
-            costOther: null,
-            profitBeforeTax: "1",
-            taxation: null,
-            profitAfterTax: "1",
-            pnlMinorityInterest: null,
-            netDividend: null,
-          },
-        ],
+      completeOperator({
+        shareholders: [completeShareholder({ dateDisposal: null })],
+        officers: [completeOfficer({ salutation: null, resignationDate: null })],
       })
     );
     expect(result.missing.map((item) => item.field).some((field) => field.includes("salutation"))).toBe(
@@ -543,6 +476,27 @@ describe("operator profile completeness", () => {
     expect(result.missing.map((item) => item.field).some((field) => field.includes("resignation"))).toBe(
       false
     );
+    expect(result.missing.map((item) => item.field).some((field) => field.includes("dateDisposal"))).toBe(
+      false
+    );
     expect(result.complete).toBe(true);
+  });
+
+  it("requires individual shareholder salutation and annual financial line items", () => {
+    const missingSalutation = buildOperatorProfileCompleteness(
+      completeOperator({
+        shareholders: [completeShareholder({ salutation: null })],
+      })
+    );
+    expect(missingSalutation.missing.map((item) => item.field)).toContain("shareholders.sh_1.salutation");
+
+    const missingPnl = buildOperatorProfileCompleteness(
+      completeOperator({
+        financialStatements: [completeFinancial({ revenueDonation: null })],
+      })
+    );
+    expect(missingPnl.missing.map((item) => item.field)).toContain(
+      "financialStatements.fs_1.revenueDonation"
+    );
   });
 });

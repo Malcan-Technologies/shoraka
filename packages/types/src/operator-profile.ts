@@ -7,6 +7,15 @@ import type {
   ScPersonKind,
   ScShareType,
 } from "./comrep-profile";
+import {
+  validateOperatorAdvisor,
+  validateOperatorFinancialStatement,
+  validateOperatorGeneral,
+  validateOperatorInterest,
+  validateOperatorOfficer,
+  validateOperatorShareCapital,
+  validateOperatorShareholder,
+} from "./comrep-requiredness";
 
 export interface OperatorProfileDto {
   id: string;
@@ -191,10 +200,6 @@ export type OperatorProfileCompleteness = {
   missing: OperatorProfileMissingItem[];
 };
 
-function operatorHasText(value: string | null | undefined): boolean {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
 /**
  * SC [02000] Summary of Share Capital is two explicit blocks:
  * Ordinary/Preference/Others/Total paid up capital (for Sdn Bhd), and
@@ -224,113 +229,83 @@ function operatorSection(
   };
 }
 
+function issuesToOperatorMissing(
+  section: OperatorProfileSectionId,
+  issues: Array<{ field: string; label: string }>,
+  prefix?: string
+): OperatorProfileMissingItem[] {
+  return issues.map((issue) => ({
+    section,
+    field: prefix ? `${prefix}.${issue.field}` : issue.field,
+    label: issue.label,
+  }));
+}
+
 export function buildOperatorProfileCompleteness(
   profile: OperatorProfileDto
 ): OperatorProfileCompleteness {
-  const generalMissing: OperatorProfileMissingItem[] = [];
-  if (!operatorHasText(profile.name)) {
-    generalMissing.push({ section: "general", field: "name", label: "Name of RMO" });
-  }
-  if (!operatorHasText(profile.registrationNumber)) {
-    generalMissing.push({
-      section: "general",
-      field: "registrationNumber",
-      label: "Company Registration Number",
-    });
-  }
-  if (!profile.scCompanyType) {
-    generalMissing.push({
-      section: "general",
-      field: "scCompanyType",
-      label: "Type of Company",
-    });
-  }
-  if (!operatorHasText(profile.responsiblePersonName)) {
-    generalMissing.push({
-      section: "general",
-      field: "responsiblePersonName",
-      label: "Name of Responsible Person",
-    });
-  }
-  if (!operatorHasText(profile.responsiblePersonPhone)) {
-    generalMissing.push({
-      section: "general",
-      field: "responsiblePersonPhone",
-      label: "Contact Number",
-    });
-  }
+  const generalMissing = issuesToOperatorMissing(
+    "general",
+    validateOperatorGeneral({
+      name: profile.name,
+      registrationNumber: profile.registrationNumber,
+      scCompanyType: profile.scCompanyType,
+      responsiblePersonName: profile.responsiblePersonName,
+      responsiblePersonPhone: profile.responsiblePersonPhone,
+    })
+  );
 
   const capitalKind = operatorShareCapitalKind(profile.scCompanyType);
-  const capitalMissing: OperatorProfileMissingItem[] = [];
-  if (capitalKind === "SDN_BHD") {
-    if (!operatorHasText(profile.shareCapital?.totalPaidUpCapital)) {
-      capitalMissing.push({
-        section: "shareCapital",
-        field: "totalPaidUpCapital",
-        label: "Total paid up capital (for Sdn Bhd)",
-      });
-    }
-  } else if (capitalKind === "LLP") {
-    if (!operatorHasText(profile.shareCapital?.totalLlp)) {
-      capitalMissing.push({
-        section: "shareCapital",
-        field: "totalLlp",
-        label: "Total Limited Liability Partnership",
-      });
-    }
-  }
+  const capitalIssues =
+    capitalKind && profile.shareCapital
+      ? validateOperatorShareCapital({ ...profile.shareCapital }, capitalKind)
+      : capitalKind
+        ? validateOperatorShareCapital({}, capitalKind)
+        : [];
+  const capitalMissing = issuesToOperatorMissing("shareCapital", capitalIssues);
+  const capitalRequired =
+    capitalKind === "SDN_BHD" ? 7 : capitalKind === "LLP" ? 5 : 0;
 
   const shareholderMissing: OperatorProfileMissingItem[] = [];
+  let shareholderRequired = 0;
   if (profile.shareholders.length === 0) {
     shareholderMissing.push({
       section: "shareholders",
       field: "shareholders",
       label: "At least one shareholder, member, or beneficial owner",
     });
+    shareholderRequired = 1;
   } else {
     for (const row of profile.shareholders) {
-      if (!operatorHasText(row.name)) {
-        shareholderMissing.push({
-          section: "shareholders",
-          field: `shareholders.${row.id}.name`,
-          label: "Name",
-        });
-      }
-      if (!operatorHasText(row.identityNumber)) {
-        shareholderMissing.push({
-          section: "shareholders",
-          field: `shareholders.${row.id}.identityNumber`,
-          label: "IC/Passport number",
-        });
-      }
+      const issues = validateOperatorShareholder(row);
+      shareholderMissing.push(
+        ...issuesToOperatorMissing("shareholders", issues, `shareholders.${row.id}`)
+      );
+      shareholderRequired += validateOperatorShareholder({
+        entityType: row.entityType,
+        holderType: row.holderType,
+        shareType: row.shareType === "OTHERS" ? "OTHERS" : undefined,
+      }).length;
     }
   }
-  const shareholderRequired =
-    profile.shareholders.length === 0 ? 1 : profile.shareholders.length * 2;
 
   const officerMissing: OperatorProfileMissingItem[] = [];
+  let officerRequired = 0;
   if (profile.officers.length === 0) {
     officerMissing.push({
       section: "officers",
       field: "officers",
       label: "At least one board or management person",
     });
+    officerRequired = 1;
   } else {
     for (const row of profile.officers) {
-      if (!operatorHasText(row.name)) {
-        officerMissing.push({
-          section: "officers",
-          field: `officers.${row.id}.name`,
-          label: "Name",
-        });
-      }
-      if (!operatorHasText(row.identityNumber)) {
-        officerMissing.push({
-          section: "officers",
-          field: `officers.${row.id}.identityNumber`,
-          label: "Identity Number (NRIC/ Passport No.)",
-        });
-      }
+      const issues = validateOperatorOfficer(row);
+      officerMissing.push(...issuesToOperatorMissing("officers", issues, `officers.${row.id}`));
+      officerRequired += validateOperatorOfficer({
+        personKind: row.personKind,
+        designation: row.designation === "OTHERS" ? "OTHERS" : undefined,
+      }).length;
     }
     if (!profile.officers.some((row) => row.isResponsiblePerson)) {
       officerMissing.push({
@@ -338,74 +313,49 @@ export function buildOperatorProfileCompleteness(
         field: "responsiblePerson",
         label: "Responsible Person",
       });
+      officerRequired += 1;
+    } else {
+      officerRequired += 1;
     }
   }
-  const officerRequired = profile.officers.length === 0 ? 1 : profile.officers.length * 2 + 1;
 
   const advisorMissing: OperatorProfileMissingItem[] = [];
+  let advisorRequired = 0;
   for (const row of profile.advisors) {
-    if (!operatorHasText(row.name)) {
-      advisorMissing.push({
-        section: "advisors",
-        field: `advisors.${row.id}.name`,
-        label: "Name",
-      });
-    }
+    const issues = validateOperatorAdvisor(row);
+    advisorMissing.push(...issuesToOperatorMissing("advisors", issues, `advisors.${row.id}`));
+    advisorRequired += validateOperatorAdvisor({ advisorType: row.advisorType }).length;
   }
 
   const interestMissing: OperatorProfileMissingItem[] = [];
+  let interestRequired = 0;
   for (const row of profile.interests) {
-    if (!operatorHasText(row.name)) {
-      interestMissing.push({
-        section: "interests",
-        field: `interests.${row.id}.name`,
-        label: "Name",
-      });
-    }
+    const issues = validateOperatorInterest(row);
+    interestMissing.push(...issuesToOperatorMissing("interests", issues, `interests.${row.id}`));
+    interestRequired += validateOperatorInterest({
+      shareType: row.shareType === "OTHERS" ? "OTHERS" : undefined,
+    }).length;
   }
 
   const financialMissing: OperatorProfileMissingItem[] = [];
+  let financialRequired = 0;
   if (profile.financialStatements.length === 0) {
     financialMissing.push({
       section: "financials",
       field: "financialStatements",
       label: "At least one financial statement",
     });
+    financialRequired = 1;
   } else {
     for (const row of profile.financialStatements) {
-      if (!operatorHasText(row.financialYearEnd)) {
-        financialMissing.push({
-          section: "financials",
-          field: `financialStatements.${row.id}.financialYearEnd`,
-          label: "Financial Year End (dd/mm/yyyy)",
-        });
-      }
-      if (!operatorHasText(row.totalAssets)) {
-        financialMissing.push({
-          section: "financials",
-          field: `financialStatements.${row.id}.totalAssets`,
-          label: "Total Assets",
-        });
-      }
-      if (!operatorHasText(row.totalRevenue)) {
-        financialMissing.push({
-          section: "financials",
-          field: `financialStatements.${row.id}.totalRevenue`,
-          label: "Total Revenue",
-        });
-      }
-      if (!operatorHasText(row.profitBeforeTax)) {
-        financialMissing.push({
-          section: "financials",
-          field: `financialStatements.${row.id}.profitBeforeTax`,
-          label: "Profit/(Loss) Before Tax",
-        });
-      }
+      const issues = validateOperatorFinancialStatement(row as unknown as Record<string, unknown>);
+      financialMissing.push(
+        ...issuesToOperatorMissing("financials", issues, `financialStatements.${row.id}`)
+      );
+      financialRequired += validateOperatorFinancialStatement({}).length;
     }
   }
-  const financialRequired = profile.financialStatements.length === 0 ? 1 : profile.financialStatements.length * 4;
 
-  const capitalRequired = capitalKind === "SDN_BHD" || capitalKind === "LLP" ? 1 : 0;
   const sections: OperatorProfileSectionCompleteness[] = [
     operatorSection("general", generalMissing, 5),
     {
@@ -436,16 +386,16 @@ export function buildOperatorProfileCompleteness(
       id: "advisors",
       label: OPERATOR_PROFILE_SECTION_LABELS.advisors,
       complete: advisorMissing.length === 0,
-      requiredCount: advisorMissing.length > 0 ? advisorMissing.length : 0,
-      filledCount: 0,
+      requiredCount: advisorRequired,
+      filledCount: Math.max(0, advisorRequired - advisorMissing.length),
       missing: advisorMissing,
     },
     {
       id: "interests",
       label: OPERATOR_PROFILE_SECTION_LABELS.interests,
       complete: interestMissing.length === 0,
-      requiredCount: interestMissing.length > 0 ? interestMissing.length : 0,
-      filledCount: 0,
+      requiredCount: interestRequired,
+      filledCount: Math.max(0, interestRequired - interestMissing.length),
       missing: interestMissing,
     },
     operatorSection("financials", financialMissing, financialRequired),

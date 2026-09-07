@@ -4,6 +4,8 @@ import * as React from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  firstIssueMessage,
+  issuesByField,
   monthlyIssuerPersonCopy,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
@@ -17,6 +19,7 @@ import {
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
   scAppendixASelectValues,
+  validateIssuerPersonForm,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
@@ -141,6 +144,7 @@ export function AddPersonForm({
     appointmentDate: "",
     resignationDate: "",
   });
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const save = useMutation({
     mutationFn: onSave,
     onError: (err: Error) => toast.error(err.message),
@@ -156,6 +160,38 @@ export function AddPersonForm({
       className="grid gap-4 sm:grid-cols-2"
       onSubmit={async (event) => {
         event.preventDefault();
+        const officer = isDirector || isBoard || isManagement;
+        const issues = validateIssuerPersonForm({
+          entityType,
+          name: form.name,
+          identityPrefix: corporate ? "ROC" : form.identityPrefix,
+          identityNumber: form.identityNumber,
+          dateOfBirth: form.dateOfBirth,
+          dateOfIncorporation: form.dateOfIncorporation,
+          gender: form.gender,
+          nationality: form.nationality,
+          countryOfIncorporation: form.countryOfIncorporation,
+          line1: form.line1,
+          state: form.state,
+          postalCode: form.postalCode,
+          isShareholder: corporate || isShareholder,
+          isOfficer: !corporate && officer,
+          shareType: form.shareType,
+          shareTypeOther: form.shareTypeOther,
+          shareholdingUnits: form.shareholdingUnits,
+          shareholdingAmount: form.shareholdingAmount,
+          shareholdingPercentage: form.shareholdingPercentage,
+          personKind: isBoard ? "BOARD" : isManagement ? "MANAGEMENT" : isDirector ? "BOARD" : "",
+          designation: form.designation,
+          designationOther: form.designationOther,
+          appointmentDate: form.appointmentDate,
+        });
+        if (issues.length > 0) {
+          setFieldErrors(issuesByField(issues));
+          toast.error(firstIssueMessage(issues));
+          return;
+        }
+        setFieldErrors({});
         await save.mutateAsync({
           entityType,
           name: form.name || null,
@@ -242,6 +278,7 @@ export function AddPersonForm({
         onChange={(value) => setForm({ ...form, name: value })}
         required
         help={copy.name.help}
+        error={fieldErrors.name}
       />
       {!corporate ? (
         <TextField
@@ -269,6 +306,8 @@ export function AddPersonForm({
               value: key,
               label: copy.identityPrefixLabels[key as keyof typeof copy.identityPrefixLabels] ?? key,
             }))}
+            required
+            error={fieldErrors.identityPrefix}
           />
           <TextField
             label={copy.identity.label}
@@ -276,6 +315,7 @@ export function AddPersonForm({
             onChange={(value) => setForm({ ...form, identityNumber: value })}
             required
             help={copy.identity.help}
+            error={fieldErrors.identityNumber}
           />
           <TextField label="Email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} />
           <DateField
@@ -283,6 +323,8 @@ export function AddPersonForm({
             value={form.dateOfBirth}
             onChange={(value) => setForm({ ...form, dateOfBirth: value })}
             help={copy.dateOfBirth.help}
+            required
+            error={fieldErrors.dateOfBirth}
           />
           <SelectField
             label={copy.gender.label}
@@ -290,12 +332,16 @@ export function AddPersonForm({
             onChange={(value) => setForm({ ...form, gender: value })}
             options={SC_INDIVIDUAL_GENDERS.map((key) => ({ value: key, label: SC_GENDER_LABELS[key] }))}
             help={copy.gender.help}
+            required
+            error={fieldErrors.gender}
           />
           <CountryField
             label={copy.nationality.label}
             value={form.nationality}
             onChange={(value) => setForm({ ...form, nationality: value })}
             help={copy.nationality.help}
+            required
+            error={fieldErrors.nationality}
           />
         </>
       )}
@@ -306,12 +352,16 @@ export function AddPersonForm({
             value={form.dateOfIncorporation}
             onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
             help={copy.dateOfBirth.help}
+            required
+            error={fieldErrors.dateOfIncorporation}
           />
           <CountryField
             label={copy.nationality.label}
             value={form.countryOfIncorporation}
             onChange={(value) => setForm({ ...form, countryOfIncorporation: value })}
             help={copy.nationality.help}
+            required
+            error={fieldErrors.countryOfIncorporation}
           />
         </>
       ) : null}
@@ -319,6 +369,8 @@ export function AddPersonForm({
         label={copy.address.label}
         value={form.line1}
         onChange={(value) => setForm({ ...form, line1: value })}
+        required
+        error={fieldErrors["address.line1"]}
       />
       <TextField
         label="Address line 2"
@@ -331,12 +383,16 @@ export function AddPersonForm({
         onChange={(value) => setForm({ ...form, state: value })}
         options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
         help={copy.addressState.help}
+        required
+        error={fieldErrors["address.state"]}
       />
       <TextField
         label={copy.addressPostcode.label}
         value={form.postalCode}
         onChange={(value) => setForm({ ...form, postalCode: value })}
         help={copy.addressPostcode.help}
+        required={form.state !== "Outside Malaysia"}
+        error={fieldErrors["address.postalCode"]}
       />
       {showShare ? (
         <>
@@ -345,6 +401,8 @@ export function AddPersonForm({
             value={form.shareType}
             onChange={(value) => setForm({ ...form, shareType: value })}
             options={SC_SHARE_TYPES.map((key) => ({ value: key, label: SC_SHARE_TYPE_LABELS[key] }))}
+            required
+            error={fieldErrors.shareType}
           />
           {form.shareType === "OTHERS" ? (
             <TextField
@@ -358,16 +416,22 @@ export function AddPersonForm({
             label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
             value={form.shareholdingUnits}
             onChange={(value) => setForm({ ...form, shareholdingUnits: value })}
+            required
+            error={fieldErrors.shareholdingUnits}
           />
           <TextField
             label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
             value={form.shareholdingAmount}
             onChange={(value) => setForm({ ...form, shareholdingAmount: value })}
+            required
+            error={fieldErrors.shareholdingAmount}
           />
           <TextField
             label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
             value={form.shareholdingPercentage}
             onChange={(value) => setForm({ ...form, shareholdingPercentage: value })}
+            required
+            error={fieldErrors.shareholdingPercentage}
           />
         </>
       ) : null}
@@ -378,6 +442,8 @@ export function AddPersonForm({
             value={form.designation}
             onChange={(value) => setForm({ ...form, designation: value })}
             options={SC_DESIGNATIONS.map((key) => ({ value: key, label: SC_DESIGNATION_LABELS[key] }))}
+            required
+            error={fieldErrors.designation}
           />
           {form.designation === "OTHERS" ? (
             <TextField
@@ -392,6 +458,8 @@ export function AddPersonForm({
             label={SC_MONTHLY_BOARD.appointmentDate.label}
             value={form.appointmentDate}
             onChange={(value) => setForm({ ...form, appointmentDate: value })}
+            required
+            error={fieldErrors.appointmentDate}
           />
           <DateField
             label={SC_MONTHLY_BOARD.resignationDate.label}
@@ -455,6 +523,35 @@ export function PartyFillEmptyForm({
       className="grid gap-4 sm:grid-cols-2"
       onSubmit={async (event) => {
         event.preventDefault();
+        const issues = validateIssuerPersonForm({
+          entityType: party.entityType,
+          name: party.name,
+          identityPrefix: party.identityPrefix,
+          identityNumber: party.identityNumber,
+          dateOfBirth: form.dateOfBirth || party.dateOfBirth,
+          dateOfIncorporation: form.dateOfIncorporation || party.dateOfIncorporation,
+          gender: form.gender || party.gender,
+          nationality: form.nationality || party.nationality,
+          countryOfIncorporation: form.countryOfIncorporation || party.countryOfIncorporation,
+          line1: form.line1 || party.address?.line1,
+          state: form.state || party.address?.state,
+          postalCode: form.postalCode || party.address?.postalCode,
+          isShareholder: party.isShareholder,
+          isOfficer: officer,
+          shareType: form.shareType || party.shareType,
+          shareTypeOther: form.shareTypeOther || party.shareTypeOther,
+          shareholdingUnits: form.shareholdingUnits || party.shareholdingUnits,
+          shareholdingAmount: form.shareholdingAmount || party.shareholdingAmount,
+          shareholdingPercentage: form.shareholdingPercentage || party.shareholdingPercentage,
+          personKind: party.isBoard ? "BOARD" : party.isManagement ? "MANAGEMENT" : "BOARD",
+          designation: form.designation || party.designation,
+          designationOther: form.designationOther || party.designationOther,
+          appointmentDate: form.appointmentDate || party.appointmentDate,
+        });
+        if (issues.length > 0) {
+          toast.error(firstIssueMessage(issues));
+          return;
+        }
         const data: Record<string, unknown> = {};
         if (!party.salutation && form.salutation) data.salutation = form.salutation;
         if (party.entityType === "CORPORATE" && party.gender !== "NOT_APPLICABLE") {
@@ -678,17 +775,20 @@ function TextField({
   onChange,
   help,
   required = false,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   help?: string;
   required?: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
       <ComRepFieldLabel label={label} required={required} help={help} />
       <Input className="h-10 text-ui" value={value} onChange={(event) => onChange(event.target.value)} />
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -699,17 +799,20 @@ function DateField({
   onChange,
   help,
   required = false,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   help?: string;
   required?: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
       <ComRepFieldLabel label={label} required={required} help={help} />
       <Input className="h-10 text-ui" type="date" value={value} onChange={(event) => onChange(event.target.value)} />
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -720,12 +823,14 @@ function CountryField({
   onChange,
   help,
   required = false,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   help?: string;
   required?: boolean;
+  error?: string;
 }) {
   return (
     <SelectField
@@ -735,6 +840,7 @@ function CountryField({
       options={scAppendixASelectValues(value).map((country) => ({ value: country, label: country }))}
       help={help}
       required={required}
+      error={error}
     />
   );
 }
@@ -746,6 +852,7 @@ function SelectField({
   options,
   help,
   required = false,
+  error,
 }: {
   label: string;
   value: string;
@@ -753,6 +860,7 @@ function SelectField({
   options: Array<{ value: string; label: string }>;
   help?: string;
   required?: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -769,6 +877,7 @@ function SelectField({
           ))}
         </SelectContent>
       </Select>
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidPhoneNumber } from "libphonenumber-js";
 import {
   applyPartyComrepSemantics,
   isScIntegerWithoutDecimal,
@@ -14,7 +15,42 @@ import {
   SC_INVESTOR_CATEGORIES,
   SC_PERSON_KINDS,
   SC_SHARE_TYPES,
+  validateIssuerFinancialFieldsPatch,
+  validateOperatorShareCapitalPatch,
+  validateIssuerMasterPatch,
+  validateIssuerPersonForm,
+  validateOperatorAdvisor,
+  validateOperatorFinancialStatement,
+  validateOperatorGeneralPatch,
+  validateOperatorInterest,
+  validateOperatorOfficer,
+  validateOperatorShareholder,
+  validatePartyPatch,
+  type ComrepFieldIssue,
 } from "@cashsouk/types";
+
+function addComrepIssues(ctx: z.RefinementCtx, issues: ComrepFieldIssue[]): void {
+  for (const issue of issues) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: issue.field.split("."),
+      message: issue.message,
+    });
+  }
+}
+
+function requirePhoneWhenPresent(value: string | null | undefined, ctx: z.RefinementCtx, path: string): void {
+  if (value == null || value === undefined) return;
+  const trimmed = value.trim();
+  if (!trimmed) return;
+  if (!isValidPhoneNumber(trimmed)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [path],
+      message: "Invalid phone number format",
+    });
+  }
+}
 
 const optionalText = z.string().max(500).optional().nullable();
 const optionalDate = z.string().optional().nullable();
@@ -57,7 +93,7 @@ export const orgMasterPatchSchema = z
     countryOfIncorporation: optionalText,
     scCompanyType: z.enum(SC_COMPANY_TYPES).optional().nullable(),
     companyCategory: z.enum(SC_COMPANY_CATEGORIES).optional().nullable(),
-    companyEmail: z.union([z.string().email().max(255), z.literal(""), z.null()]).optional(),
+    companyEmail: z.string().max(255).optional().nullable(),
     scInvestorCategory: z.enum(SC_INVESTOR_CATEGORIES).optional().nullable(),
     residentialAddress: addressPatchSchema.optional().nullable(),
     phoneNumber: optionalText,
@@ -68,9 +104,36 @@ export const orgMasterPatchSchema = z
     businessAddress: addressPatchSchema.optional().nullable(),
     companyActivities: z.string().max(2000).optional().nullable(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    const patch = value as Record<string, unknown>;
+    const issuerIssues = validateIssuerMasterPatch(patch, "issuer").filter((issue) => {
+      if (issue.field === "name" && patch.name !== undefined) return true;
+      if (issue.field.startsWith("registeredAddress") || issue.field.startsWith("businessAddress")) {
+        return true;
+      }
+      return (
+        issue.field === "companyEmail" ||
+        issue.field === "phoneNumber" ||
+        issue.field === "dateOfIncorporation" ||
+        issue.field === "dateOfCommencement" ||
+        issue.field === "countryOfIncorporation" ||
+        issue.field === "scCompanyType"
+      );
+    });
+    const investorIssues = validateIssuerMasterPatch(patch, "investor").filter((issue) => {
+      return (
+        issue.field === "dateOfBirth" ||
+        issue.field === "nationality" ||
+        issue.field === "gender" ||
+        issue.field.startsWith("residentialAddress")
+      );
+    });
+    addComrepIssues(ctx, [...issuerIssues, ...investorIssues]);
+    requirePhoneWhenPresent(value.phoneNumber, ctx, "phoneNumber");
+  });
 
-export const partyPatchSchema = z
+export const partyPatchObjectSchema = z
   .object({
     name: optionalText,
     salutation: optionalText,
@@ -99,6 +162,10 @@ export const partyPatchSchema = z
   })
   .strict();
 
+export const partyPatchSchema = partyPatchObjectSchema.superRefine((value, ctx) => {
+  addComrepIssues(ctx, validatePartyPatch(value as Record<string, unknown>));
+});
+
 export const mismatchResolveSchema = z
   .object({
     action: z.enum(["KEEP", "USE_EXTERNAL", "EDIT"]),
@@ -112,7 +179,10 @@ export const financialYearPatchSchema = z
     year: z.string().regex(/^\d{4}$/),
     fields: z.record(z.string(), z.union([z.string(), z.number(), z.null()])),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    addComrepIssues(ctx, validateIssuerFinancialFieldsPatch(value.fields));
+  });
 
 export const operatorProfilePatchSchema = z
   .object({
@@ -123,7 +193,11 @@ export const operatorProfilePatchSchema = z
     responsiblePersonName: optionalText,
     responsiblePersonPhone: optionalText,
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    addComrepIssues(ctx, validateOperatorGeneralPatch(value as Record<string, unknown>));
+    requirePhoneWhenPresent(value.responsiblePersonPhone, ctx, "responsiblePersonPhone");
+  });
 
 export const operatorShareCapitalPatchSchema = z
   .object({
@@ -142,7 +216,10 @@ export const operatorShareCapitalPatchSchema = z
     llpSubordinatedLoansAmount: optionalDecimal,
     totalLlp: optionalDecimal,
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    addComrepIssues(ctx, validateOperatorShareCapitalPatch(value as Record<string, unknown>));
+  });
 
 export const operatorShareholderSchema = z
   .object({
@@ -169,6 +246,7 @@ export const operatorShareholderSchema = z
     message: "ComRep [03000] Beneficial Owner is an individual, not a company",
   })
   .superRefine((value, ctx) => {
+    addComrepIssues(ctx, validateOperatorShareholder(value));
     const other = othersSpecifyValue(value.shareType, value.shareTypeOther);
     if (other.issue) {
       ctx.addIssue({
@@ -201,6 +279,7 @@ export const operatorOfficerSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
+    addComrepIssues(ctx, validateOperatorOfficer(value));
     if (othersSpecifyValue(value.designation, value.designationOther).issue) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -224,7 +303,10 @@ export const operatorAdvisorSchema = z
     appointmentDate: optionalDate,
     cessationDate: optionalDate,
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    addComrepIssues(ctx, validateOperatorAdvisor(value));
+  });
 
 export const operatorInterestSchema = z
   .object({
@@ -241,6 +323,7 @@ export const operatorInterestSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
+    addComrepIssues(ctx, validateOperatorInterest(value));
     if (othersSpecifyValue(value.shareType, value.shareTypeOther).issue) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -295,9 +378,12 @@ export const operatorFinancialStatementSchema = z
     pnlMinorityInterest: optionalDecimal,
     netDividend: optionalDecimal,
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    addComrepIssues(ctx, validateOperatorFinancialStatement(value as Record<string, unknown>));
+  });
 
-export const createPartySchema = partyPatchSchema
+export const createPartySchema = partyPatchObjectSchema
   .extend({
     entityType: z.enum(ORGANIZATION_PARTY_ENTITY_TYPES).optional(),
     email: z.union([z.string().email().max(255), z.literal(""), z.null()]).optional(),
@@ -335,6 +421,40 @@ export const createPartySchema = partyPatchSchema
     for (const issue of applied.issues) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
     }
+    const officer =
+      value.isDirector === true ||
+      value.isBoard === true ||
+      value.isManagement === true ||
+      value.personKind === "BOARD" ||
+      value.personKind === "MANAGEMENT";
+    addComrepIssues(
+      ctx,
+      validateIssuerPersonForm({
+        entityType,
+        name: value.name,
+        identityPrefix: value.identityPrefix,
+        identityNumber: value.identityNumber,
+        dateOfBirth: value.dateOfBirth,
+        dateOfIncorporation: value.dateOfIncorporation,
+        gender: value.gender,
+        nationality: value.nationality,
+        countryOfIncorporation: value.countryOfIncorporation,
+        line1: value.address?.line1,
+        state: value.address?.state,
+        postalCode: value.address?.postalCode,
+        isShareholder: value.isShareholder === true || entityType === "CORPORATE",
+        isOfficer: officer,
+        shareType: value.shareType,
+        shareTypeOther: value.shareTypeOther,
+        shareholdingUnits: value.shareholdingUnits,
+        shareholdingAmount: value.shareholdingAmount,
+        shareholdingPercentage: value.shareholdingPercentage,
+        personKind: value.personKind,
+        designation: value.designation,
+        designationOther: value.designationOther,
+        appointmentDate: value.appointmentDate,
+      })
+    );
   });
 
 export type OrgMasterPatchInput = z.infer<typeof orgMasterPatchSchema>;

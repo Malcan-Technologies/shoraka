@@ -27,7 +27,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, SC_MONTHLY_INVESTOR, scAppendixASelectValues, userFacingCompleteness, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, SC_MONTHLY_INVESTOR, firstIssueMessage, scAppendixASelectValues, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -730,12 +730,22 @@ export default function ProfilePage() {
     }
 
     if (activeOrganization.type === "PERSONAL") {
+      const issues = validateInvestorPersonalForm({
+        gender,
+        nationality,
+        state: residentialState,
+        postalCode: residentialPostalCode,
+      });
+      if (issues.length > 0) {
+        toast.error(firstIssueMessage(issues));
+        return;
+      }
       const master: Record<string, unknown> = {
-        gender: gender || null,
-        nationality: nationality.trim() || null,
+        gender,
+        nationality: nationality.trim(),
         residentialAddress: {
-          state: residentialState || null,
-          postalCode: residentialPostalCode.trim() || null,
+          state: residentialState,
+          postalCode: residentialState === "Outside Malaysia" ? residentialPostalCode.trim() || null : residentialPostalCode.trim(),
         },
       };
       const masterRes = await apiClient.patchMasterProfile(
@@ -1122,11 +1132,13 @@ export default function ProfilePage() {
                           label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
                           value={orgData?.residentialAddress?.state}
                           missing={missingFieldKeys.has("state")}
+                          required
                         />
                         <ProfileReadField
                           label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
                           value={orgData?.residentialAddress?.postalCode}
                           missing={missingFieldKeys.has("postalCode")}
+                          required
                         />
                       </ProfileFieldGrid>
                     ) : (
@@ -1147,7 +1159,10 @@ export default function ProfilePage() {
                         <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-ui font-medium">{SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}</Label>
+                        <ComRepFieldLabel
+                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
+                          required
+                        />
                         <Select value={residentialState || undefined} onValueChange={setResidentialState}>
                           <SelectTrigger className="h-11 text-ui">
                             <SelectValue placeholder="Select" />
@@ -1162,7 +1177,10 @@ export default function ProfilePage() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-ui font-medium">{SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}</Label>
+                        <ComRepFieldLabel
+                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
+                          required
+                        />
                         <Input
                           className="h-11 text-ui"
                           value={residentialPostalCode}

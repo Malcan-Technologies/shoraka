@@ -85,6 +85,44 @@ describe("issuer company completeness [02000]", () => {
     });
     expect(missing).toHaveLength(ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT);
   });
+
+  it("treats blank E-mail Address as a company completeness blocker", () => {
+    const missing = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      phoneNumber: "+60123456789",
+      companyEmail: "   ",
+      companyActivities: null,
+    });
+    expect(missing.map((m) => m.field)).toEqual(["companyEmail"]);
+  });
+
+  it("does not require postcode when State is Outside Malaysia", () => {
+    const missing = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "SINGAPORE",
+      scCompanyType: "FOREIGN",
+      registeredAddress: { line1: "1 Overseas Rd", state: "Outside Malaysia", postalCode: "" },
+      businessAddress: { line1: "2 Overseas Rd", state: "Outside Malaysia", postalCode: null },
+      phoneNumber: "+60123456789",
+      companyEmail: "ops@acme.test",
+      companyActivities: null,
+    });
+    expect(missing.map((m) => m.field)).not.toContain("registeredAddress.postalCode");
+    expect(missing.map((m) => m.field)).not.toContain("businessAddress.postalCode");
+    expect(missing).toHaveLength(0);
+  });
 });
 
 describe("issuer profile completeness", () => {
@@ -182,6 +220,7 @@ describe("issuer profile completeness", () => {
         other_cost: 0,
         plnpbt: 1,
         plnpat: 1,
+        pl_minority: 0,
         plnetdiv: 0,
       }),
     });
@@ -509,6 +548,7 @@ describe("issuer profile financial editor keys", () => {
       other_cost: 1,
       plnpbt: 1,
       plnpat: 1,
+      pl_minority: 0,
       plnetdiv: 1,
     });
     expect(computeIssuerFinancialCompleteness(filled).map((item) => item.field)).toEqual([]);

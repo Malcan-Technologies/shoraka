@@ -7,10 +7,14 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   ISSUER_PROFILE_BALANCE_SHEET_KEYS,
   ISSUER_PROFILE_PNL_KEYS,
+  firstIssueMessage,
+  isIssuerFinancialFieldRequired,
+  issuesByField,
   latestUnauditedYearBlock,
   latestUnauditedYearKey,
   SC_MONTHLY_ISSUER_FINANCIAL_HELP,
   SC_MONTHLY_ISSUER_FINANCIAL_LABELS,
+  validateIssuerFinancialFields,
   type ComrepProfileCompleteness,
 } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField, StatusBadge } from "@cashsouk/ui";
@@ -30,25 +34,6 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 const EDITABLE_KEYS = [...ISSUER_PROFILE_BALANCE_SHEET_KEYS, ...ISSUER_PROFILE_PNL_KEYS] as const;
 
-const MISSING_TO_KEY: Record<string, string> = {
-  currentAssets: "bscatot",
-  nonCurrentAssets: "bsclbank",
-  currentBorrowing: "curlib_borrowing",
-  currentNonBorrowing: "curlib_non_borrowing",
-  nonCurrentLoan: "ncl_loan",
-  nonCurrentNonLoan: "ncl_non_loan",
-  equityCapital: "bsqpuc",
-  accumulatedProfit: "equity_accumulated_profit",
-  revenue: "turnover",
-  operatingCost: "operating_cost",
-  adminCost: "admin_cost",
-  interestCost: "interest_cost",
-  otherCost: "other_cost",
-  profitBeforeTax: "plnpbt",
-  profitAfterTax: "plnpat",
-  netDividend: "plnetdiv",
-};
-
 function fieldLabel(key: string): string {
   return SC_MONTHLY_ISSUER_FINANCIAL_LABELS[key] ?? key;
 }
@@ -57,11 +42,8 @@ function fieldHelp(key: string): string | undefined {
   return SC_MONTHLY_ISSUER_FINANCIAL_HELP[key];
 }
 
-function fieldRequired(key: string, missingKeys: Set<string>): boolean {
-  if (key === "equity_share_application" || key === "equity_share_premium" || key === "equity_minority") {
-    return false;
-  }
-  return missingKeys.has(key) || missingKeys.has("financials");
+function fieldRequired(key: string): boolean {
+  return isIssuerFinancialFieldRequired(key);
 }
 
 export function IssuerFinancialsCard({ organizationId }: { organizationId: string }) {
@@ -70,6 +52,7 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
   const queryClient = useQueryClient();
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const query = useQuery({
     queryKey: ["issuer", "latest-financials", organizationId],
     queryFn: async () => {
@@ -94,11 +77,6 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
   const financialStep = completeness?.steps.find((step) => step.id === "financials");
   const complete = financialStep?.complete ?? false;
   const missingCount = financialStep?.missing.length ?? 0;
-  const missingKeys = new Set(
-    (financialStep?.missing ?? []).map((item) =>
-      item.field === "financials" ? item.field : MISSING_TO_KEY[item.field] ?? item.field
-    )
-  );
 
   React.useEffect(() => {
     if (!open) return;
@@ -108,6 +86,7 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
       next[key] = current == null ? "" : String(current);
     }
     setDraft(next);
+    setFieldErrors({});
   }, [open, yearBlock]);
 
   const save = useMutation({
@@ -116,6 +95,12 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
       for (const [key, value] of Object.entries(draft)) {
         fields[key] = value.trim() === "" ? null : value.trim();
       }
+      const issues = validateIssuerFinancialFields(fields);
+      if (issues.length > 0) {
+        setFieldErrors(issuesByField(issues));
+        throw new Error(firstIssueMessage(issues) ?? "Please complete the required financial fields.");
+      }
+      setFieldErrors({});
       const res = await api.patchIssuerOrgFinancials(organizationId, year, fields);
       if (!res.success) throw new Error(res.error.message);
       return res.data;
@@ -179,8 +164,8 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
               <h3 className="text-card-title">Balance sheet</h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 {ISSUER_PROFILE_BALANCE_SHEET_KEYS.map((key) => {
-                  const required = fieldRequired(key, missingKeys);
-                  const empty = !(draft[key] ?? "").trim();
+                  const required = fieldRequired(key);
+                  const error = fieldErrors[key];
                   return (
                     <div key={key} className="space-y-2">
                       <ComRepFieldLabel
@@ -191,13 +176,12 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
                       <Input
                         className="h-11 text-ui"
                         value={draft[key] ?? ""}
-                        onChange={(event) =>
-                          setDraft((current) => ({ ...current, [key]: event.target.value }))
-                        }
+                        onChange={(event) => {
+                          setDraft((current) => ({ ...current, [key]: event.target.value }));
+                          setFieldErrors((current) => ({ ...current, [key]: "" }));
+                        }}
                       />
-                      {required && empty ? (
-                        <p className="text-meta text-status-action-text">Required</p>
-                      ) : null}
+                      {error ? <p className="text-meta text-destructive">{error}</p> : null}
                     </div>
                   );
                 })}
@@ -207,8 +191,8 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
               <h3 className="text-card-title">Profit and loss</h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 {ISSUER_PROFILE_PNL_KEYS.map((key) => {
-                  const required = fieldRequired(key, missingKeys);
-                  const empty = !(draft[key] ?? "").trim();
+                  const required = fieldRequired(key);
+                  const error = fieldErrors[key];
                   return (
                     <div key={key} className="space-y-2">
                       <ComRepFieldLabel
@@ -219,13 +203,12 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
                       <Input
                         className="h-11 text-ui"
                         value={draft[key] ?? ""}
-                        onChange={(event) =>
-                          setDraft((current) => ({ ...current, [key]: event.target.value }))
-                        }
+                        onChange={(event) => {
+                          setDraft((current) => ({ ...current, [key]: event.target.value }));
+                          setFieldErrors((current) => ({ ...current, [key]: "" }));
+                        }}
                       />
-                      {required && empty ? (
-                        <p className="text-meta text-status-action-text">Required</p>
-                      ) : null}
+                      {error ? <p className="text-meta text-destructive">{error}</p> : null}
                     </div>
                   );
                 })}

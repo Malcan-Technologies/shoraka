@@ -15,6 +15,10 @@ import {
   SC_MALAYSIAN_STATES,
   SC_MONTHLY_INVESTOR,
   SC_MONTHLY_ISSUER,
+  firstIssueMessage,
+  validateInvestorPersonalForm,
+  validateIssuerAddressForm,
+  validateIssuerCompanyForm,
   type OrganizationDetailResponse,
   type PortalType,
   type ScCompanyType,
@@ -137,6 +141,48 @@ export function OrganizationProfilePanel({
     if (editingSection === "company" && !isValidEmployeeCountInput(draft.numberOfEmployees)) {
       toast.error("Number of employees must be a whole number");
       return;
+    }
+    if (editingSection === "company" && portal === "issuer" && org.type === "COMPANY") {
+      const issues = validateIssuerCompanyForm({
+        name: draft.name,
+        includeName: true,
+        scCompanyType: draft.scCompanyType,
+        dateOfIncorporation: draft.dateOfIncorporation,
+        dateOfCommencement: draft.dateOfCommencement,
+        countryOfIncorporation: draft.countryOfIncorporation,
+        companyEmail: draft.companyEmail,
+        phoneNumber: draft.phoneNumber,
+      });
+      if (issues.length > 0) {
+        toast.error(firstIssueMessage(issues));
+        return;
+      }
+    }
+    if (editingSection === "addresses" && portal === "issuer" && org.type === "COMPANY") {
+      const issues = validateIssuerAddressForm({
+        registeredLine1: draft.registeredAddress.line1,
+        registeredState: draft.registeredAddress.state,
+        registeredPostalCode: draft.registeredAddress.postalCode,
+        businessLine1: draft.businessAddress.line1,
+        businessState: draft.businessAddress.state,
+        businessPostalCode: draft.businessAddress.postalCode,
+      });
+      if (issues.length > 0) {
+        toast.error(firstIssueMessage(issues));
+        return;
+      }
+    }
+    if (editingSection === "personal" && portal === "investor" && org.type !== "COMPANY") {
+      const issues = validateInvestorPersonalForm({
+        gender: draft.gender,
+        nationality: draft.nationality,
+        state: draft.residentialState,
+        postalCode: draft.residentialPostalCode,
+      });
+      if (issues.length > 0) {
+        toast.error(firstIssueMessage(issues));
+        return;
+      }
     }
     if (
       editingSection === "bank" &&
@@ -279,8 +325,9 @@ export function OrganizationProfilePanel({
                     label={companyNameLabel}
                     value={draft.name}
                     onChange={(name) => setDraft((current) => ({ ...current, name }))}
+                    required={issuerCompany}
                   />
-                  <ReadField label={companyRocLabel} value={ssmNumber} locked help={companyRocHelp} />
+                  <ReadField label={companyRocLabel} value={ssmNumber} locked help={companyRocHelp} required={issuerCompany} />
                   <EditableField
                     label="TIN"
                     value={draft.tinNumber}
@@ -294,6 +341,7 @@ export function OrganizationProfilePanel({
                       value,
                       label: SC_COMPANY_TYPE_LABELS[value],
                     }))}
+                    required={issuerCompany}
                   />
                   <EditableDateField
                     label={incorporationLabel}
@@ -301,6 +349,7 @@ export function OrganizationProfilePanel({
                     onChange={(dateOfIncorporation) =>
                       setDraft((current) => ({ ...current, dateOfIncorporation }))
                     }
+                    required
                   />
                   {portal === "issuer" ? (
                     <EditableDateField
@@ -309,6 +358,7 @@ export function OrganizationProfilePanel({
                       onChange={(dateOfCommencement) =>
                         setDraft((current) => ({ ...current, dateOfCommencement }))
                       }
+                      required
                     />
                   ) : null}
                   <EditableField
@@ -317,6 +367,7 @@ export function OrganizationProfilePanel({
                     onChange={(countryOfIncorporation) =>
                       setDraft((current) => ({ ...current, countryOfIncorporation }))
                     }
+                    required
                   />
                   <EditableField
                     label="Industry"
@@ -345,12 +396,14 @@ export function OrganizationProfilePanel({
                       label={emailLabel}
                       value={draft.companyEmail}
                       onChange={(companyEmail) => setDraft((current) => ({ ...current, companyEmail }))}
+                      required
                     />
                   ) : null}
                   <EditableField
                     label={phoneLabel}
                     value={draft.phoneNumber}
                     onChange={(phoneNumber) => setDraft((current) => ({ ...current, phoneNumber }))}
+                    required={issuerCompany}
                   />
                 </>
               ) : (
@@ -359,6 +412,7 @@ export function OrganizationProfilePanel({
                     label={companyNameLabel}
                     value={org.name}
                     missing={requiredFieldKeys.has("name")}
+                    required
                   />
                   <ReadField
                     label={companyRocLabel}
@@ -372,23 +426,27 @@ export function OrganizationProfilePanel({
                     label={companyTypeLabelSc}
                     value={companyTypeLabel}
                     missing={requiredFieldKeys.has("scCompanyType")}
+                    required={issuerCompany}
                   />
                   <ReadField
                     label={incorporationLabel}
                     value={formatMasterDate(org.dateOfIncorporation)}
                     missing={requiredFieldKeys.has("dateOfIncorporation")}
+                    required
                   />
                   {portal === "issuer" ? (
                     <ReadField
                       label={commencementLabel}
                       value={formatMasterDate(org.dateOfCommencement)}
                       missing={requiredFieldKeys.has("dateOfCommencement")}
+                      required
                     />
                   ) : null}
                   <ReadField
                     label={countryIncorpLabel}
                     value={org.countryOfIncorporation}
                     missing={requiredFieldKeys.has("countryOfIncorporation")}
+                    required
                   />
                   <ReadField label="Industry" value={basic?.industry} />
                   <ReadField
@@ -424,12 +482,14 @@ export function OrganizationProfilePanel({
                       label={emailLabel}
                       value={org.companyEmail}
                       missing={requiredFieldKeys.has("companyEmail")}
+                      required
                     />
                   ) : null}
                   <ReadField
                     label={phoneLabel}
                     value={org.phoneNumber}
                     missing={requiredFieldKeys.has("phoneNumber")}
+                    required={issuerCompany}
                   />
                 </>
               )}

@@ -4,6 +4,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { OrganizationPartyProfileDto } from "@cashsouk/types";
 import {
+  firstIssueMessage,
   monthlyIssuerPersonCopy,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
@@ -17,6 +18,7 @@ import {
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
   scAppendixASelectValues,
+  validateIssuerPersonForm,
 } from "@cashsouk/types";
 import { ComRepFieldLabel } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
@@ -462,12 +464,38 @@ export function OrganizationPersonEditorDialog({
             className="h-10"
             disabled={isSaving}
             onClick={() => {
-              if (!values.name.trim()) {
-                toast.error("Name is required");
-                return;
-              }
               if (!values.isDirector && !values.isShareholder && !values.isBoard && !values.isManagement) {
                 toast.error("Select at least one role");
+                return;
+              }
+              const officer = values.isDirector || values.isBoard || values.isManagement;
+              const issues = validateIssuerPersonForm({
+                entityType: values.entityType,
+                name: values.name,
+                identityPrefix: values.identityPrefix,
+                identityNumber: values.identityNumber,
+                dateOfBirth: values.dateOfBirth,
+                dateOfIncorporation: values.dateOfIncorporation,
+                gender: values.gender,
+                nationality: values.nationality,
+                countryOfIncorporation: values.countryOfIncorporation,
+                line1: values.line1,
+                state: values.state,
+                postalCode: values.postalCode,
+                isShareholder: values.isShareholder || values.entityType === "CORPORATE",
+                isOfficer: officer && values.entityType !== "CORPORATE",
+                shareType: values.shareType,
+                shareTypeOther: values.shareTypeOther,
+                shareholdingUnits: values.shareholdingUnits,
+                shareholdingAmount: values.shareholdingAmount,
+                shareholdingPercentage: values.shareholdingPercentage,
+                personKind: values.isBoard ? "BOARD" : values.isManagement ? "MANAGEMENT" : values.isDirector ? "BOARD" : "",
+                designation: values.designation,
+                designationOther: values.designationOther,
+                appointmentDate: values.appointmentDate,
+              });
+              if (issues.length > 0) {
+                toast.error(firstIssueMessage(issues));
                 return;
               }
               void onSave(values);

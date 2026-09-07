@@ -26,6 +26,9 @@ import {
   SC_SUSTAINABILITY_CATEGORIES,
   isNoteMoneyAmount,
   isValidFinancingTenureDays,
+  requiredEmailIssue,
+  requiredTextIssue,
+  validateIssuerMasterPatch,
   validateAdditionalFeeLines,
   type ReviewItemType,
 } from "@cashsouk/types";
@@ -343,13 +346,59 @@ export const updateAdminOrganizationProfileSchema = z
     countryOfIncorporation: z.string().max(500).optional().nullable(),
     scCompanyType: z.enum(SC_COMPANY_TYPES).optional().nullable(),
     companyCategory: z.enum(SC_COMPANY_CATEGORIES).optional().nullable(),
-    companyEmail: z.union([z.string().email().max(255), z.literal(""), z.null()]).optional(),
+    companyEmail: z.string().max(255).optional().nullable(),
     scInvestorCategory: z.enum(SC_INVESTOR_CATEGORIES).optional().nullable(),
     residentialAddress: addressSchema.optional().nullable(),
     gender: z.enum(SC_GENDERS).optional().nullable(),
     nationality: z.string().max(500).optional().nullable(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.companyEmail !== undefined) {
+      const issue = requiredEmailIssue(value.companyEmail, "companyEmail", "E-mail Address");
+      if (issue) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["companyEmail"], message: issue.message });
+      }
+    }
+    if (value.name !== undefined) {
+      const issue = requiredTextIssue(value.name, "name", "Name of Issuer");
+      if (issue) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["name"], message: issue.message });
+      }
+    }
+    if (value.phoneNumber !== undefined && value.phoneNumber !== null && value.phoneNumber !== "") {
+      if (!isValidPhoneNumber(value.phoneNumber)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["phoneNumber"],
+          message: "Invalid phone number format",
+        });
+      }
+    }
+    if (value.phoneNumber !== undefined) {
+      const issue = requiredTextIssue(value.phoneNumber, "phoneNumber", "Phone Number");
+      if (issue) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["phoneNumber"], message: issue.message });
+      }
+    }
+    const patch = value as Record<string, unknown>;
+    for (const issue of validateIssuerMasterPatch(patch, "issuer")) {
+      if (
+        issue.field === "dateOfIncorporation" ||
+        issue.field === "dateOfCommencement" ||
+        issue.field === "countryOfIncorporation" ||
+        issue.field === "scCompanyType" ||
+        issue.field.startsWith("registeredAddress") ||
+        issue.field.startsWith("businessAddress")
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: issue.field.split("."),
+          message: issue.message,
+        });
+      }
+    }
+  });
 
 export type UpdateAdminOrganizationProfileBody = z.infer<typeof updateAdminOrganizationProfileSchema>;
 

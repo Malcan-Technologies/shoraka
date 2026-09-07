@@ -59,6 +59,7 @@ export function ShorakaField({
   help,
   required = false,
   integer = false,
+  error,
 }: {
   label: string;
   value: string;
@@ -68,6 +69,7 @@ export function ShorakaField({
   help?: string;
   required?: boolean;
   integer?: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -82,6 +84,7 @@ export function ShorakaField({
         }
         disabled={disabled}
       />
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -95,6 +98,7 @@ export function ShorakaEnumSelect<T extends string>({
   disabled,
   help,
   required = false,
+  error,
 }: {
   label: string;
   value: T | "";
@@ -104,6 +108,7 @@ export function ShorakaEnumSelect<T extends string>({
   disabled?: boolean;
   help?: string;
   required?: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -120,6 +125,7 @@ export function ShorakaEnumSelect<T extends string>({
           ))}
         </SelectContent>
       </Select>
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -131,6 +137,7 @@ export function ShorakaCountrySelect({
   disabled,
   help,
   required = false,
+  error,
 }: {
   label: string;
   value: string;
@@ -138,6 +145,7 @@ export function ShorakaCountrySelect({
   disabled?: boolean;
   help?: string;
   required?: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -158,6 +166,7 @@ export function ShorakaCountrySelect({
           ))}
         </SelectContent>
       </Select>
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -169,6 +178,7 @@ export function ShorakaYesNo({
   disabled,
   help,
   required = false,
+  error,
 }: {
   label: string;
   value: boolean | null;
@@ -176,6 +186,7 @@ export function ShorakaYesNo({
   disabled?: boolean;
   help?: string;
   required?: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -193,6 +204,7 @@ export function ShorakaYesNo({
           <SelectItem value="NO">No</SelectItem>
         </SelectContent>
       </Select>
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }

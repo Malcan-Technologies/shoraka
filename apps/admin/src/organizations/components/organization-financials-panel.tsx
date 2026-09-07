@@ -7,8 +7,11 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   ISSUER_PROFILE_BALANCE_SHEET_KEYS,
   ISSUER_PROFILE_PNL_KEYS,
+  firstIssueMessage,
+  isIssuerFinancialFieldRequired,
   SC_MONTHLY_ISSUER_FINANCIAL_HELP,
   SC_MONTHLY_ISSUER_FINANCIAL_LABELS,
+  validateIssuerFinancialFields,
   type IssuerOrgFinancialSummary,
   type OrganizationDetailResponse,
 } from "@cashsouk/types";
@@ -43,7 +46,7 @@ function fieldHelp(key: string): string | undefined {
 }
 
 function fieldRequired(key: string): boolean {
-  return key !== "equity_share_application" && key !== "equity_share_premium" && key !== "equity_minority";
+  return isIssuerFinancialFieldRequired(key);
 }
 
 function displayAmount(value: unknown): string {
@@ -84,6 +87,10 @@ export function OrganizationFinancialsPanel({
       const fields: Record<string, string | number | null> = {};
       for (const [key, value] of Object.entries(draft)) {
         fields[key] = value.trim() === "" ? null : value.trim();
+      }
+      const issues = validateIssuerFinancialFields(fields);
+      if (issues.length > 0) {
+        throw new Error(firstIssueMessage(issues) ?? "Please complete the required financial fields.");
       }
       const res = await api.patchAdminIssuerFinancials(organizationId, year, fields);
       if (!res.success) throw new Error(res.error.message);
