@@ -131,7 +131,8 @@ describe("renderFacilityAgreementDocx", () => {
     expect(plain).toContain("Siti Binti Ahmad");
     expect(plain).toContain("HOLDCO ONE SDN. BHD.");
     expect(plain).toContain("Name of Witness:");
-    expect(plain).toContain("{drawdown_fee}");
+    expect(plain).toContain("As prescribed in the Letter of Offer");
+    expect(plain).not.toContain("{drawdown_fee}");
     expect(plain).not.toContain("{#issuer_signatories}");
   });
 
@@ -145,26 +146,43 @@ describe("renderFacilityAgreementDocx", () => {
     expect(plain).toContain("{financing_limit_rm}");
   });
 
-  it("leaves Schedules 4 to 9 as in the clean copy, with no merge tags", () => {
+  it("fills Schedule 9 Appendix 1 date and issuer particulars, leaving other utilisation forms untagged", () => {
     const zip = new PizZip(readFacilityAgreementTemplateBytes());
     const xml = zip.file("word/document.xml")?.asText() ?? "";
     const plain = wordPlainText(xml);
     const scheduleStart = plain.indexOf("SCHEDULE 4");
     expect(scheduleStart).toBeGreaterThan(-1);
     const schedules = plain.slice(scheduleStart);
+    const appendixStart = schedules.indexOf("APPENDIX 1");
+    expect(appendixStart).toBeGreaterThan(-1);
+    const beforeAppendix = schedules.slice(0, appendixStart);
+    const appendix = schedules.slice(appendixStart);
 
     expect(schedules).toContain("SCHEDULE 9");
-    expect(schedules).not.toMatch(/\{[#/]?[A-Za-z][A-Za-z0-9_]*\}/);
+    expect(beforeAppendix).not.toMatch(/\{[#/]?[A-Za-z][A-Za-z0-9_]*\}/);
+    expect(appendix).toContain("{facility_agreement_date}");
+    expect(appendix).toContain(
+      "{issuer_name} (Company No. {issuer_registration_number}) of {issuer_address}"
+    );
+    expect(appendix).toContain("Shariah compliant commodities as per the e-certificate attached");
+    expect(appendix).toContain("The amount equivalent to the Principal Amount");
     expect(schedules).toContain("[ISSUER NAME]");
     expect(schedules).toContain("[Issuer’s Address]");
     expect(schedules).toContain("Issuer : [●]");
     expect(schedules).toContain("Facility: [●]");
     expect(schedules).toContain("[ISSUER]");
 
-    const rendered = wordPlainText(renderedXml(createFacilityAgreementFixture()));
+    expect(runContaining(xml, "{facility_agreement_date}")).toContain('w:val="yellow"');
+
+    const data = createFacilityAgreementFixture();
+    const rendered = wordPlainText(renderedXml(data));
     const renderedSchedules = rendered.slice(rendered.indexOf("SCHEDULE 4"));
+    const renderedAppendix = renderedSchedules.slice(renderedSchedules.indexOf("APPENDIX 1"));
+    expect(renderedAppendix).toContain(data.facility_agreement_date);
+    expect(renderedAppendix).toContain(
+      `${data.issuer_name} (Company No. ${data.issuer_registration_number}) of ${data.issuer_address}`
+    );
     expect(renderedSchedules).toContain("[ISSUER NAME]");
     expect(renderedSchedules).toContain("Issuer : [●]");
-    expect(renderedSchedules).not.toContain(createFacilityAgreementFixture().issuer_name);
   });
 });

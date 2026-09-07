@@ -12,6 +12,7 @@ import {
 import {
   authorizedRepresentativeCapacityLabel,
   documentCanonicalReference,
+  FA_DRAWDOWN_FEE_AS_PRESCRIBED,
   getIssuerAuthorizedParty,
   getLoAuthorizedPartiesFromAcceptance,
   getOfferAcceptanceFromOfferDetails,
@@ -160,7 +161,6 @@ export function buildFacilityAgreementMergeData(
     financing_limit_rm: "",
     sub_limit_per_invoice_rm: "",
     facility_fee_rate_percent: "",
-    drawdown_fee: "",
     trustee_disclosure_email: "",
     issuer_bank_name: "",
     issuer_bank_account_number: "",
@@ -197,8 +197,6 @@ export function buildFacilityAgreementMergeData(
     input.offerKind === "contract"
       ? asNumber(offer?.facility_fee_rate_percent) ?? asNumber(contractDetails?.facility_fee_rate_percent)
       : null;
-  const drawdownFeeRate =
-    input.offerKind === "invoice" ? asNumber(offer?.platform_fee_rate_percent) : null;
 
   const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
   const authorizedParties = getLoAuthorizedPartiesFromAcceptance(acceptance);
@@ -229,7 +227,7 @@ export function buildFacilityAgreementMergeData(
     financing_limit_rm: amountRm,
     sub_limit_per_invoice_rm: subLimitFormatted,
     facility_fee_rate_percent: formatPercent(facilityFeeRate),
-    drawdown_fee: formatPercent(drawdownFeeRate),
+    drawdown_fee: FA_DRAWDOWN_FEE_AS_PRESCRIBED,
     trustee_disclosure_email: asString(input.trusteeDisclosureEmail),
     ...bank,
     guarantors_individual: mapIndividualGuarantors(liveGuarantors),

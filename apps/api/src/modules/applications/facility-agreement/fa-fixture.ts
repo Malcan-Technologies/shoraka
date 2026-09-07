@@ -1,4 +1,4 @@
-import type { FacilityAgreementMergeData } from "./fa-merge.types";
+import { FA_DRAWDOWN_FEE_AS_PRESCRIBED, type FacilityAgreementMergeData } from "./fa-merge.types";
 
 /** Default values for Facility Agreement render tests (not production generate). */
 export function createFacilityAgreementFixture(): FacilityAgreementMergeData {
@@ -15,7 +15,7 @@ export function createFacilityAgreementFixture(): FacilityAgreementMergeData {
     financing_limit_rm: "RM 1,000,000.00",
     sub_limit_per_invoice_rm: "RM 250,000.00",
     facility_fee_rate_percent: "1%",
-    drawdown_fee: "{drawdown_fee}",
+    drawdown_fee: FA_DRAWDOWN_FEE_AS_PRESCRIBED,
     trustee_disclosure_email: "trustee@example.com",
     issuer_bank_name: "Maybank",
     issuer_bank_account_number: "1234567890",

@@ -6,7 +6,8 @@
  * original ISSUER heading, SIGNED BY line, and “for and on behalf of” lines
  * are kept (the execution brace drawing is removed). Each signatory sits beside one wet-ink witness (JSG two-column
  * table), with page breaks so ISSUER execution is not shared with Schedule 1.
- * Schedules 4 to 9 are copied unchanged from the clean copy (no merge tags).
+ * Schedules 4 to 8 stay unchanged. Schedule 9 Appendix 1 fills the Facility
+ * Agreement date and issuer particulars; remaining schedule placeholders stay.
  *
  * Usage: pnpm --filter @cashsouk/api retag-fa-template
  */
@@ -566,6 +567,80 @@ function leftoverPlaceholders(xml: string): string[] {
   return found;
 }
 
+const APPENDIX1_ISSUER_PARTICULARS =
+  "{issuer_name} (Company No. {issuer_registration_number}) of {issuer_address}";
+
+const APPENDIX1_ALLOWED_TAGS = [
+  "{facility_agreement_date}",
+  "{issuer_name}",
+  "{issuer_registration_number}",
+  "{issuer_address}",
+] as const;
+
+function findTables(xml: string): Array<{ start: number; end: number }> {
+  const tables: Array<{ start: number; end: number }> = [];
+  let searchFrom = 0;
+  while (searchFrom < xml.length) {
+    const start = xml.indexOf("<w:tbl", searchFrom);
+    if (start < 0) break;
+    const end = xml.indexOf("</w:tbl>", start);
+    if (end < 0) throw new Error("Unclosed table in document.xml");
+    tables.push({ start, end: end + "</w:tbl>".length });
+    searchFrom = end + 8;
+  }
+  return tables;
+}
+
+function tagAppendix1Particulars(xml: string): string {
+  const tables = findTables(xml);
+  for (const table of tables) {
+    const tbl = xml.slice(table.start, table.end);
+    if (!tbl.includes("DAY AND YEAR OF THE FACILITY AGREEMENT")) continue;
+    if (!tbl.includes("NAME AND PARTICULAR OF THE ISSUER")) continue;
+
+    const nextTbl = tbl.replace(/<w:tr\b[\s\S]*?<\/w:tr>/g, (row) => {
+      const itemText = compactParagraphText(paragraphPlainText(row));
+      let fill: string | null = null;
+      if (itemText.includes("DAY AND YEAR OF THE FACILITY AGREEMENT")) {
+        fill = "{facility_agreement_date}";
+      } else if (itemText.includes("NAME AND PARTICULAR OF THE ISSUER")) {
+        fill = APPENDIX1_ISSUER_PARTICULARS;
+      }
+      if (!fill) return row;
+
+      const cells = [...row.matchAll(/<w:tc\b[\s\S]*?<\/w:tc>/g)];
+      const last = cells[cells.length - 1];
+      if (!last || last.index == null) {
+        throw new Error("Appendix 1 row is missing a Particulars cell");
+      }
+      const particulars = last[0];
+      const existing = compactParagraphText(paragraphPlainText(particulars));
+      if (existing) {
+        throw new Error(`Appendix 1 particulars cell was not empty: ${JSON.stringify(existing)}`);
+      }
+      let replaced = false;
+      const tagged = particulars.replace(WORD_PARAGRAPH_RE, (pXml) => {
+        if (replaced) return pXml;
+        replaced = true;
+        return rewriteParagraphText(pXml, fill!);
+      });
+      if (!replaced) {
+        throw new Error("Appendix 1 particulars cell has no paragraph to tag");
+      }
+      return row.slice(0, last.index) + tagged + row.slice(last.index + particulars.length);
+    });
+
+    if (
+      !nextTbl.includes("{facility_agreement_date}") ||
+      !nextTbl.includes("{issuer_registration_number}")
+    ) {
+      throw new Error("Appendix 1 date and issuer particulars were not tagged");
+    }
+    return xml.slice(0, table.start) + nextTbl + xml.slice(table.end);
+  }
+  throw new Error("Could not find Appendix 1 particulars table");
+}
+
 function splitAtSchedule4(xml: string): { before: string; fromSchedule4: string } {
   const matches = [...xml.matchAll(WORD_PARAGRAPH_RE)];
   for (const match of matches) {
@@ -594,10 +669,13 @@ function main(): void {
   const cleanXml = cleanZip.file("word/document.xml")?.asText();
   if (!cleanXml) throw new Error("Clean copy is missing word/document.xml");
 
-  const { before, fromSchedule4 } = splitAtSchedule4(cleanXml);
-  if (!fromSchedule4.includes("SCHEDULE 9")) {
+  const { before, fromSchedule4: scheduleSlice } = splitAtSchedule4(cleanXml);
+  if (!scheduleSlice.includes("SCHEDULE 9")) {
     throw new Error("Clean copy slice after SCHEDULE 4 is missing SCHEDULE 9");
   }
+
+  let fromSchedule4 = tagAppendix1Particulars(scheduleSlice);
+  fromSchedule4 = ensureYellowOnValueTagRuns(fromSchedule4);
 
   let taggedHead = stripYellowHighlights(before);
   taggedHead = rewriteBodyParagraphs(taggedHead);
@@ -612,7 +690,7 @@ function main(): void {
   if (!taggedHead.includes('w:val="yellow"')) {
     throw new Error("Tagged document has no yellow highlighting on merge tags");
   }
-  const unhighlighted = valueTagsMissingHighlight(taggedHead);
+  const unhighlighted = valueTagsMissingHighlight(taggedHead + fromSchedule4);
   if (unhighlighted.length > 0) {
     throw new Error(`Value merge tags missing yellow highlight: ${unhighlighted.join(", ")}`);
   }
@@ -621,8 +699,16 @@ function main(): void {
     throw new Error(`Leftover placeholders before SCHEDULE 4: ${leftovers.join(", ")}`);
   }
   const scheduleTags = mergeTagsInXml(fromSchedule4);
-  if (scheduleTags.length > 0) {
-    throw new Error(`Schedules 4–9 must stay untagged: ${scheduleTags.join(", ")}`);
+  const unexpectedScheduleTags = scheduleTags.filter(
+    (tag) => !(APPENDIX1_ALLOWED_TAGS as readonly string[]).includes(tag)
+  );
+  if (unexpectedScheduleTags.length > 0) {
+    throw new Error(`Schedules 4–9 have unexpected merge tags: ${unexpectedScheduleTags.join(", ")}`);
+  }
+  for (const tag of APPENDIX1_ALLOWED_TAGS) {
+    if (!fromSchedule4.includes(tag)) {
+      throw new Error(`Appendix 1 is missing ${tag}`);
+    }
   }
   if (!taggedHead.includes("INVESTOR") || !taggedHead.includes("AGENT")) {
     throw new Error("Investor/Agent execution blocks were removed");

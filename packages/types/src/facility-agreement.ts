@@ -9,6 +9,9 @@ import type {
   ContractFacilityLoIndividualGuarantor,
 } from "./contract-facility-lo";
 
+/** Schedule 2 Drawdown Fee. Quantum lives in the Letter of Offer, not the FA. */
+export const FA_DRAWDOWN_FEE_AS_PRESCRIBED = "As prescribed in the Letter of Offer";
+
 export type FacilityAgreementIssuerSignatory = {
   name: string;
   designation: string;

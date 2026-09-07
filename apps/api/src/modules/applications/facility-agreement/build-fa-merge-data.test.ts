@@ -96,7 +96,7 @@ describe("buildFacilityAgreementMergeData", () => {
     expect(data.financing_limit_rm).toBe("RM 1,000,000.00");
     expect(data.sub_limit_per_invoice_rm).toBe("RM 250,000.00");
     expect(data.facility_fee_rate_percent).toBe("1%");
-    expect(data.drawdown_fee).toBe("");
+    expect(data.drawdown_fee).toBe("As prescribed in the Letter of Offer");
     expect(data.facility_agreement_date).toBe("4 September 2026");
     expect(data.issuer_bank_name).toBe("Maybank");
     expect(data.issuer_bank_account_name).toBe("Issuer Co");
@@ -110,7 +110,7 @@ describe("buildFacilityAgreementMergeData", () => {
     expect(data.guarantors_individual[0]?.name).toBe("Ali Bin Abu");
   });
 
-  it("uses invoice offered amount and platform fee as the invoice-offer terms", () => {
+  it("uses invoice offered amount and points drawdown fee at the Letter of Offer", () => {
     const data = buildFacilityAgreementMergeData({
       offerKind: "invoice",
       generatedAt: "2026-09-04T02:00:00.000Z",
@@ -142,7 +142,7 @@ describe("buildFacilityAgreementMergeData", () => {
     expect(data.letter_date).toBe("20 August 2026");
     expect(data.financing_limit_rm).toBe("RM 180,000.00");
     expect(data.sub_limit_per_invoice_rm).toBe("RM 180,000.00");
-    expect(data.drawdown_fee).toBe("1.5%");
+    expect(data.drawdown_fee).toBe("As prescribed in the Letter of Offer");
     expect(data.facility_fee_rate_percent).toBe("");
     expect(data.facility_agreement_date).toBe("4 September 2026");
     expect(data.issuer_bank_account_number).toBe("1234567890");
