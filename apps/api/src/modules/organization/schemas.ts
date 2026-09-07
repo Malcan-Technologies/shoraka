@@ -205,6 +205,7 @@ export const updateCorporateInfoSchema = z
     entityType: z.string().optional().nullable(),
     businessName: z.string().optional().nullable(),
     website: z.string().max(500).optional().nullable(),
+    annualRevenue: z.string().max(100).optional().nullable(),
     numberOfEmployees: z.number().int().nonnegative().optional().nullable(),
     ssmRegisterNumber: z.string().optional().nullable(),
     businessAddress: addressSchema.optional().nullable(),

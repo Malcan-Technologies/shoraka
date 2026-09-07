@@ -760,6 +760,7 @@ export class OrganizationRepository {
       businessName?: string | null;
       numberOfEmployees?: number | null;
       website?: string | null;
+      annualRevenue?: string | null;
       ssmRegisterNumber?: string | null;
       businessAddress?: {
         line1?: string | null;
@@ -795,6 +796,7 @@ export class OrganizationRepository {
           numberOfEmployees: data.numberOfEmployees,
         }),
         ...(data.website !== undefined && { website: data.website }),
+        ...(data.annualRevenue !== undefined && { annualRevenue: data.annualRevenue }),
         ...(data.ssmRegisterNumber !== undefined && {
           ssmRegisterNumber: data.ssmRegisterNumber,
         }),

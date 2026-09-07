@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
+import { omitRecordId } from "@cashsouk/types";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import { EmptyState, Tabs, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
@@ -196,8 +197,7 @@ export function ShorakaRecordSection<T extends { id?: string }>({
                     onClick={async () => {
                       try {
                         setSaving(true);
-                        const body = { ...editing } as Record<string, unknown>;
-                        delete body.id;
+                        const body = omitRecordId({ ...editing } as Record<string, unknown>);
                         if (mode === "add" || !editing.id) await onCreate(body);
                         else await onUpdate(editing.id, body);
                         setEditing(null);

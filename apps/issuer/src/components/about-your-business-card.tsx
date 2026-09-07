@@ -7,8 +7,6 @@ import {
   type AboutYourBusiness,
 } from "@cashsouk/types";
 import { BriefcaseIcon, PencilIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import { useQuery } from "@tanstack/react-query";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,8 +20,6 @@ import {
   formLabelClassName,
   formTextareaClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 interface AboutYourBusinessCardProps {
   organizationId: string;
@@ -107,20 +103,7 @@ export function AboutYourBusinessCard({
   organizationId,
   canEdit = true,
 }: AboutYourBusinessCardProps) {
-  const { getAccessToken } = useAuthToken();
-  const api = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const { corporateInfo, isLoading, update, isUpdating } = useCorporateInfo(organizationId);
-  const completenessQuery = useQuery({
-    queryKey: ["issuer", "profile-completeness", organizationId],
-    queryFn: async () => {
-      const res = await api.getProfileCompleteness("issuer", organizationId);
-      if (!res.success) throw new Error(res.error.message);
-      return res.data;
-    },
-  });
-  const activitiesMissing = (completenessQuery.data?.missing ?? []).some(
-    (item) => item.field === "companyActivities"
-  );
   const [isEditing, setIsEditing] = React.useState(false);
   const [draft, setDraft] = React.useState<AboutYourBusiness>(emptyDraft);
 
@@ -211,14 +194,10 @@ export function AboutYourBusinessCard({
             }
             placeholder="Add details"
             maxLength={ABOUT_YOUR_BUSINESS_LIMITS.whatDoesCompanyDo}
-            className={cn(
-              textareaClassName,
-              activitiesMissing && "border-status-action-text/40"
-            )}
+            className={textareaClassName}
             countLabel={`${draft.whatDoesCompanyDo.length}/${ABOUT_YOUR_BUSINESS_LIMITS.whatDoesCompanyDo} characters`}
             disabled={fieldsLocked}
           />
-          {activitiesMissing ? <p className="text-meta text-status-action-text">Required</p> : null}
         </div>
         <div className="space-y-2">
           <Label htmlFor="profile-main-customers" className={formLabelClassName}>

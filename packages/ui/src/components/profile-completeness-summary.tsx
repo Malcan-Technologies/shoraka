@@ -39,7 +39,7 @@ export function ProfileCompletenessSummary({
         ) : (
           <StatusBadge
             status="action"
-            label={`${remaining} required ${remaining === 1 ? "item" : "items"} remaining`}
+            label={`${remaining} ${remaining === 1 ? "item" : "items"} remaining`}
           />
         )}
       </div>

@@ -7,6 +7,7 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   SC_COMPANY_TYPE_LABELS,
   SC_COMPANY_TYPES,
+  scAppendixASelectValues,
   type ScCompanyType,
 } from "@cashsouk/types";
 import { ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
@@ -101,6 +102,7 @@ export function IssuerCompanyDetailsCard({
   const [companyEmail, setCompanyEmail] = React.useState(org.companyEmail ?? "");
   const [phoneNumber, setPhoneNumber] = React.useState(org.phoneNumber ?? "");
   const [website, setWebsite] = React.useState(basic?.website ?? "");
+  const [annualRevenue, setAnnualRevenue] = React.useState(basic?.annualRevenue ?? "");
 
   React.useEffect(() => {
     if (isEditing) return;
@@ -113,6 +115,7 @@ export function IssuerCompanyDetailsCard({
     setCompanyEmail(org.companyEmail ?? "");
     setPhoneNumber(org.phoneNumber ?? "");
     setWebsite(basic?.website ?? "");
+    setAnnualRevenue(basic?.annualRevenue ?? "");
   }, [basic, isEditing, org]);
 
   const companyTypeLabel =
@@ -131,8 +134,10 @@ export function IssuerCompanyDetailsCard({
         master.countryOfIncorporation = countryOfIncorporation.trim();
       }
       if (!org.scCompanyType && scCompanyType) master.scCompanyType = scCompanyType;
-      if (!org.companyEmail && companyEmail.trim()) master.companyEmail = companyEmail.trim();
-      if (!org.phoneNumber && phoneNumber.trim()) master.phoneNumber = phoneNumber.trim();
+      if (companyEmail.trim()) master.companyEmail = companyEmail.trim();
+      else if (org.companyEmail) master.companyEmail = "";
+      if (phoneNumber.trim()) master.phoneNumber = phoneNumber.trim();
+      else if (org.phoneNumber) master.phoneNumber = "";
 
       if (Object.keys(master).length > 0) {
         const res = await api.patchMasterProfile("issuer", organizationId, master);
@@ -147,6 +152,7 @@ export function IssuerCompanyDetailsCard({
         industry: industry.trim() || null,
         numberOfEmployees: nextEmployees,
         website: website.trim() || null,
+        annualRevenue: annualRevenue.trim() || null,
       });
       if (!corp.success) throw new Error(corp.error.message);
     },
@@ -223,7 +229,7 @@ export function IssuerCompanyDetailsCard({
             />
           )}
           {isEditing && !org.countryOfIncorporation ? (
-            <InputRow
+            <CountrySelectRow
               label="Country of Incorporation"
               value={countryOfIncorporation}
               onChange={setCountryOfIncorporation}
@@ -252,29 +258,31 @@ export function IssuerCompanyDetailsCard({
               )}
             />
           )}
-          <ProfileReadField label="Annual Revenue" value={displayProfileValue(basic?.annualRevenue)} locked />
+          {isEditing ? (
+            <InputRow label="Annual Revenue" value={annualRevenue} onChange={setAnnualRevenue} />
+          ) : (
+            <ProfileReadField label="Annual Revenue" value={displayProfileValue(basic?.annualRevenue)} />
+          )}
           {isEditing ? (
             <InputRow label="Website" value={website} onChange={setWebsite} />
           ) : (
             <ProfileReadField label="Website" value={displayProfileValue(basic?.website)} />
           )}
-          {isEditing && !org.companyEmail ? (
+          {isEditing ? (
             <InputRow label="Company Email" value={companyEmail} onChange={setCompanyEmail} />
           ) : (
             <ProfileReadField
               label="Company Email"
               value={displayProfileValue(org.companyEmail)}
-              locked={Boolean(org.companyEmail)}
               missing={missing.has("companyEmail")}
             />
           )}
-          {isEditing && !org.phoneNumber ? (
+          {isEditing ? (
             <InputRow label="Phone" value={phoneNumber} onChange={setPhoneNumber} />
           ) : (
             <ProfileReadField
               label="Phone"
               value={displayProfileValue(org.phoneNumber)}
-              locked={Boolean(org.phoneNumber)}
               missing={missing.has("phoneNumber")}
             />
           )}
@@ -310,6 +318,34 @@ function InputRow({
     <div className="space-y-2">
       <Label className="text-ui font-medium">{label}</Label>
       <Input className="h-11 text-ui" type={type} value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function CountrySelectRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-ui font-medium">{label}</Label>
+      <Select value={value || undefined} onValueChange={onChange}>
+        <SelectTrigger className="h-11 text-ui">
+          <SelectValue placeholder="Select" />
+        </SelectTrigger>
+        <SelectContent className="max-h-72">
+          {scAppendixASelectValues(value).map((country) => (
+            <SelectItem key={country} value={country}>
+              {country}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

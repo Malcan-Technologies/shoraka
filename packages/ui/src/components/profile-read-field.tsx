@@ -38,7 +38,7 @@ export function ProfileReadField({
         )}
       >
         <span className={cn("min-w-0 break-words", empty && "text-muted-foreground")}>
-          {empty ? "—" : value}
+          {empty ? null : value}
         </span>
       </div>
       {missing ? <p className="text-meta text-status-action-text">Required</p> : null}

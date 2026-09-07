@@ -503,6 +503,7 @@ model OperatorProfile {
   name                        String?
   registration_number         String?
   trustee_registration_number String?
+  sc_company_type             ScCompanyType?
   responsible_person_name     String?
   responsible_person_phone    String?
   created_at                  DateTime                     @default(now())

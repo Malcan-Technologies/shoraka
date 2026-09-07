@@ -2,6 +2,10 @@
  * SC ComRep enumerations and CashSouk master-profile completeness.
  * Annual RMO Information Report tables are [01000]–[11000]; issuer/investor
  * profile completeness uses monthly P2P [02000], [05000], [06000], [07000], [09000], [09100].
+ *
+ * Issuer [02000] "Issuer ID (if any)" and [02000] Company Activities are not
+ * completeness blockers: the former is explicitly "if any"; the latter's
+ * fundraising-purpose wording is not equated with the profile business narrative.
  */
 
 export const SC_COMPANY_CATEGORIES = ["TECHNOLOGY", "NON_TECHNOLOGY"] as const;
@@ -333,6 +337,13 @@ export const SC_COMPANY_TYPE_LABELS: Record<ScCompanyType, string> = {
 export const SC_SHARE_TYPE_LABELS: Record<ScShareType, string> = {
   ORDINARY: "Ordinary shares",
   PREFERENCE: "Preference shares",
+  OTHERS: "Others",
+};
+
+/** Annual RMO [10000] Interest in Other Company uses Ordinary / Preference / Others. */
+export const SC_INTEREST_SHARE_TYPE_LABELS: Record<ScShareType, string> = {
+  ORDINARY: "Ordinary",
+  PREFERENCE: "Preference",
   OTHERS: "Others",
 };
 
@@ -941,6 +952,9 @@ function withUserFacingCompleteness(
   };
 }
 
+/** Platform completeness for issuer company master data. Issuer ID (if any) and Company Activities are not counted. */
+export const ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT = 14;
+
 export function computeIssuerCompanyCompleteness(
   input: IssuerCompanyCompletenessInput
 ): ProfileMissingItem[] {
@@ -948,7 +962,6 @@ export function computeIssuerCompanyCompleteness(
   const step: ComrepProfileStepId = "company";
   if (!hasText(input.name)) pushMissing(missing, step, "name", "Name of issuer");
   if (!hasText(input.registrationNumber)) pushMissing(missing, step, "registrationNumber", "Issuer ROC");
-  if (!hasText(input.organizationId)) pushMissing(missing, step, "organizationId", "Issuer ID");
   if (!hasDate(input.dateOfIncorporation)) {
     pushMissing(missing, step, "dateOfIncorporation", "Date of incorporation");
   }
@@ -981,9 +994,6 @@ export function computeIssuerCompanyCompleteness(
   }
   if (!hasText(input.phoneNumber)) pushMissing(missing, step, "phoneNumber", "Phone number");
   if (!hasText(input.companyEmail)) pushMissing(missing, step, "companyEmail", "E-mail address");
-  if (!hasText(input.companyActivities)) {
-    pushMissing(missing, step, "companyActivities", "Company activities");
-  }
   return missing;
 }
 
@@ -1194,7 +1204,7 @@ export function buildIssuerProfileCompleteness(input: {
   financials: IssuerFinancialCompletenessInput | null | undefined;
 }): ComrepProfileCompleteness {
   const companyMissing = computeIssuerCompanyCompleteness(input.company);
-  const companyRequired = 16;
+  const companyRequired = ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT;
   const shareholderMissing = input.shareholders.flatMap(computeShareholderCompleteness);
   const shareholderFieldCount = input.shareholders.length === 0 ? 1 : input.shareholders.length * 14;
   const boardMissing = input.board.flatMap(computeBoardCompleteness);

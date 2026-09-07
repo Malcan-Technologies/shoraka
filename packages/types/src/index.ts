@@ -580,6 +580,8 @@ export * from "./gateway-recon";
 export * from "./marc-credit-grade";
 export * from "./paymaster";
 export * from "./comrep-profile";
+export * from "./comrep-normalization";
+export * from "./sc-appendix-a-countries";
 export * from "./organization-party-profile";
 export * from "./organization-party-key";
 export * from "./operator-profile";

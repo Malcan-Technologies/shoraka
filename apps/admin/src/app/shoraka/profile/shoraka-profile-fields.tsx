@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { OperatorProfileDto } from "@cashsouk/types";
+import { scAppendixASelectValues, type OperatorProfileDto } from "@cashsouk/types";
 
 export function toDateInput(value: string | null | undefined): string {
   if (!value) return "";
@@ -50,31 +50,20 @@ export function emptyCapital(): NonNullable<OperatorProfileDto["shareCapital"]> 
   };
 }
 
-export function hasLlpCapital(cap: OperatorProfileDto["shareCapital"]): boolean {
-  if (!cap) return false;
-  return Boolean(
-    cap.llpMembersCapitalUnits ||
-      cap.llpMembersCapitalAmount ||
-      cap.llpMembersReservesUnits ||
-      cap.llpMembersReservesAmount ||
-      cap.llpSubordinatedLoansUnits ||
-      cap.llpSubordinatedLoansAmount ||
-      cap.totalLlp
-  );
-}
-
 export function ShorakaField({
   label,
   value,
   onChange,
   disabled,
   type = "text",
+  hint,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
   type?: string;
+  hint?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -86,6 +75,7 @@ export function ShorakaField({
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
       />
+      {hint ? <p className="text-meta text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
@@ -97,6 +87,7 @@ export function ShorakaEnumSelect<T extends string>({
   labels,
   onChange,
   disabled,
+  hint,
 }: {
   label: string;
   value: T | "";
@@ -104,6 +95,7 @@ export function ShorakaEnumSelect<T extends string>({
   labels: Record<T, string>;
   onChange: (v: T) => void;
   disabled?: boolean;
+  hint?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -116,6 +108,41 @@ export function ShorakaEnumSelect<T extends string>({
           {options.map((opt) => (
             <SelectItem key={opt} value={opt}>
               {labels[opt]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {hint ? <p className="text-meta text-muted-foreground">{hint}</p> : null}
+    </div>
+  );
+}
+
+export function ShorakaCountrySelect({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-ui font-medium">{label}</Label>
+      <Select
+        value={value || undefined}
+        onValueChange={onChange}
+        disabled={disabled}
+      >
+        <SelectTrigger className="h-11 text-ui">
+          <SelectValue placeholder="Select" />
+        </SelectTrigger>
+        <SelectContent className="max-h-72">
+          {scAppendixASelectValues(value).map((country) => (
+            <SelectItem key={country} value={country}>
+              {country}
             </SelectItem>
           ))}
         </SelectContent>
