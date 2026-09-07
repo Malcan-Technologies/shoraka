@@ -4,7 +4,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { firstIssueMessage, SC_MONTHLY_INVESTOR, scAppendixASelectValues, validateInvestorCorporateForm } from "@cashsouk/types";
+import { firstIssueMessage, humanizeApiValidationMessage, isProfileValidationError, issuesByField, profileValidationErrorFromApi, SC_MONTHLY_INVESTOR, scAppendixASelectValues, validateInvestorCorporateForm } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,7 @@ export function InvestorCompanyDetailsCard({
   const [isEditing, setIsEditing] = React.useState(false);
   const [dateValue, setDateValue] = React.useState(toDateInput(dateOfIncorporation));
   const [country, setCountry] = React.useState(countryOfIncorporation ?? "");
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
     if (isEditing) return;
@@ -75,14 +76,16 @@ export function InvestorCompanyDetailsCard({
         countryOfIncorporation: countryOfIncorporation ?? country,
       });
       if (issues.length > 0) {
-        throw new Error(firstIssueMessage(issues) ?? "Complete the required fields.");
+        setFieldErrors(issuesByField(issues));
+        throw new Error(firstIssueMessage(issues) ?? "Please check the highlighted fields.");
       }
+      setFieldErrors({});
       const master: Record<string, unknown> = {};
       if (!dateOfIncorporation) master.dateOfIncorporation = dateValue.trim();
       if (!countryOfIncorporation) master.countryOfIncorporation = country.trim();
       if (Object.keys(master).length === 0) return;
       const res = await api.patchMasterProfile("investor", organizationId, master);
-      if (!res.success) throw new Error(res.error.message);
+      if (!res.success) throw profileValidationErrorFromApi(res.error);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
@@ -90,7 +93,10 @@ export function InvestorCompanyDetailsCard({
       toast.success("Company details updated");
       setIsEditing(false);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => {
+      if (isProfileValidationError(err)) setFieldErrors(err.fieldErrors);
+      toast.error(humanizeApiValidationMessage(err.message));
+    },
   });
 
   return (
@@ -142,8 +148,14 @@ export function InvestorCompanyDetailsCard({
                 className="h-11 text-ui"
                 type="date"
                 value={dateValue}
-                onChange={(event) => setDateValue(event.target.value)}
+                onChange={(event) => {
+                  setDateValue(event.target.value);
+                  setFieldErrors((current) => ({ ...current, dateOfIncorporation: "" }));
+                }}
               />
+              {fieldErrors.dateOfIncorporation ? (
+                <p className="text-meta text-destructive">{fieldErrors.dateOfIncorporation}</p>
+              ) : null}
             </div>
           ) : (
             <ProfileReadField
@@ -162,7 +174,13 @@ export function InvestorCompanyDetailsCard({
                 required
                 help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
               />
-              <Select value={country || undefined} onValueChange={setCountry}>
+              <Select
+                value={country || undefined}
+                onValueChange={(value) => {
+                  setCountry(value);
+                  setFieldErrors((current) => ({ ...current, countryOfIncorporation: "" }));
+                }}
+              >
                 <SelectTrigger className="h-11 text-ui">
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
@@ -174,6 +192,9 @@ export function InvestorCompanyDetailsCard({
                   ))}
                 </SelectContent>
               </Select>
+              {fieldErrors.countryOfIncorporation ? (
+                <p className="text-meta text-destructive">{fieldErrors.countryOfIncorporation}</p>
+              ) : null}
             </div>
           ) : (
             <ProfileReadField

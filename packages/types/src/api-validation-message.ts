@@ -1,5 +1,6 @@
 /** Strip `responsiblePersonPhone: ` / `address.postalCode: ` prefixes from API toasts. */
-const FIELD_PATH_PREFIX = /^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*:\s+/;
+const FIELD_PATH_PREFIX =
+  /^(?<path>[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*):\s+(?<rest>[\s\S]+)$/;
 
 const TECHNICAL_ENUM = /^Invalid enum value/i;
 const TECHNICAL_LITERAL = /^Invalid literal/i;
@@ -7,16 +8,33 @@ const TECHNICAL_EMAIL = /^Invalid email/i;
 const TECHNICAL_PHONE = /^Invalid phone number format$/i;
 
 export function stripApiFieldPathPrefix(message: string): string {
-  return message.replace(FIELD_PATH_PREFIX, "");
+  const match = FIELD_PATH_PREFIX.exec(message.trim());
+  return match?.groups?.rest ?? message.trim();
 }
 
-export function humanizeApiValidationMessage(message: string): string {
-  const stripped = stripApiFieldPathPrefix(message.trim());
+function isContactPhonePath(path: string): boolean {
+  return /responsiblePersonPhone|contactNumber|^contact$/i.test(path);
+}
+
+export function humanizeApiValidationMessage(message: string, fieldPath?: string): string {
+  const trimmed = message.trim();
+  const match = FIELD_PATH_PREFIX.exec(trimmed);
+  const path = fieldPath || match?.groups?.path || "";
+  const stripped = match?.groups?.rest ?? trimmed;
   if (!stripped) return "Please check the highlighted fields.";
   if (TECHNICAL_ENUM.test(stripped) || TECHNICAL_LITERAL.test(stripped)) {
     return "Select a valid option.";
   }
   if (TECHNICAL_EMAIL.test(stripped)) return "Enter a valid e-mail address.";
+  if (
+    (isContactPhonePath(path) || /^responsiblePersonPhone\b/i.test(trimmed)) &&
+    /is required/i.test(stripped)
+  ) {
+    return "Contact Number is required.";
+  }
+  if (isContactPhonePath(path) && /valid phone number/i.test(stripped)) {
+    return "Enter a valid contact number.";
+  }
   if (TECHNICAL_PHONE.test(stripped)) return "Enter a valid phone number.";
   return stripped;
 }
@@ -31,7 +49,7 @@ export function fieldErrorsFromApiDetails(details: unknown): Record<string, stri
     const path = record.path
       .filter((part): part is string | number => typeof part === "string" || typeof part === "number")
       .join(".");
-    const message = humanizeApiValidationMessage(record.message);
+    const message = humanizeApiValidationMessage(record.message, path);
     if (!path || !message || map[path]) continue;
     map[path] = message;
   }

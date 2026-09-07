@@ -23,6 +23,7 @@ import {
   type ApplicationPersonRow,
   type DirectorShareholderListSource,
   type OrganizationPartyProfileDto,
+  profileValidationErrorFromApi,
 } from "@cashsouk/types";
 import { DirectorShareholderCtosEmptyAlert } from "./director-shareholder-ctos-empty-alert";
 import { DirectorShareholderUnresolvedIdentitySection } from "./director-shareholder-unresolved-identity-card";
@@ -122,7 +123,7 @@ export function PortalPeopleSection({
 
   const loadParties = React.useCallback(async () => {
     const res = await api.getPartyProfiles(portal, organizationId);
-    if (!res.success) throw new Error(res.error.message);
+    if (!res.success) throw profileValidationErrorFromApi(res.error);
     setParties(res.data.filter((party) => party.membershipStatus === "MASTER_ACTIVE"));
   }, [api, organizationId, portal]);
 
@@ -377,7 +378,7 @@ export function PortalPeopleSection({
             }}
             onSave={async (data) => {
               const res = await api.createManagementParty(portal, organizationId, data);
-              if (!res.success) throw new Error(res.error.message);
+              if (!res.success) throw profileValidationErrorFromApi(res.error);
               toast.success("Person added");
               setAddOpen(false);
               await invalidate();
@@ -431,7 +432,7 @@ export function PortalPeopleSection({
               onCancel={() => setEditPartyId(null)}
               onSave={async (data) => {
                 const res = await api.patchPartyProfile(portal, organizationId, editing.id, data);
-                if (!res.success) throw new Error(res.error.message);
+                if (!res.success) throw profileValidationErrorFromApi(res.error);
                 toast.success("Person updated");
                 setEditPartyId(null);
                 await invalidate();

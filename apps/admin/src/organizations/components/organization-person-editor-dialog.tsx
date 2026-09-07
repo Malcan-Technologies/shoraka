@@ -6,8 +6,12 @@ import type { ApplicationPersonRow, OrganizationPartyProfileDto } from "@cashsou
 import {
   firstIssueMessage,
   isIssuerOfficerRole,
+  isProfileValidationError,
   issuerShareholdingThresholdIssue,
+  issuesByField,
   monthlyIssuerPersonCopy,
+  restrictScIdentityInput,
+  restrictScPostcodeInput,
   SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
@@ -173,9 +177,13 @@ export function OrganizationPersonEditorDialog({
   enforceIssuerShareholderMinimum?: boolean;
 }) {
   const [values, setValues] = React.useState<PartyEditorValues>(initial ?? emptyValues);
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
-    if (open) setValues(initial ?? emptyValues);
+    if (open) {
+      setValues(initial ?? emptyValues);
+      setFieldErrors({});
+    }
   }, [open, initial]);
 
   const set = <K extends keyof PartyEditorValues>(key: K, value: PartyEditorValues[K]) => {
@@ -201,6 +209,8 @@ export function OrganizationPersonEditorDialog({
             onChange={(name) => set("name", name)}
             required
             help={copy.name.help}
+            error={fieldErrors.name}
+            maxLength={500}
           />
           {!corporate ? (
             <Field
@@ -222,6 +232,7 @@ export function OrganizationPersonEditorDialog({
                     ...current,
                     entityType,
                     identityPrefix: "ROC",
+                    identityNumber: restrictScIdentityInput("ROC", current.identityNumber),
                     isDirector: false,
                     isBoard: false,
                     isManagement: false,
@@ -234,6 +245,7 @@ export function OrganizationPersonEditorDialog({
                     ...current,
                     entityType,
                     identityPrefix: "NRIC",
+                    identityNumber: restrictScIdentityInput("NRIC", current.identityNumber),
                     gender: current.gender === "NOT_APPLICABLE" ? "" : current.gender,
                     salutation: current.salutation,
                   }));
@@ -253,7 +265,16 @@ export function OrganizationPersonEditorDialog({
               <ComRepFieldLabel label={copy.identityPrefix.label} />
               <Select
                 value={values.identityPrefix || undefined}
-                onValueChange={(identityPrefix) => set("identityPrefix", identityPrefix)}
+                onValueChange={(identityPrefix) => {
+                  set("identityPrefix", identityPrefix);
+                  set(
+                    "identityNumber",
+                    restrictScIdentityInput(
+                      identityPrefix === "PASSPORT" ? "PASSPORT" : "NRIC",
+                      values.identityNumber
+                    )
+                  );
+                }}
               >
                 <SelectTrigger className="h-10 text-ui">
                   <SelectValue placeholder="Select" />
@@ -271,9 +292,19 @@ export function OrganizationPersonEditorDialog({
           <Field
             label={copy.identity.label}
             value={values.identityNumber}
-            onChange={(identityNumber) => set("identityNumber", identityNumber)}
+            onChange={(identityNumber) =>
+              set(
+                "identityNumber",
+                restrictScIdentityInput(
+                  corporate ? "ROC" : values.identityPrefix === "PASSPORT" ? "PASSPORT" : "NRIC",
+                  identityNumber
+                )
+              )
+            }
             required
             help={copy.identity.help}
+            error={fieldErrors.identityNumber}
+            maxLength={500}
           />
           <fieldset className="space-y-2 sm:col-span-2">
             <legend className="text-ui">Roles</legend>
@@ -370,8 +401,20 @@ export function OrganizationPersonEditorDialog({
               </div>
             </>
           )}
-          <Field label={copy.address.label} value={values.line1} onChange={(line1) => set("line1", line1)} required />
-          <Field label="Address line 2" value={values.line2} onChange={(line2) => set("line2", line2)} />
+          <Field
+            label={copy.address.label}
+            value={values.line1}
+            onChange={(line1) => set("line1", line1)}
+            required
+            error={fieldErrors["address.line1"]}
+            maxLength={500}
+          />
+          <Field
+            label="Address line 2"
+            value={values.line2}
+            onChange={(line2) => set("line2", line2)}
+            maxLength={500}
+          />
           <div className="space-y-1.5">
             <ComRepFieldLabel label={copy.addressState.label} help={copy.addressState.help} required />
             <Select value={values.state || undefined} onValueChange={(state) => set("state", state)}>
@@ -390,9 +433,14 @@ export function OrganizationPersonEditorDialog({
           <Field
             label={copy.addressPostcode.label}
             value={values.postalCode}
-            onChange={(postalCode) => set("postalCode", postalCode)}
+            onChange={(postalCode) =>
+              set("postalCode", restrictScPostcodeInput(values.state, postalCode))
+            }
             help={copy.addressPostcode.help}
-            required
+            required={values.state !== "Outside Malaysia"}
+            error={fieldErrors["address.postalCode"]}
+            inputMode={values.state === "Outside Malaysia" ? undefined : "numeric"}
+            maxLength={values.state === "Outside Malaysia" ? 500 : 32}
           />
           {showShare ? (
             <>
@@ -422,20 +470,32 @@ export function OrganizationPersonEditorDialog({
               <Field
                 label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
                 value={values.shareholdingUnits}
-                onChange={(shareholdingUnits) => set("shareholdingUnits", shareholdingUnits)}
+                onChange={(shareholdingUnits) =>
+                  set("shareholdingUnits", shareholdingUnits.replace(/[^\d.]/g, ""))
+                }
                 required
+                error={fieldErrors.shareholdingUnits}
+                inputMode="decimal"
               />
               <Field
                 label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
                 value={values.shareholdingAmount}
-                onChange={(shareholdingAmount) => set("shareholdingAmount", shareholdingAmount)}
+                onChange={(shareholdingAmount) =>
+                  set("shareholdingAmount", shareholdingAmount.replace(/[^\d.]/g, ""))
+                }
                 required
+                error={fieldErrors.shareholdingAmount}
+                inputMode="decimal"
               />
               <Field
                 label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
                 value={values.shareholdingPercentage}
-                onChange={(shareholdingPercentage) => set("shareholdingPercentage", shareholdingPercentage)}
+                onChange={(shareholdingPercentage) =>
+                  set("shareholdingPercentage", shareholdingPercentage.replace(/[^\d.]/g, ""))
+                }
                 required
+                error={fieldErrors.shareholdingPercentage}
+                inputMode="decimal"
               />
             </>
           ) : null}
@@ -493,7 +553,7 @@ export function OrganizationPersonEditorDialog({
             type="button"
             className="h-10"
             disabled={isSaving}
-            onClick={() => {
+            onClick={async () => {
               if (!values.isDirector && !values.isShareholder && !values.isBoard && !values.isManagement) {
                 toast.error(SELECT_AT_LEAST_ONE_ROLE_MESSAGE);
                 return;
@@ -533,10 +593,16 @@ export function OrganizationPersonEditorDialog({
                 if (shareIssue) issues.push(shareIssue);
               }
               if (issues.length > 0) {
+                setFieldErrors(issuesByField(issues));
                 toast.error(firstIssueMessage(issues));
                 return;
               }
-              void onSave(values);
+              setFieldErrors({});
+              try {
+                await onSave(values);
+              } catch (err) {
+                if (isProfileValidationError(err)) setFieldErrors(err.fieldErrors);
+              }
             }}
           >
             {isSaving ? "Saving..." : "Save"}
@@ -554,6 +620,9 @@ function Field({
   type = "text",
   help,
   required = false,
+  error,
+  maxLength,
+  inputMode,
 }: {
   label: string;
   value: string;
@@ -561,6 +630,9 @@ function Field({
   type?: "text" | "date";
   help?: string;
   required?: boolean;
+  error?: string;
+  maxLength?: number;
+  inputMode?: "numeric" | "decimal" | "email" | "tel" | "text";
 }) {
   return (
     <div className="space-y-1.5">
@@ -569,8 +641,12 @@ function Field({
         className="h-10 text-ui"
         type={type}
         value={value}
+        maxLength={maxLength}
+        inputMode={inputMode}
         onChange={(event) => onChange(event.target.value)}
+        aria-invalid={Boolean(error)}
       />
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }

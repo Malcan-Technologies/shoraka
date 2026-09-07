@@ -232,6 +232,7 @@ export function OrganizationProfilePanel({
       toast.error(
         error instanceof Error ? humanizeApiValidationMessage(error.message) : "Failed to update organization"
       );
+    }
   };
 
   const hasPersonal = Boolean(org.firstName || org.lastName || org.nationality || org.dateOfBirth);

@@ -4,6 +4,8 @@ import {
   normalizeScRegistrationNumber,
   omitRecordId,
   pickKnownKeys,
+  restrictScIdentityInput,
+  restrictScPostcodeInput,
   toOperatorShareCapitalPatch,
 } from "./comrep-normalization";
 
@@ -86,5 +88,28 @@ describe("SC ComRep identifier formatting (Part B §2.3–2.4)", () => {
     expect(body).toEqual({ name: "Ahmad", salutation: null });
     expect("id" in body).toBe(false);
     expect("unknown" in body).toBe(false);
+  });
+});
+
+describe("secondary-onboarding identity and postcode input restrictions", () => {
+  it("CASE A: ROC/BRN follows ComRep alphanumeric rules, not a 12-digit-only SSM lookup", () => {
+    expect(normalizeScRegistrationNumber("202501447890")).toBe("202501447890");
+    expect(normalizeScRegistrationNumber("1234567A")).toBe("1234567A");
+    expect(restrictScIdentityInput("ROC", "2025-01447890")).toBe("202501447890");
+    expect(restrictScIdentityInput("ROC", "202501447890999")).toBe("202501447890999");
+  });
+
+  it("CASE B: NRIC strips dashes/spaces and still allows letters; passport is not stripped", () => {
+    expect(restrictScIdentityInput("NRIC", "950829-08-3430")).toBe("950829083430");
+    expect(restrictScIdentityInput("NRIC", "950829083430")).toBe("950829083430");
+    expect(restrictScIdentityInput("NRIC", "800101A")).toBe("800101A");
+    expect(restrictScIdentityInput("PASSPORT", "AB-12 34")).toBe("AB-12 34");
+  });
+
+  it("CASE C / H: Malaysian postcodes are digits-only; Outside Malaysia stays free text", () => {
+    expect(restrictScPostcodeInput("Selangor", "47800")).toBe("47800");
+    expect(restrictScPostcodeInput("Selangor", "47800a")).toBe("47800");
+    expect(restrictScPostcodeInput("Selangor", "478001")).toBe("478001");
+    expect(restrictScPostcodeInput("Outside Malaysia", "SW1A 1AA")).toBe("SW1A 1AA");
   });
 });

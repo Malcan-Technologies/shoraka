@@ -36,7 +36,7 @@ function humanizeZodIssueMessage(issue: ZodIssue): string {
   ) {
     return "Enter a valid e-mail address.";
   }
-  return humanizeApiValidationMessage(issue.message || "Invalid value");
+  return humanizeApiValidationMessage(issue.message || "Invalid value", issue.path.join("."));
 }
 
 function isEntityParseFailed(err: Error): boolean {

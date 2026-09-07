@@ -4,12 +4,16 @@ import * as React from "react";
 import { toast } from "sonner";
 import {
   firstIssueMessage,
+  humanizeApiValidationMessage,
+  isProfileValidationError,
   issuesByField,
   issuerShareholdingThresholdIssue,
   formatPartyRoleLine,
   isIssuerOfficerRole,
   monthlyIssuerPersonCopy,
   PROFILE_LOCKED_ROLES_CANNOT_CHANGE,
+  restrictScIdentityInput,
+  restrictScPostcodeInput,
   SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
@@ -128,6 +132,7 @@ export function AddPersonForm({
           name: form.name,
           identityPrefix: corporate ? "ROC" : form.identityPrefix,
           identityNumber: form.identityNumber,
+          email: form.email,
           dateOfBirth: form.dateOfBirth,
           dateOfIncorporation: form.dateOfIncorporation,
           gender: form.gender,
@@ -197,7 +202,10 @@ export function AddPersonForm({
             resignationDate: showOfficer ? form.resignationDate || null : null,
           });
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Could not save this person.");
+          if (isProfileValidationError(err)) setFieldErrors(err.fieldErrors);
+          toast.error(
+            err instanceof Error ? humanizeApiValidationMessage(err.message) : "Could not save this person."
+          );
         } finally {
           setPending(false);
         }
@@ -215,7 +223,20 @@ export function AddPersonForm({
               setIsBoard(false);
               setIsManagement(false);
               setIsShareholder(true);
-              setForm((current) => ({ ...current, identityPrefix: "ROC" }));
+              setForm((current) => ({
+                ...current,
+                identityPrefix: "ROC",
+                identityNumber: restrictScIdentityInput("ROC", current.identityNumber),
+              }));
+            } else {
+              setForm((current) => ({
+                ...current,
+                identityPrefix: current.identityPrefix === "ROC" ? "NRIC" : current.identityPrefix,
+                identityNumber: restrictScIdentityInput(
+                  current.identityPrefix === "PASSPORT" ? "PASSPORT" : "NRIC",
+                  current.identityNumber
+                ),
+              }));
             }
           }}
         >
@@ -266,16 +287,29 @@ export function AddPersonForm({
         <TextField
           label={copy.identity.label}
           value={form.identityNumber}
-          onChange={(value) => setForm({ ...form, identityNumber: value })}
+          onChange={(value) =>
+            setForm({ ...form, identityNumber: restrictScIdentityInput("ROC", value) })
+          }
           required
           help={copy.identity.help}
+          error={fieldErrors.identityNumber}
+          maxLength={500}
         />
       ) : (
         <>
           <SelectField
             label={copy.identityPrefix.label}
             value={form.identityPrefix}
-            onChange={(value) => setForm({ ...form, identityPrefix: value })}
+            onChange={(value) =>
+              setForm({
+                ...form,
+                identityPrefix: value,
+                identityNumber: restrictScIdentityInput(
+                  value === "PASSPORT" ? "PASSPORT" : "NRIC",
+                  form.identityNumber
+                ),
+              })
+            }
             options={prefixOptions.map((key) => ({
               value: key,
               label: copy.identityPrefixLabels[key as keyof typeof copy.identityPrefixLabels] ?? key,
@@ -286,12 +320,28 @@ export function AddPersonForm({
           <TextField
             label={copy.identity.label}
             value={form.identityNumber}
-            onChange={(value) => setForm({ ...form, identityNumber: value })}
+            onChange={(value) =>
+              setForm({
+                ...form,
+                identityNumber: restrictScIdentityInput(
+                  form.identityPrefix === "PASSPORT" ? "PASSPORT" : "NRIC",
+                  value
+                ),
+              })
+            }
             required
             help={copy.identity.help}
             error={fieldErrors.identityNumber}
+            maxLength={500}
           />
-          <TextField label="Email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} />
+          <TextField
+            label="Email"
+            value={form.email}
+            onChange={(value) => setForm({ ...form, email: value })}
+            error={fieldErrors.email}
+            maxLength={255}
+            inputMode="email"
+          />
           <DateField
             label={copy.dateOfBirth.label}
             value={form.dateOfBirth}
@@ -362,10 +412,14 @@ export function AddPersonForm({
       <TextField
         label={copy.addressPostcode.label}
         value={form.postalCode}
-        onChange={(value) => setForm({ ...form, postalCode: value })}
+        onChange={(value) =>
+          setForm({ ...form, postalCode: restrictScPostcodeInput(form.state, value) })
+        }
         help={copy.addressPostcode.help}
         required={form.state !== "Outside Malaysia"}
         error={fieldErrors["address.postalCode"]}
+        inputMode={form.state === "Outside Malaysia" ? undefined : "numeric"}
+        maxLength={form.state === "Outside Malaysia" ? 500 : 32}
       />
       {showShare ? (
         <>
@@ -388,23 +442,28 @@ export function AddPersonForm({
           <TextField
             label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
             value={form.shareholdingUnits}
-            onChange={(value) => setForm({ ...form, shareholdingUnits: value })}
+            onChange={(value) => setForm({ ...form, shareholdingUnits: restrictShareInput(value) })}
             required
             error={fieldErrors.shareholdingUnits}
+            inputMode="decimal"
           />
           <TextField
             label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
             value={form.shareholdingAmount}
-            onChange={(value) => setForm({ ...form, shareholdingAmount: value })}
+            onChange={(value) => setForm({ ...form, shareholdingAmount: restrictShareInput(value) })}
             required
             error={fieldErrors.shareholdingAmount}
+            inputMode="decimal"
           />
           <TextField
             label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
             value={form.shareholdingPercentage}
-            onChange={(value) => setForm({ ...form, shareholdingPercentage: value })}
+            onChange={(value) =>
+              setForm({ ...form, shareholdingPercentage: restrictShareInput(value) })
+            }
             required
             error={fieldErrors.shareholdingPercentage}
+            inputMode="decimal"
           />
         </>
       ) : null}
@@ -573,7 +632,10 @@ export function PartyFillEmptyForm({
         try {
           await onSave(data);
         } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Could not save this person.");
+          if (isProfileValidationError(err)) setFieldErrors(err.fieldErrors);
+          toast.error(
+            err instanceof Error ? humanizeApiValidationMessage(err.message) : "Could not save this person."
+          );
         } finally {
           setPending(false);
         }
@@ -692,10 +754,14 @@ export function PartyFillEmptyForm({
       <TextField
         label={copy.addressPostcode.label}
         value={form.postalCode}
-        onChange={(value) => setForm({ ...form, postalCode: value })}
+        onChange={(value) =>
+          setForm({ ...form, postalCode: restrictScPostcodeInput(form.state, value) })
+        }
         help={copy.addressPostcode.help}
         required={form.state !== "Outside Malaysia"}
         error={fieldErrors["address.postalCode"]}
+        inputMode={form.state === "Outside Malaysia" ? undefined : "numeric"}
+        maxLength={form.state === "Outside Malaysia" ? 500 : 32}
       />
       {party.isShareholder ? (
         <>
@@ -719,23 +785,28 @@ export function PartyFillEmptyForm({
           <TextField
             label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
             value={form.shareholdingUnits}
-            onChange={(value) => setForm({ ...form, shareholdingUnits: value })}
+            onChange={(value) => setForm({ ...form, shareholdingUnits: restrictShareInput(value) })}
             required
             error={fieldErrors.shareholdingUnits}
+            inputMode="decimal"
           />
           <TextField
             label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
             value={form.shareholdingAmount}
-            onChange={(value) => setForm({ ...form, shareholdingAmount: value })}
+            onChange={(value) => setForm({ ...form, shareholdingAmount: restrictShareInput(value) })}
             required
             error={fieldErrors.shareholdingAmount}
+            inputMode="decimal"
           />
           <TextField
             label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
             value={form.shareholdingPercentage}
-            onChange={(value) => setForm({ ...form, shareholdingPercentage: value })}
+            onChange={(value) =>
+              setForm({ ...form, shareholdingPercentage: restrictShareInput(value) })
+            }
             required
             error={fieldErrors.shareholdingPercentage}
+            inputMode="decimal"
           />
         </>
       ) : null}
@@ -803,6 +874,10 @@ function RoleCheck({
   );
 }
 
+function restrictShareInput(value: string): string {
+  return value.replace(/[^\d.]/g, "");
+}
+
 function TextField({
   label,
   value,
@@ -810,6 +885,8 @@ function TextField({
   help,
   required = false,
   error,
+  maxLength,
+  inputMode,
 }: {
   label: string;
   value: string;
@@ -817,11 +894,20 @@ function TextField({
   help?: string;
   required?: boolean;
   error?: string;
+  maxLength?: number;
+  inputMode?: "numeric" | "decimal" | "email" | "tel" | "text";
 }) {
   return (
     <div className="space-y-2">
       <ComRepFieldLabel label={label} required={required} help={help} />
-      <Input className="h-10 text-ui" value={value} onChange={(event) => onChange(event.target.value)} />
+      <Input
+        className="h-10 text-ui"
+        value={value}
+        maxLength={maxLength ?? 500}
+        inputMode={inputMode}
+        aria-invalid={Boolean(error)}
+        onChange={(event) => onChange(event.target.value)}
+      />
       {error ? (
         <p className="text-meta text-destructive">{error}</p>
       ) : required && !value.trim() ? (

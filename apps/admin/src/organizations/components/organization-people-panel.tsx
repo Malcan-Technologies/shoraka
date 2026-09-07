@@ -165,6 +165,7 @@ export function OrganizationPeoplePanel({
       toast.error(
         error instanceof Error ? humanizeApiValidationMessage(error.message) : "Failed to update organization"
       );
+    }
   };
 
   const saveParty = async (values: PartyEditorValues, partyId?: string) => {

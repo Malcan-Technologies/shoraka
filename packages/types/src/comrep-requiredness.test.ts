@@ -1,14 +1,17 @@
 import {
   identityFormatIssue,
+  optionalEmailIssue,
   requiredEmailIssue,
   requiredEnumIssue,
   requiredIntegerIssue,
+  requiredPhoneIssue,
   requiredPostcodeIssue,
   requiredTextIssue,
   validateIssuerAddressForm,
   validateIssuerCompanyForm,
   validateIssuerMasterPatch,
   validateIssuerPersonForm,
+  validateOperatorGeneral,
   validateOperatorShareCapital,
   validateOperatorShareholder,
 } from "./comrep-requiredness";
@@ -240,5 +243,73 @@ describe("validateIssuerPersonForm roles", () => {
     expect(issues.map((issue) => issue.field)).not.toContain("personKind");
     expect(issues.map((issue) => issue.field)).not.toContain("designation");
     expect(issues).toHaveLength(0);
+  });
+});
+
+describe("secondary-onboarding field messages", () => {
+  it("CASE A: company registration uses ComRep alphanumeric format, including 12-digit and legacy ROC", () => {
+    expect(identityFormatIssue("202501447890", "ROC", "registrationNumber", "Company Registration Number")).toBeNull();
+    expect(identityFormatIssue("1234567A", "ROC", "registrationNumber", "Company Registration Number")).toBeNull();
+    expect(
+      identityFormatIssue("2025-01447890", "ROC", "registrationNumber", "Company Registration Number")?.message
+    ).toBe("Company Registration Number must not include dashes, spaces, or special characters.");
+  });
+
+  it("CASE F: optional email shows a human message and does not flag a blank value", () => {
+    expect(optionalEmailIssue("", "email", "Email")).toBeNull();
+    expect(optionalEmailIssue("ops@acme.test", "email", "Email")).toBeNull();
+    expect(optionalEmailIssue("not-an-email", "email", "Email")?.message).toBe("Enter a valid e-mail address.");
+  });
+
+  it("CASE D: local Malaysian contact numbers are valid", () => {
+    expect(requiredPhoneIssue("0182316817", "responsiblePersonPhone", "Contact Number")).toBeNull();
+    expect(requiredPhoneIssue("not-a-phone", "responsiblePersonPhone", "Contact Number")?.message).toBe(
+      "Enter a valid contact number."
+    );
+    expect(requiredPhoneIssue("abc", "phoneNumber", "Phone Number")?.message).toBe("Enter a valid phone number.");
+  });
+
+  it("does not invent a 12-digit-only rule for Shoraka company registration", () => {
+    const issues = validateOperatorGeneral({
+      name: "CashSouk",
+      registrationNumber: "1234567A",
+      scCompanyType: "PRIVATE_LIMITED",
+      responsiblePersonName: "Ahmad",
+      responsiblePersonPhone: "0182316817",
+    });
+    expect(issues).toEqual([]);
+  });
+
+  it("rejects trustee registration punctuation when the field is filled", () => {
+    const issues = validateOperatorGeneral({
+      name: "CashSouk",
+      registrationNumber: "202501447890",
+      trusteeRegistrationNumber: "2025-01447890",
+      scCompanyType: "PRIVATE_LIMITED",
+      responsiblePersonName: "Ahmad",
+      responsiblePersonPhone: "+60182316817",
+    });
+    expect(issues.map((issue) => issue.field)).toContain("trusteeRegistrationNumber");
+  });
+
+  it("rejects shareholding above 100% without changing the 5% floor", () => {
+    const issues = validateIssuerPersonForm({
+      entityType: "INDIVIDUAL",
+      name: "Ali",
+      identityPrefix: "NRIC",
+      identityNumber: "800101011234",
+      dateOfBirth: "1980-01-01",
+      gender: "MALE",
+      nationality: "MALAYSIA",
+      line1: "1 Jalan A",
+      state: "Selangor",
+      postalCode: "47800",
+      isShareholder: true,
+      shareType: "ORDINARY",
+      shareholdingUnits: "10",
+      shareholdingAmount: "10",
+      shareholdingPercentage: "101",
+    });
+    expect(issues.map((issue) => issue.message)).toContain("Enter a percentage of 100 or less.");
   });
 });

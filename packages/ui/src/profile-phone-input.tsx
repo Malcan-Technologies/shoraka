@@ -5,6 +5,13 @@ import "react-phone-number-input/style.css";
 import { normalizeProfilePhone } from "@cashsouk/types";
 import { cn } from "./lib/utils";
 
+function displayPhoneValue(value: string): string | undefined {
+  const normalized = normalizeProfilePhone(value);
+  if (normalized) return normalized;
+  const trimmed = value.trim();
+  return trimmed.startsWith("+") ? trimmed : undefined;
+}
+
 export function ProfilePhoneInput({
   id,
   value,
@@ -20,13 +27,12 @@ export function ProfilePhoneInput({
   className?: string;
   error?: boolean;
 }) {
-  const normalized = normalizeProfilePhone(value);
   return (
     <PhoneInput
       id={id}
       international
       defaultCountry="MY"
-      value={normalized ?? undefined}
+      value={displayPhoneValue(value)}
       onChange={(next) => onChange(next ?? "")}
       disabled={disabled}
       aria-invalid={error || undefined}

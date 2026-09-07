@@ -2,11 +2,14 @@ import { filterVisiblePeopleRows } from "./application-people-display";
 import { shouldIncludePerson } from "./director-shareholder-display";
 import {
   ISSUER_MIN_SHAREHOLDING_MESSAGE,
+  ISSUER_SHAREHOLDING_RANGE_MESSAGE,
   issuerActiveShareholderFlags,
   issuerShareholdingMeetsMinimum,
   issuerShareholdingThresholdIssue,
   isIssuerShareholderOnlyBelowMinimum,
   parseShareholdingPercent,
+  SHAREHOLDING_MAX_MESSAGE,
+  shareholdingPercentCapIssue,
 } from "./issuer-shareholder-threshold";
 
 describe("issuer shareholder 5% threshold", () => {
@@ -98,6 +101,13 @@ describe("issuer shareholder 5% threshold", () => {
     ).toBe(true);
     expect(issuerShareholdingMeetsMinimum(3)).toBe(false);
     expect(issuerShareholdingMeetsMinimum(5)).toBe(true);
+  });
+
+  it("rejects percentages above 100 and keeps the 5% floor message below 5", () => {
+    expect(issuerShareholdingThresholdIssue(101)?.message).toBe(ISSUER_SHAREHOLDING_RANGE_MESSAGE);
+    expect(issuerShareholdingThresholdIssue(4)?.message).toBe(ISSUER_MIN_SHAREHOLDING_MESSAGE);
+    expect(shareholdingPercentCapIssue(101)?.message).toBe(SHAREHOLDING_MAX_MESSAGE);
+    expect(shareholdingPercentCapIssue(100)).toBeNull();
   });
 
   it("keeps director and drops shareholder-only people below 5% from visible people[]", () => {

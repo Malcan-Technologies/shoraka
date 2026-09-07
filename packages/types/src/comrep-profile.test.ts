@@ -109,6 +109,57 @@ describe("issuer company completeness [02000]", () => {
     expect(missing.map((m) => m.field)).toEqual(["companyEmail"]);
   });
 
+  it("CASE F: invalid e-mail is missing; a valid e-mail is not", () => {
+    const invalid = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      phoneNumber: "+60123456789",
+      companyEmail: "not-an-email",
+      companyActivities: null,
+    });
+    expect(invalid.map((m) => m.field)).toEqual(["companyEmail"]);
+    const valid = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      phoneNumber: "+60123456789",
+      companyEmail: "ops@acme.test",
+      companyActivities: null,
+    });
+    expect(valid.map((m) => m.field)).not.toContain("companyEmail");
+  });
+
+  it("CASE D: a local Malaysian phone is complete", () => {
+    const missing = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      phoneNumber: "0182316817",
+      companyEmail: "ops@acme.test",
+      companyActivities: null,
+    });
+    expect(missing.map((m) => m.field)).not.toContain("phoneNumber");
+  });
+
   it("does not require postcode when State is Outside Malaysia", () => {
     const missing = computeIssuerCompanyCompleteness({
       name: "Acme Sdn Bhd",

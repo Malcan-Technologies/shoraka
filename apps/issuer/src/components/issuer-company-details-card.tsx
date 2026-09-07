@@ -15,6 +15,7 @@ import {
   issuesByField,
   profileValidationErrorFromApi,
   scAppendixASelectValues,
+  storedProfilePhone,
   validateIssuerCompanyForm,
 } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfilePhoneInput, ProfileReadField } from "@cashsouk/ui";
@@ -153,7 +154,7 @@ export function IssuerCompanyDetailsCard({
 
       const master: Record<string, unknown> = {
         companyEmail: companyEmail.trim(),
-        phoneNumber: phoneNumber.trim(),
+        phoneNumber: storedProfilePhone(phoneNumber.trim()) ?? phoneNumber.trim(),
       };
       if (!org.dateOfIncorporation) master.dateOfIncorporation = dateOfIncorporation.trim();
       if (!org.dateOfCommencement) master.dateOfCommencement = dateOfCommencement.trim();
@@ -165,7 +166,8 @@ export function IssuerCompanyDetailsCard({
 
       const nextEmployees = employees.trim() === "" ? null : Number(employees);
       if (employees.trim() !== "" && !Number.isInteger(nextEmployees)) {
-        throw new Error("Number of employees must be a whole number");
+        setFieldErrors((current) => ({ ...current, numberOfEmployees: "Enter a whole number." }));
+        throw new Error("Enter a whole number.");
       }
       const corp = await api.patch(`/v1/organizations/issuer/${organizationId}/corporate-info`, {
         industry: industry.trim() || null,
@@ -325,6 +327,7 @@ export function IssuerCompanyDetailsCard({
               value={employees}
               onChange={(value) => setEmployees(value.replace(/\D/g, ""))}
               inputMode="numeric"
+              error={fieldErrors.numberOfEmployees}
             />
           ) : (
             <ProfileReadField
