@@ -2033,23 +2033,32 @@ export class OrganizationService {
     const entities = await this.getCorporateEntities(userId, organizationId, portalType);
     const peopleRows = filterVisiblePeopleRows(entities.people ?? []);
     const personRow = peopleRows.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === pk);
-    if (!personRow || !canManageDirectorShareholder(personRow)) {
+    if (!personRow) {
       throw new AppError(
         400,
         "NOT_ALLOWED",
         "Resend is only allowed for actionable individual rows"
       );
     }
-    if (isLegacyCtosPartyKycApproved(pk, entities.directorKycStatus)) {
+    const supplement = await findCtosPartySupplementForOrg(portalType, organizationId, pk);
+    const prevRoot = supplement?.onboarding_json;
+    if (
+      isLegacyCtosPartyKycApproved(pk, entities.directorKycStatus) ||
+      isCtosPartySupplementApprovalLocked(prevRoot)
+    ) {
       throw new AppError(
         400,
         "NOT_REQUIRED",
         "This person already completed KYC on the company record."
       );
     }
-
-    const supplement = await findCtosPartySupplementForOrg(portalType, organizationId, pk);
-    const prevRoot = supplement?.onboarding_json;
+    if (!canManageDirectorShareholder(personRow)) {
+      throw new AppError(
+        400,
+        "NOT_ALLOWED",
+        "Resend is only allowed for actionable individual rows"
+      );
+    }
     assertOnboardingEmailMutable(prevRoot);
     const supOb = parseCtosPartySupplement(prevRoot);
     const supplementEmail = (supOb.email ?? "").trim();

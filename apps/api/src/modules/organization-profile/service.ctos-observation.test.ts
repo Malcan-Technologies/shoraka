@@ -388,12 +388,32 @@ describe("CTOS master party observation", () => {
     expect(updated.mismatches.find((m) => m.field === "shareholdingPercentage")).toBeUndefined();
   });
 
-  it("rejects a user PATCH that overwrites a filled shareholding percentage", async () => {
+  it("allows an issuer user to update a filled shareholding percentage that still meets 5%", async () => {
     parties.push(
       row({
         id: "p-a",
         party_key: "800101011234",
+        is_shareholder: true,
         shareholding_percentage: new Prisma.Decimal("36"),
+      })
+    );
+    const updated = await patchPartyProfile({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-a",
+      source: "USER",
+      fillEmptyOnly: true,
+      patch: { shareholdingPercentage: "50" },
+    });
+    expect(updated.shareholdingPercentage).toBe("50");
+  });
+
+  it("rejects a user PATCH that changes a filled identity number", async () => {
+    parties.push(
+      row({
+        id: "p-a",
+        party_key: "800101011234",
+        identity_number: "800101011234",
       })
     );
     await expect(
@@ -403,7 +423,7 @@ describe("CTOS master party observation", () => {
         partyId: "p-a",
         source: "USER",
         fillEmptyOnly: true,
-        patch: { shareholdingPercentage: "50" },
+        patch: { identityNumber: "800101011999" },
       })
     ).rejects.toMatchObject({ statusCode: 403, code: "FIELD_NOT_EDITABLE" });
   });
@@ -765,6 +785,94 @@ describe("user-added master parties", () => {
     expect(created.isDirector).toBe(false);
     expect(created.gender).toBe("NOT_APPLICABLE");
     expect(created.partyKey).toBe("1234567A");
+  });
+
+  it("accepts a company issuer shareholder at 5% and 5.0%", async () => {
+    const atFive = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        entityType: "CORPORATE",
+        name: "Five Pct Sdn Bhd",
+        identityNumber: "1111111-A",
+        identityPrefix: "ROC",
+        isShareholder: true,
+        shareholdingPercentage: "5",
+        shareType: "ORDINARY",
+      },
+    });
+    expect(atFive.shareholdingPercentage).toBe("5");
+    const atFivePoint = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        entityType: "CORPORATE",
+        name: "Five Point Sdn Bhd",
+        identityNumber: "2222222-A",
+        identityPrefix: "ROC",
+        isShareholder: true,
+        shareholdingPercentage: "5.0",
+        shareType: "ORDINARY",
+      },
+    });
+    expect(Number(atFivePoint.shareholdingPercentage)).toBe(5);
+  });
+
+  it("rejects a blank issuer shareholder percentage", async () => {
+    await expect(
+      createUserAddedParty({
+        portal: "issuer",
+        organizationId: "org-1",
+        source: "USER",
+        patch: {
+          name: "John Lee",
+          identityNumber: "880101011111",
+          identityPrefix: "NRIC",
+          isShareholder: true,
+          shareholdingPercentage: "",
+          shareType: "ORDINARY",
+        },
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(parties).toHaveLength(0);
+  });
+
+  it("reuses a CTOS-observed party when the same identity is added manually", async () => {
+    parties.push(
+      row({
+        id: "p-obs",
+        party_key: "900101101234",
+        identity_number: "900101101234",
+        name: "Sarah Tan",
+        origin: OrganizationPartyOrigin.CTOS_PARTY,
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_director: true,
+        is_shareholder: false,
+        shareholding_percentage: null,
+      })
+    );
+    const updated = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        name: "Sarah Tan",
+        identityNumber: "900101-10-1234",
+        identityPrefix: "NRIC",
+        isDirector: true,
+        isShareholder: true,
+        shareholdingPercentage: "10",
+        shareType: "ORDINARY",
+      },
+    });
+    expect(parties.filter((p) => canonicalKey(p.party_key) === "900101101234")).toHaveLength(1);
+    expect(updated.id).toBe("p-obs");
+    expect(updated.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(updated.isDirector).toBe(true);
+    expect(updated.isShareholder).toBe(true);
+    expect(updated.shareholdingPercentage).toBe("10");
   });
 
   it("persists salutation, share type other, and resignation date on a user-added person", async () => {

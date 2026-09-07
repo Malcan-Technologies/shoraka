@@ -9,4 +9,9 @@ describe("issuer People section", () => {
     expect(source).not.toContain("Regulatory Parties");
     expect(source).not.toContain("ComRep Parties");
   });
+
+  it("offers View details and Edit on master people cards regardless of role", () => {
+    expect(source).toContain("View details");
+    expect(source).toContain("onEdit={canEdit ? () => setEditPartyId(item.party.id) : undefined}");
+  });
 });

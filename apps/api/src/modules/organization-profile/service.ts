@@ -67,11 +67,19 @@ type Portal = "issuer" | "investor";
 const USER_LOCKED_ORG_FIELDS = new Set(["name"]);
 /** Shared master fields the investor/issuer may change even when already filled (fill-empty-only still applies to other USER writes). */
 const USER_OVERWRITE_ORG_FIELDS = new Set(["scInvestorCategory", "companyEmail", "phoneNumber"]);
-const USER_LOCKED_PARTY_FIELDS = new Set([
-  "name",
-  "identityNumber",
-  "identityPrefix",
+/** Verified identity fields stay locked once filled. ComRep collection fields may be corrected. */
+const USER_LOCKED_PARTY_FIELDS = new Set(["name", "identityNumber", "identityPrefix"]);
+const USER_OVERWRITE_PARTY_FIELDS = new Set([
   "shareholdingPercentage",
+  "shareholdingUnits",
+  "shareholdingAmount",
+  "shareType",
+  "shareTypeOther",
+  "designation",
+  "designationOther",
+  "appointmentDate",
+  "resignationDate",
+  "address",
 ]);
 
 function assertUserMayWriteLockedField(params: {
@@ -999,7 +1007,7 @@ export async function patchPartyProfile(params: {
       incoming,
       locked: USER_LOCKED_PARTY_FIELDS,
     });
-    if (params.fillEmptyOnly) {
+    if (params.fillEmptyOnly && !USER_OVERWRITE_PARTY_FIELDS.has(field)) {
       const result = fillEmptyMaster({
         master: current,
         incoming,
@@ -1097,7 +1105,7 @@ export async function patchPartyProfile(params: {
     );
   }
   if (p.address !== undefined) {
-    if (params.fillEmptyOnly) {
+    if (params.fillEmptyOnly && !USER_OVERWRITE_PARTY_FIELDS.has("address")) {
       const merged = mergeEmptyAddress({
         master: row.address,
         incoming: p.address,

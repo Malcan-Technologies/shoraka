@@ -370,7 +370,9 @@ export function IssuerPeopleSection({
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit person</DialogTitle>
-            <DialogDescription>Fill empty fields only. Existing values stay as they are.</DialogDescription>
+            <DialogDescription>
+              Update this person on the CashSouk company record. Identity details stay as they are.
+            </DialogDescription>
           </DialogHeader>
           {editing ? (
             <PartyFillEmptyForm

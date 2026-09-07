@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { PartyProfileDetailFields } from "@cashsouk/ui";
 import { accountHref } from "@/lib/admin-directory-hrefs";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useOrganizationMasterPeople } from "@/organizations/hooks/use-organization-master-people";
 import { unifyOrganizationPeople } from "@/organizations/utils/organization-profile-overview";
 import { OrganizationCardEditActions } from "./organization-card-edit-actions";
