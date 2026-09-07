@@ -98,7 +98,7 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
       const issues = validateIssuerFinancialFields(fields);
       if (issues.length > 0) {
         setFieldErrors(issuesByField(issues));
-        throw new Error(firstIssueMessage(issues) ?? "Please complete the required financial fields.");
+        throw new Error(firstIssueMessage(issues) ?? "Complete the required financial fields.");
       }
       setFieldErrors({});
       const res = await api.patchIssuerOrgFinancials(organizationId, year, fields);
@@ -118,7 +118,7 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
     <ProfileCard
       id="profile-financials"
       title="Financials"
-      description="Latest issuer financial statements"
+      description="Latest financial statements for this company"
       action={
         <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={() => setOpen(true)}>
           {complete ? "View / Edit financials" : "Complete"}

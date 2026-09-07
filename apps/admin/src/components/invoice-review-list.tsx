@@ -493,11 +493,11 @@ export function InvoiceList({
       return;
     }
     if (!invoiceOfferConfirm.company_category) {
-      alert("Please select Technology or Non-Technology for this invoice.");
+      alert("Select Technology or Non-Technology for this invoice.");
       return;
     }
     if (!invoiceOfferConfirm.campaign_sector) {
-      alert("Please select the SC Campaign Sector for this invoice.");
+      alert("Select a Campaign Sector.");
       return;
     }
     if (
@@ -965,7 +965,7 @@ export function InvoiceList({
                                           aria-label="Campaign Sector"
                                           className="h-9 w-full min-w-[8rem] max-w-[18rem] rounded-xl border-border bg-background text-ui"
                                         >
-                                          <SelectValue placeholder="Select SC sector" />
+                                          <SelectValue placeholder="Select" />
                                         </SelectTrigger>
                                         <SelectContent className="max-h-[280px]">
                                           {SC_CAMPAIGN_SECTORS.map((value) => (
@@ -1337,12 +1337,12 @@ export function InvoiceList({
                                         }
                                         const companyCat = companyCategoryByInvoiceId[inv.id];
                                         if (!companyCat) {
-                                          alert("Please select Technology or Non-Technology for this invoice.");
+                                          alert("Select Technology or Non-Technology for this invoice.");
                                           return;
                                         }
                                         const campaignSector = campaignSectorByInvoiceId[inv.id];
                                         if (!campaignSector) {
-                                          alert("Please select the SC Campaign Sector for this invoice.");
+                                          alert("Select a Campaign Sector.");
                                           return;
                                         }
                                         const sustainabilityCat =

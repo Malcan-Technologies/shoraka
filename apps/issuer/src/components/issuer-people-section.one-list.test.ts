@@ -10,8 +10,10 @@ describe("issuer People section", () => {
     expect(source).not.toContain("ComRep Parties");
   });
 
-  it("offers View details and Edit on master people cards regardless of role", () => {
+  it("offers View details and Edit on master and people-only cards", () => {
     expect(source).toContain("View details");
     expect(source).toContain("onEdit={canEdit ? () => setEditPartyId(item.party.id) : undefined}");
+    expect(source).toContain("onView={() => setViewPeopleOnlyKey(person.matchKey)}");
+    expect(source).toContain("setAddInitial");
   });
 });

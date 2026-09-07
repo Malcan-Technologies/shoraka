@@ -48,7 +48,7 @@ export function ProfileReadField({
       </div>
       {missing ? <p className="text-meta text-status-action-text">Required</p> : null}
       {locked && !missing ? (
-        <p className="text-meta text-muted-foreground">This field cannot be edited</p>
+        <p className="text-meta text-muted-foreground">This field is locked because it was verified during onboarding.</p>
       ) : null}
       {hint ? <div className="text-meta text-muted-foreground">{hint}</div> : null}
     </div>

@@ -51,7 +51,7 @@ export function OrganizationProfileOverviewCard({
       <AdminDetailCardHeader
         icon={ClipboardDocumentCheckIcon}
         title="Profile completeness"
-        description="CashSouk master record for this organization"
+        description="How complete this organisation’s profile is"
       />
       <CardContent className="space-y-4">
         <ProfileCompletenessSummary
@@ -68,7 +68,7 @@ export function OrganizationProfileOverviewCard({
           {review.total === 0 ? (
             <div className="flex items-center gap-2 text-ui text-muted-foreground">
               <CheckCircleIcon className="h-4 w-4" />
-              No CTOS differences
+              The latest external information matches this profile.
             </div>
           ) : (
             <div className="space-y-1">
@@ -78,13 +78,13 @@ export function OrganizationProfileOverviewCard({
               <p className="text-meta text-muted-foreground">
                 {[
                   review.mismatchCount
-                    ? `${review.mismatchCount} CTOS ${review.mismatchCount === 1 ? "difference" : "differences"}`
+                    ? `${review.mismatchCount} ${review.mismatchCount === 1 ? "external difference" : "external differences"}`
                     : null,
                   review.newPartyCount
-                    ? `${review.newPartyCount} new ${review.newPartyCount === 1 ? "external party" : "external parties"}`
+                    ? `${review.newPartyCount} new ${review.newPartyCount === 1 ? "person" : "people"} from external information`
                     : null,
                   review.absentCount
-                    ? `${review.absentCount} ${review.absentCount === 1 ? "person" : "people"} missing from latest CTOS`
+                    ? `${review.absentCount} ${review.absentCount === 1 ? "person" : "people"} not found in the latest external information`
                     : null,
                 ]
                   .filter(Boolean)

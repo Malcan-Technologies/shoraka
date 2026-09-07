@@ -26,7 +26,7 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
     },
     onSuccess: async () => {
       await invalidate();
-      toast.success("CashSouk master value updated");
+      toast.success("Profile value updated");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -38,7 +38,7 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
     },
     onSuccess: async () => {
       await invalidate();
-      toast.success("Person added to the CashSouk master list");
+      toast.success("Person added to the current profile");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -50,7 +50,7 @@ export function useOrganizationMasterPeople(portal: PortalType, organizationId: 
     },
     onSuccess: async () => {
       await invalidate();
-      toast.success("Person marked inactive on the master list");
+      toast.success("Person marked inactive");
     },
     onError: (err: Error) => toast.error(err.message),
   });

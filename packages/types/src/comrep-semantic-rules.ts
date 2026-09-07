@@ -10,7 +10,7 @@ export const SC_INDIVIDUAL_GENDERS = ["MALE", "FEMALE"] as const;
 export type ScIndividualGender = (typeof SC_INDIVIDUAL_GENDERS)[number];
 
 export const SC_GENDER_NOT_APPLICABLE_NOTE =
-  "Not Applicable is only chosen if the person is a non-individual entity. For individuals, insert the gender as reflected per the verified official documents.";
+  "Select Male or Female for an individual. Use Not Applicable only for a company.";
 
 export const SC_MALAYSIA_COUNTRY_NAME = "MALAYSIA";
 
@@ -91,7 +91,7 @@ export function othersSpecifyValue(
     if (!otherText) {
       return {
         value: null,
-        issue: "This Others (please specify) field is required when Others is selected.",
+        issue: "Enter the other value because ‘Others’ is selected.",
       };
     }
     return { value: otherText, issue: null };
@@ -109,10 +109,10 @@ export function identityPrefixVsNationalityIssue(input: {
   const nationality = emptyToNull(input.nationality);
   if (!prefix || !nationality) return null;
   if (isMalaysiaCountryName(nationality) && prefix === "PASSPORT") {
-    return "Local Malaysian individuals: Insert NRIC number.";
+    return "Use NRIC for a Malaysian individual.";
   }
   if (!isMalaysiaCountryName(nationality) && prefix === "NRIC") {
-    return "Foreign individuals: Insert Passport number.";
+    return "Use a passport number for a foreign individual.";
   }
   return null;
 }
@@ -161,8 +161,8 @@ export function applyPartyComrepSemantics(input: PartyComrepFields): AppliedPart
     if (identityPrefix === "ROC") {
       issues.push(
         input.isOfficer
-          ? "Identity Prefix for Board of Director/Management Team is IC or Passport."
-          : "Identity Prefix ROC is only for a company."
+          ? "Select NRIC or Passport for a board or management person."
+          : "ROC is only for a company."
       );
     }
     const prefixNationality = identityPrefixVsNationalityIssue({
@@ -175,11 +175,11 @@ export function applyPartyComrepSemantics(input: PartyComrepFields): AppliedPart
 
   const shareOther = othersSpecifyValue(input.shareType, input.shareTypeOther);
   if (shareOther.issue && input.shareType === "OTHERS") {
-    issues.push("Type of Shares - Others (please specify) is required when Type of Shares is Others.");
+    issues.push("Enter the other share type because ‘Others’ is selected.");
   }
   const designationOther = othersSpecifyValue(input.designation, input.designationOther);
   if (designationOther.issue && input.designation === "OTHERS") {
-    issues.push("Designation - Others (please specify) is required when Designation is Others.");
+    issues.push("Enter the designation because ‘Others’ is selected.");
   }
 
   return {

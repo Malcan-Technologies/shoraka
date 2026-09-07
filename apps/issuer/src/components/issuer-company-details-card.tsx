@@ -147,7 +147,7 @@ export function IssuerCompanyDetailsCard({
         const el = document.getElementById(`field-${first.field}`);
         el?.scrollIntoView({ block: "center", behavior: "smooth" });
         if (el instanceof HTMLElement) el.focus();
-        throw new Error(firstIssueMessage(issues) ?? "Please complete the required fields.");
+        throw new Error(firstIssueMessage(issues) ?? "Complete the required fields.");
       }
       setFieldErrors({});
 

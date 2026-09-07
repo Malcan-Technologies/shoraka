@@ -310,7 +310,7 @@ export function DirectorShareholdersUnifiedSection({
         ) : null}
         {emptyAll ? (
           <p className="text-ui text-muted-foreground text-center py-8">
-            No people stored on the company record yet.
+            No people have been added yet.
           </p>
         ) : grouped ? (
           <>

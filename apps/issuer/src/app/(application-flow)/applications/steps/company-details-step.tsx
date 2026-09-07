@@ -943,7 +943,7 @@ export function CompanyDetailsStep({
             !visiblePeopleRows.some((p) => isMissingGovernmentIdPerson(p)) ? (
               <p className="text-body leading-7 text-muted-foreground col-span-2">
                 {resolvedCtosEmptyWarning
-                  ? "No directors or shareholders are available from CTOS."
+                  ? "No directors or shareholders were found in the latest external information."
                   : "No directors or shareholders found"}
               </p>
             ) : (

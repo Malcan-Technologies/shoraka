@@ -535,15 +535,15 @@ export function InvoiceOfferPanel({
       return;
     }
     if (!invoiceOfferConfirm.company_category) {
-      alert("Please select Technology or Non-Technology for this invoice.");
+      alert("Select Technology or Non-Technology for this invoice.");
       return;
     }
     if (!invoiceOfferConfirm.campaign_sector) {
-      alert("Please select the SC Campaign Sector for this invoice.");
+      alert("Select a Campaign Sector.");
       return;
     }
     if (!invoiceOfferConfirm.sustainability_category) {
-      alert("Please select a sustainability category for this invoice.");
+      alert("Select a sustainability category for this invoice.");
       return;
     }
     if (offerDisable.disabled || invoiceOfferConfirmBlocked || !applicationId) {
@@ -696,7 +696,7 @@ export function InvoiceOfferPanel({
             disabled={controlsDisabled}
           >
             <SelectTrigger aria-label={SC_MONTHLY_CAMPAIGN.campaignSector.label} className="h-9 w-full max-w-[22rem] rounded-xl border-border bg-background text-ui">
-              <SelectValue placeholder="Select SC sector" />
+              <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent className="max-h-[280px]">
               {SC_CAMPAIGN_SECTORS.map((value) => (
@@ -1026,15 +1026,15 @@ export function InvoiceOfferPanel({
                 return;
               }
               if (!companyCategory) {
-                alert("Please select Technology or Non-Technology for this invoice.");
+                alert("Select Technology or Non-Technology for this invoice.");
                 return;
               }
               if (!campaignSector) {
-                alert("Please select the SC Campaign Sector for this invoice.");
+                alert("Select a Campaign Sector.");
                 return;
               }
               if (!sustainabilityCategory) {
-                alert("Please select a sustainability category for this invoice.");
+                alert("Select a sustainability category for this invoice.");
                 return;
               }
               const platformFeeRatePercent = resolveDrawdownFeeRateForSend({

@@ -96,7 +96,7 @@ function assertUserMayWriteLockedField(params: {
   throw new AppError(
     403,
     "FIELD_NOT_EDITABLE",
-    `${params.field} cannot be changed by the organisation`
+    "This field is locked because it was verified during onboarding."
   );
 }
 
@@ -891,7 +891,7 @@ export async function patchOrgMasterProfile(params: {
       throw new AppError(
         400,
         "VALIDATION_ERROR",
-        "SC ComRep investor type is not valid for this organization."
+        "This Type of Investor is not valid for this organisation."
       );
     }
     data.sc_investor_category = applyScalar(
@@ -978,7 +978,7 @@ export async function patchPartyProfile(params: {
   });
   if (!row) throw new AppError(404, "NOT_FOUND", "Party profile not found");
   if (row.membership_status === OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) {
-    throw new AppError(400, "INVALID_PARTY_STATUS", "Observed parties must be adopted before editing");
+    throw new AppError(400, "INVALID_PARTY_STATUS", "Adopt this person into the current profile before editing.");
   }
 
   const nextShareholder =
@@ -1050,7 +1050,7 @@ export async function patchPartyProfile(params: {
       })
     : null;
   if (appliedSemantics?.issues.length) {
-    throw new AppError(400, "VALIDATION_ERROR", appliedSemantics.issues[0] ?? "Invalid ComRep value");
+    throw new AppError(400, "VALIDATION_ERROR", appliedSemantics.issues[0] ?? "Enter a valid value.");
   }
   if (p.salutation !== undefined || (entityType === "CORPORATE" && p.identityPrefix !== undefined)) {
     data.salutation = apply(
@@ -1118,16 +1118,16 @@ export async function patchPartyProfile(params: {
   }
   if (params.source === "USER") {
     if (p.isDirector !== undefined && p.isDirector !== row.is_director) {
-      throw new AppError(403, "FIELD_NOT_EDITABLE", "isDirector cannot be changed by the organisation");
+      throw new AppError(403, "FIELD_NOT_EDITABLE", "Director cannot be changed here.");
     }
     if (p.isShareholder !== undefined && p.isShareholder !== row.is_shareholder) {
-      throw new AppError(403, "FIELD_NOT_EDITABLE", "isShareholder cannot be changed by the organisation");
+      throw new AppError(403, "FIELD_NOT_EDITABLE", "Shareholder cannot be changed here.");
     }
     if (p.isBoard !== undefined && p.isBoard !== row.is_board) {
-      throw new AppError(403, "FIELD_NOT_EDITABLE", "isBoard cannot be changed by the organisation");
+      throw new AppError(403, "FIELD_NOT_EDITABLE", "Board cannot be changed here.");
     }
     if (p.isManagement !== undefined && p.isManagement !== row.is_management) {
-      throw new AppError(403, "FIELD_NOT_EDITABLE", "isManagement cannot be changed by the organisation");
+      throw new AppError(403, "FIELD_NOT_EDITABLE", "Management cannot be changed here.");
     }
     if (
       p.personKind !== undefined &&
@@ -1139,7 +1139,7 @@ export async function patchPartyProfile(params: {
         throw new AppError(
           403,
           "FIELD_NOT_EDITABLE",
-          "Board and management roles cannot be changed by the organisation"
+          "Board and management roles cannot be changed here."
         );
       }
     }
@@ -1330,7 +1330,7 @@ export async function createUserAddedParty(params: {
       );
     }
     if (!roles.isShareholder) {
-      throw new AppError(400, "VALIDATION_ERROR", "A company party must be a shareholder");
+      throw new AppError(400, "VALIDATION_ERROR", "A company must be added as a shareholder.");
     }
   }
 
@@ -1353,7 +1353,7 @@ export async function createUserAddedParty(params: {
     designationOther: params.patch.designationOther,
   });
   if (appliedCreate.issues.length > 0) {
-    throw new AppError(400, "VALIDATION_ERROR", appliedCreate.issues[0] ?? "Invalid ComRep value");
+    throw new AppError(400, "VALIDATION_ERROR", appliedCreate.issues[0] ?? "Enter a valid value.");
   }
 
   const identity = appliedCreate.identityNumber;
@@ -1528,7 +1528,7 @@ export async function deleteManagementParty(params: {
     throw new AppError(
       400,
       "INVALID_PARTY",
-      "Directors and shareholders cannot be removed here. Ask Admin to inactivate the party if needed."
+      "Directors and shareholders cannot be removed here. Ask Admin to mark the person inactive if needed."
     );
   }
   await prisma.organizationPartyProfile.delete({ where: { id: row.id } });
@@ -1570,7 +1570,7 @@ export async function resolvePartyMismatch(params: {
   };
   const patchKey = fieldMap[params.input.field];
   if (!patchKey) {
-    throw new AppError(400, "VALIDATION_ERROR", `Field ${params.input.field} cannot be adopted`);
+    throw new AppError(400, "VALIDATION_ERROR", "This field cannot be updated from the latest external information.");
   }
   return patchPartyProfile({
     portal: params.portal,
@@ -1591,7 +1591,7 @@ export async function adoptObservedParty(params: {
   });
   if (!row) throw new AppError(404, "NOT_FOUND", "Party profile not found");
   if (row.membership_status !== OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED) {
-    throw new AppError(400, "INVALID_PARTY_STATUS", "Only newly observed parties can be adopted");
+    throw new AppError(400, "INVALID_PARTY_STATUS", "Only new people from external information can be added to the current profile.");
   }
   if (
     isIssuerShareholderOnlyBelowMinimum({

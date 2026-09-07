@@ -1,61 +1,60 @@
 /**
- * Exact SC ComRep RMO-P2P field labels, dropdown wording, and definition help.
+ * Exact SC ComRep RMO-P2P field labels and dropdown wording.
  * Labels are section-specific. Do not reuse one wording across tables.
- * Help text is taken from the SC definition/note only.
+ * Helper text is plain English for Operations users; it keeps the SC meaning
+ * without exposing table numbers or implementation language.
  */
 
 export const SC_BRN_ROC_FORMAT_HELP =
-  "All Company Registration Number (ROC) and/or SSM Business Registration Number (BRN) should be reported without dash or special characters or space, and the BRN and ROC must not be keyed in interchangeably.";
+  "Enter the Company Registration Number (ROC) or SSM Business Registration Number (BRN) without dashes, spaces, or special characters. Do not mix BRN and ROC.";
 
 export const SC_NRIC_FORMAT_HELP =
-  "National Registration Identity Card (NRIC) number should be reported without dash or special characters or space. e.g. 800101011234";
+  "Enter the NRIC number without dashes, spaces, or special characters. Example: 800101011234";
 
-export const SC_LLP_SHARES_NOTE =
-  "For purposes of reporting for LLPs, capital contribution shall be referred to as shares.";
+export const SC_LLP_SHARES_NOTE = "For an LLP, enter capital contribution as shares.";
 
-export const SC_INTEGER_SHARES_HELP = "Integer value without decimal points.";
+export const SC_INTEGER_SHARES_HELP = "Enter a whole number.";
 
-export const SC_APPENDIX_A_COUNTRY_HELP =
-  "For the list of Country name – refer Appendix A.";
+export const SC_APPENDIX_A_COUNTRY_HELP = "Select the country from the list.";
 
 export const SC_BLANK_VALUE_HELP =
-  "If there is no information to be completed, leave it blank, unless it is a mandatory column in the report. Do not fill in N/A or “–” or “Not Applicable”.";
+  "Leave this blank if there is nothing to enter. Do not type N/A, “–”, or “Not Applicable” unless the field is required.";
 
 /** Annual [00000] / [01000] */
 export const SC_ANNUAL_GENERAL = {
   companyRegistrationNumber: {
     label: "Company Registration Number",
-    help: "Please insert the RMO’s SSM Business Registration Number (BRN) or Company Registration Number (ROC), whichever was initially used and registered in ComRep. The BRN and ROC must not be keyed in interchangeably.",
+    help: "Enter Shoraka’s SSM Business Registration Number (BRN) or Company Registration Number (ROC). Use the same type of number already on file. Do not mix BRN and ROC.",
     required: true as const,
     requiredReason: "CashSouk master completeness for all ComRep reports",
   },
   trusteeCompanyRegistrationNumber: {
     label: "Trustee Company Registration Number",
-    help: "If preparing a Trustee report and Company(Trustee) is chosen in Reporting Level, please insert RMO’s Trustee’s BRN or ROC. The BRN and ROC must not be keyed in interchangeably.",
+    help: "Enter this number if you prepare a trustee report. Do not mix BRN and ROC.",
     required: false as const,
     requiredReason: "SC requires this only when Reporting Level = Company(Trustee)",
   },
   nameOfRmo: {
     label: "Name of RMO",
-    help: "Please insert the name of RMO.",
+    help: "Enter the name of Shoraka.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   nameOfResponsiblePerson: {
     label: "Name of Responsible Person",
-    help: "Please insert name of the Responsible Person the RMO has appointed in accordance with the RMO Guidelines requirements and as duly informed to the SC. If there is more than 1 responsible person, then only 1 name is required.",
+    help: "Enter the name of the Responsible Person appointed for Shoraka. If there is more than one, enter one name only.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   contactNumber: {
     label: "Contact Number",
-    help: "Please insert the contact number of the Responsible Person.",
+    help: "Enter the contact number of the Responsible Person.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   typeOfCompany: {
     label: "Type of Company",
-    help: "CashSouk uses this SC Type of Company value to show the [02000] Sdn Bhd block or the Limited liability partnership block. It is not an annual [01000] ComRep column.",
+    help: "Select the company type to show the correct Share Capital fields.",
     required: true as const,
     requiredReason: "CashSouk business requirement to select the [02000] share-capital block",
   },
@@ -80,7 +79,7 @@ export const SC_ANNUAL_SHARE_CAPITAL = {
   },
   totalPaidUpCapitalForSdnBhd: {
     label: "Total paid up capital (for Sdn Bhd)",
-    help: "Please insert the total amount of issued and paid-up capital (RM) comprising of all the type of shares issued. Integer value without decimal points.",
+    help: "Enter the total issued and paid-up capital (RM) for all share types. Enter a whole number.",
     required: true as const,
     requiredReason: "CashSouk master completeness when Type of Company is Private Limited (Sdn Bhd)",
   },
@@ -93,18 +92,18 @@ export const SC_ANNUAL_SHARE_CAPITAL = {
   },
   membersReserves: {
     label: "Members' Reserves",
-    help: `Please insert information relating to Member’s reserve “shares” where relevant. ${SC_INTEGER_SHARES_HELP} ${SC_LLP_SHARES_NOTE}`,
+    help: `Enter members’ reserve “shares” if relevant. ${SC_INTEGER_SHARES_HELP} ${SC_LLP_SHARES_NOTE}`,
     required: false as const,
   },
   subordinatedLoans: {
     label: "Subordinated Loans",
-    help: "Please insert the relevant information pertaining to Subordinated Loans. Integer value without decimal points.",
+    help: "Enter the subordinated loans amount. Enter a whole number.",
     required: true as const,
     requiredReason: "CashSouk master completeness when Type of Company is Limited Liability Partnership",
   },
   totalLimitedLiabilityPartnership: {
     label: "Total Limited Liability Partnership",
-    help: `Please insert total partners’ capital contribution for the LLP. ${SC_LLP_SHARES_NOTE}`,
+    help: `Enter the total partners’ capital contribution for the LLP. ${SC_LLP_SHARES_NOTE}`,
     required: true as const,
     requiredReason: "CashSouk master completeness when Type of Company is Limited Liability Partnership",
   },
@@ -116,49 +115,49 @@ export const SC_ANNUAL_SHARE_CAPITAL = {
 export const SC_ANNUAL_SHAREHOLDER = {
   name: {
     label: "Name",
-    help: "Please insert the full name of the Shareholder of the RMO (i.e., Individual or Company) as per verified official documents. If the shareholder type is a Beneficial Owner please insert the name of the shareholder in this column.",
+    help: "Enter the full name of the shareholder (individual or company) as shown on official documents. If this row is a beneficial owner, enter the shareholder’s name here.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   salutation: {
     label: "Salutation",
-    help: "Please insert salutation for the Shareholder of the RMO only if the Shareholder is an individual or beneficial owner.",
+    help: "Enter a salutation if this shareholder is an individual or beneficial owner.",
     required: "conditional" as const,
     requiredReason: "Required for an individual or beneficial owner; hidden for a company",
   },
   icPassportNumber: {
     label: "IC/Passport number",
-    help: "Local Malaysian individual: NRIC. Foreign individual: Passport. Company/legal entity: BRN or ROC.",
+    help: "Use NRIC for a Malaysian individual, Passport for a foreign individual, or BRN/ROC for a company.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   dateOfBirth: {
     label: "Date of Birth (dd/mm/yyyy)",
-    help: "For an individual, enter date of birth. For a company/legal entity, enter date of incorporation.",
+    help: "For an individual, enter the date of birth. For a company, enter the date of incorporation.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   nationality: {
     label: "Nationality",
-    help: "For an individual, enter nationality. For a company/legal entity, enter country of incorporation. For the list of Country name – refer Appendix A.",
+    help: "For an individual, enter nationality. For a company, enter the country of incorporation. Select the country from the list.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   address: {
     label: "Address",
-    help: "Use residential address for an individual and business address for an entity.",
+    help: "Use a residential address for an individual and a business address for a company.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   dateAcquired: {
     label: "Date Acquired (dd/mm/yyyy)",
-    help: "Please insert the date the shares were acquired by the Shareholder of the RMO as officially recorded with SSM, whether by initial subscription or through a share transfer.",
+    help: "Enter the date the shares were acquired, as recorded with SSM.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   dateDisposal: {
     label: "Date Disposal (dd/mm/yyyy)",
-    help: "Please insert the date the Shareholder of the RMO officially disposed of and transferred the Shares as recorded in SSM. Leave blank while the holding is still active.",
+    help: "Enter the date the shares were disposed of, as recorded with SSM. Leave this blank if the holding is still held.",
     required: false as const,
   },
   typeOfShares: {
@@ -168,7 +167,7 @@ export const SC_ANNUAL_SHAREHOLDER = {
   },
   typeOfSharesOthers: {
     label: "Type of Shares - Others (please specify)",
-    help: "Please insert the type of shares if “others” was chosen in the previous column.",
+    help: "Enter the other share type because ‘Others’ is selected.",
     required: "conditional" as const,
     requiredReason: "Required only when Type of Shares = Others",
   },
@@ -198,42 +197,42 @@ export const SC_ANNUAL_OFFICER = {
   },
   name: {
     label: "Name",
-    help: "Please insert the full name as reflected per verified official documents (e.g., IC or passport).",
+    help: "Enter the full name as shown on official documents (for example, IC or passport).",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   salutation: {
     label: "Salutation",
-    help: "Please insert salutation for the individual, if applicable.",
+    help: "Enter a salutation if applicable.",
     required: false as const,
   },
   responsiblePerson: {
     label: "Responsible Person",
-    help: "Please select one of the following values: Yes / No.",
+    help: "Select Yes or No.",
     required: true as const,
     requiredReason: "SC requires Yes or No on each row; CashSouk completeness also requires at least one Yes",
   },
   identityNumber: {
     label: "Identity Number (NRIC/ Passport No.)",
-    help: "Local Malaysian individual: NRIC. Foreign individual: Passport. NRIC numbers must be entered without dashes or space or special characters (e.g., 800101011234).",
+    help: "Use NRIC for a Malaysian individual or Passport for a foreign individual. Enter NRIC without dashes, spaces, or special characters (for example, 800101011234).",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   dateOfBirth: {
     label: "Date of Birth (dd/mm/yyyy)",
-    help: "Please insert the date of birth of the individual. The date must follow the dd/mm/yyyy format.",
+    help: "Enter the date of birth. Use the dd/mm/yyyy format.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   nationality: {
     label: "Nationality",
-    help: "Please select one of the values for the nationality of the person. For the list of Country name – refer Appendix A.",
+    help: "Select the nationality. Select the country from the list.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   address: {
     label: "Address",
-    help: "Please insert the residential address of the individual.",
+    help: "Enter the residential address.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
@@ -244,19 +243,19 @@ export const SC_ANNUAL_OFFICER = {
   },
   designationOthers: {
     label: "Designation - Others (Please specify)",
-    help: "Please insert the Designation if “Others” was chosen in the previous column.",
+    help: "Enter the designation because ‘Others’ is selected.",
     required: "conditional" as const,
     requiredReason: "Required only when Designation = Others",
   },
   appointmentDate: {
     label: "Appointment Date (dd/mm/yyyy)",
-    help: "Please enter the date the individual was appointed to their current designation/position. The date must follow the dd/mm/yyyy format.",
+    help: "Enter the date this person was appointed to their current role. Use the dd/mm/yyyy format.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   resignationDate: {
     label: "Resignation date (dd/mm/yyyy)",
-    help: "Please enter the date the individual ceased their role or stepped down from their current designation/position. The date must follow the dd/mm/yyyy format.",
+    help: "Enter the date this person left the role. Leave this blank if the person has not resigned.",
     required: false as const,
   },
 } as const;
@@ -265,37 +264,37 @@ export const SC_ANNUAL_OFFICER = {
 export const SC_ANNUAL_ADVISOR = {
   name: {
     label: "Name",
-    help: "Please insert the full name of the Advisor appointed by the RMO as reflected per the verified official document issued for company.",
+    help: "Enter the full company name of the appointed adviser as shown on official documents.",
     required: true as const,
     requiredReason: "CashSouk completeness when an advisor row exists",
   },
   companyRegistrationNo: {
     label: "Company Registration No.",
-    help: "Please insert the BRN and or ROC number as reflected per the verified official document issued for company.",
+    help: "Enter the BRN or ROC as shown on official documents.",
     required: true as const,
     requiredReason: "CashSouk completeness when an advisor row exists",
   },
   country: {
     label: "Country",
-    help: "Please select one of the values for the nationality of the person or the entity’s country of incorporation. For the list of Country name – refer Appendix A.",
+    help: "Select the country of incorporation. Select the country from the list.",
     required: true as const,
     requiredReason: "CashSouk completeness when an advisor row exists",
   },
   address: {
     label: "Address",
-    help: "Please insert the Advisor’s business address.",
+    help: "Enter the adviser’s business address.",
     required: true as const,
     requiredReason: "CashSouk completeness when an advisor row exists",
   },
   appointmentDate: {
     label: "Appointment Date (dd/mm/yyyy)",
-    help: "Please insert the date of appointment of the Advisor to the RMO.",
+    help: "Enter the date the adviser was appointed.",
     required: true as const,
     requiredReason: "CashSouk completeness when an advisor row exists",
   },
   cessationDate: {
     label: "Cessation Date (dd/mm/yyyy)",
-    help: "Please insert the date the Advisor ceased as an Advisor to the RMO.",
+    help: "Enter the date the adviser stopped being appointed. Leave this blank if the adviser is still appointed.",
     required: false as const,
   },
   typeOfAdvisor: {
@@ -309,37 +308,37 @@ export const SC_ANNUAL_ADVISOR = {
 export const SC_ANNUAL_INTEREST = {
   name: {
     label: "Name",
-    help: "Please insert the full name of the company as reflected per the verified official document issued for company.",
+    help: "Enter the full company name as shown on official documents.",
     required: true as const,
     requiredReason: "CashSouk completeness when an interest row exists",
   },
   roc: {
     label: "ROC",
-    help: "Please insert the BRN or ROC number as reflected per the verified official document issued for Company.",
+    help: "Enter the BRN or ROC as shown on official documents.",
     required: true as const,
     requiredReason: "CashSouk completeness when an interest row exists",
   },
   country: {
     label: "Country",
-    help: "Please select one of the values for the entity’s country of incorporation. For the list of Country name – refer Appendix A.",
+    help: "Select the country of incorporation. Select the country from the list.",
     required: true as const,
     requiredReason: "CashSouk completeness when an interest row exists",
   },
   address: {
     label: "Address",
-    help: "Please insert the business address of the company.",
+    help: "Enter the company’s business address.",
     required: true as const,
     requiredReason: "CashSouk completeness when an interest row exists",
   },
   acquisitionDate: {
     label: "Acquisition Date (dd/mm/yyyy)",
-    help: "Please insert the acquisition date as recorded and registered in official documents.",
+    help: "Enter the date the interest was acquired, as recorded on official documents.",
     required: true as const,
     requiredReason: "CashSouk completeness when an interest row exists",
   },
   disposalDate: {
     label: "Disposal Date (dd/mm/yyyy)",
-    help: "Please insert the date the shares were recorded and registered as transferred in official documents.",
+    help: "Enter the date the shares were transferred, as recorded on official documents. Leave this blank if the interest is still held.",
     required: false as const,
   },
   typeOfShares: {
@@ -349,7 +348,7 @@ export const SC_ANNUAL_INTEREST = {
   },
   typeOfSharesOthers: {
     label: "Type of Shares - Others (please specify)",
-    help: "If Type of Shares selected above is “Others”: Please insert the type of shares.",
+    help: "Enter the other share type because ‘Others’ is selected.",
     required: "conditional" as const,
     requiredReason: "Required only when Type of Shares = Others",
   },
@@ -369,13 +368,13 @@ export const SC_ANNUAL_INTEREST = {
 export const SC_ANNUAL_FINANCIAL = {
   consolidatedAccounts: {
     label: "Consolidated Accounts",
-    help: "Yes – Select Yes if the financial information is prepared based on consolidated financial statements. No – Select No if the financial information is based on single-entity financial statements.",
+    help: "Select Yes if these figures are from consolidated financial statements. Select No if they are from a single-entity financial statement.",
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
   auditorsName: {
     label: "Auditor's Name",
-    help: "Please insert the full name of the Audit Firm as reflected per the verified official document issued for company.",
+    help: "Enter the full name of the audit firm as shown on official documents.",
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
@@ -404,7 +403,12 @@ export const SC_ANNUAL_FINANCIAL = {
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
-  totalAssets: { label: "Total Assets", required: true as const, requiredReason: "CashSouk master completeness" },
+  totalAssets: {
+    label: "Total Assets",
+    help: "Enter the total shown in the financial statement.",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
+  },
   nonCurrentAssets: {
     label: "Non-Current Assets",
     required: true as const,
@@ -417,6 +421,7 @@ export const SC_ANNUAL_FINANCIAL = {
   },
   totalEquity: {
     label: "Total Equity",
+    help: "Enter the total shown in the financial statement.",
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
@@ -447,6 +452,7 @@ export const SC_ANNUAL_FINANCIAL = {
   },
   totalLiabilities: {
     label: "Total Liabilities",
+    help: "Enter the total shown in the financial statement.",
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
@@ -460,7 +466,12 @@ export const SC_ANNUAL_FINANCIAL = {
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
-  totalRevenue: { label: "Total Revenue", required: true as const, requiredReason: "CashSouk master completeness" },
+  totalRevenue: {
+    label: "Total Revenue",
+    help: "Enter the total shown in the financial statement.",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
+  },
   donationBased: {
     label: "Donation Based",
     required: true as const,
@@ -504,6 +515,7 @@ export const SC_ANNUAL_FINANCIAL = {
   },
   totalCost: {
     label: "Total Cost",
+    help: "Enter the total shown in the financial statement.",
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
@@ -558,19 +570,19 @@ export const SC_MONTHLY_ISSUER = {
   },
   issuerRoc: {
     label: "Issuer ROC",
-    help: "Please insert the BRN or ROC number as reflected per the verified official document issued for Company.",
+    help: "Enter the BRN or ROC as shown on official documents.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   companyCategory: {
     label: "Company category",
-    help: "Technology: issuers or campaigns that focus on, or are related to, technology-based activities. Non-Technology: issuers or campaigns that are not primarily focused on technology-related activities.",
+    help: "Select Technology if the issuer or campaign is mainly technology-related. Select Non-Technology if it is not.",
     required: false as const,
     requiredReason: "Campaign-specific; not issuer profile completeness",
   },
   issuerIdIfAny: {
     label: "Issuer ID (if any)",
-    help: "Please insert the unique ID assigned to the issuer who intends to raise funds on RMO’s platform.",
+    help: "Enter the unique ID assigned to this issuer, if there is one.",
     required: false as const,
     requiredReason: "SC explicitly says if any",
   },
@@ -602,55 +614,55 @@ export const SC_MONTHLY_ISSUER = {
   },
   registeredAddressState: {
     label: "Registered Address - State",
-    help: "The selection must align with the registered address stated above. If the location is outside Malaysia, select “Outside Malaysia.”",
+    help: "This should match the registered address above. If the location is outside Malaysia, select “Outside Malaysia.”",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   registeredAddressPostcode: {
     label: "Registered Address - Postcode",
-    help: "If the location is outside Malaysia, please enter the relevant international postcode (if applicable).",
+    help: "If the location is outside Malaysia, enter the international postcode if there is one.",
     required: "conditional" as const,
     requiredReason: "Required except when Registered Address - State is Outside Malaysia",
   },
   businessAddress: {
     label: "Business Address",
-    help: "If the issuer is a subsidiary of another company, please provide the information relating to the subsidiary.",
+    help: "If this issuer is a subsidiary, enter the subsidiary’s business address.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   businessAddressState: {
     label: "Business Address - State",
-    help: "The selection must align with the business address stated above. If the location is outside Malaysia, select “Outside Malaysia.”",
+    help: "This should match the business address above. If the location is outside Malaysia, select “Outside Malaysia.”",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   businessAddressPostcode: {
     label: "Business Address - Postcode",
-    help: "If the location is outside Malaysia, please enter the relevant international postcode (if applicable).",
+    help: "If the location is outside Malaysia, enter the international postcode if there is one.",
     required: "conditional" as const,
     requiredReason: "Required except when Business Address - State is Outside Malaysia",
   },
   phoneNumber: {
     label: "Phone Number",
-    help: "Where the issuer is a sole proprietor, partnership etc please insert the contact telephone number of relevant person(s) who liaise with the RMO for the purpose of raising funds.",
+    help: "If the issuer is a sole proprietor or partnership, enter the phone number of the person who deals with CashSouk for fundraising.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   emailAddress: {
     label: "E-mail Address",
-    help: "Where the issuer is a sole proprietor, partnership etc please insert the email address of relevant person(s) who liaise with the RMO for the purpose of raising funds.",
+    help: "If the issuer is a sole proprietor or partnership, enter the e-mail address of the person who deals with CashSouk for fundraising.",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
   website: {
     label: "Website",
-    help: "Please insert the URL link to the issuer’s website where applicable.",
+    help: "Enter the issuer’s website URL if there is one.",
     required: false as const,
     requiredReason: "SC explicitly says where applicable",
   },
   companyActivities: {
     label: "Company Activities",
-    help: "Please insert the issuer’s company activity based on the purpose of the issuer’s fundraising.",
+    help: "Enter the issuer’s company activity based on the purpose of this fundraising.",
     required: false as const,
     requiredReason: "Mapping unresolved — NEEDS BUSINESS/COMPLIANCE CONFIRMATION",
   },
@@ -660,13 +672,13 @@ export const SC_MONTHLY_ISSUER = {
 export const SC_MONTHLY_CAMPAIGN = {
   campaignSector: {
     label: "Campaign Sector",
-    help: "Please select the relevant sector relating to the specific fundraising campaign. Definitions should be based on SME Corp’s definitions.",
+    help: "Select the sector for this fundraising campaign. Use SME Corp definitions.",
   },
   sustainabilityCategory: { label: "Sustainability Category of the Campaign" },
   purposeOfFundRaising: { label: "Purpose of Fund Raising" },
   purposeOfFundRaisingOthers: {
     label: "Purpose of Fund Raising - Others (please specify)",
-    help: "Please insert the purpose of financing if RMO chose “Others” in Purpose of Fund Raising above.",
+    help: "Enter the purpose because ‘Others’ is selected in Purpose of Fund Raising.",
   },
 } as const;
 
@@ -675,37 +687,37 @@ export const SC_MONTHLY_SHAREHOLDER = {
   shareholderType: { label: "Shareholder Type" },
   shareholderName: {
     label: "Shareholder Name",
-    help: "Please insert the full name of the Shareholder of the issuer (i.e., Individual or Company or Beneficial Owner) as reflected per the verified official documents.",
+    help: "Enter the full name of the shareholder (individual, company, or beneficial owner) as shown on official documents.",
   },
   salutation: {
     label: "Salutation (if applicable)",
-    help: "Please insert salutation for the Shareholder of the issuer only if the Shareholder is an individual.",
+    help: "Enter a salutation if this shareholder is an individual.",
   },
   identityPrefix: { label: "Identity Prefix" },
   shareholderIdentity: {
     label: "Shareholder Identity (NRIC/Passport/Company Registration No.)",
-    help: "Local Malaysian individual: NRIC. Foreign individual: Passport. Company: BRN or ROC.",
+    help: "Use NRIC for a Malaysian individual, Passport for a foreign individual, or BRN/ROC for a company.",
   },
   dateOfBirth: {
     label: "Date of Birth (dd/mm/yyyy)",
-    help: "If Shareholder Type is an Individual, insert date of birth. If Shareholder Type is a Company, insert Date of Incorporation.",
+    help: "For an individual, enter the date of birth. For a company, enter the date of incorporation.",
   },
   gender: {
     label: "Gender",
-    help: "Not Applicable is only chosen if the shareholder is a non-individual entity. As for individuals, please insert the gender as reflected per the verified official documents.",
+    help: "Select Not Applicable only if this shareholder is a company. For an individual, enter the gender shown on official documents.",
   },
   nationalityCountry: {
     label: "Nationality/Country",
-    help: "If Individual, select the nationality. If Company, select the Country of Incorporation. For the list of Country name – refer Appendix A.",
+    help: "For an individual, select nationality. For a company, select the country of incorporation. Select the country from the list.",
   },
   businessResidentialAddress: { label: "Business/Residential Address" },
   businessResidentialAddressState: {
     label: "Business/Residential Address - State",
-    help: "The selection must align with the business address stated above.",
+    help: "This should match the address above.",
   },
   businessResidentialAddressPostcode: {
     label: "Business/Residential Address - Postcode",
-    help: "If the location is outside Malaysia, please enter the relevant international postcode (if applicable).",
+    help: "If the location is outside Malaysia, enter the international postcode if there is one.",
   },
   typeOfShares: { label: "Type of Shares" },
   typeOfSharesOthers: { label: "Type of Shares - Others (please specify)" },
@@ -719,47 +731,47 @@ export const SC_MONTHLY_BOARD = {
   boardOfDirectorManagementTeam: { label: "Board of Director/Management Team" },
   name: {
     label: "Name",
-    help: "Please insert the full name as reflected per the verified official documents (e.g., IC or passport).",
+    help: "Enter the full name as shown on official documents (for example, IC or passport).",
   },
   salutation: {
     label: "Salutation (if applicable)",
-    help: "Please insert the salutation of the individual named here.",
+    help: "Enter a salutation if applicable.",
   },
   identityPrefix: { label: "Identity Prefix" },
   identityNumber: {
     label: "Identity Number (NRIC/Passport No.)",
-    help: "Local Malaysian individual: NRIC. Foreign individual: Passport. NRIC numbers must be entered without dashes or special characters (e.g., 800101011234).",
+    help: "Use NRIC for a Malaysian individual or Passport for a foreign individual. Enter NRIC without dashes or special characters (for example, 800101011234).",
   },
   gender: {
     label: "Gender",
-    help: "Please insert the gender of the individual named here, as reflected per the verified official documents.",
+    help: "Enter the gender shown on official documents.",
   },
   dateOfBirth: {
     label: "Date of Birth (dd/mm/yyyy)",
-    help: "Please insert date of birth of the individual named here, as reflected per the verified official documents.",
+    help: "Enter the date of birth as shown on official documents.",
   },
   nationality: {
     label: "Nationality",
-    help: "Please select one of the values for the nationality of the individual named here. For the list of Country name – refer Appendix A.",
+    help: "Select the nationality. Select the country from the list.",
   },
   residentialAddress: { label: "Residential Address" },
   residentialAddressState: {
     label: "Residential Address - State",
-    help: "The selection must align with the residential address stated above.",
+    help: "This should match the residential address above.",
   },
   residentialAddressPostcode: {
     label: "Residential Address - Postcode",
-    help: "If the location is outside Malaysia, please enter the relevant international postcode (if applicable).",
+    help: "If the location is outside Malaysia, enter the international postcode if there is one.",
   },
   designation: { label: "Designation" },
   designationOthers: {
     label: "Designation - Others (please specify)",
-    help: "If Others is chosen in Designation above, please insert the designation of the individual named here.",
+    help: "Enter the designation because ‘Others’ is selected.",
   },
   appointmentDate: { label: "Appointment Date (dd/mm/yyyy)" },
   resignationDate: {
     label: "Resignation Date (dd/mm/yyyy)",
-    help: "Please insert the resignation date of the individual named here, where applicable.",
+    help: "Enter the resignation date if this person has resigned. Leave this blank if they have not resigned.",
   },
 } as const;
 
@@ -767,29 +779,29 @@ export const SC_MONTHLY_BOARD = {
 export const SC_MONTHLY_INVESTOR = {
   investorName: {
     label: "Investor Name",
-    help: "Please insert the investor name as reflected per the verified official documents.",
+    help: "Enter the investor name as shown on official documents.",
   },
   identityPrefix: { label: "Identity Prefix" },
   investorIdentification: {
     label: "Investor Identification (NRIC / Passport / Company Registration No.)",
-    help: "Local Malaysian individual: NRIC. Foreign individual: Passport. Company/legal entity: BRN or ROC.",
+    help: "Use NRIC for a Malaysian individual, Passport for a foreign individual, or BRN/ROC for a company.",
   },
   dateOfBirthIncorporation: {
     label: "Date of Birth/Incorporation (dd/mm/yyyy)",
-    help: "Please insert the (a) date of birth (if the investor is an individual) or (b) date of incorporation (if the investor is a company / legal entity) of the investor.",
+    help: "Enter the date of birth for an individual, or the date of incorporation for a company.",
   },
   gender: {
     label: "Gender",
-    help: "Not Applicable is only chosen if the investor is a non-individual. For individuals, please insert their gender as reflected per the verified official documents.",
+    help: "Select Not Applicable only if this investor is a company. For an individual, enter the gender shown on official documents.",
   },
   businessResidentialAddressState: {
     label: "Business/Residential Address - State",
-    help: "The business/residential address must reflect the investors current address which may or may not necessarily be the address reflected in their IC.",
+    help: "Enter the investor’s current address. This may differ from the address on their IC.",
   },
   businessResidentialAddressPostcode: { label: "Business/Residential Address - Postcode" },
   nationalityCountry: {
     label: "Nationality/Country",
-    help: "Please select one of the values for the nationality of the person or the entity’s country of incorporation. For the list of Country name – refer Appendix A.",
+    help: "For an individual, select nationality. For a company, select the country of incorporation. Select the country from the list.",
   },
   typeOfInvestor: { label: "Type of Investor" },
 } as const;
@@ -820,10 +832,10 @@ export const SC_MONTHLY_ISSUER_FINANCIAL_LABELS: Record<string, string> = {
 
 export const SC_MONTHLY_ISSUER_FINANCIAL_HELP: Record<string, string> = {
   bscatot:
-    "Please insert issuer’s financial information based on the latest available audited financial statements or management account (where applicable).",
-  equity_share_application: "Where applicable.",
-  equity_share_premium: "Where applicable.",
-  equity_minority: "Where applicable.",
+    "Enter figures from the latest audited financial statements or management accounts.",
+  equity_share_application: "Enter this if it applies.",
+  equity_share_premium: "Enter this if it applies.",
+  equity_minority: "Enter this if it applies.",
 };
 
 export const SC_ANNUAL_PERSON_KIND_LABELS = {

@@ -52,7 +52,7 @@ export function IssuerProfileCompletenessBanner({
     <div id="profile-completeness" className="scroll-mt-24 space-y-3">
       <NextActionBanner
         title="Complete your profile"
-        description={`${percent}% complete. ${remaining} ${remaining === 1 ? "item remaining" : "items remaining"}. Your profile is incomplete. You can continue with your application, but please complete the remaining profile information when possible.`}
+        description={`${percent}% complete. ${remaining} ${remaining === 1 ? "item remaining" : "items remaining"}. Your profile is incomplete. You can continue with your application. Complete the remaining profile information when you can.`}
         href={expandOnPage ? undefined : "/profile?focus=completeness"}
         onClick={expandOnPage ? () => setExpanded((open) => !open) : undefined}
         ctaLabel="Complete profile"

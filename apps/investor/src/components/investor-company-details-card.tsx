@@ -75,7 +75,7 @@ export function InvestorCompanyDetailsCard({
         countryOfIncorporation: countryOfIncorporation ?? country,
       });
       if (issues.length > 0) {
-        throw new Error(firstIssueMessage(issues) ?? "Please complete the required fields.");
+        throw new Error(firstIssueMessage(issues) ?? "Complete the required fields.");
       }
       const master: Record<string, unknown> = {};
       if (!dateOfIncorporation) master.dateOfIncorporation = dateValue.trim();

@@ -249,14 +249,14 @@ export default function RmoProfilePage() {
       <div className="w-full space-y-6 px-2 py-8 md:px-4">
         <AdminPageHeader
           title="Shoraka Profile"
-          description="CashSouk/Shoraka operator master profile used for regulatory reporting."
+          description="Shoraka company details used across the platform."
         />
 
         <Card className="rounded-2xl">
           <AdminDetailCardHeader
             icon={ClipboardDocumentCheckIcon}
             title="Profile completeness"
-            description="Profile completeness covers core master data used by the platform. Report-specific and condition-dependent fields are validated separately."
+            description="Complete the core profile fields first. Extra fields that depend on a condition are checked when you enter them."
           />
           <CardContent>
             <ProfileCompletenessSummary
@@ -290,7 +290,7 @@ export default function RmoProfilePage() {
               <AdminDetailCardHeader
                 icon={BuildingOffice2Icon}
                 title="General Information"
-                description="RMO / operator identity used on the master record"
+                description="Company identity and contact details"
                 actions={
                   <AdminCardEditActions
                     canEdit={canManage}
@@ -434,7 +434,7 @@ export default function RmoProfilePage() {
               <AdminDetailCardHeader
                 icon={BanknotesIcon}
                 title="Share Capital"
-                description="[02000] Summary of Share Capital"
+                description="Share capital for this company type"
                 actions={
                   <AdminCardEditActions
                     canEdit={canManage && Boolean(capitalKind)}
@@ -472,8 +472,8 @@ export default function RmoProfilePage() {
                 {!capitalKind ? (
                   <p className="text-ui text-muted-foreground">
                     {draft.scCompanyType
-                      ? "The SC [02000] table defines a Sdn Bhd block and a Limited Liability Partnership block. This Type of Company is not mapped to either block."
-                      : "Confirm Type of Company in General before entering share-capital fields. The SC [02000] table defines a Sdn Bhd block and a Limited Liability Partnership block."}
+                      ? "This Type of Company does not use Share Capital fields. Share Capital is shown for a Sdn Bhd or a Limited Liability Partnership."
+                      : "Select the Type of Company in the General tab first. The Share Capital fields will then appear based on the company type."}
                   </p>
                 ) : null}
                 {capitalKind === "SDN_BHD" ? (
@@ -760,11 +760,11 @@ export default function RmoProfilePage() {
             <div id="shoraka-holders" className="scroll-mt-24">
               <ShorakaRecordSection
                 title="Ownership"
-                description="Shareholders, members, and beneficial owners on the operator profile"
+                description="Shareholders, members, and beneficial owners"
                 icon={UserGroupIcon}
                 addLabel="Add owner"
-                emptyTitle="No ownership records yet"
-                emptyMessage="Add Shoraka shareholders, members or beneficial owners used for the operator profile and regulatory reporting."
+                emptyTitle="No shareholders have been added yet"
+                emptyMessage="Add shareholders, members, or beneficial owners."
                 rows={filteredHolders}
                 canManage={canManage}
                 filters={[...HOLDER_FILTERS]}
@@ -841,7 +841,7 @@ export default function RmoProfilePage() {
                       }
                       disabled={disabled}
                       required
-                      help="CashSouk role on this row. The SC [03000] table covers Shareholders, Members and beneficial owners."
+                      help="Choose whether this person is a shareholder, member, or beneficial owner."
                       error={errors.holderType}
                     />
                     <ShorakaEnumSelect
@@ -852,7 +852,7 @@ export default function RmoProfilePage() {
                       onChange={(v) => set({ ...row, entityType: v })}
                       disabled={disabled || row.holderType === "BENEFICIAL_OWNER"}
                       required
-                      help="CashSouk selector used to apply the SC individual vs company/legal-entity definitions."
+                      help="Select Individual or Company. This chooses which identity and date fields to enter."
                       error={errors.entityType}
                     />
                     <ShorakaField
@@ -993,11 +993,11 @@ export default function RmoProfilePage() {
             <div id="shoraka-officers" className="scroll-mt-24">
               <ShorakaRecordSection
                 title="Board & Management"
-                description="Directors, controllers, and authorised personnel for the operator"
+                description="Directors and management for Shoraka"
                 icon={UsersIcon}
                 addLabel="Add person"
-                emptyTitle="No board or management records yet"
-                emptyMessage="Add Shoraka board or management people used for the operator profile and regulatory reporting."
+                emptyTitle="No board or management people have been added yet"
+                emptyMessage="Add board or management people."
                 rows={draft.officers}
                 canManage={canManage}
                 renderCard={(row) => ({
@@ -1170,11 +1170,11 @@ export default function RmoProfilePage() {
             <div id="shoraka-advisors" className="scroll-mt-24">
               <ShorakaRecordSection
                 title="Advisers"
-                description="Please list all appointed advisors. Each advisor must be entered on a separate line or in separate rows."
+                description="Add the company’s appointed advisers. Enter each adviser separately."
                 icon={BriefcaseIcon}
                 addLabel="Add adviser"
-                emptyTitle="No advisers yet"
-                emptyMessage="Add Shoraka advisers used for the operator profile and regulatory reporting."
+                emptyTitle="No advisers have been added yet"
+                emptyMessage="Add the company’s appointed advisers."
                 rows={draft.advisors}
                 canManage={canManage}
                 renderCard={(row) => ({
@@ -1298,11 +1298,11 @@ export default function RmoProfilePage() {
             <div id="shoraka-interests" className="scroll-mt-24">
               <ShorakaRecordSection
                 title="Interest in Other Company"
-                description="Shareholdings held by the operator in other companies"
+                description="Add other companies where Shoraka has an interest or shareholding."
                 icon={BuildingOffice2Icon}
                 addLabel="Add company"
-                emptyTitle="No other company interests yet"
-                emptyMessage="Add companies Shoraka has an interest in for the operator profile and regulatory reporting."
+                emptyTitle="No other company interests have been added yet"
+                emptyMessage="Add other companies where Shoraka has an interest or shareholding."
                 rows={draft.interests}
                 canManage={canManage}
                 renderCard={(row) => ({
@@ -1404,7 +1404,6 @@ export default function RmoProfilePage() {
                       onChange={(v) => set({ ...row, disposalDate: v })}
                       disabled={disabled}
                       help={SC_ANNUAL_INTEREST.disposalDate.help}
-                      required
                       error={errors.disposalDate}
                     />
                     <ShorakaEnumSelect
@@ -1454,11 +1453,11 @@ export default function RmoProfilePage() {
             <div id="shoraka-financials" className="scroll-mt-24">
               <ShorakaRecordSection
                 title="Financial Statements"
-                description="Operator financial statements used on the Shoraka master record"
+                description="Enter the financial statement details for each financial year."
                 icon={DocumentTextIcon}
                 addLabel="Add financial statement"
-                emptyTitle="No financial statements yet"
-                emptyMessage="Add at least one Shoraka financial statement to complete the operator profile."
+                emptyTitle="No financial statements have been added yet"
+                emptyMessage="Add at least one financial statement."
                 rows={draft.financialStatements}
                 canManage={canManage}
                 renderCard={(row) => {

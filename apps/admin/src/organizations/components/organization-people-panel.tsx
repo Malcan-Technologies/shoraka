@@ -37,6 +37,7 @@ import { OrganizationPersonCard } from "./organization-person-card";
 import {
   OrganizationPersonEditorDialog,
   partyToEditorValues,
+  personToEditorValues,
   type PartyEditorValues,
 } from "./organization-person-editor-dialog";
 import { EditableField, ReadField } from "./organization-profile-helpers";
@@ -73,6 +74,7 @@ export function OrganizationPeoplePanel({
   const [showConfirm, setShowConfirm] = React.useState(false);
   const [editingMemberId, setEditingMemberId] = React.useState<string | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
+  const [seedValues, setSeedValues] = React.useState<PartyEditorValues | null>(null);
   const [editingPartyId, setEditingPartyId] = React.useState<string | null>(null);
   const [viewingPartyId, setViewingPartyId] = React.useState<string | null>(null);
 
@@ -181,10 +183,18 @@ export function OrganizationPeoplePanel({
         <AdminDetailCardHeader
           icon={UsersIcon}
           title="People"
-          description="Directors, shareholders, board, and management — one person, one master record"
+          description="Directors, shareholders, board, and management. The same person can have more than one role."
           actions={
             canManage ? (
-              <Button type="button" size="sm" className="gap-1.5" onClick={() => setAddOpen(true)}>
+              <Button
+                type="button"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  setSeedValues(null);
+                  setAddOpen(true);
+                }}
+              >
                 <PlusIcon className="h-4 w-4" />
                 Add person
               </Button>
@@ -210,7 +220,7 @@ export function OrganizationPeoplePanel({
           ) : null}
 
           {unified.master.length === 0 && unified.peopleOnly.length === 0 ? (
-            <p className="text-ui text-muted-foreground">No people stored on the master record yet.</p>
+            <p className="text-ui text-muted-foreground">No people have been added yet.</p>
           ) : null}
 
           {unified.master.map((item) => (
@@ -233,7 +243,7 @@ export function OrganizationPeoplePanel({
                     : undefined
                 }
                 onInactivate={item.party ? () => peopleMutations.inactivate.mutate(item.party!.id) : undefined}
-                onKeepAbsent={() => toast.success("Kept on the current CashSouk profile")}
+                onKeepAbsent={() => toast.success("Kept on the current profile")}
               />
             </div>
           ))}
@@ -244,6 +254,14 @@ export function OrganizationPeoplePanel({
               item={item}
               canManage={canManage}
               onView={() => setViewingPartyId(item.key)}
+              onEdit={
+                item.person
+                  ? () => {
+                      setSeedValues(personToEditorValues(item.person!));
+                      setAddOpen(true);
+                    }
+                  : undefined
+              }
             />
           ))}
 
@@ -397,9 +415,17 @@ export function OrganizationPeoplePanel({
 
       <OrganizationPersonEditorDialog
         open={addOpen}
-        onOpenChange={setAddOpen}
-        title="Add person"
-        description="Adds this person to the CashSouk company record used by the issuer or investor profile."
+        onOpenChange={(open) => {
+          setAddOpen(open);
+          if (!open) setSeedValues(null);
+        }}
+        title={seedValues ? "Edit person" : "Add person"}
+        description={
+          seedValues
+            ? "Add this person to the company profile. Existing details are kept if they are already filled."
+            : "Add this person to the company profile."
+        }
+        initial={seedValues}
         isSaving={peopleMutations.createParty.isPending}
         enforceIssuerShareholderMinimum
         onSave={(values) => saveParty(values)}
@@ -411,7 +437,7 @@ export function OrganizationPeoplePanel({
           if (!open) setEditingPartyId(null);
         }}
         title={editingParty?.name || "Person"}
-        description="Edits the same CashSouk company record the issuer or investor sees."
+        description="Update this person’s details on the company profile."
         initial={editingParty ? partyToEditorValues(editingParty) : null}
         isSaving={peopleMutations.patchParty.isPending}
         enforceIssuerShareholderMinimum

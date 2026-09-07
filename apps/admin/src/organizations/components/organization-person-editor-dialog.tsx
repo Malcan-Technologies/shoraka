@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import type { OrganizationPartyProfileDto } from "@cashsouk/types";
+import type { ApplicationPersonRow, OrganizationPartyProfileDto } from "@cashsouk/types";
 import {
   firstIssueMessage,
   issuerShareholdingThresholdIssue,
@@ -70,6 +70,36 @@ export type PartyEditorValues = {
   resignationDate: string;
 };
 
+const emptyValues: PartyEditorValues = {
+  name: "",
+  salutation: "",
+  identityPrefix: "NRIC",
+  identityNumber: "",
+  entityType: "INDIVIDUAL",
+  isDirector: false,
+  isShareholder: false,
+  isBoard: false,
+  isManagement: false,
+  gender: "",
+  nationality: "",
+  countryOfIncorporation: "",
+  dateOfBirth: "",
+  dateOfIncorporation: "",
+  line1: "",
+  line2: "",
+  state: "",
+  postalCode: "",
+  shareholdingPercentage: "",
+  shareType: "ORDINARY",
+  shareTypeOther: "",
+  shareholdingUnits: "",
+  shareholdingAmount: "",
+  designation: "",
+  designationOther: "",
+  appointmentDate: "",
+  resignationDate: "",
+};
+
 export function partyToEditorValues(party: OrganizationPartyProfileDto): PartyEditorValues {
   return {
     name: party.name ?? "",
@@ -102,35 +132,23 @@ export function partyToEditorValues(party: OrganizationPartyProfileDto): PartyEd
   };
 }
 
-const emptyValues: PartyEditorValues = {
-  name: "",
-  salutation: "",
-  identityPrefix: "NRIC",
-  identityNumber: "",
-  entityType: "INDIVIDUAL",
-  isDirector: false,
-  isShareholder: false,
-  isBoard: false,
-  isManagement: false,
-  gender: "",
-  nationality: "",
-  countryOfIncorporation: "",
-  dateOfBirth: "",
-  dateOfIncorporation: "",
-  line1: "",
-  line2: "",
-  state: "",
-  postalCode: "",
-  shareholdingPercentage: "",
-  shareType: "ORDINARY",
-  shareTypeOther: "",
-  shareholdingUnits: "",
-  shareholdingAmount: "",
-  designation: "",
-  designationOther: "",
-  appointmentDate: "",
-  resignationDate: "",
-};
+export function personToEditorValues(person: ApplicationPersonRow): PartyEditorValues {
+  const roles = (person.roles ?? []).map((role) => role.toUpperCase());
+  const corporate = person.entityType === "CORPORATE";
+  return {
+    ...emptyValues,
+    name: person.name ?? "",
+    identityNumber: person.matchKey ?? "",
+    identityPrefix: corporate ? "ROC" : "NRIC",
+    entityType: person.entityType,
+    isDirector: roles.includes("DIRECTOR"),
+    isShareholder: roles.includes("SHAREHOLDER"),
+    isBoard: roles.includes("BOARD"),
+    isManagement: roles.includes("MANAGEMENT"),
+    shareholdingPercentage: person.sharePercentage != null ? String(person.sharePercentage) : "",
+    shareType: roles.includes("SHAREHOLDER") ? "ORDINARY" : "",
+  };
+}
 
 export function OrganizationPersonEditorDialog({
   open,
