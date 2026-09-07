@@ -19,4 +19,10 @@ describe("PortalPeopleSection", () => {
     expect(source).toContain("setAddInitial");
     expect(source).toContain("onView={() => setViewPeopleOnlyKey(person.matchKey)}");
   });
+
+  it("shows how many profile fields are missing and hides KYC/AML for company shareholders", () => {
+    expect(source).toContain('} missing');
+    expect(source).toContain("Company shareholder. Individual KYC/AML is not required.");
+    expect(source).toContain("canSend && !corporate");
+  });
 });

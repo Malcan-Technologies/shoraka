@@ -76,6 +76,13 @@ function displayName(row: Record<string, unknown>): string | null {
   );
 }
 
+function inferIndividualIdentityPrefix(id: string | null): "NRIC" | "PASSPORT" | null {
+  if (!id) return null;
+  const compact = id.replace(/[^A-Za-z0-9]/g, "");
+  if (/^\d{12}$/.test(compact)) return "NRIC";
+  return compact.length > 0 ? "PASSPORT" : null;
+}
+
 function mergeCandidate(
   map: Map<string, RegulatoryPartyCandidate>,
   next: RegulatoryPartyCandidate
@@ -95,6 +102,17 @@ function mergeCandidate(
   existing.addressLine1 = existing.addressLine1 ?? next.addressLine1;
   existing.appointmentDate = existing.appointmentDate ?? next.appointmentDate;
   existing.resignationDate = existing.resignationDate ?? next.resignationDate;
+}
+
+/** Merge CTOS + RegTank candidates. Same identity keeps both director and shareholder roles. */
+export function mergeRegulatoryPartyCandidates(
+  fromCtos: RegulatoryPartyCandidate[],
+  fromRegtank: RegulatoryPartyCandidate[]
+): RegulatoryPartyCandidate[] {
+  const map = new Map<string, RegulatoryPartyCandidate>();
+  for (const party of fromCtos) mergeCandidate(map, { ...party });
+  for (const party of fromRegtank) mergeCandidate(map, { ...party });
+  return [...map.values()];
 }
 
 export function extractRegulatoryPartiesFromCtos(ctos: unknown): RegulatoryPartyCandidate[] {
@@ -118,10 +136,13 @@ export function extractRegulatoryPartiesFromCtos(ctos: unknown): RegulatoryParty
         entityType === "INDIVIDUAL"
           ? asText(row.nic_brno)
           : asText(row.ic_lcno) ?? asText(row.brn_ssm),
-      identityPrefix: entityType === "CORPORATE" ? "ROC" : null,
+      identityPrefix:
+        entityType === "CORPORATE"
+          ? "ROC"
+          : inferIndividualIdentityPrefix(asText(row.nic_brno)),
       isDirector: roles.isDirector,
       isShareholder: roles.isShareholder,
-      isBoard: roles.isDirector,
+      isBoard: false,
       shareholdingPercentage: roles.isShareholder ? parsePercent(row.equity_percentage) : null,
       addressLine1: asText(row.addr),
       appointmentDate: asText(row.appoint),
@@ -173,10 +194,10 @@ export function extractRegulatoryPartiesFromCorporateEntities(
       entityType: "INDIVIDUAL",
       name: personalName(info),
       identityNumber: id,
-      identityPrefix: null,
+      identityPrefix: inferIndividualIdentityPrefix(id),
       isDirector: roles.isDirector,
       isShareholder: roles.isShareholder,
-      isBoard: roles.isDirector,
+      isBoard: false,
       shareholdingPercentage: parsePercent(row.sharePercentage ?? row.ownershipPercentage),
       addressLine1: null,
       appointmentDate: null,

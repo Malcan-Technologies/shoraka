@@ -37,6 +37,8 @@ import {
   issuerShareholdingThresholdIssue,
   isIssuerShareholderOnlyBelowMinimum,
   issuerActiveShareholderFlags,
+  mapRegTankEntityTypeToScCompanyType,
+  isIssuerOfficerRole,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
@@ -44,6 +46,7 @@ import {
   extractCtosObservationSnapshot,
   extractRegulatoryPartiesFromCorporateEntities,
   extractRegulatoryPartiesFromCtos,
+  mergeRegulatoryPartyCandidates,
   type RegulatoryPartyCandidate,
 } from "./extract-regulatory-parties";
 import type { CreatePartyInput, OrgMasterPatchInput, PartyPatchInput } from "./schemas";
@@ -242,6 +245,7 @@ function candidateToCreateManyRow(
     is_shareholder: created.is_shareholder,
     is_board: created.is_board,
     is_management: created.is_management,
+    gender: created.gender ?? null,
     shareholding_percentage: created.shareholding_percentage,
     appointment_date: created.appointment_date,
     resignation_date: created.resignation_date,
@@ -309,6 +313,42 @@ async function fillEmptyPartyFromCandidate(
     !existing.some((p) => p.id !== row.id && p.party_key === candidate.partyKey);
   if (rekey) {
     data.party_key = candidate.partyKey;
+    wrote = true;
+  }
+
+  if (candidate.isDirector && !row.is_director) {
+    data.is_director = true;
+    wrote = true;
+  }
+  if (candidate.isShareholder && !row.is_shareholder) {
+    data.is_shareholder = true;
+    wrote = true;
+  }
+  if (
+    row.is_shareholder &&
+    !candidate.isShareholder &&
+    (row.origin === OrganizationPartyOrigin.CTOS_PARTY ||
+      row.origin === OrganizationPartyOrigin.REGTANK_PARTY)
+  ) {
+    data.is_shareholder = false;
+    wrote = true;
+  }
+  if (candidate.isBoard && !row.is_board) {
+    data.is_board = true;
+    wrote = true;
+  }
+  if (
+    row.is_board &&
+    !candidate.isBoard &&
+    (row.origin === OrganizationPartyOrigin.CTOS_PARTY ||
+      row.origin === OrganizationPartyOrigin.REGTANK_PARTY) &&
+    !row.is_management
+  ) {
+    data.is_board = false;
+    wrote = true;
+  }
+  if (candidate.entityType === "CORPORATE" && row.gender !== "NOT_APPLICABLE") {
+    data.gender = "NOT_APPLICABLE";
     wrote = true;
   }
 
@@ -398,6 +438,7 @@ function candidateToCreateData(
     is_shareholder: candidate.isShareholder,
     is_board: candidate.isBoard,
     is_management: false,
+    gender: candidate.entityType === "CORPORATE" ? "NOT_APPLICABLE" : undefined,
     shareholding_percentage:
       candidate.shareholdingPercentage != null
         ? new Prisma.Decimal(candidate.shareholdingPercentage)
@@ -416,7 +457,7 @@ export async function seedMasterPartiesIfEmpty(
   organizationId: string
 ): Promise<void> {
   await assertOrgExists(portal, organizationId);
-  if (await isRegulatoryStructureEstablished(portal, organizationId)) return;
+  const established = await isRegulatoryStructureEstablished(portal, organizationId);
 
   const org = await readOrgRegulatoryState(portal, organizationId);
   if (!org) return;
@@ -431,14 +472,39 @@ export async function seedMasterPartiesIfEmpty(
   });
 
   const fromCtos = extractRegulatoryPartiesFromCtos(ctos?.company_json ?? null);
-  const candidates =
-    fromCtos.length > 0
-      ? fromCtos
-      : extractRegulatoryPartiesFromCorporateEntities(org.corporate_entities);
-  if (candidates.length === 0) return;
+  const fromRegtank = extractRegulatoryPartiesFromCorporateEntities(org.corporate_entities);
+  const merged = mergeRegulatoryPartyCandidates(fromCtos, fromRegtank);
+  if (merged.length === 0) return;
 
-  await applyInitialRegulatoryCandidates(portal, organizationId, candidates);
-  await markRegulatoryStructureEstablished(portal, organizationId);
+  if (!established) {
+    await applyInitialRegulatoryCandidates(portal, organizationId, merged);
+    await markRegulatoryStructureEstablished(portal, organizationId);
+    return;
+  }
+
+  const existing = await prisma.organizationPartyProfile.findMany({
+    where: orgWhere(portal, organizationId),
+  });
+  for (const candidate of merged) {
+    const gated = gateShareholderCandidate(candidate);
+    const row = findExistingPartyForIdentityKey(existing, candidate.partyKey, {
+      entityType: candidate.entityType,
+    });
+    if (!row || row.membership_status !== OrganizationPartyMembershipStatus.MASTER_ACTIVE) {
+      continue;
+    }
+    const updated = await fillEmptyPartyFromCandidate(row, gated.candidate, existing);
+    const idx = existing.findIndex((p) => p.id === row.id);
+    if (idx >= 0) existing[idx] = updated;
+  }
+  await applyInitialRegulatoryCandidates(
+    portal,
+    organizationId,
+    fromRegtank.filter(
+      (party) =>
+        !findExistingPartyForIdentityKey(existing, party.partyKey, { entityType: party.entityType })
+    )
+  );
 }
 
 export async function observeExternalCtosParties(
@@ -559,10 +625,20 @@ function pickCodAddress(
   kind: "registered" | "business"
 ): ProfileAddress | null {
   if (!corporateOnboardingData || typeof corporateOnboardingData !== "object") return null;
-  const addresses = (corporateOnboardingData as { addresses?: { registered?: unknown; business?: unknown } })
-    .addresses;
+  const addresses = (corporateOnboardingData as {
+    addresses?: {
+      registered?: unknown;
+      registeredAddress?: unknown;
+      business?: unknown;
+      businessAddress?: unknown;
+    };
+  }).addresses;
   if (!addresses) return null;
-  return kind === "registered" ? addressFromCod(addresses.registered) : addressFromCod(addresses.business);
+  const raw =
+    kind === "registered"
+      ? addresses.registered ?? addresses.registeredAddress
+      : addresses.business ?? addresses.businessAddress;
+  return addressFromCod(raw);
 }
 
 export async function computeOrgProfileCompleteness(
@@ -582,7 +658,12 @@ export async function computeOrgProfileCompleteness(
     });
     const year = latestUnauditedYearBlock(fs?.financial_statements);
     const cod = (org.corporate_onboarding_data ?? null) as {
-      basicInfo?: { businessName?: string; ssmRegisterNumber?: string; ssmRegistrationNumber?: string };
+      basicInfo?: {
+        businessName?: string;
+        ssmRegisterNumber?: string;
+        ssmRegistrationNumber?: string;
+        entityType?: string;
+      };
       aboutYourBusiness?: { whatDoesCompanyDo?: string };
       addresses?: { registered?: unknown; business?: unknown };
     } | null;
@@ -591,29 +672,39 @@ export async function computeOrgProfileCompleteness(
     const masterParties = org.party_profiles.filter(
       (p) => p.membership_status === OrganizationPartyMembershipStatus.MASTER_ACTIVE
     );
-    const shareholders = masterParties.filter((p) => p.is_shareholder).map((p) => {
-      const addr = asAddress(p.address);
-      return {
-        partyKey: p.party_key,
-        name: p.name,
-        entityType: p.entity_type,
-        identityPrefix: p.identity_prefix,
-        identityNumber: p.identity_number,
-        dateOfBirth: p.date_of_birth,
-        dateOfIncorporation: p.date_of_incorporation,
-        gender: p.gender,
-        nationality: p.nationality,
-        countryOfIncorporation: p.country_of_incorporation,
-        address: addr,
-        shareType: p.share_type,
-        shareTypeOther: p.share_type_other,
-        shareholdingUnits: p.shareholding_units?.toString() ?? null,
-        shareholdingAmount: p.shareholding_amount?.toString() ?? null,
-        shareholdingPercentage: p.shareholding_percentage?.toString() ?? null,
-      };
-    });
+    const people = masterParties
+      .filter((p) => p.is_shareholder || p.is_director || p.is_board || p.is_management)
+      .map((p) => {
+        const addr = asAddress(p.address);
+        return {
+          partyKey: p.party_key,
+          name: p.name,
+          entityType: p.entity_type,
+          isDirector: p.is_director,
+          isShareholder: p.is_shareholder,
+          isBoard: p.is_board,
+          isManagement: p.is_management,
+          identityPrefix: p.identity_prefix,
+          identityNumber: p.identity_number,
+          dateOfBirth: p.date_of_birth,
+          dateOfIncorporation: p.date_of_incorporation,
+          gender: p.gender,
+          nationality: p.nationality,
+          countryOfIncorporation: p.country_of_incorporation,
+          address: addr,
+          shareType: p.share_type,
+          shareTypeOther: p.share_type_other,
+          shareholdingUnits: p.shareholding_units?.toString() ?? null,
+          shareholdingAmount: p.shareholding_amount?.toString() ?? null,
+          shareholdingPercentage: p.shareholding_percentage?.toString() ?? null,
+          designation: p.designation,
+          designationOther: p.designation_other,
+          appointmentDate: p.appointment_date,
+        };
+      });
+    const shareholders = people.filter((p) => p.isShareholder);
     const board = masterParties
-      .filter((p) => p.is_board || p.is_management || p.is_director)
+      .filter((p) => p.is_board || p.is_management)
       .map((p) => {
         const addr = asAddress(p.address);
         return {
@@ -629,6 +720,7 @@ export async function computeOrgProfileCompleteness(
           designation: p.designation,
           designationOther: p.designation_other,
           appointmentDate: p.appointment_date,
+          requireOfficerFields: true as const,
         };
       });
 
@@ -640,7 +732,8 @@ export async function computeOrgProfileCompleteness(
         dateOfIncorporation: org.date_of_incorporation,
         dateOfCommencement: org.date_of_commencement,
         countryOfIncorporation: org.country_of_incorporation,
-        scCompanyType: org.sc_company_type,
+        scCompanyType:
+          org.sc_company_type ?? mapRegTankEntityTypeToScCompanyType(cod?.basicInfo?.entityType),
         registeredAddress: pickCodAddress(org.corporate_onboarding_data, "registered"),
         businessAddress: pickCodAddress(org.corporate_onboarding_data, "business"),
         phoneNumber: org.phone_number,
@@ -649,11 +742,15 @@ export async function computeOrgProfileCompleteness(
       },
       shareholders,
       board,
+      people,
       financials: issuerFinancialsFromYearBlock(year),
     });
   }
 
-  const org = await prisma.investorOrganization.findUnique({ where: { id: organizationId } });
+  const org = await prisma.investorOrganization.findUnique({
+    where: { id: organizationId },
+    include: { party_profiles: true },
+  });
   if (!org) throw new AppError(404, "NOT_FOUND", "Investor organization not found");
   const residential = asAddress(org.residential_address);
   const name =
@@ -666,6 +763,40 @@ export async function computeOrgProfileCompleteness(
     : null;
   if (organizationType === "COMPANY") {
     const business = pickCodAddress(org.corporate_onboarding_data, "business");
+    const people = org.party_profiles
+      .filter(
+        (p) =>
+          p.membership_status === OrganizationPartyMembershipStatus.MASTER_ACTIVE &&
+          (p.is_shareholder || p.is_director || p.is_board || p.is_management)
+      )
+      .map((p) => {
+        const addr = asAddress(p.address);
+        return {
+          partyKey: p.party_key,
+          name: p.name,
+          entityType: p.entity_type,
+          isDirector: p.is_director,
+          isShareholder: p.is_shareholder,
+          isBoard: p.is_board,
+          isManagement: p.is_management,
+          identityPrefix: p.identity_prefix,
+          identityNumber: p.identity_number,
+          dateOfBirth: p.date_of_birth,
+          dateOfIncorporation: p.date_of_incorporation,
+          gender: p.gender,
+          nationality: p.nationality,
+          countryOfIncorporation: p.country_of_incorporation,
+          address: addr,
+          shareType: p.share_type,
+          shareTypeOther: p.share_type_other,
+          shareholdingUnits: p.shareholding_units?.toString() ?? null,
+          shareholdingAmount: p.shareholding_amount?.toString() ?? null,
+          shareholdingPercentage: p.shareholding_percentage?.toString() ?? null,
+          designation: p.designation,
+          designationOther: p.designation_other,
+          appointmentDate: p.appointment_date,
+        };
+      });
     return buildInvestorProfileCompleteness({
       organizationType: "COMPANY",
       corporate: {
@@ -679,6 +810,7 @@ export async function computeOrgProfileCompleteness(
         businessPostalCode: business?.postalCode ?? null,
         scInvestorCategory,
       },
+      people,
     });
   }
   return buildInvestorProfileCompleteness({
@@ -1026,7 +1158,10 @@ export async function patchPartyProfile(params: {
   if (p.name !== undefined) data.name = apply("name", row.name, p.name);
   const entityType =
     row.entity_type === OrganizationPartyEntityType.CORPORATE ? "CORPORATE" : "INDIVIDUAL";
-  const isOfficer = Boolean(row.is_director || row.is_board || row.is_management);
+  const isOfficer = isIssuerOfficerRole({
+    isBoard: p.isBoard !== undefined ? p.isBoard : row.is_board,
+    isManagement: p.isManagement !== undefined ? p.isManagement : row.is_management,
+  });
   const touchesComrepSemantics =
     p.salutation !== undefined ||
     p.identityPrefix !== undefined ||
@@ -1344,7 +1479,7 @@ export async function createUserAddedParty(params: {
 
   const appliedCreate = applyPartyComrepSemantics({
     entityType: entityType === OrganizationPartyEntityType.CORPORATE ? "CORPORATE" : "INDIVIDUAL",
-    isOfficer: roles.isDirector || roles.isBoard || roles.isManagement,
+    isOfficer: isIssuerOfficerRole(roles),
     gender: params.patch.gender,
     salutation: params.patch.salutation,
     identityPrefix: params.patch.identityPrefix,

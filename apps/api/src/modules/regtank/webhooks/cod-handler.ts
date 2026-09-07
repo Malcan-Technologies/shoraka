@@ -15,7 +15,7 @@ import type { PortalType } from "../types";
 import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
 import { advanceOnboardingStatusFromFlags } from "../../onboarding/utils/advance-onboarding-status";
-import { normalizeRawStatus } from "@cashsouk/types";
+import { normalizeRawStatus, mapRegTankEntityTypeToScCompanyType } from "@cashsouk/types";
 import { isRegtankAmendmentStarted } from "../helpers/is-regtank-amendment-in-progress";
 import {
   getUrlGeneratedAmendmentUpdate,
@@ -29,10 +29,25 @@ import {
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
 import { preserveFilledCodMasterFacts } from "../../organization-profile/serialize";
+import { parseRegTankCodAddresses } from "../helpers/cod-addresses";
 import { createOnboardingLogRow, persistOrganizationUpdateAndOnboardingLogs, webhookAuditContext } from "../../../lib/audit";
 
 const COD_EXACT_LOOKUP_MAX_ATTEMPTS = 3;
 const COD_EXACT_LOOKUP_DELAY_MS = 75;
+
+async function fillEmptyScCompanyTypeFromCod(params: {
+  portalType: "investor" | "issuer";
+  organizationId: string;
+  entityType: unknown;
+}): Promise<void> {
+  if (params.portalType !== "issuer") return;
+  const mapped = mapRegTankEntityTypeToScCompanyType(params.entityType);
+  if (!mapped) return;
+  await prisma.issuerOrganization.updateMany({
+    where: { id: params.organizationId, sc_company_type: null },
+    data: { sc_company_type: mapped },
+  });
+}
 
 /**
  * COD (Company Onboarding Data) Webhook Handler
@@ -247,25 +262,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             pensionFundCriteria: basicContent.find((f: any) => f.fieldName?.includes("Pension Fund"))?.fieldValue || null,
           };
 
-          // Extract addresses
-          const addresses = {
-            business: {
-              line1: basicContent.find((f: any) => f.fieldName === "Address (line 1)")?.fieldValue || null,
-              line2: basicContent.find((f: any) => f.fieldName === "Address (line 2)")?.fieldValue || null,
-              city: basicContent.find((f: any) => f.fieldName === "City")?.fieldValue || null,
-              postalCode: basicContent.find((f: any) => f.fieldName === "Postal code")?.fieldValue || null,
-              state: basicContent.find((f: any) => f.fieldName === "State")?.fieldValue || null,
-              country: basicContent.find((f: any) => f.fieldName === "Country")?.fieldValue || null,
-            },
-            registered: {
-              line1: basicContent.find((f: any) => f.fieldName === "Address line 1 (Registered Address)")?.fieldValue || null,
-              line2: basicContent.find((f: any) => f.fieldName === "Address line 2 (Registered Address)")?.fieldValue || null,
-              city: basicContent.find((f: any) => f.fieldName === "City (Registered Address)")?.fieldValue || null,
-              postalCode: basicContent.find((f: any) => f.fieldName === "Postal code (Registered Address)")?.fieldValue || null,
-              state: basicContent.find((f: any) => f.fieldName === "State (Registered Address)")?.fieldValue || null,
-              country: basicContent.find((f: any) => f.fieldName === "Country (Registered Address)")?.fieldValue || null,
-            },
-          };
+          // Extract addresses from exact RegTank field names. Postcode is never line1/state.
+          const addresses = parseRegTankCodAddresses(basicContent);
 
           const personInCharge = {
             name: basicContent.find((f: any) => f.fieldName === "Name (Person in charge)")?.fieldValue || null,
@@ -748,6 +746,12 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               ],
             });
 
+            await fillEmptyScCompanyTypeFromCod({
+              portalType: "investor",
+              organizationId,
+              entityType: corporateOnboardingData?.basicInfo?.entityType,
+            });
+
             logger.info(
               {
                 organizationId,
@@ -826,6 +830,12 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   },
                 },
               ],
+            });
+
+            await fillEmptyScCompanyTypeFromCod({
+              portalType: "issuer",
+              organizationId,
+              entityType: corporateOnboardingData?.basicInfo?.entityType,
             });
 
             logger.info(

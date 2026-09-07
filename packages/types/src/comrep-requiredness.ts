@@ -637,7 +637,11 @@ export function validateOperatorShareholder(input: {
   } else {
     push(
       issues,
-      requiredDateIssue(input.dateOfIncorporation, "dateOfIncorporation", "Date of Birth (dd/mm/yyyy)")
+      requiredDateIssue(
+        input.dateOfIncorporation,
+        "dateOfIncorporation",
+        "Date of Incorporation (dd/mm/yyyy)"
+      )
     );
   }
   const identityKind: "NRIC" | "ROC" | "PASSPORT" = corporate
@@ -861,7 +865,9 @@ export function validateIssuerPersonForm(input: {
   const identityLabel = shareholder
     ? "Shareholder Identity (NRIC/Passport/Company Registration No.)"
     : "Identity Number (NRIC/Passport No.)";
-  const dobLabel = "Date of Birth (dd/mm/yyyy)";
+  const dobLabel = corporate
+    ? "Date of Incorporation (dd/mm/yyyy)"
+    : "Date of Birth (dd/mm/yyyy)";
   const nationalityLabel = shareholder ? "Nationality/Country" : "Nationality";
   const addressLabel = shareholder ? "Business/Residential Address" : "Residential Address";
   const stateLabel = shareholder

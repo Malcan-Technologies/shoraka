@@ -2,11 +2,14 @@ import * as React from "react";
 import { cn } from "../lib/utils";
 import { ComRepFieldLabel } from "../comrep-field-label";
 
+import { PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING } from "@cashsouk/types";
+
 export type ProfileReadFieldProps = {
   label: string;
   value?: React.ReactNode;
   missing?: boolean;
   locked?: boolean;
+  lockReason?: string;
   multiline?: boolean;
   hint?: React.ReactNode;
   help?: string;
@@ -23,6 +26,7 @@ export function ProfileReadField({
   value,
   missing = false,
   locked = false,
+  lockReason,
   multiline = false,
   hint,
   help,
@@ -48,7 +52,9 @@ export function ProfileReadField({
       </div>
       {missing ? <p className="text-meta text-status-action-text">Required</p> : null}
       {locked && !missing ? (
-        <p className="text-meta text-muted-foreground">This field is locked because it was verified during onboarding.</p>
+        <p className="text-meta text-muted-foreground">
+          {lockReason ?? PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING}
+        </p>
       ) : null}
       {hint ? <div className="text-meta text-muted-foreground">{hint}</div> : null}
     </div>

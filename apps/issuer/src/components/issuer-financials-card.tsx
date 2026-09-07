@@ -71,8 +71,9 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
   });
 
   const statements = query.data?.financial_statements;
-  const year = latestUnauditedYearKey(statements) ?? String(new Date().getFullYear() - 1);
+  const year = latestUnauditedYearKey(statements);
   const yearBlock = latestUnauditedYearBlock(statements);
+  const editorYear = year ?? String(new Date().getFullYear() - 1);
   const completeness: ComrepProfileCompleteness | undefined = completenessQuery.data;
   const financialStep = completeness?.steps.find((step) => step.id === "financials");
   const complete = financialStep?.complete ?? false;
@@ -101,7 +102,7 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
         throw new Error(firstIssueMessage(issues) ?? "Complete the required financial fields.");
       }
       setFieldErrors({});
-      const res = await api.patchIssuerOrgFinancials(organizationId, year, fields);
+      const res = await api.patchIssuerOrgFinancials(organizationId, editorYear, fields);
       if (!res.success) throw new Error(res.error.message);
       return res.data;
     },
@@ -121,12 +122,12 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
       description="Latest financial statements for this company"
       action={
         <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={() => setOpen(true)}>
-          {complete ? "View / Edit financials" : "Complete"}
+          Edit financials
         </Button>
       }
     >
       <ProfileFieldGrid>
-        <ProfileReadField label="Latest Financial Year" value={year ? `FY${year}` : "—"} />
+        <ProfileReadField label="Latest Financial Year" value={yearBlock && year ? `FY${year}` : "—"} />
         <ProfileReadField
           label="Status"
           value={
@@ -147,7 +148,7 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
       </ProfileFieldGrid>
       <div className="mt-4">
         <Button type="button" className="h-10 rounded-xl" onClick={() => setOpen(true)}>
-          {complete ? "View / Edit financials" : "Complete financials"}
+          Edit financials
         </Button>
       </div>
 
@@ -156,7 +157,7 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
           <DialogHeader>
             <DialogTitle>Financial statements</DialogTitle>
             <DialogDescription>
-              {year ? `FY${year} on your company profile.` : "Enter figures for the latest financial year."}
+              {year ? `FY${year} on your company profile.` : `Enter figures for FY${editorYear}.`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6">

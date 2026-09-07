@@ -345,8 +345,8 @@ export function OrganizationPeoplePanel({
         <Card className="rounded-2xl">
           <AdminDetailCardHeader
             icon={UserIcon}
-            title="Person in charge"
-            description="Main contact for this business"
+            title="Person in Charge"
+            description="Main contact person for this company."
             actions={
               <OrganizationCardEditActions
                 canEdit={canManage}

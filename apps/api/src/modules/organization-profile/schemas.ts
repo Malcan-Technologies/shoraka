@@ -403,7 +403,6 @@ export const createPartySchema = partyPatchObjectSchema
     const applied = applyPartyComrepSemantics({
       entityType,
       isOfficer:
-        value.isDirector === true ||
         value.isBoard === true ||
         value.isManagement === true ||
         value.personKind === "BOARD" ||
@@ -422,7 +421,6 @@ export const createPartySchema = partyPatchObjectSchema
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
     }
     const officer =
-      value.isDirector === true ||
       value.isBoard === true ||
       value.isManagement === true ||
       value.personKind === "BOARD" ||

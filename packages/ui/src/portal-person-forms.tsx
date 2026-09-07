@@ -7,7 +7,10 @@ import {
   issuesByField,
   issuerShareholdingThresholdIssue,
   formatPartyRoleLine,
+  isIssuerOfficerRole,
+  issuerOfficerPersonKind,
   monthlyIssuerPersonCopy,
+  PROFILE_LOCKED_ROLES_CANNOT_CHANGE,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
   SC_GENDER_LABELS,
@@ -15,6 +18,7 @@ import {
   SC_IDENTITY_PREFIXES,
   SC_MALAYSIAN_STATES,
   SC_MONTHLY_BOARD,
+  SC_MONTHLY_ISSUER,
   SC_MONTHLY_PERSON_KIND_LABELS,
   SC_MONTHLY_SHAREHOLDER,
   SC_SHARE_TYPE_LABELS,
@@ -105,7 +109,7 @@ export function AddPersonForm({
   const [pending, setPending] = React.useState(false);
   const corporate = entityType === "CORPORATE";
   const showShare = corporate || isShareholder;
-  const showOfficer = !corporate && (isDirector || isBoard || isManagement);
+  const showOfficer = !corporate && isIssuerOfficerRole({ isBoard, isManagement });
   const copy = monthlyIssuerPersonCopy({ shareholder: showShare, officer: showOfficer });
   const prefixOptions = SC_IDENTITY_PREFIXES.filter((key) => copy.includeRocPrefix || key !== "ROC");
 
@@ -118,7 +122,7 @@ export function AddPersonForm({
           toast.error("Select at least one role");
           return;
         }
-        const officer = isDirector || isBoard || isManagement;
+        const officer = isIssuerOfficerRole({ isBoard, isManagement });
         const issues = validateIssuerPersonForm({
           entityType,
           name: form.name,
@@ -139,7 +143,7 @@ export function AddPersonForm({
           shareholdingUnits: form.shareholdingUnits,
           shareholdingAmount: form.shareholdingAmount,
           shareholdingPercentage: form.shareholdingPercentage,
-          personKind: isBoard ? "BOARD" : isManagement ? "MANAGEMENT" : isDirector ? "BOARD" : "",
+          personKind: issuerOfficerPersonKind({ isBoard, isManagement }),
           designation: form.designation,
           designationOther: form.designationOther,
           appointmentDate: form.appointmentDate,
@@ -319,10 +323,9 @@ export function AddPersonForm({
       {corporate ? (
         <>
           <DateField
-            label={copy.dateOfBirth.label}
+            label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
             value={form.dateOfIncorporation}
             onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
-            help={copy.dateOfBirth.help}
             required
             error={fieldErrors.dateOfIncorporation}
           />
@@ -484,7 +487,7 @@ export function PartyFillEmptyForm({
     resignationDate: party.resignationDate?.slice(0, 10) ?? "",
   });
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
-  const officer = party.isDirector || party.isBoard || party.isManagement;
+  const officer = isIssuerOfficerRole(party);
   const corporate = party.entityType === "CORPORATE";
   const copy = monthlyIssuerPersonCopy({ shareholder: party.isShareholder, officer });
   const identityLocked =
@@ -516,7 +519,7 @@ export function PartyFillEmptyForm({
           shareholdingUnits: form.shareholdingUnits,
           shareholdingAmount: form.shareholdingAmount,
           shareholdingPercentage: form.shareholdingPercentage,
-          personKind: party.isBoard ? "BOARD" : party.isManagement ? "MANAGEMENT" : "BOARD",
+          personKind: issuerOfficerPersonKind(party),
           designation: form.designation,
           designationOther: form.designationOther,
           appointmentDate: form.appointmentDate,
@@ -585,7 +588,7 @@ export function PartyFillEmptyForm({
         locked
         help={copy.identity.help}
       />
-      <ProfileReadField label="Roles" value={formatPartyRoleLine(party)} locked />
+      <ProfileReadField label="Roles" value={formatPartyRoleLine(party)} locked lockReason={PROFILE_LOCKED_ROLES_CANNOT_CHANGE} />
       {!corporate && !party.salutation ? (
         <TextField
           label={copy.salutation.label}
@@ -601,6 +604,7 @@ export function PartyFillEmptyForm({
           onChange={(value) => setForm({ ...form, gender: value })}
           options={SC_INDIVIDUAL_GENDERS.map((key) => ({ value: key, label: SC_GENDER_LABELS[key] }))}
           help={copy.gender.help}
+          required
           error={fieldErrors.gender}
         />
       ) : !corporate && party.gender ? (
@@ -616,6 +620,7 @@ export function PartyFillEmptyForm({
           value={form.nationality}
           onChange={(value) => setForm({ ...form, nationality: value })}
           help={copy.nationality.help}
+          required
           error={fieldErrors.nationality}
         />
       ) : !corporate && party.nationality ? (
@@ -627,6 +632,7 @@ export function PartyFillEmptyForm({
           value={form.dateOfBirth}
           onChange={(value) => setForm({ ...form, dateOfBirth: value })}
           help={copy.dateOfBirth.help}
+          required
           error={fieldErrors.dateOfBirth}
         />
       ) : !corporate && party.dateOfBirth ? (
@@ -639,15 +645,15 @@ export function PartyFillEmptyForm({
       ) : null}
       {corporate && !party.dateOfIncorporation ? (
         <DateField
-          label={copy.dateOfBirth.label}
+          label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
           value={form.dateOfIncorporation}
           onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
-          help={copy.dateOfBirth.help}
+          required
           error={fieldErrors.dateOfIncorporation}
         />
       ) : corporate && party.dateOfIncorporation ? (
         <ProfileReadField
-          label={copy.dateOfBirth.label}
+          label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
           value={party.dateOfIncorporation.slice(0, 10)}
           locked
         />
@@ -658,6 +664,7 @@ export function PartyFillEmptyForm({
           value={form.countryOfIncorporation}
           onChange={(value) => setForm({ ...form, countryOfIncorporation: value })}
           help={copy.nationality.help}
+          required
           error={fieldErrors.countryOfIncorporation}
         />
       ) : corporate && party.countryOfIncorporation ? (
@@ -667,6 +674,7 @@ export function PartyFillEmptyForm({
         label={copy.address.label}
         value={form.line1}
         onChange={(value) => setForm({ ...form, line1: value })}
+        required
         error={fieldErrors["address.line1"]}
       />
       <TextField
@@ -680,6 +688,7 @@ export function PartyFillEmptyForm({
         onChange={(value) => setForm({ ...form, state: value })}
         options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
         help={copy.addressState.help}
+        required
         error={fieldErrors["address.state"]}
       />
       <TextField
@@ -687,6 +696,7 @@ export function PartyFillEmptyForm({
         value={form.postalCode}
         onChange={(value) => setForm({ ...form, postalCode: value })}
         help={copy.addressPostcode.help}
+        required={form.state !== "Outside Malaysia"}
         error={fieldErrors["address.postalCode"]}
       />
       {party.isShareholder ? (
@@ -696,6 +706,7 @@ export function PartyFillEmptyForm({
             value={form.shareType}
             onChange={(value) => setForm({ ...form, shareType: value })}
             options={SC_SHARE_TYPES.map((key) => ({ value: key, label: SC_SHARE_TYPE_LABELS[key] }))}
+            required
             error={fieldErrors.shareType}
           />
           {form.shareType === "OTHERS" ? (
@@ -711,18 +722,21 @@ export function PartyFillEmptyForm({
             label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
             value={form.shareholdingUnits}
             onChange={(value) => setForm({ ...form, shareholdingUnits: value })}
+            required
             error={fieldErrors.shareholdingUnits}
           />
           <TextField
             label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
             value={form.shareholdingAmount}
             onChange={(value) => setForm({ ...form, shareholdingAmount: value })}
+            required
             error={fieldErrors.shareholdingAmount}
           />
           <TextField
             label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
             value={form.shareholdingPercentage}
             onChange={(value) => setForm({ ...form, shareholdingPercentage: value })}
+            required
             error={fieldErrors.shareholdingPercentage}
           />
         </>
@@ -734,6 +748,7 @@ export function PartyFillEmptyForm({
             value={form.designation}
             onChange={(value) => setForm({ ...form, designation: value })}
             options={SC_DESIGNATIONS.map((key) => ({ value: key, label: SC_DESIGNATION_LABELS[key] }))}
+            required
             error={fieldErrors.designation}
           />
           {form.designation === "OTHERS" ? (
@@ -750,6 +765,7 @@ export function PartyFillEmptyForm({
             label={SC_MONTHLY_BOARD.appointmentDate.label}
             value={form.appointmentDate}
             onChange={(value) => setForm({ ...form, appointmentDate: value })}
+            required
             error={fieldErrors.appointmentDate}
           />
           <DateField
@@ -808,7 +824,11 @@ function TextField({
     <div className="space-y-2">
       <ComRepFieldLabel label={label} required={required} help={help} />
       <Input className="h-10 text-ui" value={value} onChange={(event) => onChange(event.target.value)} />
-      {error ? <p className="text-meta text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="text-meta text-destructive">{error}</p>
+      ) : required && !value.trim() ? (
+        <p className="text-meta text-status-action-text">Required</p>
+      ) : null}
     </div>
   );
 }
@@ -832,7 +852,11 @@ function DateField({
     <div className="space-y-2">
       <ComRepFieldLabel label={label} required={required} help={help} />
       <Input className="h-10 text-ui" type="date" value={value} onChange={(event) => onChange(event.target.value)} />
-      {error ? <p className="text-meta text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="text-meta text-destructive">{error}</p>
+      ) : required && !value.trim() ? (
+        <p className="text-meta text-status-action-text">Required</p>
+      ) : null}
     </div>
   );
 }
@@ -897,7 +921,11 @@ function SelectField({
           ))}
         </SelectContent>
       </Select>
-      {error ? <p className="text-meta text-destructive">{error}</p> : null}
+      {error ? (
+        <p className="text-meta text-destructive">{error}</p>
+      ) : required && !value.trim() ? (
+        <p className="text-meta text-status-action-text">Required</p>
+      ) : null}
     </div>
   );
 }

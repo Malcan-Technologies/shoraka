@@ -1417,6 +1417,70 @@ describe("user-added master parties", () => {
     expect(updated.shareholdingPercentage).toBe("15");
     expect(parties.filter((p) => p.id === "p-inv")).toHaveLength(1);
   });
+
+  it("after establishment, adds a missing RegTank corporate shareholder and clears auto Board on a director", async () => {
+    issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
+    issuerOrg.corporate_entities = {
+      directors: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+          },
+        },
+      ],
+      shareholders: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+          },
+          sharePercentage: 6,
+        },
+      ],
+      corporateShareholders: [
+        {
+          businessName: "ApexStar Holdings Sdn. Bhd.",
+          ssmRegistrationNumber: "202001234567",
+          sharePercentage: 10,
+        },
+      ],
+    };
+    parties.push(
+      row({
+        id: "p-aina",
+        party_key: "950829083430",
+        identity_number: "950829083430",
+        name: "Nur Aina Farisha Binti Salleh",
+        origin: OrganizationPartyOrigin.CTOS_PARTY,
+        is_director: true,
+        is_shareholder: false,
+        is_board: true,
+      })
+    );
+    mockCtosFindFirst.mockResolvedValue({
+      company_json: {
+        directors: [
+          {
+            party_type: "I",
+            nic_brno: "950829083430",
+            name: "Nur Aina Farisha Binti Salleh",
+            position: "DO",
+          },
+        ],
+        shareholders: [],
+      },
+    });
+    await seedMasterPartiesIfEmpty("issuer", "org-1");
+    const aina = parties.find((p) => p.id === "p-aina");
+    expect(aina?.is_director).toBe(true);
+    expect(aina?.is_shareholder).toBe(true);
+    expect(aina?.is_board).toBe(false);
+    const apex = parties.find((p) => String(p.name).includes("ApexStar"));
+    expect(apex?.entity_type).toBe("CORPORATE");
+    expect(apex?.is_shareholder).toBe(true);
+    expect(apex?.membership_status).toBe(OrganizationPartyMembershipStatus.MASTER_ACTIVE);
+  });
 });
 
 function canonicalKey(value: unknown): string {

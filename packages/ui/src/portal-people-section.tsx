@@ -12,6 +12,8 @@ import {
   filterVisiblePeopleRows,
   getFinalStatusLabel,
   getFinalStatusToken,
+  computeIssuerPersonCompleteness,
+  issuerPersonCompletenessInputFromParty,
   isMissingGovernmentIdPerson,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
@@ -267,6 +269,7 @@ export function PortalPeopleSection({
             name={item.party.name || item.party.partyKey}
             party={item.party}
             person={item.person}
+            missingCount={computeIssuerPersonCompleteness(issuerPersonCompletenessInputFromParty(item.party)).length}
             identityKey={item.party.identityNumber}
             draftEmail={draftEmails[item.key] ?? item.person?.email ?? ""}
             onDraftEmail={(value) => setDraftEmails((current) => ({ ...current, [item.key]: value }))}
@@ -453,6 +456,7 @@ function PersonRow({
   onSend,
   onView,
   onEdit,
+  missingCount = 0,
 }: {
   name: string;
   party?: OrganizationPartyProfileDto | null;
@@ -465,7 +469,9 @@ function PersonRow({
   onSend: () => void;
   onView?: () => void;
   onEdit?: () => void;
+  missingCount?: number;
 }) {
+  const corporate = party?.entityType === "CORPORATE";
   const kyc = person
     ? getFinalStatusLabel(person, { displayMode: "kyc_only" })
     : { label: "—", tone: "neutral" as const };
@@ -483,10 +489,19 @@ function PersonRow({
         <div className="min-w-0 space-y-1">
           <p className="text-ui font-medium">{name}</p>
           <PartyRoleBadges party={party} person={person} />
-          <div className="flex flex-wrap gap-2 pt-1">
-            <StatusBadge status={getFinalStatusToken(kyc.tone)} label={`KYC: ${kyc.label}`} />
-            <StatusBadge status={getFinalStatusToken(aml.tone)} label={`AML: ${aml.label}`} />
-          </div>
+          {missingCount > 0 ? (
+            <p className="text-meta text-status-action-text">
+              {missingCount} {missingCount === 1 ? "field" : "fields"} missing
+            </p>
+          ) : null}
+          {corporate ? (
+            <p className="text-meta text-muted-foreground">Company shareholder. Individual KYC/AML is not required.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2 pt-1">
+              <StatusBadge status={getFinalStatusToken(kyc.tone)} label={`KYC: ${kyc.label}`} />
+              <StatusBadge status={getFinalStatusToken(aml.tone)} label={`AML: ${aml.label}`} />
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {onView ? (
@@ -501,7 +516,7 @@ function PersonRow({
           ) : null}
         </div>
       </div>
-      {canSend ? (
+      {canSend && !corporate ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Input
             type="email"
@@ -520,8 +535,6 @@ function PersonRow({
             Send onboarding
           </Button>
         </div>
-      ) : person?.email ? (
-        <p className="text-meta text-muted-foreground">{person.email}</p>
       ) : null}
     </div>
   );

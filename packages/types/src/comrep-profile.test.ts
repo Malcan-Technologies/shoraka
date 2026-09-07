@@ -4,8 +4,11 @@ import {
   buildIssuerProfileCompleteness,
   computeIssuerCompanyCompleteness,
   computeIssuerFinancialCompleteness,
+  computeIssuerPersonCompleteness,
   computeShareholderCompleteness,
+  displayScCompanyTypeLabel,
   ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT,
+  ISSUER_FINANCIAL_REQUIRED_FIELD_COUNT,
   groupInvestorMissingByProfileSection,
   groupIssuerMissingByProfileSection,
   groupPeopleMissingByParty,
@@ -13,6 +16,7 @@ import {
   issuerFlowStepComplete,
   isMasterFieldEmpty,
   latestUnauditedYearKey,
+  mapRegTankEntityTypeToScCompanyType,
   missingItemsForIssuerFlowStep,
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
@@ -20,6 +24,7 @@ import {
   formatScPurposeOfFundRaisingDisplay,
   resolveApplicationPurposeOfFundRaising,
   SC_SUSTAINABILITY_CATEGORIES,
+  shouldShowOrganizationPersonalKycCard,
   valuesEqualForMismatch,
 } from "./comrep-profile";
 import {
@@ -552,6 +557,246 @@ describe("issuer profile financial editor keys", () => {
       plnetdiv: 1,
     });
     expect(computeIssuerFinancialCompleteness(filled).map((item) => item.field)).toEqual([]);
+  });
+
+  it("counts every required financial field when no year block exists (scenario F)", () => {
+    expect(computeIssuerFinancialCompleteness(null)).toHaveLength(ISSUER_FINANCIAL_REQUIRED_FIELD_COUNT);
+    const result = buildIssuerProfileCompleteness({
+      company: {
+        name: "Acme Sdn Bhd",
+        registrationNumber: "1234567A",
+        organizationId: "org_1",
+        dateOfIncorporation: "2020-01-01",
+        dateOfCommencement: "2020-02-01",
+        countryOfIncorporation: "Malaysia",
+        scCompanyType: "PRIVATE_LIMITED",
+        registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+        businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+        phoneNumber: "+60123456789",
+        companyEmail: "ops@acme.test",
+        companyActivities: null,
+      },
+      shareholders: [
+        {
+          partyKey: "800101011234",
+          name: "Ali",
+          entityType: "INDIVIDUAL",
+          identityPrefix: "NRIC",
+          identityNumber: "800101011234",
+          dateOfBirth: "1980-01-01",
+          dateOfIncorporation: null,
+          gender: "MALE",
+          nationality: "Malaysia",
+          countryOfIncorporation: null,
+          address: { line1: "10 Jalan C", state: "Selangor", postalCode: "47300" },
+          shareType: "ORDINARY",
+          shareTypeOther: null,
+          shareholdingUnits: 100,
+          shareholdingAmount: 100,
+          shareholdingPercentage: 50,
+        },
+      ],
+      board: [],
+      people: [
+        {
+          partyKey: "800101011234",
+          name: "Ali",
+          entityType: "INDIVIDUAL",
+          isDirector: false,
+          isShareholder: true,
+          isBoard: false,
+          isManagement: false,
+          identityPrefix: "NRIC",
+          identityNumber: "800101011234",
+          dateOfBirth: "1980-01-01",
+          dateOfIncorporation: null,
+          gender: "MALE",
+          nationality: "Malaysia",
+          countryOfIncorporation: null,
+          address: { line1: "10 Jalan C", state: "Selangor", postalCode: "47300" },
+          shareType: "ORDINARY",
+          shareTypeOther: null,
+          shareholdingUnits: 100,
+          shareholdingAmount: 100,
+          shareholdingPercentage: 50,
+          designation: null,
+          designationOther: null,
+          appointmentDate: null,
+        },
+      ],
+      financials: null,
+    });
+    expect(result.missing.filter((item) => item.step === "financials")).toHaveLength(
+      ISSUER_FINANCIAL_REQUIRED_FIELD_COUNT
+    );
+  });
+});
+
+describe("company type mapping and personal KYC visibility", () => {
+  it("maps Limited Liability Partnerships to LLP and does not display the raw RegTank label", () => {
+    expect(mapRegTankEntityTypeToScCompanyType("Limited Liability Partnerships")).toBe("LLP");
+    expect(displayScCompanyTypeLabel(null, "Limited Liability Partnerships")).toBe(
+      "Limited Liability Partnership"
+    );
+    expect(displayScCompanyTypeLabel(null, "Something unknown")).toBeNull();
+  });
+
+  it("hides organisation Personal Details (KYC) for company organisations (scenario G)", () => {
+    expect(shouldShowOrganizationPersonalKycCard("COMPANY")).toBe(false);
+    expect(shouldShowOrganizationPersonalKycCard("PERSONAL")).toBe(true);
+  });
+});
+
+describe("people completeness by actual role", () => {
+  it("counts Gender, Nationality, and Date of Birth once for a director (scenario E)", () => {
+    const person = {
+      partyKey: "950829083430",
+      name: "Nur Aina Farisha Binti Salleh",
+      entityType: "INDIVIDUAL" as const,
+      isDirector: true,
+      isShareholder: false,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "NRIC" as const,
+      identityNumber: "950829083430",
+      dateOfBirth: null,
+      dateOfIncorporation: null,
+      gender: null,
+      nationality: null,
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "47800" },
+      shareType: null,
+      shareTypeOther: null,
+      shareholdingUnits: null,
+      shareholdingAmount: null,
+      shareholdingPercentage: null,
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    };
+    const missing = computeIssuerPersonCompleteness(person);
+    expect(missing.map((item) => item.field).sort()).toEqual([
+      "dateOfBirth",
+      "gender",
+      "nationality",
+    ]);
+    expect(missing).toHaveLength(3);
+    expect(missing.some((item) => item.field === "designation")).toBe(false);
+  });
+
+  it("does not treat a director as Board and does not double-count shared identity fields", () => {
+    const person = {
+      partyKey: "950829083430",
+      name: "Nur Aina Farisha Binti Salleh",
+      entityType: "INDIVIDUAL" as const,
+      isDirector: true,
+      isShareholder: true,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "NRIC" as const,
+      identityNumber: "950829083430",
+      dateOfBirth: null,
+      dateOfIncorporation: null,
+      gender: null,
+      nationality: null,
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "47800" },
+      shareType: "ORDINARY" as const,
+      shareTypeOther: null,
+      shareholdingUnits: 6,
+      shareholdingAmount: 6,
+      shareholdingPercentage: 6,
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    };
+    const missing = computeIssuerPersonCompleteness(person);
+    expect(missing.filter((item) => item.field === "dateOfBirth")).toHaveLength(1);
+    expect(missing.filter((item) => item.field === "gender")).toHaveLength(1);
+    expect(missing.some((item) => item.field === "designation")).toBe(false);
+    expect(missing.map((item) => item.field).sort()).toEqual([
+      "dateOfBirth",
+      "gender",
+      "nationality",
+    ]);
+  });
+
+  it("does not count individual DOB or Gender for a corporate shareholder", () => {
+    const missing = computeIssuerPersonCompleteness({
+      partyKey: "202001234567",
+      name: "ApexStar Holdings Sdn. Bhd.",
+      entityType: "CORPORATE",
+      isDirector: false,
+      isShareholder: true,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "ROC",
+      identityNumber: "202001234567",
+      dateOfBirth: null,
+      dateOfIncorporation: "2020-01-01",
+      gender: "NOT_APPLICABLE",
+      nationality: null,
+      countryOfIncorporation: "Malaysia",
+      address: { line1: "10 Jalan Apex", state: "Selangor", postalCode: "47800" },
+      shareType: "ORDINARY",
+      shareTypeOther: null,
+      shareholdingUnits: 10,
+      shareholdingAmount: 10,
+      shareholdingPercentage: 10,
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    });
+    expect(missing.map((item) => item.field)).not.toContain("dateOfBirth");
+    expect(missing.map((item) => item.field)).not.toContain("gender");
+    expect(missing.map((item) => item.field)).not.toContain("nationality");
+  });
+
+  it("does not count hidden Gender when a company shareholder has no gender stored", () => {
+    const missing = computeIssuerPersonCompleteness({
+      partyKey: "202001234567",
+      name: "ApexStar Holdings Sdn. Bhd.",
+      entityType: "CORPORATE",
+      isDirector: false,
+      isShareholder: true,
+      isBoard: false,
+      isManagement: false,
+      identityPrefix: "ROC",
+      identityNumber: "202001234567",
+      dateOfBirth: null,
+      dateOfIncorporation: "2020-01-01",
+      gender: null,
+      nationality: null,
+      countryOfIncorporation: "Malaysia",
+      address: { line1: "10 Jalan Apex", state: "Selangor", postalCode: "47800" },
+      shareType: "ORDINARY",
+      shareTypeOther: null,
+      shareholdingUnits: 10,
+      shareholdingAmount: 10,
+      shareholdingPercentage: 10,
+      designation: null,
+      designationOther: null,
+      appointmentDate: null,
+    });
+    expect(missing.map((item) => item.field)).not.toContain("gender");
+  });
+
+  it("counts populated company email as filled (scenario B)", () => {
+    const missing = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "LLP",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      phoneNumber: "+60123456789",
+      companyEmail: "ops@acme.test",
+      companyActivities: null,
+    });
+    expect(missing.map((item) => item.field)).not.toContain("companyEmail");
   });
 });
 

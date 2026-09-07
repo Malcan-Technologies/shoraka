@@ -1398,11 +1398,13 @@ export default function ProfilePage() {
               <div ref={contactSectionRef} id="profile-contact" className="scroll-mt-24 rounded-xl border bg-card">
                 <div className="flex items-center justify-between p-6 border-b">
                   <div>
-                    <h2 className="text-lg font-semibold">Contact details</h2>
+                    <h2 className="text-lg font-semibold">
+                      {isPersonal ? "Contact details" : "Person in Charge"}
+                    </h2>
                     <p className="text-sm text-muted-foreground">
                       {isPersonal
                         ? "Phone number and email for this organisation"
-                        : "Applicant contact used on applications. Seeded from onboarding; edit here to update."}
+                        : "Main contact person for this company."}
                     </p>
                   </div>
                   {!isEditingProfile && isCurrentUserAdmin ? (
@@ -1513,16 +1515,8 @@ export default function ProfilePage() {
                     <ProfileFieldGrid>
                       <ProfileReadField label="Name" value={contactName || "—"} />
                       <ProfileReadField label="Position" value={contactPosition || "—"} />
-                      <ProfileReadField
-                        label="Email"
-                        value={contactEmail || "—"}
-                        missing={missingFieldKeys.has("companyEmail")}
-                      />
-                      <ProfileReadField
-                        label="Contact Number"
-                        value={contactPhone || "—"}
-                        missing={missingFieldKeys.has("phoneNumber")}
-                      />
+                      <ProfileReadField label="Email" value={contactEmail || "—"} />
+                      <ProfileReadField label="Contact Number" value={contactPhone || "—"} />
                     </ProfileFieldGrid>
                   )}
 

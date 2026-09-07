@@ -36,16 +36,13 @@ export function parseDateInput(value: unknown): Date | null {
 export function asAddress(value: unknown): ProfileAddress | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const rec = value as Record<string, unknown>;
+  const postalRaw = rec.postalCode ?? rec.postcode;
   return {
     line1: typeof rec.line1 === "string" ? rec.line1 : rec.line1 == null ? null : String(rec.line1),
     line2: typeof rec.line2 === "string" ? rec.line2 : rec.line2 == null ? null : String(rec.line2),
     city: typeof rec.city === "string" ? rec.city : rec.city == null ? null : String(rec.city),
     postalCode:
-      typeof rec.postalCode === "string"
-        ? rec.postalCode
-        : rec.postalCode == null
-          ? null
-          : String(rec.postalCode),
+      typeof postalRaw === "string" ? postalRaw : postalRaw == null ? null : String(postalRaw),
     state: typeof rec.state === "string" ? rec.state : rec.state == null ? null : String(rec.state),
     country: typeof rec.country === "string" ? rec.country : rec.country == null ? null : String(rec.country),
   };
