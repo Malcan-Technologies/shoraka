@@ -47,7 +47,7 @@ function requirePhoneWhenPresent(value: string | null | undefined, ctx: z.Refine
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: [path],
-      message: "Invalid phone number format",
+      message: "Enter a valid phone number.",
     });
   }
 }
@@ -60,7 +60,7 @@ const scIntegerWithoutDecimal = z
   .optional()
   .nullable()
   .refine((value) => isScIntegerWithoutDecimal(value), {
-    message: "Integer value without decimal points",
+    message: "Enter a whole number.",
   });
 
 /** DTO/UI `id` belongs in the URL, not the strict body. Unknown keys still fail. */
@@ -243,7 +243,7 @@ export const operatorShareholderSchema = z
   .strict()
   .refine((value) => !(value.holderType === "BENEFICIAL_OWNER" && value.entityType === "CORPORATE"), {
     path: ["entityType"],
-    message: "ComRep [03000] Beneficial Owner is an individual, not a company",
+    message: "A beneficial owner must be an individual, not a company.",
   })
   .superRefine((value, ctx) => {
     addComrepIssues(ctx, validateOperatorShareholder(value));
@@ -252,7 +252,7 @@ export const operatorShareholderSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["shareTypeOther"],
-        message: "Type of Shares - Others (please specify) is required when Type of Shares is Others.",
+        message: "Enter the other share type because ‘Others’ is selected.",
       });
     }
   })
@@ -284,7 +284,7 @@ export const operatorOfficerSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["designationOther"],
-        message: "Designation - Others (Please specify) is required when Designation is Others.",
+        message: "Enter the designation because ‘Others’ is selected.",
       });
     }
   })
@@ -328,7 +328,7 @@ export const operatorInterestSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["shareTypeOther"],
-        message: "Type of Shares - Others (please specify) is required when Type of Shares is Others.",
+        message: "Enter the other share type because ‘Others’ is selected.",
       });
     }
   })

@@ -99,16 +99,20 @@ export type ApplicationPersonRow = {
   } | null;
   /**
    * Best RegTank id for links: with supplement, `screening.requestId` then top-level onboarding `requestId`; else issuer KYC/KYB then EOD/COD.
-   * Admin onboarding View must use {@link getRegtankOnboardingViewLinks} instead of this mixed id.
+   * Legacy mixed id (screening preferred over onboarding). Do not use for Admin RegTank onboarding View.
+   * Prefer dedicated EOD/COD/screening fields. Use {@link getRegtankOnboardingViewLinks} for Admin onboarding View.
    */
   requestId?: string | null;
   /** Set when row is built from `ctos_party_supplements`: which id won for {@link ApplicationPersonRow.requestId}. */
   requestIdType?: "SCREENING" | "ONBOARDING" | null;
-  /** Parent company COD for nested `/app/onboardingCorporate/{COD}/{EOD}` links. */
+  /**
+   * Parent company COD from the organization's corporate `reg_tank_onboarding` session (e.g. COD05463).
+   * Used with a person EOD for `/app/onboardingCorporate/{COD}/{EOD}`.
+   */
   parentCorporateRequestId?: string | null;
-  /** Director EOD from `director_kyc_status` / `corporate_entities`. */
+  /** Director liveness/onboarding id (EOD) from `director_kyc_status` / `corporate_entities`. */
   directorEodRequestId?: string | null;
-  /** Shareholder EOD when this person is also (or only) a shareholder. */
+  /** Shareholder liveness/onboarding id (EOD) when this person is also (or only) a shareholder. */
   shareholderEodRequestId?: string | null;
   /** This corporate-shareholder company's own COD — not the parent organization's COD. */
   partyCorporateRequestId?: string | null;
@@ -175,7 +179,7 @@ function isScreeningRequestId(id: string): boolean {
   return id.startsWith("KYC") || id.startsWith("KYB");
 }
 
-/** Organization-level company COD. */
+/** Organization-level company COD (header Open in RegTank). */
 export function getRegtankCorporateOnboardingUrl(corporateRequestId: string | null | undefined): string | null {
   const id = trimRegtankId(corporateRequestId);
   if (!id || !isCorporateRequestId(id)) return null;
@@ -219,7 +223,7 @@ export function getRegtankScreeningLink(
 
 /**
  * Admin people-table onboarding View links.
- * Dual-role rows with two EODs return both; UI may show only the first View button.
+ * Dual-role rows with two EODs return both. {@link getRegtankColumnDisplayRows} lists each id plus screening.
  */
 export function getRegtankOnboardingViewLinks(
   person: Pick<
@@ -263,6 +267,64 @@ export function getRegtankOnboardingViewLinks(
   const liveness = getRegtankLivenessUrl(standalone);
   if (!liveness || !standalone) return [];
   return [{ label: "View", url: liveness, requestId: standalone }];
+}
+
+export type RegtankColumnDisplayRow = {
+  groupLabel: string;
+  requestId: string;
+  url: string | null;
+  kind: "onboarding" | "screening";
+};
+
+function regtankColumnOnboardingGroupLabel(
+  person: Pick<ApplicationPersonRow, "entityType" | "roles">,
+  link: RegtankPortalLink
+): string {
+  if (link.label === "Director" || link.label === "Shareholder") return link.label;
+  if (person.entityType === "CORPORATE") return "Corporate Shareholder";
+  const roles = (person.roles ?? []).map((r) => String(r).toUpperCase());
+  const hasDirector = roles.includes("DIRECTOR");
+  const hasShareholder = roles.includes("SHAREHOLDER");
+  if (hasDirector && !hasShareholder) return "Director";
+  if (hasShareholder && !hasDirector) return "Shareholder";
+  return "Onboarding";
+}
+
+/**
+ * People-table RegTank column rows (ids + existing portal URLs).
+ * Parent COD is not included; screening stays a separate row.
+ */
+export function getRegtankColumnDisplayRows(
+  person: Pick<
+    ApplicationPersonRow,
+    | "entityType"
+    | "roles"
+    | "parentCorporateRequestId"
+    | "directorEodRequestId"
+    | "shareholderEodRequestId"
+    | "partyCorporateRequestId"
+    | "screeningRequestId"
+    | "screening"
+    | "requestId"
+  >
+): RegtankColumnDisplayRow[] {
+  const rows: RegtankColumnDisplayRow[] = getRegtankOnboardingViewLinks(person).map((link) => ({
+    groupLabel: regtankColumnOnboardingGroupLabel(person, link),
+    requestId: link.requestId,
+    url: link.url,
+    kind: "onboarding",
+  }));
+
+  const screeningId = trimRegtankId(person.screeningRequestId);
+  if (screeningId) {
+    rows.push({
+      groupLabel: "Screening",
+      requestId: screeningId,
+      url: getRegtankScreeningLink(person),
+      kind: "screening",
+    });
+  }
+  return rows;
 }
 
 /**

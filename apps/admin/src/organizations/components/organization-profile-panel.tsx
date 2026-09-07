@@ -314,7 +314,7 @@ export function OrganizationProfilePanel({
           <AdminDetailCardHeader
             icon={BuildingOffice2Icon}
             title="Company Details"
-            description="CashSouk master company record"
+            description="Company registration and contact details"
             actions={sectionActions("company")}
           />
           <CardContent>
@@ -880,7 +880,7 @@ export function OrganizationProfilePanel({
           <AdminDetailCardHeader
             icon={BuildingOffice2Icon}
             title="Address"
-            description="Residential address on the CashSouk master record"
+            description="Residential address"
             actions={sectionActions("addresses")}
           />
           <CardContent>
@@ -938,7 +938,7 @@ export function OrganizationProfilePanel({
           <AdminDetailCardHeader
             icon={IdentificationIcon}
             title="Investor classification"
-            description="CashSouk product status and Type of Investor are separate fields"
+            description="Account class is the CashSouk product status. Type of Investor is used for regulatory reporting and does not change product eligibility."
             actions={sectionActions("classification")}
           />
           <CardContent>

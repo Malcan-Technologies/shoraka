@@ -728,7 +728,7 @@ export default function ProfilePage() {
     }
 
     if (!contactName.trim() || !contactEmail.trim() || !contactPosition.trim() || !contactPhone) {
-      toast.error("Please fill in all contact details");
+      toast.error("Enter all contact details");
       return;
     }
     if (!isValidPhoneNumber(contactPhone)) {

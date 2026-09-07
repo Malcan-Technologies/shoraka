@@ -90,7 +90,7 @@ export function OrganizationFinancialsPanel({
       }
       const issues = validateIssuerFinancialFields(fields);
       if (issues.length > 0) {
-        throw new Error(firstIssueMessage(issues) ?? "Please complete the required financial fields.");
+        throw new Error(firstIssueMessage(issues) ?? "Complete the required financial fields.");
       }
       const res = await api.patchAdminIssuerFinancials(organizationId, year, fields);
       if (!res.success) throw new Error(res.error.message);
@@ -115,7 +115,7 @@ export function OrganizationFinancialsPanel({
       <AdminDetailCardHeader
         icon={BanknotesIcon}
         title="Financials"
-        description="Latest issuer financial statements on the CashSouk master record"
+        description="Latest financial statements for this company"
         actions={
           canManage ? (
             <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
@@ -156,7 +156,7 @@ export function OrganizationFinancialsPanel({
             ))}
           </div>
         ) : (
-          <p className="text-ui text-muted-foreground">No financial statements stored yet.</p>
+          <p className="text-ui text-muted-foreground">No financial statements have been added yet.</p>
         )}
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" className="h-10" onClick={() => setOpen(true)}>
@@ -176,7 +176,7 @@ export function OrganizationFinancialsPanel({
             <DialogTitle>Financial statements</DialogTitle>
             <DialogDescription>
               {latestYear
-                ? `FY${latestYear} on the CashSouk master record.`
+                ? `Enter the financial statement details for FY${latestYear}.`
                 : "Enter figures for the latest financial year."}
             </DialogDescription>
           </DialogHeader>

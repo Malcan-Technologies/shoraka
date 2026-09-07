@@ -67,7 +67,7 @@ describe("ComRep Others (please specify)", () => {
   it("requires text only when Others is selected and clears it otherwise", () => {
     expect(othersSpecifyValue("OTHERS", "")).toEqual({
       value: null,
-      issue: "This Others (please specify) field is required when Others is selected.",
+      issue: "Enter the other value because ‘Others’ is selected.",
     });
     expect(othersSpecifyValue("OTHERS", "Redeemable preference")).toEqual({
       value: "Redeemable preference",
@@ -106,7 +106,7 @@ describe("applyPartyComrepSemantics", () => {
       nationality: "MALAYSIA",
     });
     expect(applied.issues.length).toBeGreaterThan(0);
-    expect(applied.issues.some((issue) => /non-individual/i.test(issue))).toBe(true);
+    expect(applied.issues.some((issue) => /Not Applicable/i.test(issue))).toBe(true);
   });
 
   it("requires Type of Shares - Others when Others is selected", () => {
@@ -116,6 +116,6 @@ describe("applyPartyComrepSemantics", () => {
       shareType: "OTHERS",
       shareTypeOther: "  ",
     });
-    expect(applied.issues.some((issue) => /Type of Shares - Others/i.test(issue))).toBe(true);
+    expect(applied.issues.some((issue) => /other share type/i.test(issue))).toBe(true);
   });
 });

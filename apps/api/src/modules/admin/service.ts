@@ -3642,6 +3642,7 @@ export class AdminService {
             issuerDirectorAmlStatus: organizationForPeople?.director_aml_status ?? null,
             ctosPartySupplements: organizationForPeople?.ctos_party_supplements ?? null,
             corporateEntities: existingResponse.corporateEntities ?? null,
+            parentCorporateRequestId: refreshed.request_id,
           }
         )
       : buildDirectorShareholderPeopleList({
@@ -3650,6 +3651,7 @@ export class AdminService {
           issuerDirectorAmlStatus: organizationForPeople?.director_aml_status ?? null,
           ctosPartySupplements: organizationForPeople?.ctos_party_supplements ?? null,
           corporateEntities: existingResponse.corporateEntities ?? null,
+          parentCorporateRequestId: refreshed.request_id,
         });
 
     return {
@@ -7011,6 +7013,9 @@ export class AdminService {
     )
       ? (applicationWithIssuerExtras.issuer_organization as Record<string, unknown>)
       : null;
+    const parentCorporateRequestId = issuerOrgId
+      ? ((await this.regTankRepository.findByOrganizationId(issuerOrgId, "issuer"))?.request_id ?? null)
+      : null;
     const partyBuild = issuerOrgId
       ? await buildDirectorShareholderPeopleListWithMaster("issuer", issuerOrgId, {
           ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
@@ -7020,6 +7025,7 @@ export class AdminService {
             ? issuerOrgForPeople.ctos_party_supplements
             : null,
           corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
+          parentCorporateRequestId,
         })
       : buildDirectorShareholderPeopleList({
           ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
@@ -7029,6 +7035,7 @@ export class AdminService {
             ? issuerOrgForPeople.ctos_party_supplements
             : null,
           corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
+          parentCorporateRequestId,
         });
 
     let inheritedAcceptance: Awaited<

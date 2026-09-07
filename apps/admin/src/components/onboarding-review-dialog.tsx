@@ -194,7 +194,7 @@ function resolveDirectorShareholderEmptyMessage(
   if (peopleRowCount > 0) {
     return "No directors or shareholders at 5% ownership or above are displayed here.";
   }
-  return "No director or shareholder data is available yet. Use Refresh after RegTank updates COD/EOD records.";
+  return "No directors or shareholders have been added yet. Refresh after the latest external information is available.";
 }
 
 function OnboardingDirectorShareholderSection({

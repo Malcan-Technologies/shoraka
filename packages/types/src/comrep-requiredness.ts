@@ -79,7 +79,7 @@ export function requiredTextIssue(value: unknown, field: string, label: string):
 export function requiredEmailIssue(value: unknown, field: string, label: string): ComrepFieldIssue | null {
   const text = trimToNull(value);
   if (!text) return { field, label, message: `${label} is required.` };
-  if (!isValidEmail(text)) return { field, label, message: `${label} must be a valid email address.` };
+  if (!isValidEmail(text)) return { field, label, message: `Enter a valid e-mail address.` };
   return null;
 }
 
@@ -105,8 +105,8 @@ export function requiredEnumIssue(
   label: string
 ): ComrepFieldIssue | null {
   const text = trimToNull(value);
-  if (!text) return { field, label, message: `${label} is required.` };
-  if (!allowed.includes(text)) return { field, label, message: `${label} must be one of the allowed values.` };
+  if (!text) return { field, label, message: `Select a ${label}.` };
+  if (!allowed.includes(text)) return { field, label, message: `Select a valid ${label}.` };
   return null;
 }
 
@@ -119,7 +119,7 @@ export function requiredIntegerIssue(value: unknown, field: string, label: strin
   const missing = requiredNumberIssue(value, field, label);
   if (missing) return missing;
   if (!isScIntegerWithoutDecimal(value)) {
-    return { field, label, message: `${label} must be an integer value without decimal points.` };
+    return { field, label, message: `${label} must be a whole number.` };
   }
   return null;
 }
@@ -160,7 +160,7 @@ export function identityFormatIssue(
     return {
       field,
       label,
-      message: `${label} must be reported without dash, space, or special characters.`,
+      message: `${label} must not include dashes, spaces, or special characters.`,
     };
   }
   return null;
@@ -528,7 +528,7 @@ export function validateIssuerMasterPatch(
         issues.push({
           field: "gender",
           label: "Gender",
-          message: "Gender must be one of the allowed values.",
+          message: "Select a valid Gender.",
         });
       }
     }

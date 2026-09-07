@@ -28,17 +28,17 @@ describe("ComRep requiredness", () => {
       "E-mail Address is required."
     );
     expect(requiredEmailIssue("not-an-email", "companyEmail", "E-mail Address")?.message).toBe(
-      "E-mail Address must be a valid email address."
+      "Enter a valid e-mail address."
     );
   });
 
   it("rejects empty and unknown enums", () => {
     expect(requiredEnumIssue("PRIVATE_LIMITED", SC_COMPANY_TYPES, "scCompanyType", "Type of Company")).toBeNull();
     expect(requiredEnumIssue("", SC_COMPANY_TYPES, "scCompanyType", "Type of Company")?.message).toBe(
-      "Type of Company is required."
+      "Select a Type of Company."
     );
     expect(requiredEnumIssue("LLC", SC_COMPANY_TYPES, "scCompanyType", "Type of Company")?.message).toMatch(
-      /allowed values/
+      /Select a valid/
     );
   });
 
@@ -119,10 +119,10 @@ describe("ComRep requiredness", () => {
 
   it("rejects NRIC/ROC with dashes and does not strip Passport the same way", () => {
     expect(identityFormatIssue("800101-01-1234", "NRIC", "identityNumber", "IC/Passport number")?.message).toMatch(
-      /without dash/
+      /dashes/
     );
     expect(identityFormatIssue("1234567-A", "ROC", "registrationNumber", "Issuer ROC")?.message).toMatch(
-      /without dash/
+      /dashes/
     );
     expect(identityFormatIssue("A1234567", "PASSPORT", "identityNumber", "IC/Passport number")).toBeNull();
     expect(identityFormatIssue("AB-12 34", "PASSPORT", "identityNumber", "IC/Passport number")).toBeNull();
@@ -130,7 +130,7 @@ describe("ComRep requiredness", () => {
 
   it("rejects share-count decimals where SC requires integer without decimal points", () => {
     expect(requiredIntegerIssue("50.5", "ordinaryUnits", "Ordinary (for Sdn Bhd) — No. of Shares")?.message).toMatch(
-      /integer/
+      /whole number/
     );
     expect(requiredIntegerIssue("50", "ordinaryUnits", "Ordinary (for Sdn Bhd) — No. of Shares")).toBeNull();
     const issues = validateOperatorShareCapital(

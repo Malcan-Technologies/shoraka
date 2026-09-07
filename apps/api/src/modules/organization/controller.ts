@@ -89,6 +89,7 @@ async function listOrganizations(
             issuerDirectorAmlStatus: (org as { director_aml_status?: unknown }).director_aml_status ?? null,
             ctosPartySupplements: extras.ctosPartySupplements,
             corporateEntities: (org as { corporate_entities?: unknown }).corporate_entities ?? null,
+            parentCorporateRequestId: org.regtank_onboarding?.request_id ?? null,
           });
           companyPartyById.set(org.id, {
             people: partyBuild.people,
@@ -350,6 +351,7 @@ async function getOrganization(
             issuerDirectorAmlStatus: org.director_aml_status ?? null,
             ctosPartySupplements: issuerPartyExtras.ctosPartySupplements,
             corporateEntities: org.corporate_entities ?? null,
+            parentCorporateRequestId: organization.regtank_onboarding?.request_id ?? null,
           })
         : null;
     const issuerDsPending =
@@ -371,6 +373,7 @@ async function getOrganization(
                 ? (issuerPartyExtras?.ctosPartySupplements ?? null)
                 : (investorPartyExtras?.ctosPartySupplements ?? null),
             corporateEntities: org.corporate_entities ?? null,
+            parentCorporateRequestId: organization.regtank_onboarding?.request_id ?? null,
           })
         : null;
 

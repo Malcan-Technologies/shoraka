@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileCard } from "./profile-card";
-import { AddPersonForm, PartyFillEmptyForm } from "./issuer-person-forms";
+import { AddPersonForm, PartyFillEmptyForm, type AddPersonInitial } from "./issuer-person-forms";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -111,6 +111,7 @@ export function IssuerPeopleSection({
   const queryClient = useQueryClient();
   const [filter, setFilter] = React.useState<PeopleFilter>("all");
   const [addOpen, setAddOpen] = React.useState(false);
+  const [addInitial, setAddInitial] = React.useState<AddPersonInitial | null>(null);
   const [viewPartyId, setViewPartyId] = React.useState<string | null>(null);
   const [viewPeopleOnlyKey, setViewPeopleOnlyKey] = React.useState<string | null>(null);
   const [editPartyId, setEditPartyId] = React.useState<string | null>(null);
@@ -215,10 +216,13 @@ export function IssuerPeopleSection({
     <ProfileCard
       id="profile-people"
       title="People"
-      description="Directors, shareholders, board, and management — one person, one record"
+      description="Directors, shareholders, board, and management. The same person can have more than one role."
       action={
         canEdit ? (
-          <Button type="button" size="sm" className="h-8 gap-1.5 rounded-xl" onClick={() => setAddOpen(true)}>
+          <Button type="button" size="sm" className="h-8 gap-1.5 rounded-xl" onClick={() => {
+            setAddInitial(null);
+            setAddOpen(true);
+          }}>
             <PlusIcon className="h-4 w-4" />
             Add person
           </Button>
@@ -242,7 +246,7 @@ export function IssuerPeopleSection({
         masterCards.length === 0 &&
         peopleOnly.length === 0 &&
         unresolvedPeople.length === 0 ? (
-          <p className="text-ui text-muted-foreground">No people stored on the company record yet.</p>
+          <p className="text-ui text-muted-foreground">No people have been added yet.</p>
         ) : null}
 
         {masterCards.map((item) => (
@@ -276,6 +280,26 @@ export function IssuerPeopleSection({
                 sendPending={sendPending}
                 onSend={() => sendOnboarding(person, draftEmails[person.matchKey || ""] ?? person.email ?? "")}
                 onView={() => setViewPeopleOnlyKey(person.matchKey)}
+                onEdit={
+                  canEdit
+                    ? () => {
+                        const roles = (person.roles ?? []).map((role) => role.toUpperCase());
+                        setAddInitial({
+                          name: person.name ?? "",
+                          identityNumber: person.matchKey,
+                          email: person.email ?? "",
+                          entityType: person.entityType,
+                          isDirector: roles.includes("DIRECTOR"),
+                          isShareholder: roles.includes("SHAREHOLDER"),
+                          isBoard: roles.includes("BOARD"),
+                          isManagement: roles.includes("MANAGEMENT"),
+                          shareholdingPercentage:
+                            person.sharePercentage != null ? String(person.sharePercentage) : "",
+                        });
+                        setAddOpen(true);
+                      }
+                    : undefined
+                }
               />
             ))}
 
@@ -314,14 +338,28 @@ export function IssuerPeopleSection({
         ) : null}
       </div>
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog
+        open={addOpen}
+        onOpenChange={(open) => {
+          setAddOpen(open);
+          if (!open) setAddInitial(null);
+        }}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Add person</DialogTitle>
-            <DialogDescription>Adds someone to the CashSouk company record.</DialogDescription>
+            <DialogTitle>{addInitial ? "Edit person" : "Add person"}</DialogTitle>
+            <DialogDescription>
+              {addInitial
+                ? "Add this person to the company profile. Existing details are kept if they are already filled."
+                : "Add this person to the company profile."}
+            </DialogDescription>
           </DialogHeader>
           <AddPersonForm
-            onCancel={() => setAddOpen(false)}
+            initial={addInitial}
+            onCancel={() => {
+              setAddOpen(false);
+              setAddInitial(null);
+            }}
             onSave={async (data) => {
               const res = await api.createManagementParty("issuer", organizationId, data);
               if (!res.success) throw new Error(res.error.message);

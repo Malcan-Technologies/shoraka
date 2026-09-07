@@ -47,24 +47,40 @@ export function PartyDetailFields({
   return <PartyProfileDetailFields party={party} person={person ?? null} />;
 }
 
+export type AddPersonInitial = {
+  name?: string;
+  identityNumber?: string;
+  email?: string;
+  entityType?: "INDIVIDUAL" | "CORPORATE";
+  isDirector?: boolean;
+  isShareholder?: boolean;
+  isBoard?: boolean;
+  isManagement?: boolean;
+  shareholdingPercentage?: string;
+};
+
 export function AddPersonForm({
   onSave,
   onCancel,
+  initial,
 }: {
   onSave: (data: Record<string, unknown>) => Promise<void>;
   onCancel: () => void;
+  initial?: AddPersonInitial | null;
 }) {
-  const [entityType, setEntityType] = React.useState<"INDIVIDUAL" | "CORPORATE">("INDIVIDUAL");
-  const [isDirector, setIsDirector] = React.useState(false);
-  const [isShareholder, setIsShareholder] = React.useState(false);
-  const [isBoard, setIsBoard] = React.useState(false);
-  const [isManagement, setIsManagement] = React.useState(false);
+  const [entityType, setEntityType] = React.useState<"INDIVIDUAL" | "CORPORATE">(
+    initial?.entityType ?? "INDIVIDUAL"
+  );
+  const [isDirector, setIsDirector] = React.useState(Boolean(initial?.isDirector));
+  const [isShareholder, setIsShareholder] = React.useState(Boolean(initial?.isShareholder));
+  const [isBoard, setIsBoard] = React.useState(Boolean(initial?.isBoard));
+  const [isManagement, setIsManagement] = React.useState(Boolean(initial?.isManagement));
   const [form, setForm] = React.useState({
-    name: "",
+    name: initial?.name ?? "",
     salutation: "",
-    identityPrefix: "NRIC",
-    identityNumber: "",
-    email: "",
+    identityPrefix: initial?.entityType === "CORPORATE" ? "ROC" : "NRIC",
+    identityNumber: initial?.identityNumber ?? "",
+    email: initial?.email ?? "",
     dateOfBirth: "",
     dateOfIncorporation: "",
     nationality: "",
@@ -78,7 +94,7 @@ export function AddPersonForm({
     shareTypeOther: "",
     shareholdingUnits: "",
     shareholdingAmount: "",
-    shareholdingPercentage: "",
+    shareholdingPercentage: initial?.shareholdingPercentage ?? "",
     designation: "",
     designationOther: "",
     appointmentDate: "",

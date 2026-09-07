@@ -56,7 +56,7 @@ export function InvestorClassificationCard({
       await queryClient.invalidateQueries({
         queryKey: ["investor", "profile-completeness", organizationId],
       });
-      toast.success("SC ComRep investor type updated");
+      toast.success("Type of Investor updated");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -66,8 +66,8 @@ export function InvestorClassificationCard({
       <div className="border-b p-6">
         <h2 className="text-lg font-semibold">Investor Classification</h2>
         <p className="mt-1 text-ui text-muted-foreground">
-          Account class is the CashSouk product status. Type of Investor is a separate
-          reporting field shared with Admin.
+          Account class is the CashSouk product status. Type of Investor is used for
+          regulatory reporting. It does not change the investor’s product eligibility.
         </p>
       </div>
       <div className="grid gap-6 p-6 sm:grid-cols-2">

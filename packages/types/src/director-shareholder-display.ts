@@ -790,7 +790,7 @@ export function extractGovernmentId(formContent: unknown): string | null {
 
 export const UNRESOLVED_IDENTITY_ADMIN_TITLE = "Records requiring review";
 export const UNRESOLVED_IDENTITY_ADMIN_COPY =
-  "Some identity information is missing from RegTank. Review these records before approving the application.";
+  "Some identity information is missing. Review these records before approving the application.";
 
 export const UNRESOLVED_IDENTITY_RECOVERY_TITLE = "Missing government ID";
 export const UNRESOLVED_IDENTITY_RECOVERY_COPY =
