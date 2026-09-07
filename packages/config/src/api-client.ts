@@ -678,8 +678,17 @@ export class ApiClient {
 
   async getIssuerLatestFinancialStatements(
     organizationId: string
-  ): Promise<ApiResponse<{ financial_statements: unknown } | null> | ApiError> {
-    return this.get<{ financial_statements: unknown } | null>(
+  ): Promise<
+    | ApiResponse<{
+        financial_statements: unknown | null;
+        ctos_financials: unknown | null;
+        source_application_id: string | null;
+        source_application_revision_id: string | null;
+        updated_at: string | null;
+      }>
+    | ApiError
+  > {
+    return this.get(
       `/v1/organizations/issuer/${organizationId}/financial-statements/latest`
     );
   }

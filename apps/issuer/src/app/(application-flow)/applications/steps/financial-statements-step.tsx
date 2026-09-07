@@ -40,6 +40,7 @@ import { parseMoney, formatMoney } from "@cashsouk/ui";
 import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applications/components/financial-statements-skeleton";
 import {
   FINANCIAL_FIELD_LABELS,
+  buildApplicationFinancialPrefillByYear,
   formatFinancialFyPeriodDisplay,
   getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
@@ -369,6 +370,11 @@ const YEAR_MONEY_FIELDS: (keyof FinancialStatementsPayload)[] = [
   "plyear",
 ];
 
+function yearPayloadHasMoney(form: FinancialStatementsPayload | undefined): boolean {
+  if (!form) return false;
+  return YEAR_MONEY_FIELDS.some((key) => String(form[key] ?? "").trim() !== "");
+}
+
 type YearBlockFieldErrors = {
   money: Partial<Record<keyof FinancialStatementsPayload, string>>;
 };
@@ -419,6 +425,10 @@ export function FinancialStatementsStep({
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const [autoPrefillApplied, setAutoPrefillApplied] = React.useState(false);
   const [autoPrefillMode, setAutoPrefillMode] = React.useState<"allYears" | "previousYearOnly">("allYears");
+  const [prefillEnabled, setPrefillEnabled] = React.useState(false);
+  const [prefillOrgFs, setPrefillOrgFs] = React.useState<unknown>(null);
+  const [prefillCtos, setPrefillCtos] = React.useState<unknown>(null);
+  const prevInProgressYearRef = React.useRef<number | null>(null);
 
   const appShape = application as
     | (typeof application & {
@@ -451,6 +461,10 @@ export function FinancialStatementsStep({
     setIsInitialized(false);
     setAutoPrefillApplied(false);
     setAutoPrefillMode("allYears");
+    setPrefillEnabled(false);
+    setPrefillOrgFs(null);
+    setPrefillCtos(null);
+    prevInProgressYearRef.current = null;
     setFyeDateInput("");
     setFormsByYear({});
     setActiveYearTab("");
@@ -502,47 +516,32 @@ export function FinancialStatementsStep({
         return;
       }
 
-      // No financial_statements on the app yet: try org-level auto-prefill once.
+      // No financial_statements on the app yet: load org master + CTOS for effective prefill.
+      // Do not copy year blocks here — wait until FYE/tabs identify the in-progress year.
       if (shouldAttemptAutoPrefill) {
-        if (orgLatestFinancialStatementsQuery.isLoading || orgLatestFinancialStatementsQuery.data === undefined) return;
+        if (orgLatestFinancialStatementsQuery.isLoading) return;
 
-        const latest = orgLatestFinancialStatementsQuery.data;
-        if (latest?.financial_statements && isV2FinancialSaved(latest.financial_statements)) {
-          const qNorm = normalizeFinancialStatementsQuestionnaire(latest.financial_statements.questionnaire);
-          const requiredYears = qNorm ? getIssuerFinancialTabYears(qNorm, new Date()) : [];
-          const isTwoYears = requiredYears.length === 2;
-          const stableYear = isTwoYears ? Math.min(...requiredYears) : null;
+        const latest = orgLatestFinancialStatementsQuery.data ?? null;
+        setPrefillOrgFs(latest?.financial_statements ?? null);
+        setPrefillCtos(latest?.ctos_financials ?? null);
+        setPrefillEnabled(true);
 
-          const map: Record<string, FinancialStatementsPayload> = {};
-          if (isTwoYears && stableYear != null) {
-            // When two years are required, keep the "current/latest" year blank.
-            // We only reuse the earlier/stable year block from the org-level latest data.
-            const stableKey = String(stableYear);
-            const stableBlock = latest.financial_statements.unaudited_by_year[stableKey];
-            if (stableBlock) {
-              map[stableKey] = fromSaved(stableBlock);
-            }
-          } else {
-            for (const [k, v] of Object.entries(latest.financial_statements.unaudited_by_year)) {
-              map[k] = fromSaved(v);
-            }
-          }
-          setFormsByYear(map);
+        const orgSaved =
+          latest?.financial_statements && isV2FinancialSaved(latest.financial_statements)
+            ? latest.financial_statements
+            : null;
+        const qNorm = orgSaved
+          ? normalizeFinancialStatementsQuestionnaire(orgSaved.questionnaire)
+          : null;
 
-          if (qNorm) {
-            setFyeDateInput(isoToApplicationFlowDateDisplay(qNorm.financial_year_end));
-            const built = buildV2ApiPayload(qNorm, map);
-            setInitialPayloadSnapshot(JSON.stringify(built));
-            setAutoPrefillApplied(true);
-            setAutoPrefillMode(isTwoYears ? "previousYearOnly" : "allYears");
-          } else {
-            setInitialPayloadSnapshot(
-              JSON.stringify({
-                questionnaire: { financial_year_end: "" },
-                unaudited_by_year: {},
-              })
-            );
-          }
+        if (qNorm) {
+          setFyeDateInput(isoToApplicationFlowDateDisplay(qNorm.financial_year_end));
+          setInitialPayloadSnapshot(
+            JSON.stringify({
+              questionnaire: qNorm,
+              unaudited_by_year: {},
+            })
+          );
         } else {
           setInitialPayloadSnapshot(
             JSON.stringify({
@@ -598,20 +597,62 @@ export function FinancialStatementsStep({
   React.useEffect(() => {
     if (!questionnaireDto) return;
 
+    const built = prefillEnabled
+      ? buildApplicationFinancialPrefillByYear({
+          questionnaire: questionnaireDto,
+          orgFinancialStatements: prefillOrgFs,
+          ctosFinancials: prefillCtos,
+        })
+      : null;
+
     setFormsByYear((prev) => {
-      const next = { ...prev };
+      const next: Record<string, FinancialStatementsPayload> = {};
       for (const y of yearsToShow) {
         const k = String(y);
         const p = issuerUnauditedPlddForFyEndYear(y, questionnaireDto);
-        if (!next[k]) next[k] = { ...emptyQuestionnaireBlock(), pldd: p };
-        else next[k] = { ...next[k], pldd: p };
-      }
-      for (const key of Object.keys(next)) {
-        if (!yearsToShow.includes(parseInt(key, 10))) delete next[key];
+        if (!prefillEnabled || !built) {
+          if (!prev[k]) next[k] = { ...emptyQuestionnaireBlock(), pldd: p };
+          else next[k] = { ...prev[k], pldd: p };
+          continue;
+        }
+
+        const inProgress = built.inProgressYear;
+        if (inProgress != null && y === inProgress) {
+          const sameCurrent = prevInProgressYearRef.current === inProgress;
+          if (sameCurrent && yearPayloadHasMoney(prev[k])) {
+            next[k] = { ...prev[k], pldd: p };
+          } else {
+            next[k] = { ...emptyQuestionnaireBlock(), pldd: p };
+          }
+          continue;
+        }
+
+        if (yearPayloadHasMoney(prev[k])) {
+          next[k] = { ...prev[k], pldd: p };
+          continue;
+        }
+        const resolved = built.years[k];
+        if (resolved?.fields) {
+          next[k] = { ...fromSaved(resolved.fields), pldd: p };
+        } else {
+          next[k] = { ...emptyQuestionnaireBlock(), pldd: p };
+        }
       }
       return next;
     });
-  }, [yearsToShow, questionnaireDto]);
+
+    if (built) {
+      prevInProgressYearRef.current = built.inProgressYear;
+      const filledHistorical = built.tabYears.some((year) => {
+        const source = built.years[String(year)]?.source;
+        return source === "ctos" || source === "org_master";
+      });
+      if (filledHistorical) {
+        setAutoPrefillApplied(true);
+        setAutoPrefillMode("previousYearOnly");
+      }
+    }
+  }, [yearsToShow, questionnaireDto, prefillEnabled, prefillOrgFs, prefillCtos]);
 
   React.useEffect(() => {
     const raw =

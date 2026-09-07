@@ -17,7 +17,9 @@ Issuers select **one** date: the **next financial year end** (`financial_year_en
 | `questionnaire` | `{ financial_year_end: "YYYY-MM-DD" }` (next date the company’s books close; must be in the future when saved). |
 | `unaudited_by_year` | Map of **FY end calendar year** string (e.g. `"2026"`, `"2027"`) → per-year block: numeric fields + **`pldd`** (ISO FY end for that column). No **`bsdd`** on issuer rows. |
 
-**Year tabs (issuer)** — `getIssuerFinancialTabYears(questionnaire, ref)` in `@cashsouk/types`.
+**Year tabs (issuer)** — `getIssuerFinancialTabYears(questionnaire, ref)` in `@cashsouk/types`. In-progress year is always the selected next FYE calendar year (`getInProgressFinancialYearEndYear`), including one-tab mode.
+
+**New-application prefill** — `buildApplicationFinancialPrefillByYear`: completed tabs use CTOS when that year has application line items, otherwise org master. The in-progress tab starts blank. See `docs/issuer-organization-financial-statements-prefill.md`.
 
 **Admin Financial Summary** — Three fixed CTOS columns (latest three CTOS `financial_year` values, ascending, padded with empty slots on the **left** so the newest CTOS year sits next to user columns). **User Input** columns use the **same** year list as the issuer: `getAdminFinancialSummaryUserColumnYears(questionnaire, ref)` (0–2 columns). User cells use `unaudited_by_year[String(year)]` or missing copy when a field is empty.
 
