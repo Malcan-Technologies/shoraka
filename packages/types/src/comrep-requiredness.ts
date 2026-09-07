@@ -852,7 +852,6 @@ export function validateIssuerPersonForm(input: {
   shareholdingUnits?: unknown;
   shareholdingAmount?: unknown;
   shareholdingPercentage?: unknown;
-  personKind?: unknown;
   designation?: unknown;
   designationOther?: unknown;
   appointmentDate?: unknown;
@@ -917,10 +916,6 @@ export function validateIssuerPersonForm(input: {
     );
   }
   if (officer) {
-    push(
-      issues,
-      requiredEnumIssue(input.personKind, SC_PERSON_KINDS, "personKind", "Board of Director/Management Team")
-    );
     push(issues, requiredEnumIssue(input.designation, SC_DESIGNATIONS, "designation", "Designation"));
     if (input.designation === "OTHERS") {
       push(

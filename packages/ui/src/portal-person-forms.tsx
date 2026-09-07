@@ -8,9 +8,9 @@ import {
   issuerShareholdingThresholdIssue,
   formatPartyRoleLine,
   isIssuerOfficerRole,
-  issuerOfficerPersonKind,
   monthlyIssuerPersonCopy,
   PROFILE_LOCKED_ROLES_CANNOT_CHANGE,
+  SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
   SC_GENDER_LABELS,
@@ -119,7 +119,7 @@ export function AddPersonForm({
       onSubmit={async (event) => {
         event.preventDefault();
         if (!corporate && !isDirector && !isShareholder && !isBoard && !isManagement) {
-          toast.error("Select at least one role");
+          toast.error(SELECT_AT_LEAST_ONE_ROLE_MESSAGE);
           return;
         }
         const officer = isIssuerOfficerRole({ isBoard, isManagement });
@@ -143,7 +143,6 @@ export function AddPersonForm({
           shareholdingUnits: form.shareholdingUnits,
           shareholdingAmount: form.shareholdingAmount,
           shareholdingPercentage: form.shareholdingPercentage,
-          personKind: issuerOfficerPersonKind({ isBoard, isManagement }),
           designation: form.designation,
           designationOther: form.designationOther,
           appointmentDate: form.appointmentDate,
@@ -519,7 +518,6 @@ export function PartyFillEmptyForm({
           shareholdingUnits: form.shareholdingUnits,
           shareholdingAmount: form.shareholdingAmount,
           shareholdingPercentage: form.shareholdingPercentage,
-          personKind: issuerOfficerPersonKind(party),
           designation: form.designation,
           designationOther: form.designationOther,
           appointmentDate: form.appointmentDate,

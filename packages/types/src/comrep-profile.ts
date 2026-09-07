@@ -364,13 +364,16 @@ export function isIssuerOfficerRole(roles: { isBoard?: boolean; isManagement?: b
   return Boolean(roles.isBoard || roles.isManagement);
 }
 
-export function issuerOfficerPersonKind(roles: {
+export const SELECT_AT_LEAST_ONE_ROLE_MESSAGE = "Select at least one role.";
+
+/** True when at least one People role is selected. Roles are independent. */
+export function hasOrganizationPartyRole(roles: {
+  isDirector?: boolean;
+  isShareholder?: boolean;
   isBoard?: boolean;
   isManagement?: boolean;
-}): "BOARD" | "MANAGEMENT" | "" {
-  if (roles.isManagement && !roles.isBoard) return "MANAGEMENT";
-  if (roles.isBoard) return "BOARD";
-  return "";
+}): boolean {
+  return Boolean(roles.isDirector || roles.isShareholder || roles.isBoard || roles.isManagement);
 }
 
 export function displayScCompanyTypeLabel(
@@ -1172,9 +1175,6 @@ export function computeBoardCompleteness(party: BoardCompletenessInput): Profile
   const step: ComrepProfileStepId = "board";
   const who = { partyKey: party.partyKey, partyName: party.name ?? null };
   const requireOfficerFields = party.requireOfficerFields !== false;
-  if (requireOfficerFields && !hasText(party.personKind)) {
-    pushMissing(missing, step, "personKind", "Board of Director/Management Team", who);
-  }
   if (!hasText(party.name)) pushMissing(missing, step, "name", "Name", who);
   if (!hasText(party.identityPrefix) || party.identityPrefix === "ROC") {
     pushMissing(missing, step, "identityPrefix", "Identity Prefix", who);

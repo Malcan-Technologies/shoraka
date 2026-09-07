@@ -6,9 +6,9 @@ import type { ApplicationPersonRow, OrganizationPartyProfileDto } from "@cashsou
 import {
   firstIssueMessage,
   isIssuerOfficerRole,
-  issuerOfficerPersonKind,
   issuerShareholdingThresholdIssue,
   monthlyIssuerPersonCopy,
+  SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
   SC_GENDER_LABELS,
@@ -495,7 +495,7 @@ export function OrganizationPersonEditorDialog({
             disabled={isSaving}
             onClick={() => {
               if (!values.isDirector && !values.isShareholder && !values.isBoard && !values.isManagement) {
-                toast.error("Select at least one role");
+                toast.error(SELECT_AT_LEAST_ONE_ROLE_MESSAGE);
                 return;
               }
               const officer = isIssuerOfficerRole(values);
@@ -519,7 +519,6 @@ export function OrganizationPersonEditorDialog({
                 shareholdingUnits: values.shareholdingUnits,
                 shareholdingAmount: values.shareholdingAmount,
                 shareholdingPercentage: values.shareholdingPercentage,
-                personKind: issuerOfficerPersonKind(values),
                 designation: values.designation,
                 designationOther: values.designationOther,
                 appointmentDate: values.appointmentDate,

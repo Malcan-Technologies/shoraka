@@ -39,6 +39,8 @@ import {
   issuerActiveShareholderFlags,
   mapRegTankEntityTypeToScCompanyType,
   isIssuerOfficerRole,
+  hasOrganizationPartyRole,
+  SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
@@ -1287,16 +1289,16 @@ export async function patchPartyProfile(params: {
     if (p.isBoard !== undefined) data.is_board = p.isBoard;
     if (p.isManagement !== undefined) data.is_management = p.isManagement;
   }
-  if (p.personKind === "BOARD") {
-    if (params.source !== "USER" || row.origin === OrganizationPartyOrigin.USER_ADDED) {
-      data.is_board = true;
-      data.is_management = false;
+  if (p.isBoard === undefined && p.isManagement === undefined) {
+    if (p.personKind === "BOARD") {
+      if (params.source !== "USER" || row.origin === OrganizationPartyOrigin.USER_ADDED) {
+        data.is_board = true;
+      }
     }
-  }
-  if (p.personKind === "MANAGEMENT") {
-    if (params.source !== "USER" || row.origin === OrganizationPartyOrigin.USER_ADDED) {
-      data.is_management = true;
-      data.is_board = false;
+    if (p.personKind === "MANAGEMENT") {
+      if (params.source !== "USER" || row.origin === OrganizationPartyOrigin.USER_ADDED) {
+        data.is_management = true;
+      }
     }
   }
   if (p.shareType !== undefined) data.share_type = apply("shareType", row.share_type, p.shareType);
@@ -1450,8 +1452,8 @@ export async function createUserAddedParty(params: {
 }): Promise<OrganizationPartyProfileDto> {
   await assertOrgExists(params.portal, params.organizationId);
   const roles = resolveCreatePartyRoles(params.patch);
-  if (!roles.isDirector && !roles.isShareholder && !roles.isBoard && !roles.isManagement) {
-    throw new AppError(400, "VALIDATION_ERROR", "Select at least one role");
+  if (!hasOrganizationPartyRole(roles)) {
+    throw new AppError(400, "VALIDATION_ERROR", SELECT_AT_LEAST_ONE_ROLE_MESSAGE);
   }
 
   const entityType: OrganizationPartyEntityType =
@@ -1651,17 +1653,10 @@ export async function createUserAddedParty(params: {
 export async function createManagementParty(params: {
   portal: Portal;
   organizationId: string;
-  patch: PartyPatch;
+  patch: CreatePartyInput;
   source: ProfileValueSource;
 }): Promise<OrganizationPartyProfileDto> {
-  return createUserAddedParty({
-    ...params,
-    patch: {
-      ...params.patch,
-      isManagement: params.patch.isManagement ?? params.patch.personKind !== "BOARD",
-      isBoard: params.patch.isBoard ?? params.patch.personKind === "BOARD",
-    },
-  });
+  return createUserAddedParty(params);
 }
 
 export async function deleteManagementParty(params: {
