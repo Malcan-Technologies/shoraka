@@ -32,6 +32,7 @@ import {
   type ScGender,
   type ScInvestorCategory,
   type ScPersonKind,
+  applyPartyComrepSemantics,
   isAllowedScInvestorCategory,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
@@ -823,7 +824,17 @@ export async function patchOrgMasterProfile(params: {
     );
   }
   if (patch.gender !== undefined) {
-    data.gender = applyScalar("gender", investor.gender as string | null, patch.gender);
+    if (investor.type === "COMPANY") {
+      data.gender = applyScalar("gender", investor.gender as string | null, "NOT_APPLICABLE");
+    } else if (patch.gender === "NOT_APPLICABLE") {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Not Applicable is only chosen if the investor is a non-individual. For individuals, insert Male or Female as reflected per the verified official documents."
+      );
+    } else {
+      data.gender = applyScalar("gender", investor.gender as string | null, patch.gender);
+    }
   }
   if (patch.nationality !== undefined) {
     data.nationality = applyScalar(
@@ -916,12 +927,59 @@ export async function patchPartyProfile(params: {
   const data: Prisma.OrganizationPartyProfileUpdateInput = {};
   const p = params.patch;
   if (p.name !== undefined) data.name = apply("name", row.name, p.name);
-  if (p.salutation !== undefined) data.salutation = apply("salutation", row.salutation, p.salutation);
-  if (p.identityPrefix !== undefined) {
-    data.identity_prefix = apply("identityPrefix", row.identity_prefix, p.identityPrefix);
+  const entityType =
+    row.entity_type === OrganizationPartyEntityType.CORPORATE ? "CORPORATE" : "INDIVIDUAL";
+  const isOfficer = Boolean(row.is_director || row.is_board || row.is_management);
+  const touchesComrepSemantics =
+    p.salutation !== undefined ||
+    p.identityPrefix !== undefined ||
+    p.identityNumber !== undefined ||
+    p.gender !== undefined ||
+    p.nationality !== undefined ||
+    p.shareType !== undefined ||
+    p.shareTypeOther !== undefined ||
+    p.designation !== undefined ||
+    p.designationOther !== undefined;
+  const appliedSemantics = touchesComrepSemantics
+    ? applyPartyComrepSemantics({
+        entityType,
+        isOfficer,
+        gender: p.gender !== undefined ? p.gender : row.gender,
+        salutation: p.salutation !== undefined ? p.salutation : row.salutation,
+        identityPrefix: p.identityPrefix !== undefined ? p.identityPrefix : row.identity_prefix,
+        identityNumber: p.identityNumber !== undefined ? p.identityNumber : row.identity_number,
+        nationality: p.nationality !== undefined ? p.nationality : row.nationality,
+        shareType: p.shareType !== undefined ? p.shareType : row.share_type,
+        shareTypeOther: p.shareTypeOther !== undefined ? p.shareTypeOther : row.share_type_other,
+        designation: p.designation !== undefined ? p.designation : row.designation,
+        designationOther: p.designationOther !== undefined ? p.designationOther : row.designation_other,
+      })
+    : null;
+  if (appliedSemantics?.issues.length) {
+    throw new AppError(400, "VALIDATION_ERROR", appliedSemantics.issues[0] ?? "Invalid ComRep value");
+  }
+  if (p.salutation !== undefined || (entityType === "CORPORATE" && p.identityPrefix !== undefined)) {
+    data.salutation = apply(
+      "salutation",
+      row.salutation,
+      appliedSemantics?.salutation ?? p.salutation ?? row.salutation
+    );
+  }
+  if (p.identityPrefix !== undefined || entityType === "CORPORATE") {
+    if (p.identityPrefix !== undefined || (entityType === "CORPORATE" && appliedSemantics)) {
+      data.identity_prefix = apply(
+        "identityPrefix",
+        row.identity_prefix,
+        appliedSemantics?.identityPrefix ?? p.identityPrefix ?? row.identity_prefix
+      );
+    }
   }
   if (p.identityNumber !== undefined) {
-    data.identity_number = apply("identityNumber", row.identity_number, p.identityNumber);
+    data.identity_number = apply(
+      "identityNumber",
+      row.identity_number,
+      appliedSemantics?.identityNumber ?? p.identityNumber
+    );
   }
   if (p.dateOfBirth !== undefined) {
     data.date_of_birth = apply("dateOfBirth", row.date_of_birth, parseDateInput(p.dateOfBirth));
@@ -933,7 +991,13 @@ export async function patchPartyProfile(params: {
       parseDateInput(p.dateOfIncorporation)
     );
   }
-  if (p.gender !== undefined) data.gender = apply("gender", row.gender, p.gender);
+  if (p.gender !== undefined || (entityType === "CORPORATE" && appliedSemantics)) {
+    data.gender = apply(
+      "gender",
+      row.gender,
+      appliedSemantics?.gender ?? p.gender ?? row.gender
+    );
+  }
   if (p.nationality !== undefined) data.nationality = apply("nationality", row.nationality, p.nationality);
   if (p.countryOfIncorporation !== undefined) {
     data.country_of_incorporation = apply(
@@ -1004,8 +1068,12 @@ export async function patchPartyProfile(params: {
     }
   }
   if (p.shareType !== undefined) data.share_type = apply("shareType", row.share_type, p.shareType);
-  if (p.shareTypeOther !== undefined) {
-    data.share_type_other = apply("shareTypeOther", row.share_type_other, p.shareTypeOther);
+  if (p.shareType !== undefined || p.shareTypeOther !== undefined) {
+    data.share_type_other = apply(
+      "shareTypeOther",
+      row.share_type_other,
+      appliedSemantics?.shareTypeOther ?? null
+    );
   }
   if (p.shareholdingUnits !== undefined) {
     data.shareholding_units = apply(
@@ -1031,8 +1099,12 @@ export async function patchPartyProfile(params: {
   if (p.designation !== undefined) {
     data.designation = apply("designation", row.designation, p.designation);
   }
-  if (p.designationOther !== undefined) {
-    data.designation_other = apply("designationOther", row.designation_other, p.designationOther);
+  if (p.designation !== undefined || p.designationOther !== undefined) {
+    data.designation_other = apply(
+      "designationOther",
+      row.designation_other,
+      appliedSemantics?.designationOther ?? null
+    );
   }
   if (p.appointmentDate !== undefined) {
     data.appointment_date = apply(
@@ -1168,7 +1240,24 @@ export async function createUserAddedParty(params: {
     }
   }
 
-  const identity = params.patch.identityNumber?.trim() || null;
+  const appliedCreate = applyPartyComrepSemantics({
+    entityType: entityType === OrganizationPartyEntityType.CORPORATE ? "CORPORATE" : "INDIVIDUAL",
+    isOfficer: roles.isDirector || roles.isBoard || roles.isManagement,
+    gender: params.patch.gender,
+    salutation: params.patch.salutation,
+    identityPrefix: params.patch.identityPrefix,
+    identityNumber: params.patch.identityNumber,
+    nationality: params.patch.nationality,
+    shareType: params.patch.shareType,
+    shareTypeOther: params.patch.shareTypeOther,
+    designation: params.patch.designation,
+    designationOther: params.patch.designationOther,
+  });
+  if (appliedCreate.issues.length > 0) {
+    throw new AppError(400, "VALIDATION_ERROR", appliedCreate.issues[0] ?? "Invalid ComRep value");
+  }
+
+  const identity = appliedCreate.identityNumber;
   const identityKey = canonicalPartyIdentityKey(identity);
   const needsIdentity = roles.isDirector || roles.isShareholder || roles.isBoard;
   if (needsIdentity && !identityKey) {
@@ -1199,13 +1288,13 @@ export async function createUserAddedParty(params: {
         membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
         name: fill(existing.name, params.patch.name ?? null),
         identity_number: fill(existing.identity_number, identity),
-        identity_prefix: fill(existing.identity_prefix, params.patch.identityPrefix ?? null),
+        identity_prefix: fill(existing.identity_prefix, appliedCreate.identityPrefix),
         is_director: nextDirector,
         is_shareholder: nextShareholder,
         is_board: nextBoard,
         is_management: nextManagement,
-        salutation: fill(existing.salutation, params.patch.salutation ?? null),
-        gender: fill(existing.gender, params.patch.gender ?? null),
+        salutation: fill(existing.salutation, appliedCreate.salutation),
+        gender: fill(existing.gender, appliedCreate.gender),
         nationality: fill(existing.nationality, params.patch.nationality ?? null),
         country_of_incorporation: fill(
           existing.country_of_incorporation,
@@ -1222,7 +1311,7 @@ export async function createUserAddedParty(params: {
             ? asJson(params.patch.address)
             : undefined,
         share_type: fill(existing.share_type, params.patch.shareType ?? null),
-        share_type_other: fill(existing.share_type_other, params.patch.shareTypeOther ?? null),
+        share_type_other: fill(existing.share_type_other, appliedCreate.shareTypeOther),
         shareholding_units: fill(existing.shareholding_units, decimalOrNull(params.patch.shareholdingUnits)),
         shareholding_amount: fill(
           existing.shareholding_amount,
@@ -1233,7 +1322,7 @@ export async function createUserAddedParty(params: {
           decimalOrNull(params.patch.shareholdingPercentage)
         ),
         designation: fill(existing.designation, params.patch.designation ?? null),
-        designation_other: fill(existing.designation_other, params.patch.designationOther ?? null),
+        designation_other: fill(existing.designation_other, appliedCreate.designationOther),
         appointment_date: fill(existing.appointment_date, parseDateInput(params.patch.appointmentDate)),
         resignation_date: fill(existing.resignation_date, parseDateInput(params.patch.resignationDate)),
         field_sources: asJson({ ...parseFieldSources(existing.field_sources), ...fieldSources }),
@@ -1262,29 +1351,26 @@ export async function createUserAddedParty(params: {
       membership_status: OrganizationPartyMembershipStatus.MASTER_ACTIVE,
       entity_type: entityType,
       name: params.patch.name ?? null,
-      salutation: params.patch.salutation ?? null,
+      salutation: appliedCreate.salutation,
       identity_number: identity,
-      identity_prefix: params.patch.identityPrefix ?? (entityType === "CORPORATE" ? "ROC" : null),
+      identity_prefix: appliedCreate.identityPrefix ?? (entityType === "CORPORATE" ? "ROC" : null),
       is_director: roles.isDirector,
       is_shareholder: roles.isShareholder,
       is_board: roles.isBoard,
       is_management: roles.isManagement,
-      gender:
-        entityType === OrganizationPartyEntityType.CORPORATE
-          ? (params.patch.gender ?? "NOT_APPLICABLE")
-          : (params.patch.gender ?? null),
+      gender: appliedCreate.gender,
       nationality: params.patch.nationality ?? null,
       country_of_incorporation: params.patch.countryOfIncorporation ?? null,
       date_of_birth: parseDateInput(params.patch.dateOfBirth),
       date_of_incorporation: parseDateInput(params.patch.dateOfIncorporation),
       address: params.patch.address ? asJson(params.patch.address) : undefined,
       share_type: params.patch.shareType ?? null,
-      share_type_other: params.patch.shareTypeOther ?? null,
+      share_type_other: appliedCreate.shareTypeOther,
       shareholding_units: decimalOrNull(params.patch.shareholdingUnits),
       shareholding_amount: decimalOrNull(params.patch.shareholdingAmount),
       shareholding_percentage: decimalOrNull(params.patch.shareholdingPercentage),
       designation: params.patch.designation ?? null,
-      designation_other: params.patch.designationOther ?? null,
+      designation_other: appliedCreate.designationOther,
       appointment_date: parseDateInput(params.patch.appointmentDate),
       resignation_date: parseDateInput(params.patch.resignationDate),
       field_sources: asJson(fieldSources),

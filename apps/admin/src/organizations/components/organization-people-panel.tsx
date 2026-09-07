@@ -116,8 +116,7 @@ export function OrganizationPeoplePanel({
   const saveParty = async (values: PartyEditorValues, partyId?: string) => {
     const payload: Record<string, unknown> = {
       name: values.name.trim(),
-      salutation: values.salutation.trim() || null,
-      identityPrefix: values.identityPrefix || null,
+      identityPrefix: values.entityType === "CORPORATE" ? "ROC" : values.identityPrefix || null,
       identityNumber: values.identityNumber.trim() || null,
       entityType: values.entityType,
       isDirector: values.isDirector,
@@ -125,6 +124,7 @@ export function OrganizationPeoplePanel({
       isBoard: values.isBoard,
       isManagement: values.isManagement,
       gender: values.entityType === "CORPORATE" ? "NOT_APPLICABLE" : values.gender || null,
+      salutation: values.entityType === "CORPORATE" ? null : values.salutation.trim() || null,
       nationality: values.nationality.trim() || null,
       countryOfIncorporation: values.countryOfIncorporation.trim() || null,
       dateOfBirth: values.dateOfBirth || null,

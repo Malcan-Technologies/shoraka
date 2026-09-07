@@ -4,10 +4,17 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { SC_MONTHLY_INVESTOR } from "@cashsouk/types";
+import { firstIssueMessage, SC_MONTHLY_INVESTOR, scAppendixASelectValues, validateInvestorCorporateForm } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PencilIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -63,9 +70,16 @@ export function InvestorCompanyDetailsCard({
 
   const save = useMutation({
     mutationFn: async () => {
+      const issues = validateInvestorCorporateForm({
+        dateOfIncorporation: dateOfIncorporation ?? dateValue,
+        countryOfIncorporation: countryOfIncorporation ?? country,
+      });
+      if (issues.length > 0) {
+        throw new Error(firstIssueMessage(issues) ?? "Please complete the required fields.");
+      }
       const master: Record<string, unknown> = {};
-      if (!dateOfIncorporation && dateValue) master.dateOfIncorporation = dateValue;
-      if (!countryOfIncorporation && country.trim()) master.countryOfIncorporation = country.trim();
+      if (!dateOfIncorporation) master.dateOfIncorporation = dateValue.trim();
+      if (!countryOfIncorporation) master.countryOfIncorporation = country.trim();
       if (Object.keys(master).length === 0) return;
       const res = await api.patchMasterProfile("investor", organizationId, master);
       if (!res.success) throw new Error(res.error.message);
@@ -148,11 +162,18 @@ export function InvestorCompanyDetailsCard({
                 required
                 help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
               />
-              <Input
-                className="h-11 text-ui"
-                value={country}
-                onChange={(event) => setCountry(event.target.value)}
-              />
+              <Select value={country || undefined} onValueChange={setCountry}>
+                <SelectTrigger className="h-11 text-ui">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {scAppendixASelectValues(country).map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           ) : (
             <ProfileReadField

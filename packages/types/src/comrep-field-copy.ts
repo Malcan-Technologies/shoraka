@@ -63,9 +63,21 @@ export const SC_ANNUAL_GENERAL = {
 
 /** Annual [02000] Summary of Share Capital */
 export const SC_ANNUAL_SHARE_CAPITAL = {
-  ordinaryForSdnBhd: { label: "Ordinary (for Sdn Bhd)" },
-  preferenceForSdnBhd: { label: "Preference (for Sdn Bhd)" },
-  othersForSdnBhd: { label: "Others (for Sdn Bhd)" },
+  ordinaryForSdnBhd: {
+    label: "Ordinary (for Sdn Bhd)",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when Type of Company is Private Limited (Sdn Bhd)",
+  },
+  preferenceForSdnBhd: {
+    label: "Preference (for Sdn Bhd)",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when Type of Company is Private Limited (Sdn Bhd)",
+  },
+  othersForSdnBhd: {
+    label: "Others (for Sdn Bhd)",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when Type of Company is Private Limited (Sdn Bhd)",
+  },
   totalPaidUpCapitalForSdnBhd: {
     label: "Total paid up capital (for Sdn Bhd)",
     help: "Please insert the total amount of issued and paid-up capital (RM) comprising of all the type of shares issued. Integer value without decimal points.",
@@ -76,14 +88,19 @@ export const SC_ANNUAL_SHARE_CAPITAL = {
   membersCapital: {
     label: "Members' Capital",
     help: `${SC_INTEGER_SHARES_HELP} ${SC_LLP_SHARES_NOTE}`,
+    required: true as const,
+    requiredReason: "CashSouk master completeness when Type of Company is Limited Liability Partnership",
   },
   membersReserves: {
     label: "Members' Reserves",
     help: `Please insert information relating to Member’s reserve “shares” where relevant. ${SC_INTEGER_SHARES_HELP} ${SC_LLP_SHARES_NOTE}`,
+    required: false as const,
   },
   subordinatedLoans: {
     label: "Subordinated Loans",
     help: "Please insert the relevant information pertaining to Subordinated Loans. Integer value without decimal points.",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when Type of Company is Limited Liability Partnership",
   },
   totalLimitedLiabilityPartnership: {
     label: "Total Limited Liability Partnership",
@@ -106,7 +123,8 @@ export const SC_ANNUAL_SHAREHOLDER = {
   salutation: {
     label: "Salutation",
     help: "Please insert salutation for the Shareholder of the RMO only if the Shareholder is an individual or beneficial owner.",
-    required: false as const,
+    required: "conditional" as const,
+    requiredReason: "Required for an individual or beneficial owner; hidden for a company",
   },
   icPassportNumber: {
     label: "IC/Passport number",
@@ -117,38 +135,58 @@ export const SC_ANNUAL_SHAREHOLDER = {
   dateOfBirth: {
     label: "Date of Birth (dd/mm/yyyy)",
     help: "For an individual, enter date of birth. For a company/legal entity, enter date of incorporation.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
   nationality: {
     label: "Nationality",
     help: "For an individual, enter nationality. For a company/legal entity, enter country of incorporation. For the list of Country name – refer Appendix A.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
   address: {
     label: "Address",
     help: "Use residential address for an individual and business address for an entity.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
   dateAcquired: {
     label: "Date Acquired (dd/mm/yyyy)",
     help: "Please insert the date the shares were acquired by the Shareholder of the RMO as officially recorded with SSM, whether by initial subscription or through a share transfer.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
   dateDisposal: {
     label: "Date Disposal (dd/mm/yyyy)",
-    help: "Please insert the date the Shareholder of the RMO officially disposed of and transferred the Shares as recorded in SSM.",
+    help: "Please insert the date the Shareholder of the RMO officially disposed of and transferred the Shares as recorded in SSM. Leave blank while the holding is still active.",
     required: false as const,
   },
-  typeOfShares: { label: "Type of Shares", required: false as const },
+  typeOfShares: {
+    label: "Type of Shares",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
+  },
   typeOfSharesOthers: {
     label: "Type of Shares - Others (please specify)",
     help: "Please insert the type of shares if “others” was chosen in the previous column.",
     required: "conditional" as const,
     requiredReason: "Required only when Type of Shares = Others",
   },
-  shareholdingUnits: { label: "Shareholding Units (Unit)", required: false as const },
-  shareholdingAmount: { label: "Shareholding Amount (RM)", required: false as const },
-  shareholdingPercentage: { label: "Shareholding Percentage (%)", required: false as const },
+  shareholdingUnits: {
+    label: "Shareholding Units (Unit)",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
+  },
+  shareholdingAmount: {
+    label: "Shareholding Amount (RM)",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
+  },
+  shareholdingPercentage: {
+    label: "Shareholding Percentage (%)",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
+  },
 } as const;
 
 /** Annual [04000] Board of Director/Management Team */
@@ -184,19 +222,26 @@ export const SC_ANNUAL_OFFICER = {
   dateOfBirth: {
     label: "Date of Birth (dd/mm/yyyy)",
     help: "Please insert the date of birth of the individual. The date must follow the dd/mm/yyyy format.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
   nationality: {
     label: "Nationality",
     help: "Please select one of the values for the nationality of the person. For the list of Country name – refer Appendix A.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
   address: {
     label: "Address",
     help: "Please insert the residential address of the individual.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
-  designation: { label: "Designation", required: false as const },
+  designation: {
+    label: "Designation",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
+  },
   designationOthers: {
     label: "Designation - Others (Please specify)",
     help: "Please insert the Designation if “Others” was chosen in the previous column.",
@@ -206,7 +251,8 @@ export const SC_ANNUAL_OFFICER = {
   appointmentDate: {
     label: "Appointment Date (dd/mm/yyyy)",
     help: "Please enter the date the individual was appointed to their current designation/position. The date must follow the dd/mm/yyyy format.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
   resignationDate: {
     label: "Resignation date (dd/mm/yyyy)",
@@ -226,22 +272,26 @@ export const SC_ANNUAL_ADVISOR = {
   companyRegistrationNo: {
     label: "Company Registration No.",
     help: "Please insert the BRN and or ROC number as reflected per the verified official document issued for company.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk completeness when an advisor row exists",
   },
   country: {
     label: "Country",
     help: "Please select one of the values for the nationality of the person or the entity’s country of incorporation. For the list of Country name – refer Appendix A.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk completeness when an advisor row exists",
   },
   address: {
     label: "Address",
     help: "Please insert the Advisor’s business address.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk completeness when an advisor row exists",
   },
   appointmentDate: {
     label: "Appointment Date (dd/mm/yyyy)",
     help: "Please insert the date of appointment of the Advisor to the RMO.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk completeness when an advisor row exists",
   },
   cessationDate: {
     label: "Cessation Date (dd/mm/yyyy)",
@@ -266,37 +316,53 @@ export const SC_ANNUAL_INTEREST = {
   roc: {
     label: "ROC",
     help: "Please insert the BRN or ROC number as reflected per the verified official document issued for Company.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk completeness when an interest row exists",
   },
   country: {
     label: "Country",
     help: "Please select one of the values for the entity’s country of incorporation. For the list of Country name – refer Appendix A.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk completeness when an interest row exists",
   },
   address: {
     label: "Address",
     help: "Please insert the business address of the company.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk completeness when an interest row exists",
   },
   acquisitionDate: {
     label: "Acquisition Date (dd/mm/yyyy)",
     help: "Please insert the acquisition date as recorded and registered in official documents.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk completeness when an interest row exists",
   },
   disposalDate: {
     label: "Disposal Date (dd/mm/yyyy)",
     help: "Please insert the date the shares were recorded and registered as transferred in official documents.",
     required: false as const,
   },
-  typeOfShares: { label: "Type of Shares", required: false as const },
+  typeOfShares: {
+    label: "Type of Shares",
+    required: true as const,
+    requiredReason: "CashSouk completeness when an interest row exists",
+  },
   typeOfSharesOthers: {
     label: "Type of Shares - Others (please specify)",
     help: "If Type of Shares selected above is “Others”: Please insert the type of shares.",
     required: "conditional" as const,
     requiredReason: "Required only when Type of Shares = Others",
   },
-  shareholdingUnits: { label: "Shareholding Units (unit)", required: false as const },
-  shareholdingPercentage: { label: "Shareholding Percentage (%)", required: false as const },
+  shareholdingUnits: {
+    label: "Shareholding Units (unit)",
+    required: true as const,
+    requiredReason: "CashSouk completeness when an interest row exists",
+  },
+  shareholdingPercentage: {
+    label: "Shareholding Percentage (%)",
+    required: true as const,
+    requiredReason: "CashSouk completeness when an interest row exists",
+  },
 } as const;
 
 /** Annual [11000] Financial Statement */
@@ -304,117 +370,289 @@ export const SC_ANNUAL_FINANCIAL = {
   consolidatedAccounts: {
     label: "Consolidated Accounts",
     help: "Yes – Select Yes if the financial information is prepared based on consolidated financial statements. No – Select No if the financial information is based on single-entity financial statements.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
   auditorsName: {
     label: "Auditor's Name",
     help: "Please insert the full name of the Audit Firm as reflected per the verified official document issued for company.",
-    required: false as const,
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
   financialYearEnd: {
     label: "Financial Year End (dd/mm/yyyy)",
     required: true as const,
     requiredReason: "CashSouk master completeness when a financial statement row exists",
   },
-  unmodifiedReports: { label: "UnModified Reports", required: false as const },
-  dateOfTablingToBoard: { label: "Date of Tabling to Board (dd/mm/yyyy)", required: false as const },
-  currency: { label: "Currency", required: false as const },
-  numberOfShares: { label: "Number of Shares", required: false as const },
+  unmodifiedReports: {
+    label: "UnModified Reports",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  dateOfTablingToBoard: {
+    label: "Date of Tabling to Board (dd/mm/yyyy)",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  currency: {
+    label: "Currency",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  numberOfShares: {
+    label: "Number of Shares",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
   totalAssets: { label: "Total Assets", required: true as const, requiredReason: "CashSouk master completeness" },
-  nonCurrentAssets: { label: "Non-Current Assets", required: false as const },
-  currentAssets: { label: "Current Assets", required: false as const },
-  totalEquity: { label: "Total Equity", required: false as const },
-  paidUpCapital: { label: "Paid-up Capital", required: false as const },
-  shareApplicationAccount: { label: "Share Application Account", required: false as const },
-  sharePremiumAndOtherReserves: { label: "Share Premium & Other Reserves", required: false as const },
-  accumulatedProfitCarriedForward: { label: "Accumulated Profit Carried Forward", required: false as const },
-  minorityInterest: { label: "Minority Interest", required: false as const },
-  totalLiabilities: { label: "Total Liabilities", required: false as const },
-  nonCurrentLiabilities: { label: "Non-Current Liabilities", required: false as const },
-  currentLiabilities: { label: "Current Liabilities", required: false as const },
+  nonCurrentAssets: {
+    label: "Non-Current Assets",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  currentAssets: {
+    label: "Current Assets",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  totalEquity: {
+    label: "Total Equity",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  paidUpCapital: {
+    label: "Paid-up Capital",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  shareApplicationAccount: {
+    label: "Share Application Account",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  sharePremiumAndOtherReserves: {
+    label: "Share Premium & Other Reserves",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  accumulatedProfitCarriedForward: {
+    label: "Accumulated Profit Carried Forward",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  minorityInterest: {
+    label: "Minority Interest",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  totalLiabilities: {
+    label: "Total Liabilities",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  nonCurrentLiabilities: {
+    label: "Non-Current Liabilities",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  currentLiabilities: {
+    label: "Current Liabilities",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
   totalRevenue: { label: "Total Revenue", required: true as const, requiredReason: "CashSouk master completeness" },
-  donationBased: { label: "Donation Based", required: false as const },
-  rewardBased: { label: "Reward Based", required: false as const },
-  lendingBased: { label: "Lending Based", required: false as const },
-  equityBased: { label: "Equity Based", required: false as const },
-  feesCharges: { label: "Fees charges", required: false as const },
-  otherRevenue: { label: "Other - Revenue", required: false as const },
-  otherIncome: { label: "Other Income", required: false as const },
-  interestFromDepositPlacement: { label: "Interest from deposit placement", required: false as const },
-  otherIncomeLine: { label: "Other - Income", required: false as const },
-  totalCost: { label: "Total Cost", required: false as const },
-  staffCost: { label: "Staff Cost", required: false as const },
-  systemCost: { label: "System Cost", required: false as const },
-  promotionActivities: { label: "Promotion Activities", required: false as const },
-  otherCost: { label: "Other - Cost", required: false as const },
+  donationBased: {
+    label: "Donation Based",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  rewardBased: {
+    label: "Reward Based",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  lendingBased: {
+    label: "Lending Based",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  equityBased: {
+    label: "Equity Based",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  feesCharges: {
+    label: "Fees charges",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  otherRevenue: {
+    label: "Other - Revenue",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  otherIncome: { label: "Other Income" },
+  interestFromDepositPlacement: {
+    label: "Interest from deposit placement",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  otherIncomeLine: {
+    label: "Other - Income",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  totalCost: {
+    label: "Total Cost",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  staffCost: {
+    label: "Staff Cost",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  systemCost: {
+    label: "System Cost",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  promotionActivities: {
+    label: "Promotion Activities",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  otherCost: {
+    label: "Other - Cost",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
   profitLossBeforeTax: {
     label: "Profit/(Loss) Before Tax",
     required: true as const,
     requiredReason: "CashSouk master completeness",
   },
-  taxation: { label: "Taxation", required: false as const },
-  profitLossAfterTax: { label: "Profit/(Loss) After Tax", required: false as const },
-  netDividend: { label: "Net Dividend", required: false as const },
+  taxation: {
+    label: "Taxation",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  profitLossAfterTax: {
+    label: "Profit/(Loss) After Tax",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
+  netDividend: {
+    label: "Net Dividend",
+    required: true as const,
+    requiredReason: "CashSouk master completeness when a financial statement row exists",
+  },
 } as const;
 
 /** Monthly [02000] Profile of Issuer */
 export const SC_MONTHLY_ISSUER = {
-  nameOfIssuer: { label: "Name of Issuer" },
+  nameOfIssuer: {
+    label: "Name of Issuer",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
+  },
   issuerRoc: {
     label: "Issuer ROC",
     help: "Please insert the BRN or ROC number as reflected per the verified official document issued for Company.",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
   companyCategory: {
     label: "Company category",
     help: "Technology: issuers or campaigns that focus on, or are related to, technology-based activities. Non-Technology: issuers or campaigns that are not primarily focused on technology-related activities.",
+    required: false as const,
+    requiredReason: "Campaign-specific; not issuer profile completeness",
   },
   issuerIdIfAny: {
     label: "Issuer ID (if any)",
     help: "Please insert the unique ID assigned to the issuer who intends to raise funds on RMO’s platform.",
+    required: false as const,
+    requiredReason: "SC explicitly says if any",
   },
-  dateOfIncorporation: { label: "Date of Incorporation (dd/mm/yyyy)" },
-  dateOfCommencement: { label: "Date of Commencement (dd/mm/yyyy)" },
+  dateOfIncorporation: {
+    label: "Date of Incorporation (dd/mm/yyyy)",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
+  },
+  dateOfCommencement: {
+    label: "Date of Commencement (dd/mm/yyyy)",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
+  },
   countryOfIncorporation: {
     label: "Country of Incorporation",
     help: SC_APPENDIX_A_COUNTRY_HELP,
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
-  typeOfCompany: { label: "Type of Company" },
-  registeredAddress: { label: "Registered Address" },
+  typeOfCompany: {
+    label: "Type of Company",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
+  },
+  registeredAddress: {
+    label: "Registered Address",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
+  },
   registeredAddressState: {
     label: "Registered Address - State",
     help: "The selection must align with the registered address stated above. If the location is outside Malaysia, select “Outside Malaysia.”",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
   registeredAddressPostcode: {
     label: "Registered Address - Postcode",
     help: "If the location is outside Malaysia, please enter the relevant international postcode (if applicable).",
+    required: "conditional" as const,
+    requiredReason: "Required except when Registered Address - State is Outside Malaysia",
   },
   businessAddress: {
     label: "Business Address",
     help: "If the issuer is a subsidiary of another company, please provide the information relating to the subsidiary.",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
   businessAddressState: {
     label: "Business Address - State",
     help: "The selection must align with the business address stated above. If the location is outside Malaysia, select “Outside Malaysia.”",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
   businessAddressPostcode: {
     label: "Business Address - Postcode",
     help: "If the location is outside Malaysia, please enter the relevant international postcode (if applicable).",
+    required: "conditional" as const,
+    requiredReason: "Required except when Business Address - State is Outside Malaysia",
   },
   phoneNumber: {
     label: "Phone Number",
     help: "Where the issuer is a sole proprietor, partnership etc please insert the contact telephone number of relevant person(s) who liaise with the RMO for the purpose of raising funds.",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
   emailAddress: {
     label: "E-mail Address",
     help: "Where the issuer is a sole proprietor, partnership etc please insert the email address of relevant person(s) who liaise with the RMO for the purpose of raising funds.",
+    required: true as const,
+    requiredReason: "CashSouk master completeness",
   },
   website: {
     label: "Website",
     help: "Please insert the URL link to the issuer’s website where applicable.",
+    required: false as const,
+    requiredReason: "SC explicitly says where applicable",
   },
   companyActivities: {
     label: "Company Activities",
     help: "Please insert the issuer’s company activity based on the purpose of the issuer’s fundraising.",
+    required: false as const,
+    requiredReason: "Mapping unresolved — NEEDS BUSINESS/COMPLIANCE CONFIRMATION",
   },
 } as const;
 

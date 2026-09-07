@@ -36,6 +36,25 @@ describe("updateAdminOrganizationProfileSchema", () => {
     expect(parsed.scCompanyType).toBe("PRIVATE_LIMITED");
   });
 
+  it("rejects blank, whitespace, and invalid E-mail Address", () => {
+    expect(updateAdminOrganizationProfileSchema.safeParse({ companyEmail: "" }).success).toBe(false);
+    expect(updateAdminOrganizationProfileSchema.safeParse({ companyEmail: "   " }).success).toBe(false);
+    expect(updateAdminOrganizationProfileSchema.safeParse({ companyEmail: "not-an-email" }).success).toBe(
+      false
+    );
+    expect(updateAdminOrganizationProfileSchema.safeParse({ companyEmail: null }).success).toBe(false);
+    expect(
+      updateAdminOrganizationProfileSchema.safeParse({ companyEmail: "ops@acme.example" }).success
+    ).toBe(true);
+  });
+
+  it("allows an unrelated patch to omit E-mail Address", () => {
+    const parsed = updateAdminOrganizationProfileSchema.parse({
+      name: "Acme Sdn Bhd",
+    });
+    expect(parsed.companyEmail).toBeUndefined();
+  });
+
   it("rejects locked identity fields", () => {
     const result = updateAdminOrganizationProfileSchema.safeParse({
       registrationNumber: "1234567-A",

@@ -8,7 +8,10 @@ import {
   SC_COMPANY_TYPE_LABELS,
   SC_COMPANY_TYPES,
   SC_MONTHLY_ISSUER,
+  firstIssueMessage,
+  issuesByField,
   scAppendixASelectValues,
+  validateIssuerCompanyForm,
   type ScCompanyType,
 } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
@@ -103,6 +106,7 @@ export function IssuerCompanyDetailsCard({
   const [phoneNumber, setPhoneNumber] = React.useState(org.phoneNumber ?? "");
   const [website, setWebsite] = React.useState(basic?.website ?? "");
   const [annualRevenue, setAnnualRevenue] = React.useState(basic?.annualRevenue ?? "");
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
     if (isEditing) return;
@@ -127,22 +131,37 @@ export function IssuerCompanyDetailsCard({
 
   const save = useMutation({
     mutationFn: async () => {
-      const master: Record<string, unknown> = {};
-      if (!org.dateOfIncorporation && dateOfIncorporation) master.dateOfIncorporation = dateOfIncorporation;
-      if (!org.dateOfCommencement && dateOfCommencement) master.dateOfCommencement = dateOfCommencement;
-      if (!org.countryOfIncorporation && countryOfIncorporation.trim()) {
-        master.countryOfIncorporation = countryOfIncorporation.trim();
+      const issues = validateIssuerCompanyForm({
+        name: businessName,
+        includeName: false,
+        scCompanyType: org.scCompanyType ?? scCompanyType,
+        dateOfIncorporation: org.dateOfIncorporation ?? dateOfIncorporation,
+        dateOfCommencement: org.dateOfCommencement ?? dateOfCommencement,
+        countryOfIncorporation: org.countryOfIncorporation ?? countryOfIncorporation,
+        companyEmail,
+        phoneNumber,
+      });
+      if (issues.length > 0) {
+        setFieldErrors(issuesByField(issues));
+        const first = issues[0];
+        const el = document.getElementById(`field-${first.field}`);
+        el?.scrollIntoView({ block: "center", behavior: "smooth" });
+        if (el instanceof HTMLElement) el.focus();
+        throw new Error(firstIssueMessage(issues) ?? "Please complete the required fields.");
       }
-      if (!org.scCompanyType && scCompanyType) master.scCompanyType = scCompanyType;
-      if (companyEmail.trim()) master.companyEmail = companyEmail.trim();
-      else if (org.companyEmail) master.companyEmail = "";
-      if (phoneNumber.trim()) master.phoneNumber = phoneNumber.trim();
-      else if (org.phoneNumber) master.phoneNumber = "";
+      setFieldErrors({});
 
-      if (Object.keys(master).length > 0) {
-        const res = await api.patchMasterProfile("issuer", organizationId, master);
-        if (!res.success) throw new Error(res.error.message);
-      }
+      const master: Record<string, unknown> = {
+        companyEmail: companyEmail.trim(),
+        phoneNumber: phoneNumber.trim(),
+      };
+      if (!org.dateOfIncorporation) master.dateOfIncorporation = dateOfIncorporation.trim();
+      if (!org.dateOfCommencement) master.dateOfCommencement = dateOfCommencement.trim();
+      if (!org.countryOfIncorporation) master.countryOfIncorporation = countryOfIncorporation.trim();
+      if (!org.scCompanyType) master.scCompanyType = scCompanyType;
+
+      const res = await api.patchMasterProfile("issuer", organizationId, master);
+      if (!res.success) throw new Error(res.error.message);
 
       const nextEmployees = employees.trim() === "" ? null : Number(employees);
       if (employees.trim() !== "" && !Number.isInteger(nextEmployees)) {
@@ -175,8 +194,14 @@ export function IssuerCompanyDetailsCard({
         <ProfileEditToggle
           canEdit={canEdit}
           isEditing={isEditing}
-          onEdit={() => setIsEditing(true)}
-          onCancel={() => setIsEditing(false)}
+          onEdit={() => {
+            setFieldErrors({});
+            setIsEditing(true);
+          }}
+          onCancel={() => {
+            setFieldErrors({});
+            setIsEditing(false);
+          }}
         />
       }
     >
@@ -201,8 +226,12 @@ export function IssuerCompanyDetailsCard({
             <SelectRow
               label={SC_MONTHLY_ISSUER.typeOfCompany.label}
               value={scCompanyType}
-              onChange={setScCompanyType}
+              onChange={(value) => {
+                setScCompanyType(value);
+                setFieldErrors((current) => ({ ...current, scCompanyType: "" }));
+              }}
               required
+              error={fieldErrors.scCompanyType}
             />
           ) : (
             <ProfileReadField
@@ -215,11 +244,16 @@ export function IssuerCompanyDetailsCard({
           )}
           {isEditing && !org.dateOfIncorporation ? (
             <InputRow
+              id="field-dateOfIncorporation"
               label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
               type="date"
               value={dateOfIncorporation}
-              onChange={setDateOfIncorporation}
+              onChange={(value) => {
+                setDateOfIncorporation(value);
+                setFieldErrors((current) => ({ ...current, dateOfIncorporation: "" }));
+              }}
               required
+              error={fieldErrors.dateOfIncorporation}
             />
           ) : (
             <ProfileReadField
@@ -232,11 +266,16 @@ export function IssuerCompanyDetailsCard({
           )}
           {isEditing && !org.dateOfCommencement ? (
             <InputRow
+              id="field-dateOfCommencement"
               label={SC_MONTHLY_ISSUER.dateOfCommencement.label}
               type="date"
               value={dateOfCommencement}
-              onChange={setDateOfCommencement}
+              onChange={(value) => {
+                setDateOfCommencement(value);
+                setFieldErrors((current) => ({ ...current, dateOfCommencement: "" }));
+              }}
               required
+              error={fieldErrors.dateOfCommencement}
             />
           ) : (
             <ProfileReadField
@@ -251,9 +290,13 @@ export function IssuerCompanyDetailsCard({
             <CountrySelectRow
               label={SC_MONTHLY_ISSUER.countryOfIncorporation.label}
               value={countryOfIncorporation}
-              onChange={setCountryOfIncorporation}
+              onChange={(value) => {
+                setCountryOfIncorporation(value);
+                setFieldErrors((current) => ({ ...current, countryOfIncorporation: "" }));
+              }}
               help={SC_MONTHLY_ISSUER.countryOfIncorporation.help}
               required
+              error={fieldErrors.countryOfIncorporation}
             />
           ) : (
             <ProfileReadField
@@ -302,11 +345,16 @@ export function IssuerCompanyDetailsCard({
           )}
           {isEditing ? (
             <InputRow
+              id="field-companyEmail"
               label={SC_MONTHLY_ISSUER.emailAddress.label}
               value={companyEmail}
-              onChange={setCompanyEmail}
+              onChange={(value) => {
+                setCompanyEmail(value);
+                setFieldErrors((current) => ({ ...current, companyEmail: "" }));
+              }}
               help={SC_MONTHLY_ISSUER.emailAddress.help}
               required
+              error={fieldErrors.companyEmail}
             />
           ) : (
             <ProfileReadField
@@ -319,11 +367,16 @@ export function IssuerCompanyDetailsCard({
           )}
           {isEditing ? (
             <InputRow
+              id="field-phoneNumber"
               label={SC_MONTHLY_ISSUER.phoneNumber.label}
               value={phoneNumber}
-              onChange={setPhoneNumber}
+              onChange={(value) => {
+                setPhoneNumber(value);
+                setFieldErrors((current) => ({ ...current, phoneNumber: "" }));
+              }}
               help={SC_MONTHLY_ISSUER.phoneNumber.help}
               required
+              error={fieldErrors.phoneNumber}
             />
           ) : (
             <ProfileReadField
@@ -352,24 +405,36 @@ export function IssuerCompanyDetailsCard({
 }
 
 function InputRow({
+  id,
   label,
   value,
   onChange,
   type = "text",
   help,
   required = false,
+  error,
 }: {
+  id?: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   help?: string;
   required?: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
       <ComRepFieldLabel label={label} required={required} help={help} />
-      <Input className="h-11 text-ui" type={type} value={value} onChange={(e) => onChange(e.target.value)} />
+      <Input
+        id={id}
+        className="h-11 text-ui"
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-invalid={Boolean(error)}
+      />
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -380,18 +445,20 @@ function CountrySelectRow({
   onChange,
   help,
   required = false,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   help?: string;
   required?: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
       <ComRepFieldLabel label={label} required={required} help={help} />
       <Select value={value || undefined} onValueChange={onChange}>
-        <SelectTrigger className="h-11 text-ui">
+        <SelectTrigger id="field-countryOfIncorporation" className="h-11 text-ui">
           <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent className="max-h-72">
@@ -402,6 +469,7 @@ function CountrySelectRow({
           ))}
         </SelectContent>
       </Select>
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -411,17 +479,19 @@ function SelectRow({
   value,
   onChange,
   required = false,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
+  error?: string;
 }) {
   return (
     <div className="space-y-2">
       <ComRepFieldLabel label={label} required={required} />
       <Select value={value || undefined} onValueChange={onChange}>
-        <SelectTrigger className="h-11 text-ui">
+        <SelectTrigger id="field-scCompanyType" className="h-11 text-ui">
           <SelectValue placeholder="Select" />
         </SelectTrigger>
         <SelectContent>
@@ -432,6 +502,7 @@ function SelectRow({
           ))}
         </SelectContent>
       </Select>
+      {error ? <p className="text-meta text-destructive">{error}</p> : null}
     </div>
   );
 }

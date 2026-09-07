@@ -27,7 +27,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_GENDERS, SC_MALAYSIAN_STATES, SC_MONTHLY_INVESTOR, userFacingCompleteness, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, SC_MONTHLY_INVESTOR, firstIssueMessage, scAppendixASelectValues, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -49,6 +49,7 @@ import {
   DirectorShareholdersUnifiedSection,
   ProfileFieldGrid,
   ProfileReadField,
+  ComRepFieldLabel,
   portalContentMaxWidthClassName,
   StatusBadge,
   VerifiedBadge,
@@ -729,12 +730,22 @@ export default function ProfilePage() {
     }
 
     if (activeOrganization.type === "PERSONAL") {
+      const issues = validateInvestorPersonalForm({
+        gender,
+        nationality,
+        state: residentialState,
+        postalCode: residentialPostalCode,
+      });
+      if (issues.length > 0) {
+        toast.error(firstIssueMessage(issues));
+        return;
+      }
       const master: Record<string, unknown> = {
-        gender: gender || null,
-        nationality: nationality.trim() || null,
+        gender,
+        nationality: nationality.trim(),
         residentialAddress: {
-          state: residentialState || null,
-          postalCode: residentialPostalCode.trim() || null,
+          state: residentialState,
+          postalCode: residentialState === "Outside Malaysia" ? residentialPostalCode.trim() || null : residentialPostalCode.trim(),
         },
       };
       const masterRes = await apiClient.patchMasterProfile(
@@ -1009,13 +1020,17 @@ export default function ProfilePage() {
                       />
                       {isEditingProfile ? (
                         <div className="space-y-2">
-                          <Label className="text-ui font-medium">Gender</Label>
+                          <ComRepFieldLabel
+                            label={SC_MONTHLY_INVESTOR.gender.label}
+                            help={SC_MONTHLY_INVESTOR.gender.help}
+                            required
+                          />
                           <Select value={gender || undefined} onValueChange={setGender}>
                             <SelectTrigger className="h-11 text-ui">
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
                             <SelectContent>
-                              {SC_GENDERS.filter((key) => key !== "NOT_APPLICABLE").map((key) => (
+                              {SC_INDIVIDUAL_GENDERS.map((key) => (
                                 <SelectItem key={key} value={key}>
                                   {SC_GENDER_LABELS[key]}
                                 </SelectItem>
@@ -1025,25 +1040,40 @@ export default function ProfilePage() {
                         </div>
                       ) : (
                         <ProfileReadField
-                          label="Gender"
+                          label={SC_MONTHLY_INVESTOR.gender.label}
                           value={formatGender(orgData?.gender)}
                           missing={missingFieldKeys.has("gender")}
+                          required
+                          help={SC_MONTHLY_INVESTOR.gender.help}
                         />
                       )}
                       {isEditingProfile ? (
                         <div className="space-y-2">
-                          <Label className="text-ui font-medium">{SC_MONTHLY_INVESTOR.nationalityCountry.label}</Label>
-                          <Input
-                            className="h-11 text-ui"
-                            value={nationality}
-                            onChange={(event) => setNationality(event.target.value)}
+                          <ComRepFieldLabel
+                            label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
+                            help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
+                            required
                           />
+                          <Select value={nationality || undefined} onValueChange={setNationality}>
+                            <SelectTrigger className="h-11 text-ui">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-72">
+                              {scAppendixASelectValues(nationality).map((country) => (
+                                <SelectItem key={country} value={country}>
+                                  {country}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       ) : (
                         <ProfileReadField
                           label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
                           value={orgData?.nationality}
                           missing={missingFieldKeys.has("nationality")}
+                          required
+                          help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
                         />
                       )}
                     </ProfileFieldGrid>
@@ -1102,11 +1132,13 @@ export default function ProfilePage() {
                           label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
                           value={orgData?.residentialAddress?.state}
                           missing={missingFieldKeys.has("state")}
+                          required
                         />
                         <ProfileReadField
                           label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
                           value={orgData?.residentialAddress?.postalCode}
                           missing={missingFieldKeys.has("postalCode")}
+                          required
                         />
                       </ProfileFieldGrid>
                     ) : (
@@ -1127,7 +1159,10 @@ export default function ProfilePage() {
                         <p className="text-xs text-muted-foreground">Maximum 500 characters</p>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-ui font-medium">{SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}</Label>
+                        <ComRepFieldLabel
+                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
+                          required
+                        />
                         <Select value={residentialState || undefined} onValueChange={setResidentialState}>
                           <SelectTrigger className="h-11 text-ui">
                             <SelectValue placeholder="Select" />
@@ -1142,7 +1177,10 @@ export default function ProfilePage() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-ui font-medium">{SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}</Label>
+                        <ComRepFieldLabel
+                          label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
+                          required
+                        />
                         <Input
                           className="h-11 text-ui"
                           value={residentialPostalCode}

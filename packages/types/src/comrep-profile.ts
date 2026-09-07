@@ -806,6 +806,7 @@ export interface IssuerFinancialCompletenessInput {
   otherCost: number | string | null | undefined;
   profitBeforeTax: number | string | null | undefined;
   profitAfterTax: number | string | null | undefined;
+  minorityInterest: number | string | null | undefined;
   netDividend: number | string | null | undefined;
 }
 
@@ -888,6 +889,20 @@ function hasNumber(value: unknown): boolean {
   return false;
 }
 
+function hasRequiredPostcodeValue(
+  postalCode: string | null | undefined,
+  state: string | null | undefined
+): boolean {
+  if (typeof state === "string" && state.trim() === "Outside Malaysia") return true;
+  return hasText(postalCode);
+}
+
+function hasRequiredPostcode(
+  address: PartyAddressCompletenessInput | null | undefined
+): boolean {
+  return hasRequiredPostcodeValue(address?.postalCode, address?.state);
+}
+
 function hasAddressLineAndLocation(address: PartyAddressCompletenessInput | null | undefined): {
   line1: boolean;
   state: boolean;
@@ -896,7 +911,7 @@ function hasAddressLineAndLocation(address: PartyAddressCompletenessInput | null
   return {
     line1: hasText(address?.line1),
     state: hasText(address?.state),
-    postalCode: hasText(address?.postalCode),
+    postalCode: hasRequiredPostcode(address),
   };
 }
 
@@ -981,7 +996,7 @@ export function computeIssuerCompanyCompleteness(
   if (!hasText(input.registeredAddress?.state)) {
     pushMissing(missing, step, "registeredAddress.state", "Registered Address - State");
   }
-  if (!hasText(input.registeredAddress?.postalCode)) {
+  if (!hasRequiredPostcodeValue(input.registeredAddress?.postalCode, input.registeredAddress?.state)) {
     pushMissing(missing, step, "registeredAddress.postalCode", "Registered Address - Postcode");
   }
   if (!hasText(input.businessAddress?.line1)) {
@@ -990,7 +1005,7 @@ export function computeIssuerCompanyCompleteness(
   if (!hasText(input.businessAddress?.state)) {
     pushMissing(missing, step, "businessAddress.state", "Business Address - State");
   }
-  if (!hasText(input.businessAddress?.postalCode)) {
+  if (!hasRequiredPostcodeValue(input.businessAddress?.postalCode, input.businessAddress?.state)) {
     pushMissing(missing, step, "businessAddress.postalCode", "Business Address - Postcode");
   }
   if (!hasText(input.phoneNumber)) pushMissing(missing, step, "phoneNumber", "Phone Number");
@@ -1008,7 +1023,11 @@ export function computeShareholderCompleteness(
     pushMissing(missing, step, "entityType", "Shareholder Type", who);
   }
   if (!hasText(party.name)) pushMissing(missing, step, "name", "Shareholder Name", who);
-  if (!hasText(party.identityPrefix)) {
+  if (party.entityType === "CORPORATE") {
+    if (party.identityPrefix !== "ROC") {
+      pushMissing(missing, step, "identityPrefix", "Identity Prefix", who);
+    }
+  } else if (!hasText(party.identityPrefix) || party.identityPrefix === "ROC") {
     pushMissing(missing, step, "identityPrefix", "Identity Prefix", who);
   }
   if (!hasText(party.identityNumber)) {
@@ -1073,7 +1092,7 @@ export function computeBoardCompleteness(party: BoardCompletenessInput): Profile
     pushMissing(missing, step, "personKind", "Board of Director/Management Team", who);
   }
   if (!hasText(party.name)) pushMissing(missing, step, "name", "Name", who);
-  if (!hasText(party.identityPrefix)) {
+  if (!hasText(party.identityPrefix) || party.identityPrefix === "ROC") {
     pushMissing(missing, step, "identityPrefix", "Identity Prefix", who);
   }
   if (!hasText(party.identityNumber)) {
@@ -1127,6 +1146,7 @@ export function computeIssuerFinancialCompleteness(
     [input.otherCost, "otherCost", "Other Cost (RM)"],
     [input.profitBeforeTax, "profitBeforeTax", "Profit/Loss Before Tax (RM)"],
     [input.profitAfterTax, "profitAfterTax", "Profit/Loss After Tax (RM)"],
+    [input.minorityInterest, "minorityInterest", "Minority Interest (RM)"],
     [input.netDividend, "netDividend", "Net Dividend (RM)"],
   ];
   for (const [value, field, label] of checks) {
@@ -1161,7 +1181,7 @@ export function computeInvestorPersonalCompleteness(
   if (!hasText(input.state)) {
     pushMissing(missing, step, "state", "Business/Residential Address - State");
   }
-  if (!hasText(input.postalCode)) {
+  if (!hasRequiredPostcodeValue(input.postalCode, input.state)) {
     pushMissing(missing, step, "postalCode", "Business/Residential Address - Postcode");
   }
   if (!hasText(input.nationality)) pushMissing(missing, step, "nationality", "Nationality/Country");
@@ -1198,7 +1218,7 @@ export function computeInvestorCorporateCompleteness(
   if (!hasText(input.businessState)) {
     pushMissing(missing, step, "businessState", "Business/Residential Address - State");
   }
-  if (!hasText(input.businessPostalCode)) {
+  if (!hasRequiredPostcodeValue(input.businessPostalCode, input.businessState)) {
     pushMissing(missing, step, "businessPostalCode", "Business/Residential Address - Postcode");
   }
   pushMissingInvestorCategory(missing, step, "COMPANY", input.scInvestorCategory);
@@ -1235,7 +1255,7 @@ export function buildIssuerProfileCompleteness(input: {
   const boardMissing = input.board.flatMap(computeBoardCompleteness);
   const boardFieldCount = input.board.length === 0 ? 0 : input.board.length * 12;
   const financialMissing = computeIssuerFinancialCompleteness(input.financials);
-  const financialRequired = 16;
+  const financialRequired = 17;
 
   const shareholderStepMissing =
     input.shareholders.length === 0
@@ -1365,6 +1385,7 @@ export function issuerFinancialsFromYearBlock(
     otherCost: num("other_cost"),
     profitBeforeTax: num("plnpbt"),
     profitAfterTax: num("plnpat"),
+    minorityInterest: num("pl_minority"),
     netDividend: num("plnetdiv"),
   };
 }

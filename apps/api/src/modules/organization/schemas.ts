@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidPhoneNumber } from "libphonenumber-js";
+import { validateIssuerAddressForm } from "@cashsouk/types";
 
 export const createOrganizationSchema = z.object({
   type: z.enum(["PERSONAL", "COMPANY"]),
@@ -160,34 +161,40 @@ export const transferOwnershipSchema = z.object({
   newOwnerId: z.string().regex(/^[A-Z]{5}$/, "Invalid user ID format"),
 });
 
-// Postal code: digits only
-const postalCodeRegex = /^\d*$/;
-
-// Address schema for structured addresses (all fields optional for partial reads)
 export const addressSchema = z.object({
   line1: z.string().optional().nullable(),
   line2: z.string().optional().nullable(),
   city: z.string().optional().nullable(),
-  postalCode: z
-    .string()
-    .optional()
-    .nullable()
-    .refine((val) => !val || postalCodeRegex.test(val), {
-      message: "Postal code must contain only numbers",
-    }),
+  postalCode: z.string().max(32).optional().nullable(),
   state: z.string().optional().nullable(),
   country: z.string().optional().nullable(),
 });
 
-/** Validates that address has required fields: line1, city, postalCode, state, country. */
-function isValidAddress(addr: z.infer<typeof addressSchema> | null | undefined): boolean {
+function isComrepProfileAddressValid(
+  addr: z.infer<typeof addressSchema> | null | undefined,
+  kind: "registered" | "business"
+): boolean {
   if (!addr || typeof addr !== "object") return false;
-  const line1 = (addr.line1 ?? "").toString().trim();
-  const city = (addr.city ?? "").toString().trim();
-  const postalCode = (addr.postalCode ?? "").toString().trim();
-  const state = (addr.state ?? "").toString().trim();
-  const country = (addr.country ?? "").toString().trim();
-  return !!(line1 && city && postalCode && state && country);
+  const issues = validateIssuerAddressForm(
+    kind === "registered"
+      ? {
+          registeredLine1: addr.line1,
+          registeredState: addr.state,
+          registeredPostalCode: addr.postalCode,
+          businessLine1: "ok",
+          businessState: "Selangor",
+          businessPostalCode: "40000",
+        }
+      : {
+          registeredLine1: "ok",
+          registeredState: "Selangor",
+          registeredPostalCode: "40000",
+          businessLine1: addr.line1,
+          businessState: addr.state,
+          businessPostalCode: addr.postalCode,
+        }
+  );
+  return issues.length === 0;
 }
 
 export const aboutYourBusinessSchema = z.object({
@@ -215,20 +222,20 @@ export const updateCorporateInfoSchema = z
   .refine(
     (val) => {
       if (val.businessAddress !== undefined && val.businessAddress !== null) {
-        return isValidAddress(val.businessAddress);
+        return isComrepProfileAddressValid(val.businessAddress, "business");
       }
       return true;
     },
-    { message: "Business address must include line 1, city, postal code, state, and country", path: ["businessAddress"] }
+    { message: "Business Address, Business Address - State, and Business Address - Postcode are required unless the state is Outside Malaysia.", path: ["businessAddress"] }
   )
   .refine(
     (val) => {
       if (val.registeredAddress !== undefined && val.registeredAddress !== null) {
-        return isValidAddress(val.registeredAddress);
+        return isComrepProfileAddressValid(val.registeredAddress, "registered");
       }
       return true;
     },
-    { message: "Registered address must include line 1, city, postal code, state, and country", path: ["registeredAddress"] }
+    { message: "Registered Address, Registered Address - State, and Registered Address - Postcode are required unless the state is Outside Malaysia.", path: ["registeredAddress"] }
   );
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;

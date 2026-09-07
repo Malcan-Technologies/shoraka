@@ -4,11 +4,12 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { OrganizationPartyProfileDto } from "@cashsouk/types";
 import {
+  firstIssueMessage,
   monthlyIssuerPersonCopy,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
   SC_GENDER_LABELS,
-  SC_GENDERS,
+  SC_INDIVIDUAL_GENDERS,
   SC_IDENTITY_PREFIXES,
   SC_MALAYSIAN_STATES,
   SC_MONTHLY_BOARD,
@@ -16,6 +17,8 @@ import {
   SC_MONTHLY_SHAREHOLDER,
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
+  scAppendixASelectValues,
+  validateIssuerPersonForm,
 } from "@cashsouk/types";
 import { ComRepFieldLabel } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
@@ -175,12 +178,14 @@ export function OrganizationPersonEditorDialog({
             required
             help={copy.name.help}
           />
-          <Field
-            label={copy.salutation.label}
-            value={values.salutation}
-            onChange={(salutation) => set("salutation", salutation)}
-            help={copy.salutation.help}
-          />
+          {!corporate ? (
+            <Field
+              label={copy.salutation.label}
+              value={values.salutation}
+              onChange={(salutation) => set("salutation", salutation)}
+              help={copy.salutation.help}
+            />
+          ) : null}
           <div className="space-y-1.5">
             <ComRepFieldLabel
               label={showShare ? SC_MONTHLY_SHAREHOLDER.shareholderType.label : "Person / entity type"}
@@ -201,7 +206,13 @@ export function OrganizationPersonEditorDialog({
                   }));
                   return;
                 }
-                set("entityType", entityType);
+                setValues((current) => ({
+                    ...current,
+                    entityType,
+                    identityPrefix: "NRIC",
+                    gender: current.gender === "NOT_APPLICABLE" ? "" : current.gender,
+                    salutation: current.salutation,
+                  }));
               }}
             >
               <SelectTrigger className="h-10 text-ui">
@@ -213,24 +224,26 @@ export function OrganizationPersonEditorDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <ComRepFieldLabel label={copy.identityPrefix.label} />
-            <Select
-              value={values.identityPrefix || undefined}
-              onValueChange={(identityPrefix) => set("identityPrefix", identityPrefix)}
-            >
-              <SelectTrigger className="h-10 text-ui">
-                <SelectValue placeholder="Select" />
-              </SelectTrigger>
-              <SelectContent>
-                {prefixOptions.map((prefix) => (
-                  <SelectItem key={prefix} value={prefix}>
-                    {copy.identityPrefixLabels[prefix as keyof typeof copy.identityPrefixLabels] ?? prefix}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!corporate ? (
+            <div className="space-y-1.5">
+              <ComRepFieldLabel label={copy.identityPrefix.label} />
+              <Select
+                value={values.identityPrefix || undefined}
+                onValueChange={(identityPrefix) => set("identityPrefix", identityPrefix)}
+              >
+                <SelectTrigger className="h-10 text-ui">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {prefixOptions.map((prefix) => (
+                    <SelectItem key={prefix} value={prefix}>
+                      {copy.identityPrefixLabels[prefix as keyof typeof copy.identityPrefixLabels] ?? prefix}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           <Field
             label={copy.identity.label}
             value={values.identityNumber}
@@ -269,12 +282,24 @@ export function OrganizationPersonEditorDialog({
                 onChange={(dateOfIncorporation) => set("dateOfIncorporation", dateOfIncorporation)}
                 help={copy.dateOfBirth.help}
               />
-              <Field
-                label={copy.nationality.label}
-                value={values.countryOfIncorporation}
-                onChange={(countryOfIncorporation) => set("countryOfIncorporation", countryOfIncorporation)}
-                help={copy.nationality.help}
-              />
+              <div className="space-y-1.5">
+                <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} />
+                <Select
+                  value={values.countryOfIncorporation || undefined}
+                  onValueChange={(countryOfIncorporation) => set("countryOfIncorporation", countryOfIncorporation)}
+                >
+                  <SelectTrigger className="h-10 text-ui">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {scAppendixASelectValues(values.countryOfIncorporation).map((country) => (
+                      <SelectItem key={country} value={country}>
+                        {country}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </>
           ) : (
             <>
@@ -285,7 +310,7 @@ export function OrganizationPersonEditorDialog({
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent>
-                    {SC_GENDERS.map((gender) => (
+                    {SC_INDIVIDUAL_GENDERS.map((gender) => (
                       <SelectItem key={gender} value={gender}>
                         {SC_GENDER_LABELS[gender]}
                       </SelectItem>
@@ -300,12 +325,24 @@ export function OrganizationPersonEditorDialog({
                 onChange={(dateOfBirth) => set("dateOfBirth", dateOfBirth)}
                 help={copy.dateOfBirth.help}
               />
-              <Field
-                label={copy.nationality.label}
-                value={values.nationality}
-                onChange={(nationality) => set("nationality", nationality)}
-                help={copy.nationality.help}
-              />
+              <div className="space-y-1.5">
+                <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} />
+                <Select
+                  value={values.nationality || undefined}
+                  onValueChange={(nationality) => set("nationality", nationality)}
+                >
+                  <SelectTrigger className="h-10 text-ui">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {scAppendixASelectValues(values.nationality).map((country) => (
+                      <SelectItem key={country} value={country}>
+                        {country}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </>
           )}
           <Field label={copy.address.label} value={values.line1} onChange={(line1) => set("line1", line1)} />
@@ -427,12 +464,38 @@ export function OrganizationPersonEditorDialog({
             className="h-10"
             disabled={isSaving}
             onClick={() => {
-              if (!values.name.trim()) {
-                toast.error("Name is required");
-                return;
-              }
               if (!values.isDirector && !values.isShareholder && !values.isBoard && !values.isManagement) {
                 toast.error("Select at least one role");
+                return;
+              }
+              const officer = values.isDirector || values.isBoard || values.isManagement;
+              const issues = validateIssuerPersonForm({
+                entityType: values.entityType,
+                name: values.name,
+                identityPrefix: values.identityPrefix,
+                identityNumber: values.identityNumber,
+                dateOfBirth: values.dateOfBirth,
+                dateOfIncorporation: values.dateOfIncorporation,
+                gender: values.gender,
+                nationality: values.nationality,
+                countryOfIncorporation: values.countryOfIncorporation,
+                line1: values.line1,
+                state: values.state,
+                postalCode: values.postalCode,
+                isShareholder: values.isShareholder || values.entityType === "CORPORATE",
+                isOfficer: officer && values.entityType !== "CORPORATE",
+                shareType: values.shareType,
+                shareTypeOther: values.shareTypeOther,
+                shareholdingUnits: values.shareholdingUnits,
+                shareholdingAmount: values.shareholdingAmount,
+                shareholdingPercentage: values.shareholdingPercentage,
+                personKind: values.isBoard ? "BOARD" : values.isManagement ? "MANAGEMENT" : values.isDirector ? "BOARD" : "",
+                designation: values.designation,
+                designationOther: values.designationOther,
+                appointmentDate: values.appointmentDate,
+              });
+              if (issues.length > 0) {
+                toast.error(firstIssueMessage(issues));
                 return;
               }
               void onSave(values);

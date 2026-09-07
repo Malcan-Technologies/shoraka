@@ -9,7 +9,10 @@ import type {
   OperatorShareholderDto,
   ScCompanyType,
 } from "@cashsouk/types";
-import { normalizeScNric, normalizeScRegistrationNumber } from "@cashsouk/types";
+import {
+  normalizeScIdentityNumber,
+  normalizeScRegistrationNumber,
+} from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import { decimalToString, parseDateInput, toIsoDate } from "../organization-profile/serialize";
@@ -26,11 +29,14 @@ const SINGLETON = "cashsouk";
 
 function holderIdentityNumber(
   entityType: OperatorShareholderInput["entityType"],
-  value: string | null | undefined
+  value: string | null | undefined,
+  nationality?: string | null
 ): string | null {
-  return entityType === "CORPORATE"
-    ? normalizeScRegistrationNumber(value)
-    : normalizeScNric(value);
+  return normalizeScIdentityNumber({
+    value,
+    entityType,
+    nationality,
+  });
 }
 
 function dec(value: string | number | null | undefined): Prisma.Decimal | null {
@@ -404,7 +410,7 @@ export async function createShareholder(input: OperatorShareholderInput): Promis
       entity_type: input.entityType,
       name: input.name ?? null,
       salutation: input.salutation ?? null,
-      identity_number: holderIdentityNumber(input.entityType, input.identityNumber),
+      identity_number: holderIdentityNumber(input.entityType, input.identityNumber, input.nationality),
       date_of_birth: parseDateInput(input.dateOfBirth),
       date_of_incorporation: parseDateInput(input.dateOfIncorporation),
       nationality: input.nationality ?? null,
@@ -434,7 +440,7 @@ export async function updateShareholder(
       entity_type: input.entityType,
       name: input.name ?? null,
       salutation: input.salutation ?? null,
-      identity_number: holderIdentityNumber(input.entityType, input.identityNumber),
+      identity_number: holderIdentityNumber(input.entityType, input.identityNumber, input.nationality),
       date_of_birth: parseDateInput(input.dateOfBirth),
       date_of_incorporation: parseDateInput(input.dateOfIncorporation),
       nationality: input.nationality ?? null,
@@ -467,7 +473,11 @@ export async function createOfficer(input: OperatorOfficerInput): Promise<Operat
       name: input.name ?? null,
       salutation: input.salutation ?? null,
       is_responsible_person: input.isResponsiblePerson ?? false,
-      identity_number: normalizeScNric(input.identityNumber),
+      identity_number: normalizeScIdentityNumber({
+        value: input.identityNumber,
+        entityType: "INDIVIDUAL",
+        nationality: input.nationality,
+      }),
       date_of_birth: parseDateInput(input.dateOfBirth),
       nationality: input.nationality ?? null,
       address: input.address ?? null,
@@ -493,7 +503,11 @@ export async function updateOfficer(
       name: input.name ?? null,
       salutation: input.salutation ?? null,
       is_responsible_person: input.isResponsiblePerson ?? false,
-      identity_number: normalizeScNric(input.identityNumber),
+      identity_number: normalizeScIdentityNumber({
+        value: input.identityNumber,
+        entityType: "INDIVIDUAL",
+        nationality: input.nationality,
+      }),
       date_of_birth: parseDateInput(input.dateOfBirth),
       nationality: input.nationality ?? null,
       address: input.address ?? null,

@@ -1,5 +1,7 @@
 # ComRep RMO-P2P — Data We Are Missing
 
+Companion semantic audit (every SC special rule, not only decimals): [Field semantics matrix](./comrep-field-semantics-matrix.md).
+
 Source: *Reporting Manual for Recognised Market Operator for Peer-to-Peer Financing (RMO-P2P)*, Securities Commission Malaysia, v1.0 (27/02/2026), 65 pages.
 
 Companion document: [Data we already have](./comrep-rmo-p2p-coverage.md).
