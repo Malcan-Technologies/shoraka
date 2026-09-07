@@ -18,13 +18,12 @@ describe("whyRaisingFundsSchema SC purpose of fund raising", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("accepts Others with a description", () => {
+  it("clears other-purpose text when Purpose of Fund Raising is not Others", () => {
     const parsed = whyRaisingFundsSchema.parse({
-      sc_purpose_of_fund_raising: "OTHERS",
-      sc_purpose_other: "Refinance existing facilities",
+      sc_purpose_of_fund_raising: "WORKING_CAPITAL",
+      sc_purpose_other: "leftover",
     });
-    expect(parsed.sc_purpose_of_fund_raising).toBe("OTHERS");
-    expect(parsed.sc_purpose_other).toBe("Refinance existing facilities");
+    expect(parsed.sc_purpose_other).toBe("");
   });
 
   it("accepts a payload without financing_for", () => {

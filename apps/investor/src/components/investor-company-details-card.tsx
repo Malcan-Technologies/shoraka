@@ -4,10 +4,17 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { SC_MONTHLY_INVESTOR } from "@cashsouk/types";
+import { SC_MONTHLY_INVESTOR, scAppendixASelectValues } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PencilIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -148,11 +155,18 @@ export function InvestorCompanyDetailsCard({
                 required
                 help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
               />
-              <Input
-                className="h-11 text-ui"
-                value={country}
-                onChange={(event) => setCountry(event.target.value)}
-              />
+              <Select value={country || undefined} onValueChange={setCountry}>
+                <SelectTrigger className="h-11 text-ui">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {scAppendixASelectValues(country).map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           ) : (
             <ProfileReadField

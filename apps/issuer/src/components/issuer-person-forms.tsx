@@ -8,7 +8,7 @@ import {
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
   SC_GENDER_LABELS,
-  SC_GENDERS,
+  SC_INDIVIDUAL_GENDERS,
   SC_IDENTITY_PREFIXES,
   SC_MALAYSIAN_STATES,
   SC_MONTHLY_BOARD,
@@ -16,6 +16,7 @@ import {
   SC_MONTHLY_SHAREHOLDER,
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
+  scAppendixASelectValues,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
@@ -242,12 +243,14 @@ export function AddPersonForm({
         required
         help={copy.name.help}
       />
-      <TextField
-        label={copy.salutation.label}
-        value={form.salutation}
-        onChange={(value) => setForm({ ...form, salutation: value })}
-        help={copy.salutation.help}
-      />
+      {!corporate ? (
+        <TextField
+          label={copy.salutation.label}
+          value={form.salutation}
+          onChange={(value) => setForm({ ...form, salutation: value })}
+          help={copy.salutation.help}
+        />
+      ) : null}
       {corporate ? (
         <TextField
           label={copy.identity.label}
@@ -285,10 +288,10 @@ export function AddPersonForm({
             label={copy.gender.label}
             value={form.gender}
             onChange={(value) => setForm({ ...form, gender: value })}
-            options={SC_GENDERS.map((key) => ({ value: key, label: SC_GENDER_LABELS[key] }))}
+            options={SC_INDIVIDUAL_GENDERS.map((key) => ({ value: key, label: SC_GENDER_LABELS[key] }))}
             help={copy.gender.help}
           />
-          <TextField
+          <CountryField
             label={copy.nationality.label}
             value={form.nationality}
             onChange={(value) => setForm({ ...form, nationality: value })}
@@ -304,7 +307,7 @@ export function AddPersonForm({
             onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
             help={copy.dateOfBirth.help}
           />
-          <TextField
+          <CountryField
             label={copy.nationality.label}
             value={form.countryOfIncorporation}
             onChange={(value) => setForm({ ...form, countryOfIncorporation: value })}
@@ -493,7 +496,7 @@ export function PartyFillEmptyForm({
         await save.mutateAsync(data);
       }}
     >
-      {!party.salutation ? (
+      {!party.salutation && party.entityType !== "CORPORATE" ? (
         <TextField
           label={copy.salutation.label}
           value={form.salutation}
@@ -506,12 +509,12 @@ export function PartyFillEmptyForm({
           label={copy.gender.label}
           value={form.gender}
           onChange={(value) => setForm({ ...form, gender: value })}
-          options={SC_GENDERS.map((key) => ({ value: key, label: SC_GENDER_LABELS[key] }))}
+          options={SC_INDIVIDUAL_GENDERS.map((key) => ({ value: key, label: SC_GENDER_LABELS[key] }))}
           help={copy.gender.help}
         />
       ) : null}
       {!party.nationality && party.entityType !== "CORPORATE" ? (
-        <TextField
+        <CountryField
           label={copy.nationality.label}
           value={form.nationality}
           onChange={(value) => setForm({ ...form, nationality: value })}
@@ -535,7 +538,7 @@ export function PartyFillEmptyForm({
         />
       ) : null}
       {party.entityType === "CORPORATE" && !party.countryOfIncorporation ? (
-        <TextField
+        <CountryField
           label={copy.nationality.label}
           value={form.countryOfIncorporation}
           onChange={(value) => setForm({ ...form, countryOfIncorporation: value })}
@@ -711,6 +714,31 @@ function DateField({
   );
 }
 
+function CountryField({
+  label,
+  value,
+  onChange,
+  help,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  help?: string;
+  required?: boolean;
+}) {
+  return (
+    <SelectField
+      label={label}
+      value={value}
+      onChange={onChange}
+      options={scAppendixASelectValues(value).map((country) => ({ value: country, label: country }))}
+      help={help}
+      required={required}
+    />
+  );
+}
+
 function SelectField({
   label,
   value,
@@ -733,7 +761,7 @@ function SelectField({
         <SelectTrigger className="h-10 text-ui">
           <SelectValue placeholder="Select" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="max-h-72">
           {options.map((opt) => (
             <SelectItem key={opt.value} value={opt.value}>
               {opt.label}

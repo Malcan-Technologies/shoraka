@@ -9,6 +9,28 @@ import {
 } from "./schemas";
 
 describe("operator ComRep schemas", () => {
+  it("rejects Type of Shares Others without specify text", () => {
+    const result = operatorShareholderSchema.safeParse({
+      holderType: "SHAREHOLDER",
+      entityType: "INDIVIDUAL",
+      name: "Aisha",
+      shareType: "OTHERS",
+      shareTypeOther: "",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("clears Type of Shares other text when the type is not Others", () => {
+    const parsed = operatorShareholderSchema.parse({
+      holderType: "SHAREHOLDER",
+      entityType: "INDIVIDUAL",
+      name: "Aisha",
+      shareType: "ORDINARY",
+      shareTypeOther: "leftover",
+    });
+    expect(parsed.shareTypeOther).toBeNull();
+  });
+
   it("rejects Beneficial Owner as a corporate entity", () => {
     const result = operatorShareholderSchema.safeParse({
       holderType: "BENEFICIAL_OWNER",

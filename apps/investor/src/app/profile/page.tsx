@@ -27,7 +27,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_GENDERS, SC_MALAYSIAN_STATES, SC_MONTHLY_INVESTOR, userFacingCompleteness, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, SC_MONTHLY_INVESTOR, scAppendixASelectValues, userFacingCompleteness, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -49,6 +49,7 @@ import {
   DirectorShareholdersUnifiedSection,
   ProfileFieldGrid,
   ProfileReadField,
+  ComRepFieldLabel,
   portalContentMaxWidthClassName,
   StatusBadge,
   VerifiedBadge,
@@ -1009,13 +1010,17 @@ export default function ProfilePage() {
                       />
                       {isEditingProfile ? (
                         <div className="space-y-2">
-                          <Label className="text-ui font-medium">Gender</Label>
+                          <ComRepFieldLabel
+                            label={SC_MONTHLY_INVESTOR.gender.label}
+                            help={SC_MONTHLY_INVESTOR.gender.help}
+                            required
+                          />
                           <Select value={gender || undefined} onValueChange={setGender}>
                             <SelectTrigger className="h-11 text-ui">
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
                             <SelectContent>
-                              {SC_GENDERS.filter((key) => key !== "NOT_APPLICABLE").map((key) => (
+                              {SC_INDIVIDUAL_GENDERS.map((key) => (
                                 <SelectItem key={key} value={key}>
                                   {SC_GENDER_LABELS[key]}
                                 </SelectItem>
@@ -1025,25 +1030,40 @@ export default function ProfilePage() {
                         </div>
                       ) : (
                         <ProfileReadField
-                          label="Gender"
+                          label={SC_MONTHLY_INVESTOR.gender.label}
                           value={formatGender(orgData?.gender)}
                           missing={missingFieldKeys.has("gender")}
+                          required
+                          help={SC_MONTHLY_INVESTOR.gender.help}
                         />
                       )}
                       {isEditingProfile ? (
                         <div className="space-y-2">
-                          <Label className="text-ui font-medium">{SC_MONTHLY_INVESTOR.nationalityCountry.label}</Label>
-                          <Input
-                            className="h-11 text-ui"
-                            value={nationality}
-                            onChange={(event) => setNationality(event.target.value)}
+                          <ComRepFieldLabel
+                            label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
+                            help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
+                            required
                           />
+                          <Select value={nationality || undefined} onValueChange={setNationality}>
+                            <SelectTrigger className="h-11 text-ui">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-72">
+                              {scAppendixASelectValues(nationality).map((country) => (
+                                <SelectItem key={country} value={country}>
+                                  {country}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       ) : (
                         <ProfileReadField
                           label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
                           value={orgData?.nationality}
                           missing={missingFieldKeys.has("nationality")}
+                          required
+                          help={SC_MONTHLY_INVESTOR.nationalityCountry.help}
                         />
                       )}
                     </ProfileFieldGrid>

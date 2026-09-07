@@ -582,6 +582,7 @@ export * from "./paymaster";
 export * from "./comrep-profile";
 export * from "./comrep-field-copy";
 export * from "./comrep-normalization";
+export * from "./comrep-semantic-rules";
 export * from "./sc-appendix-a-countries";
 export * from "./organization-party-profile";
 export * from "./organization-party-key";

@@ -2,7 +2,7 @@
 
 Source: *Reporting Manual for Recognised Market Operator for Peer-to-Peer Financing (RMO-P2P)*, Securities Commission Malaysia, v1.0 (27/02/2026), 65 pages.
 
-Companion document: [Data we are missing](./comrep-rmo-p2p-gaps.md).
+Companion document: [Data we are missing](./comrep-rmo-p2p-gaps.md). Field-by-field special-rule audit: [Field semantics matrix](./comrep-field-semantics-matrix.md).
 
 This lists every field the SC requires that the platform **can** produce today. "PDF p." is the page in the reporting manual where the field is defined.
 

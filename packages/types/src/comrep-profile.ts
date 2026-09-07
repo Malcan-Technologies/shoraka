@@ -1008,7 +1008,11 @@ export function computeShareholderCompleteness(
     pushMissing(missing, step, "entityType", "Shareholder Type", who);
   }
   if (!hasText(party.name)) pushMissing(missing, step, "name", "Shareholder Name", who);
-  if (!hasText(party.identityPrefix)) {
+  if (party.entityType === "CORPORATE") {
+    if (party.identityPrefix !== "ROC") {
+      pushMissing(missing, step, "identityPrefix", "Identity Prefix", who);
+    }
+  } else if (!hasText(party.identityPrefix) || party.identityPrefix === "ROC") {
     pushMissing(missing, step, "identityPrefix", "Identity Prefix", who);
   }
   if (!hasText(party.identityNumber)) {
@@ -1073,7 +1077,7 @@ export function computeBoardCompleteness(party: BoardCompletenessInput): Profile
     pushMissing(missing, step, "personKind", "Board of Director/Management Team", who);
   }
   if (!hasText(party.name)) pushMissing(missing, step, "name", "Name", who);
-  if (!hasText(party.identityPrefix)) {
+  if (!hasText(party.identityPrefix) || party.identityPrefix === "ROC") {
     pushMissing(missing, step, "identityPrefix", "Identity Prefix", who);
   }
   if (!hasText(party.identityNumber)) {

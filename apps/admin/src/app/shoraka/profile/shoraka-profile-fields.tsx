@@ -58,6 +58,7 @@ export function ShorakaField({
   type = "text",
   help,
   required = false,
+  integer = false,
 }: {
   label: string;
   value: string;
@@ -66,6 +67,7 @@ export function ShorakaField({
   type?: string;
   help?: string;
   required?: boolean;
+  integer?: boolean;
 }) {
   return (
     <div className="space-y-2">
@@ -73,8 +75,11 @@ export function ShorakaField({
       <Input
         className="h-11 text-ui"
         type={type}
+        inputMode={integer ? "numeric" : undefined}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) =>
+          onChange(integer ? e.target.value.replace(/[^\d]/g, "") : e.target.value)
+        }
         disabled={disabled}
       />
     </div>

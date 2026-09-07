@@ -442,6 +442,7 @@ export default function RmoProfilePage() {
                         <ShorakaField
                           label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
                           value={cap?.ordinaryUnits ?? ""}
+                          integer
                           onChange={(v) =>
                             setDraft({
                               ...draft,
@@ -465,6 +466,7 @@ export default function RmoProfilePage() {
                         <ShorakaField
                           label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
                           value={cap?.preferenceUnits ?? ""}
+                          integer
                           onChange={(v) =>
                             setDraft({
                               ...draft,
@@ -488,6 +490,7 @@ export default function RmoProfilePage() {
                         <ShorakaField
                           label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
                           value={cap?.othersUnits ?? ""}
+                          integer
                           onChange={(v) =>
                             setDraft({
                               ...draft,
@@ -511,6 +514,7 @@ export default function RmoProfilePage() {
                         <ShorakaField
                           label={SC_ANNUAL_SHARE_CAPITAL.totalPaidUpCapitalForSdnBhd.label}
                           value={cap?.totalPaidUpCapital ?? ""}
+                          integer
                           onChange={(v) =>
                             setDraft({
                               ...draft,
@@ -556,6 +560,7 @@ export default function RmoProfilePage() {
                         <ShorakaField
                           label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
                           value={cap?.llpMembersCapitalUnits ?? ""}
+                          integer
                           onChange={(v) =>
                             setDraft({
                               ...draft,
@@ -579,6 +584,7 @@ export default function RmoProfilePage() {
                         <ShorakaField
                           label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
                           value={cap?.llpMembersReservesUnits ?? ""}
+                          integer
                           onChange={(v) =>
                             setDraft({
                               ...draft,
@@ -602,6 +608,7 @@ export default function RmoProfilePage() {
                         <ShorakaField
                           label={SC_ANNUAL_SHARE_CAPITAL.noOfShares.label}
                           value={cap?.llpSubordinatedLoansUnits ?? ""}
+                          integer
                           onChange={(v) =>
                             setDraft({
                               ...draft,

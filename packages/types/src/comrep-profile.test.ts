@@ -4,6 +4,7 @@ import {
   buildIssuerProfileCompleteness,
   computeIssuerCompanyCompleteness,
   computeIssuerFinancialCompleteness,
+  computeShareholderCompleteness,
   ISSUER_COMPANY_COMPLETENESS_FIELD_COUNT,
   groupInvestorMissingByProfileSection,
   groupIssuerMissingByProfileSection,
@@ -262,6 +263,50 @@ describe("issuer profile flow grouping", () => {
     expect(people).toHaveLength(2);
     expect(issuerFlowStepComplete(completeness, "company")).toBe(false);
     expect(groupPeopleMissingByParty(people).map((g) => g.partyName)).toEqual(["Max", "Sarah"]);
+  });
+});
+
+describe("shareholder identity prefix vs entity type", () => {
+  it("does not accept ROC on an individual or NRIC on a company", () => {
+    const individual = computeShareholderCompleteness({
+      partyKey: "1",
+      name: "Ali",
+      entityType: "INDIVIDUAL",
+      identityPrefix: "ROC",
+      identityNumber: "800101011234",
+      dateOfBirth: "1980-01-01",
+      dateOfIncorporation: null,
+      gender: "MALE",
+      nationality: "MALAYSIA",
+      countryOfIncorporation: null,
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      shareType: "ORDINARY",
+      shareTypeOther: null,
+      shareholdingUnits: 10,
+      shareholdingAmount: 10,
+      shareholdingPercentage: 10,
+    });
+    expect(individual.map((item) => item.field)).toContain("identityPrefix");
+
+    const company = computeShareholderCompleteness({
+      partyKey: "2",
+      name: "HoldCo",
+      entityType: "CORPORATE",
+      identityPrefix: "NRIC",
+      identityNumber: "1234567A",
+      dateOfBirth: null,
+      dateOfIncorporation: "2010-01-01",
+      gender: "NOT_APPLICABLE",
+      nationality: null,
+      countryOfIncorporation: "MALAYSIA",
+      address: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      shareType: "ORDINARY",
+      shareTypeOther: null,
+      shareholdingUnits: 10,
+      shareholdingAmount: 10,
+      shareholdingPercentage: 10,
+    });
+    expect(company.map((item) => item.field)).toContain("identityPrefix");
   });
 });
 

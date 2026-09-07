@@ -1,9 +1,11 @@
 import { z } from "zod";
 import {
+  applyPartyComrepSemantics,
   isScIntegerWithoutDecimal,
   OPERATOR_ADVISOR_TYPES,
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
+  othersSpecifyValue,
   SC_COMPANY_CATEGORIES,
   SC_COMPANY_TYPES,
   SC_DESIGNATIONS,
@@ -26,7 +28,7 @@ const scIntegerWithoutDecimal = z
   });
 
 /** DTO/UI `id` belongs in the URL, not the strict body. Unknown keys still fail. */
-export function parseOperatorBody<T>(schema: z.ZodType<T>, body: unknown): T {
+export function parseOperatorBody<T>(schema: { parse: (data: unknown) => T }, body: unknown): T {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return schema.parse(body);
   }
@@ -165,7 +167,22 @@ export const operatorShareholderSchema = z
   .refine((value) => !(value.holderType === "BENEFICIAL_OWNER" && value.entityType === "CORPORATE"), {
     path: ["entityType"],
     message: "ComRep [03000] Beneficial Owner is an individual, not a company",
-  });
+  })
+  .superRefine((value, ctx) => {
+    const other = othersSpecifyValue(value.shareType, value.shareTypeOther);
+    if (other.issue) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["shareTypeOther"],
+        message: "Type of Shares - Others (please specify) is required when Type of Shares is Others.",
+      });
+    }
+  })
+  .transform((value) => ({
+    ...value,
+    salutation: value.entityType === "CORPORATE" ? null : value.salutation,
+    shareTypeOther: othersSpecifyValue(value.shareType, value.shareTypeOther).value,
+  }));
 
 export const operatorOfficerSchema = z
   .object({
@@ -182,7 +199,20 @@ export const operatorOfficerSchema = z
     appointmentDate: optionalDate,
     resignationDate: optionalDate,
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (othersSpecifyValue(value.designation, value.designationOther).issue) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["designationOther"],
+        message: "Designation - Others (Please specify) is required when Designation is Others.",
+      });
+    }
+  })
+  .transform((value) => ({
+    ...value,
+    designationOther: othersSpecifyValue(value.designation, value.designationOther).value,
+  }));
 
 export const operatorAdvisorSchema = z
   .object({
@@ -209,7 +239,20 @@ export const operatorInterestSchema = z
     shareholdingUnits: optionalDecimal,
     shareholdingPercentage: optionalDecimal,
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    if (othersSpecifyValue(value.shareType, value.shareTypeOther).issue) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["shareTypeOther"],
+        message: "Type of Shares - Others (please specify) is required when Type of Shares is Others.",
+      });
+    }
+  })
+  .transform((value) => ({
+    ...value,
+    shareTypeOther: othersSpecifyValue(value.shareType, value.shareTypeOther).value,
+  }));
 
 export const operatorFinancialStatementSchema = z
   .object({
@@ -267,7 +310,32 @@ export const createPartySchema = partyPatchSchema
       value.isManagement === true ||
       Boolean(value.personKind),
     { message: "Select at least one role" }
-  );
+  )
+  .superRefine((value, ctx) => {
+    const entityType =
+      value.entityType === "CORPORATE" || value.identityPrefix === "ROC" ? "CORPORATE" : "INDIVIDUAL";
+    const applied = applyPartyComrepSemantics({
+      entityType,
+      isOfficer:
+        value.isDirector === true ||
+        value.isBoard === true ||
+        value.isManagement === true ||
+        value.personKind === "BOARD" ||
+        value.personKind === "MANAGEMENT",
+      gender: value.gender,
+      salutation: value.salutation,
+      identityPrefix: value.identityPrefix,
+      identityNumber: value.identityNumber,
+      nationality: value.nationality,
+      shareType: value.shareType,
+      shareTypeOther: value.shareTypeOther,
+      designation: value.designation,
+      designationOther: value.designationOther,
+    });
+    for (const issue of applied.issues) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
+    }
+  });
 
 export type OrgMasterPatchInput = z.infer<typeof orgMasterPatchSchema>;
 export type PartyPatchInput = z.infer<typeof partyPatchSchema>;
