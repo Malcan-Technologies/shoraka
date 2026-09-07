@@ -31,6 +31,7 @@ jest.mock("../organization/repository", () => ({
 jest.mock("../../lib/prisma", () => ({
   prisma: {
     applicationReviewRemark: { findMany: jest.fn().mockResolvedValue([]) },
+    paymaster: { findUnique: jest.fn().mockResolvedValue(null) },
   },
 }));
 
@@ -40,7 +41,7 @@ jest.mock("../../lib/refresh-contract-facility", () => ({
 
 jest.mock("../paymaster/service", () => ({
   persistDraftCustomerDetails: jest.fn((input: { customerDetails: unknown }) => input.customerDetails),
-  shouldRetainLinkedFacilityPaymaster: jest.fn().mockReturnValue(false),
+  shouldLockPaymasterSwitching: jest.fn().mockReturnValue(false),
 }));
 
 import { ContractService } from "./service";

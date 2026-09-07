@@ -4,6 +4,7 @@ import {
   NoteSettlementStatus,
 } from "@prisma/client";
 import { ConfirmationGenerationError } from "./types";
+import { buildInvestmentSettlementConfirmationHtml } from "./confirmation-html";
 
 const mockPrisma: any = {
   noteSettlement: { findUnique: jest.fn() },
@@ -253,6 +254,9 @@ describe("buildInvestmentSettlementConfirmationSnapshot identifiers", () => {
     expect(snapshot.netProfitCredited).toBe(850);
     expect(snapshot.tawidhCompensation).toBe(0);
     expect(snapshot.totalCreditedToWallet).toBe(10850);
+    const html = buildInvestmentSettlementConfirmationHtml(snapshot);
+    expect(html).toContain("<dt>Issuer ID</dt><dd>ISS-202608-DK3</dd>");
+    expect(html).not.toContain(issuerCuid);
   });
 
   it("does not fall back to issuer or investor CUID when display_reference is missing", async () => {
@@ -269,5 +273,40 @@ describe("buildInvestmentSettlementConfirmationSnapshot identifiers", () => {
     expect(snapshot.investorReference).not.toBe(investorCuid);
     expect(snapshot.noteReference).toBe("NOTE-ARF-202609-5O3");
     expect(snapshot.totalCreditedToWallet).toBe(10850);
+    expect(buildInvestmentSettlementConfirmationHtml(snapshot)).toContain("<dt>Issuer ID</dt><dd>—</dd>");
+    expect(buildInvestmentSettlementConfirmationHtml(snapshot)).not.toContain(issuerCuid);
+  });
+
+  it("does not freeze a CUID stored as issuer display_reference", async () => {
+    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({
+      display_reference: issuerCuid,
+    });
+    const snapshot = await buildInvestmentSettlementConfirmationSnapshot({
+      settlementId: settlementCuid,
+      investorOrganizationId: investorCuid,
+      source: "SETTLEMENT_POSTED",
+    });
+    expect(snapshot.issuerReference).toBe("—");
+    expect(snapshot.issuerReference).not.toBe(issuerCuid);
+    expect(JSON.stringify(snapshot)).not.toContain(issuerCuid);
+    expect(buildInvestmentSettlementConfirmationHtml(snapshot)).not.toContain(issuerCuid);
+    expect(buildInvestmentSettlementConfirmationHtml(snapshot)).toContain("<dt>Issuer ID</dt><dd>—</dd>");
+  });
+
+  it("does not freeze a UUID as Issuer ID", async () => {
+    const uuid = "550e8400-e29b-41d4-a716-446655440000";
+    mockPrisma.issuerOrganization.findUnique.mockResolvedValue({
+      display_reference: uuid,
+    });
+    const snapshot = await buildInvestmentSettlementConfirmationSnapshot({
+      settlementId: settlementCuid,
+      investorOrganizationId: investorCuid,
+      source: "SETTLEMENT_POSTED",
+    });
+    expect(snapshot.issuerReference).toBe("—");
+    expect(snapshot.issuerReference).not.toBe(uuid);
+    expect(JSON.stringify({ issuerReference: snapshot.issuerReference })).not.toContain(uuid);
+    expect(buildInvestmentSettlementConfirmationHtml(snapshot)).not.toContain(uuid);
+    expect(buildInvestmentSettlementConfirmationHtml(snapshot)).toContain("<dt>Issuer ID</dt><dd>—</dd>");
   });
 });

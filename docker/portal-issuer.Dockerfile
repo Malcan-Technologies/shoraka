@@ -43,6 +43,8 @@ ARG NEXT_PUBLIC_COGNITO_CLIENT_ID
 ARG NEXT_PUBLIC_COGNITO_REGION
 ARG NEXT_PUBLIC_COGNITO_DOMAIN=auth.cashsouk.com
 ARG NEXT_PUBLIC_COOKIE_DOMAIN=.cashsouk.com
+ARG NEXT_PUBLIC_PLAIN_CHAT_APP_ID=liveChatApp_01M1K9V6GKBVFNQENXMJRZJYSK
+ARG NEXT_PUBLIC_HELP_CENTER_URL=https://help.cashsouk.com
 
 RUN rm -rf apps/issuer/.next && \
     echo "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" > apps/issuer/.env.production && \
@@ -54,6 +56,8 @@ RUN rm -rf apps/issuer/.next && \
     echo "NEXT_PUBLIC_COGNITO_DOMAIN=${NEXT_PUBLIC_COGNITO_DOMAIN}" >> apps/issuer/.env.production && \
     echo "NEXT_PUBLIC_COGNITO_REGION=${NEXT_PUBLIC_COGNITO_REGION}" >> apps/issuer/.env.production && \
     echo "NEXT_PUBLIC_COOKIE_DOMAIN=${NEXT_PUBLIC_COOKIE_DOMAIN}" >> apps/issuer/.env.production && \
+    echo "NEXT_PUBLIC_PLAIN_CHAT_APP_ID=${NEXT_PUBLIC_PLAIN_CHAT_APP_ID}" >> apps/issuer/.env.production && \
+    echo "NEXT_PUBLIC_HELP_CENTER_URL=${NEXT_PUBLIC_HELP_CENTER_URL}" >> apps/issuer/.env.production && \
     echo "📝 Building issuer portal..." && \
     pnpm --filter @cashsouk/issuer build && \
     echo "✅ Issuer portal built successfully"

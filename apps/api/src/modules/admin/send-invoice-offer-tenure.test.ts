@@ -211,7 +211,7 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
       undefined,
       undefined,
       105,
-      { companyCategory: "TECHNOLOGY", sustainabilityCategory: "G9" }
+      { companyCategory: "TECHNOLOGY", sustainabilityCategory: "G9", campaignSector: "MANUFACTURING" }
     );
 
     const offer = lastTx?.invoice.updateMany.mock.calls[0]?.[0]?.data?.offer_details as Record<
@@ -220,6 +220,7 @@ describe("AdminService sendInvoiceOffer financing tenure", () => {
     >;
     expect(offer.company_category).toBe("TECHNOLOGY");
     expect(offer.sustainability_category).toBe("G9");
+    expect(offer.campaign_sector).toBe("MANUFACTURING");
   });
 
   it("rejects an offer tenure shorter than days remaining to the due date", async () => {

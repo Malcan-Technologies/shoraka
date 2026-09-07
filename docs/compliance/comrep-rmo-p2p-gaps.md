@@ -23,10 +23,10 @@ Most of the ~150 individual gaps below collapse into seven root causes. Fixing t
 | 1 | **Operator XBRL export is not built.** Operator company data is now stored (Admin → Shoraka → Profile). | Annual `[01000]`–`[05000]`, `[10000]`, `[11000]` can be entered, but nothing produces the ComRep file. | Export builder only. Out of scope until filing. |
 | 2 | **No complaints register.** | `[08000] Complaints` cannot be filed at all. | New `Complaint` model + admin CRUD. Categories are a fixed SC enum. |
 | 3 | **No legal action register.** | `[09000] Legal Action` cannot be filed at all. | New `LegalAction` model + admin CRUD. |
-| 4 | **Investor classification is a product flag plus a separate Admin-set SC enum.** `is_sophisticated_investor` remains the unchanged CashSouk product flag. `sc_investor_category` is the ComRep reporting type and is selected by Admin only. It is not derived from the product flag. | Full ComRep completeness still requires Admin to set a valid SC enum. Investor-facing completeness excludes that Admin-only field. | Keep the two fields independent. |
+| 4 | **Investor classification is a product flag plus a separate SC enum.** `is_sophisticated_investor` remains the unchanged CashSouk product flag. `sc_investor_category` is the ComRep reporting type and is now editable by both Investor and Admin on the same master field. It is not derived from the product flag. | Full ComRep completeness requires a valid SC enum on Profile. Product eligibility is independent. | Keep the two fields independent. |
 | 5 | **No days-past-due (DPD) persistence.** DPD is computed at runtime for late-charge purposes only; nothing is stored or bucketed. | Breaks the entire Position Report `[02000]` and `[03000]`, and the >90 DPD default definition. | Nightly job writing a per-note position snapshot with a DPD bucket. |
 | 6 | **No reschedule & restructure (R&R) concept.** | `[04000] R&R notes` cannot be filed at all. | New `NoteRestructure` model linking original → revised campaign. |
-| 7 | **Free-text taxonomies where the SC mandates enums.** Industry, purpose of financing, and financing type remain free text. Company type, designation, share type, and investor category now have SC enums. | Remaining free-text fields still need mapping at export. | Continue adding SC-aligned enums only where the manual has a closed list. |
+| 7 | **Free-text taxonomies where the SC mandates enums.** Issuer Industry and type of financing remain free text. Purpose of fund raising and campaign sector now have SC enums on the campaign/offer (not Profile). Company type, designation, share type, and investor category have SC enums. | Remaining free-text fields still need mapping at export. | Continue adding SC-aligned enums only where the manual has a closed list. |
 
 ---
 
@@ -77,7 +77,7 @@ The remaining annual gaps are `[06000]`–`[09000]` (registered users / national
 | Field | PDF p. | State | Current situation | Suggested collection point |
 |---|---|---|---|---|
 | Issuer count; Investor count; Investor signed-up-but-not-invested | 17 | Derivable | Countable from `IssuerOrganization`, `InvestorOrganization`, and `NoteInvestment`, but no query or export exists. | Add a reporting query. No schema change needed. |
-| Investor Types — Angel / Retail / Sophisticated, split by invested vs not-yet-invested | 18 | Partial | `sc_investor_category` is Admin-set and required for full ComRep completeness, not investor-facing completeness. It is not derived from `is_sophisticated_investor`. Export still needs invested vs not-yet-invested splits. | Reporting query over the enum. |
+| Investor Types — Angel / Retail / Sophisticated, split by invested vs not-yet-invested | 18 | Partial | `sc_investor_category` is Investor+Admin editable on the same master field and is required for Profile completeness. It is not derived from `is_sophisticated_investor`. Export still needs invested vs not-yet-invested splits. | Reporting query over the enum. |
 | Investor Age Group — 7 buckets, split by invested vs not-yet-invested | 18–19 | Derivable | `InvestorOrganization.date_of_birth` exists for personal accounts only. Bucketing logic does not exist. | Reporting query using the SC's formula (reporting year − birth year). Decide treatment of corporate investors, which have no DOB. |
 
 > **Watch the bucket boundaries.** The SC's buckets ("30–35", "35–40", "50–55", "55–60") overlap at the edges. Pick a convention (e.g. lower-bound inclusive, upper exclusive), document it, and keep it stable across periods.
@@ -145,11 +145,11 @@ The remaining annual gaps are `[06000]`–`[09000]` (registered users / national
 | Campaign Description | 31 | Partial | Spread across `NoteListing.summary`, `Note.product_snapshot.description`, and `Note.purpose_snapshot.financing_for`. No canonical field. | Pick one field as canonical for reporting — `purpose_snapshot.financing_for` is closest to the SC's intent — and document it. |
 | Campaign Approval Date | 31 | Partial | No dedicated timestamp. Approval is spread across `ApplicationReview.reviewed_at` per section and the invoice offer approval. | Stamp an `approved_at` on `Application` (or `Note`) when the invoice offer is approved. Small, high-value change. |
 | Campaign URL on Operator Website | 31 | Missing | The route `/investments/{note.id}` exists but no absolute URL is stored. | Compose at export time from a base-URL env var plus the note ID. No schema change needed. |
-| Campaign Sector (21-value SME Corp / MSIC enum) | 31–32 | Partial | `Note.issuer_snapshot.industry` is one of 17 non-matching onboarding labels. MSIC codes exist only inside CTOS report XML. | Two options: (a) map the 17 labels to the 21 SC sectors, or (b) parse `msic_ssms` from the CTOS report we already fetch. Option (b) is more defensible to the regulator. |
+| Campaign Sector (21-value SME Corp / MSIC enum) | 31–32 | Stored | `Invoice.offer_details.campaign_sector` (snapshotted onto `Note.invoice_snapshot.offer_details`). Admin confirms at invoice offer. Not auto-mapped from issuer Industry. | Admin invoice offer. Keep frozen on the note snapshot. |
 | Sustainability Category (00–G17 UN SDG) | 32 | Stored | `Invoice.offer_details.sustainability_category` (snapshotted onto `Note.invoice_snapshot`) | Admin invoice offer. Official dropdown: `00 – None`, `G1`–`G17`. Defaults to None in the offer UI until changed. |
-| Type of Investment Note: Islamic vs conventional | 32 | Missing | Every note is treated as Shariah-compliant via fixed prospectus constants, but nothing records it as data. | Add a field on `Product` (inherited by notes) rather than per campaign, since it follows the product. |
-| Name of Shariah Adviser | 32 | Missing | — | Operator-level setting, snapshotted onto the note at publish. It is the same adviser for all Islamic notes. |
-| Purpose of Fund Raising (Working Capital / Business Expansion / Others) | 32 | Partial | `purpose_snapshot.financing_for` is free text up to 400 chars. | Add a three-value dropdown to the application's "why raising funds" step, keeping the free text as the "Others" detail. |
+| Type of Investment Note: Islamic vs conventional | 32 | Missing | Every note is treated as Shariah-compliant via fixed prospectus constants, but nothing records it as data. | Add a field on `Product` (inherited by notes) rather than per campaign, since it follows the product. **Not implemented — needs business confirmation.** |
+| Name of Shariah Adviser | 32 | Missing | — | Operator-level setting, snapshotted onto the note at publish. **Not implemented — needs business confirmation.** |
+| Purpose of Fund Raising (Working Capital / Business Expansion / Others) | 32 | Stored | Dedicated `why_raising_funds.sc_purpose_of_fund_raising` (+ `sc_purpose_other` when Others) is the issuer purpose question. Legacy free-text `financing_for` is retained on existing application JSON and still frozen into `purpose_snapshot.financing_for` when present; new applications freeze the SC label instead. | Application business-details step. Frozen onto `Note.purpose_snapshot`. |
 | Is SARANA Financing Scheme; Financing Options of SARANA; Financing Scope of SARANA | 33 | Missing | No SARANA support at all. | Only needed if CashSouk participates in the SARANA scheme. Confirm with compliance before building — may be permanently "No". |
 
 ### [03100] Financing Details 2 — pp. 33–36
@@ -300,7 +300,7 @@ Largely supported by the wallet ledger. Two gaps:
 | Field | PDF p. | State | Current situation | Suggested collection point |
 |---|---|---|---|---|
 | Identity prefix (IC / Passport / ROC) | 60 | Partial | Same as `[07000]`. | Derive at export. |
-| Type of Investor (Angel / Retail / Sophisticated) | 61 | Missing | Boolean only. See theme 4. | Same fix as `[07000]`; note this tab uses the 3-value list, not the 6-value one. |
+| Type of Investor (Angel / Retail / Sophisticated) | 61 | Partial | `sc_investor_category` is stored (6-value Profile field). This tab still needs a 3-value export mapping. See theme 4. | Reporting layer only; do not collapse Profile to the 3-value list. |
 
 ---
 
@@ -318,6 +318,27 @@ Ordered by "unblocks the most reporting per unit of work".
 | 6 | **Issuer financials expansion** (liability splits, reserves, cost breakdown) | P2P `[09000]`, `[09100]` |
 | 7 | **Campaign metadata additions** (approval date stamp, SDG category, purpose enum, Islamic flag, Shariah adviser, security type) | P2P `[03000]`, `[03100]` |
 | 8 | **R&R workflow** | Position `[04000]` — only if CashSouk will offer R&R |
+
+## 5a. Unresolved campaign / reporting mappings (do not guess)
+
+These have a candidate in code, but no confirmed business rule. Do not hardcode them for filing until compliance confirms:
+
+| Field | Best current candidate | Why not implemented |
+|---|---|---|
+| Campaign Application Date | Application `submitted_at` / first submit timestamp | Which event the SC means is not confirmed. |
+| Campaign Approval Date | Invoice-offer send / last section `reviewed_at` / note create | Multiple approval timestamps exist. |
+| Fund Disbursement Date | `WithdrawalInstruction.completed_at` | Finance must confirm this is the regulatory date. |
+| Investment Note Type (Islamic / conventional) | Prospectus currently assumes Shariah-compliant | Product-level field not confirmed. |
+| Shariah Adviser | None stored | Operator-level setting not confirmed. |
+| SARANA | None | Confirm whether CashSouk participates. |
+| Type of Financing | Product snapshot names; likely receivables financing | Do not map free-text product names without a closed mapping. |
+| Security Type | Guarantor presence is not the same as SC security type | Needs an explicit campaign field if CashSouk uses it. |
+| Repayment Type / Schedule | Platform is bullet-only today | Report only when a second type exists, or confirm the constant. |
+| Tawidh/Gharamah → SC Late Charges | Runtime late-charge calculation | Mapping to the SC late-charges column is not confirmed. |
+| Issuer ID used for ComRep | Organization UUID vs ROC vs internal display id | Which identifier SC expects is not confirmed. |
+| Non-Sophisticated Entity → annual 3-way investor category | `sc_investor_category = NON_SOPHISTICATED_ENTITY` | Annual report splits are reporting-layer, not Profile. |
+
+Complaints, legal action, R&R, and DPD snapshots remain operational/reporting areas. They are not Profile fields.
 
 ## 6. Open questions for compliance
 

@@ -34,12 +34,22 @@ Confirmed from code:
 
 Contract JSON fields:
 - `contract_details` (nullable JSON): contract terms and facility fields.
-- `customer_details` (nullable JSON): counterparty/customer details (used as “Paymaster” context).
+- `customer_details` (nullable JSON): this application's current working Paymaster / customer identity. Official identity lives on the `Paymaster` master (`paymaster_id`). After Admin verifies (or later edits a Verified master), eligible working applications automatically use that official identity. Completed, signed, note-created, and established-facility applications keep their frozen JSON. Original issuer-submitted values remain in application revision snapshots.
 - `offer_details` (nullable JSON): set when offers are sent/accepted/rejected.
 
 Important distinction:
 - `invoice_only` still links a holder Contract on the application for `customer_details` / `paymaster_id`. The holder may be `SUBMITTED`.
 - The holder is not a facility: excluded from issuer, admin, paymaster, and org facility lists and metrics; no facility offer/capacity actions or facility-detail links.
+
+## 3.1 Paymaster identity
+
+Confirmed from code:
+- Same SSM is always the same `Paymaster` master. The master is created **Unverified** on application submit/resubmit if that SSM does not already exist. Draft save does not create a Paymaster.
+- If the SSM already exists (Unverified or Verified), submit reuses that master and does not overwrite official identity. An Unverified master keeps this application's issuer-submitted `customer_details` until Admin verifies. A Verified master stamps official identity onto working `customer_details`.
+- Issuer lookup of a Verified SSM autofills official identity and locks those fields. An existing Unverified SSM is recognised so a duplicate master cannot be created; the issuer still types this application's submitted details.
+- Admin Paymaster Detail is the official identity. Admin can edit legal name, country, and entity type. SSM is locked. Verify can confirm/edit those fields in one action. After verification (or a later Verified edit), eligible working applications automatically use the official identity. Completed and frozen applications stay historical.
+- Amendment of a Verified Paymaster keeps legal name, country, and entity type locked even if lookup is still loading or fails. SSM may change only before offer / signing / an established facility. A different SSM switches Paymaster; the old master's SSM is never modified. Unverified identity edits stay on this application and do not overwrite the master.
+- Origination documents (letter of offer, deed of assignment, application summary) use this application's current `customer_details`. Note `paymaster_snapshot` and published prospectus stay frozen after they are written. Notice generation can use the live master.
 
 ## 4. What Invoice means
 

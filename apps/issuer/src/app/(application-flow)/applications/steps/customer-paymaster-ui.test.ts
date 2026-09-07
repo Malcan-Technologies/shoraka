@@ -33,13 +33,17 @@ describe("issuer Customer / Paymaster UI", () => {
     const relatedPartyCall = step.slice(step.lastIndexOf("<YesNoRadioGroup"));
     expect(relatedPartyCall).toContain("disabled={!stepIsEditable}");
     expect(relatedPartyCall).not.toContain("masterFieldsDisabled");
+    expect(flow).toContain("linkedVerifiedSameSsm");
     expect(flow).toContain('lookupStatus === "FOUND_VERIFIED"');
   });
 
   it("does not populate or expose another issuer's unverified identity", () => {
-    expect(flow).toContain('return "NOT_FOUND"');
+    expect(flow).toContain("return result.status");
+    expect(step).toContain("linkedVerifiedSameSsm");
+    expect(step).toContain("readLinkedPaymasterFromContract");
     expect(step).toMatch(/status === "FOUND_VERIFIED" && result\.paymaster/);
     expect(step).not.toMatch(/FOUND_UNVERIFIED" && result\.paymaster/);
+    expect(step).toContain("An existing unverified Paymaster was found");
     expect(step).not.toMatch(/submittedApplicationIdentities/);
     expect(step).not.toMatch(/collectLinkedPaymasterApplications/);
     expect(step).not.toMatch(/PaymasterMismatch/);

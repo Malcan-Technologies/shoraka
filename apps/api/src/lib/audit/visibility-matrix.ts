@@ -112,11 +112,16 @@ export const EVENT_CATALOGUE: Record<string, EventCatalogueEntry> = {
   PAYMASTER_LINKED_TO_ISSUER: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs", {
     notes: "New IssuerPaymasterLink on an existing master. Not written for last_used_at updates or the originating create.",
   }),
+  PAYMASTER_IDENTITY_UPDATED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs", {
+    notes: "Admin updated official Paymaster legal name, country, or entity type. SSM is locked. Not customer visible.",
+  }),
   PAYMASTER_VERIFIED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs", {
     notes: "Admin identity review UNVERIFIED → VERIFIED. Display as Paymaster Identity Verified. Not application approval.",
   }),
   PAYMASTER_IDENTITY_RESOLVED: entry(EVENT_LAYER.ADMIN_ACTIVITY, "application_logs", {
-    notes: "Admin overlaid verified Paymaster identity onto this application's submitted customer_details. Not customer visible.",
+    lifecycle: EVENT_LIFECYCLE.HISTORICAL_READER,
+    notes:
+      "No live writer. Historical Admin Use Verified overlay. Kept so existing rows still render.",
   }),
   INVOICE_OFFER_SENT: entry(EVENT_LAYER.APPLICATION_TIMELINE, "application_logs", USER),
   INVOICE_OFFER_ACCEPTANCE_SUBMITTED: entry(EVENT_LAYER.APPLICATION_TIMELINE, "application_logs", USER),

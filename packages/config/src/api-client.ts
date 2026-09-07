@@ -79,6 +79,7 @@ import type {
   WithdrawReason,
   AdminCtosReportListItem,
   MarcSmeGrade,
+  ScCampaignSector,
   ScCompanyCategory,
   ScSustainabilityCategory,
   RecipientEkycSession,
@@ -1065,17 +1066,23 @@ export class ApiClient {
     return this.get(`/v1/admin/paymasters/${id}/activity`);
   }
 
-  async verifyAdminPaymaster(
+  async updateAdminPaymaster(
     paymasterId: string,
-    body: { applicationId?: string } = {}
+    body: { legalName: string; country: string; entityType: string }
   ): Promise<ApiResponse<PaymasterDetail> | ApiError> {
-    return this.post(`/v1/admin/paymasters/${paymasterId}/verify`, body);
+    return this.patch(`/v1/admin/paymasters/${paymasterId}`, body);
   }
 
-  async useVerifiedPaymasterIdentity(
-    applicationId: string
-  ): Promise<ApiResponse<{ customer_details: CustomerDetails }> | ApiError> {
-    return this.post(`/v1/admin/applications/${applicationId}/paymaster-identity/use-verified`, {});
+  async verifyAdminPaymaster(
+    paymasterId: string,
+    body: {
+      applicationId?: string;
+      legalName?: string;
+      country?: string;
+      entityType?: string;
+    } = {}
+  ): Promise<ApiResponse<PaymasterDetail> | ApiError> {
+    return this.post(`/v1/admin/paymasters/${paymasterId}/verify`, body);
   }
 
   async getIssuerMarcAssessment(
@@ -2255,6 +2262,7 @@ export class ApiClient {
       platformFeeRatePercent?: number | null;
       risk_rating: MarcSmeGrade;
       company_category: ScCompanyCategory;
+      campaign_sector: ScCampaignSector;
       sustainability_category: ScSustainabilityCategory;
       financingTenureDays: number;
       feeScheduleMode?: InvoiceOfferFeeScheduleWriteMode;
@@ -2271,6 +2279,7 @@ export class ApiClient {
         platformFeeRatePercent: payload.platformFeeRatePercent ?? null,
         risk_rating: payload.risk_rating,
         company_category: payload.company_category,
+        campaign_sector: payload.campaign_sector,
         sustainability_category: payload.sustainability_category,
         financingTenureDays: payload.financingTenureDays,
         ...(payload.feeScheduleMode ? { feeScheduleMode: payload.feeScheduleMode } : {}),

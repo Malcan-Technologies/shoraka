@@ -116,6 +116,7 @@ describe("ApplicationLogAdapter", () => {
       expect.arrayContaining([
         "PAYMASTER_CREATED",
         "PAYMASTER_LINKED_TO_ISSUER",
+        "PAYMASTER_IDENTITY_UPDATED",
         "PAYMASTER_VERIFIED",
         "PAYMASTER_IDENTITY_RESOLVED",
       ])

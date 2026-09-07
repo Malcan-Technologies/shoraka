@@ -395,6 +395,8 @@ jobs:
               --build-arg NEXT_PUBLIC_ADMIN_URL="https://admin.cashsouk.com" \
               --build-arg NEXT_PUBLIC_LANDING_URL="https://cashsouk.com" \
               --build-arg NEXT_PUBLIC_COOKIE_DOMAIN=".cashsouk.com" \
+              --build-arg NEXT_PUBLIC_PLAIN_CHAT_APP_ID="${{ secrets.NEXT_PUBLIC_PLAIN_CHAT_APP_ID }}" \
+              --build-arg NEXT_PUBLIC_HELP_CENTER_URL="${{ secrets.NEXT_PUBLIC_HELP_CENTER_URL }}" \
               -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .; then
               echo "Build successful"
               break
@@ -470,6 +472,8 @@ jobs:
               --build-arg NEXT_PUBLIC_ADMIN_URL="https://admin.cashsouk.com" \
               --build-arg NEXT_PUBLIC_LANDING_URL="https://cashsouk.com" \
               --build-arg NEXT_PUBLIC_COOKIE_DOMAIN=".cashsouk.com" \
+              --build-arg NEXT_PUBLIC_PLAIN_CHAT_APP_ID="${{ secrets.NEXT_PUBLIC_PLAIN_CHAT_APP_ID }}" \
+              --build-arg NEXT_PUBLIC_HELP_CENTER_URL="${{ secrets.NEXT_PUBLIC_HELP_CENTER_URL }}" \
               -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .; then
               echo "Build successful"
               break
@@ -545,6 +549,8 @@ jobs:
               --build-arg NEXT_PUBLIC_ADMIN_URL="https://admin.cashsouk.com" \
               --build-arg NEXT_PUBLIC_LANDING_URL="https://cashsouk.com" \
               --build-arg NEXT_PUBLIC_COOKIE_DOMAIN=".cashsouk.com" \
+              --build-arg NEXT_PUBLIC_PLAIN_CHAT_APP_ID="${{ secrets.NEXT_PUBLIC_PLAIN_CHAT_APP_ID }}" \
+              --build-arg NEXT_PUBLIC_HELP_CENTER_URL="${{ secrets.NEXT_PUBLIC_HELP_CENTER_URL }}" \
               -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .; then
               echo "Build successful"
               break

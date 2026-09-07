@@ -66,6 +66,7 @@ const APPLICATION_AUDIT_EVENT_LABELS: Record<string, string> = {
   CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED: "Large Private Customer Flag Updated",
   PAYMASTER_CREATED: "Paymaster Created",
   PAYMASTER_LINKED_TO_ISSUER: "Paymaster Linked to Issuer",
+  PAYMASTER_IDENTITY_UPDATED: "Paymaster Identity Updated",
   PAYMASTER_VERIFIED: "Paymaster Identity Verified",
   PAYMASTER_IDENTITY_RESOLVED: "Paymaster Identity Resolved",
   GATEWAY_PAYMENT_COMPLETED: "Payment Received Successfully",

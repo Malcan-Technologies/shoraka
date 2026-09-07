@@ -16,6 +16,20 @@ describe("note purpose helpers", () => {
     expect(resolvePurposeOfFinancing(null)).toBeNull();
   });
 
+  it("falls back to SC Purpose of Fund Raising when financing_for is absent", () => {
+    expect(
+      resolvePurposeOfFinancing({
+        sc_purpose_of_fund_raising: "BUSINESS_EXPANSION",
+      })
+    ).toBe("Business Expansion");
+    expect(
+      resolvePurposeOfFinancing({
+        sc_purpose_of_fund_raising: "OTHERS",
+        sc_purpose_other: "Refinance existing facilities",
+      })
+    ).toBe("Others: Refinance existing facilities");
+  });
+
   it("reads contract description from the frozen contract_details path", () => {
     expect(
       resolveContractPurpose({

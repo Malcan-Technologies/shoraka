@@ -166,7 +166,7 @@ export function PaymasterDetailView({ paymasterId }: { paymasterId: string }) {
           <AdminDetailTabs tabs={tabs} value={resolvedTab} onValueChange={setActiveTab}>
             <AdminDetailTabPanel value="identity" preserveMount>
               <div className="space-y-6">
-                <PaymasterIdentityCard paymaster={data} />
+                <PaymasterIdentityCard paymaster={data} canManage={canManage} />
                 <PaymasterSubmittedIdentitiesCard
                   identities={data.submittedApplicationIdentities ?? []}
                 />

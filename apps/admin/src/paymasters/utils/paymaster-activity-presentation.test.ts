@@ -66,6 +66,22 @@ describe("Paymaster Activity presentation", () => {
     ]);
   });
 
+  it("shows official identity field diffs for Paymaster Identity Updated", () => {
+    const updated = event({
+      eventType: "PAYMASTER_IDENTITY_UPDATED",
+      remark: "ABC Trading Sdn. Bhd. (202134567890) official identity updated.",
+      relatedParty: null,
+      metadata: {
+        previous: { legalName: "ABC Trading Sdn Bhd" },
+        new: { legalName: "ABC Trading Sdn. Bhd." },
+      },
+    });
+    expect(paymasterActivityDescription(updated)).toContain("official identity updated");
+    expect(paymasterActivityCompactDetails(updated)).toEqual([
+      { key: "legalName", label: "Legal name", value: "ABC Trading Sdn Bhd → ABC Trading Sdn. Bhd." },
+    ]);
+  });
+
   it("shows global verification as previous → new status", () => {
     const verified = event({
       eventType: "PAYMASTER_VERIFIED",

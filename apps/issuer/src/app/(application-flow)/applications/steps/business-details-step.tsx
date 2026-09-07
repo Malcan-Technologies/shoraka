@@ -71,9 +71,13 @@ import {
   INHERITED_FACILITY_GUARANTORS_ISSUER_COPY,
   isInheritedFacilityGuarantorReview,
   isRegtankIso3166Code,
+  isScFundRaisingPurpose,
   readFinancingStructureType,
+  SC_FUND_RAISING_PURPOSE_LABELS,
+  SC_FUND_RAISING_PURPOSES,
   type GuarantorCompanyRelationship,
   type GuarantorIndividualRelationship,
+  type ScFundRaisingPurpose,
 } from "@cashsouk/types";
 import { toast } from "sonner";
 
@@ -106,7 +110,10 @@ const MAX_CHARS_OTHER_BUSINESS_TEXTAREA = 400;
 type YesNo = "yes" | "no";
 
 interface WhyRaisingFunds {
+  /** Legacy JSON `financing_for` — round-tripped for submitted applications; not shown in the current form. */
   financingFor: string;
+  scPurposeOfFundRaising: ScFundRaisingPurpose | "";
+  scPurposeOther: string;
   howFundsUsed: string;
   businessPlan: string;
   risksDelayRepayment: string;
@@ -209,6 +216,8 @@ interface BusinessDetailsPayload {
 interface BusinessDetailsSnake {
   why_raising_funds?: {
     financing_for?: string;
+    sc_purpose_of_fund_raising?: ScFundRaisingPurpose | null;
+    sc_purpose_other?: string;
     how_funds_used?: string;
     business_plan?: string;
     risks_delay_repayment?: string;
@@ -493,6 +502,8 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
   const basePayload: BusinessDetailsSnake = {
     why_raising_funds: {
       financing_for: p.whyRaisingFunds.financingFor ?? "",
+      sc_purpose_of_fund_raising: p.whyRaisingFunds.scPurposeOfFundRaising || null,
+      sc_purpose_other: p.whyRaisingFunds.scPurposeOther ?? "",
       how_funds_used: p.whyRaisingFunds.howFundsUsed ?? "",
       business_plan: p.whyRaisingFunds.businessPlan ?? "",
       risks_delay_repayment: p.whyRaisingFunds.risksDelayRepayment ?? "",
@@ -563,9 +574,13 @@ function fromSnakeSaved(
   const mergedGuarantors = relational.length > 0 ? relational : jsonGuarantors;
   const supportingRaw = w?.supporting_documents ?? w?.supportingDocuments;
   const amountRaw = w?.amount_raised ?? w?.amountRaised;
+  const scPurposeRaw = w?.sc_purpose_of_fund_raising ?? w?.scPurposeOfFundRaising;
   return {
     whyRaisingFunds: {
       financingFor: coerceSavedString(w?.financing_for) || coerceSavedString(w?.financingFor),
+      scPurposeOfFundRaising: isScFundRaisingPurpose(scPurposeRaw) ? scPurposeRaw : "",
+      scPurposeOther:
+        coerceSavedString(w?.sc_purpose_other) || coerceSavedString(w?.scPurposeOther),
       howFundsUsed: coerceSavedString(w?.how_funds_used) || coerceSavedString(w?.howFundsUsed),
       businessPlan: coerceSavedString(w?.business_plan) || coerceSavedString(w?.businessPlan),
       risksDelayRepayment:
@@ -672,6 +687,8 @@ export function generateMockData(): Record<string, unknown> {
 
 const defaultWhy: WhyRaisingFunds = {
   financingFor: "",
+  scPurposeOfFundRaising: "",
+  scPurposeOther: "",
   howFundsUsed: "",
   businessPlan: "",
   risksDelayRepayment: "",
@@ -1558,7 +1575,8 @@ export function BusinessDetailsStep({
   const evaluateBusinessDetails = React.useCallback(
     (mode: "presence" | "strict") => {
       const {
-        financingFor,
+        scPurposeOfFundRaising,
+        scPurposeOther,
         howFundsUsed,
         businessPlan,
         risksDelayRepayment,
@@ -1570,7 +1588,8 @@ export function BusinessDetailsStep({
       } = whyRaisingFunds;
 
       if (
-        !financingFor.trim() ||
+        !scPurposeOfFundRaising ||
+        (scPurposeOfFundRaising === "OTHERS" && !scPurposeOther.trim()) ||
         !howFundsUsed.trim() ||
         !businessPlan.trim() ||
         !risksDelayRepayment.trim() ||
@@ -2324,24 +2343,57 @@ export function BusinessDetailsStep({
 
         <div className={rowGridClassName}>
           <div className="contents">
-            <Label htmlFor="financing-for" className={labelTextareaClassName}>
-              What is this financing for?
+            <Label htmlFor="sc-purpose-of-fund-raising" className={labelTextareaClassName}>
+              Purpose of Fund Raising
             </Label>
-            <TextareaWithCharCount
-              id="financing-for"
-              value={whyRaisingFunds.financingFor}
-              onChange={(e) =>
+            <Select
+              value={whyRaisingFunds.scPurposeOfFundRaising || undefined}
+              onValueChange={(value) => {
+                if (!isScFundRaisingPurpose(value)) return;
                 setWhyRaisingFunds((prev) => ({
                   ...prev,
-                  financingFor: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
-                }))
-              }
-              placeholder="Add details"
-              maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
-              className={textareaClassName}
-              countLabel={`${whyRaisingFunds.financingFor.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
+                  scPurposeOfFundRaising: value,
+                  scPurposeOther: value === "OTHERS" ? prev.scPurposeOther : "",
+                }));
+              }}
               disabled={fieldsLocked}
-            />
+            >
+              <SelectTrigger
+                id="sc-purpose-of-fund-raising"
+                className={cn(formSelectTriggerClassName, fieldsLocked && formInputDisabledClassName)}
+              >
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                {SC_FUND_RAISING_PURPOSES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {SC_FUND_RAISING_PURPOSE_LABELS[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {whyRaisingFunds.scPurposeOfFundRaising === "OTHERS" ? (
+              <>
+                <Label htmlFor="sc-purpose-other" className={labelTextareaClassName}>
+                  Other purpose
+                </Label>
+                <TextareaWithCharCount
+                  id="sc-purpose-other"
+                  value={whyRaisingFunds.scPurposeOther}
+                  onChange={(e) =>
+                    setWhyRaisingFunds((prev) => ({
+                      ...prev,
+                      scPurposeOther: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
+                    }))
+                  }
+                  placeholder="Describe the other purpose"
+                  maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
+                  className={textareaClassName}
+                  countLabel={`${whyRaisingFunds.scPurposeOther.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
+                  disabled={fieldsLocked}
+                />
+              </>
+            ) : null}
 
             <Label htmlFor="how-funds-used" className={labelTextareaClassName}>
               How will the funds be used?

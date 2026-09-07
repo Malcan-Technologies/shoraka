@@ -88,6 +88,8 @@ import {
   INVOICE_FINANCING_RATIO_CAP_MESSAGE,
   formatSettlementReference,
   formatWithdrawalReference,
+  isScFundRaisingPurpose,
+  formatScPurposeOfFundRaisingDisplay,
 } from "@cashsouk/types";
 import {
   creditInvestorBalance,
@@ -405,7 +407,29 @@ function resolvePurposeOfFinancingFromBusinessDetails(
   if (typeof financingFor === "string" && financingFor.trim().length > 0) {
     return financingFor.trim();
   }
-  return null;
+  return formatScPurposeOfFundRaisingDisplay(
+    whyRaising?.sc_purpose_of_fund_raising,
+    whyRaising?.sc_purpose_other
+  );
+}
+
+function buildPurposeSnapshotFromBusinessDetails(
+  businessDetails: Prisma.JsonValue | null | undefined
+): Record<string, string> | null {
+  const details = asRecord(businessDetails);
+  const whyRaising = asRecord(details?.why_raising_funds);
+  const snapshot: Record<string, string> = {};
+  const financingFor = resolvePurposeOfFinancingFromBusinessDetails(businessDetails);
+  if (financingFor) snapshot.financing_for = financingFor;
+  const scPurpose = whyRaising?.sc_purpose_of_fund_raising;
+  if (typeof scPurpose === "string" && isScFundRaisingPurpose(scPurpose)) {
+    snapshot.sc_purpose_of_fund_raising = scPurpose;
+  }
+  const scOther = whyRaising?.sc_purpose_other;
+  if (typeof scOther === "string" && scOther.trim().length > 0) {
+    snapshot.sc_purpose_other = scOther.trim();
+  }
+  return Object.keys(snapshot).length > 0 ? snapshot : null;
 }
 
 function toNumber(value: unknown): number {
@@ -2520,9 +2544,7 @@ export class NoteService {
         : null);
     const productDescription = resolveProductDescriptionFromWorkflow(product?.workflow);
     const productImageS3Key = resolveProductImageS3KeyFromWorkflow(product?.workflow);
-    const purposeOfFinancing = resolvePurposeOfFinancingFromBusinessDetails(
-      application.business_details
-    );
+    const purposeSnapshot = buildPurposeSnapshotFromBusinessDetails(application.business_details);
     const issuerSnapshot = buildNoteIssuerSnapshot({
       organization: application.issuer_organization,
       businessDetails: application.business_details,
@@ -2622,9 +2644,7 @@ export class NoteService {
               ...(productImageS3Key ? { image_s3_key: productImageS3Key } : {}),
               product_code: productCode,
             }),
-            purpose_snapshot: purposeOfFinancing
-              ? json({ financing_for: purposeOfFinancing })
-              : undefined,
+            purpose_snapshot: purposeSnapshot ? json(purposeSnapshot) : undefined,
             contract_snapshot: json(
               sourceContract
                 ? {

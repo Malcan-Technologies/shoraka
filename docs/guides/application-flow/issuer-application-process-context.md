@@ -106,11 +106,12 @@ Post-origination note schema:
 
 Paymaster clarification:
 
-- The paymaster data already exists in the issuer origination flow, but it is usually stored and displayed as customer data rather than as a normalized paymaster entity.
-- In this domain, the paymaster is the company/customer that gives the invoice or contract to the issuer and is expected to pay the obligation back directly.
-- Current code stores this primarily in `Contract.customer_details`; invoice-only applications can still create/use a contract row to hold customer details even when there is no contract offer flow.
-- Admin UI already displays this counterparty as Paymaster in application review contexts.
-- Future note work should snapshot or normalize this existing customer/paymaster data. It should not require admins to re-enter paymaster information from scratch.
+- Paymaster is the company/customer that gives the invoice or contract to the issuer and is expected to pay the obligation back directly.
+- Official identity lives on the `Paymaster` master, keyed by SSM. Admin Paymaster Detail owns legal name, country, and entity type. SSM is immutable.
+- Issuer applications store submitted identity on `Contract.customer_details` for review and history. Submit creates an Unverified master only when the SSM is new; existing masters are reused and not overwritten by issuer input.
+- Issuer cannot edit Verified identity fields. Unverified identity edits are application-level only. Paymaster switching (a different SSM) is allowed only while the application lifecycle still permits it; post-offer and frozen stages stay locked.
+- Invoice-only applications still use a holder contract row for `customer_details` / `paymaster_id` even when there is no facility offer.
+- Note creation snapshots the linked Paymaster master at that time. Later Admin edits do not rewrite historical snapshots.
 
 ## Application Flow
 
@@ -351,7 +352,7 @@ Issuer dashboard status display is derived from a combination of:
 - There is no repayment, paymaster payment, settlement, refund, late-fee, or accounting ledger model.
 - Existing `Loan` and `Investment` models are not wired into active routes.
 - Monetary values in active application, contract, and invoice flows are often JSON/number based rather than decimal-ledger based.
-- Paymaster is currently stored as customer detail context, not a normalized backend entity.
+- Paymaster official identity is the `Paymaster` master (SSM-keyed). Applications keep issuer-submitted identity in revision history. Eligible working applications use the official identity automatically after Admin verifies or later corrects the master. Verified identity stays locked for the issuer. Unverified edits stay on the application. Paymaster switching is frozen after offer or finalization.
 - Signing flow is split across two issuer offer modal implementations.
 - Some existing docs have minor drift from the current file structure; use the code paths in this document as the current anchors.
 

@@ -19,12 +19,14 @@ import {
   getOfferPhaseDeadlineDisplay,
   isReservedCapacityInvoiceStatus,
   isMarcSmeGrade,
+  isScCampaignSector,
   isScCompanyCategory,
   isScSustainabilityCategory,
   isValidFinancingTenureDays,
   MARC_ASSESSMENT_REQUIRED_MESSAGE,
   MARC_SME_GRADES,
   parseFinancingTenureDays,
+  parseInvoiceOfferCampaignSector,
   parseInvoiceOfferCompanyCategory,
   parseInvoiceOfferSustainabilityCategory,
   previewAcceptanceDeadlineFromWorkflow,
@@ -33,12 +35,15 @@ import {
   resolveFinancingTenureDays,
   validateFinancingTenureAgainstDueDate,
   validateInvoiceAgainstProductRules,
+  SC_CAMPAIGN_SECTORS,
+  SC_CAMPAIGN_SECTOR_LABELS,
   SC_COMPANY_CATEGORIES,
   SC_COMPANY_CATEGORY_LABELS,
   SC_SUSTAINABILITY_CATEGORIES,
   SC_SUSTAINABILITY_CATEGORY_LABELS,
   type InvoiceProductRules,
   type MarcSmeGrade,
+  type ScCampaignSector,
   type ScCompanyCategory,
   type ScSustainabilityCategory,
 } from "@cashsouk/types";
@@ -286,6 +291,17 @@ export function InvoiceOfferPanel({
     setCompanyCategory(initialCompanyCategory);
   }, [initialCompanyCategory]);
 
+  const initialCampaignSector = React.useMemo(
+    () => parseInvoiceOfferCampaignSector(invoice.offer_details),
+    [invoice.offer_details]
+  );
+  const [campaignSector, setCampaignSector] = React.useState<ScCampaignSector | null>(
+    initialCampaignSector
+  );
+  React.useEffect(() => {
+    setCampaignSector(initialCampaignSector);
+  }, [initialCampaignSector]);
+
   const initialSustainabilityCategory = React.useMemo(
     () => parseInvoiceOfferSustainabilityCategory(invoice.offer_details) ?? "NONE",
     [invoice.offer_details]
@@ -336,6 +352,7 @@ export function InvoiceOfferPanel({
     invoiceValue: number | null;
     risk_rating: MarcSmeGrade;
     company_category: ScCompanyCategory;
+    campaign_sector: ScCampaignSector;
     sustainability_category: ScSustainabilityCategory;
     financingTenureDays: number;
     offerFingerprint: string;
@@ -520,6 +537,10 @@ export function InvoiceOfferPanel({
       alert("Please select Technology or Non-Technology for this invoice.");
       return;
     }
+    if (!invoiceOfferConfirm.campaign_sector) {
+      alert("Please select the SC Campaign Sector for this invoice.");
+      return;
+    }
     if (!invoiceOfferConfirm.sustainability_category) {
       alert("Please select a sustainability category for this invoice.");
       return;
@@ -536,6 +557,7 @@ export function InvoiceOfferPanel({
         platformFeeRatePercent: invoiceOfferConfirm.platformFeeRatePercent,
         risk_rating: invoiceOfferConfirm.risk_rating,
         company_category: invoiceOfferConfirm.company_category,
+        campaign_sector: invoiceOfferConfirm.campaign_sector,
         sustainability_category: invoiceOfferConfirm.sustainability_category,
         financingTenureDays: invoiceOfferConfirm.financingTenureDays,
         feeScheduleMode: invoiceOfferConfirm.feeScheduleMode,
@@ -650,6 +672,35 @@ export function InvoiceOfferPanel({
               {SC_COMPANY_CATEGORIES.map((value) => (
                 <SelectItem key={value} value={value}>
                   {SC_COMPANY_CATEGORY_LABELS[value]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        <Label className={reviewLabelClass}>Campaign sector</Label>
+        {isOfferSent ? (
+          <div className={reviewValueClass}>
+            {(() => {
+              const raw = parseInvoiceOfferCampaignSector(invoice.offer_details);
+              return raw ? SC_CAMPAIGN_SECTOR_LABELS[raw] : REVIEW_EMPTY_LABEL;
+            })()}
+          </div>
+        ) : (
+          <Select
+            value={campaignSector ?? undefined}
+            onValueChange={(value) => {
+              if (isScCampaignSector(value)) setCampaignSector(value);
+            }}
+            disabled={controlsDisabled}
+          >
+            <SelectTrigger aria-label="Campaign sector" className="h-9 w-full max-w-[22rem] rounded-xl border-border bg-background text-ui">
+              <SelectValue placeholder="Select SC sector" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[280px]">
+              {SC_CAMPAIGN_SECTORS.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {SC_CAMPAIGN_SECTOR_LABELS[value]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -946,6 +997,7 @@ export function InvoiceOfferPanel({
               Boolean(offerViolationMessage) ||
               financingTenureDays == null ||
               !companyCategory
+              || !campaignSector
             }
             onClick={() => {
               if (
@@ -976,6 +1028,10 @@ export function InvoiceOfferPanel({
                 alert("Please select Technology or Non-Technology for this invoice.");
                 return;
               }
+              if (!campaignSector) {
+                alert("Please select the SC Campaign Sector for this invoice.");
+                return;
+              }
               if (!sustainabilityCategory) {
                 alert("Please select a sustainability category for this invoice.");
                 return;
@@ -1002,6 +1058,7 @@ export function InvoiceOfferPanel({
                 invoiceValue,
                 risk_rating: rr,
                 company_category: companyCategory,
+                campaign_sector: campaignSector,
                 sustainability_category: sustainabilityCategory,
                 financingTenureDays,
                 offerFingerprint: feeFingerprint,
@@ -1134,6 +1191,12 @@ export function InvoiceOfferPanel({
                   <span className="text-sm font-medium text-muted-foreground">Company category</span>
                   <span className="text-ui font-medium">
                     {SC_COMPANY_CATEGORY_LABELS[invoiceOfferConfirm.company_category]}
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-medium text-muted-foreground">Campaign sector</span>
+                  <span className="text-ui font-medium">
+                    {SC_CAMPAIGN_SECTOR_LABELS[invoiceOfferConfirm.campaign_sector]}
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">

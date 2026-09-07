@@ -20,6 +20,14 @@ describe("certificatePartyDisplayReference", () => {
     expect(certificatePartyDisplayReference(null)).toBe("—");
     expect(certificatePartyDisplayReference("ISS-202608-DK3")).toBe("ISS-202608-DK3");
   });
+
+  it("rejects a CUID or UUID even when it is stored as display_reference", () => {
+    const uuid = "550e8400-e29b-41d4-a716-446655440000";
+    expect(certificatePartyDisplayReference(issuerCuid, "other-org-id")).toBe("—");
+    expect(certificatePartyDisplayReference(uuid, issuerCuid)).toBe("—");
+    expect(certificatePartyDisplayReference(uuid)).toBe("—");
+    expect(certificatePartyDisplayReference("kyc_cmknlimvf0003grp0hsbmc1dp")).toBe("—");
+  });
 });
 
 describe("resolveCertificateCompanyRegistration", () => {
@@ -70,6 +78,26 @@ describe("resolveCertificateCompanyRegistration", () => {
       resolveCertificateCompanyRegistration({
         issuerSnapshot: { name: "Toyota", registration_number: null },
         issuerOrganization: { registration_number: null, corporate_onboarding_data: { basicInfo: {} } },
+      })
+    ).toBe("—");
+  });
+
+  it("does not treat bank account numbers as company registration", () => {
+    expect(
+      resolveCertificateCompanyRegistration({
+        issuerSnapshot: {
+          name: "Toyota",
+          registration_number: null,
+          bank_account_number: "1234567890",
+          account_number: "9876543210",
+        },
+        issuerOrganization: {
+          registration_number: null,
+          corporate_onboarding_data: {
+            basicInfo: { bankAccountNumber: "111122223333" },
+            bankDetails: { accountNumber: "444455556666" },
+          },
+        },
       })
     ).toBe("—");
   });

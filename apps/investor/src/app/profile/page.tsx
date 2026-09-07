@@ -34,6 +34,7 @@ import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
 import { InvestorCompanyDetailsCard } from "../../components/investor-company-details-card";
+import { InvestorClassificationCard } from "../../components/investor-classification-card";
 import { InvestorProfileCompletenessBanner } from "../../components/profile-completeness-banner";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { ConfirmDialog } from "../../components/confirm-dialog";
@@ -643,7 +644,9 @@ export default function ProfilePage() {
               ? "profile-contact"
               : focus === "personal"
                 ? "profile-personal"
-                : null;
+                : focus === "classification"
+                  ? "profile-classification"
+                  : null;
     if (!id) return;
     const timeout = window.setTimeout(() => {
       document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1158,18 +1161,12 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                  <div className="rounded-xl border bg-card">
-                    <div className="border-b p-6">
-                      <h2 className="text-lg font-semibold">Investor Classification</h2>
-                    </div>
-                    <div className="p-6">
-                      <ProfileReadField
-                        label="Account class"
-                        value={orgData?.isSophisticatedInvestor ? "Sophisticated" : "Retail"}
-                        locked
-                      />
-                    </div>
-                  </div>
+                  <InvestorClassificationCard
+                    organizationId={activeOrganization.id}
+                    organizationType="PERSONAL"
+                    isSophisticatedInvestor={Boolean(orgData?.isSophisticatedInvestor)}
+                    scInvestorCategory={orgData?.scInvestorCategory}
+                  />
 
                   <div className="rounded-xl border bg-card">
                     <div className="border-b p-6">
@@ -1506,18 +1503,12 @@ export default function ProfilePage() {
 
               {!isPersonal ? (
                 <>
-                  <div className="rounded-xl border bg-card">
-                    <div className="border-b p-6">
-                      <h2 className="text-lg font-semibold">Investor Classification</h2>
-                    </div>
-                    <div className="p-6">
-                      <ProfileReadField
-                        label="Account class"
-                        value={orgData?.isSophisticatedInvestor ? "Sophisticated" : "Retail"}
-                        locked
-                      />
-                    </div>
-                  </div>
+                  <InvestorClassificationCard
+                    organizationId={activeOrganization.id}
+                    organizationType="COMPANY"
+                    isSophisticatedInvestor={Boolean(orgData?.isSophisticatedInvestor)}
+                    scInvestorCategory={orgData?.scInvestorCategory}
+                  />
                   <div className="rounded-xl border bg-card">
                     <div className="border-b p-6">
                       <h2 className="text-lg font-semibold">KYC / AML</h2>

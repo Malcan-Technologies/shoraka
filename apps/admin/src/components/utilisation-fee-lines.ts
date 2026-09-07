@@ -14,6 +14,7 @@ import {
   type AdditionalFeeLine,
   type InvoiceOfferFeeScheduleWriteMode,
   type MarcSmeGrade,
+  type ScCampaignSector,
   type ScCompanyCategory,
   type ScSustainabilityCategory,
 } from "@cashsouk/types";
@@ -26,6 +27,7 @@ export type SendInvoiceOfferUiPayload = {
   platformFeeRatePercent: number;
   risk_rating: MarcSmeGrade;
   company_category: ScCompanyCategory;
+  campaign_sector: ScCampaignSector;
   sustainability_category: ScSustainabilityCategory;
   financingTenureDays: number;
   feeScheduleMode: InvoiceOfferFeeScheduleWriteMode;

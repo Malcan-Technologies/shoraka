@@ -262,8 +262,17 @@ export function buildOperatorProfileCompleteness(
           label: "Holder name",
         });
       }
+      if (!operatorHasText(row.identityNumber)) {
+        shareholderMissing.push({
+          section: "shareholders",
+          field: `shareholders.${row.id}.identityNumber`,
+          label: "Holder identity number",
+        });
+      }
     }
   }
+  const shareholderRequired =
+    profile.shareholders.length === 0 ? 1 : profile.shareholders.length * 2;
 
   const officerMissing: OperatorProfileMissingItem[] = [];
   if (profile.officers.length === 0) {
@@ -272,12 +281,53 @@ export function buildOperatorProfileCompleteness(
       field: "officers",
       label: "At least one board or management person",
     });
-  } else if (!profile.officers.some((row) => row.isResponsiblePerson)) {
-    officerMissing.push({
-      section: "officers",
-      field: "responsiblePerson",
-      label: "Responsible person on board / management",
-    });
+  } else {
+    for (const row of profile.officers) {
+      if (!operatorHasText(row.name)) {
+        officerMissing.push({
+          section: "officers",
+          field: `officers.${row.id}.name`,
+          label: "Officer name",
+        });
+      }
+      if (!operatorHasText(row.identityNumber)) {
+        officerMissing.push({
+          section: "officers",
+          field: `officers.${row.id}.identityNumber`,
+          label: "Officer identity number",
+        });
+      }
+    }
+    if (!profile.officers.some((row) => row.isResponsiblePerson)) {
+      officerMissing.push({
+        section: "officers",
+        field: "responsiblePerson",
+        label: "Responsible person on board / management",
+      });
+    }
+  }
+  const officerRequired = profile.officers.length === 0 ? 1 : profile.officers.length * 2 + 1;
+
+  const advisorMissing: OperatorProfileMissingItem[] = [];
+  for (const row of profile.advisors) {
+    if (!operatorHasText(row.name)) {
+      advisorMissing.push({
+        section: "advisors",
+        field: `advisors.${row.id}.name`,
+        label: "Advisor name",
+      });
+    }
+  }
+
+  const interestMissing: OperatorProfileMissingItem[] = [];
+  for (const row of profile.interests) {
+    if (!operatorHasText(row.name)) {
+      interestMissing.push({
+        section: "interests",
+        field: `interests.${row.id}.name`,
+        label: "Company name",
+      });
+    }
   }
 
   const financialMissing: OperatorProfileMissingItem[] = [];
@@ -287,7 +337,39 @@ export function buildOperatorProfileCompleteness(
       field: "financialStatements",
       label: "At least one financial statement",
     });
+  } else {
+    for (const row of profile.financialStatements) {
+      if (!operatorHasText(row.financialYearEnd)) {
+        financialMissing.push({
+          section: "financials",
+          field: `financialStatements.${row.id}.financialYearEnd`,
+          label: "Financial year end",
+        });
+      }
+      if (!operatorHasText(row.totalAssets)) {
+        financialMissing.push({
+          section: "financials",
+          field: `financialStatements.${row.id}.totalAssets`,
+          label: "Total assets",
+        });
+      }
+      if (!operatorHasText(row.totalRevenue)) {
+        financialMissing.push({
+          section: "financials",
+          field: `financialStatements.${row.id}.totalRevenue`,
+          label: "Total revenue",
+        });
+      }
+      if (!operatorHasText(row.profitBeforeTax)) {
+        financialMissing.push({
+          section: "financials",
+          field: `financialStatements.${row.id}.profitBeforeTax`,
+          label: "Profit before tax",
+        });
+      }
+    }
   }
+  const financialRequired = profile.financialStatements.length === 0 ? 1 : profile.financialStatements.length * 4;
 
   const sections: OperatorProfileSectionCompleteness[] = [
     operatorSection("general", generalMissing, 4),
@@ -296,39 +378,35 @@ export function buildOperatorProfileCompleteness(
       id: "shareholders",
       label: OPERATOR_PROFILE_SECTION_LABELS.shareholders,
       complete: shareholderMissing.length === 0,
-      requiredCount: profile.shareholders.length === 0 ? 1 : profile.shareholders.length,
-      filledCount: Math.max(
-        0,
-        (profile.shareholders.length === 0 ? 1 : profile.shareholders.length) -
-          shareholderMissing.length
-      ),
+      requiredCount: shareholderRequired,
+      filledCount: Math.max(0, shareholderRequired - shareholderMissing.length),
       missing: shareholderMissing,
     },
     {
       id: "officers",
       label: OPERATOR_PROFILE_SECTION_LABELS.officers,
       complete: officerMissing.length === 0,
-      requiredCount: 1,
-      filledCount: officerMissing.length === 0 ? 1 : 0,
+      requiredCount: officerRequired,
+      filledCount: Math.max(0, officerRequired - officerMissing.length),
       missing: officerMissing,
     },
     {
       id: "advisors",
       label: OPERATOR_PROFILE_SECTION_LABELS.advisors,
-      complete: true,
-      requiredCount: 0,
+      complete: advisorMissing.length === 0,
+      requiredCount: advisorMissing.length > 0 ? advisorMissing.length : 0,
       filledCount: 0,
-      missing: [],
+      missing: advisorMissing,
     },
     {
       id: "interests",
       label: OPERATOR_PROFILE_SECTION_LABELS.interests,
-      complete: true,
-      requiredCount: 0,
+      complete: interestMissing.length === 0,
+      requiredCount: interestMissing.length > 0 ? interestMissing.length : 0,
       filledCount: 0,
-      missing: [],
+      missing: interestMissing,
     },
-    operatorSection("financials", financialMissing, 1),
+    operatorSection("financials", financialMissing, financialRequired),
   ];
 
   const missing = sections.flatMap((section) => section.missing);

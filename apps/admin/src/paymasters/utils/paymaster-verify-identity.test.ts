@@ -1,7 +1,4 @@
-import {
-  paymasterDetailVerificationBlocked,
-  paymasterIdentityToVerify,
-} from "./paymaster-verify-identity";
+import { paymasterIdentityToVerify } from "./paymaster-verify-identity";
 
 const master = {
   id: "pm_1",
@@ -20,7 +17,7 @@ const applicationBDetails = {
 };
 
 describe("paymasterIdentityToVerify", () => {
-  it("uses Application B submitted identity, not the unverified master, when applicationId is present", () => {
+  it("uses the current official master even when Application Review supplies submitted details", () => {
     expect(
       paymasterIdentityToVerify({
         applicationId: "app-b",
@@ -28,8 +25,8 @@ describe("paymasterIdentityToVerify", () => {
         paymaster: master,
       })
     ).toEqual({
-      name: "bbbb",
-      entity_type: "Federal Government Agency",
+      name: "yayay",
+      entity_type: "State Government",
       ssm_number: "999999999999",
       country: "MY",
     });
@@ -47,40 +44,5 @@ describe("paymasterIdentityToVerify", () => {
       ssm_number: "999999999999",
       country: "MY",
     });
-  });
-});
-
-describe("paymasterDetailVerificationBlocked", () => {
-  it("blocks Paymaster Detail verify when submitted identities differ", () => {
-    expect(
-      paymasterDetailVerificationBlocked([
-        {
-          applicationId: "app-a",
-          applicationDisplayReference: "A",
-          applicationProductId: "prod",
-          applicationStatus: "SUBMITTED",
-          submittedAt: "2026-09-01T00:00:00.000Z",
-          issuerOrganizationId: "org-1",
-          issuerName: "Issuer",
-          legalName: "yayay",
-          registrationNumber: "999999999999",
-          entityType: "State Government",
-          registrationCountry: "MY",
-        },
-        {
-          applicationId: "app-b",
-          applicationDisplayReference: "B",
-          applicationProductId: "prod",
-          applicationStatus: "SUBMITTED",
-          submittedAt: "2026-09-02T00:00:00.000Z",
-          issuerOrganizationId: "org-1",
-          issuerName: "Issuer",
-          legalName: "bbbb",
-          registrationNumber: "999999999999",
-          entityType: "Federal Government Agency",
-          registrationCountry: "MY",
-        },
-      ])
-    ).toBe(true);
   });
 });

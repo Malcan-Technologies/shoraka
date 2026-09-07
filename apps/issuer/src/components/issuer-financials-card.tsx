@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   FINANCIAL_FIELD_LABELS,
+  ISSUER_PROFILE_BALANCE_SHEET_KEYS,
+  ISSUER_PROFILE_PNL_KEYS,
   latestUnauditedYearBlock,
   latestUnauditedYearKey,
   type ComrepProfileCompleteness,
@@ -26,24 +28,7 @@ import { ProfileCard } from "./profile-card";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-const EDITABLE_KEYS = [
-  "bscatot",
-  "bsclbank",
-  "curlib_borrowing",
-  "curlib_non_borrowing",
-  "ncl_loan",
-  "ncl_non_loan",
-  "bsqpuc",
-  "equity_accumulated_profit",
-  "turnover",
-  "operating_cost",
-  "admin_cost",
-  "interest_cost",
-  "other_cost",
-  "plnpbt",
-  "plnpat",
-  "plnetdiv",
-] as const;
+const EDITABLE_KEYS = [...ISSUER_PROFILE_BALANCE_SHEET_KEYS, ...ISSUER_PROFILE_PNL_KEYS] as const;
 
 const MISSING_TO_KEY: Record<string, string> = {
   currentAssets: "bscatot",
@@ -178,26 +163,55 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
               {year ? `FY${year} on your company profile.` : "Enter figures for the latest financial year."}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {EDITABLE_KEYS.map((key) => {
-              const required = missingKeys.has(key) || missingKeys.has("financials");
-              const empty = !(draft[key] ?? "").trim();
-              return (
-                <div key={key} className="space-y-2">
-                  <Label className="text-ui font-medium">{fieldLabel(key)}</Label>
-                  <Input
-                    className="h-11 text-ui"
-                    value={draft[key] ?? ""}
-                    onChange={(event) =>
-                      setDraft((current) => ({ ...current, [key]: event.target.value }))
-                    }
-                  />
-                  {required && empty ? (
-                    <p className="text-meta text-status-action-text">Required</p>
-                  ) : null}
-                </div>
-              );
-            })}
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <h3 className="text-card-title">Balance sheet</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {ISSUER_PROFILE_BALANCE_SHEET_KEYS.map((key) => {
+                  const required = missingKeys.has(key) || missingKeys.has("financials");
+                  const empty = !(draft[key] ?? "").trim();
+                  return (
+                    <div key={key} className="space-y-2">
+                      <Label className="text-ui font-medium">{fieldLabel(key)}</Label>
+                      <Input
+                        className="h-11 text-ui"
+                        value={draft[key] ?? ""}
+                        onChange={(event) =>
+                          setDraft((current) => ({ ...current, [key]: event.target.value }))
+                        }
+                      />
+                      {required && empty ? (
+                        <p className="text-meta text-status-action-text">Required</p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-card-title">Profit and loss</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {ISSUER_PROFILE_PNL_KEYS.map((key) => {
+                  const required = missingKeys.has(key) || missingKeys.has("financials");
+                  const empty = !(draft[key] ?? "").trim();
+                  return (
+                    <div key={key} className="space-y-2">
+                      <Label className="text-ui font-medium">{fieldLabel(key)}</Label>
+                      <Input
+                        className="h-11 text-ui"
+                        value={draft[key] ?? ""}
+                        onChange={(event) =>
+                          setDraft((current) => ({ ...current, [key]: event.target.value }))
+                        }
+                      />
+                      {required && empty ? (
+                        <p className="text-meta text-status-action-text">Required</p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" className="h-10" onClick={() => setOpen(false)}>

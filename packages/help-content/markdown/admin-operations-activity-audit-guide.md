@@ -8,7 +8,7 @@ tags:
   - audit
   - notifications
 order: 29
-updated: 2026-09-01
+updated: 2026-09-06
 ---
 
 This guide lists the Activity records, Admin logs, notifications, and direct emails available in the current platform.
@@ -308,10 +308,13 @@ Payment Amount Mismatch may appear as Payment Currency Mismatch when the currenc
 | Paymaster Acknowledgement Confirmed | Note → Activity | Not customer visible | None | None |
 | Paymaster Created | Application → Activity Timeline; Paymaster → Activity | Not customer visible | None | None |
 | Paymaster Linked to Issuer | Application → Activity Timeline; Paymaster → Activity | Not customer visible | None | None |
-| Paymaster Identity Verified | Application → Activity Timeline; Paymaster → Activity | Not customer visible | None | None |
+| Paymaster Identity Updated | Paymaster → Activity; Application → Activity Timeline only when the edit came from Application Review | Not customer visible | None | None |
+| Paymaster Identity Verified | Application → Activity Timeline when application context exists; Paymaster → Activity | Not customer visible | None | None |
 | Paymaster Identity Resolved | Application → Activity Timeline; Paymaster → Activity | Not customer visible | None | None |
 | Tawarruq Order Submitted | Note → Activity | Not customer visible | None | None |
 | Tawarruq Certificate Retrieved | Note → Activity | Not customer visible | None | None |
+
+Paymaster identity create, link, Admin edit, and verify are Admin/internal. They do not send typed notifications. After verification or a later Verified-master edit, eligible working applications use the official identity automatically; that overlay does not write a per-application Activity event. Historical **Paymaster Identity Resolved** rows still render. **Paymaster Identity Updated** appears on Paymaster Activity, and on Application Activity only when the edit came from Application Review.
 
 ### Legal
 

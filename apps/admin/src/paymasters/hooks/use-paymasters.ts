@@ -70,9 +70,18 @@ export function useVerifyPaymaster() {
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (params: { paymasterId: string; applicationId?: string }) => {
+    mutationFn: async (params: {
+      paymasterId: string;
+      applicationId?: string;
+      legalName?: string;
+      country?: string;
+      entityType?: string;
+    }) => {
       const response = await apiClient.verifyAdminPaymaster(params.paymasterId, {
         applicationId: params.applicationId,
+        legalName: params.legalName,
+        country: params.country,
+        entityType: params.entityType,
       });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
@@ -84,13 +93,22 @@ export function useVerifyPaymaster() {
   });
 }
 
-export function useVerifiedPaymasterIdentity() {
+export function useUpdatePaymasterIdentity() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (params: { applicationId: string }) => {
-      const response = await apiClient.useVerifiedPaymasterIdentity(params.applicationId);
+    mutationFn: async (params: {
+      paymasterId: string;
+      legalName: string;
+      country: string;
+      entityType: string;
+    }) => {
+      const response = await apiClient.updateAdminPaymaster(params.paymasterId, {
+        legalName: params.legalName,
+        country: params.country,
+        entityType: params.entityType,
+      });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },

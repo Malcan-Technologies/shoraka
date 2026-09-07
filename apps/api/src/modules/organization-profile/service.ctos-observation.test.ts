@@ -256,6 +256,32 @@ describe("CTOS master party observation", () => {
     expect(dto.mismatches.find((m) => m.field === "shareholdingPercentage")?.externalValue).toBe(38);
   });
 
+  it("does not overwrite completed master name or salutation on later CTOS refresh", async () => {
+    parties.push(
+      row({
+        id: "p-a",
+        party_key: "800101011234",
+        name: "Aisha Tan",
+        salutation: "Puan",
+        gender: "FEMALE",
+      })
+    );
+    await observeExternalCtosParties("issuer", "org-1", {
+      shareholders: [
+        {
+          party_type: "I",
+          nic_brno: "800101011234",
+          name: "A TAN",
+          equity_percentage: 36,
+        },
+      ],
+    });
+    const master = parties.find((p) => p.id === "p-a");
+    expect(master?.name).toBe("Aisha Tan");
+    expect(master?.salutation).toBe("Puan");
+    expect(master?.gender).toBe("FEMALE");
+  });
+
   it("G: a new CTOS director is EXTERNAL_OBSERVED and does not rewrite existing master parties", async () => {
     parties.push(
       row({
@@ -737,7 +763,38 @@ describe("user-added master parties", () => {
     expect(created.entityType).toBe("CORPORATE");
     expect(created.isShareholder).toBe(true);
     expect(created.isDirector).toBe(false);
+    expect(created.gender).toBe("NOT_APPLICABLE");
     expect(created.partyKey).toBe("1234567A");
+  });
+
+  it("persists salutation, share type other, and resignation date on a user-added person", async () => {
+    const created = await createUserAddedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      source: "USER",
+      patch: {
+        name: "Sarah Tan",
+        salutation: "Ms",
+        identityNumber: "900101101234",
+        identityPrefix: "NRIC",
+        isDirector: true,
+        isBoard: true,
+        designation: "OTHERS",
+        designationOther: "Independent director",
+        resignationDate: "2024-06-01",
+        isShareholder: true,
+        shareType: "ORDINARY",
+        shareholdingUnits: "1000",
+        shareholdingAmount: "2500",
+        shareholdingPercentage: "20",
+      },
+    });
+    expect(created.salutation).toBe("Ms");
+    expect(created.designationOther).toBe("Independent director");
+    expect(created.resignationDate?.slice(0, 10)).toBe("2024-06-01");
+    expect(created.shareType).toBe("ORDINARY");
+    expect(created.shareholdingUnits).toBe("1000");
+    expect(created.shareholdingAmount).toBe("2500");
   });
 
   it("B: manual shareholder under 5% is still on the regulatory master", async () => {

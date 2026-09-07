@@ -20,7 +20,15 @@ export const issuerPaymasterLookupQuerySchema = z.object({
   registrationNumber: z.string().min(1),
 });
 
-export const verifyPaymasterBodySchema = z.object({
+export const paymasterOfficialIdentitySchema = z.object({
+  legalName: z.string().trim().min(1, "Legal name is required."),
+  country: z.string().trim().min(1, "Country is required."),
+  entityType: z.string().trim().min(1, "Entity type is required."),
+});
+
+export const updatePaymasterBodySchema = paymasterOfficialIdentitySchema;
+
+export const verifyPaymasterBodySchema = paymasterOfficialIdentitySchema.partial().extend({
   applicationId: z.string().min(1).optional(),
 });
 

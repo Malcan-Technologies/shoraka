@@ -195,6 +195,132 @@ export function parseInvoiceOfferSustainabilityCategory(
   return isScSustainabilityCategory(raw) ? raw : null;
 }
 
+/**
+ * SC Campaign Sector (SME Corp closed list). Stored on the campaign/offer, not issuer Industry.
+ * Labels match the ComRep RMO-P2P manual. Do not auto-map from CashSouk industry taxonomy.
+ */
+export const SC_CAMPAIGN_SECTORS = [
+  "AGRICULTURE_FORESTRY_FISHING",
+  "MINING_QUARRYING",
+  "MANUFACTURING",
+  "ELECTRICITY_GAS_AIR_CONDITIONING",
+  "CONSTRUCTIONS",
+  "WATER_SEWERAGE_WASTE",
+  "WHOLESALE_RETAIL_TRADE",
+  "TRANSPORTATION_STORAGE",
+  "INFORMATION_COMMUNICATION",
+  "ACCOMMODATION_FOOD",
+  "FINANCIAL_INSURANCE_TAKAFUL",
+  "REAL_ESTATE",
+  "PROFESSIONAL_SCIENTIFIC_TECHNICAL",
+  "ADMINISTRATIVE_SUPPORT",
+  "EDUCATION",
+  "PUBLIC_ADMINISTRATION_DEFENCE",
+  "ARTS_ENTERTAINMENT_RECREATION",
+  "HUMAN_HEALTH_SOCIAL_WORK",
+  "HOUSEHOLDS_AS_EMPLOYERS",
+  "EXTRATERRITORIAL",
+  "OTHER_SERVICE_ACTIVITIES",
+] as const;
+export type ScCampaignSector = (typeof SC_CAMPAIGN_SECTORS)[number];
+
+export const SC_CAMPAIGN_SECTOR_LABELS: Record<ScCampaignSector, string> = {
+  AGRICULTURE_FORESTRY_FISHING: "Agriculture, Forestry and Fishing.",
+  MINING_QUARRYING: "Mining and Quarrying.",
+  MANUFACTURING: "Manufacturing.",
+  ELECTRICITY_GAS_AIR_CONDITIONING: "Electricity, Gas and Air Conditioning Supply.",
+  CONSTRUCTIONS: "Constructions.",
+  WATER_SEWERAGE_WASTE:
+    "Water Supply, Sewerage, Waste Management, and Remedies Activities.",
+  WHOLESALE_RETAIL_TRADE:
+    "Wholesale and Retail Trade; Repair of Motor Vehicles and Motorcycles.",
+  TRANSPORTATION_STORAGE: "Transportation and Storage.",
+  INFORMATION_COMMUNICATION: "Information and Communication.",
+  ACCOMMODATION_FOOD: "Accommodation and Food Services Activities.",
+  FINANCIAL_INSURANCE_TAKAFUL: "Financial and Insurance/Takaful Activities.",
+  REAL_ESTATE: "Real-Estate Activities",
+  PROFESSIONAL_SCIENTIFIC_TECHNICAL: "Professional, Scientific and Technical Activities.",
+  ADMINISTRATIVE_SUPPORT: "Administrative and Support Service Activities.",
+  EDUCATION: "Education.",
+  PUBLIC_ADMINISTRATION_DEFENCE:
+    "Public Administration and Defence; Compulsory Social Security.",
+  ARTS_ENTERTAINMENT_RECREATION: "Arts, Entertainment and Recreation.",
+  HUMAN_HEALTH_SOCIAL_WORK: "Human Health and Social Work Activities.",
+  HOUSEHOLDS_AS_EMPLOYERS:
+    "Activities of Households as Employers; Undifferentiated Goods And Services Producing Activities of Households for Own Use.",
+  EXTRATERRITORIAL: "Activities of Extraterritorial Organisations and Bodies.",
+  OTHER_SERVICE_ACTIVITIES: "Other Service Activities.",
+};
+
+export function isScCampaignSector(value: unknown): value is ScCampaignSector {
+  return typeof value === "string" && (SC_CAMPAIGN_SECTORS as readonly string[]).includes(value);
+}
+
+export function parseInvoiceOfferCampaignSector(offer: unknown): ScCampaignSector | null {
+  if (!offer || typeof offer !== "object") return null;
+  const raw = (offer as Record<string, unknown>).campaign_sector;
+  return isScCampaignSector(raw) ? raw : null;
+}
+
+/** SC Purpose of Fund Raising. Campaign/application field — not issuer Profile. */
+export const SC_FUND_RAISING_PURPOSES = [
+  "WORKING_CAPITAL",
+  "BUSINESS_EXPANSION",
+  "OTHERS",
+] as const;
+export type ScFundRaisingPurpose = (typeof SC_FUND_RAISING_PURPOSES)[number];
+
+export const SC_FUND_RAISING_PURPOSE_LABELS: Record<ScFundRaisingPurpose, string> = {
+  WORKING_CAPITAL: "Working Capital",
+  BUSINESS_EXPANSION: "Business Expansion",
+  OTHERS: "Others",
+};
+
+export function isScFundRaisingPurpose(value: unknown): value is ScFundRaisingPurpose {
+  return (
+    typeof value === "string" && (SC_FUND_RAISING_PURPOSES as readonly string[]).includes(value)
+  );
+}
+
+function trimmedPurposeText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * User-facing Purpose of Fund Raising from the SC enum.
+ * When Others, appends the specified free-text if present.
+ */
+export function formatScPurposeOfFundRaisingDisplay(
+  purpose: unknown,
+  other?: unknown
+): string | null {
+  if (!isScFundRaisingPurpose(purpose)) return null;
+  const label = SC_FUND_RAISING_PURPOSE_LABELS[purpose];
+  if (purpose !== "OTHERS") return label;
+  const otherText = trimmedPurposeText(other);
+  return otherText ? `${label}: ${otherText}` : label;
+}
+
+/**
+ * Application/review purpose string: SC enum when present, else legacy `financing_for`.
+ * Never concatenates both — the SC field replaced the free-text purpose question.
+ */
+export function resolveApplicationPurposeOfFundRaising(why: unknown): string | null {
+  const record =
+    why && typeof why === "object" && !Array.isArray(why)
+      ? (why as Record<string, unknown>)
+      : null;
+  if (!record) return null;
+  const sc = formatScPurposeOfFundRaisingDisplay(
+    record.sc_purpose_of_fund_raising ?? record.scPurposeOfFundRaising,
+    record.sc_purpose_other ?? record.scPurposeOther
+  );
+  if (sc) return sc;
+  return trimmedPurposeText(record.financing_for ?? record.financingFor);
+}
+
 export const SC_COMPANY_TYPE_LABELS: Record<ScCompanyType, string> = {
   SOLE_PROPRIETORSHIP: "Sole proprietorship",
   PARTNERSHIP: "Partnership",
@@ -248,10 +374,10 @@ export const SC_DESIGNATION_LABELS: Record<ScDesignation, string> = {
 export const SC_INVESTOR_CATEGORY_LABELS: Record<ScInvestorCategory, string> = {
   ANGEL: "Angel",
   RETAIL: "Retail",
-  SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL: "Sophisticated – High net worth individual",
+  SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL: "Sophisticated – High Net Worth Individual",
   SOPHISTICATED_ACCREDITED: "Sophisticated – Accredited",
-  SOPHISTICATED_HIGH_NET_WORTH_ENTITY: "Sophisticated – High net worth entity",
-  NON_SOPHISTICATED_ENTITY: "Non-sophisticated entity",
+  SOPHISTICATED_HIGH_NET_WORTH_ENTITY: "Sophisticated – High Net Worth Entity",
+  NON_SOPHISTICATED_ENTITY: "Non-Sophisticated Entity",
 };
 
 export const SC_INVESTOR_CATEGORIES_PERSONAL = [
@@ -359,9 +485,9 @@ export type IssuerProfileStepId = (typeof ISSUER_PROFILE_STEP_IDS)[number];
 
 export const INVESTOR_PROFILE_STEP_IDS = ["identity", "review"] as const;
 export type InvestorProfileStepId = (typeof INVESTOR_PROFILE_STEP_IDS)[number];
-/** Identity required fields: 8 USER-owned + Admin-owned `scInvestorCategory`. */
+/** Identity required fields: all USER-editable on the normal Investor Profile, including `scInvestorCategory`. */
 export const INVESTOR_IDENTITY_REQUIRED_COUNT = 9;
-export const INVESTOR_ADMIN_IDENTITY_REQUIRED_COUNT = 1;
+export const INVESTOR_ADMIN_IDENTITY_REQUIRED_COUNT = 0;
 
 export type ComrepProfileStepId = IssuerProfileStepId | InvestorProfileStepId;
 
@@ -449,7 +575,7 @@ export function issuerUiSectionForMissing(item: ProfileMissingItem): ProfileUiSe
   if (item.field.startsWith("registeredAddress") || item.field.startsWith("businessAddress")) {
     return "addresses";
   }
-  if (item.field === "phoneNumber" || item.field === "companyEmail") return "contact";
+  if (item.field === "phoneNumber" || item.field === "companyEmail") return "company";
   return "company";
 }
 
@@ -578,7 +704,7 @@ export interface ComrepProfileCompleteness {
   percent: number;
   steps: ComrepProfileStepCompleteness[];
   missing: ProfileMissingItem[];
-  /** USER-actionable completeness. Admin-only gaps such as `scInvestorCategory` are excluded. */
+  /** USER-actionable completeness. Fields the user can maintain on the normal Profile. */
   userComplete?: boolean;
   userPercent?: number;
   userMissing?: ProfileMissingItem[];
@@ -787,7 +913,7 @@ function pushMissingInvestorCategory(
   existing: ScInvestorCategory | null | undefined
 ): void {
   if (isAllowedScInvestorCategory(existing, { organizationType })) return;
-  pushMissing(missing, step, "scInvestorCategory", "SC ComRep investor type", undefined, "ADMIN");
+  pushMissing(missing, step, "scInvestorCategory", "SC ComRep investor type", undefined, "USER");
 }
 
 function withUserFacingCompleteness(

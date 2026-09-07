@@ -6,6 +6,8 @@ import {
   canResetReviewToPending,
   canWithdrawApplication,
   isCompletedWithNoApprovedInvoices,
+  isPaymasterSsmSwitchingLocked,
+  isPaymasterSwitchingFrozen,
   resolveOriginationPhase,
 } from "./origination-phase";
 
@@ -188,5 +190,105 @@ describe("isCompletedWithNoApprovedInvoices", () => {
     expect(isCompletedWithNoApprovedInvoices("COMPLETED", ["APPROVED", "REJECTED"])).toBe(
       false
     );
+  });
+});
+
+describe("isPaymasterSwitchingFrozen", () => {
+  it("allows switching during underwriting and customer amendment", () => {
+    expect(
+      isPaymasterSwitchingFrozen({
+        applicationStatus: ApplicationStatus.UNDER_REVIEW,
+        contractStatus: "SUBMITTED",
+      })
+    ).toBe(false);
+    expect(
+      isPaymasterSwitchingFrozen({
+        applicationStatus: ApplicationStatus.AMENDMENT_REQUESTED,
+        contractStatus: "AMENDMENT_REQUESTED",
+      })
+    ).toBe(false);
+  });
+
+  it("freezes after a facility or invoice offer even if the application is in amendment", () => {
+    expect(
+      isPaymasterSwitchingFrozen({
+        applicationStatus: ApplicationStatus.CONTRACT_SENT,
+        contractStatus: "OFFER_SENT",
+      })
+    ).toBe(true);
+    expect(
+      isPaymasterSwitchingFrozen({
+        applicationStatus: ApplicationStatus.AMENDMENT_REQUESTED,
+        contractStatus: "OFFER_SENT",
+      })
+    ).toBe(true);
+    expect(
+      isPaymasterSwitchingFrozen({
+        applicationStatus: ApplicationStatus.AMENDMENT_REQUESTED,
+        contractStatus: "DRAFT",
+        invoiceStatuses: ["OFFER_SENT"],
+      })
+    ).toBe(true);
+    expect(
+      isPaymasterSwitchingFrozen({
+        applicationStatus: ApplicationStatus.INVOICES_SENT,
+        contractStatus: "SUBMITTED",
+        invoiceStatuses: ["OFFER_SENT"],
+      })
+    ).toBe(true);
+  });
+
+  it("freezes signing, approved, expired, and closed states", () => {
+    expect(
+      isPaymasterSwitchingFrozen({
+        applicationStatus: ApplicationStatus.CONTRACT_ACCEPTED,
+        contractStatus: "OFFER_SENT",
+      })
+    ).toBe(true);
+    expect(
+      isPaymasterSwitchingFrozen({
+        applicationStatus: ApplicationStatus.INVOICE_PENDING,
+        contractStatus: "APPROVED",
+      })
+    ).toBe(true);
+    expect(
+      isPaymasterSwitchingFrozen({
+        applicationStatus: ApplicationStatus.OFFER_EXPIRED,
+        contractStatus: "OFFER_EXPIRED",
+      })
+    ).toBe(true);
+    expect(
+      isPaymasterSwitchingFrozen({
+        applicationStatus: ApplicationStatus.COMPLETED,
+        contractStatus: "APPROVED",
+      })
+    ).toBe(true);
+  });
+});
+
+describe("isPaymasterSsmSwitchingLocked", () => {
+  it("locks SSM after the facility leaves draft even before an offer", () => {
+    expect(
+      isPaymasterSsmSwitchingLocked({
+        applicationStatus: ApplicationStatus.UNDER_REVIEW,
+        contractStatus: "SUBMITTED",
+      })
+    ).toBe(true);
+    expect(
+      isPaymasterSsmSwitchingLocked({
+        applicationStatus: ApplicationStatus.AMENDMENT_REQUESTED,
+        contractStatus: "AMENDMENT_REQUESTED",
+      })
+    ).toBe(false);
+  });
+
+  it("locks a still-draft invoice-only holder once an invoice offer is live", () => {
+    expect(
+      isPaymasterSsmSwitchingLocked({
+        applicationStatus: ApplicationStatus.INVOICES_SENT,
+        contractStatus: "DRAFT",
+        invoiceStatuses: ["OFFER_SENT"],
+      })
+    ).toBe(true);
   });
 });

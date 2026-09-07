@@ -181,7 +181,8 @@ export function generateContractDetailsData(): Record<string, unknown> {
 export function generateBusinessDetailsData(): Record<string, unknown> {
   return {
     why_raising_funds: {
-      financing_for: "Working capital to fulfill a new contract with a major client. Need to purchase raw materials and hire additional staff.",
+      sc_purpose_of_fund_raising: "WORKING_CAPITAL",
+      sc_purpose_other: "",
       how_funds_used: "60% for inventory, 25% for payroll, 15% for equipment maintenance.",
       business_plan: "Expand capacity by 20% in the next 12 months. We have signed LOIs with two new clients worth RM 2M combined.",
       risks_delay_repayment: "Supply chain delays may affect delivery. We maintain 3-month buffer stock and have backup suppliers.",

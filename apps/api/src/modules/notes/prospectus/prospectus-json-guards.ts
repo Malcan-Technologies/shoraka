@@ -3,7 +3,7 @@
  * WHY: Avoid unchecked casts; malformed published snapshots must not crash or live-fallback
  */
 
-import { isMarcSmeGrade, type MarcSmeGrade } from "@cashsouk/types";
+import { formatScPurposeOfFundRaisingDisplay, isMarcSmeGrade, type MarcSmeGrade } from "@cashsouk/types";
 import type {
   NotePurposeSnapshot,
   ProspectusHistoricalNoteStatus,
@@ -73,7 +73,12 @@ export function parseIssuerSnapshot(value: unknown): {
 
 export function parsePurposeSnapshot(value: unknown): NotePurposeSnapshot | null {
   const record = asJsonRecord(value);
-  const financingFor = nonEmptyString(record?.financing_for);
+  const financingFor =
+    nonEmptyString(record?.financing_for) ??
+    formatScPurposeOfFundRaisingDisplay(
+      record?.sc_purpose_of_fund_raising,
+      record?.sc_purpose_other
+    );
   if (!financingFor) return null;
   return { financing_for: financingFor };
 }

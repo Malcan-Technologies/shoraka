@@ -28,7 +28,6 @@ export function PaymasterVerificationCard({
         <PaymasterVerificationPanel
           paymaster={paymaster}
           paymasterId={paymaster.id}
-          submittedApplicationIdentities={paymaster.submittedApplicationIdentities}
           canManage={canManage}
           layout="detail"
         />

@@ -914,8 +914,6 @@ export function ContractSection({
             <SubmittedVerifiedPaymasterIdentity
               customerDetails={cust}
               paymaster={paymaster}
-              applicationId={applicationId}
-              canManage={canManagePaymasters}
               actionsDisabled={!isReviewable || !!isActionLocked}
               onRequestAmendment={() => onRequestAmendment(section)}
             />

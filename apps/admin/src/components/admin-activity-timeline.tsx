@@ -175,6 +175,7 @@ function getEventLabel(
     CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED: "Large Private Customer Flag Updated",
     PAYMASTER_CREATED: "Paymaster Created",
     PAYMASTER_LINKED_TO_ISSUER: "Paymaster Linked to Issuer",
+    PAYMASTER_IDENTITY_UPDATED: "Paymaster Identity Updated",
     PAYMASTER_VERIFIED: "Paymaster Identity Verified",
     PAYMASTER_IDENTITY_RESOLVED: "Paymaster Identity Resolved",
   };
@@ -259,6 +260,11 @@ function paymasterIdentityDescription(
   if (eventType === "PAYMASTER_LINKED_TO_ISSUER") {
     return identity ? `${identity} linked to this issuer.` : "Existing Paymaster linked to this issuer.";
   }
+  if (eventType === "PAYMASTER_IDENTITY_UPDATED") {
+    return identity
+      ? `${identity} official identity updated.`
+      : "Official Paymaster identity updated.";
+  }
   if (eventType === "PAYMASTER_VERIFIED") {
     return identity
       ? `${identity} identity reviewed internally. Unverified → Verified.`
@@ -272,12 +278,30 @@ function paymasterIdentityDescription(
   return identity || null;
 }
 
+function asIdentityRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
 function paymasterIdentityCompactDetails(
   eventType: string,
   metadata?: Record<string, unknown> | null
 ): { label: string; value: string }[] {
   if (!eventType.startsWith("PAYMASTER_")) return [];
   const rows: { label: string; value: string }[] = [];
+  if (eventType === "PAYMASTER_IDENTITY_UPDATED") {
+    const previous = asIdentityRecord(metadata?.previous);
+    const next = asIdentityRecord(metadata?.new);
+    const pushDiff = (label: string, fromKey: string) => {
+      const from = typeof previous?.[fromKey] === "string" ? previous[fromKey].trim() : "";
+      const to = typeof next?.[fromKey] === "string" ? next[fromKey].trim() : "";
+      if (from && to && from !== to) rows.push({ label, value: `${from} → ${to}` });
+    };
+    pushDiff("Legal name", "legalName");
+    pushDiff("Country", "country");
+    pushDiff("Entity type", "entityType");
+    return rows;
+  }
   const legalName = typeof metadata?.legalName === "string" ? metadata.legalName.trim() : "";
   const registrationNumber =
     typeof metadata?.registrationNumber === "string" ? metadata.registrationNumber.trim() : "";

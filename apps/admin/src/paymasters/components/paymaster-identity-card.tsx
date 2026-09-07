@@ -1,15 +1,25 @@
 "use client";
 
+import * as React from "react";
 import { format } from "date-fns";
 import { BuildingOffice2Icon } from "@heroicons/react/24/outline";
 import { isPaymasterVerified, toTitleCase, type PaymasterDetail } from "@cashsouk/types";
 import { StatusBadge } from "@cashsouk/ui";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAdminStatusToken } from "@/lib/admin-status-token";
 import { ReadField } from "@/organizations/components/organization-profile-helpers";
+import { PaymasterOfficialIdentityDialog } from "@/paymasters/components/paymaster-official-identity-dialog";
 
-export function PaymasterIdentityCard({ paymaster }: { paymaster: PaymasterDetail }) {
+export function PaymasterIdentityCard({
+  paymaster,
+  canManage,
+}: {
+  paymaster: PaymasterDetail;
+  canManage: boolean;
+}) {
+  const [editOpen, setEditOpen] = React.useState(false);
   const verified = isPaymasterVerified(paymaster.verificationStatus);
   return (
     <Card className="rounded-2xl">
@@ -19,7 +29,20 @@ export function PaymasterIdentityCard({ paymaster }: { paymaster: PaymasterDetai
         description={
           verified
             ? "Official verified identity for this SSM. This is the Paymaster master, not an application submission."
-            : "Current global Paymaster record. This identity is not yet verified."
+            : "Admin-managed official identity for this SSM. This identity is not yet verified."
+        }
+        actions={
+          canManage ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-lg text-ui"
+              onClick={() => setEditOpen(true)}
+            >
+              Edit Paymaster Details
+            </Button>
+          ) : null
         }
       />
       <CardContent>
@@ -57,6 +80,12 @@ export function PaymasterIdentityCard({ paymaster }: { paymaster: PaymasterDetai
           />
         </div>
       </CardContent>
+      <PaymasterOfficialIdentityDialog
+        mode="edit"
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        paymaster={paymaster}
+      />
     </Card>
   );
 }

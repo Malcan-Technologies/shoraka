@@ -50,19 +50,23 @@ export function PartyDetailFields({ party }: { party: OrganizationPartyProfileDt
       : party.identityPrefix;
 
   const items = [
+    { label: "Salutation", value: party.salutation || "—" },
     { label: "Identity prefix", value: prefix || "—" },
     { label: "Identity number", value: party.identityNumber || "—" },
     { label: "Gender", value: gender || "—" },
     { label: "Nationality", value: party.nationality || "—" },
+    { label: "Country of incorporation", value: party.countryOfIncorporation || "—" },
     { label: "Date of birth", value: formatDate(party.dateOfBirth) },
     { label: "Date of incorporation", value: formatDate(party.dateOfIncorporation) },
     { label: "Address", value: party.address?.line1 || "—" },
+    { label: "Address line 2", value: party.address?.line2 || "—" },
     { label: "State", value: party.address?.state || "—" },
     { label: "Postcode", value: party.address?.postalCode || "—" },
   ];
   if (party.isShareholder) {
     items.push(
       { label: "Type of shares", value: shareType || "—" },
+      { label: "Other share type", value: party.shareTypeOther || "—" },
       { label: "Shareholding units", value: party.shareholdingUnits || "—" },
       { label: "Shareholding amount", value: party.shareholdingAmount || "—" },
       { label: "Shareholding percentage", value: party.shareholdingPercentage || "—" }
@@ -70,8 +74,11 @@ export function PartyDetailFields({ party }: { party: OrganizationPartyProfileDt
   }
   if (party.isDirector || party.isBoard || party.isManagement) {
     items.push(
+      { label: "Board / Management", value: party.isBoard && party.isManagement ? "Board and Management" : party.isBoard ? "Board" : party.isManagement ? "Management" : "—" },
       { label: "Designation", value: designation || "—" },
-      { label: "Appointment date", value: formatDate(party.appointmentDate) }
+      { label: "Other designation", value: party.designationOther || "—" },
+      { label: "Appointment date", value: formatDate(party.appointmentDate) },
+      { label: "Resignation date", value: formatDate(party.resignationDate) }
     );
   }
   return (
@@ -97,6 +104,7 @@ export function AddPersonForm({
   const [isManagement, setIsManagement] = React.useState(false);
   const [form, setForm] = React.useState({
     name: "",
+    salutation: "",
     identityPrefix: "NRIC",
     identityNumber: "",
     email: "",
@@ -106,6 +114,7 @@ export function AddPersonForm({
     countryOfIncorporation: "",
     gender: "",
     line1: "",
+    line2: "",
     state: "",
     postalCode: "",
     shareType: "",
@@ -116,6 +125,7 @@ export function AddPersonForm({
     designation: "",
     designationOther: "",
     appointmentDate: "",
+    resignationDate: "",
   });
   const save = useMutation({
     mutationFn: onSave,
@@ -133,6 +143,7 @@ export function AddPersonForm({
         await save.mutateAsync({
           entityType,
           name: form.name || null,
+          salutation: form.salutation || null,
           identityPrefix: corporate ? "ROC" : form.identityPrefix || null,
           identityNumber: form.identityNumber || null,
           email: corporate ? null : form.email || null,
@@ -144,19 +155,25 @@ export function AddPersonForm({
           dateOfIncorporation: form.dateOfIncorporation || null,
           nationality: form.nationality || null,
           countryOfIncorporation: form.countryOfIncorporation || null,
-          gender: form.gender || null,
+          gender: corporate ? "NOT_APPLICABLE" : form.gender || null,
           address:
-            form.line1 || form.state || form.postalCode
-              ? { line1: form.line1 || null, state: form.state || null, postalCode: form.postalCode || null }
+            form.line1 || form.line2 || form.state || form.postalCode
+              ? {
+                  line1: form.line1 || null,
+                  line2: form.line2 || null,
+                  state: form.state || null,
+                  postalCode: form.postalCode || null,
+                }
               : null,
           shareType: showShare ? form.shareType || null : null,
-          shareTypeOther: showShare ? form.shareTypeOther || null : null,
+          shareTypeOther: showShare && form.shareType === "OTHERS" ? form.shareTypeOther || null : null,
           shareholdingUnits: showShare ? form.shareholdingUnits || null : null,
           shareholdingAmount: showShare ? form.shareholdingAmount || null : null,
           shareholdingPercentage: showShare ? form.shareholdingPercentage || null : null,
           designation: showOfficer ? form.designation || null : null,
-          designationOther: showOfficer ? form.designationOther || null : null,
+          designationOther: showOfficer && form.designation === "OTHERS" ? form.designationOther || null : null,
           appointmentDate: showOfficer ? form.appointmentDate || null : null,
+          resignationDate: showOfficer ? form.resignationDate || null : null,
         });
       }}
     >
@@ -207,6 +224,11 @@ export function AddPersonForm({
         label={corporate ? "Company name" : "Name"}
         value={form.name}
         onChange={(value) => setForm({ ...form, name: value })}
+      />
+      <TextField
+        label="Salutation"
+        value={form.salutation}
+        onChange={(value) => setForm({ ...form, salutation: value })}
       />
       {corporate ? (
         <TextField
@@ -268,6 +290,11 @@ export function AddPersonForm({
         value={form.line1}
         onChange={(value) => setForm({ ...form, line1: value })}
       />
+      <TextField
+        label="Address line 2"
+        value={form.line2}
+        onChange={(value) => setForm({ ...form, line2: value })}
+      />
       <SelectField
         label="State"
         value={form.state}
@@ -287,6 +314,13 @@ export function AddPersonForm({
             onChange={(value) => setForm({ ...form, shareType: value })}
             options={SC_SHARE_TYPES.map((key) => ({ value: key, label: SC_SHARE_TYPE_LABELS[key] }))}
           />
+          {form.shareType === "OTHERS" ? (
+            <TextField
+              label="Other share type"
+              value={form.shareTypeOther}
+              onChange={(value) => setForm({ ...form, shareTypeOther: value })}
+            />
+          ) : null}
           <TextField
             label="Shareholding units"
             value={form.shareholdingUnits}
@@ -312,10 +346,22 @@ export function AddPersonForm({
             onChange={(value) => setForm({ ...form, designation: value })}
             options={SC_DESIGNATIONS.map((key) => ({ value: key, label: SC_DESIGNATION_LABELS[key] }))}
           />
+          {form.designation === "OTHERS" ? (
+            <TextField
+              label="Other designation"
+              value={form.designationOther}
+              onChange={(value) => setForm({ ...form, designationOther: value })}
+            />
+          ) : null}
           <DateField
             label="Appointment date"
             value={form.appointmentDate}
             onChange={(value) => setForm({ ...form, appointmentDate: value })}
+          />
+          <DateField
+            label="Resignation date"
+            value={form.resignationDate}
+            onChange={(value) => setForm({ ...form, resignationDate: value })}
           />
         </>
       ) : null}
@@ -345,18 +391,25 @@ export function PartyFillEmptyForm({
     onError: (err: Error) => toast.error(err.message),
   });
   const [form, setForm] = React.useState({
+    salutation: party.salutation ?? "",
     gender: party.gender ?? "",
     nationality: party.nationality ?? "",
     dateOfBirth: party.dateOfBirth?.slice(0, 10) ?? "",
+    dateOfIncorporation: party.dateOfIncorporation?.slice(0, 10) ?? "",
+    countryOfIncorporation: party.countryOfIncorporation ?? "",
     line1: party.address?.line1 ?? "",
+    line2: party.address?.line2 ?? "",
     state: party.address?.state ?? "",
     postalCode: party.address?.postalCode ?? "",
     shareType: party.shareType ?? "",
+    shareTypeOther: party.shareTypeOther ?? "",
     shareholdingUnits: party.shareholdingUnits ?? "",
     shareholdingAmount: party.shareholdingAmount ?? "",
     shareholdingPercentage: party.shareholdingPercentage ?? "",
     designation: party.designation ?? "",
+    designationOther: party.designationOther ?? "",
     appointmentDate: party.appointmentDate?.slice(0, 10) ?? "",
+    resignationDate: party.resignationDate?.slice(0, 10) ?? "",
   });
 
   return (
@@ -365,18 +418,31 @@ export function PartyFillEmptyForm({
       onSubmit={async (event) => {
         event.preventDefault();
         const data: Record<string, unknown> = {};
-        if (!party.gender && form.gender) data.gender = form.gender;
+        if (!party.salutation && form.salutation) data.salutation = form.salutation;
+        if (party.entityType === "CORPORATE" && party.gender !== "NOT_APPLICABLE") {
+          data.gender = "NOT_APPLICABLE";
+        } else if (!party.gender && form.gender) {
+          data.gender = form.gender;
+        }
         if (!party.nationality && form.nationality) data.nationality = form.nationality;
         if (!party.dateOfBirth && form.dateOfBirth) data.dateOfBirth = form.dateOfBirth;
-        if (!party.address?.line1 || !party.address?.state || !party.address?.postalCode) {
+        if (!party.dateOfIncorporation && form.dateOfIncorporation) {
+          data.dateOfIncorporation = form.dateOfIncorporation;
+        }
+        if (!party.countryOfIncorporation && form.countryOfIncorporation) {
+          data.countryOfIncorporation = form.countryOfIncorporation;
+        }
+        if (!party.address?.line1 || !party.address?.line2 || !party.address?.state || !party.address?.postalCode) {
           data.address = {
             line1: form.line1 || party.address?.line1 || null,
+            line2: form.line2 || party.address?.line2 || null,
             state: form.state || party.address?.state || null,
             postalCode: form.postalCode || party.address?.postalCode || null,
           };
         }
         if (party.isShareholder) {
           if (!party.shareType && form.shareType) data.shareType = form.shareType;
+          if (!party.shareTypeOther && form.shareTypeOther) data.shareTypeOther = form.shareTypeOther;
           if (!party.shareholdingUnits && form.shareholdingUnits) data.shareholdingUnits = form.shareholdingUnits;
           if (!party.shareholdingAmount && form.shareholdingAmount) data.shareholdingAmount = form.shareholdingAmount;
           if (!party.shareholdingPercentage && form.shareholdingPercentage) {
@@ -385,12 +451,21 @@ export function PartyFillEmptyForm({
         }
         if (party.isDirector || party.isBoard || party.isManagement) {
           if (!party.designation && form.designation) data.designation = form.designation;
+          if (!party.designationOther && form.designationOther) data.designationOther = form.designationOther;
           if (!party.appointmentDate && form.appointmentDate) data.appointmentDate = form.appointmentDate;
+          if (!party.resignationDate && form.resignationDate) data.resignationDate = form.resignationDate;
         }
         await save.mutateAsync(data);
       }}
     >
-      {!party.gender ? (
+      {!party.salutation ? (
+        <TextField
+          label="Salutation"
+          value={form.salutation}
+          onChange={(value) => setForm({ ...form, salutation: value })}
+        />
+      ) : null}
+      {party.entityType !== "CORPORATE" && !party.gender ? (
         <SelectField
           label="Gender"
           value={form.gender}
@@ -405,15 +480,36 @@ export function PartyFillEmptyForm({
           onChange={(value) => setForm({ ...form, nationality: value })}
         />
       ) : null}
-      {!party.dateOfBirth ? (
+      {party.entityType !== "CORPORATE" && !party.dateOfBirth ? (
         <DateField
           label="Date of birth"
           value={form.dateOfBirth}
           onChange={(value) => setForm({ ...form, dateOfBirth: value })}
         />
       ) : null}
+      {party.entityType === "CORPORATE" && !party.dateOfIncorporation ? (
+        <DateField
+          label="Date of incorporation"
+          value={form.dateOfIncorporation}
+          onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
+        />
+      ) : null}
+      {party.entityType === "CORPORATE" && !party.countryOfIncorporation ? (
+        <TextField
+          label="Country of incorporation"
+          value={form.countryOfIncorporation}
+          onChange={(value) => setForm({ ...form, countryOfIncorporation: value })}
+        />
+      ) : null}
       {!party.address?.line1 ? (
         <TextField label="Address" value={form.line1} onChange={(value) => setForm({ ...form, line1: value })} />
+      ) : null}
+      {!party.address?.line2 ? (
+        <TextField
+          label="Address line 2"
+          value={form.line2}
+          onChange={(value) => setForm({ ...form, line2: value })}
+        />
       ) : null}
       {!party.address?.state ? (
         <SelectField
@@ -436,6 +532,13 @@ export function PartyFillEmptyForm({
           value={form.shareType}
           onChange={(value) => setForm({ ...form, shareType: value })}
           options={SC_SHARE_TYPES.map((key) => ({ value: key, label: SC_SHARE_TYPE_LABELS[key] }))}
+        />
+      ) : null}
+      {party.isShareholder && (party.shareType === "OTHERS" || form.shareType === "OTHERS") && !party.shareTypeOther ? (
+        <TextField
+          label="Other share type"
+          value={form.shareTypeOther}
+          onChange={(value) => setForm({ ...form, shareTypeOther: value })}
         />
       ) : null}
       {party.isShareholder && !party.shareholdingUnits ? (
@@ -467,11 +570,27 @@ export function PartyFillEmptyForm({
           options={SC_DESIGNATIONS.map((key) => ({ value: key, label: SC_DESIGNATION_LABELS[key] }))}
         />
       ) : null}
+      {(party.isDirector || party.isBoard || party.isManagement) &&
+      (party.designation === "OTHERS" || form.designation === "OTHERS") &&
+      !party.designationOther ? (
+        <TextField
+          label="Other designation"
+          value={form.designationOther}
+          onChange={(value) => setForm({ ...form, designationOther: value })}
+        />
+      ) : null}
       {(party.isDirector || party.isBoard || party.isManagement) && !party.appointmentDate ? (
         <DateField
           label="Appointment date"
           value={form.appointmentDate}
           onChange={(value) => setForm({ ...form, appointmentDate: value })}
+        />
+      ) : null}
+      {(party.isDirector || party.isBoard || party.isManagement) && !party.resignationDate ? (
+        <DateField
+          label="Resignation date"
+          value={form.resignationDate}
+          onChange={(value) => setForm({ ...form, resignationDate: value })}
         />
       ) : null}
       <div className="flex gap-2 sm:col-span-2">

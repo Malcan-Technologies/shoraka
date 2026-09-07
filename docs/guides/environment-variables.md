@@ -124,8 +124,8 @@ Server-only on the API. The chat app id and Help Center URL are also exposed to 
 | `PLAIN_API_KEY` | API | Machine-user GraphQL key (`plainApiKey_…`) |
 | `PLAIN_CHAT_APP_ID` | API | Chat app id (`liveChatApp_…`) |
 | `PLAIN_CHAT_SECRET` | API | HMAC secret for signed-in `emailHash` |
-| `NEXT_PUBLIC_PLAIN_CHAT_APP_ID` | Issuer / investor / landing | Same chat app id as above |
-| `NEXT_PUBLIC_HELP_CENTER_URL` | Issuer / investor / landing | Hosted Help Center (`https://help.cashsouk.com`) |
+| `NEXT_PUBLIC_PLAIN_CHAT_APP_ID` | Issuer / investor / landing | Same chat app id as above. Inlined at `next build` via Docker `ARG` / GitHub secret. Also in `Frontend_Secrets`. |
+| `NEXT_PUBLIC_HELP_CENTER_URL` | Issuer / investor / landing | Hosted Help Center (`https://help.cashsouk.com`). Same build-arg path as the chat app id. |
 
 Generate `PLAIN_CHAT_SECRET` in Plain under Settings → Chat. API key permissions should include at least `helpCenter:read`, `helpCenter:edit`, `customer:read`, `customer:create`, `thread:read`, and `chatApp:read`. See [Plain support](./plain-support.md).
 

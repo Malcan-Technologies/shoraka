@@ -67,6 +67,14 @@
         {
           "name": "NEXT_PUBLIC_API_URL",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:Frontend_Secrets-eB5XhF:NEXT_PUBLIC_API_URL::"
+        },
+        {
+          "name": "NEXT_PUBLIC_PLAIN_CHAT_APP_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:Frontend_Secrets-eB5XhF:NEXT_PUBLIC_PLAIN_CHAT_APP_ID::"
+        },
+        {
+          "name": "NEXT_PUBLIC_HELP_CENTER_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:Frontend_Secrets-eB5XhF:NEXT_PUBLIC_HELP_CENTER_URL::"
         }
       ],
       "logConfiguration": {

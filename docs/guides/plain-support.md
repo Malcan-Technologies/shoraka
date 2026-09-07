@@ -27,7 +27,7 @@ Use the Plain dashboard or Help Center API to create and update articles. Publis
 - **Landing:** anonymous — omit `customer`.
 - **Issuer / investor:** identified users. The launcher initializes as soon as the widget script is ready, then `GET /v1/support/chat-identity` (auth required) attaches the HMAC `emailHash` computed with `PLAIN_CHAT_SECRET`. Returns 503 if chat is not configured.
 
-Public env (issuer / investor / landing only): `NEXT_PUBLIC_PLAIN_CHAT_APP_ID`, `NEXT_PUBLIC_HELP_CENTER_URL`. Server-only on the API: `PLAIN_API_KEY`, `PLAIN_CHAT_APP_ID`, `PLAIN_CHAT_SECRET`. Never put the API key or chat secret in a `NEXT_PUBLIC_*` variable.
+Public env (issuer / investor / landing only): `NEXT_PUBLIC_PLAIN_CHAT_APP_ID`, `NEXT_PUBLIC_HELP_CENTER_URL`. These are inlined at portal image build (Docker `ARG` + GitHub secret `NEXT_PUBLIC_PLAIN_CHAT_APP_ID` / `NEXT_PUBLIC_HELP_CENTER_URL`) and stored in `Frontend_Secrets`. Server-only on the API: `PLAIN_API_KEY`, `PLAIN_CHAT_APP_ID`, `PLAIN_CHAT_SECRET`. Never put the API key or chat secret in a `NEXT_PUBLIC_*` variable.
 
 ## CSP
 

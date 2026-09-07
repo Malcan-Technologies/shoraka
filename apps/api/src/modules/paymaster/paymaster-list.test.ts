@@ -41,7 +41,7 @@ describe("admin Paymaster registry list", () => {
     const identities = readFileSync(join(__dirname, "submitted-application-identities.ts"), "utf8");
     expect(service).not.toMatch(/sendTyped|NotificationService/);
     expect(identities).not.toMatch(/sendTyped|NotificationService/);
-    expect(identities).not.toMatch(/PAYMASTER_CREATED|PAYMASTER_LINKED_TO_ISSUER|PAYMASTER_VERIFIED|PAYMASTER_IDENTITY_RESOLVED/);
+    expect(identities).not.toMatch(/PAYMASTER_CREATED|PAYMASTER_LINKED_TO_ISSUER|PAYMASTER_IDENTITY_UPDATED|PAYMASTER_VERIFIED|PAYMASTER_IDENTITY_RESOLVED/);
     expect(identities).not.toMatch(/PaymasterMismatch/);
   });
 });

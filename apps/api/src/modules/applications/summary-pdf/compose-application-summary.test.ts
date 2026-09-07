@@ -293,6 +293,37 @@ describe("composeApplicationSummary", () => {
     expect(model.companyFields.find((f) => f.label === "Main customers")?.value).toBe("Retail chains");
   });
 
+  it("uses SC Purpose of Fund Raising and does not also show legacy financing_for", () => {
+    const model = composeApplicationSummary({
+      application: baseApplication({
+        business_details: {
+          why_raising_funds: {
+            financing_for: "Expand warehouse capacity",
+            sc_purpose_of_fund_raising: "BUSINESS_EXPANSION",
+            how_funds_used: "Pay workers and buy materials",
+          },
+        },
+      }),
+      logs: [],
+      authorNames: new Map(),
+      generatedAt: new Date("2026-08-24T08:31:00.000Z"),
+    });
+    expect(model.companyFields.find((f) => f.label === "Purpose of Fund Raising")?.value).toBe(
+      "Business Expansion"
+    );
+    expect(model.companyFields.find((f) => f.label === "Financing purpose")).toBeUndefined();
+    expect(model.companyFields.find((f) => f.label === "How funds will be used")?.value).toBe(
+      "Pay workers and buy materials"
+    );
+  });
+
+  it("falls back to legacy financing_for when SC purpose is absent", () => {
+    const model = compose();
+    expect(model.companyFields.find((f) => f.label === "Purpose of Fund Raising")?.value).toBe(
+      "Working capital"
+    );
+  });
+
   it("labels AMENDMENTS_SUBMITTED as an amendment request sent by CashSouk", () => {
     const model = compose({
       logs: [

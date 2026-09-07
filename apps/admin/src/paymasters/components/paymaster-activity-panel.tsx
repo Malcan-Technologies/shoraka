@@ -115,7 +115,7 @@ export function PaymasterActivityPanel({
           </p>
         ) : totalCount === 0 ? (
           <div className="px-5 py-8 text-center text-ui text-muted-foreground">
-            Paymaster created, issuer-link, and identity-verified events will appear here.
+            Paymaster created, linked, identity-updated, and identity-verified events will appear here.
           </div>
         ) : (
           <AdminVerticalTimeline>
