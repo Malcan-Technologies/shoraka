@@ -15,6 +15,8 @@ import {
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
   parseInvoiceOfferCampaignSector,
+  formatScPurposeOfFundRaisingDisplay,
+  resolveApplicationPurposeOfFundRaising,
   SC_SUSTAINABILITY_CATEGORIES,
   valuesEqualForMismatch,
 } from "./comrep-profile";
@@ -444,5 +446,32 @@ describe("issuer profile financial editor keys", () => {
       plnetdiv: 1,
     });
     expect(computeIssuerFinancialCompleteness(filled).map((item) => item.field)).toEqual([]);
+  });
+});
+
+describe("Purpose of Fund Raising display", () => {
+  it("formats SC enums and Others text", () => {
+    expect(formatScPurposeOfFundRaisingDisplay("WORKING_CAPITAL")).toBe("Working Capital");
+    expect(formatScPurposeOfFundRaisingDisplay("BUSINESS_EXPANSION")).toBe("Business Expansion");
+    expect(formatScPurposeOfFundRaisingDisplay("OTHERS", "Construction of a warehouse")).toBe(
+      "Others: Construction of a warehouse"
+    );
+    expect(formatScPurposeOfFundRaisingDisplay("OTHERS", "  ")).toBe("Others");
+    expect(formatScPurposeOfFundRaisingDisplay("not-an-enum")).toBeNull();
+  });
+
+  it("prefers SC purpose over legacy financing_for and falls back when SC is absent", () => {
+    expect(
+      resolveApplicationPurposeOfFundRaising({
+        sc_purpose_of_fund_raising: "WORKING_CAPITAL",
+        financing_for: "Expand warehouse capacity",
+      })
+    ).toBe("Working Capital");
+    expect(
+      resolveApplicationPurposeOfFundRaising({
+        financing_for: "  Expand warehouse capacity  ",
+      })
+    ).toBe("Expand warehouse capacity");
+    expect(resolveApplicationPurposeOfFundRaising({})).toBeNull();
   });
 });

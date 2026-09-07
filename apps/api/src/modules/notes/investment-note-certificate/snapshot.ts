@@ -9,6 +9,7 @@ import {
   formatUtcCalendarDateEnMy,
   PROSPECTUS_FIXED_PAYMENT_BASIS,
   PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
+  resolvePurposeOfFinancing,
   roundNoteMoney,
 } from "@cashsouk/types";
 import { prisma } from "../../../lib/prisma";
@@ -115,8 +116,7 @@ function resolvePaymasterName(paymasterSnapshot: unknown): string {
 }
 
 function resolveFinancingPurpose(purposeSnapshot: unknown): string {
-  const snap = asRecord(purposeSnapshot);
-  return nonEmpty(snap?.financing_for) ?? "—";
+  return resolvePurposeOfFinancing(purposeSnapshot) ?? "—";
 }
 
 function freezeInvestorName(org: {

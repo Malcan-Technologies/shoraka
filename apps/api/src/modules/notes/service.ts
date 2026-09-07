@@ -89,6 +89,7 @@ import {
   formatSettlementReference,
   formatWithdrawalReference,
   isScFundRaisingPurpose,
+  formatScPurposeOfFundRaisingDisplay,
 } from "@cashsouk/types";
 import {
   creditInvestorBalance,
@@ -406,7 +407,10 @@ function resolvePurposeOfFinancingFromBusinessDetails(
   if (typeof financingFor === "string" && financingFor.trim().length > 0) {
     return financingFor.trim();
   }
-  return null;
+  return formatScPurposeOfFundRaisingDisplay(
+    whyRaising?.sc_purpose_of_fund_raising,
+    whyRaising?.sc_purpose_other
+  );
 }
 
 function buildPurposeSnapshotFromBusinessDetails(

@@ -26,6 +26,8 @@ const MOCK_ABOUT = {
 };
 
 const MOCK_WHY = {
+  sc_purpose_of_fund_raising: "WORKING_CAPITAL",
+  sc_purpose_other: "",
   financing_for: "Invoice-backed working capital (mock).",
   how_funds_used: "Stock purchase and delivery fleet maintenance.",
   business_plan: "Expand cold-chain routes; mock text for layout.",

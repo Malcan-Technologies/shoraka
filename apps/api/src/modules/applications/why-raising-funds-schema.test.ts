@@ -26,4 +26,14 @@ describe("whyRaisingFundsSchema SC purpose of fund raising", () => {
     expect(parsed.sc_purpose_of_fund_raising).toBe("OTHERS");
     expect(parsed.sc_purpose_other).toBe("Refinance existing facilities");
   });
+
+  it("accepts a payload without financing_for", () => {
+    const parsed = whyRaisingFundsSchema.parse({
+      sc_purpose_of_fund_raising: "WORKING_CAPITAL",
+      how_funds_used: "Pay workers and buy materials",
+    });
+    expect(parsed.financing_for).toBe("");
+    expect(parsed.sc_purpose_of_fund_raising).toBe("WORKING_CAPITAL");
+    expect(parsed.how_funds_used).toBe("Pay workers and buy materials");
+  });
 });

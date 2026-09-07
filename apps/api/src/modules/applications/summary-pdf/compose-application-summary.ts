@@ -5,6 +5,7 @@ import {
   parseAboutYourBusinessFromCorporateData,
   parseFiniteNumber,
   readFinancingStructureType,
+  resolveApplicationPurposeOfFundRaising,
 } from "@cashsouk/types";
 import {
   buildContractOfferLetterTerms,
@@ -253,7 +254,7 @@ function composeCompany(app: ApplicationSummarySource): SummaryField[] {
       readString(aboutFromCod.whatDoesCompanyDo) ?? readString(aboutFromApp.whatDoesCompanyDo)
     ),
     field("Main customers", readString(aboutFromCod.mainCustomers) ?? readString(aboutFromApp.mainCustomers)),
-    field("Financing purpose", readString(why?.financing_for)),
+    field("Purpose of Fund Raising", resolveApplicationPurposeOfFundRaising(why)),
     field("How funds will be used", readString(why?.how_funds_used))
   );
 }

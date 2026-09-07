@@ -9,6 +9,7 @@ import {
   resolveNetExpectedReturnRatePercent,
   resolveNoteTimingDisplay,
   resolveMarcNoteRiskPresentation,
+  resolvePurposeOfFinancing,
   type NoteDetail,
 } from "@cashsouk/types";
 
@@ -87,7 +88,6 @@ export function resolveCatalogueOptionLabel(
 export function buildNoteInvestmentDetailSections(
   note: NoteDetail
 ): NoteInvestmentDetailSection[] {
-  const purpose = asRecord(note.purposeSnapshot);
   const product = asRecord(note.productSnapshot);
   const paymaster = asRecord(note.paymasterSnapshot);
 
@@ -163,8 +163,7 @@ export function buildNoteInvestmentDetailSections(
         { label: "Tenure", value: tenure },
         {
           label: "Purpose of Financing",
-          // purpose_snapshot.financing_for only (Note create freeze).
-          value: textOrDna(purpose?.financing_for),
+          value: textOrDna(resolvePurposeOfFinancing(note.purposeSnapshot)),
         },
         {
           label: "Payment Basis",

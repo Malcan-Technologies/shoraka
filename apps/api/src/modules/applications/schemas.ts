@@ -54,6 +54,7 @@ const aboutYourBusinessSchema = z.object({
 
 export const whyRaisingFundsSchema = z
   .object({
+    /** Legacy free-text purpose. No longer collected in the issuer UI; retained so existing JSON still parses. */
     financing_for: z.string().max(400).optional().default(""),
     how_funds_used: z.string().max(400).optional().default(""),
     business_plan: z.string().max(1000).optional().default(""),

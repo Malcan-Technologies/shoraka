@@ -372,7 +372,7 @@ describe("note & investment details coverage", () => {
 
     const source = fs.readFileSync(path.join(__dirname, "core-terms.ts"), "utf8");
     expect(source).not.toMatch(/liveApplicationFinancingFor|liveApplication/);
-    expect(source).toContain("purpose?.financing_for");
+    expect(source).toContain("resolvePurposeOfFinancing");
     expect(source).toContain('title: "Investment Summary"');
     expect(source).not.toContain('title: "Investment Terms"');
   });
