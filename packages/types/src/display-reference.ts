@@ -55,6 +55,18 @@ export function formatOrganizationReference(input: CanonicalReferenceInput): str
 }
 
 /**
+ * Generated/legal documents: allocated canonical `display_reference` only.
+ * Never a CUID, short-id fallback, or customer business number.
+ * Empty when unset so the merge tag stays visible.
+ */
+export function documentCanonicalReference(input: CanonicalReferenceInput): string {
+  const canonical = trimmed(input.displayReference);
+  if (!canonical) return "";
+  if (input.id && canonical === input.id) return "";
+  return canonical;
+}
+
+/**
  * Named-entity label: `Toyota (ISS-202608-DK3)`.
  * Uses the canonical reference only — never a hashed short-id fallback in brackets.
  */

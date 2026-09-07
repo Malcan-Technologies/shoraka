@@ -25,6 +25,7 @@ import {
 import {
   DEFAULT_SIGNING_DEADLINE,
   FINANCING_TENURE_MAX_DAYS,
+  documentCanonicalReference,
   getLoAuthorizedPartiesFromAcceptance,
   getOfferAcceptanceFromOfferDetails,
   readInvoiceSubLimitPerInvoiceRmFromWorkflow,
@@ -113,6 +114,7 @@ export function facilityLoCheckboxGlyphs(
 export type BuildFacilityLoMergeInput = {
   contract: {
     id: string;
+    display_reference?: string | null;
     contract_details?: unknown;
     offer_details?: unknown;
     customer_details?: unknown;
@@ -120,6 +122,7 @@ export type BuildFacilityLoMergeInput = {
   };
   issuerOrganization: {
     id: string;
+    display_reference?: string | null;
     name?: string | null;
     registration_number?: string | null;
     address?: string | null;
@@ -205,8 +208,14 @@ export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): Cont
   return {
     ...base,
     ...emptyMissing,
-    issuer_id: input.issuerOrganization.id || input.contract.issuer_organization_id,
-    our_reference: input.contract.id,
+    issuer_id: documentCanonicalReference({
+      displayReference: input.issuerOrganization.display_reference,
+      id: input.issuerOrganization.id,
+    }),
+    our_reference: documentCanonicalReference({
+      displayReference: input.contract.display_reference,
+      id: input.contract.id,
+    }),
     letter_date: letterDate,
     issuer_name: asString(input.issuerOrganization.name),
     issuer_registration_number: resolveIssuerRegistrationNumber(input.issuerOrganization),

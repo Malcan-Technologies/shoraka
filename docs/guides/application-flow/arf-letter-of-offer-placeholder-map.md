@@ -110,8 +110,8 @@ For each row:
 | ID  | Template location | Placeholder                    | Recommended fill                                                        | Platform source                                                                | Status                  | Your decision                                  | Notes                                                                      |
 | --- | ----------------- | ------------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------- | ---------------------------------------------- | -------------------------------------------------------------------------- |
 | H1  | Header            | (letterhead in template)       | Letterhead baked into Word template — no merge field                        | Template asset                                                                 | `N/A`                   | Done — letterhead in document                  | Not a data field; removed from merge payload                               |
-| H2  | Issuer ID         | `[Insert]`                     | Issuer org id                                                           | `Application.issuer_organization_id` → `IssuerOrganization.id`                 | `EXISTS`                | Agreed                                         | CUID; confirm if legal wants a human-readable issuer code instead          |
-| H3  | Our Reference     | `[Insert]`                     | Contract id as offer reference                                          | `Contract.id` (fallback `Application.id` only if needed)                       | `PARTIAL`               | Agreed                                         | No dedicated LO reference scheme; contract id is the natural facility key |
+| H2  | Issuer ID         | `[Insert]`                     | Issuer org display reference                                            | `IssuerOrganization.display_reference` (`ISS-{YYYYMM}-{XXX}`)                   | `EXISTS`                | Agreed                                         | Canonical issuer code. Do not print the org CUID. Historical null prints `{issuer_id}`. |
+| H3  | Our Reference     | `[Insert]`                     | Facility display reference                                              | `Contract.display_reference` (`CON-{PRODUCT}-{YYYYMM}-{XXX}`)                   | `EXISTS`                | Agreed                                         | CashSouk facility reference. Do not print `Contract.id`. |
 | H4  | Date              | `[Insert]`                     | Date offer letter is issued / sent                                      | Prefer `Contract.offer_details.sent_at` (date part); else generation timestamp | `DERIVE`                | Agreed                                         | Format e.g. `16 July 2026`                                                 |
 
 
@@ -268,7 +268,7 @@ For each row:
 - Tenure days at facility LO time
 - Payment period (max days from disbursement)
 - Availability period as a facility term
-- Dedicated LO / Our Reference scheme (beyond `Contract.id`)
+- Dedicated LO / Our Reference scheme — use `Contract.display_reference`
 - Letterhead asset (pending)
 
 ### Leave for signing (`SIGNEE`)
@@ -283,7 +283,7 @@ For each row:
 
 ```
 issuer_id
-our_reference                 # Contract.id
+our_reference                 # Contract.display_reference
 letter_date
 issuer_name
 issuer_registration_number
@@ -327,7 +327,7 @@ corporate_guarantor_signatories[]
 - [ ] Confirm this template is **contract facility only** (invoice offers use a different letter)
 - [ ] Confirm how to capture **margin of receivable** + **profit rate** on contract Send Offer (new fields vs admin-only LO inputs)
 - [ ] Confirm profit rate: template monthly vs platform p.a. convention
-- [ ] Confirm Our Reference = `Contract.id` or new scheme
+- [x] Confirm Our Reference = `Contract.display_reference` (`CON-…`)
 - [ ] Confirm defaults: availability 30, notice 21, validity 7
 - [ ] Confirm payment period + tenure capture at facility offer
 - [ ] Confirm grace: use `PlatformFinanceSetting.grace_period_days` at LO

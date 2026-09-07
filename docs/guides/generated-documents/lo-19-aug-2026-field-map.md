@@ -41,8 +41,8 @@ Already shared (no separate “demo template”):
 
 | Merge key | Template location | Status | Data source | Notes |
 |-----------|-------------------|--------|-------------|-------|
-| `issuer_id` | Header — Issuer ID | `EXISTS` | `IssuerOrganization.id` | |
-| `our_reference` | Header — Our Reference | `EXISTS` | `Contract.id` | |
+| `issuer_id` | Header — Issuer ID | `EXISTS` | `IssuerOrganization.display_reference` (`ISS-{YYYYMM}-{XXX}`) | Empty (visible `{issuer_id}`) when historical rows have no allocated ref. Never the org CUID. |
+| `our_reference` | Header — Our Reference | `EXISTS` | `Contract.display_reference` (`CON-{PRODUCT}-{YYYYMM}-{XXX}`) | Empty (visible `{our_reference}`) when unset. Never `Contract.id`. |
 | `letter_date` | Header Date; MoA “DATED …”; acknowledgement “dated …” | `DERIVE` | `offer_details.sent_at` → `formatLetterDate` | Required |
 | `issuer_name` | Addressee; ISSUER row; MoA; acks; behalf line | `EXISTS` | `IssuerOrganization.name` | |
 | `issuer_registration_number` | Addressee; MoA; behalf “Company No.” | `EXISTS` | Org `registration_number`, else COD `basicInfo.ssmRegistrationNumber` / `ssmRegisterNumber` | |

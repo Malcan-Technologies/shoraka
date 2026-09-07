@@ -90,6 +90,7 @@ describe("buildDeedOfAssignmentMergeData", () => {
           bankName: "Demo Trustee Bank",
           accountName: "CashSouk Repayment Pool",
           accountNumber: "1234567890",
+          swiftCode: "RHBBMYKL",
         },
       },
     });
@@ -116,7 +117,7 @@ describe("buildDeedOfAssignmentMergeData", () => {
     expect(data.trust_bank_name).toBe("Demo Trustee Bank");
     expect(data.trust_account_name).toBe("CashSouk Repayment Pool");
     expect(data.trust_account_number).toBe("1234567890");
-    expect(data.trust_swift_code).toBe("");
+    expect(data.trust_swift_code).toBe("RHBBMYKL");
     expect(data.debtor_company_name).toBe("Buyer Co");
     expect(data.debtor_registration_number).toBe("202134567890");
     expect(data.debtor_address).toBe("");
@@ -130,6 +131,40 @@ describe("buildDeedOfAssignmentMergeData", () => {
         due_date: "30 August 2026",
       },
     ]);
+  });
+
+  it("uses the invoice display_reference when the commercial number is missing, never the CUID", () => {
+    const withCanonical = buildDeedOfAssignmentMergeData({
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        offer_details: { sent_at: "2026-07-16T02:00:00.000Z" },
+        customer_details: { name: "Buyer Co" },
+      },
+      issuerOrganization: BASE_ORG,
+      application: {
+        id: "app_1",
+        invoices: [{ id: "inv_cuid", display_reference: "INV-ARF-202608-0N5", details: {} }],
+      },
+    });
+    expect(withCanonical.transaction_documents[0]?.transaction_document_name_number).toBe(
+      "INV-ARF-202608-0N5"
+    );
+
+    const withIdOnly = buildDeedOfAssignmentMergeData({
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        offer_details: { sent_at: "2026-07-16T02:00:00.000Z" },
+        customer_details: { name: "Buyer Co" },
+      },
+      issuerOrganization: BASE_ORG,
+      application: {
+        id: "app_1",
+        invoices: [{ id: "inv_cuid", details: {} }],
+      },
+    });
+    expect(withIdOnly.transaction_documents[0]?.transaction_document_name_number).toBe("");
   });
 
   it("leaves Schedule 3 empty when the application has no invoices", () => {

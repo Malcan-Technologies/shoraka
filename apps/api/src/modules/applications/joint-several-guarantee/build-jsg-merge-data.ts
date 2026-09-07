@@ -11,7 +11,11 @@ import {
   resolveIssuerRegistrationNumber,
   resolveRegisteredAddress,
 } from "../letter-of-offer/build-facility-lo-merge-data";
-import { getLoAuthorizedPartiesFromAcceptance, getOfferAcceptanceFromOfferDetails } from "@cashsouk/types";
+import {
+  documentCanonicalReference,
+  getLoAuthorizedPartiesFromAcceptance,
+  getOfferAcceptanceFromOfferDetails,
+} from "@cashsouk/types";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -37,6 +41,7 @@ export function formatJsgFacilityDescription(amountRm: string, letterDate: strin
 export type BuildJsgMergeInput = {
   contract: {
     id: string;
+    display_reference?: string | null;
     contract_details?: unknown;
     offer_details?: unknown;
     issuer_organization_id: string;
@@ -88,7 +93,10 @@ export function buildJsgMergeData(input: BuildJsgMergeInput): JsgMergeData {
     ...emptyMissing,
     guarantee_date: letterDate,
     letter_date: letterDate,
-    our_reference: input.contract.id,
+    our_reference: documentCanonicalReference({
+      displayReference: input.contract.display_reference,
+      id: input.contract.id,
+    }),
     issuer_name: asString(input.issuerOrganization.name),
     issuer_registration_number: resolveIssuerRegistrationNumber(input.issuerOrganization),
     issuer_address: resolveRegisteredAddress(input.issuerOrganization),

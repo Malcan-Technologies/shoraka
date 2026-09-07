@@ -276,10 +276,12 @@ describe("GeneratedDocumentsService.generateDocument", () => {
       name: "Test Issuer Ltd",
       registration_number: "123456-A",
       address: "1 Test Street",
+      display_reference: "ISS-202608-DK3",
       corporate_onboarding_data: null,
     },
     contract: {
       id: "contract_1",
+      display_reference: "CON-ARF-202608-K71",
       issuer_organization_id: "org_1",
       contract_details: { approved_facility: 100000 },
       offer_details: {
@@ -363,6 +365,12 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     expect(result.filename.endsWith(".pdf")).toBe(true);
     expect(result.templateSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(convertPdf.convertDocxToPdf).toHaveBeenCalled();
+    expect(buildMerge.buildFacilityLoMergeData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contract: expect.objectContaining({ display_reference: "CON-ARF-202608-K71" }),
+        issuerOrganization: expect.objectContaining({ display_reference: "ISS-202608-DK3" }),
+      })
+    );
   });
 
   it("rejects when product does not configure the generated type", async () => {
@@ -520,7 +528,11 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     expect(result.contentType).toBe("application/pdf");
     expect(result.filename).toMatch(/^ARF-JSG-.+\.pdf$/);
     expect(result.filename.endsWith(".pdf")).toBe(true);
-    expect(buildJsgMerge.buildJsgMergeData).toHaveBeenCalled();
+    expect(buildJsgMerge.buildJsgMergeData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contract: expect.objectContaining({ display_reference: "CON-ARF-202608-K71" }),
+      })
+    );
     expect(renderJsg.renderJsgDocx).toHaveBeenCalled();
     expect(convertPdf.convertDocxToPdf).toHaveBeenCalled();
   });
@@ -644,7 +656,10 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     expect(result.contentType).toBe("application/pdf");
     expect(result.filename).toMatch(/^ARF-FA-.+\.pdf$/);
     expect(buildFaMerge.buildFacilityAgreementMergeData).toHaveBeenCalledWith(
-      expect.objectContaining({ offerKind: "contract" })
+      expect.objectContaining({
+        offerKind: "contract",
+        contract: expect.objectContaining({ display_reference: "CON-ARF-202608-K71" }),
+      })
     );
     expect(renderFa.renderFacilityAgreementDocx).toHaveBeenCalled();
     expect(prisma.generatedDocumentEvidence.create).toHaveBeenCalledWith(
@@ -671,7 +686,7 @@ describe("GeneratedDocumentsService.generateDocument", () => {
       invoices: [
         {
           id: "inv_1",
-          display_reference: "INV-REF-1",
+          display_reference: "INV-ARF-202608-0N5",
           offer_details: {
             offered_amount: 180000,
             platform_fee_rate_percent: 1.5,

@@ -11,6 +11,7 @@ import {
 } from "../letter-of-offer/build-facility-lo-merge-data";
 import {
   authorizedRepresentativeCapacityLabel,
+  documentCanonicalReference,
   getIssuerAuthorizedParty,
   getLoAuthorizedPartiesFromAcceptance,
   getOfferAcceptanceFromOfferDetails,
@@ -114,6 +115,7 @@ export type BuildFacilityAgreementMergeInput = {
   offerKind: FacilityAgreementOfferKind;
   contract: {
     id: string;
+    display_reference?: string | null;
     contract_details?: unknown;
     offer_details?: unknown;
     issuer_organization_id: string;
@@ -211,8 +213,14 @@ export function buildFacilityAgreementMergeData(
     letter_date: letterDate,
     our_reference:
       input.offerKind === "invoice"
-        ? asString(input.invoice?.display_reference) || asString(input.invoice?.id)
-        : input.contract.id,
+        ? documentCanonicalReference({
+            displayReference: asString(input.invoice?.display_reference),
+            id: asString(input.invoice?.id),
+          })
+        : documentCanonicalReference({
+            displayReference: input.contract.display_reference,
+            id: input.contract.id,
+          }),
     issuer_name: asString(input.issuerOrganization.name),
     issuer_registration_number: resolveIssuerRegistrationNumber(input.issuerOrganization),
     issuer_address: resolveRegisteredAddress(input.issuerOrganization),

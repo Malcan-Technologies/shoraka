@@ -9,7 +9,7 @@ Requires `contract_offer_sent`. Recital A needs the Letter of Offer date and con
 | Field | Source |
 |-------|--------|
 | `guarantee_date`, `letter_date` | `offer_details.sent_at` via `formatLetterDate` (same value) |
-| `our_reference` | `Contract.id` (same as LO) |
+| `our_reference` | `Contract.display_reference` (`CON-{PRODUCT}-{YYYYMM}-{XXX}`), same as LO. Empty when unset — never `Contract.id`. |
 | `issuer_name` | `issuer_organization.name` |
 | `issuer_registration_number` | Org `registration_number`, then COD `basicInfo` SSM aliases |
 | `issuer_address` | COD `addresses.registered`, else `org.address` |

@@ -10,6 +10,7 @@ import {
   resolveRegisteredAddress,
 } from "../letter-of-offer/build-facility-lo-merge-data";
 import {
+  documentCanonicalReference,
   getIssuerAuthorizedParty,
   getLoAuthorizedPartiesFromAcceptance,
   getOfferAcceptanceFromOfferDetails,
@@ -55,6 +56,7 @@ function readTrustAccount(ledgerBucketAccountsConfig: unknown): {
   bank_name: string;
   account_name: string;
   account_number: string;
+  swift_code: string;
 } {
   const root = asRecord(ledgerBucketAccountsConfig);
   const pool = asRecord(root?.REPAYMENT_POOL);
@@ -62,6 +64,7 @@ function readTrustAccount(ledgerBucketAccountsConfig: unknown): {
     bank_name: asString(pool?.bankName),
     account_name: asString(pool?.accountName) || asString(pool?.displayName),
     account_number: asString(pool?.accountNumber),
+    swift_code: asString(pool?.swiftCode) || asString(pool?.swift),
   };
 }
 
@@ -78,7 +81,10 @@ function mapTransactionDocuments(
     const nameNumber =
       asString(details.invoice_number) ||
       asString(details.number) ||
-      asString(invoice.display_reference);
+      documentCanonicalReference({
+        displayReference: asString(invoice.display_reference),
+        id: asString(invoice.id),
+      });
     const date =
       formatDisplayDate(asString(details.issued_date) || asString(details.date)) ||
       formatDisplayDate(asString(details.start_date));
@@ -156,7 +162,7 @@ export function buildDeedOfAssignmentMergeData(
     trust_bank_name: trust.bank_name,
     trust_account_name: trust.account_name,
     trust_account_number: trust.account_number,
-    trust_swift_code: "",
+    trust_swift_code: trust.swift_code,
     debtor_company_name: debtorName,
     debtor_registration_number: asString(customer?.ssm_number),
     debtor_address: "",

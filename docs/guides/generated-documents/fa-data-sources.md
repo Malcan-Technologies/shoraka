@@ -12,7 +12,7 @@ SigningCloud recipients are the configured **issuer authorised signatories** onl
 |-------|--------|
 | `facility_agreement_date` | Document generate time via `formatLetterDate` (Asia/Kuala_Lumpur) |
 | `letter_date` | Offer `sent_at` via `formatLetterDate` (generate-ready check; not printed in Word after v2) |
-| `our_reference` | Contract id, or invoice `display_reference` |
+| `our_reference` | Facility: `Contract.display_reference` (`CON-…`). Invoice offer: `Invoice.display_reference` (`INV-…`). Empty when unset — never a CUID. |
 | `issuer_name` | `issuer_organization.name` |
 | `issuer_registration_number` | Org `registration_number`, then COD `basicInfo` SSM aliases (same as LO) |
 | `issuer_address` | COD `addresses.registered`, else `org.address` |

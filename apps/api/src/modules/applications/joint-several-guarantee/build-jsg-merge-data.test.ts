@@ -38,6 +38,7 @@ describe("buildJsgMergeData", () => {
     const data = buildJsgMergeData({
       contract: {
         id: "ctr_abc",
+        display_reference: "CON-ARF-202608-K71",
         issuer_organization_id: "org_1",
         offer_details: {
           offered_facility: 500000,
@@ -92,7 +93,7 @@ describe("buildJsgMergeData", () => {
       },
     });
 
-    expect(data.our_reference).toBe("ctr_abc");
+    expect(data.our_reference).toBe("CON-ARF-202608-K71");
     expect(data.letter_date).toBe(data.guarantee_date);
     expect(data.letter_date).toContain("July 2026");
     expect(data.issuer_name).toBe("Issuer Co");
@@ -116,6 +117,25 @@ describe("buildJsgMergeData", () => {
     expect(data.schedule_guarantors[0]?.line).toContain("Ali");
     expect(data.schedule_guarantors[1]?.line).toContain("HoldCo");
     expect(data.schedule_guarantors[1]?.representatives[0]?.rep_line).toContain("Nora");
+  });
+
+  it("leaves our_reference empty instead of printing the contract CUID", () => {
+    const data = buildJsgMergeData({
+      contract: {
+        id: "ctr_abc",
+        issuer_organization_id: "org_1",
+        offer_details: {
+          offered_facility: 1,
+          sent_at: "2026-07-16T02:00:00.000Z",
+        },
+      },
+      issuerOrganization: {
+        id: "org_1",
+        name: "Issuer Co",
+        registration_number: "123456-A",
+      },
+    });
+    expect(data.our_reference).toBe("");
   });
 
   it("leaves facility_description empty when the financing amount is missing", () => {

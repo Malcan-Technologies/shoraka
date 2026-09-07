@@ -3,6 +3,7 @@ import {
   formatApplicationReference,
   formatContractReference,
   canonicalDownloadFilenameToken,
+  documentCanonicalReference,
   formatInvoiceReference,
   formatNamedEntityDisplay,
   formatNoteReference,
@@ -112,5 +113,21 @@ describe("display-reference formatters", () => {
     expect(canonicalDownloadFilenameToken("CON-ARF-202608-K71")).toBe("CON-ARF-202608-K71");
     expect(canonicalDownloadFilenameToken(null)).toBe("letter");
     expect(canonicalDownloadFilenameToken("  ")).toBe("letter");
+  });
+
+  it("prints allocated canonical refs in generated documents and never a CUID or short-id", () => {
+    expect(
+      documentCanonicalReference({
+        displayReference: "CON-ARF-202608-K71",
+        id: "clxxxxxxxx",
+        businessNumber: "CNT-2026-001",
+      })
+    ).toBe("CON-ARF-202608-K71");
+    expect(documentCanonicalReference({ id: "clabcdefghijklmnop" })).toBe("");
+    expect(documentCanonicalReference({ businessNumber: "CNT-2026-001", id: "x" })).toBe("");
+    expect(documentCanonicalReference({ displayReference: "clxxxxxxxx", id: "clxxxxxxxx" })).toBe(
+      ""
+    );
+    expect(documentCanonicalReference({ displayReference: "  " })).toBe("");
   });
 });

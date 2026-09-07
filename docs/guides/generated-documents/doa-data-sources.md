@@ -18,15 +18,15 @@ SigningCloud recipients are the configured **issuer_director** assignor signator
 | `assignor_email` | `application.company_details.contact_person.email` |
 | `assignor_contact_number` | `contact_person.contact`, else org `phone_number` |
 | `assignor_signatories[]` | All issuer authorised representatives (`Director` / `Authorised Signatory`). One execution block per person. |
-| `trust_bank_name`, `trust_account_name`, `trust_account_number` | `PlatformFinanceSetting.ledger_bucket_accounts_config.REPAYMENT_POOL` (`bankName`, `accountName`/`displayName`, `accountNumber`) |
+| `trust_bank_name`, `trust_account_name`, `trust_account_number`, `trust_swift_code` | `PlatformFinanceSetting.ledger_bucket_accounts_config.REPAYMENT_POOL` (`bankName`, `accountName`/`displayName`, `accountNumber`, `swiftCode`) |
 | `debtor_company_name`, `debtor_registration_number` | `contract.customer_details.name` and `ssm_number` |
-| `transaction_documents[]` | Application invoices (`invoice_number` / `number` / `display_reference`, issued date, value, due/maturity). Debtor name is reused on each row. |
+| `transaction_documents[]` | Application invoices. Name/number prefers the commercial `invoice_number` / `number`, then CashSouk `display_reference` (`INV-…`). Never the invoice CUID. Issued date, value, due/maturity. Debtor name is reused on each row. |
 
 ## Visible tags (not collected at facility time)
 
 These print as `{tag}` until a later data source exists. Generate does **not** fail closed on them:
 
-`trust_swift_code`, `debtor_address`, `debtor_attention`, `notice_date`, `notice_signatory_name`, `notice_signatory_designation`, `outstanding_amount`, `balance_as_of_date`, `debtor_signatory_name`, `debtor_signatory_designation`, `acknowledgement_date`.
+`debtor_address`, `debtor_attention`, `notice_date`, `notice_signatory_name`, `notice_signatory_designation`, `outstanding_amount`, `balance_as_of_date`, `debtor_signatory_name`, `debtor_signatory_designation`, `acknowledgement_date`.
 
 If the application has no invoices, Schedule 3 still renders **one placeholder row** with visible item tags so the schedule is never silently blank.
 

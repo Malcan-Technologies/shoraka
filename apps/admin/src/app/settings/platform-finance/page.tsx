@@ -44,6 +44,7 @@ const EMPTY_ACCOUNT: TrusteeAccountDetails = {
   accountName: "",
   accountNumber: "",
   remarks: "",
+  swiftCode: "",
 };
 
 type TrusteeLetterTextField = Exclude<
@@ -128,19 +129,22 @@ function AccountFields({
             ["bankName", "Bank name"],
             ["accountName", "Account name"],
             ["accountNumber", "Account number"],
+            ["swiftCode", "SWIFT code"],
           ] as const
         ).map(([key, label]) => (
           <div key={key} className="space-y-2">
             <label className="text-sm font-medium">{label}</label>
             <Input
-              value={value[key]}
+              value={value[key] ?? ""}
               disabled={disabled}
               placeholder={
                 key === "bankName"
                   ? "e.g. RHB Bank Berhad"
                   : key === "accountName"
                     ? accountNamePlaceholder
-                    : "e.g. 1234567890"
+                    : key === "swiftCode"
+                      ? "e.g. RHBBMYKL"
+                      : "e.g. 1234567890"
               }
               className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
               onChange={(event) => set(key, event.target.value)}
@@ -1021,6 +1025,7 @@ export default function PlatformFinanceSettingsPage() {
                       bankName: operating.bankName,
                       accountName: operating.accountName,
                       accountNumber: operating.accountNumber,
+                      swiftCode: operating.swiftCode ?? "",
                     };
                     saveMutation.mutate({
                       ledgerBucketAccountsConfig: normalizedBucketAccounts,

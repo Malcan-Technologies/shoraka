@@ -106,6 +106,7 @@ Stored primarily in `ledger_bucket_accounts_config` (API: `ledgerBucketAccountsC
 - Bank name (`bankName`)
 - Account name (`accountName`)
 - Account number (`accountNumber`)
+- SWIFT code (`swiftCode`)
 
 **Hidden but preserved on save:**
 

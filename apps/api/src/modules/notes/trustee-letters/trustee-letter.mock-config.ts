@@ -22,6 +22,7 @@ export const EMPTY_ACCOUNT: TrusteeAccountDetails = {
   accountName: "",
   accountNumber: "",
   remarks: "",
+  swiftCode: "",
 };
 
 function emptyPlatformAccounts(): PlatformAccountsConfig {

@@ -10,6 +10,7 @@ Older editable discussion table: [arf-letter-of-offer-placeholder-map.md](../app
 
 | Area | Source | Notes |
 |------|--------|--------|
+| Header Issuer ID / Our Reference | `issuer_organization.display_reference` (`ISS-…`); `contract.display_reference` (`CON-…`) | Never CUIDs. Empty when a historical row has no allocated ref. |
 | Issuer identity | `issuer_organization.registration_number`, then COD `basicInfo.ssmRegistrationNumber` / `ssmRegisterNumber` | Name, SSM, registered address |
 | Letter date | `offer_details.sent_at` | Required — generation fails if missing |
 | Attention | `application.company_details.contact_person` | Name, position |
