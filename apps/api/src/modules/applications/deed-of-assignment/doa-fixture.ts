@@ -26,26 +26,5 @@ export function createDeedOfAssignmentFixture(): DeedOfAssignmentMergeData {
     trust_account_name: "CashSouk Repayment Pool",
     trust_account_number: "1234567890",
     trust_swift_code: "",
-    debtor_company_name: "BUYER CO SDN. BHD.",
-    debtor_registration_number: "202134567890",
-    debtor_address: "",
-    debtor_attention: "",
-    notice_date: "",
-    notice_signatory_name: "",
-    notice_signatory_designation: "",
-    outstanding_amount: "",
-    balance_as_of_date: "",
-    debtor_signatory_name: "",
-    debtor_signatory_designation: "",
-    acknowledgement_date: "",
-    transaction_documents: [
-      {
-        transaction_document_name_number: "INV-001",
-        transaction_document_date: "1 July 2026",
-        debtor_name: "BUYER CO SDN. BHD.",
-        transaction_document_value: "RM 50,000.00",
-        due_date: "30 August 2026",
-      },
-    ],
   };
 }

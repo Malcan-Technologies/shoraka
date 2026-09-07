@@ -1,6 +1,6 @@
 # ARF Deed of Assignment — data sources
 
-What [`buildDeedOfAssignmentMergeData`](../../apps/api/src/modules/applications/deed-of-assignment/build-doa-merge-data.ts) does for production generate (`arf_deed_of_assignment` **v1**).
+What [`buildDeedOfAssignmentMergeData`](../../apps/api/src/modules/applications/deed-of-assignment/build-doa-merge-data.ts) does for production generate (`arf_deed_of_assignment` **v2**).
 
 Requires `contract_offer_sent`. Generated at facility-offer time.
 
@@ -10,7 +10,7 @@ SigningCloud recipients are the configured **issuer_director** assignor signator
 
 | Field | Source |
 |-------|--------|
-| `assignment_date` | `offer_details.sent_at` via `formatLetterDate` (also used in Schedule 2’s “effective from” sentence) |
+| `assignment_date` | `offer_details.sent_at` via `formatLetterDate` |
 | `assignor_company_name` | `issuer_organization.name` |
 | `assignor_registration_number` | Org `registration_number`, then COD `basicInfo` SSM aliases (same as LO) |
 | `assignor_registered_address` | COD `addresses.registered`, else `org.address` |
@@ -19,16 +19,11 @@ SigningCloud recipients are the configured **issuer_director** assignor signator
 | `assignor_contact_number` | `contact_person.contact`, else org `phone_number` |
 | `assignor_signatories[]` | All issuer authorised representatives (`Director` / `Authorised Signatory`). One execution block per person. |
 | `trust_bank_name`, `trust_account_name`, `trust_account_number`, `trust_swift_code` | `PlatformFinanceSetting.ledger_bucket_accounts_config.REPAYMENT_POOL` (`bankName`, `accountName`/`displayName`, `accountNumber`, `swiftCode`) |
-| `debtor_company_name`, `debtor_registration_number` | `contract.customer_details.name` and `ssm_number` |
-| `transaction_documents[]` | Application invoices. Name/number prefers the commercial `invoice_number` / `number`, then CashSouk `display_reference` (`INV-…`). Never the invoice CUID. Issued date, value, due/maturity. Debtor name is reused on each row. |
 
-## Visible tags (not collected at facility time)
+## Schedules (not merged)
 
-These print as `{tag}` until a later data source exists. Generate does **not** fail closed on them:
-
-`debtor_address`, `debtor_attention`, `notice_date`, `notice_signatory_name`, `notice_signatory_designation`, `outstanding_amount`, `balance_as_of_date`, `debtor_signatory_name`, `debtor_signatory_designation`, `acknowledgement_date`.
-
-If the application has no invoices, Schedule 3 still renders **one placeholder row** with visible item tags so the schedule is never silently blank.
+- **Schedule 2** stays the prescribed Form of Notice of Assignment. Original legal placeholders (`[insert date]`, `[Name & Address of Debtor]`, `[Insert]`, `[Debtor]`) are left as in counsel’s copy. A standalone copy lives at [`arf-notice-of-assignment-template.docx`](../../apps/api/src/modules/applications/templates/arf-notice-of-assignment-template.docx) (static artefact; no generate path).
+- **Schedule 3** keeps its heading and table. At execution it records: *Nil as at the date of execution; to be supplemented from time to time in accordance with Clause 4.4.* Invoices are not written into the Deed.
 
 ## Preserved legal-copy inconsistencies
 

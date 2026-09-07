@@ -4,6 +4,10 @@
  * rewrite merge slots to docxtemplater tags and replace ASSIGNOR execution
  * with one signatory/witness table per authorised representative.
  *
+ * Schedule 2 stays the prescribed form (original placeholders, no merge tags).
+ * Schedule 3 keeps its heading/table and records Nil at execution.
+ * Also writes a standalone Schedule 2 Word copy for issuer use.
+ *
  * Usage: pnpm --filter @cashsouk/api retag-doa-template
  */
 
@@ -14,6 +18,10 @@ import PizZip from "pizzip";
 const TEMPLATES_DIR = path.resolve(__dirname, "../src/modules/applications/templates");
 const CLEAN_COPY = path.join(TEMPLATES_DIR, "Deed of Assignment - Cashsouk.docx");
 const OUTPUT = path.join(TEMPLATES_DIR, "arf-deed-of-assignment.docx");
+const NOTICE_OUTPUT = path.join(TEMPLATES_DIR, "arf-notice-of-assignment-template.docx");
+
+const SCHEDULE3_NIL_NOTE =
+  "Nil as at the date of execution; to be supplemented from time to time in accordance with Clause 4.4.";
 
 const SCHEDULE1_TRUST_LABELS: Record<string, string> = {
   "Bank Name": "trust_bank_name",
@@ -30,14 +38,6 @@ const SCHEDULE1_ASSIGNOR_LABELS: Record<string, string> = {
   "E-mail Address": "assignor_email",
   "Contact No.": "assignor_contact_number",
 };
-
-const SCHEDULE3_ROW_TAGS = [
-  "transaction_document_name_number",
-  "transaction_document_date",
-  "debtor_name",
-  "transaction_document_value",
-  "due_date",
-] as const;
 
 function encodeXml(text: string): string {
   return text
@@ -248,23 +248,9 @@ function rebuildAssignorExecution(xml: string): string {
   );
 }
 
-function isAssignorNameParagraph(compact: string): boolean {
-  return compact === "Name:";
-}
-
-function isAssignorDesignationParagraph(compact: string): boolean {
-  return compact === "Designation:";
-}
-
 type WalkState = {
   schedule1Section: "none" | "ssp" | "trust" | "assignor" | "finance";
   pendingSchedule1Tag: string | null;
-  inSchedule2: boolean;
-  seenAcknowledgment: boolean;
-  noticeNameTagged: boolean;
-  noticeDesignationTagged: boolean;
-  ackNameTagged: boolean;
-  ackDesignationTagged: boolean;
 };
 
 function transformParagraph(pXml: string, state: WalkState): string {
@@ -276,15 +262,9 @@ function transformParagraph(pXml: string, state: WalkState): string {
     state.pendingSchedule1Tag = null;
     return pXml;
   }
-  if (compact.startsWith("SCHEDULE 2")) {
+  if (compact.startsWith("SCHEDULE 2") || compact.startsWith("SCHEDULE 3")) {
     state.schedule1Section = "none";
     state.pendingSchedule1Tag = null;
-    state.inSchedule2 = true;
-    return pXml;
-  }
-  if (compact.startsWith("SCHEDULE 3")) {
-    state.inSchedule2 = false;
-    state.schedule1Section = "none";
     return pXml;
   }
 
@@ -326,73 +306,6 @@ function transformParagraph(pXml: string, state: WalkState): string {
     return rewriteParagraphText(pXml, next);
   }
 
-  if (!state.inSchedule2) return pXml;
-
-  if (compact.includes("[insert date]")) {
-    return rewriteParagraphText(pXml, text.replace("[insert date]", "{notice_date}"));
-  }
-  if (compact.includes("[Name & Address of Debtor]")) {
-    return rewriteParagraphText(
-      pXml,
-      text.replace("[Name & Address of Debtor]", "{debtor_company_name}, {debtor_address}")
-    );
-  }
-  if (compact === "Attn:") {
-    return rewriteParagraphText(pXml, `${text} {debtor_attention}`);
-  }
-  if (compact.includes("effective from [insert]")) {
-    return rewriteParagraphText(pXml, text.replace("[insert]", "{assignment_date}"));
-  }
-  if (compact.includes("Account Name") && compact.includes("[Insert]")) {
-    return rewriteParagraphText(pXml, text.replace("[Insert]", "{trust_account_name}"));
-  }
-  if (compact.includes("Account Bank") && compact.includes("[Insert]")) {
-    return rewriteParagraphText(pXml, text.replace("[Insert]", "{trust_bank_name}"));
-  }
-  if (compact.includes("Account No.") && compact.includes("[Insert]")) {
-    return rewriteParagraphText(pXml, text.replace("[Insert]", "{trust_account_number}"));
-  }
-  if (compact === "ACKNOWLEDGMENT" || compact === "ACKNOWLEDGEMENT") {
-    state.seenAcknowledgment = true;
-    return pXml;
-  }
-  if (text.includes("RM_____________") || text.includes("as at ________________")) {
-    const next = text
-      .replace("RM_____________", "RM{outstanding_amount}")
-      .replace("as at ________________", "as at {balance_as_of_date}");
-    return rewriteParagraphText(pXml, next);
-  }
-  if (compact === "[Company Name]") {
-    return rewriteParagraphText(pXml, text.replace("[Company Name]", "{debtor_company_name}"));
-  }
-  if (compact.startsWith("(Registration No.)")) {
-    if (text.includes("{debtor_registration_number}")) return pXml;
-    return rewriteParagraphText(pXml, "(Registration No. {debtor_registration_number})");
-  }
-  if (isAssignorNameParagraph(compact)) {
-    if (!state.seenAcknowledgment && !state.noticeNameTagged) {
-      state.noticeNameTagged = true;
-      return rewriteParagraphText(pXml, `${text} {notice_signatory_name}`);
-    }
-    if (state.seenAcknowledgment && !state.ackNameTagged) {
-      state.ackNameTagged = true;
-      return rewriteParagraphText(pXml, `${text} {debtor_signatory_name}`);
-    }
-  }
-  if (isAssignorDesignationParagraph(compact)) {
-    if (!state.seenAcknowledgment && !state.noticeDesignationTagged) {
-      state.noticeDesignationTagged = true;
-      return rewriteParagraphText(pXml, `${text} {notice_signatory_designation}`);
-    }
-    if (state.seenAcknowledgment && !state.ackDesignationTagged) {
-      state.ackDesignationTagged = true;
-      return rewriteParagraphText(pXml, `${text} {debtor_signatory_designation}`);
-    }
-  }
-  if (state.seenAcknowledgment && compact === "Date:") {
-    return rewriteParagraphText(pXml, `${text} {acknowledgement_date}`);
-  }
-
   return pXml;
 }
 
@@ -400,12 +313,6 @@ function rewriteBodyParagraphs(xml: string): string {
   const state: WalkState = {
     schedule1Section: "none",
     pendingSchedule1Tag: null,
-    inSchedule2: false,
-    seenAcknowledgment: false,
-    noticeNameTagged: false,
-    noticeDesignationTagged: false,
-    ackNameTagged: false,
-    ackDesignationTagged: false,
   };
   return xml.replace(/<w:p\b[\s\S]*?<\/w:p>/g, (pXml) => transformParagraph(pXml, state));
 }
@@ -424,6 +331,20 @@ function findTables(xml: string): Array<{ start: number; end: number }> {
   return tables;
 }
 
+function rewriteSchedule3NilRow(templateRow: string): string {
+  const cellMatch = templateRow.match(/<w:tc\b[\s\S]*?<\/w:tc>/);
+  if (!cellMatch) {
+    throw new Error("Schedule 3 data row has no cells to convert into the Nil note");
+  }
+  const tcPrMatch = cellMatch[0].match(/<w:tcPr\b[\s\S]*?<\/w:tcPr>/)?.[0] ?? "<w:tcPr></w:tcPr>";
+  let tcPr = tcPrMatch.replace(/<w:tcW\b[^/]*\/>/, '<w:tcW w:w="9350" w:type="dxa"/>');
+  if (!tcPr.includes("gridSpan")) {
+    tcPr = tcPr.replace("</w:tcPr>", '<w:gridSpan w:val="5"/></w:tcPr>');
+  }
+  const open = templateRow.match(/^<w:tr\b[^>]*>/)?.[0] ?? "<w:tr>";
+  return `${open}<w:tc>${tcPr}${makePara(SCHEDULE3_NIL_NOTE)}</w:tc></w:tr>`;
+}
+
 function rewriteSchedule3Table(xml: string): string {
   const tables = findTables(xml);
   for (const table of tables) {
@@ -437,40 +358,11 @@ function rewriteSchedule3Table(xml: string): string {
       rows.push(match[0]);
     }
     if (rows.length < 2) {
-      throw new Error("Schedule 3 table does not have a data row to tag");
+      throw new Error("Schedule 3 table does not have a data row for the Nil note");
     }
 
-    const header = rows[0];
-    const templateRow = rows[1];
-    const cells: string[] = [];
-    const cellRe = /<w:tc\b[\s\S]*?<\/w:tc>/g;
-    let cellMatch: RegExpExecArray | null;
-    while ((cellMatch = cellRe.exec(templateRow))) {
-      cells.push(cellMatch[0]);
-    }
-    if (cells.length !== SCHEDULE3_ROW_TAGS.length) {
-      throw new Error(
-        `Schedule 3 data row has ${cells.length} cells, expected ${SCHEDULE3_ROW_TAGS.length}`
-      );
-    }
-
-    const taggedCells = cells.map((cell, index) => {
-      const tag = SCHEDULE3_ROW_TAGS[index];
-      let prefix = "";
-      let suffix = "";
-      if (index === 0) prefix = "{#transaction_documents}";
-      if (index === cells.length - 1) suffix = "{/transaction_documents}";
-      return cell.replace(/<w:p\b[\s\S]*?<\/w:p>/, (pXml) =>
-        rewriteParagraphText(pXml, `${prefix}{${tag}}${suffix}`)
-      );
-    });
-
-    const taggedRow = templateRow.replace(
-      /(<w:tr\b[^>]*>)[\s\S]*$/,
-      `$1${taggedCells.join("")}</w:tr>`
-    );
     const firstRowEnd = tbl.indexOf("</w:tr>") + "</w:tr>".length;
-    const nextTbl = tbl.slice(0, firstRowEnd).replace(rows[0], header) + taggedRow + "</w:tbl>";
+    const nextTbl = tbl.slice(0, firstRowEnd) + rewriteSchedule3NilRow(rows[1]!) + "</w:tbl>";
     return xml.slice(0, table.start) + nextTbl + xml.slice(table.end);
   }
   throw new Error("Could not find Schedule 3 transaction-documents table");
@@ -511,6 +403,16 @@ function valueTagsMissingHighlight(xml: string): string[] {
   return missing;
 }
 
+function documentPlainText(xml: string): string {
+  let text = "";
+  const re = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(xml))) {
+    text += decodeXml(match[1] ?? "");
+  }
+  return text;
+}
+
 function requiredTagsPresent(xml: string): string[] {
   const required = [
     "{assignment_date}",
@@ -529,48 +431,94 @@ function requiredTagsPresent(xml: string): string[] {
     "{trust_account_name}",
     "{trust_account_number}",
     "{trust_swift_code}",
-    "{debtor_company_name}",
-    "{debtor_registration_number}",
-    "{debtor_address}",
-    "{debtor_attention}",
-    "{notice_date}",
-    "{notice_signatory_name}",
-    "{notice_signatory_designation}",
-    "{outstanding_amount}",
-    "{balance_as_of_date}",
-    "{debtor_signatory_name}",
-    "{debtor_signatory_designation}",
-    "{acknowledgement_date}",
-    "{#transaction_documents}",
-    "{transaction_document_name_number}",
-    "{transaction_document_date}",
-    "{debtor_name}",
-    "{transaction_document_value}",
-    "{due_date}",
-    "{/transaction_documents}",
+    "Date: [insert date]",
+    "[Name & Address of Debtor]",
+    "effective from [insert]",
+    "Account Name: [Insert]",
+    "[Debtor]",
+    "[Company Name]",
+    SCHEDULE3_NIL_NOTE,
     "In the presence of:",
     "[Witness]",
     "[Assignor]",
     "Company Stamp:",
   ];
-  return required.filter((tag) => !xml.includes(tag));
+  const plain = documentPlainText(xml);
+  return required.filter((tag) => !plain.includes(tag) && !xml.includes(tag));
 }
 
-function leftoverPlaceholders(xml: string): string[] {
-  const text = xml.replace(/<[^>]+>/g, "");
+function leftoverForbidden(xml: string): string[] {
   const found: string[] = [];
   for (const pat of [
-    "[insert date]",
-    "[insert]",
-    "[Insert]",
-    "[Name & Address of Debtor]",
-    "[Company Name]",
     "[ASSIGNOR]",
     "ELECTRONIC SIGNATURES",
+    "{notice_date}",
+    "{#transaction_documents}",
+    "{transaction_document_name_number}",
   ]) {
-    if (text.includes(pat) || xml.includes(pat)) found.push(pat);
+    if (xml.includes(pat)) found.push(pat);
   }
   return found;
+}
+
+function paragraphStartEquals(xml: string, needle: string): number {
+  const re = /<w:p\b[\s\S]*?<\/w:p>/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(xml))) {
+    if (compactParagraphText(paragraphPlainText(match[0])) === needle) {
+      return match.index;
+    }
+  }
+  throw new Error(`Could not find paragraph ${JSON.stringify(needle)} in document.xml`);
+}
+
+function extractSchedule2Inner(xml: string): string {
+  const start = paragraphStartEquals(xml, "SCHEDULE 2");
+  const end = paragraphStartEquals(xml, "SCHEDULE 3");
+  if (end <= start) {
+    throw new Error("SCHEDULE 3 is not after SCHEDULE 2");
+  }
+  return xml.slice(start, end);
+}
+
+function writeNoticeTemplate(cleanBytes: Buffer, schedule2Inner: string): void {
+  const zip = new PizZip(cleanBytes);
+  const documentXml = zip.file("word/document.xml")?.asText();
+  if (!documentXml) throw new Error("Clean copy is missing word/document.xml");
+  const bodyOpen = documentXml.match(/<w:body\b[^>]*>/)?.[0];
+  if (!bodyOpen) throw new Error("Clean copy is missing w:body");
+  const bodyOpenEnd = documentXml.indexOf(bodyOpen) + bodyOpen.length;
+  const sectPrStart = documentXml.indexOf("<w:sectPr");
+  if (sectPrStart < 0) throw new Error("Clean copy is missing w:sectPr");
+  const next = documentXml.slice(0, bodyOpenEnd) + schedule2Inner + documentXml.slice(sectPrStart);
+  const plain = documentPlainText(next);
+  const missing = [
+    "FORM OF NOTICE OF ASSIGNMENT OF RECEIVABLES",
+    "(Letterhead of the Assignor)",
+    "Date: [insert date]",
+    "[Name & Address of Debtor]",
+    "[Debtor]",
+    "Account Name: [Insert]",
+    "ACKNOWLEDGMENT",
+    "Attachment: Statement of Account to Debtor",
+  ].filter((text) => !plain.includes(text));
+  if (missing.length > 0) {
+    throw new Error(`Standalone Schedule 2 is missing: ${missing.join(", ")}`);
+  }
+  for (const forbidden of [
+    "THIS DEED OF ASSIGNMENT",
+    "SCHEDULE 3",
+    "{notice_date}",
+    "{assignment_date}",
+  ]) {
+    if (next.includes(forbidden)) {
+      throw new Error(`Standalone Schedule 2 unexpectedly contains ${JSON.stringify(forbidden)}`);
+    }
+  }
+  zip.file("word/document.xml", next);
+  const bytes = zip.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;
+  fs.writeFileSync(NOTICE_OUTPUT, bytes);
+  console.log(`Wrote ${NOTICE_OUTPUT} bytes=${bytes.length}`);
 }
 
 function main(): void {
@@ -578,9 +526,12 @@ function main(): void {
     throw new Error(`Clean copy not found: ${CLEAN_COPY}`);
   }
 
-  const cleanZip = new PizZip(fs.readFileSync(CLEAN_COPY));
+  const cleanBytes = fs.readFileSync(CLEAN_COPY);
+  const cleanZip = new PizZip(cleanBytes);
   let documentXml = cleanZip.file("word/document.xml")?.asText();
   if (!documentXml) throw new Error("Clean copy is missing word/document.xml");
+
+  writeNoticeTemplate(cleanBytes, extractSchedule2Inner(documentXml));
 
   documentXml = rewriteBodyParagraphs(documentXml);
   documentXml = rewriteSchedule3Table(documentXml);
@@ -598,9 +549,9 @@ function main(): void {
   if (unhighlighted.length > 0) {
     throw new Error(`Value merge tags missing yellow highlight: ${unhighlighted.join(", ")}`);
   }
-  const leftovers = leftoverPlaceholders(documentXml);
+  const leftovers = leftoverForbidden(documentXml);
   if (leftovers.length > 0) {
-    throw new Error(`Leftover placeholders in document.xml: ${leftovers.join(", ")}`);
+    throw new Error(`Forbidden leftovers in document.xml: ${leftovers.join(", ")}`);
   }
   const stillHasDebtorMarker = [...documentXml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g)].some(
     (match) => compactParagraphText(paragraphPlainText(match[0])) === "[Debtor]"
@@ -609,7 +560,7 @@ function main(): void {
     throw new Error("Legal copy [Debtor] sender marker was removed");
   }
 
-  const out = new PizZip(fs.readFileSync(CLEAN_COPY));
+  const out = new PizZip(cleanBytes);
   out.file("word/document.xml", documentXml);
 
   const bytes = out.generate({ type: "nodebuffer", compression: "DEFLATE" }) as Buffer;

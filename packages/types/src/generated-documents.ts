@@ -61,7 +61,7 @@ export const GENERATED_DOCUMENT_TYPES: Record<
   },
   arf_deed_of_assignment: {
     key: "arf_deed_of_assignment",
-    version: 1,
+    version: 2,
     label: "ARF Deed of Assignment",
     description:
       "CA-signed deed of assignment for the signing-package Deed of Assignment.",

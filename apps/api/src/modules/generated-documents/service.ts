@@ -583,7 +583,6 @@ export class GeneratedDocumentsService {
         issuer_organization_id: String(contract.issuer_organization_id),
         contract_details: contract.contract_details,
         offer_details: contract.offer_details,
-        customer_details: contract.customer_details,
       },
       issuerOrganization: {
         id: issuerOrganization.id,
@@ -596,7 +595,6 @@ export class GeneratedDocumentsService {
       application: {
         id: application!.id,
         company_details: application!.company_details,
-        invoices: (application as { invoices?: unknown }).invoices,
       },
       ledgerBucketAccountsConfig,
     });
