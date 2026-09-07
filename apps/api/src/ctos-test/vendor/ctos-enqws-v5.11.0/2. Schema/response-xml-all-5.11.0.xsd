@@ -1,0 +1,1738 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema targetNamespace="http://ws.cmctos.com.my/ctosnet/response" elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:po="http://ws.cmctos.com.my/ctosnet/response">
+	<xs:element name="report">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="enq_report" type="po:enq_report" minOccurs="1" maxOccurs="1"/>
+				<xs:element name="eil_report" type="po:eil_report" minOccurs="0" maxOccurs="unbounded"/>
+			</xs:sequence>
+			<xs:attribute name="version" type="xs:string" use="required"/>
+		</xs:complexType>
+	</xs:element>
+	<xs:complexType name="enq_report">
+		<xs:sequence>
+			<xs:element name="header" type="po:header" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="summary" type="po:summary" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="enquiry" type="po:enquiry" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="entities" type="po:entities" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="id" type="xs:string" use="required"/>
+		<xs:attribute name="report_type" type="xs:string" use="required"/>
+		<xs:attribute name="title" type="xs:string" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="entities">
+		<xs:sequence>
+			<xs:element name="subject" type="po:subject_entity" minOccurs="1" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="subject_entity">
+		<xs:sequence>
+			<xs:element name="type" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="ic_lc" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="nic_br" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="name" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="entity" type="po:entity" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:string" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="entity">
+		<xs:sequence>
+			<xs:element name="id_no1" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="id_no2" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="ent_name" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="industry" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nationality" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="date_br" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="registered" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="member" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="corp_status" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="industry_sector" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="residency_status" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="key" type="xs:string" use="required"/>
+		<xs:attribute name="status" type="xs:string" use="required"/>
+		<xs:attribute name="code" type="xs:string" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="header">
+		<xs:sequence>
+			<xs:element name="user" type="po:user" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="company" type="po:company" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="account" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="tel" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="fax" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="enq_date" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="enq_time" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="enq_status" type="po:code" minOccurs="1" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="user">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="id" type="xs:string" use="required"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="company">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="id" type="xs:string" use="required"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="code">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string" use="required"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="summary">
+		<xs:sequence>
+			<xs:element name="enq_sum" type="po:enq_sum" minOccurs="1" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="enq_sum">
+		<xs:sequence>
+			<xs:element name="name" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="ic_lcno" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="nic_brno" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="stat" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="dd_index" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="fico_index" type="po:fico_index" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="fico_cci" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="income_estimator" type="po:income_estimator" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci" type="po:ci" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="mphone_nos" type="po:mphone_nos" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="ref_no" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="dist_code" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="purpose" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="state" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="country" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_consent" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ctos" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="include_trex" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="include_ccris" type="po:include_ccris" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_dcheq" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ccris_supp" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_fico" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_sfi" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_cci" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ssm" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ssm_retention" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ubo" type="po:include_ubo" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_angkasa" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ie" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_ci" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_etr_plus" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="include_analytical_product" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="confirm_entity" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="mdi_status" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="enq_status" type="po:code" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="enq_code" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="analytical_products" type="po:analytical_products" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="error_cradtlrtgs" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="error_crasumrpts" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="error_cracsigets" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="degree_level" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="effective_sharepercentage" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="owner_of" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="ptype" type="xs:string" use="required"/>
+		<xs:attribute name="pcode" type="xs:string" use="required"/>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="fico_index">
+		<xs:sequence>
+			<xs:element name="fico_factor" type="po:fico_factor" minOccurs="1" maxOccurs="4"/>
+		</xs:sequence>
+		<xs:attribute name="score" type="xs:string" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="fico_factor">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string" use="required"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="income_estimator">
+		<xs:sequence>
+			<xs:element name="Lower_Band" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="Upper_Band" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="IE_Status" type="po:code" minOccurs="1" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ci">
+		<xs:sequence>
+			<xs:element name="ci1_all_facility_24m_statok" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci2_cc_facility_3m_statok" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci3" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci4" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci5" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci6" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci7" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci8" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci9" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci10" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci11" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci12" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci13" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci14" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci15" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci16" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci17" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci18" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci19" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci20" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci21" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci22" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci23" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci24" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci25" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci26" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci27" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci28" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci29" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci30" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci31" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci32" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci33" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci34" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci35" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ci36" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="mphone_nos">
+		<xs:sequence>
+			<xs:element name="mphone_no" type="po:mphone_no_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="mphone_no_detail">
+		<xs:simpleContent>
+			<xs:extension base="xs:string"/>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="include_ccris">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="sum" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="include_ubo">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="degree" type="xs:string"/>
+				<xs:attribute name="percentage" type="xs:string"/>
+				<xs:attribute name="liveSSM" type="xs:string"/>
+				<xs:attribute name="retentionSSM" type="xs:string"/>
+				<xs:attribute name="effectivePercentage" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="analytical_products">
+		<xs:sequence>
+			<xs:element type="po:analytical_product" name="analytical_product" maxOccurs="unbounded" minOccurs="0"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="analytical_product">
+		<xs:sequence>
+			<xs:element name="type" type="po:type" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="score" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="score_reason_code" type="po:code" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="exclusion_code" type="po:code" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="type">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="version" type="xs:string"/>
+				<xs:attribute name="code" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="enquiry">
+		<xs:sequence>
+			<xs:element name="section_summary" type="po:section_summary" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="section_ubo" type="po:section_ubo" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="section_a" type="po:section_a" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="section_b" type="po:section_b" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="section_c" type="po:section_c" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="section_d" type="po:section_d" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="section_d2" type="po:section_d" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="section_d3" type="po:section_d" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="section_d4" type="po:section_d" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="section_ccris" type="po:section_ccris" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="section_dcheqs" type="po:section_dcheqs" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="section_ccris_supp" type="po:section_ccris_supp" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="section_angkasa" type="po:section_angkasa" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="section_etr_plus" type="po:section_etr_plus" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="section_e" type="po:section_e" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="section_summary">
+		<xs:sequence>
+			<xs:element name="ctos" type="po:ctos" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="tr" type="po:tr" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="ccris" type="po:section_ccris_summary" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="dcheqs" type="po:dcheqs_summary" minOccurs="1" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="dcheqs_summary">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="entity" type="xs:string"/>
+				<xs:attribute name="related_parties" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="ctos_related_parties">
+		<xs:sequence>
+			<xs:element name="bankruptcy" type="po:bankruptcy" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="legal" type="po:legal" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="legal_personal_capacity" type="po:legal" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="legal_non_personal_capacity" type="po:legal" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="section_ccris_summary">
+		<xs:sequence>
+			<xs:element name="application" type="po:section_ccris_application_summary" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="facility" type="po:section_ccris_facility_summary" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="special_attention" type="po:section_ccris_special_attention_summary" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="related_parties" type="po:section_ccris_related_parties_summary" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="section_ccris_related_parties_summary">
+		<xs:sequence>
+			<xs:element name="application" type="po:section_ccris_application_summary" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="facility" type="po:section_ccris_facility_summary" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="special_attention" type="po:section_ccris_special_attention_summary" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="section_ccris_application_summary">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="total" type="xs:string"/>
+				<xs:attribute name="approved" type="xs:string"/>
+				<xs:attribute name="pending" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="section_ccris_facility_summary">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="total" type="xs:string"/>
+				<xs:attribute name="value" type="xs:string"/>
+				<xs:attribute name="arrears" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="section_ccris_special_attention_summary">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="accounts" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="ctos">
+		<xs:sequence>
+			<xs:element name="bankruptcy" type="po:bankruptcy" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="legal" type="po:legal" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="legal_personal_capacity" type="po:legal" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="legal_non_personal_capacity" type="po:legal" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="related_parties" type="po:ctos_related_parties" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="tr">
+		<xs:sequence>
+			<xs:element name="trex_ref" type="po:trex_ref" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="related_parties" type="po:tr_related_parties" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="tr_related_parties">
+		<xs:sequence>
+			<xs:element name="trex_ref" type="po:trex_ref" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="trex_ref">
+		<xs:attribute name="negative" type="xs:string" use="required"/>
+		<xs:attribute name="positive" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="bankruptcy">
+		<xs:sequence>
+			<xs:element name="source" type="po:source" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="status" type="xs:string" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="legal">
+		<xs:sequence>
+			<xs:element name="source" type="po:source" minOccurs="0" maxOccurs="4"/>
+		</xs:sequence>
+		<xs:attribute name="total" type="xs:string" use="required"/>
+		<xs:attribute name="value" type="xs:string" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="source">
+		<xs:attribute name="code" type="xs:string" use="required"/>
+		<xs:attribute name="name" type="xs:string" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="section_ubo">
+		<xs:sequence>
+			<xs:element name="degrees" type="po:ubo_degrees" minOccurs="1" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="title" type="xs:string" use="required"/>
+		<xs:attribute name="data" type="xs:boolean" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="ubo_degrees">
+		<xs:sequence>
+			<xs:element name="degree" type="po:ubo_degree_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="section_a">
+		<xs:sequence>
+			<xs:element name="record" type="po:data_a_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="title" type="xs:string" use="required"/>
+		<xs:attribute name="data" type="xs:boolean" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="section_b">
+		<xs:sequence>
+			<xs:element name="history" type="po:data_history_detail" minOccurs="0" maxOccurs="unbounded"/>
+			<xs:element name="record" type="po:data_b_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="title" type="xs:string" use="required"/>
+		<xs:attribute name="data" type="xs:boolean" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="ids">
+		<xs:sequence>
+			<xs:element name="id" type="po:id" minOccurs="1" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="id">
+		<xs:sequence>
+			<xs:element name="id" type="xs:string"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="section_c">
+		<xs:sequence>
+			<xs:element name="record" type="po:data_c_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="title" type="xs:string" use="required"/>
+		<xs:attribute name="data" type="xs:boolean" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="section_d">
+		<xs:sequence>
+			<xs:element name="record" type="po:data_d_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="title" type="xs:string" use="required"/>
+		<xs:attribute name="data" type="xs:boolean" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="section_e">
+		<xs:sequence>
+			<xs:element name="enquiry" type="po:new_tr_enquiry" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="title" type="xs:string" use="required"/>
+		<xs:attribute name="data" type="xs:boolean" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="section_dcheqs">
+		<xs:sequence>
+			<xs:element name="dcheques" type="po:dcheques" minOccurs="0" maxOccurs="1">
+			</xs:element>
+			<xs:element name="dcheque_owns" type="po:dcheque_owns" minOccurs="0" maxOccurs="1">
+			</xs:element>
+		</xs:sequence>
+		<xs:attribute name="title" type="xs:string"/>
+		<xs:attribute name="data" type="xs:boolean"/>
+	</xs:complexType>
+	<xs:complexType name="dcheques">
+		<xs:sequence>
+			<xs:element name="dcheque" type="po:dcheque_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="dcheque_detail">
+		<xs:sequence>
+			<xs:element name="bank_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="account_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="issue_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remarks" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="dcheque_owns">
+		<xs:sequence>
+			<xs:element name="dcheque_own" type="po:dcheque_own_detail" minOccurs="0" maxOccurs="unbounded">
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="dcheque_own_detail">
+		<xs:sequence>
+			<xs:element name="bank" type="po:bank" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="account_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="issue_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cheque_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remarks" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="bank">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="ubo_degree_detail">
+		<xs:sequence>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="party_type" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ic_lcno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nic_brno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="birth_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="status" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="incorporation_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cpo_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="sharesholding" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="sharesholding_percentage" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="effective_sharepercentage" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="address" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ubo_sharelink" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="level" type="xs:string" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="data_a_detail">
+		<xs:sequence>
+			<xs:element name="name" type="po:name_match" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="additional_registration_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ic_lcno" type="po:icno_match" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="lc_checksum" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nic_brno" type="po:nicno_match" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="addr" type="po:addr_date" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="addr1" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="addr_breakdown" type="po:addr_breakdown" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ccris_addresses" type="po:ccris_addresses" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="source" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="register_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="reg_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="business_nature" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="business_commenced" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="business_type" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="last_change_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="previous_cpo_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cpo_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="register_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="expiry_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cdate" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="comp_category" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="comp_type" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="status" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="type_of_business" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="qualification" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="partners" type="po:partners" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="previous_owners" type="po:previous_owners" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="capital" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paid_up" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="directors" type="po:directors" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="secretaries" type="po:secretaries" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="previous_names" type="po:previous_names" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="charges" type="po:charges" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="sme_financial_score" type="po:sme_financial_score" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="accounts" type="po:accounts" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="capital_details" type="po:capital" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nationality" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="birth_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="brn_ssm" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="msic_ssms" type="po:msic_ssms" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="rpttype" type="xs:string" use="required"/>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="capital">
+		<xs:sequence>
+			<xs:element name="auth_capital" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_capital" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_ord_amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_ordA_amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_ordB_amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_ord_divided" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_ordA_divided" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_ordB_divided" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_ord_nominal" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_pre_amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_preA_amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_preB_amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_pre_divided" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_preA_divided" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_preB_divided" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_pre_nominal" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_oth_amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_othA_amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_othB_amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_oth_divided" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_othA_divided" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_othB_divided" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup_oth_nominal" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="charges">
+		<xs:sequence>
+			<xs:element name="charge" type="po:charge_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="total" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="sme_financial_score">
+		<xs:sequence>
+			<xs:element name="limit" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="health" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="exclusion" type="po:code" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="previous_names">
+		<xs:sequence>
+			<xs:element name="previous_name" type="po:previous_name_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="name" type="xs:string"/>
+		<xs:attribute name="change_date" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="previous_name_detail">
+		<xs:sequence>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="change_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="charge_detail">
+		<xs:sequence>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="charge_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="status" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="charge_amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="partners">
+		<xs:sequence>
+			<xs:element name="partner" type="po:partner_detail" minOccurs="1" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="previous_owners">
+		<xs:sequence>
+			<xs:element name="previous_owner" type="po:partner_detail" minOccurs="1" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="data_history_detail">
+		<xs:sequence>
+			<xs:element name="period" type="po:period_detail" minOccurs="12" maxOccurs="12"/>
+		</xs:sequence>
+		<xs:attribute name="rpttype" type="xs:string"/>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+		<xs:attribute name="year" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="period_detail">
+		<xs:sequence>
+			<xs:element name="entity" type="po:entity_detail" minOccurs="1" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="month" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="entity_detail">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="type" type="xs:string" use="required"/>
+				<xs:attribute name="value" type="xs:string" use="required"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="data_b_detail">
+		<xs:sequence>
+			<xs:element name="title" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="alias" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ic_lcno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nic_brno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="known_as" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nationality" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ids" type="po:ids" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="birth_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="birth_place" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ref" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="firm" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark1" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark2" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark3" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark4" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="entry" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="account" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="rpttype" type="xs:string" use="required"/>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="data_c_detail">
+		<xs:sequence>
+			<xs:element name="company_name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="additional_registration_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="local" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="locala" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="object" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="incdate" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="expdate" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="lastdoc" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="appoint" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="resign" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ic_lcno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nic_brno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="addr" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="position" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cpo_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="shares" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="total_shares_percentage" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="protif_after_tax" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="latest_financial_year" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="status" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="brn_ssm" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="rpttype" type="xs:string" use="required"/>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="data_d_detail">
+		<xs:sequence>
+			<xs:element name="title" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="special_remark" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="name" type="po:name_match" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="alias" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="addr" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="position" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cpo_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ic_lcno" type="po:icno_match" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nic_brno" type="po:nicno_match" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="local" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="case_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="court_detail" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="firm" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="independent" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="property_location" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="property_description" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="respondent" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="exparte" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="plaintiff" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="petitioner" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="assignee" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="chargee" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="applicant" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="notice" type="po:stage" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="petition" type="po:stage" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="order" type="po:stage" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="release" type="po:stage" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="action" type="po:stage" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="auction" type="po:stage" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="originating_summons" type="po:stage" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="gazette" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="gazette_order" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="gazette_strike_off" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="gazette_notice" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="gazette_petition" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="gazette_discharge" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="register_owner" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="object" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="hear_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="appoint_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="gazette_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="strike_off_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="letter_date_under_308_1" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="letter_date_under_308_2" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="resigned_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="discharge_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="incoporate_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="return_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="assignment_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="order_for_sale_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="action_dated" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="outstanding_amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="shareholding" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="reserve_price" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="capital" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="paidup" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark1" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark2" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark3" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark4" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="administrator1" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="administrator2" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="administrator3" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="administrator4" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="lawyer" type="po:lawyer" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cedcon" type="po:lawyer" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="liq" type="po:lawyer" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="auctioneer" type="po:lawyer" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="further_info_contact" type="po:lawyer" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="settlement" type="po:settlement" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="latest_status" type="po:lateststatus" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="other_defendants" type="po:other_defendants" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="directors" type="po:directors" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="subject_cmt" type="po:comment" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cra_cmt" type="po:comment" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="withheld" type="po:withheld" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="rpttype" type="xs:string" use="required"/>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+		<xs:attribute name="status" type="xs:string" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="stage">
+		<xs:sequence>
+			<xs:element name="date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="source_detail" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="accounts">
+		<xs:sequence>
+			<xs:element name="account" type="po:account_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="auditor_name" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="account_detail">
+		<xs:sequence>
+			<xs:element name="conac" type="xs:boolean" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="unqrep" type="xs:boolean" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="auditor_name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="auditor_address" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="exempted" type="xs:boolean" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="pldd" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="bsdd" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="tabledt" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="bsfatot" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="othass" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="bscatot" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="bsclbank" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="totass" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="curlib" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="bsslltd" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="bsclstd" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="totlib" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="bsqpuc" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="bsqres" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="bsqupro" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="networth" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="bsqmint" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="tot" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="turnover" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="plnpbt" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="plnpat" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="plminin" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="plnetdiv" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="plyear" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="turnover_growth" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="profit_margin" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="return_on_equity" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="currat" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="workcap" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="gear" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="dividen_pay_out" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="dividen_per_share" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="new_form" type="xs:int" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="msic_ssms">
+		<xs:sequence>
+			<xs:element name="msic_ssm" type="po:msic_ssm_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="msic_ssm_detail">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute type="xs:string" name="code" use="optional"/>
+				<xs:attribute type="xs:string" name="priority" use="optional"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="partner_detail">
+		<xs:sequence>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="alias" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ic" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nic" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="address" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="position" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="appoint_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="resign_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="settlement">
+		<xs:sequence>
+			<xs:element name="code" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="source" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="source_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="lateststatus">
+		<xs:sequence>
+			<xs:element name="code" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="source" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="source_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="exp_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="update_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="other_defendants">
+		<xs:sequence>
+			<xs:element name="other_defendant" type="po:other_defendant_detail" minOccurs="1" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="other_defendant_detail">
+		<xs:sequence>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ic_lcno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nic_brno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="directors">
+		<xs:sequence>
+			<xs:element name="director" type="po:director_detail" minOccurs="1" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="director_detail">
+		<xs:sequence>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="alias" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="additional_registration_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ic_lcno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nic_brno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="position" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="addr" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cpo_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="shareholdings" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="searchDate" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="appoint" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="resign_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="equity" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="equity_percentage" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="party_type" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="brn_ssm" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="secretaries">
+		<xs:sequence>
+			<xs:element name="secretary" type="po:secretary_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="secretary_detail">
+		<xs:sequence>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="alias" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ic_lcno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nic_brno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="position" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="addr" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cpo_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="appoint" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="resign_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="withheld">
+		<xs:sequence>
+			<xs:element name="message" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="comment">
+		<xs:sequence>
+			<xs:element name="comment" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="comment_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="lawyer">
+		<xs:sequence>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="add1" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="add2" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="add3" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="add4" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="tel" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ref" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="name_match">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="match" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="icno_match">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="match" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="nicno_match">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="match" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="addr_date">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="date" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="addr_breakdown">
+		<xs:sequence>
+			<xs:element name="addr1" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="addr2" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="addr3" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="addr4" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="city" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="state" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="postcode" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="country" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="last_updated_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="subject_request_details">
+		<xs:sequence>
+			<xs:element name="party_type" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="iclc" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nicbr" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="date_requested" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="date_completed" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="requester_id" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="requester_name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="requester_comp_code" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="requester_comp_name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="requester_account" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="eil_report">
+		<xs:sequence>
+			<xs:element name="eil_request" type="po:subject_request_details" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="eil" type="po:data_b_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="status" type="xs:int"/>
+	</xs:complexType>
+	<xs:complexType name="application_detail">
+		<xs:sequence>
+			<xs:element name="org1" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="org2" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="adta_id" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="app_type" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="status" type="po:status" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="capacity" type="po:capacity" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="lender_type" type="po:lender_type" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="my_fgn" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="facility" type="po:facility" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="property_status" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="property_add1" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="property_add2" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="property_add3" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="property_add4" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="property_city" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="property_post_code" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="property_state" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="property_country" type="po:code" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="capacity">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="lender_type">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="applications">
+		<xs:sequence>
+			<xs:element name="application" type="po:application_detail" minOccurs="0" maxOccurs="unbounded">
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ccris_accounts">
+		<xs:sequence>
+			<xs:element name="account" type="po:ccris_account_detail" minOccurs="0" maxOccurs="unbounded">
+			</xs:element>
+		</xs:sequence>
+		<xs:attribute name="total_limit" type="xs:string"/>
+		<xs:attribute name="total_outstanding" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="ccris_account_detail">
+		<xs:sequence>
+			<xs:element name="org1" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="org2" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="mdta_id" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="my_fgn" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="approval_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="capacity" type="po:capacity" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="lender_type" type="po:lender_type" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="limit" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="collaterals" type="po:collaterals" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="legal" type="po:ccris_legal" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="sub_accounts" type="po:sub_accounts" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="collaterals">
+		<xs:sequence>
+			<xs:element name="collateral" type="po:collateral_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="collateral_detail">
+		<xs:sequence>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="value" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="code" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="ccris_legal">
+		<xs:sequence>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="status" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="sub_accounts">
+		<xs:sequence>
+			<xs:element name="sub_account" type="po:sub_account_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="sub_account_detail">
+		<xs:sequence>
+			<xs:element name="facility" type="po:facility" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="repay_term" type="po:repay_term" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="collaterals" type="po:collaterals" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cr_positions" type="po:cr_positions" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="appln_dt_id" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="repay_term">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="cr_positions">
+		<xs:sequence>
+			<xs:element name="cr_position" type="po:cr_position_detail" minOccurs="0" maxOccurs="unbounded">
+			</xs:element>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="cr_position_detail">
+		<xs:sequence>
+			<xs:element name="status" type="po:status" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="balance" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="position_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="inst_arrears" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="mon_arrears" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="inst_amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="rescheduled_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="restructured_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="status">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="section_ccris">
+		<xs:sequence>
+			<xs:element name="summary" type="po:ccris_summary" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="derivatives" type="po:ccris_derivaties" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="applications" type="po:applications" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="accounts" type="po:ccris_accounts" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="special_attention_accs" type="po:special_attention_accs" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="title" type="xs:string"/>
+		<xs:attribute name="data" type="xs:boolean"/>
+	</xs:complexType>
+	<xs:complexType name="ccris_summary">
+		<xs:sequence>
+			<xs:element name="application" type="po:application" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="liabilities" type="po:liabilities" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="legal" type="po:legal_status" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="special_attention" type="po:legal_status" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="special_name" type="po:legal_status" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="entity_key" type="xs:string"/>
+		<xs:attribute name="entity_warning" type="xs:string"/>
+		<xs:attribute name="fi_code" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="ccris_derivaties">
+		<xs:sequence>
+			<xs:element name="application" type="po:derivaties_application" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="facilities" type="po:facilities_securities" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="credit_card" type="po:derivatives_credit_card" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="oth_revolving_credits" type="po:derivatives_oth_revolving_credits" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="charge_card" type="po:derivatives_charge_card" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ptptn" type="po:derivatives_ptptn" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="local_lenders" type="po:derivatives_local_lenders" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="foreign_lenders" type="po:derivatives_foreign_lenders" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="derivaties_application">
+		<xs:sequence>
+			<xs:element name="date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="facility" type="po:facility" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="facilities_securities">
+		<xs:sequence>
+			<xs:element name="secure" type="po:security" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="unsecure" type="po:security" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="derivatives_credit_card">
+		<xs:attribute name="avg_usage_6_mths" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="derivatives_oth_revolving_credits">
+		<xs:attribute name="avg_usage_6_mths" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="derivatives_charge_card">
+		<xs:attribute name="min_usage_12_months" type="xs:string"/>
+		<xs:attribute name="max_usage_12_months" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="derivatives_ptptn">
+		<xs:attribute name="total" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="derivatives_local_lenders">
+		<xs:attribute name="total" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="derivatives_foreign_lenders">
+		<xs:attribute name="total" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="security">
+		<xs:sequence>
+			<xs:element name="outstanding" type="po:security_outstanding" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="total" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="security_outstanding">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="limit" type="xs:string"/>
+				<xs:attribute name="average" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="application">
+		<xs:sequence>
+			<xs:element name="approved" type="po:application_status" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="pending" type="po:application_status" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="rejected" type="po:application_status" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="applied" type="po:application_status" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="liabilities">
+		<xs:sequence>
+			<xs:element name="borrower" type="po:liabilities_status" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="guarantor" type="po:liabilities_status" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="total_limit" type="xs:string"/>
+		<xs:attribute name="total_outstanding" type="xs:string"/>
+		<xs:attribute name="total_fec" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="legal_status">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="status" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="liabilities_status">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="total_limit" type="xs:string"/>
+				<xs:attribute name="fec_limit" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="application_status">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="count" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="special_attention_accs">
+		<xs:sequence>
+			<xs:element name="special_attention_acc" type="po:special_attention_acc_detail" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="special_attention_acc_detail">
+		<xs:complexContent>
+			<xs:extension base="po:ccris_account_detail"/>
+		</xs:complexContent>
+	</xs:complexType>
+	<xs:complexType name="facility">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="ccris_addresses">
+		<xs:sequence>
+			<xs:element name="ccris_address" type="po:ccris_address" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ccris_address">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="date" type="xs:string"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="section_ccris_supp">
+		<xs:sequence>
+			<xs:element name="addresses" type="po:ccris_supp_addresses" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="contacts" type="po:ccris_supp_contacts" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="occupations" type="po:ccris_supp_occupations" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="title" type="xs:string"/>
+		<xs:attribute name="data" type="xs:boolean"/>
+	</xs:complexType>
+	<xs:complexType name="ccris_supp_addresses">
+		<xs:sequence>
+			<xs:element name="address" type="po:ccris_supp_address" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ccris_supp_address">
+		<xs:sequence>
+			<xs:element name="address1" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="address2" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="address3" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="address4" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="address5" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="address6" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="long_address" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="state_code" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="country" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="post_code" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="org" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="branch" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="application" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="create_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ccris_supp_contacts">
+		<xs:sequence>
+			<xs:element name="contact" type="po:ccris_supp_contact" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ccris_supp_contact">
+		<xs:sequence>
+			<xs:element name="contact_type" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="isd_code" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="prefix" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="phone_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="org" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="branch" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="application" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="create_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ccris_supp_occupations">
+		<xs:sequence>
+			<xs:element name="occupation" type="po:ccris_supp_occupation" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="ccris_supp_occupation">
+		<xs:sequence>
+			<xs:element name="occ_type" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="occupation" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="employer" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="from_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="to_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="org" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="branch" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="application" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="create_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="new_tr_enquiry">
+		<xs:sequence>
+			<xs:element name="subject" type="po:new_tr_subject" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="relationship" type="po:new_tr_relationship" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="sponsor" type="po:new_tr_sponsor" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="account_status" type="po:new_tr_account_status" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="return_cheques" type="po:new_tr_return_cheques" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="legal_action" type="po:new_tr_legal_action" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cra_comment" type="po:new_tr_cra_comment" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="subject_comments" type="po:new_tr_subject_comments" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="referee_contact" type="po:new_tr_referee_contact" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:string"/>
+		<xs:attribute name="account_no" type="xs:string"/>
+		<xs:attribute name="tref_id" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="new_tr_subject">
+		<xs:sequence>
+			<xs:element name="ref_com_name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ref_com_bus" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="party_type" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ic_lcno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nic_brno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="address" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="tref_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="new_tr_relationship">
+		<xs:sequence>
+			<xs:element name="rel_type" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="rel_status" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="account_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="rel_syear" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="rel_smonth" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="rel_sday" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="remark" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="new_tr_sponsor">
+		<xs:sequence>
+			<xs:element name="ref_com_name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ref_com_bus" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="ic_lcno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nic_brno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="sp_party_type" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="sp_type" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="guarantor" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="sp_source" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="sp_alias" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="new_tr_account_status">
+		<xs:sequence>
+			<xs:element name="account_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="statement_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="account_rating" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="account_term" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="account_limit" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="account_status" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="account_ref_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="debtor_name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="debtor_ic_lcno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="debtor_nic_brno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="address" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="debt_type" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="last_paid_amount" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="age" type="po:new_tr_age" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="new_tr_age">
+		<xs:sequence>
+			<xs:element name="age_30" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="age_60" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="age_90" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="age_120" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="age_150" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="age_180" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="age_over_180" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="new_tr_return_cheques">
+		<xs:sequence>
+			<xs:element name="record" type="po:new_tr_record" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="status" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="new_tr_record">
+		<xs:sequence>
+			<xs:element name="cheque_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cheque_acc_no" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cheque_bank" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cheque_reason" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cheque_issuer" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cheque_amount" type="xs:string" minOccurs="01" maxOccurs="1"/>
+			<xs:element name="cheque_date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:string" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="new_tr_legal_action">
+		<xs:sequence>
+			<xs:element name="reminder_letter" type="po:new_tr_letter_details" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="demand_letter_by_company" type="po:new_tr_letter_details" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="demand_letter_by_lawyer" type="po:new_tr_letter_details" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="status" type="xs:string"/>
+	</xs:complexType>
+	<xs:complexType name="new_tr_letter_details">
+		<xs:sequence>
+			<xs:element name="title" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="date" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="lawyer" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="reference" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="new_tr_cra_comment">
+		<xs:sequence>
+			<xs:element name="cra_status_id" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cra_status" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cra_status_desc" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="cra_comment" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="new_tr_subject_comments">
+		<xs:sequence>
+			<xs:element name="subject_comment" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="new_tr_referee_contact">
+		<xs:sequence>
+			<xs:element name="contact_ref" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="contact_name" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="contact_add" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="contact_telno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="contact_nature_of_business" type="xs:string" minOccurs="01" maxOccurs="1"/>
+			<xs:element name="contact_faxno" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="contact_email" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="contact_type" type="po:code" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="section_angkasa">
+		<xs:sequence>
+			<xs:element name="information" type="po:information" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="monthly_deduction" type="po:monthly_deduction" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="pending_deduction" type="po:pending_deduction" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="payment_history" type="po:payment_history" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="title" type="xs:string"/>
+		<xs:attribute name="data" type="xs:boolean"/>
+	</xs:complexType>
+	<xs:complexType name="information">
+		<xs:sequence>
+			<xs:element type="xs:string" name="matched_name"/>
+			<xs:element type="xs:string" name="matched_new_ic"/>
+			<xs:element type="xs:string" name="matched_old_ic"/>
+			<xs:element type="xs:string" name="status"/>
+			<xs:element type="xs:string" name="remark"/>
+			<xs:element type="xs:string" name="reference_no"/>
+			<xs:element type="xs:string" name="salary_no"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="monthly_deduction">
+		<xs:sequence>
+			<xs:element name="itemise">
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element name="item" minOccurs="0" maxOccurs="unbounded">
+							<xs:complexType>
+								<xs:sequence>
+									<xs:element type="xs:string" name="org_name"/>
+									<xs:element type="xs:string" name="org_no"/>
+									<xs:element type="xs:string" name="org_status"/>
+									<xs:element type="xs:string" name="org_deduction_amount"/>
+									<xs:element name="details">
+										<xs:complexType>
+											<xs:sequence>
+												<xs:element name="detail" minOccurs="0" maxOccurs="unbounded">
+													<xs:complexType>
+														<xs:sequence>
+															<xs:element type="xs:string" name="type"/>
+															<xs:element type="xs:string" name="begin"/>
+															<xs:element type="xs:string" name="end"/>
+															<xs:element type="xs:string" name="deduction_amount"/>
+														</xs:sequence>
+													</xs:complexType>
+												</xs:element>
+											</xs:sequence>
+										</xs:complexType>
+									</xs:element>
+								</xs:sequence>
+							</xs:complexType>
+						</xs:element>
+					</xs:sequence>
+				</xs:complexType>
+			</xs:element>
+			<xs:element type="xs:string" name="total_deduction"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="pending_deduction">
+		<xs:sequence>
+			<xs:element name="details">
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element name="detail" minOccurs="0" maxOccurs="unbounded">
+							<xs:complexType>
+								<xs:sequence>
+									<xs:element type="xs:string" name="org_name"/>
+									<xs:element type="xs:string" name="org_no"/>
+									<xs:element type="xs:string" name="org_status"/>
+									<xs:element type="xs:string" name="start_date"/>
+									<xs:element type="xs:string" name="deduction_amount"/>
+								</xs:sequence>
+							</xs:complexType>
+						</xs:element>
+					</xs:sequence>
+				</xs:complexType>
+			</xs:element>
+			<xs:element type="xs:string" name="total_pending_deduction"/>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="payment_history">
+		<xs:sequence>
+			<xs:element name="payment_month">
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element type="xs:string" name="item" minOccurs="0" maxOccurs="unbounded"/>
+					</xs:sequence>
+				</xs:complexType>
+			</xs:element>
+			<xs:element name="payment_detail">
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element name="item" minOccurs="0" maxOccurs="unbounded">
+							<xs:complexType>
+								<xs:sequence>
+									<xs:element type="xs:string" name="code"/>
+									<xs:element name="process_date">
+										<xs:complexType>
+											<xs:sequence>
+												<xs:element type="xs:string" name="item" minOccurs="0" maxOccurs="unbounded"/>
+											</xs:sequence>
+										</xs:complexType>
+									</xs:element>
+									<xs:element name="amount">
+										<xs:complexType>
+											<xs:sequence>
+												<xs:element type="xs:string" name="item" minOccurs="0" maxOccurs="unbounded"/>
+											</xs:sequence>
+										</xs:complexType>
+									</xs:element>
+								</xs:sequence>
+							</xs:complexType>
+						</xs:element>
+					</xs:sequence>
+				</xs:complexType>
+			</xs:element>
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:int" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="section_etr_plus">
+		<xs:sequence>
+			<xs:element name="etrPlusSummary" type="po:etrPlusSummary" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="etrPlusAccountProfileList" type="po:etrPlusAccountProfileList" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="etrPlusPaymentHistoryList" type="po:etrPlusPaymentHistoryList" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="etrPlusNBLHistory" type="po:etrPlusNBLHistory" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>
+		<xs:attribute name="title" type="xs:string"/>
+		<xs:attribute name="data" type="xs:boolean"/>
+	</xs:complexType>
+	<xs:complexType name="etrPlusSummary">
+		<xs:sequence>
+			<xs:element name="creditAccount" type="xs:string"/>
+			<xs:element name="active" type="xs:string"/>
+			<xs:element name="outStanding" type="xs:string"/>
+			<xs:element name="closed" type="xs:string"/>
+			<xs:element name="outStandingOverDue" type="xs:string"/>
+			<xs:element name="prevOutStandingOverDue" type="xs:string"/>
+			<xs:element name="avgDueDays" type="xs:string"/>
+			<xs:element name="ontimePayPercentage" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="etrPlusAccountProfileList">
+		<xs:sequence>
+			<xs:element name="etrPlusAccountProfile" type="po:etrPlusAccountProfile" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="etrPlusAccountProfile">
+		<xs:sequence>
+			<xs:element name="industry" type="xs:string"/>
+			<xs:element name="account" type="xs:string"/>
+			<xs:element name="paymentTerm" type="xs:string"/>
+			<xs:element name="asAtDate" type="xs:string"/>
+			<xs:element name="amountDue" type="xs:string"/>
+			<xs:element name="withinTerm" type="xs:string"/>
+			<xs:element name="age1to30" type="xs:string"/>
+			<xs:element name="age31to60" type="xs:string"/>
+			<xs:element name="age61to90" type="xs:string"/>
+			<xs:element name="age91to120" type="xs:string"/>
+			<xs:element name="ageOver120" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="etrPlusPaymentHistoryList">
+		<xs:sequence>
+			<xs:element name="etrPlusPaymentHistory" type="po:etrPlusPaymentHistory" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="etrPlusPaymentHistory">
+		<xs:sequence>
+			<xs:element name="industry" type="xs:string"/>
+			<xs:element name="account" type="xs:string"/>
+			<xs:element name="paymentTerm" type="xs:string"/>
+			<xs:element name="capacity" type="xs:string"/>
+			<xs:element name="monthDetailsList" type="po:monthDetailsList"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="etrPlusNBLHistory">
+		<xs:sequence>
+			<xs:element name="totalLimit" type="xs:string"/>
+			<xs:element name="overallTotalOutstandingBlance" type="xs:string"/>
+			<xs:element name="etrPlusNBLCreditHistoryList" type="po:etrPlusNBLCreditHistoryList"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="etrPlusNBLCreditHistoryList">
+		<xs:sequence>
+			<xs:element name="etrPlusNBLCreditHistory" type="po:etrPlusNBLCreditHistory" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="etrPlusNBLCreditHistory">
+		<xs:sequence>
+			<xs:element name="number" type="xs:string"/>
+			<xs:element name="approvalDate" type="xs:string"/>
+			<xs:element name="capacity" type="xs:string"/>
+			<xs:element name="lenderType" type="xs:string"/>
+			<xs:element name="facility" type="xs:string"/>
+			<xs:element name="limit" type="xs:string"/>
+			<xs:element name="installmentAmount" type="xs:string"/>
+			<xs:element name="tenure" type="xs:string"/>
+			<xs:element name="dateBalanceUpdated" type="xs:string"/>
+			<xs:element name="totalOutStandingBalance" type="xs:string"/>
+			<xs:element name="principalRepaymentTerm" type="xs:string"/>
+			<xs:element name="collateralType" type="xs:string"/>
+			<xs:element name="status" type="xs:string"/>
+			<xs:element name="dateStatusUpdated" type="xs:string"/>
+			<xs:element name="monthDetailsList" type="po:monthDetailsList"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="monthDetailsList">
+		<xs:sequence>
+			<xs:element name="monthDetails" type="po:monthDetails" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="monthDetails">
+		<xs:sequence>
+			<xs:element name="month" type="xs:string"/>
+			<xs:element name="year" type="xs:string"/>
+			<xs:element name="payment" type="xs:string"/>
+		</xs:sequence>
+	</xs:complexType>
+</xs:schema>

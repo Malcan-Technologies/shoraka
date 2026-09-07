@@ -1,0 +1,108 @@
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:po="http://ws.cmctos.com.my/ctosnet/party"
+           targetNamespace="http://ws.cmctos.com.my/ctosnet/party"
+           elementFormDefault="qualified">
+
+	<xs:element name="report">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="company_code" type="xs:string" minOccurs="1" maxOccurs="1"/>
+				<xs:element name="account_no" type="xs:string" minOccurs="1" maxOccurs="1"/>
+				<xs:element name="user_id" type="xs:string" minOccurs="1" maxOccurs="1"/>
+				<xs:element name="date" type="xs:string" minOccurs="1" maxOccurs="1"/>
+				<xs:element name="time" type="xs:string" minOccurs="1" maxOccurs="1"/>
+				<xs:element name="status" type="po:status" minOccurs="1" maxOccurs="1"/>                
+				<xs:element name="records" type="po:record" minOccurs="1" maxOccurs="1"/>
+				<xs:element name="parties" type="po:parties" minOccurs="0" maxOccurs="1"/>
+				<xs:element name="entities" type="po:entities" minOccurs="0" maxOccurs="1"/>
+			</xs:sequence>
+			<xs:attribute name="version" type="xs:string" use="required"/>
+		</xs:complexType>
+	</xs:element>
+	<xs:complexType name="status">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string" use="required"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="record">
+		<xs:sequence>
+			<xs:element name="type" type="po:type" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="ic_lc" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="nic_br" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="name" type="xs:string" minOccurs="1" maxOccurs="1"/>                                   
+		</xs:sequence>      
+	</xs:complexType>
+	<xs:complexType name="parties">
+		<xs:sequence>
+			<xs:element name="party" type="po:party" minOccurs="0" maxOccurs="unbounded"/>                                                                                 
+		</xs:sequence>        
+	</xs:complexType>
+	<xs:complexType name="entities">
+		<xs:sequence>
+			<xs:element name="subject" type="po:subject_entity" minOccurs="1" maxOccurs="unbounded"/>            
+		</xs:sequence>
+	</xs:complexType>
+	<xs:complexType name="party">
+		<xs:sequence>
+			<xs:element name="name" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="ic_lcno" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="nic_brno" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="position" type="xs:string" minOccurs="1" maxOccurs="1"/>                                                                       
+			<xs:element name="appoint" type="xs:string" minOccurs="1" maxOccurs="1"/>                                                                       
+			<xs:element name="equity" type="xs:string" minOccurs="1" maxOccurs="1"/>                                                                       
+			<xs:element name="party_type" type="po:party_type" minOccurs="1" maxOccurs="1"/>                                                                       
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:string" use="required" />      
+	</xs:complexType>
+	<xs:complexType name="party_type">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string" use="required"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="subject_entity">
+		<xs:sequence>
+			<xs:element name="type" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="ic_lc" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="nic_br" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="name" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="entity" type="po:entity" minOccurs="0" maxOccurs="unbounded"/>            
+		</xs:sequence>
+		<xs:attribute name="seq" type="xs:string" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="entity">
+		<xs:sequence>
+			<xs:element name="id_no1" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="id_no2" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="ent_name" type="xs:string" minOccurs="1" maxOccurs="1"/>
+			<xs:element name="industry" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="nationality" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="date_br" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="registered" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="member" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="corp_status" type="xs:string" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="industry_sector" type="po:code" minOccurs="0" maxOccurs="1"/>
+			<xs:element name="residency_status" type="xs:string" minOccurs="0" maxOccurs="1"/>
+		</xs:sequence>        
+		<xs:attribute name="key" type="xs:string" use="required"/>
+		<xs:attribute name="status" type="xs:string" use="required"/>
+		<xs:attribute name="code" type="xs:string" use="required"/>
+	</xs:complexType>
+	<xs:complexType name="type">
+		<xs:simpleContent>
+			<xs:extension base="xs:string">
+				<xs:attribute name="code" type="xs:string" use="required"/>
+			</xs:extension>
+		</xs:simpleContent>
+	</xs:complexType>
+	<xs:complexType name="code">
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attribute name="code" type="xs:string" use="required"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+</xs:schema>
