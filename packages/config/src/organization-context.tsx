@@ -71,7 +71,7 @@ export interface Organization {
   // Investor-specific flags
   depositReceived?: boolean;
   ssmApproved?: boolean;
-  isSophisticatedInvestor?: boolean;
+  isSophisticatedInvestor?: boolean | null;
   // Issuer-specific flags
   ssmChecked?: boolean;
   onboardingFeePaidAt?: string | null;

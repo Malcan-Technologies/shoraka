@@ -131,6 +131,6 @@ describe("formatZodMessage", () => {
     const err = new ZodError([
       { code: "custom", path: ["designation"], message: "Select a Designation." },
     ]);
-    expect(formatZodMessage(err)).toBe("designation: Select a Designation.");
+    expect(formatZodMessage(err)).toBe("Select a Designation.");
   });
 });

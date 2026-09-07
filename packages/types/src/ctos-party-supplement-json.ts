@@ -6,6 +6,7 @@
  * WHERE USED: RegTank webhooks, organization service, build-people-list, issuer UI helpers
  */
 
+import { canonicalPartyKycOnboardingStatus, isDraftPartyOnboardingRequestId } from "./kyc-onboarding-lifecycle";
 import { normalizeRawStatus } from "./status-normalization";
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -125,6 +126,8 @@ export type CtosPartySupplementMergePatch = {
   onboarding?: Record<string, unknown> | null;
   screening?: Record<string, unknown> | null;
   screeningReset?: boolean;
+  /** Clear request/status/sent timestamps. Email is kept unless the onboarding patch replaces it. */
+  pipelineReset?: boolean;
 };
 
 function toCleanScreening(patch: Record<string, unknown>): CleanScreening | null {
@@ -197,6 +200,15 @@ export function mergeCtosPartySupplementDocument(
   patch: CtosPartySupplementMergePatch
 ): Record<string, unknown> {
   const base = parseCtosPartySupplement(prevRaw);
+  if (patch.pipelineReset) {
+    base.requestId = "";
+    base.status = "";
+    base.verifyLink = undefined;
+    base.referenceId = undefined;
+    base.sentAt = undefined;
+    base.lastSentAt = undefined;
+    base.sendTimestamps = undefined;
+  }
   if (patch.regtankPipelineStatus !== undefined) {
     base.status = normalizeRawStatus(patch.regtankPipelineStatus) || String(patch.regtankPipelineStatus).trim();
   }
@@ -240,11 +252,20 @@ export function serializeCtosPartySupplement(doc: CtosPartySupplement): Record<s
 }
 
 export function getCtosPartySupplementPipelineStatus(root: unknown): string {
-  return parseCtosPartySupplement(root).status;
+  const s = parseCtosPartySupplement(root);
+  return (
+    canonicalPartyKycOnboardingStatus({
+      status: s.status,
+      requestId: s.requestId,
+      sentAt: s.sentAt,
+      lastSentAt: s.lastSentAt,
+    }) ?? ""
+  );
 }
 
 export function getCtosPartySupplementRequestId(root: unknown): string {
-  return parseCtosPartySupplement(root).requestId;
+  const id = parseCtosPartySupplement(root).requestId;
+  return isDraftPartyOnboardingRequestId(id) ? "" : id;
 }
 
 export function isCtosPartySupplementApprovalLocked(root: unknown): boolean {
@@ -271,9 +292,14 @@ export function getCtosPartySupplementFlatRead(root: unknown): {
       : null;
   return {
     email: s.email ?? "",
-    requestId: s.requestId,
+    requestId: isDraftPartyOnboardingRequestId(s.requestId) ? "" : s.requestId,
     verifyLink: s.verifyLink ?? "",
-    regtankStatus: s.status || null,
+    regtankStatus: canonicalPartyKycOnboardingStatus({
+      status: s.status,
+      requestId: s.requestId,
+      sentAt: s.sentAt,
+      lastSentAt: s.lastSentAt,
+    }),
     kycBlock: synthetic,
     amlBlock: synthetic,
   };

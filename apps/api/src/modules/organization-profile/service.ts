@@ -34,6 +34,8 @@ import {
   type ScPersonKind,
   applyPartyComrepSemantics,
   isAllowedScInvestorCategory,
+  scInvestorCategoryAfterSophisticatedChange,
+  typeOfInvestorValidationMessage,
   issuerShareholdingThresholdIssue,
   isIssuerShareholderOnlyBelowMinimum,
   issuerActiveShareholderFlags,
@@ -71,7 +73,12 @@ type Portal = "issuer" | "investor";
 
 const USER_LOCKED_ORG_FIELDS = new Set(["name"]);
 /** Shared master fields the investor/issuer may change even when already filled (fill-empty-only still applies to other USER writes). */
-const USER_OVERWRITE_ORG_FIELDS = new Set(["scInvestorCategory", "companyEmail", "phoneNumber"]);
+const USER_OVERWRITE_ORG_FIELDS = new Set([
+  "scInvestorCategory",
+  "isSophisticatedInvestor",
+  "companyEmail",
+  "phoneNumber",
+]);
 /** Verified identity fields stay locked once filled. ComRep collection fields may be corrected. */
 const USER_LOCKED_PARTY_FIELDS = new Set(["name", "identityNumber", "identityPrefix"]);
 const USER_OVERWRITE_PARTY_FIELDS = new Set([
@@ -359,6 +366,55 @@ async function fillEmptyPartyFromCandidate(
   return prisma.organizationPartyProfile.update({ where: { id: row.id }, data });
 }
 
+function incomingShareDecimal(candidate: RegulatoryPartyCandidate): Prisma.Decimal | null {
+  if (candidate.shareholdingPercentage == null) return null;
+  if (issuerShareholdingThresholdIssue(candidate.shareholdingPercentage, { required: true })) {
+    return null;
+  }
+  return new Prisma.Decimal(candidate.shareholdingPercentage);
+}
+
+function mayReplaceShareWithRegTank(sources: ProfileFieldSources): boolean {
+  const source = sources.shareholdingPercentage?.source;
+  return source !== "USER" && source !== "ADMIN" && source !== "REGTANK";
+}
+
+/**
+ * Catch up master from RegTank form fields that older extractors skipped.
+ * Promotes a CTOS-only observed company onto the live list when onboarding already had it.
+ */
+async function applyRegTankOnboardingFacts(
+  row: OrganizationPartyProfile,
+  candidate: RegulatoryPartyCandidate,
+  existing: Array<{ id: string; party_key: string }>
+): Promise<OrganizationPartyProfile> {
+  const gated = gateShareholderCandidate(candidate);
+  let current = await fillEmptyPartyFromCandidate(row, gated.candidate, existing);
+  const incomingShare = incomingShareDecimal(gated.candidate);
+  const sources = parseFieldSources(current.field_sources);
+  const promoting =
+    current.membership_status === OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED &&
+    !gated.observedOnly;
+  const replaceShare =
+    incomingShare != null && (promoting || mayReplaceShareWithRegTank(sources));
+  if (!promoting && !replaceShare) return current;
+
+  const data: Prisma.OrganizationPartyProfileUpdateInput = {};
+  let nextSources = sources;
+  if (promoting) {
+    data.membership_status = OrganizationPartyMembershipStatus.MASTER_ACTIVE;
+  }
+  if (replaceShare && incomingShare) {
+    data.shareholding_percentage = incomingShare;
+    if (gated.candidate.isShareholder && !current.is_shareholder) {
+      data.is_shareholder = true;
+    }
+    nextSources = stampSource(nextSources, "shareholdingPercentage", "REGTANK");
+    data.field_sources = asJson(nextSources);
+  }
+  return prisma.organizationPartyProfile.update({ where: { id: current.id }, data });
+}
+
 async function applyInitialRegulatoryCandidates(
   portal: Portal,
   organizationId: string,
@@ -496,6 +552,15 @@ export async function seedMasterPartiesIfEmpty(
       continue;
     }
     const updated = await fillEmptyPartyFromCandidate(row, gated.candidate, existing);
+    const idx = existing.findIndex((p) => p.id === row.id);
+    if (idx >= 0) existing[idx] = updated;
+  }
+  for (const candidate of fromRegtank) {
+    const row = findExistingPartyForIdentityKey(existing, candidate.partyKey, {
+      entityType: candidate.entityType,
+    });
+    if (!row) continue;
+    const updated = await applyRegTankOnboardingFacts(row, candidate, existing);
     const idx = existing.findIndex((p) => p.id === row.id);
     if (idx >= 0) existing[idx] = updated;
   }
@@ -757,10 +822,12 @@ export async function computeOrgProfileCompleteness(
   const residential = asAddress(org.residential_address);
   const name =
     [org.first_name, org.last_name].filter(Boolean).join(" ").trim() || org.name || null;
-  const organizationType = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
-  const scInvestorCategory = isAllowedScInvestorCategory(org.sc_investor_category, {
+  const organizationType: "PERSONAL" | "COMPANY" = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
+  const categoryScope = {
     organizationType,
-  })
+    isSophisticatedInvestor: org.is_sophisticated_investor,
+  };
+  const scInvestorCategory = isAllowedScInvestorCategory(org.sc_investor_category, categoryScope)
     ? org.sc_investor_category
     : null;
   if (organizationType === "COMPANY") {
@@ -811,6 +878,7 @@ export async function computeOrgProfileCompleteness(
         businessState: business?.state ?? null,
         businessPostalCode: business?.postalCode ?? null,
         scInvestorCategory,
+        isSophisticatedInvestor: org.is_sophisticated_investor,
       },
       people,
     });
@@ -827,6 +895,7 @@ export async function computeOrgProfileCompleteness(
       postalCode: residential?.postalCode ?? null,
       nationality: org.nationality,
       scInvestorCategory,
+      isSophisticatedInvestor: org.is_sophisticated_investor,
     },
   });
 }
@@ -1016,23 +1085,50 @@ export async function patchOrgMasterProfile(params: {
       patch.countryOfIncorporation
     );
   }
-  if (patch.scInvestorCategory !== undefined) {
-    const organizationType = investor.type === "COMPANY" ? "COMPANY" : "PERSONAL";
-    if (
-      patch.scInvestorCategory !== null &&
-      !isAllowedScInvestorCategory(patch.scInvestorCategory, { organizationType })
-    ) {
-      throw new AppError(
-        400,
-        "VALIDATION_ERROR",
-        "This Type of Investor is not valid for this organisation."
+  if (patch.isSophisticatedInvestor !== undefined || patch.scInvestorCategory !== undefined) {
+    const organizationType: "PERSONAL" | "COMPANY" =
+      investor.type === "COMPANY" ? "COMPANY" : "PERSONAL";
+    if (patch.isSophisticatedInvestor !== undefined) {
+      if (typeof patch.isSophisticatedInvestor !== "boolean") {
+        throw new AppError(400, "VALIDATION_ERROR", "Sophisticated Investor is required.");
+      }
+      data.is_sophisticated_investor = applyScalar(
+        "isSophisticatedInvestor",
+        investor.is_sophisticated_investor as boolean | null,
+        patch.isSophisticatedInvestor
       );
     }
-    data.sc_investor_category = applyScalar(
-      "scInvestorCategory",
-      investor.sc_investor_category as ScInvestorCategory | null,
-      patch.scInvestorCategory
-    );
+    const nextSophisticated =
+      patch.isSophisticatedInvestor !== undefined
+        ? patch.isSophisticatedInvestor
+        : (investor.is_sophisticated_investor as boolean | null);
+    const categoryScope = {
+      organizationType,
+      isSophisticatedInvestor: nextSophisticated,
+    };
+    if (patch.scInvestorCategory !== undefined) {
+      const invalid = typeOfInvestorValidationMessage(patch.scInvestorCategory, categoryScope);
+      if (invalid) {
+        throw new AppError(400, "VALIDATION_ERROR", invalid);
+      }
+      data.sc_investor_category = applyScalar(
+        "scInvestorCategory",
+        investor.sc_investor_category as ScInvestorCategory | null,
+        patch.scInvestorCategory
+      );
+    } else if (patch.isSophisticatedInvestor !== undefined) {
+      const kept = scInvestorCategoryAfterSophisticatedChange(
+        investor.sc_investor_category,
+        categoryScope
+      );
+      if (kept !== investor.sc_investor_category) {
+        data.sc_investor_category = applyScalar(
+          "scInvestorCategory",
+          investor.sc_investor_category as ScInvestorCategory | null,
+          kept
+        );
+      }
+    }
   }
   if (patch.residentialAddress !== undefined) {
     data.residential_address = asJson(
@@ -1418,14 +1514,7 @@ async function upsertPartyEmailSupplement(params: {
       : { investor_organization_id: params.organizationId, party_key: params.partyKey };
   const existing = await prisma.ctosPartySupplement.findFirst({ where });
   const merged = mergeCtosPartySupplementDocument(existing?.onboarding_json, {
-    onboarding: existing
-      ? { email: params.email }
-      : {
-          email: params.email,
-          status: "NOT_STARTED",
-          requestId: `draft-${Date.now()}`,
-          verifyLink: "",
-        },
+    onboarding: { email: params.email },
   });
   if (existing) {
     await prisma.ctosPartySupplement.update({

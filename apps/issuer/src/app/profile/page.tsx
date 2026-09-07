@@ -31,7 +31,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
-import { filterVisiblePeopleRows, firstIssueMessage, SC_MALAYSIAN_STATES, SC_MONTHLY_ISSUER, validateIssuerAddressForm } from "@cashsouk/types";
+import { filterVisiblePeopleRows, firstIssueMessage, humanizeApiValidationMessage, isValidProfilePhone, restrictScPostcodeInput, SC_MALAYSIAN_STATES, SC_MONTHLY_ISSUER, storedProfilePhone, validateIssuerAddressForm } from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../../components/director-shareholder-alert-card";
 import { IssuerProfileCompletenessBanner } from "../../components/profile-completeness-banner";
 import { AboutYourBusinessCard } from "../../components/about-your-business-card";
@@ -41,7 +41,7 @@ import { IssuerPeopleSection } from "../../components/issuer-people-section";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
 import { toast } from "sonner";
-import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
+import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import {
   ConfirmDialog,
@@ -702,7 +702,9 @@ export default function ProfilePage() {
       setIsEditingBanking(false);
     },
     onError: (error: Error) => {
-      toast.error("Failed to update profile", { description: error.message });
+      toast.error("Failed to update profile", {
+        description: humanizeApiValidationMessage(error.message),
+      });
     },
   });
 
@@ -715,13 +717,13 @@ export default function ProfilePage() {
 
   const handleSaveProfile = () => {
     if (isPersonal) {
-      if (phoneNumber && !isValidPhoneNumber(phoneNumber)) {
-        toast.error("Invalid phone number format");
+      if (phoneNumber && !isValidProfilePhone(phoneNumber)) {
+        toast.error("Enter a valid phone number.");
         return;
       }
 
       updateProfileMutation.mutate({
-        phoneNumber: phoneNumber || null,
+        phoneNumber: storedProfilePhone(phoneNumber) || null,
         address: address.trim() || null,
       });
       return;
@@ -731,12 +733,12 @@ export default function ProfilePage() {
       toast.error("Enter all contact details");
       return;
     }
-    if (!isValidPhoneNumber(contactPhone)) {
-      toast.error("Invalid phone number format");
+    if (!isValidProfilePhone(contactPhone)) {
+      toast.error("Enter a valid contact number.");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) {
-      toast.error("Invalid email address");
+      toast.error("Enter a valid e-mail address.");
       return;
     }
 
@@ -745,7 +747,7 @@ export default function ProfilePage() {
         name: contactName.trim(),
         email: contactEmail.trim(),
         position: contactPosition.trim(),
-        contact: contactPhone,
+        contact: storedProfilePhone(contactPhone) || contactPhone,
       },
     });
   };
@@ -830,7 +832,9 @@ export default function ProfilePage() {
       setIsEditingAddresses(false);
     },
     onError: (error: Error) => {
-      toast.error("Failed to update addresses", { description: error.message });
+      toast.error("Failed to update addresses", {
+        description: humanizeApiValidationMessage(error.message),
+      });
     },
   });
 
@@ -1236,7 +1240,11 @@ export default function ProfilePage() {
                               />
                               <Input
                                 value={registeredPostalCode}
-                                onChange={(e) => setRegisteredPostalCode(e.target.value)}
+                                onChange={(e) =>
+                                  setRegisteredPostalCode(
+                                    restrictScPostcodeInput(registeredState, e.target.value)
+                                  )
+                                }
                               />
                             </div>
                             <div className="space-y-2">
@@ -1337,7 +1345,11 @@ export default function ProfilePage() {
                             />
                             <Input
                               value={businessPostalCode}
-                              onChange={(e) => setBusinessPostalCode(e.target.value)}
+                              onChange={(e) =>
+                                setBusinessPostalCode(
+                                  restrictScPostcodeInput(businessState, e.target.value)
+                                )
+                              }
                             />
                           </div>
                           <div className="space-y-2">

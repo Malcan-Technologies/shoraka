@@ -9,10 +9,10 @@
 import type { ApplicationPersonRow } from "./application-people-display";
 import { filterVisiblePeopleRows } from "./application-people-display";
 import { normalizeDirectorShareholderIdKey } from "./director-shareholder-display";
-import { normalizeRawStatus } from "./status-normalization";
+import { isKycOnboardingNotStartedToken } from "./kyc-onboarding-lifecycle";
 
 function hasStartedOnboarding(p: Pick<ApplicationPersonRow, "onboarding">): boolean {
-  return Boolean(normalizeRawStatus(p.onboarding?.status));
+  return !isKycOnboardingNotStartedToken(p.onboarding?.status);
 }
 
 function visibleIndividualPeople(

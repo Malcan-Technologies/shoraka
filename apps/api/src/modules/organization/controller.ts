@@ -430,7 +430,7 @@ async function getOrganization(
         ...(portalType === "investor" && {
           depositReceived: org.deposit_received ?? false,
           ssmApproved: org.ssm_approved ?? false,
-          isSophisticatedInvestor: org.is_sophisticated_investor ?? false,
+          isSophisticatedInvestor: org.is_sophisticated_investor ?? null,
           ...(investorPartyExtras && {
             latestOrganizationCtosCompanyJson: investorPartyExtras.latestOrganizationCtosCompanyJson,
             latestOrganizationCtosFinancialsJson: investorPartyExtras.latestOrganizationCtosFinancialsJson,

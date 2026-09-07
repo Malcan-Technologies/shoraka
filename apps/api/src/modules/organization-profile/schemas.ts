@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { isValidPhoneNumber } from "libphonenumber-js";
 import {
   applyPartyComrepSemantics,
   hasOrganizationPartyRole,
@@ -8,6 +7,7 @@ import {
   OPERATOR_HOLDER_TYPES,
   ORGANIZATION_PARTY_ENTITY_TYPES,
   othersSpecifyValue,
+  phoneFormatIssue,
   SC_COMPANY_CATEGORIES,
   SC_COMPANY_TYPES,
   SC_DESIGNATIONS,
@@ -17,6 +17,7 @@ import {
   SC_PERSON_KINDS,
   SC_SHARE_TYPES,
   SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
+  storedProfilePhone,
   validateIssuerFinancialFieldsPatch,
   validateOperatorShareCapitalPatch,
   validateIssuerMasterPatch,
@@ -41,17 +42,24 @@ function addComrepIssues(ctx: z.RefinementCtx, issues: ComrepFieldIssue[]): void
   }
 }
 
-function requirePhoneWhenPresent(value: string | null | undefined, ctx: z.RefinementCtx, path: string): void {
-  if (value == null || value === undefined) return;
-  const trimmed = value.trim();
-  if (!trimmed) return;
-  if (!isValidPhoneNumber(trimmed)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: [path],
-      message: "Enter a valid phone number.",
-    });
-  }
+function requirePhoneWhenPresent(
+  value: string | null | undefined,
+  ctx: z.RefinementCtx,
+  path: string,
+  label: string
+): void {
+  const issue = phoneFormatIssue(value, path, label);
+  if (!issue) return;
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: [path],
+    message: issue.message,
+  });
+}
+
+function withStoredPhone<T extends { phoneNumber?: string | null }>(value: T): T {
+  if (value.phoneNumber === undefined) return value;
+  return { ...value, phoneNumber: storedProfilePhone(value.phoneNumber) as T["phoneNumber"] };
 }
 
 const optionalText = z.string().max(500).optional().nullable();
@@ -97,6 +105,7 @@ export const orgMasterPatchSchema = z
     companyCategory: z.enum(SC_COMPANY_CATEGORIES).optional().nullable(),
     companyEmail: z.string().max(255).optional().nullable(),
     scInvestorCategory: z.enum(SC_INVESTOR_CATEGORIES).optional().nullable(),
+    isSophisticatedInvestor: z.boolean().optional(),
     residentialAddress: addressPatchSchema.optional().nullable(),
     phoneNumber: optionalText,
     name: optionalText,
@@ -132,8 +141,9 @@ export const orgMasterPatchSchema = z
       );
     });
     addComrepIssues(ctx, [...issuerIssues, ...investorIssues]);
-    requirePhoneWhenPresent(value.phoneNumber, ctx, "phoneNumber");
-  });
+    requirePhoneWhenPresent(value.phoneNumber, ctx, "phoneNumber", "Phone Number");
+  })
+  .transform(withStoredPhone);
 
 export const partyPatchObjectSchema = z
   .object({
@@ -198,8 +208,12 @@ export const operatorProfilePatchSchema = z
   .strict()
   .superRefine((value, ctx) => {
     addComrepIssues(ctx, validateOperatorGeneralPatch(value as Record<string, unknown>));
-    requirePhoneWhenPresent(value.responsiblePersonPhone, ctx, "responsiblePersonPhone");
-  });
+    requirePhoneWhenPresent(value.responsiblePersonPhone, ctx, "responsiblePersonPhone", "Contact Number");
+  })
+  .transform((value) => ({
+    ...value,
+    responsiblePersonPhone: storedProfilePhone(value.responsiblePersonPhone) as typeof value.responsiblePersonPhone,
+  }));
 
 export const operatorShareCapitalPatchSchema = z
   .object({
@@ -388,7 +402,11 @@ export const operatorFinancialStatementSchema = z
 export const createPartySchema = partyPatchObjectSchema
   .extend({
     entityType: z.enum(ORGANIZATION_PARTY_ENTITY_TYPES).optional(),
-    email: z.union([z.string().email().max(255), z.literal(""), z.null()]).optional(),
+    email: z.union([
+      z.string().email({ message: "Enter a valid e-mail address." }).max(255),
+      z.literal(""),
+      z.null(),
+    ]).optional(),
   })
   .refine(
     (value) =>
@@ -437,6 +455,7 @@ export const createPartySchema = partyPatchObjectSchema
         name: value.name,
         identityPrefix: value.identityPrefix,
         identityNumber: value.identityNumber,
+        email: value.email,
         dateOfBirth: value.dateOfBirth,
         dateOfIncorporation: value.dateOfIncorporation,
         gender: value.gender,

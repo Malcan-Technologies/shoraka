@@ -130,6 +130,7 @@ export type OrgProfileDraft = {
   companyCategory: string;
   companyEmail: string;
   scInvestorCategory: string;
+  isSophisticatedInvestor: boolean | null;
   gender: string;
   nationality: string;
   residentialState: string;
@@ -210,6 +211,10 @@ export function buildDraft(org: OrganizationDetailResponse): OrgProfileDraft {
     companyCategory: org.companyCategory ?? "",
     companyEmail: org.companyEmail ?? "",
     scInvestorCategory: org.scInvestorCategory ?? "",
+    isSophisticatedInvestor:
+      org.isSophisticatedInvestor === true || org.isSophisticatedInvestor === false
+        ? org.isSophisticatedInvestor
+        : null,
     gender: asScGender(org.gender),
     nationality: org.nationality ?? "",
     residentialState: org.residentialAddress?.state ?? "",
@@ -399,6 +404,11 @@ export function buildSectionPayload(
   }
 
   if (section === "classification") {
+    if (draft.isSophisticatedInvestor !== original.isSophisticatedInvestor) {
+      if (draft.isSophisticatedInvestor === true || draft.isSophisticatedInvestor === false) {
+        payload.isSophisticatedInvestor = draft.isSophisticatedInvestor;
+      }
+    }
     if (emptyToNull(draft.scInvestorCategory) !== emptyToNull(original.scInvestorCategory)) {
       payload.scInvestorCategory =
         (emptyToNull(draft.scInvestorCategory) as ScInvestorCategory | null) ?? null;

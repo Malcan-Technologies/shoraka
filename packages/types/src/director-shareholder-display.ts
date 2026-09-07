@@ -1086,28 +1086,50 @@ function resolveCompanyStatus(
  * OUTPUT: trimmed non-empty string or null (whitespace-only and missing treated as null)
  * WHERE USED: corporate shareholder matchKey in people pipeline; Type A party lookup
  */
-export function extractBusinessNumber(formContent: unknown): string | null {
+function regTankFormFieldValue(formContent: unknown, fieldName: string): string | null {
   if (!formContent || typeof formContent !== "object" || Array.isArray(formContent)) return null;
+  const want = fieldName.trim().toLowerCase();
   const fc = formContent as Record<string, unknown>;
-  const areas = Array.isArray(fc.displayAreas) ? fc.displayAreas : [];
-  for (const area of areas) {
-    if (!area || typeof area !== "object" || Array.isArray(area)) continue;
-    const fields = Array.isArray((area as Record<string, unknown>).content)
-      ? ((area as Record<string, unknown>).content as unknown[])
-      : [];
+  const bags: unknown[][] = [];
+  if (Array.isArray(fc.content)) bags.push(fc.content);
+  if (Array.isArray(fc.displayAreas)) {
+    for (const area of fc.displayAreas) {
+      if (!area || typeof area !== "object" || Array.isArray(area)) continue;
+      const fields = (area as Record<string, unknown>).content;
+      if (Array.isArray(fields)) bags.push(fields);
+    }
+  }
+  for (const fields of bags) {
     for (const f of fields) {
       if (!f || typeof f !== "object" || Array.isArray(f)) continue;
       const rec = f as Record<string, unknown>;
       const name = String(rec.fieldName ?? "")
         .trim()
         .toLowerCase();
-      if (name === "business number") {
-        const val = String(rec.fieldValue ?? "").trim();
-        if (val) return val;
-      }
+      if (name !== want) continue;
+      const val = String(rec.fieldValue ?? "").trim();
+      if (val) return val;
     }
   }
   return null;
+}
+
+export function extractBusinessNumber(formContent: unknown): string | null {
+  return regTankFormFieldValue(formContent, "Business Number");
+}
+
+/** `% of Shares` from RegTank individual (`content`) or company KYB (`displayAreas`). */
+export function extractPercentOfSharesFromRegTankForm(formContent: unknown): number | null {
+  const raw = regTankFormFieldValue(formContent, "% of Shares");
+  if (!raw) return null;
+  const n = Number.parseFloat(raw.replace(/[%\s,]/g, ""));
+  if (!Number.isFinite(n)) return null;
+  if (n > 0 && n <= 1) return n * 100;
+  return n;
+}
+
+export function extractBusinessNameFromRegTankForm(formContent: unknown): string | null {
+  return regTankFormFieldValue(formContent, "Business Name");
 }
 
 function getCorpBusinessNumber(corp: Record<string, unknown>): string | null {

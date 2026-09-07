@@ -1887,15 +1887,8 @@ export class OrganizationService {
     const previousEmail = (prevSup.email ?? "").trim();
     const emailChanged = previousEmail.toLowerCase() !== email.toLowerCase();
     const mergedDoc = mergeCtosPartySupplementDocument(prevRoot, {
-      onboarding: emailChanged
-        ? {
-            email,
-            status: "NOT_STARTED",
-            requestId: `draft-${Date.now()}`,
-            verifyLink: "",
-          }
-        : { email },
-      ...(emailChanged ? { screeningReset: true } : {}),
+      onboarding: { email },
+      ...(emailChanged ? { screeningReset: true, pipelineReset: true } : {}),
     });
     await upsertCtosPartySupplementOnboardingJson(
       portalType,

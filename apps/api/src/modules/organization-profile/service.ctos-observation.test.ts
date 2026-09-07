@@ -760,6 +760,11 @@ describe("user-added master parties", () => {
         }),
       })
     );
+    const createdJson = (prisma.ctosPartySupplement.create as jest.Mock).mock.calls[0]?.[0]?.data
+      ?.onboarding_json as Record<string, unknown>;
+    expect(createdJson.status).toBe("");
+    expect(String(createdJson.requestId ?? "")).not.toMatch(/^draft-/i);
+    expect(createdJson.email).toBe("sarah@example.com");
   });
 
   it("creates a corporate shareholder as MASTER_ACTIVE USER_ADDED", async () => {
@@ -1480,6 +1485,143 @@ describe("user-added master parties", () => {
     expect(apex?.entity_type).toBe("CORPORATE");
     expect(apex?.is_shareholder).toBe(true);
     expect(apex?.membership_status).toBe(OrganizationPartyMembershipStatus.MASTER_ACTIVE);
+  });
+
+  it("promotes a CTOS-only ApexStar onto the live list at RegTank 10% and keeps the 50% observation", async () => {
+    issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
+    issuerOrg.corporate_entities = {
+      directors: [],
+      shareholders: [],
+      corporateShareholders: [
+        {
+          formContent: {
+            displayAreas: [
+              {
+                displayArea: "Basic Information Setting",
+                content: [
+                  { fieldName: "Business Name", fieldValue: "ApexStar Holdings Sdn. Bhd." },
+                  { fieldName: "Business Number", fieldValue: "7321984G" },
+                  { fieldName: "% of Shares", fieldValue: "10" },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    };
+    parties.push(
+      row({
+        id: "p-apex",
+        party_key: "7321984G",
+        identity_number: "7321984G",
+        identity_prefix: "ROC",
+        entity_type: "CORPORATE",
+        name: "ApexStar Holdings Sdn. Bhd.",
+        origin: OrganizationPartyOrigin.CTOS_PARTY,
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_director: false,
+        is_shareholder: true,
+        shareholding_percentage: new Prisma.Decimal("50"),
+        field_sources: {
+          shareholdingPercentage: { source: "CTOS", updatedAt: "2026-01-01T00:00:00.000Z" },
+        },
+        external_observation: {
+          name: "ApexStar Holdings Sdn. Bhd.",
+          identityNumber: "7321984G",
+          entityType: "CORPORATE",
+          isDirector: false,
+          isShareholder: true,
+          shareholdingPercentage: 50,
+        },
+      })
+    );
+    await seedMasterPartiesIfEmpty("issuer", "org-1");
+    const apex = parties.find((p) => p.id === "p-apex");
+    expect(apex?.membership_status).toBe(OrganizationPartyMembershipStatus.MASTER_ACTIVE);
+    expect(Number(apex?.shareholding_percentage)).toBe(10);
+    expect(parties.filter((p) => p.party_key === "7321984G")).toHaveLength(1);
+    const dto = serializeParty(apex as never);
+    expect(dto.mismatches.find((m) => m.field === "shareholdingPercentage")?.externalValue).toBe(50);
+    expect(dto.fieldSources.shareholdingPercentage?.source).toBe("REGTANK");
+  });
+
+  it("overwrites CTOS-stamped Nur Aina share % with RegTank form 6%", async () => {
+    issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
+    issuerOrg.corporate_entities = {
+      directors: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+          },
+        },
+      ],
+      shareholders: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+            formContent: {
+              content: [{ fieldName: "% of Shares", fieldValue: "6" }],
+            },
+          },
+        },
+      ],
+      corporateShareholders: [],
+    };
+    parties.push(
+      row({
+        id: "p-aina",
+        party_key: "950829083430",
+        identity_number: "950829083430",
+        name: "Nur Aina Farisha Binti Salleh",
+        origin: OrganizationPartyOrigin.CTOS_PARTY,
+        is_director: true,
+        is_shareholder: true,
+        shareholding_percentage: new Prisma.Decimal("5"),
+        field_sources: {
+          shareholdingPercentage: { source: "CTOS", updatedAt: "2026-01-01T00:00:00.000Z" },
+        },
+      })
+    );
+    await seedMasterPartiesIfEmpty("issuer", "org-1");
+    expect(Number(parties.find((p) => p.id === "p-aina")?.shareholding_percentage)).toBe(6);
+  });
+
+  it("does not overwrite a user-entered Nur Aina share % with the RegTank form figure", async () => {
+    issuerOrg.regulatory_structure_established_at = new Date("2026-01-01T00:00:00.000Z");
+    issuerOrg.corporate_entities = {
+      directors: [],
+      shareholders: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+            formContent: {
+              content: [{ fieldName: "% of Shares", fieldValue: "6" }],
+            },
+          },
+        },
+      ],
+      corporateShareholders: [],
+    };
+    parties.push(
+      row({
+        id: "p-aina",
+        party_key: "950829083430",
+        identity_number: "950829083430",
+        name: "Nur Aina Farisha Binti Salleh",
+        origin: OrganizationPartyOrigin.USER_ADDED,
+        is_director: true,
+        is_shareholder: true,
+        shareholding_percentage: new Prisma.Decimal("5"),
+        field_sources: {
+          shareholdingPercentage: { source: "USER", updatedAt: "2026-01-01T00:00:00.000Z" },
+        },
+      })
+    );
+    await seedMasterPartiesIfEmpty("issuer", "org-1");
+    expect(Number(parties.find((p) => p.id === "p-aina")?.shareholding_percentage)).toBe(5);
   });
 });
 

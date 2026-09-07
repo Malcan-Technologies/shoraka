@@ -18,6 +18,21 @@ export function normalizeScNric(value: string | null | undefined): string | null
   return normalized.length > 0 ? normalized : null;
 }
 
+/** Strip dashes/spaces/specials while typing for NRIC and ROC/BRN. Passport is unchanged. */
+export function restrictScIdentityInput(
+  kind: "NRIC" | "ROC" | "PASSPORT" | string,
+  value: string
+): string {
+  if (kind === "PASSPORT") return value;
+  return value.replace(/[^A-Za-z0-9]/g, "");
+}
+
+/** Malaysian postcodes: digits only, matching application company-details. International postcodes stay free text. */
+export function restrictScPostcodeInput(state: string | null | undefined, value: string): string {
+  if (state === "Outside Malaysia") return value;
+  return value.replace(/\D/g, "");
+}
+
 /** SC [02000] share-count columns: "Integer value without decimal points." */
 export function isScIntegerWithoutDecimal(value: unknown): boolean {
   if (value === null || value === undefined || value === "") return true;

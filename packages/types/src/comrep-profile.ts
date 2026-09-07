@@ -1,3 +1,5 @@
+import { normalizeProfilePhone } from "./profile-phone";
+
 /**
  * SC ComRep enumerations and CashSouk master-profile completeness.
  * Annual RMO Information Report tables are [01000]–[11000]; issuer/investor
@@ -445,38 +447,125 @@ export const SC_INVESTOR_CATEGORY_LABELS: Record<ScInvestorCategory, string> = {
   NON_SOPHISTICATED_ENTITY: "Non-sophisticated entity",
 };
 
-export const SC_INVESTOR_CATEGORIES_PERSONAL = [
+export const SC_INVESTOR_CATEGORY_DEFINITIONS: Record<ScInvestorCategory, string> = {
+  ANGEL:
+    "An individual who meets the SC angel investor requirements, including the relevant Malaysian tax residence and asset or income conditions.",
+  RETAIL: "An individual who is neither an Angel investor nor a Sophisticated Investor.",
+  SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL:
+    "An individual who meets the SC high-net-worth investor requirements.",
+  SOPHISTICATED_ACCREDITED: "An investor who qualifies under the SC accredited-investor categories.",
+  SOPHISTICATED_HIGH_NET_WORTH_ENTITY:
+    "A company or entity that meets the SC high-net-worth entity requirements.",
+  NON_SOPHISTICATED_ENTITY:
+    "A company or entity that does not meet the sophisticated-investor requirements.",
+};
+
+export const SC_INVESTOR_CATEGORIES_PERSONAL_NON_SOPHISTICATED = [
   "ANGEL",
   "RETAIL",
+] as const satisfies readonly ScInvestorCategory[];
+
+export const SC_INVESTOR_CATEGORIES_PERSONAL_SOPHISTICATED = [
   "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL",
   "SOPHISTICATED_ACCREDITED",
 ] as const satisfies readonly ScInvestorCategory[];
 
-export const SC_INVESTOR_CATEGORIES_CORPORATE = [
+export const SC_INVESTOR_CATEGORIES_PERSONAL = [
+  ...SC_INVESTOR_CATEGORIES_PERSONAL_NON_SOPHISTICATED,
+  ...SC_INVESTOR_CATEGORIES_PERSONAL_SOPHISTICATED,
+] as const satisfies readonly ScInvestorCategory[];
+
+export const SC_INVESTOR_CATEGORIES_CORPORATE_SOPHISTICATED = [
   "SOPHISTICATED_HIGH_NET_WORTH_ENTITY",
+  "SOPHISTICATED_ACCREDITED",
+] as const satisfies readonly ScInvestorCategory[];
+
+export const SC_INVESTOR_CATEGORIES_CORPORATE_NON_SOPHISTICATED = [
   "NON_SOPHISTICATED_ENTITY",
 ] as const satisfies readonly ScInvestorCategory[];
+
+export const SC_INVESTOR_CATEGORIES_CORPORATE = [
+  ...SC_INVESTOR_CATEGORIES_CORPORATE_SOPHISTICATED,
+  ...SC_INVESTOR_CATEGORIES_CORPORATE_NON_SOPHISTICATED,
+] as const satisfies readonly ScInvestorCategory[];
+
+export const SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE =
+  "Select Sophisticated Investor first.";
+
+export type ScInvestorCategoryScope = {
+  organizationType: "PERSONAL" | "COMPANY";
+  isSophisticatedInvestor?: boolean | null;
+};
 
 export function isScInvestorCategory(value: unknown): value is ScInvestorCategory {
   return typeof value === "string" && (SC_INVESTOR_CATEGORIES as readonly string[]).includes(value);
 }
 
-export function allowedScInvestorCategories(input: {
-  organizationType: "PERSONAL" | "COMPANY";
-}): ScInvestorCategory[] {
-  if (input.organizationType === "COMPANY") {
-    return [...SC_INVESTOR_CATEGORIES_CORPORATE];
+export function isSophisticatedInvestorSelected(
+  value: unknown
+): value is boolean {
+  return value === true || value === false;
+}
+
+/** RegTank answers set Sophisticated Yes/No for personal investors only. */
+export function appliesRegTankSophisticatedStatus(
+  organizationType: "PERSONAL" | "COMPANY" | string
+): boolean {
+  return organizationType === "PERSONAL";
+}
+
+export function allowedScInvestorCategories(input: ScInvestorCategoryScope): ScInvestorCategory[] {
+  if (!isSophisticatedInvestorSelected(input.isSophisticatedInvestor)) {
+    return [];
   }
-  return [...SC_INVESTOR_CATEGORIES_PERSONAL];
+  if (input.organizationType === "COMPANY") {
+    return input.isSophisticatedInvestor
+      ? [...SC_INVESTOR_CATEGORIES_CORPORATE_SOPHISTICATED]
+      : [...SC_INVESTOR_CATEGORIES_CORPORATE_NON_SOPHISTICATED];
+  }
+  return input.isSophisticatedInvestor
+    ? [...SC_INVESTOR_CATEGORIES_PERSONAL_SOPHISTICATED]
+    : [...SC_INVESTOR_CATEGORIES_PERSONAL_NON_SOPHISTICATED];
 }
 
 export function isAllowedScInvestorCategory(
   category: unknown,
-  input: { organizationType: "PERSONAL" | "COMPANY" }
+  input: ScInvestorCategoryScope
 ): category is ScInvestorCategory {
   return (
     isScInvestorCategory(category) && allowedScInvestorCategories(input).includes(category)
   );
+}
+
+export function scInvestorCategoryAfterSophisticatedChange(
+  current: unknown,
+  input: ScInvestorCategoryScope
+): ScInvestorCategory | null {
+  return isAllowedScInvestorCategory(current, input) ? current : null;
+}
+
+export function scInvestorCategoryHelp(
+  categories: readonly ScInvestorCategory[]
+): string {
+  return categories
+    .map((category) => `${SC_INVESTOR_CATEGORY_LABELS[category]}\n${SC_INVESTOR_CATEGORY_DEFINITIONS[category]}`)
+    .join("\n\n");
+}
+
+export function typeOfInvestorValidationMessage(
+  category: unknown,
+  input: ScInvestorCategoryScope
+): string | null {
+  if (!isSophisticatedInvestorSelected(input.isSophisticatedInvestor)) {
+    return SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE;
+  }
+  if (category == null || (typeof category === "string" && category.trim() === "")) {
+    return "Type of Investor is required.";
+  }
+  if (!isAllowedScInvestorCategory(category, input)) {
+    return "This Type of Investor is not valid for this organisation.";
+  }
+  return null;
 }
 
 export const OPERATOR_ADVISOR_TYPE_LABELS: Record<OperatorAdvisorType, string> = {
@@ -552,7 +641,7 @@ export type IssuerProfileStepId = (typeof ISSUER_PROFILE_STEP_IDS)[number];
 export const INVESTOR_PROFILE_STEP_IDS = ["identity", "review"] as const;
 export type InvestorProfileStepId = (typeof INVESTOR_PROFILE_STEP_IDS)[number];
 /** Identity required fields: all USER-editable on the normal Investor Profile, including `scInvestorCategory`. */
-export const INVESTOR_IDENTITY_REQUIRED_COUNT = 9;
+export const INVESTOR_IDENTITY_REQUIRED_COUNT = 10;
 export const INVESTOR_ADMIN_IDENTITY_REQUIRED_COUNT = 0;
 
 export type ComrepProfileStepId = IssuerProfileStepId | InvestorProfileStepId;
@@ -689,7 +778,9 @@ export function investorUiSectionForMissing(
   if (item.step === "shareholders" || item.step === "board") return "people";
   if (item.field === "state" || item.field === "postalCode") return "addresses";
   if (item.field === "businessState" || item.field === "businessPostalCode") return "addresses";
-  if (item.field === "scInvestorCategory") return "classification";
+  if (item.field === "scInvestorCategory" || item.field === "isSophisticatedInvestor") {
+    return "classification";
+  }
   if (
     organizationType === "COMPANY" &&
     (item.field === "name" ||
@@ -904,6 +995,7 @@ export interface InvestorPersonalCompletenessInput {
   postalCode: string | null | undefined;
   nationality: string | null | undefined;
   scInvestorCategory: ScInvestorCategory | null | undefined;
+  isSophisticatedInvestor?: boolean | null;
 }
 
 export interface InvestorCorporateCompletenessInput {
@@ -916,6 +1008,7 @@ export interface InvestorCorporateCompletenessInput {
   businessState: string | null | undefined;
   businessPostalCode: string | null | undefined;
   scInvestorCategory: ScInvestorCategory | null | undefined;
+  isSophisticatedInvestor?: boolean | null;
 }
 
 export const ISSUER_FINANCIAL_COMREP_KEYS = [
@@ -953,6 +1046,14 @@ export const ISSUER_FINANCIAL_COMREP_LABELS: Record<IssuerFinancialComrepKey, st
 
 function hasText(value: unknown): boolean {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasValidEmailValue(value: unknown): boolean {
+  return hasText(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
+}
+
+function hasValidPhoneValue(value: unknown): boolean {
+  return hasText(value) && normalizeProfilePhone(String(value)) != null;
 }
 
 function hasDate(value: unknown): boolean {
@@ -1020,11 +1121,20 @@ function pushMissing(
 function pushMissingInvestorCategory(
   missing: ProfileMissingItem[],
   step: ComrepProfileStepId,
-  organizationType: "PERSONAL" | "COMPANY",
+  scope: ScInvestorCategoryScope,
   existing: ScInvestorCategory | null | undefined
 ): void {
-  if (isAllowedScInvestorCategory(existing, { organizationType })) return;
+  if (isAllowedScInvestorCategory(existing, scope)) return;
   pushMissing(missing, step, "scInvestorCategory", "Type of Investor", undefined, "USER");
+}
+
+function pushMissingSophisticatedInvestor(
+  missing: ProfileMissingItem[],
+  step: ComrepProfileStepId,
+  existing: boolean | null | undefined
+): void {
+  if (isSophisticatedInvestorSelected(existing)) return;
+  pushMissing(missing, step, "isSophisticatedInvestor", "Sophisticated Investor", undefined, "USER");
 }
 
 function withUserFacingCompleteness(
@@ -1039,7 +1149,7 @@ function withUserFacingCompleteness(
       userMissing,
     };
   }
-  const identityRequired = completeness.steps.find((step) => step.id === "identity")?.requiredCount ?? 9;
+  const identityRequired = completeness.steps.find((step) => step.id === "identity")?.requiredCount ?? 10;
   const peopleRequired = completeness.steps.find((step) => step.id === "shareholders")?.requiredCount ?? 0;
   const userRequiredCount =
     Math.max(0, identityRequired - INVESTOR_ADMIN_IDENTITY_REQUIRED_COUNT) + peopleRequired;
@@ -1094,8 +1204,8 @@ export function computeIssuerCompanyCompleteness(
   if (!hasRequiredPostcodeValue(input.businessAddress?.postalCode, input.businessAddress?.state)) {
     pushMissing(missing, step, "businessAddress.postalCode", "Business Address - Postcode");
   }
-  if (!hasText(input.phoneNumber)) pushMissing(missing, step, "phoneNumber", "Phone Number");
-  if (!hasText(input.companyEmail)) pushMissing(missing, step, "companyEmail", "E-mail Address");
+  if (!hasValidPhoneValue(input.phoneNumber)) pushMissing(missing, step, "phoneNumber", "Phone Number");
+  if (!hasValidEmailValue(input.companyEmail)) pushMissing(missing, step, "companyEmail", "E-mail Address");
   return missing;
 }
 
@@ -1508,7 +1618,16 @@ export function computeInvestorPersonalCompleteness(
     pushMissing(missing, step, "postalCode", "Business/Residential Address - Postcode");
   }
   if (!hasText(input.nationality)) pushMissing(missing, step, "nationality", "Nationality/Country");
-  pushMissingInvestorCategory(missing, step, "PERSONAL", input.scInvestorCategory);
+  pushMissingSophisticatedInvestor(missing, step, input.isSophisticatedInvestor);
+  pushMissingInvestorCategory(
+    missing,
+    step,
+    {
+      organizationType: "PERSONAL",
+      isSophisticatedInvestor: input.isSophisticatedInvestor,
+    },
+    input.scInvestorCategory
+  );
   return missing;
 }
 
@@ -1544,7 +1663,16 @@ export function computeInvestorCorporateCompleteness(
   if (!hasRequiredPostcodeValue(input.businessPostalCode, input.businessState)) {
     pushMissing(missing, step, "businessPostalCode", "Business/Residential Address - Postcode");
   }
-  pushMissingInvestorCategory(missing, step, "COMPANY", input.scInvestorCategory);
+  pushMissingSophisticatedInvestor(missing, step, input.isSophisticatedInvestor);
+  pushMissingInvestorCategory(
+    missing,
+    step,
+    {
+      organizationType: "COMPANY",
+      isSophisticatedInvestor: input.isSophisticatedInvestor,
+    },
+    input.scInvestorCategory
+  );
   return missing;
 }
 

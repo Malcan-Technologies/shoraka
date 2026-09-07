@@ -23,8 +23,15 @@ import {
   parseInvoiceOfferCampaignSector,
   formatScPurposeOfFundRaisingDisplay,
   resolveApplicationPurposeOfFundRaising,
+  SC_INVESTOR_CATEGORIES,
+  SC_INVESTOR_CATEGORY_DEFINITIONS,
+  SC_INVESTOR_CATEGORY_LABELS,
   SC_SUSTAINABILITY_CATEGORIES,
+  scInvestorCategoryHelp,
+  scInvestorCategoryAfterSophisticatedChange,
+  appliesRegTankSophisticatedStatus,
   shouldShowOrganizationPersonalKycCard,
+  typeOfInvestorValidationMessage,
   valuesEqualForMismatch,
 } from "./comrep-profile";
 import {
@@ -107,6 +114,57 @@ describe("issuer company completeness [02000]", () => {
       companyActivities: null,
     });
     expect(missing.map((m) => m.field)).toEqual(["companyEmail"]);
+  });
+
+  it("CASE F: invalid e-mail is missing; a valid e-mail is not", () => {
+    const invalid = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      phoneNumber: "+60123456789",
+      companyEmail: "not-an-email",
+      companyActivities: null,
+    });
+    expect(invalid.map((m) => m.field)).toEqual(["companyEmail"]);
+    const valid = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      phoneNumber: "+60123456789",
+      companyEmail: "ops@acme.test",
+      companyActivities: null,
+    });
+    expect(valid.map((m) => m.field)).not.toContain("companyEmail");
+  });
+
+  it("CASE D: a local Malaysian phone is complete", () => {
+    const missing = computeIssuerCompanyCompleteness({
+      name: "Acme Sdn Bhd",
+      registrationNumber: "1234567A",
+      organizationId: "org_1",
+      dateOfIncorporation: "2020-01-01",
+      dateOfCommencement: "2020-02-01",
+      countryOfIncorporation: "Malaysia",
+      scCompanyType: "PRIVATE_LIMITED",
+      registeredAddress: { line1: "1 Jalan A", state: "Selangor", postalCode: "40000" },
+      businessAddress: { line1: "2 Jalan B", state: "Selangor", postalCode: "40000" },
+      phoneNumber: "0182316817",
+      companyEmail: "ops@acme.test",
+      companyActivities: null,
+    });
+    expect(missing.map((m) => m.field)).not.toContain("phoneNumber");
   });
 
   it("does not require postcode when State is Outside Malaysia", () => {
@@ -250,6 +308,7 @@ describe("investor personal completeness [07000]", () => {
         postalCode: "47300",
         nationality: "Malaysia",
         scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: false,
       },
     });
     expect(result.complete).toBe(true);
@@ -363,17 +422,138 @@ describe("campaign sustainability category [03000]", () => {
 });
 
 describe("SC ComRep investor category", () => {
-  it("lists personal and corporate options separately and does not use the product flag", () => {
-    expect(allowedScInvestorCategories({ organizationType: "PERSONAL" })).toEqual([
-      "ANGEL",
-      "RETAIL",
-      "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL",
-      "SOPHISTICATED_ACCREDITED",
-    ]);
-    expect(allowedScInvestorCategories({ organizationType: "COMPANY" })).toEqual([
-      "SOPHISTICATED_HIGH_NET_WORTH_ENTITY",
-      "NON_SOPHISTICATED_ENTITY",
-    ]);
+  it("shows only HNWI and Accredited for a personal sophisticated investor", () => {
+    expect(
+      allowedScInvestorCategories({
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: true,
+      })
+    ).toEqual(["SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL", "SOPHISTICATED_ACCREDITED"]);
+  });
+
+  it("shows only Angel and Retail for a personal non-sophisticated investor", () => {
+    expect(
+      allowedScInvestorCategories({
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: false,
+      })
+    ).toEqual(["ANGEL", "RETAIL"]);
+  });
+
+  it("shows only HNWE and Accredited for a company sophisticated investor", () => {
+    expect(
+      allowedScInvestorCategories({
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: true,
+      })
+    ).toEqual(["SOPHISTICATED_HIGH_NET_WORTH_ENTITY", "SOPHISTICATED_ACCREDITED"]);
+  });
+
+  it("shows only Non-sophisticated entity for a company non-sophisticated investor", () => {
+    expect(
+      allowedScInvestorCategories({
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: false,
+      })
+    ).toEqual(["NON_SOPHISTICATED_ENTITY"]);
+  });
+
+  it("does not auto-select Type of Investor even when only one option is valid", () => {
+    expect(
+      scInvestorCategoryAfterSophisticatedChange(null, {
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: false,
+      })
+    ).toBeNull();
+  });
+
+  it("hides Type of Investor options until Sophisticated Investor is chosen", () => {
+    expect(
+      allowedScInvestorCategories({
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: null,
+      })
+    ).toEqual([]);
+    expect(
+      allowedScInvestorCategories({
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: undefined,
+      })
+    ).toEqual([]);
+  });
+
+  it("does not apply RegTank auto-sophisticated status to companies", () => {
+    expect(appliesRegTankSophisticatedStatus("COMPANY")).toBe(false);
+    expect(appliesRegTankSophisticatedStatus("PERSONAL")).toBe(true);
+  });
+
+  it("clears Type of Investor when Sophisticated status makes it invalid", () => {
+    expect(
+      scInvestorCategoryAfterSophisticatedChange("SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL", {
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: false,
+      })
+    ).toBeNull();
+    expect(
+      scInvestorCategoryAfterSophisticatedChange("SOPHISTICATED_HIGH_NET_WORTH_ENTITY", {
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: false,
+      })
+    ).toBeNull();
+    expect(
+      scInvestorCategoryAfterSophisticatedChange("ANGEL", {
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: false,
+      })
+    ).toBe("ANGEL");
+  });
+
+  it("rejects invalid personal combinations", () => {
+    expect(
+      typeOfInvestorValidationMessage("RETAIL", {
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: true,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
+    expect(
+      typeOfInvestorValidationMessage("SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL", {
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: false,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
+    expect(
+      typeOfInvestorValidationMessage("SOPHISTICATED_ACCREDITED", {
+        organizationType: "PERSONAL",
+        isSophisticatedInvestor: false,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
+  });
+
+  it("rejects invalid company combinations", () => {
+    expect(
+      typeOfInvestorValidationMessage("RETAIL", {
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: true,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
+    expect(
+      typeOfInvestorValidationMessage("ANGEL", {
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: true,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
+    expect(
+      typeOfInvestorValidationMessage("SOPHISTICATED_HIGH_NET_WORTH_ENTITY", {
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: false,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
+    expect(
+      typeOfInvestorValidationMessage("SOPHISTICATED_ACCREDITED", {
+        organizationType: "COMPANY",
+        isSophisticatedInvestor: false,
+      })
+    ).toBe("This Type of Investor is not valid for this organisation.");
   });
 
   it("requires an explicit SC category for user completeness now that investors can set it", () => {
@@ -389,6 +569,7 @@ describe("SC ComRep investor category", () => {
         postalCode: "47300",
         nationality: "Malaysia",
         scInvestorCategory: null,
+        isSophisticatedInvestor: false,
       },
     });
     expect(personal.complete).toBe(false);
@@ -409,6 +590,7 @@ describe("SC ComRep investor category", () => {
         businessState: "Selangor",
         businessPostalCode: "47300",
         scInvestorCategory: null,
+        isSophisticatedInvestor: false,
       },
     });
     expect(corporate.complete).toBe(false);
@@ -416,6 +598,48 @@ describe("SC ComRep investor category", () => {
     expect(corporate.userMissing.map((item) => item.field)).toEqual(["scInvestorCategory"]);
     expect(corporate.missing.map((item) => item.field)).toContain("scInvestorCategory");
     expect(corporate.missing.find((item) => item.field === "scInvestorCategory")?.owner).toBe("USER");
+  });
+
+  it("counts blank Sophisticated Investor and Type of Investor as missing", () => {
+    const personal = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101011234",
+        dateOfBirth: "1980-01-01",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: null,
+        isSophisticatedInvestor: null,
+      },
+    });
+    expect(personal.userMissing.map((item) => item.field)).toEqual([
+      "isSophisticatedInvestor",
+      "scInvestorCategory",
+    ]);
+
+    const corporate = buildInvestorProfileCompleteness({
+      organizationType: "COMPANY",
+      corporate: {
+        name: "Acme Capital Sdn Bhd",
+        registrationNumber: "202401000001",
+        identityPrefix: "ROC",
+        dateOfIncorporation: "2020-01-01",
+        countryOfIncorporation: "Malaysia",
+        gender: "NOT_APPLICABLE",
+        businessState: "Selangor",
+        businessPostalCode: "47300",
+        scInvestorCategory: null,
+        isSophisticatedInvestor: null,
+      },
+    });
+    expect(corporate.userMissing.map((item) => item.field)).toEqual([
+      "isSophisticatedInvestor",
+      "scInvestorCategory",
+    ]);
   });
 
   it("keeps user completeness incomplete when an investor-editable field is missing", () => {
@@ -431,6 +655,7 @@ describe("SC ComRep investor category", () => {
         postalCode: "47300",
         nationality: "Malaysia",
         scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: false,
       },
     });
     expect(personal.complete).toBe(false);
@@ -439,7 +664,26 @@ describe("SC ComRep investor category", () => {
     expect(personal.userMissing[0]?.owner ?? "USER").toBe("USER");
   });
 
-  it("accepts an SC category that differs from the CashSouk product flag", () => {
+  it("counts an invalid personal Type of Investor as missing", () => {
+    const personal = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101011234",
+        dateOfBirth: "1980-01-01",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: "RETAIL",
+        isSophisticatedInvestor: true,
+      },
+    });
+    expect(personal.userMissing.map((item) => item.field)).toEqual(["scInvestorCategory"]);
+  });
+
+  it("keeps an existing valid Type of Investor complete", () => {
     const personal = buildInvestorProfileCompleteness({
       organizationType: "PERSONAL",
       personal: {
@@ -452,10 +696,28 @@ describe("SC ComRep investor category", () => {
         postalCode: "47300",
         nationality: "Malaysia",
         scInvestorCategory: "ANGEL",
+        isSophisticatedInvestor: false,
       },
     });
     expect(personal.complete).toBe(true);
     expect(personal.userComplete).toBe(true);
+
+    const sophisticatedPersonal = buildInvestorProfileCompleteness({
+      organizationType: "PERSONAL",
+      personal: {
+        name: "Ali Bin Abu",
+        identityPrefix: "NRIC",
+        identityNumber: "800101011234",
+        dateOfBirth: "1980-01-01",
+        gender: "MALE",
+        state: "Selangor",
+        postalCode: "47300",
+        nationality: "Malaysia",
+        scInvestorCategory: "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL",
+        isSophisticatedInvestor: true,
+      },
+    });
+    expect(sophisticatedPersonal.complete).toBe(true);
 
     const corporate = buildInvestorProfileCompleteness({
       organizationType: "COMPANY",
@@ -469,10 +731,32 @@ describe("SC ComRep investor category", () => {
         businessState: "Selangor",
         businessPostalCode: "47300",
         scInvestorCategory: "NON_SOPHISTICATED_ENTITY",
+        isSophisticatedInvestor: false,
       },
     });
     expect(corporate.complete).toBe(true);
     expect(corporate.userComplete).toBe(true);
+  });
+
+  it("exposes tooltip definitions for every displayed Type of Investor option", () => {
+    for (const category of SC_INVESTOR_CATEGORIES) {
+      expect(SC_INVESTOR_CATEGORY_DEFINITIONS[category].length).toBeGreaterThan(0);
+    }
+
+    const scopes = [
+      { organizationType: "PERSONAL" as const, isSophisticatedInvestor: true },
+      { organizationType: "PERSONAL" as const, isSophisticatedInvestor: false },
+      { organizationType: "COMPANY" as const, isSophisticatedInvestor: true },
+      { organizationType: "COMPANY" as const, isSophisticatedInvestor: false },
+    ];
+    for (const scope of scopes) {
+      const options = allowedScInvestorCategories(scope);
+      const help = scInvestorCategoryHelp(options);
+      for (const option of options) {
+        expect(help).toContain(SC_INVESTOR_CATEGORY_LABELS[option]);
+        expect(help).toContain(SC_INVESTOR_CATEGORY_DEFINITIONS[option]);
+      }
+    }
   });
 });
 

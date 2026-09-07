@@ -272,6 +272,7 @@ describe("buildSectionPayload", () => {
     const org = companyOrg({
       portal: "investor",
       type: "PERSONAL",
+      isSophisticatedInvestor: false,
       scInvestorCategory: "RETAIL",
     });
     const draft = buildDraft(org);
@@ -279,6 +280,23 @@ describe("buildSectionPayload", () => {
 
     expect(buildSectionPayload(org, draft, "classification")).toEqual({
       scInvestorCategory: "ANGEL",
+    });
+  });
+
+  it("clears Type of Investor when Sophisticated status makes it invalid", () => {
+    const org = companyOrg({
+      portal: "investor",
+      type: "PERSONAL",
+      isSophisticatedInvestor: true,
+      scInvestorCategory: "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL",
+    });
+    const draft = buildDraft(org);
+    draft.isSophisticatedInvestor = false;
+    draft.scInvestorCategory = "";
+
+    expect(buildSectionPayload(org, draft, "classification")).toEqual({
+      isSophisticatedInvestor: false,
+      scInvestorCategory: null,
     });
   });
 

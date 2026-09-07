@@ -11,12 +11,22 @@ import {
   SC_GENDER_LABELS,
   SC_GENDERS,
   allowedScInvestorCategories,
+  SC_INVESTOR_CATEGORY_DEFINITIONS,
   SC_INVESTOR_CATEGORY_LABELS,
+  scInvestorCategoryHelp,
+  scInvestorCategoryAfterSophisticatedChange,
+  SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE,
+  isSophisticatedInvestorSelected,
+  typeOfInvestorValidationMessage,
   SC_MALAYSIAN_STATES,
   SC_MONTHLY_INVESTOR,
   SC_MONTHLY_ISSUER,
   displayScCompanyTypeLabel,
   firstIssueMessage,
+  humanizeApiValidationMessage,
+  isProfileValidationError,
+  issuesByField,
+  restrictScPostcodeInput,
   shouldShowOrganizationPersonalKycCard,
   validateInvestorPersonalForm,
   validateIssuerAddressForm,
@@ -73,6 +83,7 @@ import {
   EditableAddressFields,
   EditableDateField,
   EditableField,
+  EditablePhoneField,
   EditableSelect,
   EditableYesNo,
   formatAddressDisplay,
@@ -114,6 +125,7 @@ export function OrganizationProfilePanel({
   const [draft, setDraft] = React.useState<OrgProfileDraft>(() => buildDraft(org));
   const [showConfirm, setShowConfirm] = React.useState(false);
   const [sameAsBusiness, setSameAsBusiness] = React.useState(false);
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
 
   React.useEffect(() => {
     if (!editingSection) setDraft(buildDraft(org));
@@ -124,6 +136,7 @@ export function OrganizationProfilePanel({
     const nextDraft = buildDraft(org);
     setDraft(nextDraft);
     setEditingSection(section);
+    setFieldErrors({});
     if (section === "addresses") {
       setSameAsBusiness(
         addressesEqual(nextDraft.businessAddress, nextDraft.registeredAddress) &&
@@ -136,6 +149,7 @@ export function OrganizationProfilePanel({
     setDraft(buildDraft(org));
     setEditingSection(null);
     setSameAsBusiness(false);
+    setFieldErrors({});
   };
 
   const requestSave = () => {
@@ -155,6 +169,7 @@ export function OrganizationProfilePanel({
         phoneNumber: draft.phoneNumber,
       });
       if (issues.length > 0) {
+        setFieldErrors(issuesByField(issues));
         toast.error(firstIssueMessage(issues));
         return;
       }
@@ -169,6 +184,7 @@ export function OrganizationProfilePanel({
         businessPostalCode: draft.businessAddress.postalCode,
       });
       if (issues.length > 0) {
+        setFieldErrors(issuesByField(issues));
         toast.error(firstIssueMessage(issues));
         return;
       }
@@ -181,7 +197,24 @@ export function OrganizationProfilePanel({
         postalCode: draft.residentialPostalCode,
       });
       if (issues.length > 0) {
+        setFieldErrors(issuesByField(issues));
         toast.error(firstIssueMessage(issues));
+        return;
+      }
+    }
+    if (editingSection === "classification" && portal === "investor") {
+      if (!isSophisticatedInvestorSelected(draft.isSophisticatedInvestor)) {
+        setFieldErrors({ isSophisticatedInvestor: "Sophisticated Investor is required." });
+        toast.error("Sophisticated Investor is required.");
+        return;
+      }
+      const message = typeOfInvestorValidationMessage(draft.scInvestorCategory, {
+        organizationType: org.type === "COMPANY" ? "COMPANY" : "PERSONAL",
+        isSophisticatedInvestor: draft.isSophisticatedInvestor,
+      });
+      if (message) {
+        setFieldErrors({ scInvestorCategory: message });
+        toast.error(message);
         return;
       }
     }
@@ -212,8 +245,15 @@ export function OrganizationProfilePanel({
       toast.success("Organization profile updated");
       setShowConfirm(false);
       setEditingSection(null);
+      setFieldErrors({});
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update organization");
+      if (isProfileValidationError(error) && Object.keys(error.fieldErrors).length > 0) {
+        setFieldErrors(error.fieldErrors);
+        setShowConfirm(false);
+      }
+      toast.error(
+        error instanceof Error ? humanizeApiValidationMessage(error.message) : "Failed to update organization"
+      );
     }
   };
 
@@ -238,6 +278,13 @@ export function OrganizationProfilePanel({
     ...missingFieldKeys(org.profileCompleteness, "identity"),
   ]);
   const companyTypeLabel = displayScCompanyTypeLabel(org.scCompanyType, basic?.entityType);
+  const investorCategoryScope = {
+    organizationType: (org.type === "COMPANY" ? "COMPANY" : "PERSONAL") as "PERSONAL" | "COMPANY",
+    isSophisticatedInvestor:
+      editingSection === "classification" ? draft.isSophisticatedInvestor : org.isSophisticatedInvestor,
+  };
+  const investorCategoryOptions = allowedScInvestorCategories(investorCategoryScope);
+  const investorCategoryHelp = scInvestorCategoryHelp(investorCategoryOptions);
   const investorCategoryLabel =
     org.scInvestorCategory && org.scInvestorCategory in SC_INVESTOR_CATEGORY_LABELS
       ? SC_INVESTOR_CATEGORY_LABELS[org.scInvestorCategory as ScInvestorCategory]
@@ -375,8 +422,12 @@ export function OrganizationProfilePanel({
                     label="Employees"
                     value={draft.numberOfEmployees}
                     onChange={(numberOfEmployees) =>
-                      setDraft((current) => ({ ...current, numberOfEmployees }))
+                      setDraft((current) => ({
+                        ...current,
+                        numberOfEmployees: numberOfEmployees.replace(/\D/g, ""),
+                      }))
                     }
+                    inputMode="numeric"
                   />
                   <EditableField
                     label="Annual Revenue (RM)"
@@ -394,13 +445,16 @@ export function OrganizationProfilePanel({
                       value={draft.companyEmail}
                       onChange={(companyEmail) => setDraft((current) => ({ ...current, companyEmail }))}
                       required
+                      maxLength={255}
+                      error={fieldErrors.companyEmail}
                     />
                   ) : null}
-                  <EditableField
+                  <EditablePhoneField
                     label={phoneLabel}
                     value={draft.phoneNumber}
                     onChange={(phoneNumber) => setDraft((current) => ({ ...current, phoneNumber }))}
                     required={issuerCompany}
+                    error={fieldErrors.phoneNumber}
                   />
                 </>
               ) : (
@@ -594,6 +648,11 @@ export function OrganizationProfilePanel({
                       registeredAddress: sameAsBusiness ? businessAddress : current.registeredAddress,
                     }));
                   }}
+                  errors={{
+                    line1: fieldErrors["businessAddress.line1"],
+                    state: fieldErrors["businessAddress.state"],
+                    postalCode: fieldErrors["businessAddress.postalCode"],
+                  }}
                 />
                 <div className="space-y-4 border-t pt-6">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -631,6 +690,11 @@ export function OrganizationProfilePanel({
                       onChange={(registeredAddress) =>
                         setDraft((current) => ({ ...current, registeredAddress }))
                       }
+                      errors={{
+                        line1: fieldErrors["registeredAddress.line1"],
+                        state: fieldErrors["registeredAddress.state"],
+                        postalCode: fieldErrors["registeredAddress.postalCode"],
+                      }}
                     />
                   )}
                 </div>
@@ -835,10 +899,11 @@ export function OrganizationProfilePanel({
                 {editingSection === "contact" ? (
                   <>
                     {org.type !== "COMPANY" ? (
-                      <EditableField
+                      <EditablePhoneField
                         label="Phone Number"
                         value={draft.phoneNumber}
                         onChange={(phoneNumber) => setDraft((current) => ({ ...current, phoneNumber }))}
+                        error={fieldErrors.phoneNumber}
                       />
                     ) : null}
                     <ReadField label="Account owner email" value={org.owner.email} locked />
@@ -889,8 +954,15 @@ export function OrganizationProfilePanel({
                     label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
                     value={draft.residentialPostalCode}
                     onChange={(residentialPostalCode) =>
-                      setDraft((current) => ({ ...current, residentialPostalCode }))
+                      setDraft((current) => ({
+                        ...current,
+                        residentialPostalCode: restrictScPostcodeInput(
+                          draft.residentialState,
+                          residentialPostalCode
+                        ),
+                      }))
                     }
+                    error={fieldErrors.postalCode}
                   />
                 </>
               ) : (
@@ -920,40 +992,78 @@ export function OrganizationProfilePanel({
           <AdminDetailCardHeader
             icon={IdentificationIcon}
             title="Investor classification"
-            description="Account class is the CashSouk product status. Type of Investor is used for regulatory reporting and does not change product eligibility."
+            description="Sophisticated Investor and Type of Investor are required. Type of Investor is used for regulatory reporting and does not change product eligibility."
             actions={sectionActions("classification")}
           />
           <CardContent>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <ReadField
-                label="Investor Status"
-                value={
-                  org.isSophisticatedInvestor
-                    ? "Sophisticated"
-                    : org.type === "COMPANY"
-                      ? "Non-sophisticated entity"
-                      : "Retail"
-                }
-              />
               {editingSection === "classification" ? (
-                <EditableSelect
-                  label={SC_MONTHLY_INVESTOR.typeOfInvestor.label}
-                  value={draft.scInvestorCategory}
-                  onChange={(scInvestorCategory) =>
-                    setDraft((current) => ({ ...current, scInvestorCategory }))
+                <EditableYesNo
+                  label="Sophisticated Investor"
+                  name={`sophisticated-investor-${organizationId}`}
+                  value={draft.isSophisticatedInvestor}
+                  required
+                  onChange={(isSophisticatedInvestor) =>
+                    setDraft((current) => {
+                      const kept = scInvestorCategoryAfterSophisticatedChange(
+                        current.scInvestorCategory,
+                        {
+                          organizationType: org.type === "COMPANY" ? "COMPANY" : "PERSONAL",
+                          isSophisticatedInvestor,
+                        }
+                      );
+                      return {
+                        ...current,
+                        isSophisticatedInvestor,
+                        scInvestorCategory: kept ?? "",
+                      };
+                    })
                   }
-                  options={allowedScInvestorCategories({
-                    organizationType: org.type === "COMPANY" ? "COMPANY" : "PERSONAL",
-                  }).map((value) => ({
-                    value,
-                    label: SC_INVESTOR_CATEGORY_LABELS[value],
-                  }))}
                 />
+              ) : (
+                <ReadField
+                  label="Sophisticated Investor"
+                  value={
+                    org.isSophisticatedInvestor === true
+                      ? "Yes"
+                      : org.isSophisticatedInvestor === false
+                        ? "No"
+                        : null
+                  }
+                  missing={requiredFieldKeys.has("isSophisticatedInvestor")}
+                  required
+                />
+              )}
+              {editingSection === "classification" ? (
+                <div className="space-y-2">
+                  <EditableSelect
+                    label={SC_MONTHLY_INVESTOR.typeOfInvestor.label}
+                    value={draft.scInvestorCategory}
+                    onChange={(scInvestorCategory) =>
+                      setDraft((current) => ({ ...current, scInvestorCategory }))
+                    }
+                    options={investorCategoryOptions.map((value) => ({
+                      value,
+                      label: SC_INVESTOR_CATEGORY_LABELS[value],
+                      title: SC_INVESTOR_CATEGORY_DEFINITIONS[value],
+                    }))}
+                    help={investorCategoryHelp || undefined}
+                    required
+                    disabled={!isSophisticatedInvestorSelected(draft.isSophisticatedInvestor)}
+                  />
+                  {!isSophisticatedInvestorSelected(draft.isSophisticatedInvestor) ? (
+                    <p className="text-meta text-muted-foreground">
+                      {SELECT_SOPHISTICATED_INVESTOR_FIRST_MESSAGE}
+                    </p>
+                  ) : null}
+                </div>
               ) : (
                 <ReadField
                   label={SC_MONTHLY_INVESTOR.typeOfInvestor.label}
                   value={investorCategoryLabel}
                   missing={requiredFieldKeys.has("scInvestorCategory")}
+                  help={investorCategoryHelp}
+                  required
                 />
               )}
             </div>

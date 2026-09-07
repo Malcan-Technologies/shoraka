@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import { ZodError } from "zod";
+import { ZodError, type ZodIssue } from "zod";
+import { humanizeApiValidationMessage } from "@cashsouk/types";
 import { logger } from "../logger";
 
 export class AppError extends Error {
@@ -17,8 +18,25 @@ export class AppError extends Error {
 export function formatZodMessage(zodError: ZodError): string {
   const first = zodError.issues[0];
   if (!first) return "Validation failed";
-  const path = first.path.length ? `${first.path.join(".")}: ` : "";
-  return path + (first.message || "Invalid value");
+  return humanizeZodIssueMessage(first);
+}
+
+function humanizeZodIssueMessage(issue: ZodIssue): string {
+  if (
+    (issue.code === "invalid_enum_value" || issue.code === "invalid_literal") &&
+    (!issue.message || /^Invalid (enum value|literal)/i.test(issue.message))
+  ) {
+    return "Select a valid option.";
+  }
+  if (
+    issue.code === "invalid_string" &&
+    "validation" in issue &&
+    issue.validation === "email" &&
+    (!issue.message || /^Invalid email/i.test(issue.message))
+  ) {
+    return "Enter a valid e-mail address.";
+  }
+  return humanizeApiValidationMessage(issue.message || "Invalid value", issue.path.join("."));
 }
 
 function isEntityParseFailed(err: Error): boolean {

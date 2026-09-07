@@ -5,6 +5,12 @@ export const ISSUER_MIN_SHAREHOLDING_PERCENT = 5;
 
 export const ISSUER_MIN_SHAREHOLDING_MESSAGE = "Shareholding Percentage must be at least 5%.";
 
+export const SHAREHOLDING_MAX_PERCENT = 100;
+
+export const SHAREHOLDING_MAX_MESSAGE = "Enter a percentage of 100 or less.";
+
+export const ISSUER_SHAREHOLDING_RANGE_MESSAGE = "Enter a percentage between 5 and 100.";
+
 const SHARE_LABEL = "Shareholding Percentage (%)";
 
 export function parseShareholdingPercent(value: unknown): number | null {
@@ -50,7 +56,24 @@ export function issuerShareholdingThresholdIssue(
       message: ISSUER_MIN_SHAREHOLDING_MESSAGE,
     };
   }
+  if (parsed > SHAREHOLDING_MAX_PERCENT) {
+    return {
+      field: "shareholdingPercentage",
+      label: SHARE_LABEL,
+      message: ISSUER_SHAREHOLDING_RANGE_MESSAGE,
+    };
+  }
   return null;
+}
+
+export function shareholdingPercentCapIssue(
+  value: unknown,
+  field = "shareholdingPercentage",
+  label = SHARE_LABEL
+): ComrepFieldIssue | null {
+  const parsed = parseShareholdingPercent(value);
+  if (parsed == null || parsed <= SHAREHOLDING_MAX_PERCENT) return null;
+  return { field, label, message: SHAREHOLDING_MAX_MESSAGE };
 }
 
 export function isIssuerShareholderOnlyBelowMinimum(flags: {

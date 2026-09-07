@@ -5,6 +5,12 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { PlusIcon, UserIcon, UsersIcon } from "@heroicons/react/24/outline";
 import type { OrganizationDetailResponse, PortalType } from "@cashsouk/types";
+import {
+  humanizeApiValidationMessage,
+  isProfileValidationError,
+  optionalEmailIssue,
+  phoneFormatIssue,
+} from "@cashsouk/types";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,7 +46,7 @@ import {
   personToEditorValues,
   type PartyEditorValues,
 } from "./organization-person-editor-dialog";
-import { EditableField, ReadField } from "./organization-profile-helpers";
+import { EditableField, EditablePhoneField, ReadField } from "./organization-profile-helpers";
 import { useUpdateOrganizationProfile } from "@/organizations/hooks/use-update-organization-profile";
 import {
   buildDraft,
@@ -72,6 +78,7 @@ export function OrganizationPeoplePanel({
   const [editingPic, setEditingPic] = React.useState(false);
   const [draft, setDraft] = React.useState<OrgProfileDraft>(() => buildDraft(org));
   const [showConfirm, setShowConfirm] = React.useState(false);
+  const [picFieldErrors, setPicFieldErrors] = React.useState<Record<string, string>>({});
   const [editingMemberId, setEditingMemberId] = React.useState<string | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
   const [seedValues, setSeedValues] = React.useState<PartyEditorValues | null>(null);
@@ -104,11 +111,27 @@ export function OrganizationPeoplePanel({
     if (updateProfile.isPending) return;
     setDraft(buildDraft(org));
     setEditingPic(true);
+    setPicFieldErrors({});
   };
 
   const handleCancelPic = () => {
     setDraft(buildDraft(org));
     setEditingPic(false);
+    setPicFieldErrors({});
+  };
+
+  const handleSavePic = () => {
+    const issues = [
+      optionalEmailIssue(draft.picEmail, "picEmail", "Email"),
+      phoneFormatIssue(draft.picContactNumber, "picContactNumber", "Contact Number"),
+    ].filter((issue): issue is NonNullable<typeof issue> => Boolean(issue));
+    if (issues.length > 0) {
+      setPicFieldErrors(Object.fromEntries(issues.map((issue) => [issue.field, issue.message])));
+      toast.error(issues[0]?.message);
+      return;
+    }
+    setPicFieldErrors({});
+    setShowConfirm(true);
   };
 
   const handleConfirmSave = async () => {
@@ -126,8 +149,22 @@ export function OrganizationPeoplePanel({
       toast.success("Organization profile updated");
       setShowConfirm(false);
       setEditingPic(false);
+      setPicFieldErrors({});
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update organization");
+      if (isProfileValidationError(error) && Object.keys(error.fieldErrors).length > 0) {
+        const next = { ...error.fieldErrors };
+        if (error.fieldErrors["corporateOnboardingData.personInCharge.contactNumber"]) {
+          next.picContactNumber = error.fieldErrors["corporateOnboardingData.personInCharge.contactNumber"];
+        }
+        if (error.fieldErrors["corporateOnboardingData.personInCharge.email"]) {
+          next.picEmail = error.fieldErrors["corporateOnboardingData.personInCharge.email"];
+        }
+        setPicFieldErrors(next);
+        setShowConfirm(false);
+      }
+      toast.error(
+        error instanceof Error ? humanizeApiValidationMessage(error.message) : "Failed to update organization"
+      );
     }
   };
 
@@ -355,7 +392,7 @@ export function OrganizationPeoplePanel({
                 isSaving={updateProfile.isPending}
                 onEdit={handleStartPicEdit}
                 onCancel={handleCancelPic}
-                onSave={() => setShowConfirm(true)}
+                onSave={handleSavePic}
               />
             }
           />
@@ -377,13 +414,16 @@ export function OrganizationPeoplePanel({
                     label="Email"
                     value={draft.picEmail}
                     onChange={(picEmail) => setDraft((current) => ({ ...current, picEmail }))}
+                    maxLength={255}
+                    error={picFieldErrors.picEmail}
                   />
-                  <EditableField
+                  <EditablePhoneField
                     label="Contact Number"
                     value={draft.picContactNumber}
                     onChange={(picContactNumber) =>
                       setDraft((current) => ({ ...current, picContactNumber }))
                     }
+                    error={picFieldErrors.picContactNumber}
                   />
                 </>
               ) : (

@@ -25,7 +25,7 @@ export function ComRepFieldLabel({
       <span>{label}</span>
       {required ? <span className="text-destructive"> *</span> : null}
       {help ? (
-        <InfoTooltip content={help} className="max-w-xs" iconClassName="h-4 w-4 shrink-0" />
+        <InfoTooltip content={help} className="max-w-sm" iconClassName="h-4 w-4 shrink-0" />
       ) : null}
     </Label>
   );

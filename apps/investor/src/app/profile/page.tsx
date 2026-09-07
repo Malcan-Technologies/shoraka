@@ -27,7 +27,7 @@ import {
   MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
-import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, SC_MONTHLY_INVESTOR, firstIssueMessage, scAppendixASelectValues, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
+import { filterVisiblePeopleRows, SC_GENDER_LABELS, SC_INDIVIDUAL_GENDERS, SC_MALAYSIAN_STATES, SC_MONTHLY_INVESTOR, firstIssueMessage, humanizeApiValidationMessage, isValidProfilePhone, restrictScPostcodeInput, scAppendixASelectValues, storedProfilePhone, userFacingCompleteness, validateInvestorPersonalForm, type ScGender } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
@@ -40,7 +40,7 @@ import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
 import { toast } from "sonner";
-import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
+import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import {
   useHeader,
@@ -529,7 +529,7 @@ export default function ProfilePage() {
         bankAccountDetails: BankAccountDetails | null;
         onboardingStatus: string;
         onboardedAt: string | null;
-        isSophisticatedInvestor: boolean;
+        isSophisticatedInvestor: boolean | null;
         corporateOnboardingData?: {
           basicInfo?: {
             tinNumber?: string;
@@ -711,7 +711,9 @@ export default function ProfilePage() {
       setIsEditingBanking(false);
     },
     onError: (error: Error) => {
-      toast.error("Failed to update profile", { description: error.message });
+      toast.error("Failed to update profile", {
+        description: humanizeApiValidationMessage(error.message),
+      });
     },
   });
 
@@ -724,8 +726,8 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async () => {
     if (!activeOrganization) return;
-    if (phoneNumber && !isValidPhoneNumber(phoneNumber)) {
-      toast.error("Invalid phone number format");
+    if (phoneNumber && !isValidProfilePhone(phoneNumber)) {
+      toast.error("Enter a valid phone number.");
       return;
     }
 
@@ -754,13 +756,15 @@ export default function ProfilePage() {
         master
       );
       if (!masterRes.success) {
-        toast.error("Failed to update profile", { description: masterRes.error.message });
+        toast.error("Failed to update profile", {
+          description: humanizeApiValidationMessage(masterRes.error.message),
+        });
         return;
       }
     }
 
     updateProfileMutation.mutate({
-      phoneNumber: phoneNumber || null,
+      phoneNumber: storedProfilePhone(phoneNumber) || null,
       address: address.trim() || null,
     });
   };
@@ -837,7 +841,9 @@ export default function ProfilePage() {
       setIsEditingAddresses(false);
     },
     onError: (error: Error) => {
-      toast.error("Failed to update addresses", { description: error.message });
+      toast.error("Failed to update addresses", {
+        description: humanizeApiValidationMessage(error.message),
+      });
     },
   });
 
@@ -1184,7 +1190,11 @@ export default function ProfilePage() {
                         <Input
                           className="h-11 text-ui"
                           value={residentialPostalCode}
-                          onChange={(event) => setResidentialPostalCode(event.target.value)}
+                          onChange={(event) =>
+                            setResidentialPostalCode(
+                              restrictScPostcodeInput(residentialState, event.target.value)
+                            )
+                          }
                         />
                       </div>
                     </div>
@@ -1216,7 +1226,7 @@ export default function ProfilePage() {
                   <InvestorClassificationCard
                     organizationId={activeOrganization.id}
                     organizationType="PERSONAL"
-                    isSophisticatedInvestor={Boolean(orgData?.isSophisticatedInvestor)}
+                    isSophisticatedInvestor={orgData?.isSophisticatedInvestor ?? null}
                     scInvestorCategory={orgData?.scInvestorCategory}
                   />
 
@@ -1558,7 +1568,7 @@ export default function ProfilePage() {
                   <InvestorClassificationCard
                     organizationId={activeOrganization.id}
                     organizationType="COMPANY"
-                    isSophisticatedInvestor={Boolean(orgData?.isSophisticatedInvestor)}
+                    isSophisticatedInvestor={orgData?.isSophisticatedInvestor ?? null}
                     scInvestorCategory={orgData?.scInvestorCategory}
                   />
                   <div className="rounded-xl border bg-card">

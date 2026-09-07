@@ -368,7 +368,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                                 Sophisticated Investor
                               </div>
                               <Switch
-                                checked={org.isSophisticatedInvestor}
+                                checked={org.isSophisticatedInvestor === true}
                                 onCheckedChange={handleSophisticatedToggle}
                                 disabled={updateSophisticatedMutation.isPending || !canManage}
                                 title={
@@ -377,10 +377,12 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                                     : undefined
                                 }
                               />
-                              {org.isSophisticatedInvestor ? (
+                              {org.isSophisticatedInvestor === true ? (
                                 <StatusBadge label="Yes" status="success" />
-                              ) : (
+                              ) : org.isSophisticatedInvestor === false ? (
                                 <StatusBadge label="No" status="neutral" />
+                              ) : (
+                                <StatusBadge label="Not set" status="action" />
                               )}
                             </div>
                             {org.sophisticatedInvestorReason ? (

@@ -28,11 +28,12 @@ import {
   isValidFinancingTenureDays,
   requiredEmailIssue,
   requiredTextIssue,
+  storedProfilePhone,
+  phoneFormatIssue,
   validateIssuerMasterPatch,
   validateAdditionalFeeLines,
   type ReviewItemType,
 } from "@cashsouk/types";
-import { isValidPhoneNumber } from "libphonenumber-js";
 import { aboutYourBusinessSchema, addressSchema, bankAccountDetailsSchema } from "../organization/schemas";
 
 // Helper for parsing boolean query params (handles "true"/"false" strings properly)
@@ -300,11 +301,27 @@ export type GetOrganizationLinkedRecordsQuery = z.infer<typeof getOrganizationLi
 
 const optionalPhone = z
   .string()
-  .refine((val) => !val || isValidPhoneNumber(val), {
-    message: "Invalid phone number format",
-  })
   .optional()
-  .nullable();
+  .nullable()
+  .superRefine((val, ctx) => {
+    const issue = phoneFormatIssue(val, "phoneNumber", "Phone Number");
+    if (issue) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue.message });
+    }
+  })
+  .transform((val) => (val == null || val === "" ? val : (storedProfilePhone(val) as typeof val)));
+
+const optionalContactPhone = z
+  .string()
+  .optional()
+  .nullable()
+  .superRefine((val, ctx) => {
+    const issue = phoneFormatIssue(val, "contactNumber", "Contact Number");
+    if (issue) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue.message });
+    }
+  })
+  .transform((val) => (val == null || val === "" ? val : (storedProfilePhone(val) as typeof val)));
 
 export const updateAdminOrganizationProfileSchema = z
   .object({
@@ -334,8 +351,14 @@ export const updateAdminOrganizationProfileSchema = z
           .object({
             name: z.string().max(255).optional().nullable(),
             position: z.string().max(255).optional().nullable(),
-            email: z.union([z.string().email(), z.literal(""), z.null()]).optional(),
-            contactNumber: optionalPhone,
+            email: z
+              .union([
+                z.string().email({ message: "Enter a valid e-mail address." }),
+                z.literal(""),
+                z.null(),
+              ])
+              .optional(),
+            contactNumber: optionalContactPhone,
           })
           .optional(),
         aboutYourBusiness: aboutYourBusinessSchema.optional(),
@@ -348,6 +371,7 @@ export const updateAdminOrganizationProfileSchema = z
     companyCategory: z.enum(SC_COMPANY_CATEGORIES).optional().nullable(),
     companyEmail: z.string().max(255).optional().nullable(),
     scInvestorCategory: z.enum(SC_INVESTOR_CATEGORIES).optional().nullable(),
+    isSophisticatedInvestor: z.boolean().optional(),
     residentialAddress: addressSchema.optional().nullable(),
     gender: z.enum(SC_GENDERS).optional().nullable(),
     nationality: z.string().max(500).optional().nullable(),
@@ -367,11 +391,12 @@ export const updateAdminOrganizationProfileSchema = z
       }
     }
     if (value.phoneNumber !== undefined && value.phoneNumber !== null && value.phoneNumber !== "") {
-      if (!isValidPhoneNumber(value.phoneNumber)) {
+      const issue = phoneFormatIssue(value.phoneNumber, "phoneNumber", "Phone Number");
+      if (issue) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["phoneNumber"],
-          message: "Invalid phone number format",
+          message: issue.message,
         });
       }
     }

@@ -1618,7 +1618,7 @@ export class AdminRepository {
       registration_number: string | null;
       onboarding_status: OnboardingStatus;
       onboarded_at: Date | null;
-      is_sophisticated_investor: boolean;
+      is_sophisticated_investor: boolean | null;
       deposit_received: boolean;
       kyc_response: unknown;
       created_at: Date;
@@ -1743,7 +1743,7 @@ export class AdminRepository {
             lastName: org.owner.last_name,
           },
           memberCount: org._count.members,
-          isSophisticatedInvestor: org.is_sophisticated_investor,
+          isSophisticatedInvestor: org.is_sophisticated_investor ?? false,
           depositReceived: org.deposit_received,
           onboardingFeePaid: false,
           walletBalance: org.investor_balance?.available_amount?.toNumber() ?? 0,
@@ -1850,7 +1850,7 @@ export class AdminRepository {
     director_kyc_status: unknown;
     business_aml_status: unknown;
     // Sophisticated investor status (only for investor portal)
-    is_sophisticated_investor?: boolean;
+    is_sophisticated_investor?: boolean | null;
     sophisticated_investor_reason?: string | null;
     date_of_incorporation?: Date | null;
     date_of_commencement?: Date | null;
