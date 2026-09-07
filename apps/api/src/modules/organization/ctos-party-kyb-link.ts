@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import {
   getCtosPartySupplementPipelineStatus,
+  issuerShareholdingMeetsMinimum,
   normalizeDirectorShareholderIdKey,
   parseCtosPartySupplement,
   sanitizeCtosPartySupplementOnboardingJsonForPersist,
@@ -210,7 +211,9 @@ export async function linkCtosPartyToKyb(input: LinkCtosPartyToKybInput): Promis
   const ob = onboardingJson as Record<string, unknown>;
   const directorDone = directorKybLinked(ob);
   const shareholderDone = shareholderKybLinked(ob);
-  if ((!match.isDirector || directorDone) && (!match.isShareholder || shareholderDone)) {
+  const shareholderEligible =
+    match.isShareholder && issuerShareholdingMeetsMinimum(match.percent);
+  if ((!match.isDirector || directorDone) && (!shareholderEligible || shareholderDone)) {
     return;
   }
 
@@ -249,7 +252,7 @@ export async function linkCtosPartyToKyb(input: LinkCtosPartyToKybInput): Promis
     );
   }
 
-  if (match.isShareholder && !shareholderKybLinked(working as Record<string, unknown>)) {
+  if (shareholderEligible && !shareholderKybLinked(working as Record<string, unknown>)) {
     try {
       await api.addKybIndividualShareholder({
         requestId: mainKybId,

@@ -10,6 +10,7 @@ import {
   isGeneratedUserPartyKey,
   stripGeneratedPartyKeyPrefix,
   isMissingGovernmentIdPerson,
+  issuerShareholdingMeetsMinimum,
   type ApplicationPersonRow,
   type CtosPartySupplement,
   type DirectorShareholderListSource,
@@ -527,7 +528,7 @@ function buildPeopleFromUserDeclaredData(params: {
     const sharePct = typeof r.sharePercentage === "number" ? r.sharePercentage : null;
     const roles: Array<"DIRECTOR" | "SHAREHOLDER"> = [];
     if (r.isDirector) roles.push("DIRECTOR");
-    if (r.isShareholder && sharePct != null && sharePct >= 5) roles.push("SHAREHOLDER");
+    if (r.isShareholder && issuerShareholdingMeetsMinimum(sharePct)) roles.push("SHAREHOLDER");
 
     // Display-only unresolved identity: no trusted matchKey; never merge by name/email/EOD.
     if (r.identityWarning === "MISSING_GOVERNMENT_ID") {
@@ -655,16 +656,11 @@ function sharePercentFromMaster(value: string | number | null): number | null {
 }
 
 function operationalRolesForMasterParty(
-  party: MasterPartyPeopleSeed,
-  options?: { corporateRequiresMinimum?: boolean }
+  party: MasterPartyPeopleSeed
 ): Array<"DIRECTOR" | "SHAREHOLDER"> {
   const roles: Array<"DIRECTOR" | "SHAREHOLDER"> = [];
   if (party.isDirector) roles.push("DIRECTOR");
-  const share = sharePercentFromMaster(party.shareholdingPercentage);
-  const meetsIndividualMinimum = share != null && share >= 5;
-  const corporateWithoutMinimum =
-    !options?.corporateRequiresMinimum && party.entityType === "CORPORATE";
-  if (party.isShareholder && (meetsIndividualMinimum || corporateWithoutMinimum)) {
+  if (party.isShareholder && issuerShareholdingMeetsMinimum(party.shareholdingPercentage)) {
     roles.push("SHAREHOLDER");
   }
   return roles;
@@ -683,14 +679,13 @@ function operationalMatchKeyForMasterParty(party: MasterPartyPeopleSeed): string
 /**
  * Fold CashSouk master parties into operational people[] so KYC email/onboarding
  * still works for user-added directors/shareholders who are not yet in CTOS JSON.
- * Management-only, EXTERNAL_OBSERVED, and individual shareholders under 5% stay off this list.
- * Issuer also requires company shareholders to meet the 5% floor.
+ * Management-only, EXTERNAL_OBSERVED, and shareholders under 5% stay off this list.
+ * Individual and company shareholders both need the 5% floor.
  */
 export function mergeMasterPartiesIntoPeopleList(params: {
   people: ApplicationPersonRow[];
   masterParties: MasterPartyPeopleSeed[];
   ctosPartySupplements?: SupplementInput[] | null;
-  corporateRequiresMinimum?: boolean;
 }): ApplicationPersonRow[] {
   const out = [...params.people];
   const index = new Map<string, number>();
@@ -702,9 +697,7 @@ export function mergeMasterPartiesIntoPeopleList(params: {
 
   for (const party of params.masterParties) {
     if (party.membershipStatus !== "MASTER_ACTIVE") continue;
-    const roles = operationalRolesForMasterParty(party, {
-      corporateRequiresMinimum: params.corporateRequiresMinimum,
-    });
+    const roles = operationalRolesForMasterParty(party);
     if (roles.length === 0) continue;
     const key = operationalMatchKeyForMasterParty(party);
     if (!key) continue;
@@ -772,8 +765,6 @@ export type BuildDirectorShareholderPeopleParams = {
   ctosPartySupplements?: SupplementInput[] | null;
   corporateEntities: unknown;
   masterParties?: MasterPartyPeopleSeed[] | null;
-  /** Issuer People/Profile: company shareholders also need >= 5%. Investor keeps the existing corporate exception. */
-  requireIssuerShareholderMinimum?: boolean;
 };
 
 function retainMasterActiveOperationalPeople(
@@ -913,7 +904,7 @@ function buildPeopleFromCtosCompanyJson(
     if (!p.matchKey) continue;
     const role = p.type === "DIRECTOR" || p.type === "SHAREHOLDER" ? p.type : "DIRECTOR";
     const incomingSharePercentage = typeof p.sharePercentage === "number" ? p.sharePercentage : null;
-    if (role === "SHAREHOLDER" && (incomingSharePercentage === null || incomingSharePercentage < 5)) {
+    if (role === "SHAREHOLDER" && !issuerShareholdingMeetsMinimum(incomingSharePercentage)) {
       continue;
     }
     if (!peopleMap.has(p.matchKey)) {
@@ -1063,7 +1054,6 @@ export function buildDirectorShareholderPeopleList(
       people,
       masterParties: params.masterParties,
       ctosPartySupplements: params.ctosPartySupplements ?? null,
-      corporateRequiresMinimum: params.requireIssuerShareholderMinimum === true,
     }),
   };
 }

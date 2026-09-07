@@ -140,7 +140,7 @@ export function OrganizationPersonEditorDialog({
   initial,
   isSaving,
   onSave,
-  enforceIssuerShareholderMinimum = false,
+  enforceIssuerShareholderMinimum = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;

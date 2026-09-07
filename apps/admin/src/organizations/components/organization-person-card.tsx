@@ -25,7 +25,7 @@ export function OrganizationPersonCard({
   onAdopt,
   onInactivate,
   onKeepAbsent,
-  enforceIssuerShareholderMinimum = false,
+  enforceIssuerShareholderMinimum = true,
 }: {
   item: UnifiedOrgPerson;
   canManage: boolean;

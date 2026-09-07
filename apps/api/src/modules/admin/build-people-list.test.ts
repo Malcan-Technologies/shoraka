@@ -1078,14 +1078,13 @@ describe("buildUnifiedPeople", () => {
     expect(result.people).toEqual([]);
   });
 
-  it("does not inject an issuer company shareholder below 5% into operational people[]", () => {
+  it("does not inject a company shareholder below 5% into operational people[]", () => {
     const result = buildDirectorShareholderPeopleList({
       ctos: null,
       issuerDirectorKycStatus: null,
       issuerDirectorAmlStatus: null,
       ctosPartySupplements: null,
       corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
-      requireIssuerShareholderMinimum: true,
       masterParties: [
         {
           partyKey: "1234567A",
@@ -1102,7 +1101,7 @@ describe("buildUnifiedPeople", () => {
     expect(result.people.find((p) => p.matchKey === "1234567A")).toBeUndefined();
   });
 
-  it("still injects an investor company shareholder below 5% into operational people[]", () => {
+  it("injects a company shareholder at 5% into operational people[]", () => {
     const result = buildDirectorShareholderPeopleList({
       ctos: null,
       issuerDirectorKycStatus: null,
@@ -1118,10 +1117,34 @@ describe("buildUnifiedPeople", () => {
           identityNumber: "1234567A",
           isDirector: false,
           isShareholder: true,
+          shareholdingPercentage: "5",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "1234567A")?.roles).toEqual(["SHAREHOLDER"]);
+  });
+
+  it("keeps director role and omits shareholder when master party is director with 3% shares", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
+      masterParties: [
+        {
+          partyKey: "880202102222",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "John",
+          identityNumber: "880202102222",
+          isDirector: true,
+          isShareholder: true,
           shareholdingPercentage: "3",
         },
       ],
     });
-    expect(result.people.find((p) => p.matchKey === "1234567A")?.roles).toContain("SHAREHOLDER");
+    const john = result.people.find((p) => p.matchKey === "880202102222");
+    expect(john?.roles).toEqual(["DIRECTOR"]);
   });
 });

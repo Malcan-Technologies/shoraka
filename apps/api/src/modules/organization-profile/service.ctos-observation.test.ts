@@ -1126,9 +1126,32 @@ describe("user-added master parties", () => {
     expect(kept?.absent_from_latest_external).toBe(true);
   });
 
-  it("allows an investor shareholder below 5%", async () => {
+  it("rejects an investor shareholder below 5%", async () => {
     (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({ id: "inv-1" });
-    const created = await createUserAddedParty({
+    await expect(
+      createUserAddedParty({
+        portal: "investor",
+        organizationId: "inv-1",
+        source: "USER",
+        patch: {
+          name: "Retail Holder",
+          identityNumber: "550101011111",
+          identityPrefix: "NRIC",
+          isShareholder: true,
+          shareholdingPercentage: "2",
+          shareType: "ORDINARY",
+        },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Shareholding Percentage must be at least 5%.",
+    });
+    expect(parties).toHaveLength(0);
+  });
+
+  it("accepts an investor shareholder at 5% and a company at 10%", async () => {
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({ id: "inv-1" });
+    const individual = await createUserAddedParty({
       portal: "investor",
       organizationId: "inv-1",
       source: "USER",
@@ -1137,13 +1160,103 @@ describe("user-added master parties", () => {
         identityNumber: "550101011111",
         identityPrefix: "NRIC",
         isShareholder: true,
-        shareholdingPercentage: "2",
+        shareholdingPercentage: "5",
         shareType: "ORDINARY",
       },
     });
-    expect(created.membershipStatus).toBe("MASTER_ACTIVE");
-    expect(created.isShareholder).toBe(true);
-    expect(created.shareholdingPercentage).toBe("2");
+    expect(individual.isShareholder).toBe(true);
+    expect(individual.shareholdingPercentage).toBe("5");
+    const company = await createUserAddedParty({
+      portal: "investor",
+      organizationId: "inv-1",
+      source: "USER",
+      patch: {
+        entityType: "CORPORATE",
+        name: "HoldCo Sdn Bhd",
+        identityNumber: "1234567-C",
+        identityPrefix: "ROC",
+        isShareholder: true,
+        shareholdingPercentage: "10",
+        shareType: "ORDINARY",
+      },
+    });
+    expect(company.isShareholder).toBe(true);
+    expect(company.entityType).toBe("CORPORATE");
+  });
+
+  it("rejects an investor company shareholder at 4.99%", async () => {
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({ id: "inv-1" });
+    await expect(
+      createUserAddedParty({
+        portal: "investor",
+        organizationId: "inv-1",
+        source: "USER",
+        patch: {
+          entityType: "CORPORATE",
+          name: "ABC Sdn Bhd",
+          identityNumber: "1234567-D",
+          identityPrefix: "ROC",
+          isShareholder: true,
+          shareholdingPercentage: "4.99",
+          shareType: "ORDINARY",
+        },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Shareholding Percentage must be at least 5%.",
+    });
+  });
+
+  it("rejects adopting a <5% investor shareholder-only external party", async () => {
+    (prisma.investorOrganization.findUnique as jest.Mock).mockResolvedValue({ id: "inv-1" });
+    parties.push(
+      row({
+        id: "p-inv-small",
+        party_key: "660101011222",
+        identity_number: "660101011222",
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_shareholder: true,
+        is_director: false,
+        shareholding_percentage: new Prisma.Decimal("3"),
+        issuer_organization_id: null,
+        investor_organization_id: "inv-1",
+      })
+    );
+    await expect(
+      adoptObservedParty({
+        portal: "investor",
+        organizationId: "inv-1",
+        partyId: "p-inv-small",
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: "Shareholding Percentage must be at least 5%.",
+    });
+  });
+
+  it("adopts a director with 3% shares without activating the shareholder role", async () => {
+    parties.push(
+      row({
+        id: "p-dir-small",
+        party_key: "660101011333",
+        identity_number: "660101011333",
+        membership_status: OrganizationPartyMembershipStatus.EXTERNAL_OBSERVED,
+        is_shareholder: true,
+        is_director: true,
+        is_board: true,
+        shareholding_percentage: new Prisma.Decimal("3"),
+      })
+    );
+    const adopted = await adoptObservedParty({
+      portal: "issuer",
+      organizationId: "org-1",
+      partyId: "p-dir-small",
+    });
+    expect(adopted.membershipStatus).toBe("MASTER_ACTIVE");
+    expect(adopted.isDirector).toBe(true);
+    expect(adopted.isBoard).toBe(true);
+    expect(adopted.isShareholder).toBe(false);
+    expect(adopted.shareholdingPercentage).toBeNull();
   });
 });
 

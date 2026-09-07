@@ -1,3 +1,5 @@
+import { filterVisiblePeopleRows } from "./application-people-display";
+import { shouldIncludePerson } from "./director-shareholder-display";
 import {
   ISSUER_MIN_SHAREHOLDING_MESSAGE,
   issuerActiveShareholderFlags,
@@ -71,5 +73,42 @@ describe("issuer shareholder 5% threshold", () => {
     expect(issuerShareholdingThresholdIssue({ toString: () => "3.000000" })?.message).toBe(
       ISSUER_MIN_SHAREHOLDING_MESSAGE
     );
+  });
+
+  it("applies the same 5% inclusion rule to individual and company shareholders", () => {
+    expect(
+      shouldIncludePerson({ type: "INDIVIDUAL", isShareholder: true, sharePercentage: 3 })
+    ).toBe(false);
+    expect(
+      shouldIncludePerson({ type: "INDIVIDUAL", isShareholder: true, sharePercentage: 5 })
+    ).toBe(true);
+    expect(
+      shouldIncludePerson({ type: "COMPANY", isShareholder: true, sharePercentage: 3 })
+    ).toBe(false);
+    expect(
+      shouldIncludePerson({ type: "COMPANY", isShareholder: true, sharePercentage: 10 })
+    ).toBe(true);
+    expect(
+      shouldIncludePerson({
+        type: "INDIVIDUAL",
+        isDirector: true,
+        isShareholder: true,
+        sharePercentage: 3,
+      })
+    ).toBe(true);
+    expect(issuerShareholdingMeetsMinimum(3)).toBe(false);
+    expect(issuerShareholdingMeetsMinimum(5)).toBe(true);
+  });
+
+  it("keeps director and drops shareholder-only people below 5% from visible people[]", () => {
+    const rows = filterVisiblePeopleRows([
+      { roles: ["DIRECTOR", "SHAREHOLDER"], sharePercentage: 3 },
+      { roles: ["SHAREHOLDER"], sharePercentage: 3 },
+      { roles: ["SHAREHOLDER"], sharePercentage: 5 },
+    ]);
+    expect(rows).toEqual([
+      { roles: ["DIRECTOR"], sharePercentage: 3 },
+      { roles: ["SHAREHOLDER"], sharePercentage: 5 },
+    ]);
   });
 });

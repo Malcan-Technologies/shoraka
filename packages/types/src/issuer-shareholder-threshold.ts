@@ -1,6 +1,6 @@
 import { requiredNumberIssue, type ComrepFieldIssue } from "./comrep-requiredness";
 
-/** Issuer People/Profile hard floor for active shareholders (individual and company). */
+/** People/Profile hard floor for active shareholders (issuer and investor; individual and company). */
 export const ISSUER_MIN_SHAREHOLDING_PERCENT = 5;
 
 export const ISSUER_MIN_SHAREHOLDING_MESSAGE = "Shareholding Percentage must be at least 5%.";

@@ -200,7 +200,7 @@ export function OrganizationPeoplePanel({
                   <OrganizationPersonCard
                     item={item}
                     canManage={canManage}
-                    enforceIssuerShareholderMinimum={portal === "issuer"}
+                    enforceIssuerShareholderMinimum
                     onView={() => item.party && setViewingPartyId(item.party.id)}
                     onAdopt={item.party ? () => peopleMutations.adopt.mutate(item.party!.id) : undefined}
                   />
@@ -218,7 +218,7 @@ export function OrganizationPeoplePanel({
               <OrganizationPersonCard
                 item={item}
                 canManage={canManage}
-                enforceIssuerShareholderMinimum={portal === "issuer"}
+                enforceIssuerShareholderMinimum
                 onView={() => item.party && setViewingPartyId(item.party.id)}
                 onEdit={item.party ? () => setEditingPartyId(item.party!.id) : undefined}
                 onKeep={
@@ -401,7 +401,7 @@ export function OrganizationPeoplePanel({
         title="Add person"
         description="Adds this person to the CashSouk company record used by the issuer or investor profile."
         isSaving={peopleMutations.createParty.isPending}
-        enforceIssuerShareholderMinimum={portal === "issuer"}
+        enforceIssuerShareholderMinimum
         onSave={(values) => saveParty(values)}
       />
 
@@ -414,7 +414,7 @@ export function OrganizationPeoplePanel({
         description="Edits the same CashSouk company record the issuer or investor sees."
         initial={editingParty ? partyToEditorValues(editingParty) : null}
         isSaving={peopleMutations.patchParty.isPending}
-        enforceIssuerShareholderMinimum={portal === "issuer"}
+        enforceIssuerShareholderMinimum
         onSave={(values) => saveParty(values, editingParty?.id)}
       />
 
