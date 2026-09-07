@@ -4,7 +4,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { LinkIcon } from "@heroicons/react/24/outline";
 import type { OrganizationDetailResponse } from "@cashsouk/types";
-import { formatOrganizationReference } from "@cashsouk/types";
+import { formatOrganizationReference, getRegtankCorporateOnboardingUrl } from "@cashsouk/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { accountHref } from "@/lib/admin-directory-hrefs";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -20,17 +20,29 @@ function QuickLink({
   href?: string | null;
   display?: string | null;
 }) {
+  const isExternal = Boolean(href && /^https?:\/\//.test(href));
   return (
     <div className="space-y-1">
       <div className="text-meta text-muted-foreground">{label}</div>
       {value ? (
         href ? (
-          <Link
-            href={href}
-            className="block break-all font-mono text-ui font-medium text-primary underline-offset-4 hover:underline"
-          >
-            {display ?? value}
-          </Link>
+          isExternal ? (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block break-all font-mono text-ui font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {display ?? value}
+            </a>
+          ) : (
+            <Link
+              href={href}
+              className="block break-all font-mono text-ui font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {display ?? value}
+            </Link>
+          )
         ) : (
           <div className="break-all font-mono text-ui font-medium">{display ?? value}</div>
         )
@@ -72,7 +84,11 @@ export function OrganizationQuickLinksCard({
         <QuickLink label="Organization reference" value={reference} />
         <QuickLink label="Organization ID" value={org.id} />
         {org.type === "COMPANY" && org.codRequestId ? (
-          <QuickLink label="COD" value={org.codRequestId} />
+          <QuickLink
+            label="COD"
+            value={org.codRequestId}
+            href={getRegtankCorporateOnboardingUrl(org.codRequestId)}
+          />
         ) : null}
         {org.type === "COMPANY" ? (
           <div className="space-y-1">
