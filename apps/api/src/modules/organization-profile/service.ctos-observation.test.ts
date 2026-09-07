@@ -760,6 +760,11 @@ describe("user-added master parties", () => {
         }),
       })
     );
+    const createdJson = (prisma.ctosPartySupplement.create as jest.Mock).mock.calls[0]?.[0]?.data
+      ?.onboarding_json as Record<string, unknown>;
+    expect(createdJson.status).toBe("");
+    expect(String(createdJson.requestId ?? "")).not.toMatch(/^draft-/i);
+    expect(createdJson.email).toBe("sarah@example.com");
   });
 
   it("creates a corporate shareholder as MASTER_ACTIVE USER_ADDED", async () => {

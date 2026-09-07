@@ -5,6 +5,7 @@
  * OUTPUT: normalizeRawStatus(status) for reg_tank_onboarding.status
  * WHERE USED: apps/api RegTank handlers, packages/types CTOS display, issuer UI
  */
+import { canonicalPartyKycOnboardingStatus } from "./kyc-onboarding-lifecycle";
 import { normalizeRawStatus } from "./status-normalization";
 import { parseCtosPartySupplement } from "./ctos-party-supplement-json";
 
@@ -45,12 +46,13 @@ export function getDisplayAmlStatus(raw?: string | null): string {
 export function effectiveCtosRegtankStatusFromOnboardingJson(
   onboardingJson: unknown
 ): string | null {
-  const st = parseCtosPartySupplement(onboardingJson).status;
-  if (typeof st === "string" && st.trim()) {
-    const n = normalizeRawStatus(st);
-    return n || null;
-  }
-  return null;
+  const s = parseCtosPartySupplement(onboardingJson);
+  return canonicalPartyKycOnboardingStatus({
+    status: s.status,
+    requestId: s.requestId,
+    sentAt: s.sentAt,
+    lastSentAt: s.lastSentAt,
+  });
 }
 
 /** Badge surface for normalized raw statuses (no invented labels). */

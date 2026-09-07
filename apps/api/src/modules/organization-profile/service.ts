@@ -34,6 +34,7 @@ import {
   type ScPersonKind,
   applyPartyComrepSemantics,
   isAllowedScInvestorCategory,
+  typeOfInvestorValidationMessage,
   issuerShareholdingThresholdIssue,
   isIssuerShareholderOnlyBelowMinimum,
   issuerActiveShareholderFlags,
@@ -758,9 +759,14 @@ export async function computeOrgProfileCompleteness(
   const name =
     [org.first_name, org.last_name].filter(Boolean).join(" ").trim() || org.name || null;
   const organizationType = org.type === "COMPANY" ? "COMPANY" : "PERSONAL";
-  const scInvestorCategory = isAllowedScInvestorCategory(org.sc_investor_category, {
-    organizationType,
-  })
+  const categoryScope =
+    organizationType === "COMPANY"
+      ? { organizationType: "COMPANY" as const }
+      : {
+          organizationType: "PERSONAL" as const,
+          isSophisticatedInvestor: org.is_sophisticated_investor ?? false,
+        };
+  const scInvestorCategory = isAllowedScInvestorCategory(org.sc_investor_category, categoryScope)
     ? org.sc_investor_category
     : null;
   if (organizationType === "COMPANY") {
@@ -827,6 +833,7 @@ export async function computeOrgProfileCompleteness(
       postalCode: residential?.postalCode ?? null,
       nationality: org.nationality,
       scInvestorCategory,
+      isSophisticatedInvestor: org.is_sophisticated_investor ?? false,
     },
   });
 }
@@ -1018,15 +1025,16 @@ export async function patchOrgMasterProfile(params: {
   }
   if (patch.scInvestorCategory !== undefined) {
     const organizationType = investor.type === "COMPANY" ? "COMPANY" : "PERSONAL";
-    if (
-      patch.scInvestorCategory !== null &&
-      !isAllowedScInvestorCategory(patch.scInvestorCategory, { organizationType })
-    ) {
-      throw new AppError(
-        400,
-        "VALIDATION_ERROR",
-        "This Type of Investor is not valid for this organisation."
-      );
+    const categoryScope =
+      organizationType === "COMPANY"
+        ? { organizationType: "COMPANY" as const }
+        : {
+            organizationType: "PERSONAL" as const,
+            isSophisticatedInvestor: Boolean(investor.is_sophisticated_investor),
+          };
+    const invalid = typeOfInvestorValidationMessage(patch.scInvestorCategory, categoryScope);
+    if (invalid) {
+      throw new AppError(400, "VALIDATION_ERROR", invalid);
     }
     data.sc_investor_category = applyScalar(
       "scInvestorCategory",
@@ -1418,14 +1426,7 @@ async function upsertPartyEmailSupplement(params: {
       : { investor_organization_id: params.organizationId, party_key: params.partyKey };
   const existing = await prisma.ctosPartySupplement.findFirst({ where });
   const merged = mergeCtosPartySupplementDocument(existing?.onboarding_json, {
-    onboarding: existing
-      ? { email: params.email }
-      : {
-          email: params.email,
-          status: "NOT_STARTED",
-          requestId: `draft-${Date.now()}`,
-          verifyLink: "",
-        },
+    onboarding: { email: params.email },
   });
   if (existing) {
     await prisma.ctosPartySupplement.update({

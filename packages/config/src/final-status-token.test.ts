@@ -25,5 +25,10 @@ describe("getFinalStatusToken", () => {
       getFinalStatusToken(getFinalStatusLabel({ onboarding: { status: "EXPIRED" } }).tone)
     ).toBe("rejected");
     expect(getFinalStatusToken(getFinalStatusLabel({}).tone)).toBe("neutral");
+    expect(
+      getFinalStatusToken(
+        getFinalStatusLabel({ onboarding: { status: "NOT_STARTED" } }, { displayMode: "kyc_only" }).tone
+      )
+    ).toBe("neutral");
   });
 });

@@ -111,7 +111,84 @@ describe("sc_investor_category shared master field", () => {
     expect(mockInvestorUpdate).not.toHaveBeenCalled();
   });
 
-  it("lets Admin update the same persisted field without changing is_sophisticated_investor", async () => {
+  it("rejects personal Sophisticated Yes with Retail", async () => {
+    mockInvestorFindUnique.mockResolvedValue(
+      personalOrg({ is_sophisticated_investor: true, sc_investor_category: null })
+    );
+    await expect(
+      patchOrgMasterProfile({
+        portal: "investor",
+        organizationId: "inv-1",
+        actorUserId: "user-1",
+        source: "USER",
+        patch: { scInvestorCategory: "RETAIL" },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: "VALIDATION_ERROR",
+      message: "This Type of Investor is not valid for this organisation.",
+    });
+    expect(mockInvestorUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects personal Sophisticated No with HNWI", async () => {
+    mockInvestorFindUnique.mockResolvedValue(
+      personalOrg({ is_sophisticated_investor: false, sc_investor_category: "RETAIL" })
+    );
+    await expect(
+      patchOrgMasterProfile({
+        portal: "investor",
+        organizationId: "inv-1",
+        actorUserId: "admin-1",
+        source: "ADMIN",
+        patch: { scInvestorCategory: "SOPHISTICATED_HIGH_NET_WORTH_INDIVIDUAL" },
+      })
+    ).rejects.toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR" });
+    expect(mockInvestorUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects company Retail and Angel", async () => {
+    mockInvestorFindUnique.mockResolvedValue(
+      corporateOrg({ is_sophisticated_investor: true, sc_investor_category: null })
+    );
+    await expect(
+      patchOrgMasterProfile({
+        portal: "investor",
+        organizationId: "inv-co-1",
+        actorUserId: "admin-1",
+        source: "ADMIN",
+        patch: { scInvestorCategory: "RETAIL" },
+      })
+    ).rejects.toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR" });
+    await expect(
+      patchOrgMasterProfile({
+        portal: "investor",
+        organizationId: "inv-co-1",
+        actorUserId: "admin-1",
+        source: "ADMIN",
+        patch: { scInvestorCategory: "ANGEL" },
+      })
+    ).rejects.toMatchObject({ statusCode: 400, code: "VALIDATION_ERROR" });
+    expect(mockInvestorUpdate).not.toHaveBeenCalled();
+  });
+
+  it("does not auto-set HNWE from company is_sophisticated_investor = true", async () => {
+    mockInvestorFindUnique.mockResolvedValue(
+      corporateOrg({ is_sophisticated_investor: true, sc_investor_category: null })
+    );
+    await patchOrgMasterProfile({
+      portal: "investor",
+      organizationId: "inv-co-1",
+      actorUserId: "admin-1",
+      source: "ADMIN",
+      patch: { nationality: "Malaysia" },
+    });
+    const data = mockInvestorUpdate.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    expect(data).not.toHaveProperty("sc_investor_category");
+    expect(data).not.toHaveProperty("is_sophisticated_investor");
+  });
+
+  it("lets Admin update Type of Investor without changing is_sophisticated_investor", async () => {
     mockInvestorFindUnique.mockResolvedValue(
       personalOrg({ sc_investor_category: "RETAIL", is_sophisticated_investor: false })
     );
@@ -120,10 +197,30 @@ describe("sc_investor_category shared master field", () => {
       organizationId: "inv-1",
       actorUserId: "admin-1",
       source: "ADMIN",
-      patch: { scInvestorCategory: "SOPHISTICATED_ACCREDITED" },
+      patch: { scInvestorCategory: "ANGEL" },
     });
     const data = mockInvestorUpdate.mock.calls[0]?.[0]?.data as Record<string, unknown>;
-    expect(data.sc_investor_category).toBe("SOPHISTICATED_ACCREDITED");
+    expect(data.sc_investor_category).toBe("ANGEL");
     expect(data).not.toHaveProperty("is_sophisticated_investor");
+  });
+
+  it("preserves an existing valid Type of Investor when another field is patched", async () => {
+    mockInvestorFindUnique.mockResolvedValue(
+      personalOrg({
+        sc_investor_category: "SOPHISTICATED_ACCREDITED",
+        is_sophisticated_investor: true,
+        nationality: "Malaysia",
+      })
+    );
+    await patchOrgMasterProfile({
+      portal: "investor",
+      organizationId: "inv-1",
+      actorUserId: "admin-1",
+      source: "ADMIN",
+      patch: { nationality: "Singapore" },
+    });
+    const data = mockInvestorUpdate.mock.calls[0]?.[0]?.data as Record<string, unknown>;
+    expect(data).not.toHaveProperty("sc_investor_category");
+    expect(data.nationality).toBe("Singapore");
   });
 });

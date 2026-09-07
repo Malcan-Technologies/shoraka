@@ -513,6 +513,7 @@ export * from "./application-people-display";
 export * from "./issuer-director-shareholder-ctos-notification-diff";
 export * from "./director-kyc-gov-id";
 export * from "./director-shareholder-final-status";
+export * from "./kyc-onboarding-lifecycle";
 export * from "./director-shareholder-display";
 export * from "./ctos-directors-verification-merge";
 export * from "./director-shareholder-party-type-a";

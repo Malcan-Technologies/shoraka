@@ -11,7 +11,10 @@ import {
   SC_GENDER_LABELS,
   SC_GENDERS,
   allowedScInvestorCategories,
+  SC_INVESTOR_CATEGORY_DEFINITIONS,
   SC_INVESTOR_CATEGORY_LABELS,
+  scInvestorCategoryHelp,
+  typeOfInvestorValidationMessage,
   SC_MALAYSIAN_STATES,
   SC_MONTHLY_INVESTOR,
   SC_MONTHLY_ISSUER,
@@ -196,6 +199,17 @@ export function OrganizationProfilePanel({
         return;
       }
     }
+    if (editingSection === "classification" && portal === "investor") {
+      const message = typeOfInvestorValidationMessage(draft.scInvestorCategory, {
+        organizationType: org.type === "COMPANY" ? "COMPANY" : "PERSONAL",
+        isSophisticatedInvestor: org.isSophisticatedInvestor,
+      });
+      if (message) {
+        setFieldErrors({ scInvestorCategory: message });
+        toast.error(message);
+        return;
+      }
+    }
     if (
       editingSection === "bank" &&
       Boolean(draft.bankName || draft.accountType || draft.accountNumber) &&
@@ -256,6 +270,12 @@ export function OrganizationProfilePanel({
     ...missingFieldKeys(org.profileCompleteness, "identity"),
   ]);
   const companyTypeLabel = displayScCompanyTypeLabel(org.scCompanyType, basic?.entityType);
+  const investorCategoryScope = {
+    organizationType: (org.type === "COMPANY" ? "COMPANY" : "PERSONAL") as "PERSONAL" | "COMPANY",
+    isSophisticatedInvestor: org.isSophisticatedInvestor,
+  };
+  const investorCategoryOptions = allowedScInvestorCategories(investorCategoryScope);
+  const investorCategoryHelp = scInvestorCategoryHelp(investorCategoryOptions);
   const investorCategoryLabel =
     org.scInvestorCategory && org.scInvestorCategory in SC_INVESTOR_CATEGORY_LABELS
       ? SC_INVESTOR_CATEGORY_LABELS[org.scInvestorCategory as ScInvestorCategory]
@@ -963,20 +983,14 @@ export function OrganizationProfilePanel({
           <AdminDetailCardHeader
             icon={IdentificationIcon}
             title="Investor classification"
-            description="Account class is the CashSouk product status. Type of Investor is used for regulatory reporting and does not change product eligibility."
+            description="Sophisticated Investor is the existing Yes/No status. Type of Investor is used for regulatory reporting and does not change product eligibility."
             actions={sectionActions("classification")}
           />
           <CardContent>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <ReadField
-                label="Investor Status"
-                value={
-                  org.isSophisticatedInvestor
-                    ? "Sophisticated"
-                    : org.type === "COMPANY"
-                      ? "Non-sophisticated entity"
-                      : "Retail"
-                }
+                label="Sophisticated Investor"
+                value={org.isSophisticatedInvestor ? "Yes" : "No"}
               />
               {editingSection === "classification" ? (
                 <EditableSelect
@@ -985,18 +999,21 @@ export function OrganizationProfilePanel({
                   onChange={(scInvestorCategory) =>
                     setDraft((current) => ({ ...current, scInvestorCategory }))
                   }
-                  options={allowedScInvestorCategories({
-                    organizationType: org.type === "COMPANY" ? "COMPANY" : "PERSONAL",
-                  }).map((value) => ({
+                  options={investorCategoryOptions.map((value) => ({
                     value,
                     label: SC_INVESTOR_CATEGORY_LABELS[value],
+                    title: SC_INVESTOR_CATEGORY_DEFINITIONS[value],
                   }))}
+                  help={investorCategoryHelp}
+                  required
                 />
               ) : (
                 <ReadField
                   label={SC_MONTHLY_INVESTOR.typeOfInvestor.label}
                   value={investorCategoryLabel}
                   missing={requiredFieldKeys.has("scInvestorCategory")}
+                  help={investorCategoryHelp}
+                  required
                 />
               )}
             </div>

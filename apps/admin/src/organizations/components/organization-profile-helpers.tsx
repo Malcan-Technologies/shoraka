@@ -300,7 +300,7 @@ export function EditableSelect({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: string; title?: string }>;
   placeholder?: string;
   help?: string;
   required?: boolean;
@@ -314,7 +314,7 @@ export function EditableSelect({
         </SelectTrigger>
         <SelectContent>
           {options.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
+            <SelectItem key={opt.value} value={opt.value} title={opt.title}>
               {opt.label}
             </SelectItem>
           ))}

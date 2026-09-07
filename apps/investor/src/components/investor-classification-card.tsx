@@ -6,9 +6,11 @@ import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   allowedScInvestorCategories,
+  SC_INVESTOR_CATEGORY_DEFINITIONS,
   SC_INVESTOR_CATEGORY_LABELS,
   SC_MONTHLY_INVESTOR,
-  isScInvestorCategory,
+  isAllowedScInvestorCategory,
+  scInvestorCategoryHelp,
   type ScInvestorCategory,
 } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileReadField } from "@cashsouk/ui";
@@ -36,8 +38,11 @@ export function InvestorClassificationCard({
   const { getAccessToken } = useAuthToken();
   const api = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
-  const options = allowedScInvestorCategories({ organizationType });
-  const current = isScInvestorCategory(scInvestorCategory) ? scInvestorCategory : "";
+  const categoryScope = { organizationType, isSophisticatedInvestor };
+  const options = allowedScInvestorCategories(categoryScope);
+  const current = isAllowedScInvestorCategory(scInvestorCategory, categoryScope)
+    ? scInvestorCategory
+    : "";
   const [value, setValue] = React.useState(current);
 
   React.useEffect(() => {
@@ -66,22 +71,26 @@ export function InvestorClassificationCard({
       <div className="border-b p-6">
         <h2 className="text-lg font-semibold">Investor Classification</h2>
         <p className="mt-1 text-ui text-muted-foreground">
-          Account class is the CashSouk product status. Type of Investor is used for
+          Sophisticated Investor is the existing Yes/No status. Type of Investor is used for
           regulatory reporting. It does not change the investor’s product eligibility.
         </p>
       </div>
       <div className="grid gap-6 p-6 sm:grid-cols-2">
         <ProfileReadField
-          label="Account class"
-          value={isSophisticatedInvestor ? "Sophisticated" : "Retail"}
+          label="Sophisticated Investor"
+          value={isSophisticatedInvestor ? "Yes" : "No"}
           locked
         />
         <div className="space-y-2">
-          <ComRepFieldLabel label={SC_MONTHLY_INVESTOR.typeOfInvestor.label} required />
+          <ComRepFieldLabel
+            label={SC_MONTHLY_INVESTOR.typeOfInvestor.label}
+            required
+            help={scInvestorCategoryHelp(options)}
+          />
           <Select
             value={value || undefined}
             onValueChange={(next) => {
-              if (!isScInvestorCategory(next)) return;
+              if (!isAllowedScInvestorCategory(next, categoryScope)) return;
               setValue(next);
               save.mutate(next);
             }}
@@ -92,7 +101,7 @@ export function InvestorClassificationCard({
             </SelectTrigger>
             <SelectContent>
               {options.map((option) => (
-                <SelectItem key={option} value={option}>
+                <SelectItem key={option} value={option} title={SC_INVESTOR_CATEGORY_DEFINITIONS[option]}>
                   {SC_INVESTOR_CATEGORY_LABELS[option]}
                 </SelectItem>
               ))}

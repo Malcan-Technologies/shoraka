@@ -32,7 +32,11 @@ export function InfoTooltip({ content, className, iconClassName }: InfoTooltipPr
             className
           )}
         >
-          {typeof content === "string" ? <p className="text-ui">{content}</p> : content}
+          {typeof content === "string" ? (
+            <p className="whitespace-pre-line text-ui">{content}</p>
+          ) : (
+            content
+          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

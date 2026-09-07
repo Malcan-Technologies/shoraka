@@ -15,6 +15,7 @@ import {
 } from "./director-shareholder-display";
 import { issuerShareholdingMeetsMinimum } from "./issuer-shareholder-threshold";
 import { getCtosPartySupplementFlatRead } from "./ctos-party-supplement-json";
+import { isKycOnboardingNotStartedToken } from "./kyc-onboarding-lifecycle";
 import { normalizeRawStatus } from "./status-normalization";
 import { isReadyOnboardingStatus } from "./onboarding-readiness";
 
@@ -487,7 +488,7 @@ export function formatPeopleIdentityLine(person: Pick<ApplicationPersonRow, "ent
 
 function firstUsableStatus(raw: unknown): string | null {
   const s = normalizeRawStatus(raw);
-  if (!s) return null;
+  if (!s || isKycOnboardingNotStartedToken(s)) return null;
   return s;
 }
 

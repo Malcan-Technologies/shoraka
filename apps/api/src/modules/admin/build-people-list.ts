@@ -11,6 +11,7 @@ import {
   stripGeneratedPartyKeyPrefix,
   isMissingGovernmentIdPerson,
   issuerShareholdingMeetsMinimum,
+  canonicalPartyKycOnboardingStatus,
   type ApplicationPersonRow,
   type CtosPartySupplement,
   type DirectorShareholderListSource,
@@ -92,8 +93,13 @@ function amlSanitizedStatus(row: UnknownRecord | undefined): string | null {
 }
 
 function kycSanitizedStatus(row: UnknownRecord | undefined): string | null {
-  const raw = strField(row, "kycStatus") || strField(row, "status");
-  return raw ? normalizeRawStatus(raw) || null : null;
+  if (!row) return null;
+  return canonicalPartyKycOnboardingStatus({
+    status: strField(row, "kycStatus") || strField(row, "status"),
+    eodRequestId: strField(row, "eodRequestId"),
+    shareholderEodRequestId: strField(row, "shareholderEodRequestId"),
+    kycId: strField(row, "kycId"),
+  });
 }
 
 function screeningRiskFields(aml: UnknownRecord | undefined): {
@@ -445,7 +451,7 @@ function requestIdFromSupplementParsed(sup: CtosPartySupplement, raw: unknown): 
   if (screeningId) {
     return { requestId: screeningId, requestIdType: "SCREENING" };
   }
-  if (onboardingId) {
+  if (onboardingId && !/^draft-/i.test(onboardingId)) {
     return { requestId: onboardingId, requestIdType: "ONBOARDING" };
   }
   return { requestId: null, requestIdType: null };
@@ -477,10 +483,12 @@ function personRowFromSupplement(params: {
   icBackUrl?: string | null;
 }): ApplicationPersonRow {
   const screening = screeningFromSupplementParsed(params.sup.screening);
-  const onboardingStatusRaw = String(params.sup.status ?? "").trim();
-  const onboardingStatus = onboardingStatusRaw
-    ? normalizeRawStatus(onboardingStatusRaw) || onboardingStatusRaw
-    : null;
+  const onboardingStatus = canonicalPartyKycOnboardingStatus({
+    status: params.sup.status,
+    requestId: topLevelOnboardingRequestIdFromSupplementRaw(params.supplementRaw),
+    sentAt: params.sup.sentAt,
+    lastSentAt: params.sup.lastSentAt,
+  });
   const email = (params.sup.email ?? "").trim();
   const topStatus =
     screening?.status && String(screening.status).trim()
@@ -530,12 +538,30 @@ function withIssuerRegtankIds(
     ce,
     maps,
   });
+  const supplementOnboarding = canonicalPartyKycOnboardingStatus({
+    status: row.onboarding?.status,
+    requestId: row.directorEodRequestId,
+  });
+  const issuerOnboarding = canonicalPartyKycOnboardingStatus({
+    status: enriched.onboarding?.status,
+    requestId: enriched.directorEodRequestId,
+    eodRequestId: enriched.directorEodRequestId,
+    shareholderEodRequestId: enriched.shareholderEodRequestId,
+    kycId: enriched.onboarding?.id,
+  });
+  const onboardingStatus = supplementOnboarding ?? issuerOnboarding;
   return {
     ...row,
     directorEodRequestId: row.directorEodRequestId || enriched.directorEodRequestId,
     shareholderEodRequestId: row.shareholderEodRequestId || enriched.shareholderEodRequestId,
     partyCorporateRequestId: row.partyCorporateRequestId || enriched.partyCorporateRequestId,
     screeningRequestId: row.screeningRequestId || enriched.screeningRequestId,
+    onboarding: {
+      ...(row.onboarding ?? { status: null, id: null }),
+      status: onboardingStatus,
+      id: row.onboarding?.id || enriched.onboarding?.id || null,
+    },
+    directorKycStatus: onboardingStatus ?? row.directorKycStatus ?? enriched.directorKycStatus,
   };
 }
 
