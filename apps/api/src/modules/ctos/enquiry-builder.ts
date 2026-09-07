@@ -8,6 +8,13 @@
 
 import { OrganizationType } from "@prisma/client";
 import type { CtosConfig } from "./config";
+import { AppError } from "../../lib/http/error-handler";
+import {
+  CTOS_INVALID_SSM_MESSAGE,
+  CTOS_INVALID_SUBJECT_IDENTIFIER,
+  missingCompanyRegistrationError,
+  missingIndividualIdentifierError,
+} from "./ctos-errors";
 
 export interface IssuerOrgCtosInput {
   type: OrganizationType;
@@ -29,14 +36,14 @@ export function buildCtosEnquiryXml(cfg: CtosConfig, org: IssuerOrgCtosInput): s
     typeVal = "I";
     nicBr = (org.document_number ?? "").trim();
     if (!nicBr) {
-      throw new Error("Issuer organization is missing document number for CTOS individual enquiry");
+      throw missingIndividualIdentifierError();
     }
   } else {
     typeCode = "24";
     typeVal = "C";
     icLc = (org.registration_number ?? "").trim();
     if (!icLc) {
-      throw new Error("Issuer organization is missing registration number for CTOS company enquiry");
+      throw missingCompanyRegistrationError(false);
     }
   }
 
@@ -46,7 +53,7 @@ export function buildCtosEnquiryXml(cfg: CtosConfig, org: IssuerOrgCtosInput): s
       : [org.first_name, org.last_name].filter(Boolean).join(" ").trim() || (org.name ?? "").trim();
 
   if (!displayName) {
-    throw new Error("Issuer organization is missing name for CTOS enquiry");
+    throw new AppError(400, CTOS_INVALID_SUBJECT_IDENTIFIER, CTOS_INVALID_SSM_MESSAGE);
   }
 
   const refNo = org.type === OrganizationType.COMPANY ? icLc : nicBr;
@@ -84,10 +91,12 @@ export function buildCtosSubjectEnquiryXml(
   const displayName = esc(input.displayName.trim());
   const idNumber = input.idNumber.trim();
   if (!idNumber) {
-    throw new Error("Subject id number is required for CTOS enquiry");
+    throw input.kind === "INDIVIDUAL"
+      ? missingIndividualIdentifierError()
+      : missingCompanyRegistrationError(false);
   }
   if (!displayName) {
-    throw new Error("Subject display name is required for CTOS enquiry");
+    throw new AppError(400, CTOS_INVALID_SUBJECT_IDENTIFIER, CTOS_INVALID_SSM_MESSAGE);
   }
 
   let typeCode = "";

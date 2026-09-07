@@ -10,7 +10,7 @@ import {
   shouldNotifyIssuerDirectorShareholderAfterOrgCtosFromResolvedPeopleSnapshots,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
-import { ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT } from "@/lib/admin-director-shareholder-review-message";
+import { formatDirectorShareholderReviewHint } from "@/lib/admin-director-shareholder-review-message";
 import { financialSectionApproveDisabledReason } from "./financial-section-approve-gate";
 
 import * as React from "react";
@@ -167,7 +167,7 @@ function FinancialCtosHeaderControls({
               | undefined) ?? null,
           })
         ) {
-          toast("New update", { description: ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT });
+          toast("New update", { description: formatDirectorShareholderReviewHint(cached?.people) });
         }
       },
       onError: (e: Error) => {
@@ -175,7 +175,7 @@ function FinancialCtosHeaderControls({
         toast.error(e.message || "CTOS request failed");
       },
     });
-  }, [ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT, applicationId, app.issuer_organization, app.people, createOrgCtos, queryClient]);
+  }, [applicationId, app.issuer_organization, app.people, createOrgCtos, queryClient]);
 
   const ctosDisabledReason = !canManageFinancialCtos
     ? "You do not have permission to perform this action."

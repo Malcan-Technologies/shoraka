@@ -1,9 +1,9 @@
 # Issuer org financial statements: latest prefill
 
 ## Why this exists
-Financial statements are “issuer organization” information (the issuer company), not one specific invoice. When an issuer applies again later (repeat / new invoice applications), we want to reduce repeated data entry by pre-filling the issuer’s financials.
+Financial statements are “issuer organization” information (the issuer company), not one specific invoice. When an issuer applies again later, we prefill **completed** years so they do not re-type filed figures. The **in-progress** year always starts blank.
 
-The prefill is only a convenience for user effort. It must not change admin review behavior or change what was submitted in historical applications.
+Prefill is a convenience. It must not change admin review behavior or rewrite historical applications. CTOS is not written into org master.
 
 ## Current data ownership (what is stored where)
 1. `Application.financial_statements`
@@ -12,69 +12,31 @@ The prefill is only a convenience for user effort. It must not change admin revi
    - This value is what gets snapshotted for review.
 
 2. `ApplicationRevision.snapshot`
-   - A submit/resubmit snapshot (“photo”) of the application at that point in time.
-   - It keeps existing behavior unchanged.
+   - A submit/resubmit snapshot of the application at that point in time.
 
-3. `IssuerOrganizationFinancialStatement` (new)
-   - Stores the latest reusable organization-level financial statements for future prefill.
-   - One row per `issuer_organization_id`.
-   - Only intended for “prefill the next application” use.
+3. `IssuerOrganizationFinancialStatement`
+   - Latest reusable organization-level financial JSON (one row per issuer org).
+   - Updated on submit/resubmit only (not draft save).
+
+4. `CtosReport.financials_json`
+   - External evidence. Latest org report is read for prefill; never merged into org master by prefill.
+
+## Prefill source (new applications with empty `financial_statements`)
+
+Shared helper: `buildApplicationFinancialPrefillByYear` in `packages/types/src/application-financial-prefill.ts`.
+
+In-progress year = calendar year of the selected **next** financial year end (`getInProgressFinancialYearEndYear`). Same whether the UI shows one tab or two.
+
+| Year | Effective starting value |
+|------|--------------------------|
+| Completed / previous tab | CTOS application fields for that year, if present; otherwise org master |
+| In-progress / current tab | Always blank (not org, not CTOS) |
+
+- Do not copy year blocks before FYE is known (stale FYE must not leave figures on the current tab).
+- Prefill maps only the issuer application field set (`bsfatot` … `plyear`). No ComRep borrowing/cost splits.
+- All prefilled fields stay editable. Save/submit store the issuer’s values on the application.
 
 ## Update rules (draft vs submit/resubmit)
-This feature follows a strict “only submit becomes reusable” rule:
 
-- Draft save (financial step “Save and Continue”):
-  - Updates `Application.financial_statements` only.
-  - Does NOT update `IssuerOrganizationFinancialStatement`.
-
-- Submit (`DRAFT -> SUBMITTED`):
-  - After `ApplicationRevision` is created, the backend upserts the org-level latest financial statements from the submitted `Application.financial_statements`.
-
-- Resubmit (`AMENDMENT_REQUESTED -> RESUBMITTED`):
-  - After `ApplicationRevision` is created, the backend upserts the org-level latest financial statements from the submitted `Application.financial_statements`.
-
-Historical applications are not rewritten, and we never bypass `ApplicationRevision`.
-
-## Prefill rules (frontend)
-When the issuer opens the financial step:
-
-- If the current application already has `financial_statements`:
-  - We use the current application data as-is.
-  - We do not overwrite with org-level data.
-
-- If the current application has no `financial_statements` yet:
-  - The frontend fetches the latest `IssuerOrganizationFinancialStatement` for the issuer organization.
-  - If the stored JSON is compatible with v2 shape, we prefill:
-    - `questionnaire.financial_year_end`
-    - `unaudited_by_year` values
-  - All fields remain editable.
-  - The UI shows a note:
-    “Auto-filled from previous submitted application. Please review before continuing.”
-
-- If org-level data is missing or incompatible:
-  - The financial step keeps the existing blank/manual behavior.
-
-Prefill runs only once per page-load and never overwrites user edits.
-
-## Example scenario (February / March / April)
-1. February:
-   - Issuer applies and submits financials for FYs (stored on `Application.financial_statements`).
-   - On submit, backend updates `IssuerOrganizationFinancialStatement`.
-
-2. March:
-   - Issuer creates another application (new invoice flow) with blank `Application.financial_statements`.
-   - Frontend fetches org latest and pre-fills FY end + values.
-
-3. March edits + submits:
-   - Draft edits update only `Application.financial_statements`.
-   - On submit, backend updates `IssuerOrganizationFinancialStatement` with the new submitted values.
-
-4. April:
-   - Next application prefill uses April’s latest submitted org values (from the most recent submit/resubmit).
-
-## Non-goals
-- No full “financial history” table.
-- No migration of existing `Application.financial_statements` data into a normalized schema.
-- No per-year normalized storage (we store the full v2 JSON shape).
-- No changes to admin review logic and no bypass of `ApplicationRevision`.
-
+- Draft save: `Application.financial_statements` only.
+- Submit / resubmit: after `ApplicationRevision`, upsert org master from the application (existing merge). Prefill does not change that path.

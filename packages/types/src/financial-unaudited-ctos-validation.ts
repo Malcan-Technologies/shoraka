@@ -125,6 +125,18 @@ export function getIssuerFinancialTabYears(
 }
 
 /**
+ * Calendar year of the selected next FYE — the in-progress (not yet ended) financial year.
+ * Independent of whether the UI shows one tab or two.
+ */
+export function getInProgressFinancialYearEndYear(
+  questionnaire: FinancialStatementsQuestionnaire
+): number | null {
+  const currentFYEnd = parseIsoDateOnlyLocal(questionnaire.financial_year_end);
+  if (!currentFYEnd) return null;
+  return currentFYEnd.getFullYear();
+}
+
+/**
  * Admin Financial Summary: same FY columns as issuer (from questionnaire + `ref`).
  */
 export function getAdminFinancialSummaryUserColumnYears(

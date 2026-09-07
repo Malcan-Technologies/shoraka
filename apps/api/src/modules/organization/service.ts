@@ -2430,20 +2430,21 @@ export class OrganizationService {
   }
 
   /**
-   * Latest reusable issuer organization-level financial statements (for future prefill).
+   * Latest reusable issuer organization-level financial statements (for future prefill),
+   * plus latest org CTOS `financials_json` (read-only evidence; not written back to master).
    *
    * Access is restricted to the organization owner / members.
-   * Returns null when no reusable data exists.
    */
   async getIssuerOrganizationLatestFinancialStatements(
     userId: string,
     organizationId: string
   ): Promise<{
-    financial_statements: unknown;
+    financial_statements: unknown | null;
+    ctos_financials: unknown | null;
     source_application_id: string | null;
     source_application_revision_id: string | null;
-    updated_at: Date;
-  } | null> {
+    updated_at: Date | null;
+  }> {
     // Verify access (owner or member).
     const issuerOrg = await prisma.issuerOrganization.findUnique({
       where: { id: organizationId },
@@ -2464,18 +2465,30 @@ export class OrganizationService {
       }
     }
 
-    const latest = await prisma.issuerOrganizationFinancialStatement.findUnique({
-      where: { issuer_organization_id: organizationId },
-      select: {
-        financial_statements: true,
-        source_application_id: true,
-        source_application_revision_id: true,
-        updated_at: true,
-      },
-    });
+    const [latest, ctos] = await Promise.all([
+      prisma.issuerOrganizationFinancialStatement.findUnique({
+        where: { issuer_organization_id: organizationId },
+        select: {
+          financial_statements: true,
+          source_application_id: true,
+          source_application_revision_id: true,
+          updated_at: true,
+        },
+      }),
+      prisma.ctosReport.findFirst({
+        where: { issuer_organization_id: organizationId, subject_ref: null },
+        orderBy: { fetched_at: "desc" },
+        select: { financials_json: true },
+      }),
+    ]);
 
-    if (!latest) return null;
-    return latest as any;
+    return {
+      financial_statements: latest?.financial_statements ?? null,
+      ctos_financials: ctos?.financials_json ?? null,
+      source_application_id: latest?.source_application_id ?? null,
+      source_application_revision_id: latest?.source_application_revision_id ?? null,
+      updated_at: latest?.updated_at ?? null,
+    };
   }
 
   /**

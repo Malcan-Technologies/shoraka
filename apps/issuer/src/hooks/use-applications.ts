@@ -384,14 +384,13 @@ export function useIssuerOrganizationLatestFinancialStatements(organizationId?: 
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
-  type LatestOrgFinancialStatementsResponse =
-    | {
-        financial_statements: unknown;
-        source_application_id: string | null;
-        source_application_revision_id: string | null;
-        updated_at: string;
-      }
-    | null;
+  type LatestOrgFinancialStatementsResponse = {
+    financial_statements: unknown | null;
+    ctos_financials: unknown | null;
+    source_application_id: string | null;
+    source_application_revision_id: string | null;
+    updated_at: string | null;
+  };
 
   return useQuery({
     queryKey: ["issuer-org-latest-financial-statements", organizationId],

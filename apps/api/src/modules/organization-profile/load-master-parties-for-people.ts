@@ -53,8 +53,23 @@ export async function buildDirectorShareholderPeopleListWithMaster(
 ): Promise<DirectorShareholderPeopleBuildResult> {
   await seedMasterPartiesIfEmpty(portal, organizationId);
   const masterParties = await loadMasterPartiesForPeopleMerge(portal, organizationId);
+  let parentCorporateRequestId = params.parentCorporateRequestId ?? null;
+  if (!parentCorporateRequestId && typeof prisma.regTankOnboarding?.findFirst === "function") {
+    const onboarding = await prisma.regTankOnboarding.findFirst({
+      where: {
+        onboarding_type: "CORPORATE",
+        ...(portal === "issuer"
+          ? { issuer_organization_id: organizationId }
+          : { investor_organization_id: organizationId }),
+      },
+      select: { request_id: true },
+      orderBy: { created_at: "desc" },
+    });
+    parentCorporateRequestId = onboarding?.request_id ?? null;
+  }
   return buildDirectorShareholderPeopleList({
     ...params,
     masterParties,
+    parentCorporateRequestId,
   });
 }

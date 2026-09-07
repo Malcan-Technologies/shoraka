@@ -62,7 +62,7 @@ import { toast } from "sonner";
 import { format, isValid, parse, parseISO } from "date-fns";
 import { useCreateApplicationCtosSubjectReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { usePermissions } from "@/hooks/use-permissions";
-import { ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT } from "@/lib/admin-director-shareholder-review-message";
+import { formatDirectorShareholderReviewHint } from "@/lib/admin-director-shareholder-review-message";
 
 /** Year row placeholder when no year (em dash). */
 const HEADER_PLACEHOLDER = "\u2014";
@@ -813,8 +813,8 @@ export function ApplicationFinancialReviewContent({
         titleTooltip="The director and shareholder list comes from the organization CTOS report. Fetch again to get the latest list."
       >
         {hasPendingDirectorShareholder ? (
-          <div className="rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-            {ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT}
+          <div className="whitespace-pre-line rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+            {formatDirectorShareholderReviewHint(app.people)}
           </div>
         ) : null}
         <DirectorShareholderTable

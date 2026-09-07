@@ -69,7 +69,12 @@ describe("AdminService.refreshCorporateAmlStatus", () => {
     const service = new AdminService();
     const result = await service.refreshCorporateAmlStatus({} as never, "onboarding-1", "admin-1");
 
-    expect(mockFetchAllAMLStatuses).toHaveBeenCalledWith("COD001", "org-1", "investor");
+    expect(mockFetchAllAMLStatuses).toHaveBeenCalledWith(
+      "COD001",
+      "org-1",
+      "investor",
+      expect.anything()
+    );
     expect(mockApplyCorporateAmlMilestoneFromLiveKyb).toHaveBeenCalledWith(
       expect.objectContaining({ codRequestId: "COD001", organizationId: "org-1", userId: "admin-1" })
     );

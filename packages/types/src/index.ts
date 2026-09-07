@@ -504,6 +504,7 @@ export * from "./ctos-report-table-math";
 export * from "./ctos-financial-highlights";
 export * from "./financial-unaudited-ctos-validation";
 export * from "./financial-statement-year-resolution";
+export * from "./application-financial-prefill";
 export * from "./review-scope";
 export * from "./contract-originating-application";
 export * from "./resubmit-path-utils";

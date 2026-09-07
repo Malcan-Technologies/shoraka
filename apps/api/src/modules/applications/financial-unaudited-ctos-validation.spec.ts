@@ -1,6 +1,7 @@
 import {
   getAdminFinancialSummaryUserColumnYears,
   getCtosLatestYear,
+  getInProgressFinancialYearEndYear,
   getIssuerFinancialTabYears,
   getLatestThreeCtosYearSlots,
   getLatestThreeCtosYears,
@@ -80,6 +81,13 @@ describe("financial-unaudited-ctos-validation", () => {
     });
   });
 
+  describe("getInProgressFinancialYearEndYear", () => {
+    it("is the selected next FYE calendar year for one or two tabs", () => {
+      expect(getInProgressFinancialYearEndYear({ financial_year_end: "2026-12-31" })).toBe(2026);
+      expect(getInProgressFinancialYearEndYear(qMar2027)).toBe(2027);
+    });
+  });
+
   describe("getAdminFinancialSummaryUserColumnYears", () => {
     it("matches issuer tab years for same questionnaire and ref", () => {
       expect(getAdminFinancialSummaryUserColumnYears(null, refJan2026)).toEqual([]);
@@ -148,6 +156,23 @@ describe("financial-unaudited-ctos-validation", () => {
         unaudited_by_year: {},
       });
       expect(parsed.success).toBe(false);
+    });
+    it("CASE F — stores issuer-edited historical turnover after CTOS prefill", () => {
+      const futureFye = format(addDays(startOfDay(new Date()), 400), "yyyy-MM-dd");
+      const q = { financial_year_end: futureFye };
+      const years = getIssuerFinancialTabYears(q, new Date());
+      const unaudited: Record<string, ReturnType<typeof block>> = {};
+      for (const y of years) {
+        unaudited[String(y)] = { ...block(y, q), turnover: y === years[0] ? 220 : 0 };
+      }
+      const parsed = financialStatementsV2Schema.safeParse({
+        questionnaire: q,
+        unaudited_by_year: unaudited,
+      });
+      expect(parsed.success).toBe(true);
+      if (!parsed.success) return;
+      const historicalKey = String(years[0]);
+      expect(parsed.data.unaudited_by_year[historicalKey]?.turnover).toBe(220);
     });
   });
 });

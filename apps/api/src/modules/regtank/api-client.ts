@@ -12,6 +12,11 @@ import {
 import { logger } from "../../lib/logger";
 import { AppError } from "../../lib/http/error-handler";
 import { parseStrictRegTankFormId } from "./form-id";
+import {
+  parseRetryAfterHeader,
+  REGTANK_RATE_LIMITED_CODE,
+  REGTANK_RATE_LIMITED_MESSAGE,
+} from "./helpers/regtank-rate-limit";
 
 /**
  * RegTank API Client
@@ -53,6 +58,26 @@ export class RegTankAPIClient {
       });
 
       const responseText = await response.text();
+
+      if (response.status === 429) {
+        const retryAfterSeconds = parseRetryAfterHeader(response.headers.get("retry-after"));
+        logger.error(
+          {
+            status: 429,
+            statusText: response.statusText,
+            retryAfterSeconds,
+            endpoint,
+            url,
+          },
+          "RegTank API rate limited (HTTP 429 Too Many Requests)"
+        );
+        throw new AppError(429, REGTANK_RATE_LIMITED_CODE, REGTANK_RATE_LIMITED_MESSAGE, {
+          retryAfterSeconds,
+          httpStatus: 429,
+          endpoint,
+        });
+      }
+
       let responseData: any;
 
       try {
