@@ -1,6 +1,6 @@
 # ARF contract facility LO — data sources (working index)
 
-What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does for production generate (`arf_contract_facility_lo` **v12**, per-guarantor acknowledgement pages).
+What [`buildFacilityLoMergeData`](../../apps/api/src/modules/applications/letter-of-offer/build-facility-lo-merge-data.ts) does for production generate (`arf_contract_facility_lo` **v13**, per-guarantor acknowledgement pages).
 
 **Full verification table:** [lo-19-aug-2026-field-map.md](./lo-19-aug-2026-field-map.md)
 
