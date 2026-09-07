@@ -3,6 +3,7 @@ import {
   normalizeScNric,
   normalizeScRegistrationNumber,
   omitRecordId,
+  pickKnownKeys,
   toOperatorShareCapitalPatch,
 } from "./comrep-normalization";
 
@@ -75,5 +76,15 @@ describe("SC ComRep identifier formatting (Part B §2.3–2.4)", () => {
     expect(patch).toEqual({ llpMembersCapitalUnits: "10", totalLlp: "10" });
     expect("ordinaryUnits" in patch).toBe(false);
     expect("totalPaidUpCapital" in patch).toBe(false);
+  });
+
+  it("picks known keys only, strips id, and converts empty strings to null", () => {
+    const body = pickKnownKeys(
+      { id: "row_1", name: "Ahmad", unknown: true, salutation: "" },
+      ["name", "salutation", "identityNumber"]
+    );
+    expect(body).toEqual({ name: "Ahmad", salutation: null });
+    expect("id" in body).toBe(false);
+    expect("unknown" in body).toBe(false);
   });
 });

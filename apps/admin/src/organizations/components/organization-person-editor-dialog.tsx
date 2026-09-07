@@ -4,16 +4,20 @@ import * as React from "react";
 import { toast } from "sonner";
 import type { OrganizationPartyProfileDto } from "@cashsouk/types";
 import {
+  monthlyIssuerPersonCopy,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
   SC_GENDER_LABELS,
   SC_GENDERS,
-  SC_IDENTITY_PREFIX_LABELS,
   SC_IDENTITY_PREFIXES,
   SC_MALAYSIAN_STATES,
+  SC_MONTHLY_BOARD,
+  SC_MONTHLY_PERSON_KIND_LABELS,
+  SC_MONTHLY_SHAREHOLDER,
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
 } from "@cashsouk/types";
+import { ComRepFieldLabel } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,7 +28,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -154,6 +157,8 @@ export function OrganizationPersonEditorDialog({
   const corporate = values.entityType === "CORPORATE";
   const showShare = corporate || values.isShareholder;
   const showOfficer = !corporate && (values.isDirector || values.isBoard || values.isManagement);
+  const copy = monthlyIssuerPersonCopy({ shareholder: showShare, officer: showOfficer });
+  const prefixOptions = SC_IDENTITY_PREFIXES.filter((key) => copy.includeRocPrefix || key !== "ROC");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -163,10 +168,23 @@ export function OrganizationPersonEditorDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name" value={values.name} onChange={(name) => set("name", name)} />
-          <Field label="Salutation" value={values.salutation} onChange={(salutation) => set("salutation", salutation)} />
+          <Field
+            label={copy.name.label}
+            value={values.name}
+            onChange={(name) => set("name", name)}
+            required
+            help={copy.name.help}
+          />
+          <Field
+            label={copy.salutation.label}
+            value={values.salutation}
+            onChange={(salutation) => set("salutation", salutation)}
+            help={copy.salutation.help}
+          />
           <div className="space-y-1.5">
-            <Label className="text-ui">Entity</Label>
+            <ComRepFieldLabel
+              label={showShare ? SC_MONTHLY_SHAREHOLDER.shareholderType.label : "Person / entity type"}
+            />
             <Select
               value={values.entityType}
               onValueChange={(entityType: "INDIVIDUAL" | "CORPORATE") => {
@@ -196,7 +214,7 @@ export function OrganizationPersonEditorDialog({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-ui">Identity type</Label>
+            <ComRepFieldLabel label={copy.identityPrefix.label} />
             <Select
               value={values.identityPrefix || undefined}
               onValueChange={(identityPrefix) => set("identityPrefix", identityPrefix)}
@@ -205,26 +223,28 @@ export function OrganizationPersonEditorDialog({
                 <SelectValue placeholder="Select" />
               </SelectTrigger>
               <SelectContent>
-                {SC_IDENTITY_PREFIXES.map((prefix) => (
+                {prefixOptions.map((prefix) => (
                   <SelectItem key={prefix} value={prefix}>
-                    {SC_IDENTITY_PREFIX_LABELS[prefix]}
+                    {copy.identityPrefixLabels[prefix as keyof typeof copy.identityPrefixLabels] ?? prefix}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <Field
-            label="Identity number"
+            label={copy.identity.label}
             value={values.identityNumber}
             onChange={(identityNumber) => set("identityNumber", identityNumber)}
+            required
+            help={copy.identity.help}
           />
           <fieldset className="space-y-2 sm:col-span-2">
             <legend className="text-ui">Roles</legend>
             {(
               [
                 ["isDirector", "Director"],
-                ["isBoard", "Board"],
-                ["isManagement", "Management"],
+                ["isBoard", SC_MONTHLY_PERSON_KIND_LABELS.BOARD],
+                ["isManagement", SC_MONTHLY_PERSON_KIND_LABELS.MANAGEMENT],
                 ["isShareholder", "Shareholder"],
               ] as const
             ).map(([key, label]) => (
@@ -244,20 +264,22 @@ export function OrganizationPersonEditorDialog({
             <>
               <Field
                 type="date"
-                label="Date of incorporation"
+                label={copy.dateOfBirth.label}
                 value={values.dateOfIncorporation}
                 onChange={(dateOfIncorporation) => set("dateOfIncorporation", dateOfIncorporation)}
+                help={copy.dateOfBirth.help}
               />
               <Field
-                label="Country of incorporation"
+                label={copy.nationality.label}
                 value={values.countryOfIncorporation}
                 onChange={(countryOfIncorporation) => set("countryOfIncorporation", countryOfIncorporation)}
+                help={copy.nationality.help}
               />
             </>
           ) : (
             <>
               <div className="space-y-1.5">
-                <Label className="text-ui">Gender</Label>
+                <ComRepFieldLabel label={copy.gender.label} help={copy.gender.help} />
                 <Select value={values.gender || undefined} onValueChange={(gender) => set("gender", gender)}>
                   <SelectTrigger className="h-10 text-ui">
                     <SelectValue placeholder="Select" />
@@ -273,21 +295,23 @@ export function OrganizationPersonEditorDialog({
               </div>
               <Field
                 type="date"
-                label="Date of birth"
+                label={copy.dateOfBirth.label}
                 value={values.dateOfBirth}
                 onChange={(dateOfBirth) => set("dateOfBirth", dateOfBirth)}
+                help={copy.dateOfBirth.help}
               />
               <Field
-                label="Nationality"
+                label={copy.nationality.label}
                 value={values.nationality}
                 onChange={(nationality) => set("nationality", nationality)}
+                help={copy.nationality.help}
               />
             </>
           )}
-          <Field label="Address" value={values.line1} onChange={(line1) => set("line1", line1)} />
+          <Field label={copy.address.label} value={values.line1} onChange={(line1) => set("line1", line1)} />
           <Field label="Address line 2" value={values.line2} onChange={(line2) => set("line2", line2)} />
           <div className="space-y-1.5">
-            <Label className="text-ui">State</Label>
+            <ComRepFieldLabel label={copy.addressState.label} help={copy.addressState.help} />
             <Select value={values.state || undefined} onValueChange={(state) => set("state", state)}>
               <SelectTrigger className="h-10 text-ui">
                 <SelectValue placeholder="Select" />
@@ -301,11 +325,16 @@ export function OrganizationPersonEditorDialog({
               </SelectContent>
             </Select>
           </div>
-          <Field label="Postcode" value={values.postalCode} onChange={(postalCode) => set("postalCode", postalCode)} />
+          <Field
+            label={copy.addressPostcode.label}
+            value={values.postalCode}
+            onChange={(postalCode) => set("postalCode", postalCode)}
+            help={copy.addressPostcode.help}
+          />
           {showShare ? (
             <>
               <div className="space-y-1.5">
-                <Label className="text-ui">Share type</Label>
+                <ComRepFieldLabel label={SC_MONTHLY_SHAREHOLDER.typeOfShares.label} />
                 <Select value={values.shareType || undefined} onValueChange={(shareType) => set("shareType", shareType)}>
                   <SelectTrigger className="h-10 text-ui">
                     <SelectValue placeholder="Select" />
@@ -321,23 +350,24 @@ export function OrganizationPersonEditorDialog({
               </div>
               {values.shareType === "OTHERS" ? (
                 <Field
-                  label="Other share type"
+                  label={SC_MONTHLY_SHAREHOLDER.typeOfSharesOthers.label}
                   value={values.shareTypeOther}
                   onChange={(shareTypeOther) => set("shareTypeOther", shareTypeOther)}
+                  required
                 />
               ) : null}
               <Field
-                label="Shareholding units"
+                label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
                 value={values.shareholdingUnits}
                 onChange={(shareholdingUnits) => set("shareholdingUnits", shareholdingUnits)}
               />
               <Field
-                label="Shareholding amount"
+                label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
                 value={values.shareholdingAmount}
                 onChange={(shareholdingAmount) => set("shareholdingAmount", shareholdingAmount)}
               />
               <Field
-                label="Shareholding %"
+                label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
                 value={values.shareholdingPercentage}
                 onChange={(shareholdingPercentage) => set("shareholdingPercentage", shareholdingPercentage)}
               />
@@ -346,7 +376,7 @@ export function OrganizationPersonEditorDialog({
           {showOfficer ? (
             <>
               <div className="space-y-1.5">
-                <Label className="text-ui">Designation</Label>
+                <ComRepFieldLabel label={SC_MONTHLY_BOARD.designation.label} />
                 <Select
                   value={values.designation || undefined}
                   onValueChange={(designation) => set("designation", designation)}
@@ -365,22 +395,25 @@ export function OrganizationPersonEditorDialog({
               </div>
               {values.designation === "OTHERS" ? (
                 <Field
-                  label="Other designation"
+                  label={SC_MONTHLY_BOARD.designationOthers.label}
                   value={values.designationOther}
                   onChange={(designationOther) => set("designationOther", designationOther)}
+                  required
+                  help={SC_MONTHLY_BOARD.designationOthers.help}
                 />
               ) : null}
               <Field
                 type="date"
-                label="Appointment date"
+                label={SC_MONTHLY_BOARD.appointmentDate.label}
                 value={values.appointmentDate}
                 onChange={(appointmentDate) => set("appointmentDate", appointmentDate)}
               />
               <Field
                 type="date"
-                label="Resignation date"
+                label={SC_MONTHLY_BOARD.resignationDate.label}
                 value={values.resignationDate}
                 onChange={(resignationDate) => set("resignationDate", resignationDate)}
+                help={SC_MONTHLY_BOARD.resignationDate.help}
               />
             </>
           ) : null}
@@ -418,15 +451,19 @@ function Field({
   value,
   onChange,
   type = "text",
+  help,
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: "text" | "date";
+  help?: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-ui">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Input
         className="h-10 text-ui"
         type={type}

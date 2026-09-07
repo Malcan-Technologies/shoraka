@@ -7,11 +7,11 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   allowedScInvestorCategories,
   SC_INVESTOR_CATEGORY_LABELS,
+  SC_MONTHLY_INVESTOR,
   isScInvestorCategory,
   type ScInvestorCategory,
 } from "@cashsouk/types";
-import { ProfileReadField } from "@cashsouk/ui";
-import { Label } from "@/components/ui/label";
+import { ComRepFieldLabel, ProfileReadField } from "@cashsouk/ui";
 import {
   Select,
   SelectContent,
@@ -66,7 +66,7 @@ export function InvestorClassificationCard({
       <div className="border-b p-6">
         <h2 className="text-lg font-semibold">Investor Classification</h2>
         <p className="mt-1 text-ui text-muted-foreground">
-          Account class is the CashSouk product status. SC ComRep Investor Type is a separate
+          Account class is the CashSouk product status. Type of Investor is a separate
           reporting field shared with Admin.
         </p>
       </div>
@@ -77,7 +77,7 @@ export function InvestorClassificationCard({
           locked
         />
         <div className="space-y-2">
-          <Label className="text-ui">SC ComRep Investor Type</Label>
+          <ComRepFieldLabel label={SC_MONTHLY_INVESTOR.typeOfInvestor.label} required />
           <Select
             value={value || undefined}
             onValueChange={(next) => {
@@ -87,7 +87,7 @@ export function InvestorClassificationCard({
             }}
             disabled={save.isPending}
           >
-            <SelectTrigger className="h-10 text-ui" aria-label="SC ComRep Investor Type">
+            <SelectTrigger className="h-10 text-ui" aria-label={SC_MONTHLY_INVESTOR.typeOfInvestor.label}>
               <SelectValue placeholder="Select" />
             </SelectTrigger>
             <SelectContent>

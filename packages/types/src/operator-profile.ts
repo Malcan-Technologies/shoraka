@@ -256,7 +256,7 @@ export function buildOperatorProfileCompleteness(
     generalMissing.push({
       section: "general",
       field: "responsiblePersonPhone",
-      label: "Contact Number of Responsible Person",
+      label: "Contact Number",
     });
   }
 
@@ -293,14 +293,14 @@ export function buildOperatorProfileCompleteness(
         shareholderMissing.push({
           section: "shareholders",
           field: `shareholders.${row.id}.name`,
-          label: "Holder name",
+          label: "Name",
         });
       }
       if (!operatorHasText(row.identityNumber)) {
         shareholderMissing.push({
           section: "shareholders",
           field: `shareholders.${row.id}.identityNumber`,
-          label: "Holder identity number",
+          label: "IC/Passport number",
         });
       }
     }
@@ -321,14 +321,14 @@ export function buildOperatorProfileCompleteness(
         officerMissing.push({
           section: "officers",
           field: `officers.${row.id}.name`,
-          label: "Officer name",
+          label: "Name",
         });
       }
       if (!operatorHasText(row.identityNumber)) {
         officerMissing.push({
           section: "officers",
           field: `officers.${row.id}.identityNumber`,
-          label: "Officer identity number",
+          label: "Identity Number (NRIC/ Passport No.)",
         });
       }
     }
@@ -336,7 +336,7 @@ export function buildOperatorProfileCompleteness(
       officerMissing.push({
         section: "officers",
         field: "responsiblePerson",
-        label: "Responsible person on board / management",
+        label: "Responsible Person",
       });
     }
   }
@@ -348,7 +348,7 @@ export function buildOperatorProfileCompleteness(
       advisorMissing.push({
         section: "advisors",
         field: `advisors.${row.id}.name`,
-        label: "Advisor name",
+        label: "Name",
       });
     }
   }
@@ -359,7 +359,7 @@ export function buildOperatorProfileCompleteness(
       interestMissing.push({
         section: "interests",
         field: `interests.${row.id}.name`,
-        label: "Company name",
+        label: "Name",
       });
     }
   }
@@ -377,28 +377,28 @@ export function buildOperatorProfileCompleteness(
         financialMissing.push({
           section: "financials",
           field: `financialStatements.${row.id}.financialYearEnd`,
-          label: "Financial year end",
+          label: "Financial Year End (dd/mm/yyyy)",
         });
       }
       if (!operatorHasText(row.totalAssets)) {
         financialMissing.push({
           section: "financials",
           field: `financialStatements.${row.id}.totalAssets`,
-          label: "Total assets",
+          label: "Total Assets",
         });
       }
       if (!operatorHasText(row.totalRevenue)) {
         financialMissing.push({
           section: "financials",
           field: `financialStatements.${row.id}.totalRevenue`,
-          label: "Total revenue",
+          label: "Total Revenue",
         });
       }
       if (!operatorHasText(row.profitBeforeTax)) {
         financialMissing.push({
           section: "financials",
           field: `financialStatements.${row.id}.profitBeforeTax`,
-          label: "Profit before tax",
+          label: "Profit/(Loss) Before Tax",
         });
       }
     }

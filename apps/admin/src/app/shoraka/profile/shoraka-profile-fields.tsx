@@ -1,6 +1,5 @@
 "use client";
 
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -9,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ComRepFieldLabel } from "@cashsouk/ui";
 import { scAppendixASelectValues, type OperatorProfileDto } from "@cashsouk/types";
 
 export function toDateInput(value: string | null | undefined): string {
@@ -56,18 +56,20 @@ export function ShorakaField({
   onChange,
   disabled,
   type = "text",
-  hint,
+  help,
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
   type?: string;
-  hint?: string;
+  help?: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui font-medium">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Input
         className="h-11 text-ui"
         type={type}
@@ -75,7 +77,6 @@ export function ShorakaField({
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
       />
-      {hint ? <p className="text-meta text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
@@ -87,7 +88,8 @@ export function ShorakaEnumSelect<T extends string>({
   labels,
   onChange,
   disabled,
-  hint,
+  help,
+  required = false,
 }: {
   label: string;
   value: T | "";
@@ -95,11 +97,12 @@ export function ShorakaEnumSelect<T extends string>({
   labels: Record<T, string>;
   onChange: (v: T) => void;
   disabled?: boolean;
-  hint?: string;
+  help?: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui font-medium">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Select value={value || undefined} onValueChange={(v) => onChange(v as T)} disabled={disabled}>
         <SelectTrigger className="h-11 text-ui">
           <SelectValue placeholder="Select" />
@@ -112,7 +115,6 @@ export function ShorakaEnumSelect<T extends string>({
           ))}
         </SelectContent>
       </Select>
-      {hint ? <p className="text-meta text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
@@ -122,15 +124,19 @@ export function ShorakaCountrySelect({
   value,
   onChange,
   disabled,
+  help,
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
+  help?: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui font-medium">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Select
         value={value || undefined}
         onValueChange={onChange}
@@ -156,15 +162,19 @@ export function ShorakaYesNo({
   value,
   onChange,
   disabled,
+  help,
+  required = false,
 }: {
   label: string;
   value: boolean | null;
   onChange: (v: boolean) => void;
   disabled?: boolean;
+  help?: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui font-medium">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Select
         value={value == null ? undefined : value ? "YES" : "NO"}
         onValueChange={(v) => onChange(v === "YES")}

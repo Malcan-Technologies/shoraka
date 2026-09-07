@@ -4,18 +4,21 @@ import * as React from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  monthlyIssuerPersonCopy,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
   SC_GENDER_LABELS,
   SC_GENDERS,
-  SC_IDENTITY_PREFIX_LABELS,
   SC_IDENTITY_PREFIXES,
   SC_MALAYSIAN_STATES,
+  SC_MONTHLY_BOARD,
+  SC_MONTHLY_PERSON_KIND_LABELS,
+  SC_MONTHLY_SHAREHOLDER,
   SC_SHARE_TYPE_LABELS,
   SC_SHARE_TYPES,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
-import { ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
+import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -34,6 +37,8 @@ function formatDate(value: string | null | undefined): string {
 }
 
 export function PartyDetailFields({ party }: { party: OrganizationPartyProfileDto }) {
+  const officer = party.isDirector || party.isBoard || party.isManagement;
+  const copy = monthlyIssuerPersonCopy({ shareholder: party.isShareholder, officer });
   const shareType =
     party.shareType && party.shareType in SC_SHARE_TYPE_LABELS
       ? SC_SHARE_TYPE_LABELS[party.shareType]
@@ -45,46 +50,54 @@ export function PartyDetailFields({ party }: { party: OrganizationPartyProfileDt
   const gender =
     party.gender && party.gender in SC_GENDER_LABELS ? SC_GENDER_LABELS[party.gender] : party.gender;
   const prefix =
-    party.identityPrefix && party.identityPrefix in SC_IDENTITY_PREFIX_LABELS
-      ? SC_IDENTITY_PREFIX_LABELS[party.identityPrefix]
+    party.identityPrefix && party.identityPrefix in copy.identityPrefixLabels
+      ? copy.identityPrefixLabels[party.identityPrefix as keyof typeof copy.identityPrefixLabels]
       : party.identityPrefix;
+  const dateValue =
+    party.entityType === "CORPORATE" ? formatDate(party.dateOfIncorporation) : formatDate(party.dateOfBirth);
+  const nationalityValue =
+    party.entityType === "CORPORATE" ? party.countryOfIncorporation : party.nationality;
+  const personKindValue = [
+    party.isBoard ? SC_MONTHLY_PERSON_KIND_LABELS.BOARD : null,
+    party.isManagement ? SC_MONTHLY_PERSON_KIND_LABELS.MANAGEMENT : null,
+  ]
+    .filter(Boolean)
+    .join("; ");
 
-  const items = [
-    { label: "Salutation", value: party.salutation || "—" },
-    { label: "Identity prefix", value: prefix || "—" },
-    { label: "Identity number", value: party.identityNumber || "—" },
-    { label: "Gender", value: gender || "—" },
-    { label: "Nationality", value: party.nationality || "—" },
-    { label: "Country of incorporation", value: party.countryOfIncorporation || "—" },
-    { label: "Date of birth", value: formatDate(party.dateOfBirth) },
-    { label: "Date of incorporation", value: formatDate(party.dateOfIncorporation) },
-    { label: "Address", value: party.address?.line1 || "—" },
+  const items: Array<{ label: string; value: string; help?: string }> = [
+    { label: copy.salutation.label, value: party.salutation || "—", help: copy.salutation.help },
+    { label: copy.identityPrefix.label, value: prefix || "—" },
+    { label: copy.identity.label, value: party.identityNumber || "—", help: copy.identity.help },
+    { label: copy.gender.label, value: gender || "—", help: copy.gender.help },
+    { label: copy.nationality.label, value: nationalityValue || "—", help: copy.nationality.help },
+    { label: copy.dateOfBirth.label, value: dateValue, help: copy.dateOfBirth.help },
+    { label: copy.address.label, value: party.address?.line1 || "—" },
     { label: "Address line 2", value: party.address?.line2 || "—" },
-    { label: "State", value: party.address?.state || "—" },
-    { label: "Postcode", value: party.address?.postalCode || "—" },
+    { label: copy.addressState.label, value: party.address?.state || "—", help: copy.addressState.help },
+    { label: copy.addressPostcode.label, value: party.address?.postalCode || "—", help: copy.addressPostcode.help },
   ];
   if (party.isShareholder) {
     items.push(
-      { label: "Type of shares", value: shareType || "—" },
-      { label: "Other share type", value: party.shareTypeOther || "—" },
-      { label: "Shareholding units", value: party.shareholdingUnits || "—" },
-      { label: "Shareholding amount", value: party.shareholdingAmount || "—" },
-      { label: "Shareholding percentage", value: party.shareholdingPercentage || "—" }
+      { label: SC_MONTHLY_SHAREHOLDER.typeOfShares.label, value: shareType || "—" },
+      { label: SC_MONTHLY_SHAREHOLDER.typeOfSharesOthers.label, value: party.shareTypeOther || "—" },
+      { label: SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label, value: party.shareholdingUnits || "—" },
+      { label: SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label, value: party.shareholdingAmount || "—" },
+      { label: SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label, value: party.shareholdingPercentage || "—" }
     );
   }
-  if (party.isDirector || party.isBoard || party.isManagement) {
+  if (officer) {
     items.push(
-      { label: "Board / Management", value: party.isBoard && party.isManagement ? "Board and Management" : party.isBoard ? "Board" : party.isManagement ? "Management" : "—" },
-      { label: "Designation", value: designation || "—" },
-      { label: "Other designation", value: party.designationOther || "—" },
-      { label: "Appointment date", value: formatDate(party.appointmentDate) },
-      { label: "Resignation date", value: formatDate(party.resignationDate) }
+      { label: SC_MONTHLY_BOARD.boardOfDirectorManagementTeam.label, value: personKindValue || "—" },
+      { label: SC_MONTHLY_BOARD.designation.label, value: designation || "—" },
+      { label: SC_MONTHLY_BOARD.designationOthers.label, value: party.designationOther || "—", help: SC_MONTHLY_BOARD.designationOthers.help },
+      { label: SC_MONTHLY_BOARD.appointmentDate.label, value: formatDate(party.appointmentDate) },
+      { label: SC_MONTHLY_BOARD.resignationDate.label, value: formatDate(party.resignationDate), help: SC_MONTHLY_BOARD.resignationDate.help }
     );
   }
   return (
     <ProfileFieldGrid>
       {items.map((item) => (
-        <ProfileReadField key={item.label} label={item.label} value={item.value} />
+        <ProfileReadField key={item.label} label={item.label} value={item.value} help={item.help} />
       ))}
     </ProfileFieldGrid>
   );
@@ -134,6 +147,8 @@ export function AddPersonForm({
   const corporate = entityType === "CORPORATE";
   const showShare = corporate || isShareholder;
   const showOfficer = !corporate && (isDirector || isBoard || isManagement);
+  const copy = monthlyIssuerPersonCopy({ shareholder: showShare, officer: showOfficer });
+  const prefixOptions = SC_IDENTITY_PREFIXES.filter((key) => copy.includeRocPrefix || key !== "ROC");
 
   return (
     <form
@@ -214,79 +229,91 @@ export function AddPersonForm({
             <>
               <RoleCheck label="Director" checked={isDirector} onChange={setIsDirector} />
               <RoleCheck label="Shareholder" checked={isShareholder} onChange={setIsShareholder} />
-              <RoleCheck label="Board" checked={isBoard} onChange={setIsBoard} />
-              <RoleCheck label="Management" checked={isManagement} onChange={setIsManagement} />
+              <RoleCheck label={SC_MONTHLY_PERSON_KIND_LABELS.BOARD} checked={isBoard} onChange={setIsBoard} />
+              <RoleCheck label={SC_MONTHLY_PERSON_KIND_LABELS.MANAGEMENT} checked={isManagement} onChange={setIsManagement} />
             </>
           )}
         </div>
       </div>
       <TextField
-        label={corporate ? "Company name" : "Name"}
+        label={copy.name.label}
         value={form.name}
         onChange={(value) => setForm({ ...form, name: value })}
+        required
+        help={copy.name.help}
       />
       <TextField
-        label="Salutation"
+        label={copy.salutation.label}
         value={form.salutation}
         onChange={(value) => setForm({ ...form, salutation: value })}
+        help={copy.salutation.help}
       />
       {corporate ? (
         <TextField
-          label="ROC / registration number"
+          label={copy.identity.label}
           value={form.identityNumber}
           onChange={(value) => setForm({ ...form, identityNumber: value })}
+          required
+          help={copy.identity.help}
         />
       ) : (
         <>
           <SelectField
-            label="Identity prefix"
+            label={copy.identityPrefix.label}
             value={form.identityPrefix}
             onChange={(value) => setForm({ ...form, identityPrefix: value })}
-            options={SC_IDENTITY_PREFIXES.filter((key) => key !== "ROC").map((key) => ({
+            options={prefixOptions.map((key) => ({
               value: key,
-              label: SC_IDENTITY_PREFIX_LABELS[key],
+              label: copy.identityPrefixLabels[key as keyof typeof copy.identityPrefixLabels] ?? key,
             }))}
           />
           <TextField
-            label="NRIC / passport"
+            label={copy.identity.label}
             value={form.identityNumber}
             onChange={(value) => setForm({ ...form, identityNumber: value })}
+            required
+            help={copy.identity.help}
           />
           <TextField label="Email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} />
           <DateField
-            label="Date of birth"
+            label={copy.dateOfBirth.label}
             value={form.dateOfBirth}
             onChange={(value) => setForm({ ...form, dateOfBirth: value })}
+            help={copy.dateOfBirth.help}
           />
           <SelectField
-            label="Gender"
+            label={copy.gender.label}
             value={form.gender}
             onChange={(value) => setForm({ ...form, gender: value })}
             options={SC_GENDERS.map((key) => ({ value: key, label: SC_GENDER_LABELS[key] }))}
+            help={copy.gender.help}
           />
           <TextField
-            label="Nationality"
+            label={copy.nationality.label}
             value={form.nationality}
             onChange={(value) => setForm({ ...form, nationality: value })}
+            help={copy.nationality.help}
           />
         </>
       )}
       {corporate ? (
         <>
           <DateField
-            label="Date of incorporation"
+            label={copy.dateOfBirth.label}
             value={form.dateOfIncorporation}
             onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
+            help={copy.dateOfBirth.help}
           />
           <TextField
-            label="Country of incorporation"
+            label={copy.nationality.label}
             value={form.countryOfIncorporation}
             onChange={(value) => setForm({ ...form, countryOfIncorporation: value })}
+            help={copy.nationality.help}
           />
         </>
       ) : null}
       <TextField
-        label={corporate ? "Business address" : "Address"}
+        label={copy.address.label}
         value={form.line1}
         onChange={(value) => setForm({ ...form, line1: value })}
       />
@@ -296,43 +323,46 @@ export function AddPersonForm({
         onChange={(value) => setForm({ ...form, line2: value })}
       />
       <SelectField
-        label="State"
+        label={copy.addressState.label}
         value={form.state}
         onChange={(value) => setForm({ ...form, state: value })}
         options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
+        help={copy.addressState.help}
       />
       <TextField
-        label="Postcode"
+        label={copy.addressPostcode.label}
         value={form.postalCode}
         onChange={(value) => setForm({ ...form, postalCode: value })}
+        help={copy.addressPostcode.help}
       />
       {showShare ? (
         <>
           <SelectField
-            label="Type of shares"
+            label={SC_MONTHLY_SHAREHOLDER.typeOfShares.label}
             value={form.shareType}
             onChange={(value) => setForm({ ...form, shareType: value })}
             options={SC_SHARE_TYPES.map((key) => ({ value: key, label: SC_SHARE_TYPE_LABELS[key] }))}
           />
           {form.shareType === "OTHERS" ? (
             <TextField
-              label="Other share type"
+              label={SC_MONTHLY_SHAREHOLDER.typeOfSharesOthers.label}
               value={form.shareTypeOther}
               onChange={(value) => setForm({ ...form, shareTypeOther: value })}
+              required
             />
           ) : null}
           <TextField
-            label="Shareholding units"
+            label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
             value={form.shareholdingUnits}
             onChange={(value) => setForm({ ...form, shareholdingUnits: value })}
           />
           <TextField
-            label="Shareholding amount"
+            label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
             value={form.shareholdingAmount}
             onChange={(value) => setForm({ ...form, shareholdingAmount: value })}
           />
           <TextField
-            label="Shareholding percentage"
+            label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
             value={form.shareholdingPercentage}
             onChange={(value) => setForm({ ...form, shareholdingPercentage: value })}
           />
@@ -341,27 +371,30 @@ export function AddPersonForm({
       {showOfficer ? (
         <>
           <SelectField
-            label="Designation"
+            label={SC_MONTHLY_BOARD.designation.label}
             value={form.designation}
             onChange={(value) => setForm({ ...form, designation: value })}
             options={SC_DESIGNATIONS.map((key) => ({ value: key, label: SC_DESIGNATION_LABELS[key] }))}
           />
           {form.designation === "OTHERS" ? (
             <TextField
-              label="Other designation"
+              label={SC_MONTHLY_BOARD.designationOthers.label}
               value={form.designationOther}
               onChange={(value) => setForm({ ...form, designationOther: value })}
+              required
+              help={SC_MONTHLY_BOARD.designationOthers.help}
             />
           ) : null}
           <DateField
-            label="Appointment date"
+            label={SC_MONTHLY_BOARD.appointmentDate.label}
             value={form.appointmentDate}
             onChange={(value) => setForm({ ...form, appointmentDate: value })}
           />
           <DateField
-            label="Resignation date"
+            label={SC_MONTHLY_BOARD.resignationDate.label}
             value={form.resignationDate}
             onChange={(value) => setForm({ ...form, resignationDate: value })}
+            help={SC_MONTHLY_BOARD.resignationDate.help}
           />
         </>
       ) : null}
@@ -411,6 +444,8 @@ export function PartyFillEmptyForm({
     appointmentDate: party.appointmentDate?.slice(0, 10) ?? "",
     resignationDate: party.resignationDate?.slice(0, 10) ?? "",
   });
+  const officer = party.isDirector || party.isBoard || party.isManagement;
+  const copy = monthlyIssuerPersonCopy({ shareholder: party.isShareholder, officer });
 
   return (
     <form
@@ -460,49 +495,55 @@ export function PartyFillEmptyForm({
     >
       {!party.salutation ? (
         <TextField
-          label="Salutation"
+          label={copy.salutation.label}
           value={form.salutation}
           onChange={(value) => setForm({ ...form, salutation: value })}
+          help={copy.salutation.help}
         />
       ) : null}
       {party.entityType !== "CORPORATE" && !party.gender ? (
         <SelectField
-          label="Gender"
+          label={copy.gender.label}
           value={form.gender}
           onChange={(value) => setForm({ ...form, gender: value })}
           options={SC_GENDERS.map((key) => ({ value: key, label: SC_GENDER_LABELS[key] }))}
+          help={copy.gender.help}
         />
       ) : null}
-      {!party.nationality ? (
+      {!party.nationality && party.entityType !== "CORPORATE" ? (
         <TextField
-          label="Nationality"
+          label={copy.nationality.label}
           value={form.nationality}
           onChange={(value) => setForm({ ...form, nationality: value })}
+          help={copy.nationality.help}
         />
       ) : null}
       {party.entityType !== "CORPORATE" && !party.dateOfBirth ? (
         <DateField
-          label="Date of birth"
+          label={copy.dateOfBirth.label}
           value={form.dateOfBirth}
           onChange={(value) => setForm({ ...form, dateOfBirth: value })}
+          help={copy.dateOfBirth.help}
         />
       ) : null}
       {party.entityType === "CORPORATE" && !party.dateOfIncorporation ? (
         <DateField
-          label="Date of incorporation"
+          label={copy.dateOfBirth.label}
           value={form.dateOfIncorporation}
           onChange={(value) => setForm({ ...form, dateOfIncorporation: value })}
+          help={copy.dateOfBirth.help}
         />
       ) : null}
       {party.entityType === "CORPORATE" && !party.countryOfIncorporation ? (
         <TextField
-          label="Country of incorporation"
+          label={copy.nationality.label}
           value={form.countryOfIncorporation}
           onChange={(value) => setForm({ ...form, countryOfIncorporation: value })}
+          help={copy.nationality.help}
         />
       ) : null}
       {!party.address?.line1 ? (
-        <TextField label="Address" value={form.line1} onChange={(value) => setForm({ ...form, line1: value })} />
+        <TextField label={copy.address.label} value={form.line1} onChange={(value) => setForm({ ...form, line1: value })} />
       ) : null}
       {!party.address?.line2 ? (
         <TextField
@@ -513,22 +554,24 @@ export function PartyFillEmptyForm({
       ) : null}
       {!party.address?.state ? (
         <SelectField
-          label="State"
+          label={copy.addressState.label}
           value={form.state}
           onChange={(value) => setForm({ ...form, state: value })}
           options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
+          help={copy.addressState.help}
         />
       ) : null}
       {!party.address?.postalCode ? (
         <TextField
-          label="Postcode"
+          label={copy.addressPostcode.label}
           value={form.postalCode}
           onChange={(value) => setForm({ ...form, postalCode: value })}
+          help={copy.addressPostcode.help}
         />
       ) : null}
       {party.isShareholder && !party.shareType ? (
         <SelectField
-          label="Type of shares"
+          label={SC_MONTHLY_SHAREHOLDER.typeOfShares.label}
           value={form.shareType}
           onChange={(value) => setForm({ ...form, shareType: value })}
           options={SC_SHARE_TYPES.map((key) => ({ value: key, label: SC_SHARE_TYPE_LABELS[key] }))}
@@ -536,35 +579,36 @@ export function PartyFillEmptyForm({
       ) : null}
       {party.isShareholder && (party.shareType === "OTHERS" || form.shareType === "OTHERS") && !party.shareTypeOther ? (
         <TextField
-          label="Other share type"
+          label={SC_MONTHLY_SHAREHOLDER.typeOfSharesOthers.label}
           value={form.shareTypeOther}
           onChange={(value) => setForm({ ...form, shareTypeOther: value })}
+          required
         />
       ) : null}
       {party.isShareholder && !party.shareholdingUnits ? (
         <TextField
-          label="Shareholding units"
+          label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
           value={form.shareholdingUnits}
           onChange={(value) => setForm({ ...form, shareholdingUnits: value })}
         />
       ) : null}
       {party.isShareholder && !party.shareholdingAmount ? (
         <TextField
-          label="Shareholding amount"
+          label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
           value={form.shareholdingAmount}
           onChange={(value) => setForm({ ...form, shareholdingAmount: value })}
         />
       ) : null}
       {party.isShareholder && !party.shareholdingPercentage ? (
         <TextField
-          label="Shareholding percentage"
+          label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
           value={form.shareholdingPercentage}
           onChange={(value) => setForm({ ...form, shareholdingPercentage: value })}
         />
       ) : null}
       {(party.isDirector || party.isBoard || party.isManagement) && !party.designation ? (
         <SelectField
-          label="Designation"
+          label={SC_MONTHLY_BOARD.designation.label}
           value={form.designation}
           onChange={(value) => setForm({ ...form, designation: value })}
           options={SC_DESIGNATIONS.map((key) => ({ value: key, label: SC_DESIGNATION_LABELS[key] }))}
@@ -574,23 +618,26 @@ export function PartyFillEmptyForm({
       (party.designation === "OTHERS" || form.designation === "OTHERS") &&
       !party.designationOther ? (
         <TextField
-          label="Other designation"
+          label={SC_MONTHLY_BOARD.designationOthers.label}
           value={form.designationOther}
           onChange={(value) => setForm({ ...form, designationOther: value })}
+          required
+          help={SC_MONTHLY_BOARD.designationOthers.help}
         />
       ) : null}
       {(party.isDirector || party.isBoard || party.isManagement) && !party.appointmentDate ? (
         <DateField
-          label="Appointment date"
+          label={SC_MONTHLY_BOARD.appointmentDate.label}
           value={form.appointmentDate}
           onChange={(value) => setForm({ ...form, appointmentDate: value })}
         />
       ) : null}
       {(party.isDirector || party.isBoard || party.isManagement) && !party.resignationDate ? (
         <DateField
-          label="Resignation date"
+          label={SC_MONTHLY_BOARD.resignationDate.label}
           value={form.resignationDate}
           onChange={(value) => setForm({ ...form, resignationDate: value })}
+          help={SC_MONTHLY_BOARD.resignationDate.help}
         />
       ) : null}
       <div className="flex gap-2 sm:col-span-2">
@@ -622,19 +669,43 @@ function RoleCheck({
   );
 }
 
-function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function TextField({
+  label,
+  value,
+  onChange,
+  help,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  help?: string;
+  required?: boolean;
+}) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Input className="h-10 text-ui" value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   );
 }
 
-function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function DateField({
+  label,
+  value,
+  onChange,
+  help,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  help?: string;
+  required?: boolean;
+}) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Input className="h-10 text-ui" type="date" value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   );
@@ -645,15 +716,19 @@ function SelectField({
   value,
   onChange,
   options,
+  help,
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: Array<{ value: string; label: string }>;
+  help?: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Select value={value || undefined} onValueChange={onChange}>
         <SelectTrigger className="h-10 text-ui">
           <SelectValue placeholder="Select" />

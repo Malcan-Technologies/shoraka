@@ -75,6 +75,7 @@ import {
   readFinancingStructureType,
   SC_FUND_RAISING_PURPOSE_LABELS,
   SC_FUND_RAISING_PURPOSES,
+  SC_MONTHLY_CAMPAIGN,
   type GuarantorCompanyRelationship,
   type GuarantorIndividualRelationship,
   type ScFundRaisingPurpose,
@@ -2375,7 +2376,8 @@ export function BusinessDetailsStep({
             {whyRaisingFunds.scPurposeOfFundRaising === "OTHERS" ? (
               <>
                 <Label htmlFor="sc-purpose-other" className={labelTextareaClassName}>
-                  Other purpose
+                  {SC_MONTHLY_CAMPAIGN.purposeOfFundRaisingOthers.label}
+                  <span className="text-destructive"> *</span>
                 </Label>
                 <TextareaWithCharCount
                   id="sc-purpose-other"

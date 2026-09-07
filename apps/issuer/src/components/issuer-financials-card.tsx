@@ -5,17 +5,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
-  FINANCIAL_FIELD_LABELS,
   ISSUER_PROFILE_BALANCE_SHEET_KEYS,
   ISSUER_PROFILE_PNL_KEYS,
   latestUnauditedYearBlock,
   latestUnauditedYearKey,
+  SC_MONTHLY_ISSUER_FINANCIAL_HELP,
+  SC_MONTHLY_ISSUER_FINANCIAL_LABELS,
   type ComrepProfileCompleteness,
 } from "@cashsouk/types";
-import { ProfileFieldGrid, ProfileReadField, StatusBadge } from "@cashsouk/ui";
+import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField, StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -50,7 +50,18 @@ const MISSING_TO_KEY: Record<string, string> = {
 };
 
 function fieldLabel(key: string): string {
-  return FINANCIAL_FIELD_LABELS[key] ?? key;
+  return SC_MONTHLY_ISSUER_FINANCIAL_LABELS[key] ?? key;
+}
+
+function fieldHelp(key: string): string | undefined {
+  return SC_MONTHLY_ISSUER_FINANCIAL_HELP[key];
+}
+
+function fieldRequired(key: string, missingKeys: Set<string>): boolean {
+  if (key === "equity_share_application" || key === "equity_share_premium" || key === "equity_minority") {
+    return false;
+  }
+  return missingKeys.has(key) || missingKeys.has("financials");
 }
 
 export function IssuerFinancialsCard({ organizationId }: { organizationId: string }) {
@@ -168,11 +179,15 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
               <h3 className="text-card-title">Balance sheet</h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 {ISSUER_PROFILE_BALANCE_SHEET_KEYS.map((key) => {
-                  const required = missingKeys.has(key) || missingKeys.has("financials");
+                  const required = fieldRequired(key, missingKeys);
                   const empty = !(draft[key] ?? "").trim();
                   return (
                     <div key={key} className="space-y-2">
-                      <Label className="text-ui font-medium">{fieldLabel(key)}</Label>
+                      <ComRepFieldLabel
+                        label={fieldLabel(key)}
+                        required={required}
+                        help={fieldHelp(key)}
+                      />
                       <Input
                         className="h-11 text-ui"
                         value={draft[key] ?? ""}
@@ -192,11 +207,15 @@ export function IssuerFinancialsCard({ organizationId }: { organizationId: strin
               <h3 className="text-card-title">Profit and loss</h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 {ISSUER_PROFILE_PNL_KEYS.map((key) => {
-                  const required = missingKeys.has(key) || missingKeys.has("financials");
+                  const required = fieldRequired(key, missingKeys);
                   const empty = !(draft[key] ?? "").trim();
                   return (
                     <div key={key} className="space-y-2">
-                      <Label className="text-ui font-medium">{fieldLabel(key)}</Label>
+                      <ComRepFieldLabel
+                        label={fieldLabel(key)}
+                        required={required}
+                        help={fieldHelp(key)}
+                      />
                       <Input
                         className="h-11 text-ui"
                         value={draft[key] ?? ""}

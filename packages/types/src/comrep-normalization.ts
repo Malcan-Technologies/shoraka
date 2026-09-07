@@ -33,6 +33,20 @@ export function omitRecordId<T extends Record<string, unknown>>(
   return rest;
 }
 
+/** Strict body for operator child records: known keys only; empty strings become null. */
+export function pickKnownKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[]
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (key === "id" || !(key in value)) continue;
+    const raw = value[key];
+    out[key] = raw === "" ? null : raw;
+  }
+  return out;
+}
+
 export const OPERATOR_SHARE_CAPITAL_SDN_BHD_KEYS = [
   "ordinaryUnits",
   "ordinaryAmount",

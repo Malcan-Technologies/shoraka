@@ -13,6 +13,8 @@ import {
   allowedScInvestorCategories,
   SC_INVESTOR_CATEGORY_LABELS,
   SC_MALAYSIAN_STATES,
+  SC_MONTHLY_INVESTOR,
+  SC_MONTHLY_ISSUER,
   type OrganizationDetailResponse,
   type PortalType,
   type ScCompanyType,
@@ -243,6 +245,22 @@ export function OrganizationProfilePanel({
     />
   );
 
+  const issuerCompany = portal === "issuer";
+  const companyNameLabel = issuerCompany ? SC_MONTHLY_ISSUER.nameOfIssuer.label : SC_MONTHLY_INVESTOR.investorName.label;
+  const companyRocLabel = issuerCompany ? SC_MONTHLY_ISSUER.issuerRoc.label : SC_MONTHLY_INVESTOR.investorIdentification.label;
+  const companyRocHelp = issuerCompany ? SC_MONTHLY_ISSUER.issuerRoc.help : SC_MONTHLY_INVESTOR.investorIdentification.help;
+  const companyTypeLabelSc = SC_MONTHLY_ISSUER.typeOfCompany.label;
+  const incorporationLabel = issuerCompany
+    ? SC_MONTHLY_ISSUER.dateOfIncorporation.label
+    : SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.label;
+  const commencementLabel = SC_MONTHLY_ISSUER.dateOfCommencement.label;
+  const countryIncorpLabel = issuerCompany
+    ? SC_MONTHLY_ISSUER.countryOfIncorporation.label
+    : SC_MONTHLY_INVESTOR.nationalityCountry.label;
+  const phoneLabel = issuerCompany ? SC_MONTHLY_ISSUER.phoneNumber.label : "Phone Number";
+  const emailLabel = issuerCompany ? SC_MONTHLY_ISSUER.emailAddress.label : "Email";
+  const websiteLabel = SC_MONTHLY_ISSUER.website.label;
+
   return (
     <div className="space-y-6">
       {org.type === "COMPANY" ? (
@@ -258,18 +276,18 @@ export function OrganizationProfilePanel({
               {editingSection === "company" ? (
                 <>
                   <EditableField
-                    label="Business Name"
+                    label={companyNameLabel}
                     value={draft.name}
                     onChange={(name) => setDraft((current) => ({ ...current, name }))}
                   />
-                  <ReadField label="SSM / ROC" value={ssmNumber} locked />
+                  <ReadField label={companyRocLabel} value={ssmNumber} locked help={companyRocHelp} />
                   <EditableField
                     label="TIN"
                     value={draft.tinNumber}
                     onChange={(tinNumber) => setDraft((current) => ({ ...current, tinNumber }))}
                   />
                   <EditableSelect
-                    label="Company Type"
+                    label={companyTypeLabelSc}
                     value={draft.scCompanyType}
                     onChange={(scCompanyType) => setDraft((current) => ({ ...current, scCompanyType }))}
                     options={SC_COMPANY_TYPES.map((value) => ({
@@ -278,7 +296,7 @@ export function OrganizationProfilePanel({
                     }))}
                   />
                   <EditableDateField
-                    label="Date of Incorporation"
+                    label={incorporationLabel}
                     value={draft.dateOfIncorporation}
                     onChange={(dateOfIncorporation) =>
                       setDraft((current) => ({ ...current, dateOfIncorporation }))
@@ -286,7 +304,7 @@ export function OrganizationProfilePanel({
                   />
                   {portal === "issuer" ? (
                     <EditableDateField
-                      label="Date of Commencement"
+                      label={commencementLabel}
                       value={draft.dateOfCommencement}
                       onChange={(dateOfCommencement) =>
                         setDraft((current) => ({ ...current, dateOfCommencement }))
@@ -294,7 +312,7 @@ export function OrganizationProfilePanel({
                     />
                   ) : null}
                   <EditableField
-                    label="Country of Incorporation"
+                    label={countryIncorpLabel}
                     value={draft.countryOfIncorporation}
                     onChange={(countryOfIncorporation) =>
                       setDraft((current) => ({ ...current, countryOfIncorporation }))
@@ -318,19 +336,19 @@ export function OrganizationProfilePanel({
                     onChange={(annualRevenue) => setDraft((current) => ({ ...current, annualRevenue }))}
                   />
                   <EditableField
-                    label="Website"
+                    label={websiteLabel}
                     value={draft.website}
                     onChange={(website) => setDraft((current) => ({ ...current, website }))}
                   />
                   {portal === "issuer" ? (
                     <EditableField
-                      label="Company Email"
+                      label={emailLabel}
                       value={draft.companyEmail}
                       onChange={(companyEmail) => setDraft((current) => ({ ...current, companyEmail }))}
                     />
                   ) : null}
                   <EditableField
-                    label="Phone"
+                    label={phoneLabel}
                     value={draft.phoneNumber}
                     onChange={(phoneNumber) => setDraft((current) => ({ ...current, phoneNumber }))}
                   />
@@ -338,36 +356,37 @@ export function OrganizationProfilePanel({
               ) : (
                 <>
                   <ReadField
-                    label="Business Name"
+                    label={companyNameLabel}
                     value={org.name}
                     missing={requiredFieldKeys.has("name")}
                   />
                   <ReadField
-                    label="SSM / ROC"
+                    label={companyRocLabel}
+                    help={companyRocHelp}
                     value={ssmNumber}
                     missing={requiredFieldKeys.has("registrationNumber")}
                     locked
                   />
                   <ReadField label="TIN" value={basic?.tinNumber} />
                   <ReadField
-                    label="Company Type"
+                    label={companyTypeLabelSc}
                     value={companyTypeLabel}
                     missing={requiredFieldKeys.has("scCompanyType")}
                   />
                   <ReadField
-                    label="Date of Incorporation"
+                    label={incorporationLabel}
                     value={formatMasterDate(org.dateOfIncorporation)}
                     missing={requiredFieldKeys.has("dateOfIncorporation")}
                   />
                   {portal === "issuer" ? (
                     <ReadField
-                      label="Date of Commencement"
+                      label={commencementLabel}
                       value={formatMasterDate(org.dateOfCommencement)}
                       missing={requiredFieldKeys.has("dateOfCommencement")}
                     />
                   ) : null}
                   <ReadField
-                    label="Country of Incorporation"
+                    label={countryIncorpLabel}
                     value={org.countryOfIncorporation}
                     missing={requiredFieldKeys.has("countryOfIncorporation")}
                   />
@@ -380,7 +399,7 @@ export function OrganizationProfilePanel({
                   />
                   <ReadField label="Annual Revenue (RM)" value={basic?.annualRevenue} />
                   <ReadField
-                    label="Website"
+                    label={websiteLabel}
                     value={
                       basic?.website ? (
                         isUrl(basic.website) ? (
@@ -402,13 +421,13 @@ export function OrganizationProfilePanel({
                   />
                   {portal === "issuer" ? (
                     <ReadField
-                      label="Company Email"
+                      label={emailLabel}
                       value={org.companyEmail}
                       missing={requiredFieldKeys.has("companyEmail")}
                     />
                   ) : null}
                   <ReadField
-                    label="Phone"
+                    label={phoneLabel}
                     value={org.phoneNumber}
                     missing={requiredFieldKeys.has("phoneNumber")}
                   />
@@ -506,7 +525,10 @@ export function OrganizationProfilePanel({
             {editingSection === "addresses" ? (
               <>
                 <EditableAddressFields
-                  label="Business address"
+                  label={SC_MONTHLY_ISSUER.businessAddress.label}
+                  lineLabel={SC_MONTHLY_ISSUER.businessAddress.label}
+                  stateLabel={SC_MONTHLY_ISSUER.businessAddressState.label}
+                  postcodeLabel={SC_MONTHLY_ISSUER.businessAddressPostcode.label}
                   value={draft.businessAddress}
                   onChange={(businessAddress) => {
                     setDraft((current) => ({
@@ -518,7 +540,7 @@ export function OrganizationProfilePanel({
                 />
                 <div className="space-y-4 border-t pt-6">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-meta font-medium text-muted-foreground">Registered address</p>
+                    <p className="text-meta font-medium text-muted-foreground">{SC_MONTHLY_ISSUER.registeredAddress.label}</p>
                     <label className="flex items-center gap-2 text-ui">
                       <input
                         type="checkbox"
@@ -544,7 +566,10 @@ export function OrganizationProfilePanel({
                     </p>
                   ) : (
                     <EditableAddressFields
-                      label="Registered address"
+                      label={SC_MONTHLY_ISSUER.registeredAddress.label}
+                      lineLabel={SC_MONTHLY_ISSUER.registeredAddress.label}
+                      stateLabel={SC_MONTHLY_ISSUER.registeredAddressState.label}
+                      postcodeLabel={SC_MONTHLY_ISSUER.registeredAddressPostcode.label}
                       value={draft.registeredAddress}
                       onChange={(registeredAddress) =>
                         setDraft((current) => ({ ...current, registeredAddress }))
@@ -556,11 +581,11 @@ export function OrganizationProfilePanel({
             ) : (
               <>
                 <div className="space-y-4">
-                  <p className="text-ui font-medium">Registered address</p>
+                  <p className="text-ui font-medium">{SC_MONTHLY_ISSUER.registeredAddress.label}</p>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <ReadField
                       className="sm:col-span-2"
-                      label="Address"
+                      label={SC_MONTHLY_ISSUER.registeredAddress.label}
                       value={
                         [
                           org.corporateOnboardingData?.addresses?.registered?.line1,
@@ -572,23 +597,25 @@ export function OrganizationProfilePanel({
                       missing={requiredFieldKeys.has("registeredAddress.line1")}
                     />
                     <ReadField
-                      label="State"
+                      label={SC_MONTHLY_ISSUER.registeredAddressState.label}
                       value={org.corporateOnboardingData?.addresses?.registered?.state}
                       missing={requiredFieldKeys.has("registeredAddress.state")}
+                      help={SC_MONTHLY_ISSUER.registeredAddressState.help}
                     />
                     <ReadField
-                      label="Postcode"
+                      label={SC_MONTHLY_ISSUER.registeredAddressPostcode.label}
                       value={org.corporateOnboardingData?.addresses?.registered?.postalCode}
                       missing={requiredFieldKeys.has("registeredAddress.postalCode")}
+                      help={SC_MONTHLY_ISSUER.registeredAddressPostcode.help}
                     />
                   </div>
                 </div>
                 <div className="space-y-4 border-t pt-6">
-                  <p className="text-ui font-medium">Business address</p>
+                  <p className="text-ui font-medium">{SC_MONTHLY_ISSUER.businessAddress.label}</p>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <ReadField
                       className="sm:col-span-2"
-                      label="Address"
+                      label={SC_MONTHLY_ISSUER.businessAddress.label}
                       value={
                         [
                           org.corporateOnboardingData?.addresses?.business?.line1,
@@ -598,22 +625,25 @@ export function OrganizationProfilePanel({
                           .join(", ") || null
                       }
                       missing={requiredFieldKeys.has("businessAddress.line1")}
+                      help={SC_MONTHLY_ISSUER.businessAddress.help}
                     />
                     <ReadField
-                      label="State"
+                      label={SC_MONTHLY_ISSUER.businessAddressState.label}
                       value={org.corporateOnboardingData?.addresses?.business?.state}
                       missing={
                         requiredFieldKeys.has("businessAddress.state") ||
                         requiredFieldKeys.has("businessState")
                       }
+                      help={SC_MONTHLY_ISSUER.businessAddressState.help}
                     />
                     <ReadField
-                      label="Postcode"
+                      label={SC_MONTHLY_ISSUER.businessAddressPostcode.label}
                       value={org.corporateOnboardingData?.addresses?.business?.postalCode}
                       missing={
                         requiredFieldKeys.has("businessAddress.postalCode") ||
                         requiredFieldKeys.has("businessPostalCode")
                       }
+                      help={SC_MONTHLY_ISSUER.businessAddressPostcode.help}
                     />
                   </div>
                 </div>
@@ -646,7 +676,7 @@ export function OrganizationProfilePanel({
                   <>
                     {org.type !== "COMPANY" ? (
                       <EditableField
-                        label="Name"
+                        label={SC_MONTHLY_INVESTOR.investorName.label}
                         value={draft.name}
                         onChange={(name) => setDraft((current) => ({ ...current, name }))}
                       />
@@ -667,11 +697,13 @@ export function OrganizationProfilePanel({
                       onChange={(middleName) => setDraft((current) => ({ ...current, middleName }))}
                     />
                     <ReadField
-                      label="Identity"
+                      label={SC_MONTHLY_INVESTOR.investorIdentification.label}
                       value={[org.documentType, org.documentNumber].filter(Boolean).join(" · ") || null}
                       missing={
                         requiredFieldKeys.has("identityNumber") || requiredFieldKeys.has("identityPrefix")
                       }
+                      help={SC_MONTHLY_INVESTOR.investorIdentification.help}
+                      required
                     />
                     <EditableSelect
                       label="Gender"
@@ -682,12 +714,12 @@ export function OrganizationProfilePanel({
                       ).map((value) => ({ value, label: SC_GENDER_LABELS[value] }))}
                     />
                     <ReadField
-                      label="Date of Birth"
+                      label={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.label}
                       value={org.dateOfBirth ? format(new Date(org.dateOfBirth), "PP") : null}
                       missing={requiredFieldKeys.has("dateOfBirth")}
                     />
                     <EditableField
-                      label="Nationality"
+                      label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
                       value={draft.nationality}
                       onChange={(nationality) => setDraft((current) => ({ ...current, nationality }))}
                     />
@@ -696,17 +728,19 @@ export function OrganizationProfilePanel({
                 ) : (
                   <>
                     {org.type !== "COMPANY" ? (
-                      <ReadField label="Name" value={org.name} missing={requiredFieldKeys.has("name")} />
+                      <ReadField label={SC_MONTHLY_INVESTOR.investorName.label} value={org.name} missing={requiredFieldKeys.has("name")} />
                     ) : null}
                     <ReadField label="First Name" value={org.firstName} />
                     <ReadField label="Last Name" value={org.lastName} />
                     <ReadField label="Middle Name" value={org.middleName} />
                     <ReadField
-                      label="Identity"
+                      label={SC_MONTHLY_INVESTOR.investorIdentification.label}
                       value={[org.documentType, org.documentNumber].filter(Boolean).join(" · ") || null}
                       missing={
                         requiredFieldKeys.has("identityNumber") || requiredFieldKeys.has("identityPrefix")
                       }
+                      help={SC_MONTHLY_INVESTOR.investorIdentification.help}
+                      required
                     />
                     <ReadField
                       label="Gender"
@@ -714,12 +748,12 @@ export function OrganizationProfilePanel({
                       missing={requiredFieldKeys.has("gender")}
                     />
                     <ReadField
-                      label="Date of Birth"
+                      label={SC_MONTHLY_INVESTOR.dateOfBirthIncorporation.label}
                       value={org.dateOfBirth ? format(new Date(org.dateOfBirth), "PP") : null}
                       missing={requiredFieldKeys.has("dateOfBirth")}
                     />
                     <ReadField
-                      label="Nationality"
+                      label={SC_MONTHLY_INVESTOR.nationalityCountry.label}
                       value={org.nationality}
                       missing={requiredFieldKeys.has("nationality")}
                     />
@@ -802,7 +836,7 @@ export function OrganizationProfilePanel({
                     />
                   </div>
                   <EditableSelect
-                    label="State"
+                    label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
                     value={draft.residentialState}
                     onChange={(residentialState) =>
                       setDraft((current) => ({ ...current, residentialState }))
@@ -810,7 +844,7 @@ export function OrganizationProfilePanel({
                     options={SC_MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))}
                   />
                   <EditableField
-                    label="Postcode"
+                    label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
                     value={draft.residentialPostalCode}
                     onChange={(residentialPostalCode) =>
                       setDraft((current) => ({ ...current, residentialPostalCode }))
@@ -823,12 +857,12 @@ export function OrganizationProfilePanel({
                     <ReadField label="Residential Address" value={org.address} />
                   </div>
                   <ReadField
-                    label="State"
+                    label={SC_MONTHLY_INVESTOR.businessResidentialAddressState.label}
                     value={org.residentialAddress?.state}
                     missing={requiredFieldKeys.has("state")}
                   />
                   <ReadField
-                    label="Postcode"
+                    label={SC_MONTHLY_INVESTOR.businessResidentialAddressPostcode.label}
                     value={org.residentialAddress?.postalCode}
                     missing={requiredFieldKeys.has("postalCode")}
                   />
@@ -844,7 +878,7 @@ export function OrganizationProfilePanel({
           <AdminDetailCardHeader
             icon={IdentificationIcon}
             title="Investor classification"
-            description="CashSouk product status and SC ComRep reporting type are separate fields"
+            description="CashSouk product status and Type of Investor are separate fields"
             actions={sectionActions("classification")}
           />
           <CardContent>
@@ -861,7 +895,7 @@ export function OrganizationProfilePanel({
               />
               {editingSection === "classification" ? (
                 <EditableSelect
-                  label="SC ComRep Investor Type"
+                  label={SC_MONTHLY_INVESTOR.typeOfInvestor.label}
                   value={draft.scInvestorCategory}
                   onChange={(scInvestorCategory) =>
                     setDraft((current) => ({ ...current, scInvestorCategory }))
@@ -875,7 +909,7 @@ export function OrganizationProfilePanel({
                 />
               ) : (
                 <ReadField
-                  label="SC ComRep Investor Type"
+                  label={SC_MONTHLY_INVESTOR.typeOfInvestor.label}
                   value={investorCategoryLabel}
                   missing={requiredFieldKeys.has("scInvestorCategory")}
                 />

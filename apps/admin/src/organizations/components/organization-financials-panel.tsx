@@ -5,14 +5,15 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
-  FINANCIAL_FIELD_LABELS,
   ISSUER_PROFILE_BALANCE_SHEET_KEYS,
   ISSUER_PROFILE_PNL_KEYS,
+  SC_MONTHLY_ISSUER_FINANCIAL_HELP,
+  SC_MONTHLY_ISSUER_FINANCIAL_LABELS,
   type IssuerOrgFinancialSummary,
   type OrganizationDetailResponse,
 } from "@cashsouk/types";
 import { BanknotesIcon } from "@heroicons/react/24/outline";
-import { StatusBadge } from "@cashsouk/ui";
+import { ComRepFieldLabel, StatusBadge } from "@cashsouk/ui";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,7 +26,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ReadField } from "@/organizations/components/organization-profile-helpers";
 import { missingFieldKeys } from "@/organizations/utils/organization-profile-overview";
@@ -35,7 +35,15 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const EDITABLE_KEYS = [...ISSUER_PROFILE_BALANCE_SHEET_KEYS, ...ISSUER_PROFILE_PNL_KEYS] as const;
 
 function fieldLabel(key: string): string {
-  return FINANCIAL_FIELD_LABELS[key] ?? key;
+  return SC_MONTHLY_ISSUER_FINANCIAL_LABELS[key] ?? key;
+}
+
+function fieldHelp(key: string): string | undefined {
+  return SC_MONTHLY_ISSUER_FINANCIAL_HELP[key];
+}
+
+function fieldRequired(key: string): boolean {
+  return key !== "equity_share_application" && key !== "equity_share_premium" && key !== "equity_minority";
 }
 
 function displayAmount(value: unknown): string {
@@ -171,7 +179,11 @@ export function OrganizationFinancialsPanel({
               <div className="grid gap-4 sm:grid-cols-2">
                 {ISSUER_PROFILE_BALANCE_SHEET_KEYS.map((key) => (
                   <div key={key} className="space-y-1.5">
-                    <Label className="text-ui">{fieldLabel(key)}</Label>
+                    <ComRepFieldLabel
+                      label={fieldLabel(key)}
+                      help={fieldHelp(key)}
+                      required={fieldRequired(key)}
+                    />
                     <Input
                       className="h-10 text-ui"
                       value={draft[key] ?? ""}
@@ -189,7 +201,7 @@ export function OrganizationFinancialsPanel({
               <div className="grid gap-4 sm:grid-cols-2">
                 {ISSUER_PROFILE_PNL_KEYS.map((key) => (
                   <div key={key} className="space-y-1.5">
-                    <Label className="text-ui">{fieldLabel(key)}</Label>
+                    <ComRepFieldLabel label={fieldLabel(key)} help={fieldHelp(key)} required={fieldRequired(key)} />
                     <Input
                       className="h-10 text-ui"
                       value={draft[key] ?? ""}

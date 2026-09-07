@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "../lib/utils";
+import { ComRepFieldLabel } from "../comrep-field-label";
 
 export type ProfileReadFieldProps = {
   label: string;
@@ -8,6 +9,8 @@ export type ProfileReadFieldProps = {
   locked?: boolean;
   multiline?: boolean;
   hint?: React.ReactNode;
+  help?: string;
+  required?: boolean;
   className?: string;
 };
 
@@ -22,12 +25,14 @@ export function ProfileReadField({
   locked = false,
   multiline = false,
   hint,
+  help,
+  required = false,
   className,
 }: ProfileReadFieldProps) {
   const empty = isEmptyValue(value);
   return (
     <div className={cn("space-y-2", className)}>
-      <p className="text-ui font-medium leading-none text-foreground">{label}</p>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <div
         className={cn(
           "w-full rounded-md border px-3 text-ui",

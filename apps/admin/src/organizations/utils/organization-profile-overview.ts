@@ -156,13 +156,13 @@ export function formatSharePercent(value: string | number | null | undefined): s
 
 export const PARTY_MISMATCH_FIELD_LABELS: Record<string, string> = {
   name: "Name",
-  identityNumber: "Identity number",
-  entityType: "Entity type",
+  identityNumber: "Shareholder Identity (NRIC/Passport/Company Registration No.)",
+  entityType: "Shareholder Type",
   isDirector: "Director",
   isShareholder: "Shareholder",
-  shareholdingPercentage: "Shareholding percentage",
-  appointmentDate: "Appointment date",
-  resignationDate: "Resignation date",
+  shareholdingPercentage: "Shareholding Percentage (%)",
+  appointmentDate: "Appointment Date (dd/mm/yyyy)",
+  resignationDate: "Resignation Date (dd/mm/yyyy)",
 };
 
 export function partyMismatchFieldLabel(field: string): string {

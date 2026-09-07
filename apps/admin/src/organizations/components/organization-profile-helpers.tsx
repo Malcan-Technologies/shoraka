@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
+import { ComRepFieldLabel } from "@cashsouk/ui";
 import {
   ArrowTopRightOnSquareIcon,
   ClipboardDocumentCheckIcon,
@@ -10,7 +11,6 @@ import {
 } from "@heroicons/react/24/outline";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -132,6 +132,8 @@ export function ReadField({
   locked = false,
   multiline = false,
   className,
+  help,
+  required = false,
 }: {
   label: string;
   value: React.ReactNode;
@@ -140,11 +142,13 @@ export function ReadField({
   locked?: boolean;
   multiline?: boolean;
   className?: string;
+  help?: string;
+  required?: boolean;
 }) {
   const empty = value === null || value === undefined || value === "";
   return (
     <div className={cn("space-y-2", className)}>
-      <p className="text-ui font-medium leading-none text-foreground">{label}</p>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <div
         className={cn(
           "w-full rounded-md border px-3 text-ui",
@@ -175,6 +179,8 @@ export function EditableField({
   id,
   maxLength,
   inputClassName,
+  help,
+  required = false,
 }: {
   label: string;
   value: string;
@@ -183,13 +189,13 @@ export function EditableField({
   id?: string;
   maxLength?: number;
   inputClassName?: string;
+  help?: string;
+  required?: boolean;
 }) {
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
     <div className="space-y-2">
-      <Label htmlFor={fieldId} className="text-ui font-medium">
-        {label}
-      </Label>
+      <ComRepFieldLabel htmlFor={fieldId} label={label} required={required} help={help} />
       {multiline ? (
         <Textarea
           id={fieldId}
@@ -217,18 +223,20 @@ export function EditableDateField({
   value,
   onChange,
   id,
+  help,
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   id?: string;
+  help?: string;
+  required?: boolean;
 }) {
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
     <div className="space-y-2">
-      <Label htmlFor={fieldId} className="text-ui font-medium">
-        {label}
-      </Label>
+      <ComRepFieldLabel htmlFor={fieldId} label={label} required={required} help={help} />
       <Input
         id={fieldId}
         className="h-11 text-ui"
@@ -246,16 +254,20 @@ export function EditableSelect({
   onChange,
   options,
   placeholder = "Select",
+  help,
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: Array<{ value: string; label: string }>;
   placeholder?: string;
+  help?: string;
+  required?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <Label className="text-ui font-medium">{label}</Label>
+      <ComRepFieldLabel label={label} required={required} help={help} />
       <Select value={value || undefined} onValueChange={onChange}>
         <SelectTrigger className="h-11 text-ui">
           <SelectValue placeholder={placeholder} />
@@ -697,10 +709,16 @@ export function EditableAddressFields({
   label,
   value,
   onChange,
+  lineLabel = "Address Line 1",
+  stateLabel = "State",
+  postcodeLabel = "Postal Code",
 }: {
   label: string;
   value: AddressDraft;
   onChange: (next: AddressDraft) => void;
+  lineLabel?: string;
+  stateLabel?: string;
+  postcodeLabel?: string;
 }) {
   const prefix = label.toLowerCase().replace(/\s+/g, "-");
   return (
@@ -710,7 +728,7 @@ export function EditableAddressFields({
         <div className="sm:col-span-2">
           <EditableField
             id={`${prefix}-line1`}
-            label="Address Line 1"
+            label={lineLabel}
             value={value.line1}
             onChange={(line1) => onChange({ ...value, line1 })}
           />
@@ -731,13 +749,13 @@ export function EditableAddressFields({
         />
         <EditableField
           id={`${prefix}-postal`}
-          label="Postal Code"
+          label={postcodeLabel}
           value={value.postalCode}
           onChange={(postalCode) => onChange({ ...value, postalCode })}
         />
         <EditableField
           id={`${prefix}-state`}
-          label="State"
+          label={stateLabel}
           value={value.state}
           onChange={(state) => onChange({ ...value, state })}
         />
