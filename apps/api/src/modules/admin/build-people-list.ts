@@ -9,6 +9,7 @@ import {
   canonicalPartyIdentityKey,
   isGeneratedUserPartyKey,
   stripGeneratedPartyKeyPrefix,
+  isMissingGovernmentIdPerson,
   type ApplicationPersonRow,
   type CtosPartySupplement,
   type DirectorShareholderListSource,
@@ -653,11 +654,17 @@ function sharePercentFromMaster(value: string | number | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function operationalRolesForMasterParty(party: MasterPartyPeopleSeed): Array<"DIRECTOR" | "SHAREHOLDER"> {
+function operationalRolesForMasterParty(
+  party: MasterPartyPeopleSeed,
+  options?: { corporateRequiresMinimum?: boolean }
+): Array<"DIRECTOR" | "SHAREHOLDER"> {
   const roles: Array<"DIRECTOR" | "SHAREHOLDER"> = [];
   if (party.isDirector) roles.push("DIRECTOR");
   const share = sharePercentFromMaster(party.shareholdingPercentage);
-  if (party.isShareholder && (party.entityType === "CORPORATE" || (share != null && share >= 5))) {
+  const meetsIndividualMinimum = share != null && share >= 5;
+  const corporateWithoutMinimum =
+    !options?.corporateRequiresMinimum && party.entityType === "CORPORATE";
+  if (party.isShareholder && (meetsIndividualMinimum || corporateWithoutMinimum)) {
     roles.push("SHAREHOLDER");
   }
   return roles;
@@ -676,12 +683,14 @@ function operationalMatchKeyForMasterParty(party: MasterPartyPeopleSeed): string
 /**
  * Fold CashSouk master parties into operational people[] so KYC email/onboarding
  * still works for user-added directors/shareholders who are not yet in CTOS JSON.
- * Management-only and individual shareholders under 5% stay off this list.
+ * Management-only, EXTERNAL_OBSERVED, and individual shareholders under 5% stay off this list.
+ * Issuer also requires company shareholders to meet the 5% floor.
  */
 export function mergeMasterPartiesIntoPeopleList(params: {
   people: ApplicationPersonRow[];
   masterParties: MasterPartyPeopleSeed[];
   ctosPartySupplements?: SupplementInput[] | null;
+  corporateRequiresMinimum?: boolean;
 }): ApplicationPersonRow[] {
   const out = [...params.people];
   const index = new Map<string, number>();
@@ -692,8 +701,10 @@ export function mergeMasterPartiesIntoPeopleList(params: {
   const supplementByKey = buildSupplementMapByMatchKey(params.ctosPartySupplements);
 
   for (const party of params.masterParties) {
-    if (party.membershipStatus === "MASTER_INACTIVE") continue;
-    const roles = operationalRolesForMasterParty(party);
+    if (party.membershipStatus !== "MASTER_ACTIVE") continue;
+    const roles = operationalRolesForMasterParty(party, {
+      corporateRequiresMinimum: params.corporateRequiresMinimum,
+    });
     if (roles.length === 0) continue;
     const key = operationalMatchKeyForMasterParty(party);
     if (!key) continue;
@@ -761,7 +772,33 @@ export type BuildDirectorShareholderPeopleParams = {
   ctosPartySupplements?: SupplementInput[] | null;
   corporateEntities: unknown;
   masterParties?: MasterPartyPeopleSeed[] | null;
+  /** Issuer People/Profile: company shareholders also need >= 5%. Investor keeps the existing corporate exception. */
+  requireIssuerShareholderMinimum?: boolean;
 };
+
+function retainMasterActiveOperationalPeople(
+  people: ApplicationPersonRow[],
+  masterParties: MasterPartyPeopleSeed[] | null | undefined
+): ApplicationPersonRow[] {
+  if (!masterParties?.length) return people;
+  const hasStructuredMaster = masterParties.some(
+    (party) =>
+      party.membershipStatus === "MASTER_ACTIVE" || party.membershipStatus === "EXTERNAL_OBSERVED"
+  );
+  if (!hasStructuredMaster) return people;
+  const activeKeys = new Set(
+    masterParties
+      .filter((party) => party.membershipStatus === "MASTER_ACTIVE")
+      .map((party) => operationalMatchKeyForMasterParty(party))
+      .filter((key): key is string => Boolean(key))
+  );
+  return people.filter((row) => {
+    if (isMissingGovernmentIdPerson(row)) return true;
+    const key = normalizeDirectorShareholderIdKey(row.matchKey);
+    if (!key) return true;
+    return activeKeys.has(key);
+  });
+}
 
 export type DirectorShareholderPeopleBuildResult = {
   people: ApplicationPersonRow[];
@@ -1019,12 +1056,14 @@ export function buildDirectorShareholderPeopleList(
   }
 
   if (!params.masterParties?.length) return result;
+  const people = retainMasterActiveOperationalPeople(result.people, params.masterParties);
   return {
     ...result,
     people: mergeMasterPartiesIntoPeopleList({
-      people: result.people,
+      people,
       masterParties: params.masterParties,
       ctosPartySupplements: params.ctosPartySupplements ?? null,
+      corporateRequiresMinimum: params.requireIssuerShareholderMinimum === true,
     }),
   };
 }

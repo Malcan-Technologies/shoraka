@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma";
+import { seedMasterPartiesIfEmpty } from "./service";
 import {
   buildDirectorShareholderPeopleList,
   type BuildDirectorShareholderPeopleParams,
@@ -48,8 +49,13 @@ export async function loadMasterPartiesForPeopleMerge(
 export async function buildDirectorShareholderPeopleListWithMaster(
   portal: Portal,
   organizationId: string,
-  params: Omit<BuildDirectorShareholderPeopleParams, "masterParties">
+  params: Omit<BuildDirectorShareholderPeopleParams, "masterParties" | "requireIssuerShareholderMinimum">
 ): Promise<DirectorShareholderPeopleBuildResult> {
+  await seedMasterPartiesIfEmpty(portal, organizationId);
   const masterParties = await loadMasterPartiesForPeopleMerge(portal, organizationId);
-  return buildDirectorShareholderPeopleList({ ...params, masterParties });
+  return buildDirectorShareholderPeopleList({
+    ...params,
+    masterParties,
+    requireIssuerShareholderMinimum: portal === "issuer",
+  });
 }

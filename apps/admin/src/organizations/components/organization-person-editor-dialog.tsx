@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import type { OrganizationPartyProfileDto } from "@cashsouk/types";
 import {
   firstIssueMessage,
+  issuerShareholdingThresholdIssue,
   monthlyIssuerPersonCopy,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
@@ -139,6 +140,7 @@ export function OrganizationPersonEditorDialog({
   initial,
   isSaving,
   onSave,
+  enforceIssuerShareholderMinimum = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -147,6 +149,7 @@ export function OrganizationPersonEditorDialog({
   initial?: PartyEditorValues | null;
   isSaving: boolean;
   onSave: (values: PartyEditorValues) => Promise<void>;
+  enforceIssuerShareholderMinimum?: boolean;
 }) {
   const [values, setValues] = React.useState<PartyEditorValues>(initial ?? emptyValues);
 
@@ -494,6 +497,15 @@ export function OrganizationPersonEditorDialog({
                 designationOther: values.designationOther,
                 appointmentDate: values.appointmentDate,
               });
+              if (
+                enforceIssuerShareholderMinimum &&
+                (values.isShareholder || values.entityType === "CORPORATE")
+              ) {
+                const shareIssue = issuerShareholdingThresholdIssue(values.shareholdingPercentage, {
+                  required: true,
+                });
+                if (shareIssue) issues.push(shareIssue);
+              }
               if (issues.length > 0) {
                 toast.error(firstIssueMessage(issues));
                 return;

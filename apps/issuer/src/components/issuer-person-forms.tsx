@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   firstIssueMessage,
   issuesByField,
+  issuerShareholdingThresholdIssue,
   monthlyIssuerPersonCopy,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
@@ -22,7 +23,7 @@ import {
   validateIssuerPersonForm,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
-import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
+import { ComRepFieldLabel, PartyProfileDetailFields } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -35,76 +36,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-function formatDate(value: string | null | undefined): string {
-  if (!value) return "—";
-  return value.slice(0, 10);
-}
-
-export function PartyDetailFields({ party }: { party: OrganizationPartyProfileDto }) {
-  const officer = party.isDirector || party.isBoard || party.isManagement;
-  const copy = monthlyIssuerPersonCopy({ shareholder: party.isShareholder, officer });
-  const shareType =
-    party.shareType && party.shareType in SC_SHARE_TYPE_LABELS
-      ? SC_SHARE_TYPE_LABELS[party.shareType]
-      : party.shareType;
-  const designation =
-    party.designation && party.designation in SC_DESIGNATION_LABELS
-      ? SC_DESIGNATION_LABELS[party.designation]
-      : party.designation;
-  const gender =
-    party.gender && party.gender in SC_GENDER_LABELS ? SC_GENDER_LABELS[party.gender] : party.gender;
-  const prefix =
-    party.identityPrefix && party.identityPrefix in copy.identityPrefixLabels
-      ? copy.identityPrefixLabels[party.identityPrefix as keyof typeof copy.identityPrefixLabels]
-      : party.identityPrefix;
-  const dateValue =
-    party.entityType === "CORPORATE" ? formatDate(party.dateOfIncorporation) : formatDate(party.dateOfBirth);
-  const nationalityValue =
-    party.entityType === "CORPORATE" ? party.countryOfIncorporation : party.nationality;
-  const personKindValue = [
-    party.isBoard ? SC_MONTHLY_PERSON_KIND_LABELS.BOARD : null,
-    party.isManagement ? SC_MONTHLY_PERSON_KIND_LABELS.MANAGEMENT : null,
-  ]
-    .filter(Boolean)
-    .join("; ");
-
-  const items: Array<{ label: string; value: string; help?: string }> = [
-    { label: copy.salutation.label, value: party.salutation || "—", help: copy.salutation.help },
-    { label: copy.identityPrefix.label, value: prefix || "—" },
-    { label: copy.identity.label, value: party.identityNumber || "—", help: copy.identity.help },
-    { label: copy.gender.label, value: gender || "—", help: copy.gender.help },
-    { label: copy.nationality.label, value: nationalityValue || "—", help: copy.nationality.help },
-    { label: copy.dateOfBirth.label, value: dateValue, help: copy.dateOfBirth.help },
-    { label: copy.address.label, value: party.address?.line1 || "—" },
-    { label: "Address line 2", value: party.address?.line2 || "—" },
-    { label: copy.addressState.label, value: party.address?.state || "—", help: copy.addressState.help },
-    { label: copy.addressPostcode.label, value: party.address?.postalCode || "—", help: copy.addressPostcode.help },
-  ];
-  if (party.isShareholder) {
-    items.push(
-      { label: SC_MONTHLY_SHAREHOLDER.typeOfShares.label, value: shareType || "—" },
-      { label: SC_MONTHLY_SHAREHOLDER.typeOfSharesOthers.label, value: party.shareTypeOther || "—" },
-      { label: SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label, value: party.shareholdingUnits || "—" },
-      { label: SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label, value: party.shareholdingAmount || "—" },
-      { label: SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label, value: party.shareholdingPercentage || "—" }
-    );
-  }
-  if (officer) {
-    items.push(
-      { label: SC_MONTHLY_BOARD.boardOfDirectorManagementTeam.label, value: personKindValue || "—" },
-      { label: SC_MONTHLY_BOARD.designation.label, value: designation || "—" },
-      { label: SC_MONTHLY_BOARD.designationOthers.label, value: party.designationOther || "—", help: SC_MONTHLY_BOARD.designationOthers.help },
-      { label: SC_MONTHLY_BOARD.appointmentDate.label, value: formatDate(party.appointmentDate) },
-      { label: SC_MONTHLY_BOARD.resignationDate.label, value: formatDate(party.resignationDate), help: SC_MONTHLY_BOARD.resignationDate.help }
-    );
-  }
-  return (
-    <ProfileFieldGrid>
-      {items.map((item) => (
-        <ProfileReadField key={item.label} label={item.label} value={item.value} help={item.help} />
-      ))}
-    </ProfileFieldGrid>
-  );
+export function PartyDetailFields({
+  party,
+  person,
+}: {
+  party: OrganizationPartyProfileDto;
+  person?: import("@cashsouk/types").ApplicationPersonRow | null;
+}) {
+  return <PartyProfileDetailFields party={party} person={person ?? null} />;
 }
 
 export function AddPersonForm({
@@ -186,6 +125,12 @@ export function AddPersonForm({
           designationOther: form.designationOther,
           appointmentDate: form.appointmentDate,
         });
+        if (corporate || isShareholder) {
+          const shareIssue = issuerShareholdingThresholdIssue(form.shareholdingPercentage, {
+            required: true,
+          });
+          if (shareIssue) issues.push(shareIssue);
+        }
         if (issues.length > 0) {
           setFieldErrors(issuesByField(issues));
           toast.error(firstIssueMessage(issues));
@@ -548,6 +493,13 @@ export function PartyFillEmptyForm({
           designationOther: form.designationOther || party.designationOther,
           appointmentDate: form.appointmentDate || party.appointmentDate,
         });
+        if (party.isShareholder) {
+          const shareIssue = issuerShareholdingThresholdIssue(
+            form.shareholdingPercentage || party.shareholdingPercentage,
+            { required: true }
+          );
+          if (shareIssue) issues.push(shareIssue);
+        }
         if (issues.length > 0) {
           toast.error(firstIssueMessage(issues));
           return;

@@ -21,6 +21,7 @@ import {
   getIndividualWaitForApprovalUpdate,
 } from "./helpers/individual-onboarding-transition";
 import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
+import { preserveFilledOrgIdentityFields } from "../organization-profile/serialize";
 import {
   auditContextFromRequest,
   createOnboardingLogRow,
@@ -2295,6 +2296,19 @@ export class RegTankService {
             owner_user_id: true,
             is_sophisticated_investor: true,
             sophisticated_investor_reason: true,
+            first_name: true,
+            last_name: true,
+            middle_name: true,
+            nationality: true,
+            country: true,
+            id_issuing_country: true,
+            gender: true,
+            address: true,
+            date_of_birth: true,
+            document_type: true,
+            document_number: true,
+            phone_number: true,
+            legal_name_on_id: true,
           },
         });
 
@@ -2322,7 +2336,10 @@ export class RegTankService {
           portalType: "investor",
           organizationId,
           data: {
-            ...updateData,
+            ...preserveFilledOrgIdentityFields(
+              org as unknown as Record<string, unknown>,
+              updateData as unknown as Record<string, unknown>
+            ),
             is_sophisticated_investor: sophisticatedResult.isSophisticated,
             sophisticated_investor_reason: sophisticatedResult.reason,
           },
@@ -2368,7 +2385,21 @@ export class RegTankService {
         // Verify organization exists before updating
         const orgExists = await prisma.issuerOrganization.findUnique({
           where: { id: organizationId },
-          select: { id: true },
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            middle_name: true,
+            nationality: true,
+            country: true,
+            id_issuing_country: true,
+            gender: true,
+            address: true,
+            date_of_birth: true,
+            document_type: true,
+            document_number: true,
+            phone_number: true,
+          },
         });
 
         if (!orgExists) {
@@ -2377,7 +2408,10 @@ export class RegTankService {
 
         const updated = await prisma.issuerOrganization.update({
           where: { id: organizationId },
-          data: updateData,
+          data: preserveFilledOrgIdentityFields(
+            orgExists as unknown as Record<string, unknown>,
+            updateData as unknown as Record<string, unknown>
+          ) as typeof updateData,
         });
 
         logger.info(

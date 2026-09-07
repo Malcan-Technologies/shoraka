@@ -13,7 +13,6 @@ import {
 import { ADMIN_ACTION_SURFACE_CLASS } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 import {
-  formatMasterPartyRoles,
   formatMismatchValue,
   partyMismatchFieldLabel,
 } from "@/organizations/utils/organization-profile-overview";
@@ -53,8 +52,9 @@ export function OrganizationExternalReviewSheet({
         <SheetHeader>
           <SheetTitle>Review external changes</SheetTitle>
           <SheetDescription>
-            Compare latest CTOS values with the CashSouk master record. Adopting a value updates the
-            same profile the issuer or investor sees.
+            External information differs from the current profile. Review the latest external
+            information before updating this profile. Current profile information is kept until you
+            choose to update it.
           </SheetDescription>
         </SheetHeader>
         <div className="mt-6 space-y-6">
@@ -69,16 +69,16 @@ export function OrganizationExternalReviewSheet({
                   <div>
                     <p className="text-ui font-medium">{party.name || party.partyKey}</p>
                     <p className="text-meta text-muted-foreground">
-                      New {formatMasterPartyRoles(party)} detected in latest CTOS
+                      New person found in the latest external information.
                     </p>
                   </div>
                   {canManage ? (
                     <div className="flex flex-wrap gap-2">
                       <Button className="h-10" onClick={() => onAdopt(party.id)}>
-                        Add to master
+                        Adopt
                       </Button>
                       <Button className="h-10" variant="outline" onClick={() => onOpenChange(false)}>
-                        Review later
+                        Keep external only
                       </Button>
                     </div>
                   ) : null}
@@ -116,7 +116,7 @@ export function OrganizationExternalReviewSheet({
 
           {absentParties.length > 0 ? (
             <section className="space-y-3">
-              <h3 className="text-card-title">Not present in latest CTOS</h3>
+              <h3 className="text-card-title">Not found in latest external information</h3>
               {absentParties.map((party) => (
                 <div
                   key={party.id}
@@ -126,7 +126,7 @@ export function OrganizationExternalReviewSheet({
                     <p className="text-ui font-medium">{party.name || party.partyKey}</p>
                     <p className="flex items-center gap-1.5 text-meta text-status-action-text">
                       <ExclamationTriangleIcon className="h-4 w-4" />
-                      Not present in latest CTOS
+                      This person was not found in the latest external information.
                     </p>
                   </div>
                   {canManage ? (
@@ -175,17 +175,17 @@ export function MismatchBlock({
       <p className="text-ui font-medium">{partyMismatchFieldLabel(field)}</p>
       <div className="grid gap-2 sm:grid-cols-2">
         <div>
-          <p className="text-meta text-muted-foreground">Current CashSouk</p>
+          <p className="text-meta text-muted-foreground">Current profile</p>
           <p className="text-ui font-medium">{master}</p>
         </div>
         <div>
-          <p className="text-meta text-muted-foreground">Latest CTOS</p>
+          <p className="text-meta text-muted-foreground">Latest external information</p>
           <p className="text-ui text-muted-foreground">{external}</p>
         </div>
       </div>
       <p className="flex items-center gap-1.5 text-meta text-status-action-text">
         <ExclamationTriangleIcon className="h-4 w-4" />
-        Different from latest CTOS
+        External information differs from the current profile.
       </p>
       {canManage ? (
         <div className="flex flex-wrap gap-2">

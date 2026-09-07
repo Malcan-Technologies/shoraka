@@ -1991,8 +1991,21 @@ export class OrganizationService {
   }
 
   /**
-   * Trigger RegTank individual onboarding (2.1) for a CTOS director/shareholder party.
+   * Shared KYC/AML onboarding for a master party (manually added or CTOS-adopted).
    * Reuses RegTankAPIClient.createIndividualOnboarding; persists sent state on ctos_party_supplements.onboarding_json.
+   */
+  async sendPartyKycAmlOnboarding(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType,
+    input: SendDirectorOnboardingInput
+  ): Promise<{ requestId: string }> {
+    return this.sendDirectorCtosPartyOnboarding(userId, organizationId, portalType, input);
+  }
+
+  /**
+   * Trigger RegTank individual onboarding (2.1) for a director/shareholder party.
+   * Alias of {@link sendPartyKycAmlOnboarding}.
    */
   async sendDirectorCtosPartyOnboarding(
     userId: string,

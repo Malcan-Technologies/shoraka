@@ -8,6 +8,7 @@ import {
   OBSERVATION_RESOLVED_KEY,
   parseDateInput,
   preserveFilledCodMasterFacts,
+  preserveFilledOrgIdentityFields,
 } from "./serialize";
 
 describe("fillEmptyMaster / mergeEmptyAddress", () => {
@@ -164,5 +165,46 @@ describe("preserveFilledCodMasterFacts", () => {
     expect(merged.addresses.registered.postalCode).toBe("40000");
     expect(merged.aboutYourBusiness.whatDoesCompanyDo).toBe("Invoice financing");
     expect(merged.directors).toHaveLength(1);
+  });
+});
+
+describe("preserveFilledOrgIdentityFields", () => {
+  it("keeps filled CashSouk identity values when a later RegTank extract differs", () => {
+    const merged = preserveFilledOrgIdentityFields(
+      {
+        first_name: "Aisha",
+        last_name: "Tan",
+        nationality: "MY",
+        gender: "FEMALE",
+        document_number: "900101101234",
+        phone_number: "+60111111111",
+      },
+      {
+        first_name: "A",
+        last_name: "T",
+        nationality: "SG",
+        gender: "MALE",
+        document_number: "900101101999",
+        phone_number: "+60122222222",
+        kyc_id: "kyc-new",
+      }
+    );
+    expect(merged.first_name).toBe("Aisha");
+    expect(merged.last_name).toBe("Tan");
+    expect(merged.nationality).toBe("MY");
+    expect(merged.gender).toBe("FEMALE");
+    expect(merged.document_number).toBe("900101101234");
+    expect(merged.phone_number).toBe("+60111111111");
+    expect(merged.kyc_id).toBe("kyc-new");
+  });
+
+  it("fills empty identity fields from RegTank", () => {
+    const merged = preserveFilledOrgIdentityFields(
+      { first_name: null, last_name: "", nationality: null },
+      { first_name: "Aisha", last_name: "Tan", nationality: "MY" }
+    );
+    expect(merged.first_name).toBe("Aisha");
+    expect(merged.last_name).toBe("Tan");
+    expect(merged.nationality).toBe("MY");
   });
 });

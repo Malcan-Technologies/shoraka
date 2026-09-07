@@ -65,8 +65,9 @@ export type UnifiedOrgPerson = {
 function partyMatchRecord(party: OrganizationPartyProfileDto): {
   partyKey: string;
   identityNumber: string | null;
+  entityType: string;
 } {
-  return { partyKey: party.partyKey, identityNumber: party.identityNumber };
+  return { partyKey: party.partyKey, identityNumber: party.identityNumber, entityType: party.entityType };
 }
 
 export function matchPersonToParty(
@@ -76,11 +77,26 @@ export function matchPersonToParty(
   const identity = person.matchKey?.trim();
   if (!identity) return undefined;
   return findExistingPartyForIdentityKey(
-    parties.map((party) => ({ partyKey: party.partyKey, identityNumber: party.identityNumber })),
-    identity
+    parties.map((party) => ({
+      partyKey: party.partyKey,
+      identityNumber: party.identityNumber,
+      entityType: party.entityType,
+    })),
+    identity,
+    { entityType: person.entityType }
   )
     ? parties.find((party) => {
-        const hit = findExistingPartyForIdentityKey([partyMatchRecord(party)], identity);
+        const hit = findExistingPartyForIdentityKey(
+          [
+            {
+              partyKey: party.partyKey,
+              identityNumber: party.identityNumber,
+              entityType: party.entityType,
+            },
+          ],
+          identity,
+          { entityType: person.entityType }
+        );
         return Boolean(hit);
       })
     : undefined;
@@ -106,7 +122,9 @@ export function unifyOrganizationPeople(
     const person =
       peopleList.find((row) => {
         if (!row.matchKey) return false;
-        return Boolean(findExistingPartyForIdentityKey([partyMatchRecord(party)], row.matchKey));
+        return Boolean(findExistingPartyForIdentityKey([partyMatchRecord(party)], row.matchKey, {
+          entityType: row.entityType,
+        }));
       }) ?? null;
     if (person?.matchKey) matchedPeople.add(person.matchKey);
     return { key: party.id, kind, party, person };
@@ -181,8 +199,8 @@ export function formatMismatchValue(field: string, value: unknown): string {
 }
 
 export function latestCtosLabel(party: OrganizationPartyProfileDto): string {
-  if (party.membershipStatus === "EXTERNAL_OBSERVED") return "New in latest CTOS";
-  if (party.absentFromLatestExternal) return "Not present in latest CTOS";
+  if (party.membershipStatus === "EXTERNAL_OBSERVED") return "New in latest external information";
+  if (party.absentFromLatestExternal) return "Not found in latest external information";
   if (party.externalObservation) return "Matched";
   return "Not yet found";
 }

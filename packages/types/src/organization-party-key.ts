@@ -44,7 +44,14 @@ type PartyKeyRow = {
   partyKey?: string;
   identity_number?: string | null;
   identityNumber?: string | null;
+  entity_type?: string | null;
+  entityType?: string | null;
 };
+
+function rowEntityType(row: PartyKeyRow): string | null {
+  const raw = row.entity_type ?? row.entityType ?? null;
+  return raw == null ? null : String(raw);
+}
 
 function rowPartyKey(row: PartyKeyRow): string {
   return String(row.party_key ?? row.partyKey ?? "");
@@ -61,11 +68,17 @@ function rowIdentityNumber(row: PartyKeyRow): string | null {
  */
 export function findExistingPartyForIdentityKey<T extends PartyKeyRow>(
   rows: T[],
-  identityKey: string
+  identityKey: string,
+  options?: { entityType?: string | null }
 ): T | undefined {
   const want = canonicalPartyIdentityKey(identityKey);
   if (!want) return undefined;
+  const wantType = options?.entityType ? String(options.entityType) : null;
   return rows.find((row) => {
+    if (wantType) {
+      const rowType = rowEntityType(row);
+      if (rowType && rowType !== wantType) return false;
+    }
     const key = rowPartyKey(row);
     if (canonicalPartyIdentityKey(key) === want) return true;
     if (canonicalPartyIdentityKey(rowIdentityNumber(row)) === want) return true;

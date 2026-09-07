@@ -10,7 +10,6 @@ import {
   findExistingPartyForIdentityKey,
   formatPartyRoleLine,
   formatPeopleRolesLine,
-  formatPeopleRolesLineTitleCase,
   filterVisiblePeopleRows,
   getFinalStatusLabel,
   getFinalStatusToken,
@@ -27,6 +26,8 @@ import {
 import {
   DirectorShareholderCtosEmptyAlert,
   DirectorShareholderUnresolvedIdentitySection,
+  PartyProfileDetailFields,
+  PartyRoleBadges,
   StatusBadge,
 } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProfileCard } from "./profile-card";
-import { AddPersonForm, PartyDetailFields, PartyFillEmptyForm } from "./issuer-person-forms";
+import { AddPersonForm, PartyFillEmptyForm } from "./issuer-person-forms";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -72,8 +73,15 @@ function matchPersonToParty(
   return parties.find((party) =>
     Boolean(
       findExistingPartyForIdentityKey(
-        [{ partyKey: party.partyKey, identityNumber: party.identityNumber }],
-        identity
+        [
+          {
+            partyKey: party.partyKey,
+            identityNumber: party.identityNumber,
+            entityType: party.entityType,
+          },
+        ],
+        identity,
+        { entityType: person.entityType }
       )
     )
   );
@@ -104,6 +112,7 @@ export function IssuerPeopleSection({
   const [filter, setFilter] = React.useState<PeopleFilter>("all");
   const [addOpen, setAddOpen] = React.useState(false);
   const [viewPartyId, setViewPartyId] = React.useState<string | null>(null);
+  const [viewPeopleOnlyKey, setViewPeopleOnlyKey] = React.useState<string | null>(null);
   const [editPartyId, setEditPartyId] = React.useState<string | null>(null);
   const [draftEmails, setDraftEmails] = React.useState<Record<string, string>>({});
   const [sendPending, setSendPending] = React.useState(false);
@@ -143,6 +152,10 @@ export function IssuerPeopleSection({
     ctosDirectorShareholderWarning,
   });
   const viewing = parties.find((party) => party.id === viewPartyId) ?? null;
+  const viewingPerson =
+    masterCards.find((item) => item.party.id === viewPartyId)?.person ??
+    peopleOnly.find((person) => person.matchKey === viewPeopleOnlyKey) ??
+    null;
   const editing = parties.find((party) => party.id === editPartyId) ?? null;
   const blockOnboarding = organizationOnboardingStatus !== "COMPLETED";
 
@@ -236,7 +249,7 @@ export function IssuerPeopleSection({
           <PersonRow
             key={item.key}
             name={item.party.name || item.party.partyKey}
-            roles={formatPartyRoleLine(item.party)}
+            party={item.party}
             person={item.person}
             identityKey={item.party.identityNumber}
             draftEmail={draftEmails[item.key] ?? item.person?.email ?? ""}
@@ -253,10 +266,6 @@ export function IssuerPeopleSection({
               <PersonRow
                 key={person.matchKey || person.name}
                 name={person.name || "Unnamed"}
-                roles={formatPeopleRolesLineTitleCase({
-                  roles: person.roles ?? [],
-                  sharePercentage: person.sharePercentage ?? null,
-                })}
                 person={person}
                 identityKey={person.matchKey}
                 draftEmail={draftEmails[person.matchKey || ""] ?? person.email ?? ""}
@@ -266,6 +275,7 @@ export function IssuerPeopleSection({
                 canSend={!blockOnboarding && canManageDirectorShareholder(person)}
                 sendPending={sendPending}
                 onSend={() => sendOnboarding(person, draftEmails[person.matchKey || ""] ?? person.email ?? "")}
+                onView={() => setViewPeopleOnlyKey(person.matchKey)}
               />
             ))}
 
@@ -323,13 +333,25 @@ export function IssuerPeopleSection({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(viewing)} onOpenChange={(open) => !open && setViewPartyId(null)}>
+      <Dialog
+        open={Boolean(viewing) || Boolean(viewPeopleOnlyKey)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewPartyId(null);
+            setViewPeopleOnlyKey(null);
+          }
+        }}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{viewing?.name || "Person"}</DialogTitle>
-            <DialogDescription>{viewing ? formatPartyRoleLine(viewing) : ""}</DialogDescription>
+            <DialogTitle>{viewing?.name || viewingPerson?.name || "Person"}</DialogTitle>
+            <DialogDescription>
+              {viewing ? formatPartyRoleLine(viewing) : "Onboarding details for this person"}
+            </DialogDescription>
           </DialogHeader>
-          {viewing ? <PartyDetailFields party={viewing} /> : null}
+          {viewing || viewingPerson ? (
+            <PartyProfileDetailFields party={viewing} person={viewingPerson} />
+          ) : null}
           {canEdit && viewing ? (
             <Button
               className="h-10"
@@ -371,7 +393,7 @@ export function IssuerPeopleSection({
 
 function PersonRow({
   name,
-  roles,
+  party,
   person,
   identityKey,
   draftEmail,
@@ -383,7 +405,7 @@ function PersonRow({
   onEdit,
 }: {
   name: string;
-  roles: string;
+  party?: OrganizationPartyProfileDto | null;
   person: ApplicationPersonRow | null;
   identityKey?: string | null;
   draftEmail: string;
@@ -410,7 +432,7 @@ function PersonRow({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <p className="text-ui font-medium">{name}</p>
-          <p className="text-meta text-muted-foreground">{roles || "—"}</p>
+          <PartyRoleBadges party={party} person={person} />
           <div className="flex flex-wrap gap-2 pt-1">
             <StatusBadge status={getFinalStatusToken(kyc.tone)} label={`KYC: ${kyc.label}`} />
             <StatusBadge status={getFinalStatusToken(aml.tone)} label={`AML: ${aml.label}`} />

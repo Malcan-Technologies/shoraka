@@ -972,7 +972,7 @@ describe("buildUnifiedPeople", () => {
     expect(result.people.find((p) => p.matchKey === "880101011111")).toBeUndefined();
   });
 
-  it("G: CTOS-discovered EXTERNAL_OBSERVED director stays one people[] row", () => {
+  it("does not put EXTERNAL_OBSERVED CTOS people onto the operational KYC list", () => {
     const result = buildDirectorShareholderPeopleList({
       ctos: {
         directors: [
@@ -998,8 +998,7 @@ describe("buildUnifiedPeople", () => {
       ],
     });
     const rows = result.people.filter((p) => p.matchKey === "990101011111");
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.roles).toContain("DIRECTOR");
+    expect(rows).toHaveLength(0);
   });
 
   it("L: KYC supplement status attaches to a user-added master director", () => {
@@ -1077,5 +1076,52 @@ describe("buildUnifiedPeople", () => {
     });
     expect(result.listSource).toBe("ONBOARDING");
     expect(result.people).toEqual([]);
+  });
+
+  it("does not inject an issuer company shareholder below 5% into operational people[]", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
+      requireIssuerShareholderMinimum: true,
+      masterParties: [
+        {
+          partyKey: "1234567A",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "CORPORATE",
+          name: "ABC Sdn Bhd",
+          identityNumber: "1234567A",
+          isDirector: false,
+          isShareholder: true,
+          shareholdingPercentage: "3",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "1234567A")).toBeUndefined();
+  });
+
+  it("still injects an investor company shareholder below 5% into operational people[]", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
+      masterParties: [
+        {
+          partyKey: "1234567A",
+          membershipStatus: "MASTER_ACTIVE",
+          entityType: "CORPORATE",
+          name: "ABC Sdn Bhd",
+          identityNumber: "1234567A",
+          isDirector: false,
+          isShareholder: true,
+          shareholdingPercentage: "3",
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "1234567A")?.roles).toContain("SHAREHOLDER");
   });
 });
