@@ -992,7 +992,8 @@ export function OrganizationDetailDialog({
               )}
 
               {/* Personal Details (from RegTank) */}
-              {(org.firstName || org.lastName || org.nationality || org.dateOfBirth) && (
+              {(org.type !== "COMPANY" &&
+                (org.firstName || org.lastName || org.nationality || org.dateOfBirth)) && (
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -1017,24 +1018,32 @@ export function OrganizationDetailDialog({
                 </Card>
               )}
 
-              {/* Contact Info */}
-              {(org.phoneNumber || org.address || org.owner.email) && (
+              {/* Account owner / contact */}
+              {(org.phoneNumber || (org.type !== "COMPANY" && org.address) || org.owner.email) && (
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
                       <PhoneIcon className="h-4 w-4" />
-                      Contact Details
+                      {org.type === "COMPANY" ? "Account owner" : "Contact Details"}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4">
                       {org.phoneNumber && (
-                        <CopyableField label="Phone Number" value={org.phoneNumber} icon={PhoneIcon} />
+                        <CopyableField
+                          label={org.type === "COMPANY" ? "Company phone number" : "Phone Number"}
+                          value={org.phoneNumber}
+                          icon={PhoneIcon}
+                        />
                       )}
                       {org.owner.email && (
-                        <CopyableField label="Email" value={org.owner.email} icon={EnvelopeIcon} />
+                        <CopyableField
+                          label={org.type === "COMPANY" ? "Account owner email" : "Email"}
+                          value={org.owner.email}
+                          icon={EnvelopeIcon}
+                        />
                       )}
-                      {org.address && (
+                      {org.type !== "COMPANY" && org.address && (
                         <div className="col-span-2">
                           <CopyableField label="Address" value={org.address} />
                         </div>

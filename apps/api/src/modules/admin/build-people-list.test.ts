@@ -6,7 +6,7 @@
  * WHERE USED: Admin/Issuer/Investor director-shareholder rendering
  */
 
-import { buildUnifiedPeople, buildDirectorShareholderPeopleList } from "./build-people-list";
+import { buildUnifiedPeople, buildDirectorShareholderPeopleList, mergeMasterPartiesIntoPeopleList } from "./build-people-list";
 import { CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING } from "@cashsouk/types";
 
 describe("buildUnifiedPeople", () => {
@@ -1003,6 +1003,40 @@ describe("buildUnifiedPeople", () => {
     expect(rows).toHaveLength(0);
   });
 
+  it("does not put MASTER_INACTIVE people onto the operational KYC list", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: [
+        {
+          partyKey: "880101011111",
+          onboardingJson: {
+            email: "john@example.com",
+            status: "APPROVED",
+            requestId: "EOD-JOHN",
+            verifyLink: "",
+            screening: { status: "APPROVED" },
+          },
+        },
+      ],
+      corporateEntities: { directors: [], shareholders: [], corporateShareholders: [] },
+      masterParties: [
+        {
+          partyKey: "880101011111",
+          membershipStatus: "MASTER_INACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "John",
+          identityNumber: "880101011111",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+        },
+      ],
+    });
+    expect(result.people.find((p) => p.matchKey === "880101011111")).toBeUndefined();
+  });
+
   it("L: KYC supplement status attaches to a user-added master director", () => {
     const result = buildDirectorShareholderPeopleList({
       ctos: null,
@@ -1191,5 +1225,43 @@ describe("buildUnifiedPeople", () => {
     expect(person?.shareholderEodRequestId).toBeNull();
     expect(person?.screeningRequestId).toBe("KYC00006");
     expect(person?.requestId).toBe("KYC00006");
+  });
+
+  it("does not clear KYC or AML when the matching master person is marked inactive", () => {
+    const people = mergeMasterPartiesIntoPeopleList({
+      people: [
+        {
+          matchKey: "880101011111",
+          name: "John",
+          entityType: "INDIVIDUAL",
+          roles: ["DIRECTOR"],
+          sharePercentage: null,
+          status: "APPROVED",
+          action: null,
+          screening: { status: "APPROVED" },
+          onboarding: { status: "APPROVED", id: "kyc-1" },
+          requestId: "KYC-1",
+          requestIdType: null,
+          icFrontUrl: null,
+          icBackUrl: null,
+          email: "john@example.com",
+        },
+      ],
+      masterParties: [
+        {
+          partyKey: "880101011111",
+          membershipStatus: "MASTER_INACTIVE",
+          entityType: "INDIVIDUAL",
+          name: "John",
+          identityNumber: "880101011111",
+          isDirector: true,
+          isShareholder: false,
+          shareholdingPercentage: null,
+        },
+      ],
+    });
+    expect(people).toHaveLength(1);
+    expect(people[0]?.onboarding.status).toBe("APPROVED");
+    expect(people[0]?.screening?.status).toBe("APPROVED");
   });
 });

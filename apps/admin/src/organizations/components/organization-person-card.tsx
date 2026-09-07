@@ -6,6 +6,8 @@ import {
   getFinalStatusLabel,
   getFinalStatusToken,
   isIssuerShareholderOnlyBelowMinimum,
+  computeIssuerPersonCompleteness,
+  issuerPersonCompletenessInputFromParty,
   type OrganizationPartyProfileDto,
 } from "@cashsouk/types";
 import { PartyRoleBadges, StatusBadge } from "@cashsouk/ui";
@@ -42,6 +44,10 @@ export function OrganizationPersonCard({
   const party = item.party;
   const person = item.person;
   const name = party?.name || person?.name || party?.partyKey || "Unnamed";
+  const corporate = party?.entityType === "CORPORATE";
+  const missingCount = party
+    ? computeIssuerPersonCompleteness(issuerPersonCompletenessInputFromParty(party)).length
+    : 0;
   const kyc = person
     ? getFinalStatusLabel(person, { displayMode: "kyc_only" })
     : { label: "—", token: "neutral" as const, tone: "neutral" as const };
@@ -69,26 +75,48 @@ export function OrganizationPersonCard({
         <div className="min-w-0 space-y-1">
           <p className="text-ui font-medium">{name}</p>
           <PartyRoleBadges party={party} person={person} />
-          <div className="flex flex-wrap gap-2 pt-1">
-            <StatusBadge status={getFinalStatusToken(kyc.tone)} label={`KYC: ${kyc.label}`} />
-            <StatusBadge status={getFinalStatusToken(aml.tone)} label={`AML: ${aml.label}`} />
-            {party ? (
+          {missingCount > 0 && item.kind !== "inactive" ? (
+            <p className="text-meta text-status-action-text">
+              {missingCount} {missingCount === 1 ? "field" : "fields"} missing
+            </p>
+          ) : null}
+          {corporate ? (
+            <p className="text-meta text-muted-foreground">
+              Company shareholder. Individual KYC/AML is not required.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2 pt-1">
+              <StatusBadge status={getFinalStatusToken(kyc.tone)} label={`KYC: ${kyc.label}`} />
+              <StatusBadge status={getFinalStatusToken(aml.tone)} label={`AML: ${aml.label}`} />
+              {party ? (
+                <StatusBadge
+                  status={
+                    party.absentFromLatestExternal || item.kind === "external" ? "action" : "success"
+                  }
+                  label={`Latest CTOS: ${latestCtosLabel(party)}`}
+                />
+              ) : null}
+              {item.kind === "inactive" ? <StatusBadge status="neutral" label="Inactive" /> : null}
+            </div>
+          )}
+          {corporate && party ? (
+            <div className="flex flex-wrap gap-2 pt-1">
               <StatusBadge
                 status={
                   party.absentFromLatestExternal || item.kind === "external" ? "action" : "success"
                 }
-                label={`Latest external: ${latestCtosLabel(party)}`}
+                label={`Latest CTOS: ${latestCtosLabel(party)}`}
               />
-            ) : null}
-            {item.kind === "inactive" ? <StatusBadge status="neutral" label="Inactive" /> : null}
-          </div>
+              {item.kind === "inactive" ? <StatusBadge status="neutral" label="Inactive" /> : null}
+            </div>
+          ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {person ? <RegtankRecordsControl person={person} /> : null}
           <Button type="button" variant="outline" size="sm" onClick={onView}>
             View details
           </Button>
-          {canManage && item.kind !== "external" && onEdit ? (
+          {canManage && item.kind !== "external" && item.kind !== "inactive" && onEdit ? (
             <Button type="button" variant="outline" size="sm" onClick={onEdit}>
               Edit
             </Button>
@@ -100,7 +128,7 @@ export function OrganizationPersonCard({
         <div className="space-y-2">
           <p className="flex items-center gap-1.5 text-ui text-status-action-text">
             <ExclamationTriangleIcon className="h-4 w-4" />
-            New person found in the latest external information.
+            New person found in the latest CTOS information.
           </p>
           {canManage && onAdopt && !belowMinimumShareholder ? (
             <div className="flex flex-wrap gap-2">
@@ -110,15 +138,15 @@ export function OrganizationPersonCard({
               <Button
                 className="h-10"
                 variant="outline"
-                onClick={() => toast.message("Kept as external information only until you choose to update the profile")}
+                onClick={() => toast.message("Kept as CTOS information only until you choose to update the profile")}
               >
-                Keep external only
+                Keep as CTOS only
               </Button>
             </div>
           ) : null}
           {belowMinimumShareholder ? (
             <p className="text-ui text-muted-foreground">
-              Shareholding Percentage must be at least 5%. This person is kept as external information
+              Shareholding Percentage must be at least 5%. This person is kept as CTOS information
               only.
             </p>
           ) : null}
@@ -129,7 +157,7 @@ export function OrganizationPersonCard({
         <div className="space-y-2">
           <p className="flex items-center gap-1.5 text-ui text-status-action-text">
             <ExclamationTriangleIcon className="h-4 w-4" />
-            This person was not found in the latest external information.
+            This person was not found in the latest CTOS information.
           </p>
           {canManage ? (
             <div className="flex flex-wrap gap-2">

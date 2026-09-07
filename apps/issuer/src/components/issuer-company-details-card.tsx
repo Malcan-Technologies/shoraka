@@ -8,11 +8,11 @@ import {
   SC_COMPANY_TYPE_LABELS,
   SC_COMPANY_TYPES,
   SC_MONTHLY_ISSUER,
+  displayScCompanyTypeLabel,
   firstIssueMessage,
   issuesByField,
   scAppendixASelectValues,
   validateIssuerCompanyForm,
-  type ScCompanyType,
 } from "@cashsouk/types";
 import { ComRepFieldLabel, ProfileFieldGrid, ProfileReadField } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
@@ -122,10 +122,7 @@ export function IssuerCompanyDetailsCard({
     setAnnualRevenue(basic?.annualRevenue ?? "");
   }, [basic, isEditing, org]);
 
-  const companyTypeLabel =
-    org.scCompanyType && org.scCompanyType in SC_COMPANY_TYPE_LABELS
-      ? SC_COMPANY_TYPE_LABELS[org.scCompanyType as ScCompanyType]
-      : basic?.entityType ?? null;
+  const companyTypeLabel = displayScCompanyTypeLabel(org.scCompanyType, basic?.entityType);
   const ssm = org.registrationNumber || basic?.ssmRegisterNumber;
   const businessName = org.name || basic?.businessName;
 

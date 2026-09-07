@@ -1,6 +1,8 @@
 import {
   extractCtosObservationSnapshot,
+  extractRegulatoryPartiesFromCorporateEntities,
   extractRegulatoryPartiesFromCtos,
+  mergeRegulatoryPartyCandidates,
 } from "./extract-regulatory-parties";
 
 describe("extractRegulatoryPartiesFromCtos", () => {
@@ -45,6 +47,107 @@ describe("extractRegulatoryPartiesFromCtos", () => {
       ],
     });
     expect(parties[0]).not.toHaveProperty("countryOfIncorporation");
+  });
+});
+
+describe("director vs board vs shareholder mapping", () => {
+  it("does not treat a RegTank director as Board, and keeps shareholder >=5% (scenario C)", () => {
+    const parties = extractRegulatoryPartiesFromCorporateEntities({
+      directors: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+          },
+        },
+      ],
+      shareholders: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+          },
+          sharePercentage: 6,
+        },
+      ],
+      corporateShareholders: [],
+    });
+    expect(parties).toHaveLength(1);
+    expect(parties[0]?.isDirector).toBe(true);
+    expect(parties[0]?.isShareholder).toBe(true);
+    expect(parties[0]?.isBoard).toBe(false);
+    expect(parties[0]?.shareholdingPercentage).toBe(6);
+    expect(parties[0]?.identityPrefix).toBe("NRIC");
+  });
+
+  it("includes a corporate shareholder at 10% as a company party (scenario D)", () => {
+    const parties = extractRegulatoryPartiesFromCorporateEntities({
+      directors: [],
+      shareholders: [],
+      corporateShareholders: [
+        {
+          businessName: "ApexStar Holdings Sdn. Bhd.",
+          ssmRegistrationNumber: "202001234567",
+          sharePercentage: 10,
+        },
+      ],
+    });
+    expect(parties).toHaveLength(1);
+    expect(parties[0]?.entityType).toBe("CORPORATE");
+    expect(parties[0]?.name).toBe("ApexStar Holdings Sdn. Bhd.");
+    expect(parties[0]?.isShareholder).toBe(true);
+    expect(parties[0]?.isDirector).toBe(false);
+    expect(parties[0]?.isBoard).toBe(false);
+    expect(parties[0]?.identityPrefix).toBe("ROC");
+    expect(parties[0]?.shareholdingPercentage).toBe(10);
+  });
+
+  it("merges CTOS directors with RegTank corporate shareholders instead of dropping them", () => {
+    const fromCtos = extractRegulatoryPartiesFromCtos({
+      directors: [
+        {
+          party_type: "I",
+          nic_brno: "950829083430",
+          name: "Nur Aina Farisha Binti Salleh",
+          position: "DO",
+        },
+      ],
+      shareholders: [],
+    });
+    const fromRegtank = extractRegulatoryPartiesFromCorporateEntities({
+      directors: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+          },
+        },
+      ],
+      shareholders: [
+        {
+          personalInfo: {
+            fullName: "Nur Aina Farisha Binti Salleh",
+            governmentIdNumber: "950829083430",
+          },
+          sharePercentage: 6,
+        },
+      ],
+      corporateShareholders: [
+        {
+          businessName: "ApexStar Holdings Sdn. Bhd.",
+          ssmRegistrationNumber: "202001234567",
+          sharePercentage: 10,
+        },
+      ],
+    });
+    const merged = mergeRegulatoryPartyCandidates(fromCtos, fromRegtank);
+    const aina = merged.find((p) => p.entityType === "INDIVIDUAL");
+    const apex = merged.find((p) => p.entityType === "CORPORATE");
+    expect(aina?.isDirector).toBe(true);
+    expect(aina?.isShareholder).toBe(true);
+    expect(aina?.isBoard).toBe(false);
+    expect(apex?.name).toBe("ApexStar Holdings Sdn. Bhd.");
+    expect(apex?.shareholdingPercentage).toBe(10);
   });
 });
 

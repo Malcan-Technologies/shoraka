@@ -107,7 +107,7 @@ export function OrganizationFinancialsPanel({
   });
 
   const latestYear = financials?.latestYear;
-  const complete = financials?.complete ?? missing.size === 0;
+  const complete = missing.size === 0;
   const status: IssuerOrgFinancialSummary | null = financials;
 
   return (
@@ -119,7 +119,7 @@ export function OrganizationFinancialsPanel({
         actions={
           canManage ? (
             <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
-              {status?.fields ? "Edit" : "Add"}
+              Edit financials
             </Button>
           ) : null
         }
@@ -136,8 +136,8 @@ export function OrganizationFinancialsPanel({
                 <StatusBadge
                   status="action"
                   label={
-                    status?.missingCount
-                      ? `${status.missingCount} required ${status.missingCount === 1 ? "field" : "fields"} missing`
+                    missing.size
+                      ? `${missing.size} required ${missing.size === 1 ? "field" : "fields"} missing`
                       : "Required fields missing"
                   }
                 />
@@ -164,7 +164,7 @@ export function OrganizationFinancialsPanel({
           </Button>
           {canManage ? (
             <Button type="button" className="h-10" onClick={() => setOpen(true)}>
-              Edit
+              Edit financials
             </Button>
           ) : null}
         </div>

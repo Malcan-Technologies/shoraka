@@ -46,7 +46,7 @@ import {
   useHeader,
   DirectorShareholderAlertCard,
   INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
-  DirectorShareholdersUnifiedSection,
+  PortalPeopleSection,
   ProfileFieldGrid,
   ProfileReadField,
   ComRepFieldLabel,
@@ -1601,9 +1601,9 @@ export default function ProfilePage() {
                 <div id="profile-contact" className="scroll-mt-24 rounded-xl border bg-card">
                   <div className="flex items-center justify-between p-6 border-b">
                     <div>
-                      <h2 className="text-lg font-semibold">Contact details</h2>
+                      <h2 className="text-lg font-semibold">Account owner</h2>
                       <p className="text-sm text-muted-foreground">
-                        Manage your phone number and email address
+                        Login email for the organisation owner. This is not the company e-mail.
                       </p>
                     </div>
                     {!isEditingProfile && (
@@ -1623,7 +1623,7 @@ export default function ProfilePage() {
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
                           <PhoneIcon className="h-4 w-4" />
-                          Phone number
+                          Company phone number
                         </Label>
                         {isEditingProfile ? (
                           <PhoneInput
@@ -1644,7 +1644,7 @@ export default function ProfilePage() {
                       <div className="space-y-2">
                         <Label className="flex items-center gap-2">
                           <EnvelopeIcon className="h-4 w-4" />
-                          Email
+                          Account owner email
                         </Label>
                         <Input
                           value={
@@ -1680,23 +1680,48 @@ export default function ProfilePage() {
                 </div>
               )}
 
+              {!isPersonal && orgData?.corporateOnboardingData?.personInCharge ? (
+                <div id="profile-person-in-charge" className="scroll-mt-24 rounded-xl border bg-card">
+                  <div className="p-6 border-b">
+                    <h2 className="text-lg font-semibold">Person in Charge</h2>
+                    <p className="text-sm text-muted-foreground">Main contact person for this company.</p>
+                  </div>
+                  <div className="p-6">
+                    <ProfileFieldGrid>
+                      <ProfileReadField
+                        label="Name"
+                        value={orgData.corporateOnboardingData.personInCharge.name || "—"}
+                      />
+                      <ProfileReadField
+                        label="Position"
+                        value={orgData.corporateOnboardingData.personInCharge.position || "—"}
+                      />
+                      <ProfileReadField
+                        label="Email"
+                        value={orgData.corporateOnboardingData.personInCharge.email || "—"}
+                      />
+                      <ProfileReadField
+                        label="Contact Number"
+                        value={orgData.corporateOnboardingData.personInCharge.contactNumber || "—"}
+                      />
+                    </ProfileFieldGrid>
+                  </div>
+                </div>
+              ) : null}
+
               {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && orgData?.type === "COMPANY" && (
                 <div ref={directorsSectionRef} className="scroll-mt-24">
-                  <DirectorShareholdersUnifiedSection
+                  <PortalPeopleSection
                     portal="investor"
                     organizationId={activeOrganization.id}
                     organizationOnboardingStatus={orgData.onboardingStatus}
                     people={orgData.people ?? []}
                     directorShareholderListSource={orgData.directorShareholderListSource ?? null}
                     ctosDirectorShareholderWarning={orgData.ctosDirectorShareholderWarning ?? null}
-                    highlightActionRequiredRows
-                    autoFocusFirstEmptyEmail={focusDirectors}
                     focusedMatchKey={focusedPersonKey}
-                    onPartyOnboardingSent={handlePartyOnboardingSent}
-                    title="People"
-                    description="Directors and shareholders for this company"
-                    grouped={false}
+                    canEdit={isCurrentUserAdmin}
+                    onChanged={handlePartyOnboardingSent}
                   />
                 </div>
               )}

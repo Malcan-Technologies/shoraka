@@ -5,8 +5,10 @@ import { toast } from "sonner";
 import type { ApplicationPersonRow, OrganizationPartyProfileDto } from "@cashsouk/types";
 import {
   firstIssueMessage,
+  isIssuerOfficerRole,
   issuerShareholdingThresholdIssue,
   monthlyIssuerPersonCopy,
+  SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
   SC_DESIGNATION_LABELS,
   SC_DESIGNATIONS,
   SC_GENDER_LABELS,
@@ -14,6 +16,7 @@ import {
   SC_IDENTITY_PREFIXES,
   SC_MALAYSIAN_STATES,
   SC_MONTHLY_BOARD,
+  SC_MONTHLY_ISSUER,
   SC_MONTHLY_PERSON_KIND_LABELS,
   SC_MONTHLY_SHAREHOLDER,
   SC_SHARE_TYPE_LABELS,
@@ -180,7 +183,7 @@ export function OrganizationPersonEditorDialog({
   };
   const corporate = values.entityType === "CORPORATE";
   const showShare = corporate || values.isShareholder;
-  const showOfficer = !corporate && (values.isDirector || values.isBoard || values.isManagement);
+  const showOfficer = !corporate && isIssuerOfficerRole(values);
   const copy = monthlyIssuerPersonCopy({ shareholder: showShare, officer: showOfficer });
   const prefixOptions = SC_IDENTITY_PREFIXES.filter((key) => copy.includeRocPrefix || key !== "ROC");
 
@@ -298,13 +301,13 @@ export function OrganizationPersonEditorDialog({
             <>
               <Field
                 type="date"
-                label={copy.dateOfBirth.label}
+                label={SC_MONTHLY_ISSUER.dateOfIncorporation.label}
                 value={values.dateOfIncorporation}
                 onChange={(dateOfIncorporation) => set("dateOfIncorporation", dateOfIncorporation)}
-                help={copy.dateOfBirth.help}
+                required
               />
               <div className="space-y-1.5">
-                <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} />
+                <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} required />
                 <Select
                   value={values.countryOfIncorporation || undefined}
                   onValueChange={(countryOfIncorporation) => set("countryOfIncorporation", countryOfIncorporation)}
@@ -325,7 +328,7 @@ export function OrganizationPersonEditorDialog({
           ) : (
             <>
               <div className="space-y-1.5">
-                <ComRepFieldLabel label={copy.gender.label} help={copy.gender.help} />
+                <ComRepFieldLabel label={copy.gender.label} help={copy.gender.help} required />
                 <Select value={values.gender || undefined} onValueChange={(gender) => set("gender", gender)}>
                   <SelectTrigger className="h-10 text-ui">
                     <SelectValue placeholder="Select" />
@@ -345,9 +348,10 @@ export function OrganizationPersonEditorDialog({
                 value={values.dateOfBirth}
                 onChange={(dateOfBirth) => set("dateOfBirth", dateOfBirth)}
                 help={copy.dateOfBirth.help}
+                required
               />
               <div className="space-y-1.5">
-                <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} />
+                <ComRepFieldLabel label={copy.nationality.label} help={copy.nationality.help} required />
                 <Select
                   value={values.nationality || undefined}
                   onValueChange={(nationality) => set("nationality", nationality)}
@@ -366,10 +370,10 @@ export function OrganizationPersonEditorDialog({
               </div>
             </>
           )}
-          <Field label={copy.address.label} value={values.line1} onChange={(line1) => set("line1", line1)} />
+          <Field label={copy.address.label} value={values.line1} onChange={(line1) => set("line1", line1)} required />
           <Field label="Address line 2" value={values.line2} onChange={(line2) => set("line2", line2)} />
           <div className="space-y-1.5">
-            <ComRepFieldLabel label={copy.addressState.label} help={copy.addressState.help} />
+            <ComRepFieldLabel label={copy.addressState.label} help={copy.addressState.help} required />
             <Select value={values.state || undefined} onValueChange={(state) => set("state", state)}>
               <SelectTrigger className="h-10 text-ui">
                 <SelectValue placeholder="Select" />
@@ -388,11 +392,12 @@ export function OrganizationPersonEditorDialog({
             value={values.postalCode}
             onChange={(postalCode) => set("postalCode", postalCode)}
             help={copy.addressPostcode.help}
+            required
           />
           {showShare ? (
             <>
               <div className="space-y-1.5">
-                <ComRepFieldLabel label={SC_MONTHLY_SHAREHOLDER.typeOfShares.label} />
+                <ComRepFieldLabel label={SC_MONTHLY_SHAREHOLDER.typeOfShares.label} required />
                 <Select value={values.shareType || undefined} onValueChange={(shareType) => set("shareType", shareType)}>
                   <SelectTrigger className="h-10 text-ui">
                     <SelectValue placeholder="Select" />
@@ -418,23 +423,26 @@ export function OrganizationPersonEditorDialog({
                 label={SC_MONTHLY_SHAREHOLDER.shareholdingUnits.label}
                 value={values.shareholdingUnits}
                 onChange={(shareholdingUnits) => set("shareholdingUnits", shareholdingUnits)}
+                required
               />
               <Field
                 label={SC_MONTHLY_SHAREHOLDER.shareholdingAmount.label}
                 value={values.shareholdingAmount}
                 onChange={(shareholdingAmount) => set("shareholdingAmount", shareholdingAmount)}
+                required
               />
               <Field
                 label={SC_MONTHLY_SHAREHOLDER.shareholdingPercentage.label}
                 value={values.shareholdingPercentage}
                 onChange={(shareholdingPercentage) => set("shareholdingPercentage", shareholdingPercentage)}
+                required
               />
             </>
           ) : null}
           {showOfficer ? (
             <>
               <div className="space-y-1.5">
-                <ComRepFieldLabel label={SC_MONTHLY_BOARD.designation.label} />
+                <ComRepFieldLabel label={SC_MONTHLY_BOARD.designation.label} required />
                 <Select
                   value={values.designation || undefined}
                   onValueChange={(designation) => set("designation", designation)}
@@ -465,6 +473,7 @@ export function OrganizationPersonEditorDialog({
                 label={SC_MONTHLY_BOARD.appointmentDate.label}
                 value={values.appointmentDate}
                 onChange={(appointmentDate) => set("appointmentDate", appointmentDate)}
+                required
               />
               <Field
                 type="date"
@@ -486,10 +495,10 @@ export function OrganizationPersonEditorDialog({
             disabled={isSaving}
             onClick={() => {
               if (!values.isDirector && !values.isShareholder && !values.isBoard && !values.isManagement) {
-                toast.error("Select at least one role");
+                toast.error(SELECT_AT_LEAST_ONE_ROLE_MESSAGE);
                 return;
               }
-              const officer = values.isDirector || values.isBoard || values.isManagement;
+              const officer = isIssuerOfficerRole(values);
               const issues = validateIssuerPersonForm({
                 entityType: values.entityType,
                 name: values.name,
@@ -510,7 +519,6 @@ export function OrganizationPersonEditorDialog({
                 shareholdingUnits: values.shareholdingUnits,
                 shareholdingAmount: values.shareholdingAmount,
                 shareholdingPercentage: values.shareholdingPercentage,
-                personKind: values.isBoard ? "BOARD" : values.isManagement ? "MANAGEMENT" : values.isDirector ? "BOARD" : "",
                 designation: values.designation,
                 designationOther: values.designationOther,
                 appointmentDate: values.appointmentDate,

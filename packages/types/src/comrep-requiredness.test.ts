@@ -8,6 +8,7 @@ import {
   validateIssuerAddressForm,
   validateIssuerCompanyForm,
   validateIssuerMasterPatch,
+  validateIssuerPersonForm,
   validateOperatorShareCapital,
   validateOperatorShareholder,
 } from "./comrep-requiredness";
@@ -162,5 +163,82 @@ describe("ComRep requiredness", () => {
       businessPostalCode: "50000",
     });
     expect(issues.map((issue) => issue.field)).not.toContain("registeredPostalCode");
+  });
+});
+
+describe("validateIssuerPersonForm roles", () => {
+  const identity = {
+    entityType: "INDIVIDUAL" as const,
+    name: "Random 1",
+    identityPrefix: "NRIC",
+    identityNumber: "021116101341",
+    dateOfBirth: "2002-11-16",
+    gender: "MALE",
+    nationality: "MALAYSIA",
+    line1: "12341",
+    state: "Kelantan",
+    postalCode: "12341",
+  };
+  const officerFields = {
+    designation: "CHIEF_EXECUTIVE_OFFICER",
+    appointmentDate: "2026-09-25",
+  };
+  const shareFields = {
+    shareType: "ORDINARY",
+    shareholdingUnits: "10",
+    shareholdingAmount: "10",
+    shareholdingPercentage: "6",
+  };
+
+  it("CASE A: Director only does not require personKind or Board fields", () => {
+    const issues = validateIssuerPersonForm({
+      ...identity,
+      isShareholder: false,
+      isOfficer: false,
+    });
+    expect(issues.map((issue) => issue.field)).not.toContain("personKind");
+    expect(issues.map((issue) => issue.field)).not.toContain("designation");
+    expect(issues).toHaveLength(0);
+  });
+
+  it("CASE B/C: Board or Management requires Designation and Appointment Date once", () => {
+    expect(
+      validateIssuerPersonForm({
+        ...identity,
+        isOfficer: true,
+        ...officerFields,
+      })
+    ).toHaveLength(0);
+    const missingDesignation = validateIssuerPersonForm({
+      ...identity,
+      isOfficer: true,
+      appointmentDate: "2026-09-25",
+    });
+    expect(missingDesignation.map((issue) => issue.field)).toEqual(["designation"]);
+    expect(missingDesignation[0]?.message).toBe("Select a Designation.");
+    expect(missingDesignation.map((issue) => issue.field)).not.toContain("personKind");
+  });
+
+  it("CASE D: Director + Board + Management does not require personKind", () => {
+    const issues = validateIssuerPersonForm({
+      ...identity,
+      isShareholder: false,
+      isOfficer: true,
+      ...officerFields,
+    });
+    expect(issues.map((issue) => issue.field)).not.toContain("personKind");
+    expect(issues).toHaveLength(0);
+  });
+
+  it("CASE E: Director + Shareholder does not require Board fields", () => {
+    const issues = validateIssuerPersonForm({
+      ...identity,
+      isShareholder: true,
+      isOfficer: false,
+      ...shareFields,
+    });
+    expect(issues.map((issue) => issue.field)).not.toContain("personKind");
+    expect(issues.map((issue) => issue.field)).not.toContain("designation");
+    expect(issues).toHaveLength(0);
   });
 });

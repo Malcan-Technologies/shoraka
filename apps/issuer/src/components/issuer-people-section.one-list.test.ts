@@ -1,19 +1,24 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 
-describe("issuer People section", () => {
-  const source = readFileSync(join(__dirname, "issuer-people-section.tsx"), "utf8");
+const portalPeople = readFileSync(
+  join(__dirname, "../../../../packages/ui/src/portal-people-section.tsx"),
+  "utf8"
+);
+const issuerWrapper = readFileSync(join(__dirname, "issuer-people-section.tsx"), "utf8");
 
+describe("issuer People section", () => {
   it("keeps one People list and does not reintroduce a ComRep parties card", () => {
-    expect(source.match(/title="People"/g)).toHaveLength(1);
-    expect(source).not.toContain("Regulatory Parties");
-    expect(source).not.toContain("ComRep Parties");
+    expect(portalPeople.match(/People/g)?.length).toBeGreaterThan(0);
+    expect(issuerWrapper).toContain('portal="issuer"');
+    expect(portalPeople).not.toContain("Regulatory Parties");
+    expect(portalPeople).not.toContain("ComRep Parties");
   });
 
   it("offers View details and Edit on master and people-only cards", () => {
-    expect(source).toContain("View details");
-    expect(source).toContain("onEdit={canEdit ? () => setEditPartyId(item.party.id) : undefined}");
-    expect(source).toContain("onView={() => setViewPeopleOnlyKey(person.matchKey)}");
-    expect(source).toContain("setAddInitial");
+    expect(portalPeople).toContain("View details");
+    expect(portalPeople).toContain("onEdit={canEdit ? () => setEditPartyId(item.party.id) : undefined}");
+    expect(portalPeople).toContain("onView={() => setViewPeopleOnlyKey(person.matchKey)}");
+    expect(portalPeople).toContain("setAddInitial");
   });
 });

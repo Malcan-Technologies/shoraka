@@ -21,6 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { AdminOrganizationAddressInput } from "@cashsouk/types";
+import { PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING } from "@cashsouk/types";
 
 export function DetailRow({
   label,
@@ -130,6 +131,7 @@ export function ReadField({
   missing = false,
   hint,
   locked = false,
+  lockReason,
   multiline = false,
   className,
   help,
@@ -140,6 +142,7 @@ export function ReadField({
   missing?: boolean;
   hint?: React.ReactNode;
   locked?: boolean;
+  lockReason?: string;
   multiline?: boolean;
   className?: string;
   help?: string;
@@ -164,7 +167,9 @@ export function ReadField({
       </div>
       {missing ? <p className="text-meta text-status-action-text">Required</p> : null}
       {locked && !missing ? (
-        <p className="text-meta text-muted-foreground">This field is locked because it was verified during onboarding.</p>
+        <p className="text-meta text-muted-foreground">
+          {lockReason ?? PROFILE_LOCKED_VERIFIED_DURING_ONBOARDING}
+        </p>
       ) : null}
       {hint ? <div className="text-meta text-muted-foreground">{hint}</div> : null}
     </div>

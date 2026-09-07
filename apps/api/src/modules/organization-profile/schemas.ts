@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isValidPhoneNumber } from "libphonenumber-js";
 import {
   applyPartyComrepSemantics,
+  hasOrganizationPartyRole,
   isScIntegerWithoutDecimal,
   OPERATOR_ADVISOR_TYPES,
   OPERATOR_HOLDER_TYPES,
@@ -15,6 +16,7 @@ import {
   SC_INVESTOR_CATEGORIES,
   SC_PERSON_KINDS,
   SC_SHARE_TYPES,
+  SELECT_AT_LEAST_ONE_ROLE_MESSAGE,
   validateIssuerFinancialFieldsPatch,
   validateOperatorShareCapitalPatch,
   validateIssuerMasterPatch,
@@ -390,12 +392,15 @@ export const createPartySchema = partyPatchObjectSchema
   })
   .refine(
     (value) =>
-      value.isDirector === true ||
-      value.isShareholder === true ||
-      value.isBoard === true ||
-      value.isManagement === true ||
-      Boolean(value.personKind),
-    { message: "Select at least one role" }
+      hasOrganizationPartyRole({
+        isDirector: value.isDirector,
+        isShareholder: value.isShareholder,
+        isBoard: value.isBoard,
+        isManagement: value.isManagement,
+      }) ||
+      value.personKind === "BOARD" ||
+      value.personKind === "MANAGEMENT",
+    { message: SELECT_AT_LEAST_ONE_ROLE_MESSAGE }
   )
   .superRefine((value, ctx) => {
     const entityType =
@@ -403,7 +408,6 @@ export const createPartySchema = partyPatchObjectSchema
     const applied = applyPartyComrepSemantics({
       entityType,
       isOfficer:
-        value.isDirector === true ||
         value.isBoard === true ||
         value.isManagement === true ||
         value.personKind === "BOARD" ||
@@ -422,7 +426,6 @@ export const createPartySchema = partyPatchObjectSchema
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
     }
     const officer =
-      value.isDirector === true ||
       value.isBoard === true ||
       value.isManagement === true ||
       value.personKind === "BOARD" ||
@@ -449,7 +452,6 @@ export const createPartySchema = partyPatchObjectSchema
         shareholdingUnits: value.shareholdingUnits,
         shareholdingAmount: value.shareholdingAmount,
         shareholdingPercentage: value.shareholdingPercentage,
-        personKind: value.personKind,
         designation: value.designation,
         designationOther: value.designationOther,
         appointmentDate: value.appointmentDate,

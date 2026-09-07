@@ -15,13 +15,14 @@ import {
   SC_MALAYSIAN_STATES,
   SC_MONTHLY_INVESTOR,
   SC_MONTHLY_ISSUER,
+  displayScCompanyTypeLabel,
   firstIssueMessage,
+  shouldShowOrganizationPersonalKycCard,
   validateInvestorPersonalForm,
   validateIssuerAddressForm,
   validateIssuerCompanyForm,
   type OrganizationDetailResponse,
   type PortalType,
-  type ScCompanyType,
   type ScGender,
   type ScInvestorCategory,
 } from "@cashsouk/types";
@@ -217,11 +218,10 @@ export function OrganizationProfilePanel({
   };
 
   const hasPersonal = Boolean(org.firstName || org.lastName || org.nationality || org.dateOfBirth);
-  const hasContact = Boolean(org.phoneNumber || org.address || org.owner.email);
+  const hasContact = Boolean(org.phoneNumber || org.owner.email);
   const showPersonal =
-    org.type === "COMPANY"
-      ? portal === "issuer" && (canManage || hasPersonal)
-      : canManage || hasPersonal;
+    shouldShowOrganizationPersonalKycCard(org.type === "COMPANY" ? "COMPANY" : "PERSONAL") &&
+    (canManage || hasPersonal);
   const showContact = canManage || hasContact;
   const showClassification = portal === "investor";
   const showAbout = org.type === "COMPANY" && portal === "issuer";
@@ -237,10 +237,7 @@ export function OrganizationProfilePanel({
     ...missingFieldKeys(org.profileCompleteness, "company"),
     ...missingFieldKeys(org.profileCompleteness, "identity"),
   ]);
-  const companyTypeLabel =
-    org.scCompanyType && org.scCompanyType in SC_COMPANY_TYPE_LABELS
-      ? SC_COMPANY_TYPE_LABELS[org.scCompanyType as ScCompanyType]
-      : basic?.entityType ?? null;
+  const companyTypeLabel = displayScCompanyTypeLabel(org.scCompanyType, basic?.entityType);
   const investorCategoryLabel =
     org.scInvestorCategory && org.scInvestorCategory in SC_INVESTOR_CATEGORY_LABELS
       ? SC_INVESTOR_CATEGORY_LABELS[org.scInvestorCategory as ScInvestorCategory]
@@ -829,8 +826,8 @@ export function OrganizationProfilePanel({
           <Card className="rounded-2xl">
             <AdminDetailCardHeader
               icon={PhoneIcon}
-              title="Contact details"
-              description="Phone and email for this organisation"
+              title="Account owner"
+              description="Login email for the organisation owner. This is not the company e-mail."
               actions={sectionActions("contact")}
             />
             <CardContent>
@@ -844,29 +841,14 @@ export function OrganizationProfilePanel({
                         onChange={(phoneNumber) => setDraft((current) => ({ ...current, phoneNumber }))}
                       />
                     ) : null}
-                    <ReadField label="Email" value={org.owner.email} locked />
-                    {org.type === "COMPANY" ? (
-                      <div className="sm:col-span-2">
-                        <EditableField
-                          label="Address"
-                          value={draft.address}
-                          multiline
-                          onChange={(address) => setDraft((current) => ({ ...current, address }))}
-                        />
-                      </div>
-                    ) : null}
+                    <ReadField label="Account owner email" value={org.owner.email} locked />
                   </>
                 ) : (
                   <>
                     {org.type !== "COMPANY" ? (
                       <ReadField label="Phone Number" value={org.phoneNumber} />
                     ) : null}
-                    <ReadField label="Email" value={org.owner.email} locked />
-                    {org.type === "COMPANY" ? (
-                      <div className="sm:col-span-2">
-                        <ReadField label="Address" value={org.address} />
-                      </div>
-                    ) : null}
+                    <ReadField label="Account owner email" value={org.owner.email} locked />
                   </>
                 )}
               </div>
