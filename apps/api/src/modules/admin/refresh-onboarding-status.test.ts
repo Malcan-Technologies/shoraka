@@ -1,4 +1,7 @@
 import { OnboardingStatus } from "@prisma/client";
+import { AppError } from "../../lib/http/error-handler";
+import { REGTANK_RATE_LIMITED_CODE, REGTANK_RATE_LIMITED_MESSAGE } from "../regtank/helpers/regtank-rate-limit";
+import { REFRESH_IN_PROGRESS_CODE } from "../regtank/helpers/regtank-refresh-lock";
 
 // Trivial stubs for constructor deps not exercised by these tests.
 jest.mock("./repository", () => ({ AdminRepository: jest.fn().mockImplementation(() => ({})) }));
@@ -108,6 +111,7 @@ jest.mock("../../lib/prisma", () => ({
 }));
 
 import { AdminService } from "./service";
+import { resetOnboardingRefreshLockForTests } from "../regtank/helpers/regtank-refresh-lock";
 
 const adminReq = { headers: {}, ip: undefined } as never;
 
@@ -155,7 +159,10 @@ function corporateOnboarding(overrides: Record<string, unknown> = {}) {
 }
 
 describe("AdminService.refreshOnboardingStatus — personal", () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetOnboardingRefreshLockForTests();
+  });
 
   it("advances when individual onboarding is APPROVED and KYC is approved", async () => {
     mockRegTankOnboardingFindUnique.mockResolvedValue(
@@ -352,7 +359,10 @@ describe("AdminService.refreshOnboardingStatus — personal", () => {
 });
 
 describe("AdminService.refreshOnboardingStatus — company", () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetOnboardingRefreshLockForTests();
+  });
 
   it("persists COD04000 directors/shareholders into corporate_entities during refresh", async () => {
     mockRegTankOnboardingFindUnique.mockResolvedValue(corporateOnboarding({ request_id: "COD04000" }));
@@ -838,10 +848,12 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     const first = await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
     expect(first.onboardingStatus).toBe(OnboardingStatus.PENDING_AML);
 
+    expect(mockGetCorporateOnboardingDetails).toHaveBeenCalledTimes(1);
     expect(mockGetCorporateOnboardingDetails).toHaveBeenCalledWith("COD05079");
     expect(mockGetEntityOnboardingDetails.mock.calls.map((c) => c[0]).sort()).toEqual(
-      expect.arrayContaining(["EOD06283", "EOD06284", "EOD06285", "EOD06286"])
+      ["EOD06283", "EOD06284", "EOD06285", "EOD06286"].sort()
     );
+    expect(mockGetEntityOnboardingDetails).toHaveBeenCalledTimes(4);
     expect(mockQueryKYCStatus).not.toHaveBeenCalled();
     expect(mockQueryOnboardingDetails).not.toHaveBeenCalled();
 
@@ -911,5 +923,166 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
     );
     expect(mockGetCorporateOnboardingDetails).toHaveBeenCalledWith("COD05079");
     expect(mockQueryKYCStatus).not.toHaveBeenCalled();
+  });
+
+  it("returns lastSyncedAt only after a fully successful refresh", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(corporateOnboarding());
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      status: "WAIT_FOR_APPROVAL",
+      corpIndvDirectors: [],
+      corpIndvShareholders: [],
+      corpBizShareholders: [],
+    });
+    mockInvestorOrgFindUnique.mockResolvedValue({
+      director_aml_status: { directors: [] },
+      ssm_approved: true,
+    });
+    mockApplyCorporateAmlMilestoneFromLiveKyb.mockResolvedValue({
+      approved: false,
+      amlApproved: false,
+      onboardingStatus: OnboardingStatus.PENDING_AML,
+      advanced: false,
+    });
+
+    const service = new AdminService();
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
+    expect(result.refreshOutcome).toBe("COMPLETED");
+    expect(result.lastSyncedAt).toEqual(expect.any(String));
+    expect(mockGetCorporateOnboardingDetails).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not set a successful timestamp for a terminal skip", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(
+      corporateOnboarding({
+        investor_organization: {
+          id: "org-2",
+          name: "Acme Sdn Bhd",
+          onboarding_status: OnboardingStatus.COMPLETED,
+          onboarding_approved: true,
+          aml_approved: true,
+          ssm_approved: true,
+          director_kyc_status: { lastSyncedAt: "2026-01-01T00:00:00.000Z" },
+        },
+      })
+    );
+    const service = new AdminService();
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
+    expect(result.refreshOutcome).toBe("SKIPPED_TERMINAL");
+    expect(result.lastSyncedAt).toBe("2026-01-01T00:00:00.000Z");
+    expect(mockGetCorporateOnboardingDetails).not.toHaveBeenCalled();
+  });
+
+  it("does not set a successful timestamp on partial refresh", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(corporateOnboarding());
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      status: "WAIT_FOR_APPROVAL",
+      corpIndvDirectors: [],
+    });
+    mockInvestorOrgFindUnique.mockResolvedValue({ ssm_approved: true });
+    mockApplyCorporateAmlMilestoneFromLiveKyb.mockRejectedValue(new Error("RegTank KYB timeout"));
+
+    const service = new AdminService();
+    const result = await service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
+    expect(result.refreshOutcome).toBe("PARTIAL");
+    expect(result.lastSyncedAt).toBeNull();
+  });
+
+  it("COD 429 stops further provider calls and preserves business status", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(corporateOnboarding());
+    mockGetCorporateOnboardingDetails.mockRejectedValue(
+      new AppError(429, REGTANK_RATE_LIMITED_CODE, REGTANK_RATE_LIMITED_MESSAGE, {
+        retryAfterSeconds: 30,
+      })
+    );
+
+    const service = new AdminService();
+    await expect(service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1")).rejects.toMatchObject({
+      statusCode: 429,
+      code: REGTANK_RATE_LIMITED_CODE,
+      message: REGTANK_RATE_LIMITED_MESSAGE,
+    });
+    expect(mockGetEntityOnboardingDetails).not.toHaveBeenCalled();
+    expect(mockFetchAllAMLStatuses).not.toHaveBeenCalled();
+    expect(mockApplyCorporateAmlMilestoneFromLiveKyb).not.toHaveBeenCalled();
+    expect(mockInvestorOrgUpdate).not.toHaveBeenCalled();
+  });
+
+  it("EOD 429 stops remaining provider calls and does not persist director KYC", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(corporateOnboarding());
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      status: "WAIT_FOR_APPROVAL",
+      corpIndvDirectors: [
+        {
+          corporateIndividualRequest: { requestId: "EOD1", status: "PENDING" },
+          corporateUserRequestInfo: { fullName: "A", formContent: { content: [] } },
+        },
+      ],
+      corpIndvShareholders: [],
+    });
+    mockGetEntityOnboardingDetails.mockRejectedValue(
+      new AppError(429, REGTANK_RATE_LIMITED_CODE, REGTANK_RATE_LIMITED_MESSAGE)
+    );
+
+    const service = new AdminService();
+    await expect(service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1")).rejects.toMatchObject({
+      code: REGTANK_RATE_LIMITED_CODE,
+    });
+    expect(mockFetchAllAMLStatuses).not.toHaveBeenCalled();
+    expect(
+      mockInvestorOrgUpdate.mock.calls.some((call) => call?.[0]?.data?.director_kyc_status)
+    ).toBe(false);
+  });
+
+  it("KYB 429 from AML fetch does not mark refresh successful", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(corporateOnboarding());
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      status: "WAIT_FOR_APPROVAL",
+      corpIndvDirectors: [],
+    });
+    mockInvestorOrgFindUnique.mockResolvedValue({
+      director_aml_status: { directors: [] },
+      ssm_approved: true,
+    });
+    mockFetchAllAMLStatuses.mockRejectedValueOnce(
+      new AppError(429, REGTANK_RATE_LIMITED_CODE, REGTANK_RATE_LIMITED_MESSAGE)
+    );
+
+    const service = new AdminService();
+    await expect(service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1")).rejects.toMatchObject({
+      code: REGTANK_RATE_LIMITED_CODE,
+    });
+    expect(mockApplyCorporateAmlMilestoneFromLiveKyb).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 when a second refresh starts for the same organization", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(corporateOnboarding());
+    let release!: (value: unknown) => void;
+    mockGetCorporateOnboardingDetails.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        })
+    );
+    mockInvestorOrgFindUnique.mockResolvedValue({
+      director_aml_status: { directors: [] },
+      ssm_approved: true,
+    });
+    mockApplyCorporateAmlMilestoneFromLiveKyb.mockResolvedValue({
+      approved: false,
+      amlApproved: false,
+      onboardingStatus: OnboardingStatus.PENDING_AML,
+      advanced: false,
+    });
+
+    const service = new AdminService();
+    const first = service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1");
+    await new Promise((resolve) => setImmediate(resolve));
+    await expect(service.refreshOnboardingStatus(adminReq, "onboarding-2", "admin-1")).rejects.toMatchObject({
+      statusCode: 409,
+      code: REFRESH_IN_PROGRESS_CODE,
+    });
+    release({ status: "WAIT_FOR_APPROVAL", corpIndvDirectors: [], corpIndvShareholders: [], corpBizShareholders: [] });
+    const firstResult = await first;
+    expect(firstResult.refreshOutcome).toBe("COMPLETED");
   });
 });

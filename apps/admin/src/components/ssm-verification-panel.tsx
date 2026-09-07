@@ -710,6 +710,8 @@ export function SSMVerificationPanel({
 
   const useOrgCtosFlow = application.portal === "issuer" || application.portal === "investor";
   const onboardingId = application.id;
+  const missingRegistrationNumber = !String(application.registrationNumber ?? "").trim();
+  const missingSsmMessage = "Company registration/SSM number is not available yet.";
 
   const applicationForCompare = React.useMemo(() => {
     if (!useMockOnboardingCtos || !useOrgCtosFlow) return application;
@@ -945,12 +947,15 @@ export function SSMVerificationPanel({
                         !canManageOnboardingCtos ||
                         useMockOnboardingCtos ||
                         fetchCtosMutation.isPending ||
-                        ctosListLoading
+                        ctosListLoading ||
+                        missingRegistrationNumber
                       }
                       title={
-                        !canManageOnboardingCtos
-                          ? "You do not have permission to perform this action."
-                          : undefined
+                        missingRegistrationNumber
+                          ? missingSsmMessage
+                          : !canManageOnboardingCtos
+                            ? "You do not have permission to perform this action."
+                            : undefined
                       }
                       onClick={() => setGetLatestConfirmOpen(true)}
                     >

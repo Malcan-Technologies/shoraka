@@ -29,6 +29,8 @@ type UnknownRecord = Record<string, unknown>;
 
 type CePartyRef = {
   eod: string | null;
+  directorEod: string | null;
+  shareholderEod: string | null;
   cod: string | null;
   kybId: string | null;
   kybStatusRaw: string | null;
@@ -43,6 +45,29 @@ type IssuerDirectorMaps = {
   amlByCod: Map<string, UnknownRecord>;
   amlByBrn: Map<string, UnknownRecord>;
 };
+
+function screeningIdFromRaw(id: string | null | undefined): string | null {
+  const v = String(id ?? "").trim();
+  if (!v) return null;
+  if (v.startsWith("KYC") || v.startsWith("KYB")) return v;
+  return null;
+}
+
+function onboardingIdFromRaw(id: string | null | undefined): string | null {
+  const v = String(id ?? "").trim();
+  if (!v) return null;
+  if (v.startsWith("EOD") || v.startsWith("LD") || v.startsWith("COD")) return v;
+  return null;
+}
+
+function stampParentCorporateRequestId(
+  people: ApplicationPersonRow[],
+  parentCorporateRequestId: string | null | undefined
+): ApplicationPersonRow[] {
+  const parent = String(parentCorporateRequestId ?? "").trim() || null;
+  if (!parent) return people;
+  return people.map((row) => ({ ...row, parentCorporateRequestId: parent }));
+}
 
 function strField(r: UnknownRecord | undefined, key: string): string {
   if (!r) return "";
@@ -142,9 +167,18 @@ function buildCePartyRefs(corporateEntities: unknown): Map<string, CePartyRef> {
   const merge = (rawKey: string | null | undefined, patch: Partial<CePartyRef>) => {
     const k = rawKey ? normalizeDirectorShareholderIdKey(rawKey) : "";
     if (!k) return;
-    const prev = m.get(k) ?? { eod: null, cod: null, kybId: null, kybStatusRaw: null };
+    const prev = m.get(k) ?? {
+      eod: null,
+      directorEod: null,
+      shareholderEod: null,
+      cod: null,
+      kybId: null,
+      kybStatusRaw: null,
+    };
     m.set(k, {
       eod: prev.eod || patch.eod || null,
+      directorEod: prev.directorEod || patch.directorEod || null,
+      shareholderEod: prev.shareholderEod || patch.shareholderEod || null,
       cod: prev.cod || patch.cod || null,
       kybId: prev.kybId || patch.kybId || null,
       kybStatusRaw: prev.kybStatusRaw || patch.kybStatusRaw || null,
@@ -162,7 +196,7 @@ function buildCePartyRefs(corporateEntities: unknown): Map<string, CePartyRef> {
     const icRaw = extractGovernmentId(info?.formContent ?? pr.formContent);
     const icKey = icRaw ? normalizeDirectorShareholderIdKey(icRaw) : "";
     const eod = strField(pr, "eodRequestId") || null;
-    merge(icKey || null, { eod });
+    merge(icKey || null, { eod, directorEod: eod });
   }
 
   const shareholders = Array.isArray(ce.shareholders) ? ce.shareholders : [];
@@ -173,7 +207,7 @@ function buildCePartyRefs(corporateEntities: unknown): Map<string, CePartyRef> {
     const icRaw = extractGovernmentId(info?.formContent ?? pr.formContent);
     const icKey = icRaw ? normalizeDirectorShareholderIdKey(icRaw) : "";
     const eod = strField(pr, "eodRequestId") || null;
-    merge(icKey || null, { eod });
+    merge(icKey || null, { eod, shareholderEod: eod });
   }
 
   const corporateShareholders = Array.isArray(ce.corporateShareholders) ? ce.corporateShareholders : [];
@@ -242,7 +276,16 @@ function enrichPersonFromIssuerMaps(params: {
   maps: IssuerDirectorMaps;
 }): Pick<
   ApplicationPersonRow,
-  "onboarding" | "screening" | "requestId" | "directorKycStatus" | "directorAmlStatus" | "status"
+  | "onboarding"
+  | "screening"
+  | "requestId"
+  | "directorKycStatus"
+  | "directorAmlStatus"
+  | "status"
+  | "directorEodRequestId"
+  | "shareholderEodRequestId"
+  | "partyCorporateRequestId"
+  | "screeningRequestId"
 > {
   const key = normalizeDirectorShareholderIdKey(params.matchKey) ?? params.matchKey;
   const ce = params.ce;
@@ -271,6 +314,10 @@ function enrichPersonFromIssuerMaps(params: {
       directorKycStatus: kybSt,
       directorAmlStatus: amlSt,
       status: amlSt || "",
+      directorEodRequestId: null,
+      shareholderEodRequestId: null,
+      partyCorporateRequestId: cod,
+      screeningRequestId: screeningIdFromRaw(kybId) || screeningIdFromRaw(kybFromAml),
     };
   }
 
@@ -300,6 +347,10 @@ function enrichPersonFromIssuerMaps(params: {
   const onboarding = { status: kycSt, id: kycId || null };
   const kycFromAml = strField(aml, "kycId") || null;
   const requestId = kycId || kycFromAml || eod || null;
+  const directorEod =
+    ce?.directorEod?.trim() || strField(kycRow, "eodRequestId") || eodFromCe || null;
+  const shareholderEod =
+    ce?.shareholderEod?.trim() || strField(kycRow, "shareholderEodRequestId") || null;
 
   return {
     onboarding,
@@ -308,6 +359,10 @@ function enrichPersonFromIssuerMaps(params: {
     directorKycStatus: kycSt,
     directorAmlStatus: amlSt,
     status: amlSt || "",
+    directorEodRequestId: onboardingIdFromRaw(directorEod),
+    shareholderEodRequestId: onboardingIdFromRaw(shareholderEod),
+    partyCorporateRequestId: null,
+    screeningRequestId: screeningIdFromRaw(kycId) || screeningIdFromRaw(kycFromAml),
   };
 }
 
@@ -383,6 +438,8 @@ function personRowFromSupplement(params: {
         ? normalizeRawStatus(onboardingStatus) || onboardingStatus
         : "";
   const { requestId, requestIdType } = requestIdFromSupplementParsed(params.sup, params.supplementRaw);
+  const screeningRid = screeningIdFromRaw(screening?.id) || screeningIdFromRaw(requestId);
+  const onboardingRid = onboardingIdFromRaw(topLevelOnboardingRequestIdFromSupplementRaw(params.supplementRaw));
   return {
     matchKey: params.matchKey,
     name: params.name,
@@ -403,6 +460,11 @@ function personRowFromSupplement(params: {
     icFrontUrl: params.icFrontUrl ?? null,
     icBackUrl: params.icBackUrl ?? null,
     email,
+    screeningRequestId: screeningRid,
+    directorEodRequestId: params.entityType === "INDIVIDUAL" ? onboardingRid : null,
+    shareholderEodRequestId: null,
+    partyCorporateRequestId: params.entityType === "CORPORATE" ? onboardingIdFromRaw(requestId) : null,
+    parentCorporateRequestId: null,
   };
 }
 
@@ -455,6 +517,11 @@ function normalizeUnifiedPeopleRows(rows: ApplicationPersonRow[]): ApplicationPe
       onboarding: { ...(existing.onboarding ?? {}), ...(row.onboarding ?? {}) },
       requestId: existing.requestId ?? row.requestId ?? null,
       requestIdType: existing.requestIdType ?? row.requestIdType ?? null,
+      directorEodRequestId: existing.directorEodRequestId || row.directorEodRequestId || null,
+      shareholderEodRequestId: existing.shareholderEodRequestId || row.shareholderEodRequestId || null,
+      partyCorporateRequestId: existing.partyCorporateRequestId || row.partyCorporateRequestId || null,
+      parentCorporateRequestId: existing.parentCorporateRequestId || row.parentCorporateRequestId || null,
+      screeningRequestId: existing.screeningRequestId || row.screeningRequestId || null,
       icFrontUrl: existing.icFrontUrl ?? row.icFrontUrl ?? null,
       icBackUrl: existing.icBackUrl ?? row.icBackUrl ?? null,
       email: String(existing.email ?? row.email ?? "").trim(),
@@ -601,6 +668,10 @@ function buildPeopleFromUserDeclaredData(params: {
       screening: enriched.screening,
       onboarding: enriched.onboarding,
       requestId: enriched.requestId,
+      directorEodRequestId: enriched.directorEodRequestId,
+      shareholderEodRequestId: enriched.shareholderEodRequestId,
+      partyCorporateRequestId: enriched.partyCorporateRequestId,
+      screeningRequestId: enriched.screeningRequestId,
       icFrontUrl: icUrls?.front ?? null,
       icBackUrl: icUrls?.back ?? null,
       userEmail: null,
@@ -765,6 +836,7 @@ export type BuildDirectorShareholderPeopleParams = {
   ctosPartySupplements?: SupplementInput[] | null;
   corporateEntities: unknown;
   masterParties?: MasterPartyPeopleSeed[] | null;
+  parentCorporateRequestId?: string | null;
 };
 
 function retainMasterActiveOperationalPeople(
@@ -999,6 +1071,10 @@ function buildPeopleFromCtosCompanyJson(
       directorKycStatus: enriched.directorKycStatus,
       onboarding: onboardingFinal,
       requestId: enriched.requestId,
+      directorEodRequestId: enriched.directorEodRequestId,
+      shareholderEodRequestId: enriched.shareholderEodRequestId,
+      partyCorporateRequestId: enriched.partyCorporateRequestId,
+      screeningRequestId: enriched.screeningRequestId,
       icFrontUrl: icUrls?.front ?? null,
       icBackUrl: icUrls?.back ?? null,
       status: screeningFinal?.status ? normalizeRawStatus(screeningFinal.status) || "" : enriched.status || "",
@@ -1046,15 +1122,23 @@ export function buildDirectorShareholderPeopleList(
           };
   }
 
-  if (!params.masterParties?.length) return result;
+  if (!params.masterParties?.length) {
+    return {
+      ...result,
+      people: stampParentCorporateRequestId(result.people, params.parentCorporateRequestId),
+    };
+  }
   const people = retainMasterActiveOperationalPeople(result.people, params.masterParties);
   return {
     ...result,
-    people: mergeMasterPartiesIntoPeopleList({
-      people,
-      masterParties: params.masterParties,
-      ctosPartySupplements: params.ctosPartySupplements ?? null,
-    }),
+    people: stampParentCorporateRequestId(
+      mergeMasterPartiesIntoPeopleList({
+        people,
+        masterParties: params.masterParties,
+        ctosPartySupplements: params.ctosPartySupplements ?? null,
+      }),
+      params.parentCorporateRequestId
+    ),
   };
 }
 

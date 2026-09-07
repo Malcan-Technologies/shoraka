@@ -2517,6 +2517,7 @@ export class ApiClient {
         refreshedSources: string[];
         warnings: string[];
         partialFailures: string[];
+        refreshOutcome?: "COMPLETED" | "PARTIAL" | "SKIPPED_TERMINAL";
       }>
     | ApiError
   > {
@@ -2536,6 +2537,7 @@ export class ApiClient {
       refreshedSources: string[];
       warnings: string[];
       partialFailures: string[];
+      refreshOutcome?: "COMPLETED" | "PARTIAL" | "SKIPPED_TERMINAL";
     }>(`/v1/admin/onboarding-applications/${onboardingId}/refresh-status`, {});
   }
 

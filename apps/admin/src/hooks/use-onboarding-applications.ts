@@ -209,7 +209,9 @@ export function useRefreshOnboardingStatus() {
     mutationFn: async (onboardingId: string) => {
       const response = await apiClient.refreshOnboardingStatus(onboardingId);
       if (!response.success) {
-        throw new Error(response.error.message);
+        const err = new Error(response.error.message) as Error & { code?: string };
+        err.code = response.error.code;
+        throw err;
       }
       return response.data;
     },

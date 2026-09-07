@@ -6,6 +6,8 @@ import { advanceOnboardingStatusFromFlags } from "../../onboarding/utils/advance
 import { getRegTankAPIClient } from "../api-client";
 import { createOnboardingLogRow, webhookAuditContext } from "../../../lib/audit";
 import type { AuditRequestContext } from "../../../lib/audit";
+import { isRegTankRateLimited } from "../helpers/regtank-rate-limit";
+import type { RegTankRefreshSession } from "../helpers/regtank-refresh-session";
 
 /**
  * Result of an AML milestone check/apply attempt.
@@ -238,9 +240,10 @@ function extractMainCompanyKybIdFromWebhookPayloads(webhookPayloads: unknown): s
  * value are intentionally NOT treated as approval here.
  */
 async function checkMainCompanyKybApprovedLive(
-  codRequestId: string
+  codRequestId: string,
+  session?: RegTankRefreshSession
 ): Promise<{ approved: boolean; rawStatus: string | null }> {
-  const apiClient = getRegTankAPIClient();
+  const apiClient = session ?? getRegTankAPIClient();
   let kybId: string | null = null;
 
   try {
@@ -253,6 +256,7 @@ async function checkMainCompanyKybApprovedLive(
       }
     }
   } catch (error) {
+    if (isRegTankRateLimited(error)) throw error;
     logger.warn(
       { error: error instanceof Error ? error.message : String(error), codRequestId },
       "[AML milestone] Failed to fetch COD details while resolving main-company kybId"
@@ -279,6 +283,7 @@ async function checkMainCompanyKybApprovedLive(
     const approved = typeof rawStatus === "string" && rawStatus.toUpperCase() === "APPROVED";
     return { approved, rawStatus };
   } catch (error) {
+    if (isRegTankRateLimited(error)) throw error;
     logger.warn(
       { error: error instanceof Error ? error.message : String(error), kybId, codRequestId },
       "[AML milestone] Failed to query live KYB status"
@@ -298,9 +303,10 @@ export async function applyCorporateAmlMilestoneFromLiveKyb(params: {
   organizationName?: string | null;
   codRequestId: string;
   trigger: string;
+  session?: RegTankRefreshSession;
 }): Promise<AmlMilestoneOutcome> {
-  const { codRequestId, ...rest } = params;
-  const { approved, rawStatus } = await checkMainCompanyKybApprovedLive(codRequestId);
+  const { codRequestId, session, ...rest } = params;
+  const { approved, rawStatus } = await checkMainCompanyKybApprovedLive(codRequestId, session);
 
   if (!approved) {
     const current = await readCurrentOrgState(rest.organizationId, rest.portalType);
@@ -338,9 +344,10 @@ export async function applyPersonalAmlMilestoneFromLiveKyc(params: {
   trigger: string;
   context?: AuditRequestContext;
   actorUserId?: string | null;
+  session?: RegTankRefreshSession;
 }): Promise<AmlMilestoneOutcome> {
-  const { kycId, ...rest } = params;
-  const apiClient = getRegTankAPIClient();
+  const { kycId, session, ...rest } = params;
+  const apiClient = session ?? getRegTankAPIClient();
   let rawStatus: string | null = null;
 
   try {
@@ -348,6 +355,7 @@ export async function applyPersonalAmlMilestoneFromLiveKyc(params: {
     const kycData = Array.isArray(kycResponse) ? kycResponse[0] : kycResponse;
     rawStatus = typeof kycData?.status === "string" ? kycData.status : null;
   } catch (error) {
+    if (isRegTankRateLimited(error)) throw error;
     logger.warn(
       { error: error instanceof Error ? error.message : String(error), kycId },
       "[AML milestone] Failed to query live KYC status"

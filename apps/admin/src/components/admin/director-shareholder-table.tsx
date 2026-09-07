@@ -32,7 +32,7 @@ import {
   formatPeopleRolesLineWithoutShare,
   isMissingGovernmentIdPerson,
   getFinalStatusLabel,
-  getRegtankLink,
+  getRegtankOnboardingViewLinks,
   normalizeDirectorShareholderIdKey,
   resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
@@ -211,8 +211,9 @@ export function DirectorShareholderTable({
                   </TableCell>
                   <TableCell>
                     {(() => {
-                      const rid = String(p.requestId ?? "").trim();
-                      const link = getRegtankLink(p);
+                      const onboardingLinks = getRegtankOnboardingViewLinks(p);
+                      const link = onboardingLinks[0]?.url ?? null;
+                      const rid = onboardingLinks[0]?.requestId || String(p.requestId ?? "").trim();
                       if (link) {
                         return (
                           <Button
