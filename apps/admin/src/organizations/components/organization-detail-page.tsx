@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { BuildingOffice2Icon, UserIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { PortalBadge, Skeleton, StatusBadge } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
-import { formatOrganizationReference, type PortalType } from "@cashsouk/types";
+import { formatOrganizationReference, getRegtankCorporateOnboardingUrl, type PortalType } from "@cashsouk/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -190,6 +190,10 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
       : `${org.owner.firstName} ${org.owner.lastName}`;
   }, [org]);
 
+  const headerRegtankUrl = org
+    ? org.regtankPortalUrl?.trim() || getRegtankCorporateOnboardingUrl(org.codRequestId)
+    : null;
+
   const tabs = React.useMemo<AdminDetailTab<OrgDetailTabId>[]>(() => {
     if (!org) return [];
     const orgTab = organizationTabStatus(org.onboardingStatus);
@@ -355,7 +359,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                   }
                   summaryCards={summaryCards}
                   actions={
-                    portal === "investor" || org.regtankPortalUrl ? (
+                    portal === "investor" || headerRegtankUrl ? (
                       <>
                         {portal === "investor" ? (
                           <div className="flex flex-col gap-1">
@@ -386,9 +390,9 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                             ) : null}
                           </div>
                         ) : null}
-                        {org.regtankPortalUrl ? (
+                        {headerRegtankUrl ? (
                           <Button variant="outline" size="sm" asChild className="gap-1.5">
-                            <a href={org.regtankPortalUrl} target="_blank" rel="noopener noreferrer">
+                            <a href={headerRegtankUrl} target="_blank" rel="noopener noreferrer">
                               <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                               Open in RegTank
                             </a>

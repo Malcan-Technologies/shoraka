@@ -10,6 +10,7 @@ import {
 } from "@cashsouk/types";
 import { PartyRoleBadges, StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
+import { RegtankRecordsControl } from "@/components/admin/regtank-records-control";
 import { ADMIN_ACTION_SURFACE_CLASS } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 import { MismatchBlock } from "./organization-external-review-sheet";
@@ -82,7 +83,8 @@ export function OrganizationPersonCard({
             {item.kind === "inactive" ? <StatusBadge status="neutral" label="Inactive" /> : null}
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {person ? <RegtankRecordsControl person={person} /> : null}
           <Button type="button" variant="outline" size="sm" onClick={onView}>
             View details
           </Button>
