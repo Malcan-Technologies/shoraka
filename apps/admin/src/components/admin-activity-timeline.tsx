@@ -177,6 +177,7 @@ function getEventLabel(
     PAYMASTER_LINKED_TO_ISSUER: "Paymaster Linked to Issuer",
     PAYMASTER_IDENTITY_UPDATED: "Paymaster Identity Updated",
     PAYMASTER_VERIFIED: "Paymaster Identity Verified",
+    PAYMASTER_IDENTITY_SYNCED: "Paymaster Identity Synced",
     PAYMASTER_IDENTITY_RESOLVED: "Paymaster Identity Resolved",
   };
   if (eventType === "INVOICE_OFFER_SENT") {
@@ -270,6 +271,9 @@ function paymasterIdentityDescription(
       ? `${identity} identity reviewed internally. Unverified → Verified.`
       : "Paymaster identity reviewed internally. Unverified → Verified.";
   }
+  if (eventType === "PAYMASTER_IDENTITY_SYNCED") {
+    return remark?.trim() || "Official Paymaster identity updated";
+  }
   if (eventType === "PAYMASTER_IDENTITY_RESOLVED") {
     return identity
       ? `Submitted customer identity replaced with verified Paymaster ${identity}.`
@@ -300,6 +304,21 @@ function paymasterIdentityCompactDetails(
     pushDiff("Legal name", "legalName");
     pushDiff("Country", "country");
     pushDiff("Entity type", "entityType");
+    return rows;
+  }
+  if (eventType === "PAYMASTER_IDENTITY_SYNCED") {
+    const previous = asIdentityRecord(metadata?.previous);
+    const next = asIdentityRecord(metadata?.new);
+    const pushDiff = (label: string, fromKey: string) => {
+      const from = typeof previous?.[fromKey] === "string" ? previous[fromKey].trim() : "";
+      const to = typeof next?.[fromKey] === "string" ? next[fromKey].trim() : "";
+      if (from !== to && (from || to)) rows.push({ label, value: `${from} → ${to}` });
+    };
+    pushDiff("Customer Name", "name");
+    pushDiff("Customer Country", "country");
+    pushDiff("Customer Entity Type", "entity_type");
+    pushDiff("Customer SSM Number", "ssm_number");
+    rows.push({ label: "Source", value: "Official Paymaster identity updated" });
     return rows;
   }
   const legalName = typeof metadata?.legalName === "string" ? metadata.legalName.trim() : "";

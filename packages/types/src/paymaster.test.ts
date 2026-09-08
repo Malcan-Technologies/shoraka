@@ -14,16 +14,18 @@ import {
 } from "./paymaster";
 
 describe("Paymaster identity Activity event types", () => {
-  it("is the create, link, update, verify, and resolve set", () => {
+  it("is the create, link, update, verify, sync, and historical resolve set", () => {
     expect(PAYMASTER_IDENTITY_ACTIVITY_EVENT_TYPES).toEqual([
       "PAYMASTER_CREATED",
       "PAYMASTER_LINKED_TO_ISSUER",
       "PAYMASTER_IDENTITY_UPDATED",
       "PAYMASTER_VERIFIED",
+      "PAYMASTER_IDENTITY_SYNCED",
       "PAYMASTER_IDENTITY_RESOLVED",
     ]);
     expect(isPaymasterIdentityActivityEventType("PAYMASTER_CREATED")).toBe(true);
     expect(isPaymasterIdentityActivityEventType("PAYMASTER_IDENTITY_UPDATED")).toBe(true);
+    expect(isPaymasterIdentityActivityEventType("PAYMASTER_IDENTITY_SYNCED")).toBe(true);
     expect(isPaymasterIdentityActivityEventType("PAYMASTER_IDENTITY_RESOLVED")).toBe(true);
     expect(isPaymasterIdentityActivityEventType("PAYMASTER_NOTICE_GENERATED")).toBe(false);
     expect(isPaymasterIdentityActivityEventType("APPLICATION_CREATED")).toBe(false);

@@ -1,7 +1,8 @@
 /**
  * Paymaster master-identity application Activity metadata.
- * Create/link/verify/update store trusted master identity. Historical
- * PAYMASTER_IDENTITY_RESOLVED rows still render; there is no live writer.
+ * Create/link/verify/update store trusted master identity. Auto-sync of
+ * application working customer_details writes PAYMASTER_IDENTITY_SYNCED.
+ * Historical PAYMASTER_IDENTITY_RESOLVED rows still render; there is no live writer.
  */
 
 import type { Prisma } from "@prisma/client";
@@ -11,11 +12,16 @@ import type { AuditRequestContext } from "../../lib/audit";
 import type { PaymasterVerificationStatus } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 
+export const PAYMASTER_IDENTITY_SYNC_SOURCE = "paymaster_auto_sync";
+
+export type PaymasterIdentitySyncTrigger = "verification" | "verified_master_edit";
+
 type PaymasterIdentityEventType =
   | typeof ApplicationLogEventType.PAYMASTER_CREATED
   | typeof ApplicationLogEventType.PAYMASTER_LINKED_TO_ISSUER
   | typeof ApplicationLogEventType.PAYMASTER_IDENTITY_UPDATED
   | typeof ApplicationLogEventType.PAYMASTER_VERIFIED
+  | typeof ApplicationLogEventType.PAYMASTER_IDENTITY_SYNCED
   | typeof ApplicationLogEventType.PAYMASTER_IDENTITY_RESOLVED;
 
 export function buildPaymasterIdentityRemark(params: {
@@ -32,6 +38,9 @@ export function buildPaymasterIdentityRemark(params: {
   }
   if (params.eventType === ApplicationLogEventType.PAYMASTER_IDENTITY_UPDATED) {
     return `${identity} official identity updated.`;
+  }
+  if (params.eventType === ApplicationLogEventType.PAYMASTER_IDENTITY_SYNCED) {
+    return "Official Paymaster identity updated";
   }
   if (params.eventType === ApplicationLogEventType.PAYMASTER_IDENTITY_RESOLVED) {
     return `Submitted customer identity replaced with verified Paymaster ${identity}.`;

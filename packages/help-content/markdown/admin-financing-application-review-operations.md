@@ -6,7 +6,7 @@ tags:
   - admin
   - operations
 order: 11
-updated: 2026-09-06
+updated: 2026-09-08
 ---
 
 ## Purpose
@@ -211,11 +211,11 @@ Admin confirms official identity on Paymaster Detail or the shared Verify modal.
 
 ### After verification
 
-The official Paymaster identity automatically becomes the current working identity for eligible active applications linked to that Paymaster (draft if already linked, submitted / under review, pending or amendment-requested review, and other still-editable origination states). Admins do not update each application by hand. Related-party, large-private-company, and customer document fields are preserved.
+The official Paymaster identity automatically becomes the current working identity for eligible active applications linked to that Paymaster (draft if already linked, submitted / under review, pending or amendment-requested review, and other still-editable origination states). Admins do not update each application by hand. Related-party, large-private-company, and customer document fields are preserved. When that auto-sync actually changes an application's working `customer_details`, Application Activity records **Paymaster Identity Synced**. Paymaster Activity still records the master event (**Paymaster Identity Verified** or **Paymaster Identity Updated**). No customer notification is sent.
 
 Completed, approved-and-frozen, already-signed, facility-established, and note-created applications stay historical. Existing revision snapshots, Note `paymaster_snapshot`, published Prospectus, and already-generated documents are not rewritten.
 
-If current working identity still differs from the official master (typically a frozen application), Application Review can show **Originally submitted by issuer** next to **Official Paymaster Identity** for reference. **Request Amendment** uses the existing Facility / Customer amendment remark flow. After a commercial offer, signing, or approved facility, that amendment path cannot reopen Paymaster / SSM switching.
+If current working identity still differs from the official master (typically a frozen application), Application Review shows **Current Paymaster Details** next to **Official Paymaster Identity**. That current working JSON is not labelled as the original issuer submission. **Originally Submitted by Issuer** applies only when reading actual application revision/history data. **Request Amendment** uses the existing Facility / Customer amendment remark flow. After a commercial offer, signing, or approved facility, that amendment path cannot reopen Paymaster / SSM switching.
 
 Do not send a facility or invoice offer until the Paymaster is verified. After verification, eligible working applications already match the official identity, so the offer identity gate should pass without a separate resolve step.
 
@@ -231,7 +231,7 @@ Post-offer and frozen stages (`OFFER_SENT`, `CONTRACT_SENT`, signing, `APPROVED`
 
 Related-party (Yes / No) is per issuer link, not part of locked master identity. Large Private Company stays on the application / facility.
 
-The Paymasters register lists identity and Verified / Unverified status. It is not a mismatch inbox. Edit Paymaster Details and Verify Paymaster change the official master and overlay that identity onto eligible working applications. They do not rewrite historical snapshots or send customer notifications.
+The Paymasters register lists identity and Verified / Unverified status. It is not a mismatch inbox. Edit Paymaster Details and Verify Paymaster change the official master and overlay that identity onto eligible working applications. When an unfinished application's working details actually change, Application Activity records **Paymaster Identity Synced**. They do not rewrite historical snapshots or send customer notifications.
 - Confirm guarantor screening before treating guarantor support as established.
 - Use invoice offers for invoice-level commercial approval and facility offers for facility-level approval.
 - Do not send offers until upstream sections are approved and the relevant tab is unlocked.

@@ -82,6 +82,33 @@ describe("Paymaster Activity presentation", () => {
     ]);
   });
 
+  it("shows working identity diffs for Paymaster Identity Synced", () => {
+    const synced = event({
+      eventType: "PAYMASTER_IDENTITY_SYNCED",
+      remark: "Official Paymaster identity updated",
+      relatedParty: null,
+      metadata: {
+        previous: { name: "ABC Trading Sdn. Bhd." },
+        new: { name: "ABC Trading Sdn Bhd" },
+        source: "paymaster_auto_sync",
+        trigger: "verified_master_edit",
+      },
+    });
+    expect(paymasterActivityDescription(synced)).toBe("Official Paymaster identity updated");
+    expect(paymasterActivityCompactDetails(synced)).toEqual([
+      {
+        key: "name",
+        label: "Customer Name",
+        value: "ABC Trading Sdn. Bhd. → ABC Trading Sdn Bhd",
+      },
+      {
+        key: "source",
+        label: "Source",
+        value: "Official Paymaster identity updated",
+      },
+    ]);
+  });
+
   it("shows global verification as previous → new status", () => {
     const verified = event({
       eventType: "PAYMASTER_VERIFIED",

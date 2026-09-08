@@ -65,6 +65,7 @@ import {
   parseRegistrationLookup,
   parseRelatedPartyFlag,
   parseSubmittedIdentity,
+  workingIdentityChangeMetadata,
   type PaymasterOfficialIdentity,
   type PaymasterSubmittedIdentity,
 } from "./identity";
@@ -74,8 +75,10 @@ import {
   selectSubmittedApplicationIdentities,
 } from "./submitted-application-identities";
 import {
+  PAYMASTER_IDENTITY_SYNC_SOURCE,
   buildPaymasterIdentityAuditMetadata,
   writePaymasterIdentityApplicationLog,
+  type PaymasterIdentitySyncTrigger,
 } from "./identity-audit";
 import { buildSubmittedCustomerDetails, snapshotAsJson } from "./snapshot";
 
@@ -309,6 +312,33 @@ export function isPaymasterWorkingIdentityEligible(params: {
   return true;
 }
 
+type PaymasterWorkingIdentityApplication = {
+  id: string;
+  status: string;
+  financing_structure: unknown;
+};
+
+/**
+ * customer_details lives on Contract, so auto-sync is allowed only when every
+ * linked application is still eligible. An empty application list is not eligible
+ * (`[].every(...)` would otherwise be true).
+ */
+function isPaymasterWorkingIdentityContractEligible(params: {
+  applications: readonly PaymasterWorkingIdentityApplication[];
+  contractStatus: string | null;
+  notedApplicationIds?: ReadonlySet<string>;
+}): boolean {
+  if (params.applications.length === 0) return false;
+  return params.applications.every((application) =>
+    isPaymasterWorkingIdentityEligible({
+      applicationStatus: application.status,
+      financingStructure: application.financing_structure,
+      contractStatus: params.contractStatus,
+      hasNote: params.notedApplicationIds?.has(application.id) === true,
+    })
+  );
+}
+
 function customerDetailsRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
@@ -359,6 +389,9 @@ async function syncOfficialIdentityToEligibleApplications(
       registration_number: string;
       registration_country: string;
     };
+    actorUserId: string;
+    trigger: PaymasterIdentitySyncTrigger;
+    context?: AuditRequestContext | null;
   },
   db: Prisma.TransactionClient | typeof prisma
 ): Promise<void> {
@@ -375,13 +408,10 @@ async function syncOfficialIdentityToEligibleApplications(
   });
   const candidates = contracts.filter((contract) => {
     if (!contract.id) return false;
-    return (contract.applications ?? []).some((application) =>
-      isPaymasterWorkingIdentityEligible({
-        applicationStatus: application.status,
-        financingStructure: application.financing_structure,
-        contractStatus: contract.status,
-      })
-    );
+    return isPaymasterWorkingIdentityContractEligible({
+      applications: contract.applications ?? [],
+      contractStatus: contract.status,
+    });
   });
   if (candidates.length === 0) return;
 
@@ -408,15 +438,16 @@ async function syncOfficialIdentityToEligibleApplications(
 
   for (const contract of candidates) {
     if (notedContractIds.has(contract.id)) continue;
-    const eligible = (contract.applications ?? []).some((application) =>
-      isPaymasterWorkingIdentityEligible({
-        applicationStatus: application.status,
-        financingStructure: application.financing_structure,
+    const applications = contract.applications ?? [];
+    if (
+      !isPaymasterWorkingIdentityContractEligible({
+        applications,
         contractStatus: contract.status,
-        hasNote: notedApplicationIds.has(application.id),
+        notedApplicationIds,
       })
-    );
-    if (!eligible) continue;
+    ) {
+      continue;
+    }
     const existing = customerDetailsRecord(contract.customer_details);
     if (
       !submittedIdentityDiffersFromVerified({
@@ -426,14 +457,44 @@ async function syncOfficialIdentityToEligibleApplications(
     ) {
       continue;
     }
+    const nextDetails = overlayOfficialIdentityOnCustomerDetails(existing, params.paymaster);
+    const diff = workingIdentityChangeMetadata(existing, nextDetails);
+    if (diff.changedFields.length === 0) continue;
+
     await db.contract.update({
       where: { id: contract.id },
       data: {
-        customer_details: snapshotAsJson(
-          overlayOfficialIdentityOnCustomerDetails(existing, params.paymaster)
-        ),
+        customer_details: snapshotAsJson(nextDetails),
       },
     });
+    for (const application of applications) {
+      await writePaymasterIdentityApplicationLog(
+        {
+          eventType: ApplicationLogEventType.PAYMASTER_IDENTITY_SYNCED,
+          actorUserId: params.actorUserId,
+          applicationId: application.id,
+          portal: ActivityPortal.ADMIN,
+          paymasterId: params.paymaster.id,
+          metadata: {
+            ...buildPaymasterIdentityAuditMetadata({
+              paymasterId: params.paymaster.id,
+              registrationNumber: params.paymaster.registration_number,
+              legalName: nextDetails.name,
+              verificationStatus: "VERIFIED",
+              applicationId: application.id,
+              contractId: contract.id,
+              source: PAYMASTER_IDENTITY_SYNC_SOURCE,
+            }),
+            previous: diff.previous,
+            new: diff.next,
+            changed_fields: diff.changedFields,
+            trigger: params.trigger,
+          },
+          context: params.context,
+        },
+        db
+      );
+    }
   }
 }
 
@@ -976,6 +1037,9 @@ export async function updatePaymasterIdentity(params: {
             registration_number: current.registration_number,
             registration_country: next.registrationCountry,
           },
+          actorUserId: params.actorUserId,
+          trigger: "verified_master_edit",
+          context: params.auditContext,
         },
         tx
       );
@@ -1091,6 +1155,9 @@ export async function verifyPaymaster(params: {
           registration_number: current.registration_number,
           registration_country: next.registrationCountry,
         },
+        actorUserId: params.actorUserId,
+        trigger: "verification",
+        context: params.auditContext,
       },
       tx
     );

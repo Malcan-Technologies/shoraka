@@ -264,7 +264,7 @@ Remaining naming splits (documented, not silently renamed in the database):
 
 Renaming seed `name` would not update existing production rows (`createTypeIfNotExist`). Inbox titles are customer-facing and were left unchanged.
 
-Paymaster identity create, link, edit, verify, and automatic working-application identity overlay do **not** send typed notifications, platform inbox messages, or SES emails. Automatic notification count and direct email count are unchanged.
+Paymaster identity create, link, edit, verify, automatic working-application identity overlay, and **Paymaster Identity Synced** audit events do **not** send typed notifications, platform inbox messages, or SES emails. Automatic notification count and direct email count are unchanged.
 
 ---
 
