@@ -312,6 +312,33 @@ export function isPaymasterWorkingIdentityEligible(params: {
   return true;
 }
 
+type PaymasterWorkingIdentityApplication = {
+  id: string;
+  status: string;
+  financing_structure: unknown;
+};
+
+/**
+ * customer_details lives on Contract, so auto-sync is allowed only when every
+ * linked application is still eligible. An empty application list is not eligible
+ * (`[].every(...)` would otherwise be true).
+ */
+function isPaymasterWorkingIdentityContractEligible(params: {
+  applications: readonly PaymasterWorkingIdentityApplication[];
+  contractStatus: string | null;
+  notedApplicationIds?: ReadonlySet<string>;
+}): boolean {
+  if (params.applications.length === 0) return false;
+  return params.applications.every((application) =>
+    isPaymasterWorkingIdentityEligible({
+      applicationStatus: application.status,
+      financingStructure: application.financing_structure,
+      contractStatus: params.contractStatus,
+      hasNote: params.notedApplicationIds?.has(application.id) === true,
+    })
+  );
+}
+
 function customerDetailsRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
@@ -381,13 +408,10 @@ async function syncOfficialIdentityToEligibleApplications(
   });
   const candidates = contracts.filter((contract) => {
     if (!contract.id) return false;
-    return (contract.applications ?? []).some((application) =>
-      isPaymasterWorkingIdentityEligible({
-        applicationStatus: application.status,
-        financingStructure: application.financing_structure,
-        contractStatus: contract.status,
-      })
-    );
+    return isPaymasterWorkingIdentityContractEligible({
+      applications: contract.applications ?? [],
+      contractStatus: contract.status,
+    });
   });
   if (candidates.length === 0) return;
 
@@ -414,15 +438,16 @@ async function syncOfficialIdentityToEligibleApplications(
 
   for (const contract of candidates) {
     if (notedContractIds.has(contract.id)) continue;
-    const eligible = (contract.applications ?? []).some((application) =>
-      isPaymasterWorkingIdentityEligible({
-        applicationStatus: application.status,
-        financingStructure: application.financing_structure,
+    const applications = contract.applications ?? [];
+    if (
+      !isPaymasterWorkingIdentityContractEligible({
+        applications,
         contractStatus: contract.status,
-        hasNote: notedApplicationIds.has(application.id),
+        notedApplicationIds,
       })
-    );
-    if (!eligible) continue;
+    ) {
+      continue;
+    }
     const existing = customerDetailsRecord(contract.customer_details);
     if (
       !submittedIdentityDiffersFromVerified({
@@ -436,22 +461,13 @@ async function syncOfficialIdentityToEligibleApplications(
     const diff = workingIdentityChangeMetadata(existing, nextDetails);
     if (diff.changedFields.length === 0) continue;
 
-    const eligibleApplications = (contract.applications ?? []).filter((application) =>
-      isPaymasterWorkingIdentityEligible({
-        applicationStatus: application.status,
-        financingStructure: application.financing_structure,
-        contractStatus: contract.status,
-        hasNote: notedApplicationIds.has(application.id),
-      })
-    );
-    if (eligibleApplications.length === 0) continue;
     await db.contract.update({
       where: { id: contract.id },
       data: {
         customer_details: snapshotAsJson(nextDetails),
       },
     });
-    for (const application of eligibleApplications) {
+    for (const application of applications) {
       await writePaymasterIdentityApplicationLog(
         {
           eventType: ApplicationLogEventType.PAYMASTER_IDENTITY_SYNCED,
